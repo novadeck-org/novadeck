@@ -108,6 +108,12 @@ const defaultTiming: DemoMurmurTiming = {
   device: "Intel Arc Graphics",
 }
 
+// An install that holds at its first step, for a spec that stops one: its Cancel then never
+// races the demo's clock to the install's end, however slow the machine. Four days a step, so
+// the last timer of the longest install (the voice fallback's, five steps on) still fits
+// setTimeout, which fires at once past 2^31 ms.
+export const heldMurmurTiming: DemoMurmurTiming = { ...defaultTiming, step: 400_000_000 }
+
 // How many times a download reports progress.
 const ticks = 8
 

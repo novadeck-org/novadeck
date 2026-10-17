@@ -140,6 +140,26 @@ describe("A file", () => {
       .element(pane.getByText("src/content/projects.json", { exact: true }))
       .toBeInViewport()
   })
+
+  it("opens where it was left, after the pane showed something else", async () => {
+    // The showcase opens with Build Studio showing this file.
+    await openShowcase()
+    const pane = companionPane("Build Studio")
+    const region = () => pane.getByRole("region", { name: "src/content/projects.json" })
+    await expect.element(region()).toBeVisible()
+    const lines = region().element()
+    await expect.poll(() => lines.scrollHeight).toBeGreaterThan(lines.clientHeight + 40)
+    lines.scrollTop = 40
+    await expect.poll(() => lines.scrollTop).toBe(40)
+
+    await taskbarIcon("Build Studio", "2 images").click()
+    await expect.element(pane.getByRole("img")).toBeVisible()
+    await taskbarIcon("Build Studio", "2 files").click()
+
+    await expect.element(region()).toBeVisible()
+    expect(region().element()).not.toBe(lines)
+    expect(region().element().scrollTop).toBe(40)
+  })
 })
 
 describe("A viewer's header", () => {

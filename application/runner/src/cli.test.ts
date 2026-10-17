@@ -82,7 +82,7 @@ describe("built runner CLI", () => {
     expect(cli.output()).not.toContain(token)
     await expect(cli.connect("wrong")).rejects.toMatchObject({ code: "UNAUTHORIZED" })
     const runner = await cli.connect(token)
-    expect(runner.status).toEqual({ state: "connected", runnerId: expect.any(String) })
+    expect(runner.status).toEqual({ state: "connected", epoch: expect.any(String) })
     const project = await runner.projects.create({
       id: crypto.randomUUID(),
       name: "CLI workspace",
@@ -123,7 +123,7 @@ describe("built runner CLI", () => {
 
     const restarted = await launchCli(directory, resources)
     const again = await restarted.connect(token)
-    expect(again.status).toEqual({ state: "connected", runnerId: expect.any(String) })
+    expect(again.status).toEqual({ state: "connected", epoch: expect.any(String) })
     expect(again.status).not.toEqual(first)
     await expect(again.projects.list()).resolves.toEqual([project])
     await expect(again.sessions.list({ projectId: project.id })).resolves.toEqual([session])

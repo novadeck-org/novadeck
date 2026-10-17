@@ -10,6 +10,11 @@ import {
 } from "./windows-path.js"
 
 const windows = process.platform === "win32"
+// How long a test lets one program that reads the registry run: a cold PowerShell on a loaded
+// runner can take many seconds. A read runs the relay, where it's given one, and PowerShell
+// where that fails, each within this; a test waits for every run it may make, and a little.
+const readMs = 30_000
+const runsMs = (runs: number) => runs * readMs + 5_000
 // The lookup's answer: a line for each of a key's values as the registry holds it,
 // unexpanded, its name and value in base64.
 const b64 = (text: string) => Buffer.from(text, "utf8").toString("base64")
@@ -211,8 +216,15 @@ describe("refreshing PATH", () => {
     forgetPath()
   })
 
-  it.runIf(windows)("reads it through PowerShell where the relay can't run", async () => {
-    const missing = await readRegistry(process.env, 30_000, "C:\\Nowhere\\relay.exe")
-    expect(missing).toEqual(await readRegistry(process.env, 30_000))
-  })
+  it.runIf(windows)(
+    "reads it through PowerShell where the relay can't run",
+    async () => {
+      const missing = await readRegistry(process.env, readMs, "C:\\Nowhere\\relay.exe")
+      // Folders, not two reads that both ran out of time.
+      expect(Array.isArray(missing) && missing.length).toBeGreaterThan(0)
+      expect(missing).toEqual(await readRegistry(process.env, readMs))
+    },
+    // A missing relay fails at once; then PowerShell, twice.
+    runsMs(2),
+  )
 })

@@ -1,6 +1,7 @@
 import type { TerminalSummary } from "@novadeck/protocol"
-import { type RunnerStatus, type TerminalWatchItem } from "@novadeck/protocol/client"
+import { type TerminalWatchItem } from "@novadeck/protocol/client"
 import { WireError } from "@novadeck/wire"
+import type { WireStatus } from "@novadeck/wire/client"
 import { afterAll, vi } from "vitest"
 
 import { workspaceFromSeed } from "../../model/seed"
@@ -72,7 +73,7 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
 const scripted = (reported: TerminalSummary, lastProgram = "") => {
   const listed = lastProgram ? { ...reported, lastProgram } : reported
   const changes = channel<TerminalWatchItem>()
-  const statuses = channel<RunnerStatus>()
+  const statuses = channel<WireStatus>()
   const restarts: ((summary: TerminalSummary) => void)[] = []
   const api = {
     watch: () => statuses.iterator,
@@ -117,7 +118,7 @@ const scripted = (reported: TerminalSummary, lastProgram = "") => {
     dispatch: (actions) => received.push(...actions),
     open: () => {},
   })
-  statuses.push({ state: "connected", runnerId: "runner-1" })
+  statuses.push({ state: "connected", epoch: "runner-1" })
   const statusesOf = () =>
     received.flatMap((action) => (action.type === "terminal/status" ? [action.status] : []))
   const key = { projectId: "p", workspaceSessionId: "s", terminalId }
@@ -140,7 +141,7 @@ describe("a terminal the runner loses", () => {
     const app = scripted(summary({ process: { name: "claude", argv: null } }))
     await flush()
     // A new runner reports its terminals, and this one is not among them.
-    app.statuses.push({ state: "connected", runnerId: "runner-2" })
+    app.statuses.push({ state: "connected", epoch: "runner-2" })
     app.changes.push({ type: "reset" })
     app.changes.push({ type: "synced" })
     await vi.waitFor(() => expect(app.statusesOf().at(-1)).toEqual({ state: "starting" }))
@@ -224,7 +225,7 @@ describe("runs of a terminal", () => {
     it("counts runs afresh", async () => {
       const app = scripted(summary({ run: 5 }))
       await flush()
-      app.statuses.push({ state: "connected", runnerId: "runner-2" })
+      app.statuses.push({ state: "connected", epoch: "runner-2" })
       await flush()
       app.changes.push({
         type: "changed",

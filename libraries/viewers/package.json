@@ -1,0 +1,68 @@
+{
+  "name": "@novadeck/viewers",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Content viewers behind one contract: code, image, markdown and web pages, each mounted into an element, keeping its scroll and place across remounts through state its host stores.",
+  "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./code": {
+      "development": "./src/code.ts",
+      "types": "./dist/code.d.ts",
+      "default": "./dist/code.js"
+    },
+    "./code.css": "./src/code.css",
+    "./react": {
+      "development": "./src/react.ts",
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@lezer/common": "^1.5.3",
+    "@lezer/cpp": "^1.1.6",
+    "@lezer/css": "^1.3.9",
+    "@lezer/go": "^1.0.1",
+    "@lezer/highlight": "^1.2.5",
+    "@lezer/html": "^1.3.13",
+    "@lezer/java": "^1.1.5",
+    "@lezer/javascript": "^1.5.6",
+    "@lezer/json": "^1.0.3",
+    "@lezer/markdown": "^1.8.0",
+    "@lezer/python": "^1.1.19",
+    "@lezer/rust": "^1.0.3",
+    "@lezer/xml": "^1.0.6",
+    "@lezer/yaml": "^1.0.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitest/browser-playwright": "5.0.3",
+    "playwright": "^1.64.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  },
+  "peerDependencies": {
+    "react": "^19.3.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  }
+}

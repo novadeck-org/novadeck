@@ -1,5 +1,5 @@
-import { type RunnerStatus } from "@novadeck/protocol/client"
 import { WireError } from "@novadeck/wire"
+import type { WireStatus } from "@novadeck/wire/client"
 
 import { workspaceFromSeed } from "../../model/seed"
 import { activeProject, activeSession, workspaceReducer } from "../../model/state"
@@ -23,15 +23,15 @@ const nothing = (): AsyncIterableIterator<never, undefined> => {
 // A runner whose link drops right after it started a shell, before it could answer:
 // a situation a real runner cannot be put in on cue.
 const droppingRunner = () => {
-  let status: RunnerStatus = { state: "connected", runnerId: "r1" }
+  let status: WireStatus = { state: "connected", epoch: "r1" }
   const wake = new Set<() => void>()
-  const set = (next: RunnerStatus): void => {
+  const set = (next: WireStatus): void => {
     status = next
     for (const resolve of wake) resolve()
     wake.clear()
   }
-  const statuses = async function* (): AsyncGenerator<RunnerStatus, undefined> {
-    let last: RunnerStatus | undefined
+  const statuses = async function* (): AsyncGenerator<WireStatus, undefined> {
+    let last: WireStatus | undefined
     for (;;) {
       if (status !== last) {
         last = status
@@ -69,7 +69,7 @@ const droppingRunner = () => {
     },
     companions: noCompanions,
   } as unknown as RunnerApi
-  return { api, shells, reconnect: () => set({ state: "connected", runnerId: "r1" }) }
+  return { api, shells, reconnect: () => set({ state: "connected", epoch: "r1" }) }
 }
 
 describe("closing a terminal while its create is unanswered", () => {

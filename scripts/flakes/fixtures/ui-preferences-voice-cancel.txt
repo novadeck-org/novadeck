@@ -1,0 +1,57 @@
+2026-10-17T16:18:06.8384400Z        [33m[2m✓[22m[39m does nothing outside navigate mode: it keeps the selection and the sidebar[33m 1954[2mms[22m[39m
+2026-10-17T16:18:06.8384640Z        [33m[2m✓[22m[39m leaves Escape to a focused terminal input[33m 1110[2mms[22m[39m
+2026-10-17T16:18:06.8384800Z      [32m✓[39m when pressing Escape in Grid [2m(2)[22m
+2026-10-17T16:18:06.8385120Z        [33m[2m✓[22m[39m does nothing outside navigate mode: it keeps the selection and the sidebar[33m 2523[2mms[22m[39m
+2026-10-17T16:18:06.8385380Z        [33m[2m✓[22m[39m leaves Escape to a focused terminal input[33m 1113[2mms[22m[39m
+2026-10-17T16:18:06.8386080Z      [32m✓[39m when pressing Escape in Canvas [2m(2)[22m
+2026-10-17T16:18:06.8386460Z        [33m[2m✓[22m[39m does nothing outside navigate mode: it keeps the selection and the sidebar[33m 3072[2mms[22m[39m
+2026-10-17T16:18:06.8386690Z        [33m[2m✓[22m[39m leaves Escape to a focused terminal input[33m 1614[2mms[22m[39m
+2026-10-17T16:18:06.8387090Z  [32m✓[39m [30m[43m behaviour (chromium) [49m[39m src/specs/companions-space.spec.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 7616[2mms[22m[39m
+2026-10-17T16:18:06.8387410Z    [33m[2m✓[22m[39m finds free Grid space beyond a window's resize handle in several moves[33m 3330[2mms[22m[39m
+2026-10-17T16:18:06.8387710Z    [33m[2m✓[22m[39m finds free Grid space beyond a window's resize handle in one move[33m 4283[2mms[22m[39m
+2026-10-17T16:18:06.8388250Z  [32m✓[39m [30m[43m behaviour (chromium) [49m[39m src/specs/commands.spec.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 3300[2mms[22m[39m
+2026-10-17T16:18:06.8388380Z    [32m✓[39m workspace commands [2m(1)[22m
+2026-10-17T16:18:06.8388600Z      [32m✓[39m when creating a terminal while another name is being edited [2m(1)[22m
+2026-10-17T16:18:06.8389060Z        [33m[2m✓[22m[39m saves the existing name and creates the new terminal in the same interaction[33m 3300[2mms[22m[39m
+2026-10-17T16:18:06.8389120Z 
+2026-10-17T16:18:06.8389380Z [31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 2 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-17T16:18:06.8389380Z 
+2026-10-17T16:18:06.8389940Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/preferences.spec.tsx[2m > [22mPreferences Addons[2m > [22mwhen voice input is not installed[2m > [22mstops an install on Cancel
+2026-10-17T16:18:06.8390860Z [31m[1mTimeoutError[22m: locator.click: Timeout 25946ms exceeded.
+2026-10-17T16:18:06.8390970Z Call log:
+2026-10-17T16:18:06.8392470Z   - waiting for locator('[data-vitest="true"]').contentFrame().getByRole('dialog', { name: 'Preferences', exact: true }).getByRole('tabpanel', { name: 'Addons', exact: true }).getByRole('region', { name: 'Voice input', exact: true }).getByRole('button', { name: 'Cancel', exact: true })
+2026-10-17T16:18:06.8392590Z [39m
+2026-10-17T16:18:06.8392600Z 
+2026-10-17T16:18:06.8392670Z Failure screenshot:
+2026-10-17T16:18:06.8393230Z   - [2m.vitest/attachments/failure-screenshots/preferences.spec.tsx/Preferences-Addons---when-voice-input-is-not-installed---stops-an-install-on-Cancel.png[22m
+2026-10-17T16:18:06.8393240Z 
+2026-10-17T16:18:06.8393450Z [36m [2m❯[22m src/specs/preferences.spec.tsx:[2m236:65[22m[39m
+2026-10-17T16:18:06.8393730Z     [90m234|[39m       await voiceCard().getByRole("button", { name: "Install" }).click…
+2026-10-17T16:18:06.8393850Z     [90m235|[39m
+2026-10-17T16:18:06.8394120Z     [90m236|[39m       await voiceCard().getByRole("button", { name: "Cancel" }).click()
+2026-10-17T16:18:06.8394320Z     [90m   |[39m                                                                 [31m^[39m
+2026-10-17T16:18:06.8394400Z     [90m237|[39m
+2026-10-17T16:18:06.8394630Z     [90m238|[39m       await expect.element(voiceCard().getByRole("button", { name: "In…
+2026-10-17T16:18:06.8394630Z 
+2026-10-17T16:18:06.8394760Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+2026-10-17T16:18:06.8394770Z 
+2026-10-17T16:18:06.8407000Z 
+2026-10-17T16:18:06.8407000Z 
+2026-10-17T16:18:06.8407290Z [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m241 passed[39m[22m[90m (242)[39m
+2026-10-17T16:18:06.8407690Z [2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m3204 passed[39m[22m[2m | [22m[33m8 skipped[39m[90m (3214)[39m
+2026-10-17T16:18:06.8408360Z [2m   Start at [22m 16:05:51
+2026-10-17T16:18:06.8408640Z [2m   Duration [22m 732.54s[2m (worker 89%, tests 9%, environment 1%, import 1%)[22m
+2026-10-17T16:18:06.8408650Z 
+2026-10-17T16:18:06.8408650Z 
+2026-10-17T16:18:06.8606300Z ##[error]TimeoutError: locator.click: Timeout 25946ms exceeded.
+Call log:
+  - waiting for locator('[data-vitest="true"]').contentFrame().getByRole('dialog', { name: 'Preferences', exact: true }).getByRole('tabpanel', { name: 'Addons', exact: true }).getByRole('region', { name: 'Voice input', exact: true }).getByRole('button', { name: 'Cancel', exact: true })
+
+ ❯ src/specs/preferences.spec.tsx:236:65
+
+
+2026-10-17T16:18:06.8816450Z 
+2026-10-17T16:18:06.8824020Z [ELIFECYCLE] Test failed. See above for more details.
+2026-10-17T16:18:06.8825160Z ##[error]command (/Users/runner/work/novadeck/novadeck/application/ui) /Users/runner/setup-pnpm/pnpm run test exited (1)
+2026-10-17T16:18:06.8826280Z @novadeck/ui#test:  ERROR  command (/Users/runner/work/novadeck/novadeck/application/ui) /Users/runner/setup-pnpm/pnpm run test exited (1)
+2026-10-17T16:18:06.8826380Z  ERROR  run failed: command  exited (1)

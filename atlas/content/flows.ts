@@ -126,7 +126,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "The attachment sends the data in a terminals.write call.",
         anchor: {
           file: "application/protocol/src/runner.ts",
-          text: "await link.wire.terminals.write({ terminalId: this.id, data })",
+          text: "await link.client.terminals.write({ terminalId: this.id, data })",
         },
       },
       {

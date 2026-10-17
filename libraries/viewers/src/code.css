@@ -1,0 +1,76 @@
+/* The code viewer: a listing (`.code-viewer`) of rows, each a line's number and its text,
+   and the `.tok-*` classes highlighting gives its tokens, which also colour code
+   highlighted elsewhere with `highlightLines`.
+
+   Hooks: data-emphasized on an emphasized line.
+
+   Tokens, each optional (its fallback in brackets):
+   --code-font (monospace), --code-font-size (inherit), --code-line-height (1.75): the
+   listing's type.
+   --code-number-fg (the text, faded): line numbers.
+   --code-emphasis-bg (the text, faintly): emphasized lines.
+   --syntax-{keyword,string,number,property,definition,type,comment} (the text): tokens
+   by kind; --syntax-invalid (the text): what doesn't parse. */
+.code-viewer {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: 10px 0;
+  overflow: auto;
+  font-family: var(--code-font, monospace);
+  font-size: var(--code-font-size, inherit);
+  font-weight: normal;
+  font-style: normal;
+  line-height: var(--code-line-height, 1.75);
+  user-select: text;
+}
+.code-viewer > div {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  padding-right: 16px;
+  white-space: pre;
+}
+.code-viewer > div > span:first-child {
+  padding-right: 14px;
+  text-align: right;
+  color: var(--code-number-fg, color-mix(in srgb, currentColor 55%, transparent));
+  user-select: none;
+}
+.code-viewer > div[data-emphasized] {
+  background-color: var(--code-emphasis-bg, color-mix(in srgb, currentColor 8%, transparent));
+}
+
+:is(.tok-keyword, .tok-meta) {
+  color: var(--syntax-keyword, inherit);
+}
+:is(.tok-string, .tok-string2, .tok-url) {
+  color: var(--syntax-string, inherit);
+}
+:is(.tok-number, .tok-bool, .tok-atom, .tok-literal) {
+  color: var(--syntax-number, inherit);
+}
+.tok-propertyName {
+  color: var(--syntax-property, inherit);
+}
+:is(.tok-typeName, .tok-className, .tok-namespace, .tok-macroName) {
+  color: var(--syntax-type, inherit);
+}
+.tok-definition {
+  color: var(--syntax-definition, inherit);
+}
+.tok-comment {
+  color: var(--syntax-comment, inherit);
+  font-style: italic;
+}
+:is(.tok-heading, .tok-strong) {
+  font-weight: 600;
+}
+.tok-emphasis {
+  font-style: italic;
+}
+.tok-link {
+  text-decoration: underline;
+}
+.tok-invalid {
+  color: var(--syntax-invalid, inherit);
+}

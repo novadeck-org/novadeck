@@ -48,6 +48,7 @@ import type {
 } from "@novadeck/protocol"
 import { murmurGist, murmurHeadline } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
+import { Subscription } from "@novadeck/terminal/host"
 import {
   anyRunning,
   foregroundProcess,
@@ -199,7 +200,6 @@ import {
 import { freshNonce, leftoverNonce } from "./ring.js"
 import { screenText } from "./screen.js"
 import { snapshot } from "./snapshot.js"
-import { Subscription } from "./subscription.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
 import { replay, transcriptOf } from "./transcript.js"
 import { transcriptChanges } from "./transcripts.js"
@@ -347,7 +347,7 @@ type Record = {
   sequence: number
   history: Retained[]
   historyBytes: number
-  subscribers: Map<string, Subscription>
+  subscribers: Map<string, Subscription<TerminalEvent>>
   controller: string | undefined
   chain: Promise<void>
   pendingReads: number
@@ -468,7 +468,7 @@ type Record = {
       readonly rows: number
       readonly owner: string
       /** The owner's attachment that asked, as a window showing it anew attaches again. */
-      readonly attachment: Subscription | undefined
+      readonly attachment: Subscription<TerminalEvent> | undefined
     } | null
   } | null
   /** When its window was last resized, in epoch milliseconds; 0 before any resize. */
@@ -2521,7 +2521,7 @@ export class Terminals {
     const record = this.record(input.terminalId)
     const pending = this.pending(ownerId)
     record.pendingAttachments += 1
-    let subscription: Subscription | undefined
+    let subscription: Subscription<TerminalEvent> | undefined
     const detach = () => {
       if (!subscription) {
         if (
@@ -2558,7 +2558,7 @@ export class Terminals {
           (!Number.isSafeInteger(cursor) || cursor < 0 || cursor > record.sequence)
         )
           throw new DomainError("INVALID_CURSOR")
-        subscription = new Subscription(
+        subscription = new Subscription<TerminalEvent>(
           mode,
           this.options.subscriberBytes,
           this.options.ackWindowBytes,

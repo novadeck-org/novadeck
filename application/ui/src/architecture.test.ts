@@ -153,7 +153,7 @@ const vendors: Record<string, readonly string[]> = {
   "@ark-ui": ["ui-toolkit/"],
   "@xyflow/react": ["layouts/canvas/"],
   "@codemirror": ["terminals/companion/plan-editor/"],
-  "@lezer": ["terminals/companion/plan-editor/", "terminals/companion/highlight.ts"],
+  "@lezer": ["terminals/companion/plan-editor/"],
   "react-grid-layout": ["layouts/grid/"],
   allotment: ["shell/"],
   // Terminals' tabs, windows and taskbars, the footer's subscriptions and the project
@@ -170,7 +170,9 @@ const vendors: Record<string, readonly string[]> = {
   "react-router": ["app/", "shell/"],
   "react-dom": ["layouts/transition.ts", "main.tsx", "test/"],
   // One entry per workspace package, with the folders that own it. The runner client and its
-  // test runner serve one adapter, and the terminal emulator its screens.
+  // test runner serve one adapter, the terminal emulator its screens, and the content viewers
+  // the companion pane and chat.
+  "@novadeck/viewers": ["terminals/companion/", "terminals/chat/"],
   "@novadeck/protocol": ["backend/runner/", ...Object.keys(protocolData)],
   "@novadeck/runner": ["backend/runner/"],
   "@novadeck/emulator": ["backend/runner/"],

@@ -117,7 +117,8 @@ const runner = await connectRunner(messagePort(port))
 
 `connectRunner` resolves after the first handshake and rejects with a
 `WireError` from `@novadeck/wire` (for example `UNAUTHORIZED` or `INCOMPATIBLE_PROTOCOL`). After that
-it reconnects on its own. `runner.status` holds the current state, and
+it reconnects on its own, through `connect` from `@novadeck/wire/client`. `runner.status` holds the
+current state (`connected` in an `epoch`, the runner's id; `reconnecting`; or `closed`), and
 `runner.watch()` yields it and every change, so a UI reads connection state with
 `for await` instead of registering callbacks.
 

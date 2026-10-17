@@ -10,11 +10,10 @@ import {
   type AttachedTerminal,
   type CompanionWatchItem,
   type Runner,
-  type RunnerStatus,
   type TerminalWatchItem,
 } from "@novadeck/protocol/client"
 import { type Channel } from "@novadeck/wire"
-import { messagePort, websocket, type Transport } from "@novadeck/wire/client"
+import { messagePort, websocket, type Transport, type WireStatus } from "@novadeck/wire/client"
 
 import { createRunner, servePort } from "./index.js"
 import { startServer, type ServerOptions } from "./server.js"
@@ -176,11 +175,11 @@ const changes = (runner: Runner, resources: Resources) => {
 }
 
 const statuses = (runner: Runner) => {
-  const seen: RunnerStatus["state"][] = []
+  const seen: WireStatus["state"][] = []
   const watching = (async () => {
     for await (const status of runner.watch()) seen.push(status.state)
   })()
-  const until = async (state: RunnerStatus["state"]) => {
+  const until = async (state: WireStatus["state"]) => {
     while (runner.status.state !== state) {
       // eslint-disable-next-line no-await-in-loop -- Poll the observable status.
       await new Promise((resolve) => setTimeout(resolve, 5))
@@ -195,7 +194,7 @@ describe("runner client over WebSocket", () => {
   }) => {
     const app = await deployed(resources)
     const runner = await app.connect()
-    expect(runner.status).toEqual({ state: "connected", runnerId: expect.any(String) })
+    expect(runner.status).toEqual({ state: "connected", epoch: expect.any(String) })
     const { id: sessionId } = await session(runner, app.directory)
     const created = await runner.terminals.create(shell(sessionId))
     await expect(runner.terminals.list({ sessionId })).resolves.toEqual([created])

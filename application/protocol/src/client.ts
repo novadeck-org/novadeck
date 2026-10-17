@@ -5,7 +5,6 @@ export {
   type CompanionWatchItem,
   type ConnectOptions,
   type Runner,
-  type RunnerStatus,
   type TerminalMode,
   type TerminalWatchItem,
 } from "./runner.js"

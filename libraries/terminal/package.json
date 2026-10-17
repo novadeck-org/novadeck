@@ -6,6 +6,18 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./host": {
+      "node": {
+        "development": "./src/host.ts",
+        "types": "./dist/host.d.ts",
+        "default": "./dist/host.js"
+      }
+    },
     "./pty": {
       "node": {
         "development": "./src/pty.ts",
@@ -26,8 +38,12 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
+  "dependencies": {
+    "zod": "catalog:"
+  },
   "devDependencies": {
     "@types/node": "^26.6.5",
+    "fast-check": "4.10.2",
     "node-pty": "1.2.0-beta.14",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
