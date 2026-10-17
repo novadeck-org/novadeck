@@ -1,0 +1,93 @@
+name: Warm Caches
+
+# Quality's Test jobs cache the test browser and the relay's Rust build, but a pull request
+# reads only its own branch's caches and its base branch's, and Quality never runs on main:
+# so every pull request's first run installed the browser and built the relay from nothing,
+# some 200–300 s a platform. This fills main's caches under exactly Quality's keys, from
+# main's own code, on each push to main. It runs no tests: it installs the browser and
+# compiles the relay and its tests only where a key is missing, so where both are cached it
+# only sets up the toolchain. Timing restores the relay's cache without saving it, so this
+# is the one writer of its key on main.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A run in progress finishes, as a cancelled one saves nothing and a cold Windows warm
+# outlasts the gap between pushes on a busy day; stacked pushes wait as one pending run,
+# which then finds the caches warm.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  warm:
+    name: Warm (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # Quality's Test platforms.
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      # The steps below match Quality's, keys and paths alike: a key here that Quality
+      # doesn't read would warm nothing.
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set Up Toolchain
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      # The Rust the relay's rust-toolchain.toml names.
+      - name: Set Up Rust
+        shell: bash
+        working-directory: application/relay
+        run: rustup toolchain install
+
+      - name: Cache Rust Builds
+        id: rust-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            application/relay/target
+          key: relay-${{ runner.os }}-${{ hashFiles('application/relay/Cargo.lock', 'application/relay/rust-toolchain.toml') }}
+
+      # What Quality's Test job compiles: the relay's build (`pnpm test` builds it) and its
+      # tests, which compile here and don't run.
+      - name: Build Relay
+        if: steps.rust-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          pnpm --filter @novadeck/relay build
+          cd application/relay && cargo test --locked --no-run
+
+      - name: Locate Test Browser
+        id: playwright
+        shell: bash
+        run: |
+          echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/ms-playwright" >> "$GITHUB_ENV"
+          echo "version=$(pnpm --filter @novadeck/ui exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Test Browser
+        id: browser-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      # Only the browser: its system libraries aren't cached, and Quality installs them.
+      - name: Install Test Browser
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @novadeck/ui exec playwright install chromium

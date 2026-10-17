@@ -1353,7 +1353,10 @@ Chromium alongside backend API, real PTY, and built-CLI tests. The required `Tes
 check passes only when the entire Quality matrix succeeds. PRs marked ready for review package
 and smoke-test the app on Linux, macOS, and Windows using the same workflow as
 releases. Draft PRs skip packaging; PR checks never create tags or publish releases.
-Quality checks run on PR opening, reopening, and commits. Marking a draft PR ready
+Quality checks run on PR opening, reopening, and commits. A PR reads only its own and
+its base branch's caches, so the [Warm Caches](.github/workflows/warm.yml) workflow fills main's test
+browser and Rust build caches on each push to main, under Quality's keys, and runs no tests.
+Marking a draft PR ready
 starts only the Release workflow, which reuses the matching Quality result before
 packaging and smoke testing. Release preparation, tagging, and publishing are
 disabled for PR runs.

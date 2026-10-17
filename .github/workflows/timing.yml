@@ -72,8 +72,11 @@ jobs:
         working-directory: application/relay
         run: rustup toolchain install
 
-      - name: Cache Rust Builds
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # Restored only: Warm Caches fills this key on main with the relay's tests built too,
+      # and a key once saved is never replaced, so a save here would leave Quality a thinner
+      # build.
+      - name: Restore Rust Builds
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
