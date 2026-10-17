@@ -195,10 +195,12 @@ export const createRunnerTerminal = (
       screen?.xterm.textarea?.setAttribute("aria-label", `Input for ${name}`)
     }, [screen, name])
 
+    // The request stands until the focus lands: a screen the parked-screen cap closed while
+    // the surface was away is focused in vain, and its fresh one arrives a render later.
     useEffect(() => {
       if (!focusInput || !screen) return
       screen.xterm.focus()
-      onInputFocused()
+      if (screen.host.contains(document.activeElement)) onInputFocused()
     }, [screen, focusInput, onInputFocused])
 
     // A different program body remounts this content; the host moves into the new slot.

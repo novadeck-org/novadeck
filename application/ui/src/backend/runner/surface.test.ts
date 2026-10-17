@@ -7,7 +7,7 @@ import {
 import type { TerminalEvent, TerminalExit } from "@novadeck/protocol"
 import { type AttachedTerminal } from "@novadeck/protocol/client"
 import { WireError } from "@novadeck/wire"
-import { act, createElement, type ReactNode } from "react"
+import { act, createElement, useSyncExternalStore, type ReactNode } from "react"
 import { afterEach, onTestFinished, vi } from "vitest"
 
 import { createStore } from "../../model/store"
@@ -197,6 +197,53 @@ const Agent = (props: { children: ReactNode }) => createElement("section", props
 const Plain = (props: { children: ReactNode }) => createElement("article", props)
 
 describe("runner terminal surface", () => {
+  it("takes focus asked for while off screen into the screen opened again when it's back", () => {
+    // The parked-screen cap closed its screen while it was away: the one it comes back to is
+    // a new one, which the focus must reach.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const { runtime } = starting()
+      const screens = createScreens(runtime, undefined, 0)
+      const acquired: RunnerScreen[] = []
+      const Surface = createRunnerTerminal(runtime, {
+        ...screens,
+        acquire: (...args) => {
+          const screen = screens.acquire(...args)
+          acquired.push(screen)
+          return screen
+        },
+      })
+      const request = createStore(false)
+      const Host = ({ onScreen }: { onScreen: boolean }) => {
+        const wanted = useSyncExternalStore(request.subscribe, request.getSnapshot)
+        return createElement(Surface, {
+          terminalKey: key,
+          terminal: { ...terminalFixture(1, "~"), state: "starting" },
+          projectName: "P",
+          view: "canvas",
+          fontSize: 13,
+          focusInput: wanted && onScreen,
+          onInputFocused: () => request.update(() => false),
+          onScreen,
+          renderWindow: (content) => content,
+        })
+      }
+      const page = render(createElement(Host, { onScreen: true }))
+      page.rerender(createElement(Host, { onScreen: false }))
+      vi.advanceTimersByTime(6_000)
+      act(() => request.update(() => true))
+      page.rerender(createElement(Host, { onScreen: true }))
+
+      expect(acquired[1]).not.toBe(acquired[0])
+      expect(document.activeElement).toBe(acquired[1]!.xterm.textarea)
+      expect(request.getSnapshot()).toBe(false)
+      page.unmount()
+      vi.advanceTimersByTime(31 * 60 * 1000)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("places the host its screen opened in, when that is not the one it rendered with", () => {
     // As when the parked-screen cap closes the screen between the surface's render and its
     // effect: the screen opens again in a host of its own.
