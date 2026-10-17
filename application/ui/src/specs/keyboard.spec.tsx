@@ -914,9 +914,7 @@ describe("typing in a terminal", () => {
   context("when pressing Space with focus on a terminal tab", () => {
     it("does not move focus into the terminal", async () => {
       await openWorkspace()
-      await terminalTab("Dev server").click()
-      await terminalTab("Dev server").element().focus()
-      await expect.element(terminalTab("Dev server")).toHaveFocus()
+      await focusTab("Dev server")
 
       await press(" ")
 
