@@ -1,5 +1,6 @@
 import { createBootRehearsals } from "../backend/boot-rehearsal"
-import type { BackendSelection, ConnectBackend } from "../backend/port"
+import type { DebugPanel } from "../backend/demo/debug/DebugPanel"
+import type { Backend, BackendSelection, ConnectBackend } from "../backend/port"
 
 // The only place that chooses a build's backend adapter. Every build, development or
 // production, connects to a runner, whose client and terminal emulator load with the
@@ -11,6 +12,13 @@ const runnerSelection = (): BackendSelection => ({
     (await import("../backend/runner")).connectRunnerBackend(signal, progress),
 })
 
+// The debug panel of the content preview's demo, by its backend, once the demo has loaded:
+// the panel isn't part of what a backend offers, so the selection that made it hands it to
+// the app. Every other build has none, and loads nothing for it.
+let panelOf: ((backend: Backend) => DebugPanel | undefined) | undefined
+
+export const debugPanelFor = (backend: Backend): DebugPanel | undefined => panelOf?.(backend)
+
 // The content preview's demo, with its debug panel, loads with the connection too, so
 // no build for a runner carries it.
 const demoSelection = (): BackendSelection => {
@@ -20,7 +28,10 @@ const demoSelection = (): BackendSelection => {
   let loading: Promise<ConnectBackend> | undefined
   const load = (): Promise<ConnectBackend> =>
     (loading ??= import("../backend/demo/debug/connect").then(
-      ({ connectDemo }) => connectDemo(rehearsals),
+      ({ connectDemo, debugPanelOf }) => {
+        panelOf = debugPanelOf
+        return connectDemo(rehearsals)
+      },
       (error: unknown) => {
         loading = undefined
         throw error

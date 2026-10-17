@@ -274,9 +274,6 @@ export type Backend = {
     readonly run: (options: { readonly keepData: boolean }) => Promise<UninstallResult>
     readonly quit: () => void
   }
-  // Optional. The debug panel, where this launch offers it: it triggers the states
-  // the backend can be in. See README "Debug panel".
-  readonly DebugPanel?: ComponentType<DebugPanelProps>
   // Optional. Marks a public build for a website's visitors: the app shows it is a
   // simulation, with a call to download, and a narrow window gets a panel instead.
   readonly visitor?: true
@@ -310,14 +307,6 @@ export type AgentConnection = {
   readonly error?: string
   // What keeps its messaging from working whole while connected, as the runner says.
   readonly limited?: "own-status-line" | undefined
-}
-
-// What the debug panel may ask of the workspace.
-export type DebugPanelProps = {
-  // Adds a terminal to the current session and returns its key.
-  readonly addTerminal: () => TerminalKey
-  readonly startFresh: () => void
-  readonly selected: () => TerminalKey | undefined
 }
 
 // "unavailable" means the backend gave up reconnecting.
