@@ -63,7 +63,7 @@
   :is(
     .terminal-content,
     .xterm,
-    .artifact-code,
+    .code-viewer,
     .peek-code,
     .cm-plan-code,
     .cm-plan-codeblock,

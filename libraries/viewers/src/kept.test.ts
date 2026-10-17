@@ -1,7 +1,8 @@
-import { describe, expect, it } from "../../test"
-import { createKept } from "./kept"
+import { describe, expect, it } from "vitest"
 
-describe("what the companion keeps", () => {
+import { createKept } from "./kept.js"
+
+describe("what a host keeps", () => {
   it("gives back what was kept by its key", () => {
     const kept = createKept<string>(2)
     kept.keep("plan", "first")

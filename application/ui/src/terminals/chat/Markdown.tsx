@@ -1,9 +1,9 @@
 /* oxlint-disable react/no-array-index-key -- The nodes are read from text that has no ids; they never reorder. */
+import { highlightLines, languageOf, type HighlightedLine } from "@novadeck/viewers/code"
 import { Check, Copy } from "lucide-react"
 import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 
 import { Tooltip } from "../../ui-toolkit/Tooltip"
-import type { HighlightedLine } from "../companion/highlight"
 import { fenceFile } from "./languages"
 import { parseMarkdown, type Inline, type MarkdownBlock } from "./markdown-parse"
 
@@ -60,11 +60,11 @@ const useHighlighted = (lang: string, text: string): readonly HighlightedLine[] 
     readonly lines: readonly HighlightedLine[]
   } | null>(null)
   const file = fenceFile(lang)
+  const language = file === undefined ? undefined : languageOf(file)
   useEffect(() => {
-    if (!file) return
+    if (!language) return
     let current = true
-    import("../companion/highlight")
-      .then(({ highlightLines }) => highlightLines(file, text.split("\n")))
+    highlightLines(language, text.split("\n"))
       .then((lines) => {
         if (current && lines) setHighlighted({ of: text, lines })
       })
@@ -73,7 +73,7 @@ const useHighlighted = (lang: string, text: string): readonly HighlightedLine[] 
     return () => {
       current = false
     }
-  }, [file, text])
+  }, [language, text])
   return highlighted?.of === text ? highlighted.lines : null
 }
 

@@ -3,9 +3,9 @@ import { Language, LanguageSupport, defineLanguageFacet } from "@codemirror/lang
 import { Annotation, EditorState, MapMode, Transaction } from "@codemirror/state"
 import { EditorView, keymap } from "@codemirror/view"
 import { GFM, parser } from "@lezer/markdown"
+import { createKept } from "@novadeck/viewers"
 import { useEffect, useLayoutEffect, useRef } from "react"
 
-import { createKept } from "../kept"
 import type { Mark } from "../plan-doc"
 import { editorTheme } from "./editor-theme"
 import { currentAgentMarks, livePreview, setMarks } from "./live-preview"

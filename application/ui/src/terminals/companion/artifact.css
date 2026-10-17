@@ -1,18 +1,19 @@
 /* The artifact recipe: the viewers for what an agent shows beside its terminal
    (`.artifact-viewer`), each under a header (`.artifact-meta`): an image on a checker
    (`.artifact-image`) with its zoom, a segmented control (`.artifact-zoom`); a file's
-   lines (`.artifact-code`, highlighted by the syntax recipe); a page in a browser frame
-   (`.artifact-browser`, its bar `.artifact-browser-bar` with `.icon-button`s, its
-   address `.artifact-url` and a link to open it, `.artifact-open`, and a snapshot in
-   `.artifact-page-scroll`); and a markdown
-   document, which the prose recipe formats. `.artifact-status` says when there's
-   nothing to show yet; `.artifact-unavailable` says why something can't show, over
-   `.artifact-unavailable-actions`, what can be done about it. `.artifact-actions` holds what the place showing it offers, as
-   `.icon-button`s; `.artifact-window` fills a window of its own.
+   lines (`.artifact-code`, holding the code viewer, @novadeck/viewers/code.css); a page
+   in a browser frame (`.artifact-browser`, its bar `.artifact-browser-bar` with
+   `.icon-button`s, its address `.artifact-url` and a link to open it, `.artifact-open`,
+   and a snapshot in `.artifact-page-scroll`); and a markdown document, which the prose
+   recipe formats. `.artifact-status` says when there's nothing to show yet;
+   `.artifact-unavailable` says why something can't show, over
+   `.artifact-unavailable-actions`, what can be done about it. `.artifact-actions` holds
+   what the place showing it offers, as `.icon-button`s; `.artifact-window` fills a
+   window of its own.
 
-   Hooks: data-actual="true" on the image at its actual size; data-pointed="true" on a
-   line the agent pointed at; data-live on a page that loads live, data-document on
-   a viewer holding a markdown document, and data-reason on what can't show.
+   Hooks: data-actual="true" on the image at its actual size; data-live on a page that
+   loads live, data-document on a viewer holding a markdown document, and data-reason on
+   what can't show.
 
    Tokens, each optional (its fallback in brackets):
    --artifact-meta-fg (muted), --artifact-meta-border-color (line),
@@ -23,7 +24,8 @@
    --artifact-image-radius (radius-panel), --artifact-image-shadow (shadow-floating):
    the ground behind an image, and the image on it.
    --artifact-code-number-fg (muted), --artifact-code-pointed-bg (soft): a file's line
-   numbers, and the lines the agent pointed at.
+   numbers, and the lines the agent pointed at, as the code viewer's --code-number-fg and
+   --code-emphasis-bg.
    --artifact-browser-bg (shell), --artifact-browser-border-color (line): a page's bar.
    --artifact-url-bg (paper), --artifact-url-border-color (line), --artifact-url-fg
    (ink): its address.
@@ -157,31 +159,14 @@
 }
 
 .artifact-code {
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-height: 0;
-  padding: 10px 0;
-  overflow: auto;
-  font-family: var(--font-mono);
-  font-size: var(--text-code);
-  font-weight: normal;
-  font-style: normal;
-  line-height: 1.75;
-  user-select: text;
-}
-.artifact-code div {
-  display: grid;
-  grid-template-columns: 44px 1fr;
-  padding-right: 16px;
-  white-space: pre;
-}
-.artifact-code div > span:first-child {
-  padding-right: 14px;
-  text-align: right;
-  color: var(--artifact-code-number-fg, var(--color-muted));
-  user-select: none;
-}
-.artifact-code div[data-pointed="true"] {
-  background-color: var(--artifact-code-pointed-bg, var(--color-soft));
+  --code-font: var(--font-mono);
+  --code-font-size: var(--text-code);
+  --code-number-fg: var(--artifact-code-number-fg, var(--color-muted));
+  --code-emphasis-bg: var(--artifact-code-pointed-bg, var(--color-soft));
 }
 
 .artifact-browser {

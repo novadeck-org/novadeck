@@ -1,12 +1,14 @@
-import { context, describe, expect, it } from "../../test"
-import { highlightLines, languageOf, type HighlightedLine } from "./highlight"
+import { describe, expect, it } from "vitest"
+
+import { highlightLines, type HighlightedLine } from "./highlight.js"
+import { languageOf } from "./languages.js"
 
 // Each run's text with its classes, plain text as is.
 const runs = (line: HighlightedLine | undefined) =>
   line?.map(({ text, classes }) => (classes ? `${text}:${classes}` : text))
 
-describe("file highlighting", () => {
-  context("when choosing a language", () => {
+describe("code highlighting", () => {
+  describe("when choosing a language", () => {
     it("goes by the file's extension, in any case and at any depth", () => {
       expect(languageOf("src/content/projects.json")).toBe("json")
       expect(languageOf("src/pages/Home.tsx")).toBe("tsx")
@@ -22,13 +24,13 @@ describe("file highlighting", () => {
     })
   })
 
-  it("leaves a file it doesn't know as plain text", async () => {
-    expect(await highlightLines("notes.txt", ["hello"])).toBeNull()
+  it("leaves a language it doesn't know as plain text", async () => {
+    expect(await highlightLines("text", ["hello"])).toBeNull()
   })
 
   it("keeps one line of runs per line, blank lines included, with the text unchanged", async () => {
     const lines = ["{", '  "slug": "harbour-press",', "", '  "year": 2025', "}"]
-    const highlighted = await highlightLines("projects.json", lines)
+    const highlighted = await highlightLines("json", lines)
     expect(highlighted).toHaveLength(lines.length)
     expect(highlighted!.map((line) => line.map((run) => run.text).join(""))).toEqual(lines)
     expect(highlighted![2]).toEqual([])
@@ -40,7 +42,7 @@ describe("file highlighting", () => {
   })
 
   it("classes JSON keys, strings and numbers", async () => {
-    const highlighted = await highlightLines("projects.json", [
+    const highlighted = await highlightLines("json", [
       '{ "slug": "harbour-press", "year": 2025, "featured": true }',
     ])
     expect(runs(highlighted![0])).toEqual(
@@ -54,7 +56,7 @@ describe("file highlighting", () => {
   })
 
   it("parses TSX with its types and markup", async () => {
-    const highlighted = await highlightLines("Home.tsx", [
+    const highlighted = await highlightLines("tsx", [
       "export default function Home(): JSX.Element {",
       '  return <main className="home" />',
       "}",
@@ -66,7 +68,7 @@ describe("file highlighting", () => {
   })
 
   it("colours every line of a construct that spans lines", async () => {
-    const highlighted = await highlightLines("a.ts", ["/* one", "two */", "let x = 1"])
+    const highlighted = await highlightLines("typescript", ["/* one", "two */", "let x = 1"])
     expect(runs(highlighted![0])).toEqual(["/* one:tok-comment"])
     expect(runs(highlighted![1])).toEqual(["two */:tok-comment"])
   })
