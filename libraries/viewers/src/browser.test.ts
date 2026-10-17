@@ -143,11 +143,36 @@ describe("the browser viewer", () => {
       expect(pageOf(other).getAttribute("src")).toBe("https://example.com/")
     })
 
-    it("goes to a new address it's given", () => {
+    it("goes to a new address it's given, and keeps it as where it is until it's there", () => {
       const host = hostIn()
-      const viewer = live(host)
+      const places: Place[] = []
+      const viewer = live(host, { navigate: (place) => places.push(place) })
       viewer.update({ url: "https://example.com/" })
       expect(pageOf(host).getAttribute("src")).toBe("https://example.com/")
+      expect(places.at(-1)?.url).toBe("https://example.com/")
+      const again = hostIn()
+      mountBrowser(again, {
+        content: { url: "https://example.com/" },
+        label: "page",
+        saved: viewer.state(),
+        live: true,
+        partition: "pages",
+      })
+      expect(pageOf(again).getAttribute("src")).toBe("https://example.com/")
+    })
+
+    it("doesn't load its page again to restore where it already is", () => {
+      const host = hostIn()
+      const viewer = live(host)
+      const page = pageOf(host)
+      let set = 0
+      const setAttribute = page.setAttribute.bind(page)
+      page.setAttribute = (name: string, value: string) => {
+        if (name === "src") set += 1
+        setAttribute(name, value)
+      }
+      viewer.restore(viewer.state())
+      expect(set).toBe(0)
     })
   })
 

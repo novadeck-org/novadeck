@@ -3,7 +3,14 @@ import { EventEmitter } from "node:events"
 import type { Session, WebContents, WebPreferences } from "electron"
 import { describe, expect, it } from "vitest"
 
-import { attachPage, gestureMs, guardPage, lockPagesSession, webAddress } from "./browser-host.js"
+import {
+  attachPage,
+  gestureMs,
+  guardPage,
+  lockPagesSession,
+  pagesSession,
+  webAddress,
+} from "./browser-host.js"
 
 const pagesPartition = "pages"
 
@@ -53,10 +60,13 @@ describe("a page view as it attaches", () => {
     expect(attachPage({}, {}, pagesPartition)).toBe(false)
   })
 
-  it("keeps the pages' session in memory, though its name asks to keep it on disk", () => {
-    const preferences: WebPreferences = {}
-    attachPage(preferences, { src: "https://example.com" }, `persist:${pagesPartition}`)
-    expect(preferences.partition).toBe(pagesPartition)
+  it("is refused for a session that isn't in memory and apart from the app's", () => {
+    for (const partition of ["", "persist:", `persist:${pagesPartition}`]) {
+      const preferences: WebPreferences = { nodeIntegration: true }
+      expect(attachPage(preferences, { src: "https://example.com" }, partition)).toBe(false)
+      // Locked down all the same, whatever the host makes of the refusal.
+      expect(preferences.nodeIntegration).toBe(false)
+    }
   })
 })
 
@@ -164,7 +174,12 @@ describe("the pages' session", () => {
         this.device = handler
       },
     })
-    lockPagesSession(session as unknown as Session)
+    const asked: string[] = []
+    lockPagesSession((partition) => {
+      asked.push(partition)
+      return session as unknown as Session
+    }, pagesPartition)
+    expect(asked).toEqual([pagesPartition])
     expect(session.check?.()).toBe(false)
     expect(session.device?.()).toBe(false)
     let granted: boolean | undefined
@@ -176,5 +191,14 @@ describe("the pages' session", () => {
     const file = session.schemes.get("file")?.()
     expect(file?.status).toBe(403)
     await expect(file?.text()).resolves.toBe("")
+  })
+})
+
+describe("the pages' session's name", () => {
+  it("is refused when it would be the app's session, or kept on disk", () => {
+    expect(pagesSession(pagesPartition)).toBe(pagesPartition)
+    for (const partition of ["", "persist:", `persist:${pagesPartition}`])
+      expect(() => pagesSession(partition)).toThrow("must be in memory")
+    expect(() => lockPagesSession(() => ({}) as Session, "")).toThrow("must be in memory")
   })
 })

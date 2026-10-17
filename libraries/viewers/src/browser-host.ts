@@ -8,6 +8,20 @@ import type { Session, WebContents, WebPreferences } from "electron"
 // clicked or typed in it opens in their own browser, one per click or key; any other
 // opens nowhere. Nothing here can loosen that: the options only name the session.
 
+/**
+ * The pages' session's name, checked: one that names a session in memory and apart from
+ * the app's. An empty name is the app's own session, and `persist:` keeps what pages store
+ * on disk, so either is refused rather than loosening the lockdown.
+ */
+export const pagesSession = (partition: string): string => {
+  if (!inMemory(partition))
+    throw new Error(`The pages' session must be in memory and named: "${partition}" isn't.`)
+  return partition
+}
+
+const inMemory = (partition: string): boolean =>
+  partition !== "" && !partition.startsWith("persist:")
+
 /** Whether `url` is an http(s) address, the only kind a page view loads. */
 export const webAddress = (url: string): boolean => {
   try {
@@ -28,8 +42,7 @@ export const webAddress = (url: string): boolean => {
 export const attachPage = (
   preferences: WebPreferences,
   params: { readonly src?: string },
-  // The pages' session, named as the viewer's `partition` names it. In memory: never
-  // `persist:`, which would keep what pages store on disk.
+  // The pages' session, named as the viewer's `partition` names it (see `pagesSession`).
   partition: string,
 ): boolean => {
   delete preferences.preload
@@ -41,7 +54,10 @@ export const attachPage = (
   preferences.webSecurity = true
   preferences.allowRunningInsecureContent = false
   preferences.webviewTag = false
-  preferences.partition = partition.replace(/^persist:/, "")
+  // A session that isn't the pages' own refuses the view, never throws past the host's
+  // handler, which would let the view attach as it asked.
+  if (!inMemory(partition)) return false
+  preferences.partition = partition
   return webAddress(params.src ?? "")
 }
 
@@ -96,9 +112,15 @@ export const guardPage = (
 
 /**
  * Refuses the pages' session every permission, every download, and every file, which
- * the app's own page could otherwise point a view at.
+ * the app's own page could otherwise point a view at. By its name, the one `attachPage`
+ * gives pages, so the session locked is the one they load in; `fromPartition` is
+ * Electron's `session.fromPartition`.
  */
-export const lockPagesSession = (pages: Session): void => {
+export const lockPagesSession = (
+  fromPartition: (partition: string) => Session,
+  partition: string,
+): void => {
+  const pages = fromPartition(pagesSession(partition))
   pages.protocol.handle("file", () => new Response("", { status: 403 }))
   pages.setPermissionCheckHandler(() => false)
   pages.setPermissionRequestHandler((_contents, _permission, respond) => respond(false))

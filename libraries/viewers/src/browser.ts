@@ -182,15 +182,23 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     update: (next) => {
       const previous = shown
       shown = next
-      if (previous.url !== next.url) page.setAttribute("src", next.url)
+      if (previous.url === next.url) return
+      page.setAttribute("src", next.url)
+      // Where it's going, until the page says where it went.
+      place = { url: next.url, back: place.back, forward: place.forward }
+      on?.navigate?.(place)
     },
     state: () =>
       ({
         browser: { url: shown.url, at: place.url },
       }) satisfies BrowserState as unknown as ViewerState,
     restore: (state) => {
-      if (isBrowserState(state) && state.browser.url === shown.url)
-        page.setAttribute("src", state.browser.at)
+      if (!isBrowserState(state) || state.browser.url !== shown.url) return
+      // Already there: setting it again would load it again.
+      if (state.browser.at === place.url) return
+      page.setAttribute("src", state.browser.at)
+      place = { url: state.browser.at, back: place.back, forward: place.forward }
+      on?.navigate?.(place)
     },
     // A page has no lines to jump to that the viewer can know.
     jumpTo: () => undefined,

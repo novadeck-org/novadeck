@@ -1166,7 +1166,7 @@ app.whenReady().then(() => {
       ? () => systemPreferences.askForMediaAccess("microphone")
       : undefined,
   )
-  lockPagesSession(session.fromPartition(pagesPartition))
+  lockPagesSession((partition) => session.fromPartition(partition), pagesPartition)
   app.on("web-contents-created", (_event, contents) => {
     if (contents.getType() === "webview") guardPage(contents, (url) => shell.openExternal(url))
   })

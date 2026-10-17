@@ -218,7 +218,8 @@ const PageViewer = ({
   actions,
 }: Actions & { id: string; content: PageContent }): React.JSX.Element =>
   page.live || page.snapshot ? (
-    <ShownPage id={id} content={page} actions={actions} />
+    // Its own for each address: a new page starts at its own address, not the last one's.
+    <ShownPage key={page.url} id={id} content={page} actions={actions} />
   ) : (
     <div className="artifact-browser">
       <div className="artifact-browser-bar">
