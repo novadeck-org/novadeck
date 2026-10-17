@@ -64,7 +64,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "After checking that the sender is its own window, the host makes a MessageChannel and gives one end to the runner.",
         anchor: {
           file: `${host}/main/runner.ts`,
-          text: 'send(child ?? spawn(), { type: "connect" }, [port1])',
+          text: 'send(child ?? spawn(), { type: "connect" }, [port])',
         },
       },
       {
@@ -72,7 +72,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         to: "renderer",
         label: "port → page via preload",
         text: "The other end goes to the page, relayed by the preload as a window message because a port cannot cross the context bridge.",
-        anchor: { file: `${host}/preload/index.ts`, text: "ipcRenderer.on(runnerPortChannel" },
+        anchor: { file: `${host}/preload/index.ts`, text: "requestRunner: relayPorts(" },
       },
       {
         from: "runner",

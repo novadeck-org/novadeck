@@ -18,6 +18,9 @@ catalogs:
     '@orpc/standard-server-peer':
       specifier: 1.15.5
       version: 1.15.5
+    electron:
+      specifier: ^44.7.0
+      version: 44.7.0
     zod:
       specifier: 4.6.5
       version: 4.6.5
@@ -111,7 +114,7 @@ importers:
         specifier: ^10.0.6
         version: 10.0.6
       electron:
-        specifier: ^44.7.0
+        specifier: 'catalog:'
         version: 44.7.0(supports-color@10.2.2)
       electron-builder:
         specifier: ^26.15.3
@@ -670,6 +673,9 @@ importers:
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
+      electron:
+        specifier: 'catalog:'
+        version: 44.7.0(supports-color@10.2.2)
       typescript:
         specifier: ^7.0.2
         version: 7.0.2

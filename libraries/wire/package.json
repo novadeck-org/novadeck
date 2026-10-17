@@ -20,6 +20,13 @@
       "development": "./src/testing.ts",
       "types": "./dist/testing.d.ts",
       "default": "./dist/testing.js"
+    },
+    "./electron": {
+      "node": {
+        "development": "./src/electron.ts",
+        "types": "./dist/electron.d.ts",
+        "default": "./dist/electron.js"
+      }
     }
   },
   "scripts": {
@@ -35,7 +42,16 @@
   "devDependencies": {
     "@orpc/server": "catalog:",
     "@types/node": "^26.6.5",
+    "electron": "catalog:",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
+  },
+  "peerDependencies": {
+    "electron": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "electron": {
+      "optional": true
+    }
   }
 }
