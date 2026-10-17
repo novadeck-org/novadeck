@@ -1,3 +1,4 @@
+import { webAddress } from "./address.js"
 import type { Mount, Viewer, ViewerState } from "./index.js"
 
 // A web page. Live, it loads in Electron's <webview>, which the host's lockdown
@@ -140,6 +141,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   page.setAttribute("src", resumed)
   root.dataset.load = load
   on?.load?.(load)
+  // Where it's going, as it may not be where its host showed it, until the page says.
+  if (resumed !== content.url) on?.navigate?.(place)
 
   const moved = (): void => {
     attached(() => {
@@ -182,7 +185,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     update: (next) => {
       const previous = shown
       shown = next
-      if (previous.url === next.url) return
+      // Loaded after it attached, past the lockdown's check of its first address.
+      if (previous.url === next.url || !webAddress(next.url)) return
       page.setAttribute("src", next.url)
       // Where it's going, until the page says where it went.
       place = { url: next.url, back: place.back, forward: place.forward }
@@ -195,7 +199,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     restore: (state) => {
       if (!isBrowserState(state) || state.browser.url !== shown.url) return
       // Already there: setting it again would load it again.
-      if (state.browser.at === place.url) return
+      if (state.browser.at === place.url || !webAddress(state.browser.at)) return
       page.setAttribute("src", state.browser.at)
       place = { url: state.browser.at, back: place.back, forward: place.forward }
       on?.navigate?.(place)

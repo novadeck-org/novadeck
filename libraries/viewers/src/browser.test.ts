@@ -161,6 +161,31 @@ describe("the browser viewer", () => {
       expect(pageOf(again).getAttribute("src")).toBe("https://example.com/")
     })
 
+    it("goes to no address but an http(s) one once its page has attached", () => {
+      const host = hostIn()
+      const viewer = live(host)
+      for (const url of ["javascript:alert(1)", "data:text/html,x", "file:///etc/passwd"])
+        viewer.update({ url })
+      expect(pageOf(host).getAttribute("src")).toBe("http://localhost:5173/")
+    })
+
+    it("says where it's going when it opens where the person had taken the page", () => {
+      const first = hostIn()
+      const viewer = live(first)
+      attach(pageOf(first), { url: "http://localhost:5173/work", back: true, forward: false })
+      pageOf(first).dispatchEvent(event("did-navigate"))
+      const places: Place[] = []
+      mountBrowser(hostIn(), {
+        content: { url: "http://localhost:5173/" },
+        label: "page",
+        saved: viewer.state(),
+        live: true,
+        partition: "pages",
+        on: { navigate: (place) => places.push(place) },
+      })
+      expect(places.map((place) => place.url)).toEqual(["http://localhost:5173/work"])
+    })
+
     it("doesn't load its page again to restore where it already is", () => {
       const host = hostIn()
       const viewer = live(host)
