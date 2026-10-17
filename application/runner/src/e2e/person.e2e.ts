@@ -1,8 +1,9 @@
 import { readdirSync } from "node:fs"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { readScreen } from "@novadeck/emulator/headless"
+
 import { harnesses } from "../harnesses/registry.js"
-import { screenText } from "../terminals/screen.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
@@ -326,11 +327,11 @@ for (const setup of setups) {
       // Whatever of the keys the harness took is in its box, as its own reader tells.
       const live = (
         run.deck.terminals as unknown as {
-          live(id: string): { screen: Parameters<typeof screenText>[0] }
+          live(id: string): { screen: Parameters<typeof readScreen>[0] }
         }
       ).live(t2.id)
       const kept =
-        (harnesses[setup.agent].box.read(screenText(live.screen))?.text.trim() ?? "") !== ""
+        (harnesses[setup.agent].box.read(readScreen(live.screen))?.text.trim() ?? "") !== ""
       await message(t1, t2, "Tell fox the news")
       if (!kept) {
         const carrying = await run.model.waitFor((call) => delivered(call, "moth"), {

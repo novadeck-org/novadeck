@@ -5,7 +5,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSy
 import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
 
-import { Terminal } from "@novadeck/emulator/headless"
+import { createScreen } from "@novadeck/emulator/headless"
 import type { ActivityEvent } from "@novadeck/harness-core/events"
 import { screen as screenWith } from "@novadeck/harness-core/testing/screens"
 import type { TerminalChange, TerminalEvent } from "@novadeck/protocol"
@@ -608,11 +608,7 @@ describe.skipIf(process.platform === "win32")("terminal manager", () => {
     const snapshot = (await observer.next()).value!
     expect(snapshot.type).toBe("snapshot")
     if (snapshot.type !== "snapshot") throw new Error("Expected snapshot")
-    const restored = new Terminal({
-      cols: snapshot.cols,
-      rows: snapshot.rows,
-      allowProposedApi: true,
-    })
+    const restored = createScreen({ cols: snapshot.cols, rows: snapshot.rows, scrollback: 1000 })
     try {
       await new Promise<void>((resolve) => restored.write(snapshot.data, resolve))
       const content = Array.from({ length: restored.buffer.active.length }, (_, index) =>

@@ -8,13 +8,12 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
-import { Terminal } from "@novadeck/emulator/headless"
+import { createScreen, readScreen } from "@novadeck/emulator/headless"
 import { box as agyBox } from "@novadeck/harness-agy/box"
 import { box as claudeBox } from "@novadeck/harness-claude/box"
 import { box as codexBox } from "@novadeck/harness-codex/box"
 import { screenRecord } from "@novadeck/harness-core/testing/probes"
 
-import { screenText } from "../../terminals/screen.js"
 import { setups } from "../agents/index.js"
 import { describe, e2e, supported } from "../fixture.js"
 import { asked, gate } from "../model/script.js"
@@ -126,14 +125,9 @@ for (const setup of setups) {
             for await (const event of stream) {
               if (event.type !== "snapshot") continue
               const { cols, rows } = terminals.get(t.id)
-              const screen = new Terminal({
-                cols,
-                rows,
-                scrollback: 0,
-                allowProposedApi: true,
-              })
+              const screen = createScreen({ cols, rows, scrollback: 0 })
               await new Promise<void>((resolve) => screen.write(event.data, resolve))
-              const read = screenText(screen)
+              const read = readScreen(screen)
               const box = profile.read(read)
               screen.dispose()
               return {

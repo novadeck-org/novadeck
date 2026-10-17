@@ -1,4 +1,4 @@
-import { Terminal, type ScreenText } from "@novadeck/emulator/headless"
+import { createScreen, readScreen, type ScreenText } from "@novadeck/emulator/headless"
 import {
   box as agy,
   shellCommandOf as agyShellCommand,
@@ -10,7 +10,6 @@ import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { screen as screenWith } from "@novadeck/harness-core/testing/screens"
 import { compact, isEmpty, sameText, wrappedRows, type BoxProfile } from "@novadeck/tui-input/box"
 
-import { screenText } from "../terminals/screen.js"
 import { describe, expect, it } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
 
@@ -164,9 +163,9 @@ describe.each(harnesses)("the input box of $name", ({ name, profile, versions, s
 
 /** A screen as the terminal emulator draws what the TUI writes. */
 const drawn = async (output: string, rows = 12): Promise<ScreenText> => {
-  const screen = new Terminal({ cols: 60, rows, allowProposedApi: true })
+  const screen = createScreen({ cols: 60, rows, scrollback: 1000 })
   await new Promise<void>((resolve) => screen.write(output, resolve))
-  const text = screenText(screen)
+  const text = readScreen(screen)
   screen.dispose()
   return text
 }
