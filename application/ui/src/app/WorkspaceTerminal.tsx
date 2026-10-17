@@ -336,6 +336,7 @@ export const WorkspaceTerminal = memo(
         terminalKey={terminalKey}
         terminal={terminal}
         projectName={projectName}
+        view={view}
         fontSize={fontSize}
         focusInput={wanted && !showChat}
         onInputFocused={onInputFocused}

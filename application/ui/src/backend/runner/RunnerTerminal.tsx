@@ -13,6 +13,7 @@ import { TerminalEndingBar, TerminalLock, TerminalNotice } from "../../ui-toolki
 import type { TerminalSurfaceProps } from "../port"
 import { restartable } from "./activity"
 import type { SurfaceRuntime } from "./backend"
+import { wantsWebgl } from "./renderer"
 import { createScreens, type RunnerScreen, type Screens, type ScreenStream } from "./screens"
 
 // Why typing is paused. A failed paste says why in the same notice.
@@ -40,6 +41,7 @@ export const createRunnerTerminal = (
   const RunnerTerminal = ({
     terminalKey,
     terminal,
+    view,
     fontSize,
     focusInput,
     onInputFocused,
@@ -51,7 +53,7 @@ export const createRunnerTerminal = (
     const [screen, setScreen] = useState<RunnerScreen | null>(null)
     const root = useRef<HTMLDivElement | null>(null)
     const refitFrame = useRef<number | null>(null)
-    const opening = useRef({ fontSize, name: terminal.name })
+    const opening = useRef({ fontSize, name: terminal.name, view })
     const name = terminal.name
     // An exited or failed terminal waits for Enter, or its bar's Restart. The stream
     // reports an exit in order with the output, sometimes before the status does; the
@@ -134,6 +136,7 @@ export const createRunnerTerminal = (
         fontSize: opening.current.fontSize,
         name: opening.current.name,
         waiting: restartable(terminal),
+        webgl: wantsWebgl(opening.current.view),
       })
       setScreen(acquired)
       return () => {
@@ -147,6 +150,11 @@ export const createRunnerTerminal = (
     useEffect(() => {
       if (screen) screen.waiting = waiting
     }, [screen, waiting])
+
+    // A view that changes under a mounted surface changes how its screen draws.
+    useEffect(() => {
+      screen?.renderer.take(wantsWebgl(view))
+    }, [screen, view])
 
     // While the runner is away, keys are refused where the person can see it.
     useEffect(() => {

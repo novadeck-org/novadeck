@@ -1,11 +1,12 @@
 import type { TerminalEvent, TerminalExit } from "@novadeck/protocol"
 import { RunnerError, type AttachedTerminal } from "@novadeck/protocol/client"
+import { FitAddon } from "@xterm/addon-fit"
 import { Terminal } from "@xterm/xterm"
 import { act, createElement, type ReactNode } from "react"
 import { afterEach, vi } from "vitest"
 
 import { createStore } from "../../model/store"
-import type { TerminalMetadata } from "../../model/types"
+import type { TerminalMetadata, ViewMode } from "../../model/types"
 import { context, describe, expect, it } from "../../test"
 import { terminalFixture } from "../../test/fixtures"
 import { render, type Rendered } from "../../test/render"
@@ -13,6 +14,7 @@ import { themeChangeEvent } from "../../theme/apply"
 import type { BackendConnectionState } from "../port"
 import type { SurfaceRuntime } from "./backend"
 import { ctrlVHoldMs } from "./paste"
+import { createRenderers, type Drawing } from "./renderer"
 import { createRunnerTerminal } from "./RunnerTerminal"
 import { createScreens, pasteNoticeMs } from "./screens"
 
@@ -89,6 +91,7 @@ const show = (
       terminalKey: key,
       terminal,
       projectName: "P",
+      view: "focus",
       fontSize: 13,
       focusInput: false,
       onInputFocused: () => {},
@@ -238,6 +241,7 @@ describe("runner terminal surface", () => {
         terminalKey: key,
         terminal: { ...terminalFixture(1, "~"), state: "running" },
         projectName: "P",
+        view: "focus",
         fontSize: 13,
         focusInput: false,
         onInputFocused: () => {},
@@ -349,6 +353,7 @@ describe("runner terminal surface", () => {
             terminalKey: key,
             terminal: { ...terminalFixture(1, "~"), state: "running" },
             projectName: "P",
+            view: "focus",
             fontSize: 13,
             focusInput: false,
             onInputFocused: () => {},
@@ -677,6 +682,7 @@ describe("runner terminal surface", () => {
           terminalKey: key,
           terminal,
           projectName: "P",
+          view: "focus",
           fontSize: 13,
           focusInput: false,
           onInputFocused: () => {},
@@ -1066,6 +1072,7 @@ describe("typing into a terminal's screen", () => {
           terminalKey: key,
           terminal: { ...terminalFixture(1, "~"), state: "running" },
           projectName: "P",
+          view: "focus",
           fontSize: 13,
           focusInput: false,
           onInputFocused: () => {},
@@ -1166,5 +1173,141 @@ describe("typing into a terminal's screen", () => {
     expect(screens.typeInto(key, "\n one\r\ntwo\u001b[31m\tthree \n")).toBe(true)
     expect(written).toEqual(["one two [31m three"])
     expect(screens.typeInto(key, " \r\n ")).toBe(false)
+  })
+})
+
+describe("a surface's renderer", () => {
+  // Surfaces over screens drawing through a pool of fake drawings, which record what loads
+  // and goes. Every fit gives a size, so each refit tells the runtime.
+  const wired = () => {
+    const loaded: Terminal[] = []
+    const drawings: { disposed: boolean }[] = []
+    const watching = { count: 0 }
+    const renderers = createRenderers<Terminal>({
+      load: (xterm) => {
+        loaded.push(xterm)
+        const drawing = { disposed: false }
+        drawings.push(drawing)
+        return {
+          onContextLoss: () => ({ dispose: () => {} }),
+          clearTextureAtlas: () => {},
+          dispose: () => void (drawing.disposed = true),
+        } satisfies Drawing
+      },
+      supported: () => true,
+      cap: 12,
+      ligatures: () => false,
+      watchLigatures: () => {
+        watching.count += 1
+        return () => void (watching.count -= 1)
+      },
+    })
+    const { runtime } = starting()
+    const resized = vi.fn<SurfaceRuntime["resized"]>()
+    const closed = new Set<string>()
+    const screens = createScreens(
+      {
+        ...runtime,
+        resized,
+        entry: ({ terminalId }) => ({
+          ready: new Promise<boolean>(() => {}),
+          revived: new Promise<void>(() => {}),
+          closed: closed.has(terminalId),
+          size: { cols: 80, rows: 24 },
+        }),
+      },
+      renderers,
+    )
+    vi.spyOn(FitAddon.prototype, "proposeDimensions").mockReturnValue({ cols: 100, rows: 30 })
+    const Surface = createRunnerTerminal(runtime, screens)
+    const place = (terminalId: string, view: ViewMode) => {
+      const terminalKey = { ...key, terminalId }
+      const host = screens.host(terminalKey)
+      Object.defineProperty(host, "clientWidth", { configurable: true, value: 800 })
+      Object.defineProperty(host, "clientHeight", { configurable: true, value: 600 })
+      return createElement(Surface, {
+        key: terminalId,
+        terminalKey,
+        terminal: { ...terminalFixture(1, "~"), state: "starting" },
+        projectName: "P",
+        view,
+        fontSize: 13,
+        focusInput: false,
+        onInputFocused: () => {},
+        renderWindow: (content) => content,
+      })
+    }
+    const mount = (view: ViewMode, ...ids: string[]) => {
+      const page = render(createElement("div", null, ...ids.map((id) => place(id, view))))
+      mounted.push(page)
+      return page
+    }
+    const again = (page: Rendered, view: ViewMode, ...ids: string[]) =>
+      page.rerender(createElement("div", null, ...ids.map((id) => place(id, view))))
+    return { loaded, drawings, watching, resized, closed, mount, again }
+  }
+
+  it("loads WebGL for Focus and nothing for Canvas", () => {
+    const { loaded, drawings, mount, again } = wired()
+    const page = mount("canvas", "01")
+    expect(loaded).toHaveLength(0)
+    again(page, "focus", "01")
+    expect(loaded).toHaveLength(1)
+    again(page, "canvas", "01")
+    expect(drawings.map((drawing) => drawing.disposed)).toEqual([true])
+  })
+
+  it("fits the screen again each time it changes renderer", () => {
+    const { resized, mount, again } = wired()
+    const page = mount("focus", "01")
+    expect(resized).toHaveBeenCalledWith(key, { cols: 100, rows: 30 })
+    resized.mockClear()
+    again(page, "canvas", "01")
+    expect(resized).toHaveBeenCalledTimes(1)
+    again(page, "focus", "01")
+    expect(resized).toHaveBeenCalledTimes(2)
+  })
+
+  it("gives the context back when the screen parks, not when a surface returns in time", () => {
+    const { drawings, mount } = wired()
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+    try {
+      const page = mount("focus", "01")
+      mounted.splice(mounted.indexOf(page), 1)
+      page.unmount()
+      vi.advanceTimersByTime(4_000)
+      expect(drawings[0]!.disposed).toBe(false)
+      const back = mount("focus", "01")
+      vi.advanceTimersByTime(10_000)
+      expect(drawings).toHaveLength(1)
+      expect(drawings[0]!.disposed).toBe(false)
+      mounted.splice(mounted.indexOf(back), 1)
+      back.unmount()
+      vi.advanceTimersByTime(4_999)
+      expect(drawings[0]!.disposed).toBe(false)
+      vi.advanceTimersByTime(1)
+      expect(drawings[0]!.disposed).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("watches the ligatures setting until the last screen goes", () => {
+    const { watching, closed, mount } = wired()
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const page = mount("focus", "01", "02")
+      expect(watching.count).toBe(1)
+      mounted.splice(mounted.indexOf(page), 1)
+      page.unmount()
+      closed.add("01")
+      vi.advanceTimersByTime(1_000)
+      expect(watching.count).toBe(1)
+      closed.add("02")
+      vi.advanceTimersByTime(1_000)
+      expect(watching.count).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

@@ -95,6 +95,7 @@ export const describeBackendContract = (name: string, options: BackendContractOp
           terminalKey={key}
           terminal={terminal}
           projectName={project.name}
+          view="focus"
           fontSize={13}
           focusInput={false}
           onInputFocused={ignore}

@@ -12,6 +12,7 @@ import { followTerminal, type FollowedTerminal, type Screen } from "./follow"
 import { linkTerminal } from "./links"
 import { clipboardAccess, takeCtrlV, takeFilePastes, type PasteTarget } from "./paste"
 import { silenceQueries } from "./queries"
+import { pageRenderers, type Renderers, type ScreenRenderer } from "./renderer"
 
 // The sizes the runner accepts.
 const clamp = (value: number, min: number, max: number): number =>
@@ -94,6 +95,9 @@ export type RunnerScreen = {
   readonly host: HTMLDivElement
   readonly xterm: Terminal
   readonly followed: FollowedTerminal
+  // Which renderer draws it: WebGL while shown where its view wants it and a context is
+  // free, else the DOM one.
+  readonly renderer: ScreenRenderer
   readonly stream: Store<ScreenStream>
   // Why the last paste failed, for a few seconds after it did.
   readonly notice: Store<string | null>
@@ -106,6 +110,8 @@ export type RunnerScreen = {
 }
 
 type OpenOptions = { fontSize: number; name: string; waiting: boolean }
+// How a surface shows the screen: with WebGL where its view wants it.
+type ShowOptions = OpenOptions & { webgl: boolean }
 
 type Entry = {
   readonly host: HTMLDivElement
@@ -134,7 +140,7 @@ const id = ({ projectId, workspaceSessionId, terminalId }: TerminalKey): string 
 // while it shows it and releases it after. A released screen stays while its terminal
 // exists, so the other views, and later the other sessions and projects, find it ready; it
 // closes once its terminal does, or its session has stayed off screen for `retainMs`.
-export const createScreens = (runtime: SurfaceRuntime) => {
+export const createScreens = (runtime: SurfaceRuntime, renderers: Renderers = pageRenderers()) => {
   const entries = new Map<string, Entry>()
   // Whether Ctrl+V may read the clipboard, the same for every terminal.
   const readable = clipboardAccess(desktopHost() !== undefined)
@@ -201,10 +207,14 @@ export const createScreens = (runtime: SurfaceRuntime) => {
       exited: (waits) => stream.update((state) => ({ ...state, waits })),
       live: (live, resuming = false) => stream.update((state) => ({ ...state, live, resuming })),
     })
+    // The two renderers measure a cell apart (WebGL to whole device pixels), so a screen
+    // that changes renderer fits its slot again.
+    const renderer = renderers.screen(xterm, () => followed.refit())
     const screen: RunnerScreen = {
       host: element,
       xterm,
       followed,
+      renderer,
       stream,
       notice,
       waiting,
@@ -287,6 +297,8 @@ export const createScreens = (runtime: SurfaceRuntime) => {
     const measure = (font: string): void => {
       if (xterm.options.fontFamily === font) xterm.options.fontFamily = "monospace"
       xterm.options.fontFamily = font
+      // Glyphs the WebGL atlas drew in the family's fallback stay cached under its name.
+      renderer.refresh()
       followed.refit()
     }
     // The theme's font, once it has loaded: a bundled font still on its way arrives later,
@@ -350,6 +362,7 @@ export const createScreens = (runtime: SurfaceRuntime) => {
       clearTimeout(noticed)
       queries.dispose()
       followed.stop()
+      renderer.dispose()
       xterm.dispose()
       element.remove()
     }
@@ -381,7 +394,7 @@ export const createScreens = (runtime: SurfaceRuntime) => {
     // The host a surface places in its slot, the same element for the terminal's life.
     host: (key: TerminalKey): HTMLDivElement => entryOf(key).host,
     // The terminal's screen for a surface that shows it, opened on first use.
-    acquire: (key: TerminalKey, options: OpenOptions): RunnerScreen => {
+    acquire: (key: TerminalKey, { webgl, ...options }: ShowOptions): RunnerScreen => {
       const entry = entryOf(key)
       entry.users += 1
       if (entry.timer !== undefined) clearTimeout(entry.timer)
@@ -390,6 +403,7 @@ export const createScreens = (runtime: SurfaceRuntime) => {
       entry.parking = undefined
       entry.screen ??= open(key, entry, options)
       entry.screen.followed.unpark()
+      entry.screen.renderer.take(webgl)
       return entry.screen
     },
     release: (key: TerminalKey): void => {
@@ -398,10 +412,14 @@ export const createScreens = (runtime: SurfaceRuntime) => {
       entry.users -= 1
       if (entry.users > 0) return
       if (entry.timer === undefined) settle(key, entry)
+      // Until it parks it keeps its context, which a shown screen may take meanwhile.
+      entry.screen?.renderer.idle()
       clearTimeout(entry.parking)
       entry.parking = setTimeout(() => {
         entry.parking = undefined
-        if (entry.users === 0) entry.screen?.followed.park()
+        if (entry.users !== 0) return
+        entry.screen?.followed.park()
+        entry.screen?.renderer.release()
       }, parkMs)
     },
     // Pastes text into the terminal's screen as the person's own paste: bracketed when its

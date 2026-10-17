@@ -12,7 +12,13 @@ import type { WorkspaceSeed } from "../model/seed"
 import type { WorkspaceAction } from "../model/state"
 import type { Store } from "../model/store"
 import type { TelemetryReader } from "../model/telemetry"
-import type { TerminalKey, TerminalMetadata, Workspace, WorkspaceTarget } from "../model/types"
+import type {
+  TerminalKey,
+  TerminalMetadata,
+  ViewMode,
+  Workspace,
+  WorkspaceTarget,
+} from "../model/types"
 import type { UninstallPlan, UninstallResult } from "../model/uninstall"
 import type { UpdateChannel, UpdateOffer } from "../model/update"
 import type { Voice } from "../model/voice"
@@ -45,6 +51,10 @@ export type TerminalSurfaceProps = {
   readonly terminalKey: TerminalKey
   readonly terminal: TerminalMetadata
   readonly projectName: string
+  // The view it shows in. A backend may draw differently in one, as the runner's keeps
+  // Canvas's on the DOM renderer, since Canvas zooms with a transform that stretches a
+  // GPU-drawn screen.
+  readonly view: ViewMode
   // The terminal font size from Preferences, in CSS pixels.
   readonly fontSize: number
   // True while keyboard navigation asks the surface to focus its input.

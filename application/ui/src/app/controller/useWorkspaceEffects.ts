@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useLayoutEffect, useRef } from "react"
 
 import { cancelTerminalTransition } from "../../layouts/transition"
 import { tilesOf } from "../../model/roster"
@@ -28,8 +28,9 @@ export const useWorkspaceEffects = (): void => {
   const activeRename = renameSession?.context === context ? renameSession : null
 
   // Ligatures follow the preference on <html>, so dialogs outside the workspace follow it
-  // too (theme/base.css).
-  useEffect(() => {
+  // too (theme/base.css). Set before any effect of the terminals, whose renderer depends
+  // on the setting (backend/runner/renderer.ts), so a screen never loads WebGL to drop.
+  useLayoutEffect(() => {
     document.documentElement.dataset.ligatures = ligatures ? "on" : "off"
   }, [ligatures])
 

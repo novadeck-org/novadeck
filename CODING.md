@@ -25,17 +25,18 @@ doesn't. Precise TypeScript types should make inputs, outputs, and errors easy
 to follow without a trail of casts.
 
 Tests should read like accounts of behavior. Use `*.test.ts` for colocated tests
-and `*.spec.tsx` for UI behaviour specs in `application/ui/src/specs/`. Name
-groups after what they test and cases after the behavior being checked. In
-`application/runner`, use top-level `describe` groups and direct `it` cases,
-without nested `describe` or `context` layers. Elsewhere, use `describe`,
-`context`, and `it` to show the situation and its observable result.
-Use fixtures for stable examples and mock as little as possible. Test commands
-and key routing as plain functions: `test/commands.ts` runs the real stores,
-navigator, and commands with effects that record what they would do. When a test
-needs an HTTP API, use MSW; exercise real functions and boundaries instead of
-mocking `fetch` or internal calls. If a build changes what consumers receive,
-test the built artifact too.
+and `*.spec.tsx` for UI behaviour specs in `application/ui/src/specs/`. A module
+that needs a real browser to check, as WebGL does, gets a `*.spec.ts` beside it,
+which the UI's behaviour project lists by name. Name groups after what they test
+and cases after the behavior being checked. In `application/runner`, use
+top-level `describe` groups and direct `it` cases, without nested `describe` or
+`context` layers. Elsewhere, use `describe`, `context`, and `it` to show the
+situation and its observable result. Use fixtures for stable examples and mock
+as little as possible. Test commands and key routing as plain functions:
+`test/commands.ts` runs the real stores, navigator, and commands with effects
+that record what they would do. When a test needs an HTTP API, use MSW; exercise
+real functions and boundaries instead of mocking `fetch` or internal calls. If a
+build changes what consumers receive, test the built artifact too.
 
 Apply this style to new code and improve existing code as you touch it. Run the
 relevant project checks before handing off a change, and say which checks could
