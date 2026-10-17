@@ -1015,43 +1015,43 @@ backend-only tests.
 
 Source lives in `application/ui/src/`, grouped in layers:
 
-| Location                                           | What belongs here                                                                            |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `app/`                                             | Composition root: router, provider, backend selection, and the page sections.                |
-| `app/ui-store.ts`                                  | The UI store: route, preferences, shell, rename, switcher, and its store subscriptions.      |
-| `app/selectors.ts`                                 | Pure reads over the stores that sections, commands, and keys share.                          |
-| `app/commands/`                                    | Commands, key commands, and the navigator: plain functions over both stores.                 |
-| `app/controller/`                                  | React glue: context, selector hook, route sync, keyboard dispatcher, effects.                |
-| `backend/`                                         | The UI-owned backend port and the shared terminal lifecycle registry.                        |
-| `backend/demo/`                                    | The demo adapter for tests and specs: sample projects and simulated terminals.               |
-| `backend/demo/showcase/`                           | The content preview's sample agents: plans, artifacts, and their simulated work.             |
-| `backend/runner/`                                  | The runner adapter: connection, seed from the runner, saves, and the xterm surface.          |
-| `model/`                                           | Pure domain: types, reducer, workspace store, seed, and layout rules in `layout/`.           |
-| `model/companion.ts`                               | Companion items, their content, the `companions` port, and the plan note format.             |
-| `model/companion-bar.ts`                           | A bar as the person arranged it: order, hidden plans and Messages, the open tab.             |
-| `model/messages.ts`                                | The contract for agents' messages: threads, states, the pause, and a tab's count.            |
-| `model/conversation.ts`                            | The contract for an agent's conversation: transcript items, requests, the port.              |
-| `model/inbox.ts`                                   | The contract for the Inbox: items by source, their type and urgency, answers, the port.      |
-| `model/conversation-turns.ts`                      | A conversation grouped into blocks, tool calls summed up in a line, the turn's status.       |
-| `model/roster.ts`                                  | A session's terminals and undocked windows, laid out as tiles, their order and status.       |
-| `model/layout/workspace-layout.ts`                 | Where each terminal sits and how big it is in each view.                                     |
-| `terminals/`                                       | Terminal frame, tabs, rename state, and the recent-terminal switcher.                        |
-| `terminals/companion/`                             | Taskbar and pane: the panes' store, `bar.ts` rules, viewers, `plan-editor/` (notes).         |
-| `terminals/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.             |
-| `terminals/chat/`                                  | The agent's chat: its blocks, markdown reader, tool rows, requests and the composer.         |
-| `layouts/canvas/`, `grid/`, `focus/`               | View adapters and colocated library styles.                                                  |
-| `layouts/` (top level)                             | Helpers shared by views: view transitions, background gestures, visibility.                  |
-| `notifications/`                                   | The notification center: what asks for the person across the workspace, and its panel.       |
-| `inbox/`                                           | The Inbox: what agents ask of the person, its sidebar rows and the sheet that answers.       |
-| `shell/`                                           | Header, rail, panels, zen dock, sidebar, and shell state transitions.                        |
-| `sidebar/`, `projects/`, `preferences/`, `search/` | Feature components.                                                                          |
-| `interaction/`                                     | Shortcut records, the keymap, and shared DOM focus/overlay contracts.                        |
-| `ui-toolkit/`                                      | Reusable controls, direct Ark UI imports, and the shared recipes they draw with.             |
-| `test/`                                            | Unit-test fixtures, a jsdom render helper, a command harness, and the port contract.         |
-| `assets/`                                          | Static files referenced from CSS.                                                            |
-| `theme/`                                           | Tailwind's layout-only theme, token defaults, Graphite and Phosphor, `apply.ts`.             |
-| `styles.css`                                       | The cascade order, every recipe, theme and vendor sheet in its layer, Tailwind sources.      |
-| `specs/`                                           | Behaviour specs for the whole UI, run in a real browser, and the spec backend over the demo. |
+| Location                                           | What belongs here                                                                       |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `app/`                                             | Composition root: router, provider, backend selection, and the page sections.           |
+| `app/ui-store.ts`                                  | The UI store: route, preferences, shell, rename, switcher, and its store subscriptions. |
+| `app/selectors.ts`                                 | Pure reads over the stores that sections, commands, and keys share.                     |
+| `app/commands/`                                    | Commands, key commands, and the navigator: plain functions over both stores.            |
+| `app/controller/`                                  | React glue: context, selector hook, route sync, keyboard dispatcher, effects.           |
+| `backend/`                                         | The UI-owned backend port and the shared terminal lifecycle registry.                   |
+| `backend/demo/`                                    | The demo adapter for tests and specs: sample projects and simulated terminals.          |
+| `backend/demo/showcase/`                           | The content preview's sample agents: plans, artifacts, and their simulated work.        |
+| `backend/runner/`                                  | The runner adapter: connection, seed from the runner, saves, and the xterm surface.     |
+| `model/`                                           | Pure domain: types, reducer, workspace store, seed, and layout rules in `layout/`.      |
+| `model/companion.ts`                               | Companion items, their content, the `companions` port, and the plan note format.        |
+| `model/companion-bar.ts`                           | A bar as the person arranged it: order, hidden plans and Messages, the open tab.        |
+| `model/messages.ts`                                | The contract for agents' messages: threads, states, the pause, and a tab's count.       |
+| `model/conversation.ts`                            | The contract for an agent's conversation: transcript items, requests, the port.         |
+| `model/inbox.ts`                                   | The contract for the Inbox: items by source, their type and urgency, answers, the port. |
+| `model/conversation-turns.ts`                      | A conversation grouped into blocks, tool calls summed up in a line, the turn's status.  |
+| `model/roster.ts`                                  | A session's terminals and undocked windows, laid out as tiles, their order and status.  |
+| `model/layout/workspace-layout.ts`                 | Where each terminal sits and how big it is in each view.                                |
+| `terminals/`                                       | Terminal frame, tabs, rename state, and the recent-terminal switcher.                   |
+| `terminals/companion/`                             | Taskbar and pane: the panes' store, `bar.ts` rules, viewers, `plan-editor/` (notes).    |
+| `terminals/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.        |
+| `terminals/chat/`                                  | The agent's chat: its blocks, markdown reader, tool rows, requests and the composer.    |
+| `layouts/canvas/`, `grid/`, `focus/`               | View adapters and colocated library styles.                                             |
+| `layouts/` (top level)                             | Helpers shared by views: view transitions, background gestures, visibility.             |
+| `notifications/`                                   | The notification center: what asks for the person across the workspace, and its panel.  |
+| `inbox/`                                           | The Inbox: what agents ask of the person, its sidebar rows and the sheet that answers.  |
+| `shell/`                                           | Header, rail, panels, zen dock, sidebar, and shell state transitions.                   |
+| `sidebar/`, `projects/`, `preferences/`, `search/` | Feature components.                                                                     |
+| `interaction/`                                     | Shortcut records, the keymap, and shared DOM focus/overlay contracts.                   |
+| `ui-toolkit/`                                      | Reusable controls, direct Ark UI imports, and the shared recipes they draw with.        |
+| `test/`                                            | Unit-test fixtures, a jsdom render helper, a command harness, and the port contract.    |
+| `assets/`                                          | Static files referenced from CSS.                                                       |
+| `theme/`                                           | Tailwind's layout-only theme, token defaults, Graphite and Phosphor, `apply.ts`.        |
+| `styles.css`                                       | The cascade order, every recipe, theme and vendor sheet in its layer, Tailwind sources. |
+| `specs/`                                           | Behaviour specs for the whole UI, and the spec backend over the demo.                   |
 
 Imports point down the layers. `model/` imports nothing else, not even packages,
 apart from the scheme and theme manifest types, and `theme/` imports nothing at
@@ -1242,8 +1242,9 @@ or `--project unit` for reducer invariants, terminal lifecycle, layout rules,
 stores, commands, keymap routing, architecture rules, and build
 checks in colocated `*.test.ts` files. Files in `src/specs/` keep
 the `*.spec.tsx` suffix, except the tests that render the whole workspace in jsdom
-(render scope, the terminal and overlay wiring): they need the spec backend, which only
-`specs/` may import with the demo, so they sit there as `*.test.ts` and run with
+(render scope, the terminal and overlay wiring): they need the spec backend
+(`specs/support/backend.ts`, the one file that may import the demo), so they sit there as
+`*.test.ts` and run with
 `--project integration`. Use `--project motion` for transition behavior. The build
 checks validate both entry assets and deferred chunks with relative packaged paths.
 

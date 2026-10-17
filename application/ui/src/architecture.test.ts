@@ -83,8 +83,9 @@ const rules: Record<string, readonly string[]> = {
     // The dictation contract's types, which keys call.
     "voice/dictation-control.ts",
   ],
-  // Specs drive the whole UI over the demo: any of its layers, the port, and the page's
-  // styles. The demo is reached through the spec entry alone; see `specBackend`.
+  // Specs drive the whole UI over the demo: the layers they render, mock or read, the port,
+  // and the page's styles. The demo is reached through the spec entry alone; see
+  // `specBackend`.
   "specs/": [
     "specs/",
     "app/",
