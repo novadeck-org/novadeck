@@ -1,5 +1,12 @@
 import { describe, expect, it } from "../test"
-import { dropContext, dropProject, dropTerminal, noTelemetry, setUsage } from "./telemetry"
+import {
+  createTelemetryStore,
+  dropContext,
+  dropProject,
+  dropTerminal,
+  noTelemetry,
+  setUsage,
+} from "./telemetry"
 import type { AgentUsage } from "./types"
 
 const usage = (occupied: number): AgentUsage => ({
@@ -64,5 +71,29 @@ describe("agent telemetry", () => {
     const next = dropContext(held, "p/s")
     expect(next).toEqual({ "p/o": { "2": usage(2) } })
     expect(next["p/o"]).toBe(held["p/o"])
+  })
+})
+
+describe("the telemetry store", () => {
+  it("wakes a terminal's reader only when that terminal reports something new", () => {
+    const store = createTelemetryStore()
+    const heard: string[] = []
+    const mine = store.entry({ context: "p/s", terminalId: "1" })
+    mine.subscribe(() => heard.push("1"))
+    store.entry({ context: "p/s", terminalId: "2" }).subscribe(() => heard.push("2"))
+    store.update((held) => setUsage(held, "p/s", "1", usage(1_000)))
+    store.update((held) => setUsage(held, "p/s", "1", usage(1_000)))
+    store.update((held) => setUsage(held, "p/s", "1", usage(2_000)))
+    expect(heard).toEqual(["1", "1"])
+    expect(mine.getSnapshot()).toEqual(usage(2_000))
+  })
+
+  it("tells terminals of the same id in other sessions apart", () => {
+    const store = createTelemetryStore()
+    const heard: string[] = []
+    store.entry({ context: "p/other", terminalId: "1" }).subscribe(() => heard.push("other"))
+    store.entry({ context: "p/s", terminalId: "1" }).subscribe(() => heard.push("mine"))
+    store.update((held) => setUsage(held, "p/s", "1", usage(1_000)))
+    expect(heard).toEqual(["mine"])
   })
 })

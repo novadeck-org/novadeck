@@ -1,3 +1,4 @@
+import { createKeyedStore, type KeyedStore, type Store } from "./store"
 import type { AgentUsage } from "./types"
 
 // What the agents in every session say of their tokens and quotas, apart from their
@@ -8,6 +9,23 @@ import type { AgentUsage } from "./types"
 export type Telemetry = Readonly<Record<string, Readonly<Record<string, AgentUsage>>>>
 
 export const noTelemetry: Telemetry = {}
+
+// One terminal's place in the telemetry.
+export type TelemetryKey = { readonly context: string; readonly terminalId: string }
+
+// The telemetry as a backend keeps it: the whole of it, and each terminal's usage alone,
+// whose readers wake only when that terminal reports something new.
+export type TelemetryStore = KeyedStore<Telemetry, TelemetryKey, AgentUsage | undefined>
+
+// What readers get of it: they read and subscribe, the backend alone changes it.
+export type TelemetryReader = Store<Telemetry> & Pick<TelemetryStore, "entry">
+
+export const createTelemetryStore = (initial: Telemetry = noTelemetry): TelemetryStore =>
+  createKeyedStore(
+    initial,
+    (telemetry, { context, terminalId }: TelemetryKey) => telemetry[context]?.[terminalId],
+    ({ context, terminalId }) => `${context}\n${terminalId}`,
+  )
 
 const sameUsage = (a: AgentUsage, b: AgentUsage): boolean => JSON.stringify(a) === JSON.stringify(b)
 

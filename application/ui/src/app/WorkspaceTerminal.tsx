@@ -1,4 +1,4 @@
-import { memo, useCallback, useContext, useMemo, type ReactNode } from "react"
+import { memo, useCallback, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
 import { agentStats } from "../model/agent-usage"
@@ -22,7 +22,6 @@ import { WindowStats } from "../terminals/WindowStats"
 import { DictationStrip } from "../voice/DictationStrip"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { DictationContext, useMicButton } from "./controller/dictation"
-import { useStoreSelector } from "./controller/useStoreSelector"
 import { useDockTarget } from "./dock-target"
 import { plainTitle } from "./murmur-offer"
 import { NameChip } from "./NameChip"
@@ -151,10 +150,12 @@ const TerminalStats = memo(
     readonly context: string
     readonly terminalId: string
   }): React.JSX.Element | null => {
-    const { backend } = useWorkspaceServices()
-    const stats = agentStats(
-      useStoreSelector(backend.telemetry, (telemetry) => telemetry[context]?.[terminalId]),
+    const { telemetry } = useWorkspaceServices().backend
+    const usage = useMemo(
+      () => telemetry.entry({ context, terminalId }),
+      [telemetry, context, terminalId],
     )
+    const stats = agentStats(useSyncExternalStore(usage.subscribe, usage.getSnapshot))
     return stats ? <WindowStats stats={stats} /> : null
   },
 )

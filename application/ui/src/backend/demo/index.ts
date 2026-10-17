@@ -4,7 +4,7 @@ import { emptyCompanions } from "../../model/companion"
 import type { Conversations } from "../../model/conversation"
 import type { WorkspaceSeed } from "../../model/seed"
 import { createStore } from "../../model/store"
-import { dropProject, dropTerminal, noTelemetry } from "../../model/telemetry"
+import { createTelemetryStore, dropProject, dropTerminal, noTelemetry } from "../../model/telemetry"
 import type { TerminalMetadata, TitleSource, Workspace } from "../../model/types"
 import type {
   AgentConnection,
@@ -109,7 +109,7 @@ export const demoBackend = (
     },
     TerminalSurface: createDemoTerminal(engine, introOf, runtime),
     // Where the agents say nothing of their usage; `withConversations` gives it the turns'.
-    telemetry: createStore(noTelemetry),
+    telemetry: createTelemetryStore(),
     voice,
     murmur,
     // Older than every update the demo offers (see debug/states.ts).

@@ -1,6 +1,5 @@
 import { isAgentProgram } from "../../model/process"
-import { createStore } from "../../model/store"
-import { dropTerminal, noTelemetry, setUsage, type Telemetry } from "../../model/telemetry"
+import { createTelemetryStore, dropTerminal, setUsage } from "../../model/telemetry"
 import type { AgentStatus, AgentTurnEnd, TerminalMetadata } from "../../model/types"
 import type { BackendAction, BackendSink, TerminalKey } from "../port"
 import { terminalKeyId } from "../registry"
@@ -69,7 +68,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
   const watchers = new Set<(event: TurnEvent) => void>()
   // What the demo agents say of their tokens and quotas, which the seeds fill and `usage`
   // sets.
-  const telemetry = createStore<Telemetry>(noTelemetry)
+  const telemetry = createTelemetryStore()
   // The timers of each turn in flight, by terminal.
   const active = new Map<string, Timers>()
   // How many times each terminal's agent was taken some other way: a verb, a prompt, a Stop

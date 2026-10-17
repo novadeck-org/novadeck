@@ -79,3 +79,50 @@ export const createWorkspaceStore = (
     transact,
   }
 }
+
+// A store that hands out, beside the whole value, one entry of it by key. An entry's
+// subscribers hear of a change only when their entry changed, however many others did,
+// so a reader of one entry costs nothing when the rest change. The whole value's
+// subscribers hear of every change, as with `createStore`.
+export type KeyedStore<S, K, V> = MutableStore<S> & { readonly entry: (key: K) => Store<V> }
+
+// `read` finds a key's entry in a value, and `name` tells keys apart.
+export const createKeyedStore = <S, K, V>(
+  initial: S,
+  read: (state: S, key: K) => V,
+  name: (key: K) => string,
+): KeyedStore<S, K, V> => {
+  const whole = createStore(initial)
+  // The entries someone subscribes to, by name, with how many subscribe.
+  const watched = new Map<
+    string,
+    { readonly key: K; readonly listeners: ReturnType<typeof createListeners>; count: number }
+  >()
+  const update = (change: (state: S) => S): S => {
+    const previous = whole.getSnapshot()
+    const next = whole.update(change)
+    if (Object.is(next, previous)) return next
+    for (const each of watched.values())
+      if (!Object.is(read(previous, each.key), read(next, each.key))) each.listeners.notify()
+    return next
+  }
+  const entry = (key: K): Store<V> => ({
+    getSnapshot: () => read(whole.getSnapshot(), key),
+    subscribe: (listener) => {
+      const id = name(key)
+      const each = watched.get(id) ?? { key, listeners: createListeners(), count: 0 }
+      watched.set(id, each)
+      const stop = each.listeners.subscribe(listener)
+      each.count += 1
+      let subscribed = true
+      return () => {
+        if (!subscribed) return
+        subscribed = false
+        stop()
+        each.count -= 1
+        if (each.count === 0) watched.delete(id)
+      }
+    },
+  })
+  return { getSnapshot: whole.getSnapshot, subscribe: whole.subscribe, update, entry }
+}

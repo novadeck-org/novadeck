@@ -14,7 +14,7 @@ import {
 } from "@novadeck/protocol/client"
 
 import { createStore } from "../../model/store"
-import { dropTerminal, setUsage, type Telemetry } from "../../model/telemetry"
+import { createTelemetryStore, dropTerminal, setUsage } from "../../model/telemetry"
 import { sameTitleSource } from "../../model/title-source"
 import type {
   AgentUsage,
@@ -301,7 +301,7 @@ export const runnerBackend = (
   const saveDelay = options.saveDelay ?? defaultSaveDelay
   const quickExitMs = options.quickExitMs ?? defaultQuickExitMs
   const seed = runnerSeed(listing, quickExitMs)
-  const telemetry = createStore<Telemetry>(runnerTelemetry(listing, quickExitMs))
+  const telemetry = createTelemetryStore(runnerTelemetry(listing, quickExitMs))
   const connection = createStore<BackendConnectionState>("connected")
   const transcripts = createStore(options.transcripts ?? true)
   const agents = createStore<readonly AgentConnection[]>(

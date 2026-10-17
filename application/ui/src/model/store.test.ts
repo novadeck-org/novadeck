@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { terminalFixture } from "../test/fixtures"
 import { createTerminalState, workspaceReducer, type WorkspaceAction } from "./state"
-import { createStore, createWorkspaceStore } from "./store"
+import { createKeyedStore, createStore, createWorkspaceStore } from "./store"
 import type { TerminalStatus, Workspace } from "./types"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
@@ -377,5 +377,51 @@ describe("store", () => {
     unsubscribe()
     store.update((value) => ({ count: value.count + 1 }))
     expect(notifications).toBe(1)
+  })
+})
+
+describe("a keyed store", () => {
+  type Counts = Readonly<Record<string, number>>
+  const keyed = () =>
+    createKeyedStore<Counts, string, number | undefined>(
+      { a: 1, b: 1 },
+      (counts, key) => counts[key],
+      (key) => key,
+    )
+  const woken = () => {
+    const heard: string[] = []
+    return { heard, hear: (name: string) => () => void heard.push(name) }
+  }
+
+  it("wakes an entry's subscribers only when that entry changes", () => {
+    const store = keyed()
+    const { heard, hear } = woken()
+    store.entry("a").subscribe(hear("a"))
+    store.entry("b").subscribe(hear("b"))
+    store.update((counts) => ({ ...counts, b: 2 }))
+    store.update((counts) => ({ ...counts, b: 3 }))
+    expect(heard).toEqual(["b", "b"])
+    expect(store.entry("b").getSnapshot()).toBe(3)
+  })
+
+  it("wakes the whole value's subscribers on every change, and nobody on an equal one", () => {
+    const store = keyed()
+    const { heard, hear } = woken()
+    store.subscribe(hear("whole"))
+    store.entry("a").subscribe(hear("a"))
+    store.update((counts) => ({ ...counts, b: 2 }))
+    store.update((counts) => counts)
+    expect(heard).toEqual(["whole"])
+  })
+
+  it("forgets a subscriber once it leaves, and keeps an entry's others", () => {
+    const store = keyed()
+    const { heard, hear } = woken()
+    const leave = store.entry("a").subscribe(hear("first"))
+    store.entry("a").subscribe(hear("second"))
+    leave()
+    leave()
+    store.update((counts) => ({ ...counts, a: 2 }))
+    expect(heard).toEqual(["second"])
   })
 })

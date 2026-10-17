@@ -10,6 +10,8 @@ import { HashRouter } from "react-router"
 import { afterEach, beforeAll, vi } from "vitest"
 
 import { createSpecBackend } from "../backend/demo/spec-variants"
+import { createTelemetryStore, setUsage, type TelemetryStore } from "../model/telemetry"
+import type { AgentUsage } from "../model/types"
 import { context, describe, expect, it } from "../test"
 import { itemFixture } from "../test/fixtures"
 import { testPhases } from "../test/phases"
@@ -85,6 +87,13 @@ vi.mock("../terminals/WindowShell", async (original) => {
     WindowShell: await counted("frame", actual.WindowShell, (props) => props.terminal.id),
   }
 })
+vi.mock("../terminals/WindowStats", async (original) => {
+  const actual = await original<typeof import("../terminals/WindowStats")>()
+  return {
+    ...actual,
+    WindowStats: await counted("stats", actual.WindowStats, (props) => props.stats.model ?? ""),
+  }
+})
 vi.mock("../search/TerminalSearch", async (original) => {
   const actual = await original<typeof import("../search/TerminalSearch")>()
   return { ...actual, TerminalSearch: await counted("overlays", actual.TerminalSearch) }
@@ -120,8 +129,9 @@ const Grab = ({ found }: { readonly found: (services: WorkspaceServices) => void
   return null
 }
 
-// The whole workspace page over the default backend, with its services in reach.
-const open = async () => {
+// The whole workspace page over the default backend, or the one given, with its services
+// in reach.
+const open = async (createBackend = createSpecBackend) => {
   const phase = testPhases("workspace render scope", () => Object.fromEntries(renders))
   window.location.hash = `#/projects/storefront/sessions/initial/canvas?terminal=${first}`
   let found!: (services: WorkspaceServices) => void
@@ -140,7 +150,7 @@ const open = async () => {
         createElement(
           WorkspaceProvider,
           // The children follow as arguments.
-          { createBackend: createSpecBackend } as ComponentProps<typeof WorkspaceProvider>,
+          { createBackend } as ComponentProps<typeof WorkspaceProvider>,
           createElement(Grab, { found }),
           createElement(WorkspaceApp),
         ),
@@ -248,6 +258,69 @@ describe("workspace render scope", () => {
         }),
       )
       expect(seen).toEqual({ [`frame ${first}`]: 2, [`tab ${first}`]: 2 })
+    })
+  })
+
+  context("when an agent's status line reports how full its context is", () => {
+    // Each terminal's agent runs on its own model, which names its stats.
+    const usage = (model: string, occupied: number): AgentUsage => ({
+      context: { occupied, capacity: 200_000 },
+      limits: [],
+      model,
+      effort: null,
+    })
+    // The telemetry, telling which of its readers each report wakes: a terminal's by its
+    // id, and the whole of it as "whole".
+    const watched = (woken: string[]): TelemetryStore => {
+      const telemetry = createTelemetryStore()
+      return {
+        ...telemetry,
+        subscribe: (listener) => telemetry.subscribe(() => (woken.push("whole"), listener())),
+        entry: (key) => {
+          const entry = telemetry.entry(key)
+          return {
+            getSnapshot: entry.getSnapshot,
+            subscribe: (listener) =>
+              entry.subscribe(() => (woken.push(key.terminalId), listener())),
+          }
+        },
+      }
+    }
+
+    it("re-renders only that terminal's stats, and wakes only its reader", async () => {
+      const woken: string[] = []
+      const telemetry = watched(woken)
+      const { services } = await open(() => ({ ...createSpecBackend(), telemetry }))
+      const target = firstTarget(services)
+      const session = `${target.projectId}/${target.workspaceSessionId}`
+      act(() =>
+        services.workspace.transact(
+          [first, second].map((terminalId) => ({
+            type: "terminal/status" as const,
+            target,
+            terminalId,
+            status: { state: "running" as const, agent: { working: true } },
+          })),
+        ),
+      )
+      act(() =>
+        telemetry.update((held) =>
+          setUsage(
+            setUsage(held, session, first, usage("a", 1_000)),
+            session,
+            second,
+            usage("b", 1_000),
+          ),
+        ),
+      )
+      woken.length = 0
+      const seen = rendersDuring(() =>
+        telemetry.update((held) => setUsage(held, session, first, usage("a", 2_000))),
+      )
+      expect(seen).toEqual({ "stats a": 2 })
+      // The footer, which reads the whole of it for the subscriptions, and that terminal's
+      // window: no other window's reader.
+      expect(woken.toSorted()).toEqual([first, "whole"].toSorted())
     })
   })
 })
