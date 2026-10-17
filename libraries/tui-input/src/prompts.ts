@@ -68,18 +68,16 @@ const inPaste = (text: string): string => text.replace(/\r\n?|\n/g, "\r")
 
 /**
  * The text with its line breaks as line feeds: a CRLF or a lone CR is one line break.
- * Protocol's `normalisedText` is the same, kept apart on purpose (the library owns the `!`
- * path, and protocol can't depend on this Node-only library): the two must agree, and the
- * drift guard in application/runner/src/terminals/prompting.test.ts fails if they do not.
+ * A caller that refuses prompts by its own rule (`refuse`) reads them with its own copy of
+ * this and of `shellCommand`, kept apart on purpose: the two must agree, and the caller's
+ * tests should check that they route a `!` the same way.
  */
 const normalised = (text: string): string => text.replace(/\r\n?/g, "\n")
 
 /**
  * The shell command a prompt gives, where it starts with `!`: the rest, trimmed, which a
  * TUI runs in its shell mode once `!` is typed in its empty box; undefined for any other
- * prompt. Protocol's `shellCommand` is the same, kept apart on purpose (see `normalised`):
- * the two must agree, and the drift guard in application/runner/src/terminals/prompting.test.ts
- * fails if they do not.
+ * prompt. A caller's own copy must agree with it (see `normalised`).
  */
 const shellCommand = (text: string): string | undefined => {
   const trimmed = normalised(text).trim()

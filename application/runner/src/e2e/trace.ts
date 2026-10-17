@@ -8,7 +8,7 @@ import type { PromptShown } from "@novadeck/harness-core/events"
 import type { Harness, Install } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
 import { Trees, type Member } from "@novadeck/terminal/pty"
-import { Interrupts } from "@novadeck/tui-input"
+import { Interrupts, Prompts } from "@novadeck/tui-input"
 import { isEmpty, sameText, type BoxProfile, type InputBox } from "@novadeck/tui-input/box"
 
 import { agents, harnesses } from "../harnesses/registry.js"
@@ -16,7 +16,6 @@ import type { DeliveryEvent } from "../messaging/delivery.js"
 import { Messaging } from "../messaging/messaging.js"
 import { tracer } from "../terminals/doorbell.js"
 import { Terminals } from "../terminals/manager.js"
-import { Prompts } from "../terminals/prompting.js"
 import type { FakeModel } from "./model/server.js"
 
 /**

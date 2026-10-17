@@ -189,7 +189,8 @@ describe("ordinary text, given through the subclass", () => {
 
 describe("the library's `!` path and protocol's `shellCommand`", () => {
   // The library keeps its own copy of `shellCommand` and `normalisedText` (it can't depend on
-  // protocol): this fails if the copies drift, by the `!` being typed as a key or not.
+  // protocol): this fails if the copies drift, by the `!` being typed as a key or not, or by
+  // pasting a command other than protocol's, its line breaks as a paste carries them.
   it.each(["!ls", "  !ls", "\r\n!ls", "\n\r!ls", "! ls", "a !ls", "!ls\nmore", "ls !", "!"])(
     "types a `!` key for %j exactly where protocol calls it a shell command",
     async (text) => {
@@ -202,7 +203,12 @@ describe("the library's `!` path and protocol's `shellCommand`", () => {
         return
       }
       expect(failure).toBeUndefined()
-      expect(written.includes("!")).toBe(shellCommand(text) !== undefined)
+      const command = shellCommand(text)
+      expect(written.includes("!")).toBe(command !== undefined)
+      if (command !== undefined)
+        expect(written.join("")).toContain(
+          `\x1b[200~${command.replace(/\r\n?|\n/g, "\r")}\x1b[201~`,
+        )
     },
   )
 })
