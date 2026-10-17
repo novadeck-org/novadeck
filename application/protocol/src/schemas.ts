@@ -1,3 +1,4 @@
+import { columns, exit, rows, terminalEvents } from "@novadeck/terminal"
 import { z } from "zod"
 
 import { harnessIds } from "./harnesses.js"
@@ -6,9 +7,6 @@ export const protocolVersion = 1
 export const id = z.uuid()
 export const name = z.string().trim().min(1).max(200)
 export const directory = z.string().min(1).max(4096)
-export const columns = z.number().int().min(2).max(500)
-export const rows = z.number().int().min(1).max(200)
-export const sequence = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 
 /** The largest incoming WebSocket message a runner accepts; every call must fit in one. */
 export const maxWebSocketMessageBytes = 256 * 1024
@@ -36,13 +34,6 @@ export const workspaceSession = z.strictObject({
   name,
   // Last value saved with `sessions.save`, or null before the first save.
   state: clientState.nullable(),
-})
-// How a shell ended: its exit code, or the signal that killed it (null on Windows),
-// and how long it ran, so a client can tell a quick startup failure from a later exit.
-export const terminalExit = z.strictObject({
-  code: z.number().int().nullable(),
-  signal: z.string().max(32).nullable(),
-  ranMs: z.number().int().nonnegative(),
 })
 
 // `name` is the process's own name. `argv` is the foreground process group leader's
@@ -462,7 +453,7 @@ export const terminalSummary = z.strictObject({
   // has none in this runner's lifetime. A report about an older run is stale.
   run: z.number().int().nonnegative(),
   // How the shell ended; null while it runs.
-  exit: terminalExit.nullable(),
+  exit: exit.nullable(),
   // The terminal's foreground process, such as the shell or a program it runs. Null
   // once exited or when the platform cannot tell.
   process: foregroundProcess.nullable(),
@@ -626,24 +617,13 @@ export const terminalChange = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("synced") }),
 ])
 
-const envelope = { terminalId: id, sequence }
+// The terminal library's attach events, each in the envelope that names its terminal, its
+// field first as it always was.
 export const terminalEvent = z.discriminatedUnion("type", [
-  z.strictObject({
-    ...envelope,
-    type: z.literal("snapshot"),
-    data: z.string(),
-    cols: columns,
-    rows,
-    // Null while the shell runs.
-    exit: terminalExit.nullable(),
-  }),
-  z.strictObject({ ...envelope, type: z.literal("output"), data: z.string() }),
-  z.strictObject({ ...envelope, type: z.literal("resized"), cols: columns, rows }),
-  z.strictObject({
-    ...envelope,
-    type: z.literal("exited"),
-    exit: terminalExit,
-  }),
+  z.strictObject({ terminalId: id, ...terminalEvents.snapshot.shape }),
+  z.strictObject({ terminalId: id, ...terminalEvents.output.shape }),
+  z.strictObject({ terminalId: id, ...terminalEvents.resized.shape }),
+  z.strictObject({ terminalId: id, ...terminalEvents.exited.shape }),
 ])
 
 /** Wire-only marker: the attachment is established and holds the reported mode. */
@@ -943,7 +923,7 @@ export const terminalMessages = z.strictObject({
 
 export type Project = z.infer<typeof project>
 export type WorkspaceSession = z.infer<typeof workspaceSession>
-export type TerminalExit = z.infer<typeof terminalExit>
+export type TerminalExit = z.infer<typeof exit>
 export type ForegroundProcess = z.infer<typeof foregroundProcess>
 export type TerminalSummary = z.infer<typeof terminalSummary>
 export type TitleSource = z.infer<typeof titleSource>

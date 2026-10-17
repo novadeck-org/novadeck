@@ -7,6 +7,7 @@ import {
   type AgentName,
   type ItemContent,
 } from "@novadeck/protocol"
+import { TerminalError } from "@novadeck/terminal"
 import { implement, ORPCError } from "@orpc/server"
 
 import { savePlan } from "./companions/content.js"
@@ -37,14 +38,21 @@ export type Connection = {
 
 type Context = { connection: Connection }
 
-const apiError = (error: unknown): unknown =>
-  error instanceof DomainError
-    ? new ORPCError(error.code, {
-        status: contractErrors[error.code].status,
-        message: error.message,
-        data: error.data ?? (error.reason ? { reason: error.reason } : undefined),
-      })
-    : error
+const apiError = (error: unknown): unknown => {
+  if (error instanceof DomainError)
+    return new ORPCError(error.code, {
+      status: contractErrors[error.code].status,
+      message: error.message,
+      data: error.data ?? (error.reason ? { reason: error.reason } : undefined),
+    })
+  // The terminal library's codes are the contract's own, under the same names.
+  if (error instanceof TerminalError)
+    return new ORPCError(error.code, {
+      status: contractErrors[error.code].status,
+      message: error.message,
+    })
+  return error
+}
 
 export const createRouter = (options: {
   runnerId: string

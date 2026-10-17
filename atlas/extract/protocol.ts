@@ -10,8 +10,8 @@ const newest = (dir: string): number =>
   }, 0)
 
 // The extractor reads the contract from the built protocol package, which reads the built
-// wire library; build each, in that order, when it is missing or older than its source.
-// It runs the package's own build (`tsc -p tsconfig.build.json`) with the TypeScript the
+// wire and terminal libraries; build each, the libraries first, when it is missing or older
+// than its source. It runs the package's own build (`tsc -p tsconfig.build.json`) with the TypeScript the
 // package resolves, through Node: not through pnpm, which may first run an install, and
 // which is a different executable on Windows. The build's own output goes to stderr, so a
 // failing build explains itself and stdout stays the caller's.
@@ -19,13 +19,14 @@ export const ensureProtocol = (repo: string): void => {
   let rebuilt = false
   for (const [name, folder] of [
     ["@novadeck/wire", "libraries/wire"],
+    ["@novadeck/terminal", "libraries/terminal"],
     ["@novadeck/protocol", "application/protocol"],
   ] as const) {
     const root = join(repo, folder)
     const built = join(root, "dist/index.js")
     if (!rebuilt && existsSync(built) && statSync(built).mtimeMs >= newest(join(root, "src")))
       continue
-    // What depends on a rebuilt package is rebuilt too.
+    // What comes after a rebuilt package is rebuilt too, as protocol depends on both.
     rebuilt = true
     process.stderr.write(`atlas: building ${name}…\n`)
     const typescript = createRequire(join(root, "package.json")).resolve("typescript/package.json")

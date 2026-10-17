@@ -137,6 +137,9 @@ importers:
 
   application/protocol:
     dependencies:
+      '@novadeck/terminal':
+        specifier: workspace:*
+        version: link:../../libraries/terminal
       '@novadeck/wire':
         specifier: workspace:*
         version: link:../../libraries/wire
@@ -555,10 +558,17 @@ importers:
         version: 5.0.3(@types/node@26.6.5)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(jsdom@30.1.2(@noble/hashes@2.4.0))(msw@2.15.0(@types/node@26.6.5)(typescript@7.0.2))(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
 
   libraries/terminal:
+    dependencies:
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.5
     devDependencies:
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
+      fast-check:
+        specifier: 4.10.2
+        version: 4.10.2
       node-pty:
         specifier: 1.2.0-beta.14
         version: 1.2.0-beta.14(patch_hash=c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224)

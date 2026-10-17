@@ -1,14 +1,13 @@
-import type { TerminalEvent } from "@novadeck/protocol"
+import { describe, expect, it } from "vitest"
 
-import { describe, expect, it } from "../test.js"
+import type { TerminalEvent } from "../contract.js"
 import { Subscription } from "./subscription.js"
 
 const output = (sequence: number): TerminalEvent => {
-  return { terminalId: "terminal", sequence, type: "output", data: "x".repeat(100) }
+  return { sequence, type: "output", data: "x".repeat(100) }
 }
 
 const snapshot = (): TerminalEvent => ({
-  terminalId: "terminal",
   sequence: 0,
   type: "snapshot",
   data: "s".repeat(1024),
@@ -102,5 +101,15 @@ describe("terminal subscription", () => {
     const pending = subscription.next()
     subscription.cancel()
     expect(await pending).toBeUndefined()
+  })
+
+  it("counts an event at its size in its consumer's envelope", async () => {
+    type Enveloped = TerminalEvent & { terminalId: string }
+    const event: Enveloped = { ...output(1), terminalId: "t".repeat(64) }
+    // Room for the bare event, not for it with its envelope's field.
+    const limit = Buffer.byteLength(JSON.stringify(output(1))) + 16
+    const subscription = new Subscription<Enveloped>("observe", limit, limit, () => {})
+    subscription.push(event)
+    await expect(subscription.next()).rejects.toMatchObject({ code: "SLOW_CONSUMER" })
   })
 })

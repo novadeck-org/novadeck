@@ -18,6 +18,8 @@ and the relay its binary's path. Tests and typechecks read the source; builds re
   which the UI's adapter tests start, into them).
 - **Builds** reset it (`customConditions: []` in `tsconfig.build.json`) and read their
   dependencies' built types, as a published consumer would. So `build` keeps `^build`.
+  A script that builds one package outside turbo names it with pnpm's `...`
+  (`pnpm --filter @novadeck/protocol... build`), so the libraries it imports are built first.
 - **Libraries' typechecks read the libraries they import as built**: a library's `rootDir` is
   its `src` (the fence in [libraries/README.md](../libraries/README.md)), which another
   library's source would leave. A library's `turbo.json`, from the template, has its typecheck
@@ -43,9 +45,10 @@ a package it imports changes, as they did when they waited for `^build`. Without
   - the runner (its CLI smoke tests run `dist/cli.js`, and its MCP tests run the relay's
     binary, so it also waits for `@novadeck/relay#build`).
 - atlas's extractor reads the built protocol (`extract/protocol.ts` builds it, and the wire
-  library it reads as built, when they are missing), so atlas's test and typecheck wait for `@novadeck/protocol#build`, not for a build
-  of their own racing turbo's. They are never cached: the extractor reads files across the
-  repository that turbo doesn't hash.
+  and terminal libraries it reads as built, when they are missing), so atlas's test and
+  typecheck wait for `@novadeck/protocol#build`, not for a build of their own racing turbo's.
+  They are never cached: the extractor reads files across the repository that turbo doesn't
+  hash.
 
 ## `pnpm test` runs three packages' tests one at a time, and the rest together
 
