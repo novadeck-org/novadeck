@@ -10,20 +10,22 @@ export type Facts = {
   readonly event: string
   /** Names of the workspace packages turbo calls affected, dependents included. */
   readonly affected: readonly string[] | undefined
+  /** The runner and every package it builds on, dependencies of dependencies included. */
+  readonly runner: readonly string[] | undefined
   /** Paths git calls changed, relative to the repository's root, with `/` as separator. */
   readonly files: readonly string[] | undefined
 }
 
-// The packages a change in which runs no harness of its own: the suite runs on none of the
-// UI and the host, and the runner is reported affected by any package it depends on, an
-// adapter's too, which would run everything for a change to one harness; its own changes
-// are told by its files instead (`sharedFolders`). Any other package but an adapter, one
-// the runner builds on (harness-core, the protocol, the relay, the engines) or one added
-// later, can break any harness, so it runs everything.
-const unshared = new Set(["@novadeck/runner", "@novadeck/ui", "@novadeck/host"])
+// The packages a change in which runs no harness of its own: the runner is reported
+// affected by any package it depends on, an adapter's too, which would run everything for a
+// change to one harness; its own changes are told by its files instead (`sharedFolders`).
+// Any other package the runner builds on (harness-core, the protocol, the relay, the
+// engines, the libraries, or one added later) can break any harness, so it runs everything.
+// A package it doesn't build on (the UI, the host, the viewers) can break none.
+const unshared = new Set(["@novadeck/runner"])
 
-// The runner, where the suite and the pins live, and what lies outside every package yet
-// inside what the suite runs on or how CI runs it.
+// What lies outside every package yet inside what the suite runs on or how CI runs it, and
+// the runner, where the suite and the pins live. A change to any of these runs every harness.
 const sharedFiles = new Set([
   ".github/workflows/e2e.yml",
   "package.json",
@@ -31,7 +33,56 @@ const sharedFiles = new Set([
   "pnpm-workspace.yaml",
   "turbo.json",
 ])
-const sharedFolders = [".github/actions/e2e-harness-cache/", "application/runner/", "scripts/e2e/"]
+const sharedFolders = [
+  ".github/actions/e2e-harness-cache/",
+  "application/runner/",
+  // node-pty's patch: the suite's pty. Other patches (xterm's, for the UI) reach the suite,
+  // if at all, through the lockfile's hash of them.
+  "patches/node-pty",
+  "scripts/e2e/",
+]
+
+// Linux is where the suite runs for any change that can reach the runner. Windows and macOS
+// run it only where the system itself can tell: what starts processes, owns a pty, speaks
+// the wire, or installs and drives a harness. Each is slower and, on macOS, scarce (a free
+// account runs about five macOS jobs at once), so what is platform-neutral stays off them:
+//
+// - Linux alone: the protocol (schemas and types, no system call), the engines (the suite
+//   builds none), the lockfile and the dependency configuration (`package.json`,
+//   `pnpm-workspace.yaml`, `turbo.json`: a moved version that breaks one system shows on
+//   every system that installs it, and the next change to the runner, a harness or the
+//   nightly run finds it; node-pty, the one native module the suite loads, is pinned in
+//   the runner's and the terminal's own manifests, which run every system).
+// - Every system: the runner, `libraries/terminal` (the pty and the host), `libraries/wire`,
+//   the emulator's headless side, the harnesses, the relay, `libraries/sandbox` (the suite's
+//   own sandbox, whose process tables and Git Bash lookup differ on each system), node-pty's
+//   patch (Windows code alone), and the way CI runs the suite (`scripts/e2e/`,
+//   the workflow, the harness cache's actions), which changes how each system runs it.
+//
+// The emulator has no folder yet; when it does, its browser-only view code is not the
+// headless side, so only the folders named here run macOS and Windows: add a folder of the
+// emulator to the list when it is Node-side or shared, and leave a browser-only one out.
+const allSystemsFiles = new Set([".github/workflows/e2e.yml"])
+const allSystemsFolders = [
+  ".github/actions/e2e-harness-cache/",
+  "application/relay/",
+  "application/runner/",
+  "harnesses/",
+  "libraries/emulator/",
+  "libraries/sandbox/",
+  "libraries/terminal/",
+  "libraries/wire/",
+  "patches/node-pty",
+  "scripts/e2e/",
+]
+
+/** The runners a job runs on, one per system, in the order of the matrix. */
+export const systems = {
+  linux: "ubuntu-latest",
+  windows: "windows-latest",
+  macos: "macos-latest",
+} as const
+const everySystem: readonly string[] = [systems.linux, systems.windows, systems.macos]
 
 /** The adapter package of a harness. */
 export const adapterOf = (id: string): string => `@novadeck/harness-${id}`
@@ -43,13 +94,29 @@ export const adapterOf = (id: string): string => `@novadeck/harness-${id}`
  */
 export const select = (facts: Facts, ids: readonly string[]): readonly string[] => {
   if (facts.event !== "pull_request") return ids
-  const { affected, files } = facts
-  if (!affected || !files) return ids
+  const { affected, files, runner } = facts
+  if (!affected || !files || !runner) return ids
   const adapters = new Set(ids.map(adapterOf))
-  if (affected.some((name) => !adapters.has(name) && !unshared.has(name))) return ids
+  const reached = affected.filter((name) => runner.includes(name))
+  if (reached.some((name) => !adapters.has(name) && !unshared.has(name))) return ids
   if (files.some((file) => sharedFiles.has(file) || sharedFolders.some((f) => file.startsWith(f))))
     return ids
   return ids.filter((id) => affected.includes(adapterOf(id)))
+}
+
+/**
+ * The systems the rows run on. Linux alone unless a change can break a system but not the
+ * others (`allSystemsFolders`); all three when nothing says otherwise, as for `select`.
+ */
+export const selectSystems = (facts: Facts): readonly string[] => {
+  if (facts.event !== "pull_request") return everySystem
+  const { files } = facts
+  if (!files) return everySystem
+  return files.some(
+    (file) => allSystemsFiles.has(file) || allSystemsFolders.some((f) => file.startsWith(f)),
+  )
+    ? everySystem
+    : [systems.linux]
 }
 
 /** One row of the `e2e` job's matrix. */
@@ -102,6 +169,8 @@ export const quirks = (selected: readonly string[]): readonly Quirk[] =>
 /** What the workflow's jobs read. */
 export type Plan = {
   readonly run: boolean
+  /** The `runs-on` of each system the `e2e` job runs on; the `quirks` job needs Windows. */
+  readonly os: readonly string[]
   readonly e2e: readonly Setup[]
   readonly quirks: readonly Quirk[]
 }
@@ -113,6 +182,7 @@ export const plan = (facts: Facts, ids: readonly string[]): Plan => {
   const rows = selected.length > 0 ? selected : ids
   return {
     run: selected.length > 0,
+    os: selected.length > 0 ? selectSystems(facts) : everySystem,
     e2e: setups(rows, ids),
     quirks: quirks(rows),
   }
