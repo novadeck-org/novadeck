@@ -45,6 +45,7 @@ export const createRunnerTerminal = (
     fontSize,
     focusInput,
     onInputFocused,
+    onScreen = true,
     renderWindow,
   }: TerminalSurfaceProps): React.JSX.Element => {
     // React owns each surface's mount slot; the screen owns the one emulator host.
@@ -131,8 +132,11 @@ export const createRunnerTerminal = (
     )
 
     // Takes the terminal's screen while this surface shows it: the first surface opens
-    // it, later ones find it as the last one left it.
+    // it, later ones find it as the last one left it. A surface out of the person's sight
+    // lets it go, staying mounted with the host's last drawing, and takes it again when it
+    // is back; each acquire has the one release its cleanup makes.
     useEffect(() => {
+      if (!onScreen) return
       const acquired = screens.acquire(terminalKey, {
         fontSize: opening.current.fontSize,
         name: opening.current.name,
@@ -149,7 +153,7 @@ export const createRunnerTerminal = (
       }
       // The screen follows the terminal, not its changing metadata.
       // oxlint-disable-next-line react-hooks/exhaustive-deps
-    }, [terminalKey])
+    }, [terminalKey, onScreen])
 
     useEffect(() => {
       if (screen) screen.waiting = waiting

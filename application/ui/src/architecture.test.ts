@@ -119,6 +119,8 @@ const specBackend = "backend/demo/spec-variants.ts"
 // that may reach that adapter, through its scripted server alone, and model/store.ts, for
 // its instrumentation hook.
 const counterRun = "specs/counters/"
+// Canvas's out-of-sight spec opens the same scripted runner, to see which screens are open.
+const scriptedRunnerSpecs = [counterRun, "specs/canvas-offscreen.spec.tsx"]
 const scriptedServer = "backend/runner/scripted-server.ts"
 const counterRunReaches = [scriptedServer, "model/store.ts"]
 // The stores' instrumentation hook, which only the counter run installs; named here once,
@@ -237,7 +239,11 @@ const importViolation = (file: string, layer: string | undefined) => {
     }
     const target = resolveFile(file, specifier)
     if (!target) return [`${file} -> ${specifier} (unresolved)`]
-    if (file.startsWith(counterRun) && counterRunReaches.includes(target)) return []
+    if (
+      scriptedRunnerSpecs.some((spec) => file.startsWith(spec)) &&
+      counterRunReaches.includes(target)
+    )
+      return []
     const targetLayer = layerOf(target)
     if (targetLayer && adapterOf(targetLayer) && targetLayer !== layer)
       return file === adapterSelection ||

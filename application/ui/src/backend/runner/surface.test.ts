@@ -221,6 +221,96 @@ describe("runner terminal surface", () => {
     expect(stale.isConnected).toBe(false)
   })
 
+  context("when it is out of the person's sight", () => {
+    // Surfaces over screens that note each acquire and release. The timers are fake, so the
+    // screen's parking and retention timers run out before the test ends, not after it.
+    const watched = (test: (harness: ReturnType<typeof surfaces>) => void) => () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+      try {
+        test(surfaces())
+        vi.advanceTimersByTime(31 * 60 * 1000)
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+    const surfaces = () => {
+      const { runtime } = starting()
+      const screens = createScreens(runtime)
+      const calls: string[] = []
+      const Surface = createRunnerTerminal(runtime, {
+        ...screens,
+        acquire: (...args) => {
+          calls.push("acquire")
+          return screens.acquire(...args)
+        },
+        release: (...args) => {
+          calls.push("release")
+          screens.release(...args)
+        },
+      })
+      const surface = (onScreen: boolean) =>
+        createElement(Surface, {
+          terminalKey: key,
+          terminal: { ...terminalFixture(1, "~"), state: "starting" },
+          projectName: "P",
+          view: "canvas",
+          fontSize: 13,
+          focusInput: false,
+          onInputFocused: () => {},
+          onScreen,
+          renderWindow: (content) => content,
+        })
+      return { screens, calls, surface }
+    }
+
+    it(
+      "lets its screen go and takes it again, one release for each acquire",
+      watched(({ screens, calls, surface }) => {
+        const page = render(surface(true))
+        const xterm = page.container.querySelector(".xterm")
+        expect(calls).toEqual(["acquire"])
+
+        page.rerender(surface(false))
+        expect(calls).toEqual(["acquire", "release"])
+        // It stays mounted, showing the host's last drawing.
+        expect(page.container.querySelector(".xterm")).toBe(xterm)
+
+        page.rerender(surface(true))
+        expect(calls).toEqual(["acquire", "release", "acquire"])
+        expect(screens.host(key).isConnected).toBe(true)
+        expect(page.container.querySelector(".xterm")).toBe(xterm)
+
+        page.rerender(surface(true))
+        expect(calls).toEqual(["acquire", "release", "acquire"])
+        page.unmount()
+        expect(calls).toEqual(["acquire", "release", "acquire", "release"])
+      }),
+    )
+
+    it(
+      "releases nothing again when it unmounts off screen",
+      watched(({ calls, surface }) => {
+        const page = render(surface(true))
+        page.rerender(surface(false))
+        expect(calls).toEqual(["acquire", "release"])
+        page.unmount()
+        expect(calls).toEqual(["acquire", "release"])
+      }),
+    )
+
+    it(
+      "takes no screen while it has never been on screen",
+      watched(({ calls, surface }) => {
+        const page = render(surface(false))
+        expect(calls).toEqual([])
+        page.rerender(surface(true))
+        expect(calls).toEqual(["acquire"])
+        page.unmount()
+        expect(calls).toEqual(["acquire", "release"])
+      }),
+    )
+  })
+
   it("keeps one live xterm, its output and focus while the body around it changes", async () => {
     const { runtime } = starting()
     const views: Terminal[] = []

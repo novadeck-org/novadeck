@@ -33,7 +33,8 @@ import { ContextMenu } from "../../ui-toolkit/ContextMenu"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
 import { fitOptions, canvasStep, terminalHeaderHeight, chromeScaleAt, centerOf } from "./geometry"
-import { TerminalContent, nodeTypes } from "./TerminalNode"
+import { createNodeVisibility } from "./nodeVisibility"
+import { NodeVisibilityContext, TerminalContent, nodeTypes } from "./TerminalNode"
 import type { CanvasProps, CanvasHandle, TerminalCanvasProps, TerminalNode } from "./types"
 import { useCanvasGeometry } from "./useCanvasGeometry"
 import { useCanvasNavigation } from "./useCanvasNavigation"
@@ -96,6 +97,7 @@ const TerminalCanvas = ({
   )
   const maxZoom = Math.max(1.5, layout.viewport?.zoom ?? 1, fitZoom)
   const container = useRef<HTMLDivElement>(null)
+  const [visibility] = useState(createNodeVisibility)
   // A new window's size: in the viewport's ratio, as a dropped window's ghost previews it.
   const newWindowSize = useCallback(() => canvasNewTerminalSize(viewportSize()), [viewportSize])
   const [initialViewport] = useState(layout.viewport)
@@ -315,10 +317,11 @@ const TerminalCanvas = ({
   )
 
   const contentOf = useCallback(
-    (id: string): ReactNode => {
+    (id: string, onScreen: boolean): ReactNode => {
       const terminal = terminals.find((item) => item.id === id)
       if (!terminal) return null
       return render(terminal, {
+        onScreen,
         onFlyTo: () => flyTo(terminal),
         onResizePreset: () => resizeToViewport(id),
         onReveal: ({ right, height }) => {
@@ -531,89 +534,91 @@ const TerminalCanvas = ({
         }
       }}
     >
-      <TerminalContent.Provider value={contentOf}>
-        <ReactFlow<TerminalNode>
-          defaultNodes={terminals.map((terminal) => nodeFrom(terminal, geometry[terminal.id]))}
-          nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
-          onNodeClick={(_, node) => onSelect(node.id)}
-          onPaneClick={(event) => {
-            onSelect("")
-            event.currentTarget
-              .closest<HTMLElement>(".canvas-viewport")
-              ?.focus({ preventScroll: true })
-          }}
-          elevateNodesOnSelect={false}
-          nodesConnectable={false}
-          deleteKeyCode={null}
-          multiSelectionKeyCode={null}
-          selectionKeyCode={null}
-          disableKeyboardA11y
-          minZoom={0.15}
-          maxZoom={maxZoom}
-          defaultViewport={initialViewport ?? { x: 0, y: 0, zoom: 1 }}
-          onInit={initializeViewport}
-          onMoveStart={(_, viewport) => trackViewport(viewport)}
-          onMove={(event, viewport) => {
-            const previous = viewportRef.current
-            if (
-              event &&
-              (viewport.x !== previous.x ||
-                viewport.y !== previous.y ||
-                viewport.zoom !== previous.zoom)
-            )
-              visit.clear()
-            trackViewport(viewport)
-          }}
-          onMoveEnd={(_, viewport) => {
-            const current = getViewport()
-            if (
-              !mounted.current ||
-              current.x !== viewport.x ||
-              current.y !== viewport.y ||
-              current.zoom !== viewport.zoom
-            )
-              return
-            trackViewport(viewport)
-            commitViewport()
-          }}
-          panOnDrag
-          panOnScroll={false}
-          zoomOnScroll
-          zoomOnDoubleClick={false}
-          zoomActivationKeyCode={["Control", "Meta"]}
-          proOptions={{ hideAttribution: true }}
-        >
-          <Background
-            id="grid"
-            className="canvas-grid"
-            gap={canvasStep}
-            size={1.6}
-            bgColor="transparent"
-          />
-          <Background
-            id="grid-spotlight"
-            className="canvas-grid-spotlight"
-            gap={canvasStep}
-            size={1.6}
-            bgColor="transparent"
-          />
-          {ghost && (
-            <ViewportPortal>
-              <div
-                className="drop-ghost canvas-drop-ghost"
-                aria-hidden="true"
-                style={{
-                  transform: `translate(${ghost.x}px, ${ghost.y}px)`,
-                  ...newWindowSize(),
-                }}
-              >
-                <span className="drop-ghost-header">{ghostName}</span>
-              </div>
-            </ViewportPortal>
-          )}
-        </ReactFlow>
-      </TerminalContent.Provider>
+      <NodeVisibilityContext.Provider value={visibility}>
+        <TerminalContent.Provider value={contentOf}>
+          <ReactFlow<TerminalNode>
+            defaultNodes={terminals.map((terminal) => nodeFrom(terminal, geometry[terminal.id]))}
+            nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
+            onNodeClick={(_, node) => onSelect(node.id)}
+            onPaneClick={(event) => {
+              onSelect("")
+              event.currentTarget
+                .closest<HTMLElement>(".canvas-viewport")
+                ?.focus({ preventScroll: true })
+            }}
+            elevateNodesOnSelect={false}
+            nodesConnectable={false}
+            deleteKeyCode={null}
+            multiSelectionKeyCode={null}
+            selectionKeyCode={null}
+            disableKeyboardA11y
+            minZoom={0.15}
+            maxZoom={maxZoom}
+            defaultViewport={initialViewport ?? { x: 0, y: 0, zoom: 1 }}
+            onInit={initializeViewport}
+            onMoveStart={(_, viewport) => trackViewport(viewport)}
+            onMove={(event, viewport) => {
+              const previous = viewportRef.current
+              if (
+                event &&
+                (viewport.x !== previous.x ||
+                  viewport.y !== previous.y ||
+                  viewport.zoom !== previous.zoom)
+              )
+                visit.clear()
+              trackViewport(viewport)
+            }}
+            onMoveEnd={(_, viewport) => {
+              const current = getViewport()
+              if (
+                !mounted.current ||
+                current.x !== viewport.x ||
+                current.y !== viewport.y ||
+                current.zoom !== viewport.zoom
+              )
+                return
+              trackViewport(viewport)
+              commitViewport()
+            }}
+            panOnDrag
+            panOnScroll={false}
+            zoomOnScroll
+            zoomOnDoubleClick={false}
+            zoomActivationKeyCode={["Control", "Meta"]}
+            proOptions={{ hideAttribution: true }}
+          >
+            <Background
+              id="grid"
+              className="canvas-grid"
+              gap={canvasStep}
+              size={1.6}
+              bgColor="transparent"
+            />
+            <Background
+              id="grid-spotlight"
+              className="canvas-grid-spotlight"
+              gap={canvasStep}
+              size={1.6}
+              bgColor="transparent"
+            />
+            {ghost && (
+              <ViewportPortal>
+                <div
+                  className="drop-ghost canvas-drop-ghost"
+                  aria-hidden="true"
+                  style={{
+                    transform: `translate(${ghost.x}px, ${ghost.y}px)`,
+                    ...newWindowSize(),
+                  }}
+                >
+                  <span className="drop-ghost-header">{ghostName}</span>
+                </div>
+              </ViewportPortal>
+            )}
+          </ReactFlow>
+        </TerminalContent.Provider>
+      </NodeVisibilityContext.Provider>
     </div>
   )
   return (

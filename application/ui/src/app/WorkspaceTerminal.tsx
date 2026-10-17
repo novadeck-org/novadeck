@@ -170,7 +170,7 @@ export const WorkspaceTerminal = memo(
     readonly terminal: TerminalMetadata
     readonly controls: TerminalLayoutControls
   }): React.JSX.Element => {
-    const { onReveal } = controls
+    const { onReveal, onScreen = true } = controls
     const { backend, commands, panes, navigation } = useWorkspaceServices()
     const { setKeyboardFocus } = commands
     const dictation = useContext(DictationContext)
@@ -340,6 +340,7 @@ export const WorkspaceTerminal = memo(
         fontSize={fontSize}
         focusInput={wanted && !showChat}
         onInputFocused={onInputFocused}
+        onScreen={onScreen}
         renderWindow={renderWindow}
       />
     )
