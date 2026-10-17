@@ -15,6 +15,10 @@ const key = (slot: string, projectId = "storefront", sessionId = "initial") => (
   terminalId: demoTerminalId({ projectId, workspaceSessionId: sessionId }, Number(slot)),
 })
 
+// What the demo's telemetry holds of a sample terminal's agent.
+const reported = (turns: ReturnType<typeof demoTurns>, slot: string) =>
+  turns.telemetry.getSnapshot()["storefront/initial"]?.[key(slot).terminalId]
+
 const open = (variant: DemoVariant = "agents") => {
   const turns = demoTurns()
   const events: TurnEvent[] = []
@@ -93,10 +97,10 @@ describe("demo turns", () => {
       turns.work(key("02"), held(key("02")))
       expect(held(key("02"))?.process).toBe("claude")
       expect(agent(key("02"))).toEqual({ working: true })
-      const usage = agent(key("01"))?.usage
+      const usage = reported(turns, "01")
       expect(usage).toBeDefined()
       turns.work(key("01"), held(key("01")), { planning: true })
-      expect(agent(key("01"))?.usage).toBe(usage)
+      expect(reported(turns, "01")).toBe(usage)
     })
   })
 
@@ -185,14 +189,16 @@ describe("demo turns", () => {
   describe("rest", () => {
     it("leaves nothing working, waiting or unread, and keeps usage", async () => {
       const { turns, held, agent } = open()
-      const usage = agent(key("01"))?.usage
+      const usage = reported(turns, "01")
       turns.finish(key("01"), held(key("01")), "completed", { after: 10 })
       await vi.advanceTimersByTimeAsync(10)
       turns.rest(key("01"), held(key("01")))
-      expect(agent(key("01"))).toEqual({ working: false, usage })
+      expect(agent(key("01"))).toEqual({ working: false })
+      expect(reported(turns, "01")).toBe(usage)
       turns.ask(key("01"), held(key("01")), "plan", 1)
       turns.rest(key("01"), held(key("01")))
-      expect(agent(key("01"))).toEqual({ working: false, usage })
+      expect(agent(key("01"))).toEqual({ working: false })
+      expect(reported(turns, "01")).toBe(usage)
     })
   })
 
@@ -431,10 +437,12 @@ describe("demo turns", () => {
         effort: null,
       }
       turns.usage(key("06"), held(key("06")), usage)
-      expect(agent(key("06"))).toEqual({ working: true, usage })
+      expect(agent(key("06"))).toEqual({ working: true })
+      expect(reported(turns, "06")).toEqual(usage)
       // The queued prompt still waits for the turn that works on.
       await vi.advanceTimersByTimeAsync(demoTurnMs * 2)
-      expect(agent(key("06"))).toEqual({ working: true, usage })
+      expect(agent(key("06"))).toEqual({ working: true })
+      expect(reported(turns, "06")).toEqual(usage)
       expect(chat.conversation(key("06")).getSnapshot().items.at(-1)?.text).not.toContain("queued")
     })
 
@@ -451,7 +459,8 @@ describe("demo turns", () => {
       }
       turns.usage(key("06"), held(key("06")), usage)
       await vi.advanceTimersByTimeAsync(demoTurnMs)
-      expect(agent(key("06"))).toMatchObject({ working: false, usage, lastTurn: {} })
+      expect(agent(key("06"))).toMatchObject({ working: false, lastTurn: {} })
+      expect(reported(turns, "06")).toEqual(usage)
     })
   })
 
@@ -463,15 +472,16 @@ describe("demo turns", () => {
       await vi.advanceTimersByTimeAsync(0)
       turns.usage(key("06"), held(key("06")), usageOf("u1"))
       await vi.advanceTimersByTimeAsync(demoTurnMs)
-      expect(agent(key("06"))?.usage?.model).toBe("u1")
+      expect(reported(turns, "06")?.model).toBe("u1")
       turns.usage(key("06"), held(key("06")), usageOf("u2"))
       await chat.send(key("06"), "second")
       await vi.advanceTimersByTimeAsync(demoTurnMs)
-      expect(agent(key("06"))).toMatchObject({ working: false, usage: { model: "u2" } })
+      expect(agent(key("06"))).toMatchObject({ working: false })
+      expect(reported(turns, "06")?.model).toBe("u2")
     })
 
     it("is not kept by a turn that was stopped", async () => {
-      const { turns, held, agent, chat } = open()
+      const { turns, held, chat } = open()
       turns.rest(key("06"), held(key("06")))
       await chat.send(key("06"), "first")
       await vi.advanceTimersByTimeAsync(0)
@@ -480,13 +490,36 @@ describe("demo turns", () => {
       turns.usage(key("06"), held(key("06")), usageOf("u2"))
       await chat.send(key("06"), "second")
       await vi.advanceTimersByTimeAsync(demoTurnMs)
-      expect(agent(key("06"))?.usage?.model).toBe("u2")
+      expect(reported(turns, "06")?.model).toBe("u2")
     })
 
     it("leaves an agent that is not heard unheard", async () => {
       const { turns, held, agent } = open()
       turns.usage(key("05"), held(key("05")), usageOf("u1"))
       expect(agent(key("05"))).toBeUndefined()
+      expect(reported(turns, "05")).toBeUndefined()
+    })
+
+    it("is forgotten when the terminal is released", () => {
+      const { turns, held } = open()
+      turns.usage(key("06"), held(key("06")), usageOf("u1"))
+      turns.release(key("06"))
+      expect(reported(turns, "06")).toBeUndefined()
+    })
+
+    it("shows an agent that ended as running again", () => {
+      const { turns, held, agent } = open()
+      const ended = { ...held(key("06"))!, state: "exited" as const, exitCode: 1, signal: null }
+      turns.usage(key("06"), ended, usageOf("u1"))
+      expect(agent(key("06"))).toEqual({ working: false })
+      expect(held(key("06"))?.state).toBe("running")
+    })
+
+    it("changes the agent's status only to make a shell Claude Code", () => {
+      const { turns, held, agent } = open()
+      turns.usage(key("02"), held(key("02")), usageOf("u1"))
+      expect(held(key("02"))?.process).toBe("claude")
+      expect(agent(key("02"))).toEqual({ working: false })
     })
   })
 

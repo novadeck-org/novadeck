@@ -8,6 +8,7 @@ import type {
 
 import { isShellProcess } from "../../model/process"
 import type { SessionSeed, WorkspaceSeed } from "../../model/seed"
+import { noTelemetry, setUsage, type Telemetry } from "../../model/telemetry"
 import type { TerminalMetadata } from "../../model/types"
 import { defaultQuickExitMs, restartable, terminalActivity } from "./activity"
 import { itemOf, windowOf } from "./companions"
@@ -157,6 +158,26 @@ export const lostTerminals = (listing: RunnerListing): ReadonlySet<string> =>
         terminals.flatMap((terminal) => (terminal.started ? [] : [terminal.id])),
       ),
     ),
+  )
+
+// What the agents in the listed terminals say of their tokens and quotas.
+export const runnerTelemetry = (
+  listing: RunnerListing,
+  quickExitMs = defaultQuickExitMs,
+): Telemetry =>
+  listing.reduce(
+    (all, { project, sessions }) =>
+      sessions.reduce(
+        (inProject, { session, terminals }) =>
+          terminals.reduce((inSession, terminal) => {
+            const { usage } = terminalActivity(terminal, quickExitMs)
+            return usage
+              ? setUsage(inSession, `${project.id}/${session.id}`, terminal.id, usage)
+              : inSession
+          }, inProject),
+        all,
+      ),
+    noTelemetry,
   )
 
 export const runnerSeed = (

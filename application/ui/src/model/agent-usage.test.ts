@@ -1,16 +1,7 @@
 import { describe, expect, it } from "../test"
 import { agentStats } from "./agent-usage"
-import type { AgentUsage, TerminalMetadata } from "./types"
+import type { AgentUsage } from "./types"
 
-const terminal = (usage?: AgentUsage): TerminalMetadata => ({
-  id: "1",
-  name: "Agent",
-  directory: "~/work",
-  command: "",
-  process: "codex",
-  state: "running",
-  agent: { working: true, ...(usage ? { usage } : {}) },
-})
 const codex: AgentUsage = {
   context: { occupied: 30_000, capacity: 200_000 },
   limits: [
@@ -23,7 +14,7 @@ const codex: AgentUsage = {
 
 describe("an agent's usage", () => {
   it("shows on its taskbar the model, its effort, and how full the context is", () => {
-    expect(agentStats(terminal(codex))).toEqual({
+    expect(agentStats(codex)).toEqual({
       model: "gpt-6-astra",
       effort: "high",
       context: {
@@ -42,7 +33,7 @@ describe("an agent's usage", () => {
       model: null,
       effort: null,
     }
-    expect(agentStats(terminal(only))?.context).toEqual({
+    expect(agentStats(only)?.context).toEqual({
       share: null,
       label: "1.2M",
       tokens: "1.2M",
@@ -51,10 +42,9 @@ describe("an agent's usage", () => {
   })
 
   it("shows nothing without usage", () => {
-    expect(agentStats(terminal())).toBeUndefined()
+    expect(agentStats(undefined)).toBeUndefined()
     expect(
-      agentStats(terminal({ context: null, limits: codex.limits, model: null, effort: null })),
+      agentStats({ context: null, limits: codex.limits, model: null, effort: null }),
     ).toBeUndefined()
-    expect(agentStats({ ...terminal(codex), state: "idle" })).toBeUndefined()
   })
 })

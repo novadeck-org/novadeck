@@ -22,6 +22,7 @@ import { WindowStats } from "../terminals/WindowStats"
 import { DictationStrip } from "../voice/DictationStrip"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { DictationContext, useMicButton } from "./controller/dictation"
+import { useStoreSelector } from "./controller/useStoreSelector"
 import { useDockTarget } from "./dock-target"
 import { plainTitle } from "./murmur-offer"
 import { NameChip } from "./NameChip"
@@ -137,6 +138,24 @@ const WorkspaceWindow = memo(
         {panes && <UndockedWindow panes={panes} target={target} item={item} />}
       </WindowShell>
     )
+  },
+)
+
+// What the terminal's agent runs on, floating over its window. It subscribes to its own
+// usage, so an agent's status-line tick renders this alone.
+const TerminalStats = memo(
+  ({
+    context,
+    terminalId,
+  }: {
+    readonly context: string
+    readonly terminalId: string
+  }): React.JSX.Element | null => {
+    const { backend } = useWorkspaceServices()
+    const stats = agentStats(
+      useStoreSelector(backend.telemetry, (telemetry) => telemetry[context]?.[terminalId]),
+    )
+    return stats ? <WindowStats stats={stats} /> : null
   },
 )
 
@@ -263,7 +282,6 @@ export const WorkspaceTerminal = memo(
       ) : (
         content
       )
-    const stats = agentStats(terminal)
     // The terminal's content, with what its agent runs on floating over its top right while
     // the terminal shows, not its chat, and voice input's strip along an edge while it
     // dictates into the terminal. The host is there whatever runs, so the content never
@@ -271,7 +289,9 @@ export const WorkspaceTerminal = memo(
     const hosted = (content: ReactNode): ReactNode => (
       <div className="terminal-host relative flex min-h-0 min-w-0 flex-1 flex-col">
         {Body ? <Body>{content}</Body> : content}
-        {stats && !showChat && <WindowStats stats={stats} />}
+        {!showChat && terminal.state === "running" && (
+          <TerminalStats context={chatContext} terminalId={terminalId} />
+        )}
         {dictation && (
           <DictationStrip
             controller={dictation}

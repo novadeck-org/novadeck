@@ -4,6 +4,7 @@ import { emptyCompanions } from "../../model/companion"
 import type { Conversations } from "../../model/conversation"
 import type { WorkspaceSeed } from "../../model/seed"
 import { createStore } from "../../model/store"
+import { dropProject, dropTerminal, noTelemetry } from "../../model/telemetry"
 import type { TerminalMetadata, TitleSource, Workspace } from "../../model/types"
 import type {
   AgentConnection,
@@ -26,6 +27,7 @@ import {
   defaultName,
   demoFinishes,
   demoSeed,
+  demoTelemetry,
   demoTerminalId,
   terminalSlot,
 } from "./samples"
@@ -106,6 +108,8 @@ export const demoBackend = (
       engine.reconcile(workspace, actions)
     },
     TerminalSurface: createDemoTerminal(engine, introOf, runtime),
+    // Where the agents say nothing of their usage; `withConversations` gives it the turns'.
+    telemetry: createStore(noTelemetry),
     voice,
     murmur,
     // Older than every update the demo offers (see debug/states.ts).
@@ -259,9 +263,27 @@ export const withConversations = (
     ...backend,
     TerminalSurface,
     conversations,
+    telemetry: turns.telemetry,
     commit: (workspace, actions) => {
       backend.commit(workspace, actions)
       chat.observe(workspace)
+      // A closed terminal's agent says no more, nor those of a removed project.
+      for (const action of actions) {
+        if (action.type === "terminal/close")
+          turns.telemetry.update((held) =>
+            dropTerminal(
+              held,
+              `${action.target.projectId}/${action.target.workspaceSessionId}`,
+              action.terminalId,
+            ),
+          )
+        // The reducer keeps the last project, so only one gone from the workspace is dropped.
+        if (
+          action.type === "project/remove" &&
+          !workspace.projects.some((project) => project.id === action.projectId)
+        )
+          turns.telemetry.update((held) => dropProject(held, action.projectId))
+      }
     },
     start: (sink) => {
       const stopTurns = turns.start(sink)
@@ -358,6 +380,9 @@ export const plainDemo = (
     runtime,
   )
   const now = Date.now()
+  turns.telemetry.update(() =>
+    variant === "plain" || variant === "welcome" ? noTelemetry : demoTelemetry(now),
+  )
   const transcripts = agentTranscripts(now)
   if (variant === "messages")
     return withConversations(

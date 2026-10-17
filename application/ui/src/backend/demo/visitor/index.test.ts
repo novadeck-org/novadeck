@@ -11,6 +11,7 @@ describe("the visitor demo", () => {
       "newTerminal",
       "seed",
       "start",
+      "telemetry",
       "visitor",
     ])
   })

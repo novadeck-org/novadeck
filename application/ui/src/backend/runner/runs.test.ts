@@ -236,6 +236,114 @@ describe("runs of a terminal", () => {
   })
 })
 
+const idle = {
+  state: "idle" as const,
+  attention: { pending: 0, kind: null, headline: null },
+  subagents: [],
+  planning: false,
+  background: null,
+  lastTurn: null,
+}
+const telemetry = (occupied: number) => ({
+  context: { occupied, capacity: 200_000 },
+  limits: [{ minutes: 300, used: 0.4, resetsAt: null }],
+  model: "gpt-6-astra",
+  effort: "high",
+})
+const codex = (occupied: number, change: Partial<TerminalSummary> = {}) =>
+  summary({
+    process: { name: "codex", argv: null },
+    agent: "codex",
+    activity: idle,
+    telemetry: telemetry(occupied),
+    ...change,
+  })
+const usageOf = (app: ReturnType<typeof scripted>) =>
+  app.backend.telemetry.getSnapshot()["p/s"]?.[terminalId]
+
+describe("an agent's telemetry", () => {
+  it("is held from the start, apart from the terminal's status", async () => {
+    const app = scripted(codex(1_000))
+    await flush()
+    expect(usageOf(app)).toEqual(telemetry(1_000))
+    expect(restoreOf(app).state).toBe("running")
+    app.stop()
+  })
+
+  it("leaves the terminal's status alone when it ticks, so no new roster follows", async () => {
+    const app = scripted(codex(1_000))
+    await flush()
+    app.changes.push({ type: "changed", terminal: codex(1_000) })
+    await flush()
+    const reported = app.received.length
+    const heard = vi.fn<() => void>()
+    app.backend.telemetry.subscribe(heard)
+    app.changes.push({ type: "changed", terminal: codex(2_000) })
+    await vi.waitFor(() => expect(usageOf(app)?.context?.occupied).toBe(2_000))
+    // Nothing reached the workspace: the store reduces what the adapter dispatches.
+    expect(app.received).toHaveLength(reported)
+    expect(heard).toHaveBeenCalledTimes(1)
+    app.stop()
+  })
+
+  it("changes nothing when a tick repeats what is held", async () => {
+    const app = scripted(codex(1_000))
+    await flush()
+    const held = app.backend.telemetry.getSnapshot()
+    app.changes.push({ type: "changed", terminal: codex(1_000) })
+    await flush()
+    expect(app.backend.telemetry.getSnapshot()).toBe(held)
+    app.stop()
+  })
+
+  it("comes with a terminal another client created", async () => {
+    const app = scripted(summary({}))
+    await flush()
+    const other = "00000000-0000-4000-8000-000000000002"
+    app.changes.push({ type: "changed", terminal: { ...codex(3_000), id: other } })
+    await vi.waitFor(() =>
+      expect(app.received.map((action) => action.type)).toContain("terminal/add"),
+    )
+    // The terminal joins the workspace, and its agent's usage shows with it.
+    const added = app.received.filter((action) => action.type === "terminal/add")
+    const seeded = workspaceFromSeed(app.backend.seed, {
+      view: "grid",
+      windowedView: "grid",
+      now: 1,
+    })
+    app.backend.commit(added.reduce<Workspace>(workspaceReducer, seeded), added)
+    expect(app.backend.telemetry.getSnapshot()["p/s"]?.[other]).toEqual(telemetry(3_000))
+    app.stop()
+  })
+
+  it("is forgotten once its terminal is closed", async () => {
+    const app = scripted(codex(1_000))
+    await flush()
+    const target = { projectId: "p", workspaceSessionId: "s" }
+    const close = { type: "terminal/close" as const, target, terminalId }
+    const seeded = workspaceFromSeed(app.backend.seed, {
+      view: "grid",
+      windowedView: "grid",
+      now: 1,
+    })
+    app.backend.commit(workspaceReducer(seeded, close), [close])
+    expect(usageOf(app)).toBeUndefined()
+    app.stop()
+  })
+
+  it("is forgotten once the terminal's agent exits", async () => {
+    const app = scripted(codex(1_000))
+    await flush()
+    app.changes.push({
+      type: "changed",
+      terminal: summary({ exit: { code: 1, signal: null, ranMs: 9_000 }, process: null }),
+    })
+    await vi.waitFor(() => expect(usageOf(app)).toBeUndefined())
+    expect(app.backend.telemetry.getSnapshot()).toEqual({})
+    app.stop()
+  })
+})
+
 // A runner that holds one terminal at most.
 const limited = await startTestRunner({ terminals: { maxTerminals: 1 } })
 afterAll(() => limited.close())

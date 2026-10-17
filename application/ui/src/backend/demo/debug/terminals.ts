@@ -1,5 +1,5 @@
 import { terminalAsks, type TerminalAsk } from "../../../model/terminal-ending"
-import type { AgentStatus, TerminalMetadata, Workspace } from "../../../model/types"
+import type { AgentStatus, AgentUsage, TerminalMetadata, Workspace } from "../../../model/types"
 import type { BackendAction, TerminalKey } from "../../port"
 
 // The actions that put a terminal in a state, as the backend would report it. Pure, so
@@ -116,7 +116,7 @@ export const unheardAgent = (key: TerminalKey, program: string): BackendAction[]
 export const resting: AgentStatus = { working: false }
 
 // Context and rate limits, as an agent's records tell them.
-export const withUsage = (now: number): NonNullable<AgentStatus["usage"]> => ({
+export const withUsage = (now: number): AgentUsage => ({
   context: { occupied: 84_000, capacity: 200_000 },
   limits: [
     { minutes: 300, used: 0.42, resetsAt: now + 2 * 3_600_000 },
@@ -127,7 +127,7 @@ export const withUsage = (now: number): NonNullable<AgentStatus["usage"]> => ({
 })
 
 // How much its context holds, where its harness doesn't say of how much.
-export const contextOnly: NonNullable<AgentStatus["usage"]> = {
+export const contextOnly: AgentUsage = {
   context: { occupied: 84_000, capacity: null },
   limits: [],
   model: "Opus 5.5",

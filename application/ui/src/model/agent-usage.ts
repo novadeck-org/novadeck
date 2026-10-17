@@ -1,4 +1,4 @@
-import type { AgentUsage, TerminalMetadata } from "./types"
+import type { AgentUsage } from "./types"
 
 // A window's length as people say it: "5h", "7d", or minutes when neither fits.
 export const windowName = (minutes: number | null): string => {
@@ -18,9 +18,6 @@ const tokens = (count: number): string =>
       ? `${Math.round(count / 1000)}k`
       : String(count)
 
-const usageOf = (terminal: TerminalMetadata): AgentUsage | undefined =>
-  terminal.state === "running" ? terminal.agent?.usage : undefined
-
 // What its window says of the agent by its buttons: the model it runs and its effort,
 // where its harness says, and how full its context is, as a share where its capacity is
 // known, with the tokens it holds of how many, and all of it in words. Undefined without
@@ -36,8 +33,7 @@ export type AgentStats = {
   } | null
 }
 
-export const agentStats = (terminal: TerminalMetadata): AgentStats | undefined => {
-  const usage = usageOf(terminal)
+export const agentStats = (usage: AgentUsage | undefined): AgentStats | undefined => {
   if (!usage) return undefined
   const { model, effort, context } = usage
   if (!model && !effort && !context) return undefined

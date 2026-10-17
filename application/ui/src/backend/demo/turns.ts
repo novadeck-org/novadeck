@@ -1,4 +1,6 @@
 import { isAgentProgram } from "../../model/process"
+import { createStore } from "../../model/store"
+import { dropTerminal, noTelemetry, setUsage, type Telemetry } from "../../model/telemetry"
 import type { AgentStatus, AgentTurnEnd, TerminalMetadata } from "../../model/types"
 import type { BackendAction, BackendSink, TerminalKey } from "../port"
 import { terminalKeyId } from "../registry"
@@ -47,6 +49,9 @@ const subagents = [
 const left = (agent: AgentStatus | undefined) =>
   agent?.background ? { background: agent.background } : {}
 
+const contextOf = ({ projectId, workspaceSessionId }: TerminalKey): string =>
+  `${projectId}/${workspaceSessionId}`
+
 const statusOf = (terminal: TerminalMetadata | undefined): AgentStatus | undefined =>
   terminal?.state === "running" ? terminal.agent : undefined
 
@@ -62,20 +67,15 @@ const statusOf = (terminal: TerminalMetadata | undefined): AgentStatus | undefin
 export const demoTurns = (turnMs = demoTurnMs) => {
   let sink: BackendSink | undefined
   const watchers = new Set<(event: TurnEvent) => void>()
+  // What the demo agents say of their tokens and quotas, which the seeds fill and `usage`
+  // sets.
+  const telemetry = createStore<Telemetry>(noTelemetry)
   // The timers of each turn in flight, by terminal.
   const active = new Map<string, Timers>()
   // How many times each terminal's agent was taken some other way: a verb, a prompt, a Stop
   // or a release. What waits to act on it, an answer on its way, checks it hasn't moved.
   const epochs = new Map<string, number>()
   const bump = (id: string): void => void epochs.set(id, (epochs.get(id) ?? 0) + 1)
-  // The usage `usage` last set while a turn works, which that turn's later statuses keep
-  // in place of the one it began with; gone once the turn ends for good.
-  const metered = new Map<string, NonNullable<AgentStatus["usage"]>>()
-  // What a status keeps across the turns: its tokens and quotas.
-  const kept = (key: TerminalKey, agent: AgentStatus | undefined) => {
-    const usage = metered.get(terminalKeyId(key)) ?? agent?.usage
-    return usage ? { usage } : {}
-  }
   const emit = (event: TurnEvent): void => watchers.forEach((watcher) => watcher(event))
   const cancel = (id: string): void => {
     active.get(id)?.forEach(clearTimeout)
@@ -115,17 +115,15 @@ export const demoTurns = (turnMs = demoTurnMs) => {
         status(key, {
           working: false,
           ...left(agent),
-          ...kept(key, agent),
           lastTurn: { outcome: "completed", reply, at: Date.now() },
         })
-        metered.delete(id)
         emit({ type: "end", key, outcome: "completed", reply })
       }, turnMs),
     ]
     active.set(id, timers)
     // After the engine's own update: a status is a workspace commit of its own.
     queueMicrotask(() => {
-      if (active.get(id) === timers) status(key, { working: true, ...kept(key, agent) })
+      if (active.get(id) === timers) status(key, { working: true })
     })
   }
   // Starts the turn of an agent idle at its prompt; whether it started. Nothing for any
@@ -136,7 +134,6 @@ export const demoTurns = (turnMs = demoTurnMs) => {
     if (!chatAgent(terminal) || !agent || agent.working || agent.attention || active.has(id))
       return false
     bump(id)
-    metered.delete(id)
     // An agent Novadeck hears nothing from reports no status, so a turn can't show: its
     // screen takes the person's line and the reply, which moves it past what it showed.
     if (terminal.state === "running" && !terminal.agent) {
@@ -164,11 +161,9 @@ export const demoTurns = (turnMs = demoTurnMs) => {
     if (terminal.state !== "running" || active.has(terminalKeyId(key))) return
     const agent = terminal.agent ?? { working: false }
     bump(terminalKeyId(key))
-    metered.delete(terminalKeyId(key))
     const resting: AgentStatus = {
       working: false,
       ...left(agent),
-      ...kept(key, agent),
     }
     status(key, resting)
     if ("waits" in next) return
@@ -181,14 +176,13 @@ export const demoTurns = (turnMs = demoTurnMs) => {
   const take = (key: TerminalKey, terminal: TerminalMetadata | undefined) => {
     cancel(terminalKeyId(key))
     bump(terminalKeyId(key))
-    metered.delete(terminalKeyId(key))
     const agent = statusOf(terminal)
     const program = terminal && isAgentProgram(terminal.process) ? undefined : "claude"
     return { agent, program, began: !agent?.working || program !== undefined }
   }
   const verbs: DemoAgentVerbs = {
     work: (key, terminal, how) => {
-      const { agent, program, began } = take(key, terminal)
+      const { program, began } = take(key, terminal)
       if (began) emit({ type: "begin", key })
       status(
         key,
@@ -196,7 +190,6 @@ export const demoTurns = (turnMs = demoTurnMs) => {
           working: true,
           ...(how?.planning ? { planning: true as const } : {}),
           ...(how?.subagents ? { subagents } : {}),
-          ...kept(key, agent),
         },
         program,
       )
@@ -212,19 +205,18 @@ export const demoTurns = (turnMs = demoTurnMs) => {
           attention: { kind, count, ...(headline ? { headline } : {}) },
           // What it runs beside the request keeps running.
           ...(agent?.working && agent.subagents ? { subagents: agent.subagents } : {}),
-          ...kept(key, agent),
         },
         program,
       )
     },
     finish: (key, terminal, outcome, options) => {
-      const { agent, program, began } = take(key, terminal)
+      const { program, began } = take(key, terminal)
       const id = terminalKeyId(key)
       const after = options?.after ?? turnMs
       const { gist, background } = options ?? {}
       const reply = replies[outcome]
       if (began) emit({ type: "begin", key })
-      status(key, { working: true, ...kept(key, agent) }, program)
+      status(key, { working: true }, program)
       active.set(id, [
         setTimeout(() => {
           const lastTurn: AgentTurnEnd = {
@@ -244,26 +236,23 @@ export const demoTurns = (turnMs = demoTurnMs) => {
             working: waiting,
             ...(background ? { background } : {}),
             lastTurn,
-            ...kept(key, agent),
           })
           emit({ type: "end", key, outcome, ...(reply ? { reply } : {}) })
           if (!waiting) {
-            metered.delete(id)
             return void active.delete(id)
           }
           active.set(id, [
             setTimeout(() => {
               active.delete(id)
-              status(key, { working: false, lastTurn, ...kept(key, agent) })
-              metered.delete(id)
+              status(key, { working: false, lastTurn })
             }, after),
           ])
         }, after),
       ])
     },
     rest: (key, terminal) => {
-      const { agent, program } = take(key, terminal)
-      status(key, { working: false, ...kept(key, agent) }, program)
+      const { program } = take(key, terminal)
+      status(key, { working: false }, program)
       emit({ type: "rest", key })
     },
     usage: (key, terminal, usage) => {
@@ -272,19 +261,20 @@ export const demoTurns = (turnMs = demoTurnMs) => {
       if (terminal?.state === "running" && !terminal.agent && isAgentProgram(terminal.process))
         return
       const program = terminal && isAgentProgram(terminal.process) ? undefined : "claude"
-      // Only a turn in flight carries the usage on; at rest the status holds it.
-      if (active.has(terminalKeyId(key))) metered.set(terminalKeyId(key), usage)
-      else metered.delete(terminalKeyId(key))
-      status(key, { ...(agent ?? { working: false }), usage }, program)
+      telemetry.update((held) => setUsage(held, contextOf(key), key.terminalId, usage))
+      // Only a terminal that is no running agent needs a status; an agent's stays as it was.
+      if (program || terminal?.state !== "running")
+        status(key, agent ?? { working: false }, program)
     },
     release: (key) => {
       cancel(terminalKeyId(key))
       bump(terminalKeyId(key))
-      metered.delete(terminalKeyId(key))
+      telemetry.update((held) => dropTerminal(held, contextOf(key), key.terminalId))
     },
   }
   return {
     ...verbs,
+    telemetry,
     prompt,
     resume,
     // How many times the terminal's agent was taken some other way (see `epochs`).
@@ -307,10 +297,8 @@ export const demoTurns = (turnMs = demoTurnMs) => {
       status(key, {
         working: false,
         ...left(agent),
-        ...kept(key, agent),
         lastTurn: { outcome: "interrupted", at: Date.now() },
       })
-      metered.delete(id)
       emit({ type: "end", key, outcome: "interrupted" })
       return true
     },
@@ -326,7 +314,6 @@ export const demoTurns = (turnMs = demoTurnMs) => {
         sink = undefined
         active.forEach((timers) => timers.forEach(clearTimeout))
         active.clear()
-        metered.clear()
       }
     },
   }

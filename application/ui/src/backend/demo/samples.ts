@@ -1,5 +1,6 @@
 import type { WorkspaceSeed } from "../../model/seed"
 import { sessionName } from "../../model/session-name"
+import { noTelemetry, setUsage, type Telemetry } from "../../model/telemetry"
 import type {
   AgentStatus,
   CanvasLayout,
@@ -217,15 +218,6 @@ export const projectTerminals = (project: Project, withAgents = false): Terminal
             working: true,
             planning: true as const,
             attention: { kind: "plan" as const, count: 1 },
-            usage: {
-              context: { occupied: 124_000, capacity: 200_000 },
-              limits: [
-                { minutes: 300, used: 0.42, resetsAt: Date.now() + (2 * 60 + 14) * 60_000 },
-                { minutes: 10_080, used: 0.18, resetsAt: Date.now() + 3 * 86_400_000 },
-              ],
-              model: "Opus 5.5",
-              effort: null,
-            },
           },
         }
       : {}),
@@ -243,15 +235,6 @@ export const projectTerminals = (project: Project, withAgents = false): Terminal
               { id: "demo-explorer-1", type: "explorer" },
               { id: "demo-explorer-2", type: "explorer" },
             ],
-            usage: {
-              context: { occupied: 30_000, capacity: 200_000 },
-              limits: [
-                { minutes: 300, used: 0.4, resetsAt: Date.now() + 48 * 60_000 },
-                { minutes: 10_080, used: 0.12, resetsAt: Date.now() + 5 * 86_400_000 },
-              ],
-              model: "gpt-6-astra",
-              effort: "high",
-            },
           },
         }
       : {}),
@@ -288,6 +271,36 @@ export const projectTerminals = (project: Project, withAgents = false): Terminal
       : {}),
   }))
 }
+
+// What the agents demo's Claude Code in plan mode and Codex say of their tokens and quotas:
+// the first terminal of each showcased project, and its fourth.
+export const demoTelemetry = (now: number): Telemetry =>
+  [...showcased].reduce((all, projectId) => {
+    const session = { projectId, workspaceSessionId: initialSession }
+    const context = `${projectId}/${initialSession}`
+    return setUsage(
+      setUsage(all, context, demoTerminalId(session, 1), {
+        context: { occupied: 124_000, capacity: 200_000 },
+        limits: [
+          { minutes: 300, used: 0.42, resetsAt: now + (2 * 60 + 14) * 60_000 },
+          { minutes: 10_080, used: 0.18, resetsAt: now + 3 * 86_400_000 },
+        ],
+        model: "Opus 5.5",
+        effort: null,
+      }),
+      context,
+      demoTerminalId(session, 4),
+      {
+        context: { occupied: 30_000, capacity: 200_000 },
+        limits: [
+          { minutes: 300, used: 0.4, resetsAt: now + 48 * 60_000 },
+          { minutes: 10_080, used: 0.12, resetsAt: now + 5 * 86_400_000 },
+        ],
+        model: "gpt-6-astra",
+        effort: "high",
+      },
+    )
+  }, noTelemetry)
 
 export const demoSeed = (now: number, agents = false): WorkspaceSeed => ({
   projects: initialProjects.map((project) => ({

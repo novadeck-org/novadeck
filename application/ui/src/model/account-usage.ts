@@ -1,6 +1,7 @@
 import { windowName } from "./agent-usage"
 import { harnesses } from "./harnesses"
-import type { TerminalMetadata } from "./types"
+import type { Telemetry } from "./telemetry"
+import type { Workspace } from "./types"
 
 // The agents whose subscriptions Novadeck hears of, by program name, as people call them.
 const agentNames: Readonly<Record<string, string>> = Object.fromEntries(
@@ -30,6 +31,36 @@ export type AgentAccount = {
   readonly busiest: UsageWindow
 }
 
+// A running terminal's place in the telemetry: the session that holds it
+// (`${projectId}/${workspaceSessionId}`), its id, and the program it runs.
+export type AgentSeat = {
+  readonly context: string
+  readonly id: string
+  readonly program: string
+}
+
+// Every running terminal in every session: subscriptions are the account's, whichever
+// reports them.
+export const runningSeats = (workspace: Workspace): readonly AgentSeat[] =>
+  workspace.projects.flatMap((project) =>
+    project.history.flatMap((session) =>
+      session.state.roster.terminals.flatMap((terminal) =>
+        terminal.state === "running"
+          ? [{ context: `${project.id}/${session.id}`, id: terminal.id, program: terminal.process }]
+          : [],
+      ),
+    ),
+  )
+
+export const sameSeats = (a: readonly AgentSeat[], b: readonly AgentSeat[]): boolean =>
+  a.length === b.length &&
+  a.every(
+    (seat, index) =>
+      seat.context === b[index]!.context &&
+      seat.id === b[index]!.id &&
+      seat.program === b[index]!.program,
+  )
+
 // Where an agent's subscription stands among the others until the person moves it: in
 // this order, then any other agent after them.
 const defaultOrder: readonly string[] = harnesses.map(({ id }) => id)
@@ -41,31 +72,33 @@ const rank = (program: string, order: readonly string[]): number => {
   return order.length + (known >= 0 ? known : defaultOrder.length)
 }
 
-// Each agent's subscription, as its running terminals report it, in the order the person
-// left them (`order`, by program), then the default one; never by how much is used, so a
-// subscription stays where it was looked for. A subscription is the account's, so every terminal of an agent reports the same windows;
-// of two readings of a window the one resetting later is the newer, and of two resetting
-// together the one used more. A window whose reset has passed says nothing until its
-// agent reports again. Terminals that report no limits, as an API-key account's don't,
-// leave their agent out. Two windows of the same length in one reading are two quotas, as
-// Antigravity's weekly ones are, so they stay apart, matched across terminals by order.
+// Each agent's subscription, as its running terminals (`seats`) report it in `telemetry`,
+// in the order the person left them (`order`, by program), then the default one; never by
+// how much is used, so a subscription stays where it was looked for. A subscription is the
+// account's, so every terminal of an agent reports the same windows; of two readings of a
+// window the one resetting later is the newer, and of two resetting together the one used
+// more. A window whose reset has passed says nothing until its agent reports again.
+// Terminals that report no limits, as an API-key account's don't, leave their agent out.
+// Two windows of the same length in one reading are two quotas, as Antigravity's weekly
+// ones are, so they stay apart, matched across terminals by order.
 export const accountUsage = (
-  terminals: readonly TerminalMetadata[],
+  seats: readonly AgentSeat[],
+  telemetry: Telemetry,
   now = Date.now(),
   order: readonly string[] = [],
 ): readonly AgentAccount[] => {
   const byAgent = new Map<string, Map<string, UsageWindow>>()
-  for (const terminal of terminals) {
-    if (terminal.state !== "running" || !agentNames[terminal.process]) continue
+  for (const { context, id, program } of seats) {
+    if (!agentNames[program]) continue
     const seen = new Map<string, number>()
-    for (const limit of terminal.agent?.usage?.limits ?? []) {
+    for (const limit of telemetry[context]?.[id]?.limits ?? []) {
       const name = windowName(limit.minutes)
       const nth = seen.get(name) ?? 0
       seen.set(name, nth + 1)
       if (limit.resetsAt !== null && limit.resetsAt <= now) continue
       const key = `${name}#${nth}`
-      const windows = byAgent.get(terminal.process) ?? new Map<string, UsageWindow>()
-      byAgent.set(terminal.process, windows)
+      const windows = byAgent.get(program) ?? new Map<string, UsageWindow>()
+      byAgent.set(program, windows)
       const known = windows.get(key)
       const later = (limit.resetsAt ?? 0) - (known?.resetsAt ?? 0)
       if (!known || later > 0 || (later === 0 && limit.used > known.used))
@@ -93,6 +126,11 @@ export const accountUsage = (
     })
     .toSorted((a, b) => rank(a.program, order) - rank(b.program, order))
 }
+
+// Whether two readings of the accounts say the same, so a report that moves nothing the
+// footer shows leaves it as it was.
+export const sameAccounts = (a: readonly AgentAccount[], b: readonly AgentAccount[]): boolean =>
+  JSON.stringify(a) === JSON.stringify(b)
 
 // The order after the person moves the subscription shown `from` to `to`: the ones shown,
 // as they now stand, then those not shown now, as they were left.

@@ -14,8 +14,15 @@ import {
 } from "@novadeck/protocol/client"
 
 import { createStore } from "../../model/store"
+import { dropTerminal, setUsage, type Telemetry } from "../../model/telemetry"
 import { sameTitleSource } from "../../model/title-source"
-import type { TerminalMetadata, TerminalStatus, TitleSource, Workspace } from "../../model/types"
+import type {
+  AgentUsage,
+  TerminalMetadata,
+  TerminalStatus,
+  TitleSource,
+  Workspace,
+} from "../../model/types"
 import type {
   AgentConnection,
   Backend,
@@ -42,6 +49,7 @@ import {
   cleanlyExited,
   lostTerminals,
   runnerSeed,
+  runnerTelemetry,
   runnerTerminal,
   startingTerminal,
   terminalRuns,
@@ -293,6 +301,7 @@ export const runnerBackend = (
   const saveDelay = options.saveDelay ?? defaultSaveDelay
   const quickExitMs = options.quickExitMs ?? defaultQuickExitMs
   const seed = runnerSeed(listing, quickExitMs)
+  const telemetry = createStore<Telemetry>(runnerTelemetry(listing, quickExitMs))
   const connection = createStore<BackendConnectionState>("connected")
   const transcripts = createStore(options.transcripts ?? true)
   const agents = createStore<readonly AgentConnection[]>(
@@ -383,7 +392,20 @@ export const runnerBackend = (
   const dispatch = (actions: readonly BackendAction[]): void => {
     if (actions.length) sink?.dispatch(actions)
   }
+  // Keeps what the terminal's agent says of its tokens and quotas, or, with none, forgets
+  // it. A report of the same usage changes nothing, so a status line's tick that moves
+  // nothing leaves the roster and everything reading the telemetry alone.
+  const noteUsage = ({ key }: RunnerEntry, usage: AgentUsage | undefined): void => {
+    const context = `${key.projectId}/${key.workspaceSessionId}`
+    telemetry.update((held) =>
+      usage
+        ? setUsage(held, context, key.terminalId, usage)
+        : dropTerminal(held, context, key.terminalId),
+    )
+  }
   const statusAction = (entry: RunnerEntry, status: TerminalStatus): BackendAction[] => {
+    // Only a running terminal has an agent.
+    if (status.state !== "running") noteUsage(entry, undefined)
     if (sameStatus(entry.status, status)) return []
     entry.status = status
     const { terminalId } = entry.key
@@ -430,6 +452,7 @@ export const runnerBackend = (
       return [{ type: "terminal/close", target: target(entry.key), terminalId }]
     if (restartable(activity.status)) entry.settled = true
     const actions = statusAction(entry, activity.status)
+    if (activity.status.state === "running") noteUsage(entry, activity.usage)
     const { process } = activity
     if (process === undefined || entry.process === process) return actions
     entry.process = process
@@ -1053,6 +1076,9 @@ export const runnerBackend = (
       }
       if (isNew) entry.ready = createTerminal(entry)
       entries.set(key.terminalId, entry)
+      // What the runner reported of its agent comes with it; it says nothing again until
+      // it changes.
+      if (reported) noteUsage(entry, terminalActivity(reported, quickExitMs).usage)
       followWhenReady(entry)
       return entry
     },
@@ -1060,6 +1086,7 @@ export const runnerBackend = (
       entry.closed = true
       closedHere.add(key.terminalId)
       entries.delete(key.terminalId)
+      noteUsage(entry, undefined)
       messages.unfollow(key)
       // A removed project's terminals are closed by the runner, as it removes the project.
       if (!removedProjects.has(key.projectId)) void track(endShell(entry))
@@ -1315,6 +1342,7 @@ export const runnerBackend = (
     },
     commit,
     TerminalSurface: createRunnerTerminal(runtime, screens),
+    telemetry,
     voice: voice.voice,
     murmur: murmur.murmur,
     typeInto: screens.typeInto,

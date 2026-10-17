@@ -174,6 +174,18 @@ export const describeBackendContract = (name: string, options: BackendContractOp
         expect(probe.holds(key)).toBe(true)
       })
 
+      it("offers telemetry in which a terminal that reported nothing has no entry, closed or not", async () => {
+        const { backend, key, close } = withTerminal()
+        const held = (): unknown =>
+          backend.telemetry.getSnapshot()[`${key.projectId}/${key.workspaceSessionId}`]?.[
+            key.terminalId
+          ]
+        expect(held()).toBeUndefined()
+        close()
+        await settle()
+        expect(held()).toBeUndefined()
+      })
+
       it("keeps one surface component for the backend's lifetime", () => {
         const { backend } = options.create()
         const surface = backend.TerminalSurface

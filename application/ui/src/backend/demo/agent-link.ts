@@ -1,7 +1,7 @@
 import { createContext } from "react"
 
 import type { Conversations } from "../../model/conversation"
-import type { AgentStatus, AgentTurnEnd, TerminalMetadata } from "../../model/types"
+import type { AgentTurnEnd, AgentUsage, TerminalMetadata } from "../../model/types"
 import type { TerminalKey } from "../port"
 
 // The demo's agents have one owner, `demoTurns`: each terminal's agent status, the
@@ -45,16 +45,17 @@ export type DemoAgentVerbs = {
   ) => void
   // Back at its prompt with no turn behind it: nothing works, waits or reads unread.
   readonly rest: (key: TerminalKey, terminal: TerminalMetadata | undefined) => void
-  // Sets the agent's context and limits, in place: all else about it stays as it was, a
-  // turn or request included, and its turn's later statuses keep them. A terminal that runs
-  // no agent becomes Claude Code first.
+  // Sets the agent's context and limits in the telemetry: its status stays as it was, a
+  // turn or request included, and later turns keep them. A terminal that runs no agent
+  // becomes Claude Code first.
   readonly usage: (
     key: TerminalKey,
     terminal: TerminalMetadata | undefined,
-    usage: NonNullable<AgentStatus["usage"]>,
+    usage: AgentUsage,
   ) => void
-  // Lets the terminal go, saying nothing of it: what its agent had pending is called off,
-  // as before the panel sets its state some other way (an exit, a shell, a fixture).
+  // Lets the terminal go, saying nothing of it: what its agent had pending is called off
+  // and its usage forgotten, as before the panel sets its state some other way (an exit, a
+  // shell, a fixture).
   readonly release: (key: TerminalKey) => void
 }
 

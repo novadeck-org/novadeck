@@ -253,7 +253,7 @@ describe("terminal activity", () => {
       })
     })
 
-    it("carries the tokens and quotas its records name", () => {
+    it("carries the tokens and quotas its records name apart from its status", () => {
       const idle = {
         state: "idle" as const,
         attention: { pending: 0, kind: null, headline: null },
@@ -268,15 +268,39 @@ describe("terminal activity", () => {
         model: "gpt-6-astra",
         effort: "high",
       }
-      const status = terminalActivity(
+      const { status, usage } = terminalActivity(
         summary({
           process: { name: "codex", argv: null },
           agent: "codex",
           activity: idle,
           telemetry,
         }),
-      ).status
-      expect(status).toEqual({ state: "running", agent: { working: false, usage: telemetry } })
+      )
+      expect(status).toEqual({ state: "running", agent: { working: false } })
+      expect(usage).toEqual(telemetry)
+    })
+
+    it("carries no usage when its records name nothing", () => {
+      const idle = {
+        state: "idle" as const,
+        attention: { pending: 0, kind: null, headline: null },
+        subagents: [],
+        planning: false,
+        background: null,
+        lastTurn: null,
+      }
+      const empty = { context: null, limits: [], model: null, effort: null }
+      const activity = (telemetry: typeof empty | null) =>
+        terminalActivity(
+          summary({
+            process: { name: "codex", argv: null },
+            agent: "codex",
+            activity: idle,
+            telemetry,
+          }),
+        )
+      expect(activity(empty)).not.toHaveProperty("usage")
+      expect(activity(null)).not.toHaveProperty("usage")
     })
 
     it("works on while what its turn left running runs, counting it", () => {

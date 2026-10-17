@@ -1099,7 +1099,8 @@ session that no longer exists falls back to that project's available session.
 Unknown routes, missing terminals, and disabled views are replaced with a valid URL.
 
 The page renders from two synchronous stores, and from a third where a backend has
-companions. The workspace store in `model/store.ts` holds the model: every session's
+companions; the backend also keeps small stores of its own, such as `telemetry`. The
+workspace store in `model/store.ts` holds the model: every session's
 roster of terminals and undocked windows, layout, navigation memory, its companion items
 as the backend reports them, and how the person arranged each bar (`model/companion-bar.ts`),
 changed through one pure reducer. The UI store in `app/ui-store.ts`
@@ -1187,8 +1188,11 @@ start, through the optional `start`. It runs from an effect after mount and
 receives a sink that commits each call as one store transaction, like a UI
 command; the sink ignores stale targets and anything sent after stop. It reports
 status and the foreground process, which picks the terminal's icon and counts it as
-running, and closes a terminal whose shell exited cleanly. The frame labels an
-exited, killed, or failed terminal. Closing a terminal a program runs in asks first:
+running, and closes a terminal whose shell exited cleanly. What an agent's status line
+says of its context, limits, model and effort goes to the backend's `telemetry` store
+instead, by session and terminal, so a report every few seconds re-renders only what
+shows it, never the roster. The frame labels an exited, killed, or failed terminal.
+Closing a terminal a program runs in asks first:
 the `close` command records the pending close in the UI store, and the dialog in
 `terminals/CloseTerminalDialog.tsx` answers with `confirmClose` or `cancelClose`. A backend may also
 expose its connection state, which the footer shows, and a folder picker, which

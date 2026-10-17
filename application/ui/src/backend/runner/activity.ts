@@ -6,7 +6,7 @@ import type {
 } from "@novadeck/protocol"
 
 import { isShellProcess, runningProgram } from "../../model/process"
-import type { AgentStatus, TerminalStatus } from "../../model/types"
+import type { AgentStatus, AgentUsage, TerminalStatus } from "../../model/types"
 
 // A shell that exits sooner than this after starting counts as failing to start.
 export const defaultQuickExitMs = 2000
@@ -29,13 +29,32 @@ export type TerminalActivity = {
   // The foreground program's name; absent once the process exited, so the last
   // program stays on show.
   readonly process?: string
+  // What the agent's records say of its tokens and quotas, kept apart from its status;
+  // absent when they say nothing.
+  readonly usage?: AgentUsage
 }
 
+// The usage an agent's telemetry holds, if it holds any.
+const usageOf = (telemetry: AgentTelemetry | null): AgentUsage | undefined =>
+  telemetry &&
+  (telemetry.context || telemetry.limits.length > 0 || telemetry.model || telemetry.effort)
+    ? {
+        context: telemetry.context,
+        limits: telemetry.limits,
+        model: telemetry.model,
+        effort: telemetry.effort,
+      }
+    : undefined
+
 // What an agent's hooks and records say it does, for its terminal's status.
-const agentStatus = (
-  { state, attention, subagents, planning, background, lastTurn }: AgentActivity,
-  telemetry: AgentTelemetry | null,
-): AgentStatus => ({
+const agentStatus = ({
+  state,
+  attention,
+  subagents,
+  planning,
+  background,
+  lastTurn,
+}: AgentActivity): AgentStatus => ({
   working: state !== "idle",
   ...(background ? { background } : {}),
   ...(planning ? { planning: true as const } : {}),
@@ -63,17 +82,6 @@ const agentStatus = (
         },
       }
     : {}),
-  ...(telemetry &&
-  (telemetry.context || telemetry.limits.length > 0 || telemetry.model || telemetry.effort)
-    ? {
-        usage: {
-          context: telemetry.context,
-          limits: telemetry.limits,
-          model: telemetry.model,
-          effort: telemetry.effort,
-        },
-      }
-    : {}),
 })
 
 // What the UI shows for a terminal the runner reports: which program it runs, and
@@ -90,11 +98,16 @@ export const terminalActivity = (
   if (!program || isShellProcess(program)) return { status: { state: "idle" }, process: program }
   const agent =
     summary.agent && summary.activity
-      ? agentStatus(summary.activity, summary.telemetry)
+      ? agentStatus(summary.activity)
       : !summary.agent && summary.ready === program
         ? { working: false }
         : undefined
-  return { status: { state: "running", ...(agent ? { agent } : {}) }, process: program }
+  const usage = summary.agent && summary.activity ? usageOf(summary.telemetry) : undefined
+  return {
+    status: { state: "running", ...(agent ? { agent } : {}) },
+    process: program,
+    ...(usage ? { usage } : {}),
+  }
 }
 
 // Statuses that keep a tile waiting for Enter to start a fresh shell.

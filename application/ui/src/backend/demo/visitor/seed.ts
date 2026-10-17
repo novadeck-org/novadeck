@@ -1,5 +1,6 @@
 import type { WorkspaceSeed } from "../../../model/seed"
 import { sessionName } from "../../../model/session-name"
+import { noTelemetry, setUsage, type Telemetry } from "../../../model/telemetry"
 import type { AgentStatus, CanvasLayout, Project, TerminalMetadata } from "../../../model/types"
 import { demoHandle } from "../handles"
 import { demoTerminalId, terminals as samples } from "../samples"
@@ -52,27 +53,34 @@ const placed = (
 
 // Claude Code in plan mode: asking to have its plan reviewed, or, `reading`, still on its
 // way there (see `visitorStory`).
-const planning = (now: number, reading: boolean) => ({
+const planning = (reading: boolean) => ({
   working: true,
   planning: true as const,
   ...(reading ? {} : { attention: { kind: "plan" as const, count: 1 } }),
-  usage: {
-    context: { occupied: 124_000, capacity: 200_000 },
-    limits: [
-      { minutes: 300, used: 0.42, resetsAt: now + (2 * 60 + 14) * 60_000 },
-      { minutes: 10_080, used: 0.18, resetsAt: now + 3 * 86_400_000 },
-    ],
-    model: "Opus 5.5",
-    effort: null,
-  },
 })
+
+// What Claude Code in plan mode says of its tokens and quotas.
+export const visitorTelemetry = (now: number): Telemetry =>
+  setUsage(
+    noTelemetry,
+    `storefront/${session}`,
+    demoTerminalId({ projectId: "storefront", workspaceSessionId: session }, 1),
+    {
+      context: { occupied: 124_000, capacity: 200_000 },
+      limits: [
+        { minutes: 300, used: 0.42, resetsAt: now + (2 * 60 + 14) * 60_000 },
+        { minutes: 10_080, used: 0.18, resetsAt: now + 3 * 86_400_000 },
+      ],
+      model: "Opus 5.5",
+      effort: null,
+    },
+  )
 
 const storefront = sampleProject("storefront")
 const apiService = sampleProject("api-service")
 const dotfiles = sampleProject("dotfiles")
 
 const desks = (
-  now: number,
   reading: boolean,
 ): readonly { readonly project: Project; readonly terminals: Placed[] }[] => [
   {
@@ -83,7 +91,7 @@ const desks = (
         slot: "01",
         command: "claude",
         process: "claude",
-        agent: planning(now, reading),
+        agent: planning(reading),
         x: 80,
         y: 80,
         height: 430,
@@ -136,7 +144,7 @@ const canvasLayout = (terminals: readonly Placed[]): CanvasLayout => ({
 
 // `reading` opens Claude Code a few seconds before its plan, which the story then asks for.
 export const visitorSeed = (now: number, reading = false): WorkspaceSeed => ({
-  projects: desks(now, reading).map(({ project, terminals }) => ({
+  projects: desks(reading).map(({ project, terminals }) => ({
     ...project,
     sessions: [
       {

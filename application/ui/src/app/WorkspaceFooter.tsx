@@ -1,13 +1,13 @@
-import { memo, useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { memo, useEffect, useState, useSyncExternalStore } from "react"
 
 import type { Backend, BackendConnectionState } from "../backend/port"
-import { accountUsage, movedOrder, nextAccountReset } from "../model/account-usage"
-import type { Workspace } from "../model/types"
+import { movedOrder, nextAccountReset, runningSeats, sameSeats } from "../model/account-usage"
 import { readSubscriptionOrder, writeSubscriptionOrder } from "../shell/shell-storage"
 import { SubscriptionUsage } from "../shell/SubscriptionUsage"
 import { WorkspaceFooter as Footer, type FooterStatus } from "../shell/WorkspaceFooter"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
-import { crashLoopQuestion, currentState, sameItems, shallowEqual } from "./selectors"
+import { useAccounts } from "./controller/footer-accounts"
+import { crashLoopQuestion, currentState, shallowEqual } from "./selectors"
 
 const always = (): (() => void) => () => {}
 // The link's state, connected where the backend reports none.
@@ -15,12 +15,6 @@ const useConnection = (connection: Backend["connection"]): BackendConnectionStat
   useSyncExternalStore(
     connection?.subscribe ?? always,
     () => connection?.getSnapshot() ?? "connected",
-  )
-
-// Every terminal in every session: subscriptions are the account's, whichever reports them.
-const allTerminals = (workspace: Workspace) =>
-  workspace.projects.flatMap((project) =>
-    project.history.flatMap((session) => session.state.roster.terminals),
   )
 
 // The footer wired to the workspace's counts, the account's subscriptions and the
@@ -64,13 +58,13 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
       running: terminals.filter((terminal) => terminal.state === "running").length,
     }
   }, shallowEqual)
-  const terminals = useWorkspaceState(allTerminals, sameItems)
+  const seats = useWorkspaceState(runningSeats, sameSeats)
   // The order the person left the subscriptions in, kept for their next visit.
   const [order, setOrder] = useState(readSubscriptionOrder)
   // The time windows are measured against, moved on as the soonest one resets, so it
   // drops out then though no agent reports anything new.
   const [now, setNow] = useState(Date.now)
-  const accounts = useMemo(() => accountUsage(terminals, now, order), [terminals, now, order])
+  const accounts = useAccounts(backend.telemetry, seats, now, order)
   const nextReset = nextAccountReset(accounts)
   useEffect(() => {
     if (nextReset === undefined) return undefined

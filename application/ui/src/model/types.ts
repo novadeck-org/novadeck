@@ -45,7 +45,6 @@ export type AgentStatus = {
     readonly headline?: string
   }
   readonly subagents?: readonly { readonly id: string; readonly type: string | null }[]
-  readonly usage?: AgentUsage
   // How its latest turn ended, once none runs, with the start of its last reply where its
   // harness tells it (see `AgentTurnEnd`).
   readonly lastTurn?: AgentTurnEnd

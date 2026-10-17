@@ -5,7 +5,7 @@ import { lessMotion, stillRequested } from "../motion"
 import { agentTranscripts } from "../transcripts"
 import { demoTurns } from "../turns"
 import { visitorAmbient } from "./ambient"
-import { visitorSeed } from "./seed"
+import { visitorSeed, visitorTelemetry } from "./seed"
 import { visitorReadingMs, visitorStory } from "./story"
 
 // How long a visitor's agent works on a turn, in milliseconds: long enough to read as work.
@@ -33,6 +33,7 @@ export const visitorDemo = ({
 } = {}): Backend => {
   const now = Date.now()
   const turns = demoTurns(turnMs)
+  turns.telemetry.update(() => visitorTelemetry(now))
   // Asked for less motion, Claude Code has no reading to watch: its plan waits from the start.
   // Held still (`?still`), it reads for ever and nothing else moves.
   const still = stillRequested()
@@ -53,6 +54,7 @@ export const visitorDemo = ({
     newTerminal: backend.newTerminal,
     commit: backend.commit,
     TerminalSurface: backend.TerminalSurface,
+    telemetry: backend.telemetry,
     ...(backend.companions && { companions: backend.companions }),
     ...(backend.start && { start: backend.start }),
     visitor: true,

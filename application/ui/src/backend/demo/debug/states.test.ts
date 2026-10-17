@@ -5,7 +5,7 @@ import { workspaceFromSeed } from "../../../model/seed"
 import { workspaceReducer } from "../../../model/state"
 import { createWorkspaceStore } from "../../../model/store"
 import { terminalPhase } from "../../../model/terminal-ending"
-import type { AgentStatus, TerminalMetadata, Workspace } from "../../../model/types"
+import type { AgentStatus, AgentUsage, TerminalMetadata, Workspace } from "../../../model/types"
 import { context, describe, expect, it } from "../../../test"
 import type { BackendAction, TerminalKey } from "../../port"
 import type { DemoAgentVerbs } from "../agent-link"
@@ -103,7 +103,7 @@ const verbs = (
     },
     usage: (at, terminal, usage) => {
       record("usage", at, terminal, [usage])
-      say(at, terminal, { working: false, usage })
+      say(at, terminal, { working: false })
     },
     release: (at) => void released.push(at),
   }
@@ -314,15 +314,15 @@ describe("demo states", () => {
     it("sets usage and tokens through the usage verb, on the selected terminal", () => {
       const { run, terminal, calls, released } = panel("04")
       run("Context and limits")
-      expect(terminal("04")).toMatchObject({
-        process: "claude",
-        agent: { usage: { context: { capacity: 200_000 } } },
-      })
+      expect(terminal("04")).toMatchObject({ process: "claude" })
       run("Context, no size")
-      expect(terminal("04")).toMatchObject({ agent: { usage: { context: { capacity: null } } } })
       expect(calls.map((call) => [call.verb, call.key])).toEqual([
         ["usage", key("04")],
         ["usage", key("04")],
+      ])
+      expect(calls.map((call) => (call.args[0] as AgentUsage).context)).toEqual([
+        { occupied: 84_000, capacity: 200_000 },
+        { occupied: 84_000, capacity: null },
       ])
       // It sets nothing but usage, so what the agent had pending stays.
       expect(released).toEqual([])

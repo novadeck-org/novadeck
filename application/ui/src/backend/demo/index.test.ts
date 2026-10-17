@@ -151,6 +151,39 @@ describe("demo backend", () => {
     })
   })
 
+  context("with the agents' usage in the telemetry", () => {
+    const opened = () => {
+      const backend = createDemo("agents", undefined, demoTurns())
+      const workspace = workspaceFromSeed(backend.seed, {
+        view: "grid",
+        windowedView: "grid",
+        now: 1,
+      })
+      backend.commit(workspace, [])
+      return { backend, workspace }
+    }
+
+    it("forgets a closed terminal's usage", () => {
+      const { backend, workspace } = opened()
+      const target = { projectId: "storefront", workspaceSessionId: "initial" }
+      const [terminalId] = Object.keys(backend.telemetry.getSnapshot()["storefront/initial"]!)
+      const action = { type: "terminal/close" as const, target, terminalId: terminalId! }
+      backend.commit(workspaceReducer(workspace, action), [action])
+      expect(backend.telemetry.getSnapshot()["storefront/initial"]).not.toHaveProperty(terminalId!)
+    })
+
+    it("forgets a removed project's usage, and only that project's", () => {
+      const { backend, workspace } = opened()
+      expect(Object.keys(backend.telemetry.getSnapshot())).toEqual([
+        "storefront/initial",
+        "api-service/initial",
+      ])
+      const action = { type: "project/remove" as const, projectId: "storefront", now: 2 }
+      backend.commit(workspaceReducer(workspace, action), [action])
+      expect(Object.keys(backend.telemetry.getSnapshot())).toEqual(["api-service/initial"])
+    })
+  })
+
   context("when a window's name is handed back", () => {
     it("names the window after what it shows again", () => {
       const backend = withMessages(demoBackend(createDemoEngine()), 1)
