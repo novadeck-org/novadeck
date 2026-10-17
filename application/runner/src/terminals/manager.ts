@@ -6,13 +6,17 @@ import { basename, delimiter, isAbsolute, join, resolve as resolvePath } from "n
 import { setTimeout as sleep } from "node:timers/promises"
 
 import {
-  SerializeAddon,
-  Terminal,
+  createScreen,
+  mouseReporting,
+  readScreen,
+  replay,
+  trackMouse,
+  transcript as transcriptOf,
   type IMarker,
+  type MouseEncoding,
+  type Screen,
   type ScreenText,
-  type Terminal as Screen,
 } from "@novadeck/emulator/headless"
-import { applyWidths } from "@novadeck/emulator/width"
 import { isEmpty, type BoxProfile } from "@novadeck/harness-core/box"
 import type { RequestFacts } from "@novadeck/harness-core/dialogs"
 import type {
@@ -158,7 +162,6 @@ import { mention, nextHandle, wordOf } from "./handles.js"
 import { InputQueue, type HoldBudget, type InputHold } from "./input-queue.js"
 import { Interrupts, type InterruptHost, type InterruptOptions } from "./interrupts.js"
 import { keysOf, splitReports } from "./keys.js"
-import { type MouseEncoding, mouseReporting, watchMouseEncoding } from "./mouse.js"
 import {
   Murmur,
   type MurmurHost,
@@ -199,11 +202,10 @@ import {
   type TerminalIdentity,
   type TerminalRecords,
 } from "./records.js"
+import { restoredSeparator } from "./restored.js"
 import { freshNonce, leftoverNonce } from "./ring.js"
-import { screenText } from "./screen.js"
 import { snapshot } from "./snapshot.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
-import { replay, transcriptOf } from "./transcript.js"
 import { transcriptChanges } from "./transcripts.js"
 import { TerminalWatcher } from "./watcher.js"
 import { judgedFirst, workAfter, type Work } from "./work.js"
@@ -345,7 +347,6 @@ type Record = {
   summary: TerminalSummary
   process: pty.IPty
   screen: Screen
-  serializer: SerializeAddon
   sequence: number
   history: Retained[]
   historyBytes: number
@@ -526,7 +527,7 @@ type Record = {
   boxDoubtEpoch?: number
   /** `performance.now()` at the last save of its screen, so saves take turns. */
   savedAt: number
-} & Omit<Started, "process" | "screen" | "serializer" | "startedAt">
+} & Omit<Started, "process" | "screen" | "startedAt">
 
 /**
  * A spawned shell with its own headless screen, before it belongs to a record: the token
@@ -536,7 +537,6 @@ type Record = {
 type Started = {
   process: pty.IPty
   screen: Screen
-  serializer: SerializeAddon
   /** The mouse's encoding a program set on its screen. */
   mouseEncoding: () => MouseEncoding
   startedAt: number
@@ -1572,7 +1572,7 @@ export class Terminals {
     const { process: child } = record
     const shown = await this.enqueue(record, () => {
       const commandRow = commandRowOf(record)
-      return { text: screenText(record.screen), ...(commandRow !== undefined && { commandRow }) }
+      return { text: readScreen(record.screen), ...(commandRow !== undefined && { commandRow }) }
     })
     return record.process === child && this.live(terminalId) ? shown : undefined
   }
@@ -1601,7 +1601,7 @@ export class Terminals {
     const record = this.live(terminalId)
     if (!record) return undefined
     const { process: child } = record
-    const text = await this.enqueue(record, () => screenText(record.screen))
+    const text = await this.enqueue(record, () => readScreen(record.screen))
     return record.process === child && this.live(terminalId) ? text : undefined
   }
 
@@ -2153,7 +2153,7 @@ export class Terminals {
         this.forgetPrompts(record)
         const earlier =
           this.transcripts && !started.resumes
-            ? transcriptOf(record.screen, record.serializer, this.options.transcriptChars)
+            ? transcriptOf(record.screen, this.options.transcriptChars)
             : null
         // Earlier attachments ended at the exit; any still draining are dropped.
         for (const subscription of record.subscribers.values()) subscription.cancel()
@@ -2578,7 +2578,6 @@ export class Terminals {
           subscription.push(
             snapshot(
               record.screen,
-              record.serializer,
               record.summary,
               record.sequence,
               this.options.snapshotBytes,
@@ -3469,13 +3468,8 @@ export class Terminals {
         NOVADECK_REPORT_TOKEN: token,
       }),
     }
-    const screen = new Terminal({ cols, rows, scrollback: 1000, allowProposedApi: true })
-    const serializer = new SerializeAddon()
-    screen.loadAddon(serializer)
-    // Widths as a TUI's own (Ink's) count them, emoji sequences and CJK included: by the
-    // default's, a row it erased is a different number of rows, and stale ones stay.
-    applyWidths(screen)
-    const mouseEncoding = watchMouseEncoding(screen)
+    const screen = createScreen({ cols, rows, scrollback: 1000 })
+    const mouseEncoding = trackMouse(screen)
     try {
       const args = this.options.shellArgs ?? launched.args
       const child = pty.spawn(shell, typeof args === "string" ? args : [...args], {
@@ -3493,7 +3487,6 @@ export class Terminals {
       return {
         process: child,
         screen,
-        serializer,
         mouseEncoding,
         startedAt: performance.now(),
         token,
@@ -4773,7 +4766,7 @@ export class Terminals {
   /** Shows a transcript on the record's fresh screen, ahead of its shell's output. */
   private show(record: Record, transcript: string, savedAt: Date | null): void {
     const { screen } = record
-    void this.enqueue(record, () => replay(screen, transcript, savedAt))
+    void this.enqueue(record, () => replay(screen, transcript, restoredSeparator(savedAt)))
   }
 
   private saved(terminalId: string, sessionId?: string): SavedTerminal | undefined {
@@ -4811,7 +4804,7 @@ export class Terminals {
         promptedAt: record.promptedAt,
         ...(transcript && {
           transcript: this.transcripts
-            ? transcriptOf(record.screen, record.serializer, this.options.transcriptChars)
+            ? transcriptOf(record.screen, this.options.transcriptChars)
             : null,
         }),
       }),

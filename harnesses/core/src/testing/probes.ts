@@ -17,7 +17,7 @@ export type ScreenRecord = {
   readonly columns?: number
   /** Where the cursor was; on the last row that shows anything where the probe didn't say. */
   readonly cursor?: { readonly row: number; readonly column: number }
-  /** The rows that show anything, by row number, as `screenText` reads them. */
+  /** The rows that show anything, by row number, as `readScreen` reads them. */
   readonly rows: { readonly [row: string]: string }
   /** The rows whose dim cells blank some of their text, as they read undimmed. Others read as `rows` do. */
   readonly bright?: { readonly [row: string]: string }
@@ -27,7 +27,7 @@ export type ScreenRecord = {
   readonly styles?: unknown
 }
 
-/** The record of a screen, as a probe writes it: from the emulator's `screenText`, or from the text a terminal showed. */
+/** The record of a screen, as a probe writes it: from the emulator's `readScreen`, or from the text a terminal showed. */
 export const screenRecord = (
   shown: ScreenText | string,
   size: { readonly columns?: number | undefined } = {},

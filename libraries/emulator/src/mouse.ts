@@ -1,6 +1,5 @@
-import type { Terminal } from "@novadeck/emulator/headless"
-
-import type { Reporting } from "./keys.js"
+import type { Reporting } from "./report.js"
+import type { Screen } from "./screen.js"
 
 /**
  * How a terminal encodes the mouse's reports: X10's bytes by default, or SGR's
@@ -15,7 +14,7 @@ export type MouseEncoding = "default" | "sgr" | "sgr-pixels" | "urxvt"
  * DECRST 1006 and 1016, and a full reset; and urxvt's 1015, which xterm.js ignores. Its
  * handlers let xterm.js handle each sequence too. Returns the current encoding.
  */
-export const watchMouseEncoding = (screen: Terminal): (() => MouseEncoding) => {
+export const trackMouse = (screen: Screen): (() => MouseEncoding) => {
   let encoding: Exclude<MouseEncoding, "urxvt"> = "default"
   let urxvt = false
   const set = (on: boolean) => (params: (number | number[])[]) => {
@@ -37,7 +36,7 @@ export const watchMouseEncoding = (screen: Terminal): (() => MouseEncoding) => {
 }
 
 /**
- * Which of the mouse's reports the person's keys may leave out, by the screen's tracking
+ * Which of the mouse's reports typed keys may leave out, by the screen's tracking
  * mode and encoding: none while it tracks no mouse, or the TUI may read X10's as typing.
  */
 export const mouseReporting = (

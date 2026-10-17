@@ -1,18 +1,18 @@
-import { Terminal } from "@novadeck/emulator/headless"
+import { describe, expect, it } from "vitest"
 
-import { describe, expect, it } from "../test.js"
-import { mouseReporting, watchMouseEncoding } from "./mouse.js"
+import { mouseReporting, trackMouse } from "./mouse.js"
+import { createScreen, type Screen } from "./screen.js"
 
-// xterm.js's own encoding, which it keeps to itself; the watcher must agree with it.
-const internal = (screen: InstanceType<typeof Terminal>): string =>
+// xterm.js's own encoding, which it keeps to itself; the tracker must agree with it.
+const internal = (screen: Screen): string =>
   // eslint-disable-next-line no-underscore-dangle -- Its only way out is its internals.
   (screen as unknown as { _core: { coreMouseService: { activeEncoding: string } } })._core
     .coreMouseService.activeEncoding
 
 describe("the mouse's encoding on a screen", () => {
   it("follows what a program sets, as xterm.js does", async () => {
-    const screen = new Terminal({ cols: 20, rows: 4, allowProposedApi: true })
-    const encoding = watchMouseEncoding(screen)
+    const screen = createScreen({ cols: 20, rows: 4, scrollback: 0 })
+    const encoding = trackMouse(screen)
     const steps: readonly (readonly [string, string, string])[] = [
       ["", "default", "DEFAULT"],
       ["\x1b[?1000h\x1b[?1006h", "sgr", "SGR"],
@@ -51,8 +51,8 @@ describe("the mouse's encoding on a screen", () => {
       ["split write", ["\x1b[?1000h\x1b[?10", "06h"], "sgr", "SGR"],
     ]
     for (const [name, writes, expected, xterm] of cases) {
-      const screen = new Terminal({ cols: 20, rows: 4, allowProposedApi: true })
-      const encoding = watchMouseEncoding(screen)
+      const screen = createScreen({ cols: 20, rows: 4, scrollback: 0 })
+      const encoding = trackMouse(screen)
       try {
         for (const data of writes)
           // eslint-disable-next-line no-await-in-loop -- Each write follows the last.
@@ -65,10 +65,10 @@ describe("the mouse's encoding on a screen", () => {
   })
 
   it("tells urxvt's encoding, which xterm.js ignores, from X10 while SGR is off", async () => {
-    const screen = new Terminal({ cols: 20, rows: 4, allowProposedApi: true })
-    const encoding = watchMouseEncoding(screen)
+    const screen = createScreen({ cols: 20, rows: 4, scrollback: 0 })
+    const encoding = trackMouse(screen)
     const steps: readonly (readonly [string, string, string])[] = [
-      // xterm.js goes on reporting in X10, which a TUI that reads urxvt's may take as typing.
+      // xterm.js goes on reporting in X10, which a program that reads urxvt's may take as typing.
       ["\x1b[?1000h\x1b[?1015h", "urxvt", "DEFAULT"],
       // SGR, set as well, is what xterm.js sends.
       ["\x1b[?1006h", "sgr", "SGR"],
@@ -88,13 +88,13 @@ describe("the mouse's encoding on a screen", () => {
   })
 })
 
-describe("the mouse's reports the person's keys leave out", () => {
+describe("the mouse's reports typed keys leave out", () => {
   it("follow the encoding while the mouse is tracked, and none under urxvt's", () => {
     expect(mouseReporting("none", "sgr")).toBe(null)
     expect(mouseReporting("any", "default")).toBe("x10")
     expect(mouseReporting("vt200", "sgr")).toBe("sgr")
     expect(mouseReporting("drag", "sgr-pixels")).toBe("sgr")
-    // Every report counts as typing, as the TUI may read its X10 bytes as such.
+    // Every report counts as typing, as a program may read its X10 bytes as such.
     expect(mouseReporting("any", "urxvt")).toBe(null)
   })
 })

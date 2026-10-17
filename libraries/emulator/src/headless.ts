@@ -1,11 +1,9 @@
-import headless from "@xterm/headless"
-import type { Terminal as HeadlessTerminal } from "@xterm/headless"
-
-// The headless emulator and its serializer, from the one place that pins them.
-
-/** xterm's emulator without a view, as Node runs it. Its package is CommonJS. */
-export const Terminal = headless.Terminal
-export type Terminal = HeadlessTerminal
+export { createScreen, readScreen } from "./screen.js"
+export type { Screen, ScreenText } from "./screen.js"
 export type { IMarker } from "@xterm/headless"
-export { SerializeAddon } from "@xterm/addon-serialize"
-export type { ScreenText } from "./screen.js"
+export { mouseReporting, trackMouse } from "./mouse.js"
+export type { MouseEncoding } from "./mouse.js"
+export { matchReport } from "./report.js"
+export type { Reporting } from "./report.js"
+export { snapshot } from "./snapshot.js"
+export { replay, transcript } from "./transcript.js"

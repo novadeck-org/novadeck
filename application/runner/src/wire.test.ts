@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
-import { Terminal } from "@novadeck/emulator/headless"
+import { createScreen } from "@novadeck/emulator/headless"
 import {
   protocolVersion,
   type contract,
@@ -177,7 +177,7 @@ const print = (client: WireClient, terminalId: string, first: string, second: st
   })
 
 const screen = (resources: Resources, cols: number, rows: number) => {
-  const terminal = new Terminal({ cols, rows, allowProposedApi: true })
+  const terminal = createScreen({ cols, rows, scrollback: 1000 })
   resources.defer(() => terminal.dispose())
   const apply = async (event: TerminalEvent) => {
     if (event.type === "resized" || event.type === "snapshot") {
