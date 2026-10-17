@@ -5,8 +5,14 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
-import { protocolVersion, type TerminalEvent, type WireClient } from "@novadeck/protocol"
-import { createWireClient, socketChannel } from "@novadeck/protocol/wire"
+import {
+  protocolVersion,
+  type contract,
+  type TerminalEvent,
+  type WireClient,
+} from "@novadeck/protocol"
+import { socketChannel } from "@novadeck/wire"
+import { createWireClient } from "@novadeck/wire/client"
 import headless from "@xterm/headless"
 import { WebSocket as NodeWebSocket } from "ws"
 
@@ -50,7 +56,7 @@ const fixture = async (resources: Resources, options: ServerOptions = {}) => {
     }
     resources.defer(disconnect)
     await once(socket, "open", { signal: AbortSignal.timeout(5_000) })
-    const client = createWireClient(socketChannel(socket))
+    const client = createWireClient<typeof contract>(socketChannel(socket))
     if (authenticate) await client.runner.handshake({ protocolVersion, token })
     return { client, socket, disconnect }
   }
@@ -625,7 +631,7 @@ describe("terminal attachment and recovery API", () => {
     socket.binaryType = "arraybuffer"
     resources.defer(() => socket.terminate())
     await once(socket, "open", { signal: AbortSignal.timeout(5_000) })
-    const client = createWireClient(socketChannel(socket))
+    const client = createWireClient<typeof contract>(socketChannel(socket))
     await client.runner.handshake({ protocolVersion, token })
     // Flush the request onto TCP, then drop the connection without a close frame.
     // The server may either reject the request or finish creation after release.
@@ -634,7 +640,7 @@ describe("terminal attachment and recovery API", () => {
       originalSend(data, () => socket.terminate())
     }) as NodeWebSocket["send"]
     const created = client.terminals.create(shell(session.id))
-    await expect(created).rejects.toThrow("Runner connection is closed")
+    await expect(created).rejects.toThrow("The connection is closed")
     // Delivery is ambiguous: the connection may close before creation starts.
     // Any already-visible record must be controllable by the replacement.
     // The manager suite covers release during an in-flight create directly.
@@ -902,7 +908,7 @@ describe("terminal attachment and recovery API", () => {
     await output.untilText("PTY_READY")
     await disconnect()
     output.detach()
-    await expect(client.projects.list()).rejects.toThrow("Runner connection is closed")
+    await expect(client.projects.list()).rejects.toThrow("The connection is closed")
   })
 
   it("process survival and replay after the saved cursor", async ({ resources }) => {

@@ -1,4 +1,4 @@
-import { RunnerError } from "@novadeck/protocol/client"
+import { WireError } from "@novadeck/wire"
 
 import { describe, expect, it } from "../../test"
 import { scripted } from "./scripted"
@@ -18,7 +18,7 @@ describe("the transcript setting", () => {
   it("goes back when the runner could not change it", async () => {
     const app = scripted({
       shown: [],
-      saveSettings: () => Promise.reject(new RunnerError("DISCONNECTED")),
+      saveSettings: () => Promise.reject(new WireError("DISCONNECTED")),
     })
     const transcripts = app.backend.transcripts!
     transcripts.set(false)
@@ -49,7 +49,7 @@ describe("the agent switches", () => {
     const app = scripted({
       shown: [],
       connect: () =>
-        Promise.reject(new RunnerError("AGENT_SETUP_FAILED", "claude plugin install failed")),
+        Promise.reject(new WireError("AGENT_SETUP_FAILED", "claude plugin install failed")),
     })
     const agents = app.backend.agents!
     agents.set("claude", true)

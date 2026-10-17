@@ -1,4 +1,5 @@
-import { RunnerError, type RunnerStatus } from "@novadeck/protocol/client"
+import { type RunnerStatus } from "@novadeck/protocol/client"
+import { WireError } from "@novadeck/wire"
 
 import { workspaceFromSeed } from "../../model/seed"
 import { activeProject, activeSession, workspaceReducer } from "../../model/state"
@@ -55,10 +56,10 @@ const droppingRunner = () => {
       watch: nothing,
       requests: nothing,
       create: async (input: { readonly id: string }) => {
-        if (shells.has(input.id)) throw new RunnerError("CONFLICT", "taken")
+        if (shells.has(input.id)) throw new WireError("CONFLICT", "taken")
         shells.add(input.id)
-        set({ state: "reconnecting", error: new RunnerError("DISCONNECTED") })
-        throw new RunnerError("DISCONNECTED", "lost")
+        set({ state: "reconnecting", error: new WireError("DISCONNECTED") })
+        throw new WireError("DISCONNECTED", "lost")
       },
       close: async (id: string) => void shells.delete(id),
       restart: async () => {

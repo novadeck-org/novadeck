@@ -136,6 +136,28 @@ const callersOf = (anchors: Anchors, uiFiles: string[], id: string): Anchor[] =>
   })
 }
 
+// The wire's own codes, which the contract spreads into its errors (`...wireErrors`).
+const wireErrorsFile = "libraries/wire/src/errors.ts"
+
+// An error map's codes, each with the comment above it: `//` lines in the contract,
+// one-line `/** … */` in the wire's.
+const errorsIn = (body: string, wire: () => ApiError[]): ApiError[] => {
+  const found: ApiError[] = []
+  let note: string[] = []
+  for (const text of body.split("\n").map((each) => each.trim())) {
+    if (text.startsWith("//")) note.push(text.replace(/^\/\/\s?/, ""))
+    else if (text.startsWith("/**")) note.push(text.replace(/^\/\*\*\s?|\s?\*\/$/g, ""))
+    else {
+      if (/^\.\.\.wireErrors,?$/.test(text)) found.push(...wire())
+      const match = /^([A-Z_]+): \{ status: (\d+)/.exec(text)
+      if (match)
+        found.push({ code: match[1]!, status: Number(match[2]), note: note.join(" ") || null })
+      note = []
+    }
+  }
+  return found
+}
+
 const extractErrors = (anchors: Anchors, source: string): ApiError[] => {
   const from = anchors.expect(contractFile, "export const errors = {", "api errors")
   const to = anchors.expect(contractFile, "const procedure =", "api errors")
@@ -144,18 +166,14 @@ const extractErrors = (anchors: Anchors, source: string): ApiError[] => {
     source.indexOf("export const errors"),
     source.indexOf("const procedure ="),
   )
-  const found: ApiError[] = []
-  let note: string[] = []
-  for (const text of body.split("\n").map((each) => each.trim())) {
-    if (text.startsWith("//")) note.push(text.replace(/^\/\/\s?/, ""))
-    else {
-      const match = /^([A-Z_]+): \{ status: (\d+)/.exec(text)
-      if (match)
-        found.push({ code: match[1]!, status: Number(match[2]), note: note.join(" ") || null })
-      note = []
-    }
+  const wire = (): ApiError[] => {
+    const start = "export const wireErrors = {"
+    if (anchors.expect(wireErrorsFile, start, "api errors") === null) return []
+    const wireSource = anchors.read(wireErrorsFile) ?? ""
+    const at = wireSource.indexOf(start)
+    return errorsIn(wireSource.slice(at, wireSource.indexOf("} as const", at)), () => [])
   }
-  return found
+  return errorsIn(body, wire)
 }
 
 // Every procedure in the protocol contract, with its schemas, handler and callers.

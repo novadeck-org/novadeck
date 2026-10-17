@@ -45,10 +45,10 @@ const reactStore = new Set(["checkIfSnapshotChanged", "subscribeToStore", "force
 // listeners they wake.
 const store = /\/application\/ui\/src\/model\/store\.ts$/
 
-// The transport: oRPC, the protocol's client side of it, and the UI's handling of a
-// terminal's events as they arrive.
+// The transport: oRPC, the wire library, the protocol's client side of it, and the UI's
+// handling of a terminal's events as they arrive.
 const transport =
-  /\/@orpc\/|\/application\/protocol\/(?:src|dist)\/(?:client|wire|transports|runner|desktop|bridge|schemas|errors|contract)\.[jt]s$|\/application\/ui\/src\/backend\/runner\/follow\.ts$/
+  /\/@orpc\/|\/libraries\/wire\/(?:src|dist)\/|\/application\/protocol\/(?:src|dist)\/(?:client|runner|desktop|bridge|schemas|errors|contract)\.[jt]s$|\/application\/ui\/src\/backend\/runner\/follow\.ts$/
 
 /**
  * Where a frame's function is: `file`, the source the UI's build bundled (a package's own
@@ -103,7 +103,7 @@ export const groupOf = (original: Original | undefined): Group => {
   if (original === undefined) return "unmapped"
   const found = packageOf(original.file)
   if (found === undefined)
-    return /\/application\/protocol\//.test(original.file) ? "protocol" : "app"
+    return /\/application\/protocol\/|\/libraries\/wire\//.test(original.file) ? "protocol" : "app"
   if (["react", "react-dom", "scheduler"].includes(found)) return "react"
   if (found.startsWith("@xterm/")) {
     const part = xtermPart(original)

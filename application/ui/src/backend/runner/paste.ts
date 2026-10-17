@@ -1,5 +1,6 @@
 import { maxUploadBytes } from "@novadeck/protocol"
-import { hasCode, RunnerError } from "@novadeck/protocol/client"
+import { hasCode, type RunnerErrorCode } from "@novadeck/protocol/client"
+import { WireError } from "@novadeck/wire"
 import type { Terminal } from "@xterm/xterm"
 
 import { currentPlatform, type Platform } from "./platform"
@@ -142,7 +143,7 @@ export type PasteTarget = {
 const save = async (file: File, target: PasteTarget, now: Date): Promise<string> => {
   const own = ownPath(target.pathOf?.(file) ?? "")
   if (own) return own
-  if (file.size > maxUploadBytes) throw new RunnerError("UPLOAD_TOO_LARGE")
+  if (file.size > maxUploadBytes) throw new WireError<RunnerErrorCode>("UPLOAD_TOO_LARGE")
   const path = await target.upload({
     name: uploadName(file, now),
     data: new Uint8Array(await file.arrayBuffer()),

@@ -16,7 +16,7 @@ With Node 26, the locked dependencies, the protocol build and Chromium installed
 from the repository root. Use a new output directory outside the checkout:
 
 ```sh
-pnpm --filter @novadeck/protocol build
+pnpm --filter @novadeck/protocol... build
 pnpm --filter @novadeck/ui exec playwright install --with-deps chromium
 node scripts/flaky-capture/grid.ts --output /path/to/grid-capture --attempts 5
 ```
@@ -68,7 +68,7 @@ the existing loopback-only network namespace wrapper:
 export NOVADECK_E2E_AGENTS=agy
 export NOVADECK_E2E_HARNESS=pinned
 export NOVADECK_E2E_CACHE=/path/to/harness-cache
-pnpm --filter @novadeck/protocol --filter @novadeck/relay build
+pnpm --filter @novadeck/protocol... --filter @novadeck/relay build
 node scripts/e2e/install/main.ts
 node scripts/flaky-capture/agy.ts --output /path/to/agy-capture --attempts 5
 ```

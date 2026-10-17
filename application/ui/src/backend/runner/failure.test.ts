@@ -1,4 +1,4 @@
-import { RunnerError } from "@novadeck/protocol/client"
+import { WireError } from "@novadeck/wire"
 
 import { context, describe, expect, it } from "../../test"
 import { connectFailure } from "./index"
@@ -7,22 +7,20 @@ describe("connection failure", () => {
   context("when the runner is away or busy", () => {
     it("counts as transient, so the splash retries on its own", () => {
       const kinds = ["DISCONNECTED", "CLOSED", "RUNTIME_CLOSING", "RESOURCE_LIMIT"].map(
-        (code) => connectFailure(new RunnerError(code as RunnerError["code"])).kind,
+        (code) => connectFailure(new WireError(code)).kind,
       )
       expect(kinds).toEqual(["transient", "transient", "transient", "transient"])
-      expect(connectFailure(new RunnerError("DISCONNECTED")).message).toBe(
-        "The runner didn't start.",
-      )
+      expect(connectFailure(new WireError("DISCONNECTED")).message).toBe("The runner didn't start.")
     })
   })
 
   context("when the runner is another version or refuses the app", () => {
     it("says so and sorts them apart", () => {
-      expect(connectFailure(new RunnerError("INCOMPATIBLE_PROTOCOL"))).toMatchObject({
+      expect(connectFailure(new WireError("INCOMPATIBLE_PROTOCOL"))).toMatchObject({
         kind: "incompatible",
         message: "This runner is from a different Novadeck version.",
       })
-      expect(connectFailure(new RunnerError("UNAUTHORIZED"))).toMatchObject({
+      expect(connectFailure(new WireError("UNAUTHORIZED"))).toMatchObject({
         kind: "unauthorized",
         message: "The runner didn't accept this app.",
       })
@@ -31,7 +29,7 @@ describe("connection failure", () => {
 
   context("when a newer Novadeck has used the workspace", () => {
     it("says this copy is out of date, as a failure only Quit answers", () => {
-      expect(connectFailure(new RunnerError("WORKSPACE_TOO_NEW"))).toMatchObject({
+      expect(connectFailure(new WireError("WORKSPACE_TOO_NEW"))).toMatchObject({
         kind: "outdated",
         code: "WORKSPACE_TOO_NEW",
         message:
@@ -42,7 +40,7 @@ describe("connection failure", () => {
 
   context("with anything else", () => {
     it("says something went wrong and keeps the details", () => {
-      expect(connectFailure(new RunnerError("INTERNAL_SERVER_ERROR", "boom"))).toEqual({
+      expect(connectFailure(new WireError("INTERNAL_SERVER_ERROR", "boom"))).toEqual({
         kind: "unknown",
         message: "Something went wrong starting Novadeck.",
         code: "INTERNAL_SERVER_ERROR",
@@ -57,7 +55,7 @@ describe("connection failure", () => {
 
   it("keeps the transport's own reason as the detail", () => {
     expect(
-      connectFailure(new RunnerError("CLOSED", "No desktop host provides a runner.")).detail,
+      connectFailure(new WireError("CLOSED", "No desktop host provides a runner.")).detail,
     ).toBe("No desktop host provides a runner.")
   })
 })

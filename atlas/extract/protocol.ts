@@ -9,25 +9,32 @@ const newest = (dir: string): number =>
     return Math.max(latest, entry.isDirectory() ? newest(path) : statSync(path).mtimeMs)
   }, 0)
 
-// The extractor reads the contract from the built protocol package; build it when it is
-// missing or older than its source. It runs the package's own build (`tsc -p
-// tsconfig.build.json`) with the TypeScript the package resolves, through Node: not
-// through pnpm, which may first run an install, and which is a different executable on
-// Windows. The build's own output goes to stderr, so a failing build explains itself and
-// stdout stays the caller's.
+// The extractor reads the contract from the built protocol package, which reads the built
+// wire library; build each, in that order, when it is missing or older than its source.
+// It runs the package's own build (`tsc -p tsconfig.build.json`) with the TypeScript the
+// package resolves, through Node: not through pnpm, which may first run an install, and
+// which is a different executable on Windows. The build's own output goes to stderr, so a
+// failing build explains itself and stdout stays the caller's.
 export const ensureProtocol = (repo: string): void => {
-  const protocol = join(repo, "application/protocol")
-  const built = join(protocol, "dist/index.js")
-  if (existsSync(built) && statSync(built).mtimeMs >= newest(join(protocol, "src"))) return
-  process.stderr.write("atlas: building @novadeck/protocol…\n")
-  const typescript = createRequire(join(protocol, "package.json")).resolve(
-    "typescript/package.json",
-  )
-  const tsc = join(dirname(typescript), "bin/tsc")
-  // `--noEmitOnError`: a failed build leaves the old output stale, so the next call
-  // rebuilds and fails again, instead of finding fresh output built from broken source.
-  execFileSync(process.execPath, [tsc, "-p", "tsconfig.build.json", "--noEmitOnError"], {
-    cwd: protocol,
-    stdio: ["ignore", 2, 2],
-  })
+  let rebuilt = false
+  for (const [name, folder] of [
+    ["@novadeck/wire", "libraries/wire"],
+    ["@novadeck/protocol", "application/protocol"],
+  ] as const) {
+    const root = join(repo, folder)
+    const built = join(root, "dist/index.js")
+    if (!rebuilt && existsSync(built) && statSync(built).mtimeMs >= newest(join(root, "src")))
+      continue
+    // What depends on a rebuilt package is rebuilt too.
+    rebuilt = true
+    process.stderr.write(`atlas: building ${name}…\n`)
+    const typescript = createRequire(join(root, "package.json")).resolve("typescript/package.json")
+    const tsc = join(dirname(typescript), "bin/tsc")
+    // `--noEmitOnError`: a failed build leaves the old output stale, so the next call
+    // rebuilds and fails again, instead of finding fresh output built from broken source.
+    execFileSync(process.execPath, [tsc, "-p", "tsconfig.build.json", "--noEmitOnError"], {
+      cwd: root,
+      stdio: ["ignore", 2, 2],
+    })
+  }
 }

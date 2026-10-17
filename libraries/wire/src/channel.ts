@@ -1,11 +1,4 @@
-import { createORPCClient } from "@orpc/client"
-import { StandardRPCLink, type StandardLinkClient } from "@orpc/client/standard"
-import { ClientPeer } from "@orpc/standard-server-peer"
-
-import type { WireClient } from "./contract.js"
-import { RunnerError } from "./errors.js"
-
-/** A bidirectional message channel to a runner, such as a WebSocket or MessagePort. */
+/** A bidirectional message channel, such as a WebSocket or a MessagePort. */
 export type Channel = {
   readonly open: boolean
   send(message: string | Uint8Array<ArrayBuffer>): void
@@ -32,8 +25,6 @@ export type MessagePortLike = {
   addEventListener(type: "close", listener: () => void): void
   addEventListener(type: "message", listener: (event: { data: unknown }) => void): void
 }
-
-const disconnected = () => new RunnerError("DISCONNECTED", "Runner connection is closed.")
 
 // Closing locally settles `closed` at once: a DOM MessagePort only notifies its peer,
 // and a closing WebSocket may take a round trip before its close event.
@@ -87,46 +78,4 @@ export const portChannel = (port: MessagePortLike): Channel => {
       settle?.()
     },
   }
-}
-
-/** Speaks the oRPC peer protocol over a channel. Requests fail once the channel closes. */
-export const createWireClient = (channel: Channel): WireClient => {
-  // oRPC 1.x's stock adapters can reject an async abort listener after a socket closes.
-  // Keep oRPC's wire protocol; settle the peer instead of throwing from the send callback.
-  const peer = new ClientPeer((message) => {
-    if (!channel.open) {
-      peer.close({ reason: disconnected() })
-      return
-    }
-    try {
-      channel.send(
-        typeof message === "string"
-          ? message
-          : Uint8Array.from(message instanceof Uint8Array ? message : new Uint8Array(message)),
-      )
-    } catch (error) {
-      peer.close({ reason: error })
-    }
-  })
-  let received = Promise.resolve()
-  channel.listen((data) => {
-    received = received
-      .then(async () => {
-        await peer.message(
-          data instanceof Blob ? await data.arrayBuffer() : (data as string | ArrayBuffer),
-        )
-      })
-      .catch((error: unknown) => peer.close({ reason: error }))
-  })
-  void channel.closed.then(() => peer.close({ reason: disconnected() }))
-
-  const transport: StandardLinkClient<Record<never, never>> = {
-    async call(request) {
-      request.signal?.throwIfAborted()
-      if (!channel.open) throw disconnected()
-      const response = await peer.request(request)
-      return { ...response, body: () => Promise.resolve(response.body) }
-    },
-  }
-  return createORPCClient(new StandardRPCLink(transport, { url: "http://orpc" }))
 }

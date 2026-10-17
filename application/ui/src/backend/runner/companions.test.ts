@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import type { ItemContent as RunnerContent, PlanSaveResult } from "@novadeck/protocol"
-import { RunnerError } from "@novadeck/protocol/client"
+import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
 import { itemIdOf, PlanUnwritableError, type ItemContent } from "../../model/companion"
@@ -166,17 +166,17 @@ describe("the runner's companion content", () => {
   it("says why a plan can't be written, and leaves any other failure as it is", async () => {
     const app = following()
     for (const reason of ["gone", "folder", "transcript", "too-large", "not-a-plan"]) {
-      app.saveFails(new RunnerError("PLAN_UNWRITABLE", "no", { data: { reason } }))
+      app.saveFails(new WireError("PLAN_UNWRITABLE", "no", { data: { reason } }))
       // eslint-disable-next-line no-await-in-loop -- Each step waits for the one before.
       const rejected = await app.companions.save(target, hero, "# New\n", "a1").catch((e) => e)
       expect(rejected).toBeInstanceOf(PlanUnwritableError)
       expect(rejected.reason).toBe(reason)
     }
     // Without a reason the runner can give, or with another code, the failure may pass.
-    const unreasoned = new RunnerError("PLAN_UNWRITABLE", "no", { data: { reason: "other" } })
+    const unreasoned = new WireError("PLAN_UNWRITABLE", "no", { data: { reason: "other" } })
     app.saveFails(unreasoned)
     await expect(app.companions.save(target, hero, "# New\n", "a1")).rejects.toBe(unreasoned)
-    const dropped = new RunnerError("DISCONNECTED")
+    const dropped = new WireError("DISCONNECTED")
     app.saveFails(dropped)
     await expect(app.companions.save(target, hero, "# New\n", "a1")).rejects.toBe(dropped)
   })

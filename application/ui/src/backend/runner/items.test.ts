@@ -1,5 +1,5 @@
 import type { CompanionItem, CompanionWindow, TerminalSummary } from "@novadeck/protocol"
-import { RunnerError } from "@novadeck/protocol/client"
+import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
 import { itemIdOf } from "../../model/companion"
@@ -152,7 +152,7 @@ describe("the runner's items and windows", () => {
       const app = open({
         companions: { items: [notes, twin], windows: [] },
         respond: async (call) => {
-          if (call === "move") throw new RunnerError("CONFLICT", "Another session")
+          if (call === "move") throw new WireError("CONFLICT", "Another session")
         },
       })
       // The workspace lost the twin, as a move does before the runner answers.
@@ -235,7 +235,7 @@ describe("the runner's items and windows", () => {
       const app = open({
         companions: { items: [notes, twin], windows: [] },
         respond: async (call) => {
-          if (call === "move") throw new RunnerError("CONFLICT", "Another session")
+          if (call === "move") throw new WireError("CONFLICT", "Another session")
         },
       })
       app.commit({ type: "item/move", target, itemIds: [itemIdOf(notes.id)], terminalId: second })
@@ -250,7 +250,7 @@ describe("the runner's items and windows", () => {
     it("takes away a window the runner refused, putting its item back", async () => {
       const app = open({
         respond: async (call) => {
-          if (call === "undock") throw new RunnerError("CONFLICT", "Taken")
+          if (call === "undock") throw new WireError("CONFLICT", "Taken")
         },
       })
       app.commit({
@@ -274,7 +274,7 @@ describe("the runner's items and windows", () => {
       const app = open({
         respond: async (call) => {
           if (call === "undock") return runnerWindow(windowId, notes.id)
-          if (call === "move") throw new RunnerError("CONFLICT", "Another session")
+          if (call === "move") throw new WireError("CONFLICT", "Another session")
         },
       })
       const window = {
@@ -299,7 +299,7 @@ describe("the runner's items and windows", () => {
         },
         respond: async (call, input) => {
           if (call === "move") return { ...notes, holder: { terminalId: (input as string[])[1] } }
-          if (call === "close item") throw new RunnerError("CONFLICT", "Busy")
+          if (call === "close item") throw new WireError("CONFLICT", "Busy")
         },
       })
       expect(app.state().roster.windows.map((each) => each.id)).toEqual([windowId])
@@ -316,7 +316,7 @@ describe("the runner's items and windows", () => {
     it("takes closing what the runner no longer has as done", async () => {
       const app = open({
         respond: async (call) => {
-          if (call === "close item") throw new RunnerError("NOT_FOUND", "Gone")
+          if (call === "close item") throw new WireError("NOT_FOUND", "Gone")
         },
       })
       app.commit({ type: "item/close", target, itemId: itemIdOf(notes.id) })
@@ -333,7 +333,7 @@ describe("the runner's items and windows", () => {
       const app = open({
         respond: async (call) => {
           if (call === "move" && (tries += 1) === 1)
-            throw new RunnerError("TERMINAL_NOT_FOUND", "Not yet")
+            throw new WireError("TERMINAL_NOT_FOUND", "Not yet")
           return undefined
         },
       })

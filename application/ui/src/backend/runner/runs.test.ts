@@ -1,5 +1,6 @@
 import type { TerminalSummary } from "@novadeck/protocol"
-import { RunnerError, type RunnerStatus, type TerminalWatchItem } from "@novadeck/protocol/client"
+import { type RunnerStatus, type TerminalWatchItem } from "@novadeck/protocol/client"
+import { WireError } from "@novadeck/wire"
 import { afterAll, vi } from "vitest"
 
 import { workspaceFromSeed } from "../../model/seed"
@@ -393,7 +394,7 @@ describe("terminal limits and retries", () => {
         watch: () => limited.client.terminals.watch(),
         create: async () => {
           creates += 1
-          throw new RunnerError("RESOURCE_LIMIT")
+          throw new WireError("RESOURCE_LIMIT")
         },
       },
     } as RunnerApi

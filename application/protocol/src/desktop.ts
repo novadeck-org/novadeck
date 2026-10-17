@@ -1,8 +1,8 @@
+import { WireError, type MessagePortLike } from "@novadeck/wire"
+import { messagePort, type Transport } from "@novadeck/wire/client"
+
 import { runnerPortMessage, type DesktopHost } from "./bridge.js"
-import { RunnerError } from "./errors.js"
-import type { Transport } from "./runner.js"
-import { messagePort } from "./transports.js"
-import type { MessagePortLike } from "./wire.js"
+import type { RunnerErrorCode } from "./errors.js"
 
 /** How long a request's port may arrive after it was cancelled, so it can be closed. */
 const lateAnswerMs = 60_000
@@ -15,7 +15,7 @@ const request = (signal: AbortSignal) =>
     }
     const host = (globalThis as { novadeck?: Partial<DesktopHost> }).novadeck
     if (!host?.requestRunner) {
-      reject(new RunnerError("CLOSED", "No desktop host provides a runner."))
+      reject(new WireError<RunnerErrorCode>("CLOSED", "No desktop host provides a runner."))
       return
     }
     const id = crypto.randomUUID()

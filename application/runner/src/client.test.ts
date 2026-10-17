@@ -7,16 +7,14 @@ import { MessageChannel } from "node:worker_threads"
 import { maxUploadBytes, type TerminalEvent } from "@novadeck/protocol"
 import {
   connectRunner,
-  messagePort,
-  websocket,
   type AttachedTerminal,
-  type Channel,
   type CompanionWatchItem,
   type Runner,
   type RunnerStatus,
   type TerminalWatchItem,
-  type Transport,
 } from "@novadeck/protocol/client"
+import { type Channel } from "@novadeck/wire"
+import { messagePort, websocket, type Transport } from "@novadeck/wire/client"
 
 import { createRunner, servePort } from "./index.js"
 import { startServer, type ServerOptions } from "./server.js"
@@ -224,12 +222,12 @@ describe("runner client over WebSocket", () => {
   it("rejects a wrong token and unknown terminals with typed errors", async ({ resources }) => {
     const app = await deployed(resources)
     await expect(connectRunner(websocket(app.url, { token: "wrong" }))).rejects.toMatchObject({
-      name: "RunnerError",
+      name: "WireError",
       code: "UNAUTHORIZED",
     })
     const runner = await app.connect()
     await expect(runner.terminals.attach(crypto.randomUUID())).rejects.toMatchObject({
-      name: "RunnerError",
+      name: "WireError",
       code: "TERMINAL_NOT_FOUND",
     })
     await expect(
@@ -925,7 +923,7 @@ describe("runner client uploads", () => {
         name: "huge.bin",
         data: new Uint8Array(maxUploadBytes + 1),
       }),
-    ).rejects.toMatchObject({ name: "RunnerError", code: "UPLOAD_TOO_LARGE" })
+    ).rejects.toMatchObject({ name: "WireError", code: "UPLOAD_TOO_LARGE" })
   })
 })
 

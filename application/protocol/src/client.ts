@@ -1,4 +1,4 @@
-export { hasCode, RunnerError, type RunnerErrorCode } from "./errors.js"
+export { hasCode, type RunnerErrorCode } from "./errors.js"
 export {
   connectRunner,
   type AttachedTerminal,
@@ -8,9 +8,6 @@ export {
   type RunnerStatus,
   type TerminalMode,
   type TerminalWatchItem,
-  type Transport,
 } from "./runner.js"
 export { runnerPortMessage, type DesktopBridge, type DesktopHost } from "./bridge.js"
 export { desktop } from "./desktop.js"
-export { messagePort, websocket } from "./transports.js"
-export type { Channel, MessagePortLike } from "./wire.js"

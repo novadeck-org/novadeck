@@ -6,6 +6,18 @@ settings:
 
 catalogs:
   default:
+    '@orpc/client':
+      specifier: 1.15.5
+      version: 1.15.5
+    '@orpc/contract':
+      specifier: 1.15.5
+      version: 1.15.5
+    '@orpc/server':
+      specifier: 1.15.5
+      version: 1.15.5
+    '@orpc/standard-server-peer':
+      specifier: 1.15.5
+      version: 1.15.5
     zod:
       specifier: 4.6.5
       version: 4.6.5
@@ -89,6 +101,9 @@ importers:
       '@novadeck/ui':
         specifier: workspace:*
         version: link:../ui
+      '@novadeck/wire':
+        specifier: workspace:*
+        version: link:../../libraries/wire
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -122,14 +137,11 @@ importers:
 
   application/protocol:
     dependencies:
-      '@orpc/client':
-        specifier: 1.15.5
-        version: 1.15.5
+      '@novadeck/wire':
+        specifier: workspace:*
+        version: link:../../libraries/wire
       '@orpc/contract':
-        specifier: 1.15.5
-        version: 1.15.5
-      '@orpc/standard-server-peer':
-        specifier: 1.15.5
+        specifier: 'catalog:'
         version: 1.15.5
       zod:
         specifier: 'catalog:'
@@ -181,7 +193,7 @@ importers:
         specifier: workspace:*
         version: link:../../engines/whisper
       '@orpc/server':
-        specifier: 1.15.5
+        specifier: 'catalog:'
         version: 1.15.5(ws@8.22.0)
       '@xterm/addon-serialize':
         specifier: 0.14.0
@@ -208,6 +220,9 @@ importers:
       '@novadeck/sandbox':
         specifier: workspace:*
         version: link:../../libraries/sandbox
+      '@novadeck/wire':
+        specifier: workspace:*
+        version: link:../../libraries/wire
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -304,6 +319,9 @@ importers:
       '@novadeck/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@novadeck/wire':
+        specifier: workspace:*
+        version: link:../../libraries/wire
       '@xterm/addon-fit':
         specifier: 0.11.0
         version: 0.11.0
@@ -351,7 +369,7 @@ importers:
         specifier: workspace:*
         version: link:../runner
       '@orpc/server':
-        specifier: 1.15.5
+        specifier: 'catalog:'
         version: 1.15.5(ws@8.22.0)
       '@tailwindcss/vite':
         specifier: ^4.3.3
@@ -580,6 +598,31 @@ importers:
       node-pty:
         specifier: 1.2.0-beta.14
         version: 1.2.0-beta.14(patch_hash=c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224)
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@26.6.5)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(jsdom@30.1.2(@noble/hashes@2.4.0))(msw@2.15.0(@types/node@26.6.5)(typescript@7.0.2))(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+
+  libraries/wire:
+    dependencies:
+      '@orpc/client':
+        specifier: 'catalog:'
+        version: 1.15.5
+      '@orpc/contract':
+        specifier: 'catalog:'
+        version: 1.15.5
+      '@orpc/standard-server-peer':
+        specifier: 'catalog:'
+        version: 1.15.5
+    devDependencies:
+      '@orpc/server':
+        specifier: 'catalog:'
+        version: 1.15.5(ws@8.22.0)
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
       typescript:
         specifier: ^7.0.2
         version: 7.0.2

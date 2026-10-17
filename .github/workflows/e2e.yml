@@ -169,7 +169,7 @@ jobs:
 
       # With the network, as the relay's build may install the Rust it names.
       - name: Build Protocol and Relay
-        run: pnpm --filter @novadeck/protocol --filter @novadeck/relay build
+        run: pnpm --filter @novadeck/protocol... --filter @novadeck/relay build
 
       # Installed here, with the network; the tests then run without any.
       - name: Install Harnesses
@@ -311,7 +311,7 @@ jobs:
           harness: ${{ matrix.setup.agents }}
 
       - name: Build Protocol and Relay
-        run: pnpm --filter @novadeck/protocol --filter @novadeck/relay build
+        run: pnpm --filter @novadeck/protocol... --filter @novadeck/relay build
 
       - name: Install Harnesses
         run: node scripts/e2e/install/main.ts

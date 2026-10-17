@@ -5,7 +5,8 @@ import {
   type TerminalEvent,
   type TerminalSummary,
 } from "@novadeck/protocol"
-import { messagePort, type MessagePortLike } from "@novadeck/protocol/client"
+import { messagePort } from "@novadeck/wire/client"
+import { memoryPorts } from "@novadeck/wire/testing"
 import { implement, ORPCError } from "@orpc/server"
 import { RPCHandler } from "@orpc/server/message-port"
 
@@ -15,37 +16,6 @@ import { encodeSession } from "./session-state"
 
 // Test support: a runner the whole app boots over, at the wire, for the counter run. Browser
 // code: unlike `testing.ts`, it imports nothing Node-only.
-
-// One end of a message channel held in memory: what one end posts, the other receives on
-// a microtask, cloned as a real port would. Nothing waits on the browser's task queue, so
-// the client and the server it carries trade messages in the same order every run.
-const memoryChannel = (): readonly [MessagePortLike, MessagePortLike] => {
-  const ends = [0, 1].map(() => ({
-    message: new Set<(event: { data: unknown }) => void>(),
-    close: new Set<() => void>(),
-    open: true,
-  }))
-  const port = (own: (typeof ends)[number], peer: (typeof ends)[number]): MessagePortLike => ({
-    postMessage: (message) => {
-      if (!own.open || !peer.open) return
-      const data = structuredClone(message)
-      queueMicrotask(() => {
-        if (peer.open) for (const listener of peer.message) listener({ data })
-      })
-    },
-    start: () => {},
-    close: () => {
-      if (!own.open) return
-      own.open = false
-      peer.open = false
-      for (const listener of [...own.close, ...peer.close]) listener()
-    },
-    addEventListener: (type: "message" | "close", listener: never) => {
-      own[type].add(listener)
-    },
-  })
-  return [port(ends[0]!, ends[1]!), port(ends[1]!, ends[0]!)]
-}
 
 // Waits for the next value of a channel, or undefined once the call is cancelled.
 const nextOrAbort = async <T>(
@@ -324,7 +294,7 @@ export const scriptedRunner = ({ terminals: count }: { readonly terminals: numbe
   })
   let connections = 0
   const connect = (signal: AbortSignal) => {
-    const [server, client] = memoryChannel()
+    const [server, client] = memoryPorts()
     connections += 1
     server.addEventListener("close", () => (connections -= 1))
     new RPCHandler(router).upgrade(server, { context: {} })

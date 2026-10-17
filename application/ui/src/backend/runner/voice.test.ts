@@ -1,5 +1,5 @@
 import { maxVoiceSeconds, voiceSampleRate, type VoiceState } from "@novadeck/protocol"
-import { RunnerError } from "@novadeck/protocol/client"
+import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
 import { maxClipSeconds } from "../../model/voice"
@@ -54,7 +54,7 @@ describe("the runner's voice input", () => {
     it("shows why, until the next snapshot", async () => {
       const { voice, follow, push } = runner({
         install: async () => {
-          throw new RunnerError("CONFLICT", "Already installing.")
+          throw new WireError("CONFLICT", "Already installing.")
         },
       })
       follow()
@@ -73,7 +73,7 @@ describe("the runner's voice input", () => {
   it("keeps a refused setting apart from the runner's failure of an install", async () => {
     const { voice, follow } = runner({
       set: async () => {
-        throw new RunnerError("CONFLICT", "Not installed.")
+        throw new WireError("CONFLICT", "Not installed.")
       },
     })
     follow()
@@ -166,7 +166,7 @@ describe("the runner's voice input", () => {
     it("fails in words for the person when the clip is too long, or voice is off", async () => {
       const long = runner({
         record: async () => {
-          throw new RunnerError("UPLOAD_TOO_LARGE", "too big")
+          throw new WireError("UPLOAD_TOO_LARGE", "too big")
         },
       })
       const clip = long.voice.record()
@@ -176,7 +176,7 @@ describe("the runner's voice input", () => {
 
       const off = runner({
         transcribe: async () => {
-          throw new RunnerError("VOICE_UNAVAILABLE")
+          throw new WireError("VOICE_UNAVAILABLE")
         },
       })
       const next = off.voice.record()
@@ -193,7 +193,7 @@ describe("the runner's voice input", () => {
       ] as const) {
         const refused = runner({
           record: async () => {
-            throw new RunnerError("VOICE_UNAVAILABLE", undefined, { data: { reason: why } })
+            throw new WireError("VOICE_UNAVAILABLE", undefined, { data: { reason: why } })
           },
         })
         const refusedClip = refused.voice.record()
@@ -205,7 +205,7 @@ describe("the runner's voice input", () => {
       // A missing engine's own message says more than the fixed words.
       const full = runner({
         record: async () => {
-          throw new RunnerError("VOICE_UNAVAILABLE", "There is not enough disk space.", {
+          throw new WireError("VOICE_UNAVAILABLE", "There is not enough disk space.", {
             data: { reason: "missing" },
           })
         },
@@ -218,7 +218,7 @@ describe("the runner's voice input", () => {
       for (const data of [undefined, { reason: "newer" }]) {
         const unknown = runner({
           record: async () => {
-            throw new RunnerError("VOICE_UNAVAILABLE", "Updating the voice engine.", { data })
+            throw new WireError("VOICE_UNAVAILABLE", "Updating the voice engine.", { data })
           },
         })
         const later = unknown.voice.record()
@@ -231,7 +231,7 @@ describe("the runner's voice input", () => {
     it("lets the runner forget a clip whose transcription failed", async () => {
       const { voice, calls } = runner({
         transcribe: async () => {
-          throw new RunnerError("VOICE_FAILED", "engine crashed")
+          throw new WireError("VOICE_FAILED", "engine crashed")
         },
       })
       const clip = voice.record()

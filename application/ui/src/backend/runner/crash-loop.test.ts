@@ -1,4 +1,5 @@
-import { RunnerError, type Runner, type RunnerStatus } from "@novadeck/protocol/client"
+import { type Runner, type RunnerStatus } from "@novadeck/protocol/client"
+import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
 import { workspaceFromSeed } from "../../model/seed"
@@ -59,7 +60,7 @@ const crashingRunner = () => {
     generation += 1
     for (const resolve of wake) resolve()
     wake.clear()
-    throw new RunnerError("DISCONNECTED", "The runner crashed.")
+    throw new WireError("DISCONNECTED", "The runner crashed.")
   }
   const api = {
     watch: statuses,
@@ -72,7 +73,7 @@ const crashingRunner = () => {
       create: crash,
       restart: crash,
       close: async () => {},
-      attach: () => Promise.reject(new RunnerError("DISCONNECTED")),
+      attach: () => Promise.reject(new WireError("DISCONNECTED")),
     },
     companions: noCompanions,
   } as unknown as RunnerApi satisfies Pick<Runner, "watch">

@@ -1,5 +1,5 @@
 import type { TerminalSummary } from "@novadeck/protocol"
-import { RunnerError } from "@novadeck/protocol/client"
+import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
 import { describe, expect, it } from "../../test"
@@ -96,7 +96,7 @@ describe("resuming a restored terminal", () => {
     const app = scripted({
       shown: [{ id: id(1), lastProcess: "claude" }],
       listed: [exited(id(1))],
-      restart: () => Promise.reject(new RunnerError("CONFLICT")),
+      restart: () => Promise.reject(new WireError("CONFLICT")),
     })
     await flush()
     app.restart(app.key(id(1)))

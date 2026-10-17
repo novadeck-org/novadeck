@@ -101,7 +101,7 @@ jobs:
       # contract's build.
       - name: Build Contract
         if: steps.changes.outputs.counts == 'true'
-        run: pnpm --filter @novadeck/protocol build
+        run: pnpm --filter @novadeck/protocol... build
 
       - name: Play Counter Run
         if: steps.changes.outputs.counts == 'true'

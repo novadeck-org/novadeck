@@ -143,7 +143,7 @@ time.
   - **xterm rendering** is the script of xterm's renderer: the DOM renderer, the service that
     schedules it, and the WebGL addon. The DOM renderer's larger cost is Blink's, in style,
     layout and paint, which those rows hold;
-  - **transport** is oRPC, the protocol's client side (its wire, transports and schemas) and the
+  - **transport** is oRPC, the wire library, the protocol's client side (its schemas) and the
     UI's handling of a terminal's events as they arrive (`follow.ts`), less what those call that
     has a kind, as xterm's write; decoding a message the browser does natively, before any
     script, is in other main-thread work;

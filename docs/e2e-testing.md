@@ -33,7 +33,7 @@ from `fixture.ts`.
 
 ```sh
 npm run test:e2e                  # from the repository root; builds the protocol and relay first
-pnpm --filter @novadeck/protocol --filter @novadeck/relay build
+pnpm --filter @novadeck/protocol... --filter @novadeck/relay build
 pnpm --filter @novadeck/runner test:e2e
 NOVADECK_E2E_AGENTS=claude pnpm --filter @novadeck/runner test:e2e   # one harness
 ```
@@ -248,7 +248,7 @@ network:
   there instead of looking it up. To run the suite the same way locally:
 
   ```sh
-  pnpm --filter @novadeck/protocol build
+  pnpm --filter @novadeck/protocol... build
   NOVADECK_E2E_AGENTS=claude node scripts/e2e/install/main.ts
   NOVADECK_E2E_AGENTS=claude node scripts/e2e/isolated/main.ts -- pnpm --filter @novadeck/runner test:e2e
   ```

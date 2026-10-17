@@ -1,13 +1,9 @@
 import { MessageChannel } from "node:worker_threads"
 
-import {
-  connectRunner,
-  messagePort,
-  type AttachedTerminal,
-  type MessagePortLike,
-  type Runner,
-} from "@novadeck/protocol/client"
+import { connectRunner, type AttachedTerminal, type Runner } from "@novadeck/protocol/client"
 import { createRunner, servePort, type RunnerOptions } from "@novadeck/runner"
+import { type MessagePortLike } from "@novadeck/wire"
+import { messagePort } from "@novadeck/wire/client"
 
 import type { RunnerApi } from "./backend"
 import { loadListing } from "./index"

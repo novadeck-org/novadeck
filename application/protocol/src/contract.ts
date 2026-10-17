@@ -1,3 +1,4 @@
+import { wireErrors } from "@novadeck/wire"
 import { eventIterator, oc, type ContractRouterClient } from "@orpc/contract"
 import { z } from "zod"
 
@@ -49,8 +50,7 @@ import {
 } from "./schemas.js"
 
 export const errors = {
-  UNAUTHORIZED: { status: 401 },
-  INCOMPATIBLE_PROTOCOL: { status: 409 },
+  ...wireErrors,
   // The workspace database was written by a newer Novadeck, which this runner cannot open.
   WORKSPACE_TOO_NEW: { status: 409 },
   NOT_FOUND: { status: 404 },
@@ -60,17 +60,14 @@ export const errors = {
   CONFLICT: { status: 409, data: conflictReason.optional() },
   // A plan can't be written, and why (`planUnwritable`): saving it again won't help.
   PLAN_UNWRITABLE: { status: 409, data: planUnwritable },
-  RESOURCE_LIMIT: { status: 429 },
   TERMINAL_LIMIT: { status: 429 },
   TERMINAL_NOT_FOUND: { status: 404 },
   TERMINAL_EXITED: { status: 409 },
   CONTROL_IN_USE: { status: 409 },
   CONTROL_REQUIRED: { status: 403 },
   ALREADY_ATTACHED: { status: 409 },
-  SLOW_CONSUMER: { status: 429 },
   SNAPSHOT_TOO_LARGE: { status: 413 },
   UPLOAD_TOO_LARGE: { status: 413 },
-  INVALID_CURSOR: { status: 400 },
   SPAWN_FAILED: { status: 500 },
   RUNTIME_CLOSING: { status: 503 },
   AGENT_SETUP_FAILED: { status: 500 },
