@@ -8,6 +8,7 @@ import type { PromptShown } from "@novadeck/harness-core/events"
 import type { Harness, Install } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
 import { Trees, type Member } from "@novadeck/terminal/pty"
+import { Interrupts } from "@novadeck/tui-input"
 import { isEmpty, sameText, type BoxProfile, type InputBox } from "@novadeck/tui-input/box"
 
 import { agents, harnesses } from "../harnesses/registry.js"
@@ -15,7 +16,7 @@ import type { DeliveryEvent } from "../messaging/delivery.js"
 import { Messaging } from "../messaging/messaging.js"
 import { tracer } from "../terminals/doorbell.js"
 import { Terminals } from "../terminals/manager.js"
-import { Interrupts, Prompts } from "../terminals/prompting.js"
+import { Prompts } from "../terminals/prompting.js"
 import type { FakeModel } from "./model/server.js"
 
 /**
@@ -520,7 +521,8 @@ export const startTrace = (name: string, model: FakeModel) => {
 
   // An interrupt, as it reads the agent's box before and after Escape, when `settled` gave
   // it back, and what it wrote: where an interrupted prompt that was put back, or not
-  // cleared, is told from a stale read. Each host's keys and screens are wrapped once.
+  // cleared, is told from a stale read. Each host's keys and screens are wrapped once. The
+  // library's class, not the runner's wrapper in terminals/prompting.ts, is what runs these.
   const interrupting = methods(
     Interrupts.prototype as unknown as Record<string, never>,
     "Interrupts",

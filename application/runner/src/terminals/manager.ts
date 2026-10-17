@@ -84,6 +84,10 @@ import {
   keysOf,
   type HoldBudget,
   type InputHold,
+  type InterruptHost,
+  type InterruptOptions,
+  type PromptHost,
+  type PromptOptions,
 } from "@novadeck/tui-input"
 import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
 import * as pty from "node-pty"
@@ -198,7 +202,6 @@ import {
 } from "./opens.js"
 import { TerminalPeers } from "./peers.js"
 import { Interrupts, Prompts } from "./prompting.js"
-import type { InterruptHost, InterruptOptions, PromptHost, PromptOptions } from "./prompting.js"
 import {
   hasRun,
   type AgentReport,

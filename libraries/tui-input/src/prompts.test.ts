@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest"
 import type { BoxProfile, InputBox } from "./box.js"
 import { PromptRefusal } from "./errors.js"
 import { Prompts, type PromptHost } from "./prompts.js"
-import { InputQueue, type HoldBudget, type InputHold } from "./queue.js"
+import { InputQueue, type HoldBudget, type InputEntry, type InputHold } from "./queue.js"
 import { screen as screenOf } from "./testing/screens.js"
 
 /**
@@ -38,7 +38,7 @@ const profileOf = (
 
 /**
  * A terminal as prompts see it: a box whose lines a paste changes as `takes` says, a
- * screen around it, and what messaging says of it.
+ * screen around it, and the host's answers about it.
  */
 const terminal = (
   options: {
@@ -735,6 +735,50 @@ describe("shell commands", () => {
     const prompts = new Prompts(host, host.queue, fast)
     expect(await refusal(prompts.prompt("t", "!ls"))).toBe("no-box")
     expect(await refusal(prompts.prompt("t", "hello there"))).toBe("no-box")
+    expect(written).toEqual([])
+  })
+})
+
+describe("the rule a prompt is refused by", () => {
+  const refuse = (text: string): string | undefined =>
+    text.includes("bad") ? "No bad words." : undefined
+
+  it("refuses with `refused` and its wording before the queue, writing nothing", async () => {
+    const { host, written } = terminal()
+    // The queue is never reached: a text refused by the rule does not wait for its turn.
+    const busy = new InputQueue({
+      hold: () => {
+        throw new Error("the queue was reached")
+      },
+    })
+    const prompts = new Prompts(host, busy, { ...fast, refuse })
+    const failures = await Promise.all(
+      [
+        () => prompts.prompt("t", "something bad"),
+        () => prompts.promptIn({} as InputEntry, "t", "something bad"),
+      ].map((give) => give().catch((error: unknown) => error)),
+    )
+    for (const failure of failures) {
+      expect(failure).toBeInstanceOf(PromptRefusal)
+      expect(failure).toMatchObject({ reason: "refused", message: "No bad words." })
+    }
+    expect(written).toEqual([])
+  })
+
+  it("lets a text through that it passes", async () => {
+    const { host, written } = terminal()
+    const prompts = new Prompts(host, host.queue, { ...fast, refuse })
+    await prompts.prompt("t", "something good")
+    await host.queue.run("t", (entry) => prompts.promptIn(entry, "t", "something fine"))
+    expect(enters(written)).toBe(2)
+  })
+
+  it("refuses with `gone` where the screen reads undefined", async () => {
+    const { host, written } = terminal()
+    const prompts = new Prompts({ ...host, screen: () => Promise.resolve(undefined) }, host.queue, {
+      ...fast,
+    })
+    expect(await refusal(prompts.prompt("t", "Hello"))).toBe("gone")
     expect(written).toEqual([])
   })
 })
