@@ -11,11 +11,11 @@ import {
   type InboxLetter,
   type TerminalMessages,
 } from "@novadeck/protocol"
+import { Latest } from "@novadeck/wire/server"
 import { z } from "zod"
 
 import { DomainError } from "../errors.js"
 import type { RootChange } from "../harnesses/roots.js"
-import { Latest } from "../terminals/latest.js"
 import {
   allowSend,
   byteLength,

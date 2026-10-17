@@ -18,7 +18,7 @@ It packages the app unpacked (`pnpm --filter @novadeck/host package`), then:
    isn't split and `problems` says so;
 2. builds each other variant's UI (`build.ts`) and puts it in a copy of the package: React DOM's
    profiling build in place of its production one (`profiling`), or every screen drawing with
-   xterm's WebGL renderer (`webgl`), a patch to screens.ts made in that build only
+   xterm's WebGL renderer (`webgl`), a patch to the emulator library's view made in that build only
    (`patches.ts`); a run on it fails should a screen not load the renderer or lose its WebGL
    context; the copies are removed at the end;
 3. for each run, the scenarios and builds taking turns, makes a sandbox as the timing run does

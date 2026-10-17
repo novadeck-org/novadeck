@@ -1,4 +1,9 @@
-import { FitAddon, Terminal } from "@novadeck/emulator/browser"
+import {
+  createRenderers,
+  createView,
+  type Drawing,
+  type Terminal as EmulatorTerminal,
+} from "@novadeck/emulator/browser"
 import type { TerminalEvent, TerminalExit } from "@novadeck/protocol"
 import { type AttachedTerminal } from "@novadeck/protocol/client"
 import { WireError } from "@novadeck/wire"
@@ -14,7 +19,6 @@ import { themeChangeEvent } from "../../theme/apply"
 import type { BackendConnectionState } from "../port"
 import type { SurfaceRuntime } from "./backend"
 import { ctrlVHoldMs } from "./paste"
-import { createRenderers, type Drawing } from "./renderer"
 import { createRunnerTerminal } from "./RunnerTerminal"
 import { createScreens, pasteNoticeMs } from "./screens"
 
@@ -38,6 +42,22 @@ vi.hoisted(() => {
     }),
   })
 })
+
+// The emulator's terminal class is not exported; the tests spy on its prototype.
+type Terminal = EmulatorTerminal
+const Terminal = {
+  prototype: (() => {
+    const view = createView(document.createElement("div"), {
+      fontSize: 13,
+      fontFamily: "monospace",
+      theme: {},
+      scrollback: 0,
+    })
+    const prototype = Object.getPrototypeOf(view.terminal) as Terminal
+    view.dispose()
+    return prototype
+  })(),
+}
 
 const mounted: Rendered[] = []
 // A screen closes once its session has stayed off screen for its retention; it closes
@@ -1274,7 +1294,22 @@ describe("a surface's renderer", () => {
       },
       renderers,
     )
-    vi.spyOn(FitAddon.prototype, "proposeDimensions").mockReturnValue({ cols: 100, rows: 30 })
+    // The fit addon is the view's own, so it is reached as the terminal loads it.
+    const loadAddon = Terminal.prototype.loadAddon
+    vi.spyOn(Terminal.prototype, "loadAddon").mockImplementation(function (
+      this: Terminal,
+      addon: Parameters<Terminal["loadAddon"]>[0],
+    ) {
+      if ("proposeDimensions" in addon && typeof addon.proposeDimensions === "function")
+        vi.spyOn(
+          addon as { proposeDimensions: () => unknown },
+          "proposeDimensions",
+        ).mockReturnValue({
+          cols: 100,
+          rows: 30,
+        })
+      return loadAddon.call(this, addon)
+    })
     const Surface = createRunnerTerminal(runtime, screens)
     const place = (terminalId: string, view: ViewMode) => {
       const terminalKey = { ...key, terminalId }
@@ -1322,6 +1357,30 @@ describe("a surface's renderer", () => {
     expect(resized).toHaveBeenCalledTimes(1)
     again(page, "focus", "01")
     expect(resized).toHaveBeenCalledTimes(2)
+  })
+
+  it("fits the screen again once a font it waited for arrives", async () => {
+    const { resized, mount } = wired()
+    const root = document.documentElement
+    root.style.setProperty("--font-mono", "Bundled Mono")
+    const font = loading()
+    // A resize's settling refit waits on a timer, and a placed host's second fit on the next
+    // frame; with both held, only the font's refit counts.
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"],
+    })
+    try {
+      mount("focus", "01")
+      resized.mockClear()
+
+      await act(async () => font.arrive())
+
+      expect(resized).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+      root.style.removeProperty("--font-mono")
+      font.restore()
+    }
   })
 
   it("gives the context back when the screen parks, not when a surface returns in time", () => {

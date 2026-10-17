@@ -1,7 +1,5 @@
-import { Terminal } from "@novadeck/emulator/browser"
+import { createView, loadWebgl, type Terminal } from "@novadeck/emulator/browser"
 import { afterEach, describe as context, describe, expect, it } from "vitest"
-
-import { loadWebgl } from "./renderer"
 
 // xterm's WebGL addon in a real browser: what it holds of the page's WebGL contexts, which
 // Chromium caps. Headless Chromium draws WebGL in software, enough to hold a context.
@@ -14,10 +12,16 @@ const terminal = (): { readonly xterm: Terminal; readonly element: HTMLDivElemen
   const element = document.createElement("div")
   element.style.cssText = "width: 300px; height: 100px"
   document.body.append(element)
-  const xterm = new Terminal({ cols: 30, rows: 5 })
-  xterm.open(element)
+  const view = createView(element, {
+    fontSize: 13,
+    fontFamily: "monospace",
+    theme: {},
+    scrollback: 0,
+  })
+  const xterm = view.terminal
+  xterm.resize(30, 5)
   opened.push(() => {
-    xterm.dispose()
+    view.dispose()
     element.remove()
   })
   return { xterm, element }

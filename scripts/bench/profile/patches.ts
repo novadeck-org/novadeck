@@ -3,19 +3,22 @@ import { storeSpan } from "./trace.ts"
 // The profile's patches to the UI's sources, which build.ts makes in its own builds only, as
 // Vite plugins: none of them is the product's.
 
-// Where screens.ts opens a screen, which the WebGL patch follows with the addon. The import
-// goes on the file's first line and the addon on the open's own, so no line moves for the
-// maps. A context the GPU process takes back marks the screen's host, which the profile
-// checks (drive.ts): a screen that lost it draws nothing. As the WebGL renderer draws its text
-// on a canvas, the host also gets `profileText`, which reads the rows it shows from the
-// buffer, only when the profile asks (see ../timing/drive.ts).
-const opened = "    xterm.open(element)\n"
+// Where the emulator library's view opens a terminal, which the WebGL patch follows with the
+// addon. The UI's build reads the library as built (dist/view.js, whose open ends in a
+// semicolon), its tests as source (src/view.ts). The import goes on the file's first line and
+// the addon on the open's own, so no line moves for the maps. A context the GPU process takes
+// back marks the screen's host, which the profile checks (drive.ts): a screen that lost it
+// draws nothing. As the WebGL renderer draws its text on a canvas, the host also gets
+// `profileText`, which reads the rows it shows from the buffer, only when the profile asks
+// (see ../timing/drive.ts).
+const viewFile = /\/libraries\/emulator\/(?:src\/view\.ts|dist\/view\.js)$/
+const opened = /^( *terminal\.open\(element\));?$/gm
 
 const loaded = [
   "const webgl = new WebglAddon();",
   'webgl.onContextLoss(() => element.setAttribute("data-profile-webgl-lost", ""));',
-  "xterm.loadAddon(webgl);",
-  'element.profileText = () => { const shown = xterm.buffer.active; let text = ""; for (let row = 0; row < xterm.rows; row += 1) text += (shown.getLine(shown.viewportY + row)?.translateToString(true) ?? "") + "\\n"; return text };',
+  "terminal.loadAddon(webgl);",
+  'element.profileText = () => { const shown = terminal.buffer.active; let text = ""; for (let row = 0; row < terminal.rows; row += 1) text += (shown.getLine(shown.viewportY + row)?.translateToString(true) ?? "") + "\\n"; return text };',
 ].join(" ")
 
 /** Every screen draws with xterm's WebGL renderer, in place of its DOM one. */
@@ -23,14 +26,13 @@ export const webglPatch = {
   name: "profile-webgl",
   enforce: "pre",
   transform: (code: string, id: string): { code: string; map: null } | null => {
-    if (!id.endsWith("/src/backend/runner/screens.ts")) return null
-    if (code.split(opened).length !== 2)
-      throw new Error("screens.ts no longer opens a screen once, as the WebGL patch expects")
+    if (!viewFile.test(id)) return null
+    if (code.match(opened)?.length !== 1)
+      throw new Error(
+        "The emulator's view no longer opens a terminal once, as the WebGL patch expects",
+      )
     return {
-      code: `import { WebglAddon } from "@novadeck/emulator/browser"; ${code.replace(
-        opened,
-        `${opened.trimEnd()}; ${loaded}\n`,
-      )}`,
+      code: `import { WebglAddon } from "@xterm/addon-webgl"; ${code.replace(opened, `$1; ${loaded}`)}`,
       map: null,
     }
   },

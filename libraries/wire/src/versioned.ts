@@ -1,17 +1,21 @@
 type Watch = { readonly owner: string; finished: boolean; wake: (() => void) | undefined }
 
-// How often progress reaches watchers, at most.
-const progressMs = 100
-
 /**
- * The people watching a service's state: each hears it now and again after every change.
- * A change is a counter and a wake-up, so any number of changes between two looks is one
- * new state.
+ * Whole state, streamed to whoever watches it: each watcher hears it now and again after
+ * every change. A change is a counter and a wake-up, so any number of changes between two
+ * looks is one new state. A slow watcher isn't slowed or queued: it reads the state as it
+ * is when it next looks.
  */
-export class Watchers<State> {
+export class Versioned<State> {
   private readonly watchers = new Set<Watch>()
+  private readonly throttleMs: number
   private version = 0
   private lastProgress = 0
+
+  /** `throttleMs`: how often `progress` reaches watchers, at most. */
+  constructor({ throttleMs }: { readonly throttleMs: number }) {
+    this.throttleMs = throttleMs
+  }
 
   /** Tells every watcher the state changed. */
   changed(): void {
@@ -19,10 +23,10 @@ export class Watchers<State> {
     for (const watch of this.watchers) watch.wake?.()
   }
 
-  /** A change in progress: told at most ten times a second unless `force`. */
+  /** A change in progress: told at most once every `throttleMs` unless `force`. */
   progress(force = false): void {
     const now = Date.now()
-    if (!force && now - this.lastProgress < progressMs) return
+    if (!force && now - this.lastProgress < this.throttleMs) return
     this.lastProgress = now
     this.changed()
   }

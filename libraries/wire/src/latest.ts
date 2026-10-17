@@ -1,6 +1,6 @@
 /**
- * A stream of snapshots that keeps only the newest unread one: a slow reader skips
- * those it missed, and one equal to the last delivered is not sent again.
+ * One reader's stream of snapshots that keeps only the newest unread one: a slow reader
+ * skips those it missed, and one equal to the last delivered is not sent again.
  */
 export class Latest<T> {
   private unread: { readonly value: T; readonly key: string } | undefined
