@@ -142,6 +142,18 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # The pull request's app packaged for all three systems once every check passes, unless
+  # it's a draft or its change can't affect the app (Package's Scope job decides). Not
+  # part of the required checks.
+  package:
+    name: Package
+    needs: quality
+    if: github.event.pull_request.draft == false
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/package.yml
+
   test:
     name: Test
     needs: quality

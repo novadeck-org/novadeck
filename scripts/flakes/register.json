@@ -117,10 +117,10 @@
     },
     {
       "id": "release-quality-wait-window",
-      "jobs": ["^(Linux|macOS|Windows)$"],
+      "jobs": ["^(?:Package - )?(?:Linux|macOS|Windows)$"],
       "signature": "##\\[error\\]Quality checks did not complete within the wait window",
       "status": "known",
-      "cause": "Not a test: packaging waits about 27 minutes for the pull request's Quality checks, which stayed queued while CI was busy.",
+      "cause": "Not a test: packaging waits about 27 minutes for the pull request's Quality checks, which stayed queued while CI was busy. Quality now starts the packaging once its checks pass; only a draft marked ready still waits, for Quality's Test check, which has usually finished.",
       "seen": ["#223 run 39028273458 (Linux, macOS, Windows)"]
     }
   ]
