@@ -1,5 +1,5 @@
 /* xterm's own stylesheet sits in the base layer with the other vendor CSS. */
-@import "@xterm/xterm/css/xterm.css" layer(base);
+@import "@novadeck/emulator/browser.css" layer(base);
 @reference "../../styles.css";
 
 /* The runner recipe: the surface a shell draws into, greyed while typing is paused, and

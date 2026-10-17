@@ -1,5 +1,4 @@
-import { WebLinksAddon } from "@xterm/addon-web-links"
-import type { ILinkHandler, Terminal } from "@xterm/xterm"
+import { WebLinksAddon, type ILinkHandler, type Terminal } from "@novadeck/emulator/browser"
 
 import { currentPlatform, type Platform } from "./platform"
 

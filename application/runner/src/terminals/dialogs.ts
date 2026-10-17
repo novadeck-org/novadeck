@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto"
 
+import type { ScreenText } from "@novadeck/emulator/headless"
 import type {
   DialogAdapter,
   DialogRead,
@@ -7,7 +8,6 @@ import type {
   RequestFacts,
   ScreenRequest,
 } from "@novadeck/harness-core/dialogs"
-import type { ScreenText } from "@novadeck/harness-core/screen"
 import { requestDialog, type AgentName, type RequestDialog } from "@novadeck/protocol"
 
 /** A request waiting on the person, as the tracker looks for its dialog. */

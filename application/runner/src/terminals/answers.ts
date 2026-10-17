@@ -1,12 +1,12 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
+import type { ScreenText } from "@novadeck/emulator/headless"
 import type {
   DialogAdapter,
   DialogRead,
   KeyStep,
   RequestFacts,
 } from "@novadeck/harness-core/dialogs"
-import type { ScreenText } from "@novadeck/harness-core/screen"
 import { hasControlCharacters, promptRefusal, type RequestAnswer } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"

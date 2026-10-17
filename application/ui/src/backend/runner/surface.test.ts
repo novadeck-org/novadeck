@@ -1,8 +1,7 @@
+import { FitAddon, Terminal } from "@novadeck/emulator/browser"
 import type { TerminalEvent, TerminalExit } from "@novadeck/protocol"
 import { type AttachedTerminal } from "@novadeck/protocol/client"
 import { WireError } from "@novadeck/wire"
-import { FitAddon } from "@xterm/addon-fit"
-import { Terminal } from "@xterm/xterm"
 import { act, createElement, type ReactNode } from "react"
 import { afterEach, onTestFinished, vi } from "vitest"
 

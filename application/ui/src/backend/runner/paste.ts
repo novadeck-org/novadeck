@@ -1,7 +1,7 @@
+import type { Terminal } from "@novadeck/emulator/browser"
 import { maxUploadBytes } from "@novadeck/protocol"
 import { hasCode, type RunnerErrorCode } from "@novadeck/protocol/client"
 import { WireError } from "@novadeck/wire"
-import type { Terminal } from "@xterm/xterm"
 
 import { currentPlatform, type Platform } from "./platform"
 

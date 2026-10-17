@@ -1,8 +1,9 @@
-import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes"
+// @vitest-environment jsdom
 import headless from "@xterm/headless"
+import { Terminal } from "@xterm/xterm"
 import { describe, expect, it } from "vitest"
 
-import { cells } from "./width.js"
+import { applyWidths, cells } from "./width.js"
 
 const family = "\u{1f468}‍\u{1f469}‍\u{1f467}"
 const flag = "\u{1f1f5}\u{1f1f1}"
@@ -11,11 +12,19 @@ const heart = "❤️"
 const keycap = "1️⃣"
 const acute = "é"
 
-/** How far the emulator's cursor moves as it draws the text, on a screen too wide to wrap it. */
-const drawn = async (text: string): Promise<number> => {
-  const screen = new headless.Terminal({ cols: 200, rows: 4, allowProposedApi: true })
-  screen.loadAddon(new UnicodeGraphemesAddon())
-  screen.unicode.activeVersion = "15-graphemes"
+// The headless emulator, as Node runs it, and the browser's: a screen the one gives back
+// replays in the other.
+const emulators = {
+  headless: (options: { cols: number; rows: number; allowProposedApi: boolean }) =>
+    new headless.Terminal(options),
+  browser: (options: { cols: number; rows: number; allowProposedApi: boolean }) =>
+    new Terminal(options),
+}
+
+/** How far an emulator's cursor moves as it draws the text, on a screen too wide to wrap it. */
+const drawn = async (emulator: keyof typeof emulators, text: string): Promise<number> => {
+  const screen = emulators[emulator]({ cols: 200, rows: 4, allowProposedApi: true })
+  applyWidths(screen)
   await new Promise<void>((done) => screen.write(text, done))
   const column = screen.buffer.active.cursorX
   screen.dispose()
@@ -66,21 +75,26 @@ describe("the width of text on the screen", () => {
     expect(cells("")).toBe(0)
   })
 
-  it("agrees with the emulator on what it draws", async () => {
-    const texts = [
-      "plain ascii text",
-      "“quoted” — and – and…",
-      "日本語 mixed with ascii 中文",
-      `Thanks ${heart} heart ${family} family`,
-      `${flag}${flag} ${thumb}${thumb}`,
-      `${keycap} ${keycap}`,
-      `${acute}${acute}x`,
-      "\u{1f600}\u{1f600}\u{1f600}",
-      `${family}${family}`,
-      "ＡＢＣ กิ้",
-      "\u{1f9d1}‍\u{1f4bb} \u{1f3f3}️‍\u{1f308} \u{1f1fa}\u{1f1f8}\u{1f1ec}\u{1f1e7}",
-    ]
-    const seen = await Promise.all(texts.map(async (text) => [text, await drawn(text)] as const))
-    for (const [text, width] of seen) expect([text, cells(text)]).toEqual([text, width])
-  })
+  it.each(Object.keys(emulators) as (keyof typeof emulators)[])(
+    "agrees with the %s emulator on what it draws",
+    async (emulator) => {
+      const texts = [
+        "plain ascii text",
+        "“quoted” — and – and…",
+        "日本語 mixed with ascii 中文",
+        `Thanks ${heart} heart ${family} family`,
+        `${flag}${flag} ${thumb}${thumb}`,
+        `${keycap} ${keycap}`,
+        `${acute}${acute}x`,
+        "\u{1f600}\u{1f600}\u{1f600}",
+        `${family}${family}`,
+        "ＡＢＣ กิ้",
+        "\u{1f9d1}‍\u{1f4bb} \u{1f3f3}️‍\u{1f308} \u{1f1fa}\u{1f1f8}\u{1f1ec}\u{1f1e7}",
+      ]
+      const seen = await Promise.all(
+        texts.map(async (text) => [text, await drawn(emulator, text)] as const),
+      )
+      for (const [text, width] of seen) expect([text, cells(text)]).toEqual([text, width])
+    },
+  )
 })

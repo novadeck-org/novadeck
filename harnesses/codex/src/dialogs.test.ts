@@ -1,7 +1,7 @@
+import type { ScreenText } from "@novadeck/emulator/headless"
 import type { RequestFacts } from "@novadeck/harness-core/dialogs"
 import type { HarnessEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
-import type { ScreenText } from "@novadeck/harness-core/screen"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import type { RequestAnswer } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"

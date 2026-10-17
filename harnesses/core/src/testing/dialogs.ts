@@ -1,5 +1,6 @@
+import type { ScreenText } from "@novadeck/emulator/headless"
+
 import type { DialogAdapter, DialogRead, KeyStep } from "../dialogs.js"
-import type { ScreenText } from "../screen.js"
 import { screen } from "./screens.js"
 
 /**

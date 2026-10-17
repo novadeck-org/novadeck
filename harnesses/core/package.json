@@ -52,11 +52,6 @@
       "types": "./dist/report.d.ts",
       "default": "./dist/report.js"
     },
-    "./screen": {
-      "development": "./src/screen.ts",
-      "types": "./dist/screen.d.ts",
-      "default": "./dist/screen.js"
-    },
     "./testing/dialogs": {
       "development": "./src/testing/dialogs.ts",
       "types": "./dist/testing/dialogs.d.ts",
@@ -71,11 +66,6 @@
       "development": "./src/testing/screens.ts",
       "types": "./dist/testing/screens.d.ts",
       "default": "./dist/testing/screens.js"
-    },
-    "./width": {
-      "development": "./src/width.ts",
-      "types": "./dist/width.d.ts",
-      "default": "./dist/width.js"
     }
   },
   "scripts": {
@@ -84,9 +74,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@novadeck/protocol": "workspace:*",
-    "@xterm/addon-unicode-graphemes": "0.4.0",
-    "@xterm/headless": "6.0.0"
+    "@novadeck/emulator": "workspace:*",
+    "@novadeck/protocol": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

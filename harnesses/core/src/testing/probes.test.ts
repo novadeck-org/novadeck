@@ -2,9 +2,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import type { ScreenText } from "@novadeck/emulator/headless"
 import { describe, expect, it } from "vitest"
 
-import type { ScreenText } from "../screen.js"
 import { loadProbe, screenOf, screenRecord } from "./probes.js"
 
 describe("probe fixtures", () => {

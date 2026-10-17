@@ -1,4 +1,4 @@
-import type { ScreenText } from "../screen.js"
+import type { ScreenText } from "@novadeck/emulator/headless"
 
 /**
  * A screen as a test builds one: the rows, and the rest as a plain screen has it unless

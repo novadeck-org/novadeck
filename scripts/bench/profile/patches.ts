@@ -27,7 +27,7 @@ export const webglPatch = {
     if (code.split(opened).length !== 2)
       throw new Error("screens.ts no longer opens a screen once, as the WebGL patch expects")
     return {
-      code: `import { WebglAddon } from "@xterm/addon-webgl"; ${code.replace(
+      code: `import { WebglAddon } from "@novadeck/emulator/browser"; ${code.replace(
         opened,
         `${opened.trimEnd()}; ${loaded}\n`,
       )}`,

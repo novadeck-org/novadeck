@@ -1,6 +1,5 @@
-import { FitAddon } from "@xterm/addon-fit"
-import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes"
-import { Terminal, type ITheme } from "@xterm/xterm"
+import { FitAddon, Terminal, type ITheme } from "@novadeck/emulator/browser"
+import { applyWidths } from "@novadeck/emulator/width"
 
 import { createStore, type Store } from "../../model/store"
 import { themeChangeEvent } from "../../theme/apply"
@@ -173,8 +172,7 @@ export const createScreens = (runtime: SurfaceRuntime, renderers: Renderers = pa
     xterm.loadAddon(fit)
     // Widths as the runner's screen counts them, emoji sequences and CJK included, so a
     // screen it gives back replays on the same rows.
-    xterm.loadAddon(new UnicodeGraphemesAddon())
-    xterm.unicode.activeVersion = "15-graphemes"
+    applyWidths(xterm)
     linkTerminal(xterm)
     xterm.open(element)
     const queries = silenceQueries(xterm)

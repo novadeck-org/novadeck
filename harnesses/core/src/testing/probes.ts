@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
-import type { ScreenText } from "../screen.js"
+import type { ScreenText } from "@novadeck/emulator/headless"
+
 import { screen } from "./screens.js"
 
 /**

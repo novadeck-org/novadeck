@@ -1,9 +1,7 @@
-import headless from "@xterm/headless"
+import { Terminal } from "@novadeck/emulator/headless"
 
 import { describe, expect, it } from "../test.js"
 import { mouseReporting, watchMouseEncoding } from "./mouse.js"
-
-const { Terminal } = headless
 
 // xterm.js's own encoding, which it keeps to itself; the watcher must agree with it.
 const internal = (screen: InstanceType<typeof Terminal>): string =>

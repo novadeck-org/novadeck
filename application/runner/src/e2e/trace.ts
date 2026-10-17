@@ -3,11 +3,11 @@ import { mkdirSync, writeFileSync } from "node:fs"
 import { readdir, stat } from "node:fs/promises"
 import { basename, dirname, isAbsolute, join, relative } from "node:path"
 
+import type { ScreenText } from "@novadeck/emulator/headless"
 import { isEmpty, sameText, type BoxProfile, type InputBox } from "@novadeck/harness-core/box"
 import type { PromptShown } from "@novadeck/harness-core/events"
 import type { Harness, Install } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
-import type { ScreenText } from "@novadeck/harness-core/screen"
 import { Trees, type Member } from "@novadeck/terminal/pty"
 
 import { agents, harnesses } from "../harnesses/registry.js"

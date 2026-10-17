@@ -1,5 +1,4 @@
-import { WebglAddon } from "@xterm/addon-webgl"
-import type { IEvent, Terminal } from "@xterm/xterm"
+import { WebglAddon, type IEvent, type Terminal } from "@novadeck/emulator/browser"
 
 import type { ViewMode } from "../../model/types"
 

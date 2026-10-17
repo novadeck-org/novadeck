@@ -1,4 +1,4 @@
-import { Terminal } from "@xterm/xterm"
+import { Terminal } from "@novadeck/emulator/browser"
 import { vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"

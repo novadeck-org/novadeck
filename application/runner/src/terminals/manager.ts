@@ -5,6 +5,14 @@ import { homedir, constants as system } from "node:os"
 import { basename, delimiter, isAbsolute, join, resolve as resolvePath } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import {
+  SerializeAddon,
+  Terminal,
+  type IMarker,
+  type ScreenText,
+  type Terminal as Screen,
+} from "@novadeck/emulator/headless"
+import { applyWidths } from "@novadeck/emulator/width"
 import { isEmpty, type BoxProfile } from "@novadeck/harness-core/box"
 import type { RequestFacts } from "@novadeck/harness-core/dialogs"
 import type {
@@ -22,7 +30,6 @@ import {
   type Install,
 } from "@novadeck/harness-core/harness"
 import { type Report } from "@novadeck/harness-core/report"
-import { type ScreenText } from "@novadeck/harness-core/screen"
 import type { AskAnswer, InboxLetter } from "@novadeck/protocol"
 import type {
   AgentDetail,
@@ -68,11 +75,6 @@ import {
   withLocale,
   type Line,
 } from "@novadeck/terminal/shell"
-import { SerializeAddon } from "@xterm/addon-serialize"
-import type { SerializeAddon as Serializer } from "@xterm/addon-serialize"
-import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes"
-import headless from "@xterm/headless"
-import type { IMarker, Terminal as Screen } from "@xterm/headless"
 import * as pty from "node-pty"
 
 import { readPlanFile, type PlanText } from "../companions/content.js"
@@ -204,7 +206,6 @@ import { transcriptChanges } from "./transcripts.js"
 import { TerminalWatcher } from "./watcher.js"
 import { judgedFirst, workAfter, type Work } from "./work.js"
 
-const { Terminal } = headless
 const OUTPUT_CHARS = 4096
 // How much read output may wait to be drawn before the program is paused, in characters.
 // Pausing for every chunk until it is drawn waits on a timer each time, about 15 ms on
@@ -342,7 +343,7 @@ type Record = {
   summary: TerminalSummary
   process: pty.IPty
   screen: Screen
-  serializer: Serializer
+  serializer: SerializeAddon
   sequence: number
   history: Retained[]
   historyBytes: number
@@ -533,7 +534,7 @@ type Record = {
 type Started = {
   process: pty.IPty
   screen: Screen
-  serializer: Serializer
+  serializer: SerializeAddon
   /** The mouse's encoding a program set on its screen. */
   mouseEncoding: () => MouseEncoding
   startedAt: number
@@ -3471,8 +3472,7 @@ export class Terminals {
     screen.loadAddon(serializer)
     // Widths as a TUI's own (Ink's) count them, emoji sequences and CJK included: by the
     // default's, a row it erased is a different number of rows, and stale ones stay.
-    screen.loadAddon(new UnicodeGraphemesAddon())
-    screen.unicode.activeVersion = "15-graphemes"
+    applyWidths(screen)
     const mouseEncoding = watchMouseEncoding(screen)
     try {
       const args = this.options.shellArgs ?? launched.args

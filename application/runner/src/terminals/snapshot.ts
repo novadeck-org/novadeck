@@ -1,6 +1,5 @@
+import type { SerializeAddon, Terminal } from "@novadeck/emulator/headless"
 import type { TerminalEvent, TerminalSummary } from "@novadeck/protocol"
-import type { SerializeAddon } from "@xterm/addon-serialize"
-import type { Terminal } from "@xterm/headless"
 
 import { DomainError } from "../errors.js"
 import { type MouseEncoding, restoreMouseEncoding } from "./mouse.js"

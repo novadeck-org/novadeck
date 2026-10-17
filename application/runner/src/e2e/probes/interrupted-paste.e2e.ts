@@ -9,11 +9,11 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
+import { Terminal } from "@novadeck/emulator/headless"
 import { box as agyBox } from "@novadeck/harness-agy/box"
 import { box as claudeBox } from "@novadeck/harness-claude/box"
 import { box as codexBox } from "@novadeck/harness-codex/box"
 import { screenRecord } from "@novadeck/harness-core/testing/probes"
-import headless from "@xterm/headless"
 
 import { collapsible } from "../../terminals/prompts.js"
 import { screenText } from "../../terminals/screen.js"
@@ -77,7 +77,7 @@ for (const setup of setups) {
             for await (const event of stream) {
               if (event.type !== "snapshot") continue
               const { cols, rows } = terminals.get(t.id)
-              const screen = new headless.Terminal({
+              const screen = new Terminal({
                 cols,
                 rows,
                 scrollback: 0,

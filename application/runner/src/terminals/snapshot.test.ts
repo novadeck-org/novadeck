@@ -1,13 +1,11 @@
+import { SerializeAddon, Terminal } from "@novadeck/emulator/headless"
 import type { TerminalSummary } from "@novadeck/protocol"
 import { Subscription } from "@novadeck/terminal/host"
-import { SerializeAddon } from "@xterm/addon-serialize"
-import headless from "@xterm/headless"
 
 import { describe, expect, it } from "../test.js"
 import { watchMouseEncoding } from "./mouse.js"
 import { snapshot } from "./snapshot.js"
 
-const { Terminal } = headless
 const summary: TerminalSummary = {
   id: "terminal",
   sessionId: "session",

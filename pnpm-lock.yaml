@@ -46,9 +46,6 @@ importers:
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
-      '@xterm/addon-webgl':
-        specifier: 0.19.0
-        version: 0.19.0
       concurrently:
         specifier: ^10.0.6
         version: 10.0.6
@@ -171,6 +168,9 @@ importers:
       '@hono/node-server':
         specifier: ^2.1.4
         version: 2.1.4(hono@4.13.13)
+      '@novadeck/emulator':
+        specifier: workspace:*
+        version: link:../../libraries/emulator
       '@novadeck/harness-agy':
         specifier: workspace:*
         version: link:../../harnesses/agy
@@ -201,15 +201,6 @@ importers:
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.15.5(ws@8.22.0)
-      '@xterm/addon-serialize':
-        specifier: 0.14.0
-        version: 0.14.0
-      '@xterm/addon-unicode-graphemes':
-        specifier: 0.4.0
-        version: 0.4.0(patch_hash=b0a9bbbcc53e94cabc762f35be7a9d628ad75ecb84ca1e26eae1e808f27f18b6)
-      '@xterm/headless':
-        specifier: 6.0.0
-        version: 6.0.0
       hono:
         specifier: ^4.13.13
         version: 4.13.13
@@ -283,6 +274,9 @@ importers:
       '@lezer/markdown':
         specifier: ^1.8.0
         version: 1.8.0
+      '@novadeck/emulator':
+        specifier: workspace:*
+        version: link:../../libraries/emulator
       '@novadeck/protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -292,21 +286,6 @@ importers:
       '@novadeck/wire':
         specifier: workspace:*
         version: link:../../libraries/wire
-      '@xterm/addon-fit':
-        specifier: 0.11.0
-        version: 0.11.0
-      '@xterm/addon-unicode-graphemes':
-        specifier: 0.4.0
-        version: 0.4.0(patch_hash=b0a9bbbcc53e94cabc762f35be7a9d628ad75ecb84ca1e26eae1e808f27f18b6)
-      '@xterm/addon-web-links':
-        specifier: 0.12.0
-        version: 0.12.0
-      '@xterm/addon-webgl':
-        specifier: 0.19.0
-        version: 0.19.0
-      '@xterm/xterm':
-        specifier: 6.0.0
-        version: 6.0.0(patch_hash=2cd53f4bf1af2ffd7e09dcb6b561f0c0176ae79956b5d91ac46024168cd237fa)
       '@xyflow/react':
         specifier: ^12.12.0
         version: 12.12.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -471,6 +450,9 @@ importers:
 
   harnesses/agy:
     dependencies:
+      '@novadeck/emulator':
+        specifier: workspace:*
+        version: link:../../libraries/emulator
       '@novadeck/harness-core':
         specifier: workspace:*
         version: link:../core
@@ -490,6 +472,9 @@ importers:
 
   harnesses/claude:
     dependencies:
+      '@novadeck/emulator':
+        specifier: workspace:*
+        version: link:../../libraries/emulator
       '@novadeck/harness-core':
         specifier: workspace:*
         version: link:../core
@@ -509,6 +494,9 @@ importers:
 
   harnesses/codex:
     dependencies:
+      '@novadeck/emulator':
+        specifier: workspace:*
+        version: link:../../libraries/emulator
       '@novadeck/harness-core':
         specifier: workspace:*
         version: link:../core
@@ -528,19 +516,53 @@ importers:
 
   harnesses/core:
     dependencies:
+      '@novadeck/emulator':
+        specifier: workspace:*
+        version: link:../../libraries/emulator
       '@novadeck/protocol':
         specifier: workspace:*
         version: link:../../application/protocol
-      '@xterm/addon-unicode-graphemes':
-        specifier: 0.4.0
-        version: 0.4.0(patch_hash=b0a9bbbcc53e94cabc762f35be7a9d628ad75ecb84ca1e26eae1e808f27f18b6)
-      '@xterm/headless':
-        specifier: 6.0.0
-        version: 6.0.0
     devDependencies:
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@26.6.5)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(jsdom@30.1.2(@noble/hashes@2.4.0))(msw@2.15.0(@types/node@26.6.5)(typescript@7.0.2))(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+
+  libraries/emulator:
+    dependencies:
+      '@xterm/addon-fit':
+        specifier: 0.11.0
+        version: 0.11.0
+      '@xterm/addon-serialize':
+        specifier: 0.14.0
+        version: 0.14.0
+      '@xterm/addon-unicode-graphemes':
+        specifier: 0.4.0
+        version: 0.4.0(patch_hash=b0a9bbbcc53e94cabc762f35be7a9d628ad75ecb84ca1e26eae1e808f27f18b6)
+      '@xterm/addon-web-links':
+        specifier: 0.12.0
+        version: 0.12.0
+      '@xterm/addon-webgl':
+        specifier: 0.19.0
+        version: 0.19.0
+      '@xterm/headless':
+        specifier: 6.0.0
+        version: 6.0.0
+      '@xterm/xterm':
+        specifier: 6.0.0
+        version: 6.0.0(patch_hash=2cd53f4bf1af2ffd7e09dcb6b561f0c0176ae79956b5d91ac46024168cd237fa)
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
+      jsdom:
+        specifier: ^30.1.2
+        version: 30.1.2(@noble/hashes@2.4.0)
       typescript:
         specifier: ^7.0.2
         version: 7.0.2

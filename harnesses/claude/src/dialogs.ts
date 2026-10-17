@@ -1,5 +1,6 @@
 import { posix, win32 } from "node:path"
 
+import { cells } from "@novadeck/emulator/width"
 import type {
   DialogAdapter,
   DialogRead,
@@ -7,7 +8,6 @@ import type {
   ReadDialog,
   RequestFacts,
 } from "@novadeck/harness-core/dialogs"
-import { cells } from "@novadeck/harness-core/width"
 import type { RequestAnswer } from "@novadeck/protocol"
 
 import { elicitationTool } from "./decode.js"

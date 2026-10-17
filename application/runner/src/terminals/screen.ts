@@ -1,5 +1,4 @@
-import type { ScreenText } from "@novadeck/harness-core/screen"
-import type { Terminal as Screen } from "@xterm/headless"
+import type { ScreenText, Terminal as Screen } from "@novadeck/emulator/headless"
 
 // Whether a row's last cell holds a character: the second half of a double-width one does
 // (its cell has no width of its own, and the first half is before it).

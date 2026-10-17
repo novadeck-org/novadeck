@@ -1,4 +1,4 @@
-import { Terminal } from "@xterm/xterm"
+import { Terminal } from "@novadeck/emulator/browser"
 import { afterEach, describe as context, describe, expect, it } from "vitest"
 
 import { loadWebgl } from "./renderer"

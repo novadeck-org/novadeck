@@ -50,6 +50,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@novadeck/emulator": "workspace:*",
     "@novadeck/harness-core": "workspace:*",
     "@novadeck/protocol": "workspace:*"
   },

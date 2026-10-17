@@ -167,11 +167,14 @@ const vendors: Record<string, readonly string[]> = {
   ],
   "react-router": ["app/", "shell/"],
   "react-dom": ["layouts/transition.ts", "main.tsx", "test/"],
-  // Before "@novadeck", which would match it first.
+  // One entry per workspace package, with the folders that own it. The runner client and its
+  // test runner serve one adapter, the terminal emulator its screens, and the content viewers
+  // the companion pane and chat.
   "@novadeck/viewers": ["terminals/companion/", "terminals/chat/"],
-  // The runner client, its test runner, and the terminal emulator serve one adapter.
-  "@novadeck": ["backend/runner/", ...Object.keys(protocolData)],
-  "@xterm": ["backend/runner/"],
+  "@novadeck/protocol": ["backend/runner/", ...Object.keys(protocolData)],
+  "@novadeck/runner": ["backend/runner/"],
+  "@novadeck/emulator": ["backend/runner/"],
+  "@novadeck/wire": ["backend/runner/"],
   // The runner's server side, which only the counter run's scripted runner serves.
   "@orpc/server": [scriptedServer],
 }
@@ -273,6 +276,15 @@ describe("UI architecture", () => {
           ? []
           : [`${file} -> ${specifier}`]
       }),
+    )
+    expect(found).toEqual([])
+  })
+
+  it("imports no workspace package the table doesn't give an owner", () => {
+    const found = files.flatMap((file) =>
+      imports(file)
+        .filter(({ specifier }) => specifier.startsWith("@novadeck/") && !vendorOf(specifier))
+        .map(({ specifier }) => `${file} -> ${specifier}`),
     )
     expect(found).toEqual([])
   })

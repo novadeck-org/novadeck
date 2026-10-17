@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
+import type { ScreenText } from "@novadeck/emulator/headless"
 import { doorbellLine, hookShellSlackMs } from "@novadeck/harness-core/harness"
-import type { ScreenText } from "@novadeck/harness-core/screen"
 
 import type { Waits } from "../messaging/delivery.js"
 import { coalesced } from "./coalesce.js"

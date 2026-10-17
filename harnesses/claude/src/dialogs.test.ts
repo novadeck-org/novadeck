@@ -1,5 +1,5 @@
+import type { ScreenText } from "@novadeck/emulator/headless"
 import type { DialogRead, KeyStep, RequestFacts } from "@novadeck/harness-core/dialogs"
-import type { ScreenText } from "@novadeck/harness-core/screen"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import type { RequestAnswer } from "@novadeck/protocol"
 import { vi } from "vitest"

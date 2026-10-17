@@ -1,6 +1,6 @@
 /**
- * A terminal's screen as the runner's doorbell and prompts read it: its rows' text, with what a
- * harness's input box needs of it, and its paste mode.
+ * A terminal's screen read as text: its rows, with what a reader of a program's input box
+ * needs of them, and its paste mode.
  */
 export type ScreenText = {
   readonly rows: readonly string[]
