@@ -1,9 +1,7 @@
-import type { ScreenText } from "@novadeck/emulator/headless"
-import { doorbellLine } from "@novadeck/harness-core/harness"
-import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { describe, expect, it } from "vitest"
 
-import { describe, expect, it } from "../test.js"
-import { changedRows, checkPaste, findLine, freshNonce, gate, leftoverNonce } from "./ring.js"
+import { changedRows, checkPaste, findLine } from "./box.js"
+import { loadFixture } from "./testing/fixtures.js"
 
 type Pair = {
   readonly name: string
@@ -12,25 +10,19 @@ type Pair = {
   readonly after: readonly string[]
 }
 
-const pairs = (harness: string): readonly Pair[] =>
-  loadProbe<{
-    pairs: (Omit<Pair, "before" | "after"> & { before: ScreenText; after: ScreenText })[]
-  }>(import.meta.dirname, `doorbell-${harness}.json`).pairs.map((pair) => ({
-    ...pair,
-    before: pair.before.rows,
-    after: pair.after.rows,
-  }))
+const pairs = (program: string): readonly Pair[] =>
+  loadFixture<{ pairs: Pair[] }>(`paste-${program}.json`).pairs
 
-// The probes pasted the line with this nonce.
-const line = doorbellLine("n7Q2")
+// The recordings pasted this line, with this nonce.
+const { line } = loadFixture<{ line: string }>("paste-a.json")
 
-describe("the doorbell's test paste", () => {
-  for (const harness of ["claude", "codex", "agy"])
-    for (const pair of pairs(harness))
-      it(`${pair.expected === "reject" ? "rejects" : "accepts"} ${harness}: ${pair.name}`, () => {
-        // As for a ring of a Ready terminal, whose first screen may lose a block of text.
+describe("the paste check", () => {
+  for (const program of ["a", "b", "c"])
+    for (const pair of pairs(program))
+      it(`${pair.expected === "reject" ? "rejects" : "accepts"} ${program}: ${pair.name}`, () => {
+        // As for a terminal before its session's first turn, whose first screen may lose a block of text.
         const check = checkPaste(pair.before, pair.after, line, { vanish: true })
-        // A draft only exists if the person typed, so the gate stops it before any paste;
+        // A draft only exists if the user typed, so the gate stops it before any paste;
         // alone, the check accepts it, as the line appends to the draft.
         expect(check.accepted).toBe(pair.expected !== "reject")
       })
@@ -58,23 +50,19 @@ describe("the doorbell's test paste", () => {
     })
     // The box grew a row: everything above it moved up one.
     expect(
-      checkPaste(
-        before,
-        ["b", "c", "d", "e", "> [Novadeck: automatic notice,", "agent messages waiting, n7Q2]"],
-        line,
-      ),
+      checkPaste(before, ["b", "c", "d", "e", `> ${line.slice(0, 30)}`, line.slice(30)], line),
     ).toMatchObject({
       accepted: true,
     })
   })
 
   it("finds the line wrapped across rows, indented or not", () => {
-    expect(
-      findLine(["> [Novadeck: automatic notice, agent messages", "  waiting, n7Q2]"], line),
-    ).toEqual([{ first: 0, last: 1, column: 2 }])
-    expect(
-      findLine(["[Novadeck: automatic notice, agent mess", "ages waiting, n7Q2]"], line),
-    ).toEqual([{ first: 0, last: 1, column: 0 }])
+    expect(findLine([`> ${line.slice(0, 40)}`, `  ${line.slice(40)}`], line)).toEqual([
+      { first: 0, last: 1, column: 2 },
+    ])
+    expect(findLine([line.slice(0, 20), line.slice(20)], line)).toEqual([
+      { first: 0, last: 1, column: 0 },
+    ])
   })
 })
 
@@ -82,16 +70,16 @@ describe("the doorbell's test paste", () => {
 const screen = (rows: Record<number, string>): string[] =>
   Array.from({ length: 40 }, (_, index) => rows[index] ?? "")
 
-// The check of a ring of a Ready terminal, at its first screen.
+// The check for a terminal before its session's first turn, at its first screen.
 const fromReady = (before: readonly string[], after: readonly string[], text: string) =>
   checkPaste(before, after, text, { vanish: true })
 
-describe("the doorbell's test paste where text vanished far from the line", () => {
+describe("the paste check where text vanished far from the line", () => {
   const [head, tail] = [line.slice(0, 40), line.slice(40)]
-  const firstScreen = pairs("codex").find((pair) => pair.name.startsWith("first screen"))!
+  const firstScreen = pairs("b").find((pair) => pair.name.startsWith("first screen"))!
   const logo = firstScreen.before.flatMap((row, index) => (/[⣀-⣿]/.test(row) ? [index] : []))
 
-  it("accepts the Codex first screen losing its logo only for a ring of a Ready terminal", () => {
+  it("accepts a first screen losing its logo only where a block may vanish", () => {
     expect(fromReady(firstScreen.before, firstScreen.after, line)).toEqual({
       accepted: true,
       first: 36,
@@ -138,10 +126,10 @@ describe("the doorbell's test paste where text vanished far from the line", () =
       18: "  Resume a session",
       20: "› Type to search sessions",
       ...items,
-      23: "  wake idle agents with a doorbell     1d ago",
-      24: "  open agents with a task              2d ago",
-      25: "  ring a fresh Codex                   3d ago",
-      26: "  settle Antigravity turns             4d ago",
+      23: "  wake idle sessions with a bell       1d ago",
+      24: "  open sessions with a task            2d ago",
+      25: "  start a fresh session                3d ago",
+      26: "  settle turns                         4d ago",
       28: "  enter resume · esc close · ↑/↓ select",
     })
     const after = screen({
@@ -162,9 +150,9 @@ describe("the doorbell's test paste where text vanished far from the line", () =
   it("rejects a list of blank-separated items filtered down to its first", () => {
     const before = screen({
       10: "  Mentions",
-      12: "› Image Gen        Generate or edit images for websites, games, and more",
-      14: "  OpenAI Docs      OpenAI and Codex docs for models, skills, tasks, and setup",
-      16: "  Review Agent     Find actionable bugs in code changes",
+      12: "› Image Gen        Generate or edit images",
+      14: "  Docs             Docs for models for models, skills, tasks, and setup",
+      16: "  Review           Find actionable bugs in code changes",
       36: "› Type to search mentions",
       38: "  enter/tab insert · esc close · ↑/↓ select",
     })
@@ -174,11 +162,11 @@ describe("the doorbell's test paste where text vanished far from the line", () =
 
   it("rejects a search field with nothing before it whose list emptied", () => {
     const list = {
-      22: "  Image Gen        Generate or edit images for websites, games, and more",
-      23: "  OpenAI Docs      OpenAI and Codex docs for models, skills, tasks, and setup",
-      24: "  Review Agent     Find actionable bugs in code changes",
+      22: "  Image Gen        Generate or edit images",
+      23: "  Docs             Docs for models for models, skills, tasks, and setup",
+      24: "  Review           Find actionable bugs in code changes",
       25: "  Skill Creator    Create or update a skill",
-      26: "  Skill Installer  Install curated skills from openai/skills or other repos",
+      26: "  Skill Installer  Install curated skills from other repos",
     }
     const frame = { 18: "  Mentions", 34: "  enter/tab insert · esc close · ↑/↓ select" }
     const before = screen({ ...frame, 20: "Type to search mentions", ...list })
@@ -191,10 +179,10 @@ describe("the doorbell's test paste where text vanished far from the line", () =
     const draft =
       "❯ Look at the failing build in CI and tell me which commit introduced the regression, then fix it pl"
     expect(draft).toHaveLength(100)
-    const frame = { 1: " ▐▛███▛█   Claude Code v2.1.286", 30: rule, 31: draft }
+    const frame = { 1: " ▐▛███▛█   Program v2.1.286", 30: rule, 31: draft }
     const before = screen({
       ...frame,
-      5: "  Get to finished work sooner with Opus 5.5. Switch anytime with /model.",
+      5: "  Get to finished work sooner with a new model. Switch anytime with /model.",
       32: rule,
       33: "  ⏸ manual mode on",
     })
@@ -224,14 +212,14 @@ describe("the doorbell's test paste where text vanished far from the line", () =
   it("accepts a box growing up at a narrow width as the logo vanishes", () => {
     const footer = { 38: "  model", 39: "  ? for shortcuts" }
     const before = screen({
-      1: "  >_ OpenAI Codex",
+      1: "  >_ Program",
       11: "LOGO",
       12: "LOGO",
-      36: "› Ask Codex to do anything",
+      36: "› Ask to do anything",
       ...footer,
     })
     const after = screen({
-      0: "  >_ OpenAI Codex",
+      0: "  >_ Program",
       35: `› ${head}`,
       36: `  ${tail}`,
       38: "  model",
@@ -240,31 +228,7 @@ describe("the doorbell's test paste where text vanished far from the line", () =
   })
 })
 
-describe("the doorbell's gate", () => {
-  const open = { ringable: true, calmMs: 750, bracketedPaste: true, foreground: true }
-
-  it("opens only on a ringable terminal whose screen is calm, pasting bracketed, in the foreground", () => {
-    expect(gate(open)).toBe("open")
-    expect(gate({ ...open, foreground: undefined })).toBe("open")
-    expect(gate({ ...open, ringable: false })).toBe("not-ringable")
-    expect(gate({ ...open, calmMs: 749 })).toBe("restless")
-    expect(gate({ ...open, bracketedPaste: false })).toBe("no-bracketed-paste")
-    expect(gate({ ...open, foreground: false })).toBe("not-foreground")
-  })
-
-  it("opens on Windows only where the agent's box shows, empty and taking a prompt", () => {
-    expect(gate({ ...open, inputBox: true })).toBe("open")
-    expect(gate({ ...open, inputBox: false })).toBe("no-input-box")
-  })
-
-  it("rings with a fresh nonce each time, of letters and digits only", () => {
-    const nonce = freshNonce()
-    expect(nonce).toMatch(/^[A-Za-z0-9]{6}$/)
-    expect(freshNonce()).not.toBe(nonce)
-  })
-})
-
-describe("the doorbell's test paste on a screen with a row that ticks", () => {
+describe("the paste check on a screen with a row that ticks", () => {
   const rows = (clock: string, box: string) => [
     `uptime ${clock}`,
     "",
@@ -311,23 +275,7 @@ describe("the doorbell's test paste on a screen with a row that ticks", () => {
   })
 })
 
-describe("the line a failed ring left in a box", () => {
-  it("is told by its nonce when it is all the box holds, wrapped anywhere", () => {
-    expect(leftoverNonce(doorbellLine("n7Q2"))).toBe("n7Q2")
-    expect(leftoverNonce("[Novadeck: automatic notice,\nagent messages waiting, n7Q2]")).toBe(
-      "n7Q2",
-    )
-  })
-
-  it("is not told when the person's text is with it, or two lines, or none", () => {
-    expect(leftoverNonce(`${doorbellLine("n7Q2")} and then`)).toBeUndefined()
-    expect(leftoverNonce(`Hello ${doorbellLine("n7Q2")}`)).toBeUndefined()
-    expect(leftoverNonce(`${doorbellLine("n7Q2")}${doorbellLine("k3f9")}`)).toBeUndefined()
-    expect(leftoverNonce("")).toBeUndefined()
-  })
-})
-
-describe("the doorbell's test paste where a line of history goes as the box takes text", () => {
+describe("the paste check where a line of history goes as the box takes text", () => {
   const history = (tip: boolean) => [
     "• Next job done.",
     ...(tip ? ["  └ Tip: Press ctrl+t to open the full transcript."] : []),
@@ -340,14 +288,14 @@ describe("the doorbell's test paste where a line of history goes as the box take
     "",
     "",
   ]
-  const screenOf = (tip: boolean, box: string, footer: string) => [
+  const rowsOf = (tip: boolean, box: string, footer: string) => [
     ...history(tip),
     "› " + box,
     "  fake-model default",
     footer,
   ]
-  const was = screenOf(true, "Ask Codex to do anything", "  ? for shortcuts")
-  const after = screenOf(false, line, "")
+  const was = rowsOf(true, "Ask to do anything", "  ? for shortcuts")
+  const after = rowsOf(false, line, "")
 
   it("accepts it: the Tip row is gone and the rows below moved up", () => {
     expect(checkPaste(was, after, line)).toMatchObject({ accepted: true })

@@ -9,6 +9,7 @@ import { createScreen } from "@novadeck/emulator/headless"
 import type { ActivityEvent } from "@novadeck/harness-core/events"
 import { screen as screenWith } from "@novadeck/harness-core/testing/screens"
 import type { TerminalChange, TerminalEvent } from "@novadeck/protocol"
+import { type HoldBudget, InputQueue } from "@novadeck/tui-input"
 import { vi } from "vitest"
 
 import {
@@ -22,7 +23,6 @@ import { describe, expect, it as base } from "../test.js"
 import { command, ptyOptions, ptyTrace } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
 import { WorkspaceStore } from "../workspaces/store.js"
-import { type HoldBudget, InputQueue } from "./input-queue.js"
 import { forceKill, Terminals } from "./manager.js"
 
 const cwd = process.cwd()

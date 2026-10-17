@@ -8,11 +8,15 @@ import type {
   RequestFacts,
 } from "@novadeck/harness-core/dialogs"
 import { hasControlCharacters, promptRefusal, type RequestAnswer } from "@novadeck/protocol"
+import {
+  bracketedPaste,
+  type InputEntry,
+  type InputHold,
+  type InputQueue,
+} from "@novadeck/tui-input"
 
 import { DomainError } from "../errors.js"
 import { identified, twin } from "./dialogs.js"
-import type { InputEntry, InputHold, InputQueue } from "./input-queue.js"
-import { bracketedPaste } from "./ring.js"
 
 /** Another request waiting: its ref, who asks and what it asks. */
 type Other = {

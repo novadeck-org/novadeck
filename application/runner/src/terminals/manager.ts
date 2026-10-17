@@ -78,6 +78,13 @@ import {
   withLocale,
   type Line,
 } from "@novadeck/terminal/shell"
+import {
+  freshNonce,
+  InputQueue,
+  keysOf,
+  type HoldBudget,
+  type InputHold,
+} from "@novadeck/tui-input"
 import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
 import * as pty from "node-pty"
 
@@ -156,10 +163,10 @@ import { expectedAgent, promptIn } from "./commands.js"
 import { Dialogs, type DialogsHost, type DialogsOptions } from "./dialogs.js"
 import { Doorbell, tracer, type DoorbellHost, type DoorbellOptions } from "./doorbell.js"
 import { mention, nextHandle, wordOf } from "./handles.js"
-import { InputQueue, type HoldBudget, type InputHold } from "./input-queue.js"
 import { Interrupts, type InterruptHost, type InterruptOptions } from "./interrupts.js"
-import { keysOf, splitReports } from "./keys.js"
+import { splitReports } from "./keys.js"
 import { Latest } from "./latest.js"
+import { leftoverNonce } from "./leftover.js"
 import {
   Murmur,
   type MurmurHost,
@@ -201,7 +208,6 @@ import {
   type TerminalRecords,
 } from "./records.js"
 import { restoredSeparator } from "./restored.js"
-import { freshNonce, leftoverNonce } from "./ring.js"
 import { snapshot } from "./snapshot.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
 import { transcriptChanges } from "./transcripts.js"

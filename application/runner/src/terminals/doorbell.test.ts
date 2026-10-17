@@ -1,12 +1,12 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
 import { screen } from "@novadeck/harness-core/testing/screens"
+import { InputQueue } from "@novadeck/tui-input"
 import { vi } from "vitest"
 
 import type { Waits } from "../messaging/delivery.js"
 import { describe, expect, it } from "../test.js"
 import { confirmMs, Doorbell, type DoorbellHost } from "./doorbell.js"
-import { InputQueue } from "./input-queue.js"
 
 /**
  * A terminal as the doorbell sees it: a screen that a paste changes as `takes` says,

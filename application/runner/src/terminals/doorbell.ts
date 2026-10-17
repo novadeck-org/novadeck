@@ -2,11 +2,18 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { doorbellLine, hookShellSlackMs } from "@novadeck/harness-core/harness"
+import {
+  bracketedPaste,
+  calmMs,
+  freshNonce,
+  gate,
+  type InputEntry,
+  type InputQueue,
+} from "@novadeck/tui-input"
+import { changedRows, checkPaste } from "@novadeck/tui-input/box"
 
 import type { Waits } from "../messaging/delivery.js"
 import { coalesced } from "./coalesce.js"
-import type { InputEntry, InputQueue } from "./input-queue.js"
-import { bracketedPaste, calmMs, changedRows, checkPaste, freshNonce, gate } from "./ring.js"
 
 /**
  * Where the doorbell tells what it decided, line by line, for the e2e trace to show (see
