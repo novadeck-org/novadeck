@@ -3,7 +3,7 @@ import { RunnerError, type AttachedTerminal } from "@novadeck/protocol/client"
 import { FitAddon } from "@xterm/addon-fit"
 import { Terminal } from "@xterm/xterm"
 import { act, createElement, type ReactNode } from "react"
-import { afterEach, vi } from "vitest"
+import { afterEach, onTestFinished, vi } from "vitest"
 
 import { createStore } from "../../model/store"
 import type { TerminalMetadata, ViewMode } from "../../model/types"
@@ -1173,6 +1173,62 @@ describe("typing into a terminal's screen", () => {
     expect(screens.typeInto(key, "\n one\r\ntwo\u001b[31m\tthree \n")).toBe(true)
     expect(written).toEqual(["one two [31m three"])
     expect(screens.typeInto(key, " \r\n ")).toBe(false)
+  })
+})
+
+describe("a terminal's screen resized out of view", () => {
+  // Cells of 8 by 17, and a view of the screen that reports where the test says.
+  const measured = () => {
+    const reports: ((entries: { isIntersecting: boolean }[]) => void)[] = []
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(report: (entries: { isIntersecting: boolean }[]) => void) {
+          reports.push(report)
+        }
+        observe(): void {}
+        disconnect(): void {}
+      },
+    )
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(8 * 32)
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(17)
+    return (isIntersecting: boolean) => reports.forEach((report) => report([{ isIntersecting }]))
+  }
+  afterEach(() => vi.unstubAllGlobals())
+
+  it("keeps following its shell's output", async () => {
+    const view = measured()
+    const screens = createScreens(starting().runtime)
+    const terminal = { ...key, terminalId: "out-of-view" }
+    const { xterm } = screens.acquire(terminal, {
+      fontSize: 13,
+      name: "T",
+      waiting: false,
+      webgl: false,
+    })
+    // The screen closes once it has stayed off screen for its retention, as the file's own
+    // do after each test.
+    onTestFinished(() => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+      try {
+        screens.release(terminal)
+        vi.advanceTimersByTime(31 * 60 * 1000)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+    const write = (lines: number) =>
+      new Promise<void>((resolve) => xterm.write("output\r\n".repeat(lines), resolve))
+    view(true)
+    await write(3)
+    view(false)
+    // The output is parsed before the renderer, which waits for an idle moment while the
+    // screen is out of view, takes the new size.
+    const drawn = write(40)
+    xterm.resize(64, 19)
+    await drawn
+    expect(xterm.buffer.active.baseY).toBeGreaterThan(0)
+    expect(xterm.buffer.active.viewportY).toBe(xterm.buffer.active.baseY)
   })
 })
 

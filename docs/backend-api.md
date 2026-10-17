@@ -26,6 +26,18 @@ Beta.14 retains the older
 particularly under a debugger. Keep its pnpm build script enabled and validate
 dependency upgrades on Linux, macOS, and Windows.
 
+The UI patches `@xterm/xterm` 6.0.0 (`patches/@xterm__xterm@6.0.0.patch`) in one
+expression, in both `lib/xterm.js` and `lib/xterm.mjs`: `Viewport._sync` sizes the scroll
+area as `dimensions.css.cell.height * this._bufferService.rows` instead of
+`dimensions.css.canvas.height`. The bundles are minified, so the patch rewrites the whole
+long line that holds the expression. While a screen is out of view, xterm leaves a resize
+for its renderer until an idle moment, and the canvas height kept the old size meanwhile.
+Output that scrolled before then clamped the scroll position short of the bottom, which
+xterm took for the person scrolling up: the screen stopped following its shell until they
+scrolled down or typed, as a busy terminal did after Grid to Focus about half the time. Upstream reports the same stale height as
+[#6117](https://github.com/xtermjs/xterm.js/issues/6117); drop the patch once a release
+fixes it, and make it again for any other xterm version.
+
 On Windows the runner uses node-pty's bundled ConPTY (`useConptyDll`), a newer console
 host from Windows Terminal, instead of the one built into Windows. The built-in host
 occasionally lost terminal input: a traced test command never reached the program
