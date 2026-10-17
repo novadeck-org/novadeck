@@ -163,7 +163,6 @@ import { expectedAgent, promptIn } from "./commands.js"
 import { Dialogs, type DialogsHost, type DialogsOptions } from "./dialogs.js"
 import { Doorbell, tracer, type DoorbellHost, type DoorbellOptions } from "./doorbell.js"
 import { mention, nextHandle, wordOf } from "./handles.js"
-import { Interrupts, type InterruptHost, type InterruptOptions } from "./interrupts.js"
 import { splitReports } from "./keys.js"
 import { Latest } from "./latest.js"
 import { leftoverNonce } from "./leftover.js"
@@ -198,7 +197,8 @@ import {
   type OpenAnswer,
 } from "./opens.js"
 import { TerminalPeers } from "./peers.js"
-import { Prompts, type PromptHost, type PromptOptions } from "./prompts.js"
+import { Interrupts, Prompts } from "./prompting.js"
+import type { InterruptHost, InterruptOptions, PromptHost, PromptOptions } from "./prompting.js"
 import {
   hasRun,
   type AgentReport,
