@@ -48,10 +48,7 @@ const rank = (kind: NotificationKind): number => terminalAsks.indexOf(kind)
 // requests in workspace order, as none tells when it was asked, then finishes, the latest
 // first. A terminal shows as its tab does (see `terminalPhase`): a request it waits on
 // over a reply unread, and nothing once it ended, as the switcher's status counts them.
-export const notifications = (
-  projects: readonly WorkspaceProject[],
-  unread: Unread,
-): readonly Notification[] => {
+const scan = (projects: readonly WorkspaceProject[], unread: Unread): readonly Notification[] => {
   const found: { readonly notification: Notification; readonly at: number }[] = []
   for (const project of projects)
     for (const session of project.history) {
@@ -98,6 +95,22 @@ export const notifications = (
         (dismissable(a.notification.kind) ? b.at - a.at : 0),
     )
     .map(({ notification }) => notification)
+}
+
+const lists = new WeakMap<readonly WorkspaceProject[], WeakMap<Unread, readonly Notification[]>>()
+
+// The notifications, scanned once per workspace and unread marks however many readers
+// ask: the notification center and each bell read the same list. Neither is changed in
+// place, so a list stays right for as long as both are the ones it was scanned from.
+export const notifications = (
+  projects: readonly WorkspaceProject[],
+  unread: Unread,
+): readonly Notification[] => {
+  const known = lists.get(projects)?.get(unread)
+  if (known) return known
+  const list = scan(projects, unread)
+  lists.set(projects, (lists.get(projects) ?? new WeakMap()).set(unread, list))
+  return list
 }
 
 // Whether the person can clear it: a finish is read once dismissed, while a request waits

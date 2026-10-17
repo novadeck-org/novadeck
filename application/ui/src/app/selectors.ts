@@ -1,4 +1,5 @@
 import { handleText } from "../model/handle"
+import { remembered } from "../model/roster"
 import { activeProject, activeSession } from "../model/state"
 import type {
   TerminalMetadata,
@@ -89,38 +90,51 @@ export const alertOpen = (ui: UiState, workspace: Workspace): boolean =>
 
 // How the current session's terminals are told apart where one says where another's
 // work came from, by id: "@fox · Terminal", as names alone repeat.
-export const terminalOrigins = (workspace: Workspace): Readonly<Record<string, string>> =>
+const originsOf = remembered((roster): Readonly<Record<string, string>> =>
   Object.fromEntries(
-    currentState(workspace).roster.terminals.map((each) => [
+    roster.terminals.map((each) => [
       each.id,
       each.handle ? `${handleText(each.handle)} · ${each.name}` : each.name,
     ]),
-  )
+  ),
+)
 
-// The leads of the current session's terminals that run, by terminal id: each lead's
-// handle and name. A terminal whose lead is closed, exited or not yet started has none.
-export const runningLeads = (
-  workspace: Workspace,
-): Readonly<Record<string, { readonly handle: string; readonly name: string }>> => {
-  const { terminals } = currentState(workspace).roster
+export const terminalOrigins = (workspace: Workspace): Readonly<Record<string, string>> =>
+  originsOf(currentState(workspace).roster)
+
+type RunningLead = { readonly handle: string; readonly name: string }
+
+// The leads of a roster's terminals that run, by terminal id: each lead's handle and
+// name. A terminal whose lead is closed, exited or not yet started has none. Where
+// several running terminals share a handle, the first one leads.
+const leadsOf = remembered((roster): Readonly<Record<string, RunningLead>> => {
+  const running = new Map<string, string>()
+  for (const each of roster.terminals)
+    if (
+      each.handle !== undefined &&
+      !running.has(each.handle) &&
+      (each.state === "idle" || each.state === "running" || each.state === "finished")
+    )
+      running.set(each.handle, each.name)
   return Object.fromEntries(
-    terminals.flatMap((each) => {
-      if (!each.ledBy) return []
-      const lead = terminals.find(
-        (other) =>
-          other.handle === each.ledBy &&
-          (other.state === "idle" || other.state === "running" || other.state === "finished"),
-      )
-      return lead ? [[each.id, { handle: each.ledBy, name: lead.name }]] : []
+    roster.terminals.flatMap((each) => {
+      const name = each.ledBy ? running.get(each.ledBy) : undefined
+      return each.ledBy && name !== undefined ? [[each.id, { handle: each.ledBy, name }]] : []
     }),
   )
-}
+})
+
+// The leads of the current session's terminals that run, by terminal id.
+export const runningLeads = (workspace: Workspace): Readonly<Record<string, RunningLead>> =>
+  leadsOf(currentState(workspace).roster)
 
 // The current session's terminals' names, by handle, which name the agents its messages
 // are with.
-export const handleNames = (workspace: Workspace): Readonly<Record<string, string>> =>
+const namesOf = remembered((roster): Readonly<Record<string, string>> =>
   Object.fromEntries(
-    currentState(workspace).roster.terminals.flatMap((each) =>
-      each.handle ? [[each.handle, each.name]] : [],
-    ),
-  )
+    roster.terminals.flatMap((each) => (each.handle ? [[each.handle, each.name]] : [])),
+  ),
+)
+
+export const handleNames = (workspace: Workspace): Readonly<Record<string, string>> =>
+  namesOf(currentState(workspace).roster)

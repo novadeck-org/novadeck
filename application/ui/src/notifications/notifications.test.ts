@@ -217,6 +217,24 @@ describe("The notification center", () => {
   })
 })
 
+describe("The notification list", () => {
+  const asked = () => [project("p", [running(1, { attention: { kind: "question", count: 1 } })])]
+
+  it("is the same list for every reader of one workspace and one set of unread marks", () => {
+    const projects = asked()
+    expect(notifications(projects, noUnread)).toBe(notifications(projects, noUnread))
+  })
+
+  it("is scanned afresh once the workspace or the unread marks change", () => {
+    const projects = asked()
+    const first = notifications(projects, noUnread)
+    const unread: Unread = { "p/initial": {} }
+    expect(notifications(projects, unread)).not.toBe(first)
+    expect(notifications(projects, unread)).toEqual(first)
+    expect(notifications([...projects], noUnread)).not.toBe(first)
+  })
+})
+
 describe("Dismissing a notification", () => {
   it("clears a finish, but not a request still waiting on the person", () => {
     expect(dismissable("done")).toBe(true)

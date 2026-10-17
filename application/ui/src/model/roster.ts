@@ -28,7 +28,7 @@ export const hasTile = (roster: TerminalRoster, id: string): boolean =>
 
 // One answer per roster, so readers that compare by identity see a change only when the
 // roster changed. A roster is never changed in place.
-const remembered = <T>(derive: (roster: TerminalRoster) => T) => {
+export const remembered = <T>(derive: (roster: TerminalRoster) => T) => {
   const answers = new WeakMap<TerminalRoster, T>()
   return (roster: TerminalRoster): T => {
     const known = answers.get(roster)
