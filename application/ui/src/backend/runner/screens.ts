@@ -131,11 +131,17 @@ type Entry = {
 const releaseCheckMs = 1000
 // How long a screen stays once its session leaves the screen, so going back to a session or
 // a project within a working break finds its output in place instead of a screen to reopen.
-const retainMs = 30 * 60 * 1000
+export const retainMs = 30 * 60 * 1000
 // How long a screen nobody shows keeps following its terminal's output before it parks:
 // long enough for the next view to take it as it is, short enough that a dozen busy agents
 // out of sight cost nothing to draw. Shown again, it takes the runner's screen as it is then.
-const parkMs = 5_000
+export const parkMs = 5_000
+// How many parked screens stay before the one parked longest closes. Each holds its emulator's
+// buffer, so without a count a long session's grows without bound. With 16, a Grid of up to 16
+// terminals finds every screen still parked, not closed, after a trip to another session or
+// view; a bigger one loses those parked first. Fewer would close some of a common Grid's, and
+// a closed screen costs a full snapshot resync when it is shown again.
+export const parkedCap = 16
 
 const id = ({ projectId, workspaceSessionId, terminalId }: TerminalKey): string =>
   `${projectId}\u0000${workspaceSessionId}\u0000${terminalId}`
@@ -143,9 +149,17 @@ const id = ({ projectId, workspaceSessionId, terminalId }: TerminalKey): string 
 // The screens of one backend's terminals. A surface acquires its terminal's screen
 // while it shows it and releases it after. A released screen stays while its terminal
 // exists, so the other views, and later the other sessions and projects, find it ready; it
-// closes once its terminal does, or its session has stayed off screen for `retainMs`.
-export const createScreens = (runtime: SurfaceRuntime, renderers: Renderers = pageRenderers()) => {
+// closes once its terminal does, its session has stayed off screen for `retainMs`, or more than
+// `cap` screens are parked and it was parked longest.
+export const createScreens = (
+  runtime: SurfaceRuntime,
+  renderers: Renderers = pageRenderers(),
+  cap = parkedCap,
+) => {
   const entries = new Map<string, Entry>()
+  // The parked screens, the one parked longest first: a map keeps the order its keys were
+  // added in, so a screen shown again leaves it and parking it again puts it last.
+  const parked = new Map<string, { key: TerminalKey; entry: Entry }>()
   // Whether Ctrl+V may read the clipboard, the same for every terminal.
   const readable = clipboardAccess(desktopHost() !== undefined)
   const entryOf = (key: TerminalKey): Entry => {
@@ -341,8 +355,19 @@ export const createScreens = (runtime: SurfaceRuntime, renderers: Renderers = pa
 
   const close = (key: TerminalKey, entry: Entry): void => {
     entries.delete(id(key))
+    parked.delete(id(key))
+    clearTimeout(entry.timer)
     clearTimeout(entry.parking)
     entry.dispose?.()
+  }
+  // A screen that parks joins the parked; one more than the cap closes the one parked longest,
+  // through the same path as retention. A screen shown or not yet parked never closes here.
+  const keep = (key: TerminalKey, entry: Entry): void => {
+    parked.set(id(key), { key, entry })
+    for (const [, oldest] of parked) {
+      if (parked.size <= cap) break
+      close(oldest.key, oldest.entry)
+    }
   }
   // A screen nobody shows goes once its terminal closes, or once its session has been off
   // screen for `retainMs` of the clock's time, which timers falling behind in a hidden
@@ -371,6 +396,7 @@ export const createScreens = (runtime: SurfaceRuntime, renderers: Renderers = pa
       entry.timer = undefined
       clearTimeout(entry.parking)
       entry.parking = undefined
+      parked.delete(id(key))
       entry.screen ??= open(key, entry, options)
       entry.screen.followed.unpark()
       entry.screen.renderer.take(webgl)
@@ -388,8 +414,10 @@ export const createScreens = (runtime: SurfaceRuntime, renderers: Renderers = pa
       entry.parking = setTimeout(() => {
         entry.parking = undefined
         if (entry.users !== 0) return
-        entry.screen?.followed.park()
-        entry.screen?.renderer.release()
+        if (!entry.screen) return
+        entry.screen.followed.park()
+        entry.screen.renderer.release()
+        keep(key, entry)
       }, parkMs)
     },
     // Pastes text into the terminal's screen as the person's own paste: bracketed when its

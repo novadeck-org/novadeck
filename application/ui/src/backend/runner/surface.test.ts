@@ -197,6 +197,30 @@ const Agent = (props: { children: ReactNode }) => createElement("section", props
 const Plain = (props: { children: ReactNode }) => createElement("article", props)
 
 describe("runner terminal surface", () => {
+  it("places the host its screen opened in, when that is not the one it rendered with", () => {
+    // As when the parked-screen cap closes the screen between the surface's render and its
+    // effect: the screen opens again in a host of its own.
+    const { runtime } = starting()
+    const screens = createScreens(runtime)
+    const stale = document.createElement("div")
+    const Surface = createRunnerTerminal(runtime, { ...screens, host: () => stale })
+    const page = render(
+      createElement(Surface, {
+        terminalKey: key,
+        terminal: { ...terminalFixture(1, "~"), state: "starting" },
+        projectName: "P",
+        view: "focus",
+        fontSize: 13,
+        focusInput: false,
+        onInputFocused: () => {},
+        renderWindow: (content) => content,
+      }),
+    )
+    mounted.push(page)
+    expect(screens.host(key).isConnected).toBe(true)
+    expect(stale.isConnected).toBe(false)
+  })
+
   it("keeps one live xterm, its output and focus while the body around it changes", async () => {
     const { runtime } = starting()
     const views: Terminal[] = []

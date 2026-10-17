@@ -158,7 +158,10 @@ Switching between Focus, Grid and Canvas mounts a new surface, which takes the s
 xterm and attachment from `backend/runner/screens.ts` instead of opening and attaching
 again. A terminal no view shows keeps them while its session is on screen, and for 30
 minutes after its session leaves the screen, so going back to a session or project finds
-its output in place; they go when that time passes or the terminal closes. Focus keeps
+its output in place; they go when that time passes or the terminal closes. Of the screens
+no view shows, `screens.ts` keeps at most the 16 parked most recently, closing the one
+parked longest first (a closed one resyncs from the runner's snapshot when shown again);
+screens a view shows, Focus's kept windows among them, don't count. Focus keeps
 the last four terminals it displayed mounted, parked out of sight with `display:none`,
 so switching back finds a terminal's companion pane as it was: a page still loaded, a
 plan's editor, where each was scrolled. A component that docks status, opens over the

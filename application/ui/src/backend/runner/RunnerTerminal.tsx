@@ -49,7 +49,7 @@ export const createRunnerTerminal = (
   }: TerminalSurfaceProps): React.JSX.Element => {
     // React owns each surface's mount slot; the screen owns the one emulator host.
     // Moving the host preserves its textarea, screen, selection, and PTY attachment.
-    const [host] = useState(() => screens.host(terminalKey))
+    const [host, setHost] = useState(() => screens.host(terminalKey))
     const [screen, setScreen] = useState<RunnerScreen | null>(null)
     const root = useRef<HTMLDivElement | null>(null)
     const refitFrame = useRef<number | null>(null)
@@ -93,7 +93,8 @@ export const createRunnerTerminal = (
     // when it left its previous slot focused.
     const place = useCallback(
       (target: HTMLDivElement, current: RunnerScreen | null): void => {
-        if (host.parentElement !== target) target.append(host)
+        // The slot holds the host alone: one a screen opened again replaces the one before.
+        if (host.parentElement !== target) target.replaceChildren(host)
         current?.followed.refit()
         if (refitFrame.current !== null) cancelAnimationFrame(refitFrame.current)
         refitFrame.current = requestAnimationFrame(() => {
@@ -139,13 +140,16 @@ export const createRunnerTerminal = (
         webgl: wantsWebgl(opening.current.view),
       })
       setScreen(acquired)
+      // A screen closed between this surface's render and now, as the parked-screen cap can,
+      // opened again in a host of its own: the surface places that one.
+      setHost(acquired.host)
       return () => {
-        if (host.contains(document.activeElement)) acquired.refocus = true
+        if (acquired.host.contains(document.activeElement)) acquired.refocus = true
         screens.release(terminalKey)
       }
       // The screen follows the terminal, not its changing metadata.
       // oxlint-disable-next-line react-hooks/exhaustive-deps
-    }, [terminalKey, host])
+    }, [terminalKey])
 
     useEffect(() => {
       if (screen) screen.waiting = waiting
