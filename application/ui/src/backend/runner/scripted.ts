@@ -1,10 +1,6 @@
 import type { TerminalSummary } from "@novadeck/protocol"
-import type {
-  CompanionWatchItem,
-  Runner,
-  RunnerStatus,
-  TerminalWatchItem,
-} from "@novadeck/protocol/client"
+import type { CompanionWatchItem, Runner, TerminalWatchItem } from "@novadeck/protocol/client"
+import type { WireStatus } from "@novadeck/wire/client"
 
 import { workspaceFromSeed } from "../../model/seed"
 import { createTerminalState, workspaceReducer, type WorkspaceAction } from "../../model/state"
@@ -149,7 +145,7 @@ export const scripted = ({
   const changes = channel<TerminalWatchItem>()
   const items = channel<CompanionWatchItem>()
   const received: BackendAction[] = []
-  const statuses = channel<RunnerStatus>()
+  const statuses = channel<WireStatus>()
   const calls: Call[] = []
   const note =
     <T>(call: string, answer: (input: unknown) => Promise<T>) =>
@@ -261,7 +257,7 @@ export const scripted = ({
     },
     open: () => {},
   })
-  statuses.push({ state: "connected", runnerId: "runner-1" })
+  statuses.push({ state: "connected", epoch: "runner-1" })
   const of = (call: string) => calls.filter((item) => item.call === call).map((item) => item.input)
   const key = (terminalId: string) => ({ projectId: "p", workspaceSessionId: id(8), terminalId })
   return {

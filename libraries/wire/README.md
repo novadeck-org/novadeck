@@ -1,7 +1,7 @@
 # @novadeck/wire
 
 RPC calls and streams between processes over a WebSocket or a MessagePort: channels, a client
-generic over its contract, its transports and its errors. It carries an oRPC contract it doesn't
+generic over its contract, its transports, a connection that keeps itself alive, and its errors. It carries an oRPC contract it doesn't
 know: the app's procedures and their codes stay the app's.
 
 ## Subpaths
@@ -21,9 +21,30 @@ know: the app's procedures and their codes stay the app's.
     `CLOSED`, and oRPC `BAD_REQUEST` and `INTERNAL_SERVER_ERROR` (`WireErrorCode`).
 - `./client`: the client side, for browsers and Node.
   - `createWireClient<C>(channel)`, an oRPC client of contract `C` over a channel. Requests
-    fail and streams end as soon as the channel closes. A call in flight fails as
-    `DISCONNECTED`; a stream's pending read fails with oRPC's own error, so a caller that
-    needs the cause asks the channel whether it's still open.
+    fail and streams end as soon as the channel closes. A call in flight when it closes
+    fails as `DISCONNECTED`; a stream's pending read, and the call whose send threw, fail
+    with oRPC's own error, so a caller that needs the cause asks the channel whether it's
+    still open. A channel whose send throws is closed, so whoever holds it replaces it.
+  - `connect({ contract, transport, handshake, fatal, retryDelay, timeoutMs, signal })`, a
+    supervised connection, resolving after the first handshake. It runs `handshake` on each
+    new channel with one `clientId` for every connection of the client (so a server can take
+    over from a half-open one) and the transport's token; the handshake answers the server's
+    `epoch`, its lifetime, which a stream's cursor belongs to. A connection that drops comes
+    back on its own, after `retryDelay(attempt)` (`min(250·2ⁿ, 5000)` ms by default), until
+    `close()` or a fatal code: `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`, `CLOSED` and whatever
+    `fatal(code)` adds. A connection or handshake taking longer than `timeoutMs` (10 s) fails;
+    the transport hears of it through its signal, and must give up when that aborts.
+    The `Wire` it gives has:
+    - `status`, the `WireStatus` as a read-only `Watched` value: `connected` in an epoch,
+      `reconnecting` with the error that dropped it, or `closed`, with why if it wasn't
+      asked to;
+    - `session()`, the live `{ client, epoch, channel }`, for calls that must not wait: it
+      throws `DISCONNECTED` while reconnecting and why it closed (or `CLOSED`) once closed,
+      and never queues;
+    - `ready()`, which waits for a live session, and `close()`.
+  - `Watched<T>`, a value and its changes: `value`, `next()` for the next change, and
+    `watch()`, which yields the latest value after each change, coalescing quick ones, until
+    a final one.
   - `Transport`, how a client opens a channel (`connect(signal)`) and the token it sends in
     its handshake, if any. `websocket(url, { token })` reaches a server deployed on its own,
     the token kept out of the URL; `messagePort(port)` reaches one its host hands a port to.

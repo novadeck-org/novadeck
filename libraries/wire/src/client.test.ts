@@ -119,14 +119,14 @@ describe("createWireClient", () => {
     expect(fake.sent).toEqual([])
   })
 
-  it("fails calls whose send throws, rather than throwing out of oRPC", async () => {
+  it("fails calls and closes the channel when a send throws, rather than throwing out of oRPC", async () => {
     const fake = fakeChannel()
     const client = createWireClient<typeof contract>(fake.channel)
     fake.failSends(new Error("Broken pipe."))
     await expect(client.echo("ping")).rejects.toBeInstanceOf(Error)
-    await expect(client.echo("ping")).rejects.toBeInstanceOf(Error)
-    // The peer is closed, but the channel isn't: nothing tells its owner to replace it.
-    expect(fake.channel.open).toBe(true)
+    // The channel closes with the peer, so its owner replaces it.
+    expect(fake.channel.open).toBe(false)
+    expect(await failure(client.echo("ping"))).toMatchObject({ code: "DISCONNECTED" })
   })
 
   it("fails its calls on a message it can't read", async () => {
