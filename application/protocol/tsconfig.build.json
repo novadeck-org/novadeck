@@ -1,6 +1,8 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    // The build reads its dependencies' built types, as a published consumer would.
+    "customConditions": [],
     "declaration": true,
     "noEmit": false,
     "outDir": "dist",

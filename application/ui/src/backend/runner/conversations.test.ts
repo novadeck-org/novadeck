@@ -1,5 +1,5 @@
 import type { AgentDetail, TranscriptChange, TranscriptItem } from "@novadeck/protocol"
-import { RunnerError } from "@novadeck/protocol/client"
+import { WireError } from "@novadeck/wire"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { SettleInTerminal, WordsLost } from "../../model/conversation"
@@ -467,7 +467,7 @@ describe("the runner's conversations", () => {
       store.subscribe(() => {})
       details.push(detail())
       await settle()
-      transcripts[root]!.fail(new RunnerError("NOT_FOUND"))
+      transcripts[root]!.fail(new WireError("NOT_FOUND"))
       await settle()
       expect(store.getSnapshot()).toMatchObject({ loaded: true, items: [] })
     })
@@ -501,7 +501,7 @@ describe("the runner's conversations", () => {
       ["INTERNAL_SERVER_ERROR", "Couldn't reach the agent."],
     ] as const)("tells the person why a %s failure didn't go", async (code, message) => {
       const { conversations, streams } = setup()
-      streams.prompt.mockRejectedValue(new RunnerError(code))
+      streams.prompt.mockRejectedValue(new WireError(code))
       await expect(conversations.send(key, "hi")).rejects.toThrow(message)
     })
 
@@ -509,7 +509,7 @@ describe("the runner's conversations", () => {
       const { conversations, streams } = setup()
       const failing = async (data: unknown): Promise<unknown> => {
         streams.prompt.mockRejectedValueOnce(
-          new RunnerError("CONFLICT", "The runner's own words", { data }),
+          new WireError("CONFLICT", "The runner's own words", { data }),
         )
         return conversations.send(key, "hi").catch((failure: unknown) => failure)
       }
@@ -531,10 +531,10 @@ describe("the runner's conversations", () => {
     it("says the runner's own reason for a refused prompt, where it gives one", async () => {
       const { conversations, streams } = setup()
       streams.prompt.mockRejectedValue(
-        new RunnerError("PROMPT_REFUSED", "A message can't hold control characters."),
+        new WireError("PROMPT_REFUSED", "A message can't hold control characters."),
       )
       await expect(conversations.send(key, "hi")).rejects.toThrow("control characters")
-      streams.prompt.mockRejectedValue(new RunnerError("PROMPT_REFUSED"))
+      streams.prompt.mockRejectedValue(new WireError("PROMPT_REFUSED"))
       await expect(conversations.send(key, "hi")).rejects.toThrow("can't start with / or !")
     })
 
@@ -555,24 +555,24 @@ describe("the runner's conversations", () => {
       expect(await conversations.interrupt(key)).toBeNull()
       streams.interrupt.mockResolvedValueOnce({ returned: "Queued beta" })
       expect(await conversations.interrupt(key)).toBe("Queued beta")
-      streams.interrupt.mockRejectedValueOnce(new RunnerError("BOX_NOT_CLEARED"))
+      streams.interrupt.mockRejectedValueOnce(new WireError("BOX_NOT_CLEARED"))
       await expect(conversations.interrupt(key)).rejects.toThrow("still in the agent's box")
     })
 
     it("tells the person why an interrupt didn't go", async () => {
       const { conversations, streams } = setup()
       streams.interrupt.mockRejectedValue(
-        new RunnerError("CONFLICT", "No agent is running in this terminal.", {
+        new WireError("CONFLICT", "No agent is running in this terminal.", {
           data: { reason: "no-box" },
         }),
       )
       await expect(conversations.interrupt(key)).rejects.toThrow("can't find the agent's input box")
       streams.interrupt.mockRejectedValue(
-        new RunnerError("CONFLICT", "A request waits.", { data: { reason: "pending" } }),
+        new WireError("CONFLICT", "A request waits.", { data: { reason: "pending" } }),
       )
       await expect(conversations.interrupt(key)).rejects.toThrow("Answer it first, then stop it")
       streams.interrupt.mockRejectedValue(
-        new RunnerError("CONFLICT", "Ringing.", { data: { reason: "ringing" } }),
+        new WireError("CONFLICT", "Ringing.", { data: { reason: "ringing" } }),
       )
       await expect(conversations.interrupt(key)).rejects.toThrow("Stop it again in a moment")
       streams.interrupt.mockRejectedValue(new Error("boom"))
@@ -597,7 +597,7 @@ describe("the runner's conversations", () => {
 
     it("tells a runner's WORDS_NOT_SENT as words that didn't follow the answer", async () => {
       const { conversations, streams } = setup()
-      streams.answer.mockRejectedValue(new RunnerError("WORDS_NOT_SENT"))
+      streams.answer.mockRejectedValue(new WireError("WORDS_NOT_SENT"))
       await expect(
         conversations.answer(key, "r", { type: "chat", dialog: "q1", text: "why" }),
       ).rejects.toBeInstanceOf(WordsLost)
@@ -606,7 +606,7 @@ describe("the runner's conversations", () => {
     it("tells an answer that took but whose words didn't from one that didn't take", async () => {
       const { conversations, streams } = setup()
       streams.answer.mockRejectedValue(
-        new RunnerError(
+        new WireError(
           "WORDS_NOT_SENT",
           "The answer took, but the agent did not take the words that follow it.",
         ),
@@ -649,7 +649,7 @@ describe("the runner's conversations", () => {
     it("words an answer's conflict by its reason, where the runner gives one", async () => {
       const { conversations, streams } = setup()
       streams.answer.mockRejectedValue(
-        new RunnerError("CONFLICT", "A message's doorbell is ringing the agent.", {
+        new WireError("CONFLICT", "A message's doorbell is ringing the agent.", {
           data: { reason: "ringing" },
         }),
       )
@@ -668,7 +668,7 @@ describe("the runner's conversations", () => {
       ["INTERNAL_SERVER_ERROR", "Couldn't answer for the agent."],
     ] as const)("tells the person why a %s failure didn't take", async (code, message) => {
       const { conversations, streams } = setup()
-      streams.answer.mockRejectedValue(new RunnerError(code))
+      streams.answer.mockRejectedValue(new WireError(code))
       await expect(
         conversations.answer(key, "r", { type: "choice", dialog: "d1", option: "1" }),
       ).rejects.toThrow(message)

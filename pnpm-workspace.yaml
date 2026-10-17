@@ -6,8 +6,15 @@ packages:
   - atlas
 
 # Dependencies pinned once for every package: zod, whose schemas cross package lines (a
-# library exports them and protocol composes them), so two versions can't meet.
+# library exports them and protocol composes them), so two versions can't meet; and oRPC, whose
+# client, contract and server halves must match across wire, protocol and the runner; and
+# Electron, which the host runs and wire's `/electron` is written against.
 catalog:
+  "@orpc/client": 1.15.5
+  "@orpc/contract": 1.15.5
+  "@orpc/server": 1.15.5
+  "@orpc/standard-server-peer": 1.15.5
+  electron: ^44.7.0
   zod: 4.6.5
 
 publicHoistPattern:
@@ -21,6 +28,6 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - "@types/node@26.6.2"
 patchedDependencies:
-  "@xterm/addon-unicode-graphemes@0.4.0": patches/@xterm__addon-unicode-graphemes@0.4.0.patch
-  "@xterm/xterm@6.0.0": patches/@xterm__xterm@6.0.0.patch
+  "@xterm/addon-unicode-graphemes@0.4.0": libraries/emulator/patches/@xterm__addon-unicode-graphemes@0.4.0.patch
+  "@xterm/xterm@6.0.0": libraries/emulator/patches/@xterm__xterm@6.0.0.patch
   node-pty@1.2.0-beta.14: patches/node-pty@1.2.0-beta.14.patch

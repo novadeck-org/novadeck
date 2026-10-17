@@ -1,4 +1,4 @@
-import { RunnerError } from "@novadeck/protocol/client"
+import { WireError } from "@novadeck/wire"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import type { Workspace } from "../../model/types"
@@ -70,7 +70,7 @@ describe("session saves", () => {
     it("tries again shortly while the runner is busy", async () => {
       let busy = true
       const app = open(async () => {
-        if (busy) throw new RunnerError("RESOURCE_LIMIT", "Busy.")
+        if (busy) throw new WireError("RESOURCE_LIMIT", "Busy.")
       })
       const first = workspaceFixture()
       app.commit(first)
@@ -101,7 +101,7 @@ describe("session saves", () => {
 
     it("takes the runner refusing saves while it shuts down as the end of saving", async () => {
       const app = open(async () => {
-        throw new RunnerError("RUNTIME_CLOSING", "Closing.")
+        throw new WireError("RUNTIME_CLOSING", "Closing.")
       })
       const first = workspaceFixture()
       app.commit(first)

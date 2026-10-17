@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
+import type { ScreenText } from "@novadeck/emulator/headless"
 import { isEmpty, sameText, wrappedRows, type BoxProfile } from "@novadeck/harness-core/box"
-import type { ScreenText } from "@novadeck/harness-core/screen"
 import { normalisedText, promptRefusal, shellCommand } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"

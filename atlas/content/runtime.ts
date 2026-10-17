@@ -131,7 +131,7 @@ export const runtime: {
       channel: "Electron IPC",
       summary:
         "The bridge's calls (runner port, directory picker, notices, appearance, update offers) travel as ipcRenderer messages that the main process checks against its own window.",
-      anchor: { file: "application/host/src/main/index.ts", text: "ipcMain.on(runnerPortChannel" },
+      anchor: { file: "application/host/src/main/index.ts", text: "brokerPorts({" },
     },
     {
       id: "preload-renderer",
@@ -142,7 +142,7 @@ export const runtime: {
         "The page sees `window.novadeck`; the runner's MessagePort cannot cross the context bridge, so the preload re-posts it as a window message tagged with the request id.",
       anchor: {
         file: "application/host/src/preload/index.ts",
-        text: "ipcRenderer.on(runnerPortChannel",
+        text: "requestRunner: relayPorts(",
       },
     },
     {

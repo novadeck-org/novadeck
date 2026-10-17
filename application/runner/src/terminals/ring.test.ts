@@ -1,5 +1,5 @@
+import type { ScreenText } from "@novadeck/emulator/headless"
 import { doorbellLine } from "@novadeck/harness-core/harness"
-import type { ScreenText } from "@novadeck/harness-core/screen"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 
 import { describe, expect, it } from "../test.js"

@@ -23,7 +23,9 @@ hand back as `saved` to the next viewer of the same thing.
 - `./markdown`: `mountMarkdown`, a text formatted as a document and edited in place:
   formatting marks show on the lines being edited, tables edit cell by cell, task lists tick.
   Outside changes apply as a minimal line diff, outside undo history, with the cursor kept;
-  the person's edits alone reach `onEdit`. `editable()` switches editing on the live viewer,
+  the person's edits alone reach `onEdit`. The text breaks its lines with `\n`: a host whose
+  file uses `\r\n` converts on the way in and out, as offsets count `\n` as one character.
+  `editable()` switches editing on the live viewer,
   `ranges` set a class on lines, `extensions` add editor behaviour, and `rowAnnotations` lets
   a host write a short text into table rows. It scrolls in its nearest scrolling ancestor.
   `@codemirror/state` and `@codemirror/view` are peer dependencies, since a host's extensions

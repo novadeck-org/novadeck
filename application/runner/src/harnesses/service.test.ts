@@ -5,7 +5,8 @@ import { delimiter, join } from "node:path"
 import { MessageChannel } from "node:worker_threads"
 
 import { agy } from "@novadeck/harness-agy/index"
-import { connectRunner, messagePort } from "@novadeck/protocol/client"
+import { connectRunner } from "@novadeck/protocol/client"
+import { messagePort } from "@novadeck/wire/client"
 import { vi } from "vitest"
 
 import { createRunner, servePort } from "../index.js"

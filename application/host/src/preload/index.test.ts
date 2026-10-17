@@ -1,6 +1,6 @@
 import type { EventEmitter } from "node:events"
 
-import type { DesktopHost } from "@novadeck/protocol/bridge"
+import { runnerPortMessage, type DesktopHost } from "@novadeck/protocol/bridge"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import {
@@ -13,6 +13,7 @@ import {
   portableChannel,
   portableStateChannel,
   quitAppChannel,
+  runnerPortChannel,
   sandboxChannel,
   saveBeforeQuitChannel,
   setUpdateChannelChannel,
@@ -122,6 +123,22 @@ describe("saving before quit, in the page", () => {
       expect(await askToSave()).toBe(2)
       expect(saves).toEqual(["second"])
     })
+  })
+})
+
+describe("a port to the runner", () => {
+  it("is asked for under the page's id, and reaches the page as a window message", () => {
+    const posted = vi.fn<(message: unknown, origin: string, transfer: unknown[]) => void>()
+    vi.stubGlobal("window", { postMessage: posted })
+    try {
+      electron.exposed.requestRunner("request-1")
+      expect(electron.messages).toEqual([[runnerPortChannel, "request-1"]])
+      const port = {}
+      electron.renderer.emit(runnerPortChannel, { ports: [port] }, "request-1")
+      expect(posted).toHaveBeenCalledWith({ type: runnerPortMessage, id: "request-1" }, "*", [port])
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
 

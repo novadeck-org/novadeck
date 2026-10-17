@@ -1,4 +1,4 @@
-import { RunnerError } from "@novadeck/protocol/client"
+import { WireError } from "@novadeck/wire"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
@@ -236,7 +236,7 @@ describe("a failed paste's notice", () => {
   })
 
   it("says an image or a file was too large, as the runner or the client found", () => {
-    const error = new RunnerError("UPLOAD_TOO_LARGE")
+    const error = new WireError("UPLOAD_TOO_LARGE")
     expect(pasteNotice({ type: "image/png", error })).toBe(
       "Couldn't paste the image: it's over 32 MB",
     )
@@ -246,7 +246,7 @@ describe("a failed paste's notice", () => {
   })
 
   it("says only that it failed for any other reason, as a lost connection", () => {
-    expect(pasteNotice({ type: "image/png", error: new RunnerError("DISCONNECTED") })).toBe(
+    expect(pasteNotice({ type: "image/png", error: new WireError("DISCONNECTED") })).toBe(
       "Couldn't paste the image",
     )
     expect(pasteNotice({ type: "", error: new Error("disk full") })).toBe("Couldn't paste the file")
@@ -608,7 +608,7 @@ describe("Ctrl+V in a runner terminal", () => {
     it("tells why and sends Ctrl+V when the image can't be saved", async () => {
       clipboard(async () => [item("image/png")])
       vi.spyOn(console, "error").mockImplementation(() => {})
-      const page = keyboard({ saved: () => Promise.reject(new RunnerError("DISCONNECTED")) })
+      const page = keyboard({ saved: () => Promise.reject(new WireError("DISCONNECTED")) })
       page.press()
       await vi.waitFor(() => expect(page.log.at(-1)).toBe("release with ^V"))
       expect(page.log).toContain("notice Couldn't paste the image")

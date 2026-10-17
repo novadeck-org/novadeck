@@ -21,7 +21,7 @@ import { createDemoEngine, type DemoEngine } from "./engine"
 import { demoHandle } from "./handles"
 import { createDemoInbox, isDemoInbox } from "./inbox"
 import { checkoutMailboxes, createDemoMessages } from "./messages"
-import { createDemoMurmur, requestedMurmur } from "./murmur"
+import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./murmur"
 import {
   createMockTerminal,
   defaultName,
@@ -37,7 +37,7 @@ import type { DemoSurfaceRuntime } from "./surface"
 import { terminalOf } from "./terminals"
 import { agentTranscripts, type DemoTranscript } from "./transcripts"
 import { demoTurns, type DemoTurns } from "./turns"
-import { createDemoVoice, requestedVoice } from "./voice"
+import { createDemoVoice, heldVoiceTiming, requestedVoice } from "./voice"
 
 // Sample agents: Claude Code and Codex installed, Antigravity not.
 const sampleAgents: readonly AgentConnection[] = [
@@ -48,6 +48,11 @@ const sampleAgents: readonly AgentConnection[] = [
 
 // A session by its full address: every sample project's session shares one ID.
 const addressOf = (projectId: string, sessionId: string) => `${projectId}/${sessionId}`
+
+// What a spec that stops an install asks for in its address's hash: `&install=held`.
+const installHeld = (): boolean =>
+  typeof window !== "undefined" &&
+  new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("install") === "held"
 
 // A self-contained backend with sample projects and simulated terminals. It keeps no
 // transcripts and connects no agents, but its settings switch like the runner's.
@@ -64,10 +69,12 @@ export const demoBackend = (
   const transcripts = createStore(true)
   const agents = createStore(sampleAgents)
   const welcomeOpen = createStore(welcome)
-  // Installed unless the address asks otherwise (`&voice=uninstalled`), as the try demo shows it.
-  const voice = createDemoVoice(undefined, requestedVoice())
+  // Installed unless the address asks otherwise (`&voice=uninstalled`), as the try demo shows it,
+  // and an install held at its first step where it asks for that (`&install=held`).
+  const held = installHeld()
+  const voice = createDemoVoice(held ? heldVoiceTiming : undefined, requestedVoice())
   // Installed unless the address asks otherwise (`&murmur=uninstalled`), as the try demo shows it.
-  const murmur = createDemoMurmur(undefined, requestedMurmur())
+  const murmur = createDemoMurmur(held ? heldMurmurTiming : undefined, requestedMurmur())
   // Standing in for the runner, it numbers each session's terminals itself, never
   // giving a number twice, from the workspace it last saw.
   const numbers = new Map(

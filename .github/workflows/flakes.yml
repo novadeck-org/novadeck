@@ -4,11 +4,12 @@ name: Known Flakes
 # every failure is a registered known flake gets one recorded rerun of its failed jobs;
 # any other failure, a known flake failing again, or a flake registered as fixed coming
 # back is left failed for triage. It runs main's register and code, never a
-# pull request's, so a change can't excuse its own failures. Release reruns only when it
-# packaged a pull request, never when it published.
+# pull request's, so a change can't excuse its own failures. A pull request's packaging runs
+# inside Quality, or on its own as Package when a draft is marked ready; Release, which
+# publishes, is never rerun.
 on:
   workflow_run:
-    workflows: [Quality, E2E, Release]
+    workflows: [Quality, E2E, Package]
     types: [completed]
 
 permissions:
@@ -17,9 +18,7 @@ permissions:
 jobs:
   triage:
     name: Triage
-    if: >-
-      github.event.workflow_run.conclusion == 'failure' &&
-      (github.event.workflow_run.path != '.github/workflows/release.yml' || github.event.workflow_run.event == 'pull_request')
+    if: github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

@@ -1,7 +1,7 @@
 import { expect } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
-import { nameOf, terminal } from "./workspace"
+import { nameOf, stillFor, terminal } from "./workspace"
 
 // Canvas vocabulary: where things appear on screen and the pointer gestures a person
 // makes. Geometry is measured from rendered boxes, relative to the Canvas view.
@@ -158,15 +158,31 @@ const nextFrame = (): Promise<number> => new Promise(requestAnimationFrame)
 export const settled = async <T,>(measure: () => T, frames = 5): Promise<T> => {
   let previous = JSON.stringify(measure())
   let still = 0
-  await expect
-    .poll(async () => {
-      await nextFrame()
-      const next = JSON.stringify(measure())
-      still = next === previous ? still + 1 : 0
-      previous = next
-      return still >= frames
-    })
-    .toBe(true)
+  // What a wait that ran out saw: how often it moved, and the slowest frame, which tell a
+  // box that kept moving from a page too busy to draw.
+  let changes = 0
+  let slowest = 0
+  let last = performance.now()
+  try {
+    await expect
+      .poll(async () => {
+        await nextFrame()
+        const now = performance.now()
+        slowest = Math.max(slowest, now - last)
+        last = now
+        const next = JSON.stringify(measure())
+        if (next !== previous) changes += 1
+        still = next === previous ? still + 1 : 0
+        previous = next
+        return still >= frames
+      }, stillFor(frames))
+      .toBe(true)
+  } catch (error) {
+    throw new Error(
+      `never still for ${frames} frames: it moved ${changes} times, the slowest frame took ${Math.round(slowest)} ms`,
+      { cause: error },
+    )
+  }
   return measure()
 }
 

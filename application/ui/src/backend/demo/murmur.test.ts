@@ -1,11 +1,22 @@
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
-import { createDemoMurmur } from "./murmur"
+import { createDemoMurmur, heldMurmurTiming } from "./murmur"
 
 describe("the demo's murmur", () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
+
+  it("holds a held install at its engine however long it waits, until a cancel leaves nothing", async () => {
+    const murmur = createDemoMurmur(heldMurmurTiming, "uninstalled")
+    murmur.install()
+    await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000)
+    expect(murmur.state.getSnapshot().installing).toMatchObject({ step: "engine" })
+    murmur.cancel()
+    // Nothing of it resumes, however long after.
+    await vi.advanceTimersByTimeAsync(10 * 400_000_000)
+    expect(murmur.state.getSnapshot()).toMatchObject({ installing: null, installed: false })
+  })
 
   it("installs through the engine, the model and a check, then turns on", async () => {
     const murmur = createDemoMurmur({ step: 100, device: "Intel Arc Graphics" }, "uninstalled")

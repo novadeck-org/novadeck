@@ -5,10 +5,10 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSy
 import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
 
+import { Terminal } from "@novadeck/emulator/headless"
 import type { ActivityEvent } from "@novadeck/harness-core/events"
 import { screen as screenWith } from "@novadeck/harness-core/testing/screens"
 import type { TerminalChange, TerminalEvent } from "@novadeck/protocol"
-import headless from "@xterm/headless"
 import { vi } from "vitest"
 
 import {
@@ -26,7 +26,6 @@ import { type HoldBudget, InputQueue } from "./input-queue.js"
 import { forceKill, Terminals } from "./manager.js"
 
 const cwd = process.cwd()
-const { Terminal } = headless
 
 /** Omits the transport marker that opens each attachment. */
 const withoutMarker = async function* (stream: ReturnType<Terminals["attach"]>) {

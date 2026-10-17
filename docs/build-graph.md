@@ -14,10 +14,13 @@ and the relay its binary's path. Tests and typechecks read the source; builds re
 - **tsc** takes it from `customConditions: ["development"]` in the app's and the harnesses'
   `tsconfig.json`, so a typecheck reads the same files the tests do. The host's and the UI's
   add `node`, which their `Bundler` resolution leaves out, so a `node`-only export such as the
-  sandbox's or the terminal library's resolves (the UI's typecheck follows the runner's source,
-  which the UI's adapter tests start, into them).
+  sandbox's, the terminal library's or the emulator's `/headless` resolves (the UI's typecheck
+  follows the runner's source, which the UI's adapter tests start, into them). The lint keeps
+  the UI's own code off those subpaths.
 - **Builds** reset it (`customConditions: []` in `tsconfig.build.json`) and read their
   dependencies' built types, as a published consumer would. So `build` keeps `^build`.
+  A script that builds one package outside turbo names it with pnpm's `...`
+  (`pnpm --filter @novadeck/protocol... build`), so the libraries it imports are built first.
 - **Libraries' typechecks read the libraries they import as built**: a library's `rootDir` is
   its `src` (the fence in [libraries/README.md](../libraries/README.md)), which another
   library's source would leave. A library's `turbo.json`, from the template, has its typecheck
@@ -42,10 +45,11 @@ a package it imports changes, as they did when they waited for `^build`. Without
   - the host (its main-process tests load the built `out/main`);
   - the runner (its CLI smoke tests run `dist/cli.js`, and its MCP tests run the relay's
     binary, so it also waits for `@novadeck/relay#build`).
-- atlas's extractor reads the built protocol (`extract/protocol.ts` builds it when it is
-  missing), so atlas's test and typecheck wait for `@novadeck/protocol#build`, not for a build
-  of their own racing turbo's. They are never cached: the extractor reads files across the
-  repository that turbo doesn't hash.
+- atlas's extractor reads the built protocol (`extract/protocol.ts` builds it, and the wire
+  and terminal libraries it reads as built, when they are missing), so atlas's test and
+  typecheck wait for `@novadeck/protocol#build`, not for a build of their own racing turbo's.
+  They are never cached: the extractor reads files across the repository that turbo doesn't
+  hash.
 
 ## `pnpm test` runs three packages' tests one at a time, and the rest together
 

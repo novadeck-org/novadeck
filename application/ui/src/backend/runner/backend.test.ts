@@ -2,7 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { RunnerError } from "@novadeck/protocol/client"
+import { WireError } from "@novadeck/wire"
 import { afterAll, vi } from "vitest"
 
 import { companionKeyId, itemIdOf } from "../../model/companion"
@@ -798,7 +798,7 @@ describe("runner backend", () => {
           ...runner.client.projects,
           remove: async (input) => {
             attempts.push(input.projectId)
-            if (attempts.length === 1) throw new RunnerError("RUNTIME_CLOSING", "restarting")
+            if (attempts.length === 1) throw new WireError("RUNTIME_CLOSING", "restarting")
             await gate
             return runner.client.projects.remove(input)
           },

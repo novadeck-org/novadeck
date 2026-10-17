@@ -1,5 +1,5 @@
-import type { ScreenText } from "./screen.js"
-import { cells } from "./width.js"
+import type { ScreenText } from "@novadeck/emulator/headless"
+import { cells } from "@novadeck/emulator/width"
 
 /**
  * What a harness's input box holds, as its adapter reads it off the screen. Only a

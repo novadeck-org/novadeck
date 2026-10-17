@@ -229,7 +229,8 @@ describe("Preferences Addons", () => {
     })
 
     it("stops an install on Cancel", async () => {
-      await openWorkspace("/?voice=uninstalled")
+      // Held at its first step, so Cancel stops it there, however slow the machine.
+      await openWorkspace("/?voice=uninstalled&install=held")
       await showAddons()
       await voiceCard().getByRole("button", { name: "Install" }).click()
 
@@ -300,7 +301,8 @@ describe("Preferences Addons", () => {
     })
 
     it("stops an install on Cancel", async () => {
-      await openWorkspace("/?murmur=uninstalled")
+      // Held at its first step, so Cancel stops it there, however slow the machine.
+      await openWorkspace("/?murmur=uninstalled&install=held")
       await showAddons()
       await murmurCard().getByRole("button", { name: "Install" }).click()
 

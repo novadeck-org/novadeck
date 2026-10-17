@@ -1,4 +1,4 @@
-import type { IDisposable, Terminal } from "@xterm/xterm"
+import type { IDisposable, Terminal } from "@novadeck/emulator/browser"
 
 // Window reports (XTWINOPS) that ask for an answer: state, position, sizes and titles.
 const windowReports = new Set([11, 13, 14, 15, 16, 18, 19, 20, 21])

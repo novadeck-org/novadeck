@@ -1350,23 +1350,27 @@ MSW covers HTTP behavior. The PR workflows run formatting, lint, typechecking,
 builds, and PR metadata checks on Linux. The Test jobs run all package and repository
 tests on Linux, macOS, and Windows, including for draft PRs. Each runs UI tests in
 Chromium alongside backend API, real PTY, and built-CLI tests. The required `Test`
-check passes only when the entire Quality matrix succeeds. PRs marked ready for review package
-and smoke-test the app on Linux, macOS, and Windows using the same workflow as
-releases. Draft PRs skip packaging; PR checks never create tags or publish releases.
+check passes only when the entire Quality matrix succeeds. Once it has, a PR ready for review
+packages and smoke-tests the app on Linux, macOS, and Windows, through the
+[Package](.github/workflows/package.yml) workflow releases use too, which Quality calls: no
+runner waits for the checks. It does so only when the change
+can affect the packaged app (`scripts/package/plan`: the host and every package it's built from,
+apart from their tests and prose, the dependency pins and patches, and the workflows that
+package). Draft PRs skip packaging; PR checks never create tags or publish releases.
 Quality checks run on PR opening, reopening, and commits. A PR reads only its own and
 its base branch's caches, so the [Warm Caches](.github/workflows/warm.yml) workflow fills main's test
 browser and Rust build caches on each push to main, under Quality's keys, and runs no tests.
 Marking a draft PR ready
-starts only the Release workflow, which reuses the matching Quality result before
-packaging and smoke testing. Release preparation, tagging, and publishing are
+starts only the Package workflow, which waits for Quality's `Test` check of its head,
+usually already there, before packaging and smoke testing. Release preparation, tagging, and publishing are
 disabled for PR runs.
 
 ### Known flakes
 
 Tests that sometimes fail for reasons outside the change under test are registered in
 `scripts/flakes/register.json`: each by the jobs it fails, its test, a signature its
-failure's log matches, what is known of its cause and where it was seen. When a Quality,
-E2E or pull request packaging run fails, the Known Flakes workflow reads its failed jobs'
+failure's log matches, what is known of its cause and where it was seen. When a Quality
+(a pull request's packaging included), E2E or Package run fails, the Known Flakes workflow reads its failed jobs'
 logs with main's register. If every failure is a known flake, it reruns the failed jobs
 once, unless the run was rerun meanwhile or its pull request has moved on, and records why
 in the job summary and on the pull request. A failure it can't explain or read, a known

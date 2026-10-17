@@ -12,6 +12,7 @@ const fixtures: Record<string, string> = {
   "ui-companions-plan-restore-layout": "Test (macOS)",
   "ui-agents-pinned-drag-top": "Test (macOS)",
   "ui-preferences-murmur-cancel": "Test (Linux)",
+  "ui-preferences-voice-cancel": "Test (macOS)",
   "e2e-codex-quirks-stopped-thread": "Codex (Windows quirks)",
   "e2e-antigravity-macos-lead-tool-call": "Antigravity (macOS)",
   "e2e-claude-windows-interrupted-draft": "Claude Code (Windows)",

@@ -1,4 +1,4 @@
-import type { Terminal } from "@xterm/headless"
+import type { Terminal } from "@novadeck/emulator/headless"
 
 import type { Reporting } from "./keys.js"
 

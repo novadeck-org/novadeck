@@ -1,10 +1,7 @@
-import { SerializeAddon } from "@xterm/addon-serialize"
-import headless from "@xterm/headless"
+import { SerializeAddon, Terminal } from "@novadeck/emulator/headless"
 
 import { describe, expect, it } from "../test.js"
 import { replay, transcriptOf } from "./transcript.js"
-
-const { Terminal } = headless
 
 const screen = (cols = 40, rows = 5) => {
   const terminal = new Terminal({ cols, rows, scrollback: 1000, allowProposedApi: true })

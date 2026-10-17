@@ -9,9 +9,9 @@ import {
   hasCode,
   type AttachedTerminal,
   type Runner,
-  type RunnerStatus,
   type TerminalWatchItem,
 } from "@novadeck/protocol/client"
+import type { WireStatus } from "@novadeck/wire/client"
 
 import { createStore } from "../../model/store"
 import { createTelemetryStore, dropTerminal, setUsage } from "../../model/telemetry"
@@ -216,7 +216,7 @@ const statusKey = (status: TerminalStatus): string => {
   return status.state
 }
 
-const connectionState = (status: RunnerStatus): BackendConnectionState => {
+const connectionState = (status: WireStatus): BackendConnectionState => {
   if (status.state === "connected") return "connected"
   return status.state === "reconnecting" ? "reconnecting" : "unavailable"
 }
@@ -379,9 +379,9 @@ export const runnerBackend = (
   const runnerTitles = new Map<string, string>()
   const runnerSources = new Map<string, TitleSource>()
   let sink: BackendSink | undefined
-  let runnerId: string | undefined
+  let epoch: string | undefined
   // The latest runner status.
-  let lastStatus: RunnerStatus | undefined
+  let lastStatus: WireStatus | undefined
   const showConnection = (): void => {
     connection.update(() => (lastStatus ? connectionState(lastStatus) : "connected"))
   }
@@ -463,9 +463,9 @@ export const runnerBackend = (
   }
 
   // Notes each new runner process, from whichever status watch sees it first.
-  const noteRunner = (status: RunnerStatus): void => {
+  const noteRunner = (status: WireStatus): void => {
     if (status.state !== "connected") return
-    if (runnerId !== undefined && runnerId !== status.runnerId) {
+    if (epoch !== undefined && epoch !== status.epoch) {
       restarts.push(now())
       // A new runner counts runs from 1 again.
       for (const entry of entries.values()) {
@@ -474,7 +474,7 @@ export const runnerBackend = (
       }
       noteCrashLoop()
     }
-    runnerId = status.runnerId
+    epoch = status.epoch
   }
 
   // The crashes behind the guard, for the footer and the crash-loop dialog: counted
@@ -1252,7 +1252,7 @@ export const runnerBackend = (
       round += 1
       for (const entry of ended) markLost(entry)
     }
-    const onStatus = (status: RunnerStatus): void => {
+    const onStatus = (status: WireStatus): void => {
       if (!live) return
       lastStatus = status
       showConnection()

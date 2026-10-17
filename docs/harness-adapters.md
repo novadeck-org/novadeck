@@ -98,7 +98,7 @@ harnesses/core/src/          # @novadeck/harness-core
   dialogs.ts       # DialogAdapter, for answering a harness's dialogs
   hook-command.ts  # The hook command line, per shell dialect
   follow.ts        # The shared JSONL follower
-  items.ts, report.ts, screen.ts, width.ts, header.ts
+  items.ts, report.ts, header.ts
   testing/         # Test helpers: probes.ts (`loadProbe`), screens.ts, dialogs.ts
 harnesses/claude/src/        # @novadeck/harness-claude
   index.ts         # claude: Harness
@@ -115,11 +115,11 @@ application/runner/src/harnesses/
   activity.ts      # Accepted state → agent activity
 ```
 
-An adapter imports only `@novadeck/harness-core`, `@novadeck/protocol`, Node and its
-own files, never the runner's modules or another adapter, and harness-core depends on
-neither; `.oxlintrc.json` enforces both. A test that needs the runner's internals (the
-activity machine, say) stays in the runner and reads the adapter's fixtures from its
-package.
+An adapter imports only `@novadeck/harness-core`, `@novadeck/protocol`,
+`@novadeck/emulator`, Node and its own files, never the runner's modules or another
+adapter, and harness-core depends on neither; `.oxlintrc.json` enforces both. A test
+that needs the runner's internals (the activity machine, say) stays in the runner and
+reads the adapter's fixtures from its package.
 
 Each of these packages builds to `dist`, which builds, packaging and `tsc` use. Their
 exports also name their sources under the `development` condition, which vitest, the

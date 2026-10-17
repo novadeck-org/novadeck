@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { describe, expect, it } from "../../test"
-import { createDemoVoice, demoTranscript } from "./voice"
+import { createDemoVoice, demoTranscript, heldVoiceTiming } from "./voice"
 
 describe("the demo's voice input", () => {
   beforeEach(() => vi.useFakeTimers())
@@ -53,6 +53,17 @@ describe("the demo's voice input", () => {
       enabled: false,
       wanted: false,
     })
+  })
+
+  it("holds a held install at its engine however long it waits, until a cancel leaves nothing", async () => {
+    const voice = createDemoVoice(heldVoiceTiming, "uninstalled")
+    voice.install()
+    await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000)
+    expect(voice.state.getSnapshot().installing).toMatchObject({ step: "engine" })
+    voice.cancel()
+    // Nothing of it resumes, however long after.
+    await vi.advanceTimersByTimeAsync(10 * 400_000_000)
+    expect(voice.state.getSnapshot()).toMatchObject({ installing: null, installed: [] })
   })
 
   it("keeps an off chosen during a first install, as the runner", async () => {

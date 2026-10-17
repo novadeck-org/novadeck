@@ -1,14 +1,16 @@
-import type { TerminalEvent } from "@novadeck/protocol"
+import { TerminalError, type TerminalEvent } from "../contract.js"
 
-import { DomainError } from "../errors.js"
-
-type Delivery = { event: TerminalEvent; bytes: number }
+type Delivery<E> = { event: E; bytes: number }
 type Outstanding = { bytes: number; snapshot: boolean }
 
-/** Bounds both queued events and events already handed to the transport. */
-export class Subscription {
+/**
+ * Bounds both queued events and events already handed to the transport. `E` is a
+ * terminal event in its consumer's envelope; each counts at its JSON's size in it, which is
+ * what the transport sends.
+ */
+export class Subscription<E extends TerminalEvent = TerminalEvent> {
   readonly mode: "control" | "observe"
-  private readonly queue: Delivery[] = []
+  private readonly queue: Delivery<E>[] = []
   private readonly outstanding = new Map<number, Outstanding>()
   private bytes = 0
   private sentBytes = 0
@@ -30,13 +32,13 @@ export class Subscription {
     this.mode = mode
   }
 
-  push(event: TerminalEvent): void {
+  push(event: E): void {
     if (this.finished || this.error) return
     const bytes = Buffer.byteLength(JSON.stringify(event))
     if (event.type === "snapshot") {
       if (bytes > this.snapshotLimit) {
         this.fail(
-          new DomainError(
+          new TerminalError(
             "SNAPSHOT_TOO_LARGE",
             "Visible terminal screen exceeds the configured snapshot allowance.",
           ),
@@ -45,7 +47,7 @@ export class Subscription {
       }
       if (this.snapshotAccepted || this.queue.length > 0 || this.delivered >= 0) {
         this.fail(
-          new DomainError(
+          new TerminalError(
             "SLOW_CONSUMER",
             "Terminal stream may contain only one initial snapshot.",
           ),
@@ -55,7 +57,7 @@ export class Subscription {
       this.snapshotAccepted = true
     } else if (this.bytes + this.liveSentBytes + bytes > this.limit) {
       this.fail(
-        new DomainError("SLOW_CONSUMER", "Terminal viewer must reconnect to resynchronize."),
+        new TerminalError("SLOW_CONSUMER", "Terminal viewer must reconnect to resynchronize."),
       )
       return
     }
@@ -66,7 +68,7 @@ export class Subscription {
 
   ack(sequence: number): void {
     if (sequence > this.delivered) {
-      throw new DomainError("INVALID_CURSOR", "Cannot acknowledge an undelivered terminal event.")
+      throw new TerminalError("INVALID_CURSOR", "Cannot acknowledge an undelivered terminal event.")
     }
     if (sequence <= this.acknowledged) return
     this.acknowledged = sequence
@@ -93,7 +95,7 @@ export class Subscription {
     this.finish()
   }
 
-  async next(): Promise<TerminalEvent | undefined> {
+  async next(): Promise<E | undefined> {
     while (true) {
       if (this.error) throw this.error
       const delivery = this.queue[0]

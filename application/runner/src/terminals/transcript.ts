@@ -1,5 +1,4 @@
-import type { SerializeAddon } from "@xterm/addon-serialize"
-import type { Terminal } from "@xterm/headless"
+import type { SerializeAddon, Terminal } from "@novadeck/emulator/headless"
 
 /**
  * The screen and scrollback as text that draws them again, within `limit` characters:

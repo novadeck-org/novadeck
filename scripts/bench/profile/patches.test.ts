@@ -83,12 +83,14 @@ describe("storeSpansPatch", () => {
 describe("webglPatch", () => {
   const id = "/r/application/ui/src/backend/runner/screens.ts"
   const screens =
-    'import { Terminal } from "@xterm/xterm"\nconst a = 1\n    xterm.open(element)\nconst b = 2\n'
+    'import { Terminal } from "@novadeck/emulator/browser"\nconst a = 1\n    xterm.open(element)\nconst b = 2\n'
 
   it("loads the addon where a screen opens, moving no line", () => {
     const patched = webglPatch.transform(screens, id)!.code
     expect(patched.split("\n")).toHaveLength(screens.split("\n").length)
-    expect(patched.split("\n")[0]).toMatch(/^import \{ WebglAddon \} from "@xterm\/addon-webgl"; /)
+    expect(patched.split("\n")[0]).toMatch(
+      /^import \{ WebglAddon \} from "@novadeck\/emulator\/browser"; /,
+    )
     expect(patched.split("\n")[2]).toMatch(
       /^ {4}xterm\.open\(element\); const webgl = new WebglAddon\(\);/,
     )

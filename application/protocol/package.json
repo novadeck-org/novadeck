@@ -15,11 +15,6 @@
       "types": "./dist/client.d.ts",
       "default": "./dist/client.js"
     },
-    "./wire": {
-      "development": "./src/wire.ts",
-      "types": "./dist/wire.d.ts",
-      "default": "./dist/wire.js"
-    },
     "./bridge": {
       "development": "./src/bridge.ts",
       "types": "./dist/bridge.d.ts",
@@ -46,9 +41,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@orpc/client": "1.15.5",
-    "@orpc/contract": "1.15.5",
-    "@orpc/standard-server-peer": "1.15.5",
+    "@novadeck/terminal": "workspace:*",
+    "@novadeck/wire": "workspace:*",
+    "@orpc/contract": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

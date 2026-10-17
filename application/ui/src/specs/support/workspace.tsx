@@ -39,6 +39,15 @@ export const openWorkspace = async (
 }
 
 /**
+ * How long a wait for `frames` rendered frames may take: on a loaded runner a frame has
+ * taken the better part of a second, so a count of frames gets a second each on top of
+ * the usual wait, rather than the usual wait alone.
+ */
+export const stillFor = (frames: number): { readonly timeout: number } => ({
+  timeout: 5000 + frames * 1000,
+})
+
+/**
  * Waits until the current view has been laid out and stopped moving. Panels size
  * themselves after the first paint, so gestures aimed at a point wait for this.
  */
@@ -86,7 +95,7 @@ export const expectStaysAbsent = async (
         absent += 1
         return appeared || (absent >= frames && performance.now() - since >= ms)
       },
-      { message: `${locator.selector} appeared`, timeout: ms + 5000 },
+      { message: `${locator.selector} appeared`, timeout: ms + stillFor(frames).timeout },
     )
     .toBe(true)
   expect(appeared, `${locator.selector} appeared`).toBe(false)

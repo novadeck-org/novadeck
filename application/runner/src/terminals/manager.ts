@@ -5,6 +5,14 @@ import { homedir, constants as system } from "node:os"
 import { basename, delimiter, isAbsolute, join, resolve as resolvePath } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import {
+  SerializeAddon,
+  Terminal,
+  type IMarker,
+  type ScreenText,
+  type Terminal as Screen,
+} from "@novadeck/emulator/headless"
+import { applyWidths } from "@novadeck/emulator/width"
 import { isEmpty, type BoxProfile } from "@novadeck/harness-core/box"
 import type { RequestFacts } from "@novadeck/harness-core/dialogs"
 import type {
@@ -22,7 +30,6 @@ import {
   type Install,
 } from "@novadeck/harness-core/harness"
 import { type Report } from "@novadeck/harness-core/report"
-import { type ScreenText } from "@novadeck/harness-core/screen"
 import type { AskAnswer, InboxLetter } from "@novadeck/protocol"
 import type {
   AgentDetail,
@@ -41,6 +48,7 @@ import type {
 } from "@novadeck/protocol"
 import { murmurGist, murmurHeadline } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
+import { Subscription } from "@novadeck/terminal/host"
 import {
   anyRunning,
   foregroundProcess,
@@ -64,14 +72,11 @@ import {
   osc9Directory,
   pathKey,
   refreshPath,
+  startsCommands,
   withLocale,
   type Line,
+  type ShellLaunch,
 } from "@novadeck/terminal/shell"
-import { SerializeAddon } from "@xterm/addon-serialize"
-import type { SerializeAddon as Serializer } from "@xterm/addon-serialize"
-import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes"
-import headless from "@xterm/headless"
-import type { IMarker, Terminal as Screen } from "@xterm/headless"
 import * as pty from "node-pty"
 
 import { readPlanFile, type PlanText } from "../companions/content.js"
@@ -122,7 +127,7 @@ import type { MailboxRecords } from "../messaging/records.js"
 import type { Describer } from "../murmur/describer.js"
 import { inherited } from "../shell/inherited.js"
 import type { InstalledShell } from "../shell/install.js"
-import { shellLaunch, startsCommands, type ShellLaunch } from "../shell/integration.js"
+import { shellLaunch } from "../shell/integration.js"
 import {
   listenForReports,
   unanswered,
@@ -197,14 +202,12 @@ import {
 import { freshNonce, leftoverNonce } from "./ring.js"
 import { screenText } from "./screen.js"
 import { snapshot } from "./snapshot.js"
-import { Subscription } from "./subscription.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
 import { replay, transcriptOf } from "./transcript.js"
 import { transcriptChanges } from "./transcripts.js"
 import { TerminalWatcher } from "./watcher.js"
 import { judgedFirst, workAfter, type Work } from "./work.js"
 
-const { Terminal } = headless
 const OUTPUT_CHARS = 4096
 // How much read output may wait to be drawn before the program is paused, in characters.
 // Pausing for every chunk until it is drawn waits on a timer each time, about 15 ms on
@@ -342,11 +345,11 @@ type Record = {
   summary: TerminalSummary
   process: pty.IPty
   screen: Screen
-  serializer: Serializer
+  serializer: SerializeAddon
   sequence: number
   history: Retained[]
   historyBytes: number
-  subscribers: Map<string, Subscription>
+  subscribers: Map<string, Subscription<TerminalEvent>>
   controller: string | undefined
   chain: Promise<void>
   pendingReads: number
@@ -467,7 +470,7 @@ type Record = {
       readonly rows: number
       readonly owner: string
       /** The owner's attachment that asked, as a window showing it anew attaches again. */
-      readonly attachment: Subscription | undefined
+      readonly attachment: Subscription<TerminalEvent> | undefined
     } | null
   } | null
   /** When its window was last resized, in epoch milliseconds; 0 before any resize. */
@@ -533,7 +536,7 @@ type Record = {
 type Started = {
   process: pty.IPty
   screen: Screen
-  serializer: Serializer
+  serializer: SerializeAddon
   /** The mouse's encoding a program set on its screen. */
   mouseEncoding: () => MouseEncoding
   startedAt: number
@@ -2520,7 +2523,7 @@ export class Terminals {
     const record = this.record(input.terminalId)
     const pending = this.pending(ownerId)
     record.pendingAttachments += 1
-    let subscription: Subscription | undefined
+    let subscription: Subscription<TerminalEvent> | undefined
     const detach = () => {
       if (!subscription) {
         if (
@@ -2557,7 +2560,7 @@ export class Terminals {
           (!Number.isSafeInteger(cursor) || cursor < 0 || cursor > record.sequence)
         )
           throw new DomainError("INVALID_CURSOR")
-        subscription = new Subscription(
+        subscription = new Subscription<TerminalEvent>(
           mode,
           this.options.subscriberBytes,
           this.options.ackWindowBytes,
@@ -3471,8 +3474,7 @@ export class Terminals {
     screen.loadAddon(serializer)
     // Widths as a TUI's own (Ink's) count them, emoji sequences and CJK included: by the
     // default's, a row it erased is a different number of rows, and stale ones stay.
-    screen.loadAddon(new UnicodeGraphemesAddon())
-    screen.unicode.activeVersion = "15-graphemes"
+    applyWidths(screen)
     const mouseEncoding = watchMouseEncoding(screen)
     try {
       const args = this.options.shellArgs ?? launched.args

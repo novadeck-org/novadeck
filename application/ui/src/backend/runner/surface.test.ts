@@ -1,7 +1,7 @@
+import { FitAddon, Terminal } from "@novadeck/emulator/browser"
 import type { TerminalEvent, TerminalExit } from "@novadeck/protocol"
-import { RunnerError, type AttachedTerminal } from "@novadeck/protocol/client"
-import { FitAddon } from "@xterm/addon-fit"
-import { Terminal } from "@xterm/xterm"
+import { type AttachedTerminal } from "@novadeck/protocol/client"
+import { WireError } from "@novadeck/wire"
 import { act, createElement, type ReactNode } from "react"
 import { afterEach, onTestFinished, vi } from "vitest"
 
@@ -753,7 +753,7 @@ describe("runner terminal surface", () => {
     it("says why at the top of the surface, then lets the notice go", async () => {
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
       try {
-        const page = pasteRefused(new RunnerError("UPLOAD_TOO_LARGE"))
+        const page = pasteRefused(new WireError("UPLOAD_TOO_LARGE"))
         await act(() => vi.advanceTimersByTimeAsync(0))
         expect(notice(page)?.textContent).toBe("Couldn't paste the image: it's over 32 MB")
         expect(page.container.querySelector("[aria-live]:last-of-type")?.textContent).toBe(
@@ -767,7 +767,7 @@ describe("runner terminal surface", () => {
     })
 
     it("says only that it failed when the runner is unreachable", async () => {
-      const page = pasteRefused(new RunnerError("DISCONNECTED"))
+      const page = pasteRefused(new WireError("DISCONNECTED"))
       await vi.waitFor(() => expect(notice(page)?.textContent).toBe("Couldn't paste the image"))
     })
   })

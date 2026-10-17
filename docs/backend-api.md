@@ -26,18 +26,6 @@ Beta.14 retains the older
 particularly under a debugger. Keep its pnpm build script enabled and validate
 dependency upgrades on Linux, macOS, and Windows.
 
-The UI patches `@xterm/xterm` 6.0.0 (`patches/@xterm__xterm@6.0.0.patch`) in one
-expression, in both `lib/xterm.js` and `lib/xterm.mjs`: `Viewport._sync` sizes the scroll
-area as `dimensions.css.cell.height * this._bufferService.rows` instead of
-`dimensions.css.canvas.height`. The bundles are minified, so the patch rewrites the whole
-long line that holds the expression. While a screen is out of view, xterm leaves a resize
-for its renderer until an idle moment, and the canvas height kept the old size meanwhile.
-Output that scrolled before then clamped the scroll position short of the bottom, which
-xterm took for the person scrolling up: the screen stopped following its shell until they
-scrolled down or typed, as a busy terminal did after Grid to Focus about half the time. Upstream reports the same stale height as
-[#6117](https://github.com/xtermjs/xterm.js/issues/6117); drop the patch once a release
-fixes it, and make it again for any other xterm version.
-
 On Windows the runner uses node-pty's bundled ConPTY (`useConptyDll`), a newer console
 host from Windows Terminal, instead of the one built into Windows. The built-in host
 occasionally lost terminal input: a traced test command never reached the program
@@ -114,7 +102,8 @@ The runner owns shells and workspace metadata. The UI talks to it through one
 separately; only the transport differs.
 
 ```ts
-import { connectRunner, desktop, messagePort, websocket } from "@novadeck/protocol/client"
+import { connectRunner, desktop } from "@novadeck/protocol/client"
+import { messagePort, websocket } from "@novadeck/wire/client"
 
 // Deployed separately: a token-authenticated WebSocket (use wss:// remotely).
 const runner = await connectRunner(websocket("ws://127.0.0.1:8787/api/rpc", { token }))
@@ -126,9 +115,10 @@ const runner = await connectRunner(desktop())
 const runner = await connectRunner(messagePort(port))
 ```
 
-`connectRunner` resolves after the first handshake and rejects with a typed
-`RunnerError` (for example `UNAUTHORIZED` or `INCOMPATIBLE_PROTOCOL`). After that
-it reconnects on its own. `runner.status` holds the current state, and
+`connectRunner` resolves after the first handshake and rejects with a
+`WireError` from `@novadeck/wire` (for example `UNAUTHORIZED` or `INCOMPATIBLE_PROTOCOL`). After that
+it reconnects on its own, through `connect` from `@novadeck/wire/client`. `runner.status` holds the
+current state (`connected` in an `epoch`, the runner's id; `reconnecting`; or `closed`), and
 `runner.watch()` yields it and every change, so a UI reads connection state with
 `for await` instead of registering callbacks.
 
@@ -173,7 +163,7 @@ everything else:
 - **Slow viewers.** A viewer that falls too far behind skips its backlog and
   resumes from a fresh snapshot instead of failing.
 - **Errors.** Iteration ends normally when the shell exits, the terminal is
-  detached, or the client closes. It throws a `RunnerError` only when the attachment
+  detached, or the client closes. It throws a `WireError` only when the attachment
   cannot continue, such as `CONTROL_IN_USE` after another client took control
   during a disconnection or `TERMINAL_NOT_FOUND` after the runner restarted.
 
@@ -402,11 +392,14 @@ quits. The runner writes its shell integration to a `shell` folder beside
 
 `@novadeck/protocol` contains runtime-validated Zod schemas, the oRPC contract, and
 inferred TypeScript types. The runner implements that contract; it does not expose
-arbitrary event-name handlers. oRPC is pinned to 1.15.4: its installed API uses
-`eventIterator` and the server's `ws` and `message-port` adapters. The client keeps
-oRPC's standard wire protocol over a small channel adapter that settles pending
-calls when a socket or port closes. `@novadeck/protocol/wire` exposes the raw
-`WireClient` for protocol tests. Applications use `connectRunner`.
+arbitrary event-name handlers. oRPC is pinned to 1.15.5, once, in the pnpm catalog in
+`pnpm-workspace.yaml`: its installed API uses `eventIterator` and the server's `ws`
+and `message-port` adapters. The connection itself is the `@novadeck/wire` library
+(`libraries/wire`): it keeps oRPC's standard wire protocol over a small channel
+adapter that settles pending calls when a socket or port closes, and its
+`createWireClient` gives the raw `WireClient` for protocol tests. The contract spreads
+wire's own error codes (`wireErrors`) beside the runner's. Applications use
+`connectRunner`.
 
 Every connection starts with `runner.handshake({ protocolVersion, token })`, which
 returns `runnerId` and the protocol version. WebSocket connections
@@ -784,7 +777,7 @@ forgets it, including one from an earlier runner.
   lines may be indented, tab and trailing spaces included, and hold blank lines; text is
   compared without its white space, and without the emoji a harness drew blank, unless the
   text is only emoji. The runner's headless terminal counts wide characters (emoji
-  sequences, CJK) as a TUI's own do (`@xterm/addon-unicode-graphemes`), so a redraw erases
+  sequences, CJK) as a TUI's own do (`@novadeck/emulator/width`), so a redraw erases
   the rows the TUI means. The person's keys are held from before the box is looked at until
   the Enter is out, at most the wait for an empty box, a shell command's switch (up to 5 s), the paste's 5 s and a margin of 2 s.
 
@@ -1059,4 +1052,5 @@ other conflicts carrying none. `pending` (a request waits on the person), `ringi
 in the terminal) are for the person to settle in the terminal. Other conflicts carry no
 data, and a client takes a reason it doesn't know as none, so it words each one itself,
 by what the person did (send, stop, answer), rather than showing the runner's message. The schemas and contract in
-`application/protocol/src/` are the authoritative API definition.
+`application/protocol/src/` are the authoritative API definition, with the wire's own error
+codes (`wireErrors`) in `libraries/wire/src/errors.ts`.

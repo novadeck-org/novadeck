@@ -1,8 +1,22 @@
 import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes"
-import type { IUnicodeVersionProvider } from "@xterm/headless"
+import type { IUnicodeVersionProvider, Terminal as HeadlessTerminal } from "@xterm/headless"
+import type { Terminal } from "@xterm/xterm"
 
-/** The version the emulator measures with (see the runner's `terminals/manager.ts`). */
-const version = "15-graphemes"
+// Every emulator here counts a character's columns the same way, as a TUI's own (Ink's) count
+// them, emoji sequences and CJK included. A screen one of them gives back replays on the same
+// rows in another, and a row a TUI erased is the rows it means.
+
+/** The Unicode version every emulator here measures with. */
+export const unicodeVersion = "15-graphemes"
+
+/**
+ * Sets an emulator to count widths as every other one here does. It must be made with
+ * `allowProposedApi`, which its `unicode` needs.
+ */
+export const applyWidths = (terminal: Terminal | HeadlessTerminal): void => {
+  ;(terminal as Terminal).loadAddon(new UnicodeGraphemesAddon())
+  terminal.unicode.activeVersion = unicodeVersion
+}
 
 // The emulator's own measure, without a terminal to hold it: the addon is activated on a
 // stand-in that keeps the providers it registers, and the one the emulator activates is
@@ -16,8 +30,8 @@ const provider = ((): IUnicodeVersionProvider => {
   new UnicodeGraphemesAddon().activate({ unicode } as unknown as Parameters<
     UnicodeGraphemesAddon["activate"]
   >[0])
-  const found = providers.get(version)
-  if (!found) throw new Error(`the Unicode addon registered no "${version}" provider`)
+  const found = providers.get(unicodeVersion)
+  if (!found) throw new Error(`the Unicode addon registered no "${unicodeVersion}" provider`)
   return found
 })()
 

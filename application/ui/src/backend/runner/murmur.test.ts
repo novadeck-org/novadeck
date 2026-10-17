@@ -1,5 +1,5 @@
 import type { MurmurState } from "@novadeck/protocol"
-import { RunnerError } from "@novadeck/protocol/client"
+import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
@@ -78,7 +78,7 @@ describe("the runner's murmur", () => {
     it("shows why, until the next snapshot", async () => {
       const { murmur, follow, push } = runner({
         install: async () => {
-          throw new RunnerError("CONFLICT", "Already installing.")
+          throw new WireError("CONFLICT", "Already installing.")
         },
       })
       follow()
@@ -95,7 +95,7 @@ describe("the runner's murmur", () => {
 
   it("counts a session the offer was shown in, and lets a refused count go", async () => {
     const noteOffered = vi.fn<MurmurCalls["noteOffered"]>(async () => {
-      throw new RunnerError("CONFLICT", "No.")
+      throw new WireError("CONFLICT", "No.")
     })
     const { murmur } = runner({ noteOffered })
     murmur.noteOffered()
@@ -125,7 +125,7 @@ describe("the runner's murmur", () => {
 
     it("lets a refused call go, as murmur is extra", async () => {
       const gist = vi.fn<MurmurCalls["gist"]>(async () => {
-        throw new RunnerError("CONFLICT", "No.")
+        throw new WireError("CONFLICT", "No.")
       })
       const { murmur } = runner({ gist })
       murmur.gist?.("t1", 42)

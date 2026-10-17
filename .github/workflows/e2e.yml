@@ -16,6 +16,7 @@ on:
       - package.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
+      - patches/**
       - turbo.json
   schedule:
     # Nightly, against each harness's latest release, to catch drift before a pin moves.
@@ -38,14 +39,17 @@ concurrency:
 jobs:
   # What a run needs, from what a pull request changed (scripts/e2e/plan); everything on a
   # schedule, a dispatch or when it can't tell. The jobs below take its rows as their
-  # matrices, and none runs when nothing the suite depends on changed. Not a required
-  # check, so a skipped job blocks no merge.
+  # matrices, and none runs when nothing the suite depends on changed. Linux runs for any
+  # change that can reach the runner; Windows and macOS only for one that can break them
+  # (`os`), as macOS runners are scarce. Not a required check, so a skipped job blocks no
+  # merge.
   plan:
     name: Plan
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
       run: ${{ steps.plan.outputs.run }}
+      os: ${{ steps.plan.outputs.os }}
       e2e: ${{ steps.plan.outputs.e2e }}
       quirks: ${{ steps.plan.outputs.quirks }}
     steps:
@@ -102,7 +106,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # The systems the plan chose: Linux for any change to the suite, the others for a
+        # change to what is system-specific, and all three on a schedule or a dispatch.
+        os: ${{ fromJSON(needs.plan.outputs.os) }}
         # The rows the plan chose: each harness alone, and Mixed, which runs every harness
         # at once for the scenarios across harnesses (`*.mixed.e2e.ts`) the others skip, as
         # they leave to it.
@@ -169,7 +175,7 @@ jobs:
 
       # With the network, as the relay's build may install the Rust it names.
       - name: Build Protocol and Relay
-        run: pnpm --filter @novadeck/protocol --filter @novadeck/relay build
+        run: pnpm --filter @novadeck/protocol... --filter @novadeck/relay build
 
       # Installed here, with the network; the tests then run without any.
       - name: Install Harnesses
@@ -254,7 +260,7 @@ jobs:
   # for each harness; the AutoRun last, as it turns Antigravity's messaging off by design.
   quirks:
     needs: plan
-    if: needs.plan.outputs.run == 'true'
+    if: needs.plan.outputs.run == 'true' && contains(fromJSON(needs.plan.outputs.os), 'windows-latest')
     name: ${{ matrix.setup.name }} (Windows quirks)
     runs-on: windows-latest
     timeout-minutes: 45
@@ -311,7 +317,7 @@ jobs:
           harness: ${{ matrix.setup.agents }}
 
       - name: Build Protocol and Relay
-        run: pnpm --filter @novadeck/protocol --filter @novadeck/relay build
+        run: pnpm --filter @novadeck/protocol... --filter @novadeck/relay build
 
       - name: Install Harnesses
         run: node scripts/e2e/install/main.ts

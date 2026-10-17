@@ -73,7 +73,7 @@ jobs:
           pnpm --version > "$RUNNER_TEMP/flaky-capture/pnpm.txt"
 
       - name: Build UI Protocol Dependency
-        run: pnpm --filter @novadeck/protocol build
+        run: pnpm --filter @novadeck/protocol... build
 
       - name: Locate Test Browser
         id: playwright
@@ -157,7 +157,7 @@ jobs:
           pnpm --version > "$RUNNER_TEMP/flaky-capture/pnpm.txt"
 
       - name: Build Protocol And Relay
-        run: pnpm --filter @novadeck/protocol --filter @novadeck/relay build
+        run: pnpm --filter @novadeck/protocol... --filter @novadeck/relay build
 
       - name: Install Pinned Antigravity
         run: node scripts/e2e/install/main.ts

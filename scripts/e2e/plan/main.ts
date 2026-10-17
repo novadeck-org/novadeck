@@ -4,7 +4,7 @@ import { appendFileSync, readFileSync } from "node:fs"
 import { parseAffected, plan } from "./plan.ts"
 
 // `node scripts/e2e/plan/main.ts`: decides which E2E rows a run needs and prints the plan as
-// JSON; in Actions it also sets the job's outputs `run`, `e2e` and `quirks`. A pull request
+// JSON; in Actions it also sets the job's outputs `run`, `os`, `e2e` and `quirks`. A pull request
 // reads its changes from `BASE_SHA` and `HEAD_SHA` (the full history must be there); any
 // other event, or anything that can't be read, runs everything.
 
@@ -30,13 +30,20 @@ const run = (
 }
 
 const facts = (event: string, base: string | undefined, head: string | undefined) => {
-  if (event !== "pull_request") return { event, affected: undefined, files: undefined }
+  if (event !== "pull_request")
+    return { event, affected: undefined, runner: undefined, files: undefined }
   if (!base || !head) {
     console.error("BASE_SHA or HEAD_SHA is missing: running everything.")
-    return { event, affected: undefined, files: undefined }
+    return { event, affected: undefined, runner: undefined, files: undefined }
   }
   const env = { ...process.env, TURBO_SCM_BASE: base, TURBO_SCM_HEAD: head }
   const turbo = run("pnpm", ["exec", "turbo", "ls", "--affected", "--output", "json"], env)
+  // The runner and what it builds on: a change to any other package can't reach the suite.
+  const closure = run(
+    "pnpm",
+    ["exec", "turbo", "ls", "--filter", "@novadeck/runner...", "--output", "json"],
+    env,
+  )
   // Unquoted and NUL-separated, so a path with spaces or non-ASCII letters reads as it is.
   const diff = run(
     "git",
@@ -54,6 +61,7 @@ const facts = (event: string, base: string | undefined, head: string | undefined
   return {
     event,
     affected: turbo === undefined ? undefined : parseAffected(turbo),
+    runner: closure === undefined ? undefined : parseAffected(closure),
     files: diff?.split("\0").filter(Boolean),
   }
 }
@@ -74,7 +82,7 @@ export const main = (): void => {
   if (output)
     appendFileSync(
       output,
-      `run=${decided.run}\ne2e=${JSON.stringify(decided.e2e)}\nquirks=${JSON.stringify(decided.quirks)}\n`,
+      `run=${decided.run}\nos=${JSON.stringify(decided.os)}\ne2e=${JSON.stringify(decided.e2e)}\nquirks=${JSON.stringify(decided.quirks)}\n`,
     )
 }
 

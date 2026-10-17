@@ -1,7 +1,9 @@
-import type { TerminalEvent } from "@novadeck/protocol"
-import * as fc from "fast-check"
+import assert from "node:assert/strict"
 
-import { describe, expect, it } from "../test.js"
+import * as fc from "fast-check"
+import { describe, expect, it } from "vitest"
+
+import type { TerminalEvent } from "../contract.js"
 import { Subscription } from "./subscription.js"
 
 type Model = {
@@ -66,7 +68,6 @@ const push = (model: Model, action: Extract<Action, { length: number }>): Termin
   const event: TerminalEvent =
     action.type === "snapshot"
       ? {
-          terminalId: "terminal",
           sequence,
           type: "snapshot",
           data: "界".repeat(action.length),
@@ -74,7 +75,7 @@ const push = (model: Model, action: Extract<Action, { length: number }>): Termin
           rows: 24,
           exit: null,
         }
-      : { terminalId: "terminal", sequence, type: "output", data: "界".repeat(action.length) }
+      : { sequence, type: "output", data: "界".repeat(action.length) }
   if (model.ended || model.error) return event
   const live = [...model.queued, ...model.unacknowledged].filter(
     (accepted) => accepted.type !== "snapshot",
@@ -130,9 +131,7 @@ class Step implements fc.AsyncCommand<Model, Real> {
               ? model.acknowledged
               : model.delivered
       if (sequence > model.delivered)
-        expect(() => real.subscription.ack(sequence)).toThrow(
-          expect.objectContaining({ code: "INVALID_CURSOR" }),
-        )
+        assert.throws(() => real.subscription.ack(sequence), { code: "INVALID_CURSOR" })
       else {
         if (sequence > model.acknowledged) {
           model.acknowledged = sequence
@@ -146,8 +145,9 @@ class Step implements fc.AsyncCommand<Model, Real> {
     await Promise.resolve()
     await Promise.resolve()
     await Promise.resolve()
-    expect(real.received).toEqual(model.received)
-    expect(real.detached).toBe(model.error === undefined ? 0 : 1)
+    // A step checks with node:assert, which fast-check reports with the steps that led to it.
+    assert.deepEqual(real.received, model.received)
+    assert.equal(real.detached, model.error === undefined ? 0 : 1)
   }
 
   toString(): string {
@@ -177,49 +177,51 @@ const steps = fc.commands(
 
 describe("generated terminal subscription sequences", () => {
   it("preserves byte limits, the ACK window, and termination across generated event histories", async () => {
-    await fc.assert(
-      fc.asyncProperty(
-        fc.record({
-          limit: fc.integer({ min: 100, max: 1400 }),
-          window: fc.integer({ min: 100, max: 700 }),
-          allowance: fc.integer({ min: 150, max: 2200 }),
-        }),
-        steps,
-        async (limits, commands) => {
-          const model: Model = {
-            ...limits,
-            queued: [],
-            unacknowledged: [],
-            received: [],
-            reading: false,
-            ended: false,
-            snapshot: false,
-            error: undefined,
-            sequence: 0,
-            delivered: -1,
-            acknowledged: -1,
-          }
-          const real: Real = {
-            received: [],
-            detached: 0,
-            subscription: new Subscription(
-              "observe",
-              limits.limit,
-              limits.window,
-              () => {
-                real.detached += 1
-              },
-              limits.allowance,
-            ),
-          }
-          try {
-            await fc.asyncModelRun(() => ({ model, real }), commands)
-          } finally {
-            real.subscription.cancel()
-          }
-        },
+    await expect(
+      fc.assert(
+        fc.asyncProperty(
+          fc.record({
+            limit: fc.integer({ min: 100, max: 1400 }),
+            window: fc.integer({ min: 100, max: 700 }),
+            allowance: fc.integer({ min: 150, max: 2200 }),
+          }),
+          steps,
+          async (limits, commands) => {
+            const model: Model = {
+              ...limits,
+              queued: [],
+              unacknowledged: [],
+              received: [],
+              reading: false,
+              ended: false,
+              snapshot: false,
+              error: undefined,
+              sequence: 0,
+              delivered: -1,
+              acknowledged: -1,
+            }
+            const real: Real = {
+              received: [],
+              detached: 0,
+              subscription: new Subscription(
+                "observe",
+                limits.limit,
+                limits.window,
+                () => {
+                  real.detached += 1
+                },
+                limits.allowance,
+              ),
+            }
+            try {
+              await fc.asyncModelRun(() => ({ model, real }), commands)
+            } finally {
+              real.subscription.cancel()
+            }
+          },
+        ),
+        { numRuns: 150 },
       ),
-      { numRuns: 150 },
-    )
+    ).resolves.toBeUndefined()
   })
 })

@@ -19,8 +19,8 @@ pnpm -s atlas:brief state              # how UI state and calls are wired
 ```
 
 `node atlas/brief/main.ts <subject>` is the same without pnpm. A brief is short Markdown,
-read fresh from the source on every call (it builds `@novadeck/protocol` first if that is
-missing or stale; the same goes for `extract` and `check`), with `file:line` anchors to open next.
+read fresh from the source on every call (it builds `@novadeck/wire` and `@novadeck/protocol` first
+if they are missing or stale; the same goes for `extract` and `check`), with `file:line` anchors to open next.
 
 - Subjects: an area token, a procedure (`namespace.name`), a UI action (`prefix/name`), a
   table, an MCP tool or a flow. Prefix a kind (`area:`, `procedure:`, `action:`, `table:`,

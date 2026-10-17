@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import headless from "@xterm/headless"
+import { Terminal } from "@novadeck/emulator/headless"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import {
@@ -48,8 +48,6 @@ const work = (fields: Partial<Work> = {}): Work => ({
   recent: ["Fix the login bug"],
   ...fields,
 })
-
-const { Terminal } = headless
 
 // The summary of the terminal `create` makes, to change one field of in a test.
 const subjectSummary = () =>

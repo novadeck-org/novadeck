@@ -1,4 +1,6 @@
-import { RunnerError, type Runner, type RunnerStatus } from "@novadeck/protocol/client"
+import { type Runner } from "@novadeck/protocol/client"
+import { WireError } from "@novadeck/wire"
+import type { WireStatus } from "@novadeck/wire/client"
 import { vi } from "vitest"
 
 import { workspaceFromSeed } from "../../model/seed"
@@ -30,12 +32,12 @@ const crashingRunner = () => {
   let generation = 1
   let creates = 0
   const wake = new Set<() => void>()
-  const statuses = async function* (): AsyncGenerator<RunnerStatus, undefined> {
+  const statuses = async function* (): AsyncGenerator<WireStatus, undefined> {
     let seen = 0
     for (;;) {
       if (seen !== generation) {
         seen = generation
-        yield { state: "connected", runnerId: `runner-${generation}` }
+        yield { state: "connected", epoch: `runner-${generation}` }
       }
       // eslint-disable-next-line no-await-in-loop -- Waits for the next crash.
       await new Promise<void>((resolve) => wake.add(resolve))
@@ -59,7 +61,7 @@ const crashingRunner = () => {
     generation += 1
     for (const resolve of wake) resolve()
     wake.clear()
-    throw new RunnerError("DISCONNECTED", "The runner crashed.")
+    throw new WireError("DISCONNECTED", "The runner crashed.")
   }
   const api = {
     watch: statuses,
@@ -72,7 +74,7 @@ const crashingRunner = () => {
       create: crash,
       restart: crash,
       close: async () => {},
-      attach: () => Promise.reject(new RunnerError("DISCONNECTED")),
+      attach: () => Promise.reject(new WireError("DISCONNECTED")),
     },
     companions: noCompanions,
   } as unknown as RunnerApi satisfies Pick<Runner, "watch">

@@ -439,7 +439,7 @@ portable window forward until the person quits it, and the next open is the inst
 The launch redirect is the exception: at that point nothing has started, and it lets go of
 the lock before the installed copy starts (`releaseLock`), so it can take it.
 
-The packaged smoke test (`smoke.mjs`) and the Linux sandbox check in `release.yml` pass
+The packaged smoke test (`smoke.mjs`) and the Linux sandbox check in `package.yml` pass
 `--user-data-dir`, so each gets its own lock. The other smoke launches share the default
 folder, so each is stopped before the next starts. The Linux ones, which `timeout` stops
 through `xvfb-run`, then wait up to 15 seconds for the process named by the folder's

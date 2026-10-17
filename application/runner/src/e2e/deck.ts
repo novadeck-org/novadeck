@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { join } from "node:path"
 
-import type { ScreenText } from "@novadeck/harness-core/screen"
+import { Terminal, type ScreenText } from "@novadeck/emulator/headless"
 import type {
   AgentActivity,
   AgentDetail,
@@ -14,7 +14,6 @@ import type {
   TranscriptChange,
   TranscriptItem,
 } from "@novadeck/protocol"
-import headless from "@xterm/headless"
 
 import { wire } from "../runner.js"
 import { shellPaths, type ShellPaths } from "../shell/scripts.js"
@@ -32,7 +31,7 @@ const owner = "e2e"
  * its own.
  */
 const render = async (snapshot: string, cols: number, rows: number): Promise<ScreenText> => {
-  const screen = new headless.Terminal({
+  const screen = new Terminal({
     cols,
     rows,
     scrollback: 0,

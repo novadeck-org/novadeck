@@ -1,3 +1,4 @@
+import type { ScreenText } from "@novadeck/emulator/headless"
 import {
   agreeing,
   footerRows,
@@ -6,7 +7,6 @@ import {
   type BoxProfile,
   type Markers,
 } from "@novadeck/harness-core/box"
-import type { ScreenText } from "@novadeck/harness-core/screen"
 
 /** The markers leading its box's first row: `>` as a prompt, `!` in its shell mode. */
 const markers: Markers = { prompt: ">", shell: "!" }
