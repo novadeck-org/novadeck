@@ -9,7 +9,12 @@ character-width rule every emulator shares, and helpers that need only an emulat
   draws it, and `applyWidths(terminal)`, which sets a browser or headless emulator to count them
   so. Every emulator goes through `applyWidths`: one that counts otherwise puts a screen another
   gives back on different rows.
-- `./browser`: xterm's browser `Terminal` and its types, and the fit, web-links and WebGL addons.
+- `./browser`: `createView(element, options)`, xterm's browser `Terminal` opened in an element with
+  the width rule applied, the fit and web-links addons loaded, and links, theme, font and fit behind
+  a `View`, which tells of each change of renderer (`onRendererChange`) so its owner fits it again;
+  and the pool that draws views with WebGL (`webglRenderers`, `createRenderers`,
+  `ScreenRenderer`). The app resolves its theme, its link policy and which views want WebGL, and
+  passes them in. Types of xterm's `Terminal` and `ITheme` come from here too.
 - `./browser.css`: xterm's stylesheet, for the browser emulator's screens.
 - `./headless` (Node only): xterm's headless `Terminal`, the serialize addon, and `ScreenText`,
   a screen read as text.

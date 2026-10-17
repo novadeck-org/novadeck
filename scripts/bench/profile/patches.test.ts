@@ -81,24 +81,28 @@ describe("storeSpansPatch", () => {
 })
 
 describe("webglPatch", () => {
-  const id = "/r/application/ui/src/backend/runner/screens.ts"
-  const screens =
-    'import { Terminal } from "@novadeck/emulator/browser"\nconst a = 1\n    xterm.open(element)\nconst b = 2\n'
+  const source = "/r/libraries/emulator/src/view.ts"
+  const built = "/r/libraries/emulator/dist/view.js"
+  const view =
+    'import { Terminal } from "@xterm/xterm"\nconst a = 1\n  terminal.open(element)\nconst b = 2\n'
 
-  it("loads the addon where a screen opens, moving no line", () => {
-    const patched = webglPatch.transform(screens, id)!.code
-    expect(patched.split("\n")).toHaveLength(screens.split("\n").length)
-    expect(patched.split("\n")[0]).toMatch(
-      /^import \{ WebglAddon \} from "@novadeck\/emulator\/browser"; /,
-    )
+  it("loads the addon where a view opens its terminal, moving no line", () => {
+    const patched = webglPatch.transform(view, source)!.code
+    expect(patched.split("\n")).toHaveLength(view.split("\n").length)
+    expect(patched.split("\n")[0]).toMatch(/^import \{ WebglAddon \} from "@xterm\/addon-webgl"; /)
     expect(patched.split("\n")[2]).toMatch(
-      /^ {4}xterm\.open\(element\); const webgl = new WebglAddon\(\);/,
+      /^ {2}terminal\.open\(element\); const webgl = new WebglAddon\(\);/,
     )
     expect(patched.split("\n")[3]).toBe("const b = 2")
   })
 
-  it("fails where screens.ts no longer opens a screen once, and leaves other files", () => {
-    expect(() => webglPatch.transform("const a = 1\n", id)).toThrow(/WebGL patch/)
-    expect(webglPatch.transform(screens, "/r/application/ui/src/App.tsx")).toBeNull()
+  it("patches the built view too, whose open ends in a semicolon", () => {
+    const patched = webglPatch.transform(view.replace("(element)", "(element);"), built)!.code
+    expect(patched.split("\n")[2]).toMatch(/^ {2}terminal\.open\(element\); const webgl = /)
+  })
+
+  it("fails where the view no longer opens a terminal once, and leaves other files", () => {
+    expect(() => webglPatch.transform("const a = 1\n", source)).toThrow(/WebGL patch/)
+    expect(webglPatch.transform(view, "/r/application/ui/src/App.tsx")).toBeNull()
   })
 })
