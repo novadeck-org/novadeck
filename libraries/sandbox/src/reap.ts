@@ -5,12 +5,35 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
 
-import { relayPath } from "@novadeck/relay"
-
-import { anyRunning, taskkillTree, Trees } from "../terminals/trees.js"
 import type { Sandbox } from "./sandbox.js"
 
 type Scope = Pick<Sandbox, "root" | "home" | "started">
+
+/** A process of a tree on Windows: its pid and its start, which together name it alone. */
+export type Member = { readonly pid: number; readonly startedAt: number }
+
+/**
+ * How a process's tree is read and ended on Windows, where a recorded parent pid may name an
+ * unrelated process that an ended parent's pid was given to: a reader that counts a process
+ * as a child only if it started no earlier than its parent, and ends each only as the
+ * process it was read as.
+ */
+export type Trees = {
+  /** The process and every one under it, root first; undefined where it can't be read. */
+  readonly read: (pid: number) => Promise<readonly Member[] | undefined>
+  /** Ends each of them that is still the process read. */
+  readonly end: (members: readonly Member[]) => Promise<void>
+}
+
+export type ReapOptions = {
+  /**
+   * On Windows, the tree reader a forcible end goes through: it ends the process and what it
+   * started, each only as the one it read, and taskkill ends the tree by recorded parent pids
+   * only where it can't read it. Without one, a forcible end takes the process alone, and the
+   * next round finds what it started.
+   */
+  readonly trees?: Trees
+}
 
 /**
  * A process of the sandbox: its command's name, its start, which with its pid tells it
@@ -94,6 +117,30 @@ const linux: Table = {
   },
 }
 
+/**
+ * Ends a Windows process and every program it started, with taskkill: by recorded parent
+ * pids, which may name an unrelated process whose pid an ended parent left.
+ */
+const taskkillTree = async (pid: number): Promise<void> => {
+  const windows = process.env.SystemRoot ?? "C:\\Windows"
+  await promisify(execFile)(
+    join(windows, "System32", "taskkill.exe"),
+    ["/T", "/F", "/PID", String(pid)],
+    { windowsHide: true, timeout: 5_000 },
+  )
+}
+
+/** Whether any of `members` may still run, by its pid alone: a check made again and again. */
+const anyRunning = (members: readonly Member[]): boolean =>
+  members.some(({ pid }) => {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === "EPERM"
+    }
+  })
+
 // The lister (reap-lister.cs), compiled once by its source into the system's temporary
 // folder, with the C# compiler every Windows has in its .NET Framework: one quick process
 // a listing, where starting PowerShell for each took most of a minute's test on a CI
@@ -101,7 +148,7 @@ const linux: Table = {
 // one there that isn't what its name says, as a half-written one, is passed over, and a
 // run that compiles another, as two at once may, never makes one already there wrong.
 const lister = readFileSync(new URL("reap-lister.cs", import.meta.url), "utf8")
-const listerName = `novadeck-e2e-reap-${createHash("sha256").update(lister).digest("hex").slice(0, 16)}`
+const listerName = `sandbox-reap-${createHash("sha256").update(lister).digest("hex").slice(0, 16)}`
 
 const hashOf = (file: string): string =>
   createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 16)
@@ -124,7 +171,8 @@ const intact = (): string | undefined => {
 // Removes the listers of other sources, as earlier versions of this one compiled: a run of
 // one may still use it, which leaves it there.
 const sweep = (): void => {
-  const others = /^novadeck-e2e-reap-[0-9a-f]{16}(-[0-9a-f]{16})?\.exe$/
+  // Those this compiled as `novadeck-e2e-reap-*` before it was a library's go too.
+  const others = /^(?:sandbox|novadeck-e2e)-reap-[0-9a-f]{16}(-[0-9a-f]{16})?\.exe$/
   for (const name of readdirSync(tmpdir()))
     if (others.test(name) && !name.startsWith(`${listerName}-`))
       try {
@@ -138,9 +186,9 @@ const sweep = (): void => {
 // program that reads every process's memory is what an antivirus quarantines.
 const blocked = (program: string, cause: unknown): Error =>
   new Error(
-    `The e2e suite's process lister (${program}) could not run: ${
+    `The sandbox's process lister (${program}) could not run: ${
       cause instanceof Error ? cause.message : String(cause)
-    }. Windows Defender or another antivirus may have quarantined it, as it reads other processes' memory; allow it, or exclude ${join(tmpdir(), "novadeck-e2e-reap-*.exe")}, and run again.`,
+    }. Windows Defender or another antivirus may have quarantined it, as it reads other processes' memory; allow it, or exclude ${join(tmpdir(), "sandbox-reap-*.exe")}, and run again.`,
     { cause },
   )
 
@@ -196,53 +244,78 @@ const windowsList = async (sandbox: Scope): Promise<readonly Process[]> => {
   return rows.map(({ pid, comm, start, parent }) => ({ pid, comm, start, stopped: false, parent }))
 }
 
-// The tree a stuck process left, read and ended through Novadeck's relay, as the e2e suite
-// builds it.
-const trees = new Trees(async () => relayPath)
+// Whether the pid still names a process.
+const pidAlive = (one: Process): boolean => {
+  try {
+    process.kill(one.pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
 
-const windows: Table = {
+const windows = (trees: Trees | undefined): Table => ({
   list: windowsList,
   // A pid alone, between listings: a process found a moment before isn't replaced by
   // another of the same pid that soon; `current` checks its start before it is ended.
-  alive: (_sandbox, one) => {
-    try {
-      process.kill(one.pid, 0)
-      return true
-    } catch {
-      return false
-    }
-  },
+  alive: (_sandbox, one) => pidAlive(one),
   current: async (sandbox, found) => {
     const now = await windowsList(sandbox)
     return found.filter((one) => now.some((it) => it.pid === one.pid && it.start === one.start))
   },
   // Windows has no signal to ask with: ending one is TerminateProcess, and forcibly it
-  // ends what it started too, as the runner's own tree kill does: the tree Novadeck's
-  // relay reads, where a process counts as a child only if it started no earlier than its
-  // recorded parent, so an unrelated one given an ended parent's pid isn't, and each is
-  // ended only as the process it was. Only a tree whose root is the process found, by its
-  // start, is ended, and waited for, so nothing of it holds the sandbox's files once
-  // `reap` returns.
-  end: async (one, forcibly) => {
-    if (!forcibly) {
-      try {
-        process.kill(one.pid)
-      } catch {
-        // Gone meanwhile.
-      }
-      return
-    }
-    const tree = await trees.read(one.pid)
-    // Where the relay can't read it, taskkill ends the tree, awaited, as it did before:
-    // only the root is checked, just before, by its start.
-    if (tree === undefined) return taskkillTree(one.pid).catch(() => {})
-    if (tree[0]?.startedAt !== one.start) return
-    await trees.end(tree)
-    const deadline = Date.now() + 30_000
-    while (anyRunning(tree) && Date.now() < deadline)
-      // eslint-disable-next-line no-await-in-loop -- Waits for them to end.
-      await new Promise((resolve) => setTimeout(resolve, 50))
-  },
+  // ends what it started too: the tree `trees` reads, where a process counts as a child
+  // only if it started no earlier than its recorded parent, so an unrelated one given an
+  // ended parent's pid isn't, and each is ended only as the process it was (see `Trees`).
+  // Only a tree whose root is the process found, by its start, is ended, and waited for,
+  // so nothing of it holds the sandbox's files once `reap` returns.
+  end: (one, forcibly) => endWindows(one, forcibly, trees),
+})
+
+/**
+ * Ends a Windows process, as the Windows table's `end`: asking ends it alone; forcibly, its
+ * tree (see `endTree`). Without a reader a forcible end takes the process alone too, as
+ * asking does: taskkill's tree goes by recorded parent pids, which may name an unrelated
+ * process, and what the process started is still in the sandbox, for the next round to
+ * find. `terminate` is TerminateProcess unless a test gives another. Exported for its tests,
+ * as no process on Windows outlives the first ask long enough to reach a forcible end there.
+ */
+export const endWindows = async (
+  one: { readonly pid: number; readonly start: number },
+  forcibly: boolean,
+  trees: Trees | undefined,
+  terminate: (pid: number) => void = (pid) => process.kill(pid),
+): Promise<void> => {
+  if (forcibly && trees) return endTree(one, trees)
+  try {
+    terminate(one.pid)
+  } catch {
+    // Gone meanwhile.
+  }
+}
+
+/**
+ * Ends a Windows process and what it started (see `endWindows`): the tree
+ * `trees` reads, only should its root still be the process found, by its start, and waited
+ * for; where it can't be read, the tree `kill` ends by recorded parent pids, taskkill unless
+ * a test gives another. Exported for its tests, as no process on Windows outlives the first
+ * ask long enough to reach it there.
+ */
+export const endTree = async (
+  one: { readonly pid: number; readonly start: number },
+  trees: Trees,
+  kill: (pid: number) => Promise<void> = taskkillTree,
+): Promise<void> => {
+  const tree = await trees.read(one.pid)
+  // Where it can't be read, the tree is ended by recorded parents, awaited: only the root is
+  // checked, just before, by its start.
+  if (tree === undefined) return kill(one.pid).catch(() => {})
+  if (tree[0]?.startedAt !== one.start) return
+  await trees.end(tree)
+  const deadline = Date.now() + 30_000
+  while (anyRunning(tree) && Date.now() < deadline)
+    // eslint-disable-next-line no-await-in-loop -- Waits for them to end.
+    await new Promise((resolve) => setTimeout(resolve, 50))
 }
 
 /**
@@ -400,7 +473,7 @@ const everyProcess = async () =>
 const darwin: Table = {
   list: darwinList,
   // A pid alone, between listings, as on Windows; `current` checks its start.
-  alive: windows.alive,
+  alive: (_sandbox, one) => pidAlive(one),
   // The same processes, each by its pid and start, as they are now: never found again
   // from scratch, as one found through its parent no longer is once that parent has gone.
   current: async (_sandbox, found) => {
@@ -414,51 +487,61 @@ const darwin: Table = {
   end: linux.end,
 }
 
-const table =
-  process.platform === "win32" ? windows : process.platform === "darwin" ? darwin : linux
+const tableFor = (options: ReapOptions = {}): Table =>
+  process.platform === "win32"
+    ? windows(options.trees)
+    : process.platform === "darwin"
+      ? darwin
+      : linux
 
 /** The sandbox's processes now, as `reap` finds them, by pid and command name; none ended. */
 export const sandboxProcesses = async (
   sandbox: Scope,
-): Promise<readonly { readonly pid: number; readonly comm: string }[]> => table.list(sandbox)
+): Promise<readonly { readonly pid: number; readonly comm: string }[]> => tableFor().list(sandbox)
 
 /**
  * The sandbox's processes now, each named as a leftover is, with its recorded parent on
- * Windows; none elsewhere. Taken while a deck still runs, it names the parent a leftover
- * later records as gone, which tells a program started apart from the terminal's shell
- * from one the terminal's tree should have held.
+ * Windows; none elsewhere. Taken while its programs still run, it names the parent a
+ * leftover later records as gone, which tells a program started apart from its shell from
+ * one the shell's tree should have held.
  */
 export const census = async (sandbox: Scope): Promise<string[]> =>
-  process.platform === "win32" ? (await table.list(sandbox)).map(named) : []
+  process.platform === "win32" ? (await tableFor().list(sandbox)).map(named) : []
 
 // Waits until none of them is still running or the time is up.
-const ended = async (sandbox: Scope, found: readonly Process[], ms: number): Promise<void> => {
+const ended = async (
+  table: Table,
+  sandbox: Scope,
+  found: readonly Process[],
+  ms: number,
+): Promise<void> => {
   const deadline = Date.now() + ms
   while (found.some((one) => table.alive(sandbox, one)) && Date.now() < deadline)
     // eslint-disable-next-line no-await-in-loop -- Waits for them to end.
     await new Promise((resolve) => setTimeout(resolve, 50))
 }
 
-// How a leftover is reported: `claude (123)`, or `claude (123, stopped)` for one that
-// could never have exited by itself; on Windows too its recorded parent, `cmd#12 gone`,
-// which tells a program the terminal's tree could not reach from one it should have.
+// How a leftover is reported: `bash (123)`, or `bash (123, stopped)` for one that could
+// never have exited by itself; on Windows too its recorded parent, `cmd#12 gone`, which
+// tells a program its shell's tree could not reach from one it should have.
 const named = (one: Process): string =>
   `${one.comm} (${one.pid}${one.stopped ? ", stopped" : ""}${one.parent ? `, parent ${one.parent}` : ""})`
 
 /**
- * Ends the processes still running in the sandbox once its deck has closed: those that
+ * Ends the processes still running in the sandbox once what used it has closed: those that
  * started after it was made and whose working folder is inside it, or whose HOME is its
- * home. A harness the deck's hangup reached may take a moment to exit, so each gets
+ * home. A program the closing reached may take a moment to exit, so each gets
  * three seconds to end by itself; one still running then is asked to end (SIGTERM; on
  * Windows, which can't ask, ended), then ended forcibly (SIGKILL; on Windows with what it
  * started) if it outlives two seconds more, each only should it still be the process
  * found. As ending one may leave a child behind, it looks again, up to five times, until
  * it finds none it hasn't seen. Returns those that had to be ended, by their commands'
- * names and pids, each marked `stopped` should it have been, as a leak the test reports.
+ * names and pids, each marked `stopped` should it have been, as a leak the caller reports.
  * On Linux it reads /proc; on Windows it asks the system through a lister of its own;
  * on macOS it asks `ps` and `lsof`.
  */
-export const reap = async (sandbox: Scope): Promise<string[]> => {
+export const reap = async (sandbox: Scope, options: ReapOptions = {}): Promise<string[]> => {
+  const table = tableFor(options)
   const seen = new Set<string>()
   const leftovers: string[] = []
   for (let round = 0; round < 5; round += 1) {
@@ -467,14 +550,14 @@ export const reap = async (sandbox: Scope): Promise<string[]> => {
     if (found.length === 0) break
     for (const one of found) seen.add(`${one.pid}:${one.start}`)
     // eslint-disable-next-line no-await-in-loop -- Each round waits on the one found.
-    await ended(sandbox, found, 3000)
+    await ended(table, sandbox, found, 3000)
     // Each as it is now, so one stopped while it was waited for is named stopped.
     // eslint-disable-next-line no-await-in-loop -- As above.
     const leftover = await table.current(sandbox, found)
     // eslint-disable-next-line no-await-in-loop -- As above.
     await Promise.all(leftover.map((one) => table.end(one, false)))
     // eslint-disable-next-line no-await-in-loop -- As above.
-    await ended(sandbox, leftover, 2000)
+    await ended(table, sandbox, leftover, 2000)
     // eslint-disable-next-line no-await-in-loop -- As above.
     const holding = await table.current(sandbox, leftover)
     // eslint-disable-next-line no-await-in-loop -- As above.

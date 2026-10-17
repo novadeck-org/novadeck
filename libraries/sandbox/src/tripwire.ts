@@ -3,8 +3,21 @@ import { readdirSync, readFileSync, statSync } from "node:fs"
 import { userInfo } from "node:os"
 import { basename, join } from "node:path"
 
-import type { AgentSetup } from "./agents/agent.js"
 import type { Sandbox } from "./sandbox.js"
+
+/**
+ * What a tripwire watches in the developer's home, each path relative to it. `searched` are
+ * configuration files a program rewrites as it runs, read and searched only for the
+ * sandbox's root, which only a program that escaped the sandbox would write there.
+ * `listed` are folders whose entries' names are searched for the sandbox's name. `stamped`
+ * are paths whose modification time and size alone are compared, never their contents, as
+ * a login, which is never read.
+ */
+export type Watch = {
+  readonly searched: readonly string[]
+  readonly listed: readonly string[]
+  readonly stamped: readonly string[]
+}
 
 // Windows' names are any case, as is how a program writes them; Linux's are one.
 const folded = process.platform === "win32"
@@ -67,7 +80,7 @@ export const spellings = (path: string): readonly string[] => {
 
 /**
  * The path's 8.3 short name (`C:\Users\JANKOW~1\…`), as Windows keeps one on most volumes
- * and the plugin's install writes a launcher's path that needs quoting, or undefined
+ * and a program may write a path that would need quoting by it, or undefined
  * where it has none other than the path itself, or off Windows.
  */
 export const shortName = (path: string): string | undefined => {
@@ -94,23 +107,22 @@ const names = (path: string, texts: readonly string[]): boolean => {
 }
 
 /**
- * A tripwire over the developer's real harness homes, watching what each setup lists
- * (`AgentSetup.watch`): call it before a test, and call what it returns after, for the
- * paths a harness that escaped the sandbox wrote to. Those are the configuration files
- * that now mention the sandbox's root, by its name or its short name (see `spellings`),
- * any case on Windows; the folders with an entry named after the sandbox; and the stamped
- * paths whose time or size changed, or that appeared or went. Only paths are returned,
- * never anything read. A path absent both times, as all are in CI, is skipped. A test
- * watches every harness's paths, not only its own, as any harness that escaped would be
- * a leak.
+ * A tripwire over the developer's real home, watching what each of `watches` lists: call it
+ * before a run, and call what it returns after, for the paths a program that escaped the
+ * sandbox wrote to. Those are the configuration files that now mention the sandbox's root,
+ * by its name or its short name (see `spellings`), any case on Windows; the folders with an
+ * entry named after the sandbox; and the stamped paths whose time or size changed, or that
+ * appeared or went. Only paths are returned, never anything read. A path absent both times,
+ * as all are in CI, is skipped. `home` is the developer's own unless a test gives another.
  */
 export const tripwire = (
   sandbox: Pick<Sandbox, "root">,
-  setups: readonly Pick<AgentSetup, "watch">[],
+  watches: readonly Watch[],
+  home: string = userInfo().homedir,
 ): (() => readonly string[]) => {
-  const user = userInfo().homedir
-  const watched = (kind: keyof AgentSetup["watch"]) =>
-    setups.flatMap((setup) => setup.watch[kind]).map((path) => join(user, path))
+  const user = home
+  const watched = (kind: keyof Watch) =>
+    watches.flatMap((watch) => watch[kind]).map((path) => join(user, path))
   const stamped = watched("stamped")
   const before = stamps(stamped)
   const roots = [sandbox.root, shortName(sandbox.root) ?? []].flat()

@@ -1,11 +1,11 @@
-// Lists the processes of an e2e sandbox on Windows, as Linux's /proc gives them (see
+// Lists the processes of a sandbox on Windows, as Linux's /proc gives them (see
 // reap.ts, which compiles and runs it): those that started at or after the sandbox, other
 // than the caller and this one, whose working folder is inside the sandbox or whose HOME
 // or USERPROFILE is its home, read from their parameters (the offsets are a 64-bit PEB's
 // and its RTL_USER_PROCESS_PARAMETERS'), as JSON: their pids, names and starts in
 // milliseconds since the epoch, and how its recorded parent stands (name and pid, then
 // running, gone, taken by a later process, or unreadable), which tells a leftover the
-// terminal's tree could not reach from one it should have held. A process it may not
+// shell's tree could not reach from one it should have held. A process it may not
 // read, another user's or the system's, never counts, as a sandbox's is always this user's,
 // nor does one that has exited.
 // Its arguments: the sandbox's start, root and home, and the caller's pid.
@@ -13,7 +13,7 @@ using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
-public static class NovadeckReap {
+public static class SandboxReap {
   [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(int access, bool inherit, int pid);
   [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
   [DllImport("kernel32.dll")] static extern bool ReadProcessMemory(IntPtr handle, IntPtr address, byte[] buffer, IntPtr size, out IntPtr read);
@@ -80,8 +80,8 @@ public static class NovadeckReap {
       try {
         if (process.Id == self || process.Id == caller) continue;
         // One that has exited keeps its process object, and its memory for a moment, while
-        // anything holds a handle to it or its threads wind down: it runs no longer, as the
-        // relay and a signal to its pid also find, and counts as no leftover.
+        // anything holds a handle to it or its threads wind down: it runs no longer, as a tree
+        // reader and a signal to its pid also find, and counts as no leftover.
         try { if (process.HasExited) continue; } catch (Exception) { /* Unreadable: the start and parameters below say. */ }
         DateTime created;
         try { created = process.StartTime.ToUniversalTime(); } catch { continue; }

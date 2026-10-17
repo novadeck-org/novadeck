@@ -1,0 +1,41 @@
+{
+  "name": "@novadeck/sandbox",
+  "version": "0.0.0",
+  "private": true,
+  "description": "An isolated environment for tests and benchmarks that run real shells and programs: a scrubbed environment with a throwaway home, reaping what it started, and a tripwire over writes outside it.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "node": {
+        "development": "./src/sandbox.ts",
+        "types": "./dist/sandbox.d.ts",
+        "default": "./dist/sandbox.js"
+      }
+    },
+    "./reap": {
+      "node": {
+        "development": "./src/reap.ts",
+        "types": "./dist/reap.d.ts",
+        "default": "./dist/reap.js"
+      }
+    },
+    "./tripwire": {
+      "node": {
+        "development": "./src/tripwire.ts",
+        "types": "./dist/tripwire.d.ts",
+        "default": "./dist/tripwire.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node --input-type=module -e \"import { cpSync } from 'node:fs'; cpSync('src/reap-lister.cs', 'dist/reap-lister.cs')\"",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

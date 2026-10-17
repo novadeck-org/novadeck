@@ -1,10 +1,11 @@
 import type { AgentName } from "@novadeck/protocol"
+import type { Watch } from "@novadeck/sandbox/tripwire"
 
 import type { DeckTerminal } from "../deck.js"
+import type { Sandbox } from "../keychain.js"
 import type { Dialect } from "../model/dialect.js"
 import type { Call, Reply, Rule } from "../model/script.js"
 import type { FakeModel } from "../model/server.js"
-import type { Sandbox } from "../sandbox.js"
 
 /**
  * How a test may seed a harness differently from the default, which starts it trusted
@@ -260,19 +261,14 @@ export type AgentSetup = {
    */
   readonly refused: readonly string[]
   /**
-   * What the tripwire watches of the harness in the developer's home, relative to it.
-   * `searched` are configuration files their own sessions rewrite as they start or run,
-   * read and searched only for the sandbox's root, which only a connect or trust that
-   * leaked out of the sandbox would write there. `listed` are folders whose entries'
-   * names are searched for the sandbox's name. `stamped` are paths whose modification time
-   * and size alone are compared, never their contents: a login, which is never read, and
-   * plugin folders that change only when a plugin is installed or removed.
+   * What the tripwire watches of the harness in the developer's home (see `Watch`):
+   * `searched` its configuration files, which its own sessions rewrite as they start or
+   * run and only a connect or trust that leaked out of the sandbox would write the
+   * sandbox's root to; `listed` folders a leak would add an entry named after the sandbox
+   * to; `stamped` its login and plugin folders, which change only when a plugin is
+   * installed or removed.
    */
-  readonly watch: {
-    readonly searched: readonly string[]
-    readonly listed: readonly string[]
-    readonly stamped: readonly string[]
-  }
+  readonly watch: Watch
   /**
    * Seeds the harness's configuration inside the sandbox, so it starts at its own prompt
    * with no trust, onboarding, sign-in, update or key screen, for the version installed.

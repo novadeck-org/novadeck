@@ -183,6 +183,9 @@ importers:
         specifier: 4.6.5
         version: 4.6.5
     devDependencies:
+      '@novadeck/sandbox':
+        specifier: workspace:*
+        version: link:../../libraries/sandbox
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -518,6 +521,18 @@ importers:
       '@xterm/headless':
         specifier: 6.0.0
         version: 6.0.0
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@26.6.5)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(jsdom@30.1.2(@noble/hashes@2.4.0))(msw@2.15.0(@types/node@26.6.5)(typescript@7.0.2))(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+
+  libraries/sandbox:
     devDependencies:
       '@types/node':
         specifier: ^26.6.5

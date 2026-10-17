@@ -2,20 +2,22 @@ import { rmSync } from "node:fs"
 import { join } from "node:path"
 
 import { agentName } from "@novadeck/protocol"
+import { relayPath } from "@novadeck/relay"
+import { census, reap as reapAll } from "@novadeck/sandbox/reap"
+import { tripwire } from "@novadeck/sandbox/tripwire"
 import { beforeAll, type TestFunction } from "vitest"
 
+import { Trees } from "../terminals/trees.js"
 import { it as base } from "../test.js"
 import type { AgentSetup, Seed } from "./agents/agent.js"
 import { setups as every } from "./agents/index.js"
 import { harnessLogins, loginStore } from "./credentials.js"
 import { createDeck, type Deck } from "./deck.js"
 import { installHarness } from "./install.js"
+import { createE2ESandbox, keychainAsks, type Sandbox, unsuffixedClaudeItem } from "./keychain.js"
 import { startFakeModel, type FakeModel } from "./model/server.js"
-import { census, reap } from "./reap.js"
-import { createSandbox, keychainAsks, type Sandbox, unsuffixedClaudeItem } from "./sandbox.js"
 import { unsupported } from "./support.js"
 import { startTrace, tracesAll, tracing } from "./trace.js"
-import { tripwire } from "./tripwire.js"
 
 export { describe, expect } from "../test.js"
 
@@ -57,6 +59,13 @@ const chosen = ((): ReadonlySet<string> | undefined => {
 export const selected = (setup: Pick<AgentSetup, "agent">): boolean =>
   chosen === undefined || chosen.has(setup.agent)
 
+// The tree a stuck process left on Windows, read and ended through Novadeck's relay, as
+// the e2e suite builds it.
+const trees = new Trees(async () => relayPath)
+
+/** Ends what still runs in the sandbox (see `reap`), its trees through the relay. */
+const reap = (sandbox: Sandbox) => reapAll(sandbox, { trees })
+
 export type E2E = {
   readonly model: FakeModel
   readonly sandbox: Sandbox
@@ -91,7 +100,7 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[]) => {
       }
       // Installed before the file's tests: these are the same installs, already done.
       const installs = await Promise.all(setups.map((setup) => installHarness(setup.agent)))
-      const sandbox = createSandbox({ proxy: model.proxy, bins: installs.map((one) => one.bin) })
+      const sandbox = createE2ESandbox({ proxy: model.proxy, bins: installs.map((one) => one.bin) })
       resources.defer(() =>
         rmSync(sandbox.root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }),
       )
@@ -105,7 +114,10 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[]) => {
           )
       })
       // The tripwire watches every harness's home, whichever a test runs.
-      const changed = tripwire(sandbox, every)
+      const changed = tripwire(
+        sandbox,
+        every.map((setup) => setup.watch),
+      )
       let env = sandbox.env
       for (const [index, setup] of setups.entries())
         env = {

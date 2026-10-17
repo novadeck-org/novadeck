@@ -1,4 +1,4 @@
-# The sandbox's own `security` on macOS (see `keychainGuard` in sandbox.ts), after the two
+# The sandbox's own `security` on macOS (see `keychainGuard` in keychain.ts), after the two
 # lines that set `log`, where each service asked for is written, and `real`, the system's
 # `security`. It answers "not found" (exit 44), passing nothing on, where any service
 # asked for is one of Claude Code's items with no folder's suffix: the person's own.

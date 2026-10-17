@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { describe, expect, it } from "../test.js"
-import { createSandbox, keychainAsks, keychainGuard, unsuffixedClaudeItem } from "./sandbox.js"
+import { createE2ESandbox, keychainAsks, keychainGuard, unsuffixedClaudeItem } from "./keychain.js"
 
 describe("Claude Code's Keychain items", () => {
   it("are the person's own without a folder's suffix, and the sandbox's with one", () => {
@@ -96,7 +96,7 @@ describe.runIf(process.platform === "darwin")("the sandbox's security on macOS",
   it("refuses Claude Code the person's own item, passes the rest, and says what was asked", ({
     resources,
   }) => {
-    const sandbox = createSandbox({ proxy: "http://127.0.0.1:9", bins: [] })
+    const sandbox = createE2ESandbox({ proxy: "http://127.0.0.1:9", bins: [] })
     resources.defer(() => rmSync(sandbox.root, { recursive: true, force: true }))
     // As Claude Code asks: `security` by name, through the sandbox's PATH.
     const ask = (service: string) =>

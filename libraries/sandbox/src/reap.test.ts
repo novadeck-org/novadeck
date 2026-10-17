@@ -3,27 +3,26 @@ import { mkdtempSync, realpathSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
 
-import { vi } from "vitest"
+import { describe, expect, it, onTestFinished, vi } from "vitest"
 
-import { describe, expect, it } from "../test.js"
 import {
   parseDarwinFolders,
   parseDarwinProcesses,
   reap,
   sandboxed,
+  endTree,
+  endWindows,
   sandboxProcesses,
 } from "./reap.js"
 
 describe.skipIf(process.platform !== "linux")("reap", () => {
-  it("ends a process left in the sandbox, naming it, and one stopped as stopped", async ({
-    resources,
-  }) => {
-    const root = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-reap-")))
-    resources.defer(() => rmSync(root, { recursive: true, force: true }))
+  it("ends a process left in the sandbox, naming it, and one stopped as stopped", async () => {
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), "sandbox-reaped-")))
+    onTestFinished(() => rmSync(root, { recursive: true, force: true }))
     const sandbox = { root, home: join(root, "home"), started: 0 }
     const leak = () => {
       const child = spawn("sleep", ["60"], { cwd: root, env: {}, stdio: "ignore" })
-      resources.defer(() => {
+      onTestFinished(() => {
         child.kill("SIGKILL")
       })
       return child.pid!
@@ -42,13 +41,11 @@ describe.skipIf(process.platform !== "linux")("reap", () => {
 })
 
 describe.skipIf(process.platform !== "win32")("reap on Windows", () => {
-  it("ends what runs in the sandbox or has its home, naming it, and nothing else", async ({
-    resources,
-  }) => {
-    const root = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-reap-")))
-    const elsewhere = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-reap-other-")))
-    resources.defer(() => rmSync(root, { recursive: true, force: true, maxRetries: 5 }))
-    resources.defer(() => rmSync(elsewhere, { recursive: true, force: true, maxRetries: 5 }))
+  it("ends what runs in the sandbox or has its home, naming it, and nothing else", async () => {
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), "sandbox-reaped-")))
+    const elsewhere = realpathSync.native(mkdtempSync(join(tmpdir(), "sandbox-reaped-elsewhere-")))
+    onTestFinished(() => rmSync(root, { recursive: true, force: true, maxRetries: 5 }))
+    onTestFinished(() => rmSync(elsewhere, { recursive: true, force: true, maxRetries: 5 }))
     const sandbox = { root, home: join(root, "home"), started: Date.now() }
     const start = (cwd: string, env: NodeJS.ProcessEnv) => {
       const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60_000)"], {
@@ -56,7 +53,7 @@ describe.skipIf(process.platform !== "win32")("reap on Windows", () => {
         env: { SystemRoot: process.env.SystemRoot, ...env },
         stdio: "ignore",
       })
-      resources.defer(() => {
+      onTestFinished(() => {
         child.kill()
       })
       return child
@@ -87,19 +84,95 @@ describe.skipIf(process.platform !== "win32")("reap on Windows", () => {
   }, 60_000)
 })
 
+// A pid no process has, so a tree of it reads as ended at once: above Linux's pid_max, and a
+// multiple of 4, as Windows reads a pid without its two low bits.
+const gone = 2 ** 22 + 8
+
+describe("ending a Windows process's tree", () => {
+  const reader = (tree: readonly { pid: number; startedAt: number }[] | undefined) => {
+    const calls = { read: [] as number[], end: [] as unknown[] }
+    return {
+      calls,
+      trees: {
+        read: async (pid: number) => {
+          calls.read.push(pid)
+          return tree
+        },
+        end: async (members: readonly unknown[]) => {
+          calls.end.push(members)
+        },
+      },
+    }
+  }
+
+  it("ends the tree its reader reads, rooted at the process found", async () => {
+    const tree = [
+      { pid: gone, startedAt: 100 },
+      { pid: gone + 1, startedAt: 101 },
+    ]
+    const { calls, trees } = reader(tree)
+    const killed: number[] = []
+
+    await endTree({ pid: gone, start: 100 }, trees, async (pid) => {
+      killed.push(pid)
+    })
+
+    expect(calls.read).toEqual([gone])
+    expect(calls.end).toEqual([tree])
+    expect(killed).toEqual([])
+  })
+
+  it("ends nothing where the root is a later process given the same pid", async () => {
+    const { calls, trees } = reader([{ pid: gone, startedAt: 200 }])
+    const killed: number[] = []
+
+    await endTree({ pid: gone, start: 100 }, trees, async (pid) => {
+      killed.push(pid)
+    })
+
+    expect(calls.end).toEqual([])
+    expect(killed).toEqual([])
+  })
+
+  it("ends the process alone when asked, or forcibly with no reader to read its tree", async () => {
+    const { calls, trees } = reader([{ pid: gone, startedAt: 100 }])
+    const terminated: number[] = []
+    const terminate = (pid: number) => {
+      terminated.push(pid)
+    }
+
+    await endWindows({ pid: gone, start: 100 }, false, trees, terminate)
+    await endWindows({ pid: gone, start: 100 }, true, undefined, terminate)
+    await endWindows({ pid: gone, start: 100 }, true, trees, terminate)
+
+    // Only the forcible end with a reader went to the tree.
+    expect(terminated).toEqual([gone, gone])
+    expect(calls.read).toEqual([gone])
+  })
+
+  it("ends it by recorded parents where its reader can't read the tree", async () => {
+    const { trees } = reader(undefined)
+    const killed: number[] = []
+
+    await endTree({ pid: gone, start: 100 }, trees, async (pid) => {
+      killed.push(pid)
+    })
+
+    expect(killed).toEqual([gone])
+  })
+})
+
 describe.skipIf(process.platform !== "darwin")("reap on macOS", () => {
-  it("ends what runs in the sandbox or has its home, naming it, and nothing else", async ({
-    resources,
-  }) => {
-    const root = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-reap-")))
-    const elsewhere = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-reap-other-")))
-    resources.defer(() => rmSync(root, { recursive: true, force: true }))
-    resources.defer(() => rmSync(elsewhere, { recursive: true, force: true }))
+  it("ends what runs in the sandbox or has its home, naming it, and nothing else", async () => {
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), "sandbox-reaped-")))
+    const elsewhere = realpathSync.native(mkdtempSync(join(tmpdir(), "sandbox-reaped-elsewhere-")))
+    onTestFinished(() => rmSync(root, { recursive: true, force: true }))
+    onTestFinished(() => rmSync(elsewhere, { recursive: true, force: true }))
     const sandbox = { root, home: join(root, "home"), started: Date.now() }
     const start = (cwd: string, env: NodeJS.ProcessEnv) => {
       // Node rather than a system program such as sleep: macOS shows no environment of its
-      // own programs, and the harnesses are never one. Each in a group of its own, as a
-      // harness in its terminal is: one stopped in the tests' own group would stop with it
+      // own programs, and the programs under test are never one. Each in a group of its own, as
+      // a program in its terminal is: one stopped in the tests' own group would stop with it
       // whatever job control does to that group.
       const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60_000)"], {
         cwd,
@@ -107,7 +180,7 @@ describe.skipIf(process.platform !== "darwin")("reap on macOS", () => {
         stdio: "ignore",
         detached: true,
       })
-      resources.defer(() => {
+      onTestFinished(() => {
         child.kill("SIGKILL")
       })
       return child
@@ -134,13 +207,11 @@ describe.skipIf(process.platform !== "darwin")("reap on macOS", () => {
     expect(await reap(sandbox)).toEqual([])
   }, 30_000)
 
-  it("ends a system program one of them started elsewhere, which shows no environment", async ({
-    resources,
-  }) => {
-    const root = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-reap-")))
-    const elsewhere = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-reap-other-")))
-    resources.defer(() => rmSync(root, { recursive: true, force: true }))
-    resources.defer(() => rmSync(elsewhere, { recursive: true, force: true }))
+  it("ends a system program one of them started elsewhere, which shows no environment", async () => {
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), "sandbox-reaped-")))
+    const elsewhere = realpathSync.native(mkdtempSync(join(tmpdir(), "sandbox-reaped-elsewhere-")))
+    onTestFinished(() => rmSync(root, { recursive: true, force: true }))
+    onTestFinished(() => rmSync(elsewhere, { recursive: true, force: true }))
     const sandbox = { root, home: join(root, "home"), started: Date.now() }
     // A shell of the sandbox's, in a group of its own, that leaves sleep running elsewhere:
     // macOS shows neither's environment, and sleep's folder isn't the sandbox's.
@@ -150,7 +221,7 @@ describe.skipIf(process.platform !== "darwin")("reap on macOS", () => {
       stdio: "ignore",
       detached: true,
     })
-    resources.defer(() => {
+    onTestFinished(() => {
       try {
         process.kill(-shell.pid!, "SIGKILL")
       } catch {
@@ -170,13 +241,11 @@ describe.skipIf(process.platform !== "darwin")("reap on macOS", () => {
     expect(await reap(sandbox)).toEqual([])
   }, 30_000)
 
-  it("ends one found through its parent though that parent has gone since, and it ignores SIGTERM", async ({
-    resources,
-  }) => {
-    const root = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-reap-")))
-    const elsewhere = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-reap-other-")))
-    resources.defer(() => rmSync(root, { recursive: true, force: true }))
-    resources.defer(() => rmSync(elsewhere, { recursive: true, force: true }))
+  it("ends one found through its parent though that parent has gone since, and it ignores SIGTERM", async () => {
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), "sandbox-reaped-")))
+    const elsewhere = realpathSync.native(mkdtempSync(join(tmpdir(), "sandbox-reaped-elsewhere-")))
+    onTestFinished(() => rmSync(root, { recursive: true, force: true }))
+    onTestFinished(() => rmSync(elsewhere, { recursive: true, force: true }))
     const sandbox = { root, home: join(root, "home"), started: Date.now() }
     // A shell of the sandbox's starts sleep elsewhere, deaf to SIGTERM, and leaves within
     // the reaper's 3 s grace, 2 s in, long enough for a slow first look to find it: sleep is
@@ -186,7 +255,7 @@ describe.skipIf(process.platform !== "darwin")("reap on macOS", () => {
       ["-c", `(trap '' TERM; cd '${elsewhere}' && exec /bin/sleep 60) & /bin/sleep 2`],
       { cwd: root, env: {}, stdio: "ignore", detached: true },
     )
-    resources.defer(() => {
+    onTestFinished(() => {
       try {
         process.kill(-shell.pid!, "SIGKILL")
       } catch {
@@ -201,7 +270,7 @@ describe.skipIf(process.platform !== "darwin")("reap on macOS", () => {
     expect(sleeping).toHaveLength(1)
     const pid = Number(/\((\d+)/.exec(sleeping[0]!)![1])
     // Gone once launchd has reaped it, which may take a moment after the SIGKILL.
-    await vi.waitFor(() => expect(() => process.kill(pid, 0)).toThrow(), { timeout: 2_000 })
+    await vi.waitFor(() => expect(() => process.kill(pid, 0)).toThrow(/ESRCH/), { timeout: 2_000 })
     expect(await reap(sandbox)).toEqual([])
   }, 30_000)
 })
@@ -248,11 +317,11 @@ describe("macOS's process listing", () => {
 
   it("counts a found process's children and its group's, however deep, but never the tests' group", () => {
     const processes = [
-      // A harness found by its folder, a child it started elsewhere, and that child's own.
+      // A program found by its folder, a child it started elsewhere, and that child's own.
       { pid: 10, ppid: 5, pgid: 10 },
       { pid: 11, ppid: 10, pgid: 11 },
       { pid: 12, ppid: 11, pgid: 11 },
-      // A background job of the harness's group, its parent gone.
+      // A background job of the program's group, its parent gone.
       { pid: 13, ppid: 1, pgid: 10 },
       // The tests' own group, which holds a found process's parent and a stray of its own.
       { pid: 20, ppid: 1, pgid: 20 },
@@ -268,11 +337,11 @@ describe("macOS's process listing", () => {
   })
 
   it("reads each process's working folder from lsof's fields", () => {
-    const output = ["p412", "fcwd", "n/private/tmp/novadeck e2e", "p413", "fcwd", "n/"].join("\n")
+    const output = ["p412", "fcwd", "n/private/tmp/sandbox test", "p413", "fcwd", "n/"].join("\n")
 
     expect(parseDarwinFolders(output)).toEqual(
       new Map([
-        [412, "/private/tmp/novadeck e2e"],
+        [412, "/private/tmp/sandbox test"],
         [413, "/"],
       ]),
     )

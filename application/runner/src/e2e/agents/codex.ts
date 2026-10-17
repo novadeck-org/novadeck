@@ -6,9 +6,9 @@ import { promisify } from "node:util"
 import { trustedIn } from "@novadeck/harness-codex/trust"
 
 import type { DeckTerminal } from "../deck.js"
+import type { Sandbox } from "../keychain.js"
 import { responses } from "../model/responses.js"
 import { asked } from "../model/script.js"
-import type { Sandbox } from "../sandbox.js"
 import { own } from "../scenarios.js"
 import type { AgentSetup } from "./agent.js"
 

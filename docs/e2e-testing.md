@@ -152,11 +152,12 @@ change it and run the suite.
 The suite never runs a harness against the developer's configuration, login or
 network:
 
-- **A sandbox per test.** `sandbox.ts` makes a throwaway root under the system's
+- **A sandbox per test.** `createE2ESandbox` (`keychain.ts`, over the
+  [`@novadeck/sandbox`](../libraries/sandbox/README.md) library's `createSandbox`) makes a throwaway root under the system's
   temporary folder, with a home, a project, XDG folders and a private `XDG_RUNTIME_DIR`.
   Every process the test starts gets only the sandbox's environment, with nothing copied
   from the developer's. Its PATH is the pinned harnesses, a folder holding just `node`,
-  and `/usr/bin:/bin`. On Windows the sandbox also moves the user's folders into itself
+  and `/usr/bin:/bin`, with, on macOS, the keychain guard's folder first. On Windows the sandbox also moves the user's folders into itself
   (USERPROFILE, APPDATA, LOCALAPPDATA, TEMP, as Node, Go and Rust find a home and
   configuration by them there, never HOME), and copies Windows' own variables from the
   tests' environment (`SystemRoot`, `ComSpec`, `PATHEXT`, `ProgramFiles` and the like:
@@ -222,7 +223,7 @@ network:
     or anywhere on the input of `security -i`, as Claude Code writes, whatever its spacing
     or quotes, passing nothing on, so the developer's is neither read nor overwritten
     through it, and the test fails should one be asked for (`keychainGuard` in
-    `sandbox.ts`), in CI too. It sees only `security` called by name, as Claude Code
+    `keychain.ts`), in CI too. It sees only `security` called by name, as Claude Code
     calls it.
   - Codex is told to keep its login in a file, as everywhere.
   - Antigravity's go-keyring asks `/usr/bin/security` for service `gemini`, account
@@ -280,7 +281,7 @@ network:
   it doesn't serve, is recorded in `model.strays` like one no dialect took.
 - **No updates.** Update checks are switched off, and npm's prefix points into the
   sandbox, so a harness that updates itself can't touch a global install.
-- **A tripwire.** `tripwire.ts` looks for what a harness that escaped the sandbox would
+- **A tripwire.** `@novadeck/sandbox/tripwire` looks for what a harness that escaped the sandbox would
   leave in the developer's home, in three ways, over the paths each setup lists in its
   `watch`; every test watches every harness's paths. It names only the paths that tripped it, never
   anything it read, and a path absent both times is skipped, so CI, which has none, has
@@ -311,7 +312,7 @@ network:
 
 - **Checked once the deck closes.** The fixture closes the deck, then runs its checks
   while the fake model still listens, so whatever a harness sends on its way out, such as
-  telemetry flushed on exit, counts too; only then does the model close. `reap.ts` also
+  telemetry flushed on exit, counts too; only then does the model close. `@novadeck/sandbox/reap` also
   looks in `/proc` for processes still running in the sandbox. For each process it reads
   `/proc/<pid>/stat`, for its state and its start, and passes over zombies and any
   process that started before the sandbox was made. Only for the rest does it read where
@@ -572,7 +573,7 @@ for (const setup of setups) {
 - **Restarting the runner.** `deck.restart()` closes the runner as Novadeck does when it
   quits, saving every terminal and ending its shells, and wires another, as Novadeck
   starts again, on the same database, shell folder and sandbox, with the same fake
-  model. Between the two, `reap.ts` looks for processes the first runner left in the
+  model. Between the two, `@novadeck/sandbox/reap` looks for processes the first runner left in the
   sandbox, and any it finds fails the restart as a leak. The first runner's deck
   terminals are gone with it, their histories ended; the new runner lists their records
   as saved (`started: false`) until `deck.restore(t, { resume: agent })` starts one

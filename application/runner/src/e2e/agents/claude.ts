@@ -2,9 +2,10 @@ import { readFileSync, writeFileSync } from "node:fs"
 import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
+import { gitBash } from "@novadeck/sandbox"
+
 import { anthropic } from "../model/anthropic.js"
 import { asked, text as everything, type Call } from "../model/script.js"
-import { gitBash } from "../sandbox.js"
 import { own, result } from "../scenarios.js"
 import type { AgentSetup } from "./agent.js"
 
