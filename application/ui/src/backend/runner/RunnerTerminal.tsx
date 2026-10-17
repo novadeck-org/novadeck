@@ -131,6 +131,16 @@ export const createRunnerTerminal = (
       [],
     )
 
+    // Whether this surface is mounted, for the cleanup below to tell an unmount from a
+    // release; React cleans effects up in the order they are declared.
+    const mounted = useRef(false)
+    useEffect(() => {
+      mounted.current = true
+      return () => {
+        mounted.current = false
+      }
+    }, [])
+
     // Takes the terminal's screen while this surface shows it: the first surface opens
     // it, later ones find it as the last one left it. A surface out of the person's sight
     // lets it go, staying mounted with the host's last drawing, and takes it again when it
@@ -148,7 +158,11 @@ export const createRunnerTerminal = (
       // opened again in a host of its own: the surface places that one.
       setHost(acquired.host)
       return () => {
-        if (acquired.host.contains(document.activeElement)) acquired.refocus = true
+        // Focus the next surface to show this screen restores is the unmount's to leave: a
+        // surface that stays mounted and lets go of its screen out of sight keeps its host,
+        // and takes the screen again in the same slot.
+        if (!mounted.current && acquired.host.contains(document.activeElement))
+          acquired.refocus = true
         screens.release(terminalKey)
       }
       // The screen follows the terminal, not its changing metadata.

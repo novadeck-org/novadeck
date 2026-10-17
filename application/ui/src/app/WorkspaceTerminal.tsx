@@ -236,7 +236,10 @@ export const WorkspaceTerminal = memo(
       () => (showChat ? conversations?.conversation(terminalKey) : undefined),
       [showChat, conversations, terminalKey],
     )
-    const wanted = keyboardFocus?.view === view && active
+    // Keyboard focus waits for the node to be on screen: its input is in a subtree a
+    // Canvas node out of sight hides, and a request spent there would be lost. The request
+    // stays until the surface can take it.
+    const wanted = keyboardFocus?.view === view && active && onScreen
     const withChat = (content: ReactNode): ReactNode =>
       conversations ? (
         <div className="chat-host relative flex min-h-0 min-w-0 flex-1 flex-col">

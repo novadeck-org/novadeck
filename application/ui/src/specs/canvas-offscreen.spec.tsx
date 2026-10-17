@@ -5,7 +5,7 @@ import { page } from "vitest/browser"
 import { App } from "../app/App"
 import { scriptedRunner } from "../backend/runner/scripted-server"
 import { boxOf, dragBackground, settled, viewBox } from "./support/canvas"
-import { layoutSettled, terminal } from "./support/workspace"
+import { layoutSettled, terminal, terminalTab } from "./support/workspace"
 
 // Canvas keeps what is out of the person's sight from streaming and laying out (performance
 // rule 13). It runs over a scripted runner, whose streams tell which terminals' screens are
@@ -25,21 +25,23 @@ const hidden = (id: string): boolean => {
 const nodeBox = (id: string) =>
   boxOf(page.elementLocator(document.querySelector(`[data-node="${id}"]`)!))
 
-// Opens Canvas over two agents: "Agent 1" in view, and "Agent 2" past the right edge,
-// further than the margin Canvas watches beyond its edges.
-const openCanvas = async () => {
+// Opens Canvas over two agents: "Agent 1" in view, and "Agent 2" with its left edge at
+// `secondX`, by default past the right edge by more than the margin Canvas watches beyond
+// its edges.
+const openCanvas = async (secondX = window.innerWidth * 2.5 + 700) => {
+  const [first, second] = scriptedRunner({ terminals: 2 }).terminalIds as [string, string]
   const runner = scriptedRunner({
     terminals: 2,
     canvas: {
       viewport: { x: 0, y: 0, zoom: 1 },
       geometry: {
-        [scriptedRunner({ terminals: 2 }).terminalIds[0]!]: {
+        [first]: {
           position: { x: 20, y: 20 },
           width: 320,
           height: 240,
         },
-        [scriptedRunner({ terminals: 2 }).terminalIds[1]!]: {
-          position: { x: window.innerWidth * 2.5 + 700, y: 20 },
+        [second]: {
+          position: { x: secondX, y: 20 },
           width: 320,
           height: 240,
         },
@@ -98,9 +100,18 @@ describe("Canvas out of sight", () => {
     await expect.poll(() => hidden(second)).toBe(false)
     await expect.poll(() => runner.attaches()).toBe(2)
 
-    // The first node is out of sight: its screen parks, then its content hides.
-    await expect.poll(() => runner.streaming(), parkedWithin).toBe(1)
-    await expect.poll(() => hidden(first), parkedWithin).toBe(true)
+    // The first node is out of sight: its screen parks, then its content hides. Hiding
+    // first would have xterm measure a node that is not laid out (the hide waits longer than
+    // the park), so it is noted if the content is ever seen hidden with its screen open.
+    let hiddenBeforeParked = false
+    await expect
+      .poll(() => {
+        if (hidden(first) && runner.streaming() !== 1) hiddenBeforeParked = true
+        return hidden(first)
+      }, parkedWithin)
+      .toBe(true)
+    expect(hiddenBeforeParked).toBe(false)
+    expect(runner.streaming()).toBe(1)
     runner.write(first, "output while away\r\n")
 
     // Panned back, it shows, takes its screen again, and draws what it missed.
@@ -118,5 +129,37 @@ describe("Canvas out of sight", () => {
     await expect
       .poll(() => terminal("Agent 1").element().textContent)
       .toMatch(/output\s+before\s+leaving/)
+  }, 60_000)
+
+  it("opens the screen of a node just past the edge, within the margin", async () => {
+    // 100 px past the right edge: in sight as far as Canvas is concerned.
+    const runner = await openCanvas(window.innerWidth + 100)
+    await expect.poll(() => runner.attaches(), { timeout: 5_000 }).toBe(2)
+    expect(hidden(runner.terminalIds[1]!)).toBe(false)
+  }, 30_000)
+
+  it("gives keyboard focus sent to a hidden node to its input once it is back", async () => {
+    const runner = await openCanvas()
+    const [first, second] = runner.terminalIds as [string, string]
+    await expect.poll(() => runner.streaming()).toBe(1)
+    for (let pans = 0; pans < 6 && nodeBox(second).left > 0; pans++) {
+      // eslint-disable-next-line no-await-in-loop -- One pan after another.
+      await panLeft()
+      // eslint-disable-next-line no-await-in-loop -- The camera settles before the next.
+      await settled(() => nodeBox(second))
+    }
+    await expect.poll(() => runner.attaches()).toBe(2)
+    await expect.poll(() => hidden(first), parkedWithin).toBe(true)
+
+    // The tab brings the camera to the node and asks for its input in the same moment; the
+    // request waits for the node to be back, not spent on the screen it let go.
+    await terminalTab("Agent 1").click()
+    await expect.poll(() => runner.attaches()).toBe(3)
+    await expect
+      .poll(() => {
+        const input = document.querySelector(`[data-node="${first}"] textarea`)
+        return input !== null && document.activeElement === input
+      })
+      .toBe(true)
   }, 60_000)
 })

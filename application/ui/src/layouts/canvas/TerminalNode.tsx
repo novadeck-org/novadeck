@@ -29,7 +29,7 @@ export const NodeVisibilityContext = createContext<NodeVisibility>({
 // a runner screen nobody shows keeps following before it parks (`parkMs`, in
 // backend/runner/screens.ts, which a layout does not import), so the screen has measured and
 // parked first.
-export const hideMs = 6_000
+const hideMs = 6_000
 
 const TerminalNodeView = ({ id, data, selected }: NodeProps<TerminalNode>): React.JSX.Element => {
   const contentOf = useContext(TerminalContent)

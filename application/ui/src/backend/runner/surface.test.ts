@@ -20,7 +20,7 @@ import type { BackendConnectionState } from "../port"
 import type { SurfaceRuntime } from "./backend"
 import { ctrlVHoldMs } from "./paste"
 import { createRunnerTerminal } from "./RunnerTerminal"
-import { createScreens, pasteNoticeMs } from "./screens"
+import { createScreens, pasteNoticeMs, type RunnerScreen } from "./screens"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
 vi.hoisted(() => {
@@ -237,11 +237,14 @@ describe("runner terminal surface", () => {
       const { runtime } = starting()
       const screens = createScreens(runtime)
       const calls: string[] = []
+      const acquired: RunnerScreen[] = []
       const Surface = createRunnerTerminal(runtime, {
         ...screens,
         acquire: (...args) => {
           calls.push("acquire")
-          return screens.acquire(...args)
+          const screen = screens.acquire(...args)
+          acquired.push(screen)
+          return screen
         },
         release: (...args) => {
           calls.push("release")
@@ -260,7 +263,7 @@ describe("runner terminal surface", () => {
           onScreen,
           renderWindow: (content) => content,
         })
-      return { screens, calls, surface }
+      return { screens, calls, acquired, surface }
     }
 
     it(
@@ -284,6 +287,26 @@ describe("runner terminal surface", () => {
         expect(calls).toEqual(["acquire", "release", "acquire"])
         page.unmount()
         expect(calls).toEqual(["acquire", "release", "acquire", "release"])
+      }),
+    )
+
+    it(
+      "leaves no refocus waiting when it takes back a screen that never left its slot",
+      watched(({ calls, acquired, surface }) => {
+        const page = render(surface(true))
+        const screen = acquired[0]!
+        screen.xterm.focus()
+        expect(screen.host.contains(document.activeElement)).toBe(true)
+
+        page.rerender(surface(false))
+        page.rerender(surface(true))
+        expect(calls).toEqual(["acquire", "release", "acquire"])
+        expect(acquired[1]).toBe(screen)
+        // Nothing waits to refocus the host: a later body change must not steal focus.
+        expect(screen.refocus).toBe(false)
+        // Only an unmount leaves focus for the next surface to restore.
+        page.unmount()
+        expect(screen.refocus).toBe(true)
       }),
     )
 
