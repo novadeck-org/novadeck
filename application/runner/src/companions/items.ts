@@ -12,11 +12,11 @@ import type {
   CompanionWindow,
   ItemContent,
 } from "@novadeck/protocol"
+import { KeyedChanges } from "@novadeck/wire/server"
 
 import { DomainError } from "../errors.js"
 import { agentLabel } from "../messaging/mailbox.js"
 import { mention } from "../terminals/handles.js"
-import { Watcher } from "../terminals/watcher.js"
 import {
   hashOf,
   loadFile,
@@ -167,7 +167,7 @@ export class CompanionItems {
   private readonly records: ItemRecords
   private readonly pollMs: number
   /** Each `watch` stream and the owner whose release ends it. */
-  private readonly watchers = new Map<Watcher<string, CompanionChange>, string>()
+  private readonly watchers = new Map<KeyedChanges<string, CompanionChange>, string>()
   /** Each item's `content` readers, which end once it is deleted. */
   private readonly readers = new Map<string, Set<AbortController>>()
   /**
@@ -405,7 +405,7 @@ export class CompanionItems {
    */
   async *watch(ownerId: string, signal?: AbortSignal): AsyncGenerator<CompanionChange> {
     if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
-    const watcher = new Watcher<string, CompanionChange>(
+    const watcher = new KeyedChanges<string, CompanionChange>(
       [
         ...this.records
           .windows()

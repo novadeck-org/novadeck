@@ -3,6 +3,7 @@ import { freemem } from "node:os"
 import { dirname, join } from "node:path"
 
 import type { MurmurCheck, MurmurInstall, MurmurSettings, MurmurState } from "@novadeck/protocol"
+import { Versioned } from "@novadeck/wire/server"
 
 import type { Activity } from "../engines/activity.js"
 import { DownloadError, download } from "../engines/download.js"
@@ -18,7 +19,6 @@ import {
   type ServerSpec,
 } from "../engines/server.js"
 import { EngineError, engineFolder, exists, programFile } from "../engines/unpack.js"
-import { Watchers } from "../engines/watchers.js"
 import { DomainError } from "../errors.js"
 import type { MurmurSettingsChange, MurmurVerdict } from "../workspaces/store.js"
 import type {
@@ -243,6 +243,9 @@ const readVmStat = (signal: AbortSignal | undefined): Promise<number> =>
 // How long the model stays loaded once nothing needs it.
 const defaultIdleMs = 2 * 60 * 1000
 
+// How often install progress reaches watchers, at most.
+const progressMs = 100
+
 /**
  * Murmur: the engine and model people install, the settings, and the describing of
  * terminals with them, on this machine's graphics and nowhere else. It gives way to voice
@@ -268,7 +271,7 @@ export class Murmur implements Describer {
   private running:
     | { readonly done: Promise<void>; readonly controller: AbortController }
     | undefined
-  private readonly watchers = new Watchers<MurmurState>()
+  private readonly watchers = new Versioned<MurmurState>({ throttleMs: progressMs })
   private readonly usableListeners = new Set<(usable: boolean) => void>()
   private readonly clearedListeners = new Set<() => void>()
   private lastUsable = false
