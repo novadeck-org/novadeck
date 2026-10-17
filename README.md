@@ -1073,7 +1073,7 @@ libraries stay in their adapters: XYFlow in `layouts/canvas/`, React Grid Layout
 in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
 `ui-toolkit/`, React Router in `app/` and `shell/`, and React DOM in
 `layouts/transition.ts`, `main.tsx`, and `test/`, and the runner client and
-xterm in `backend/runner/`. Other packages are denied
+the emulator's view in `backend/runner/`. Other packages are denied
 unless the test lists them: React and Lucide are allowed everywhere, while
 backend adapters and test code may use any package. `test/` may import
 `model/`, `backend/`, and what the command harness runs: `app/commands/`, the UI

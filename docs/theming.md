@@ -224,8 +224,8 @@ fonts only from the app itself, so they always ship as files: `vite.config.ts` n
 inlines a font as a `data:` URL, and `build.test.ts` checks the built stylesheets.
 
 A terminal measures its cells when its font changes, with whatever has loaded by then
-(`backend/runner/screens.ts`). One opened before its font arrives measures again when it
-does; on a theme change it keeps the font it has until the new theme's font has loaded,
+(`setFont` of the emulator's view, which `backend/runner/screens.ts` calls). One opened before
+its font arrives measures again when it does; on a theme change it keeps the font it has until the new theme's font has loaded,
 then measures once, and a font that fails to load is taken all the same, so the family
 falls back.
 

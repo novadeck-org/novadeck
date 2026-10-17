@@ -1,25 +1,18 @@
-import { WebglAddon, type IEvent, type Terminal } from "@novadeck/emulator/browser"
-
-import type { ViewMode } from "../../model/types"
+import { WebglAddon } from "@xterm/addon-webgl"
+import type { IEvent, Terminal } from "@xterm/xterm"
 
 // xterm draws with its DOM renderer unless the WebGL addon takes over, which costs a
-// fraction of the main thread's time on a busy Grid. This module is all the WebGL
+// fraction of the main thread's time on a busy page of terminals. This module is all the WebGL
 // handling: which screens hold a context, and when one goes back to the DOM renderer.
 
-// Chromium keeps 16 live WebGL contexts per renderer process on desktop, which is this
-// page's, and loses the oldest when more are asked for (it warns on the console and fires
-// webglcontextlost), which would blank a terminal that is still shown. The app draws
-// nothing else with WebGL, so the screens take all but two, kept for a canvas the page
-// doesn't own (an extension's, in the browser build) and as a margin while a context the
-// GPU lost waits to be freed.
-// That is a Grid of 13 or 14 all on WebGL, where one busy terminal left on the DOM costs
-// about as much as the other twelve; a shown screen past the cap draws with the DOM
+// Chromium keeps 16 live WebGL contexts per renderer process on desktop, and loses the
+// oldest when more are asked for (it warns on the console and fires webglcontextlost), which
+// would blank a terminal that is still shown. The default pool takes all but two, kept for a
+// canvas the page doesn't own and as a margin while a context the GPU lost waits to be freed.
+// That is a page of 13 or 14 terminals all on WebGL, where one busy terminal left on the DOM
+// costs about as much as the other twelve; a shown screen past the cap draws with the DOM
 // renderer until a slot frees.
 export const contextCap = 14
-// Whether a view's screens draw with WebGL. Canvas zooms its windows with a CSS transform,
-// which the DOM renderer's text is drawn again at but WebGL's canvas is stretched by, soft
-// above one and ragged below, so Canvas keeps the DOM renderer.
-export const wantsWebgl = (view: ViewMode): boolean => view !== "canvas"
 // How many times a screen may lose its context, or fail to load one; it tries again when
 // it is shown again, once, and stays on the DOM renderer after that.
 const lossesAllowed = 2
@@ -88,7 +81,7 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
   let stealing = false
   const defer = deps.defer ?? queueMicrotask
 
-  // Ligatures keep every screen on the DOM renderer (see `browserDeps.ligatures`).
+  // Ligatures keep every screen on the DOM renderer: WebGL draws per cell and cannot join glyphs.
   const usable = (): boolean => {
     supported ??= deps.supported()
     return supported && !deps.ligatures()
@@ -266,16 +259,6 @@ export const probeWebgl = (): boolean => {
   return probed
 }
 
-// The ligatures setting is one attribute on the page's root, set from Preferences.
-const watchRoot = (changed: () => void): (() => void) => {
-  const observer = new MutationObserver(changed)
-  observer.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ["data-ligatures"],
-  })
-  return () => observer.disconnect()
-}
-
 // The WebGL context among a screen's canvases. Asking a 2D canvas for WebGL gives nothing
 // and creates nothing.
 const contextOf = (found: readonly HTMLCanvasElement[]): WebGL2RenderingContext | undefined =>
@@ -316,17 +299,18 @@ export const loadWebgl = (xterm: Terminal): Drawing => {
   }
 }
 
-const browserDeps: RendererDeps<Terminal> = {
-  load: loadWebgl,
-  supported: probeWebgl,
-  cap: contextCap,
-  // The trade-off: ligatures render through CSS `font-variant-ligatures`, which only the
-  // DOM renderer gets; WebGL draws per cell and cannot join glyphs. So every screen stays on
-  // the DOM renderer while they are on (no ligatures addon for now).
-  ligatures: () => document.documentElement.dataset.ligatures === "on",
-  watchLigatures: watchRoot,
-}
-
-let page: Renderers | undefined
-// The page's pool: the context budget is the page's, whichever backend's screens draw.
-export const pageRenderers = (): Renderers => (page ??= createRenderers(browserDeps))
+// The pool for a page of xterm terminals, loading xterm's WebGL addon where the page has a
+// hardware context to spare. Ligatures render through CSS `font-variant-ligatures`, which only
+// the DOM renderer gets, so the page says whether they are on and when that changes.
+export const webglRenderers = (options: {
+  readonly ligatures: () => boolean
+  readonly watchLigatures: (changed: () => void) => () => void
+  readonly cap?: number
+}): Renderers =>
+  createRenderers<Terminal>({
+    load: loadWebgl,
+    supported: probeWebgl,
+    cap: options.cap ?? contextCap,
+    ligatures: options.ligatures,
+    watchLigatures: options.watchLigatures,
+  })

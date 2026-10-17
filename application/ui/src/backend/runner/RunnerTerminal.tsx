@@ -13,7 +13,7 @@ import { TerminalEndingBar, TerminalLock, TerminalNotice } from "../../ui-toolki
 import type { TerminalSurfaceProps } from "../port"
 import { restartable } from "./activity"
 import type { SurfaceRuntime } from "./backend"
-import { wantsWebgl } from "./renderer"
+import { wantsWebgl } from "./renderers"
 import { createScreens, type RunnerScreen, type Screens, type ScreenStream } from "./screens"
 
 // Why typing is paused. A failed paste says why in the same notice.

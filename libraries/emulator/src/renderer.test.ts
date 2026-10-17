@@ -1,7 +1,7 @@
-import { vi } from "vitest"
+// @vitest-environment jsdom
+import { describe, expect, it, vi } from "vitest"
 
-import { describe, expect, it } from "../../test"
-import { contextCap, createRenderers, probeWebgl, wantsWebgl, type Drawing } from "./renderer"
+import { contextCap, createRenderers, probeWebgl, type Drawing } from "./renderer.js"
 
 const setup = ({ cap = 2, supported = true, failing = false } = {}) => {
   const state = { ligatures: false, failing, loads: 0 }
@@ -63,7 +63,7 @@ const setup = ({ cap = 2, supported = true, failing = false } = {}) => {
 }
 
 describe("the renderer budget", () => {
-  it("fits a Grid of 13 terminals, two contexts short of Chromium's 16", () => {
+  it("fits a page of 13 terminals, two contexts short of Chromium's 16", () => {
     expect(contextCap).toBeGreaterThanOrEqual(13)
     expect(contextCap).toBeLessThanOrEqual(16 - 2)
   })
@@ -99,14 +99,6 @@ describe("the renderer budget", () => {
     b!.release()
     a!.take(true)
     expect([live("a"), live("c")]).toEqual([true, true])
-  })
-
-  it("wants WebGL in Grid and Focus, never in Canvas, which zooms with a transform", () => {
-    expect([wantsWebgl("grid"), wantsWebgl("focus"), wantsWebgl("canvas")]).toEqual([
-      true,
-      true,
-      false,
-    ])
   })
 
   it("tells a screen each time it changes renderer, but not as it closes", () => {
