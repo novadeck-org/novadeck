@@ -17,8 +17,11 @@ hand back as `saved` to the next viewer of the same thing.
   elsewhere.
 - `./code.css`: the code viewer's looks and the `.tok-*` highlighting classes. Its header
   lists the tokens a host sets to theme it (`--code-*`, `--syntax-*`).
+- `./image`: `mountImage`, an image fitted or at its actual size, its zoom kept in its
+  state with its place; `zoom()` and `onZoom` let a host draw the control.
+- `./image.css`: the image viewer's looks, themed through `--image-*`.
 - `./react`: `useViewer`, a ref that mounts a viewer into its element and keeps its state by
-  id. React is an optional peer dependency, needed only here.
+  id, and the viewer once mounted. React is an optional peer dependency, needed only here.
 
 ## Tests
 

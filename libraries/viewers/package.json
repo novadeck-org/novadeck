@@ -19,6 +19,12 @@
       "default": "./dist/code.js"
     },
     "./code.css": "./src/code.css",
+    "./image": {
+      "development": "./src/image.ts",
+      "types": "./dist/image.d.ts",
+      "default": "./dist/image.js"
+    },
+    "./image.css": "./src/image.css",
     "./react": {
       "development": "./src/react.ts",
       "types": "./dist/react.d.ts",
