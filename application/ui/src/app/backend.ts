@@ -6,7 +6,7 @@ import type { Backend, BackendSelection, ConnectBackend } from "../backend/port"
 // production, connects to a runner, whose client and terminal emulator load with the
 // connection instead of the entry point. The content preview connects to the demo, with its
 // debug panel; the `try` mode, a build for a website's visitors, to the demo without it.
-// Tests and specs pass App the demo's spec backend themselves (backend/demo/spec-variants.ts).
+// Tests and specs pass App the demo's spec backend themselves (specs/support/backend.ts).
 const runnerSelection = (): BackendSelection => ({
   connect: async (signal, progress) =>
     (await import("../backend/runner")).connectRunnerBackend(signal, progress),
@@ -54,7 +54,7 @@ const visitorSelection = (): BackendSelection => ({
 // so, rather than waiting on a runner that never comes.
 const testSelection: BackendSelection = {
   createBackend: () => {
-    throw new Error("Pass App createBackend from backend/demo/spec-variants.ts in tests")
+    throw new Error("Pass App createBackend from specs/support/backend.ts in tests")
   },
 }
 

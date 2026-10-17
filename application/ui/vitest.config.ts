@@ -36,6 +36,17 @@ export default mergeConfig(
         },
         {
           extends: true,
+          test: {
+            name: "integration",
+            // The tests that render the whole workspace over the spec backend, in jsdom as the
+            // unit project runs them, with the same budget for a cold first render.
+            environment: "jsdom",
+            testTimeout: 20_000,
+            include: ["src/specs/**/*.test.ts"],
+          },
+        },
+        {
+          extends: true,
           // Let concurrent runs pick free ports; the app dev server keeps its strict one.
           server: { strictPort: false },
           test: {

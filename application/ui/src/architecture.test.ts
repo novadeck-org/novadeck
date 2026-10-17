@@ -83,7 +83,19 @@ const rules: Record<string, readonly string[]> = {
     // The dictation contract's types, which keys call.
     "voice/dictation-control.ts",
   ],
-  "specs/": ["specs/", "app/App.tsx", "theme/", "styles.css"],
+  // Specs drive the whole UI over the demo: any of its layers, the port, and the page's
+  // styles. The demo is reached through the spec entry alone; see `specBackend`.
+  "specs/": [
+    "specs/",
+    "app/",
+    "backend/port.ts",
+    ...base,
+    ...features,
+    "terminals/",
+    "layouts/",
+    "shell/",
+    "styles.css",
+  ],
   // Entry point and support modules outside the feature layers.
   "main.tsx": ["app/", "theme/", "styles.css"],
   "test/": [
@@ -111,10 +123,13 @@ const adapterRule = (layer: string): readonly string[] => [
   "ui-toolkit/",
   "theme/",
 ]
-// The only file that may import a backend adapter; it exports nothing else.
+// The only file in the app that may import a backend adapter; it exports nothing else. It
+// reaches the demo for the try and content-preview builds, and the runner for every other.
 const adapterSelection = "app/backend.ts"
-// Tests and specs open the demo through its spec entry, never another adapter module.
-const specBackend = "backend/demo/spec-variants.ts"
+// The one other importer of the demo: the spec entry, which specs and the tests that render
+// the whole workspace open the demo through, never another adapter module.
+const demo = "backend/demo/"
+const specBackend = "specs/support/backend.ts"
 // The counter run drives the real UI over the runner adapter, scripted: the one spec
 // that may reach that adapter, through its scripted server alone, and model/store.ts, for
 // its instrumentation hook.
@@ -164,7 +179,7 @@ const vendors: Record<string, readonly string[]> = {
     "projects/ProjectList.tsx",
     "projects/ProjectRow.tsx",
   ],
-  "react-router": ["app/", "shell/"],
+  "react-router": ["app/", "shell/", "specs/"],
   "react-dom": ["layouts/transition.ts", "main.tsx", "test/"],
   // One entry per workspace package, with the folders that own it. The runner client and its
   // test runner serve one adapter, the terminal emulator its screens, and the content viewers
@@ -241,10 +256,9 @@ const importViolation = (file: string, layer: string | undefined) => {
     if (file.startsWith(counterRun) && counterRunReaches.includes(target)) return []
     const targetLayer = layerOf(target)
     if (targetLayer && adapterOf(targetLayer) && targetLayer !== layer)
-      return file === adapterSelection ||
-        ((isTest(file) || layer === "specs/") && target === specBackend)
+      return file === adapterSelection || (file === specBackend && targetLayer === demo)
         ? []
-        : [`${file} -> ${target} (only ${adapterSelection} selects an adapter)`]
+        : [`${file} -> ${target} (only ${adapterSelection} and ${specBackend} reach an adapter)`]
     // Root-level tests exercise the root modules beside them.
     if (!layer)
       return target.includes("/") && !target.startsWith("test/") ? [`${file} -> ${target}`] : []
@@ -314,7 +328,12 @@ describe("UI architecture", () => {
           ),
       )
       .map((reached) => `${counterRun} -> ${reached}`)
-    expect([...deadLayers, ...deadVendors, ...deadExceptions]).toEqual([])
+    const deadSpecBackend = imports(specBackend).some(({ specifier }) =>
+      resolveFile(specBackend, specifier)?.startsWith(demo),
+    )
+      ? []
+      : [`${specBackend} -> ${demo}`]
+    expect([...deadLayers, ...deadVendors, ...deadExceptions, ...deadSpecBackend]).toEqual([])
   })
 
   it("keeps the stores' instrumentation hook to the counter run", () => {
