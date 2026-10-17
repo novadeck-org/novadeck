@@ -17,6 +17,7 @@
     "preview:try": "pnpm --filter @novadeck/ui preview --outDir dist-try --port 5191 --strictPort",
     "poster:try": "pnpm --filter @novadeck/ui poster:try",
     "build": "turbo run build",
+    "bench:timing": "turbo run build --filter=@novadeck/runner --filter=@novadeck/sandbox && node scripts/bench/timing/main.ts",
     "new:library": "node scripts/libraries/new.ts",
     "preview": "pnpm --filter @novadeck/runner start",
     "package": "pnpm --filter @novadeck/host package",
@@ -34,6 +35,7 @@
     "format:check": "oxfmt --check && pnpm --filter @novadeck/relay format:check"
   },
   "devDependencies": {
+    "@novadeck/sandbox": "workspace:*",
     "@release-it/conventional-changelog": "12.0.2",
     "@types/node": "^26.6.5",
     "concurrently": "^10.0.6",
@@ -42,6 +44,7 @@
     "msw": "^2.15.0",
     "oxfmt": "^0.72.0",
     "oxlint": "^1.87.0",
+    "playwright": "^1.64.0",
     "release-it": "21.1.1",
     "turbo": "^2.11.7",
     "typescript": "^7.0.2",
