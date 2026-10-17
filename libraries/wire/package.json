@@ -2,7 +2,7 @@
   "name": "@novadeck/wire",
   "version": "0.0.0",
   "private": true,
-  "description": "RPC calls and streams between processes over a WebSocket or a MessagePort: channels, a client generic over its contract, its transports, a connection that keeps itself alive, and its errors.",
+  "description": "RPC calls and streams between processes over a WebSocket or a MessagePort: channels, a client generic over its contract, its transports, a connection that keeps itself alive, the server's streams of state, and its errors.",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -20,6 +20,13 @@
       "development": "./src/testing.ts",
       "types": "./dist/testing.d.ts",
       "default": "./dist/testing.js"
+    },
+    "./server": {
+      "node": {
+        "development": "./src/server.ts",
+        "types": "./dist/server.d.ts",
+        "default": "./dist/server.js"
+      }
     },
     "./electron": {
       "node": {

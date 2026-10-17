@@ -1,8 +1,9 @@
 # @novadeck/wire
 
 RPC calls and streams between processes over a WebSocket or a MessagePort: channels, a client
-generic over its contract, its transports, a connection that keeps itself alive, and its errors. It carries an oRPC contract it doesn't
-know: the app's procedures and their codes stay the app's.
+generic over its contract, its transports, a connection that keeps itself alive, the server's streams
+of state, and its errors. It carries an oRPC contract it doesn't know: the app's procedures and their
+codes stay the app's.
 
 ## Subpaths
 
@@ -65,6 +66,22 @@ know: the app's procedures and their codes stay the app's.
     for the bridge to expose.
 
   Forking, restarting and closing the service's process stay the app's.
+
+- `./server` (Node only): the server's side.
+  - `KeyedChanges<Key, Change>`, one reader's stream of keyed state: the current state, then
+    `synced`, then later changes, holding only the latest unread change per key, each in the
+    place its key first changed. A key the reader was never told of leaves without a removal.
+  - `Versioned<State>`, whole state for any number of readers: each reads it now and again
+    after every change, however many changes came between; `progress()` tells a change in
+    progress at most once every `throttleMs`. `release(owner)` ends one owner's streams.
+  - `Latest<T>`, one reader's stream of snapshots that keeps only the newest unread one, and
+    never sends again the one the reader has.
+
+  None holds changes for a reader: changes made while it hasn't read yet come to it as one
+  (one per key, for `KeyedChanges`).
+  A remote reader that can't keep up isn't slowed either: the server's socket sends what it
+  reads, and cuts off a reader whose unsent bytes outgrow its send budget (the app's, for
+  now).
 
 - `./testing`: channels held in memory, for tests that need no socket or port.
   `memoryPorts()` is the two ends of a port, delivering on a microtask, cloned, in the same
