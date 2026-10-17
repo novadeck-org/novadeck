@@ -27,7 +27,9 @@ the build rules and the test sandbox. The app keeps the product.
 - **Its own package.** Every dependency it imports is in its own `package.json`, never borrowed
   from hoisting, and it keeps its own pins, patches, tests and README. pnpm reads
   `patchedDependencies` only from the root `pnpm-workspace.yaml`, so a library's patch files live
-  in the library and are registered there.
+  in the library and are registered there. A dependency whose values cross package lines, as
+  `zod`'s schemas do, is pinned once instead, in `pnpm-workspace.yaml`'s `catalog`, and every
+  package names it `catalog:`.
 
 ## What enforces them
 
