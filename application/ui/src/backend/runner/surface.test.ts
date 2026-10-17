@@ -1127,7 +1127,9 @@ describe("typing into a terminal's screen", () => {
       return shown
     }
     const page = showAgain()
-    const ready = () => vi.waitFor(() => expect(page.container.textContent).toContain("$"))
+    // Its first draw, which a slow runner (Windows in CI) may take seconds over.
+    const ready = () =>
+      vi.waitFor(() => expect(page.container.textContent).toContain("$"), { timeout: 5_000 })
     // Out of sight long enough for its screen to stop following the shell.
     const park = () => {
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
