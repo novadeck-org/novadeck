@@ -1,0 +1,37 @@
+2026-10-17T11:21:04.5068520Z [36;1m        exit 0[0m
+2026-10-17T11:21:04.5069220Z [36;1m      fi[0m
+2026-10-17T11:21:04.5070070Z [36;1m      echo "::error::Quality checks completed with ${conclusion}."[0m
+2026-10-17T11:21:04.5071450Z [36;1m      exit 1[0m
+2026-10-17T11:21:04.5072120Z [36;1m    fi[0m
+2026-10-17T11:21:04.5072760Z [36;1m  else[0m
+2026-10-17T11:21:04.5073710Z [36;1m    echo "No matching Quality run found yet for PR #${PR_NUMBER} at ${HEAD_SHA}."[0m
+2026-10-17T11:21:04.5074820Z [36;1m  fi[0m
+2026-10-17T11:21:04.5075440Z [36;1m[0m
+2026-10-17T11:21:04.5076110Z [36;1m  if [[ "$attempt" -lt 10 ]]; then[0m
+2026-10-17T11:21:04.5076910Z [36;1m    sleep 180[0m
+2026-10-17T11:21:04.5077610Z [36;1m  fi[0m
+2026-10-17T11:21:04.5078260Z [36;1mdone[0m
+2026-10-17T11:21:04.5078890Z [36;1m[0m
+2026-10-17T11:21:04.5079920Z [36;1mecho "::error::Quality checks did not complete within the wait window."[0m
+2026-10-17T11:21:04.5081020Z [36;1mexit 1[0m
+2026-10-17T11:21:04.5121790Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-17T11:21:04.5122940Z env:
+2026-10-17T11:21:04.5123590Z   NOVADECK_UPDATES: off
+2026-10-17T11:21:04.5130040Z   GH_TOKEN: ***
+2026-10-17T11:21:04.5130780Z   HEAD_SHA: 2f6e31fb1a816c5b27782852218b8fdf44952d22
+2026-10-17T11:21:04.5131730Z   BASE_SHA: b0ef7b5388c6df815bb356ce95aa6dc67e65e79b
+2026-10-17T11:21:04.5132600Z   PR_NUMBER: 223
+2026-10-17T11:21:04.5133300Z   REPOSITORY: novadeck-org/novadeck
+2026-10-17T11:21:04.5134070Z ##[endgroup]
+2026-10-17T11:21:05.2979460Z Quality checks for 2f6e31fb1a816c5b27782852218b8fdf44952d22: queued
+2026-10-17T11:24:06.1211270Z Quality checks for 2f6e31fb1a816c5b27782852218b8fdf44952d22: queued
+2026-10-17T11:27:06.7497190Z Quality checks for 2f6e31fb1a816c5b27782852218b8fdf44952d22: queued
+2026-10-17T11:30:07.3535830Z Quality checks for 2f6e31fb1a816c5b27782852218b8fdf44952d22: queued
+2026-10-17T11:33:08.0294960Z Quality checks for 2f6e31fb1a816c5b27782852218b8fdf44952d22: in_progress
+2026-10-17T11:36:08.8316960Z Quality checks for 2f6e31fb1a816c5b27782852218b8fdf44952d22: in_progress
+2026-10-17T11:39:09.6117410Z Quality checks for 2f6e31fb1a816c5b27782852218b8fdf44952d22: in_progress
+2026-10-17T11:42:10.0978230Z Quality checks for 2f6e31fb1a816c5b27782852218b8fdf44952d22: in_progress
+2026-10-17T11:45:10.7514520Z Quality checks for 2f6e31fb1a816c5b27782852218b8fdf44952d22: in_progress
+2026-10-17T11:48:11.4802510Z Quality checks for 2f6e31fb1a816c5b27782852218b8fdf44952d22: queued
+2026-10-17T11:48:11.4966800Z ##[error]Quality checks did not complete within the wait window.
+2026-10-17T11:48:11.5018700Z ##[error]Process completed with exit code 1.

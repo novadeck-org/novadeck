@@ -1,0 +1,127 @@
+{
+  "aggregates": ["Test"],
+  "flakes": [
+    {
+      "id": "ui-companions-plan-reopen-place",
+      "jobs": ["^Test \\((Linux|macOS|Windows)\\)$"],
+      "test": "src/specs/companions.spec.tsx > Switching views > opens a plan's editor as it was left",
+      "signature": "AssertionError: expected .+ to be ",
+      "status": "known",
+      "cause": "Unknown, not reproduced under CPU throttling: the reopened editor showed its first line, so its saved place was lost or its restore ended early (scroll.ts's late or held rule), on macOS.",
+      "seen": ["#218 run 39027513580 job 117381311744 (macOS)"]
+    },
+    {
+      "id": "ui-companions-plan-restore-layout",
+      "jobs": ["^Test \\((Linux|macOS|Windows)\\)$"],
+      "test": "src/specs/companions.spec.tsx > Switching views > keeps a restored plan at its saved line when its layout changes later",
+      "signature": "AssertionError: expected \\d+ to be less than 1",
+      "status": "known",
+      "cause": "Unknown, not reproduced under CPU throttling: the restored plan sat 10 px off its saved line after a later padding change, perhaps CodeMirror's cached padding, on macOS.",
+      "seen": ["#215 run 39012168276 job 117336828570 (macOS)"]
+    },
+    {
+      "id": "ui-agents-pinned-drag-top",
+      "jobs": ["^Test \\((Linux|macOS|Windows)\\)$"],
+      "test": "src/specs/agents.spec.tsx > A pinned project > dragged from the switcher menu > still reorders the list when dragged to its top",
+      "signature": "AssertionError: expected undefined to be 'docs-site'",
+      "status": "known",
+      "cause": "Suspected, not reproduced: the spec aimed its drop 6 px inside the list's top row, read before the menu settled; above the list's top edge less 4 px the drag goes to the pins bar and the menu closes, leaving the list empty. The spec now reads the row once settled.",
+      "seen": ["#213 run 39008102475 job 117324613683 (macOS)"]
+    },
+    {
+      "id": "ui-preferences-murmur-cancel",
+      "jobs": ["^Test \\((Linux|macOS|Windows)\\)$"],
+      "test": "src/specs/preferences.spec.tsx > Preferences Addons > when murmur is not installed > stops an install on Cancel",
+      "signature": "Cannot find element with locator: getByRole\\('dialog', \\{ name: 'Preferences' \\}\\)",
+      "status": "known",
+      "cause": "Unknown: Preferences hadn't opened when the test ran out of its 30 s, on Linux; about 27 s went before the Install check. Under heavy throttling the demo's wall-clock install also outruns the Cancel click, a different failure.",
+      "seen": ["#212 run 39008723765 job 117327049226 (Linux)"]
+    },
+    {
+      "id": "ui-companions-grid-undock",
+      "jobs": ["^Test \\((Linux|macOS|Windows)\\)$"],
+      "test": "src/specs/companions.spec.tsx > Undocking an item into a window of its own > when dragged onto the Grid's free space > opens a window there",
+      "signature": "(AssertionError|VitestBrowserElementError)",
+      "status": "known",
+      "cause": "Unresolved (FLAKY_RAPORT_POST_FIX.md P2): the 12-move drag reordered the taskbar instead of undocking. Failure-only diagnostics now record the gesture. It passed in every failed or cancelled Windows and macOS Test job of the 79 Quality runs after #184, to 2026-10-17.",
+      "seen": [
+        "#184 run 38808698594 attempt 3 job 116697521292 (Windows)",
+        "2676eabb job 116832231400 (macOS)"
+      ]
+    },
+    {
+      "id": "e2e-codex-windows-folder-trust",
+      "jobs": ["^Codex \\(Windows\\)$"],
+      "test": "src/e2e/controls.e2e.ts > Codex, its folder untrusted > never rings an agent at its folder-trust question",
+      "signature": "Timed out after \\d+ ms",
+      "status": "fixed",
+      "cause": "FLAKY_RAPORT_POST_FIX.md P1: an unknown trust lookup was cached and never retried. #184 retries it and ends the helper's process tree. It passed in every Codex (Windows) job of the 49 E2E runs after #184, to 2026-10-17.",
+      "seen": ["#184 run 38808698573 attempt 1 job 116676274507"]
+    },
+    {
+      "id": "e2e-mixed-windows-replacement",
+      "jobs": ["^Mixed \\(Windows\\)$"],
+      "test": "src/e2e/lifecycle.mixed.e2e.ts > Claude Code, Codex, Antigravity > makes Antigravity's messages gone when Claude Code starts in its terminal",
+      "signature": "Timed out after \\d+ ms",
+      "status": "fixed",
+      "cause": "FLAKY_RAPORT_POST_FIX.md P3: a reused Windows PID kept a stale binding. #184 tells a reused PID by its process start. No Mixed (Windows) job failed in the 49 E2E runs after #184, to 2026-10-17.",
+      "seen": ["#184 run 38808698573 attempt 13 job 116775134648"]
+    },
+    {
+      "id": "e2e-codex-quirks-stopped-thread",
+      "jobs": ["^Codex \\(Windows quirks\\)$"],
+      "test": "src/e2e/messaging.e2e.ts > Codex > drops a stopped thread's waiting message",
+      "signature": "Timed out after \\d+ ms waiting for fox to show Moth is not to be told",
+      "status": "known",
+      "cause": "Unknown: the stopped thread's notice never showed in fox's screen within 30 s.",
+      "seen": ["#218 run 39027513571 job 117381524135"]
+    },
+    {
+      "id": "e2e-antigravity-macos-lead-tool-call",
+      "jobs": ["^Antigravity \\(macOS\\)$"],
+      "test": "src/e2e/lead.e2e.ts > Antigravity > delivers its lead's message at the next tool call",
+      "signature": "The harness refused a tool call the fake model made",
+      "status": "known",
+      "cause": "Unknown: Antigravity refused the fake model's call to mcp_novadeck_novadeck_agents.",
+      "seen": ["#219 run 39022577489 job 117368580212"]
+    },
+    {
+      "id": "e2e-claude-windows-interrupted-draft",
+      "jobs": ["^Claude Code \\(Windows\\)$"],
+      "test": "src/e2e/chat.e2e.ts > Claude Code > leaves the box as it was before the interrupted prompt",
+      "signature": "The agent's input box holds text already: a draft",
+      "status": "known",
+      "cause": "Unknown: the next prompt found the interrupted prompt's text still in Claude Code's box.",
+      "seen": [
+        "#220 run 39021266209 job 117363804564",
+        "#220 run 39029735013 job 117387752693 (as e2e-claude-windows-interrupt-draft)"
+      ]
+    },
+    {
+      "id": "e2e-claude-windows-interrupt-draft",
+      "jobs": ["^Claude Code \\(Windows\\)$"],
+      "test": "src/e2e/interrupt.e2e.ts > Claude Code > presses one Escape for a double Stop",
+      "signature": "The agent's input box holds text already: a draft",
+      "status": "known",
+      "cause": "Unknown: as e2e-claude-windows-interrupted-draft, the next prompt found text still in Claude Code's box after an interruption, on Windows.",
+      "seen": ["#220 run 39029735013 job 117387752693"]
+    },
+    {
+      "id": "e2e-claude-macos-continuation-stop",
+      "jobs": ["^Claude Code \\(macOS\\)$"],
+      "test": "src/e2e/messaging.e2e.ts > Claude Code > ends a continuation whose own Stop hook's report never came",
+      "signature": "moth can't reach working: timed out after \\d+ ms\\. moth: ready → drafting → unbound",
+      "status": "known",
+      "cause": "Unknown: moth went from drafting to unbound instead of working, on a pull request that touched no runner code.",
+      "seen": ["#219 run 39031180382 job 117391849812"]
+    },
+    {
+      "id": "release-quality-wait-window",
+      "jobs": ["^(Linux|macOS|Windows)$"],
+      "signature": "##\\[error\\]Quality checks did not complete within the wait window",
+      "status": "known",
+      "cause": "Not a test: packaging waits about 27 minutes for the pull request's Quality checks, which stayed queued while CI was busy.",
+      "seen": ["#223 run 39028273458 (Linux, macOS, Windows)"]
+    }
+  ]
+}

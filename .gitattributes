@@ -6,3 +6,5 @@ application/ui/src/backend/demo/showcase/plans/*.md text eol=lf
 engines/whisper/patches/*.patch text eol=lf
 # The same for llama.cpp's.
 engines/murmur/patches/*.patch text eol=lf
+# The known-flake register's fixtures are CI logs its matcher reads line by line.
+scripts/flakes/fixtures/*.txt text eol=lf

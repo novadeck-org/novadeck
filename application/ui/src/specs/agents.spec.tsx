@@ -739,8 +739,12 @@ describe("A pinned project", () => {
       await openWorkspace("/?demo=agents")
       await skipWelcome()
       await workspaceSwitcher().click()
+      await expect.poll(() => switcherOrder()[0]).toBeTruthy()
       const first = switcherOrder()[0]!
-      const top = switcherRow(first).element().getBoundingClientRect()
+      // Where the list sits once the menu has opened in full: a point aimed at its top row
+      // from before that lies above the list, which counts as out of it and hands the drag
+      // to the bar.
+      const top = await settled(() => switcherRow(first).element().getBoundingClientRect())
       await dragOut("docs-site", { x: top.left + 60, y: top.top + 6 })
 
       await expect.poll(() => switcherOrder()[0]).toBe("docs-site")

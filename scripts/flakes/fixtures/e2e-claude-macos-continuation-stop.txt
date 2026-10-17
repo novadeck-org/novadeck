@@ -1,0 +1,105 @@
+2026-10-17T12:33:44.8493150Z [31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-17T12:33:44.8493810Z 
+2026-10-17T12:33:44.8495720Z [41m[1m FAIL [22m[49m src/e2e/messaging.e2e.ts[2m > [22mClaude Code[2m > [22mends a continuation whose own Stop hook's report never came, as its records tell
+2026-10-17T12:33:44.8501480Z [31m[1mError[22m: moth can't reach working: timed out after 30000 ms. moth: ready → drafting → unbound. Its agent: no agent. Its screen:
+2026-10-17T12:33:44.8502240Z The default interactive shell is now zsh.
+2026-10-17T12:33:44.8502670Z To update your account to use zsh, please run `chsh -s /bin/zsh`.
+2026-10-17T12:33:44.8503320Z For more details, please visit https://support.apple.com/kb/HT208050.
+2026-10-17T12:33:44.8504020Z bash: child setpgid (31148 to 31148): Operation not permitted
+2026-10-17T12:33:44.8504390Z bash-3.2$ 1;2cHold then stop
+2026-10-17T12:33:44.8504750Z bash: 1: command not found
+2026-10-17T12:33:44.8505040Z bash: 2cHold: command not found
+2026-10-17T12:33:44.8505310Z bash-3.2$
+2026-10-17T12:33:44.8505610Z No model calls yet.[39m
+2026-10-17T12:33:44.8506270Z [36m [2m❯[22m withScreen src/e2e/deck.ts:[2m375:10[22m[39m
+2026-10-17T12:33:44.8667980Z     [90m373|[39m       calls = `\nThe fake model's latest calls: ${unread(cause)}`
+2026-10-17T12:33:44.8669010Z     [90m374|[39m     }
+2026-10-17T12:33:44.8669740Z     [90m375|[39m   return new Error(`${message}${doing}. Its screen:\n${shown}${calls}`…
+2026-10-17T12:33:44.8670400Z     [90m   |[39m          [31m^[39m
+2026-10-17T12:33:44.8670830Z     [90m376|[39m }
+2026-10-17T12:33:44.8671220Z     [90m377|[39m
+2026-10-17T12:33:44.8671800Z [90m [2m❯[22m src/e2e/deck.ts:[2m787:17[22m[39m
+2026-10-17T12:33:44.8672470Z [90m [2m❯[22m src/e2e/messaging.e2e.ts:[2m311:9[22m[39m
+2026-10-17T12:33:44.8672890Z 
+2026-10-17T12:33:44.8686520Z [31m[1mCaused by: Error[22m: moth can't reach working: timed out after 30000 ms. moth: ready → drafting → unbound[39m
+2026-10-17T12:33:44.8688550Z [36m [2m❯[22m account src/e2e/history.ts:[2m133:9[22m[39m
+2026-10-17T12:33:44.8692480Z [90m [2m❯[22m Object.fail src/e2e/history.ts:[2m158:20[22m[39m
+2026-10-17T12:33:44.8693980Z [90m [2m❯[22m Timeout.<anonymous> src/e2e/history.ts:[2m161:47[22m[39m
+2026-10-17T12:33:44.8694880Z 
+2026-10-17T12:33:44.8695100Z 
+2026-10-17T12:33:44.8695750Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-10-17T12:33:44.8712170Z [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m15 passed[39m[22m[2m | [22m[33m4 skipped[39m[90m (20)[39m
+2026-10-17T12:33:44.8713480Z 
+2026-10-17T12:33:44.8714720Z [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m117 passed[39m[22m[2m | [22m[33m250 skipped[39m[90m (368)[39m
+2026-10-17T12:33:44.8716470Z [2m   Start at [22m 12:19:44
+2026-10-17T12:33:44.8726270Z [2m   Duration [22m 839.97s[2m (tests 99%, import 1%)[22m
+2026-10-17T12:33:44.8739240Z 
+2026-10-17T12:33:44.8759460Z 
+2026-10-17T12:33:44.8911080Z ##[error]Error: moth can't reach working: timed out after 30000 ms. moth: ready → drafting → unbound. Its agent: no agent. Its screen:
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s /bin/zsh`.
+For more details, please visit https://support.apple.com/kb/HT208050.
+bash: child setpgid (31148 to 31148): Operation not permitted
+bash-3.2$ 1;2cHold then stop
+bash: 1: command not found
+bash: 2cHold: command not found
+bash-3.2$
+No model calls yet.
+ ❯ withScreen src/e2e/deck.ts:375:10
+ ❯ src/e2e/deck.ts:787:17
+ ❯ src/e2e/messaging.e2e.ts:311:9
+
+Caused by: Caused by: Error: moth can't reach working: timed out after 30000 ms. moth: ready → drafting → unbound
+ ❯ account src/e2e/history.ts:133:9
+ ❯ Object.fail src/e2e/history.ts:158:20
+ ❯ Timeout.<anonymous> src/e2e/history.ts:161:47
+
+
+2026-10-17T12:33:45.0973940Z /Users/runner/work/novadeck/novadeck/application/runner:
+2026-10-17T12:33:45.1002790Z [ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL] @novadeck/runner@0.0.0 test:e2e: `vitest run --config vitest.e2e.config.ts`
+2026-10-17T12:33:45.1029570Z Exit status 1
+2026-10-17T12:33:45.1636390Z ##[error]Process completed with exit code 1.
+2026-10-17T12:33:45.1886000Z ##[group]Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+2026-10-17T12:33:45.1886370Z with:
+2026-10-17T12:33:45.1886680Z   name: e2e-traces-Claude Code-macOS
+2026-10-17T12:33:45.1887070Z   path: /Users/runner/work/novadeck/novadeck/e2e-traces
+2026-10-17T12:33:45.1887580Z   if-no-files-found: ignore
+2026-10-17T12:33:45.1887870Z   retention-days: 7
+2026-10-17T12:33:45.1897480Z   compression-level: 6
+2026-10-17T12:33:45.1897730Z   overwrite: false
+2026-10-17T12:33:45.1897950Z   include-hidden-files: false
+2026-10-17T12:33:45.1898190Z   archive: true
+2026-10-17T12:33:45.1898370Z env:
+2026-10-17T12:33:45.1898610Z   NOVADECK_E2E_CACHE: /Users/runner/work/novadeck/novadeck/.e2e-cache
+2026-10-17T12:33:45.1899110Z   NOVADECK_E2E_TRACES: /Users/runner/work/novadeck/novadeck/e2e-traces
+2026-10-17T12:33:45.1899430Z   NOVADECK_E2E_AGENTS: claude
+2026-10-17T12:33:45.1899640Z   NOVADECK_E2E_HARNESS: pinned
+2026-10-17T12:33:45.1899900Z   PNPM_HOME: /Users/runner/setup-pnpm
+2026-10-17T12:33:45.1900970Z   PNPM_CONFIG_GLOBAL_SHIMS: {"node":false}
+2026-10-17T12:33:45.1901260Z ##[endgroup]
+2026-10-17T12:33:45.7451060Z With the provided path, there will be 2 files uploaded
+2026-10-17T12:33:45.7459470Z Artifact name is valid!
+2026-10-17T12:33:45.7459890Z Root directory input is valid!
+2026-10-17T12:33:45.9735430Z Uploading artifact: e2e-traces-Claude Code-macOS.zip
+2026-10-17T12:33:45.9764170Z Beginning upload of artifact content to blob storage
+2026-10-17T12:33:46.0562980Z Uploaded bytes 1999
+2026-10-17T12:33:46.0749280Z Finished uploading artifact content to blob storage!
+2026-10-17T12:33:46.0750790Z SHA256 digest of uploaded artifact is 29d4fc944bcf366490ca0d69209758caa129f6b79214366a98e4bf392fcedfbc
+2026-10-17T12:33:46.0752320Z Finalizing artifact upload
+2026-10-17T12:33:46.3876130Z Artifact e2e-traces-Claude Code-macOS successfully finalized. Artifact ID 12100733673
+2026-10-17T12:33:46.3977590Z Artifact e2e-traces-Claude Code-macOS has been successfully uploaded! Final size is 1999 bytes. Artifact ID is 12100733673
+2026-10-17T12:33:46.4061850Z Artifact download URL: https://github.com/novadeck-org/novadeck/actions/runs/39031180382/artifacts/12100733673
+2026-10-17T12:33:46.4251770Z Post job cleanup.
+2026-10-17T12:33:46.6195250Z ##[group]Running pnpm store prune...
+2026-10-17T12:33:47.2950000Z Removed stale project registry entry: /Users/runner/setup-pnpm/global/v11/622-1a14929305b-ea3349020f49e12d
+2026-10-17T12:33:47.2958220Z Checking 2 registered project(s) for global virtual store usage
+2026-10-17T12:33:47.4452260Z No unused packages found in global virtual store
+2026-10-17T12:33:47.4508120Z Removed all cached metadata files
+2026-10-17T12:33:48.1351910Z Removed 747 files (61.5 MB)
+2026-10-17T12:33:48.3653910Z Removed 6 packages
+2026-10-17T12:33:48.4347920Z ##[endgroup]
+2026-10-17T12:33:48.4358320Z Cache hit occurred on the primary key pnpm-cache-macOS-arm64-123baa0095a067166ecdebc24f943d75fd4b1560104291331fed19f26cbee0f8-1006bef41fc2f7fd0292cedf6ef6a9b0c082fca8c54cde87d9997fd66a5ff760-8744e493543723c7c54bf305f860d04e134ed3e5f8236d6d667bd00c0adefb7e, not saving cache.
+2026-10-17T12:33:48.4395710Z (node:59146) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+2026-10-17T12:33:48.4397880Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-17T12:33:48.4784400Z Post job cleanup.
+2026-10-17T12:33:48.7737500Z [command]/opt/homebrew/bin/git version

@@ -1,0 +1,104 @@
+2026-10-17T06:12:52.8462100Z 
+2026-10-17T06:12:52.8462810Z [90mstderr[2m | src/backend/runner/surface.test.ts[2m > [22m[2mrunner terminal surface[2m > [22m[2mwhen Ctrl+V is pressed on Linux or Windows[2m > [22m[2msends Ctrl+V, then what was typed, for a clipboard of text
+2026-10-17T06:12:52.8586880Z ##[error]command (/Users/runner/work/novadeck/novadeck/application/ui) /Users/runner/setup-pnpm/pnpm run test exited (1)
+2026-10-17T06:12:52.8640710Z @novadeck/ui#test:  ERROR  command (/Users/runner/work/novadeck/novadeck/application/ui) /Users/runner/setup-pnpm/pnpm run test exited (1)
+2026-10-17T06:12:52.8641820Z [22m[39mAn update to RunnerTerminal inside a test was not wrapped in act(...).
+2026-10-17T06:12:52.8642210Z 
+2026-10-17T06:12:52.8642460Z When testing, code that causes React state updates should be wrapped into act(...):
+2026-10-17T06:12:52.8647590Z 
+2026-10-17T06:12:52.8647670Z act(() => {
+2026-10-17T06:12:52.8648100Z   /* fire events that update state */
+2026-10-17T06:12:52.8648730Z });
+2026-10-17T06:12:52.8648950Z /* assert on the output */
+2026-10-17T06:12:52.8649200Z 
+2026-10-17T06:12:52.8649740Z This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+2026-10-17T06:12:52.8650240Z 
+2026-10-17T06:12:52.8651080Z [90mstderr[2m | src/backend/runner/surface.test.ts[2m > [22m[2mrunner terminal surface[2m > [22m[2mwhen Ctrl+V is pressed on Linux or Windows[2m > [22m[2mqueues mouse reports and pasted text behind it too
+2026-10-17T06:12:52.8652220Z [22m[39mAn update to RunnerTerminal inside a test was not wrapped in act(...).
+2026-10-17T06:12:52.8652540Z 
+2026-10-17T06:12:52.8652720Z When testing, code that causes React state updates should be wrapped into act(...):
+2026-10-17T06:12:52.8653150Z 
+2026-10-17T06:12:52.8653350Z act(() => {
+2026-10-17T06:12:52.8654080Z   /* fire events that update state */
+2026-10-17T06:12:52.8654860Z });
+2026-10-17T06:12:52.8655190Z /* assert on the output */
+2026-10-17T06:12:52.8655470Z 
+2026-10-17T06:12:52.8656000Z This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+2026-10-17T06:12:52.8656510Z 
+2026-10-17T06:12:52.8657370Z [90mstderr[2m | src/backend/runner/surface.test.ts[2m > [22m[2mrunner terminal surface[2m > [22m[2mwhen Ctrl+V is pressed on Linux or Windows[2m > [22m[2mqueues mouse reports and pasted text behind it too
+2026-10-17T06:12:52.8658290Z [22m[39mAn update to RunnerTerminal inside a test was not wrapped in act(...).
+2026-10-17T06:12:52.8658730Z 
+2026-10-17T06:12:52.8659000Z When testing, code that causes React state updates should be wrapped into act(...):
+2026-10-17T06:12:52.8659400Z 
+2026-10-17T06:12:52.8659650Z act(() => {
+2026-10-17T06:12:52.8660160Z   /* fire events that update state */
+2026-10-17T06:12:52.8660420Z });
+2026-10-17T06:12:52.8660810Z /* assert on the output */
+2026-10-17T06:12:52.8661160Z 
+2026-10-17T06:12:52.8661630Z This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+2026-10-17T06:12:52.8662180Z 
+2026-10-17T06:12:52.8662780Z [90mstderr[2m | src/backend/runner/surface.test.ts[2m > [22m[2mrunner terminal surface[2m > [22m[2mwhen Ctrl+V is pressed on Linux or Windows[2m > [22m[2msends nothing it held once the shell exited meanwhile
+2026-10-17T06:12:52.8663930Z [22m[39mAn update to RunnerTerminal inside a test was not wrapped in act(...).
+2026-10-17T06:12:52.8664320Z 
+2026-10-17T06:12:52.8664550Z When testing, code that causes React state updates should be wrapped into act(...):
+2026-10-17T06:12:52.8664930Z 
+2026-10-17T06:12:52.8665140Z act(() => {
+2026-10-17T06:12:52.8665470Z   /* fire events that update state */
+2026-10-17T06:12:52.8665800Z });
+2026-10-17T06:12:52.9954950Z [31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-17T06:12:52.9954960Z 
+2026-10-17T06:12:52.9955570Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/agents.spec.tsx[2m > [22mA pinned project[2m > [22mdragged from the switcher menu[2m > [22mstill reorders the list when dragged to its top, with the bar behind it
+2026-10-17T06:12:52.9955810Z [31m[1mAssertionError[22m: expected undefined to be 'docs-site' // Object.is equality[39m
+2026-10-17T06:12:52.9955820Z 
+2026-10-17T06:12:52.9955880Z Failure screenshot:
+2026-10-17T06:12:52.9956540Z   - [2m.vitest/attachments/failure-screenshots/agents.spec.tsx/A-pinned-project---dragged-from-the-switcher-menu---still-reorders-the-list-when-dragged-to-its-top--with-the-bar-behind-it.png[22m
+2026-10-17T06:12:52.9956550Z 
+2026-10-17T06:12:52.9956630Z [32m- Expected:[39m
+2026-10-17T06:12:52.9956680Z "docs-site"
+2026-10-17T06:12:52.9956680Z 
+2026-10-17T06:12:52.9956770Z [31m+ Received:[39m
+2026-10-17T06:12:52.9956820Z undefined
+2026-10-17T06:12:52.9956820Z 
+2026-10-17T06:12:52.9956970Z [36m [2m❯[22m src/specs/agents.spec.tsx:[2m746:51[22m[39m
+2026-10-17T06:12:52.9957170Z     [90m744|[39m       await dragOut("docs-site", { x: top.left + 60, y: top.top + 6 })
+2026-10-17T06:12:52.9957250Z     [90m745|[39m
+2026-10-17T06:12:52.9957440Z     [90m746|[39m       await expect.poll(() => switcherOrder()[0]).toBe("docs-site")
+2026-10-17T06:12:52.9957580Z     [90m   |[39m                                                   [31m^[39m
+2026-10-17T06:12:52.9957730Z     [90m747|[39m       await expectStaysAbsent(pin("docs-site"))
+2026-10-17T06:12:52.9957810Z     [90m748|[39m     })
+2026-10-17T06:12:52.9957820Z 
+2026-10-17T06:12:52.9957980Z [31m[1mCaused by: Error[22m: Matcher did not succeed in time.[39m
+2026-10-17T06:12:52.9958120Z [36m [2m❯[22m src/specs/agents.spec.tsx:[2m746:7[22m[39m
+2026-10-17T06:12:52.9958120Z 
+2026-10-17T06:12:52.9958260Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-10-17T06:12:52.9958260Z 
+2026-10-17T06:12:52.9958270Z 
+2026-10-17T06:12:52.9958510Z [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m235 passed[39m[22m[90m (236)[39m
+2026-10-17T06:12:52.9958820Z [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m3133 passed[39m[22m[2m | [22m[33m8 skipped[39m[90m (3142)[39m
+2026-10-17T06:12:52.9958970Z [2m   Start at [22m 06:04:51
+2026-10-17T06:12:52.9959170Z [2m   Duration [22m 480.01s[2m (worker 89%, tests 9%, environment 1%)[22m
+2026-10-17T06:12:52.9959170Z 
+2026-10-17T06:12:52.9959170Z 
+2026-10-17T06:12:52.9971740Z ##[error]AssertionError: expected undefined to be 'docs-site' // Object.is equality
+
+- Expected:
+"docs-site"
+
++ Received:
+undefined
+
+ ❯ src/specs/agents.spec.tsx:746:51
+
+Caused by: Caused by: Error: Matcher did not succeed in time.
+ ❯ src/specs/agents.spec.tsx:746:7
+
+
+2026-10-17T06:12:52.9972380Z [ELIFECYCLE] Test failed. See above for more details.
+2026-10-17T06:12:52.9972390Z 
+2026-10-17T06:12:52.9972460Z  Tasks:    16 successful, 17 total
+2026-10-17T06:12:52.9972520Z Cached:    0 cached, 17 total
+2026-10-17T06:12:52.9972580Z   Time:    13m49.34s 
+2026-10-17T06:12:52.9972640Z Failed:    @novadeck/ui#test
+2026-10-17T06:12:52.9972650Z 
+2026-10-17T06:12:52.9972740Z  ERROR  run failed: command  exited (1)
+2026-10-17T06:12:52.9976780Z ##[error]Process completed with exit code 1.

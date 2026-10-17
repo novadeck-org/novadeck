@@ -1,0 +1,83 @@
+2026-10-17T12:12:26.3181836Z [31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-17T12:12:26.3182358Z 
+2026-10-17T12:12:26.3187118Z [41m[1m FAIL [22m[49m src/e2e/interrupt.e2e.ts[2m > [22mClaude Code[2m > [22mpresses one Escape for a double Stop, leaving an empty prompt with no picker, and takes the next prompt
+2026-10-17T12:12:26.3192924Z [31m[1mDomainError[22m: The agent's input box holds text already: a draft the prompt would merge into.[39m
+2026-10-17T12:12:26.3194301Z [36m [2m❯[22m Prompts.emptied src/terminals/prompts.ts:[2m291:15[22m[39m
+2026-10-17T12:12:26.3286632Z     [90m289|[39m       if (box && box.mode === "prompt" && isEmpty(box)) return now
+2026-10-17T12:12:26.3289272Z     [90m290|[39m       if (Date.now() >= until || !holding())
+2026-10-17T12:12:26.3290048Z     [90m291|[39m         throw new DomainError(
+2026-10-17T12:12:26.3290733Z     [90m   |[39m               [31m^[39m
+2026-10-17T12:12:26.3291890Z     [90m292|[39m           "CONFLICT",
+2026-10-17T12:12:26.3292653Z     [90m293|[39m           !box
+2026-10-17T12:12:26.3293632Z [90m [2m❯[22m Prompts.prompting.emptied src/e2e/trace.ts:[2m631:14[22m[39m
+2026-10-17T12:12:26.3295048Z [90m [2m❯[22m Prompts.send src/terminals/prompts.ts:[2m188:22[22m[39m
+2026-10-17T12:12:26.3297129Z [90m [2m❯[22m Prompts.give src/terminals/prompts.ts:[2m143:9[22m[39m
+2026-10-17T12:12:26.3298175Z [90m [2m❯[22m InputQueue.enter src/terminals/input-queue.ts:[2m84:14[22m[39m
+2026-10-17T12:12:26.3299171Z 
+2026-10-17T12:12:26.3299508Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-10-17T12:12:26.3299900Z 
+2026-10-17T12:12:26.3299905Z 
+2026-10-17T12:12:26.3310250Z [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m15 passed[39m[22m[2m | [22m[33m4 skipped[39m[90m (20)[39m
+2026-10-17T12:12:26.3312309Z [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m116 passed[39m[22m[2m | [22m[33m251 skipped[39m[90m (368)[39m
+2026-10-17T12:12:26.3313786Z [2m   Start at [22m 11:48:42
+2026-10-17T12:12:26.3319595Z [2m   Duration [22m 1424.24s[2m (tests 99%, import 1%)[22m
+2026-10-17T12:12:26.3339420Z 
+2026-10-17T12:12:26.3383643Z 
+2026-10-17T12:12:26.3426731Z ##[error]DomainError: The agent's input box holds text already: a draft the prompt would merge into.
+ ❯ Prompts.emptied src/terminals/prompts.ts:291:15
+ ❯ Prompts.prompting.emptied src/e2e/trace.ts:631:14
+ ❯ Prompts.send src/terminals/prompts.ts:188:22
+ ❯ Prompts.give src/terminals/prompts.ts:143:9
+ ❯ InputQueue.enter src/terminals/input-queue.ts:84:14
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'CONFLICT', data: undefined, reason: 'draft' }
+
+2026-10-17T12:12:26.5064316Z D:\a\novadeck\novadeck\application\runner:
+2026-10-17T12:12:26.5065470Z [ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL] @novadeck/runner@0.0.0 test:e2e: `vitest run --config vitest.e2e.config.ts`
+2026-10-17T12:12:26.5066785Z Exit status 1
+2026-10-17T12:12:26.5319071Z ##[error]Process completed with exit code 1.
+2026-10-17T12:12:26.5557605Z ##[group]Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+2026-10-17T12:12:26.5558159Z with:
+2026-10-17T12:12:26.5558485Z   name: e2e-traces-Claude Code-Windows
+2026-10-17T12:12:26.5558841Z   path: D:\a\novadeck\novadeck/e2e-traces
+2026-10-17T12:12:26.5559215Z   if-no-files-found: ignore
+2026-10-17T12:12:26.5559559Z   retention-days: 7
+2026-10-17T12:12:26.5559872Z   compression-level: 6
+2026-10-17T12:12:26.5560174Z   overwrite: false
+2026-10-17T12:12:26.5560473Z   include-hidden-files: false
+2026-10-17T12:12:26.5560766Z   archive: true
+2026-10-17T12:12:26.5561045Z env:
+2026-10-17T12:12:26.5561336Z   NOVADECK_E2E_CACHE: D:\a\novadeck\novadeck/.e2e-cache
+2026-10-17T12:12:26.5561797Z   NOVADECK_E2E_TRACES: D:\a\novadeck\novadeck/e2e-traces
+2026-10-17T12:12:26.5562188Z   NOVADECK_E2E_AGENTS: claude
+2026-10-17T12:12:26.5562576Z   NOVADECK_E2E_HARNESS: pinned
+2026-10-17T12:12:26.5563081Z   PNPM_HOME: C:\Users\runneradmin\setup-pnpm
+2026-10-17T12:12:26.5563591Z   PNPM_CONFIG_GLOBAL_SHIMS: {"node":false}
+2026-10-17T12:12:26.5563919Z ##[endgroup]
+2026-10-17T12:12:26.7518959Z With the provided path, there will be 2 files uploaded
+2026-10-17T12:12:26.7524654Z Artifact name is valid!
+2026-10-17T12:12:26.7526228Z Root directory input is valid!
+2026-10-17T12:12:26.9441524Z Uploading artifact: e2e-traces-Claude Code-Windows.zip
+2026-10-17T12:12:26.9494139Z Beginning upload of artifact content to blob storage
+2026-10-17T12:12:27.0482650Z Uploaded bytes 28882
+2026-10-17T12:12:27.0674165Z Finished uploading artifact content to blob storage!
+2026-10-17T12:12:27.0675500Z SHA256 digest of uploaded artifact is bccafa329831feff29a04bea1196be98a57805678ee3b22ffcb2694308aaaca8
+2026-10-17T12:12:27.0676498Z Finalizing artifact upload
+2026-10-17T12:12:27.3128571Z Artifact e2e-traces-Claude Code-Windows successfully finalized. Artifact ID 12100761262
+2026-10-17T12:12:27.3130121Z Artifact e2e-traces-Claude Code-Windows has been successfully uploaded! Final size is 28882 bytes. Artifact ID is 12100761262
+2026-10-17T12:12:27.3139153Z Artifact download URL: https://github.com/novadeck-org/novadeck/actions/runs/39029735013/artifacts/12100761262
+2026-10-17T12:12:27.3553054Z Post job cleanup.
+2026-10-17T12:12:27.5155205Z ##[group]Running pnpm store prune...
+2026-10-17T12:12:28.2120418Z Removed all cached metadata files
+2026-10-17T12:12:29.6893238Z Removed 752 files (61.8 MB)
+2026-10-17T12:12:29.8001638Z Removed 6 packages
+2026-10-17T12:12:29.8813637Z ##[endgroup]
+2026-10-17T12:12:29.8847839Z (node:5476) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+2026-10-17T12:12:29.8849523Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-17T12:12:29.9950442Z [command]"C:\Program Files\Git\usr\bin\tar.exe" --posix -cf cache.tzst --exclude cache.tzst -P -C D:/a/novadeck/novadeck --files-from manifest.txt --force-local --use-compress-program "zstd -T0"
+2026-10-17T12:12:36.7822215Z ##[warning]Failed to save: Unable to reserve cache with key pnpm-cache-Windows-x64-123baa0095a067166ecdebc24f943d75fd4b1560104291331fed19f26cbee0f8-1006bef41fc2f7fd0292cedf6ef6a9b0c082fca8c54cde87d9997fd66a5ff760-eecb889a6572973a56844910e469637f1e2ac05c23a982707b047e373a1789bb, another job may be creating this cache.
+2026-10-17T12:12:36.8229827Z Post job cleanup.
+2026-10-17T12:12:37.0455457Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-17T12:12:37.0847897Z git version 2.56.0.windows.2
+2026-10-17T12:12:37.0924163Z Temporarily overriding HOME='D:\a\_temp\381085b0-5da9-4416-a9d9-17d98060ec39' before making global git config changes

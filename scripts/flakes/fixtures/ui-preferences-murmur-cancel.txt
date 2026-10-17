@@ -1,0 +1,144 @@
+2026-10-17T06:25:16.5593758Z        [33m[2m✓[22m[39m changes every colour at once instead of fading[33m 877[2mms[22m[39m
+2026-10-17T06:25:16.5594310Z      [32m✓[39m when another window chooses a mode [2m(1)[22m
+2026-10-17T06:25:16.5614423Z ##[error]command (/home/runner/work/novadeck/novadeck/application/ui) /home/runner/setup-pnpm/pnpm run test exited (1)
+2026-10-17T06:25:16.5623278Z @novadeck/ui#test:  ERROR  command (/home/runner/work/novadeck/novadeck/application/ui) /home/runner/setup-pnpm/pnpm run test exited (1)
+2026-10-17T06:25:16.5623976Z  ERROR  run failed: command  exited (1)
+2026-10-17T06:25:16.5624583Z        [33m[2m✓[22m[39m changes every colour at once instead of fading[33m 1043[2mms[22m[39m
+2026-10-17T06:25:16.5625742Z [90mstderr[2m | src/backend/runner/surface.test.ts[2m > [22m[2mtyping into a terminal's screen[2m > [22m[2mputs a space between the text and a word the cursor follows
+2026-10-17T06:25:16.5626639Z [22m[39mAn update to RunnerTerminal inside a test was not wrapped in act(...).
+2026-10-17T06:25:16.5626964Z 
+2026-10-17T06:25:16.5627203Z When testing, code that causes React state updates should be wrapped into act(...):
+2026-10-17T06:25:16.5627533Z 
+2026-10-17T06:25:16.5627622Z act(() => {
+2026-10-17T06:25:16.5627842Z   /* fire events that update state */
+2026-10-17T06:25:16.5628118Z });
+2026-10-17T06:25:16.5628319Z /* assert on the output */
+2026-10-17T06:25:16.5628625Z 
+2026-10-17T06:25:16.5629068Z This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+2026-10-17T06:25:16.5629579Z 
+2026-10-17T06:25:16.5630208Z [90mstderr[2m | src/backend/runner/surface.test.ts[2m > [22m[2mtyping into a terminal's screen[2m > [22m[2mputs a space between the text and a word the cursor follows
+2026-10-17T06:25:16.5631076Z [22m[39mAn update to RunnerTerminal inside a test was not wrapped in act(...).
+2026-10-17T06:25:16.5631392Z 
+2026-10-17T06:25:16.5631621Z When testing, code that causes React state updates should be wrapped into act(...):
+2026-10-17T06:25:16.5632055Z 
+2026-10-17T06:25:16.5632165Z act(() => {
+2026-10-17T06:25:16.5632748Z   /* fire events that update state */
+2026-10-17T06:25:16.5633040Z });
+2026-10-17T06:25:16.5633249Z /* assert on the output */
+2026-10-17T06:25:16.5633411Z 
+2026-10-17T06:25:16.5633835Z This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+2026-10-17T06:25:16.5634536Z 
+2026-10-17T06:25:16.5635160Z [90mstderr[2m | src/backend/runner/surface.test.ts[2m > [22m[2mtyping into a terminal's screen[2m > [22m[2mbrackets the paste once the program asked for that
+2026-10-17T06:25:16.5636175Z [22m[39mAn update to RunnerTerminal inside a test was not wrapped in act(...).
+2026-10-17T06:25:16.5636651Z 
+2026-10-17T06:25:16.5636896Z When testing, code that causes React state updates should be wrapped into act(...):
+2026-10-17T06:25:16.5637227Z 
+2026-10-17T06:25:16.5637319Z act(() => {
+2026-10-17T06:25:16.5637539Z   /* fire events that update state */
+2026-10-17T06:25:16.5637807Z });
+2026-10-17T06:25:16.5638014Z /* assert on the output */
+2026-10-17T06:25:16.5638172Z 
+2026-10-17T06:25:16.5638585Z This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+2026-10-17T06:25:16.5639078Z 
+2026-10-17T06:25:16.5639800Z [90mstderr[2m | src/backend/runner/surface.test.ts[2m > [22m[2mtyping into a terminal's screen[2m > [22m[2mbrackets the paste once the program asked for that
+2026-10-17T06:25:16.5640641Z [22m[39mAn update to RunnerTerminal inside a test was not wrapped in act(...).
+2026-10-17T06:25:16.5640955Z 
+2026-10-17T06:25:16.5641183Z When testing, code that causes React state updates should be wrapped into act(...):
+2026-10-17T06:25:16.5641517Z 
+2026-10-17T06:25:16.6384156Z [31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-17T06:25:16.6384171Z 
+2026-10-17T06:25:16.6384901Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/preferences.spec.tsx[2m > [22mPreferences Addons[2m > [22mwhen murmur is not installed[2m > [22mstops an install on Cancel
+2026-10-17T06:25:16.6385763Z [31m[1mVitestBrowserElementError[22m: Cannot find element with locator: getByRole('dialog', { name: 'Preferences' }).getByRole('tabpanel', { name: 'Addons' }).getByRole('region', { name: 'Murmur' }).getByRole('button', { name: 'Install' })
+2026-10-17T06:25:16.6385782Z 
+2026-10-17T06:25:16.6385868Z ARIA tree:
+2026-10-17T06:25:16.6385957Z - status
+2026-10-17T06:25:16.6386062Z - dialog "Preferences":
+2026-10-17T06:25:16.6386178Z   - heading "Preferences" [level=2]
+2026-10-17T06:25:16.6386289Z   - button "Close preferences"
+2026-10-17T06:25:16.6386403Z   - tablist "Preference sections":
+2026-10-17T06:25:16.6386493Z     - tab "General"
+2026-10-17T06:25:16.6386594Z     - tab "Addons" [selected]
+2026-10-17T06:25:16.6386695Z     - tab "Shortcuts"
+2026-10-17T06:25:16.6386793Z   - tabpanel "Addons":
+2026-10-17T06:25:16.6386891Z     - region "Chat view":
+2026-10-17T06:25:16.6386999Z       - heading "Chat view" [level=3]
+2026-10-17T06:25:16.6387203Z       - paragraph: Show agents as a conversation instead of their terminal.
+2026-10-17T06:25:16.6387628Z       - text: Open agents in chat Every terminal running a supported agent shows its chat. Answer there, or in the terminal when the chat can't.
+2026-10-17T06:25:16.6387740Z       - switch "Open agents in chat"
+2026-10-17T06:25:16.6387841Z     - region "Voice input":
+2026-10-17T06:25:16.6387950Z       - heading "Voice input" [level=3]
+2026-10-17T06:25:16.6388283Z       - paragraph: Speak prompts into agent terminals. Speech is transcribed on this computer and never leaves it.
+2026-10-17T06:25:16.6388521Z       - text: Enabled Hold Ctrl Shift M in a terminal, or click its microphone, to speak.
+2026-10-17T06:25:16.6388626Z       - switch "Enabled" [checked]
+2026-10-17T06:25:16.6388719Z       - text: Language
+2026-10-17T06:25:16.6388831Z       - combobox "Language": Auto-detect
+2026-10-17T06:25:16.6389015Z       - text: "Checked: a test clip took 2.3 s. Uninstall Frees 602 MB."
+2026-10-17T06:25:16.6389114Z       - button "Uninstall"
+2026-10-17T06:25:16.6389207Z     - region "Murmur":
+2026-10-17T06:25:16.6389308Z       - heading "Murmur" [level=3]
+2026-10-17T06:25:16.6389528Z       - paragraph: Names your terminals from what they're doing, on this computer.
+2026-10-17T06:25:16.6389619Z       - text: Enabled
+2026-10-17T06:25:16.6389715Z       - switch "Enabled"
+2026-10-17T06:25:16.6389822Z       - text: Uninstall Frees 1.2 GB.
+2026-10-17T06:25:16.6389922Z       - button "Uninstall"
+2026-10-17T06:25:16.6390164Z       - paragraph: Murmur is installed but has not passed its check on this computer yet.
+2026-10-17T06:25:16.6390262Z       - button "Try again"
+2026-10-17T06:25:16.6390266Z 
+2026-10-17T06:25:16.6390347Z HTML:
+2026-10-17T06:25:16.6390468Z [36m<body[31m
+2026-10-17T06:25:16.6390728Z   [33mdata-inert[31m=[32m""[31m
+2026-10-17T06:25:16.6390880Z   [33mdata-scroll-lock[31m=[32m""[31m
+2026-10-17T06:25:16.6391154Z   [33mstyle[31m=[32m"overflow: hidden; pointer-events: none;"[31m
+2026-10-17T06:25:16.6391265Z [36m>[31m
+2026-10-17T06:25:16.6391363Z   [0m
+2026-10-17T06:25:16.6391451Z   
+2026-10-17T06:25:16.6397984Z 
+2026-10-17T06:25:16.6397987Z 
+2026-10-17T06:25:16.6414758Z ##[error]VitestBrowserElementError: Cannot find element with locator: getByRole('dialog', { name: 'Preferences' }).getByRole('tabpanel', { name: 'Addons' }).getByRole('region', { name: 'Murmur' }).getByRole('button', { name: 'Install' })
+
+ARIA tree:
+- status
+- dialog "Preferences":
+  - heading "Preferences" [level=2]
+  - button "Close preferences"
+  - tablist "Preference sections":
+    - tab "General"
+    - tab "Addons" [selected]
+    - tab "Shortcuts"
+  - tabpanel "Addons":
+    - region "Chat view":
+      - heading "Chat view" [level=3]
+      - paragraph: Show agents as a conversation instead of their terminal.
+      - text: Open agents in chat Every terminal running a supported agent shows its chat. Answer there, or in the terminal when the chat can't.
+      - switch "Open agents in chat"
+    - region "Voice input":
+      - heading "Voice input" [level=3]
+      - paragraph: Speak prompts into agent terminals. Speech is transcribed on this computer and never leaves it.
+      - text: Enabled Hold Ctrl Shift M in a terminal, or click its microphone, to speak.
+      - switch "Enabled" [checked]
+      - text: Language
+      - combobox "Language": Auto-detect
+      - text: "Checked: a test clip took 2.3 s. Uninstall Frees 602 MB."
+      - button "Uninstall"
+    - region "Murmur":
+      - heading "Murmur" [level=3]
+      - paragraph: Names your terminals from what they're doing, on this computer.
+      - text: Enabled
+      - switch "Enabled"
+      - text: Uninstall Frees 1.2 GB.
+      - button "Uninstall"
+      - paragraph: Murmur is installed but has not passed its check on this computer yet.
+      - button "Try again"
+
+HTML:
+<body
+  data-inert=""
+  data-scroll-lock=""
+  style="overflow: hidden; pointer-events: none;"
+>
+  
+  
+
+2026-10-17T06:25:16.6416405Z Failed:    @novadeck/ui#test
+2026-10-17T06:25:16.6416409Z 
+2026-10-17T06:25:16.6418188Z ##[error]Process completed with exit code 1.

@@ -1,0 +1,81 @@
+2026-10-17T11:14:49.3438964Z [31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-17T11:14:49.3439209Z 
+2026-10-17T11:14:49.3440994Z [41m[1m FAIL [22m[49m src/e2e/messaging.e2e.ts[2m > [22mCodex[2m > [22mdrops a stopped thread's waiting message, and refuses the sender another
+2026-10-17T11:14:49.3445644Z [31m[1mError[22m: Timed out after 30000 ms waiting for fox to show Moth is not to be told.. Its agent: idle, no request waiting. Its screen:
+2026-10-17T11:14:49.3446950Z   >_ OpenAI Codex (v0.159.3)
+2026-10-17T11:14:49.3447139Z      ~\AppData\Local\Temp\novadeck e2e-3VcKRG\project
+2026-10-17T11:14:49.3447322Z   Rough sketches welcome.
+2026-10-17T11:14:49.3447513Z › Tell moth the news
+2026-10-17T11:14:49.3447658Z • Called novadeck.send
+2026-10-17T11:14:49.3447944Z   └ Message m-e743fa6nm6 to @moth is queued: it reaches them at its turn's end or its next prompt.
+2026-10-17T11:14:49.3448254Z     End your turn rather than wait for a reply; replies arrive by themselves.
+2026-10-17T11:14:49.3448476Z     + Show details
+2026-10-17T11:14:49.3448615Z • Told moth.
+2026-10-17T11:14:49.3448742Z › Tell moth more
+2026-10-17T11:14:49.3448889Z   Worked for 1s • 11:12 AM
+2026-10-17T11:14:49.3449033Z › Ask Codex to do anything
+2026-10-17T11:14:49.3449301Z   fake-model default · ~\AppData\Local\Temp\novadeck e2e-3VcKRG\project
+2026-10-17T11:14:49.3449622Z   ? for shortcuts                                                                              ⚠ 1 warning · f2 to view
+2026-10-17T11:14:49.3449856Z Last 5 of 6 model calls:
+2026-10-17T11:14:49.3450352Z   2. (side) user "<environment_context> <current_date>2026-10-17</current_date> <timezone>Etc/UTC</timezone> </environment_context> Generate a concise, single-line task title of …"
+2026-10-17T11:14:49.3451673Z   3. user "<environment_context> <cwd>C:\\Users\\runneradmin\\AppData\\Local\\Temp\\novadeck e2e-3VcKRG\\project</cwd> <shell>powershell</shell> <current_date>2026-10-17</current…"
+2026-10-17T11:14:49.3452699Z   4. (side) user "<environment_context> <current_date>2026-10-17</current_date> <timezone>Etc/UTC</timezone> </environment_context> Generate a concise, single-line task title of …"
+2026-10-17T11:14:49.3453976Z   5. result of mcp__novadeck.send {"to":"moth","text":"The build is green."}: "Wall time: 0.0027 seconds Output: Message m-e743fa6nm6 to @moth is queued: it reaches them at its turn's end or its next prompt. End your turn rather than wait for a reply; replies arrive by themselve…"
+2026-10-17T11:14:49.3455478Z   6. (side) user "<environment_context> <current_date>2026-10-17</current_date> <timezone>Etc/UTC</timezone> </environment_context> Generate a concise, single-line task title of …"[39m
+2026-10-17T11:14:49.3456230Z [36m [2m❯[22m withScreen src/e2e/deck.ts:[2m375:10[22m[39m
+2026-10-17T11:14:49.3563117Z     [90m373|[39m       calls = `\nThe fake model's latest calls: ${unread(cause)}`
+2026-10-17T11:14:49.3563544Z     [90m374|[39m     }
+2026-10-17T11:14:49.3563960Z     [90m375|[39m   return new Error(`${message}${doing}. Its screen:\n${shown}${calls}`…
+2026-10-17T11:14:49.3564360Z     [90m   |[39m          [31m^[39m
+2026-10-17T11:14:49.3564592Z     [90m376|[39m }
+2026-10-17T11:14:49.3564794Z     [90m377|[39m
+2026-10-17T11:14:49.3565058Z [90m [2m❯[22m src/e2e/deck.ts:[2m702:15[22m[39m
+2026-10-17T11:14:49.3565440Z [90m [2m❯[22m src/e2e/messaging.e2e.ts:[2m368:7[22m[39m
+2026-10-17T11:14:49.3565649Z 
+2026-10-17T11:14:49.3568145Z [31m[1mCaused by: Error[22m: Timed out after 30000 ms waiting for fox to show Moth is not to be told.[39m
+2026-10-17T11:14:49.3568877Z [36m [2m❯[22m poll src/e2e/deck.ts:[2m480:9[22m[39m
+2026-10-17T11:14:49.3569250Z [90m [2m❯[22m src/e2e/messaging.e2e.ts:[2m368:7[22m[39m
+2026-10-17T11:14:49.3569447Z 
+2026-10-17T11:14:49.3570411Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-10-17T11:14:49.3570639Z 
+2026-10-17T11:14:49.3572757Z 
+2026-10-17T11:14:49.3576078Z [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m2 passed[39m[22m[90m (3)[39m
+2026-10-17T11:14:49.3576819Z [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m15 passed[39m[22m[2m | [22m[33m35 skipped[39m[90m (51)[39m
+2026-10-17T11:14:49.3577390Z [2m   Start at [22m 11:11:40
+2026-10-17T11:14:49.3579194Z [2m   Duration [22m 188.63s[2m (tests 99%, transform 1%)[22m
+2026-10-17T11:14:49.3588415Z 
+2026-10-17T11:14:49.3598146Z 
+2026-10-17T11:14:49.3628464Z ##[error]Error: Timed out after 30000 ms waiting for fox to show Moth is not to be told.. Its agent: idle, no request waiting. Its screen:
+  >_ OpenAI Codex (v0.159.3)
+     ~\AppData\Local\Temp\novadeck e2e-3VcKRG\project
+  Rough sketches welcome.
+› Tell moth the news
+• Called novadeck.send
+  └ Message m-e743fa6nm6 to @moth is queued: it reaches them at its turn's end or its next prompt.
+    End your turn rather than wait for a reply; replies arrive by themselves.
+    + Show details
+• Told moth.
+› Tell moth more
+  Worked for 1s • 11:12 AM
+› Ask Codex to do anything
+  fake-model default · ~\AppData\Local\Temp\novadeck e2e-3VcKRG\project
+  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view
+Last 5 of 6 model calls:
+  2. (side) user "<environment_context> <current_date>2026-10-17</current_date> <timezone>Etc/UTC</timezone> </environment_context> Generate a concise, single-line task title of …"
+  3. user "<environment_context> <cwd>C:\\Users\\runneradmin\\AppData\\Local\\Temp\\novadeck e2e-3VcKRG\\project</cwd> <shell>powershell</shell> <current_date>2026-10-17</current…"
+  4. (side) user "<environment_context> <current_date>2026-10-17</current_date> <timezone>Etc/UTC</timezone> </environment_context> Generate a concise, single-line task title of …"
+  5. result of mcp__novadeck.send {"to":"moth","text":"The build is green."}: "Wall time: 0.0027 seconds Output: Message m-e743fa6nm6 to @moth is queued: it reaches them at its turn's end or its next prompt. End your turn rather than wait for a reply; replies arrive by themselve…"
+  6. (side) user "<environment_context> <current_date>2026-10-17</current_date> <timezone>Etc/UTC</timezone> </environment_context> Generate a concise, single-line task title of …"
+ ❯ withScreen src/e2e/deck.ts:375:10
+ ❯ src/e2e/deck.ts:702:15
+ ❯ src/e2e/messaging.e2e.ts:368:7
+
+Caused by: Caused by: Error: Timed out after 30000 ms waiting for fox to show Moth is not to be told.
+ ❯ poll src/e2e/deck.ts:480:9
+ ❯ src/e2e/messaging.e2e.ts:368:7
+
+
+2026-10-17T11:14:49.4348403Z D:\a\novadeck\novadeck\application\runner:
+2026-10-17T11:14:49.4348932Z [ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL] @novadeck/runner@0.0.0 test:e2e: `vitest run --config vitest.e2e.config.ts "messaging.e2e.ts" "requests.e2e.ts" "lifecycle.e2e.ts"`
+2026-10-17T11:14:49.4349306Z Exit status 1
+2026-10-17T11:14:49.4533110Z ##[error]Process completed with exit code 1.

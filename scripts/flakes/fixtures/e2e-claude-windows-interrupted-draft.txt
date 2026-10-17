@@ -1,0 +1,39 @@
+2026-10-17T10:05:10.9276045Z [31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-17T10:05:10.9276801Z 
+2026-10-17T10:05:10.9281478Z [41m[1m FAIL [22m[49m src/e2e/chat.e2e.ts[2m > [22mClaude Code[2m > [22mleaves the box as it was before the interrupted prompt, so the next prompt is sent alone
+2026-10-17T10:05:10.9291354Z [31m[1mDomainError[22m: The agent's input box holds text already: a draft the prompt would merge into.[39m
+2026-10-17T10:05:10.9292882Z [36m [2m❯[22m Prompts.emptied src/terminals/prompts.ts:[2m291:15[22m[39m
+2026-10-17T10:05:10.9389010Z     [90m289|[39m       if (box && box.mode === "prompt" && isEmpty(box)) return now
+2026-10-17T10:05:10.9390439Z     [90m290|[39m       if (Date.now() >= until || !holding())
+2026-10-17T10:05:10.9391538Z     [90m291|[39m         throw new DomainError(
+2026-10-17T10:05:10.9392550Z     [90m   |[39m               [31m^[39m
+2026-10-17T10:05:10.9393228Z     [90m292|[39m           "CONFLICT",
+2026-10-17T10:05:10.9393843Z     [90m293|[39m           !box
+2026-10-17T10:05:10.9394736Z [90m [2m❯[22m Prompts.prompting.emptied src/e2e/trace.ts:[2m631:14[22m[39m
+2026-10-17T10:05:10.9395769Z [90m [2m❯[22m Prompts.send src/terminals/prompts.ts:[2m188:22[22m[39m
+2026-10-17T10:05:10.9396964Z [90m [2m❯[22m Prompts.give src/terminals/prompts.ts:[2m143:9[22m[39m
+2026-10-17T10:05:10.9398223Z [90m [2m❯[22m InputQueue.enter src/terminals/input-queue.ts:[2m84:14[22m[39m
+2026-10-17T10:05:10.9398866Z 
+2026-10-17T10:05:10.9399240Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-10-17T10:05:10.9399647Z 
+2026-10-17T10:05:10.9400879Z 
+2026-10-17T10:05:10.9410853Z [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m15 passed[39m[22m[2m | [22m[33m4 skipped[39m[90m (20)[39m
+2026-10-17T10:05:10.9412982Z [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m116 passed[39m[22m[2m | [22m[33m251 skipped[39m[90m (368)[39m
+2026-10-17T10:05:10.9414197Z [2m   Start at [22m 09:44:06
+2026-10-17T10:05:10.9420440Z [2m   Duration [22m 1264.01s[2m (tests 99%, import 1%)[22m
+2026-10-17T10:05:10.9434757Z 
+2026-10-17T10:05:10.9466520Z 
+2026-10-17T10:05:10.9511905Z ##[error]DomainError: The agent's input box holds text already: a draft the prompt would merge into.
+ ❯ Prompts.emptied src/terminals/prompts.ts:291:15
+ ❯ Prompts.prompting.emptied src/e2e/trace.ts:631:14
+ ❯ Prompts.send src/terminals/prompts.ts:188:22
+ ❯ Prompts.give src/terminals/prompts.ts:143:9
+ ❯ InputQueue.enter src/terminals/input-queue.ts:84:14
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'CONFLICT', data: undefined, reason: 'draft' }
+
+2026-10-17T10:05:11.0878588Z D:\a\novadeck\novadeck\application\runner:
+2026-10-17T10:05:11.0879755Z [ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL] @novadeck/runner@0.0.0 test:e2e: `vitest run --config vitest.e2e.config.ts`
+2026-10-17T10:05:11.0880744Z Exit status 1
+2026-10-17T10:05:11.1161315Z ##[error]Process completed with exit code 1.

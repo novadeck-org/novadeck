@@ -1,0 +1,46 @@
+2026-10-17T07:19:53.5570990Z [31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-17T07:19:53.5571000Z 
+2026-10-17T07:19:53.5574270Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/companions.spec.tsx[2m > [22mSwitching views[2m > [22mkeeps a restored plan at its saved line when its layout changes later
+2026-10-17T07:19:53.5574640Z [31m[1mAssertionError[22m: expected 10 to be less than 1[39m
+2026-10-17T07:19:53.5574640Z 
+2026-10-17T07:19:53.5574720Z Failure screenshot:
+2026-10-17T07:19:53.5575440Z   - [2m.vitest/attachments/failure-screenshots/companions.spec.tsx/Switching-views---keeps-a-restored-plan-at-its-saved-line-when-its-layout-changes-later.png[22m
+2026-10-17T07:19:53.5575490Z 
+2026-10-17T07:19:53.5575740Z [36m [2m❯[22m src/specs/companions.spec.tsx:[2m337:64[22m[39m
+2026-10-17T07:19:53.5576000Z     [90m335|[39m     plan().querySelector<HTMLElement>(".cm-content")!.style.paddingTop…
+2026-10-17T07:19:53.5576200Z     [90m336|[39m     await expect.poll(() => place().line).toBe(saved.line)
+2026-10-17T07:19:53.5576430Z     [90m337|[39m     await expect.poll(() => Math.abs(place().top - saved.top)).toBeLes…
+2026-10-17T07:19:53.5576600Z     [90m   |[39m                                                                [31m^[39m
+2026-10-17T07:19:53.5576680Z     [90m338|[39m
+2026-10-17T07:19:53.5576960Z     [90m339|[39m     // Once the reader takes over, a later layout change must not rest…
+2026-10-17T07:19:53.5576960Z 
+2026-10-17T07:19:53.5576970Z 
+2026-10-17T07:19:53.5577200Z [31m[1mCaused by: Error[22m: Matcher did not succeed in time.[39m
+2026-10-17T07:19:53.5577760Z [36m [2m❯[22m src/specs/companions.spec.tsx:[2m337:5[22m[39m
+2026-10-17T07:19:53.5577780Z 
+2026-10-17T07:19:53.5577930Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-10-17T07:19:53.5577940Z 
+2026-10-17T07:19:53.5578210Z [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m238 passed[39m[22m[90m (239)[39m
+2026-10-17T07:19:53.5578600Z [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m3173 passed[39m[22m[2m | [22m[33m8 skipped[39m[90m (3182)[39m
+2026-10-17T07:19:53.5578730Z [2m   Start at [22m 07:09:39
+2026-10-17T07:19:53.5578940Z [2m   Duration [22m 612.05s[2m (worker 89%, tests 9%, environment 2%)[22m
+2026-10-17T07:19:53.5578940Z 
+2026-10-17T07:19:53.5578940Z 
+2026-10-17T07:19:53.5745850Z ##[error]AssertionError: expected 10 to be less than 1
+ ❯ src/specs/companions.spec.tsx:337:64
+
+Caused by: Caused by: Error: Matcher did not succeed in time.
+ ❯ src/specs/companions.spec.tsx:337:5
+
+
+2026-10-17T07:19:53.5813700Z [ELIFECYCLE] Test failed. See above for more details.
+2026-10-17T07:19:53.5817000Z ##[error]command (/Users/runner/work/novadeck/novadeck/application/ui) /Users/runner/setup-pnpm/pnpm run test exited (1)
+2026-10-17T07:19:53.5819110Z @novadeck/ui#test:  ERROR  command (/Users/runner/work/novadeck/novadeck/application/ui) /Users/runner/setup-pnpm/pnpm run test exited (1)
+2026-10-17T07:19:53.5819340Z  ERROR  run failed: command  exited (1)
+2026-10-17T07:19:53.5819370Z 
+2026-10-17T07:19:53.5819580Z  Tasks:    16 successful, 17 total
+2026-10-17T07:19:53.5819790Z Cached:    0 cached, 17 total
+2026-10-17T07:19:53.5819980Z   Time:    16m3.663s 
+2026-10-17T07:19:53.5820190Z Failed:    @novadeck/ui#test
+2026-10-17T07:19:53.5820200Z 
+2026-10-17T07:19:53.7527190Z ##[error]Process completed with exit code 1.
