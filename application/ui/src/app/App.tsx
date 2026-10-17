@@ -12,7 +12,7 @@ import { SidebarRail } from "../shell/SidebarRail"
 import { WorkspacePanels } from "../shell/WorkspacePanels"
 import { ZenDock } from "../shell/ZenDock"
 import { DictationOverlay } from "../voice/DictationOverlay"
-import { selectBackend } from "./backend"
+import { debugPanelFor, selectBackend } from "./backend"
 import { BackendGate } from "./BackendGate"
 import { BootReporter } from "./BootReporter"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
@@ -72,12 +72,13 @@ export const App = ({ createBackend, embedded = false }: AppProps): React.JSX.El
   )
 }
 
-// The backend's debug panel, where this launch offers one.
+// The debug panel the backend selection made with this backend, where it made one.
 const DebugSection = (): React.JSX.Element | null => {
   const { backend, commands, workspace } = useWorkspaceServices()
-  const Panel = backend.DebugPanel
+  const Panel = debugPanelFor(backend)
   if (!Panel) return null
   return (
+    // oxlint-disable-next-line react/static-components -- Made once with its backend, not here: the same panel each render.
     <Panel
       addTerminal={() => {
         const terminalId = commands.add()

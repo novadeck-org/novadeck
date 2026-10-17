@@ -125,7 +125,7 @@ const counterRunReaches = [scriptedServer, "model/store.ts"]
 // so this file is the one other place it appears.
 const storeHook = "countListenersWoken"
 const hookOwners = ["model/store.ts", counterRun, "architecture.test.ts"]
-const adapterSelectionExports = ["selectBackend"]
+const adapterSelectionExports = ["debugPanelFor", "selectBackend"]
 // Packages are denied unless listed here, owned through `vendors`, or used by an
 // adapter or test code. model/, theme/, interaction/ and app/commands/ use none; core
 // backend/ uses React types only.
