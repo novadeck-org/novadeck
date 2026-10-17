@@ -72,8 +72,10 @@ import {
   osc9Directory,
   pathKey,
   refreshPath,
+  startsCommands,
   withLocale,
   type Line,
+  type ShellLaunch,
 } from "@novadeck/terminal/shell"
 import * as pty from "node-pty"
 
@@ -125,7 +127,7 @@ import type { MailboxRecords } from "../messaging/records.js"
 import type { Describer } from "../murmur/describer.js"
 import { inherited } from "../shell/inherited.js"
 import type { InstalledShell } from "../shell/install.js"
-import { shellLaunch, startsCommands, type ShellLaunch } from "../shell/integration.js"
+import { shellLaunch } from "../shell/integration.js"
 import {
   listenForReports,
   unanswered,
