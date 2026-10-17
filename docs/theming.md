@@ -325,6 +325,12 @@ and reason; none is listed today.
 - **Draw absence, don't remove it.** A recipe with no visible border draws a
   transparent one, and an elevated surface keeps a transparent outline, so forced
   colours can show them. A selected item has an indicator, not only a fill.
+- **An animation that never ends runs on the compositor.** Its keyframes change only
+  `transform`, `translate`, `rotate`, `scale`, `opacity` or `filter`; anything else, such
+  as `content` or `background-position`, repaints every frame for as long as it shows.
+  Every animation is set with the `animation` shorthand, and one that never ends says so
+  with a literal `infinite`. `theme/motion.test.ts` checks every stylesheet and names
+  what breaks the rule.
 - **JS reads tokens, never colours.** Code that needs a colour outside CSS, such as the
   xterm theme, resolves the token through a hidden probe element (`color:
   var(--terminal-bg)` read back with `getComputedStyle`), because a token can hold

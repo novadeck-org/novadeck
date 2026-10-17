@@ -23,11 +23,11 @@
    A terminal's window shows the same in a strip along an edge of its content,
    `.dictation-strip`, with the same hooks plus data-tone="done" and data-edge="top" |
    "bottom". Parts: `.dictation-dot` (recording), `.dictation-wave` (its `i` bars, each
-   from `--dictation-bar`, 0 to 1), `.dictation-text`, `.dictation-shimmer`,
-   `.dictation-setup` (the Addons button), and the overlay's icon, hint and elapsed time,
-   whose `data-ending` marks a clip's last seconds. While a clip records or transcribes the
-   strip floats over the terminal's foot; in setup (data-phase="setup") it is a row of its
-   own and the terminal above it shrinks.
+   from `--dictation-bar`, 0 to 1), `.dictation-text`, `.dictation-shimmer` (with its
+   `.dictation-shimmer-glint`), `.dictation-setup` (the Addons button), and the overlay's
+   icon, hint and elapsed time, whose `data-ending` marks a clip's last seconds. While a
+   clip records or transcribes the strip floats over the terminal's foot; in setup
+   (data-phase="setup") it is a row of its own and the terminal above it shrinks.
    Setup's parts: `.dictation-link` (a quiet button), `.dictation-button` (the primary one),
    `.dictation-muted` (the muted rest of a line), `.dictation-fixed` (a part that never
    shrinks), `.dictation-long` and `.dictation-short` (the words, and their short form in
@@ -354,6 +354,10 @@
     border-radius: 999px;
     background-color: currentColor;
   }
+  /* The shimmer's light shows only where motion is welcome. */
+  .dictation-shimmer-glint {
+    display: none;
+  }
   @media (prefers-reduced-motion: no-preference) {
     .dictation-spin {
       animation: dictation-spin 1s linear infinite;
@@ -361,17 +365,27 @@
     .dictation-dot {
       animation: dictation-pulse 1.2s ease-in-out infinite;
     }
+    /* A light sweeping the words: a soft-edged window on the words in the ink colour,
+       moved across them while the words inside it move back by as much, so they stay
+       over the muted ones. Both are transforms, which the compositor runs alone. */
     .dictation-shimmer {
-      background: linear-gradient(
-          90deg,
-          var(--color-muted) 0%,
-          var(--color-ink) 50%,
-          var(--color-muted) 100%
-        )
-        0 0 / 200% 100%;
-      background-clip: text;
-      color: transparent;
+      position: relative;
+      color: var(--color-muted);
+    }
+    .dictation-shimmer-glint {
+      display: block;
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      color: var(--color-ink);
+      mask-image: linear-gradient(90deg, transparent, currentColor 50%, transparent);
       animation: dictation-shimmer 1.4s linear infinite;
+    }
+    .dictation-shimmer-glint > span {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      animation: dictation-shimmer-back 1.4s linear infinite;
     }
     .icon-button.dictation-active::after {
       animation: dictation-pulse 1.2s ease-in-out infinite;
@@ -386,8 +400,19 @@
     }
   }
   @keyframes dictation-shimmer {
+    from {
+      transform: translateX(-100%);
+    }
     to {
-      background-position: -200% 0;
+      transform: translateX(100%);
+    }
+  }
+  @keyframes dictation-shimmer-back {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(-100%);
     }
   }
   @keyframes dictation-spin {

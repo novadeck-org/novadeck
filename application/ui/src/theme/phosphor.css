@@ -235,8 +235,11 @@
   animation: phosphor-flicker 4s steps(1) infinite;
 }
 :root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) body::before {
-  background: var(--crt-refresh) no-repeat;
-  background-size: 100% 18%;
+  /* The band itself, 18% of the screen tall, moved down the tube by a transform: the
+     compositor runs it alone, where moving a background would repaint the screen. */
+  bottom: auto;
+  height: 18%;
+  background: var(--crt-refresh);
   animation: phosphor-refresh 11s linear infinite;
 }
 
@@ -555,11 +558,12 @@
     opacity: 1;
   }
 }
+/* From mostly above the screen to just below it. */
 @keyframes phosphor-refresh {
   from {
-    background-position: 0 -20%;
+    transform: translateY(-16.4vh);
   }
   to {
-    background-position: 0 120%;
+    transform: translateY(98.4vh);
   }
 }

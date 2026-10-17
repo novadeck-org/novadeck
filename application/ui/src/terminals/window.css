@@ -65,6 +65,10 @@
   position: relative;
   /* Its own stacking, so its layers lie over what it holds and never over a neighbour. */
   isolation: isolate;
+  /* Contained, so what changes inside one window (its output, its chat, its stats) lays out
+     and paints that window alone, never its neighbours. It clips what it holds, as its
+     overflow already did; menus, popovers and a dragged icon portal out of it. */
+  contain: layout paint;
   transition:
     border-color var(--motion-state) var(--ease-interface),
     box-shadow var(--motion-state) var(--ease-interface);

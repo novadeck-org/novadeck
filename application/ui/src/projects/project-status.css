@@ -34,12 +34,18 @@
 [data-project-status="done"] > .project-status-mark::before {
   content: "✓";
 }
+/* The spinner is a tab's (tabs.css): a column of frames, one line shown, stepped up by a
+   transform. */
 [data-project-status="running"] > .project-status-mark {
+  height: 1lh;
+  overflow: hidden;
   font-weight: 400;
 }
 [data-project-status="running"] > .project-status-mark::before {
-  content: "⠋";
-  animation: terminal-spin 800ms steps(1) infinite;
+  display: block;
+  white-space: pre;
+  content: "⠋\A⠙\A⠹\A⠸\A⠼\A⠴\A⠦\A⠧\A⠇\A⠏";
+  animation: terminal-spin 800ms steps(10) infinite;
 }
 
 /* The tones, set on the mark by its parent so no other child of it takes them. */

@@ -222,40 +222,23 @@
 .terminal-tab[data-terminal-attention="question"] .terminal-glyph::before {
   content: "?";
 }
+/* A working agent's spinner: the braille frames stand in a column, one line of which the
+   glyph shows, and the column steps up a line every 80ms. Moving it is a transform, which
+   the compositor runs alone, where changing `content` would repaint each frame. */
+.terminal-tab[data-terminal-phase="running"] .terminal-glyph,
+.terminal-tab[data-terminal-subagents="working"] .terminal-tab-subagent {
+  height: 1lh;
+  overflow: hidden;
+}
 .terminal-tab[data-terminal-phase="running"] .terminal-glyph::before {
-  content: "⠋";
-  animation: terminal-spin 800ms steps(1) infinite;
+  display: block;
+  white-space: pre;
+  content: "⠋\A⠙\A⠹\A⠸\A⠼\A⠴\A⠦\A⠧\A⠇\A⠏";
+  animation: terminal-spin 800ms steps(10) infinite;
 }
 @keyframes terminal-spin {
-  0% {
-    content: "⠋";
-  }
-  10% {
-    content: "⠙";
-  }
-  20% {
-    content: "⠹";
-  }
-  30% {
-    content: "⠸";
-  }
-  40% {
-    content: "⠼";
-  }
-  50% {
-    content: "⠴";
-  }
-  60% {
-    content: "⠦";
-  }
-  70% {
-    content: "⠧";
-  }
-  80% {
-    content: "⠇";
-  }
-  90% {
-    content: "⠏";
+  to {
+    transform: translateY(-100%);
   }
 }
 /* The subagents its agent runs, marked after its program as its phase is before it: a
@@ -274,8 +257,10 @@
   content: "◌";
 }
 .terminal-tab[data-terminal-subagents="working"] .terminal-tab-subagent::before {
-  content: "⠋";
-  animation: terminal-spin 800ms steps(1) infinite;
+  display: block;
+  white-space: pre;
+  content: "⠋\A⠙\A⠹\A⠸\A⠼\A⠴\A⠦\A⠧\A⠇\A⠏";
+  animation: terminal-spin 800ms steps(10) infinite;
   animation-delay: inherit;
 }
 /* The rows fold away under a tab that isn't selected: their track shrinks to nothing,

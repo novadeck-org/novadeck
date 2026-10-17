@@ -36,10 +36,14 @@ export const tetherPoint = (
 export const beyond = (x: number, y: number, bounds: Bounds): boolean =>
   x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom
 
-// Says, by the pointer, that a drop here can't happen, or no longer.
+// Says, by the pointer, that a drop here can't happen, or no longer. It sits on the root,
+// whose every change restyles the page, so it is written only when it flips, not on each
+// move of the pointer.
 export const refuseDrop = (refused: boolean): void => {
-  if (refused) document.documentElement.dataset.dragRefused = ""
-  else delete document.documentElement.dataset.dragRefused
+  const root = document.documentElement
+  if (refused === "dragRefused" in root.dataset) return
+  if (refused) root.dataset.dragRefused = ""
+  else delete root.dataset.dragRefused
 }
 
 // The bar's drag, held to an element: inside, as dragged; past its edge, stretching.

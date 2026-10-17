@@ -176,7 +176,14 @@ export const DictationStrip = ({
       ) : clip ? (
         <>
           <Loader size={14} className="dictation-icon dictation-spin" aria-hidden />
-          <span className="dictation-text dictation-shimmer">Transcribing…</span>
+          <span className="dictation-text dictation-shimmer">
+            Transcribing…
+            {/* The light that sweeps the words: the same words in a window that moves
+                across them while they move back within it (dictation.css). */}
+            <span aria-hidden className="dictation-shimmer-glint">
+              <span>Transcribing…</span>
+            </span>
+          </span>
         </>
       ) : told ? (
         <>
