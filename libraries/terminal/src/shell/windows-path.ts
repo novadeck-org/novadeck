@@ -131,9 +131,9 @@ const readWith = (
   })
 
 /**
- * PATH's folders as the registry has them now, as `readWith` tells them: read by
- * Novadeck's relay (`novadeck-relay environment`), which ships with it, where it is given
- * one; by Windows PowerShell where none is, or it fails outright. PowerShell is what
+ * PATH's folders as the registry has them now, as `readWith` tells them: read by the
+ * relay, a program the app ships that answers `environment`, where it is given one; by
+ * Windows PowerShell where none is, or it fails outright. PowerShell is what
  * machines that lock programs down block (AppLocker, WDAC, Constrained Language Mode),
  * and what starts slowly on a cold boot.
  */
@@ -207,7 +207,7 @@ const folders = (
  * After a read that failed, none is tried again for `retryMs`, or `timeoutRetryMs` after
  * one that only ran past `timeoutMs`, doubled for each such read in a row up to `retryMs`.
  * Elsewhere, and when the registry can't be read, `env` stays as it is, or gains what
- * was read last. `relay` is Novadeck's relay, which reads it (see `readRegistry`).
+ * was read last. `relay` is the program that reads it (see `readRegistry`).
  */
 export const refreshPath = async (
   env: NodeJS.ProcessEnv,

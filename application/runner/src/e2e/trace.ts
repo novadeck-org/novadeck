@@ -8,6 +8,7 @@ import type { PromptShown } from "@novadeck/harness-core/events"
 import type { Harness, Install } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
 import type { ScreenText } from "@novadeck/harness-core/screen"
+import { Trees, type Member } from "@novadeck/terminal/pty"
 
 import { agents, harnesses } from "../harnesses/registry.js"
 import type { DeliveryEvent } from "../messaging/delivery.js"
@@ -16,7 +17,6 @@ import { tracer } from "../terminals/doorbell.js"
 import { Interrupts } from "../terminals/interrupts.js"
 import { Terminals } from "../terminals/manager.js"
 import { Prompts } from "../terminals/prompts.js"
-import { Trees, type Member } from "../terminals/trees.js"
 import type { FakeModel } from "./model/server.js"
 
 /**

@@ -31,6 +31,7 @@
     "@novadeck/murmur": "workspace:*",
     "@novadeck/protocol": "workspace:*",
     "@novadeck/relay": "workspace:*",
+    "@novadeck/terminal": "workspace:*",
     "@novadeck/whisper": "workspace:*",
     "@orpc/server": "1.15.5",
     "@xterm/addon-serialize": "0.14.0",

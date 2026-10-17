@@ -25,6 +25,7 @@ import type {
   TerminalRequest,
   TerminalSummary,
 } from "@novadeck/protocol"
+import { Trees } from "@novadeck/terminal/pty"
 import { vi } from "vitest"
 
 import { CompanionItems } from "../companions/items.js"
@@ -33,7 +34,6 @@ import { Terminals, type TerminalOptions } from "../terminals/index.js"
 import { Latest } from "../terminals/latest.js"
 import { readyReturnMs } from "../terminals/manager.js"
 import type { TerminalRecords } from "../terminals/records.js"
-import { Trees } from "../terminals/trees.js"
 import { describe, expect, it as base } from "../test.js"
 import { FakeDescriber } from "../testing/describer.js"
 import { WorkspaceStore } from "../workspaces/store.js"

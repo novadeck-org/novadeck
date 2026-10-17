@@ -1,6 +1,6 @@
 //! `novadeck-relay environment`: the machine's and the person's environment variables as
 //! Windows' registry holds them now, unexpanded, for the runner to build a new terminal's
-//! PATH from (see the runner's shell/windows-path.ts). A Windows program keeps the
+//! PATH from (see `refreshPath` in @novadeck/terminal/shell). A Windows program keeps the
 //! environment it started with, so the app's PATH lacks what was installed since; the
 //! registry has it. The relay reads it where the runner would otherwise need PowerShell,
 //! which some machines block (AppLocker, WDAC, Constrained Language Mode) and which starts

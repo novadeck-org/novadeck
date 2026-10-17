@@ -3,10 +3,7 @@ import { readdirSync, readFileSync, readlinkSync } from "node:fs"
 import { basename } from "node:path"
 import { promisify } from "node:util"
 
-import type { ForegroundProcess } from "@novadeck/protocol"
-import type { IPty } from "node-pty"
-
-// The protocol's bounds for a reported process.
+// A reported process's bounds, so it fits the schemas a consumer reports it under.
 const nameChars = 256
 const argCount = 64
 const argChars = 4096
@@ -31,7 +28,7 @@ export const parseProcessStat = (stat: string): ProcessStat | null => {
 
 // /proc/<pid>/cmdline ends each argument with a NUL. A process that retitles itself, as
 // Node does for `process.title`, pads its old argument space with NULs, which would read
-// as empty arguments, so trailing empty ones go. Truncated to what the protocol takes.
+// as empty arguments, so trailing empty ones go. Truncated to the bounds above.
 export const parseCommandLine = (cmdline: Buffer): string[] => {
   const args = cmdline.toString("utf8").split("\0")
   while (args.at(-1) === "") args.pop()
@@ -239,6 +236,9 @@ export const shellInForeground = async (shellPid: number): Promise<boolean | und
   return group === undefined ? undefined : group === shellPid
 }
 
+/** A terminal's foreground program: its name, and its arguments where they can be read. */
+export type ForegroundProcess = { name: string; argv: string[] | null }
+
 /**
  * A sample of a terminal's foreground, kept so the next one can reuse its `argv`, or on
  * macOS the name ps found in place of a versioned one.
@@ -287,7 +287,7 @@ const invokedName = (shellPid: number): { name: string; group: number } | null =
  * it counts as unknown.
  */
 export const sampleForeground = (
-  child: Pick<IPty, "pid" | "process">,
+  child: { readonly pid: number; readonly process: string },
   last: Foreground | undefined,
 ): Foreground => {
   if (process.platform === "win32") return { process: null, group: null }

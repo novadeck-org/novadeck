@@ -1,0 +1,35 @@
+{
+  "name": "@novadeck/terminal",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Hosting terminals and attaching to them: a pty, a headless screen kept in step with it, a resumable stream of it, its browser view, and shell integration.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./pty": {
+      "node": {
+        "development": "./src/pty.ts",
+        "types": "./dist/pty.d.ts",
+        "default": "./dist/pty.js"
+      }
+    },
+    "./shell": {
+      "node": {
+        "development": "./src/shell.ts",
+        "types": "./dist/shell.d.ts",
+        "default": "./dist/shell.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "node-pty": "1.2.0-beta.14",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

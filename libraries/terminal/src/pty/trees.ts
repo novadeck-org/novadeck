@@ -6,8 +6,8 @@ import { promisify } from "node:util"
 export type Member = { readonly pid: number; readonly startedAt: number }
 
 /**
- * Runs Novadeck's relay with `args`, for its output, within `timeoutMs`; rejects where it
- * can't run.
+ * Runs the relay with `args`, for its output, within `timeoutMs`; rejects where it can't
+ * run.
  */
 export type RunRelay = (
   relay: string,
@@ -15,7 +15,7 @@ export type RunRelay = (
   timeoutMs: number,
 ) => Promise<string>
 
-/** A run's bound unless its callers ask for less, as the runner shutting down does. */
+/** A run's bound unless its callers ask for less, as a host shutting down does. */
 export const relayMs = 4_000
 
 const runRelay: RunRelay = async (relay, args, timeoutMs) =>
@@ -34,12 +34,12 @@ type Batch<Ask, Answer> = {
 }
 
 /**
- * A terminal's process tree on Windows, read and ended through Novadeck's relay
- * (`novadeck-relay tree` and `end`, see application/relay/src/processes.rs): Windows has
- * no process group, and keeps a process's parent pid after that parent ends, when
+ * A terminal's process tree on Windows, read and ended through a relay: a program the caller
+ * ships, which answers `tree <root>…` with a JSON line for each root and ends each named
+ * `<pid>:<start>` on `end <pid:start>…`. Windows has no process group, and keeps a process's parent pid after that parent ends, when
  * another process may get it. The relay counts a process as a child only if it started no
  * earlier than its recorded parent, and ends a process only if it started when the tree
- * was read. Calls in the same tick share one run, as a runner ending every terminal as it
+ * was read. Calls in the same tick share one run, as a host ending every terminal as it
  * shuts down makes them. Undefined, or nothing ended, where the relay can't run.
  */
 export class Trees {
@@ -119,10 +119,7 @@ export class Trees {
   private unavailable(subcommand: string, error: unknown): void {
     if (this.failed.has(subcommand)) return
     this.failed.add(subcommand)
-    console.error(
-      `Novadeck's relay couldn't run "${subcommand}"; Novadeck falls back without it:`,
-      error,
-    )
+    console.error(`The relay couldn't run "${subcommand}"; falling back without it:`, error)
   }
 }
 

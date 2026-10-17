@@ -1,4 +1,5 @@
-import { describe, expect, it } from "../test.js"
+import { describe, expect, it } from "vitest"
+
 import { withLocale } from "./locale.js"
 
 const installed = (locale: string) => ["en_US.UTF-8", "pl_PL.UTF-8"].includes(locale)

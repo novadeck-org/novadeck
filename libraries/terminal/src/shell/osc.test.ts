@@ -1,4 +1,5 @@
-import { describe, expect, it } from "../test.js"
+import { describe, expect, it } from "vitest"
+
 import { osc7Directory, osc9Directory } from "./osc.js"
 
 const posix = process.platform !== "win32"

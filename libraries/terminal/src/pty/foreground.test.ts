@@ -4,9 +4,8 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { spawn } from "node-pty"
-import { vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
-import { describe, expect, it } from "../test.js"
 import { parseCommandLine, parseProcessStat, sampleForeground, statName } from "./foreground.js"
 
 const cmdline = (...args: string[]): Buffer => Buffer.from(`${args.join("\0")}\0`)
@@ -39,7 +38,7 @@ describe("Linux foreground inspection", () => {
     expect(parseCommandLine(Buffer.from("node\0\0--yes\0\0\0"))).toEqual(["node", "", "--yes"])
   })
 
-  it("truncates a command line to what the protocol accepts", () => {
+  it("truncates a command line to its bounds", () => {
     const args = parseCommandLine(cmdline(...Array.from({ length: 70 }, () => "x".repeat(5000))))
     expect(args).toHaveLength(64)
     expect(args.every((arg) => arg.length === 4096)).toBe(true)
@@ -76,7 +75,7 @@ describe.skipIf(process.platform !== "darwin")("macOS foreground naming", () => 
   // A program installed as a link into a versioned file, as Claude Code is. A system binary
   // copied here is killed for its broken signature, so build one.
   const versioned = (): { dir: string; link: string } => {
-    const dir = mkdtempSync(join(tmpdir(), "novadeck-version-"))
+    const dir = mkdtempSync(join(tmpdir(), "foreground-version-"))
     writeFileSync(join(dir, "wait.c"), "#include <unistd.h>\nint main(){sleep(30);return 0;}")
     execFileSync("cc", [join(dir, "wait.c"), "-o", join(dir, "2.1.300")])
     symlinkSync(join(dir, "2.1.300"), join(dir, "claude"))

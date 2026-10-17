@@ -1,4 +1,5 @@
-import { describe, expect, it } from "../test.js"
+import { describe, expect, it } from "vitest"
+
 import { afterKeys, emptyLine, type Line } from "./line.js"
 
 // The line after each piece of input is sent, and whether any Enter entered a line.

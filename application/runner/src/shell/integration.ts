@@ -1,8 +1,9 @@
 import { basename, delimiter } from "node:path"
 
+import { pathKey } from "@novadeck/terminal/shell"
+
 import type { InstalledShell } from "./install.js"
 import { fishQuote, psQuote } from "./scripts.js"
-import { pathKey } from "./windows-path.js"
 
 /**
  * How to start a shell so it loads Novadeck's integration after the user's own setup;

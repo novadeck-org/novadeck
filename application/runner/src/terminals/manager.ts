@@ -41,6 +41,32 @@ import type {
 } from "@novadeck/protocol"
 import { murmurGist, murmurHeadline } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
+import {
+  anyRunning,
+  foregroundProcess,
+  foregroundRuns,
+  openFiles,
+  processGroup,
+  processSetting,
+  relayMs,
+  sampleForeground,
+  shellInForeground,
+  taskkillTree,
+  terminalForeground,
+  Trees,
+  type Foreground,
+  type Member,
+} from "@novadeck/terminal/pty"
+import {
+  afterKeys,
+  emptyLine,
+  osc7Directory,
+  osc9Directory,
+  pathKey,
+  refreshPath,
+  withLocale,
+  type Line,
+} from "@novadeck/terminal/shell"
 import { SerializeAddon } from "@xterm/addon-serialize"
 import type { SerializeAddon as Serializer } from "@xterm/addon-serialize"
 import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes"
@@ -97,7 +123,6 @@ import type { Describer } from "../murmur/describer.js"
 import { inherited } from "../shell/inherited.js"
 import type { InstalledShell } from "../shell/install.js"
 import { shellLaunch, startsCommands, type ShellLaunch } from "../shell/integration.js"
-import { osc7Directory, osc9Directory } from "../shell/osc.js"
 import {
   listenForReports,
   unanswered,
@@ -107,7 +132,6 @@ import {
   type HookAnswer,
   type Reports,
 } from "../shell/reports.js"
-import { pathKey, refreshPath } from "../shell/windows-path.js"
 import type { HintFacts } from "../voice/hint.js"
 import { Answers, type AnswerHost, type AnswerOptions } from "./answers.js"
 import { busy } from "./busy.js"
@@ -124,24 +148,11 @@ import { coalesced } from "./coalesce.js"
 import { expectedAgent, promptIn } from "./commands.js"
 import { Dialogs, type DialogsHost, type DialogsOptions } from "./dialogs.js"
 import { Doorbell, tracer, type DoorbellHost, type DoorbellOptions } from "./doorbell.js"
-import {
-  foregroundProcess,
-  foregroundRuns,
-  openFiles,
-  processGroup,
-  processSetting,
-  sampleForeground,
-  shellInForeground,
-  terminalForeground,
-  type Foreground,
-} from "./foreground.js"
 import { mention, nextHandle, wordOf } from "./handles.js"
 import { InputQueue, type HoldBudget, type InputHold } from "./input-queue.js"
 import { Interrupts, type InterruptHost, type InterruptOptions } from "./interrupts.js"
 import { keysOf, splitReports } from "./keys.js"
 import { Latest } from "./latest.js"
-import { afterKeys, emptyLine, type Line } from "./line.js"
-import { withLocale } from "./locale.js"
 import { type MouseEncoding, mouseReporting, watchMouseEncoding } from "./mouse.js"
 import {
   Murmur,
@@ -190,7 +201,6 @@ import { Subscription } from "./subscription.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
 import { replay, transcriptOf } from "./transcript.js"
 import { transcriptChanges } from "./transcripts.js"
-import { anyRunning, relayMs, taskkillTree, Trees, type Member } from "./trees.js"
 import { TerminalWatcher } from "./watcher.js"
 import { judgedFirst, workAfter, type Work } from "./work.js"
 

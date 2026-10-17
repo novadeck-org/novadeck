@@ -12,9 +12,10 @@ and the relay its binary's path. Tests and typechecks read the source; builds re
 - **Vitest** takes `development` itself (it runs Vite outside production), so a package's tests
   run against its dependencies' source with nothing built first.
 - **tsc** takes it from `customConditions: ["development"]` in the app's and the harnesses'
-  `tsconfig.json`, so a typecheck reads the same files the tests do. The host's adds `node`,
-  which its `Bundler` resolution leaves out, so a `node`-only export such as the sandbox's
-  resolves.
+  `tsconfig.json`, so a typecheck reads the same files the tests do. The host's and the UI's
+  add `node`, which their `Bundler` resolution leaves out, so a `node`-only export such as the
+  sandbox's or the terminal library's resolves (the UI's typecheck follows the runner's source,
+  which the UI's adapter tests start, into them).
 - **Builds** reset it (`customConditions: []` in `tsconfig.build.json`) and read their
   dependencies' built types, as a published consumer would. So `build` keeps `^build`.
 - **Libraries' typechecks read the libraries they import as built**: a library's `rootDir` is
