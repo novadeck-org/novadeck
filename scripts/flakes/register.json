@@ -6,8 +6,8 @@
       "jobs": ["^Test \\((Linux|macOS|Windows)\\)$"],
       "test": "src/specs/companions.spec.tsx > Switching views > opens a plan's editor as it was left",
       "signature": "AssertionError: expected .+ to be ",
-      "status": "known",
-      "cause": "Unknown, not reproduced under CPU throttling: the reopened editor showed its first line, so its saved place was lost or its restore ended early (scroll.ts's late or held rule), on macOS.",
+      "status": "fixed",
+      "cause": "The spec scrolled the pane to line 200 right after typing at the top of a restored one. Typing scrolls the caret into view in the editor's next measure, which on a slow frame came after the spec's scroll and put the pane back at the top, so its saved place was the first line. Reproduced by delaying animation frames by 120ms after the typing (3 of 10 runs). The spec now waits two frames after typing; scroll.ts and PlanEditor.tsx were right.",
       "seen": ["#218 run 39027513580 job 117381311744 (macOS)"]
     },
     {
@@ -117,10 +117,10 @@
     },
     {
       "id": "release-quality-wait-window",
-      "jobs": ["^(Linux|macOS|Windows)$"],
+      "jobs": ["^(?:Package - )?(?:Linux|macOS|Windows)$"],
       "signature": "##\\[error\\]Quality checks did not complete within the wait window",
       "status": "known",
-      "cause": "Not a test: packaging waits about 27 minutes for the pull request's Quality checks, which stayed queued while CI was busy.",
+      "cause": "Not a test: packaging waits about 27 minutes for the pull request's Quality checks, which stayed queued while CI was busy. Quality now starts the packaging once its checks pass; only a draft marked ready still waits, for Quality's Test check, which has usually finished.",
       "seen": ["#223 run 39028273458 (Linux, macOS, Windows)"]
     }
   ]

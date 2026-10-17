@@ -283,6 +283,16 @@ describe("Switching terminals in Focus", () => {
   })
 })
 
+/** Waits for the page to draw `count` frames, in which the editor measures what changed. */
+const frames = (count: number): Promise<void> =>
+  new Promise((resolve) => {
+    const next = (left: number): void => {
+      if (left === 0) resolve()
+      else requestAnimationFrame(() => next(left - 1))
+    }
+    next(count)
+  })
+
 /**
  * Keeps the page's main thread busy for `milliseconds`, in stretches longer than a frame, as a
  * loaded CI machine does: seen to end a restored scroll too early (Windows and Linux CI).
@@ -373,6 +383,9 @@ describe("Switching views", () => {
       content().focus()
       await userEvent.keyboard("Draft ")
       await expect.poll(() => content().textContent).toContain("Draft ")
+      // Typing scrolls the caret into view, in the editor's next measure, back to the top
+      // where a restored pane was elsewhere: a scroll set before it is undone by it.
+      await frames(2)
       await expect.poll(() => plan().scrollHeight).toBeGreaterThan(plan().clientHeight + 200)
       plan().scrollTop = 200
       await expect.poll(() => plan().scrollTop).toBe(200)
