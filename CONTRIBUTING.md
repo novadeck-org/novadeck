@@ -25,6 +25,13 @@ documentation when behavior changes.
 `pnpm format` and `pnpm lint` cover the relay's Rust in `application/relay` too, as CI
 does.
 
+The budgets of `application/runner/src/terminals/manager.ts` only go down: `scripts/ratchet/manager.test.ts`
+holds its lines and the methods of its `Terminals` class to the budgets in
+`scripts/ratchet/manager.json`. Put new behaviour in a sibling module under `terminals/`,
+and lower a budget when the test asks: it lets the file sit a little under its budget, and
+fails once a change, such as an extraction, leaves it well under. A change that touches neither
+`manager.ts` nor its budgets only prints what's wrong; the next change to them is held to it.
+
 ## Pull Requests
 
 Use the [PR template](.github/pull_request_template.md), even when submitting
