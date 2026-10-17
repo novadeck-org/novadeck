@@ -101,7 +101,7 @@ describe("session saves", () => {
 
     it("takes the runner refusing saves while it shuts down as the end of saving", async () => {
       const app = open(async () => {
-        throw new WireError("RUNTIME_CLOSING", "Closing.")
+        throw new WireError("CLOSING", "Closing.")
       })
       const first = workspaceFixture()
       app.commit(first)

@@ -1,3 +1,5 @@
+import { maxWebSocketMessageBytes } from "@novadeck/protocol"
+
 import { startHttpServer, type HttpOptions, type HttpServer } from "./http.js"
 import type { RunnerOptions } from "./runner.js"
 import type { TerminalOptions } from "./terminals/index.js"
@@ -17,8 +19,6 @@ export type ServerOptions = HttpOptions &
     /** Murmur's engine and where it installs; see `RunnerOptions.murmur`. */
     murmur?: RunnerOptions["murmur"]
     terminals?: TerminalOptions
-    maxConnections?: number
-    heartbeatMs?: number
   }>
 
 export type { HttpServer as Server } from "./http.js"
@@ -26,7 +26,10 @@ export type { HttpServer as Server } from "./http.js"
 /** Standalone runner: HTTP status plus a token-authenticated WebSocket runner API. */
 export const startServer = async (options: ServerOptions = {}): Promise<HttpServer> => {
   if (options.token === undefined) return startHttpServer(options)
-  const { createRunner, serveWebSocket } = await import("./index.js")
+  const [{ createRunner }, { serveWebSocket }] = await Promise.all([
+    import("./index.js"),
+    import("@novadeck/wire/server"),
+  ])
   const runner = createRunner({
     ...(options.database !== undefined && { database: options.database }),
     ...(options.shell !== undefined && { shell: options.shell }),
@@ -39,20 +42,20 @@ export const startServer = async (options: ServerOptions = {}): Promise<HttpServ
   })
   let sockets: ReturnType<typeof serveWebSocket>
   try {
-    sockets = serveWebSocket(runner, {
+    sockets = serveWebSocket(runner.sessions, {
+      path: "/api/rpc",
       token: options.token,
       origins: options.origins ?? ["http://127.0.0.1:5173"],
-      ...(options.maxConnections !== undefined && { maxConnections: options.maxConnections }),
-      ...(options.heartbeatMs !== undefined && {
-        heartbeatMs: options.heartbeatMs,
-      }),
+      maxPayloadBytes: maxWebSocketMessageBytes,
+      // Room for a terminal's largest initial snapshot, and the traffic beside it.
+      sendBudgetBytes: runner.snapshotBytes + 8 * 1024 * 1024,
     })
   } catch (error) {
     await runner.close()
     throw error
   }
   return startHttpServer(options, {
-    attach: (server) => sockets.attach(server),
+    attach: (server) => server.on("upgrade", sockets.upgrade),
     async close() {
       try {
         await sockets.close()

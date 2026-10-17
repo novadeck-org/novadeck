@@ -56,11 +56,11 @@ const ui = "application/ui/src"
 export const notes: Record<string, Note> = {
   runner: {
     purpose:
-      "Builds the runner from its parts and serves the protocol contract over a WebSocket, a port or HTTP, with token auth, the router that maps procedures to domain objects, and the CLI that starts it.",
+      "Builds the runner from its parts and serves the protocol contract through the wire's sessions over a WebSocket or a port, with the router that maps procedures to domain objects, HTTP status, and the CLI that starts it.",
     entries: [
       { file: `${runner}/runner.ts`, text: "export const createRunner" },
       { file: `${runner}/router.ts`, text: "export const createRouter" },
-      { file: `${runner}/websocket.ts`, text: "export const serveWebSocket" },
+      { file: `${runner}/server.ts`, text: "serveWebSocket(runner.sessions" },
     ],
     docs: ["docs/backend-api.md", "docs/backend-plan.md"],
   },

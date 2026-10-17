@@ -880,7 +880,7 @@ describe.skipIf(process.platform === "win32")("terminal manager", () => {
     expect(() => process.kill(secondPid, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }))
     await expect(
       manager.create({ id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 }, "owner"),
-    ).rejects.toMatchObject({ code: "RUNTIME_CLOSING" })
+    ).rejects.toMatchObject({ code: "CLOSING" })
   })
 
   // bash takes the terminal back as it hangs up, so a TUI still restoring the terminal is
@@ -1105,7 +1105,7 @@ describe("terminal watching", () => {
     await expect(pending[1]).resolves.toMatchObject({ done: true })
     await manager.shutdown()
     await expect(pending[2]).resolves.toMatchObject({ done: true })
-    await expect(manager.watch("late").next()).rejects.toMatchObject({ code: "RUNTIME_CLOSING" })
+    await expect(manager.watch("late").next()).rejects.toMatchObject({ code: "CLOSING" })
   })
 })
 
@@ -1597,7 +1597,7 @@ describe.skipIf(process.platform === "win32")("terminal message watches", () => 
     await manager.shutdown()
     await expect(ending).resolves.toEqual({ done: true, value: undefined })
     await expect(manager.watchMessages(id).next()).rejects.toMatchObject({
-      code: "RUNTIME_CLOSING",
+      code: "CLOSING",
     })
   })
 })

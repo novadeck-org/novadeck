@@ -27,7 +27,7 @@ type Other = {
 export type AnswerHost = {
   /**
    * The request a ref names, as the terminal's agent has it waiting; undefined when it
-   * has none such. Throws `TERMINAL_NOT_FOUND`, `TERMINAL_EXITED` or `RUNTIME_CLOSING`
+   * has none such. Throws `TERMINAL_NOT_FOUND`, `TERMINAL_EXITED` or `CLOSING`
    * where the terminal can't take keys.
    */
   readonly request: (

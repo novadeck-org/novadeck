@@ -798,7 +798,7 @@ describe("runner backend", () => {
           ...runner.client.projects,
           remove: async (input) => {
             attempts.push(input.projectId)
-            if (attempts.length === 1) throw new WireError("RUNTIME_CLOSING", "restarting")
+            if (attempts.length === 1) throw new WireError("CLOSING", "restarting")
             await gate
             return runner.client.projects.remove(input)
           },

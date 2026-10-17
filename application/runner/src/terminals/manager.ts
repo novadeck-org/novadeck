@@ -989,7 +989,7 @@ export class Terminals {
    * integration, does not start.
    */
   async create(input: Create, ownerId: string): Promise<TerminalSummary> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     // A closed terminal stays closed, even while its shell is still ending.
     if (this.closedIds.has(input.id)) throw new DomainError("TERMINAL_NOT_FOUND")
     // Checked before eviction, so a retained exited record keeps its id taken.
@@ -1018,7 +1018,7 @@ export class Terminals {
       const integration = await this.shellIntegration()
       const connected = await this.connected(input.resume)
       const env = await environment
-      if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+      if (this.stopping) throw new DomainError("CLOSING")
       // Closed, even while it was being restored, as from another window, or its project is
       // going: it stays closed, and none starts there.
       if (this.closedIds.has(input.id) || this.closingSessions.has(input.sessionId))
@@ -1257,7 +1257,7 @@ export class Terminals {
     this.persisting(() => {
       handle = records.giveHandle(sessionId)
     })
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     if (handle === undefined)
       throw new Error(
         "Novadeck couldn't give a new terminal a handle in its workspace database, so it didn't create it.",
@@ -1288,7 +1288,7 @@ export class Terminals {
    * nothing of is TERMINAL_NOT_FOUND.
    */
   rename(input: { terminalId: string; title: string }): void {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     this.name(input.terminalId, input.title)
   }
 
@@ -1297,7 +1297,7 @@ export class Terminals {
    * automatic again (see `titleOf`), and tells every watcher; as `rename` otherwise.
    */
   resetTitle(input: { terminalId: string }): void {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     this.name(input.terminalId, null)
   }
 
@@ -1406,7 +1406,7 @@ export class Terminals {
    * that waits on the person's answer to a request, whose dialog would take them.
    */
   private promptable(terminalId: string): Record {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(terminalId)
     this.running(record)
     if (!record.binding && this.messaging.shownAgent(terminalId) === undefined)
@@ -1776,7 +1776,7 @@ export class Terminals {
   private answerHost(): AnswerHost {
     return {
       request: (terminalId, ref) => {
-        if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+        if (this.stopping) throw new DomainError("CLOSING")
         const record = this.record(terminalId)
         this.running(record)
         const found = this.waiting(record, ref)
@@ -2100,7 +2100,7 @@ export class Terminals {
     input: { terminalId: string; resume?: AgentName | undefined } & Size,
     ownerId: string,
   ): Promise<TerminalSummary> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(input.terminalId)
     if (record.closed || this.closingSessions.has(record.summary.sessionId))
       throw new DomainError("TERMINAL_NOT_FOUND")
@@ -2122,7 +2122,7 @@ export class Terminals {
       const env = await environment
       // The swap waits for the old shell's queued work, which still uses the old screen.
       return await this.enqueue(record, () => {
-        if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+        if (this.stopping) throw new DomainError("CLOSING")
         // Closed meanwhile, or its project is closing: no shell starts in it again.
         if (
           record.closed ||
@@ -2225,7 +2225,7 @@ export class Terminals {
    * the shell has ended, as the app quits, keeps nothing of it to bring back.
    */
   async close(input: { terminalId: string }): Promise<void> {
-    if (this.stopped) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopped) throw new DomainError("CLOSING")
     this.closedIds.add(input.terminalId)
     const record = this.records.get(input.terminalId)
     if (!record) {
@@ -2271,7 +2271,7 @@ export class Terminals {
    * project is going. Its records are the caller's to delete.
    */
   async closeProject(projectId: string, sessionIds: readonly string[]): Promise<void> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const sessions = new Set(sessionIds)
     // Marked first, so a restart or create under way can't start a shell behind the close,
     // and left marked once closed: the project and its sessions are going for good.
@@ -2284,7 +2284,7 @@ export class Terminals {
     }
     // Shutting down meanwhile: the project, and what of its terminals was only saved, stay
     // for the next runner to remove.
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     this.asks.forgetProject(projectId)
     this.messaging.forgetProject(projectId)
   }
@@ -2491,7 +2491,7 @@ export class Terminals {
 
   /** Turning transcripts off forgets every saved one; turning them on saves each anew. */
   keepTranscripts(enabled: boolean): void {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     this.transcripts = enabled
     if (enabled) for (const record of this.records.values()) record.changed = true
     if (!enabled) this.persisting(() => this.options.records?.clearTranscripts())
@@ -2546,7 +2546,7 @@ export class Terminals {
     try {
       await this.enqueue(record, () => {
         if (signal?.aborted || pending.released) return
-        if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+        if (this.stopping) throw new DomainError("CLOSING")
         // Closed, or closing, while this attachment waited its turn.
         if (record.closed || this.records.get(input.terminalId) !== record)
           throw new DomainError("TERMINAL_NOT_FOUND")
@@ -2613,7 +2613,7 @@ export class Terminals {
    * signal aborts, the owner is released, or the runner shuts down.
    */
   async *watch(ownerId: string, signal?: AbortSignal): AsyncGenerator<TerminalChange> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const watcher = new TerminalWatcher(this.list())
     this.watchers.set(watcher, ownerId)
     const abort = () => watcher.finish()
@@ -2638,7 +2638,7 @@ export class Terminals {
    * until the terminal is closed or `signal` aborts.
    */
   async *detail(terminalId: string, signal?: AbortSignal): AsyncGenerator<AgentDetail> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(terminalId)
     yield* this.snapshots(this.details, terminalId, this.detailOf(record), signal)
   }
@@ -2977,7 +2977,7 @@ export class Terminals {
    * aborts.
    */
   async *watchMessages(terminalId: string, signal?: AbortSignal): AsyncGenerator<TerminalMessages> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     // Only for a terminal the runner holds: closing or evicting it ends the stream.
     this.record(terminalId)
     yield* this.snapshots(this.mail, terminalId, this.messages(terminalId), signal)
@@ -3032,7 +3032,7 @@ export class Terminals {
    * owner is released, or the runner shuts down.
    */
   requests(ownerId: string, signal?: AbortSignal): AsyncGenerator<TerminalRequest> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     return this.opens.follow(ownerId, signal)
   }
 
@@ -3093,7 +3093,7 @@ export class Terminals {
     actor: string,
     signal?: AbortSignal,
   ): AsyncGenerator<TranscriptChange> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(terminalId)
     const { binding, transcript: root } = record
     const source = binding && harnesses[binding.agent].transcripts
@@ -3268,7 +3268,7 @@ export class Terminals {
   }
 
   private control(id: string, ownerId: string): Record {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(id)
     if (record.controller !== ownerId) throw new DomainError("CONTROL_REQUIRED")
     return record

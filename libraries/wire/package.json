@@ -44,20 +44,31 @@
   "dependencies": {
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
-    "@orpc/standard-server-peer": "catalog:"
+    "@orpc/standard-server-peer": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@orpc/server": "catalog:",
     "@types/node": "^26.6.5",
+    "@types/ws": "8.18.2",
     "electron": "catalog:",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "ws": "catalog:"
   },
   "peerDependencies": {
-    "electron": "catalog:"
+    "@orpc/server": "catalog:",
+    "electron": "catalog:",
+    "ws": "catalog:"
   },
   "peerDependenciesMeta": {
+    "@orpc/server": {
+      "optional": true
+    },
     "electron": {
+      "optional": true
+    },
+    "ws": {
       "optional": true
     }
   }

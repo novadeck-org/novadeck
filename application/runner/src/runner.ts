@@ -2,11 +2,14 @@ import { randomUUID } from "node:crypto"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
+import { errors, protocolVersion } from "@novadeck/protocol"
+import { createSessions, type Sessions } from "@novadeck/wire/server"
+import { ORPCError } from "@orpc/server"
+
 import { CompanionItems } from "./companions/items.js"
 import { createHarnesses, type HarnessesOptions } from "./harnesses/service.js"
 import { Murmur } from "./murmur/service.js"
-import { createRefusal } from "./refusal.js"
-import { createRouter, type Connection } from "./router.js"
+import { apiError, createRouter } from "./router.js"
 import { installShellFiles } from "./shell/install.js"
 import { Terminals, type TerminalOptions } from "./terminals/index.js"
 import { Uploads } from "./terminals/uploads.js"
@@ -71,20 +74,14 @@ export type RunnerOptions = {
 }
 
 export type Runner = {
-  /** Identifies this runner lifetime; terminal cursors are only valid within it. */
-  readonly id: string
-  readonly router: ReturnType<typeof createRouter> | ReturnType<typeof createRefusal>
+  /**
+   * Its clients' sessions, for a transport to serve (`serveWebSocket`, `servePort`). Their
+   * epoch is this runner's lifetime: terminal cursors are only valid within it. A session
+   * that ends releases its attachments and terminal control; its shells keep running.
+   */
+  readonly sessions: Sessions
   /** The largest initial snapshot, which transports allow for in their send buffers. */
   readonly snapshotBytes: number
-  /**
-   * Opens a client connection whose handshake accepts the tokens `verify` approves.
-   * `terminate` ends its transport when a newer connection of the same client replaces it.
-   */
-  connect(
-    transport: Pick<Connection, "verify" | "terminate" | "onAuthenticated" | "maxCalls">,
-  ): Connection
-  /** Releases a connection's attachments and terminal control. Its shells keep running. */
-  disconnect(connection: Connection): void
   /** Saves every terminal's restore state now, as when the system is shutting down. */
   persist(): void
   /**
@@ -213,20 +210,16 @@ export const wire = (options: RunnerOptions) => {
  * tells every client that proves itself why (`WORKSPACE_TOO_NEW`).
  */
 const refusingRunner = (): Runner => ({
-  id: randomUUID(),
-  router: createRefusal(),
-  snapshotBytes: 0,
-  connect: (transport) => ({
-    ...transport,
-    id: randomUUID(),
-    clientId: undefined,
-    authenticated: false,
-    closed: false,
-    calls: 0,
+  // A client that proves itself is told why, and nothing else is served. The runner stays
+  // up, so a client that retries is told again instead of finding a process that crashed.
+  sessions: createSessions({
+    protocolVersion,
+    router: {},
+    admit: () => {
+      throw new ORPCError("WORKSPACE_TOO_NEW", { status: errors.WORKSPACE_TOO_NEW.status })
+    },
   }),
-  disconnect: (connection) => {
-    connection.closed = true
-  },
+  snapshotBytes: 0,
   persist: () => {},
   close: () => Promise.resolve(),
 })
@@ -248,56 +241,31 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
 }
 
 const startRunner = (options: RunnerOptions): Runner => {
-  const id = randomUUID()
   const { store, terminals, items, agents, projects, uploads, voice, murmur } = wire(options)
-  const clients = new Map<string, Connection>()
   let closing: Promise<void> | undefined
-  const disconnect = (connection: Connection) => {
-    if (connection.closed) return
-    connection.closed = true
-    if (connection.clientId !== undefined && clients.get(connection.clientId) === connection) {
-      clients.delete(connection.clientId)
-    }
-    terminals.release(connection.id)
-    voice.release(connection.id)
-    murmur.release(connection.id)
-  }
-  // A client only notices a dead link first; release its stale connection now instead
-  // of after missed heartbeats, so its reconnection can reclaim terminal control.
-  const claim = (connection: Connection, clientId: string) => {
-    const previous = clients.get(clientId)
-    if (previous !== undefined && previous !== connection) {
-      disconnect(previous)
-      previous.terminate()
-    }
-    connection.clientId = clientId
-    clients.set(clientId, connection)
-  }
   return {
-    id,
-    router: createRouter({
-      runnerId: id,
-      claim,
-      store,
-      terminals,
-      projects,
-      items,
-      agents,
-      uploads,
-      voice,
-      murmur,
-      closing: () => closing !== undefined,
+    sessions: createSessions({
+      protocolVersion,
+      router: createRouter({
+        store,
+        terminals,
+        projects,
+        items,
+        agents,
+        uploads,
+        voice,
+        murmur,
+        closing: () => closing !== undefined,
+      }),
+      error: apiError,
+      // Whatever a client held through a session it lost or replaced: its shells keep running.
+      closed: (session) => {
+        terminals.release(session.id)
+        voice.release(session.id)
+        murmur.release(session.id)
+      },
     }),
     snapshotBytes: options.terminals?.snapshotBytes ?? 32 * 1024 * 1024,
-    connect: (transport) => ({
-      ...transport,
-      id: randomUUID(),
-      clientId: undefined,
-      authenticated: false,
-      closed: false,
-      calls: 0,
-    }),
-    disconnect,
     persist: () => {
       if (!closing) terminals.persist()
     },

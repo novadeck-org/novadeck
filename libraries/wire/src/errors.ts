@@ -11,6 +11,8 @@ export const wireErrors = {
   INCOMPATIBLE_PROTOCOL: { status: 409 },
   /** Too many connections, or too many calls at once on one. */
   RESOURCE_LIMIT: { status: 429 },
+  /** The server is shutting down: the call may succeed once it's back. */
+  CLOSING: { status: 503 },
   /** A stream's reader fell too far behind; it starts again from scratch. */
   SLOW_CONSUMER: { status: 429 },
   /** A stream can't resume from the cursor given; it starts again from scratch. */
