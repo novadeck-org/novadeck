@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    // Workspace packages' source, as Vitest reads it: no build first (see docs/build-graph.md).
+    "customConditions": ["node", "development"],
     "target": "ES2023",
     "lib": ["ES2023"],
     "module": "ESNext",

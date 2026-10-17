@@ -45,7 +45,7 @@ export const build = async (): Promise<Atlas> => {
   ensureProtocol(repo)
   const anchors = createAnchors(repo)
   const api = await extractApi(repo, anchors)
-  const data = extractData(repo, anchors)
+  const data = await extractData(repo, anchors)
   const agents = extractAgents(repo, anchors)
   const { areas, problems } = extractAreas(repo, anchors, { api, data, agents })
   const owner = (file: string | undefined): string | null =>

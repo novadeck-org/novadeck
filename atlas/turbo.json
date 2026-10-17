@@ -2,7 +2,13 @@
   "$schema": "https://turborepo.com/schema.json",
   "extends": ["//"],
   "tasks": {
-    "test": { "cache": false },
-    "typecheck": { "cache": false }
+    "test": {
+      "cache": false,
+      "dependsOn": ["@novadeck/protocol#build", "^transit"]
+    },
+    "typecheck": {
+      "cache": false,
+      "dependsOn": ["@novadeck/protocol#build", "^transit"]
+    }
   }
 }

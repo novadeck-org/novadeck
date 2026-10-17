@@ -12,12 +12,15 @@
       "passThroughEnv": ["CARGO_HOME", "RUSTUP_HOME"],
       "outputs": ["dist/**", "out/**"]
     },
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
     "dev": {
       "cache": false,
       "persistent": true
     },
     "test": {
-      "dependsOn": ["build", "^build", "^test"],
+      "dependsOn": ["^transit"],
       "env": ["VITE_API_URL", "VITE_NOVADECK_RUNNER_URL", "VITE_NOVADECK_RUNNER_TOKEN"],
       "passThroughEnv": [
         "PLAYWRIGHT_BROWSERS_PATH",
@@ -29,7 +32,7 @@
       "outputs": []
     },
     "typecheck": {
-      "dependsOn": ["^build", "^typecheck"],
+      "dependsOn": ["^transit"],
       "outputs": []
     }
   }

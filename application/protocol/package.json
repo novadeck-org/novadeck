@@ -6,30 +6,37 @@
   "type": "module",
   "exports": {
     ".": {
+      "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
     "./client": {
+      "development": "./src/client.ts",
       "types": "./dist/client.d.ts",
       "default": "./dist/client.js"
     },
     "./wire": {
+      "development": "./src/wire.ts",
       "types": "./dist/wire.d.ts",
       "default": "./dist/wire.js"
     },
     "./bridge": {
+      "development": "./src/bridge.ts",
       "types": "./dist/bridge.d.ts",
       "default": "./dist/bridge.js"
     },
     "./harnesses": {
+      "development": "./src/harnesses.ts",
       "types": "./dist/harnesses.d.ts",
       "default": "./dist/harnesses.js"
     },
     "./pages": {
+      "development": "./src/pages.ts",
       "types": "./dist/pages.d.ts",
       "default": "./dist/pages.js"
     },
     "./text": {
+      "development": "./src/text.ts",
       "types": "./dist/text.d.ts",
       "default": "./dist/text.js"
     }

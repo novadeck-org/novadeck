@@ -56,6 +56,9 @@ the build rules and the test sandbox. The app keeps the product.
   instead, tests included. One into a sibling's build (`../../wire/dist`), whose declaration files
   `rootDir` doesn't see, the lint refuses, as it does a relative path up into another folder's
   `dist`; a package's own `dist` (`katex/dist/katex.min.css`) is a package's import, and allowed.
+  So a library's typecheck reads the libraries it imports as built, and its `turbo.json` has it
+  wait for their builds; its tests read their sources (see
+  [docs/build-graph.md](../docs/build-graph.md)).
 - **The browser build check** (`scripts/libraries/browser.test.ts`): the lint sees direct imports
   only, so each library's browser subpaths are bundled for the browser, and the check fails on
   any Node built-in, native module (by its `gypfile` or its `binding.gyp`) or unresolvable package
@@ -72,9 +75,9 @@ pnpm install
 ```
 
 It writes `libraries/<name>` from `scripts/libraries/template.ts`: a `package.json` with its own
-dev tools, `tsconfig.json` on the shared `tsconfig.base.json`, a build config, a Vitest config and
-a README. Then fence it in: add it to `order` in `scripts/libraries/order.ts`, give it an
-override in `.oxlintrc.json` like its neighbours', and add it to the list each other library's
-override refuses. The fence test fails until a folder here is in its order, and until each
+dev tools, `tsconfig.json` on the shared `tsconfig.base.json`, a build config, a `turbo.json`, a
+Vitest config and a README. Then fence it in: add it to `order` in `scripts/libraries/order.ts`,
+give it an override in `.oxlintrc.json` like its neighbours', and add it to the list each other
+library's override refuses. The fence test fails until a folder here is in its order, and until each
 override refuses what the order says. The new library's `pnpm test` fails too until it has its
 first test.

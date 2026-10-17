@@ -69,6 +69,13 @@ export const template = (
     },
     exclude: ["src/**/*.test.ts"],
   }),
+  // Its typecheck reads the libraries it imports as built: their sources would leave its
+  // rootDir. Its tests read their sources, as Vitest does (see docs/build-graph.md).
+  "turbo.json": json({
+    $schema: "https://turborepo.com/schema.json",
+    extends: ["//"],
+    tasks: { typecheck: { dependsOn: ["^build", "^transit"] } },
+  }),
   "vitest.config.ts": [
     'import { defineConfig } from "vitest/config"',
     "",

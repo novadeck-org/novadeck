@@ -25,7 +25,7 @@
     "package:linux": "pnpm --filter @novadeck/host package:linux",
     "package:mac": "pnpm --filter @novadeck/host package:mac",
     "package:win": "pnpm --filter @novadeck/host package:win",
-    "test": "pnpm run test:repository && turbo run test --concurrency=1",
+    "test": "pnpm run test:repository && turbo run test --filter=!@novadeck/ui --filter=!@novadeck/runner --filter=!@novadeck/host && turbo run test --filter=@novadeck/ui --filter=@novadeck/runner --filter=@novadeck/host --concurrency=1",
     "test:repository": "vitest run --config vitest.config.ts",
     "test:e2e": "pnpm --filter @novadeck/protocol --filter @novadeck/relay build && pnpm --filter @novadeck/runner test:e2e",
     "test:e2e:install": "pnpm --filter @novadeck/protocol --filter @novadeck/relay build && node scripts/e2e/install/main.ts",

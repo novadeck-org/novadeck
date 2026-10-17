@@ -1,5 +1,3 @@
-import { createRequire } from "node:module"
-
 import { z } from "zod"
 
 import type { Anchor, Column, Data, LocalKey, Setting, Table } from "../src/atlas.ts"
@@ -115,8 +113,8 @@ const typeName = (schema: z.core.JSONSchema.JSONSchema): string => {
   return schema.type ?? "unknown"
 }
 
-const settingsIn = (anchors: Anchors): Setting[] => {
-  const schemas = createRequire(import.meta.url)("@novadeck/protocol") as Record<string, unknown>
+const settingsIn = async (anchors: Anchors): Promise<Setting[]> => {
+  const schemas = (await import("@novadeck/protocol")) as Record<string, unknown>
   const groups = { runnerSettings: "runner", voiceSettings: "voice", murmurSettings: "murmur" }
   const source = anchors.read(schemasFile) ?? ""
   return Object.entries(groups).flatMap(([name, group]) => {
@@ -158,7 +156,7 @@ const localIn = (anchors: Anchors, files: string[]): LocalKey[] =>
   })
 
 // The runner's SQLite tables, the settings it keeps, and the UI's browser storage.
-export const extractData = (repo: string, anchors: Anchors): Data => {
+export const extractData = async (repo: string, anchors: Anchors): Promise<Data> => {
   const runnerFiles = sourceFiles(repo, "application/runner/src")
   const tables = runnerFiles.flatMap((file) => tablesIn(file, anchors.read(file) ?? ""))
   usage(anchors, runnerFiles, tables)
@@ -167,7 +165,7 @@ export const extractData = (repo: string, anchors: Anchors): Data => {
     anchors.report("data tables", "application/runner/src", "found 0 `CREATE TABLE` statements")
   return {
     tables,
-    settings: settingsIn(anchors),
+    settings: await settingsIn(anchors),
     local: localIn(anchors, sourceFiles(repo, "application/ui/src")),
   }
 }
