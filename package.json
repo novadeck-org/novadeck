@@ -17,6 +17,7 @@
     "preview:try": "pnpm --filter @novadeck/ui preview --outDir dist-try --port 5191 --strictPort",
     "poster:try": "pnpm --filter @novadeck/ui poster:try",
     "build": "turbo run build",
+    "bench:profile": "pnpm --filter @novadeck/host package && node scripts/bench/profile/main.ts",
     "bench:timing": "turbo run build --filter=@novadeck/runner --filter=@novadeck/sandbox && node scripts/bench/timing/main.ts",
     "new:library": "node scripts/libraries/new.ts",
     "preview": "pnpm --filter @novadeck/runner start",
@@ -35,9 +36,11 @@
     "format:check": "oxfmt --check && pnpm --filter @novadeck/relay format:check"
   },
   "devDependencies": {
+    "@jridgewell/trace-mapping": "0.3.31",
     "@novadeck/sandbox": "workspace:*",
     "@release-it/conventional-changelog": "12.0.2",
     "@types/node": "^26.6.5",
+    "@xterm/addon-webgl": "0.19.0",
     "concurrently": "^10.0.6",
     "conventional-changelog-conventionalcommits": "10.4.1",
     "esbuild": "0.28.2",

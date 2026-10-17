@@ -4,7 +4,8 @@ import { delimiter, join } from "node:path"
 
 import { describe, expect, it, onTestFinished } from "vitest"
 
-import { runnerEnv, strays } from "./stack.ts"
+import { strays } from "./sandbox.ts"
+import { runnerEnv } from "./stack.ts"
 
 // The timing run's boundary: the Novadeck `claude` shim runs the next `claude` on PATH, so a
 // real one there would start the developer's real Claude Code with their logins.

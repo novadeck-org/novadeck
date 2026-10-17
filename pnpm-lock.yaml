@@ -12,6 +12,9 @@ importers:
 
   .:
     devDependencies:
+      '@jridgewell/trace-mapping':
+        specifier: 0.3.31
+        version: 0.3.31
       '@novadeck/sandbox':
         specifier: workspace:*
         version: link:libraries/sandbox
@@ -21,6 +24,9 @@ importers:
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
+      '@xterm/addon-webgl':
+        specifier: 0.19.0
+        version: 0.19.0
       concurrently:
         specifier: ^10.0.6
         version: 10.0.6

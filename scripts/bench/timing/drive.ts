@@ -22,18 +22,18 @@ export const scenario = {
   viewport: { width: 1440, height: 900 },
 } as const
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // What the page keeps for the run on `window`. Functions run in the page are sent there as
 // source, so each reaches it through a cast of its own rather than a helper here.
-type Probe = {
+export type Probe = {
   benchTiming: { longTasks: number[]; frames: number[]; recording: boolean }
   benchSwitch: { clicked: number; painted: number | undefined }
 }
 
-// In the page before the app loads: long tasks as they happen, and each animation frame's
-// time while a window records.
-const probe = () => {
+// In the page, before the app loads or once it has: long tasks as they happen, and each
+// animation frame's time while a window records.
+export const probe = (): void => {
   const timing: Probe["benchTiming"] = { longTasks: [], frames: [], recording: false }
   ;(window as unknown as Probe).benchTiming = timing
   try {
@@ -54,19 +54,23 @@ const probe = () => {
 const rows = "[data-terminal-tab-id]"
 
 // The radio's input sits under its label, which takes the click.
-const layout = (page: Page, name: "Grid" | "Focus") =>
+export const layout = (page: Page, name: "Grid" | "Focus") =>
   page
     .getByRole("radiogroup", { name: "Workspace layout" })
     .getByText(name, { exact: true })
     .click()
 
 /** The phase of terminal `n`'s row (1-based), or null before it's there. */
-const phase = (page: Page, n: number) =>
+export const phase = (page: Page, n: number) =>
   page.evaluate(
     ([selector, index]) =>
       document.querySelectorAll(selector)[index]?.getAttribute("data-terminal-phase") ?? null,
     [rows, n - 1] as const,
   )
+
+// A screen's text is its rows' in the page, as xterm's DOM renderer draws them. A renderer
+// that draws on a canvas, as the profile's WebGL build does, leaves a `profileText` on the
+// screen's host that reads the rows it shows from the buffer instead.
 
 /** Whether a visible screen shows `text`. */
 const shown = (page: Page, text: string) =>
@@ -74,12 +78,15 @@ const shown = (page: Page, text: string) =>
     (wanted) =>
       [...document.querySelectorAll(".xterm")].some((screen) => {
         const box = screen.getBoundingClientRect()
-        return box.width > 0 && box.height > 0 && (screen.textContent ?? "").includes(wanted)
+        const read = (screen.parentElement as { profileText?: () => string } | null)?.profileText
+        return (
+          box.width > 0 && box.height > 0 && (read?.() ?? screen.textContent ?? "").includes(wanted)
+        )
       }),
     text,
   )
 
-const until = async (check: () => Promise<boolean>, ms: number): Promise<boolean> => {
+export const until = async (check: () => Promise<boolean>, ms: number): Promise<boolean> => {
   const deadline = Date.now() + ms
   while (Date.now() < deadline) {
     // eslint-disable-next-line no-await-in-loop -- Looks again until it holds.
@@ -123,9 +130,19 @@ const row = async (page: Page, n: number) => {
   )
 }
 
-/** Opens 13 terminals; the first 5 start the fake agent, the rest print a mark and idle. */
-const setUp = async (page: Page, stack: Running) => {
-  for (let n = 1; n <= scenario.terminals; n += 1) {
+/** The command an idle terminal runs: it prints terminal `n`'s mark. */
+export const idleShell = (n: number): string => `printf '[T%s] idle shell\\n' ${n}`
+
+/**
+ * Opens `terminals` terminals, one after another, each running `command(n)` once its
+ * shell has started, and waits for each to show its mark, `[T<n>]`.
+ */
+export const setUp = async (
+  page: Page,
+  terminals: number,
+  command: (n: number) => string,
+): Promise<void> => {
+  for (let n = 1; n <= terminals; n += 1) {
     // eslint-disable-next-line no-await-in-loop -- One terminal after another, as a person opens them.
     await page.getByRole("button", { name: "New terminal" }).first().click()
     // Keys typed while it starts are lost.
@@ -137,15 +154,36 @@ const setUp = async (page: Page, stack: Running) => {
     if (!started) throw new Error(`terminal ${n} never started`)
     // eslint-disable-next-line no-await-in-loop -- As above.
     await sleep(500)
-    const agent = n <= scenario.agents
     // eslint-disable-next-line no-await-in-loop -- As above.
-    await type(
-      page,
-      agent ? `clear; ${stack.agent(n)}` : `clear; printf '[T%s] idle shell\\n' ${n}`,
-    )
+    await type(page, `clear; ${command(n)}`)
     // eslint-disable-next-line no-await-in-loop -- As above.
     const marked = await until(() => shown(page, `[T${n}]`), 15_000)
     if (!marked) throw new Error(`terminal ${n} never showed its mark`)
+  }
+}
+
+/** Starts recording frames; returns where the long tasks recorded so far end. */
+export const startRecording = (page: Page): Promise<number> =>
+  page.evaluate(() => {
+    const { benchTiming } = window as unknown as Probe
+    benchTiming.frames = []
+    benchTiming.recording = true
+    return benchTiming.longTasks.length
+  })
+
+/** Stops recording: the gaps between frames, and the long tasks since `from`. */
+export const stopRecording = async (
+  page: Page,
+  from: number,
+): Promise<{ frameGaps: number[]; longTasks: number[] }> => {
+  const { frames, tasks } = await page.evaluate((start) => {
+    const { benchTiming } = window as unknown as Probe
+    benchTiming.recording = false
+    return { frames: benchTiming.frames, tasks: benchTiming.longTasks.slice(start) }
+  }, from)
+  return {
+    frameGaps: frames.slice(1).map((time, index) => time - frames[index]!),
+    longTasks: tasks,
   }
 }
 
@@ -164,26 +202,15 @@ const steady = async (page: Page, cdp: CDPSession, name: Steady["layout"]): Prom
     }
     return { task: value("TaskDuration"), at: value("Timestamp") }
   }
-  const longTasks = await page.evaluate(() => {
-    const { benchTiming } = window as unknown as Probe
-    benchTiming.frames = []
-    benchTiming.recording = true
-    return benchTiming.longTasks.length
-  })
+  const from = await startRecording(page)
   const before = await reading()
   await sleep(scenario.windowMs)
   const after = await reading()
-  const { frames, tasks } = await page.evaluate((from) => {
-    const { benchTiming } = window as unknown as Probe
-    benchTiming.recording = false
-    return { frames: benchTiming.frames, tasks: benchTiming.longTasks.slice(from) }
-  }, longTasks)
   return {
     layout: name,
     seconds: after.at - before.at,
     taskSeconds: after.task - before.task,
-    frameGaps: frames.slice(1).map((time, index) => time - frames[index]!),
-    longTasks: tasks,
+    ...(await stopRecording(page, from)),
   }
 }
 
@@ -193,7 +220,7 @@ const steady = async (page: Page, cdp: CDPSession, name: Steady["layout"]): Prom
  * posts a message, which arrives once that frame has painted. A kept window is in the page
  * already, so its switch is the time to show it.
  */
-const switchTo = async (page: Page, target: number): Promise<Switch> => {
+export const switchTo = async (page: Page, target: number): Promise<Switch> => {
   const where = await row(page, target)
   if (!where) return { target, ms: undefined }
   await page.evaluate((tag) => {
@@ -205,7 +232,10 @@ const switchTo = async (page: Page, target: number): Promise<Switch> => {
           const box = screen.getBoundingClientRect()
           return box.width > 0 && box.height > 0
         })
-        .some((screen) => (screen.textContent ?? "").includes(tag))
+        .some((screen) => {
+          const read = (screen.parentElement as { profileText?: () => string } | null)?.profileText
+          return (read?.() ?? screen.textContent ?? "").includes(tag)
+        })
     // From the press itself, its event's time, so a press waiting behind long tasks counts
     // its wait too.
     const down = (event: Event) => {
@@ -245,11 +275,24 @@ const switchTo = async (page: Page, target: number): Promise<Switch> => {
 }
 
 /** Selects terminal `n` by its row, as a person does. */
-const select = async (page: Page, n: number) => {
+export const select = async (page: Page, n: number) => {
   const where = await row(page, n)
   if (!where) throw new Error(`terminal ${n} has no row`)
   await page.mouse.click(where.x, where.y)
   await sleep(800)
+}
+
+/**
+ * Waits until the app has booted, as it has once it offers either the welcome or a new
+ * terminal, having connected to the runner, and passes the welcome.
+ */
+export const boot = async (page: Page): Promise<void> => {
+  const skip = page.getByText("Skip for now")
+  await skip
+    .or(page.getByRole("button", { name: "New terminal" }))
+    .first()
+    .waitFor({ timeout: 60_000 })
+  if (await skip.isVisible()) await skip.click()
 }
 
 /**
@@ -277,16 +320,11 @@ export const drive = async (
     const cdp = await page.context().newCDPSession(page)
     await cdp.send("Performance.enable")
     await page.goto(stack.url, { waitUntil: "load" })
-    // Booted once it offers either the welcome or a new terminal, as it does once it has
-    // connected to the runner.
-    const skip = page.getByText("Skip for now")
-    await skip
-      .or(page.getByRole("button", { name: "New terminal" }))
-      .first()
-      .waitFor({ timeout: 60_000 })
-    if (await skip.isVisible()) await skip.click()
+    await boot(page)
     await layout(page, "Focus")
-    await setUp(page, stack)
+    await setUp(page, scenario.terminals, (n) =>
+      n <= scenario.agents ? stack.agent(n) : idleShell(n),
+    )
     for (let seed = 1; seed <= scenario.agents; seed += 1) stack.busy(seed, true)
     const agents = Array.from({ length: scenario.agents }, (_, index) => index + 1)
     const phases = () => Promise.all(agents.map((n) => phase(page, n)))

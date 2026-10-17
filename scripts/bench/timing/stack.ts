@@ -1,35 +1,18 @@
 import { type ChildProcess, spawn, type SpawnOptions } from "node:child_process"
 import { randomBytes } from "node:crypto"
-import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { createServer } from "node:net"
-import { delimiter, join } from "node:path"
+import { join } from "node:path"
 
-import { createSandbox, type Sandbox } from "@novadeck/sandbox"
-import { reap } from "@novadeck/sandbox/reap"
-import { tripwire } from "@novadeck/sandbox/tripwire"
+import type { Sandbox } from "@novadeck/sandbox"
+
+import { openSandbox } from "./sandbox.ts"
 
 // What the timing run runs against: the UI's production build, served by `vite preview`, over
-// a real runner inside the sandbox, as the dev-web path wires them, with the fake agent as
-// the only `claude` on the sandbox's PATH. The runner and every shell it starts get the
-// sandbox's environment alone, so the Novadeck `claude` shim, which runs the next `claude`
-// on PATH, can only ever reach the fake.
+// a real runner inside the sandbox (see sandbox.ts), as the dev-web path wires them. The
+// runner and every shell it starts get the sandbox's environment alone.
 
 const root = join(import.meta.dirname, "..", "..", "..")
 const ui = join(root, "application", "ui")
-
-// The agent CLIs a folder on the sandbox's PATH may not hold, besides the fake's own.
-const agents = ["claude", "codex", "agy"]
-
-/**
- * The real agent CLIs in the folders of `path` but its first, the fake's own: the sandbox
- * refuses to start while there are any.
- */
-export const strays = (path: string): readonly string[] =>
-  path
-    .split(delimiter)
-    .slice(1)
-    .flatMap((folder) => agents.map((agent) => join(folder, agent)))
-    .filter((file) => existsSync(file))
 
 /** The runner's environment: the sandbox's alone, with what the runner itself is told. */
 export const runnerEnv = (
@@ -43,9 +26,6 @@ export const runnerEnv = (
   NOVADECK_DATABASE: join(sandbox.root, "data", "workspace.sqlite"),
   CORS_ORIGINS: runner.origin,
 })
-
-/** A word sh reads as the text itself, whatever it holds. */
-const quoted = (text: string): string => `'${text.replaceAll("'", "'\\''")}'`
 
 /** Free ports on loopback, each held until all are known, so no two come out the same. */
 const freePorts = async (count: number): Promise<readonly number[]> => {
@@ -134,42 +114,6 @@ const run = (
     track(child)
   })
 
-/**
- * The sandbox the runner runs in, with the fake agent first on its PATH as `claude`. The
- * runner reads PATH again from a login shell (`$SHELL -ilc env`) as it starts, where the
- * system's profile may put its own folders first (macOS's path_helper does); that PATH starts
- * no agent CLI in this scenario, which connects nothing.
- */
-const sandboxed = (): { readonly sandbox: Sandbox; readonly control: string } => {
-  const base = createSandbox({ prefix: "novadeck-timing-", bins: [], user: "novadeck" })
-  try {
-    const bin = join(base.root, "bin")
-    mkdirSync(bin, { mode: 0o700 })
-    const claude = join(bin, "claude")
-    writeFileSync(
-      claude,
-      `#!/bin/sh\nexec node ${quoted(join(import.meta.dirname, "agent.ts"))} "$@"\n`,
-    )
-    chmodSync(claude, 0o755)
-    const path = [bin, base.env.PATH].join(delimiter)
-    const found = strays(path)
-    if (found.length > 0)
-      throw new Error(`the sandbox's PATH holds a real agent CLI: ${found.join(", ")}`)
-    // The runner counts Claude Code connected once Novadeck's plugin is on in its settings.
-    mkdirSync(join(base.home, ".claude"), { recursive: true })
-    writeFileSync(
-      join(base.home, ".claude", "settings.json"),
-      JSON.stringify({ enabledPlugins: { "novadeck@novadeck": true } }),
-    )
-    const control = join(base.root, "control")
-    mkdirSync(control)
-    return { sandbox: { ...base, env: { ...base.env, PATH: path } }, control }
-  } catch (error) {
-    rmSync(base.root, { recursive: true, force: true })
-    throw error
-  }
-}
-
 /** The stack once it runs. */
 export type Running = {
   /** The UI's address. */
@@ -193,22 +137,7 @@ export type Stack = {
 
 /** A fresh sandbox, with the tripwire set over the developer's home; nothing runs yet. */
 export const openStack = (): Stack => {
-  const { sandbox, control } = sandboxed()
-  const changed = (() => {
-    try {
-      return tripwire(sandbox, [
-        {
-          searched: [".claude.json", join(".claude", "settings.json")],
-          listed: [join(".claude", "projects")],
-          stamped: [join(".local", "share", "novadeck")],
-        },
-      ])
-    } catch (error) {
-      // Nothing runs yet: the sandbox goes with it.
-      rmSync(sandbox.root, { recursive: true, force: true })
-      throw error
-    }
-  })()
+  const { sandbox, busy, agent, close } = openSandbox("novadeck-timing-")
   const children: ChildProcess[] = []
   let stopped: Promise<readonly string[]> | undefined
   // Once stopping, nothing more starts: what a start still under way just started ends at
@@ -228,21 +157,7 @@ export const openStack = (): Stack => {
       for (let child = children.pop(); child; child = children.pop())
         // eslint-disable-next-line no-await-in-loop -- One after another, as above.
         await halt(child, 10_000)
-      const leftovers = await reap(sandbox).catch((error: unknown) => [
-        `reaping failed: ${String(error)}`,
-      ])
-      const written = (() => {
-        try {
-          return changed().map((path) => `the developer's home changed: ${path}`)
-        } catch (error) {
-          return [`the developer's home couldn't be checked: ${String(error)}`]
-        }
-      })()
-      rmSync(sandbox.root, { recursive: true, force: true, maxRetries: 5 })
-      return [
-        ...leftovers.map((one) => `a process outlived the run in the sandbox: ${one}`),
-        ...written,
-      ]
+      return close()
     })())
   const vite = join(ui, "node_modules", "vite", "bin", "vite.js")
   return {
@@ -298,9 +213,8 @@ export const openStack = (): Stack => {
       await ready(origin, preview, 60_000)
       return {
         url: `${origin}/`,
-        busy: (seed, on) => writeFileSync(join(control, String(seed)), on ? "on" : "off"),
-        agent: (seed) =>
-          `TIMING_AGENT_CONTROL=${quoted(join(control, String(seed)))} TIMING_AGENT_SEED=${seed} claude`,
+        busy,
+        agent,
       }
     },
   }
