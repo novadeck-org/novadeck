@@ -1,9 +1,8 @@
-import { SerializeAddon, Terminal } from "@novadeck/emulator/headless"
+import { createScreen, trackMouse, type Screen } from "@novadeck/emulator/headless"
 import type { TerminalSummary } from "@novadeck/protocol"
 import { Subscription } from "@novadeck/terminal/host"
 
 import { describe, expect, it } from "../test.js"
-import { watchMouseEncoding } from "./mouse.js"
 import { snapshot } from "./snapshot.js"
 
 const summary: TerminalSummary = {
@@ -30,7 +29,7 @@ const summary: TerminalSummary = {
   run: 1,
 }
 
-const text = (terminal: InstanceType<typeof Terminal>) =>
+const text = (terminal: Screen) =>
   Array.from({ length: terminal.rows }, (_, index) =>
     terminal.buffer.active.getLine(terminal.buffer.active.baseY + index)?.translateToString(true),
   ).join("\n")
@@ -38,14 +37,7 @@ const text = (terminal: InstanceType<typeof Terminal>) =>
 describe("bounded terminal snapshots", () => {
   it("recovers a fully colored ordinary terminal whose retained screen exceeds the live queue budget", async () => {
     const ordinary = { ...summary, cols: 120, rows: 24 }
-    const screen = new Terminal({
-      cols: ordinary.cols,
-      rows: ordinary.rows,
-      scrollback: 1000,
-      allowProposedApi: true,
-    })
-    const serializer = new SerializeAddon()
-    screen.loadAddon(serializer)
+    const screen = createScreen({ cols: ordinary.cols, rows: ordinary.rows, scrollback: 1000 })
     try {
       const line = Array.from(
         { length: ordinary.cols },
@@ -54,7 +46,7 @@ describe("bounded terminal snapshots", () => {
       ).join("")
       await new Promise<void>((resolve) => screen.write((line + "\r\n").repeat(1024), resolve))
       const allowance = 32 * 1024 * 1024
-      const event = snapshot(screen, serializer, ordinary, 10, allowance, "default")
+      const event = snapshot(screen, ordinary, 10, allowance, "default")
       expect(Buffer.byteLength(JSON.stringify(event))).toBeGreaterThan(4 * 1024 * 1024)
       const subscription = new Subscription(
         "observe",
@@ -72,29 +64,18 @@ describe("bounded terminal snapshots", () => {
   })
 
   it("trims old scrollback to fit the allowance while preserving the visible screen and colors", async () => {
-    const screen = new Terminal({
-      cols: summary.cols,
-      rows: summary.rows,
-      scrollback: 1000,
-      allowProposedApi: true,
-    })
-    const serializer = new SerializeAddon()
-    screen.loadAddon(serializer)
-    const restored = new Terminal({
-      cols: summary.cols,
-      rows: summary.rows,
-      allowProposedApi: true,
-    })
+    const screen = createScreen({ cols: summary.cols, rows: summary.rows, scrollback: 1000 })
+    const restored = createScreen({ cols: summary.cols, rows: summary.rows, scrollback: 1000 })
     try {
       const lines = Array.from(
         { length: 100 },
         (_, index) => `\u001b[38;2;${index};3;7mLINE_${index}\r\n`,
       ).join("")
       await new Promise<void>((resolve) => screen.write(lines + "\u001b[31mVISIBLE", resolve))
-      const full = snapshot(screen, serializer, summary, 9, 1024 * 1024, "default")
+      const full = snapshot(screen, summary, 9, 1024 * 1024, "default")
       const budget = 1024
       expect(Buffer.byteLength(JSON.stringify(full))).toBeGreaterThan(budget)
-      const bounded = snapshot(screen, serializer, summary, 9, budget, "default")
+      const bounded = snapshot(screen, summary, 9, budget, "default")
       expect(Buffer.byteLength(JSON.stringify(bounded))).toBeLessThanOrEqual(budget)
       expect(bounded.data).not.toContain("LINE_0")
       expect(bounded).toMatchObject({ terminalId: "terminal", sequence: 9, cols: 20, rows: 4 })
@@ -114,12 +95,10 @@ describe("bounded terminal snapshots", () => {
   })
 
   it("reports an oversized visible viewport instead of silently removing visible cells", async () => {
-    const screen = new Terminal({ cols: summary.cols, rows: summary.rows, allowProposedApi: true })
-    const serializer = new SerializeAddon()
-    screen.loadAddon(serializer)
+    const screen = createScreen({ cols: summary.cols, rows: summary.rows, scrollback: 1000 })
     try {
       await new Promise<void>((resolve) => screen.write("\u001b[31mVISIBLE", resolve))
-      expect(() => snapshot(screen, serializer, summary, 1, 1, "default")).toThrow(
+      expect(() => snapshot(screen, summary, 1, 1, "default")).toThrow(
         expect.objectContaining({ code: "SNAPSHOT_TOO_LARGE" }),
       )
       expect(text(screen)).toContain("VISIBLE")
@@ -129,19 +108,8 @@ describe("bounded terminal snapshots", () => {
   })
 
   it("preserves the active alternate screen when trimming normal scrollback", async () => {
-    const screen = new Terminal({
-      cols: summary.cols,
-      rows: summary.rows,
-      scrollback: 1000,
-      allowProposedApi: true,
-    })
-    const serializer = new SerializeAddon()
-    screen.loadAddon(serializer)
-    const restored = new Terminal({
-      cols: summary.cols,
-      rows: summary.rows,
-      allowProposedApi: true,
-    })
+    const screen = createScreen({ cols: summary.cols, rows: summary.rows, scrollback: 1000 })
+    const restored = createScreen({ cols: summary.cols, rows: summary.rows, scrollback: 1000 })
     try {
       const lines = Array.from(
         { length: 100 },
@@ -150,7 +118,7 @@ describe("bounded terminal snapshots", () => {
       await new Promise<void>((resolve) =>
         screen.write(lines + "\u001b[?1049h\u001b[32mALT_VIEWPORT", resolve),
       )
-      const event = snapshot(screen, serializer, summary, 12, 1024, "default")
+      const event = snapshot(screen, summary, 12, 1024, "default")
       expect(Buffer.byteLength(JSON.stringify(event))).toBeLessThanOrEqual(1024)
       await new Promise<void>((resolve) => restored.write(event.data, resolve))
       expect(restored.buffer.active.type).toBe("alternate")
@@ -163,22 +131,16 @@ describe("bounded terminal snapshots", () => {
   })
 
   it("carries an SGR TUI's mouse encoding to a fresh client, which then reports the mouse as SGR", async () => {
-    const screen = new Terminal({ cols: summary.cols, rows: summary.rows, allowProposedApi: true })
-    const serializer = new SerializeAddon()
-    screen.loadAddon(serializer)
-    const encoding = watchMouseEncoding(screen)
+    const screen = createScreen({ cols: summary.cols, rows: summary.rows, scrollback: 1000 })
+    const encoding = trackMouse(screen)
     // A client's xterm after a reload, as the UI's is.
-    const restored = new Terminal({
-      cols: summary.cols,
-      rows: summary.rows,
-      allowProposedApi: true,
-    })
+    const restored = createScreen({ cols: summary.cols, rows: summary.rows, scrollback: 1000 })
     try {
       // A fullscreen TUI: the alternate screen, any motion of the mouse in SGR, and focus.
       await new Promise<void>((resolve) =>
         screen.write("\u001b[?1049h\u001b[?1003h\u001b[?1006h\u001b[?1004h> ", resolve),
       )
-      const event = snapshot(screen, serializer, summary, 3, 1024 * 1024, encoding())
+      const event = snapshot(screen, summary, 3, 1024 * 1024, encoding())
       await new Promise<void>((resolve) => restored.write(event.data, resolve))
       const sent: string[] = []
       restored.onData((data) => sent.push(data))

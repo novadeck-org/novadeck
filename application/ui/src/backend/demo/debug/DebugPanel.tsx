@@ -5,10 +5,10 @@
 // "Debug panel".
 import "./debug-panel.css"
 import { Bug, ChevronDown, ChevronRight, ChevronUp, RotateCcw, Search, X } from "lucide-react"
-import { useEffect, useRef, useState, useSyncExternalStore } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore, type ComponentType } from "react"
 
 import type { Workspace } from "../../../model/types"
-import type { BackendConnectionState, BackendSink, DebugPanelProps } from "../../port"
+import type { BackendConnectionState, BackendSink, TerminalKey } from "../../port"
 import { demoVariants } from "../variants"
 import { portableGroup } from "./portable"
 import { shellGroups } from "./shell-groups"
@@ -78,6 +78,16 @@ const matches = (words: readonly string[], group: DemoActionGroup, action: DemoA
   return words.every((word) => text.includes(word))
 }
 
+// What the debug panel may ask of the workspace.
+export type DebugPanelProps = {
+  // Adds a terminal to the current session and returns its key.
+  readonly addTerminal: () => TerminalKey
+  readonly startFresh: () => void
+  readonly selected: () => TerminalKey | undefined
+}
+
+export type DebugPanel = ComponentType<DebugPanelProps>
+
 export const createDebugPanel = ({
   launch,
   shell,
@@ -92,7 +102,7 @@ export const createDebugPanel = ({
   readonly dispatch: () => BackendSink["dispatch"] | undefined
   readonly workspace: () => Workspace | undefined
   readonly addInBackground: DemoActionContext["addInBackground"]
-}) => {
+}): DebugPanel => {
   const { Notices } = states
   const DebugPanel = ({
     addTerminal,

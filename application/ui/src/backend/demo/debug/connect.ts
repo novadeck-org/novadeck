@@ -9,6 +9,8 @@ import type { DemoPortable } from "./portable"
 import type { DemoUninstall } from "./uninstall"
 import { createDebugDemo, type DemoLaunch } from "./with-debug"
 
+export { debugPanelOf } from "./with-debug"
+
 const unavailable = (code: string): Error => {
   const failure =
     bootFailures.find((each) => each.code === code) ??

@@ -1,4 +1,5 @@
-import { describe, expect, it } from "../test.js"
+import { describe, expect, it } from "vitest"
+
 import { Latest } from "./latest.js"
 
 describe("a stream of snapshots", () => {

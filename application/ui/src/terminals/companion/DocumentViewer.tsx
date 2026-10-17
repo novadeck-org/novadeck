@@ -1,8 +1,8 @@
+import { outline } from "@novadeck/viewers/text"
 import { lazy, Suspense, useRef, type ReactNode } from "react"
 
 import type { FileContent } from "../../model/companion"
 import type { PlanEditorHandle } from "./plan-editor/PlanEditor"
-import { headingsOf } from "./plan-text"
 
 // The plan's editor, read-only: a markdown document the agent showed reads as a plan does,
 // formatted, with its outline, but it's the agent's file, not something to edit or note.
@@ -25,7 +25,7 @@ export const DocumentViewer = ({
 }): React.JSX.Element => {
   const editor = useRef<PlanEditorHandle | null>(null)
   const text = content.lines.join("\n")
-  const headings = headingsOf(text)
+  const headings = outline(text)
   return (
     <div className="plan-reader artifact-document">
       <div className="artifact-meta">

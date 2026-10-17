@@ -26,12 +26,12 @@ import type {
   TerminalSummary,
 } from "@novadeck/protocol"
 import { Trees } from "@novadeck/terminal/pty"
+import { Latest } from "@novadeck/wire/server"
 import { vi } from "vitest"
 
 import { CompanionItems } from "../companions/items.js"
 import { handleWords } from "../terminals/handles.js"
 import { Terminals, type TerminalOptions } from "../terminals/index.js"
-import { Latest } from "../terminals/latest.js"
 import { readyReturnMs } from "../terminals/manager.js"
 import type { TerminalRecords } from "../terminals/records.js"
 import { describe, expect, it as base } from "../test.js"

@@ -127,7 +127,7 @@ const canvasOffscreenSpec = "specs/canvas-offscreen.spec.tsx"
 // so this file is the one other place it appears.
 const storeHook = "countListenersWoken"
 const hookOwners = ["model/store.ts", counterRun, "architecture.test.ts"]
-const adapterSelectionExports = ["selectBackend"]
+const adapterSelectionExports = ["debugPanelFor", "selectBackend"]
 // Packages are denied unless listed here, owned through `vendors`, or used by an
 // adapter or test code. model/, theme/, interaction/ and app/commands/ use none; core
 // backend/ uses React types only.
@@ -153,7 +153,6 @@ const vendors: Record<string, readonly string[]> = {
   "@ark-ui": ["ui-toolkit/"],
   "@xyflow/react": ["layouts/canvas/"],
   "@codemirror": ["terminals/companion/plan-editor/"],
-  "@lezer": ["terminals/companion/plan-editor/"],
   "react-grid-layout": ["layouts/grid/"],
   allotment: ["shell/"],
   // Terminals' tabs, windows and taskbars, the footer's subscriptions and the project

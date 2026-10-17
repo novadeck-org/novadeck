@@ -1,26 +1,26 @@
 import { EditorState, Text } from "@codemirror/state"
+import { describe as context, describe, expect, it } from "vitest"
 
-import { context, describe, expect, it } from "../../../test"
 import planV1 from "./fixtures/plan-v1.md?raw"
 import planV2 from "./fixtures/plan-v2.md?raw"
-import { distance, lineChanges, merge, resolveNotes } from "./sync"
+import { distance, lineChanges, merge } from "./sync.js"
 
 const v1 = planV1
 const v2 = planV2
 const text = (value: string): Text => Text.of(value.split("\n"))
 const withNote = v1.replace(
   "warm ivory background.\n",
-  "warm ivory background.\n<!-- novadeck: Use a grotesk. -->\n",
+  "warm ivory background.\n<!-- Use a grotesk. -->\n",
 )
 
-describe("plan editor sync", () => {
+describe("markdown sync", () => {
   context("when the file loads", () => {
-    it("keeps the agent's text byte for byte", () => {
+    it("keeps the text byte for byte", () => {
       expect(EditorState.create({ doc: withNote }).doc.toString()).toBe(withNote)
     })
   })
 
-  context("when the agent rewrites the file", () => {
+  context("when the text is rewritten", () => {
     it("turns one revision into the next", () => {
       expect(lineChanges(v1, v2).apply(text(v1)).toString()).toBe(v2)
     })
@@ -31,46 +31,26 @@ describe("plan editor sync", () => {
     })
   })
 
-  context("when the user edited the file before the agent rewrote it", () => {
+  context("when the text was edited before it was rewritten", () => {
     const ours = withNote.replace("and deployment.", "and deployment. Also no blog.")
     const merged = merge(v1, ours, v2)
 
-    it("keeps the user's edits and notes", () => {
+    it("keeps the edits made meanwhile", () => {
       expect(merged.text).toContain("Also no blog.")
-      expect(merged.text).toContain("<!-- novadeck: Use a grotesk. -->")
+      expect(merged.text).toContain("<!-- Use a grotesk. -->")
     })
 
-    it("applies the agent's rewrite", () => {
+    it("applies the rewrite", () => {
       expect(merged.text).toContain("a confident grotesk for headlines")
       expect(merged.text).toContain("Add a Journal page")
     })
 
-    it("marks what the agent wrote", () => {
-      const written = merged.marks.map((mark) => merged.text.slice(mark.from, mark.to)).join("")
+    it("reports what the rewrite wrote", () => {
+      const written = merged.changed
+        .map((range) => merged.text.slice(range.from, range.to))
+        .join("")
       expect(written).toContain("confident grotesk")
       expect(written).not.toContain("Also no blog.")
-    })
-  })
-
-  context("when the agent resolves the notes", () => {
-    const merged = merge(v1, withNote, v2)
-    const resolved = resolveNotes(merged.text, merged.marks)
-
-    it("removes each note with its line", () => {
-      expect(resolved.resolved).toBe(1)
-      expect(resolved.text).not.toContain("novadeck:")
-      expect(resolved.text).not.toContain("\n\n\n")
-    })
-
-    it("leaves a table row as it was before its note", () => {
-      const row = "| About | Contact |\n"
-      const noted = row.replace("Contact |", "Contact <!-- novadeck: Email only --> |")
-      expect(resolveNotes(noted, []).text).toBe(row)
-    })
-
-    it("keeps its marks on what it wrote", () => {
-      const written = resolved.marks.map((mark) => resolved.text.slice(mark.from, mark.to)).join("")
-      expect(written).toContain("confident grotesk")
     })
   })
 

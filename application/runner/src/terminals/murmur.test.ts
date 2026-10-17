@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { Terminal } from "@novadeck/emulator/headless"
+import { createScreen, readScreen } from "@novadeck/emulator/headless"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import {
@@ -38,7 +38,6 @@ import {
 } from "./murmur.js"
 import { unnamed } from "./naming.js"
 import type { Facts } from "./nudges.js"
-import { screenText } from "./screen.js"
 import { freshWork, promptChars, shorten, type Work } from "./work.js"
 
 const work = (fields: Partial<Work> = {}): Work => ({
@@ -57,9 +56,6 @@ const subjectSummary = () =>
     cwd: "/home/me/shop",
     process: null,
   }) as MurmurSubject["summary"]
-
-// Draws text at a row of the screen, by a cursor move.
-const draw = (row: number, text: string) => `\u001b[${row};1H${text}`
 
 describe("the digest of an agent's terminal", () => {
   const input = {
@@ -324,30 +320,14 @@ describe("the digest of a plain shell", () => {
     ).toMatchObject({ continues: [false, true, false, false] })
   })
 
-  it("reads which rows are full from a real terminal's cells, never from string lengths", async () => {
-    const terminal = new Terminal({ cols: 8, rows: 8, allowProposedApi: true })
-    await new Promise<void>((resolve) =>
-      terminal.write(
-        `\u001b[2J${draw(1, "abcdefgh")}${draw(2, "abc")}${draw(3, "abcdefg ")}${draw(4, "あいうえ")}${draw(5, "abcdefge\u0301")}${draw(6, "abcdefg")}`,
-        resolve,
-      ),
-    )
-    const text = screenText(terminal)
-    expect(text.wrapped?.some(Boolean)).toBe(false)
-    // Full: plain text to the last column, double-width characters to it, and a combining
-    // mark in it. Not: short rows, a trailing blank, an empty row.
-    expect(text.continues).toEqual([true, false, false, true, true, false, false, false])
-    terminal.dispose()
-  })
-
   it("keeps a secret drawn across rows with cursor moves out of the model's sight, once redaction reads the line's end", async () => {
     const hex = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a09"
-    const terminal = new Terminal({ cols: 40, rows: 8, allowProposedApi: true })
+    const terminal = createScreen({ cols: 40, rows: 8, scrollback: 1000 })
     const drawn = ["$ cat key", hex.slice(0, 40), hex.slice(40), "$ "]
       .map((row, index) => `\u001b[${index + 1};1H${row}`)
       .join("")
     await new Promise<void>((resolve) => terminal.write(`\u001b[2J${drawn}`, resolve))
-    const text = screenText(terminal)
+    const text = readScreen(terminal)
     const digest = shellDigest({
       projectFolder: undefined,
       cwd: "/w",

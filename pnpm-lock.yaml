@@ -18,6 +18,9 @@ catalogs:
     '@orpc/standard-server-peer':
       specifier: 1.15.5
       version: 1.15.5
+    electron:
+      specifier: ^44.7.0
+      version: 44.7.0
     zod:
       specifier: 4.6.5
       version: 4.6.5
@@ -108,7 +111,7 @@ importers:
         specifier: ^10.0.6
         version: 10.0.6
       electron:
-        specifier: ^44.7.0
+        specifier: 'catalog:'
         version: 44.7.0(supports-color@10.2.2)
       electron-builder:
         specifier: ^26.15.3
@@ -195,6 +198,9 @@ importers:
       '@novadeck/whisper':
         specifier: workspace:*
         version: link:../../engines/whisper
+      '@novadeck/wire':
+        specifier: workspace:*
+        version: link:../../libraries/wire
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.15.5(ws@8.22.0)
@@ -214,9 +220,6 @@ importers:
       '@novadeck/sandbox':
         specifier: workspace:*
         version: link:../../libraries/sandbox
-      '@novadeck/wire':
-        specifier: workspace:*
-        version: link:../../libraries/wire
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -241,12 +244,6 @@ importers:
       '@ark-ui/react':
         specifier: ^5.39.3
         version: 5.39.3(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
-      '@codemirror/commands':
-        specifier: ^6.11.1
-        version: 6.11.1
-      '@codemirror/language':
-        specifier: ^6.13.1
-        version: 6.13.1
       '@codemirror/state':
         specifier: ^6.7.6
         version: 6.7.6
@@ -268,9 +265,6 @@ importers:
       '@fontsource/share-tech-mono':
         specifier: 5.3.0
         version: 5.3.0
-      '@lezer/markdown':
-        specifier: ^1.8.0
-        version: 1.8.0
       '@novadeck/emulator':
         specifier: workspace:*
         version: link:../../libraries/emulator
@@ -603,6 +597,12 @@ importers:
 
   libraries/viewers:
     dependencies:
+      '@codemirror/commands':
+        specifier: ^6.11.1
+        version: 6.11.1
+      '@codemirror/language':
+        specifier: ^6.13.1
+        version: 6.13.1
       '@lezer/common':
         specifier: ^1.5.3
         version: 1.5.3
@@ -646,6 +646,12 @@ importers:
         specifier: ^1.0.4
         version: 1.0.4
     devDependencies:
+      '@codemirror/state':
+        specifier: ^6.7.6
+        version: 6.7.6
+      '@codemirror/view':
+        specifier: ^6.43.14
+        version: 6.43.14
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -692,6 +698,9 @@ importers:
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
+      electron:
+        specifier: 'catalog:'
+        version: 44.7.0(supports-color@10.2.2)
       typescript:
         specifier: ^7.0.2
         version: 7.0.2

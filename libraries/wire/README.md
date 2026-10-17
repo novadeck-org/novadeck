@@ -1,8 +1,9 @@
 # @novadeck/wire
 
 RPC calls and streams between processes over a WebSocket or a MessagePort: channels, a client
-generic over its contract, its transports, a connection that keeps itself alive, and its errors. It carries an oRPC contract it doesn't
-know: the app's procedures and their codes stay the app's.
+generic over its contract, its transports, a connection that keeps itself alive, the server's streams
+of state, and its errors. It carries an oRPC contract it doesn't know: the app's procedures and their
+codes stay the app's.
 
 ## Subpaths
 
@@ -49,6 +50,39 @@ know: the app's procedures and their codes stay the app's.
     its handshake, if any. `websocket(url, { token })` reaches a server deployed on its own,
     the token kept out of the URL; `messagePort(port)` reaches one its host hands a port to.
     A single port connects once; pass a function that asks for a fresh port to reconnect.
+    `hostTransport({ request, message, lateAnswerMs })` is that function for a page in
+    Electron's renderer: `request(id)` asks the host (through what its preload exposes), and
+    the port comes back as a window message `{ type: message, id }`. A port that answers a
+    request given up on is closed, if it comes within `lateAnswerMs`.
+- `./electron` (Node only: Electron's main process and preload): the host's side of
+  `hostTransport`, with `electron` as an optional peer.
+  - `brokerPorts({ channel, allow, deliver })`, in the main process: a page that asks on the
+    IPC `channel` (and that `allow` lets ask: a port is whatever access the service gives)
+    gets one end of a fresh `MessageChannelMain` under its request id; `deliver` hands the
+    other end to the service, or returns false while there's none, and the request is
+    dropped.
+  - `relayPorts({ channel, message })`, in the preload: ports can't cross the context bridge,
+    so it relays each one to the page as a window message, and returns the request function
+    for the bridge to expose.
+
+  Forking, restarting and closing the service's process stay the app's.
+
+- `./server` (Node only): the server's side.
+  - `KeyedChanges<Key, Change>`, one reader's stream of keyed state: the current state, then
+    `synced`, then later changes, holding only the latest unread change per key, each in the
+    place its key first changed. A key the reader was never told of leaves without a removal.
+  - `Versioned<State>`, whole state for any number of readers: each reads it now and again
+    after every change, however many changes came between; `progress()` tells a change in
+    progress at most once every `throttleMs`. `release(owner)` ends one owner's streams.
+  - `Latest<T>`, one reader's stream of snapshots that keeps only the newest unread one, and
+    never sends again the one the reader has.
+
+  None holds changes for a reader: changes made while it hasn't read yet come to it as one
+  (one per key, for `KeyedChanges`).
+  A remote reader that can't keep up isn't slowed either: the server's socket sends what it
+  reads, and cuts off a reader whose unsent bytes outgrow its send budget (the app's, for
+  now).
+
 - `./testing`: channels held in memory, for tests that need no socket or port.
   `memoryPorts()` is the two ends of a port, delivering on a microtask, cloned, in the same
   order every run; `fakeChannel()` is a channel whose far end is the test, which sees what

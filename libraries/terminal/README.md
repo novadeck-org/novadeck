@@ -2,7 +2,7 @@
 
 Hosting terminals and attaching to them: a pty, a headless screen kept in step with it, a
 resumable stream of it, its browser view, and shell integration. So far it has the attach
-contract, an attached viewer's queue, the process facts and the shell helpers; the rest arrives
+contract, an attached viewer's queue, the process facts and the shell integration; the rest arrives
 a part at a time.
 
 ## Subpaths
@@ -38,6 +38,16 @@ resolve it.
     one tick share one run of it. `taskkillTree` is the fallback without one, `anyRunning`
     whether members still run.
 - `./shell`: what a shell reports and needs.
+  - `shellScripts` writes the files bash, zsh, fish and PowerShell read after the user's own
+    setup, where `shellScriptPaths` lays them out. Each reports the directory at every prompt,
+    puts `<PREFIX>_BIN` back first on PATH after the user's startup files, and runs a startup
+    command once from the file `<PREFIX>_RESUME` names, which removing first cancels. The app
+    names them: its prefix, given to `shellScriptPaths` (`acme` gives `ACME_BIN` and
+    `__acme_prompt`), and the comment each file opens with.
+  - `shellLaunch` gives a shell the arguments and environment that load them (cmd reports
+    through its `PROMPT` and takes the command with `/k`), with a folder put first and a
+    startup command; `startsCommands` says which shells run one. `shQuote`, `psQuote`,
+    `fishQuote` and `cmdQuote` quote a value as one word of each language.
   - `osc7Directory` and `osc9Directory` read the directory a shell reports (OSC 7 from bash,
     zsh and fish, only for this machine; OSC 9;9 from PowerShell and cmd).
   - `refreshPath` merges the folders the Windows registry's PATH has now into an environment,

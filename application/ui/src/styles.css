@@ -57,8 +57,10 @@
 @import "./app/boot-splash.css" layer(components);
 @import "./shell/notification-badge.css" layer(components);
 @import "./shell/zen-dock.css" layer(components);
-@import "./terminals/companion/prose.css" layer(components);
 @import "@novadeck/viewers/code.css" layer(components);
+@import "@novadeck/viewers/image.css" layer(components);
+@import "@novadeck/viewers/markdown.css" layer(components);
+@import "./terminals/companion/prose.css" layer(components);
 @import "./terminals/companion/syntax.css" layer(components);
 @import "./preferences/settings.css" layer(components);
 @import "./preferences/welcome.css" layer(components);

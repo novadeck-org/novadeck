@@ -1,0 +1,35 @@
+/* The image viewer: an image (`.image-viewer img`) on its ground, fitted, or at its actual
+   size, which scrolls when it's larger.
+
+   Hooks: data-actual on the viewer while the image is at its actual size.
+
+   Tokens, each optional (its fallback in brackets):
+   --image-ground (none), --image-ground-size (auto): behind the image.
+   --image-padding (20px): around it.
+   --image-fit-max-width (100%): the widest it fits to.
+   --image-actual-width (its own): its width at its actual size.
+   --image-radius (0), --image-shadow (none): the image itself. */
+.image-viewer {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-height: 0;
+  padding: var(--image-padding, 20px);
+  background-image: var(--image-ground, none);
+  background-size: var(--image-ground-size, auto);
+  overflow: auto;
+}
+.image-viewer img {
+  width: 100%;
+  max-width: var(--image-fit-max-width, 100%);
+  height: auto;
+  border-radius: var(--image-radius, 0);
+  box-shadow: var(--image-shadow, none);
+}
+.image-viewer[data-actual] {
+  place-items: start;
+}
+.image-viewer[data-actual] img {
+  width: var(--image-actual-width, auto);
+  max-width: none;
+}
