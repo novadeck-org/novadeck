@@ -1,0 +1,34 @@
+/* The browser viewer: a live page (`.browser-viewer > webview`) filling the viewer, which
+   scrolls itself, or a snapshot of the page (`.browser-snapshot`), which scrolls under
+   whatever the host draws above it.
+
+   Hooks: data-load="loading" | "ready" | "failed" on the viewer: how the page's latest
+   load went.
+
+   Tokens, each optional (its fallback in brackets):
+   --browser-page-bg (white): behind a live page while it loads; pages assume a white
+   ground. */
+.browser-viewer {
+  display: flex;
+  position: relative;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.browser-viewer > webview {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  border: 0;
+  background-color: var(--browser-page-bg, white);
+}
+.browser-snapshot {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.browser-snapshot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}

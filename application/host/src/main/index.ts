@@ -18,7 +18,9 @@ import { basename, dirname, join, win32 } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
 import type { UpdateChannel } from "@novadeck/protocol/bridge"
+import { pagesPartition } from "@novadeck/protocol/pages"
 import { startHttpServer, type HttpServer } from "@novadeck/runner/http"
+import { attachPage, guardPage, lockPagesSession, webAddress } from "@novadeck/viewers/browser/host"
 import {
   app,
   autoUpdater as nativeUpdater,
@@ -84,7 +86,6 @@ import {
 } from "./install-windows.js"
 import { linuxMenu } from "./menu.js"
 import { notificationText, registerNoticeIpc, showNotices } from "./notices.js"
-import { attachPage, guardPage, lockPagesSession, pagesPartition, webAddress } from "./pages.js"
 import { limitPermissions, ownPage } from "./permissions.js"
 import {
   installedEnvironment,
@@ -491,7 +492,7 @@ const createWindow = (origin: string): BrowserWindow => {
       nodeIntegration: false,
       preload: join(currentDirectory, "../preload/index.cjs"),
       sandbox: true,
-      // Live pages in the companion pane; see ./pages.ts.
+      // Live pages in the companion pane; see @novadeck/viewers/browser/host.
       webviewTag: true,
     },
   })
@@ -519,7 +520,7 @@ const createWindow = (origin: string): BrowserWindow => {
   })
 
   window.webContents.on("will-attach-webview", (event, preferences, params) => {
-    if (!attachPage(preferences, params)) event.preventDefault()
+    if (!attachPage(preferences, params, pagesPartition)) event.preventDefault()
   })
 
   if (app.isPackaged) {

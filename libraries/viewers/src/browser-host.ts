@@ -1,14 +1,12 @@
 import type { Session, WebContents, WebPreferences } from "electron"
 
-// Web pages an agent shows load live in the companion pane, in a <webview>: a browser
-// view apart from Novadeck's page. Whatever the element asks for, each gets no preload,
-// no Node, a sandbox, and its own session in memory, where every permission and
-// download is refused and no file loads. It goes only to http(s) addresses by its own
-// links and redirects. A window it opens right after the person clicked or typed in it
-// opens in their own browser, one per click or key; any other opens nowhere.
-
-/** The session live pages load in: in memory, apart from Novadeck's own. */
-export const pagesPartition = "novadeck-pages"
+// The browser viewer's lockdown, in Electron's main process. Live pages load in a
+// <webview>: a browser view apart from the app's own page. Whatever the element asks for,
+// each gets no preload, no Node, a sandbox, and the pages' session, in memory, where
+// every permission and download is refused and no file loads. It goes only to http(s)
+// addresses by its own links and redirects. A window it opens right after the person
+// clicked or typed in it opens in their own browser, one per click or key; any other
+// opens nowhere. Nothing here can loosen that: the options only name the session.
 
 /** Whether `url` is an http(s) address, the only kind a page view loads. */
 export const webAddress = (url: string): boolean => {
@@ -30,6 +28,9 @@ export const webAddress = (url: string): boolean => {
 export const attachPage = (
   preferences: WebPreferences,
   params: { readonly src?: string },
+  // The pages' session, named as the viewer's `partition` names it. In memory: never
+  // `persist:`, which would keep what pages store on disk.
+  partition: string,
 ): boolean => {
   delete preferences.preload
   preferences.nodeIntegration = false
@@ -40,7 +41,7 @@ export const attachPage = (
   preferences.webSecurity = true
   preferences.allowRunningInsecureContent = false
   preferences.webviewTag = false
-  preferences.partition = pagesPartition
+  preferences.partition = partition.replace(/^persist:/, "")
   return webAddress(params.src ?? "")
 }
 
@@ -95,7 +96,7 @@ export const guardPage = (
 
 /**
  * Refuses the pages' session every permission, every download, and every file, which
- * Novadeck's own page could otherwise point a view at.
+ * the app's own page could otherwise point a view at.
  */
 export const lockPagesSession = (pages: Session): void => {
   pages.protocol.handle("file", () => new Response("", { status: 403 }))

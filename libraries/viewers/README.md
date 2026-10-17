@@ -20,10 +20,22 @@ hand back as `saved` to the next viewer of the same thing.
 - `./image`: `mountImage`, an image fitted or at its actual size, its zoom kept in its
   state with its place; `zoom()` and `onZoom` let a host draw the control.
 - `./image.css`: the image viewer's looks, themed through `--image-*`.
+- `./browser`: `mountBrowser`, a web page: live in Electron's `<webview>`, reporting where it
+  is and how its load went, going back, forward or reloading, quiet while out of sight; or,
+  where live pages aren't available, a snapshot of it. It opens where the person had taken
+  the page.
+- `./browser.css`: the browser viewer's looks, themed through `--browser-*`.
+- `./browser/host` (Node only): the pages' lockdown for Electron's main process:
+  `attachPage` settles a page view's settings as it attaches (no preload, no Node, a
+  sandbox, the pages' session in memory, http(s) only), `guardPage` keeps it to http(s) and
+  sends a window it opens to the browser only right after the person's click or key, and
+  `lockPagesSession` refuses the session every permission, download and file. Nothing in
+  their options can loosen that. Electron is an optional peer dependency, needed only here.
 - `./react`: `useViewer`, a ref that mounts a viewer into its element and keeps its state by
   id, and the viewer once mounted. React is an optional peer dependency, needed only here.
 
 ## Tests
 
 They run in Chromium (Vitest's browser mode), since keeping a viewer's place is about real
-layout and scrolling.
+layout and scrolling; the pages' lockdown, which runs in Electron's main process, is tested
+in Node.

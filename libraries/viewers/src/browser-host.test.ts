@@ -1,16 +1,11 @@
 import { EventEmitter } from "node:events"
 
 import type { Session, WebContents, WebPreferences } from "electron"
+import { describe, expect, it } from "vitest"
 
-import { describe, expect, it } from "../test"
-import {
-  attachPage,
-  gestureMs,
-  guardPage,
-  lockPagesSession,
-  pagesPartition,
-  webAddress,
-} from "./pages"
+import { attachPage, gestureMs, guardPage, lockPagesSession, webAddress } from "./browser-host.js"
+
+const pagesPartition = "pages"
 
 describe("a live page's address", () => {
   it("is http or https only", () => {
@@ -39,7 +34,7 @@ describe("a page view as it attaches", () => {
       webviewTag: true,
     }
     const params = { src: "http://localhost:5173/" }
-    expect(attachPage(preferences, params)).toBe(true)
+    expect(attachPage(preferences, params, pagesPartition)).toBe(true)
     expect(preferences).toEqual({
       nodeIntegration: false,
       nodeIntegrationInSubFrames: false,
@@ -54,8 +49,14 @@ describe("a page view as it attaches", () => {
   })
 
   it("is refused for anything but an http(s) address", () => {
-    expect(attachPage({}, { src: "file:///etc/passwd" })).toBe(false)
-    expect(attachPage({}, {})).toBe(false)
+    expect(attachPage({}, { src: "file:///etc/passwd" }, pagesPartition)).toBe(false)
+    expect(attachPage({}, {}, pagesPartition)).toBe(false)
+  })
+
+  it("keeps the pages' session in memory, though its name asks to keep it on disk", () => {
+    const preferences: WebPreferences = {}
+    attachPage(preferences, { src: "https://example.com" }, `persist:${pagesPartition}`)
+    expect(preferences.partition).toBe(pagesPartition)
   })
 })
 

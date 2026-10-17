@@ -60,6 +60,7 @@
 @import "./terminals/companion/prose.css" layer(components);
 @import "@novadeck/viewers/code.css" layer(components);
 @import "@novadeck/viewers/image.css" layer(components);
+@import "@novadeck/viewers/browser.css" layer(components);
 @import "./terminals/companion/syntax.css" layer(components);
 @import "./preferences/settings.css" layer(components);
 @import "./preferences/welcome.css" layer(components);
