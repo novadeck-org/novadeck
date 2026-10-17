@@ -1,21 +1,29 @@
-import { context, describe, expect, it } from "../../../test"
+import { describe as context, describe, expect, it } from "vitest"
+
 import planV1 from "./fixtures/plan-v1.md?raw"
 import {
   addColumn,
   addRow,
-  addRowNote,
+  addRowAnnotation,
   cellSource,
   findTables,
   removeColumn,
   removeRow,
-  setRowNote,
-} from "./tables"
+  setRowAnnotation,
+} from "./tables.js"
 
 const plan = planV1
+
+// Annotations written between these, as a host would set them.
+const markers = {
+  open: "<!-- a: ",
+  close: " -->",
+  safe: (text: string) => text.replace(/-+>/g, "->"),
+}
 const edit = (text: string, from: number, to: number, insert: string): string =>
   text.slice(0, from) + insert + text.slice(to)
 
-describe("plan tables", () => {
+describe("tables", () => {
   context("when a plan has a table", () => {
     const [table] = findTables(plan)
 
@@ -70,7 +78,7 @@ const apply = (
       text,
     )
 
-describe("plan table shape", () => {
+describe("table shape", () => {
   const text =
     "Before\n\n| Page | Why |\n| --- | :-: |\n| Home | Lead in |\n| About | Contact |\n\nAfter\n"
   const table = findTables(text)[0]!
@@ -120,71 +128,74 @@ describe("plan table shape", () => {
   })
 })
 
-describe("plan table row notes", () => {
+describe("table row annotations", () => {
   const text = "| Page | Why |\n| --- | --- |\n| Home | Lead in |\n| About | Contact |\n"
-  const table = findTables(text)[0]!
+  const table = findTables(text, markers)[0]!
 
-  context("when a row gets a note", () => {
-    const added = addRowNote(table, 2)!
+  context("when a row gets an annotation", () => {
+    const added = addRowAnnotation(table, 2, markers)!
     const withNote = apply(text, [added.change])
 
     it("goes at the end of the row's last cell, leaving the row whole", () => {
       expect(withNote).toBe(
-        "| Page | Why |\n| --- | --- |\n| Home | Lead in |\n| About | Contact <!-- novadeck:  --> |\n",
+        "| Page | Why |\n| --- | --- |\n| Home | Lead in |\n| About | Contact <!-- a:  --> |\n",
       )
-      expect(findTables(withNote)[0]!.rows[2]!.map((cell) => cell.text)).toEqual([
+      expect(findTables(withNote, markers)[0]!.rows[2]!.map((cell) => cell.text)).toEqual([
         "About",
         "Contact",
       ])
     })
 
-    it("puts the caret inside the note", () => {
+    it("puts the caret inside the annotation", () => {
       expect(withNote.slice(added.caret, added.caret + 4)).toBe(" -->")
     })
 
     it("stays out of cell edits", () => {
-      const noted = findTables(withNote)[0]!
+      const noted = findTables(withNote, markers)[0]!
       const cell = noted.rows[2]![1]!
       expect(apply(withNote, [{ from: cell.from, to: cell.to, insert: "Email" }])).toContain(
-        "| About | Email <!-- novadeck:  --> |",
+        "| About | Email <!-- a:  --> |",
       )
     })
   })
 
-  context("when a row's note is written or emptied", () => {
-    const noted = "| Page | Why |\n| --- | --- |\n| About | Contact <!-- novadeck: Old --> |\n"
-    const notedTable = findTables(noted)[0]!
+  context("when a row's annotation is written or emptied", () => {
+    const noted = "| Page | Why |\n| --- | --- |\n| About | Contact <!-- a: Old --> |\n"
+    const notedTable = findTables(noted, markers)[0]!
 
     it("reads it, with escaped pipes as pipes", () => {
-      expect(findTables(noted.replace("Old", "a \\| b"))[0]!.notes[1]!.text).toBe("a | b")
+      expect(findTables(noted.replace("Old", "a \\| b"), markers)[0]!.annotations[1]!.text).toBe(
+        "a | b",
+      )
     })
 
     it("writes its text, escaping pipes so the row keeps its cells", () => {
-      const written = apply(noted, [setRowNote(notedTable, 1, "Email | phone")!])
-      expect(written).toContain("<!-- novadeck: Email \\| phone -->")
-      expect(findTables(written)[0]!.rows[1]!.map((cell) => cell.text)).toEqual([
+      const written = apply(noted, [setRowAnnotation(notedTable, 1, "Email | phone", markers)!])
+      expect(written).toContain("<!-- a: Email \\| phone -->")
+      expect(findTables(written, markers)[0]!.rows[1]!.map((cell) => cell.text)).toEqual([
         "About",
         "Contact",
       ])
     })
 
     it("keeps the row's comment closed whatever `-->` it's given", () => {
-      expect(apply(noted, [setRowNote(notedTable, 1, "use ---> here")!])).toContain(
-        "<!-- novadeck: use -> here -->",
+      expect(apply(noted, [setRowAnnotation(notedTable, 1, "use ---> here", markers)!])).toContain(
+        "<!-- a: use -> here -->",
       )
     })
 
     it("removes it and the space before it once empty", () => {
-      expect(apply(noted, [setRowNote(notedTable, 1, " ")!])).toBe(
+      expect(apply(noted, [setRowAnnotation(notedTable, 1, " ", markers)!])).toBe(
         "| Page | Why |\n| --- | --- |\n| About | Contact |\n",
       )
     })
   })
 
-  context("when a note follows the table", () => {
+  context("when a comment follows the table", () => {
     it("ends the table there", () => {
       const after = findTables(
-        "| a | b |\n| --- | --- |\n| c | d |\n<!-- novadeck: x | y -->\n",
+        "| a | b |\n| --- | --- |\n| c | d |\n<!-- a: x | y -->\n",
+        markers,
       )[0]!
       expect(after.rows).toHaveLength(2)
     })

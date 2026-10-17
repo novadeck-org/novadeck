@@ -1,19 +1,18 @@
 import type { EditorView } from "@codemirror/view"
 
-// How far below the top of the pane a line lands.
+// How far below the top of the scroller a line lands.
 const margin = 24
 
-// The nearest ancestor that scrolls on its own: the pane's, never the app's clipped
-// containers.
+// The nearest ancestor that scrolls on its own, never one that only clips.
 const scrollerOf = (element: HTMLElement): HTMLElement | null => {
   for (let at = element.parentElement; at; at = at.parentElement)
     if (/^(auto|scroll)$/.test(getComputedStyle(at).overflowY)) return at
   return null
 }
 
-// Brings the line at `at` to the top of the pane, smoothly unless motion is reduced.
-// Only the pane's scroller moves: CodeMirror's scrollIntoView also scrolls every
-// ancestor whose content overflows, clipped ones included, which shifts the whole app.
+// Brings the line at `at` to the top of the scroller, smoothly unless motion is reduced.
+// Only the scroller moves: CodeMirror's scrollIntoView also scrolls every
+// ancestor whose content overflows, clipped ones included, which shifts the whole page.
 // Lines out of view have estimated heights, so once the scroll stops, or a frame after an
 // instant one, it corrects for where the line really is, unless the user took over the
 // scroll meanwhile.
@@ -62,24 +61,24 @@ export const scrollLineToTop = (view: EditorView, at: number): void => {
   setTimeout(() => done.abort(), 2000)
 }
 
-// Where the pane is scrolled in the plan: the line at its top, and how far down that line,
-// as a share of its height, which holds across a narrower or zoomed pane.
-export type PlanScroll = { readonly at: number; readonly into: number }
+// Where the scroller is scrolled in the text: the line at its top, and how far down that line,
+// as a share of its height, which holds across a narrower or zoomed scroller.
+export type Scroll = { readonly at: number; readonly into: number }
 
-// How far the pane's top is into the document, in the page's pixels, which CodeMirror
-// measures its lines in: scaled where Canvas zooms, or while the pane scales in.
+// How far the scroller's top is into the document, in the page's pixels, which CodeMirror
+// measures its lines in: scaled where a host zooms it, or while it scales in.
 const heightAtTop = (view: EditorView, scroller: HTMLElement): number =>
   scroller.getBoundingClientRect().top - view.documentTop
 
-// How many page pixels a pixel of the pane's own scroll is. Over the whole editor, so
+// How many page pixels a pixel of the scroller's own scroll is. Over the whole editor, so
 // rounding its height to whole pixels hardly matters.
 const scaleOf = (view: EditorView): number => {
   const tall = view.dom.offsetHeight
   return tall ? view.dom.getBoundingClientRect().height / tall : 1
 }
 
-// Follows where the pane is scrolled in the plan, while it's on screen; returns the stop.
-export const followScroll = (view: EditorView, on: (scroll: PlanScroll) => void): (() => void) => {
+// Follows where the scroller is scrolled in the text, while it's on screen; returns the stop.
+export const followScroll = (view: EditorView, on: (scroll: Scroll) => void): (() => void) => {
   const scroller = scrollerOf(view.dom)
   if (!scroller) return () => {}
   const note = (): void => {
@@ -99,13 +98,13 @@ export const followScroll = (view: EditorView, on: (scroll: PlanScroll) => void)
 
 export type ScrollRestore = { readonly stop: () => void; readonly layout: () => void }
 
-// Keeps the saved line through layout changes until the person scrolls or the app jumps
+// Keeps the saved line through layout changes until the person scrolls or a host jumps
 // elsewhere. Frames settle the editor's estimated heights, then sleep; a resize or a
 // CodeMirror geometry update wakes them again, even after a late font load or Canvas fit.
 // `done` hands ownership to the scroll follower only when the restore is stopped.
 export const restoreScroll = (
   view: EditorView,
-  scroll: () => PlanScroll | null,
+  scroll: () => Scroll | null,
   done: () => void,
 ): ScrollRestore => {
   const scroller = scrollerOf(view.dom)
@@ -123,7 +122,7 @@ export const restoreScroll = (
       scroller.scrollHeight - scroller.clientHeight,
     )
   }
-  // Where it last put the pane: a scroll anywhere else is someone else's.
+  // Where it last put the scroller: a scroll anywhere else is someone else's.
   let placed = scroller.scrollTop
   // Whether it moved.
   const go = (): boolean => {
@@ -144,16 +143,16 @@ export const restoreScroll = (
   }
   for (const type of ["wheel", "touchstart", "pointerdown", "keydown"])
     scroller.addEventListener(type, finish, { signal, passive: true })
-  // Scrolled by anyone else, as the app jumping somewhere or the page keeping what shows
-  // in place, the pane stays where they put it.
+  // Scrolled by anyone else, as a host jumping somewhere or the page keeping what shows
+  // in place, the scroller stays where they put it.
   scroller.addEventListener(
     "scroll",
     () => {
       const top = scroller.scrollTop
-      // The pane cut short as what it holds shrank for a moment isn't anyone's scroll.
+      // The scroller cut short as what it holds shrank for a moment isn't anyone's scroll.
       const clamped = top < placed && top >= scroller.scrollHeight - scroller.clientHeight - 1
       if (!clamped && Math.abs(top - placed) >= 1) {
-        // Layout and the browser's scroll anchoring can move the pane without input.
+        // Layout and the browser's scroll anchoring can move the scroller without input.
         if (layoutOf() !== layout) resume()
         else finish()
       }
@@ -165,7 +164,7 @@ export const restoreScroll = (
   const layoutOf = (): string =>
     `${scaleOf(view).toFixed(3)}|${view.contentHeight.toFixed(1)}|${scroller.scrollHeight}|${scroller.clientHeight}`
   // The editor may still correct heights it estimated a while on, as it measures again
-  // after a resize settles: it holds still once neither the pane nor the layout changed for
+  // after a resize settles: it holds still once neither the scroller nor the layout changed for
   // 150ms and eight frames, or after half a second and twenty frames, and at the latest
   // after three seconds. Times are the frames' own, so a busy page's long frames count.
   let began = -1

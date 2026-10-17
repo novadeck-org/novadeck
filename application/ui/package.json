@@ -16,8 +16,6 @@
   },
   "dependencies": {
     "@ark-ui/react": "^5.39.3",
-    "@codemirror/commands": "^6.11.1",
-    "@codemirror/language": "^6.13.1",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.14",
     "@dnd-kit/dom": "^0.5.0",
@@ -25,7 +23,6 @@
     "@fontsource-variable/archivo": "5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@fontsource/share-tech-mono": "5.3.0",
-    "@lezer/markdown": "^1.8.0",
     "@novadeck/protocol": "workspace:*",
     "@novadeck/viewers": "workspace:*",
     "@xterm/addon-fit": "0.11.0",

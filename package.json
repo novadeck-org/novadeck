@@ -13,7 +13,7 @@
     "atlas": "pnpm --filter @novadeck/protocol build && pnpm --filter @novadeck/atlas dev",
     "atlas:brief": "node atlas/brief/main.ts",
     "dev:try": "pnpm --filter @novadeck/protocol build && pnpm --filter @novadeck/ui dev --mode try --port 5190",
-    "build:try": "pnpm --filter @novadeck/protocol build && pnpm --filter @novadeck/ui build --mode try --outDir dist-try",
+    "build:try": "pnpm --filter-prod \"@novadeck/ui^...\" build && pnpm --filter @novadeck/ui build --mode try --outDir dist-try",
     "preview:try": "pnpm --filter @novadeck/ui preview --outDir dist-try --port 5191 --strictPort",
     "poster:try": "pnpm --filter @novadeck/ui poster:try",
     "build": "turbo run build",
