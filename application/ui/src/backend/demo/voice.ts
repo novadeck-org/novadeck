@@ -77,6 +77,12 @@ export type DemoVoiceTiming = {
 // Each step long enough to see, and for a check that runs on a busy machine to catch.
 const defaultTiming: DemoVoiceTiming = { step: 1200, transcribe: 600 }
 
+// An install that holds at its first step, for a spec that stops one: its Cancel then never
+// races the demo's clock to the install's end, however slow the machine. Four days a step, so
+// the last timer of the longest install (the voice fallback's, five steps on) still fits
+// setTimeout, which fires at once past 2^31 ms.
+export const heldVoiceTiming: DemoVoiceTiming = { ...defaultTiming, step: 400_000_000 }
+
 // How many times a download reports progress.
 const ticks = 8
 

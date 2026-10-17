@@ -32,10 +32,24 @@
       "id": "ui-preferences-murmur-cancel",
       "jobs": ["^Test \\((Linux|macOS|Windows)\\)$"],
       "test": "src/specs/preferences.spec.tsx > Preferences Addons > when murmur is not installed > stops an install on Cancel",
-      "signature": "Cannot find element with locator: getByRole\\('dialog', \\{ name: 'Preferences' \\}\\)",
-      "status": "known",
-      "cause": "Unknown: Preferences hadn't opened when the test ran out of its 30 s, on Linux; about 27 s went before the Install check. Under heavy throttling the demo's wall-clock install also outruns the Cancel click, a different failure.",
-      "seen": ["#212 run 39008723765 job 117327049226 (Linux)"]
+      "signature": "Cannot find element with locator: getByRole\\('dialog', \\{ name: 'Preferences' \\}\\).*getByRole\\('button', \\{ name: 'Install' \\}\\)|locator\\.click: Timeout \\d+ms exceeded[\\s\\S]*name: 'Cancel'",
+      "status": "fixed",
+      "cause": "The demo's install ran on its wall clock (1.2 s a step) while the test clicked Install, then Cancel: on a loaded runner Cancel came during the install's check, which keeps what it installed, so Install never came back (Linux), or after the install had finished, so there was no Cancel to click (macOS). Reproduced with a pause before Cancel. The specs now open the install held at its first step (`&install=held`), so Cancel lands mid-download however slow the machine.",
+      "seen": [
+        "#212 run 39008723765 job 117327049226 (Linux)",
+        "#220 run 39029735003 job 117387615834 (Linux)",
+        "#225 run 39036222671 job 117406416546 (Linux)",
+        "#232 run 39046102126 job 117435018702 (macOS)"
+      ]
+    },
+    {
+      "id": "ui-preferences-voice-cancel",
+      "jobs": ["^Test \\((Linux|macOS|Windows)\\)$"],
+      "test": "src/specs/preferences.spec.tsx > Preferences Addons > when voice input is not installed > stops an install on Cancel",
+      "signature": "Cannot find element with locator: getByRole\\('dialog', \\{ name: 'Preferences' \\}\\).*getByRole\\('button', \\{ name: 'Install' \\}\\)|locator\\.click: Timeout \\d+ms exceeded[\\s\\S]*name: 'Cancel'",
+      "status": "fixed",
+      "cause": "The demo's install ran on its wall clock (1.2 s a step) while the test clicked Install, then Cancel: on a loaded runner Cancel came during the install's check, which keeps what it installed, so Install never came back (Linux), or after the install had finished, so there was no Cancel to click (macOS). Reproduced with a pause before Cancel. The specs now open the install held at its first step (`&install=held`), so Cancel lands mid-download however slow the machine.",
+      "seen": ["#232 run 39046102126 job 117435018702 (macOS)"]
     },
     {
       "id": "ui-companions-grid-undock",

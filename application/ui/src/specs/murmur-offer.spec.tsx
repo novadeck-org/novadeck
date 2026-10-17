@@ -14,8 +14,9 @@ import {
 // The agents demo's Claude Code in Build is idle at its prompt; a prompt there works a moment
 // (2 s here) and finishes. Murmur's offer is a chip beside the title of a terminal that
 // finishes on screen under its plain name, so the specs prompt Build.
-const promptBuild = async (murmur: string, { away = false } = {}): Promise<void> => {
-  await openWorkspace(`/?demo=agents&murmur=${murmur}&turnMs=2000`)
+// `held`: an install it starts holds at its first step (see the demo's `&install=held`).
+const promptBuild = async (murmur: string, { away = false, held = false } = {}): Promise<void> => {
+  await openWorkspace(`/?demo=agents&murmur=${murmur}&turnMs=2000${held ? "&install=held" : ""}`)
   const skip = page.getByRole("button", { name: "Skip for now" })
   if (await skip.query()) await skip.click()
   await terminalTab("Build").click()
@@ -128,7 +129,8 @@ describe("Murmur's one-time offer", () => {
     })
 
     it("opens the item's sheet with the step, the bar and Cancel, and Esc closes it", async () => {
-      await promptBuild("uninstalled")
+      // Held at its first step, so Cancel stops it there, however slow the machine.
+      await promptBuild("uninstalled", { held: true })
       await chip().click({ timeout: 10_000 })
       await popover().getByRole("button", { name: "Turn on" }).click()
       await footerItem().click()
