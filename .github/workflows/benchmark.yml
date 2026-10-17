@@ -38,8 +38,10 @@ jobs:
         run: |
           # Written out first, so a failing diff fails the step instead of reading as "no
           # change"; without renames, so a file moved out of a watched folder counts too.
+          # Of scripts/benchmark/ it watches the counter checker's files, not the timing
+          # report's: a new file the checker imports joins the list.
           git diff --name-only --no-renames HEAD^1 HEAD > "$RUNNER_TEMP/changed"
-          if grep -qE '^(application/(ui|runner|protocol)/|libraries/|pnpm-lock\.yaml$|scripts/benchmark/|\.github/workflows/benchmark\.yml$)' "$RUNNER_TEMP/changed"; then
+          if grep -qE '^(application/(ui|runner|protocol)/|libraries/|pnpm-lock\.yaml$|scripts/benchmark/(counters|main)|\.github/workflows/benchmark\.yml$)' "$RUNNER_TEMP/changed"; then
             echo "counts=true" >> "$GITHUB_OUTPUT"
           else
             echo "Nothing here can move a count: the counter run is skipped." >> "$GITHUB_STEP_SUMMARY"

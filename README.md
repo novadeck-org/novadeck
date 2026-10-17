@@ -1291,6 +1291,13 @@ reason as a raise does when its phase is one the base has; one the base has and 
 drops shows as no longer budgeted; a base that has none of the phases only warns. The
 check always reports, so it can be required.
 
+The timing run, the real app in the sandbox (`pnpm bench:timing`), is too heavy and too
+noisy for every pull request: the Benchmark Timing workflow runs it nightly on main and on
+pull requests labelled `bench`. It reports switch p90, each layout's main-thread share and
+frames over 33 ms in the job summary and in one comment on the pull request, beside main's
+last nightly run, and keeps each report as an artifact. It never fails on its numbers, only
+when the sandbox leaked or couldn't be made, which the report then leads with.
+
 ## Configuration
 
 For standalone UI/runner configuration, copy the environment templates:

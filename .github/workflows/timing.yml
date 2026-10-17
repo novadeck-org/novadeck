@@ -1,0 +1,175 @@
+name: Benchmark Timing
+
+# The timing run (architecture rule 16): the real app in the sandbox, timed. Real time on
+# a shared machine makes its numbers too noisy to gate on, and it needs the relay's Rust
+# build, so it runs nightly on main, as a trend, and on pull requests labelled `bench`,
+# reported beside main's last run. It never fails on its numbers, only when the sandbox
+# leaked or couldn't be made.
+on:
+  schedule:
+    - cron: "41 2 * * *"
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read
+
+# A label other than `bench` gets a group of its own, so the run it skips doesn't cancel
+# one in flight.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name != 'bench' && github.run_id || 'run' }}
+  cancel-in-progress: true
+
+jobs:
+  timing:
+    name: Timing run
+    # On a pull request labelled `bench`; adding another label to it starts nothing.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (contains(github.event.pull_request.labels.*.name, 'bench') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'bench'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      # Main's last report, to show beside this one.
+      actions: read
+      pull-requests: write
+    steps:
+      # The code it builds and runs never sees the job's token.
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set Up Toolchain
+        id: toolchain
+        continue-on-error: true
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      # An immediate retry hit the same registry outage in the flake audit.
+      - name: Wait Before Retrying Toolchain
+        if: steps.toolchain.outcome == 'failure'
+        shell: bash
+        run: sleep 180
+
+      - name: Set Up Toolchain Again
+        if: steps.toolchain.outcome == 'failure'
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      # The Rust the relay's rust-toolchain.toml names, for the runner's build.
+      - name: Set Up Rust
+        shell: bash
+        working-directory: application/relay
+        run: rustup toolchain install
+
+      - name: Cache Rust Builds
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            application/relay/target
+          key: relay-${{ runner.os }}-${{ hashFiles('application/relay/Cargo.lock', 'application/relay/rust-toolchain.toml') }}
+
+      - name: Locate Test Browser
+        id: playwright
+        shell: bash
+        run: |
+          echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/ms-playwright" >> "$GITHUB_ENV"
+          echo "version=$(pnpm --filter @novadeck/ui exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Test Browser
+        id: browser-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Test Browser
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @novadeck/ui exec playwright install --with-deps chromium
+
+      # A cached browser still needs its system libraries.
+      - name: Install Test Browser Dependencies
+        if: steps.browser-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @novadeck/ui exec playwright install-deps chromium
+
+      # Builds the runner and the sandbox, then times the app. It writes its report even
+      # when the run stops short, saying why in the report, and fails when the sandbox
+      # leaked or couldn't be made: the steps after still report it.
+      - name: Play Timing Run
+        run: pnpm bench:timing --output "$RUNNER_TEMP/timing.json"
+
+      # Main's last nightly report, if one is still kept.
+      - name: Fetch Main's Report
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          run=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow timing.yml --branch main \
+            --event schedule --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          if [ -n "$run" ]; then
+            gh run download "$run" --repo "$GITHUB_REPOSITORY" --name timing --dir "$RUNNER_TEMP/main"
+          fi
+
+      # A pull request's report also goes to the file its comment posts.
+      - name: Report Timings
+        id: report
+        if: always()
+        shell: bash
+        run: |
+          # No report means the build failed before the run, as the step before says.
+          if [ ! -f "$RUNNER_TEMP/timing.json" ]; then
+            echo "No timing report: the timing run didn't get as far as writing one." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          report=(node scripts/benchmark/timing-main.ts "$RUNNER_TEMP/timing.json" "$RUNNER_TEMP/main/timing.json")
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then report+=("$RUNNER_TEMP/comment.md"); fi
+          "${report[@]}"
+
+      # One comment per pull request, updated in place. A fork's pull request gets a
+      # read-only token, so its numbers stay in the job summary. A run cancelled, as by
+      # the next push, leaves the last comment as it was.
+      - name: Comment on Pull Request
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.report.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          [ -f "$RUNNER_TEMP/comment.md" ] || exit 0
+          marker="<!-- novadeck-benchmark-timing -->"
+          # The workflow's own comment, never another author's that starts the same way.
+          existing=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" |
+            sed -n 1p)
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$existing" -F "body=@$RUNNER_TEMP/comment.md"
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F "body=@$RUNNER_TEMP/comment.md"
+          fi
+
+      # Each run's report, kept as the trend; main's nightly ones are what pull requests
+      # compare with.
+      - name: Upload Report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: timing
+          path: ${{ runner.temp }}/timing.json
+          if-no-files-found: ignore
+          retention-days: 90
+          overwrite: true
