@@ -5,7 +5,7 @@ box, checking a paste landed, classifying keys, and queueing the work that types
 
 ## Subpaths
 
-- `./box` (browser-safe, pure functions of a `ScreenText`): reading a TUI's input box off a screen,
+- `./box` (browser-safe, pure functions of a `ScreenText` or its rows): reading a TUI's input box off a screen,
   the text comparison that tolerates how a screen draws it, and the paste check.
   - `InputBox`, what a box holds, its mode (a prompt, or a shell command) and the rows it spans.
   - `BoxProfile`, how one program draws its box: how to read it, whether a view covers it, whether
@@ -21,13 +21,15 @@ box, checking a paste landed, classifying keys, and queueing the work that types
     text that vanished whole, one line of history that went, and rows that tick by themselves
     (`ticking`). `findLine` says where a line is on the rows, joined across the rows it wraps over;
     `changedRows` says which rows differ between two reads.
-- `.` (Node only, as `keysOf` reads the emulator's `matchReport`, which the browser can't import):
+- `.` (Node only: `keysOf` reads the emulator's Node-only `matchReport`, and `freshNonce` draws on
+  `node:crypto`):
   the rest of the mechanics.
   - `keysOf(data, queueKey, reporting)`, the keys in one write, each a `Key` of one `KeyKind`:
     `enter` (a bare one), `queue` (the profile's queue key), `neutral` (Left, Home, End), `escape`,
     `accept` (Right, Tab, which may take a suggestion into an empty box) or `content`. The
-    terminal's own replies (a query's answer, a mouse or focus report the program asked for) are
-    left out, and a bracketed paste is one key, so its carriage returns never submit.
+    terminal's own replies are left out (a query's answer, a focus report, a mouse report that
+    only moves or scrolls), but a click the program asked for counts as `content`; and a bracketed
+    paste is one key, so its carriage returns never submit.
   - `gate`, whether to type now: allowed by the caller, the screen calm for `calmMs`, bracketed
     paste on, the program in the foreground, its input box on screen.
   - `freshNonce` and `bracketedPaste`, the nonce a pasted line carries and the paste itself.

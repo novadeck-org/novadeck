@@ -81,8 +81,8 @@ export type DoorbellHost = {
   /** Writes to the terminal's shell; false once it is gone. */
   readonly write: (terminalId: string, data: string) => boolean
   /**
-   * On Windows, whether the agent's input box shows on the screen, empty and taking a
-   * prompt (see `GateFacts.inputBox`); undefined where a bracketed paste can't press keys.
+   * Whether the agent's input box shows on the screen, empty and taking a prompt (see
+   * `GateFacts.inputBox`), on every platform; undefined where it can't be told.
    */
   readonly inputBox?: (terminalId: string, screen: ScreenText) => boolean | undefined
 }

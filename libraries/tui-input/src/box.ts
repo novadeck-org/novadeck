@@ -354,9 +354,10 @@ export type PasteCheck =
  * within `nearRows` of them. Where the box grew a row, the rows above it may have moved
  * up one and those below down one; they are compared moved.
  *
- * Failing that, and only where `vanish` allows it, as for a terminal before its
- * session's first turn, its box known empty,, it is still accepted where the
- * line replaced the box's empty state and, away from it, one isolated block of text vanished whole, as a TUI may draw something
+ * Failing that, and only where `vanish` allows it (as for a terminal before its
+ * session's first turn, its box known empty), it is still accepted where the
+ * line replaced the box's empty state and, away from it, one isolated block of text
+ * vanished whole, as a TUI may draw something
  * only while its box is empty (a logo). For one of the same moves: before the
  * paste, the line's row showed what now precedes the line, which is not nothing, and more
  * (a placeholder, where text the line was appended to shows no more); every far row is

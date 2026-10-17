@@ -50,7 +50,7 @@ export type InputEntry = {
  * The one line of work at each terminal's input box. Everything that puts keys in the box
  * takes its turn here. Entries of one terminal go one at a time, in the order they came,
  * and those of different terminals never wait for each other; so no two pieces of work
- * ever hold the user's input at once, and nothing comes between one entry and the next.
+ * ever hold the user's input at once, and nothing comes into the middle of an entry.
  * An entry that fails, by throwing, wedges nothing: the next one starts. Whatever input an
  * entry holds is let go when it ends, however it ends; its resizes are its own to settle.
  */

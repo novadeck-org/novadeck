@@ -60,7 +60,7 @@ describe("the paste check", () => {
     expect(findLine([`> ${line.slice(0, 40)}`, `  ${line.slice(40)}`], line)).toEqual([
       { first: 0, last: 1, column: 2 },
     ])
-    expect(findLine([line.slice(0, 20), line.slice(20)], line)).toEqual([
+    expect(findLine([line.slice(0, 39), line.slice(39)], line)).toEqual([
       { first: 0, last: 1, column: 0 },
     ])
   })
@@ -71,7 +71,7 @@ const screen = (rows: Record<number, string>): string[] =>
   Array.from({ length: 40 }, (_, index) => rows[index] ?? "")
 
 // The check for a terminal before its session's first turn, at its first screen.
-const fromReady = (before: readonly string[], after: readonly string[], text: string) =>
+const fromFirstScreen = (before: readonly string[], after: readonly string[], text: string) =>
   checkPaste(before, after, text, { vanish: true })
 
 describe("the paste check where text vanished far from the line", () => {
@@ -80,7 +80,7 @@ describe("the paste check where text vanished far from the line", () => {
   const logo = firstScreen.before.flatMap((row, index) => (/[⣀-⣿]/.test(row) ? [index] : []))
 
   it("accepts a first screen losing its logo only where a block may vanish", () => {
-    expect(fromReady(firstScreen.before, firstScreen.after, line)).toEqual({
+    expect(fromFirstScreen(firstScreen.before, firstScreen.after, line)).toEqual({
       accepted: true,
       first: 36,
       last: 36,
@@ -95,23 +95,23 @@ describe("the paste check where text vanished far from the line", () => {
     const list = { 20: "› Session one", 21: "  Session two", 22: "  Session three", 38: "footer" }
     const before = screen({ ...list, 36: "› Type to search" })
     const after = screen({ ...list, 21: "", 22: "", 36: `› ${line}` })
-    expect(fromReady(before, after, line)).toEqual({ accepted: false, reason: "elsewhere" })
+    expect(fromFirstScreen(before, after, line)).toEqual({ accepted: false, reason: "elsewhere" })
   })
 
   it("rejects a logo partly kept, or gone while a row appeared far away or in its place", () => {
     expect(logo.length).toBeGreaterThan(10)
     const partly = firstScreen.after.with(logo[4]!, firstScreen.before[logo[4]!]!)
-    expect(fromReady(firstScreen.before, partly, line)).toEqual({
+    expect(fromFirstScreen(firstScreen.before, partly, line)).toEqual({
       accepted: false,
       reason: "elsewhere",
     })
     const added = firstScreen.after.with(5, "  New dialog")
-    expect(fromReady(firstScreen.before, added, line)).toEqual({
+    expect(fromFirstScreen(firstScreen.before, added, line)).toEqual({
       accepted: false,
       reason: "elsewhere",
     })
     const replaced = firstScreen.after.with(logo[8]!, "  Select a model")
-    expect(fromReady(firstScreen.before, replaced, line)).toEqual({
+    expect(fromFirstScreen(firstScreen.before, replaced, line)).toEqual({
       accepted: false,
       reason: "elsewhere",
     })
@@ -138,10 +138,10 @@ describe("the paste check where text vanished far from the line", () => {
       ...items,
       23: "  enter resume · esc close · ↑/↓ select",
     })
-    expect(fromReady(before, after, line)).toEqual({ accepted: false, reason: "elsewhere" })
+    expect(fromFirstScreen(before, after, line)).toEqual({ accepted: false, reason: "elsewhere" })
     // Near the line, a row may lose text, never show text it didn't.
     const moved = firstScreen.after.with(37, "  enter resume · esc close · ↑/↓ select")
-    expect(fromReady(firstScreen.before, moved, line)).toEqual({
+    expect(fromFirstScreen(firstScreen.before, moved, line)).toEqual({
       accepted: false,
       reason: "elsewhere",
     })
@@ -151,19 +151,19 @@ describe("the paste check where text vanished far from the line", () => {
     const before = screen({
       10: "  Mentions",
       12: "› Image Gen        Generate or edit images",
-      14: "  Docs             Docs for models for models, skills, tasks, and setup",
+      14: "  Docs             Docs for models, skills, tasks, and setup",
       16: "  Review           Find actionable bugs in code changes",
       36: "› Type to search mentions",
       38: "  enter/tab insert · esc close · ↑/↓ select",
     })
     const after = before.with(14, "").with(16, "").with(36, `› ${line}`)
-    expect(fromReady(before, after, line)).toEqual({ accepted: false, reason: "elsewhere" })
+    expect(fromFirstScreen(before, after, line)).toEqual({ accepted: false, reason: "elsewhere" })
   })
 
   it("rejects a search field with nothing before it whose list emptied", () => {
     const list = {
       22: "  Image Gen        Generate or edit images",
-      23: "  Docs             Docs for models for models, skills, tasks, and setup",
+      23: "  Docs             Docs for models, skills, tasks, and setup",
       24: "  Review           Find actionable bugs in code changes",
       25: "  Skill Creator    Create or update a skill",
       26: "  Skill Installer  Install curated skills from other repos",
@@ -171,7 +171,7 @@ describe("the paste check where text vanished far from the line", () => {
     const frame = { 18: "  Mentions", 34: "  enter/tab insert · esc close · ↑/↓ select" }
     const before = screen({ ...frame, 20: "Type to search mentions", ...list })
     const after = screen({ ...frame, 20: line })
-    expect(fromReady(before, after, line)).toEqual({ accepted: false, reason: "elsewhere" })
+    expect(fromFirstScreen(before, after, line)).toEqual({ accepted: false, reason: "elsewhere" })
   })
 
   it("rejects a line wrapped whole below a draft that filled its row, though a far block vanished", () => {
@@ -187,13 +187,13 @@ describe("the paste check where text vanished far from the line", () => {
       33: "  ⏸ manual mode on",
     })
     const after = screen({ ...frame, 32: line, 33: rule, 34: "  ⏸ manual mode on" })
-    expect(fromReady(before, after, line)).toEqual({ accepted: false, reason: "elsewhere" })
+    expect(fromFirstScreen(before, after, line)).toEqual({ accepted: false, reason: "elsewhere" })
   })
 
   it("rejects a line appended to a draft as the box grows down, though a far block vanished", () => {
     const before = screen({ 5: "LOGO", 6: "LOGO", 30: "────", 31: "> /", 32: "────", 33: "footer" })
     const after = screen({ 30: "────", 31: `> /${head}`, 32: tail, 33: "────", 34: "footer" })
-    expect(fromReady(before, after, line)).toEqual({ accepted: false, reason: "elsewhere" })
+    expect(fromFirstScreen(before, after, line)).toEqual({ accepted: false, reason: "elsewhere" })
   })
 
   it("accepts a line replacing a placeholder as the box grows down and a far block vanishes", () => {
@@ -206,7 +206,7 @@ describe("the paste check where text vanished far from the line", () => {
       33: "footer",
     })
     const after = screen({ 30: "────", 31: `> ${head}`, 32: tail, 33: "────", 34: "footer" })
-    expect(fromReady(before, after, line)).toEqual({ accepted: true, first: 31, last: 32 })
+    expect(fromFirstScreen(before, after, line)).toEqual({ accepted: true, first: 31, last: 32 })
   })
 
   it("accepts a box growing up at a narrow width as the logo vanishes", () => {
@@ -224,7 +224,7 @@ describe("the paste check where text vanished far from the line", () => {
       36: `  ${tail}`,
       38: "  model",
     })
-    expect(fromReady(before, after, line)).toEqual({ accepted: true, first: 35, last: 36 })
+    expect(fromFirstScreen(before, after, line)).toEqual({ accepted: true, first: 35, last: 36 })
   })
 })
 
