@@ -1266,6 +1266,31 @@ and a probe that hears nothing in a phase fails the run. Run it with `pnpm --fil
 `application/ui/test-results/counters.json`. It runs in `pnpm test` on every platform:
 its own checks hold on each.
 
+The Benchmark workflow runs it on Linux for every pull request whose change can move a
+count (the UI, the runner, their contract, `libraries/`, the lockfile or the checker), and
+on main for the trend. It warns when a count goes past its budget in
+`application/ui/src/specs/counters/budgets.json` and fails when one goes past twice it
+(`failsAt` in `scripts/benchmark/counters.ts`: loose by choice while the product is early),
+or when a phase's script plays another number of ticks than its budgets record. Commits and component renders are reported in the
+job summary, never gated, and each run's reading is kept as an artifact. Locally, after
+the counter run, `node scripts/benchmark/main.ts` checks the reading the same way, and
+`node scripts/benchmark/main.ts <base budgets.json>` checks budget changes too, as CI does
+against the base branch.
+
+A count past its budget is a regression, never noise: fix it, or, for work that really
+costs more, raise the budget in the same pull request (past twice it, one of the two must
+happen before it merges), written `{ "budget": n, "reason":
+"why", "from": "#PR" }`, where `from` names that pull request (on main, any source but the
+raise it replaces). A count under its budget asks for the budget to come down, so the gain
+stays. The job summary shows every budget a change moves, old to new, and a raise without
+its reason and its own pull request fails.
+
+The base branch's budgets are read only as far as the comparison needs, so a change to the
+file's form lands in one pull request. A budget the base lacks shows as new, and needs a
+reason as a raise does when its phase is one the base has; one the base has and the change
+drops shows as no longer budgeted; a base that has none of the phases only warns. The
+check always reports, so it can be required.
+
 ## Configuration
 
 For standalone UI/runner configuration, copy the environment templates:
