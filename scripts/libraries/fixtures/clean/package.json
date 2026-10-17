@@ -1,0 +1,21 @@
+{
+  "name": "@fixture/clean",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./view": {
+      "development": "./src/view.ts",
+      "default": "./dist/view.js"
+    },
+    "./pty": {
+      "node": {
+        "development": "./src/pty.ts",
+        "default": "./dist/pty.js"
+      }
+    }
+  }
+}

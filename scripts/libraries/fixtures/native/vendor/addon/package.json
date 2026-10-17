@@ -1,0 +1,6 @@
+{
+  "name": "addon",
+  "private": true,
+  "type": "module",
+  "gypfile": true
+}

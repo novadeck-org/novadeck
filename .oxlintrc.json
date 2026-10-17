@@ -177,6 +177,522 @@
           }
         ]
       }
+    },
+    {
+      "files": ["libraries/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@novadeck/atlas",
+                  "@novadeck/atlas/**",
+                  "@novadeck/host",
+                  "@novadeck/host/**",
+                  "@novadeck/protocol",
+                  "@novadeck/protocol/**",
+                  "@novadeck/relay",
+                  "@novadeck/relay/**",
+                  "@novadeck/runner",
+                  "@novadeck/runner/**",
+                  "@novadeck/ui",
+                  "@novadeck/ui/**",
+                  "@novadeck/harness-*",
+                  "@novadeck/harness-*/**"
+                ],
+                "message": "A library never imports app code: product specifics come in as options."
+              },
+              {
+                "group": [
+                  "**/../atlas",
+                  "**/atlas/**",
+                  "**/../application",
+                  "**/application/**",
+                  "**/../harnesses",
+                  "**/harnesses/**",
+                  "**/../libraries",
+                  "**/libraries/**",
+                  "**/../*/dist",
+                  "**/../*/dist/**"
+                ],
+                "message": "A library imports another library by its package name, and app code not at all."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["libraries/build-kit/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@novadeck/atlas",
+                  "@novadeck/atlas/**",
+                  "@novadeck/host",
+                  "@novadeck/host/**",
+                  "@novadeck/protocol",
+                  "@novadeck/protocol/**",
+                  "@novadeck/relay",
+                  "@novadeck/relay/**",
+                  "@novadeck/runner",
+                  "@novadeck/runner/**",
+                  "@novadeck/ui",
+                  "@novadeck/ui/**",
+                  "@novadeck/harness-*",
+                  "@novadeck/harness-*/**"
+                ],
+                "message": "A library never imports app code: product specifics come in as options."
+              },
+              {
+                "group": [
+                  "**/../atlas",
+                  "**/atlas/**",
+                  "**/../application",
+                  "**/application/**",
+                  "**/../harnesses",
+                  "**/harnesses/**",
+                  "**/../libraries",
+                  "**/libraries/**",
+                  "**/../*/dist",
+                  "**/../*/dist/**"
+                ],
+                "message": "A library imports another library by its package name, and app code not at all."
+              },
+              {
+                "group": [
+                  "@novadeck/emulator",
+                  "@novadeck/emulator/**",
+                  "@novadeck/sandbox",
+                  "@novadeck/sandbox/**",
+                  "@novadeck/terminal",
+                  "@novadeck/terminal/**",
+                  "@novadeck/tui-input",
+                  "@novadeck/tui-input/**",
+                  "@novadeck/viewers",
+                  "@novadeck/viewers/**",
+                  "@novadeck/wire",
+                  "@novadeck/wire/**"
+                ],
+                "message": "build-kit imports no other library."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["libraries/emulator/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@novadeck/atlas",
+                  "@novadeck/atlas/**",
+                  "@novadeck/host",
+                  "@novadeck/host/**",
+                  "@novadeck/protocol",
+                  "@novadeck/protocol/**",
+                  "@novadeck/relay",
+                  "@novadeck/relay/**",
+                  "@novadeck/runner",
+                  "@novadeck/runner/**",
+                  "@novadeck/ui",
+                  "@novadeck/ui/**",
+                  "@novadeck/harness-*",
+                  "@novadeck/harness-*/**"
+                ],
+                "message": "A library never imports app code: product specifics come in as options."
+              },
+              {
+                "group": [
+                  "**/../atlas",
+                  "**/atlas/**",
+                  "**/../application",
+                  "**/application/**",
+                  "**/../harnesses",
+                  "**/harnesses/**",
+                  "**/../libraries",
+                  "**/libraries/**",
+                  "**/../*/dist",
+                  "**/../*/dist/**"
+                ],
+                "message": "A library imports another library by its package name, and app code not at all."
+              },
+              {
+                "group": [
+                  "@novadeck/build-kit",
+                  "@novadeck/build-kit/**",
+                  "@novadeck/sandbox",
+                  "@novadeck/sandbox/**",
+                  "@novadeck/terminal",
+                  "@novadeck/terminal/**",
+                  "@novadeck/tui-input",
+                  "@novadeck/tui-input/**",
+                  "@novadeck/viewers",
+                  "@novadeck/viewers/**",
+                  "@novadeck/wire",
+                  "@novadeck/wire/**"
+                ],
+                "message": "emulator imports no other library."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["libraries/sandbox/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@novadeck/atlas",
+                  "@novadeck/atlas/**",
+                  "@novadeck/host",
+                  "@novadeck/host/**",
+                  "@novadeck/protocol",
+                  "@novadeck/protocol/**",
+                  "@novadeck/relay",
+                  "@novadeck/relay/**",
+                  "@novadeck/runner",
+                  "@novadeck/runner/**",
+                  "@novadeck/ui",
+                  "@novadeck/ui/**",
+                  "@novadeck/harness-*",
+                  "@novadeck/harness-*/**"
+                ],
+                "message": "A library never imports app code: product specifics come in as options."
+              },
+              {
+                "group": [
+                  "**/../atlas",
+                  "**/atlas/**",
+                  "**/../application",
+                  "**/application/**",
+                  "**/../harnesses",
+                  "**/harnesses/**",
+                  "**/../libraries",
+                  "**/libraries/**",
+                  "**/../*/dist",
+                  "**/../*/dist/**"
+                ],
+                "message": "A library imports another library by its package name, and app code not at all."
+              },
+              {
+                "group": [
+                  "@novadeck/build-kit",
+                  "@novadeck/build-kit/**",
+                  "@novadeck/emulator",
+                  "@novadeck/emulator/**",
+                  "@novadeck/terminal",
+                  "@novadeck/terminal/**",
+                  "@novadeck/tui-input",
+                  "@novadeck/tui-input/**",
+                  "@novadeck/viewers",
+                  "@novadeck/viewers/**",
+                  "@novadeck/wire",
+                  "@novadeck/wire/**"
+                ],
+                "message": "sandbox imports no other library."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["libraries/terminal/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@novadeck/atlas",
+                  "@novadeck/atlas/**",
+                  "@novadeck/host",
+                  "@novadeck/host/**",
+                  "@novadeck/protocol",
+                  "@novadeck/protocol/**",
+                  "@novadeck/relay",
+                  "@novadeck/relay/**",
+                  "@novadeck/runner",
+                  "@novadeck/runner/**",
+                  "@novadeck/ui",
+                  "@novadeck/ui/**",
+                  "@novadeck/harness-*",
+                  "@novadeck/harness-*/**"
+                ],
+                "message": "A library never imports app code: product specifics come in as options."
+              },
+              {
+                "group": [
+                  "**/../atlas",
+                  "**/atlas/**",
+                  "**/../application",
+                  "**/application/**",
+                  "**/../harnesses",
+                  "**/harnesses/**",
+                  "**/../libraries",
+                  "**/libraries/**",
+                  "**/../*/dist",
+                  "**/../*/dist/**"
+                ],
+                "message": "A library imports another library by its package name, and app code not at all."
+              },
+              {
+                "group": [
+                  "@novadeck/build-kit",
+                  "@novadeck/build-kit/**",
+                  "@novadeck/sandbox",
+                  "@novadeck/sandbox/**",
+                  "@novadeck/tui-input",
+                  "@novadeck/tui-input/**",
+                  "@novadeck/viewers",
+                  "@novadeck/viewers/**",
+                  "@novadeck/wire",
+                  "@novadeck/wire/**"
+                ],
+                "message": "terminal imports only the libraries its design depends on: emulator."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["libraries/tui-input/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@novadeck/atlas",
+                  "@novadeck/atlas/**",
+                  "@novadeck/host",
+                  "@novadeck/host/**",
+                  "@novadeck/protocol",
+                  "@novadeck/protocol/**",
+                  "@novadeck/relay",
+                  "@novadeck/relay/**",
+                  "@novadeck/runner",
+                  "@novadeck/runner/**",
+                  "@novadeck/ui",
+                  "@novadeck/ui/**",
+                  "@novadeck/harness-*",
+                  "@novadeck/harness-*/**"
+                ],
+                "message": "A library never imports app code: product specifics come in as options."
+              },
+              {
+                "group": [
+                  "**/../atlas",
+                  "**/atlas/**",
+                  "**/../application",
+                  "**/application/**",
+                  "**/../harnesses",
+                  "**/harnesses/**",
+                  "**/../libraries",
+                  "**/libraries/**",
+                  "**/../*/dist",
+                  "**/../*/dist/**"
+                ],
+                "message": "A library imports another library by its package name, and app code not at all."
+              },
+              {
+                "group": [
+                  "@novadeck/build-kit",
+                  "@novadeck/build-kit/**",
+                  "@novadeck/sandbox",
+                  "@novadeck/sandbox/**",
+                  "@novadeck/terminal",
+                  "@novadeck/terminal/**",
+                  "@novadeck/viewers",
+                  "@novadeck/viewers/**",
+                  "@novadeck/wire",
+                  "@novadeck/wire/**"
+                ],
+                "message": "tui-input imports only the libraries its design depends on: emulator."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["libraries/viewers/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@novadeck/atlas",
+                  "@novadeck/atlas/**",
+                  "@novadeck/host",
+                  "@novadeck/host/**",
+                  "@novadeck/protocol",
+                  "@novadeck/protocol/**",
+                  "@novadeck/relay",
+                  "@novadeck/relay/**",
+                  "@novadeck/runner",
+                  "@novadeck/runner/**",
+                  "@novadeck/ui",
+                  "@novadeck/ui/**",
+                  "@novadeck/harness-*",
+                  "@novadeck/harness-*/**"
+                ],
+                "message": "A library never imports app code: product specifics come in as options."
+              },
+              {
+                "group": [
+                  "**/../atlas",
+                  "**/atlas/**",
+                  "**/../application",
+                  "**/application/**",
+                  "**/../harnesses",
+                  "**/harnesses/**",
+                  "**/../libraries",
+                  "**/libraries/**",
+                  "**/../*/dist",
+                  "**/../*/dist/**"
+                ],
+                "message": "A library imports another library by its package name, and app code not at all."
+              },
+              {
+                "group": [
+                  "@novadeck/build-kit",
+                  "@novadeck/build-kit/**",
+                  "@novadeck/emulator",
+                  "@novadeck/emulator/**",
+                  "@novadeck/sandbox",
+                  "@novadeck/sandbox/**",
+                  "@novadeck/terminal",
+                  "@novadeck/terminal/**",
+                  "@novadeck/tui-input",
+                  "@novadeck/tui-input/**",
+                  "@novadeck/wire",
+                  "@novadeck/wire/**"
+                ],
+                "message": "viewers imports no other library."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["libraries/wire/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@novadeck/atlas",
+                  "@novadeck/atlas/**",
+                  "@novadeck/host",
+                  "@novadeck/host/**",
+                  "@novadeck/protocol",
+                  "@novadeck/protocol/**",
+                  "@novadeck/relay",
+                  "@novadeck/relay/**",
+                  "@novadeck/runner",
+                  "@novadeck/runner/**",
+                  "@novadeck/ui",
+                  "@novadeck/ui/**",
+                  "@novadeck/harness-*",
+                  "@novadeck/harness-*/**"
+                ],
+                "message": "A library never imports app code: product specifics come in as options."
+              },
+              {
+                "group": [
+                  "**/../atlas",
+                  "**/atlas/**",
+                  "**/../application",
+                  "**/application/**",
+                  "**/../harnesses",
+                  "**/harnesses/**",
+                  "**/../libraries",
+                  "**/libraries/**",
+                  "**/../*/dist",
+                  "**/../*/dist/**"
+                ],
+                "message": "A library imports another library by its package name, and app code not at all."
+              },
+              {
+                "group": [
+                  "@novadeck/build-kit",
+                  "@novadeck/build-kit/**",
+                  "@novadeck/emulator",
+                  "@novadeck/emulator/**",
+                  "@novadeck/sandbox",
+                  "@novadeck/sandbox/**",
+                  "@novadeck/terminal",
+                  "@novadeck/terminal/**",
+                  "@novadeck/tui-input",
+                  "@novadeck/tui-input/**",
+                  "@novadeck/viewers",
+                  "@novadeck/viewers/**"
+                ],
+                "message": "wire imports no other library."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["application/ui/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@novadeck/*/pty",
+                  "@novadeck/*/pty/**",
+                  "@novadeck/*/host",
+                  "@novadeck/*/host/**",
+                  "@novadeck/*/server",
+                  "@novadeck/*/server/**",
+                  "@novadeck/*/electron",
+                  "@novadeck/*/electron/**",
+                  "@novadeck/*/browser/host",
+                  "@novadeck/*/browser/host/**",
+                  "@novadeck/*/shell",
+                  "@novadeck/*/shell/**"
+                ],
+                "message": "Browser code imports only a library's browser subpaths: /pty, /host, /server, /electron, /browser/host and /shell run in Node."
+              },
+              {
+                "group": ["**/../libraries", "**/libraries/**"],
+                "message": "Import a library by its package name."
+              }
+            ]
+          }
+        ]
+      }
     }
   ],
   "ignorePatterns": ["out", "release", "storybook-static", "coverage"]

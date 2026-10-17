@@ -972,7 +972,8 @@ holds the desk at its first frames: nothing moves on its own and the plan never 
 This is a TypeScript monorepo using pnpm workspaces and Turborepo. `application/` holds
 what makes up the app; `engines/` holds the native inference engines Novadeck downloads
 once installed, and the build they share; `harnesses/` holds what the agent harness
-adapters and the contract they share.
+adapters and the contract they share; `libraries/` holds the mechanics that never import
+app code (see [libraries/README.md](libraries/README.md)).
 
 | Package                | Responsibility                                                        |
 | ---------------------- | --------------------------------------------------------------------- |

@@ -1,0 +1,6 @@
+{
+  "name": "@fixture/unexported",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts"
+}

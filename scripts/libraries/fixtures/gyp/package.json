@@ -1,0 +1,6 @@
+{
+  "name": "@fixture/gyp",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts"
+}

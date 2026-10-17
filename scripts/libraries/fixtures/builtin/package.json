@@ -1,0 +1,11 @@
+{
+  "name": "@fixture/builtin",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./view": {
+      "development": "./src/view.ts",
+      "default": "./dist/view.js"
+    }
+  }
+}

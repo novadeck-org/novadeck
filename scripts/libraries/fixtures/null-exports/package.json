@@ -1,0 +1,9 @@
+{
+  "name": "@fixture/null-exports",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": null,
+    "./view": null
+  }
+}

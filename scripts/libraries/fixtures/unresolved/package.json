@@ -1,0 +1,11 @@
+{
+  "name": "@fixture/unresolved",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  }
+}
