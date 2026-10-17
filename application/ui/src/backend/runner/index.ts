@@ -128,14 +128,16 @@ const unavailable = (error: unknown): Error => {
 }
 
 // Connects to the desktop app's own runner, or in a browser to the one the build
-// names, and loads the workspace before the app renders.
+// names, and loads the workspace before the app renders. The counter run passes the
+// transport to its scripted runner.
 export const connectRunnerBackend = async (
   signal: AbortSignal,
   progress: (stage: "loading") => void,
+  through: () => Transport = transport,
 ): Promise<BackendConnection> => {
   let runner: Runner
   try {
-    runner = await connectRunner(transport(), { signal })
+    runner = await connectRunner(through(), { signal })
   } catch (error) {
     throw unavailable(error)
   }

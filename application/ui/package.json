@@ -57,6 +57,7 @@
   },
   "devDependencies": {
     "@novadeck/runner": "workspace:*",
+    "@orpc/server": "1.15.5",
     "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

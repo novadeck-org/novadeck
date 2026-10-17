@@ -16,15 +16,18 @@ import { encodeSession } from "./session-state"
 
 // Test support: a runner adapter over a runner the test scripts step by step.
 
-// Values pushed by the test, read by the adapter as a stream.
+// Values pushed by the test, read by the adapter as a stream, until it ends.
 export const channel = <T>() => {
   const queued: T[] = []
+  let ended = false
   let wake: (() => void) | undefined
+  const waiting = (): boolean => !queued.length && !ended
   const iterator: AsyncIterableIterator<T, undefined> = {
     [Symbol.asyncIterator]: () => iterator,
     next: async () => {
       // eslint-disable-next-line no-await-in-loop -- Waits for the next pushed value.
-      while (!queued.length) await new Promise<void>((resolve) => (wake = resolve))
+      while (waiting()) await new Promise<void>((resolve) => (wake = resolve))
+      if (!queued.length) return { value: undefined, done: true }
       return { value: queued.shift()!, done: false }
     },
     return: async () => ({ value: undefined, done: true }),
@@ -33,6 +36,10 @@ export const channel = <T>() => {
     iterator,
     push: (value: T) => {
       queued.push(value)
+      wake?.()
+    },
+    end: () => {
+      ended = true
       wake?.()
     },
   }
@@ -45,13 +52,13 @@ const unused = (): never => {
   throw new Error("not used here")
 }
 
-export const id = (n: number) => `00000000-0000-4000-8000-00000000000${n}`
+export const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`
 
 type Saved = { readonly id: string; readonly lastProcess: string }
 type Call = { readonly call: string; readonly input: unknown }
 
 // A saved session laying out the terminals.
-const state = (saved: readonly Saved[], visitedAt: number, name: string) => ({
+export const savedSession = (saved: readonly Saved[], visitedAt: number, name: string) => ({
   id: name,
   name,
   visitedAt,
@@ -209,7 +216,7 @@ export const scripted = ({
             id: id(8),
             projectId: "p",
             name: "Shown",
-            state: encodeSession(state(shown, 5, id(8)), 2),
+            state: encodeSession(savedSession(shown, 5, id(8)), 2),
           },
           terminals: terminalsOf(shown, listed, id(8)),
           companions,
@@ -219,7 +226,7 @@ export const scripted = ({
             id: id(9),
             projectId: "p",
             name: "Background",
-            state: encodeSession(state(background, 1, id(9)), 0),
+            state: encodeSession(savedSession(background, 1, id(9)), 0),
           },
           terminals: terminalsOf(background, [], id(9)),
         },

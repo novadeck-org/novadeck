@@ -334,6 +334,9 @@ importers:
       '@novadeck/runner':
         specifier: workspace:*
         version: link:../runner
+      '@orpc/server':
+        specifier: 1.15.5
+        version: 1.15.5(ws@8.22.0)
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))

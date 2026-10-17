@@ -115,6 +115,16 @@ const adapterRule = (layer: string): readonly string[] => [
 const adapterSelection = "app/backend.ts"
 // Tests and specs open the demo through its spec entry, never another adapter module.
 const specBackend = "backend/demo/spec-variants.ts"
+// The counter run drives the real UI over the runner adapter, scripted: the one spec
+// that may reach that adapter, through its scripted server alone, and model/store.ts, for
+// its instrumentation hook.
+const counterRun = "specs/counters/"
+const scriptedServer = "backend/runner/scripted-server.ts"
+const counterRunReaches = [scriptedServer, "model/store.ts"]
+// The stores' instrumentation hook, which only the counter run installs; named here once,
+// so this file is the one other place it appears.
+const storeHook = "countListenersWoken"
+const hookOwners = ["model/store.ts", counterRun, "architecture.test.ts"]
 const adapterSelectionExports = ["selectBackend"]
 // Packages are denied unless listed here, owned through `vendors`, or used by an
 // adapter or test code. model/, theme/, interaction/ and app/commands/ use none; core
@@ -160,6 +170,8 @@ const vendors: Record<string, readonly string[]> = {
   // The runner client, its test runner, and the terminal emulator serve one adapter.
   "@novadeck": ["backend/runner/", ...Object.keys(protocolData)],
   "@xterm": ["backend/runner/"],
+  // The runner's server side, which only the counter run's scripted runner serves.
+  "@orpc/server": [scriptedServer],
 }
 
 const src = join(process.cwd(), "src")
@@ -222,6 +234,7 @@ const importViolation = (file: string, layer: string | undefined) => {
     }
     const target = resolveFile(file, specifier)
     if (!target) return [`${file} -> ${specifier} (unresolved)`]
+    if (file.startsWith(counterRun) && counterRunReaches.includes(target)) return []
     const targetLayer = layerOf(target)
     if (targetLayer && adapterOf(targetLayer) && targetLayer !== layer)
       return file === adapterSelection ||
@@ -278,7 +291,25 @@ describe("UI architecture", () => {
         )
         .map((owner) => `${vendor} in ${owner}`),
     )
-    expect([...deadLayers, ...deadVendors]).toEqual([])
+    const deadExceptions = counterRunReaches
+      .filter(
+        (reached) =>
+          !files.some(
+            (file) =>
+              file.startsWith(counterRun) &&
+              imports(file).some(({ specifier }) => resolveFile(file, specifier) === reached),
+          ),
+      )
+      .map((reached) => `${counterRun} -> ${reached}`)
+    expect([...deadLayers, ...deadVendors, ...deadExceptions]).toEqual([])
+  })
+
+  it("keeps the stores' instrumentation hook to the counter run", () => {
+    const named = new RegExp(`\\b${storeHook}\\b`)
+    const found = files.filter(
+      (file) => named.test(source(file)) && !hookOwners.some((owner) => file.startsWith(owner)),
+    )
+    expect(found).toEqual([])
   })
 
   it("keeps imports statically resolvable", () => {

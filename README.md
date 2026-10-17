@@ -1244,6 +1244,28 @@ checks in colocated `*.test.ts` files. Files in `src/specs/` keep
 the `*.spec.tsx` suffix. Use `--project motion` for transition behavior. The build
 checks validate both entry assets and deferred chunks with relative packaged paths.
 
+### UI counter run
+
+`src/specs/counters/` measures what busy agents cost the UI. It isn't a behaviour spec. It
+boots the real app, its runner adapter and the real runner client over a scripted runner
+(`backend/runner/scripted-server.ts`): the whole contract served by oRPC over an in-memory
+port, so a procedure the contract adds is a type error there. It is the one spec that may
+reach that adapter. A warm-up on the real clock loads the views' code first, then closes
+and waits out the timers that act (a screen parks 5 s after it was last shown). The run
+itself is on a fake clock: timers, animation frames, `Date` and `performance` move only
+when the script moves them, React works inside `act`, and a frame that changed the page
+waits real frames until it is still. The fixed script plays 13 Claude terminals'
+status-line ticks and output in Grid, then in Focus once the terminals Focus doesn't show
+have parked, then switches between them in Focus. It counts store listeners woken (through
+`countListenersWoken` in `model/store.ts`, test instrumentation that does nothing
+otherwise) and DOM mutation records per tick, output bytes the runner sends the UI, and
+terminals streaming at once. React commits and component renders per tick are counted
+beside them, through a stand-in for React DevTools' hook. Every run gives the same counts,
+and a probe that hears nothing in a phase fails the run. Run it with `pnpm --filter
+@novadeck/ui exec vitest run --project counters`; it leaves its reading in
+`application/ui/test-results/counters.json`. It runs in `pnpm test` on every platform:
+its own checks hold on each.
+
 ## Configuration
 
 For standalone UI/runner configuration, copy the environment templates:
