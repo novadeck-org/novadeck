@@ -1,3 +1,4 @@
+import { outline } from "@novadeck/viewers/text"
 import { AppWindow, PanelRightClose } from "lucide-react"
 import { lazy, Suspense, useRef, type ReactNode } from "react"
 
@@ -16,7 +17,6 @@ import type { MailHandle } from "./mail"
 import { MessagesView } from "./MessagesView"
 import { blockOf, currentMarks, unreadableNow, type PlanDoc } from "./plan-doc"
 import type { PlanEditorHandle } from "./plan-editor/PlanEditor"
-import { headingsOf } from "./plan-text"
 import type { PlanActions, Panes, PlanPresentation } from "./state"
 import { useContent, usePlan } from "./use-panes"
 
@@ -35,7 +35,7 @@ const PlanOutline = ({
   plan: PlanDoc
   jump: (at: number) => void
 }): React.JSX.Element | null => {
-  const headings = headingsOf(plan.text)
+  const headings = outline(plan.text)
   if (!headings.length) return null
   const marks = plan.showChanges ? currentMarks(plan) : []
   const notes = [...plan.text.matchAll(notePattern)].map((match) => match.index)
@@ -262,7 +262,7 @@ const PlanBody = ({
           retryLabel="Retry"
         />
       )}
-      <div className="plan-reader-body" data-outline={headingsOf(plan.text).length > 0}>
+      <div className="plan-reader-body" data-outline={outline(plan.text).length > 0}>
         <PlanOutline plan={plan} jump={(at) => editor.current?.jumpTo(at)} />
         <div className="plan-document-scroll" data-changes={plan.showChanges}>
           <Suspense fallback={null}>
@@ -309,9 +309,8 @@ export const PlanTab = ({
   if (content?.state === "unavailable" && !kept)
     return <Unavailable item={item} reason={content.reason} size={content.size} actions={actions} />
   return plan ? (
-    // A plan that becomes writable, or stops being so, starts its editor over.
+    // A plan that becomes writable, or stops being so, keeps its editor, history and place.
     <PlanBody
-      key={String(plan.writable && blockOf(plan, content) !== "transcript")}
       item={item}
       plan={plan}
       block={blockOf(plan, content)}

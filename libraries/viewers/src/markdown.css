@@ -1,0 +1,326 @@
+/* The markdown viewer: a text (`.md-viewer`) formatted as a document and edited in place.
+   Its decorations are `.cm-md-*` classes, and its tables (`.cm-md-table-widget`) edit cell
+   by cell. What it changes of CodeMirror's own look (its focus outline, scroller font,
+   content and line padding, selection, caret and gutters) is in markdown/theme.ts:
+   CodeMirror's styles sit outside every cascade layer, so only an editor theme overrides
+   them.
+
+   Hooks: data-readonly on a table while the viewer takes no edits; data-checked="true" on a
+   ticked checkbox.
+
+   Tokens, each optional (its fallback in brackets):
+   --md-fg (the text's colour), --md-font (inherit), --md-font-size (inherit): the text,
+   and the editor's caret.
+   --md-selection-bg (the text, faintly): selected text.
+   --md-muted-fg (the text, faded): list marks, formatting marks, and a done task (at 60%).
+   --md-heading-fg (--md-fg): headings.
+   --md-title-size (1.25em), --md-title-line-height (1.4): second-level headings.
+   --md-code-bg (the text, faintly), --md-code-fg (the text's), --md-mono-font (monospace),
+   --md-code-size (0.9em): inline code.
+   --md-small-size (0.9em), --md-small-line-height (1.5): a file path and a fenced block.
+   --md-path-bg, --md-path-border-color: a file path.
+   --md-codeblock-bg: a fenced block.
+   --md-quote-fg (--md-muted-fg), --md-quote-border-color: a quote.
+   --md-table-border-color, --md-table-head-bg, --md-body-size (0.95em): tables.
+   --md-cell-focus-bg (the text, faintly), --md-cell-focus-ring-color (--md-fg): the cell being edited.
+   --md-table-tools-bg (the text, faintly), --md-table-tools-border-color, --md-table-tools-shadow,
+   --md-caption-size (0.8em): a table's tools.
+   --md-table-tool-fg (--md-muted-fg), --md-table-tool-hover-bg, --md-table-tool-hover-fg
+   (--md-fg), --md-table-tool-disabled-opacity (0.35): each tool.
+   --md-annotation-bg (the text, faintly), --md-annotation-text-fg (--md-fg): a row's
+   annotation, where its host sets them.
+   --md-checkbox-bg (transparent), --md-checkbox-border-color, --md-checkbox-checked-bg
+   (currentColor), --md-checkbox-checked-border-color (currentColor), --md-checkbox-check-fg
+   (white): a task's checkbox.
+   --md-radius (4px), --md-radius-large (6px), --md-border-width (1px), --md-motion (120ms),
+   --md-ease (ease): the shapes and timing of the above. */
+
+.md-viewer {
+  --_muted: var(--md-muted-fg, color-mix(in srgb, currentColor 60%, transparent));
+  --_line: color-mix(in srgb, currentColor 18%, transparent);
+  --_soft: color-mix(in srgb, currentColor 8%, transparent);
+  --_shell: color-mix(in srgb, currentColor 5%, transparent);
+  /* The width its narrow layout answers to is its own, not the page's. */
+  container: md-viewer / inline-size;
+}
+
+/* The document takes the reader's width, up to a long but still readable line, so a
+   wide pane or a window of its own isn't mostly margin. */
+.md-viewer .cm-editor {
+  max-width: 1100px;
+  margin: auto;
+  background: transparent;
+  color: var(--md-fg, currentColor);
+  font-family: var(--md-font, inherit);
+  font-size: var(--md-font-size, inherit);
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.75;
+}
+.cm-md-h1 {
+  font-size: 26px;
+  font-weight: 550;
+  line-height: 1.3;
+  letter-spacing: -0.8px;
+}
+.cm-md-h2 {
+  font-size: var(--md-title-size, 1.25em);
+  line-height: var(--md-title-line-height, 1.4);
+  font-weight: 550;
+}
+.cm-md-h3 {
+  font-weight: 550;
+}
+:is(.cm-md-h1, .cm-md-h2, .cm-md-h3) {
+  color: var(--md-heading-fg, var(--md-fg, currentColor));
+}
+.cm-md-strong {
+  font-weight: 600;
+}
+.cm-md-em {
+  font-style: italic;
+}
+.cm-md-code {
+  padding: 1px 4px;
+  border-radius: var(--md-radius, 4px);
+  background-color: var(--md-code-bg, var(--_soft));
+  color: var(--md-code-fg, currentColor);
+  font-family: var(--md-mono-font, monospace);
+  font-size: var(--md-code-size, 0.9em);
+  font-weight: normal;
+  font-style: normal;
+  line-height: normal;
+}
+.cm-md-path {
+  border: var(--md-border-width, 1px) solid var(--md-path-border-color, var(--_line));
+  background-color: var(--md-path-bg, var(--_shell));
+  font-size: var(--md-small-size, 0.9em);
+  line-height: var(--md-small-line-height, 1.5);
+}
+.cm-md-listmark {
+  font-family: var(--md-mono-font, monospace);
+  font-size: var(--md-small-size, 0.9em);
+  font-weight: normal;
+  font-style: normal;
+  line-height: normal;
+  color: var(--_muted);
+}
+.cm-md-quote {
+  border-left: 2px solid
+    var(--md-quote-border-color, color-mix(in srgb, currentColor 30%, transparent));
+  color: var(--md-quote-fg, var(--_muted));
+}
+.cm-md-codeblock {
+  background-color: var(--md-codeblock-bg, var(--_shell));
+  font-family: var(--md-mono-font, monospace);
+  font-size: var(--md-small-size, 0.9em);
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.9;
+}
+.cm-md-fence {
+  font-size: 0;
+  line-height: 8px;
+}
+.cm-md-checkbox {
+  --_bg: var(--md-checkbox-bg, transparent);
+  --_border-color: var(
+    --md-checkbox-border-color,
+    color-mix(in srgb, currentColor 30%, transparent)
+  );
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  margin: 0 8px -2px 0;
+  border: var(--md-border-width, 1px) solid var(--_border-color);
+  border-radius: var(--md-radius, 4px);
+  background-color: var(--_bg);
+  color: var(--md-checkbox-check-fg, white);
+  text-indent: 0;
+  cursor: pointer;
+  vertical-align: baseline;
+}
+.cm-md-checkbox[data-checked="true"] {
+  --_bg: var(--md-checkbox-checked-bg, currentColor);
+  --_border-color: var(--md-checkbox-checked-border-color, currentColor);
+}
+.cm-md-checkbox svg {
+  width: 10px;
+  height: 10px;
+}
+/* A done task recedes; its tick keeps full contrast. */
+.md-viewer .cm-md-task-done {
+  color: color-mix(in srgb, var(--_muted) 60%, transparent);
+}
+.md-viewer .cm-md-item {
+  text-indent: -22px;
+}
+.md-viewer .cm-md-item-task {
+  text-indent: -44px;
+}
+
+/* Formatting marks, shown on the line being edited. */
+.cm-md-syntax {
+  color: var(--_muted);
+  font-style: normal;
+  font-weight: 400;
+  opacity: 0.7;
+}
+/* A heading's marks hang in its left margin, so its text doesn't move. */
+.md-viewer .cm-md-h1,
+.md-viewer .cm-md-h2,
+.md-viewer .cm-md-h3 {
+  position: relative;
+}
+.cm-md-hashes {
+  position: absolute;
+  padding-right: 0.3em;
+  transform: translateX(-100%);
+  letter-spacing: 0;
+}
+
+/* Tables: always rendered; each cell edits in place. */
+.cm-md-table-widget {
+  position: relative;
+  padding: 6px 0 10px;
+}
+.cm-md-table-widget table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--md-body-size, 0.95em);
+  line-height: 1.6;
+}
+.cm-md-table-widget th,
+.cm-md-table-widget td {
+  padding: 0;
+  border: var(--md-border-width, 1px) solid var(--md-table-border-color, var(--_line));
+  vertical-align: top;
+  text-align: left;
+}
+.cm-md-table-widget th {
+  background-color: var(--md-table-head-bg, var(--_shell));
+  font-weight: 500;
+}
+.cm-md-cell {
+  display: block;
+  width: 100%;
+  min-height: calc(1.6em + 14px);
+  padding: 7px 10px;
+  border: 0;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  outline: none;
+  /* Grows with its text, so a long cell wraps like the table's other cells. */
+  field-sizing: content;
+}
+.cm-md-cell:focus {
+  box-shadow: inset 0 0 0 1.5px var(--md-cell-focus-ring-color, var(--md-fg, currentColor));
+  background-color: var(--md-cell-focus-bg, var(--_soft));
+}
+.cm-md-table-tools {
+  position: absolute;
+  top: -22px;
+  right: 0;
+  display: none;
+  gap: 2px;
+  padding: 2px;
+  border: var(--md-border-width, 1px) solid var(--md-table-tools-border-color, var(--_line));
+  border-radius: var(--md-radius-large, 6px);
+  background-color: var(--md-table-tools-bg, var(--_soft));
+  box-shadow: var(--md-table-tools-shadow, 0 1px 3px rgb(0 0 0 / 0.15));
+}
+.cm-md-table-widget:focus-within .cm-md-table-tools {
+  display: flex;
+}
+.cm-md-table-tool {
+  --_bg: transparent;
+  --_fg: var(--md-table-tool-fg, var(--_muted));
+  padding: 1px 7px;
+  border-radius: var(--md-radius, 4px);
+  background-color: var(--_bg);
+  color: var(--_fg);
+  font-size: var(--md-caption-size, 0.8em);
+  line-height: 18px;
+  white-space: nowrap;
+}
+.cm-md-table-tool:hover:not(:disabled) {
+  --_bg: var(--md-table-tool-hover-bg, var(--_soft));
+  --_fg: var(--md-table-tool-hover-fg, var(--md-fg, currentColor));
+}
+.cm-md-table-tool:disabled {
+  opacity: var(--md-table-tool-disabled-opacity, 0.35);
+}
+
+/* Row annotations, where a host sets them: a button beside every row, in the margin to
+   the text's left, and the annotation under its row. */
+.cm-md-table-widget tr > :first-child {
+  position: relative;
+}
+.cm-md-table-widget .cm-md-annotation-add {
+  position: absolute;
+  /* Above the editor's gutter column, which covers the margin it sits in. */
+  z-index: 201;
+  top: 7px;
+  left: -41px;
+  display: flex;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  opacity: 0;
+  transition: opacity var(--md-motion, 120ms) var(--md-ease, ease);
+}
+.cm-md-table-widget tr:hover .cm-md-annotation-add,
+.cm-md-table-widget tr:focus-within .cm-md-annotation-add {
+  opacity: 1;
+}
+.cm-md-annotation td {
+  padding: 4px 8px 6px;
+  border-top: 0;
+}
+.cm-md-annotation-bubble {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-start;
+  max-width: 100%;
+  margin-top: 5px;
+  padding: 4px 12px 4px 10px;
+  border-radius: var(--md-radius-large, 6px);
+  background-color: var(--md-annotation-bg, var(--_soft));
+}
+.cm-md-annotation-bubble::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 13px;
+  width: 8px;
+  height: 8px;
+  background-color: var(--md-annotation-bg, var(--_soft));
+  transform: rotate(45deg);
+}
+.cm-md-annotation-input {
+  display: block;
+  width: auto;
+  min-height: 1.6em;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  resize: none;
+  background: transparent;
+  color: var(--md-annotation-text-fg, var(--md-fg, currentColor));
+  font: inherit;
+  line-height: 1.6;
+  outline: none;
+  field-sizing: content;
+  min-width: 4ch;
+}
+
+/* A viewer that takes no edits: no table tools or annotation buttons. */
+.cm-md-table-widget[data-readonly] .cm-md-table-tools,
+.cm-md-table-widget[data-readonly] .cm-md-annotation-add {
+  display: none;
+}

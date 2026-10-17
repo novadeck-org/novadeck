@@ -75,6 +75,30 @@ describe("compiled frontend", () => {
       }
     })
 
+    it("keeps the markdown editor out of the initial chunks, loading it when a plan opens", async () => {
+      const manifest: Manifest = JSON.parse(await read(".vite/manifest.json"))
+      const initial = new Set<string>()
+      const visit = (key: string): void => {
+        if (initial.has(key)) return
+        initial.add(key)
+        for (const imported of manifest[key]?.imports ?? []) visit(imported)
+      }
+      for (const [key, chunk] of Object.entries(manifest)) if (chunk.isEntry) visit(key)
+      // CodeMirror's state module names itself in the error it throws for a second copy.
+      const marker = "multiple instances of @codemirror/state"
+      const holding = await Promise.all(
+        [...initial].map(async (key) =>
+          (await read(manifest[key]!.file)).includes(marker) ? key : null,
+        ),
+      )
+      expect(holding.filter(Boolean)).toEqual([])
+      const everything = await Promise.all(
+        Object.values(manifest).map(async (chunk) => (await read(chunk.file)).includes(marker)),
+      )
+      // The check means something only while the editor is somewhere to find.
+      expect(everything.some(Boolean)).toBe(true)
+    })
+
     it("contains a production Content Security Policy", async () => {
       const html = await read("index.html")
 

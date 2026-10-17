@@ -20,6 +20,18 @@ hand back as `saved` to the next viewer of the same thing.
 - `./image`: `mountImage`, an image fitted or at its actual size, its zoom kept in its
   state with its place; `zoom()` and `onZoom` let a host draw the control.
 - `./image.css`: the image viewer's looks, themed through `--image-*`.
+- `./markdown`: `mountMarkdown`, a text formatted as a document and edited in place:
+  formatting marks show on the lines being edited, tables edit cell by cell, task lists tick.
+  Outside changes apply as a minimal line diff, outside undo history, with the cursor kept;
+  the person's edits alone reach `onEdit`. `editable()` switches editing on the live viewer,
+  `ranges` set a class on lines, `extensions` add editor behaviour, and `rowAnnotations` lets
+  a host write a short text into table rows. It scrolls in its nearest scrolling ancestor.
+  `@codemirror/state` and `@codemirror/view` are peer dependencies, since a host's extensions
+  cross the boundary and two copies would break them. `findTables` finds tables by offset.
+- `./markdown.css`: the markdown viewer's looks, themed through `--md-*`; its header lists them.
+- `./text`: `outline`, the headings of a Markdown text, with no editor behind it.
+- `./sync`: `lineChanges`, `distance` and `merge`, how Markdown texts differ and merge.
+  Built on CodeMirror's state, so kept apart from `./text`.
 - `./react`: `useViewer`, a ref that mounts a viewer into its element and keeps its state by
   id, and the viewer once mounted. React is an optional peer dependency, needed only here.
 
