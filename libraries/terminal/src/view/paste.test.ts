@@ -1,6 +1,5 @@
-import { afterEach, vi } from "vitest"
+import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 
-import { context, describe, expect, it } from "../../test"
 import {
   ownPath,
   pastedFiles,
@@ -14,8 +13,8 @@ import {
   uploadName,
   type PasteFailure,
   type PasteTarget,
-} from "./paste"
-import type { Platform } from "./platform"
+} from "./paste.js"
+import type { Platform } from "./platform.js"
 
 // The words of a failed paste's notice, as the app gives them.
 const notice = (failure: PasteFailure): string =>

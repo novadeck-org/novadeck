@@ -2,6 +2,8 @@ import { createView, type Renderers } from "@novadeck/emulator/browser"
 import { maxUploadBytes } from "@novadeck/protocol"
 import { hasCode, type AttachedTerminal } from "@novadeck/protocol/client"
 import type { AttachStream, Exit } from "@novadeck/terminal"
+import type { PasteFailure } from "@novadeck/terminal/view"
+import { parkedCap, parkMs, type TerminalViewOptions } from "@novadeck/terminal/view"
 
 import { createStore } from "#core/store"
 
@@ -10,9 +12,7 @@ import { exitStatus, restartable } from "./activity"
 import type { SurfaceRuntime } from "./backend"
 import { desktopHost } from "./desktop-host"
 import { linkOptions } from "./links"
-import type { PasteFailure } from "./paste"
 import { pageRenderers } from "./renderers"
-import { parkedCap, parkMs, type TerminalViewOptions } from "./screens"
 import { terminalTheme } from "./theme"
 
 // How long a screen stays once its session leaves the screen, so going back to a session or

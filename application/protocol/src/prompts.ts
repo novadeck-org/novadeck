@@ -4,7 +4,12 @@
  * a client warning before it sends. Probed with each harness (2026-10-06 and 07).
  */
 
-/** The text with its line breaks as line feeds: a CRLF or a lone CR is one line break. */
+/**
+ * The text with its line breaks as line feeds: a CRLF or a lone CR is one line break. The
+ * Node-only @novadeck/tui-input keeps its own `normalised` (protocol can't be its
+ * dependency, nor it protocol's): the two must agree, and the drift guard in
+ * application/runner/src/terminals/prompting.test.ts fails if they do not.
+ */
 export const normalisedText = (text: string): string => text.replace(/\r\n?/g, "\n")
 
 // C0 controls but the line feed and the tab, DEL, and C1 controls: the escape that would end a
@@ -21,7 +26,10 @@ export const hasControlCharacters = (text: string): boolean => controls.test(nor
 /**
  * The shell command a prompt gives, where it starts with `!`: the rest, trimmed, which each
  * harness runs in its shell mode (probed 2026-10-07: Claude Code, Codex and Antigravity
- * each switch to it as `!` is typed in an empty box); undefined for any other prompt.
+ * each switch to it as `!` is typed in an empty box); undefined for any other prompt. The
+ * library @novadeck/tui-input keeps its own `shellCommand` for the path it types (see
+ * `normalisedText`): the two must agree, and the drift guard in
+ * application/runner/src/terminals/prompting.test.ts fails if they do not.
  */
 export const shellCommand = (text: string): string | undefined => {
   const trimmed = normalisedText(text).trim()

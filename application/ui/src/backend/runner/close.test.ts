@@ -1,3 +1,4 @@
+import { pause } from "@novadeck/terminal/view"
 import { WireError } from "@novadeck/wire"
 import type { WireStatus } from "@novadeck/wire/client"
 
@@ -7,7 +8,6 @@ import type { WorkspaceAction } from "#core/state"
 
 import { describe, expect, it } from "../../test"
 import { runnerBackend, type RunnerApi } from "./backend"
-import { pause } from "./pause"
 import { noCompanions } from "./scripted"
 import type { RunnerListing } from "./seed"
 
