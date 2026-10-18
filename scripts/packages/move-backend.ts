@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
@@ -53,7 +54,7 @@ for (const place of outsideWorkspace(
 // old place, which the merge brought back at its new one from main's side.
 const has = (commit: string, file: string): boolean => {
   try {
-    git("cat-file", "-e", `${commit}:${file}`)
+    execFileSync("git", ["cat-file", "-e", `${commit}:${file}`], { cwd: root, stdio: "ignore" })
     return true
   } catch {
     return false
