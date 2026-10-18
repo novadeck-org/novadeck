@@ -1,4 +1,4 @@
-import type { WindowedView } from "../model/types"
+import type { WindowedView } from "#core/types"
 
 export const collapsedStorageKey = "novadeck.sidebar-collapsed"
 export const readSidebarCollapsed = (): boolean => {

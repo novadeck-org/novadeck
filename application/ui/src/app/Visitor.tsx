@@ -1,9 +1,10 @@
 import type { ReactNode } from "react"
 import { useEffect, useRef, useSyncExternalStore } from "react"
 
+import type { Store } from "#core/store"
+import type { Workspace } from "#core/types"
+
 import { focusTerminalInput } from "../interaction/dom"
-import type { Store } from "../model/store"
-import type { Workspace } from "../model/types"
 import { useWorkspaceServices } from "./controller/context"
 import { useEmbedded } from "./embedded"
 import { currentState } from "./selectors"

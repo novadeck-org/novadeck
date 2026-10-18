@@ -1,3 +1,8 @@
+import type { Rect } from "#core/layout/spatial"
+import { activeSession } from "#core/state"
+import { createWorkspaceStore } from "#core/store"
+import type { PreferencesValue, Workspace } from "#core/types"
+
 import type { CommandContext, CommandEffects } from "../app/commands/context"
 import { createNavigator, type RouterNavigate } from "../app/commands/navigator"
 import { createWorkspaceCommands } from "../app/commands/workspace"
@@ -13,10 +18,6 @@ import {
 } from "../app/ui-store"
 import type { Backend } from "../backend/port"
 import type { CanvasHandle } from "../layouts/canvas/types"
-import type { Rect } from "../model/layout/spatial"
-import { activeSession } from "../model/state"
-import { createWorkspaceStore } from "../model/store"
-import type { PreferencesValue, Workspace } from "../model/types"
 import { appearance, workspaceFixture } from "./fixtures"
 
 export type CommandsOptions = {

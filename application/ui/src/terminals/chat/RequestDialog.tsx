@@ -1,18 +1,9 @@
 import { Loader } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
-import type {
-  ChatAnswer,
-  ChatDialog,
-  ChatDialogOption,
-  ChatFormField,
-} from "../../model/conversation"
-import {
-  controlHint,
-  hasControlCharacters,
-  promptHint,
-  type Refused,
-} from "../../model/prompt-refusal"
+import type { ChatAnswer, ChatDialog, ChatDialogOption, ChatFormField } from "#core/conversation"
+import { controlHint, hasControlCharacters, promptHint, type Refused } from "#core/prompt-refusal"
+
 import {
   answeredCount,
   chatAnswer,

@@ -12,12 +12,7 @@ import {
 } from "lucide-react"
 import { useId, useMemo, useState } from "react"
 
-import {
-  inputText,
-  toolSummary,
-  type ToolEntry,
-  type ToolKind,
-} from "../../model/conversation-turns"
+import { inputText, toolSummary, type ToolEntry, type ToolKind } from "#core/conversation-turns"
 
 const icons: Readonly<Record<ToolKind, LucideIcon>> = {
   run: SquareTerminal,

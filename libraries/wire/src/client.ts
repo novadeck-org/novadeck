@@ -2,7 +2,6 @@ export {
   connect,
   Watched,
   type ConnectOptions,
-  type HandshakeInput,
   type Session,
   type Watching,
   type Wire,

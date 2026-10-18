@@ -1,12 +1,13 @@
-import { createStore, type MutableStore, type Store } from "../model/store"
-import type { TerminalKey } from "../model/types"
+import { createStore, type MutableStore, type Store } from "#core/store"
+import type { TerminalKey } from "#core/types"
 import {
   installFailure,
   maxClipSeconds,
   type Voice,
   type VoiceClip,
   type VoiceState,
-} from "../model/voice"
+} from "#core/voice"
+
 import type { Capture, CaptureHandlers } from "./capture"
 import type { Dictation } from "./dictation-control"
 import {

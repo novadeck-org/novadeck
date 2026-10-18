@@ -10,8 +10,9 @@ import { WireError } from "@novadeck/wire"
 import { act, createElement, useSyncExternalStore, type ReactNode } from "react"
 import { afterEach, onTestFinished, vi } from "vitest"
 
-import { createStore } from "../../model/store"
-import type { TerminalMetadata, ViewMode } from "../../model/types"
+import { createStore } from "#core/store"
+import type { TerminalMetadata, ViewMode } from "#core/types"
+
 import { context, describe, expect, it } from "../../test"
 import { terminalFixture } from "../../test/fixtures"
 import { render, type Rendered } from "../../test/render"
@@ -1287,7 +1288,9 @@ describe("typing into a terminal's screen", () => {
       return shown
     }
     const page = showAgain()
-    const ready = () => vi.waitFor(() => expect(page.container.textContent).toContain("$"))
+    // Its first draw, which a slow runner (Windows in CI) may take seconds over.
+    const ready = () =>
+      vi.waitFor(() => expect(page.container.textContent).toContain("$"), { timeout: 5_000 })
     // Out of sight long enough for its screen to stop following the shell.
     const park = () => {
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })

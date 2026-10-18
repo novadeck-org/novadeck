@@ -1,4 +1,5 @@
-import type { InboxItem } from "../../../model/inbox"
+import type { InboxItem } from "#core/inbox"
+
 import { demoHiddenCommand, demoInboxIds, demoInboxItemsAll, type DemoInbox } from "../inbox"
 import type { DemoActionGroup } from "./types"
 

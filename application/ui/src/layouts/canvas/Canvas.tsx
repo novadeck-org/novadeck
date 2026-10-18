@@ -23,11 +23,12 @@ import {
   type ReactNode,
 } from "react"
 
+import { canvasPointPosition, viewportCanvasPosition } from "#core/layout/canvas-placement"
+import { canvasNewTerminalSize, canvasPresetSize } from "#core/layout/terminal-size"
+import { isWindow } from "#core/roster"
+import type { Tile, CanvasLayout } from "#core/types"
+
 import { workspaceOverlayOpen, workspaceShortcutTarget } from "../../interaction/shortcuts"
-import { canvasPointPosition, viewportCanvasPosition } from "../../model/layout/canvas-placement"
-import { canvasNewTerminalSize, canvasPresetSize } from "../../model/layout/terminal-size"
-import { isWindow } from "../../model/roster"
-import type { Tile, CanvasLayout } from "../../model/types"
 import { useDrag, useDragSession } from "../../terminals/drag-session"
 import { ContextMenu } from "../../ui-toolkit/ContextMenu"
 import { backgroundPointerHandlers } from "../background"

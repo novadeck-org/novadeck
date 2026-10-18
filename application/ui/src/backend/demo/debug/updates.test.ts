@@ -1,6 +1,7 @@
 import { afterEach, vi } from "vitest"
 
-import type { UpdateOffer } from "../../../model/update"
+import type { UpdateOffer } from "#core/update"
+
 import { describe, expect, it } from "../../../test"
 import { createDemoUpdates, downloadMs, failAfterMs, downloadStep } from "./updates"
 

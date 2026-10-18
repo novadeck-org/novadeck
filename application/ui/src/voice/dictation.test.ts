@@ -1,14 +1,15 @@
 import { vi } from "vitest"
 
-import { createStore, type MutableStore } from "../model/store"
-import type { TerminalKey } from "../model/types"
+import { createStore, type MutableStore } from "#core/store"
+import type { TerminalKey } from "#core/types"
 import {
   maxClipSeconds,
   type Voice,
   type VoiceClip,
   type VoiceState,
   type VoiceTranscript,
-} from "../model/voice"
+} from "#core/voice"
+
 import { context, describe, expect, it } from "../test"
 import type { Capture, CaptureHandlers } from "./capture"
 import {

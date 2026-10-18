@@ -1,5 +1,6 @@
-import { terminalAsks, type TerminalAsk } from "../../../model/terminal-ending"
-import type { AgentStatus, AgentUsage, TerminalMetadata, Workspace } from "../../../model/types"
+import { terminalAsks, type TerminalAsk } from "#core/terminal-ending"
+import type { AgentStatus, AgentUsage, TerminalMetadata, Workspace } from "#core/types"
+
 import type { BackendAction, TerminalKey } from "../../port"
 
 // The actions that put a terminal in a state, as the backend would report it. Pure, so

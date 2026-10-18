@@ -10,11 +10,12 @@ import {
   type PlanSaved,
   type PlanUnwritableReason,
   type PlanVersion,
-} from "../../model/companion"
-import { messagesKey } from "../../model/companion-bar"
-import { noMail, type MailState } from "../../model/messages"
-import { activeSession, workspaceReducer, type WorkspaceAction } from "../../model/state"
-import { createStore, createWorkspaceStore, type WorkspaceStore } from "../../model/store"
+} from "#core/companion"
+import { messagesKey } from "#core/companion-bar"
+import { noMail, type MailState } from "#core/messages"
+import { activeSession, workspaceReducer, type WorkspaceAction } from "#core/state"
+import { createStore, createWorkspaceStore, type WorkspaceStore } from "#core/store"
+
 import { context, describe, expect, it } from "../../test"
 import { itemFixture, workspaceFixture } from "../../test/fixtures"
 import { createPanes, type PlanActions } from "./state"

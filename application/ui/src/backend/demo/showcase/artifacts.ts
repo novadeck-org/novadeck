@@ -1,9 +1,4 @@
-import type {
-  CompanionItem,
-  FileContent,
-  ItemContent,
-  UnavailableReason,
-} from "../../../model/companion"
+import type { CompanionItem, FileContent, ItemContent, UnavailableReason } from "#core/companion"
 
 // Something a sample agent shows: the item it points at, by an id that stays the same, and
 // what it holds there, or why it can't show.

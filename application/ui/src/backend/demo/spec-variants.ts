@@ -1,4 +1,5 @@
-import type { SandboxState } from "../../model/sandbox"
+import type { SandboxState } from "#core/sandbox"
+
 import type { Backend } from "../port"
 import { createContentDemo } from "./content"
 import { createDemoPortable, type DemoPortable } from "./debug/portable"

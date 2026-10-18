@@ -136,6 +136,15 @@
       "status": "known",
       "cause": "Not a test: packaging waits about 27 minutes for the pull request's Quality checks, which stayed queued while CI was busy. Quality now starts the packaging once its checks pass; only a draft marked ready still waits, for Quality's Test check, which has usually finished.",
       "seen": ["#223 run 39028273458 (Linux, macOS, Windows)"]
+    },
+    {
+      "id": "ui-murmur-offer-expect-element",
+      "jobs": ["^Test \\(Windows\\)$"],
+      "test": "src/specs/murmur-offer.spec.tsx > ",
+      "signature": "TypeError: expect\\.element is not a function",
+      "status": "known",
+      "cause": "Unknown, not reproduced: every test of the file failed at its first expect.element (openWorkspace's), and its rerun passed. Browser mode adds expect.element through a module script of its own (@vitest/browser's expect-element.js) in each file's page, before the tester; a page where that script didn't load or ran against another copy of vitest runs without it. Vite optimizing a dependency mid-run would do it, but a cold-cache run of the behaviour project optimized everything up front. Its test is the whole file, as the whole file fails.",
+      "seen": ["#248 run 39073838168 attempt 1 job 117516789196 (Windows)"]
     }
   ]
 }

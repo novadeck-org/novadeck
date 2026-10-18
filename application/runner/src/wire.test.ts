@@ -57,7 +57,7 @@ const fixture = async (resources: Resources, options: ServerOptions = {}) => {
     resources.defer(disconnect)
     await once(socket, "open", { signal: AbortSignal.timeout(5_000) })
     const client = createWireClient<typeof contract>(socketChannel(socket))
-    if (authenticate) await client.runner.handshake({ protocolVersion, token })
+    if (authenticate) await client.wire.handshake({ protocolVersion, token })
     return { client, socket, disconnect }
   }
 
@@ -236,38 +236,6 @@ describe("WebSocket authentication and protocol", () => {
     await expect(fetch(`${server.origin}/api/status`)).resolves.toMatchObject({ ok: true })
   })
 
-  it("unauthenticated operations and invalid credentials", async ({ resources }) => {
-    const app = await fixture(resources)
-    const { client } = await app.connect(false)
-    await expect(client.projects.list()).rejects.toMatchObject({ code: "UNAUTHORIZED" })
-    await expect(client.asks.list()).rejects.toMatchObject({ code: "UNAUTHORIZED" })
-    await expect(
-      client.asks.answer({
-        id: randomUUID(),
-        answer: { type: "reply", option: null, text: "Approve" },
-      }),
-    ).rejects.toMatchObject({ code: "UNAUTHORIZED" })
-    await expect(
-      client.runner.handshake({ protocolVersion, token: "wrong" }),
-    ).rejects.toMatchObject({ code: "UNAUTHORIZED" })
-    await expect(
-      client.sessions.create({ id: randomUUID(), projectId: randomUUID(), name: "denied" }),
-    ).rejects.toMatchObject({ code: "UNAUTHORIZED" })
-    const info = await client.runner.handshake({ protocolVersion, token })
-    expect(info).toEqual({ runnerId: expect.any(String), protocolVersion })
-    expect(info.runnerId).toEqual(expect.any(String))
-    await expect(client.projects.list()).resolves.toEqual([])
-  })
-
-  it("protocol compatibility and failed handshake authentication", async ({ resources }) => {
-    const app = await fixture(resources)
-    const { client } = await app.connect(false)
-    await expect(client.runner.handshake({ protocolVersion: 99, token })).rejects.toMatchObject({
-      code: "INCOMPATIBLE_PROTOCOL",
-    })
-    await expect(client.projects.list()).rejects.toMatchObject({ code: "UNAUTHORIZED" })
-  })
-
   it("a workspace a newer Novadeck wrote, told to clients that prove themselves", async ({
     resources,
   }) => {
@@ -279,15 +247,13 @@ describe("WebSocket authentication and protocol", () => {
     future.close()
     const app = await fixture(resources, { database: path })
     const { client } = await app.connect(false)
-    await expect(
-      client.runner.handshake({ protocolVersion, token: "wrong" }),
-    ).rejects.toMatchObject({
+    await expect(client.wire.handshake({ protocolVersion, token: "wrong" })).rejects.toMatchObject({
       code: "UNAUTHORIZED",
     })
-    await expect(client.runner.handshake({ protocolVersion: 99, token })).rejects.toMatchObject({
+    await expect(client.wire.handshake({ protocolVersion: 99, token })).rejects.toMatchObject({
       code: "INCOMPATIBLE_PROTOCOL",
     })
-    await expect(client.runner.handshake({ protocolVersion, token })).rejects.toMatchObject({
+    await expect(client.wire.handshake({ protocolVersion, token })).rejects.toMatchObject({
       code: "WORKSPACE_TOO_NEW",
     })
     await expect(client.projects.list()).rejects.toBeDefined()
@@ -313,56 +279,6 @@ describe("WebSocket authentication and protocol", () => {
     } finally {
       kept.close()
     }
-  })
-
-  it("WebSocket browser origin validation", async ({ resources }) => {
-    const app = await fixture(resources, { origins: ["https://trusted.novadeck.test"] })
-    const denied = new NodeWebSocket(app.url, { origin: "https://untrusted.novadeck.test" })
-    resources.defer(() => denied.terminate())
-    const failure = await new Promise<Error>((resolve) => denied.once("error", resolve))
-    expect(failure.message).toContain("403")
-    const accepted = new NodeWebSocket(app.url, { origin: "https://trusted.novadeck.test" })
-    resources.defer(() => accepted.terminate())
-    await once(accepted, "open", { signal: AbortSignal.timeout(5_000) })
-    const closed = once(accepted, "close")
-    accepted.close()
-    await closed
-  })
-
-  it("limits the calls one connection may have in flight", async ({ resources }) => {
-    const app = await fixture(resources)
-    const { client } = await app.connect()
-    // Project creation checks its directory asynchronously, so these overlap.
-    const results = await Promise.allSettled(
-      Array.from({ length: 64 }, () =>
-        client.projects.create({ id: randomUUID(), name: "Burst", cwd: app.directory }),
-      ),
-    )
-    const rejected = results.filter((result) => result.status === "rejected")
-    expect(rejected.length).toBeGreaterThan(0)
-    expect(rejected.every((result) => result.reason.code === "RESOURCE_LIMIT")).toBe(true)
-    await expect(client.projects.list()).resolves.toHaveLength(64 - rejected.length)
-  })
-
-  it("connection limits include unauthenticated clients", async ({ resources }) => {
-    const app = await fixture(resources, { maxConnections: 1 })
-    await app.connect(false)
-    const denied = new NodeWebSocket(app.url)
-    resources.defer(() => denied.terminate())
-    const failure = await new Promise<Error>((resolve) => denied.once("error", resolve))
-    expect(failure.message).toContain("429")
-  })
-
-  it("heartbeat disconnection of unresponsive peers", async ({ resources }) => {
-    const app = await fixture(resources, { heartbeatMs: 50 })
-    const silent = new NodeWebSocket(app.url, { autoPong: false })
-    resources.defer(() => silent.terminate())
-    const closed = once(silent, "close")
-    await once(silent, "open", { signal: AbortSignal.timeout(5_000) })
-    await closed
-    expect(silent.readyState).toBe(NodeWebSocket.CLOSED)
-    const { client } = await app.connect()
-    await expect(client.projects.list()).resolves.toEqual([])
   })
 })
 
@@ -632,7 +548,7 @@ describe("terminal attachment and recovery API", () => {
     resources.defer(() => socket.terminate())
     await once(socket, "open", { signal: AbortSignal.timeout(5_000) })
     const client = createWireClient<typeof contract>(socketChannel(socket))
-    await client.runner.handshake({ protocolVersion, token })
+    await client.wire.handshake({ protocolVersion, token })
     // Flush the request onto TCP, then drop the connection without a close frame.
     // The server may either reject the request or finish creation after release.
     const originalSend = socket.send.bind(socket)

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
 
-import { createTerminalState, workspaceReducer } from "../../model/state"
-import type { Workspace } from "../../model/types"
+import { createTerminalState, workspaceReducer } from "#core/state"
+import type { Workspace } from "#core/types"
+
 import { createDemoEngine } from "./engine"
 import { createMockTerminal, demoTerminalId } from "./samples"
 

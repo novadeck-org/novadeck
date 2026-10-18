@@ -1,16 +1,17 @@
-import { isOnBar, windowOfItem, type ItemId } from "../../model/companion"
-import type { BarKey } from "../../model/companion-bar"
-import { addCompactGridTerminal } from "../../model/layout/grid-placement"
-import { canvasNewTerminalSize } from "../../model/layout/terminal-size"
+import { isOnBar, windowOfItem, type ItemId } from "#core/companion"
+import type { BarKey } from "#core/companion-bar"
+import { addCompactGridTerminal } from "#core/layout/grid-placement"
+import { canvasNewTerminalSize } from "#core/layout/terminal-size"
 import {
   droppedCanvasGeometry,
   dropOnGrid,
   moveOnCanvas,
   type WindowPlace,
-} from "../../model/layout/window-place"
-import { hasTerminal, hasWindow, tilesOf } from "../../model/roster"
-import type { WorkspaceAction } from "../../model/state"
-import type { CompanionWindowMeta } from "../../model/types"
+} from "#core/layout/window-place"
+import { hasTerminal, hasWindow, tilesOf } from "#core/roster"
+import type { WorkspaceAction } from "#core/state"
+import type { CompanionWindowMeta } from "#core/types"
+
 import { currentContext, currentState, currentTarget } from "../selectors"
 import type { CommandContext } from "./context"
 

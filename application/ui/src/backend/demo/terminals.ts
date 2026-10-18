@@ -1,4 +1,5 @@
-import type { TerminalMetadata, Workspace } from "../../model/types"
+import type { TerminalMetadata, Workspace } from "#core/types"
+
 import type { TerminalKey } from "../port"
 
 // The terminal as the workspace last held it.

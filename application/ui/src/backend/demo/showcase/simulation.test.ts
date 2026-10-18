@@ -4,7 +4,8 @@ import {
   type CompanionItem,
   type CompanionKey,
   type ItemContent,
-} from "../../../model/companion"
+} from "#core/companion"
+
 import { context, describe, expect, it } from "../../../test"
 import type { BackendAction } from "../../port"
 import { authAgent, studioAgent } from "./agents"

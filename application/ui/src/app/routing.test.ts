@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { createTerminalState } from "../model/state"
-import { createWorkspaceStore } from "../model/store"
-import type { PreferencesValue, Workspace } from "../model/types"
+import { createTerminalState } from "#core/state"
+import { createWorkspaceStore } from "#core/store"
+import type { PreferencesValue, Workspace } from "#core/types"
+
 import { appearance, terminalFixture, workspaceWithWindow } from "../test/fixtures"
 import { resolveRoute, routeUrl, workspaceRoute } from "./routing"
 

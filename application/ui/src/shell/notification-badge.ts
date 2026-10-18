@@ -1,7 +1,8 @@
+import { inboxType, urgency, type InboxItem } from "#core/inbox"
+import { terminalAsks } from "#core/terminal-ending"
+
 import { needing } from "../inbox/inbox-state"
 import { toneOf } from "../inbox/inbox-text"
-import { inboxType, urgency, type InboxItem } from "../model/inbox"
-import { terminalAsks } from "../model/terminal-ending"
 import type { Notification } from "../notifications/notifications"
 import { askStatus, type ProjectStatus } from "../projects/project-status"
 

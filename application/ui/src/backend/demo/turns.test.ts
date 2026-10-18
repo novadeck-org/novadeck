@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { workspaceFromSeed } from "../../model/seed"
-import { createWorkspaceStore } from "../../model/store"
-import type { AgentStatus } from "../../model/types"
+import { workspaceFromSeed } from "#core/seed"
+import { createWorkspaceStore } from "#core/store"
+import type { AgentStatus } from "#core/types"
+
 import { answerMs, answeredMs } from "./chat"
 import { demoTerminalId } from "./samples"
 import { demoTurns, demoTurnMs, type TurnEvent } from "./turns"

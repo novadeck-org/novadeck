@@ -1,4 +1,5 @@
-import type { TerminalKey } from "../model/types"
+import type { TerminalKey } from "#core/types"
+
 import { context, describe, expect, it } from "../test"
 import {
   idle,

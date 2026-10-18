@@ -640,7 +640,7 @@ export class Murmur implements Describer {
   }
 
   private assertOpen(): void {
-    if (this.closed) throw new DomainError("RUNTIME_CLOSING")
+    if (this.closed) throw new DomainError("CLOSING")
   }
 
   private modelPath(): string {

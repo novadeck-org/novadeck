@@ -14,8 +14,9 @@ import {
 } from "@novadeck/protocol/client"
 import { type Channel } from "@novadeck/wire"
 import { messagePort, websocket, type Transport, type WireStatus } from "@novadeck/wire/client"
+import { servePort } from "@novadeck/wire/server"
 
-import { createRunner, servePort } from "./index.js"
+import { createRunner } from "./index.js"
 import { startServer, type ServerOptions } from "./server.js"
 import { describe, expect, it } from "./test.js"
 import { command, ptyOptions } from "./testing/pty.js"
@@ -57,7 +58,7 @@ const bundled = async (resources: Resources) => {
   resources.defer(() => runner.close())
   const connect = async () => {
     const { port1, port2 } = new MessageChannel()
-    const dispose = servePort(runner, port1)
+    const dispose = servePort(runner.sessions, port1)
     resources.defer(dispose)
     const client = await connectRunner(messagePort(port2), fast)
     resources.defer(() => client.close())
@@ -1199,7 +1200,7 @@ describe("runner client over MessagePort", () => {
     await expect(client.sessions.save({ sessionId, state: "before" })).resolves.toBeUndefined()
     const closing = app.runner.close()
     await expect(client.sessions.save({ sessionId, state: "after" })).rejects.toMatchObject({
-      code: "RUNTIME_CLOSING",
+      code: "CLOSING",
     })
     await closing
   })

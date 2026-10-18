@@ -1,4 +1,4 @@
-import type { TerminalKey } from "../model/types"
+import type { TerminalKey } from "#core/types"
 
 // What keys and buttons ask of dictation. `dictation.ts` implements it.
 export type Dictation = {

@@ -1,9 +1,10 @@
 import { Plus } from "lucide-react"
 import type { ComponentProps } from "react"
 
+import type { SidebarPanel as PanelId, Tile, WorkspaceSession } from "#core/types"
+
 import { HeldPill, InboxList, InboxMarkAll } from "../inbox/InboxList"
 import { shortcutBindings } from "../interaction/shortcuts"
-import type { SidebarPanel as PanelId, Tile, WorkspaceSession } from "../model/types"
 import type { Notification } from "../notifications/notifications"
 import { MarkAllReadButton, NotificationsPanel } from "../notifications/NotificationsPanel"
 import { SessionsPanel } from "../sidebar/SessionsPanel"

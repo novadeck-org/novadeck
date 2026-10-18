@@ -1,6 +1,5 @@
-import type { WorkspaceAction } from "../model/state"
-import type { TerminalMetadata, Workspace } from "../model/types"
-import type { TerminalKey } from "./port"
+import type { WorkspaceAction } from "./state"
+import type { TerminalKey, TerminalMetadata, Workspace } from "./types"
 
 // Both hooks run inside Backend.commit and follow its rules: always synchronous;
 // `open` for the initial workspace must not start I/O, while later `open` and

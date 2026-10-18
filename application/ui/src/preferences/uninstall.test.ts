@@ -1,8 +1,9 @@
 import { vi } from "vitest"
 
-import type { AgentName } from "../model/harnesses"
-import { createStore } from "../model/store"
-import type { UninstallResult } from "../model/uninstall"
+import type { AgentName } from "#core/harnesses"
+import { createStore } from "#core/store"
+import type { UninstallResult } from "#core/uninstall"
+
 import { context, describe, expect, it } from "../test"
 import type { AgentSwitch } from "./AgentSwitches"
 import {

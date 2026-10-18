@@ -1,4 +1,4 @@
-import type { ChatAnswer, ChatDialog, ChatRequest } from "../../model/conversation"
+import type { ChatAnswer, ChatDialog, ChatRequest } from "#core/conversation"
 
 // What the person types into an agent's terminal while a request waits: their line, read
 // against the request's dialog the way the agent's TUI reads keys. Pure, so the surface

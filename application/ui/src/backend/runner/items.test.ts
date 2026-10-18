@@ -2,8 +2,9 @@ import type { CompanionItem, CompanionWindow, TerminalSummary } from "@novadeck/
 import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
-import { itemIdOf } from "../../model/companion"
-import { activeSession, createTerminalState, createWorkspaceSession } from "../../model/state"
+import { itemIdOf } from "#core/companion"
+import { activeSession, createTerminalState, createWorkspaceSession } from "#core/state"
+
 import { context, describe, expect, it } from "../../test"
 import type { BackendAction } from "../port"
 import { itemOf } from "./companions"

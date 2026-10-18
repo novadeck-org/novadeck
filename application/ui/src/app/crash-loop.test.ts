@@ -1,4 +1,5 @@
-import { createStore } from "../model/store"
+import { createStore } from "#core/store"
+
 import { describe, expect, it } from "../test"
 import { openCommands } from "../test/commands"
 import { keyState } from "./commands/keys"

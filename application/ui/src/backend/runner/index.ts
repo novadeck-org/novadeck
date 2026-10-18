@@ -9,7 +9,8 @@ import {
 import { WireError } from "@novadeck/wire"
 import { websocket, type Transport } from "@novadeck/wire/client"
 
-import { sessionName } from "../../model/session-name"
+import { sessionName } from "#core/session-name"
+
 import type { BackendConnection, ConnectFailure } from "../port"
 import { runnerBackend, type RunnerBackend } from "./backend"
 import {
@@ -91,7 +92,7 @@ const closeGraceMs = 2_000
 const transient: readonly RunnerErrorCode[] = [
   "DISCONNECTED",
   "CLOSED",
-  "RUNTIME_CLOSING",
+  "CLOSING",
   "RESOURCE_LIMIT",
 ]
 export const connectFailure = (error: unknown): ConnectFailure => {

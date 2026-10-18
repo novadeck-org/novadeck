@@ -1,6 +1,7 @@
 import { vi } from "vitest"
 
-import { workspaceFromSeed } from "../../model/seed"
+import { workspaceFromSeed } from "#core/seed"
+
 import { describe, expect, it } from "../../test"
 import { id, scripted } from "./scripted"
 

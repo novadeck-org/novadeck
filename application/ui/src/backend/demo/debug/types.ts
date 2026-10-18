@@ -1,7 +1,8 @@
 import type { ComponentType } from "react"
 
-import type { Workspace } from "../../../model/types"
-import type { UpdateOffer } from "../../../model/update"
+import type { Workspace } from "#core/types"
+import type { UpdateOffer } from "#core/update"
+
 import type { Backend, BackendSink, TerminalKey } from "../../port"
 import type { DemoScreens } from "../surface"
 import type { DemoUpdates } from "./updates"

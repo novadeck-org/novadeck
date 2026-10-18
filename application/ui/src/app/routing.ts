@@ -1,20 +1,16 @@
 import { matchPath } from "react-router"
 
-import { hasTile } from "../model/roster"
-import {
-  activeProject,
-  activeSession,
-  workspaceReducer,
-  type WorkspaceAction,
-} from "../model/state"
-import type { WorkspaceTransaction } from "../model/store"
+import { hasTile } from "#core/roster"
+import { activeProject, activeSession, workspaceReducer, type WorkspaceAction } from "#core/state"
+import type { WorkspaceTransaction } from "#core/store"
 import {
   sidebarPanels,
   type PreferencesValue,
   type SidebarPanel,
   type ViewMode,
   type Workspace,
-} from "../model/types"
+} from "#core/types"
+
 import { preferencesTabs, type PreferencesTab } from "../preferences/settings"
 
 export type WorkspaceRoute = {

@@ -1,5 +1,6 @@
-import type { CompanionItem, ItemId } from "../../model/companion"
-import { emptyBar, messagesKey, type Bar, type BarKey } from "../../model/companion-bar"
+import type { CompanionItem, ItemId } from "#core/companion"
+import { emptyBar, messagesKey, type Bar, type BarKey } from "#core/companion-bar"
+
 import { context, describe, expect, it } from "../../test"
 import { itemFixture } from "../../test/fixtures"
 import type { BarDrag } from "../drag-session"

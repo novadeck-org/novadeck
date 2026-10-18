@@ -1,7 +1,8 @@
 import { ArrowRight, ScrollText, Sparkles, type LucideIcon } from "lucide-react"
 import { useRef, useState, type ComponentType, type CSSProperties, type RefObject } from "react"
 
-import { harnesses } from "../model/harnesses"
+import { harnesses } from "#core/harnesses"
+
 import { Checkbox } from "../ui-toolkit/Checkbox"
 import { Dialog, DialogDescription, DialogTitle } from "../ui-toolkit/Dialog"
 import { ClaudeIcon } from "../ui-toolkit/icons/ClaudeIcon"

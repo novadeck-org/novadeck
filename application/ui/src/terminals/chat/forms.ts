@@ -1,5 +1,5 @@
-import type { ChatAnswer, ChatFormField } from "../../model/conversation"
-import { hasControlCharacters } from "../../model/prompt-refusal"
+import type { ChatAnswer, ChatFormField } from "#core/conversation"
+import { hasControlCharacters } from "#core/prompt-refusal"
 
 // What the person has put into a form's fields, as typed (text and numbers as strings), and
 // the values it makes. Pure, so the form's rules read apart from its markup.

@@ -8,12 +8,13 @@ import {
   useSyncExternalStore,
 } from "react"
 
+import type { AgentName } from "#core/harnesses"
+import { orderedTiles } from "#core/roster"
+import { activeProject } from "#core/state"
+import type { OfferedUninstall } from "#core/uninstall"
+
 import type { Backend } from "../backend/port"
 import { terminalElement } from "../interaction/dom"
-import type { AgentName } from "../model/harnesses"
-import { orderedTiles } from "../model/roster"
-import { activeProject } from "../model/state"
-import type { OfferedUninstall } from "../model/uninstall"
 import type { MurmurAddonValue } from "../preferences/MurmurAddon"
 import { disconnectAgent, runUninstall } from "../preferences/uninstall"
 import type { UninstallValue } from "../preferences/UninstallApp"

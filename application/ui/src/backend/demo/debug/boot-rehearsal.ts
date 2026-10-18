@@ -1,4 +1,4 @@
-import { createStore, type Store } from "../model/store"
+import { createStore, type Store } from "#core/store"
 
 // What the debug panel can ask of the next boot: hold the splash until released, fail
 // the next connection attempt with an error code, once, or just boot again.

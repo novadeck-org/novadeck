@@ -1,7 +1,8 @@
 import { vi } from "vitest"
 
-import { companionKeyId } from "../../model/companion"
-import { mailBadge } from "../../model/messages"
+import { companionKeyId } from "#core/companion"
+import { mailBadge } from "#core/messages"
+
 import { describe, expect, it } from "../../test"
 import { createDemoInbox, demoInboxIds, demoInboxItems } from "./inbox"
 import { checkoutMailboxes, createDemoMessages } from "./messages"

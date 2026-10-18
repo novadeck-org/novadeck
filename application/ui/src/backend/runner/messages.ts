@@ -1,8 +1,8 @@
 import type { TerminalMessages } from "@novadeck/protocol"
 
-import { companionKeyId, type CompanionKey } from "../../model/companion"
-import { noMail, type MailState, type Messages, type TerminalMail } from "../../model/messages"
-import { createStore } from "../../model/store"
+import { companionKeyId, type CompanionKey } from "#core/companion"
+import { noMail, type MailState, type Messages, type TerminalMail } from "#core/messages"
+import { createStore } from "#core/store"
 
 // The runner's messages between agents: each terminal's threads as `messages.watch`
 // streams them, and the one pause switch, which every listing reports. A pause the runner

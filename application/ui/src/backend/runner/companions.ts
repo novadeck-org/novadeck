@@ -14,8 +14,8 @@ import {
   PlanUnwritableError,
   type Companions,
   type ItemContent,
-} from "../../model/companion"
-import type { CompanionWindowMeta } from "../../model/types"
+} from "#core/companion"
+import type { CompanionWindowMeta } from "#core/types"
 
 // The runner's companion items as the UI holds them: what agents show and the person
 // attaches, each a pointer the runner keeps, and their content, which `content` reads

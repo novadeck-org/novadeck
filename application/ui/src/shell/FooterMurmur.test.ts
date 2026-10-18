@@ -1,7 +1,8 @@
 import { createElement } from "react"
 
-import type { Refusal } from "../model/addon"
-import type { MurmurState } from "../model/murmur"
+import type { Refusal } from "#core/addon"
+import type { MurmurState } from "#core/murmur"
+
 import { describe, expect, it } from "../test"
 import { render } from "../test/render"
 import { FooterMurmur } from "./FooterMurmur"

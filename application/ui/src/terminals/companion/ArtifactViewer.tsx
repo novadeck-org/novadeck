@@ -14,7 +14,8 @@ import {
   type ItemContent,
   type PageContent,
   type UnavailableReason,
-} from "../../model/companion"
+} from "#core/companion"
+
 import { useShown } from "../../ui-toolkit/shown"
 import { isMarkdown } from "./artifact-icons"
 import { DocumentViewer } from "./DocumentViewer"

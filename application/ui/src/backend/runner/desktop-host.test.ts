@@ -8,10 +8,11 @@ import type {
   UninstallResult as BridgeUninstall,
 } from "@novadeck/protocol/bridge"
 
-import type { PortableState } from "../../model/portable"
-import type { SandboxState } from "../../model/sandbox"
-import type { UninstallPlan, UninstallResult } from "../../model/uninstall"
-import type { UpdateOffer } from "../../model/update"
+import type { PortableState } from "#core/portable"
+import type { SandboxState } from "#core/sandbox"
+import type { UninstallPlan, UninstallResult } from "#core/uninstall"
+import type { UpdateOffer } from "#core/update"
+
 import { context, describe, expect, it } from "../../test"
 import {
   desktopNotices,

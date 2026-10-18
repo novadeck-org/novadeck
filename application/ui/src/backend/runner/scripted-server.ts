@@ -10,7 +10,8 @@ import { memoryPorts } from "@novadeck/wire/testing"
 import { implement, ORPCError } from "@orpc/server"
 import { RPCHandler } from "@orpc/server/message-port"
 
-import type { CanvasLayout } from "../../model/types"
+import type { CanvasLayout } from "#core/types"
+
 import { connectRunnerBackend } from "./index"
 import { channel, id, keptSummary, savedSession } from "./scripted"
 import { encodeSession } from "./session-state"
@@ -144,8 +145,8 @@ export const scriptedRunner = ({
     throw new Error(`The counter run doesn't script ${name}`)
   }
   const router = api.router({
-    runner: {
-      handshake: api.runner.handshake.handler(() => ({ runnerId: id(99), protocolVersion })),
+    wire: {
+      handshake: api.wire.handshake.handler(() => ({ epoch: id(99), protocolVersion })),
     },
     projects: {
       list: api.projects.list.handler(() => [{ id: projectId, name: "Agents", cwd: "/tmp" }]),

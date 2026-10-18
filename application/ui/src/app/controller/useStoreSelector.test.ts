@@ -1,6 +1,7 @@
 import { act, createElement, StrictMode } from "react"
 
-import { createStore, type MutableStore } from "../../model/store"
+import { createStore, type MutableStore } from "#core/store"
+
 import { context, describe, expect, it } from "../../test"
 import { render } from "../../test/render"
 import { useStoreSelector } from "./useStoreSelector"
