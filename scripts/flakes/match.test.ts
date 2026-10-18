@@ -30,6 +30,17 @@ describe("the known-flake register", () => {
     })
   })
 
+  context("when its job runs in halves", () => {
+    it("knows a flake by either half's job, as it knew the whole one", () => {
+      const log = fixture("ui-agents-pinned-drag-top")
+      // The workflow names each log after its job with "/" as "-" (flakes.yml), which the
+      // judge reads the name back from.
+      for (const job of ["Test (Linux, 1/2)", "Test (Windows, 2-2)", "Test (macOS)"])
+        expect(judgeJob(register, job, log).flakes).toEqual(["ui-agents-pinned-drag-top"])
+      expect(judgeJob(register, "Test (Linux, 3/2)", log).flakes).toEqual([])
+    })
+  })
+
   context("when a test fails that no flake names", () => {
     it("leaves it to be triaged", () => {
       const log = fixture("ui-agents-pinned-drag-top").replace(

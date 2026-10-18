@@ -1,9 +1,11 @@
 import { execFileSync } from "node:child_process"
+import { readdirSync } from "node:fs"
 import { join } from "node:path"
 
 import { context, describe, expect, it } from "../../test"
 import {
   type Facts,
+  firstShard,
   parseAffected,
   plan,
   quirks,
@@ -405,6 +407,62 @@ describe("E2E rows", () => {
       "Mixed",
     ])
     expect(planned.quirks.map((row) => row.agents)).toEqual(ids)
+  })
+})
+
+describe("E2E jobs", () => {
+  it("runs Claude Code and Codex in two halves on Linux and Windows, and macOS whole", () => {
+    expect(plan(nightly, ids).rows.map((row) => row.job)).toEqual([
+      "Claude Code (1/2)",
+      "Claude Code (2/2)",
+      "Codex (1/2)",
+      "Codex (2/2)",
+      "Antigravity",
+      "Mixed",
+      "Claude Code (Windows, 1/2)",
+      "Claude Code (Windows, 2/2)",
+      "Codex (Windows, 1/2)",
+      "Codex (Windows, 2/2)",
+      "Antigravity (Windows)",
+      "Mixed (Windows)",
+      "Claude Code (macOS)",
+      "Codex (macOS)",
+      "Antigravity (macOS)",
+      "Mixed (macOS)",
+    ])
+  })
+
+  it("gives the first half its files and the second every other file", () => {
+    const [first, second] = plan(nightly, ids).rows.filter((row) => row.os === systems.windows)
+    expect(first?.setup).toEqual({
+      agents: "claude",
+      name: "Claude Code",
+      files: firstShard.map((file) => `src/e2e/${file}`).join(" "),
+      part: 1,
+    })
+    expect(second?.setup.files).toBe(
+      firstShard.map((file) => `--exclude src/e2e/${file}`).join(" "),
+    )
+  })
+
+  it("names only files the suite has, so a renamed one can't drop out of both halves", () => {
+    const suite = readdirSync(join(import.meta.dirname, "../../../application/runner/src/e2e"))
+    for (const file of firstShard) expect(suite).toContain(file)
+  })
+
+  it("splits only the systems the plan chose", () => {
+    const linux = plan(
+      pullRequest(["@novadeck/protocol"], ["application/protocol/src/schemas.ts"]),
+      ids,
+    )
+    expect(linux.rows.map((row) => row.job)).toEqual([
+      "Claude Code (1/2)",
+      "Claude Code (2/2)",
+      "Codex (1/2)",
+      "Codex (2/2)",
+      "Antigravity",
+      "Mixed",
+    ])
   })
 })
 
