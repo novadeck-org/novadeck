@@ -1,5 +1,6 @@
-import { createWorkspaceStore } from "../../model/store"
-import type { PreferencesValue, Workspace } from "../../model/types"
+import { createWorkspaceStore } from "#core/store"
+import type { PreferencesValue, Workspace } from "#core/types"
+
 import { context, describe, expect, it } from "../../test"
 import { appearance, workspaceFixture } from "../../test/fixtures"
 import { resolveRoute } from "../routing"

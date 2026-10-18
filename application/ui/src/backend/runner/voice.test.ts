@@ -2,7 +2,8 @@ import { maxVoiceSeconds, voiceSampleRate, type VoiceState } from "@novadeck/pro
 import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
-import { maxClipSeconds } from "../../model/voice"
+import { maxClipSeconds } from "#core/voice"
+
 import { context, describe, expect, it } from "../../test"
 import { createRunnerVoice, flushMs, noVoice, type VoiceCalls } from "./voice"
 

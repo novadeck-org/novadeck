@@ -1,7 +1,8 @@
 import { WireError } from "@novadeck/wire"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import type { Workspace } from "../../model/types"
+import type { Workspace } from "#core/types"
+
 import { context, describe, expect, it } from "../../test"
 import { workspaceFixture } from "../../test/fixtures"
 import { createSessionSaves } from "./saves"

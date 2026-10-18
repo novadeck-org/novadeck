@@ -1,6 +1,7 @@
-import { messagesKey } from "../../model/companion-bar"
-import { workspaceReducer, type WorkspaceAction } from "../../model/state"
-import type { Workspace } from "../../model/types"
+import { messagesKey } from "#core/companion-bar"
+import { workspaceReducer, type WorkspaceAction } from "#core/state"
+import type { Workspace } from "#core/types"
+
 import { context, describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"
 import { itemFixture, workspaceFixture } from "../../test/fixtures"

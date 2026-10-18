@@ -1,6 +1,7 @@
-import { messagesKey } from "../../model/companion-bar"
-import { createTerminalState } from "../../model/state"
-import type { WorkspaceSession } from "../../model/types"
+import { messagesKey } from "#core/companion-bar"
+import { createTerminalState } from "#core/state"
+import type { WorkspaceSession } from "#core/types"
+
 import { context, describe, expect, it } from "../../test"
 import { itemFixture, terminalFixture } from "../../test/fixtures"
 import { decodeSession, encodeSession } from "./session-state"

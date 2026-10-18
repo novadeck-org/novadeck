@@ -1,5 +1,6 @@
-import { handleText } from "../model/handle"
-import type { TerminalMetadata } from "../model/types"
+import { handleText } from "#core/handle"
+import type { TerminalMetadata } from "#core/types"
+
 import { ConfirmDialog } from "../ui-toolkit/ConfirmDialog"
 
 export type CloseTerminalDialogProps = {

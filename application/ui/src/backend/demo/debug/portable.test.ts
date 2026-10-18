@@ -1,6 +1,7 @@
 import { afterEach, vi } from "vitest"
 
-import type { PortableState } from "../../../model/portable"
+import type { PortableState } from "#core/portable"
+
 import { describe, expect, it } from "../../../test"
 import { createDemoPortable, portableRun, portableVersion } from "./portable"
 

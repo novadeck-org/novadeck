@@ -1,6 +1,7 @@
-import { isOnBar, type CompanionItem, type ItemId, type ItemKind } from "../../model/companion"
-import { messagesKey, type Bar, type BarKey } from "../../model/companion-bar"
-import type { WindowPlace } from "../../model/layout/window-place"
+import { isOnBar, type CompanionItem, type ItemId, type ItemKind } from "#core/companion"
+import { messagesKey, type Bar, type BarKey } from "#core/companion-bar"
+import type { WindowPlace } from "#core/layout/window-place"
+
 import type { BarDrag } from "../drag-session"
 
 // A terminal's taskbar, drawn from the items it holds, less what the person hid, and its

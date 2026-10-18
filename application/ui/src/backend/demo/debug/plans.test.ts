@@ -1,4 +1,5 @@
-import { itemIdOf, type CompanionKey, type ItemContent } from "../../../model/companion"
+import { itemIdOf, type CompanionKey, type ItemContent } from "#core/companion"
+
 import { describe, expect, it } from "../../../test"
 import { studioAgent } from "../showcase/agents"
 import { createShowcase } from "../showcase/simulation"

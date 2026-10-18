@@ -19,7 +19,7 @@ import type { LensInput } from "./lens-input.ts"
 // formatted), and every leg the scan cannot follow is left empty or flagged in the data.
 
 const ui = "application/ui/src"
-const stateFile = `${ui}/model/state.ts`
+const stateFile = `${ui}/core/state.ts`
 const portFile = `${ui}/backend/port.ts`
 const adapterDir = `${ui}/backend/runner/`
 const backendFile = `${adapterDir}backend.ts`
@@ -714,14 +714,14 @@ export const extractUiLens = (input: LensInput): UiLens => {
 
   const readers = scan(
     /\b(?:useWorkspaceState|useUiState|useStoreSelector|useSyncExternalStore)\(/g,
-    (f) => f !== `${ui}/model/store.ts`,
+    (f) => f !== `${ui}/core/store.ts`,
   )
   const writers = scan(
     /\b(?:workspace|store)\.(?:dispatch|transact)\(/g,
-    (f) => !f.startsWith(`${ui}/backend/`) && f !== `${ui}/model/store.ts`,
+    (f) => !f.startsWith(`${ui}/backend/`) && f !== `${ui}/core/store.ts`,
   )
   const uiWrites = scan(/\b(?:ui\.update|updateShell)\(/g, (f) => !f.startsWith(`${ui}/backend/`))
-  const featureStores = scan(/\bcreateStore\s*(?:<[^(]*>)?\(/g, (f) => f !== `${ui}/model/store.ts`)
+  const featureStores = scan(/\bcreateStore\s*(?:<[^(]*>)?\(/g, (f) => f !== `${ui}/core/store.ts`)
 
   const uiStateLines = source(`${ui}/app/ui-store.ts`)?.lines ?? []
   const uiStateStart = uiStateLines.findIndex((l) => l.startsWith("export type UiState"))
@@ -818,8 +818,8 @@ export const extractUiLens = (input: LensInput): UiLens => {
       items: [
         item(
           "createWorkspaceStore",
-          `${ui}/model/store.ts`,
-          anchors.find(`${ui}/model/store.ts`, "export const createWorkspaceStore"),
+          `${ui}/core/store.ts`,
+          anchors.find(`${ui}/core/store.ts`, "export const createWorkspaceStore"),
         ),
         ...[...prefixes.entries()].map(([prefix, list]) =>
           item(

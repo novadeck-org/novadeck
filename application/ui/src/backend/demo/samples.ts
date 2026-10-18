@@ -1,13 +1,14 @@
-import type { WorkspaceSeed } from "../../model/seed"
-import { sessionName } from "../../model/session-name"
-import { noTelemetry, setUsage, type Telemetry } from "../../model/telemetry"
+import type { WorkspaceSeed } from "#core/seed"
+import { sessionName } from "#core/session-name"
+import { noTelemetry, setUsage, type Telemetry } from "#core/telemetry"
 import type {
   AgentStatus,
   CanvasLayout,
   Project,
   TerminalMetadata,
   WorkspaceTarget,
-} from "../../model/types"
+} from "#core/types"
+
 import { demoHandle } from "./handles"
 
 // A demo terminal's ID, unique across the whole workspace as the runner's are: the

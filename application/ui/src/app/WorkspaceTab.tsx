@@ -1,7 +1,8 @@
 import { memo, useMemo } from "react"
 
-import { isWindow } from "../model/roster"
-import type { Tile } from "../model/types"
+import { isWindow } from "#core/roster"
+import type { Tile } from "#core/types"
+
 import { barMembers, composeBar } from "../terminals/companion/bar"
 import { useHasMail, useMailBadge } from "../terminals/companion/mail"
 import { TabKinds } from "../terminals/companion/TabKinds"

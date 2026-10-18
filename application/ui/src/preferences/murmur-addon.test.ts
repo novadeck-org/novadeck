@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
 
-import { stepLabel } from "../model/addon-format"
-import { murmurChecking, type MurmurState } from "../model/murmur"
+import { stepLabel } from "#core/addon-format"
+import { murmurChecking, type MurmurState } from "#core/murmur"
+
 import { deviceText, murmurDownloadNote, murmurInstallSize } from "./murmur-addon"
 
 const state: MurmurState = {

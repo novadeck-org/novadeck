@@ -1,8 +1,9 @@
 import { Terminal } from "lucide-react"
 import { useState } from "react"
 
-import type { ChatAnswer, ChatDialogOption } from "../model/conversation"
-import type { HeldMessage } from "../model/inbox"
+import type { ChatAnswer, ChatDialogOption } from "#core/conversation"
+import type { HeldMessage } from "#core/inbox"
+
 import { HandleChip } from "../ui-toolkit/HandleChip"
 import { agentName, actionOf, choicesOf, setsStanding, type Choices } from "./inbox-text"
 import { Lead, Page, type SheetContentProps } from "./Page"

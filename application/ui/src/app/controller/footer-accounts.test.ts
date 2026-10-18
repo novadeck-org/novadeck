@@ -1,8 +1,9 @@
 import { act, createElement } from "react"
 
-import type { AgentAccount } from "../../model/account-usage"
-import { createStore } from "../../model/store"
-import { noTelemetry, setUsage, type Telemetry } from "../../model/telemetry"
+import type { AgentAccount } from "#core/account-usage"
+import { createStore } from "#core/store"
+import { noTelemetry, setUsage, type Telemetry } from "#core/telemetry"
+
 import { describe, expect, it } from "../../test"
 import { render } from "../../test/render"
 import { useAccounts } from "./footer-accounts"

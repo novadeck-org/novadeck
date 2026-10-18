@@ -1,4 +1,4 @@
-import type { SandboxState } from "../../../model/sandbox"
+import type { SandboxState } from "#core/sandbox"
 
 // The command the demo's unsandboxed notice offers, as the desktop host's might read.
 export const sampleFix =

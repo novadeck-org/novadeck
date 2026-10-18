@@ -1,4 +1,5 @@
-import type { AgentStatus, TerminalMetadata, WorkspaceProject } from "../model/types"
+import type { AgentStatus, TerminalMetadata, WorkspaceProject } from "#core/types"
+
 import { noUnread, type Unread } from "../terminals/unread-state"
 import { context, describe, expect, it } from "../test"
 import { terminalFixture, workspaceFixture } from "../test/fixtures"

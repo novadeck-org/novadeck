@@ -1,13 +1,9 @@
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react"
 import { useEffect, useId, useRef, type ReactNode } from "react"
 
-import { handleText } from "../../model/handle"
-import {
-  waitsText,
-  type AgentMessage,
-  type InboxHistory,
-  type MessageThread,
-} from "../../model/messages"
+import { handleText } from "#core/handle"
+import { waitsText, type AgentMessage, type InboxHistory, type MessageThread } from "#core/messages"
+
 import { Switch } from "../../ui-toolkit/Switch"
 import { Tooltip } from "../../ui-toolkit/Tooltip"
 import type { MailHandle } from "./mail"

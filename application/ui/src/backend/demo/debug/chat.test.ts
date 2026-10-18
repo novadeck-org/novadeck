@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import { noConversation, SettleInTerminal, type Conversations } from "../../../model/conversation"
+import { noConversation, SettleInTerminal, type Conversations } from "#core/conversation"
+
 import { createDebugChat } from "./chat"
 
 const key = { projectId: "p", workspaceSessionId: "s", terminalId: "01" }

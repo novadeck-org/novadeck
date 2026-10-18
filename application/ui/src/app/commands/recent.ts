@@ -1,4 +1,5 @@
-import { orderedTiles } from "../../model/roster"
+import { orderedTiles } from "#core/roster"
+
 import { openRecent, visibleSwitcher, type RecentSwitcher } from "../../terminals/recent"
 import { currentContext, currentState } from "../selectors"
 import type { CommandContext, FocusTarget } from "./context"

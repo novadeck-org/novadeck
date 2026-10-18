@@ -1,8 +1,9 @@
 import { ArrowUpRight, Search, Terminal as TerminalIcon, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
-import { isWindow } from "../model/roster"
-import type { Tile } from "../model/types"
+import { isWindow } from "#core/roster"
+import type { Tile } from "#core/types"
+
 import { Dialog } from "../ui-toolkit/Dialog"
 import { HandleChip } from "../ui-toolkit/HandleChip"
 import { SearchCombobox } from "../ui-toolkit/SearchCombobox"

@@ -1,11 +1,12 @@
 import { LayoutGrid, PanelLeft, SquareDashedMousePointer, X } from "lucide-react"
 import { useRef, useState, type ReactNode } from "react"
 
+import { MURMUR_NAME } from "#core/murmur"
+import { viewModes } from "#core/state"
+import type { PreferencesValue } from "#core/types"
+
 import { shortcutGroups } from "../interaction/keymap"
 import { currentPlatform } from "../interaction/shortcuts"
-import { MURMUR_NAME } from "../model/murmur"
-import { viewModes } from "../model/state"
-import type { PreferencesValue } from "../model/types"
 import { themes, type ThemeEntry, type ThemeId } from "../theme/themes"
 import { Checkbox } from "../ui-toolkit/Checkbox"
 import { Dialog } from "../ui-toolkit/Dialog"

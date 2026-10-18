@@ -1,5 +1,6 @@
-import { isWindow } from "../model/roster"
-import type { Tile } from "../model/types"
+import { isWindow } from "#core/roster"
+import type { Tile } from "#core/types"
+
 import type { DockTarget } from "../terminals/window-menu"
 import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { currentState } from "./selectors"

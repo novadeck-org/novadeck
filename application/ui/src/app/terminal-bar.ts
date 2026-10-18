@@ -1,5 +1,6 @@
-import { isOnBar, type CompanionItem, type ItemId } from "../model/companion"
-import { emptyBar, type Bar } from "../model/companion-bar"
+import { isOnBar, type CompanionItem, type ItemId } from "#core/companion"
+import { emptyBar, type Bar } from "#core/companion-bar"
+
 import { useWorkspaceState } from "./controller/context"
 import { currentState, sameItems, shallowEqual } from "./selectors"
 

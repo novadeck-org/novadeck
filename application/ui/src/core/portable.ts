@@ -2,8 +2,8 @@
 // never installs updates itself, and can install the app that does. `version` is this
 // build's, for display and diagnostics; nothing compares it with an offer. `run` names this
 // run of the app, new at each launch, so a window opened again within one run is not taken
-// for a launch (see backend/portable-card-raised.ts). The model
-// layer can't import the protocol, so this mirrors its `PortableState`, which
+// for a launch (see portable-card-raised.ts). The core
+// can't import the protocol's wire contracts, so this mirrors its `PortableState`, which
 // backend/runner/desktop-host.test.ts checks it fits.
 export type PortableState =
   | { readonly portable: false }

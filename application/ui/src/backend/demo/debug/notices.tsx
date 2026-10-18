@@ -1,7 +1,8 @@
 import "./notices.css"
 import { useSyncExternalStore } from "react"
 
-import { createStore } from "../../../model/store"
+import { createStore } from "#core/store"
+
 import type { Notice } from "../../port"
 import type { DemoStates } from "./types"
 

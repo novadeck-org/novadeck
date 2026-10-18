@@ -45,8 +45,8 @@ describe("kindOf", () => {
     expect(kindOf(at(react, "performWorkOnRoot"))).toBeUndefined()
     // A store's listener checks its snapshot, through its selector, before any render.
     expect(kindOf(at(react, "checkIfSnapshotChanged"))).toBe("store")
-    expect(kindOf(at("/r/application/ui/src/model/store.ts", "notify"))).toBe("store")
-    expect(kindOf(at("/r/application/ui/src/model/state.ts", "workspaceReducer"))).toBeUndefined()
+    expect(kindOf(at("/r/application/ui/src/core/store.ts", "notify"))).toBe("store")
+    expect(kindOf(at("/r/application/ui/src/core/state.ts", "workspaceReducer"))).toBeUndefined()
     expect(kindOf(at("/x/app/renderRootSync.js", "renderRootSync"))).toBeUndefined()
   })
 

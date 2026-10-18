@@ -230,21 +230,18 @@ export const notes: Record<string, Note> = {
       { file: `${ui}/app/commands/context.ts`, text: "export type CommandContext" },
     ],
   },
-  "ui/model": {
+  "ui/core": {
     purpose:
-      "The pure domain of the workspace: state, reducer and store, seed data, layout rules, roster, conversations, messages, companions and usage, with no React.",
+      "The pure domain of the workspace: state, reducer and store, seed data, layout rules, roster, conversations, messages, companions and usage, and the terminal lifecycle registry the backends share, with no React.",
     entries: [
-      { file: `${ui}/model/store.ts`, text: "export const createStore" },
-      { file: `${ui}/model/types.ts` },
+      { file: `${ui}/core/store.ts`, text: "export const createStore" },
+      { file: `${ui}/core/types.ts` },
+      { file: `${ui}/core/registry.ts` },
     ],
   },
   "ui/backend": {
-    purpose:
-      "The port the UI talks to its backend through, and the shared terminal lifecycle registry.",
-    entries: [
-      { file: `${ui}/backend/port.ts`, text: "export type TerminalSurfaceProps" },
-      { file: `${ui}/backend/registry.ts` },
-    ],
+    purpose: "The port the UI talks to its backend through.",
+    entries: [{ file: `${ui}/backend/port.ts`, text: "export type TerminalSurfaceProps" }],
   },
   "ui/backend/runner": {
     purpose:

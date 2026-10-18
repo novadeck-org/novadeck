@@ -1,5 +1,5 @@
-import type { ChatRequest } from "../../model/conversation"
-import type { AgentName } from "../../model/harnesses"
+import type { ChatRequest } from "#core/conversation"
+import type { AgentName } from "#core/harnesses"
 import {
   emptyInbox,
   type AskOption,
@@ -8,9 +8,10 @@ import {
   type InboxContent,
   type InboxItem,
   type InboxState,
-} from "../../model/inbox"
-import type { InboxHistory } from "../../model/messages"
-import { createStore } from "../../model/store"
+} from "#core/inbox"
+import type { InboxHistory } from "#core/messages"
+import { createStore } from "#core/store"
+
 import { demoHandle } from "./handles"
 import { deliveryMs } from "./messages"
 import { demoTerminalId, terminals } from "./samples"

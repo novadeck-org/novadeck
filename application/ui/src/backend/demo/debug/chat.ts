@@ -3,7 +3,8 @@ import {
   type ConflictReason,
   type Conversations,
   notCleared,
-} from "../../../model/conversation"
+} from "#core/conversation"
+
 import type { DemoAction } from "./types"
 
 // The ways the runner turns a chat's send away, which the demo's agents never do of their

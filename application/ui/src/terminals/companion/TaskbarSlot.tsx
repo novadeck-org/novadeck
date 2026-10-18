@@ -1,10 +1,11 @@
 import { Pause, type LucideIcon } from "lucide-react"
 import type { ReactNode, Ref } from "react"
 
-import type { ItemId } from "../../model/companion"
-import type { BarKey } from "../../model/companion-bar"
-import { mailBadgeLabel } from "../../model/messages"
-import type { WorkspaceTarget } from "../../model/types"
+import type { ItemId } from "#core/companion"
+import type { BarKey } from "#core/companion-bar"
+import { mailBadgeLabel } from "#core/messages"
+import type { WorkspaceTarget } from "#core/types"
+
 import { ContextMenu, type ContextMenuItem } from "../../ui-toolkit/ContextMenu"
 import { HoverCard } from "../../ui-toolkit/HoverCard"
 import { memberIcon, slotIcon } from "./artifact-icons"

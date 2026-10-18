@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import type { ChatQuestion } from "../../model/conversation"
+import type { ChatQuestion } from "#core/conversation"
+
 import {
   answered,
   answeredCount,

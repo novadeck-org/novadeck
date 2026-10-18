@@ -1,6 +1,8 @@
 import { act, createElement, StrictMode } from "react"
 import { afterEach, vi } from "vitest"
 
+import { createStore } from "#core/store"
+
 import type {
   Backend,
   BackendConnection,
@@ -8,7 +10,6 @@ import type {
   BootProgress,
   ConnectFailure,
 } from "../backend/port"
-import { createStore } from "../model/store"
 import { context, describe, expect, it } from "../test"
 import { render, type Rendered } from "../test/render"
 import { BackendGate } from "./BackendGate"

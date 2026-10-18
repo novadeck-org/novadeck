@@ -1,5 +1,6 @@
-import type { WorkspaceAction } from "../model/state"
-import type { Tile, ViewMode, WorkspaceTarget } from "../model/types"
+import type { WorkspaceAction } from "#core/state"
+import type { Tile, ViewMode, WorkspaceTarget } from "#core/types"
+
 import type { TerminalRename } from "./TerminalRenameInput"
 
 // An in-progress rename, scoped to the session and view it started in.

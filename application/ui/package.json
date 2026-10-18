@@ -5,6 +5,9 @@
   "description": "The Novadeck React frontend.",
   "author": "mzpkdev",
   "type": "module",
+  "imports": {
+    "#core/*": "./src/core/*.ts"
+  },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",

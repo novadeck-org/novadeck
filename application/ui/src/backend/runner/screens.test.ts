@@ -1,6 +1,7 @@
 import { vi } from "vitest"
 
-import { createStore } from "../../model/store"
+import { createStore } from "#core/store"
+
 import { describe, expect, it } from "../../test"
 import type { BackendConnectionState, TerminalKey } from "../port"
 import type { SurfaceRuntime } from "./backend"

@@ -284,7 +284,7 @@ there, which the UI keeps as presentation. There is no cap and no eviction: an i
 that can't be shown stays and says why. Items and windows reach the workspace store
 through the backend's seed and actions, as terminals do; the person's moves are
 workspace actions the backend makes so. The pane loads content through the backend
-port's optional `companions` capability (`application/ui/src/model/companion.ts`):
+port's optional `companions` capability (`application/ui/src/core/companion.ts`):
 
 | `companions`                             | What it carries                                                                   |
 | ---------------------------------------- | --------------------------------------------------------------------------------- |

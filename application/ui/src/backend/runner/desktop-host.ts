@@ -9,14 +9,15 @@ import {
   parseUpdateOffer,
 } from "@novadeck/protocol/bridge"
 
-import { maxFixLength, type SandboxState } from "../../model/sandbox"
+import { maxFixLength, type SandboxState } from "#core/sandbox"
 import {
   maxUninstallPath,
   maxUninstallReason,
   maxUninstallText,
   type UninstallPlan,
   type UninstallResult,
-} from "../../model/uninstall"
+} from "#core/uninstall"
+
 import type { Backend, Notice } from "../port"
 
 // What the desktop host's preload script offers the page; absent in a browser.

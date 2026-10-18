@@ -1,6 +1,7 @@
 import { useState } from "react"
 
-import type { UpdateOffer } from "../model/update"
+import type { UpdateOffer } from "#core/update"
+
 import { Progress } from "../ui-toolkit/Progress"
 import { useLinger } from "./linger"
 

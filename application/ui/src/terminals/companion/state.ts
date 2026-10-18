@@ -8,12 +8,13 @@ import {
   type ItemId,
   type PlanUnwritableReason,
   type PlanVersion,
-} from "../../model/companion"
-import { messagesKey } from "../../model/companion-bar"
-import { hasMail, type MailState, type Messages, type TerminalMail } from "../../model/messages"
-import type { WorkspaceAction } from "../../model/state"
-import { createStore, type MutableStore, type Store, type WorkspaceStore } from "../../model/store"
-import type { ViewMode, Workspace, WorkspaceTarget } from "../../model/types"
+} from "#core/companion"
+import { messagesKey } from "#core/companion-bar"
+import { hasMail, type MailState, type Messages, type TerminalMail } from "#core/messages"
+import type { WorkspaceAction } from "#core/state"
+import { createStore, type MutableStore, type Store, type WorkspaceStore } from "#core/store"
+import type { ViewMode, Workspace, WorkspaceTarget } from "#core/types"
+
 import { currentMarks, docOf, eolOf, lf, type Mark, type PlanDoc } from "./plan-doc"
 
 // What the companion panes hold while the app runs, apart from the items themselves and
