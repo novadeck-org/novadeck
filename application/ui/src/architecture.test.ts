@@ -421,8 +421,9 @@ describe("UI architecture", () => {
     const pages = join(process.cwd(), "entries")
     const scripts = readdirSync(pages).map((name) => [
       name,
+      // Lines, whatever a checkout's line endings are (CRLF on Windows).
       readFileSync(join(pages, name, "main.tsx"), "utf8")
-        .split("\n")
+        .split(/\r?\n/)
         .filter((line) => line !== "" && !line.startsWith("//")),
     ])
     expect(scripts).toEqual(
