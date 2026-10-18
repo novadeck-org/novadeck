@@ -15,7 +15,7 @@ jobs:
   quality:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ (matrix.browser || matrix.shard) && 20 || 10 }}
+    timeout-minutes: ${{ matrix.timeout || (matrix.browser || matrix.shard) && 20 || 10 }}
     strategy:
       fail-fast: false
       matrix:
@@ -53,9 +53,11 @@ jobs:
             os: ubuntu-latest
             shard: 3
             command: npm run test:shard3
+          # Whole, it took 18m 41s on #292 and ran past 20 minutes on #296.
           - name: Test (macOS)
             os: macos-latest
             browser: true
+            timeout: 30
             command: npm run test
           - name: Test (Windows, 1/3)
             os: windows-latest
