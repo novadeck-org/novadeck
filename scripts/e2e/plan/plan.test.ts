@@ -111,7 +111,7 @@ describe("E2E selection", () => {
       ".github/actions/e2e-harness-cache/save/action.yml",
       "scripts/e2e/plan/plan.ts",
       "scripts/e2e/install/main.ts",
-      "patches/node-pty@1.2.0-beta.14.patch",
+      "libraries/terminal/patches/node-pty@1.2.0-beta.14.patch",
       "package.json",
       "pnpm-lock.yaml",
       "pnpm-workspace.yaml",
@@ -221,7 +221,7 @@ describe("E2E systems", () => {
     ".github/actions/e2e-harness-cache/save/action.yml",
     "libraries/sandbox/src/reap.ts",
     "libraries/sandbox/src/reap-lister.cs",
-    "patches/node-pty@1.2.0-beta.14.patch",
+    "libraries/terminal/patches/node-pty@1.2.0-beta.14.patch",
   ])("runs all three for %s", (file) => {
     expect(selectSystems(pullRequest([], ["README.md", file]))).toEqual(all)
   })
