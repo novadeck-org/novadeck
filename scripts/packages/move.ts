@@ -77,8 +77,10 @@ export const applyEdit = (text: string, edit: Edit): { text: string } | { proble
 
 /**
  * The run's end, once it has moved and written: the lockfile made whole (it names each package
- * by its folder), what it wrote formatted, and the old folders where only ignored files (an
- * install's, a build's) are left, which it names for a person to delete.
+ * by its folder), what it wrote formatted, and the old folders where no tracked file is left,
+ * which it names for a person to delete. It gives back the files in those folders that git
+ * now sees as new: build output a package's own `.gitignore` covered until it moved with the
+ * package, which `git add -A` would commit at the old place.
  */
 export const finish = (options: {
   readonly root: string
@@ -86,7 +88,7 @@ export const finish = (options: {
   readonly written: readonly string[]
   readonly changed: boolean
   readonly folders: readonly string[]
-}): void => {
+}): readonly string[] => {
   const { root, oxfmt, written, changed, folders } = options
   if (changed) {
     execFileSync("pnpm", ["install", "--no-frozen-lockfile"], {
@@ -103,6 +105,9 @@ export const finish = (options: {
   )
   if (stranded.length > 0)
     console.log(
-      `Only ignored files are left in ${stranded.join(", ")}: delete ${stranded.length > 1 ? "them" : "it"} once nothing runs from there.`,
+      `No tracked file is left in ${stranded.join(", ")}: delete ${stranded.length > 1 ? "them" : "it"} once nothing runs from there.`,
     )
+  return stranded.flatMap((folder) =>
+    git("ls-files", "--others", "--exclude-standard", "-z", folder).split("\0").filter(Boolean),
+  )
 }

@@ -60,7 +60,13 @@ for (const [file, text] of texts) writeFileSync(join(root, file), text)
 
 // What the move leaves: mentions of an old folder in a form the rewrite doesn't read.
 const changed = moves.length > 0 || texts.size > 0
-finish({ root, oxfmt, written: [...texts.keys()], changed, folders: rows.map(({ from }) => from) })
+const uncovered = finish({
+  root,
+  oxfmt,
+  written: [...texts.keys()],
+  changed,
+  folders: rows.map(({ from }) => from),
+})
 const left = tracked().flatMap((file) => (rewritable(file) ? leftovers(file, read(file)) : []))
 
 console.log(
@@ -68,7 +74,10 @@ console.log(
     ? "Nothing to do: the tree is as the move leaves it."
     : `Moved ${moves.length} files and rewrote ${texts.size} that named a moved folder.`,
 )
-if (left.length > 0) {
+if (uncovered.length > 0)
+  console.error(
+    `Files git now sees as new at an old place, which their package's .gitignore covered before it moved: delete them before committing.\n${uncovered.join("\n")}`,
+  )
+if (left.length > 0)
   console.error(`Mentions of a moved folder the rewrite didn't reach:\n${left.join("\n")}`)
-  process.exit(1)
-}
+if (uncovered.length > 0 || left.length > 0) process.exit(1)

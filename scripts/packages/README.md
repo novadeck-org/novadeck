@@ -68,8 +68,14 @@ tree with nothing to do, it says so and changes nothing.
 
    This is also what shows a handwritten edit left unmade, where a branch changed the line it
    looks for, since that edit then stands as done. If there is any mention, the script exits
-   non-zero. It also names the old folders where only ignored files are left
-   (`node_modules`, `dist`, the relay's `target`). Delete those once nothing runs from them.
+   non-zero.
+
+9. **It names the old folders where no tracked file is left,** holding `node_modules`, `dist`
+   and the relay's `target`. Delete them once nothing runs from there.
+   - A file there that a package's own `.gitignore` covered (the atlas's `src/generated/`)
+     stops being ignored once that `.gitignore` moves with the package. `git add -A` would
+     commit it at the old place.
+   - The script lists such files and exits non-zero. Delete the old folders before committing.
 
 `kept` covers what names an old folder on purpose:
 
@@ -92,6 +98,8 @@ git merge origin/main
 git checkout --theirs pnpm-lock.yaml   # the script's install makes it whole
 git add -A && git commit --no-edit     # the script runs on a clean tree only
 node scripts/packages/move-backend.ts
+rm -rf application/runner application/relay application/protocol application/runner-client atlas
+                                       # the old folders it names: no tracked file is left there
 git add -A && git commit -m "chore: catch up with 5.3a's move"
 ```
 
