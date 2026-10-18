@@ -350,7 +350,7 @@ export type BootProgress = {
   readonly done: boolean
 }
 
-// What app/backend.ts chooses: a backend ready at once, or one to connect to.
+// What an app's entry chooses: a backend ready at once, or one to connect to.
 export type BackendSelection =
   | { readonly createBackend: CreateBackend }
   | {

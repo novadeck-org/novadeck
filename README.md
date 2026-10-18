@@ -1072,8 +1072,8 @@ features add `ui-toolkit/`; `terminals/` may use `sidebar/`; `layouts/` may use
 `terminals/`; `notifications/` builds on the base layers, `sidebar/` and
 `terminals/unread-state.ts`; `inbox/` builds on the base layers, `sidebar/` and the
 chat's markdown reader and answers; `shell/` may use `layouts/`, `projects/`,
-`notifications/` and `inbox/`. `app/` composes every feature layer, `notifications/`, `inbox/` and `backend/`, and within it only `app/backend.ts` imports a
-backend adapter (tests and specs may import the demo's spec entry). `app/commands/` has no direct React or package imports, though
+`notifications/` and `inbox/`. `app/` composes every feature layer, `notifications/`, `inbox/` and `backend/`, and only `entries/` imports a
+backend adapter, each entry its own (tests and specs may import the demo's spec entry). `app/commands/` has no direct React or package imports, though
 routing still loads React Router at runtime: it builds on `core/`,
 `interaction/keymap.ts`, `backend/port.ts`, the UI store, routing, selectors,
 the Canvas handle type in `layouts/canvas/types.ts`, and the pure state modules
@@ -1081,7 +1081,7 @@ of `shell/` and `terminals/` (unread finishes among them), the companion panes' 
 libraries stay in their adapters: XYFlow in `layouts/canvas/`, React Grid Layout
 in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
 `ui-toolkit/`, React Router in `app/` and `shell/`, and React DOM in
-`layouts/transition.ts`, `main.tsx`, and `test/`, and the runner client and
+`layouts/transition.ts`, `entries/start.tsx`, and `test/`, and the runner client and
 the emulator's view in `backend/runner/`. Other packages are denied
 unless the test lists them: React and Lucide are allowed everywhere, while
 backend adapters and test code may use any package. `test/` may import
@@ -1186,9 +1186,9 @@ state; closing the terminal removes it. `core/registry.ts` provides this
 lifecycle for any adapter. An adapter opts into the port contract suite by
 calling `describeBackendContract` from `test/backend-contract.tsx` in a
 colocated `contract.test.ts`, with a probe of what it holds and the I/O it
-started, and a driver when it has `start`. `App` reads a `createBackend` factory
-once at mount, and `app/backend.ts` chooses a build's default: a runner connection,
-or the demo in the content preview and visitor builds. Tests and specs pass the demo's
+started, and a driver when it has `start`. `App` reads its backend once at mount: each
+app's entry (`src/entries/`) chooses its own, a runner connection for the desktop and web
+apps, or the demo in the content preview and visitor builds. Tests and specs pass the demo's
 spec backend (`backend/demo/spec-variants.ts`) themselves. A backend that must connect first supplies a
 `ConnectBackend`; `app/BackendGate.tsx` shows a splash until it resolves with the
 seed loaded, or a card saying what failed with a Retry button, and closes it on unmount.

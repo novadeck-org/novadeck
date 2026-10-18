@@ -81,8 +81,8 @@ const terminalCount = (workspace: Workspace | undefined): number =>
     .flatMap((project) => project.history)
     .reduce((count, session) => count + session.state.roster.terminals.length, 0) ?? 0
 
-// Each debug demo's panel, by its backend: the app's backend selection mounts it (see
-// app/backend.ts), as a panel isn't part of what a backend offers.
+// Each debug demo's panel, by its backend: the content preview's entry hands it to the app
+// (see src/entries/previews.tsx), as a panel isn't part of what a backend offers.
 const panels = new WeakMap<Backend, DebugPanel>()
 
 /** The debug panel for a backend `createDebugDemo` made. */
