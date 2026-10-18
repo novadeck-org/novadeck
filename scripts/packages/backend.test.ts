@@ -123,7 +123,7 @@ describe("the handwritten edits", () => {
       const made = applyEdit(edit.before, edit)
       expect("text" in made && made.text.includes(edit.before), edit.why).toBe(false)
       expect("text" in made && applyEdit(made.text, edit), edit.why).toMatchObject({
-        state: edit.after ? "there" : "gone",
+        state: "there",
       })
     }
   })

@@ -97,7 +97,9 @@ export const applyEdit = (
 ): { text: string; state: "made" | "there" | "gone" } | { problem: string } => {
   const count = (part: string) => text.split(part).length - 1
   const old = count(edit.before)
-  if (old === 0) return { text, state: edit.after && count(edit.after) > 0 ? "there" : "gone" }
+  // An edit that removes its text is made once that text is gone.
+  if (old === 0)
+    return { text, state: edit.after === "" || count(edit.after) > 0 ? "there" : "gone" }
   if (old === 1 || edit.all)
     return { text: text.split(edit.before).join(edit.after), state: "made" }
   return {
