@@ -128,6 +128,24 @@ describe("Grid view", () => {
       await expect.poll(() => bounds(terminal("Tests")).height).toBeGreaterThan(before.height + 60)
       await expect.poll(() => bounds(terminal("Tests")).width).toBeCloseTo(before.width, 0)
     })
+
+    it("lets no terminal's text be selected until the corner is let go", async () => {
+      await openGrid()
+      const corner = bounds(terminal("Tests"))
+      const at = { clientX: corner.right - 4, clientY: corner.bottom - 4, button: 0, bubbles: true }
+      const text = (): string =>
+        getComputedStyle(terminal("Dev server").element().querySelector("[data-terminal-content]")!)
+          .userSelect
+      expect(text()).toBe("text")
+
+      document
+        .elementFromPoint(at.clientX, at.clientY)!
+        .dispatchEvent(new MouseEvent("mousedown", at))
+      await expect.poll(text).toBe("none")
+
+      document.dispatchEvent(new MouseEvent("mouseup", at))
+      await expect.poll(text).toBe("text")
+    })
   })
 
   context("when dragging a terminal by its header", () => {
