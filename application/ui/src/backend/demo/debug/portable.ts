@@ -30,18 +30,26 @@ export const portableVersion = "0.0.70"
 // The run the demo plays: new at each load of the page, so a reload is a new launch.
 export const portableRun = crypto.randomUUID()
 
+// When each step of an install comes: after its wait, unless a spec steps it (`schedule`).
+export type PortableSchedule = (apply: () => void, next: PortableInstall, ms: number) => void
+
 // The browser's stand-in for the desktop host's portable copy: it says it is one and owns
 // the install as the host does, holding where it stands and pushing the whole state at each
 // step: a download and then the install where `progress` is set, then how it `ends`. Asking
 // while it is under way, or once installed or found newer, changes nothing; after a failure
 // it starts over.
-export const createDemoPortable = ({
-  ends,
-  installAfterMs = 0,
-  progress = false,
-  opens = { phase: "idle" },
-  answerAfterMs = 0,
-}: DemoPortable): { readonly portable: NonNullable<Backend["portable"]> } => {
+export const createDemoPortable = (
+  {
+    ends,
+    installAfterMs = 0,
+    progress = false,
+    opens = { phase: "idle" },
+    answerAfterMs = 0,
+  }: DemoPortable,
+  {
+    schedule = (apply, _next, ms) => void setTimeout(apply, ms),
+  }: { readonly schedule?: PortableSchedule } = {},
+): { readonly portable: NonNullable<Backend["portable"]> } => {
   let install: PortableInstall = opens
   const state = (): PortableState => ({
     portable: true,
@@ -54,6 +62,7 @@ export const createDemoPortable = ({
     install = next
     watchers.forEach((listener) => listener(state()))
   }
+  const later = (next: PortableInstall, ms: number): void => schedule(() => step(next), next, ms)
   return {
     portable: {
       onState: (listener) => {
@@ -70,15 +79,11 @@ export const createDemoPortable = ({
         step({ phase: "installing" })
         if (progress) {
           // A download in five steps over the first two thirds of the wait, then the install.
-          for (let at = 0; at <= 5; at += 1) {
-            setTimeout(
-              () => step({ phase: "downloading", percent: at * 20 }),
-              (installAfterMs * 2 * at) / 15,
-            )
-          }
-          setTimeout(() => step({ phase: "installing" }), (installAfterMs * 2) / 3)
+          for (let at = 0; at <= 5; at += 1)
+            later({ phase: "downloading", percent: at * 20 }, (installAfterMs * 2 * at) / 15)
+          later({ phase: "installing" }, (installAfterMs * 2) / 3)
         }
-        if (ends !== "never") setTimeout(() => step(ends), installAfterMs)
+        if (ends !== "never") later(ends, installAfterMs)
       },
     },
   }
