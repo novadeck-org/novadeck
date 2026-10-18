@@ -2,7 +2,8 @@
 
 Hosting terminals and attaching to them: a pty, a headless screen kept in step with it, a
 resumable stream of it, its browser view, and shell integration. So far it has the attach
-contract, an attached viewer's queue, the process facts and the shell helpers; the rest arrives
+contract, a terminal's events and attachments, the pty, the process facts and the shell
+integration; the rest arrives
 a part at a time.
 
 ## Subpaths
@@ -21,23 +22,54 @@ a part at a time.
 The others are Node only: each names only the `node` condition, so a browser bundle can't
 resolve it.
 
-- `./host`: `Subscription`, one attached viewer's events: a queue bounded in bytes, an ack
-  window that holds delivery until the viewer catches up, and one initial snapshot under its
-  own cap. A viewer that falls behind fails with `SLOW_CONSUMER`, to reconnect and resume. It
-  counts each event at its JSON's size in its consumer's envelope, so the budgets are what the
-  transport sends.
+- `./host`: hosting a terminal.
+  - `createTerminal(options)` keeps a terminal's events and who reads them. It sequences each
+    event and keeps a replay ring bounded in bytes. A viewer attaches from a cursor the ring
+    still holds, or else from a snapshot of the screen, with as much scrollback as fits its own
+    cap. One attachment controls the terminal and the rest observe.
+  - Each attachment has a queue bounded in bytes, and an ack window that holds delivery until
+    the viewer catches up. A viewer that falls behind fails with `SLOW_CONSUMER`, to reconnect
+    and resume.
+  - Every budget counts an event at `eventBytes`: what the transport sends, envelope and all.
+  - A restart in place starts the ring over and skips a sequence number, so an earlier cursor
+    gets a snapshot.
+  - Until the host owns the screen and the output, its caller gives it the screen to snapshot
+    (`view`) and emits the events.
 
 - `./pty`: a terminal's processes.
+  - `spawnPty(options)` starts a program in a pty, through node-pty (an optional peer: install
+    it to use this subpath), and returns a `Pty`; on Windows its arguments can be one command
+    line, as cmd needs. Its `pid` is undefined until it is known,
+    never 0 (on Windows, 0 names the host until the program's output connects); `drawn` says
+    output has arrived; it reports its exit once, its code null where the program's isn't
+    known yet. `end(options)` runs the whole kill sequence: a hangup to the foreground group
+    (not on Windows, which has none),
+    the kill, a forced end past `graceMs`, and on Windows the process tree read first and what
+    of it is left ended after `treeGraceMs`; a stopped orphaned group is resumed. Where the
+    program's own exit may never come, as for a Windows kill queued until the first draw, the
+    pty takes it as ended. `platform` decides all of this, so a test can play a ConPTY with a
+    stand-in `native` on any system.
   - `sampleForeground(child, last)` names the program in a terminal's foreground, cheaply
     enough to sample, from `/proc` on Linux and `ps` on macOS (Windows can't tell).
     `terminalForeground`, `processGroup`, `foregroundProcess`, `foregroundRuns`, `openFiles`,
-    `processSetting` and `shellInForeground` read the facts it's built on.
+    `processSetting` and `shellInForeground` read the facts it's built on; a pid not known
+    yet tells nothing.
   - `Trees` reads and ends a process's tree on Windows, which has no process groups and lets a
     parent's pid be reused, through a relay: a program the caller ships that answers `tree`
     with each root's members by pid and start, and ends members by both with `end`. Calls in
     one tick share one run of it. `taskkillTree` is the fallback without one, `anyRunning`
     whether members still run.
 - `./shell`: what a shell reports and needs.
+  - `shellScripts` writes the files bash, zsh, fish and PowerShell read after the user's own
+    setup, where `shellScriptPaths` lays them out. Each reports the directory at every prompt,
+    puts `<PREFIX>_BIN` back first on PATH after the user's startup files, and runs a startup
+    command once from the file `<PREFIX>_RESUME` names, which removing first cancels. The app
+    names them: its prefix, given to `shellScriptPaths` (`acme` gives `ACME_BIN` and
+    `__acme_prompt`), and the comment each file opens with.
+  - `shellLaunch` gives a shell the arguments and environment that load them (cmd reports
+    through its `PROMPT` and takes the command with `/k`), with a folder put first and a
+    startup command; `startsCommands` says which shells run one. `shQuote`, `psQuote`,
+    `fishQuote` and `cmdQuote` quote a value as one word of each language.
   - `osc7Directory` and `osc9Directory` read the directory a shell reports (OSC 7 from bash,
     zsh and fish, only for this machine; OSC 9;9 from PowerShell and cmd).
   - `refreshPath` merges the folders the Windows registry's PATH has now into an environment,
@@ -47,8 +79,23 @@ resolve it.
   - `afterKeys` follows roughly what a shell's line holds after keys are sent, to tell whether
     a line was entered.
 
+## Packaging
+
+An app that ships `./pty` ships node-pty, a native module: it keeps it out of its bundle and
+out of any archive it packs (Electron's `asarUnpack`), uses the N-API prebuilds rather than
+rebuilding, and on Windows ships the prebuilds' `conpty` folder (`conpty.dll` and
+`OpenConsole.exe`), which `spawnPty` runs every Windows pty with.
+
 ## Tests
 
-`pnpm --filter @novadeck/terminal test`. The macOS foreground tests run real ptys, so node-pty
-is a dev dependency. The tests that read trees and the registry through a real relay run in the
-app that ships one.
+`pnpm --filter @novadeck/terminal test`. The native tests and the macOS foreground tests run
+real ptys, so node-pty is a dev dependency, with its patch in `patches/` (three Windows fixes:
+a failed input write no longer ends the host, `kill()` is safe twice, and an exit waits for its
+code). The tests that read trees and the registry through a real relay run in the app that
+ships one.
+
+`./testing` (Node only) is for tests of what hosts a pty: `ptyChild`, a program to run in one
+with Node, which answers `command`s with output, sizes, bursts, exits and children of its own,
+and `ptyTrace`, what it last received and wrote; and `nativeStandIn`, a stand-in for node-pty's
+terminal that plays a ConPTY's quirks, to give `spawnPty` as its `native` with `platform`
+`"win32"` on any system.

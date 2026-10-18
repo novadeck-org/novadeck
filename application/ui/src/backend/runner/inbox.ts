@@ -1,8 +1,8 @@
 import type { AgentDetail, AskAnswer, InboxLetter } from "@novadeck/protocol"
 
-import { agentWorking } from "../../model/agent-finish"
-import type { ChatAnswer, ChatRequest, ConversationKey } from "../../model/conversation"
-import type { AgentName } from "../../model/harnesses"
+import { agentWorking } from "#core/agent-finish"
+import type { ChatAnswer, ChatRequest, ConversationKey } from "#core/conversation"
+import type { AgentName } from "#core/harnesses"
 import {
   emptyInbox,
   ordered,
@@ -15,16 +15,12 @@ import {
   type InboxSource,
   type InboxState,
   type InboxUnread,
-} from "../../model/inbox"
-import type { AgentMessage, MailState, MessageThread } from "../../model/messages"
-import { isAgentProgram } from "../../model/process"
-import { createStore, type Store } from "../../model/store"
-import type {
-  TerminalMetadata,
-  Workspace,
-  WorkspaceProject,
-  WorkspaceSession,
-} from "../../model/types"
+} from "#core/inbox"
+import type { AgentMessage, MailState, MessageThread } from "#core/messages"
+import { isAgentProgram } from "#core/process"
+import { createStore, type Store } from "#core/store"
+import type { TerminalMetadata, Workspace, WorkspaceProject, WorkspaceSession } from "#core/types"
+
 import { requestOf } from "./conversations"
 import { currentPlatform } from "./platform"
 

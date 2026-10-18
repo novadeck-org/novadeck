@@ -1,5 +1,3 @@
-import type { Backend } from "../backend/port"
-import { readPortableCardRaised, writePortableCardRaised } from "../backend/portable-card-raised"
 import {
   agentWorking,
   finishGraceMs,
@@ -8,14 +6,17 @@ import {
   sightTurnEnd,
   type AgentFinish,
   type SeenEnd,
-} from "../model/agent-finish"
-import type { PortableState } from "../model/portable"
-import { orderedTiles } from "../model/roster"
-import type { SandboxState } from "../model/sandbox"
-import { activeProject } from "../model/state"
-import { createStore, type MutableStore, type Store } from "../model/store"
-import type { PreferencesValue, TerminalMetadata, Workspace } from "../model/types"
-import type { UpdateOffer } from "../model/update"
+} from "#core/agent-finish"
+import type { PortableState } from "#core/portable"
+import { readPortableCardRaised, writePortableCardRaised } from "#core/portable-card-raised"
+import { orderedTiles } from "#core/roster"
+import type { SandboxState } from "#core/sandbox"
+import { activeProject } from "#core/state"
+import { createStore, type MutableStore, type Store } from "#core/store"
+import type { PreferencesValue, TerminalMetadata, Workspace } from "#core/types"
+import type { UpdateOffer } from "#core/update"
+
+import type { Backend } from "../backend/port"
 import { writePreferences } from "../preferences/preferences-storage"
 import { noArrangement, type ProjectArrangement } from "../projects/project-arrangement"
 import { writeProjectArrangement } from "../projects/project-arrangement-storage"

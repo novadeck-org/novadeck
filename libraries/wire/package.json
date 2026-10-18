@@ -2,7 +2,7 @@
   "name": "@novadeck/wire",
   "version": "0.0.0",
   "private": true,
-  "description": "RPC calls and streams between processes over a WebSocket or a MessagePort: channels, a client generic over its contract, its transports, a connection that keeps itself alive, and its errors.",
+  "description": "RPC calls and streams between processes over a WebSocket or a MessagePort: channels, a client generic over its contract, its transports, a connection that keeps itself alive and the streams it follows, the server's streams of state, and its errors.",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -20,6 +20,20 @@
       "development": "./src/testing.ts",
       "types": "./dist/testing.d.ts",
       "default": "./dist/testing.js"
+    },
+    "./server": {
+      "node": {
+        "development": "./src/server.ts",
+        "types": "./dist/server.d.ts",
+        "default": "./dist/server.js"
+      }
+    },
+    "./electron": {
+      "node": {
+        "development": "./src/electron.ts",
+        "types": "./dist/electron.d.ts",
+        "default": "./dist/electron.js"
+      }
     }
   },
   "scripts": {
@@ -30,12 +44,32 @@
   "dependencies": {
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
-    "@orpc/standard-server-peer": "catalog:"
+    "@orpc/standard-server-peer": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@orpc/server": "catalog:",
     "@types/node": "^26.6.5",
+    "@types/ws": "8.18.2",
+    "electron": "catalog:",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "ws": "catalog:"
+  },
+  "peerDependencies": {
+    "@orpc/server": "catalog:",
+    "electron": "catalog:",
+    "ws": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "@orpc/server": {
+      "optional": true
+    },
+    "electron": {
+      "optional": true
+    },
+    "ws": {
+      "optional": true
+    }
   }
 }

@@ -13,16 +13,18 @@ import {
 } from "@novadeck/protocol/client"
 import type { WireStatus } from "@novadeck/wire/client"
 
-import { createStore } from "../../model/store"
-import { createTelemetryStore, dropTerminal, setUsage } from "../../model/telemetry"
-import { sameTitleSource } from "../../model/title-source"
+import { createTerminalRegistry } from "#core/registry"
+import { createStore } from "#core/store"
+import { createTelemetryStore, dropTerminal, setUsage } from "#core/telemetry"
+import { sameTitleSource } from "#core/title-source"
 import type {
   AgentUsage,
   TerminalMetadata,
   TerminalStatus,
   TitleSource,
   Workspace,
-} from "../../model/types"
+} from "#core/types"
+
 import type {
   AgentConnection,
   Backend,
@@ -31,7 +33,6 @@ import type {
   BackendSink,
   TerminalKey,
 } from "../port"
-import { createTerminalRegistry } from "../registry"
 import { defaultQuickExitMs, exitStatus, restartable, terminalActivity } from "./activity"
 import { createBootProgress } from "./boot-progress"
 import { createRunnerCompanions } from "./companions"
@@ -535,7 +536,7 @@ export const runnerBackend = (
     readonly stillWanted?: () => void
     // Whether the work is still wanted; checked before every attempt.
     readonly cancelled?: () => boolean
-    // Errors that pass, such as RUNTIME_CLOSING from a runner on its way to a restart;
+    // Errors that pass, such as CLOSING from a runner on its way to a restart;
     // the call is tried again after a pause, as while too many calls are in flight.
     readonly again?: readonly Parameters<typeof hasCode>[1][]
   }
@@ -613,7 +614,7 @@ export const runnerBackend = (
       if (!(await (projects.get(projectId) ?? created))) return
       await untilAnswered(() => runner.projects.remove({ projectId }), {
         done: ["NOT_FOUND"],
-        again: ["RUNTIME_CLOSING"],
+        again: ["CLOSING"],
       }).catch((error: unknown) => {
         // Cancelled only as the backend stops; anything else was the runner refusing it.
         if (!(error instanceof Cancelled))
@@ -651,7 +652,7 @@ export const runnerBackend = (
       if (waits && !(await entry.ready) && !entry.requested && !entry.lost) return
       await untilAnswered(() => runner.terminals.close(entry.key.terminalId), {
         done: ["TERMINAL_NOT_FOUND", "TERMINAL_EXITED", "NOT_FOUND"],
-        again: ["RUNTIME_CLOSING"],
+        again: ["CLOSING"],
       }).catch(() => {})
     })()
     closes.add(closing)

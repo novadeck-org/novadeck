@@ -1,14 +1,9 @@
 import { useState } from "react"
 
-import { refusalText, type Refusal } from "../model/addon"
-import { formatSize, stepLabel } from "../model/addon-format"
-import {
-  MURMUR_NAME,
-  murmurChecking,
-  unchecked,
-  type Murmur,
-  type MurmurState,
-} from "../model/murmur"
+import { refusalText, type Refusal } from "#core/addon"
+import { formatSize, stepLabel } from "#core/addon-format"
+import { MURMUR_NAME, murmurChecking, unchecked, type Murmur, type MurmurState } from "#core/murmur"
+
 import { ConfirmDialog } from "../ui-toolkit/ConfirmDialog"
 import { Switch } from "../ui-toolkit/Switch"
 import {

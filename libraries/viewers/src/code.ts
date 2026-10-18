@@ -1,4 +1,6 @@
+import { hashOf } from "./hash.js"
 import type { HighlightedLine } from "./highlight.js"
+import { createHold } from "./hold.js"
 import type { Mount, ViewerState } from "./index.js"
 import { createKept } from "./kept.js"
 import { languageOf } from "./languages.js"
@@ -35,22 +37,6 @@ export const highlightLines = async (
 // keeping them costs more than parsing again.
 const highlighted = createKept<readonly HighlightedLine[]>(24)
 const keptSize = 200_000
-
-// A 53-bit hash of the text (cyrb53): a key that changes with it.
-const hashOf = (text: string): string => {
-  let first = 0xdeadbeef
-  let second = 0x41c6ce57
-  for (let at = 0; at < text.length; at++) {
-    const code = text.charCodeAt(at)
-    first = Math.imul(first ^ code, 2654435761)
-    second = Math.imul(second ^ code, 1597334677)
-  }
-  first =
-    Math.imul(first ^ (first >>> 16), 2246822507) ^ Math.imul(second ^ (second >>> 13), 3266489909)
-  second =
-    Math.imul(second ^ (second >>> 16), 2246822507) ^ Math.imul(first ^ (first >>> 13), 3266489909)
-  return (4294967296 * (2097151 & second) + (first >>> 0)).toString(36)
-}
 
 const keyOf = (language: string, lines: readonly string[]): string | null => {
   const text = lines.join("\n")
@@ -187,52 +173,7 @@ export const mountCode: Mount<CodeContent> = (element, { content, label, saved }
     if (first.offsetTop < top || last.offsetTop + last.offsetHeight > bottom) reveal(emphasis.from)
   }
 
-  // A place set before the listing has its size, as when it mounts out of sight (a parked
-  // terminal) or while its pane settles, is set again as the size arrives, until a moment
-  // after it first has one, or until the person, or anything else, scrolls it.
-  let holding: (() => void) | undefined
-  const hold = (place: () => void): void => {
-    holding?.()
-    // Where it last put the listing: a scroll anywhere else is someone else's.
-    let placed = { top: -1, left: -1 }
-    const put = (): void => {
-      place()
-      placed = { top: root.scrollTop, left: root.scrollLeft }
-    }
-    put()
-    const Observer = document.defaultView?.ResizeObserver
-    if (!Observer) return
-    let timer: ReturnType<typeof setTimeout> | undefined
-    // Moved since it put it there, unless only cut short as the listing shrank: a scroll
-    // whose event may not have come yet.
-    const moved = (): boolean => {
-      const { scrollTop: top, scrollLeft: left } = root
-      const { scrollHeight, clientHeight, scrollWidth, clientWidth } = root
-      const clampedTop = top < placed.top && top >= scrollHeight - clientHeight - 1
-      const clampedLeft = left < placed.left && left >= scrollWidth - clientWidth - 1
-      return (top !== placed.top && !clampedTop) || (left !== placed.left && !clampedLeft)
-    }
-    const observer = new Observer(() => {
-      if (moved()) return holding?.()
-      put()
-      if (root.clientHeight && timer === undefined) timer = setTimeout(() => holding?.(), 1000)
-    })
-    const release = (): void => holding?.()
-    const scrolled = (): void => {
-      if (moved()) release()
-    }
-    const inputs = ["wheel", "pointerdown", "keydown", "touchstart"] as const
-    holding = () => {
-      observer.disconnect()
-      clearTimeout(timer)
-      for (const input of inputs) root.removeEventListener(input, release)
-      root.removeEventListener("scroll", scrolled)
-      holding = undefined
-    }
-    for (const input of inputs) root.addEventListener(input, release, { passive: true })
-    root.addEventListener("scroll", scrolled, { passive: true })
-    observer.observe(root)
-  }
+  const { hold, release } = createHold(root, () => [])
 
   // A place in this file.
   const isPlace = (state: ViewerState | undefined): state is CodeState & ViewerState =>
@@ -262,7 +203,7 @@ export const mountCode: Mount<CodeContent> = (element, { content, label, saved }
       } else {
         // A place still to be set out of sight is set once the listing has a size; on
         // sight, the new lines keep where it is.
-        if (root.clientHeight) holding?.()
+        if (root.clientHeight) release()
         const { scrollTop, scrollLeft } = root
         render()
         root.scrollTop = scrollTop
@@ -292,7 +233,7 @@ export const mountCode: Mount<CodeContent> = (element, { content, label, saved }
     focus: () => root.focus({ preventScroll: true }),
     destroy: () => {
       listing++
-      holding?.()
+      release()
       root.remove()
     },
   }

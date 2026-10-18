@@ -1,8 +1,11 @@
 import { createKept, type ViewerState } from "@novadeck/viewers"
+import { mountBrowser, type Load, type Place } from "@novadeck/viewers/browser"
 import { mountCode, type CodeContent } from "@novadeck/viewers/code"
+import { mountImage, type ImageContent as Image } from "@novadeck/viewers/image"
 import { useViewer } from "@novadeck/viewers/react"
+import { outline } from "@novadeck/viewers/text"
 import { ArrowLeft, ArrowRight, ExternalLink, RotateCw } from "lucide-react"
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 
 import {
   pathOf,
@@ -12,34 +15,46 @@ import {
   type ItemContent,
   type PageContent,
   type UnavailableReason,
-} from "../../model/companion"
+} from "#core/companion"
+import { pagesPartition } from "#core/pages"
+
 import { useShown } from "../../ui-toolkit/shown"
 import { isMarkdown } from "./artifact-icons"
 import { DocumentViewer } from "./DocumentViewer"
-import { headingsOf, titleOf } from "./plan-text"
-import { createWebview, type WebviewElement } from "./webview"
+import { titleOf } from "./plan-text"
 
 // Viewers for what an agent shows beside its terminal, as it loads from the file or page
 // it points at now, or why it can't show. Files show as plain text at
 // once, then highlighted when their language is one Novadeck knows, in the code viewer;
 // a markdown file reads as a document instead, formatted as a plan is.
 // A page loads live where the backend's host allows, in Electron's <webview>, which the
-// desktop app locks down (no Node, its own session, http(s) only; see ./webview.ts);
+// desktop app locks down (no Node, its own session, http(s) only; see the browser viewer);
 // elsewhere it's a link to open in the browser, with a snapshot when the backend has
 // one.
 
 // What the place showing an artifact offers for it, at the end of its viewer's header.
 type Actions = { actions?: ReactNode }
 
+// Where each image's viewer was, by item: its zoom and where it was scrolled.
+const imageStates = createKept<ViewerState>(24)
+
 const ImageViewer = ({
   artifact,
-  content,
+  content: image,
   actions,
 }: Actions & {
   artifact: CompanionItem
   content: ImageContent
 }): React.JSX.Element => {
   const [actual, setActual] = useState(false)
+  const content = useMemo((): Image => ({ src: image.src, alt: artifact.name }), [image, artifact])
+  const { ref, viewer } = useViewer(mountImage, {
+    id: artifact.id,
+    content,
+    label: artifact.name,
+    kept: imageStates,
+    onZoom: setActual,
+  })
   return (
     <>
       <div className="artifact-meta">
@@ -51,7 +66,7 @@ const ImageViewer = ({
             className="segment"
             data-state={actual ? "off" : "on"}
             aria-pressed={!actual}
-            onClick={() => setActual(false)}
+            onClick={() => viewer?.zoom(false)}
           >
             Fit
           </button>
@@ -59,16 +74,14 @@ const ImageViewer = ({
             className="segment"
             data-state={actual ? "on" : "off"}
             aria-pressed={actual}
-            onClick={() => setActual(true)}
+            onClick={() => viewer?.zoom(true)}
           >
             100%
           </button>
         </div>
         {actions}
       </div>
-      <div className="artifact-image" data-actual={actual}>
-        <img src={content.src} alt={artifact.name} />
-      </div>
+      <div ref={ref} className="artifact-image" />
     </>
   )
 }
@@ -96,7 +109,12 @@ const FileViewer = ({
     }),
     [artifact],
   )
-  const code = useViewer(mountCode, { id, content, label: artifact.path, kept: codeStates })
+  const { ref: code } = useViewer(mountCode, {
+    id,
+    content,
+    label: artifact.path,
+    kept: codeStates,
+  })
   return (
     <>
       <div className="artifact-meta">
@@ -114,9 +132,6 @@ const FileViewer = ({
   )
 }
 
-// Where the page is, and where it can go.
-type Place = { readonly url: string; readonly back: boolean; readonly forward: boolean }
-
 const OpenInBrowser = ({ url }: { url: string }): React.JSX.Element => (
   // The desktop app opens a new window's http(s) address in the person's browser.
   <a className="artifact-open" href={url} target="_blank" rel="noreferrer">
@@ -125,96 +140,96 @@ const OpenInBrowser = ({ url }: { url: string }): React.JSX.Element => (
   </a>
 )
 
-const LivePage = ({ url, actions }: Actions & { url: string }): React.JSX.Element => {
-  const frame = useRef<HTMLDivElement>(null)
-  const view = useRef<WebviewElement | null>(null)
-  const [place, setPlace] = useState<Place>({ url, back: false, forward: false })
+// Where each page's viewer was, by item: where the person had taken it.
+const pageStates = createKept<ViewerState>(24)
+
+// A page in the browser viewer: live where the backend's host allows, else its snapshot.
+const ShownPage = ({
+  id,
+  content: page,
+  actions,
+}: Actions & { id: string; content: PageContent }): React.JSX.Element => {
+  const [place, setPlace] = useState<Place>({ url: page.url, back: false, forward: false })
+  const [load, setLoad] = useState<Load>("loading")
+  const content = useMemo(() => ({ url: page.url }), [page.url])
+  const { ref, viewer } = useViewer(mountBrowser, {
+    id,
+    content,
+    label: page.url,
+    kept: pageStates,
+    live: page.live,
+    ...(page.snapshot ? { snapshot: { src: page.snapshot, alt: `${page.url} as shown` } } : {}),
+    partition: pagesPartition,
+    on: { navigate: setPlace, load: setLoad },
+  })
   // Kept out of sight, the page goes quiet: it stops drawing on its own, but not playing.
   const shown = useShown()
-  const muted = useRef(!shown)
-  useEffect(() => {
-    muted.current = !shown
-    try {
-      view.current?.setAudioMuted(!shown)
-    } catch {
-      // Not attached yet: dom-ready mutes it.
-    }
-  }, [shown])
-  useEffect(() => {
-    const element = createWebview(url)
-    view.current = element
-    const update = (): void => {
-      try {
-        element.setAudioMuted(muted.current)
-        setPlace({
-          url: element.getURL(),
-          back: element.canGoBack(),
-          forward: element.canGoForward(),
-        })
-      } catch {
-        // Not attached yet: dom-ready updates it.
-      }
-    }
-    const events = ["dom-ready", "did-navigate", "did-navigate-in-page", "did-stop-loading"]
-    for (const event of events) element.addEventListener(event, update)
-    frame.current?.append(element)
-    return () => {
-      for (const event of events) element.removeEventListener(event, update)
-      element.remove()
-      view.current = null
-    }
-  }, [url])
+  useEffect(() => viewer?.muted(!shown), [viewer, shown])
   return (
-    <div className="artifact-browser" data-live="">
+    <div
+      className="artifact-browser"
+      data-live={page.live || undefined}
+      aria-busy={load === "loading"}
+    >
       <div className="artifact-browser-bar">
-        <button
-          className="icon-button"
-          aria-label="Back"
-          disabled={!place.back}
-          onClick={() => view.current?.goBack()}
-        >
-          <ArrowLeft size={14} />
-        </button>
-        <button
-          className="icon-button"
-          aria-label="Forward"
-          disabled={!place.forward}
-          onClick={() => view.current?.goForward()}
-        >
-          <ArrowRight size={14} />
-        </button>
-        <button className="icon-button" aria-label="Reload" onClick={() => view.current?.reload()}>
-          <RotateCw size={14} />
-        </button>
+        {page.live && (
+          <>
+            <button
+              className="icon-button"
+              aria-label="Back"
+              disabled={!place.back}
+              onClick={() => viewer?.back()}
+            >
+              <ArrowLeft size={14} />
+            </button>
+            <button
+              className="icon-button"
+              aria-label="Forward"
+              disabled={!place.forward}
+              onClick={() => viewer?.forward()}
+            >
+              <ArrowRight size={14} />
+            </button>
+            <button className="icon-button" aria-label="Reload" onClick={() => viewer?.reload()}>
+              <RotateCw size={14} />
+            </button>
+          </>
+        )}
         <span className="artifact-url">{place.url}</span>
         <OpenInBrowser url={place.url} />
         {actions}
       </div>
-      <div ref={frame} className="artifact-webview-frame" />
+      <div className="artifact-page-frame">
+        <div ref={ref} className="artifact-page-view" />
+        {load === "failed" && (
+          <div className="artifact-page-failed" role="alert">
+            <p>This page didn't load.</p>
+            <button type="button" className="artifact-open" onClick={() => viewer?.reload()}>
+              Try again
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
 const PageViewer = ({
-  content: artifact,
+  id,
+  content: page,
   actions,
-}: Actions & { content: PageContent }): React.JSX.Element =>
-  artifact.live ? (
-    <LivePage url={artifact.url} actions={actions} />
+}: Actions & { id: string; content: PageContent }): React.JSX.Element =>
+  page.live || page.snapshot ? (
+    // Its own for each address: a new page starts at its own address, not the last one's.
+    <ShownPage key={page.url} id={id} content={page} actions={actions} />
   ) : (
     <div className="artifact-browser">
       <div className="artifact-browser-bar">
-        <span className="artifact-url">{artifact.url}</span>
-        <OpenInBrowser url={artifact.url} />
+        <span className="artifact-url">{page.url}</span>
+        <OpenInBrowser url={page.url} />
         {actions}
       </div>
-      {artifact.snapshot ? (
-        <div className="artifact-page-scroll">
-          <img className="artifact-page" src={artifact.snapshot} alt={`${artifact.url} as shown`} />
-        </div>
-      ) : (
-        <div className="artifact-status">This page opens in your browser.</div>
-      )}
+      <div className="artifact-status">This page opens in your browser.</div>
     </div>
   )
 
@@ -329,7 +344,7 @@ export const ArtifactThumb = ({
     // A document in miniature, as a plan is: its title over its sections.
     <span className="peek-plan">
       <b>{titleOf(content.path, content.lines.join("\n"))}</b>
-      {headingsOf(content.lines.join("\n"))
+      {outline(content.lines.join("\n"))
         .slice(0, 4)
         .map((heading) => (
           <span key={heading.at}>{heading.text}</span>
@@ -389,7 +404,7 @@ export const ArtifactViewer = ({
       ) : ready?.kind === "file" ? (
         <FileViewer id={artifact.id} content={ready} actions={actions} />
       ) : ready?.kind === "page" ? (
-        <PageViewer content={ready} actions={actions} />
+        <PageViewer id={artifact.id} content={ready} actions={actions} />
       ) : (
         <div className="artifact-status">Couldn't load {artifact.name}.</div>
       )}

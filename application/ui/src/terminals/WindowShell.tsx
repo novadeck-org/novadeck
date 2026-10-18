@@ -10,11 +10,12 @@ import {
 } from "lucide-react"
 import { useRef, type ReactNode } from "react"
 
+import { handleText, terminalLabel } from "#core/handle"
+import { isWindow } from "#core/roster"
+import { attentionText, doneText, terminalPhase, unheardText } from "#core/terminal-ending"
+import type { Tile, WindowedView } from "#core/types"
+
 import { shortcutBindings } from "../interaction/shortcuts"
-import { handleText, terminalLabel } from "../model/handle"
-import { isWindow } from "../model/roster"
-import { attentionText, doneText, terminalPhase, unheardText } from "../model/terminal-ending"
-import type { Tile, WindowedView } from "../model/types"
 import { ContextMenu, type ContextMenuItem } from "../ui-toolkit/ContextMenu"
 import { HandleChip } from "../ui-toolkit/HandleChip"
 import { Tooltip } from "../ui-toolkit/Tooltip"
@@ -26,6 +27,8 @@ export type TerminalLayoutControls = {
   readonly onResizePreset?: (button: HTMLButtonElement) => void
   // Frames the terminal together with content hanging past its right edge.
   readonly onReveal?: (extent: { readonly right: number; readonly height: number }) => void
+  // False while the layout holds the terminal out of the person's sight. Absent means in sight.
+  readonly onScreen?: boolean
 }
 
 const headerActionClasses = "icon-button dim"

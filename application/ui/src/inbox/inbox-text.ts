@@ -1,6 +1,6 @@
-import type { ChatDialog, ChatDialogOption, ChatRequest } from "../model/conversation"
-import { harnesses, type AgentName } from "../model/harnesses"
-import { inboxType, type InboxItem, type Trouble } from "../model/inbox"
+import type { ChatDialog, ChatDialogOption, ChatRequest } from "#core/conversation"
+import { harnesses, type AgentName } from "#core/harnesses"
+import { inboxType, type InboxItem, type Trouble } from "#core/inbox"
 
 // What the Inbox says about an item, in words: pure, so the rows and the sheet read the
 // same sentences, and so their rules read apart from the markup.

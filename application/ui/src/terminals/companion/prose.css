@@ -1,15 +1,13 @@
-/* The prose recipe: plans and markdown documents as the plan editor (`.plan-editor`)
-   formats them, its decorations (`.cm-plan-*`) and its tables; a plan's miniature in a
-   peek reads it too. What the editor changes of CodeMirror's own look (its focus
-   outline, scroller font, content and line padding, selection, caret and gutters) is in
-   plan-editor/editor-theme.ts: CodeMirror's styles sit outside every layer, so only an
-   editor theme overrides them. The editor's icon-only actions, the margin's and a row's
-   note buttons, are `.icon-button`s; its checkboxes take the toggle recipe's tokens.
+/* The prose recipe: the theme's prose tokens mapped onto the markdown viewer's
+   (@novadeck/viewers/markdown.css), which draws plans and markdown documents, and what
+   only a plan has: its notes (`.cm-plan-note-*`, drawn by plan-editor/plan-notes.ts) and
+   the lines the agent's latest revision wrote (`.cm-plan-changed`). A plan's miniature in a
+   peek reads the prose tokens too. The editor's icon-only actions, the margin's and a
+   row's note buttons, are `.icon-button`s; its checkboxes take the toggle recipe's tokens.
 
    Hooks: data-changes="true" on the plan's scroller while the agent's changes show;
-   data-readonly on the editor and on a table a plan the backend can't write holds;
-   data-checked="true" on a ticked checkbox; data-heading="1" | "2" | "3" on the margin's
-   note button beside a heading.
+   data-readonly on the plan editor while the plan can't be written; data-heading="1" | "2"
+   | "3" on the margin's note button beside a heading.
 
    Tokens, each optional (its fallback in brackets):
    --prose-fg (ink), --prose-font (sans): the text, and the editor's caret.
@@ -35,136 +33,51 @@
    A checkbox reads --toggle-box-bg, --toggle-box-border-color, --toggle-track-on-bg,
    --toggle-track-on-border-color and --toggle-mark-fg (see toggle.css). */
 
-/* The document takes the reader's width, up to a long but still readable line, so a
-   wide pane or a window of its own isn't mostly margin. */
-.plan-editor .cm-editor {
-  max-width: 1100px;
-  margin: auto;
-  background: transparent;
-  color: var(--prose-fg, var(--color-ink));
-  font-family: var(--prose-font, var(--font-sans));
-  font-size: var(--text-lead);
-  font-weight: normal;
-  font-style: normal;
-  line-height: 1.75;
-}
-.cm-plan-h1 {
-  font-size: 26px;
-  font-weight: 550;
-  line-height: 1.3;
-  letter-spacing: -0.8px;
-}
-.cm-plan-h2 {
-  font-size: var(--text-title);
-  line-height: var(--text-title--line-height);
-  font-weight: 550;
-}
-.cm-plan-h3 {
-  font-weight: 550;
-}
-:is(.cm-plan-h1, .cm-plan-h2, .cm-plan-h3) {
-  color: var(--prose-heading-fg, var(--prose-fg, var(--color-ink)));
-}
-.cm-plan-strong {
-  font-weight: 600;
-}
-.cm-plan-em {
-  font-style: italic;
-}
-.cm-plan-code {
-  padding: 1px 4px;
-  border-radius: var(--radius-control);
-  background-color: var(--prose-code-bg, var(--color-soft));
-  color: var(--prose-code-fg, currentColor);
-  font-family: var(--font-mono);
-  font-size: var(--text-code);
-  font-weight: normal;
-  font-style: normal;
-  line-height: normal;
-}
-.cm-plan-path {
-  border: var(--border-width) solid var(--prose-path-border-color, var(--color-line));
-  background-color: var(--prose-path-bg, var(--color-shell));
-  font-size: var(--text-control);
-  line-height: var(--text-control--line-height);
-}
-.cm-plan-listmark {
-  font-family: var(--font-mono);
-  font-size: var(--text-control);
-  font-weight: normal;
-  font-style: normal;
-  line-height: normal;
-  color: var(--prose-muted-fg, var(--color-muted));
-}
-.cm-plan-quote {
-  border-left: 2px solid var(--prose-quote-border-color, var(--color-line-strong));
-  color: var(--prose-quote-fg, var(--color-muted));
-}
-.cm-plan-codeblock {
-  background-color: var(--prose-codeblock-bg, var(--color-shell));
-  font-family: var(--font-mono);
-  font-size: var(--text-control);
-  font-weight: normal;
-  font-style: normal;
-  line-height: 1.9;
-}
-.cm-plan-fence {
-  font-size: 0;
-  line-height: 8px;
-}
-.cm-plan-checkbox {
-  --_bg: var(--toggle-box-bg, var(--color-paper));
-  --_border-color: var(--toggle-box-border-color, var(--color-line-strong));
-  display: inline-grid;
-  place-items: center;
-  width: 14px;
-  height: 14px;
-  margin: 0 8px -2px 0;
-  border: var(--border-width) solid var(--_border-color);
-  border-radius: var(--radius-control);
-  background-color: var(--_bg);
-  color: var(--toggle-mark-fg, var(--color-on-strong));
-  text-indent: 0;
-  cursor: pointer;
-  vertical-align: baseline;
-}
-.cm-plan-checkbox[data-checked="true"] {
-  --_bg: var(--toggle-track-on-bg, var(--color-strong));
-  --_border-color: var(--toggle-track-on-border-color, var(--color-strong));
-}
-.cm-plan-checkbox svg {
-  width: 10px;
-  height: 10px;
-}
-/* A done task recedes; its tick keeps full contrast. */
-.plan-editor .cm-plan-task-done {
-  color: color-mix(in srgb, var(--prose-muted-fg, var(--color-muted)) 60%, transparent);
-}
-.plan-editor .cm-plan-item {
-  text-indent: -22px;
-}
-.plan-editor .cm-plan-item-task {
-  text-indent: -44px;
-}
-
-/* Formatting marks, shown on the line being edited. */
-.cm-plan-syntax {
-  color: var(--prose-muted-fg, var(--color-muted));
-  font-style: normal;
-  font-weight: 400;
-  opacity: 0.7;
-}
-/* A heading's marks hang in its left margin, so its text doesn't move. */
-.plan-editor .cm-plan-h1,
-.plan-editor .cm-plan-h2,
-.plan-editor .cm-plan-h3 {
-  position: relative;
-}
-.cm-plan-hashes {
-  position: absolute;
-  padding-right: 0.3em;
-  transform: translateX(-100%);
-  letter-spacing: 0;
+.md-viewer {
+  --md-fg: var(--prose-fg, var(--color-ink));
+  --md-font: var(--prose-font, var(--font-sans));
+  --md-font-size: var(--text-lead);
+  --md-selection-bg: var(--prose-selection-bg, var(--color-selection));
+  --md-muted-fg: var(--prose-muted-fg, var(--color-muted));
+  --md-heading-fg: var(--prose-heading-fg, var(--prose-fg, var(--color-ink)));
+  --md-title-size: var(--text-title);
+  --md-title-line-height: var(--text-title--line-height);
+  --md-code-bg: var(--prose-code-bg, var(--color-soft));
+  --md-code-fg: var(--prose-code-fg, currentColor);
+  --md-mono-font: var(--font-mono);
+  --md-code-size: var(--text-code);
+  --md-small-size: var(--text-control);
+  --md-small-line-height: var(--text-control--line-height);
+  --md-path-bg: var(--prose-path-bg, var(--color-shell));
+  --md-path-border-color: var(--prose-path-border-color, var(--color-line));
+  --md-codeblock-bg: var(--prose-codeblock-bg, var(--color-shell));
+  --md-quote-fg: var(--prose-quote-fg, var(--color-muted));
+  --md-quote-border-color: var(--prose-quote-border-color, var(--color-line-strong));
+  --md-table-border-color: var(--prose-table-border-color, var(--color-line));
+  --md-table-head-bg: var(--prose-table-head-bg, var(--color-shell));
+  --md-body-size: var(--text-body);
+  --md-cell-focus-bg: var(--prose-cell-focus-bg, var(--color-paper));
+  --md-cell-focus-ring-color: var(--prose-cell-focus-ring-color, var(--prose-fg, var(--color-ink)));
+  --md-table-tools-bg: var(--prose-table-tools-bg, var(--color-paper));
+  --md-table-tools-border-color: var(--prose-table-tools-border-color, var(--color-line));
+  --md-table-tools-shadow: var(--prose-table-tools-shadow, var(--shadow-control));
+  --md-caption-size: var(--text-caption);
+  --md-table-tool-fg: var(--prose-table-tool-fg, var(--color-muted));
+  --md-table-tool-hover-bg: var(--prose-table-tool-hover-bg, var(--color-soft));
+  --md-table-tool-hover-fg: var(--prose-table-tool-hover-fg, var(--color-ink));
+  --md-table-tool-disabled-opacity: var(--prose-table-tool-disabled-opacity, 0.35);
+  --md-annotation-bg: var(--prose-note-bg, var(--color-note));
+  --md-annotation-text-fg: var(--prose-note-text-fg, var(--color-ink));
+  --md-checkbox-bg: var(--toggle-box-bg, var(--color-paper));
+  --md-checkbox-border-color: var(--toggle-box-border-color, var(--color-line-strong));
+  --md-checkbox-checked-bg: var(--toggle-track-on-bg, var(--color-strong));
+  --md-checkbox-checked-border-color: var(--toggle-track-on-border-color, var(--color-strong));
+  --md-checkbox-check-fg: var(--toggle-mark-fg, var(--color-on-strong));
+  --md-radius: var(--radius-control);
+  --md-radius-large: var(--radius-popover);
+  --md-border-width: var(--border-width);
+  --md-motion: var(--motion-feedback);
+  --md-ease: var(--ease-interface);
 }
 
 /* The note margin: a button beside every line, shown on hover and on the line being
@@ -250,10 +163,10 @@
   transform: rotate(45deg);
 }
 /* Under a list item, the rule lines up with the item's text. */
-.plan-editor .cm-plan-item.cm-plan-note-line {
+.plan-editor .cm-md-item.cm-plan-note-line {
   --_note-indent: 22px;
 }
-.plan-editor .cm-plan-item-task.cm-plan-note-line {
+.plan-editor .cm-md-item-task.cm-plan-note-line {
   --_note-indent: 44px;
 }
 /* What the agent's latest revision wrote, while changes are shown. */
@@ -265,152 +178,13 @@
   );
 }
 
-/* Tables: always rendered; each cell edits in place. */
-.cm-plan-table-widget {
-  position: relative;
-  padding: 6px 0 10px;
-}
-.cm-plan-table-widget table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-body);
-  line-height: 1.6;
-}
-.cm-plan-table-widget th,
-.cm-plan-table-widget td {
-  padding: 0;
-  border: var(--border-width) solid var(--prose-table-border-color, var(--color-line));
-  vertical-align: top;
-  text-align: left;
-}
-.cm-plan-table-widget th {
-  background-color: var(--prose-table-head-bg, var(--color-shell));
-  font-weight: 500;
-}
-.cm-plan-cell {
-  display: block;
-  width: 100%;
-  min-height: calc(1.6em + 14px);
-  padding: 7px 10px;
-  border: 0;
-  resize: none;
-  overflow: hidden;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  line-height: inherit;
-  outline: none;
-  /* Grows with its text, so a long cell wraps like the table's other cells. */
-  field-sizing: content;
-}
-.cm-plan-cell:focus {
-  box-shadow: inset 0 0 0 1.5px
-    var(--prose-cell-focus-ring-color, var(--prose-fg, var(--color-ink)));
-  background-color: var(--prose-cell-focus-bg, var(--color-paper));
-}
-.cm-plan-table-tools {
-  position: absolute;
-  top: -22px;
-  right: 0;
-  display: none;
-  gap: 2px;
-  padding: 2px;
-  border: var(--border-width) solid var(--prose-table-tools-border-color, var(--color-line));
-  border-radius: var(--radius-popover);
-  background-color: var(--prose-table-tools-bg, var(--color-paper));
-  box-shadow: var(--prose-table-tools-shadow, var(--shadow-control));
-}
-.cm-plan-table-widget:focus-within .cm-plan-table-tools {
-  display: flex;
-}
-.cm-plan-table-tool {
-  --_bg: transparent;
-  --_fg: var(--prose-table-tool-fg, var(--color-muted));
-  padding: 1px 7px;
-  border-radius: var(--radius-control);
-  background-color: var(--_bg);
-  color: var(--_fg);
-  font-size: var(--text-caption);
-  line-height: 18px;
-  white-space: nowrap;
-}
-.cm-plan-table-tool:hover:not(:disabled) {
-  --_bg: var(--prose-table-tool-hover-bg, var(--color-soft));
-  --_fg: var(--prose-table-tool-hover-fg, var(--color-ink));
-}
-.cm-plan-table-tool:disabled {
-  opacity: var(--prose-table-tool-disabled-opacity, 0.35);
-}
-
-/* Row notes: a button beside every row, in the plan's note margin. */
-.cm-plan-table-widget tr > :first-child {
-  position: relative;
-}
-.icon-button.cm-plan-row-note-add {
-  position: absolute;
-  /* Above the editor's gutter column, which covers the margin it sits in. */
-  z-index: 201;
-  top: 7px;
-  left: -41px;
-  display: flex;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  opacity: 0;
-  transition: opacity var(--motion-feedback) var(--ease-interface);
-}
-.cm-plan-table-widget tr:hover .cm-plan-row-note-add,
-.cm-plan-table-widget tr:focus-within .cm-plan-row-note-add {
-  opacity: 1;
-}
-.cm-plan-row-note td {
-  padding: 4px 8px 6px;
-  border-top: 0;
-}
-.cm-plan-row-note-bubble {
-  position: relative;
-  display: inline-flex;
-  align-items: flex-start;
-  max-width: 100%;
-  margin-top: 5px;
-  padding: 4px 12px 4px 10px;
-  border-radius: var(--radius-popover);
-  background-color: var(--prose-note-bg, var(--color-note));
-}
-.cm-plan-row-note-bubble::before {
-  content: "";
-  position: absolute;
-  top: -5px;
-  left: 13px;
-  width: 8px;
-  height: 8px;
-  background-color: var(--prose-note-bg, var(--color-note));
-  transform: rotate(45deg);
-}
-.cm-plan-row-note .cm-plan-note-label {
+/* A note in a table row, under the row: its label is the plan's. */
+.cm-md-annotation .cm-plan-note-label {
   flex-shrink: 0;
   margin: 3px 7px 0 0;
 }
-.cm-plan-row-note-input {
-  display: block;
-  width: auto;
-  min-height: 1.6em;
-  overflow: hidden;
-  padding: 0;
-  border: 0;
-  resize: none;
-  background: transparent;
-  color: var(--prose-note-text-fg, var(--color-ink));
-  font: inherit;
-  line-height: 1.6;
-  outline: none;
-  field-sizing: content;
-  min-width: 4ch;
-}
 
-/* A plan the backend can't write: no note buttons, no table tools. */
-.plan-editor[data-readonly] .cm-plan-note-gutter,
-.cm-plan-table-widget[data-readonly] .cm-plan-table-tools,
-.cm-plan-table-widget[data-readonly] .cm-plan-row-note-add {
+/* A plan the backend can't write: no note buttons. */
+.plan-editor[data-readonly] .cm-plan-note-gutter {
   display: none;
 }

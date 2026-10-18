@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react"
 
-import type { UpdateOffer } from "../model/update"
+import type { UpdateOffer } from "#core/update"
+
 import { FooterMurmur, type FooterMurmurProps } from "./FooterMurmur"
 import { FooterSandbox, type FooterSandboxProps } from "./FooterSandbox"
 import { PortableInstall, type PortableInstallProps } from "./PortableInstall"

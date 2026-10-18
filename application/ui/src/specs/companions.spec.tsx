@@ -121,6 +121,30 @@ describe("An image", () => {
     expect(viewer.scrollHeight).toBe(viewer.clientHeight)
     await expect.element(pane.getByRole("button", { name: "Fit", exact: true })).toBeInViewport()
   })
+
+  it("opens as it was left, zoomed and scrolled, after the pane showed something else", async () => {
+    await openShowcase()
+    await taskbarIcon("Build Studio", "2 images").click()
+    const pane = companionPane("Build Studio")
+    await pane.getByRole("button", { name: "100%", exact: true }).click()
+    const area = pane.getByRole("img").element().parentElement!
+    await expect.poll(() => area.scrollHeight).toBeGreaterThan(area.clientHeight + 40)
+    area.scrollTop = 40
+    await expect.poll(() => area.scrollTop).toBe(40)
+
+    await taskbarIcon("Build Studio", "2 files").click()
+    await expect
+      .element(pane.getByRole("region", { name: "src/content/projects.json" }))
+      .toBeVisible()
+    await taskbarIcon("Build Studio", "2 images").click()
+
+    await expect
+      .element(pane.getByRole("button", { name: "100%", exact: true }))
+      .toHaveAttribute("aria-pressed", "true")
+    const again = pane.getByRole("img").element().parentElement!
+    expect(again).not.toBe(area)
+    await expect.poll(() => again.scrollTop).toBe(40)
+  })
 })
 
 describe("A file", () => {

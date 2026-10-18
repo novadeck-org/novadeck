@@ -1,10 +1,11 @@
 import { memo, Suspense, useCallback, useEffect, useMemo, useState, type RefObject } from "react"
 
+import { tilesOf } from "#core/roster"
+import type { ValueUpdate } from "#core/state"
+import type { CanvasLayout, GridLayouts } from "#core/types"
+
 import type { CanvasHandle } from "../layouts/canvas/types"
 import { Focus } from "../layouts/focus/Focus"
-import { tilesOf } from "../model/roster"
-import type { ValueUpdate } from "../model/state"
-import type { CanvasLayout, GridLayouts } from "../model/types"
 import { EmptyWorkspace } from "../shell/EmptyWorkspace"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { Canvas, Grid, preloadViews } from "./deferred-views"

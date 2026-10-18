@@ -1,16 +1,10 @@
 import { verticalCompactor } from "react-grid-layout"
 
-import { gridColumns } from "../../model/layout/grid-placement"
-import { gridPresetWidth } from "../../model/layout/terminal-size"
-import type { GridCell } from "../../model/layout/window-place"
-import type {
-  GridBreakpoint,
-  GridItem,
-  GridLayouts,
-  GridRestoreWidths,
-  Placed,
-} from "../../model/types"
-export { gridColumns } from "../../model/layout/grid-placement"
+import { gridColumns } from "#core/layout/grid-placement"
+import { gridPresetWidth } from "#core/layout/terminal-size"
+import type { GridCell } from "#core/layout/window-place"
+import type { GridBreakpoint, GridItem, GridLayouts, GridRestoreWidths, Placed } from "#core/types"
+export { gridColumns } from "#core/layout/grid-placement"
 
 const defaultHeight = (): number => Math.ceil((400 + 16) / 24)
 

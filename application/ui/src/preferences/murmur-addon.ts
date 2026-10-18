@@ -1,5 +1,5 @@
-import { formatSize } from "../model/addon-format"
-import type { MurmurState } from "../model/murmur"
+import { formatSize } from "#core/addon-format"
+import type { MurmurState } from "#core/murmur"
 
 // What an installed murmur with no passed check says, beside Try again.
 export const murmurUncheckedText =

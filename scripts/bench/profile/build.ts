@@ -8,11 +8,10 @@ import { storeSpansPatch, webglPatch } from "./patches.ts"
 // as its own build does, with hidden source maps, into `--out`. With `--profiling`, React
 // DOM's profiling build stands in for its production one: the same code but for the timings
 // React logs as its performance tracks (console.timeStamp), which the profile reads from the
-// trace; and, where model/store.ts has its instrumentation hook (`countListenersWoken`, which
+// trace; and, where core/store.ts has its instrumentation hook (`countListenersWoken`, which
 // step 1.3a adds), a `performance.measure` span around each run of a store's listeners. With
 // `--webgl`, every screen loads xterm's WebGL renderer once it opens, in place of its DOM one,
-// the addon being the root's development dependency, never the product's. The patches are in
-// patches.ts.
+// the addon the emulator library's own. The patches are in patches.ts.
 
 const ui = join(import.meta.dirname, "..", "..", "..", "application", "ui")
 const { values } = parseArgs({

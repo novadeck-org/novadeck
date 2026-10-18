@@ -1,5 +1,5 @@
-import { createStore } from "../../model/store"
-import type { Voice, VoiceModel, VoiceState } from "../../model/voice"
+import { createStore } from "#core/store"
+import type { Voice, VoiceModel, VoiceState } from "#core/voice"
 
 // A pretend voice input addon for the browser demo and the specs. It starts installed and
 // on, as the try demo shows it and never offers it; started uninstalled, nothing is

@@ -1,57 +1,63 @@
-import { resolve } from "node:path"
+import { isAbsolute, relative, resolve } from "node:path"
 
+import { contentSecurityPolicy } from "@novadeck/build-kit/content-security-policy"
+import { fontsAsFiles } from "@novadeck/build-kit/fonts"
+import { hostingHeaders } from "@novadeck/build-kit/hosting-headers"
+import { searchVisibility } from "@novadeck/build-kit/search-visibility"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
-import { defineConfig, loadEnv, type ConfigEnv, type Plugin } from "vite"
+import { defineConfig, type Plugin } from "vite"
 
 import { boundaryViolations } from "./src/bundle-boundary"
-import { buildConnectSources } from "./src/content-security-policy"
-import { tryHeaders } from "./src/hosting-headers"
-import { withSearchVisibility } from "./src/search-visibility"
+import { connect, connectSourcesPlaceholder, headerRules, hidden } from "./src/deploy"
 
-const connectSourcesPlaceholder = "__NOVADECK_CONNECT_SOURCES__"
-
-const contentSecurityPolicy = (): Plugin => {
-  let environment: ConfigEnv
-  let apiUrl: string | undefined
-  let runnerUrl: string | undefined
-
-  return {
-    name: "novadeck-content-security-policy",
-    config(_config, configEnvironment) {
-      environment = configEnvironment
-      const fileEnvironment = loadEnv(environment.mode, process.cwd(), "VITE_")
-      apiUrl = process.env.VITE_API_URL ?? fileEnvironment.VITE_API_URL
-      runnerUrl = process.env.VITE_NOVADECK_RUNNER_URL ?? fileEnvironment.VITE_NOVADECK_RUNNER_URL
-    },
-    transformIndexHtml(html) {
-      if (!html.includes(connectSourcesPlaceholder)) {
-        throw new Error("Content Security Policy connect-src placeholder is missing")
-      }
-
-      const sources = buildConnectSources(environment, apiUrl, runnerUrl)
-      return withSearchVisibility(
-        html.replace(connectSourcesPlaceholder, sources.join(" ")),
-        environment.mode,
-      )
-    },
-  }
+// Each app is an entry of its own, by the mode that names it: its page is entries/<name>/index.html,
+// served at its server's root and built to its own folder, so a deploy carries only its own
+// entry. The desktop app's stays the package's index.html, built to dist/, which the host
+// packages and loads, and the dev server's root page, which the host loads in development.
+// Tests keep the package's root too.
+const entries: Readonly<Record<string, { readonly root: string; readonly outDir: string }>> = {
+  web: { root: "entries/web", outDir: "dist-web" },
+  try: { root: "entries/try", outDir: "dist-try" },
+  "content-preview": { root: "entries/previews", outDir: "dist-previews" },
 }
 
-// Gives the visitor build the response headers its host serves it with (see
-// src/hosting-headers.ts).
-const hostingHeaders = (): Plugin => {
-  let mode = ""
-  return {
-    name: "novadeck-hosting-headers",
-    apply: "build",
-    configResolved: (config) => void (mode = config.mode),
-    generateBundle() {
-      if (mode === "try")
-        this.emitFile({ type: "asset", fileName: "_headers", source: tryHeaders() })
-    },
-  }
+// A folder within the package, not the package itself.
+const inPackage = (path: string): boolean => {
+  const within = relative(import.meta.dirname, path)
+  return within !== "" && !within.startsWith("..") && !isAbsolute(within)
 }
+
+// A path of the package's, as an entry's config gives it.
+const own = (path: string): string => (isAbsolute(path) ? path : resolve(import.meta.dirname, path))
+
+// The modes that build the desktop app, from the package's own root; any other names an entry.
+const desktopModes = new Set(["production", "development", "test"])
+
+const entryOf = (): Plugin => ({
+  name: "novadeck-entry",
+  config(config, { mode }) {
+    const entry = entries[mode]
+    if (!entry) {
+      if (desktopModes.has(mode)) return
+      throw new Error(`No entry is named ${mode}: the modes are ${Object.keys(entries).join(", ")}`)
+    }
+    const outDir = own(config.build?.outDir ?? entry.outDir)
+    return {
+      root: own(entry.root),
+      // What every entry shares stays the package's: its public files and its env files.
+      publicDir: own("public"),
+      envDir: import.meta.dirname,
+      // An outDir given on the command line is the package's, as it was before entries. It's
+      // outside the entry's root, which Vite empties only when told.
+      build: {
+        outDir,
+        // Within the package only, as Vite itself empties only its root's: never a folder elsewhere.
+        ...((config.build?.emptyOutDir ?? inPackage(outDir)) && { emptyOutDir: true }),
+      },
+    }
+  },
+})
 
 // Fails a build that carries an adapter its mode must not (see src/bundle-boundary.ts).
 const bundleBoundary = (): Plugin => {
@@ -81,11 +87,19 @@ export default defineConfig({
   },
   build: {
     manifest: true,
-    // Fonts always ship as files: the Content Security Policy loads them only from the
-    // app itself, so a small subset Vite would inline as a data: URL would be blocked.
-    assetsInlineLimit: (file) => (/\.woff2?$/.test(file) ? false : undefined),
+    // Fonts always ship as files, which the Content Security Policy allows.
+    assetsInlineLimit: fontsAsFiles,
   },
-  plugins: [tailwindcss(), react(), contentSecurityPolicy(), bundleBoundary(), hostingHeaders()],
+  // How each build is deployed is the app's (see src/deploy.ts); the build kit applies it.
+  plugins: [
+    entryOf(),
+    tailwindcss(),
+    react(),
+    contentSecurityPolicy({ placeholder: connectSourcesPlaceholder, connect }),
+    searchVisibility({ hidden }),
+    bundleBoundary(),
+    hostingHeaders({ rules: headerRules }),
+  ],
   resolve: {
     alias: [{ find: /^react$/, replacement: resolve("node_modules/react/index.js") }],
     dedupe: ["react", "react-dom"],

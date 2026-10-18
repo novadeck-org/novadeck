@@ -12,7 +12,7 @@ relay. `node-pty` is a native dependency;
 installation can require Python and a C/C++ toolchain for your platform.
 `node-pty` is pinned exactly to `1.2.0-beta.14` for its native cleanup fixes and
 correct macOS spawn-helper permissions. One local patch
-(`patches/node-pty@1.2.0-beta.14.patch`) adds an error listener to its Windows input
+(`libraries/terminal/patches/node-pty@1.2.0-beta.14.patch`) adds an error listener to its Windows input
 socket ([#942](https://github.com/microsoft/node-pty/issues/942),
 [#976](https://github.com/microsoft/node-pty/issues/976)). A failed write, such as
 EAGAIN, used to crash the process. The failed socket cannot take input again, so the
@@ -182,7 +182,7 @@ goes, `projects.list` leaves it out, creating a session or terminal in it reject
 with `NOT_FOUND`, and restarting one of its terminals with `TERMINAL_NOT_FOUND`. A
 second call while it goes shares the first, and one after it, like one for a project
 the runner never had, rejects with `NOT_FOUND`. A runner that shuts down before the
-removal is done rejects it with `RUNTIME_CLOSING` and keeps the project, for a client to
+removal is done rejects it with `CLOSING` and keeps the project, for a client to
 remove again from the next runner.
 `sessions.save({ sessionId, state })` replaces a session's `state`, a string the
 runner stores with the session without reading it, such as a UI layout. It holds only
@@ -192,7 +192,7 @@ report `null` until the first save. A state holds at most `maxClientStateLength`
 (196,608) characters, and over WebSocket the whole call must also fit in one
 `maxWebSocketMessageBytes` (256 KiB) message; both limits are exported from
 `@novadeck/protocol`. Once the runner starts shutting down it refuses saves with
-`RUNTIME_CLOSING`, so shells ending on the way out cannot overwrite the last state; it
+`CLOSING`, so shells ending on the way out cannot overwrite the last state; it
 saves nothing of its terminals either, after one last save while they still run.
 
 `runner.terminals.watch()` follows every terminal on the runner, across sessions:
@@ -324,7 +324,7 @@ until 10 minutes after the later of the stop and the thread's last message (a re
 does not extend them) or the person releases it, the listing's `stopped` holding only
 meanwhile; a leased message is left to finish, the recipient is told nothing,
 stopping a stopped thread does nothing, and an unknown thread is `NOT_FOUND`. Each refuses with
-`RUNTIME_CLOSING` once the runner is stopping. `messages.watch(terminalId)` streams what
+`CLOSING` once the runner is stopping. `messages.watch(terminalId)` streams what
 `list` says, then again on each change to the terminal's threads, messages or delivery
 state, and on each pause or resume, a burst of changes within one tick as one listing;
 a reader that falls behind gets only the newest listing, never one equal to the last it
@@ -346,19 +346,29 @@ without controlling it; its `write` and `resize` reject with `CONTROL_REQUIRED`.
 
 ### Serving a runner
 
-`@novadeck/runner` separates the runner from how clients reach it:
+`@novadeck/runner` separates the runner from how clients reach it: the runner holds its
+clients' sessions (`runner.sessions`), and the wire's transports serve them:
 
 ```ts
-import { createRunner, servePort, serveWebSocket } from "@novadeck/runner"
+import { maxWebSocketMessageBytes } from "@novadeck/protocol"
+import { createRunner } from "@novadeck/runner"
+import { servePort, serveWebSocket } from "@novadeck/wire/server"
 
 const runner = createRunner({ database })
 
 // Deployed: token-authenticated WebSockets at /api/rpc on an HTTP server.
-serveWebSocket(runner, { token, origins }).attach(httpServer)
+const sockets = serveWebSocket(runner.sessions, {
+  path: "/api/rpc",
+  token,
+  origins,
+  maxPayloadBytes: maxWebSocketMessageBytes,
+  sendBudgetBytes: runner.snapshotBytes + 8 * 1024 * 1024,
+})
+httpServer.on("upgrade", sockets.upgrade)
 
 // Bundled: one trusted client per MessagePort, such as an Electron renderer's port
 // to a utility process. Holding the port is the credential.
-const dispose = servePort(runner, port)
+const dispose = servePort(runner.sessions, port)
 ```
 
 The CLI (`pnpm --filter @novadeck/runner start`) and `startServer` from
@@ -401,8 +411,9 @@ adapter that settles pending calls when a socket or port closes, and its
 wire's own error codes (`wireErrors`) beside the runner's. Applications use
 `connectRunner`.
 
-Every connection starts with `runner.handshake({ protocolVersion, token })`, which
-returns `runnerId` and the protocol version. WebSocket connections
+Every connection starts with the wire's handshake, `wire.handshake({ protocolVersion,
+token, clientId })`, which returns the runner's `epoch` (its lifetime: terminal cursors
+are valid only within one) and the protocol version. WebSocket connections
 require the token in the handshake, never in a URL, and time out after ten seconds
 without it. MessagePort connections omit it. Each `terminals.attach` stream begins
 with an unsequenced `attached` marker confirming the granted mode, followed by
@@ -470,7 +481,7 @@ not command completion.
   the shell has exited does not bring it back. It then ends the shell; attached viewers
   still receive `exited`, and later calls report `TERMINAL_NOT_FOUND`. A close reaches a
   runner that is shutting down too; only a stopped one refuses it, with
-  `RUNTIME_CLOSING`. A shell that exits on its own keeps its record until eviction, and
+  `CLOSING`. A shell that exits on its own keeps its record until eviction, and
   the terminal itself until it is closed. A terminal kept only as saved closes the same
   way. The runner refuses to create a terminal closed in its lifetime again, restoring
   or not, even one a `create` was restoring as it closed, with `TERMINAL_NOT_FOUND`: a

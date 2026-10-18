@@ -1,3 +1,4 @@
+import { contentSecurityPolicyName } from "@novadeck/build-kit/content-security-policy"
 import { playwright } from "@vitest/browser-playwright"
 import { mergeConfig } from "vite"
 import { defineConfig } from "vitest/config"
@@ -11,8 +12,9 @@ const ci = Boolean(process.env.CI)
 const trace = Boolean(process.env.NOVADECK_UI_TRACE)
 
 // The CSP plugin guards the app's index.html; the browser runner serves its own tester page.
+// The noindex plugin stays: no test mode hides a build.
 const plugins = viteConfig.plugins?.filter(
-  (plugin) => !(plugin && "name" in plugin && plugin.name === "novadeck-content-security-policy"),
+  (plugin) => !(plugin && "name" in plugin && plugin.name === contentSecurityPolicyName),
 )
 
 export default mergeConfig(
@@ -27,11 +29,22 @@ export default mergeConfig(
             name: "unit",
             environment: "jsdom",
             // A file's first render or terminal open in jsdom is CPU-bound cold-start work:
-            // on Windows CI it has taken 1.5-5.8s (WorkspaceOverlays, WorkspaceTerminal,
-            // queries), against a fraction of that on Linux and macOS.
+            // on Windows CI it has taken 1.5-5.8s (queries), against a fraction of that on
+            // Linux and macOS.
             testTimeout: 20_000,
             include: ["src/**/*.test.ts"],
             exclude: ["src/specs/**"],
+          },
+        },
+        {
+          extends: true,
+          test: {
+            name: "integration",
+            // The tests that render the whole workspace over the spec backend, in jsdom as the
+            // unit project runs them, with the same budget for a cold first render.
+            environment: "jsdom",
+            testTimeout: 20_000,
+            include: ["src/specs/**/*.test.ts"],
           },
         },
         {

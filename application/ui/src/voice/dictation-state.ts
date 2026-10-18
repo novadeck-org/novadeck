@@ -1,4 +1,4 @@
-import type { TerminalKey } from "../model/types"
+import type { TerminalKey } from "#core/types"
 
 // Dictation as a state machine, apart from the microphone and the backend: what a key
 // press, a release, a click or a timer does to a recording, and what the controller must

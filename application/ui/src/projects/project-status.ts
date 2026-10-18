@@ -1,12 +1,12 @@
-import { agentWorking } from "../model/agent-finish"
+import { agentWorking } from "#core/agent-finish"
 import {
   doneText,
   terminalAsk,
   terminalAsks,
   terminalPhase,
   type TerminalAsk,
-} from "../model/terminal-ending"
-import type { WorkspaceProject } from "../model/types"
+} from "#core/terminal-ending"
+import type { WorkspaceProject } from "#core/types"
 
 // What a project's terminals show at a glance, the most pressing of them, as the switcher
 // marks it: an agent asking the person a question, or waiting on them for a permission or

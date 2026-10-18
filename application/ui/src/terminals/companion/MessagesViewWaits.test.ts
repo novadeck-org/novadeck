@@ -1,7 +1,8 @@
 import { createElement } from "react"
 import { afterEach } from "vitest"
 
-import type { MailWaits, TerminalMail } from "../../model/messages"
+import type { MailWaits, TerminalMail } from "#core/messages"
+
 import { describe, expect, it } from "../../test"
 import { render } from "../../test/render"
 import type { MailHandle } from "./mail"

@@ -1,7 +1,7 @@
-import { useEffect, useRef, type ComponentProps } from "react"
+import { useEffect, useRef, type ComponentProps, type ComponentType } from "react"
 import { HashRouter, MemoryRouter } from "react-router"
 
-import type { CreateBackend } from "../backend/port"
+import type { Backend, BackendSelection, CreateBackend, TerminalKey } from "../backend/port"
 import { sidebarToggle } from "../interaction/dom"
 import { dictationKeys } from "../interaction/shortcuts"
 import { cancelTerminalTransition } from "../layouts/transition"
@@ -12,7 +12,6 @@ import { SidebarRail } from "../shell/SidebarRail"
 import { WorkspacePanels } from "../shell/WorkspacePanels"
 import { ZenDock } from "../shell/ZenDock"
 import { DictationOverlay } from "../voice/DictationOverlay"
-import { selectBackend } from "./backend"
 import { BackendGate } from "./BackendGate"
 import { BootReporter } from "./BootReporter"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
@@ -31,15 +30,39 @@ import { WorkspaceOverlays } from "./WorkspaceOverlays"
 import { WorkspaceProvider } from "./WorkspaceProvider"
 import { WorkspaceStage } from "./WorkspaceStage"
 
-export type AppProps = {
-  // Read once when the app mounts; later changes are ignored. Defaults to app/backend.ts.
-  readonly createBackend?: CreateBackend
+/** A panel beside the workspace, as the content preview's debug panel is. */
+export type WorkspacePanel = ComponentType<{
+  // Adds a terminal to the current session and returns its key.
+  readonly addTerminal: () => TerminalKey
+  readonly startFresh: () => void
+  readonly selected: () => TerminalKey | undefined
+}>
+
+export type AppProps = (
+  | {
+      // The backend its entry chose (see src/entries/), read once when the app mounts.
+      readonly selection: BackendSelection
+      readonly createBackend?: never
+    }
+  | {
+      // A spec's backend, ready at once.
+      readonly createBackend: CreateBackend
+      readonly selection?: never
+    }
+) & {
   // True when another page frames the app (see app/embedded.ts). Its address then stays in
   // memory, so moving around the app adds nothing to the framing page's Back button.
   readonly embedded?: boolean
+  // The panel the entry made with the backend it chose, where it made one.
+  readonly panel?: ((backend: Backend) => WorkspacePanel | undefined) | undefined
 }
 
-export const App = ({ createBackend, embedded = false }: AppProps): React.JSX.Element => {
+export const App = ({
+  selection,
+  createBackend,
+  embedded = false,
+  panel,
+}: AppProps): React.JSX.Element => {
   const Router = embedded ? MemoryRouter : HashRouter
   // Framed, the app tells the page around it once it is in view, once per page load:
   // StrictMode's second effect run, or a reboot, finds this set.
@@ -56,13 +79,13 @@ export const App = ({ createBackend, embedded = false }: AppProps): React.JSX.El
     <EmbeddedContext value={embedded}>
       <BackendGate
         onShown={shown}
-        selection={createBackend ? { createBackend } : selectBackend}
+        selection={selection ?? { createBackend }}
         render={(create, boot) => (
           <Router useTransitions={false}>
             <WorkspaceProvider createBackend={create}>
               <BootReporter report={boot} />
               <VisitorCover>
-                <WorkspaceApp />
+                <WorkspaceApp panel={panel} />
               </VisitorCover>
             </WorkspaceProvider>
           </Router>
@@ -72,12 +95,13 @@ export const App = ({ createBackend, embedded = false }: AppProps): React.JSX.El
   )
 }
 
-// The backend's debug panel, where this launch offers one.
-const DebugSection = (): React.JSX.Element | null => {
+// The panel the entry made with this backend, where it made one.
+const PanelSection = ({ panel }: Pick<AppProps, "panel">): React.JSX.Element | null => {
   const { backend, commands, workspace } = useWorkspaceServices()
-  const Panel = backend.DebugPanel
+  const Panel = panel?.(backend)
   if (!Panel) return null
   return (
+    // oxlint-disable-next-line react/static-components -- Made once with its backend, not here: the same panel each render.
     <Panel
       addTerminal={() => {
         const terminalId = commands.add()
@@ -109,7 +133,7 @@ const ZenDockWithBadge = (
   props: Omit<ComponentProps<typeof ZenDock>, "badge">,
 ): React.JSX.Element => <ZenDock {...props} badge={useNotificationBadge()} />
 
-export const WorkspaceApp = (): React.JSX.Element => {
+export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX.Element => {
   const services = useWorkspaceServices()
   const { commands, canvas } = services
   const { hideSidebar, toggleSidebar, exitZen, changeView, add } = commands
@@ -193,7 +217,7 @@ export const WorkspaceApp = (): React.JSX.Element => {
           <WorkspaceFooter />
           <WorkspaceOverlays />
           {voice && <DictationOverlay controller={voice} keys={dictationKeys()} />}
-          <DebugSection />
+          <PanelSection panel={panel} />
         </main>
       </InboxHost>
     </DictationContext.Provider>

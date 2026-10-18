@@ -4,13 +4,14 @@ import {
   type ChatRequest,
   type Conversation,
   type Conversations,
-} from "../../model/conversation"
-import { promptRefusal, shellCommand } from "../../model/prompt-refusal"
-import type { WorkspaceSeed } from "../../model/seed"
-import { createStore, type MutableStore } from "../../model/store"
-import type { AgentStatus, TerminalMetadata, Workspace } from "../../model/types"
+} from "#core/conversation"
+import { promptRefusal, shellCommand } from "#core/prompt-refusal"
+import { terminalKeyId } from "#core/registry"
+import type { WorkspaceSeed } from "#core/seed"
+import { createStore, type MutableStore } from "#core/store"
+import type { AgentStatus, TerminalMetadata, Workspace } from "#core/types"
+
 import type { TerminalKey } from "../port"
-import { terminalKeyId } from "../registry"
 import { promptRefused } from "./prompt-refusal"
 import { madeRequest, type DemoRequestOutcome } from "./requests"
 import { chatAgent, chatAgents, terminalSlot } from "./samples"

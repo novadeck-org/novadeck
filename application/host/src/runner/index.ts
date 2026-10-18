@@ -1,6 +1,7 @@
 import { dirname, join } from "node:path"
 
-import { createRunner, servePort } from "@novadeck/runner"
+import { createRunner } from "@novadeck/runner"
+import { servePort } from "@novadeck/wire/server"
 import type { MessagePortMain } from "electron"
 
 import {
@@ -53,7 +54,7 @@ const runner = createRunner({
 process.parentPort.on(
   "message",
   ({ data, ports }: { data: RunnerCommand; ports: MessagePortMain[] }) => {
-    if (data.type === "connect" && ports[0]) servePort(runner, ports[0])
+    if (data.type === "connect" && ports[0]) servePort(runner.sessions, ports[0])
     if (data.type === "persist") runner.persist()
     if (data.type === "close") void runner.close().finally(() => process.exit(0))
   },

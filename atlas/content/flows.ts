@@ -64,7 +64,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "After checking that the sender is its own window, the host makes a MessageChannel and gives one end to the runner.",
         anchor: {
           file: `${host}/main/runner.ts`,
-          text: 'send(child ?? spawn(), { type: "connect" }, [port1])',
+          text: 'send(child ?? spawn(), { type: "connect" }, [port])',
         },
       },
       {
@@ -72,14 +72,14 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         to: "renderer",
         label: "port → page via preload",
         text: "The other end goes to the page, relayed by the preload as a window message because a port cannot cross the context bridge.",
-        anchor: { file: `${host}/preload/index.ts`, text: "ipcRenderer.on(runnerPortChannel" },
+        anchor: { file: `${host}/preload/index.ts`, text: "requestRunner: relayPorts(" },
       },
       {
         from: "runner",
         to: "runner",
         label: "serve router on port",
         text: "The runner serves the router over the port it was handed.",
-        anchor: { file: `${host}/runner/index.ts`, text: "servePort(runner, ports[0])" },
+        anchor: { file: `${host}/runner/index.ts`, text: "servePort(runner.sessions, ports[0])" },
       },
       {
         from: "renderer",
@@ -126,7 +126,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "The attachment sends the data in a terminals.write call.",
         anchor: {
           file: "application/protocol/src/runner.ts",
-          text: "await link.client.terminals.write({ terminalId: this.id, data })",
+          text: "await link.client.terminals.write({ terminalId: id, data })",
         },
       },
       {
@@ -136,7 +136,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "The router hands the call to the terminal manager, which checks that this connection controls the terminal.",
         anchor: {
           file: `${runnerSrc}/router.ts`,
-          text: "write: authorized.terminals.write.handler",
+          text: "write: api.terminals.write.handler",
         },
       },
       {
@@ -173,7 +173,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "The attach stream yields each chunk as an output event.",
         anchor: {
           file: `${runnerSrc}/router.ts`,
-          text: "attach: authorized.terminals.attach.handler",
+          text: "attach: api.terminals.attach.handler",
         },
       },
       {
@@ -340,7 +340,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "The agents.detail stream sends the changed detail to the UI.",
         anchor: {
           file: `${runnerSrc}/router.ts`,
-          text: "detail: authorized.agents.detail.handler",
+          text: "detail: api.agents.detail.handler",
         },
       },
       {

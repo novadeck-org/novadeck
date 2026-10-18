@@ -1,7 +1,7 @@
 import { createContext, useContext, useRef, useSyncExternalStore } from "react"
 
-import type { WindowPlace } from "../model/layout/window-place"
-import { createStore, type Store } from "../model/store"
+import type { WindowPlace } from "#core/layout/window-place"
+import { createStore, type Store } from "#core/store"
 
 // Something dragged off a terminal's taskbar, while the pointer carries it: onto another
 // terminal's taskbar, which shows it there, or into a view's free space, which opens it

@@ -8,12 +8,13 @@ import {
   type ItemId,
   type PlanUnwritableReason,
   type PlanVersion,
-} from "../../model/companion"
-import { messagesKey } from "../../model/companion-bar"
-import { hasMail, type MailState, type Messages, type TerminalMail } from "../../model/messages"
-import type { WorkspaceAction } from "../../model/state"
-import { createStore, type MutableStore, type Store, type WorkspaceStore } from "../../model/store"
-import type { ViewMode, Workspace, WorkspaceTarget } from "../../model/types"
+} from "#core/companion"
+import { messagesKey } from "#core/companion-bar"
+import { hasMail, type MailState, type Messages, type TerminalMail } from "#core/messages"
+import type { WorkspaceAction } from "#core/state"
+import { createStore, type MutableStore, type Store, type WorkspaceStore } from "#core/store"
+import type { ViewMode, Workspace, WorkspaceTarget } from "#core/types"
+
 import { currentMarks, docOf, eolOf, lf, type Mark, type PlanDoc } from "./plan-doc"
 
 // What the companion panes hold while the app runs, apart from the items themselves and
@@ -285,7 +286,7 @@ const revise = async (
     session.pending.set(id, version)
     return
   }
-  const { distance, merge } = await import("./plan-editor/sync")
+  const { distance, merge } = await import("@novadeck/viewers/sync")
   const unconfirmed = session.unconfirmed.get(id) ?? []
   const echo = inFlight === theirs || unconfirmed.includes(theirs)
   withPlan(session, id, (plan) => {
@@ -319,7 +320,7 @@ const revise = async (
       revision: stamp,
       eol: eolOf(incoming.text),
       text: written.text,
-      marks: written.marks,
+      marks: written.changed,
       marked: written.text,
       changes: written.changes,
       showChanges: true,

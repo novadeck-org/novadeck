@@ -12,11 +12,11 @@ import type {
   CompanionWindow,
   ItemContent,
 } from "@novadeck/protocol"
+import { KeyedChanges } from "@novadeck/wire/server"
 
 import { DomainError } from "../errors.js"
 import { agentLabel } from "../messaging/mailbox.js"
 import { mention } from "../terminals/handles.js"
-import { Watcher } from "../terminals/watcher.js"
 import {
   hashOf,
   loadFile,
@@ -167,7 +167,7 @@ export class CompanionItems {
   private readonly records: ItemRecords
   private readonly pollMs: number
   /** Each `watch` stream and the owner whose release ends it. */
-  private readonly watchers = new Map<Watcher<string, CompanionChange>, string>()
+  private readonly watchers = new Map<KeyedChanges<string, CompanionChange>, string>()
   /** Each item's `content` readers, which end once it is deleted. */
   private readonly readers = new Map<string, Set<AbortController>>()
   /**
@@ -273,7 +273,7 @@ export class CompanionItems {
     readonly lines?: { readonly from: number; readonly to: number } | undefined
     readonly title?: string | undefined
   }): Promise<CompanionItem> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const place = this.place(input.terminalId)
     const pointed = await this.pointer(place, {
       file: { path: input.path, ...(input.lines && { lines: input.lines }) },
@@ -340,7 +340,7 @@ export class CompanionItems {
    * goes with it; what that bar held under the same pointer is replaced.
    */
   move(itemId: string, terminalId: string): CompanionItem {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const item = this.item(itemId)
     const place = this.place(terminalId)
     if (place.sessionId !== item.sessionId)
@@ -355,7 +355,7 @@ export class CompanionItems {
 
   /** Moves an item into a new window the client names; a taken id is a CONFLICT. */
   undock(itemId: string, windowId: string): CompanionWindow {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     this.item(itemId)
     if (this.options.terminal(windowId))
       throw new DomainError("CONFLICT", "Window id is already taken")
@@ -369,7 +369,7 @@ export class CompanionItems {
 
   /** Deletes an item and the window holding it; one already gone is let be. */
   close(itemId: string): void {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const removed = this.records.removeItem(itemId)
     if (removed) {
       if (removed.item.plan !== null)
@@ -380,7 +380,7 @@ export class CompanionItems {
 
   /** Gives a window the person's title, or with null its item's name again. */
   renameWindow(windowId: string, title: string | null): void {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     if (!this.records.renameWindow(windowId, title)) throw new DomainError("NOT_FOUND")
     const window = this.records.window(windowId)
     if (window) this.windowChanged(window)
@@ -404,8 +404,8 @@ export class CompanionItems {
    * aborts, the owner is released or the runner shuts down.
    */
   async *watch(ownerId: string, signal?: AbortSignal): AsyncGenerator<CompanionChange> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
-    const watcher = new Watcher<string, CompanionChange>(
+    if (this.stopping) throw new DomainError("CLOSING")
+    const watcher = new KeyedChanges<string, CompanionChange>(
       [
         ...this.records
           .windows()
@@ -457,7 +457,7 @@ export class CompanionItems {
     reveal: boolean,
     signal?: AbortSignal,
   ): AsyncGenerator<ItemContent> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     this.item(itemId)
     const reader = new AbortController()
     const readers = this.readers.get(itemId) ?? new Set()

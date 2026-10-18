@@ -6,7 +6,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import type { InboxType } from "../model/inbox"
+import type { InboxType } from "#core/inbox"
 
 // The icon says the type; its tint (inbox.css) says whether it needs the person.
 export const icons: Readonly<Record<InboxType, LucideIcon>> = {

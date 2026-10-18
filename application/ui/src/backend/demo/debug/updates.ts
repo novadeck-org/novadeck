@@ -1,5 +1,6 @@
-import type { UpdateChannel, UpdateOffer } from "../../../model/update"
-import { updateScenarios } from "../scenarios"
+import type { UpdateChannel, UpdateOffer } from "#core/update"
+
+import { updateScenarios } from "./scenarios"
 import type { DemoActionGroup, DemoStates } from "./types"
 import type { DemoLaunch } from "./with-debug"
 

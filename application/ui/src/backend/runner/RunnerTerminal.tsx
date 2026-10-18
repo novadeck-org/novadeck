@@ -8,12 +8,13 @@ import {
   useSyncExternalStore,
 } from "react"
 
-import { endingText, terminalEnding } from "../../model/terminal-ending"
+import { endingText, terminalEnding } from "#core/terminal-ending"
+
 import { TerminalEndingBar, TerminalLock, TerminalNotice } from "../../ui-toolkit/TerminalStatus"
 import type { TerminalSurfaceProps } from "../port"
 import { restartable } from "./activity"
 import type { SurfaceRuntime } from "./backend"
-import { wantsWebgl } from "./renderer"
+import { wantsWebgl } from "./renderers"
 import { createScreens, type RunnerScreen, type Screens, type ScreenStream } from "./screens"
 
 // Why typing is paused. A failed paste says why in the same notice.
@@ -45,11 +46,12 @@ export const createRunnerTerminal = (
     fontSize,
     focusInput,
     onInputFocused,
+    onScreen = true,
     renderWindow,
   }: TerminalSurfaceProps): React.JSX.Element => {
     // React owns each surface's mount slot; the screen owns the one emulator host.
     // Moving the host preserves its textarea, screen, selection, and PTY attachment.
-    const [host] = useState(() => screens.host(terminalKey))
+    const [host, setHost] = useState(() => screens.host(terminalKey))
     const [screen, setScreen] = useState<RunnerScreen | null>(null)
     const root = useRef<HTMLDivElement | null>(null)
     const refitFrame = useRef<number | null>(null)
@@ -93,7 +95,8 @@ export const createRunnerTerminal = (
     // when it left its previous slot focused.
     const place = useCallback(
       (target: HTMLDivElement, current: RunnerScreen | null): void => {
-        if (host.parentElement !== target) target.append(host)
+        // The slot holds the host alone: one a screen opened again replaces the one before.
+        if (host.parentElement !== target) target.replaceChildren(host)
         current?.followed.refit()
         if (refitFrame.current !== null) cancelAnimationFrame(refitFrame.current)
         refitFrame.current = requestAnimationFrame(() => {
@@ -129,9 +132,22 @@ export const createRunnerTerminal = (
       [],
     )
 
-    // Takes the terminal's screen while this surface shows it: the first surface opens
-    // it, later ones find it as the last one left it.
+    // Whether this surface is mounted, for the cleanup below to tell an unmount from a
+    // release; React cleans effects up in the order they are declared.
+    const mounted = useRef(false)
     useEffect(() => {
+      mounted.current = true
+      return () => {
+        mounted.current = false
+      }
+    }, [])
+
+    // Takes the terminal's screen while this surface shows it: the first surface opens
+    // it, later ones find it as the last one left it. A surface out of the person's sight
+    // lets it go, staying mounted with the host's last drawing, and takes it again when it
+    // is back; each acquire has the one release its cleanup makes.
+    useEffect(() => {
+      if (!onScreen) return
       const acquired = screens.acquire(terminalKey, {
         fontSize: opening.current.fontSize,
         name: opening.current.name,
@@ -139,13 +155,20 @@ export const createRunnerTerminal = (
         webgl: wantsWebgl(opening.current.view),
       })
       setScreen(acquired)
+      // A screen closed between this surface's render and now, as the parked-screen cap can,
+      // opened again in a host of its own: the surface places that one.
+      setHost(acquired.host)
       return () => {
-        if (host.contains(document.activeElement)) acquired.refocus = true
+        // Focus the next surface to show this screen restores is the unmount's to leave: a
+        // surface that stays mounted and lets go of its screen out of sight keeps its host,
+        // and takes the screen again in the same slot.
+        if (!mounted.current && acquired.host.contains(document.activeElement))
+          acquired.refocus = true
         screens.release(terminalKey)
       }
       // The screen follows the terminal, not its changing metadata.
       // oxlint-disable-next-line react-hooks/exhaustive-deps
-    }, [terminalKey, host])
+    }, [terminalKey, onScreen])
 
     useEffect(() => {
       if (screen) screen.waiting = waiting
@@ -173,10 +196,12 @@ export const createRunnerTerminal = (
       screen?.xterm.textarea?.setAttribute("aria-label", `Input for ${name}`)
     }, [screen, name])
 
+    // The request stands until the focus lands: a screen the parked-screen cap closed while
+    // the surface was away is focused in vain, and its fresh one arrives a render later.
     useEffect(() => {
       if (!focusInput || !screen) return
       screen.xterm.focus()
-      onInputFocused()
+      if (screen.host.contains(document.activeElement)) onInputFocused()
     }, [screen, focusInput, onInputFocused])
 
     // A different program body remounts this content; the host moves into the new slot.

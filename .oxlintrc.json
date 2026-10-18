@@ -225,69 +225,6 @@
       }
     },
     {
-      "files": ["libraries/build-kit/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "@novadeck/atlas",
-                  "@novadeck/atlas/**",
-                  "@novadeck/host",
-                  "@novadeck/host/**",
-                  "@novadeck/protocol",
-                  "@novadeck/protocol/**",
-                  "@novadeck/relay",
-                  "@novadeck/relay/**",
-                  "@novadeck/runner",
-                  "@novadeck/runner/**",
-                  "@novadeck/ui",
-                  "@novadeck/ui/**",
-                  "@novadeck/harness-*",
-                  "@novadeck/harness-*/**"
-                ],
-                "message": "A library never imports app code: product specifics come in as options."
-              },
-              {
-                "group": [
-                  "**/../atlas",
-                  "**/atlas/**",
-                  "**/../application",
-                  "**/application/**",
-                  "**/../harnesses",
-                  "**/harnesses/**",
-                  "**/../libraries",
-                  "**/libraries/**",
-                  "**/../*/dist",
-                  "**/../*/dist/**"
-                ],
-                "message": "A library imports another library by its package name, and app code not at all."
-              },
-              {
-                "group": [
-                  "@novadeck/emulator",
-                  "@novadeck/emulator/**",
-                  "@novadeck/sandbox",
-                  "@novadeck/sandbox/**",
-                  "@novadeck/terminal",
-                  "@novadeck/terminal/**",
-                  "@novadeck/tui-input",
-                  "@novadeck/tui-input/**",
-                  "@novadeck/viewers",
-                  "@novadeck/viewers/**",
-                  "@novadeck/wire",
-                  "@novadeck/wire/**"
-                ],
-                "message": "build-kit imports no other library."
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
       "files": ["libraries/emulator/**"],
       "rules": {
         "no-restricted-imports": [
@@ -330,8 +267,6 @@
               },
               {
                 "group": [
-                  "@novadeck/build-kit",
-                  "@novadeck/build-kit/**",
                   "@novadeck/sandbox",
                   "@novadeck/sandbox/**",
                   "@novadeck/terminal",
@@ -393,8 +328,6 @@
               },
               {
                 "group": [
-                  "@novadeck/build-kit",
-                  "@novadeck/build-kit/**",
                   "@novadeck/emulator",
                   "@novadeck/emulator/**",
                   "@novadeck/terminal",
@@ -456,8 +389,6 @@
               },
               {
                 "group": [
-                  "@novadeck/build-kit",
-                  "@novadeck/build-kit/**",
                   "@novadeck/sandbox",
                   "@novadeck/sandbox/**",
                   "@novadeck/tui-input",
@@ -517,8 +448,6 @@
               },
               {
                 "group": [
-                  "@novadeck/build-kit",
-                  "@novadeck/build-kit/**",
                   "@novadeck/sandbox",
                   "@novadeck/sandbox/**",
                   "@novadeck/terminal",
@@ -578,8 +507,6 @@
               },
               {
                 "group": [
-                  "@novadeck/build-kit",
-                  "@novadeck/build-kit/**",
                   "@novadeck/emulator",
                   "@novadeck/emulator/**",
                   "@novadeck/sandbox",
@@ -641,8 +568,6 @@
               },
               {
                 "group": [
-                  "@novadeck/build-kit",
-                  "@novadeck/build-kit/**",
                   "@novadeck/emulator",
                   "@novadeck/emulator/**",
                   "@novadeck/sandbox",

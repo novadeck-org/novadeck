@@ -1,30 +1,9 @@
-import { Terminal } from "@novadeck/emulator/browser"
-import { vi } from "vitest"
-
 import { context, describe, expect, it } from "../../test"
-import { linkHint, linkTerminal, linkTitle, opensLink, webLink } from "./links"
-
-// jsdom has no canvas or media queries; xterm opens without them.
-vi.hoisted(() => {
-  HTMLCanvasElement.prototype.getContext = () => null
-  Object.defineProperty(window, "matchMedia", {
-    configurable: true,
-    value: (query: string) => ({
-      matches: false,
-      media: query,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      addListener: () => {},
-      removeListener: () => {},
-    }),
-  })
-})
+import { linkHint, linkOptions, linkTitle, opensLink, webLink } from "./links"
 
 const click = (
   keys: Partial<Pick<MouseEvent, "button" | "ctrlKey" | "metaKey">> = {},
 ): MouseEvent => new MouseEvent("click", keys)
-
-const range = { start: { x: 1, y: 1 }, end: { x: 1, y: 1 } }
 
 describe("terminal links", () => {
   context("on Apple platforms", () => {
@@ -77,45 +56,29 @@ describe("terminal links", () => {
     })
   })
 
-  context("printed as hyperlinks", () => {
+  context("opened from a terminal", () => {
     const linked = () => {
       const opened: string[] = []
-      const xterm = new Terminal()
-      linkTerminal(xterm, { platform: "other", open: (url) => opened.push(url) })
-      const handler = xterm.options.linkHandler!
-      return {
-        opened,
-        activate: (event: MouseEvent, text: string) => handler.activate(event, text, range),
-      }
+      const links = linkOptions({ platform: "other", open: (url) => opened.push(url) })
+      return { opened, links }
     }
 
     it("open the page on the platform's click", () => {
-      const { opened, activate } = linked()
-      activate(click({ ctrlKey: true }), "https://example.com")
+      const { opened, links } = linked()
+      links.open("https://example.com", click({ ctrlKey: true }))
       expect(opened).toEqual(["https://example.com/"])
     })
 
     it("show where they go on hover, whatever their text says", () => {
-      const element = document.createElement("div")
-      document.body.append(element)
-      const xterm = new Terminal()
-      linkTerminal(xterm, { platform: "other", open: () => {} })
-      xterm.open(element)
-      const handler = xterm.options.linkHandler!
-      handler.hover!(click(), "https://elsewhere.example/login", range)
-      expect(xterm.element?.getAttribute("title")).toBe(
+      expect(linked().links.title?.("https://elsewhere.example/login")).toBe(
         "https://elsewhere.example/login\nCtrl-click to open",
       )
-      handler.leave!(click(), "https://elsewhere.example/login", range)
-      expect(xterm.element?.hasAttribute("title")).toBe(false)
-      xterm.dispose()
-      element.remove()
     })
 
     it("stay closed on a plain click or another scheme", () => {
-      const { opened, activate } = linked()
-      activate(click(), "https://example.com")
-      activate(click({ ctrlKey: true }), "file:///etc/passwd")
+      const { opened, links } = linked()
+      links.open("https://example.com", click())
+      links.open("file:///etc/passwd", click({ ctrlKey: true }))
       expect(opened).toEqual([])
     })
   })

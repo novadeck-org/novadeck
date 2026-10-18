@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 
-import type { Store } from "../../model/store"
+import type { Store } from "#core/store"
 
 // The value a component last committed, so a new selector can keep it when equal.
 type Committed<T> = {

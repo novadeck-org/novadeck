@@ -8,14 +8,15 @@ import type {
   Conversation,
   ConversationKey,
   Conversations,
-} from "../../model/conversation"
-import { createTerminalState } from "../../model/state"
-import { createStore } from "../../model/store"
-import type { TerminalMetadata, Workspace } from "../../model/types"
+} from "#core/conversation"
+import { terminalKeyId } from "#core/registry"
+import { createTerminalState } from "#core/state"
+import { createStore } from "#core/store"
+import type { TerminalMetadata, Workspace } from "#core/types"
+
 import { context, describe, expect, it } from "../../test"
 import { render, type Rendered } from "../../test/render"
 import type { BackendConnectionState, TerminalKey } from "../port"
-import { terminalKeyId } from "../registry"
 import { DemoAgentContext } from "./agent-link"
 import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine } from "./engine"
@@ -729,16 +730,16 @@ describe("an agent terminal's opening", () => {
     const { change, surface, mountView } = setup(codex)
     const { view, text } = mountView(codex)
     expect(text()).toContain("Review the checkout changes")
-    change(planning)
+    act(() => change(planning))
     view.rerender(surface(planning))
     expect(text()).toContain("Plan a compact order summary")
     expect(text()).not.toContain("Review the checkout changes")
-    change(working)
+    act(() => change(working))
     view.unmount()
     mounted.splice(0)
     const next = mountView(working)
     expect(next.text()).toContain("Plan a compact order summary")
-    change(codex)
+    act(() => change(codex))
     next.view.rerender(surface(codex))
     expect(next.text()).toContain("Review the checkout changes")
   })

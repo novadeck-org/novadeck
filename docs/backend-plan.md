@@ -48,8 +48,8 @@ network connections.
 
 ```ts
 // Check compatibility before attaching or changing anything.
-const runner = await client.runner.handshake({ protocolVersion: 1, token })
-// Returns runner identity and the negotiated protocol version.
+const runner = await client.wire.handshake({ protocolVersion: 1, token })
+// Returns the runner's epoch (its lifetime) and the negotiated protocol version.
 
 const projects = await client.projects.list()
 const sessions = await client.sessions.list({ projectId })

@@ -10,6 +10,8 @@ import { memoryPorts } from "@novadeck/wire/testing"
 import { implement, ORPCError } from "@orpc/server"
 import { RPCHandler } from "@orpc/server/message-port"
 
+import type { CanvasLayout } from "#core/types"
+
 import { connectRunnerBackend } from "./index"
 import { channel, id, keptSummary, savedSession } from "./scripted"
 import { encodeSession } from "./session-state"
@@ -53,7 +55,14 @@ const encoder = new TextEncoder()
 // changes to a terminal through the runner's watch and writes output into its attached
 // streams; the runner counts the bytes those streams send the UI and the streams open at
 // once. A procedure the script doesn't play fails, and is noted in `unscripted`.
-export const scriptedRunner = ({ terminals: count }: { readonly terminals: number }) => {
+export const scriptedRunner = ({
+  terminals: count,
+  canvas,
+}: {
+  readonly terminals: number
+  // Opens the session in Canvas, laid out so.
+  readonly canvas?: CanvasLayout
+}) => {
   const projectId = id(98)
   const sessionId = id(100)
   const terminalIds = Array.from({ length: count }, (_, index) => id(index + 1))
@@ -94,6 +103,7 @@ export const scriptedRunner = ({ terminals: count }: { readonly terminals: numbe
   let bytes = 0
   let written = 0
   let streaming = 0
+  let attaches = 0
   let sequence = 0
   const session = {
     id: sessionId,
@@ -104,6 +114,7 @@ export const scriptedRunner = ({ terminals: count }: { readonly terminals: numbe
         terminalIds.map((terminalId) => ({ id: terminalId, lastProcess: "claude" })),
         5,
         sessionId,
+        canvas,
       ),
       0,
     ),
@@ -134,8 +145,8 @@ export const scriptedRunner = ({ terminals: count }: { readonly terminals: numbe
     throw new Error(`The counter run doesn't script ${name}`)
   }
   const router = api.router({
-    runner: {
-      handshake: api.runner.handshake.handler(() => ({ runnerId: id(99), protocolVersion })),
+    wire: {
+      handshake: api.wire.handshake.handler(() => ({ epoch: id(99), protocolVersion })),
     },
     projects: {
       list: api.projects.list.handler(() => [{ id: projectId, name: "Agents", cwd: "/tmp" }]),
@@ -178,6 +189,7 @@ export const scriptedRunner = ({ terminals: count }: { readonly terminals: numbe
         const held = streams.get(terminalId) ?? new Set()
         streams.set(terminalId, held.add(events))
         streaming += 1
+        attaches += 1
         try {
           yield { terminalId, type: "attached" as const, mode: input.mode ?? "control" }
           // The screen as it is, at the size it is.
@@ -333,6 +345,8 @@ export const scriptedRunner = ({ terminals: count }: { readonly terminals: numbe
     written: () => written,
     // How many terminals' streams are attached now.
     streaming: () => streaming,
+    // How many streams have attached, over the runner's life.
+    attaches: () => attaches,
     // Whether a connection is open.
     connected: () => connections > 0,
     // The procedures the app called that the script doesn't play.

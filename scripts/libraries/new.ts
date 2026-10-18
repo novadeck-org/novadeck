@@ -13,7 +13,7 @@ const [name, ...words] = process.argv.slice(2)
 const description = words.join(" ")
 
 // The workspace's package names, without their scope: a library may not take one.
-const taken = ["application", "engines", "harnesses", "libraries"]
+const taken = ["application", "engines", "harnesses", "libraries", "tools"]
   .flatMap((folder) =>
     existsSync(join(root, folder))
       ? readdirSync(join(root, folder)).map((each) => join(root, folder, each, "package.json"))

@@ -2,11 +2,10 @@ import { useSortable } from "@dnd-kit/react/sortable"
 import { Check, Eye, EyeOff, Pencil, X, type LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
-import { workspaceShortcutBindings } from "../interaction/shortcuts"
-import { subagentMarks, subagentsBadge, subagentsDetail } from "../model/agent-subagents"
-import { showsHandle, terminalLabel } from "../model/handle"
-import { mailBadgeLabel, type MailBadge } from "../model/messages"
-import { isWindow } from "../model/roster"
+import { subagentMarks, subagentsBadge, subagentsDetail } from "#core/agent-subagents"
+import { showsHandle, terminalLabel } from "#core/handle"
+import { mailBadgeLabel, type MailBadge } from "#core/messages"
+import { isWindow } from "#core/roster"
 import {
   attentionText,
   doneText,
@@ -14,9 +13,11 @@ import {
   terminalEnding,
   terminalPhase,
   unheardText,
-} from "../model/terminal-ending"
-import { nextTurnAge, turnAge } from "../model/turn-age"
-import type { Tile } from "../model/types"
+} from "#core/terminal-ending"
+import { nextTurnAge, turnAge } from "#core/turn-age"
+import type { Tile } from "#core/types"
+
+import { workspaceShortcutBindings } from "../interaction/shortcuts"
 import { SidebarItem } from "../sidebar/SidebarItem"
 import { ContextMenu } from "../ui-toolkit/ContextMenu"
 import { HandleChip } from "../ui-toolkit/HandleChip"
@@ -161,7 +162,7 @@ export const TerminalTab = ({
             )}
             {/* After the program, so the program comes first; where a pointer hovers it
                 waits in the slot Hide and Rename slide into (tabs.css). Only on a terminal
-                agents name by its handle (model/handle.ts). */}
+                agents name by its handle (core/handle.ts). */}
             <HandleChip
               handle={shell && showsHandle(shell) ? shell.handle : undefined}
               className="handle-plain terminal-tab-handle"

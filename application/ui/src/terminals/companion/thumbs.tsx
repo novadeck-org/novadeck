@@ -1,9 +1,12 @@
-import type { CompanionItem } from "../../model/companion"
-import { handleText } from "../../model/handle"
-import type { WorkspaceTarget } from "../../model/types"
+import { outline } from "@novadeck/viewers/text"
+
+import type { CompanionItem } from "#core/companion"
+import { handleText } from "#core/handle"
+import type { WorkspaceTarget } from "#core/types"
+
 import { ArtifactThumb } from "./ArtifactViewer"
 import type { MailHandle } from "./mail"
-import { headingsOf, titleOf } from "./plan-text"
+import { titleOf } from "./plan-text"
 import type { Panes } from "./state"
 import { useContent, usePlan } from "./use-panes"
 
@@ -22,7 +25,7 @@ export const PlanThumb = ({
   return (
     <span className="peek-plan">
       <b>{titleOf(item.name, text)}</b>
-      {headingsOf(text)
+      {outline(text)
         .slice(0, 4)
         .map((heading) => (
           <span key={heading.at}>{heading.text}</span>

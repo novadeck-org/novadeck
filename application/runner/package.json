@@ -35,15 +35,15 @@
     "@novadeck/terminal": "workspace:*",
     "@novadeck/tui-input": "workspace:*",
     "@novadeck/whisper": "workspace:*",
+    "@novadeck/wire": "workspace:*",
     "@orpc/server": "catalog:",
     "hono": "^4.13.13",
-    "node-pty": "1.2.0-beta.14",
-    "ws": "8.22.0",
+    "node-pty": "catalog:",
+    "ws": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@novadeck/sandbox": "workspace:*",
-    "@novadeck/wire": "workspace:*",
     "@types/node": "^26.6.5",
     "@types/ws": "8.18.2",
     "fast-check": "4.10.2",

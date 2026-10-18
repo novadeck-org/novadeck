@@ -1,5 +1,6 @@
-import { titleSourceText } from "../model/title-source"
-import type { Tile } from "../model/types"
+import { titleSourceText } from "#core/title-source"
+import type { Tile } from "#core/types"
+
 import type { ContextMenuAction } from "../ui-toolkit/ContextMenu"
 
 // Where a window undocked from a terminal's companion docks back in: that terminal's

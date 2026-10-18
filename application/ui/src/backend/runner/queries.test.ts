@@ -1,4 +1,4 @@
-import { Terminal } from "@novadeck/emulator/browser"
+import { createView } from "@novadeck/emulator/browser"
 import { vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
@@ -37,16 +37,21 @@ const queries = [
 
 // What a terminal sends back after being written `data`.
 const replies = async (data: string, silenced: boolean): Promise<string[]> => {
-  const xterm = new Terminal({ allowProposedApi: false })
   const element = document.createElement("div")
   document.body.append(element)
-  xterm.open(element)
+  const view = createView(element, {
+    fontSize: 13,
+    fontFamily: "monospace",
+    theme: {},
+    scrollback: 0,
+  })
+  const xterm = view.terminal
   if (silenced) silenceQueries(xterm)
   const sent: string[] = []
   xterm.onData((reply) => sent.push(reply))
   await new Promise<void>((resolve) => xterm.write(data, resolve))
   const text = xterm.buffer.active.getLine(0)?.translateToString(true) ?? ""
-  xterm.dispose()
+  view.dispose()
   element.remove()
   return [...sent, `screen:${text}`]
 }

@@ -1,7 +1,8 @@
 import { WireError } from "@novadeck/wire"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import type { Workspace } from "../../model/types"
+import type { Workspace } from "#core/types"
+
 import { context, describe, expect, it } from "../../test"
 import { workspaceFixture } from "../../test/fixtures"
 import { createSessionSaves } from "./saves"
@@ -101,7 +102,7 @@ describe("session saves", () => {
 
     it("takes the runner refusing saves while it shuts down as the end of saving", async () => {
       const app = open(async () => {
-        throw new WireError("RUNTIME_CLOSING", "Closing.")
+        throw new WireError("CLOSING", "Closing.")
       })
       const first = workspaceFixture()
       app.commit(first)

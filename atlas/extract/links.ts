@@ -9,6 +9,8 @@ const { dirname, join, normalize } = posix
 
 type Kind = AreaLink["kind"]
 type Exports = { prefix: string; target: string }[]
+// A package's own `imports` ("#core/*"), which only files inside its folder may use.
+type Imports = { base: string; prefix: string; target: string }[]
 
 const roots = ["application", "harnesses", "engines"]
 const sourcePattern = /\.(?:tsx?|rs)$/
@@ -64,6 +66,42 @@ const workspacePackages = (repo: string, anchors: Anchors): Map<string, Exports>
   return packages
 }
 
+// Every workspace package's own `imports`, with targets as repository paths.
+const packageImports = (repo: string, anchors: Anchors): Imports =>
+  trackedFiles(
+    repo,
+    roots.map((root) => `${root}/*/package.json`),
+  ).flatMap((file) => {
+    const text = anchors.read(file)
+    if (text === null) return []
+    const json = JSON.parse(text) as { imports?: Record<string, unknown> }
+    const base = dirname(file)
+    return Object.entries(json.imports ?? {}).flatMap(([prefix, value]) => {
+      const target = exportTarget(value)
+      return target === null ? [] : [{ base, prefix, target: join(base, target) }]
+    })
+  })
+
+const resolveImport = (
+  imports: Imports,
+  known: Set<string>,
+  from: string,
+  specifier: string,
+): string | null => {
+  for (const entry of imports) {
+    if (!from.startsWith(`${entry.base}/`)) continue
+    if (!entry.prefix.includes("*")) {
+      if (entry.prefix === specifier) return firstExisting(known, entry.target)
+      continue
+    }
+    const [head, tail] = entry.prefix.split("*") as [string, string]
+    if (!specifier.startsWith(head) || !specifier.endsWith(tail)) continue
+    const middle = specifier.slice(head.length, specifier.length - tail.length)
+    return firstExisting(known, entry.target.replace("*", middle))
+  }
+  return null
+}
+
 const firstExisting = (known: Set<string>, base: string): string | null => {
   const stem = base.replace(/\.js$/, "")
   for (const candidate of [base, stem]) {
@@ -93,10 +131,12 @@ const resolvePackage = (
 
 const resolveSpecifier = (
   packages: Map<string, Exports>,
+  imports: Imports,
   known: Set<string>,
   from: string,
   specifier: string,
 ): string | null => {
+  if (specifier.startsWith("#")) return resolveImport(imports, known, from, specifier)
   if (specifier.startsWith("."))
     return firstExisting(known, normalize(join(dirname(from), specifier)))
   if (specifier.startsWith("@novadeck/")) return resolvePackage(packages, known, specifier)
@@ -108,7 +148,9 @@ const note = (from: string, specifier: string) => {
     ? "@novadeck/*"
     : specifier.startsWith(".")
       ? "relative"
-      : "other"
+      : specifier.startsWith("#")
+        ? "#*"
+        : "other"
   const key = `${pattern} (${from.split("/")[0]})`
   unresolved.set(key, (unresolved.get(key) ?? 0) + 1)
 }
@@ -140,15 +182,16 @@ export const extractLinks = (
   )
   const known = new Set(trackedFiles(repo, roots))
   const packages = workspacePackages(repo, anchors)
+  const imports = packageImports(repo, anchors)
   unresolved.clear()
 
   for (const file of files.filter((candidate) => !candidate.endsWith(".rs"))) {
     const source = anchors.read(file)
     if (source === null) continue
     for (const specifier of specifiersOf(source)) {
-      const target = resolveSpecifier(packages, known, file, specifier)
+      const target = resolveSpecifier(packages, imports, known, file, specifier)
       if (target === null) {
-        if (specifier.startsWith(".") || specifier.startsWith("@novadeck/")) note(file, specifier)
+        if (/^(?:\.|#|@novadeck\/)/.test(specifier)) note(file, specifier)
         continue
       }
       tally(links, areaOf(areas, file), areaOf(areas, target), "import")

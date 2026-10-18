@@ -1,7 +1,8 @@
 import { act, createElement } from "react"
 import { vi } from "vitest"
 
-import type { MurmurState } from "../model/murmur"
+import type { MurmurState } from "#core/murmur"
+
 import { describe, expect, it } from "../test"
 import { render } from "../test/render"
 import { MurmurAddon } from "./MurmurAddon"

@@ -1,12 +1,13 @@
 import { act, createElement, useSyncExternalStore, type ComponentProps } from "react"
 import { afterEach, vi } from "vitest"
 
-import { emptyCompanions, isOnBar } from "../../model/companion"
-import { emptyBar, messagesKey } from "../../model/companion-bar"
-import { noMail, type AgentMessage, type MailState, type Messages } from "../../model/messages"
-import { activeSession, workspaceReducer, type WorkspaceAction } from "../../model/state"
-import { createStore, createWorkspaceStore, type WorkspaceStore } from "../../model/store"
-import type { Workspace } from "../../model/types"
+import { emptyCompanions, isOnBar } from "#core/companion"
+import { emptyBar, messagesKey } from "#core/companion-bar"
+import { noMail, type AgentMessage, type MailState, type Messages } from "#core/messages"
+import { activeSession, workspaceReducer, type WorkspaceAction } from "#core/state"
+import { createStore, createWorkspaceStore, type WorkspaceStore } from "#core/store"
+import type { Workspace } from "#core/types"
+
 import { context, describe, expect, it } from "../../test"
 import { itemFixture, workspaceFixture } from "../../test/fixtures"
 import { render } from "../../test/render"
@@ -89,7 +90,12 @@ const renderTerminal = (
     ),
   )
   unmounts.push(unmount)
-  unmounts.push(panes.connect())
+  // Connecting tells the terminal its messages: a render of its own, inside act.
+  let disconnect = (): void => {}
+  act(() => {
+    disconnect = panes.connect()
+  })
+  unmounts.push(disconnect)
   return { container, workspace }
 }
 

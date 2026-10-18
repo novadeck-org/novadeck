@@ -1,7 +1,7 @@
-import type { SandboxState } from "../../../model/sandbox"
-import { createStore, type MutableStore } from "../../../model/store"
-import type { Workspace } from "../../../model/types"
-import type { BootRehearsals } from "../../boot-rehearsal"
+import type { SandboxState } from "#core/sandbox"
+import { createStore, type MutableStore } from "#core/store"
+import type { Workspace } from "#core/types"
+
 import type {
   Backend,
   BackendConnectionState,
@@ -14,7 +14,8 @@ import { isDemoMurmur } from "../murmur"
 import { demoTurns } from "../turns"
 import { createDemo, type DemoVariant } from "../variants"
 import { isDemoVoice } from "../voice"
-import { createDebugPanel } from "./DebugPanel"
+import type { BootRehearsals } from "./boot-rehearsal"
+import { createDebugPanel, type DebugPanel } from "./DebugPanel"
 import { doorbellGroups } from "./doorbell"
 import { inboxGroups } from "./inbox"
 import { murmurGroups } from "./murmur"
@@ -79,6 +80,13 @@ const terminalCount = (workspace: Workspace | undefined): number =>
   workspace?.projects
     .flatMap((project) => project.history)
     .reduce((count, session) => count + session.state.roster.terminals.length, 0) ?? 0
+
+// Each debug demo's panel, by its backend: the content preview's entry hands it to the app
+// (see src/entries/previews.tsx), as a panel isn't part of what a backend offers.
+const panels = new WeakMap<Backend, DebugPanel>()
+
+/** The debug panel for a backend `createDebugDemo` made. */
+export const debugPanelOf = (backend: Backend): DebugPanel | undefined => panels.get(backend)
 
 // Wraps a demo variant in the shell the runner's backend has around it: a connection
 // that can drop, a crash loop that can trip, a boot that takes its time, and the states
@@ -149,7 +157,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     failed = []
   }
 
-  return {
+  const backend: Backend = {
     ...inner,
     commit: (workspace, actions) => {
       latest = workspace
@@ -185,7 +193,10 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     ...(launch.uninstall ? { uninstall: createDemoUninstall(launch.uninstall).uninstall } : {}),
     pickDirectory: states.pickDirectory,
     ...(inner.conversations ? { conversations: states.chat(inner.conversations) } : {}),
-    DebugPanel: createDebugPanel({
+  }
+  panels.set(
+    backend,
+    createDebugPanel({
       launch,
       shell,
       states: {
@@ -210,5 +221,6 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
         return { ...target, terminalId: terminal.id }
       },
     }),
-  }
+  )
+  return backend
 }

@@ -1648,7 +1648,7 @@ Messaging tells any number of listeners of each change (`Messaging.subscribe`), 
 doorbell and every watch among them.
 
 The UI follows every terminal's listing with `messages.watch`, through the backend's
-optional `messages` capability (`model/messages.ts`):
+optional `messages` capability (`core/messages.ts`):
 
 - **Count.** A terminal's sidebar tab shows what its companion bar holds, the messages
   among them, marked while some wait for its agent: those to it that are `queued`,
@@ -1712,7 +1712,7 @@ again.
    `messaging/delivery.ts`.
 3. **UI:** badges, the Messages view and the pause switch. Built: `messages.watch` in
    `application/runner/src/terminals/manager.ts` over `Messaging.subscribe`, the
-   contract in `model/messages.ts` of `application/ui`, the runner's side in
+   contract in `core/messages.ts` of `application/ui`, the runner's side in
    `backend/runner/messages.ts`, the tab's mark in `terminals/companion/TabKinds.tsx`, the view in
    `terminals/companion/MessagesView.tsx`, and the title's source and reset on the tab in
    `terminals/TerminalTab.tsx`.

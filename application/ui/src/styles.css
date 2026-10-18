@@ -1,7 +1,8 @@
 /* The cascade order every stylesheet fits into; see docs/theming.md. */
 @layer theme, base, components, themes, accessibility, utilities;
 
-@import "tailwindcss";
+/* The package, whichever entry's page Vite serves from: Tailwind looks for classes from here. */
+@import "tailwindcss" source("..");
 @import "./theme/contract.css";
 @import "allotment/dist/style.css" layer(base);
 @import "./theme/base.css" layer(base);
@@ -57,8 +58,11 @@
 @import "./app/boot-splash.css" layer(components);
 @import "./shell/notification-badge.css" layer(components);
 @import "./shell/zen-dock.css" layer(components);
-@import "./terminals/companion/prose.css" layer(components);
 @import "@novadeck/viewers/code.css" layer(components);
+@import "@novadeck/viewers/image.css" layer(components);
+@import "@novadeck/viewers/browser.css" layer(components);
+@import "@novadeck/viewers/markdown.css" layer(components);
+@import "./terminals/companion/prose.css" layer(components);
 @import "./terminals/companion/syntax.css" layer(components);
 @import "./preferences/settings.css" layer(components);
 @import "./preferences/welcome.css" layer(components);

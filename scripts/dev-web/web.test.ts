@@ -12,6 +12,11 @@ describe("dev:web", () => {
     })
   })
 
+  it("serves the UI's web entry, which reaches the runner over a WebSocket", () => {
+    const [, ui] = devWebCommands("a".repeat(64))
+    expect(ui?.command).toBe("pnpm --filter @novadeck/ui dev --mode web")
+  })
+
   it("keeps the token out of the runner's other variables", () => {
     const [runner] = devWebCommands("secret-token-for-this-test-only-000000")
     expect(Object.keys(runner?.env ?? {})).not.toContain("VITE_NOVADECK_RUNNER_TOKEN")

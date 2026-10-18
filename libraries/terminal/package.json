@@ -31,21 +31,37 @@
         "types": "./dist/shell.d.ts",
         "default": "./dist/shell.js"
       }
+    },
+    "./testing": {
+      "node": {
+        "development": "./src/testing.ts",
+        "types": "./dist/testing.d.ts",
+        "default": "./dist/testing.js"
+      }
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node --input-type=module -e \"import { cpSync } from 'node:fs'; cpSync('src/testing/child.mjs', 'dist/testing/child.mjs')\"",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@novadeck/emulator": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
     "fast-check": "4.10.2",
-    "node-pty": "1.2.0-beta.14",
+    "node-pty": "catalog:",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
+  },
+  "peerDependencies": {
+    "node-pty": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "node-pty": {
+      "optional": true
+    }
   }
 }

@@ -26,7 +26,12 @@ const packagingFiles = new Set([
   "tsconfig.base.json",
   "turbo.json",
 ])
-const packagingFolders = ["patches/", "scripts/install/", "scripts/package/"]
+const packagingFolders = [
+  "libraries/emulator/patches/",
+  "libraries/terminal/patches/",
+  "scripts/install/",
+  "scripts/package/",
+]
 
 // Files in a package that no build reads: its tests, specs and end-to-end scenarios, and
 // its prose.

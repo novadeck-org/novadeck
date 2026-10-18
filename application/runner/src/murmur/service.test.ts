@@ -1314,7 +1314,7 @@ describe("closing murmur", () => {
 
     await murmur.close()
 
-    await expect(murmur.install()).rejects.toMatchObject({ code: "RUNTIME_CLOSING" })
+    await expect(murmur.install()).rejects.toMatchObject({ code: "CLOSING" })
     await expect(murmur.describe(digest, { terminal: "t" })).resolves.toBeUndefined()
   })
 

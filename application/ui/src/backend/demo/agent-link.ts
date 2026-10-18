@@ -1,7 +1,8 @@
 import { createContext } from "react"
 
-import type { Conversations } from "../../model/conversation"
-import type { AgentTurnEnd, AgentUsage, TerminalMetadata } from "../../model/types"
+import type { Conversations } from "#core/conversation"
+import type { AgentTurnEnd, AgentUsage, TerminalMetadata } from "#core/types"
+
 import type { TerminalKey } from "../port"
 
 // The demo's agents have one owner, `demoTurns`: each terminal's agent status, the

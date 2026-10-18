@@ -1,27 +1,27 @@
 import type { ComponentType, ReactNode } from "react"
 
-import type { Companions } from "../model/companion"
-import type { Conversations } from "../model/conversation"
-import type { AgentName } from "../model/harnesses"
-import type { Inbox } from "../model/inbox"
-import type { Messages } from "../model/messages"
-import type { Murmur } from "../model/murmur"
-import type { PortableState } from "../model/portable"
-import type { SandboxState } from "../model/sandbox"
-import type { WorkspaceSeed } from "../model/seed"
-import type { WorkspaceAction } from "../model/state"
-import type { Store } from "../model/store"
-import type { TelemetryReader } from "../model/telemetry"
+import type { Companions } from "#core/companion"
+import type { Conversations } from "#core/conversation"
+import type { AgentName } from "#core/harnesses"
+import type { Inbox } from "#core/inbox"
+import type { Messages } from "#core/messages"
+import type { Murmur } from "#core/murmur"
+import type { PortableState } from "#core/portable"
+import type { SandboxState } from "#core/sandbox"
+import type { WorkspaceSeed } from "#core/seed"
+import type { WorkspaceAction } from "#core/state"
+import type { Store } from "#core/store"
+import type { TelemetryReader } from "#core/telemetry"
 import type {
   TerminalKey,
   TerminalMetadata,
   ViewMode,
   Workspace,
   WorkspaceTarget,
-} from "../model/types"
-import type { UninstallPlan, UninstallResult } from "../model/uninstall"
-import type { UpdateChannel, UpdateOffer } from "../model/update"
-import type { Voice } from "../model/voice"
+} from "#core/types"
+import type { UninstallPlan, UninstallResult } from "#core/uninstall"
+import type { UpdateChannel, UpdateOffer } from "#core/update"
+import type { Voice } from "#core/voice"
 
 // The UI-owned contract every terminal backend implements. Only app/ talks to it.
 
@@ -61,6 +61,9 @@ export type TerminalSurfaceProps = {
   readonly focusInput: boolean
   // Stable across renders; call it after focusing the input.
   readonly onInputFocused: () => void
+  // Whether the surface's window is where the person can see it. A surface off screen may
+  // let its screen go, and takes it again when it is back. Absent means on screen.
+  readonly onScreen?: boolean
 }
 
 // Workspace changes a backend reports on its own, as the owner of every terminal, item
@@ -274,9 +277,6 @@ export type Backend = {
     readonly run: (options: { readonly keepData: boolean }) => Promise<UninstallResult>
     readonly quit: () => void
   }
-  // Optional. The debug panel, where this launch offers it: it triggers the states
-  // the backend can be in. See README "Debug panel".
-  readonly DebugPanel?: ComponentType<DebugPanelProps>
   // Optional. Marks a public build for a website's visitors: the app shows it is a
   // simulation, with a call to download, and a narrow window gets a panel instead.
   readonly visitor?: true
@@ -310,14 +310,6 @@ export type AgentConnection = {
   readonly error?: string
   // What keeps its messaging from working whole while connected, as the runner says.
   readonly limited?: "own-status-line" | undefined
-}
-
-// What the debug panel may ask of the workspace.
-export type DebugPanelProps = {
-  // Adds a terminal to the current session and returns its key.
-  readonly addTerminal: () => TerminalKey
-  readonly startFresh: () => void
-  readonly selected: () => TerminalKey | undefined
 }
 
 // "unavailable" means the backend gave up reconnecting.
@@ -361,7 +353,7 @@ export type BootProgress = {
   readonly done: boolean
 }
 
-// What app/backend.ts chooses: a backend ready at once, or one to connect to.
+// What an app's entry chooses: a backend ready at once, or one to connect to.
 export type BackendSelection =
   | { readonly createBackend: CreateBackend }
   | {

@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto"
 import { constants, rmSync, writeFileSync } from "node:fs"
 import { access, realpath, stat } from "node:fs/promises"
-import { homedir, constants as system } from "node:os"
+import { homedir } from "node:os"
 import { basename, delimiter, isAbsolute, join, resolve as resolvePath } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
@@ -51,9 +51,14 @@ import type {
 } from "@novadeck/protocol"
 import { murmurGist, murmurHeadline } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
-import { Subscription } from "@novadeck/terminal/host"
 import {
-  anyRunning,
+  createTerminal,
+  type Attachment,
+  type Emitted,
+  type Terminal,
+  type TerminalOptions as HostOptions,
+} from "@novadeck/terminal/host"
+import {
   foregroundProcess,
   foregroundRuns,
   openFiles,
@@ -62,11 +67,15 @@ import {
   relayMs,
   sampleForeground,
   shellInForeground,
-  taskkillTree,
+  spawnPty,
   terminalForeground,
   Trees,
+  type Disposable,
+  type EndBudget,
   type Foreground,
-  type Member,
+  type NativeSpawn,
+  type ProcessTrees,
+  type Pty,
 } from "@novadeck/terminal/pty"
 import {
   afterKeys,
@@ -75,22 +84,16 @@ import {
   osc9Directory,
   pathKey,
   refreshPath,
+  startsCommands,
   withLocale,
   type Line,
+  type ShellLaunch,
 } from "@novadeck/terminal/shell"
-import {
-  freshNonce,
-  InputQueue,
-  keysOf,
-  type HoldBudget,
-  type InputHold,
-  type InterruptHost,
-  type InterruptOptions,
-  type PromptHost,
-  type PromptOptions,
-} from "@novadeck/tui-input"
+import { freshNonce, InputQueue, keysOf } from "@novadeck/tui-input"
+import type { HoldBudget, InputHold, PromptHost, PromptOptions } from "@novadeck/tui-input"
+import type { InterruptHost, InterruptOptions } from "@novadeck/tui-input"
 import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
-import * as pty from "node-pty"
+import { Latest } from "@novadeck/wire/server"
 
 import { readPlanFile, type PlanText } from "../companions/content.js"
 import type { CompanionItems, TerminalPlace } from "../companions/items.js"
@@ -140,7 +143,7 @@ import type { MailboxRecords } from "../messaging/records.js"
 import type { Describer } from "../murmur/describer.js"
 import { inherited } from "../shell/inherited.js"
 import type { InstalledShell } from "../shell/install.js"
-import { shellLaunch, startsCommands, type ShellLaunch } from "../shell/integration.js"
+import { shellLaunch } from "../shell/integration.js"
 import {
   listenForReports,
   unanswered,
@@ -168,7 +171,6 @@ import { Dialogs, type DialogsHost, type DialogsOptions } from "./dialogs.js"
 import { Doorbell, tracer, type DoorbellHost, type DoorbellOptions } from "./doorbell.js"
 import { mention, nextHandle, wordOf } from "./handles.js"
 import { splitReports } from "./keys.js"
-import { Latest } from "./latest.js"
 import { leftoverNonce } from "./leftover.js"
 import {
   Murmur,
@@ -211,7 +213,6 @@ import {
   type TerminalRecords,
 } from "./records.js"
 import { restoredSeparator } from "./restored.js"
-import { snapshot } from "./snapshot.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
 import { transcriptChanges } from "./transcripts.js"
 import { TerminalWatcher } from "./watcher.js"
@@ -330,6 +331,16 @@ export type TerminalOptions = {
    * for agents, which may be another build's, and waits on the shell files being written.
    */
   relay?: string
+  /**
+   * The pty as a test plays it: node-pty's `spawn`, the platform its ending follows (this
+   * system's when omitted, whatever `platform` says, as real shells run here), and the
+   * process trees a Windows terminal's programs are ended by.
+   */
+  pty?: {
+    readonly native?: NativeSpawn
+    readonly platform?: NodeJS.Platform
+    readonly trees?: ProcessTrees
+  }
 }
 
 type Create = {
@@ -349,16 +360,12 @@ type Create = {
 }
 type Size = { cols: number; rows: number }
 type Attach = { terminalId: string; afterSequence?: number; mode?: "control" | "observe" }
-type Retained = { event: TerminalEvent; bytes: number }
 type Record = {
   summary: TerminalSummary
-  process: pty.IPty
+  process: Pty
   screen: Screen
-  sequence: number
-  history: Retained[]
-  historyBytes: number
-  subscribers: Map<string, Subscription<TerminalEvent>>
-  controller: string | undefined
+  /** Its events and who reads them. */
+  terminal: Terminal
   chain: Promise<void>
   pendingReads: number
   /** The output read but not yet on its screen, in characters; see `output`. */
@@ -369,14 +376,14 @@ type Record = {
    * began, or once other work was queued after it, as a resize, which later output must
    * not be drawn ahead of.
    */
-  unread: { readonly child: pty.IPty; readonly data: string }[] | null
+  unread: { readonly child: Pty; readonly data: string }[] | null
   pendingAttachments: number
   exitQueued: boolean
   /** Closed by the person or an agent, and forgotten: nothing saves it again. */
   closed: boolean
   exited: Promise<void>
   resolveExit: () => void
-  listeners: pty.IDisposable[]
+  listeners: Disposable[]
   closing: Promise<void> | undefined
   /** `performance.now()` at spawn, for the exit's `ranMs`. */
   startedAt: number
@@ -478,7 +485,7 @@ type Record = {
       readonly rows: number
       readonly owner: string
       /** The owner's attachment that asked, as a window showing it anew attaches again. */
-      readonly attachment: Subscription<TerminalEvent> | undefined
+      readonly attachment: Attachment | undefined
     } | null
   } | null
   /** When its window was last resized, in epoch milliseconds; 0 before any resize. */
@@ -542,7 +549,7 @@ type Record = {
  * agent, and the file holding that command, until the shell takes it or it is cancelled.
  */
 type Started = {
-  process: pty.IPty
+  process: Pty
   screen: Screen
   /** The mouse's encoding a program set on its screen. */
   mouseEncoding: () => MouseEncoding
@@ -565,23 +572,6 @@ const alive = (pid: string): boolean => {
     return true
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === "EPERM"
-  }
-}
-
-/**
- * Resumes a process group hung up as its terminal closed, once the shell has exited. On
- * its own hangup bash takes the terminal back for itself before it exits, so a program
- * still restoring the terminal then, as an agent's TUI does on its way out, is stopped
- * by SIGTTIN or SIGTTOU. Should that stop not have finished as bash exits, the kernel
- * doesn't send the orphaned group its SIGHUP and SIGCONT, and the program stays stopped
- * for good. Once the shell is gone the terminal answers with an error instead, so the
- * resumed program finishes exiting. A group already gone is skipped.
- */
-const resumeGroup = (group: number): void => {
-  try {
-    process.kill(-group, "SIGCONT")
-  } catch {
-    // Gone.
   }
 }
 
@@ -680,43 +670,38 @@ const shutdownTreeGraceMs = 1_000
 // and for closing the rest of the runner after.
 const shutdownTreesMs = 3_000
 
-/**
- * Terminals that have drawn. node-pty on Windows queues a kill until then; after, its kill
- * ends the shell at once and closes the console, which ends the programs still attached.
- */
-const drawnTerminals = new WeakSet<pty.IPty>()
-
-/**
- * Ends a terminal's program that its first kill left running. On Windows, which has no
- * signals, node-pty throws on one, and later still when it queued the kill until the
- * terminal first drew: its process and every program it started are ended by its id
- * instead. Until its output connects, node-pty names that id 0, which would end the runner
- * itself, so it rejects, and the terminal is taken as ended while node-pty's queued kill
- * closes its console later.
- */
-export const forceKill = async (
-  child: Pick<pty.IPty, "pid" | "kill">,
-  platform: NodeJS.Platform = process.platform,
-  end: (pid: number) => Promise<void> | void = taskkillTree,
-): Promise<void> => {
-  if (platform !== "win32") return child.kill("SIGKILL")
-  if (!(child.pid > 0)) throw new Error("The terminal's program has no process id yet.")
-  await end(child.pid)
-}
-
-/** A signal number's name, such as `SIGKILL`; Windows has no signals. */
-const signalName = (signal: number | undefined): string | null => {
-  if (!signal || process.platform === "win32") return null
-  const entry = Object.entries(system.signals).find(([, value]) => value === signal)
-  return entry?.[0] ?? null
-}
-
 const positive = (value: number | undefined, fallback: number): number => {
   const result = value ?? fallback
   if (!Number.isSafeInteger(result) || result < 1)
     throw new RangeError("Terminal limits must be positive integers.")
   return result
 }
+
+/**
+ * A terminal's events and attachments, its budgets counting each event as the wire sends
+ * it, in its envelope; its snapshots are of `record`'s screen.
+ */
+const hosted = (
+  limits: HostOptions["limits"],
+  terminalId: string,
+  record: () => Record,
+  controller: string | undefined,
+): Terminal =>
+  createTerminal({
+    eventBytes: (event) => Buffer.byteLength(JSON.stringify({ ...event, terminalId })),
+    limits,
+    controller,
+    view: () => {
+      const { screen, summary, mouseEncoding } = record()
+      return {
+        screen,
+        cols: summary.cols,
+        rows: summary.rows,
+        exit: summary.exit,
+        mouse: mouseEncoding(),
+      }
+    },
+  })
 
 /** How long `settleBox` looks at a screen for an empty box, in milliseconds. */
 const boxSettleMs = 5_000
@@ -785,6 +770,7 @@ export class Terminals {
       | "items"
       | "describer"
       | "murmurTimes"
+      | "pty"
     >
   > & {
     env: NodeJS.ProcessEnv
@@ -800,7 +786,9 @@ export class Terminals {
   }
   private readonly integration: Promise<Integration | undefined>
   /** Windows' process trees, which a closed terminal's programs are ended by. */
-  private readonly trees: Trees
+  private readonly trees: ProcessTrees
+  /** How terminals' ptys start, and the platform their ending follows. */
+  private readonly pty: { readonly native?: NativeSpawn; readonly platform: NodeJS.Platform }
   private transcripts: boolean
   /** The handles each session has given, without records to keep them. */
   private readonly handles = new Map<string, ReadonlySet<string>>()
@@ -880,7 +868,11 @@ export class Terminals {
     // Child programs do not need the runner's network capability, nor the identity of a
     // Novadeck terminal the runner itself was started from.
     for (const name of inherited) delete this.options.env[name]
-    this.trees = new Trees(async () => this.options.relay)
+    this.trees = options.pty?.trees ?? new Trees(async () => this.options.relay)
+    this.pty = {
+      ...(options.pty?.native && { native: options.pty.native }),
+      platform: options.pty?.platform ?? process.platform,
+    }
     // Read once now, so the first terminal doesn't wait for it; see `shellEnvironment`.
     // After the deletes, as the relay, or PowerShell, that reads it gets this environment.
     if (this.options.freshPath) void this.shellEnvironment()
@@ -996,7 +988,7 @@ export class Terminals {
    * integration, does not start.
    */
   async create(input: Create, ownerId: string): Promise<TerminalSummary> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     // A closed terminal stays closed, even while its shell is still ending.
     if (this.closedIds.has(input.id)) throw new DomainError("TERMINAL_NOT_FOUND")
     // Checked before eviction, so a retained exited record keeps its id taken.
@@ -1025,7 +1017,7 @@ export class Terminals {
       const integration = await this.shellIntegration()
       const connected = await this.connected(input.resume)
       const env = await environment
-      if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+      if (this.stopping) throw new DomainError("CLOSING")
       // Closed, even while it was being restored, as from another window, or its project is
       // going: it stays closed, and none starts there.
       if (this.closedIds.has(input.id) || this.closingSessions.has(input.sessionId))
@@ -1087,11 +1079,12 @@ export class Terminals {
           telemetry: null,
         },
         ...started,
-        sequence: 0,
-        history: [],
-        historyBytes: 0,
-        subscribers: new Map(),
-        controller: pending.released ? undefined : ownerId,
+        terminal: hosted(
+          this.options,
+          input.id,
+          () => record,
+          pending.released ? undefined : ownerId,
+        ),
         chain: Promise.resolve(),
         pendingReads: 0,
         pendingOutput: 0,
@@ -1264,7 +1257,7 @@ export class Terminals {
     this.persisting(() => {
       handle = records.giveHandle(sessionId)
     })
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     if (handle === undefined)
       throw new Error(
         "Novadeck couldn't give a new terminal a handle in its workspace database, so it didn't create it.",
@@ -1295,7 +1288,7 @@ export class Terminals {
    * nothing of is TERMINAL_NOT_FOUND.
    */
   rename(input: { terminalId: string; title: string }): void {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     this.name(input.terminalId, input.title)
   }
 
@@ -1304,7 +1297,7 @@ export class Terminals {
    * automatic again (see `titleOf`), and tells every watcher; as `rename` otherwise.
    */
   resetTitle(input: { terminalId: string }): void {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     this.name(input.terminalId, null)
   }
 
@@ -1413,7 +1406,7 @@ export class Terminals {
    * that waits on the person's answer to a request, whose dialog would take them.
    */
   private promptable(terminalId: string): Record {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(terminalId)
     this.running(record)
     if (!record.binding && this.messaging.shownAgent(terminalId) === undefined)
@@ -1672,8 +1665,8 @@ export class Terminals {
       const { size } = held
       if (
         !size ||
-        record.controller !== size.owner ||
-        record.subscribers.get(size.owner) !== size.attachment
+        record.terminal.controller !== size.owner ||
+        record.terminal.attachment(size.owner) !== size.attachment
       )
         return
       try {
@@ -1783,7 +1776,7 @@ export class Terminals {
   private answerHost(): AnswerHost {
     return {
       request: (terminalId, ref) => {
-        if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+        if (this.stopping) throw new DomainError("CLOSING")
         const record = this.record(terminalId)
         this.running(record)
         const found = this.waiting(record, ref)
@@ -2079,7 +2072,7 @@ export class Terminals {
         cols: input.cols,
         rows: input.rows,
         owner: ownerId,
-        attachment: record.subscribers.get(ownerId),
+        attachment: record.terminal.attachment(ownerId),
       }
       return
     }
@@ -2107,13 +2100,13 @@ export class Terminals {
     input: { terminalId: string; resume?: AgentName | undefined } & Size,
     ownerId: string,
   ): Promise<TerminalSummary> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(input.terminalId)
     if (record.closed || this.closingSessions.has(record.summary.sessionId))
       throw new DomainError("TERMINAL_NOT_FOUND")
     if (record.summary.exit === null || record.restarting)
       throw new DomainError("CONFLICT", "Only an exited terminal can restart.")
-    if (record.controller !== undefined && record.controller !== ownerId)
+    if (record.terminal.controller !== undefined && record.terminal.controller !== ownerId)
       throw new DomainError("CONTROL_IN_USE")
     record.restarting = true
     const pending = this.pending(ownerId)
@@ -2129,7 +2122,7 @@ export class Terminals {
       const env = await environment
       // The swap waits for the old shell's queued work, which still uses the old screen.
       return await this.enqueue(record, () => {
-        if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+        if (this.stopping) throw new DomainError("CLOSING")
         // Closed meanwhile, or its project is closing: no shell starts in it again.
         if (
           record.closed ||
@@ -2162,9 +2155,9 @@ export class Terminals {
           this.transcripts && !started.resumes
             ? transcriptOf(record.screen, this.options.transcriptChars)
             : null
-        // Earlier attachments ended at the exit; any still draining are dropped.
-        for (const subscription of record.subscribers.values()) subscription.cancel()
-        record.subscribers.clear()
+        // Earlier attachments ended at the exit; any still draining are dropped, and any
+        // earlier cursor gets a fresh snapshot.
+        record.terminal.restarted(pending.released ? undefined : ownerId)
         this.dispose(record)
         Object.assign(record, started, {
           summary: {
@@ -2191,11 +2184,6 @@ export class Terminals {
           telemetry: null,
           watching: null,
           transcript: null,
-          // Skipping a sequence number sends any earlier cursor to a fresh snapshot.
-          sequence: record.sequence + 1,
-          history: [],
-          historyBytes: 0,
-          controller: pending.released ? undefined : ownerId,
           exitQueued: false,
           closing: undefined,
           submitted: started.resumes,
@@ -2232,7 +2220,7 @@ export class Terminals {
    * the shell has ended, as the app quits, keeps nothing of it to bring back.
    */
   async close(input: { terminalId: string }): Promise<void> {
-    if (this.stopped) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopped) throw new DomainError("CLOSING")
     this.closedIds.add(input.terminalId)
     const record = this.records.get(input.terminalId)
     if (!record) {
@@ -2278,7 +2266,7 @@ export class Terminals {
    * project is going. Its records are the caller's to delete.
    */
   async closeProject(projectId: string, sessionIds: readonly string[]): Promise<void> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const sessions = new Set(sessionIds)
     // Marked first, so a restart or create under way can't start a shell behind the close,
     // and left marked once closed: the project and its sessions are going for good.
@@ -2291,7 +2279,7 @@ export class Terminals {
     }
     // Shutting down meanwhile: the project, and what of its terminals was only saved, stay
     // for the next runner to remove.
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     this.asks.forgetProject(projectId)
     this.messaging.forgetProject(projectId)
   }
@@ -2498,7 +2486,7 @@ export class Terminals {
 
   /** Turning transcripts off forgets every saved one; turning them on saves each anew. */
   keepTranscripts(enabled: boolean): void {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     this.transcripts = enabled
     if (enabled) for (const record of this.records.values()) record.changed = true
     if (!enabled) this.persisting(() => this.options.records?.clearTranscripts())
@@ -2530,84 +2518,45 @@ export class Terminals {
     const record = this.record(input.terminalId)
     const pending = this.pending(ownerId)
     record.pendingAttachments += 1
-    let subscription: Subscription<TerminalEvent> | undefined
+    let attachment: Attachment | undefined
     const detach = () => {
-      if (!subscription) {
-        if (
-          (signal?.aborted || pending.released) &&
-          !record.subscribers.has(ownerId) &&
-          record.controller === ownerId
-        )
-          record.controller = undefined
+      if (!attachment) {
+        if (signal?.aborted || pending.released) record.terminal.forgo(ownerId)
         return
       }
-      if (record.subscribers.get(ownerId) !== subscription) return
-      record.subscribers.delete(ownerId)
-      if (record.controller === ownerId) record.controller = undefined
+      if (record.terminal.attachment(ownerId) === attachment) record.terminal.release(ownerId)
     }
     const abort = () => {
-      subscription?.cancel()
+      attachment?.cancel()
       detach()
     }
     signal?.addEventListener("abort", abort, { once: true })
     try {
       await this.enqueue(record, () => {
         if (signal?.aborted || pending.released) return
-        if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+        if (this.stopping) throw new DomainError("CLOSING")
         // Closed, or closing, while this attachment waited its turn.
         if (record.closed || this.records.get(input.terminalId) !== record)
           throw new DomainError("TERMINAL_NOT_FOUND")
-        if (record.subscribers.has(ownerId)) throw new DomainError("ALREADY_ATTACHED")
-        const mode = input.mode ?? "control"
-        if (mode === "control" && record.controller !== undefined && record.controller !== ownerId)
-          throw new DomainError("CONTROL_IN_USE")
-        const cursor = input.afterSequence
-        if (
-          cursor !== undefined &&
-          (!Number.isSafeInteger(cursor) || cursor < 0 || cursor > record.sequence)
-        )
-          throw new DomainError("INVALID_CURSOR")
-        subscription = new Subscription<TerminalEvent>(
-          mode,
-          this.options.subscriberBytes,
-          this.options.ackWindowBytes,
-          detach,
-          this.options.snapshotBytes,
-        )
-        record.subscribers.set(ownerId, subscription)
-        if (mode === "control") record.controller = ownerId
-        else if (record.controller === ownerId) record.controller = undefined
-        const first = record.history[0]?.event.sequence ?? record.sequence + 1
-        if (cursor !== undefined && cursor >= first - 1) {
-          for (const { event } of record.history)
-            if (event.sequence > cursor) subscription.push(event)
-        } else {
-          subscription.push(
-            snapshot(
-              record.screen,
-              record.summary,
-              record.sequence,
-              this.options.snapshotBytes,
-              record.mouseEncoding(),
-            ),
-          )
-        }
-        if (record.summary.exit !== null) subscription.finish()
+        attachment = record.terminal.attach(ownerId, {
+          after: input.afterSequence,
+          mode: input.mode ?? "control",
+        })
       }).finally(() => {
         record.pendingAttachments -= 1
       })
-      if (!subscription) return
+      if (!attachment) return
       // Tells the client that control or observation is established before any event arrives.
-      yield { type: "attached", terminalId: input.terminalId, mode: subscription.mode }
+      yield { type: "attached", terminalId: input.terminalId, mode: attachment.mode }
       while (true) {
         // eslint-disable-next-line no-await-in-loop -- Each delivery waits for consumption ACKs.
-        const event = await subscription.next()
+        const event = await attachment.next()
         if (event === undefined) return
-        yield event
+        yield { ...event, terminalId: input.terminalId }
       }
     } finally {
       signal?.removeEventListener("abort", abort)
-      subscription?.cancel()
+      attachment?.cancel()
       detach()
       this.complete(ownerId, pending)
       this.settle(record)
@@ -2620,7 +2569,7 @@ export class Terminals {
    * signal aborts, the owner is released, or the runner shuts down.
    */
   async *watch(ownerId: string, signal?: AbortSignal): AsyncGenerator<TerminalChange> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const watcher = new TerminalWatcher(this.list())
     this.watchers.set(watcher, ownerId)
     const abort = () => watcher.finish()
@@ -2645,7 +2594,7 @@ export class Terminals {
    * until the terminal is closed or `signal` aborts.
    */
   async *detail(terminalId: string, signal?: AbortSignal): AsyncGenerator<AgentDetail> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(terminalId)
     yield* this.snapshots(this.details, terminalId, this.detailOf(record), signal)
   }
@@ -2984,7 +2933,7 @@ export class Terminals {
    * aborts.
    */
   async *watchMessages(terminalId: string, signal?: AbortSignal): AsyncGenerator<TerminalMessages> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     // Only for a terminal the runner holds: closing or evicting it ends the stream.
     this.record(terminalId)
     yield* this.snapshots(this.mail, terminalId, this.messages(terminalId), signal)
@@ -3039,7 +2988,7 @@ export class Terminals {
    * owner is released, or the runner shuts down.
    */
   requests(ownerId: string, signal?: AbortSignal): AsyncGenerator<TerminalRequest> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     return this.opens.follow(ownerId, signal)
   }
 
@@ -3100,7 +3049,7 @@ export class Terminals {
     actor: string,
     signal?: AbortSignal,
   ): AsyncGenerator<TranscriptChange> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(terminalId)
     const { binding, transcript: root } = record
     const source = binding && harnesses[binding.agent].transcripts
@@ -3125,18 +3074,14 @@ export class Terminals {
   ack(input: { terminalId: string; sequence: number }, ownerId: string): void {
     // A closed terminal's viewers still acknowledge the events they drain.
     const record = this.draining.get(input.terminalId) ?? this.record(input.terminalId)
-    if (!Number.isSafeInteger(input.sequence) || input.sequence < 0)
-      throw new DomainError("INVALID_CURSOR")
     // A final ACK can arrive after natural stream completion or cancellation.
-    record.subscribers.get(ownerId)?.ack(input.sequence)
+    record.terminal.ack(ownerId, input.sequence)
   }
 
   release(ownerId: string): void {
     for (const pending of this.pendingOwners.get(ownerId) ?? []) pending.released = true
     for (const record of [...this.records.values(), ...this.draining.values()]) {
-      record.subscribers.get(ownerId)?.cancel()
-      record.subscribers.delete(ownerId)
-      if (record.controller === ownerId) record.controller = undefined
+      record.terminal.release(ownerId)
       this.settle(record)
     }
     for (const [watcher, owner] of this.watchers) if (owner === ownerId) watcher.finish()
@@ -3172,9 +3117,7 @@ export class Terminals {
     this.shutdownBy = Date.now() + shutdownTreesMs
     await Promise.all([...this.records.values()].map((record) => this.terminate(record)))
     for (const record of [...this.records.values(), ...this.draining.values()]) {
-      for (const subscription of record.subscribers.values()) subscription.cancel()
-      record.subscribers.clear()
-      record.controller = undefined
+      record.terminal.end()
       this.dispose(record)
     }
     this.records.clear()
@@ -3275,9 +3218,9 @@ export class Terminals {
   }
 
   private control(id: string, ownerId: string): Record {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(id)
-    if (record.controller !== ownerId) throw new DomainError("CONTROL_REQUIRED")
+    if (record.terminal.controller !== ownerId) throw new DomainError("CONTROL_REQUIRED")
     return record
   }
 
@@ -3359,7 +3302,7 @@ export class Terminals {
    * lot of its output waits (`OUTPUT_WAITING_CHARS`), and goes on once all of it is drawn,
    * so a program can't outrun its screen.
    */
-  private output(record: Record, child: pty.IPty, data: string): void {
+  private output(record: Record, child: Pty, data: string): void {
     record.pendingOutput += data.length
     if (record.pendingOutput > OUTPUT_WAITING_CHARS) child.pause()
     // The draw queued last takes this with it, while nothing was queued after it.
@@ -3404,24 +3347,9 @@ export class Terminals {
     record.unread = batch
   }
 
-  private emit(
-    record: Record,
-    payload:
-      | Omit<Extract<TerminalEvent, { type: "output" }>, "terminalId" | "sequence">
-      | Omit<Extract<TerminalEvent, { type: "resized" }>, "terminalId" | "sequence">
-      | Omit<Extract<TerminalEvent, { type: "exited" }>, "terminalId" | "sequence">,
-  ): void {
-    const event: TerminalEvent = {
-      ...payload,
-      terminalId: record.summary.id,
-      sequence: ++record.sequence,
-    }
-    const bytes = Buffer.byteLength(JSON.stringify(event))
-    record.history.push({ event, bytes })
-    record.historyBytes += bytes
-    while (record.historyBytes > this.options.historyBytes)
-      record.historyBytes -= record.history.shift()!.bytes
-    for (const subscription of record.subscribers.values()) subscription.push(event)
+  // Each event through one place, which a test watches.
+  private emit(record: Record, event: Emitted): void {
+    record.terminal.emit(event)
   }
 
   /**
@@ -3478,18 +3406,14 @@ export class Terminals {
     const screen = createScreen({ cols, rows, scrollback: 1000 })
     const mouseEncoding = trackMouse(screen)
     try {
-      const args = this.options.shellArgs ?? launched.args
-      const child = pty.spawn(shell, typeof args === "string" ? args : [...args], {
-        name: "xterm-256color",
-        cols,
-        rows,
+      const child = spawnPty({
+        file: shell,
+        args: this.options.shellArgs ?? launched.args,
         cwd,
         env,
-        // Windows' built-in console host can lose input; node-pty ships a newer one. Closing
-        // a terminal relies on it too: with it, node-pty's kill closes the pseudoconsole,
-        // which sends its programs CTRL_CLOSE_EVENT, and ends only the shell (see `kill`);
-        // without it, it ends everything on the console at once.
-        useConptyDll: process.platform === "win32",
+        cols,
+        rows,
+        ...this.pty,
       })
       return {
         process: child,
@@ -3515,15 +3439,8 @@ export class Terminals {
       record.resolveExit = resolve
     })
     record.listeners = [
-      child.onData((data) => {
-        drawnTerminals.add(child)
-        this.output(record, child, data)
-      }),
-      // node-pty can report an exit before it learns the code, e.g. after ending a
-      // Windows terminal whose input failed.
-      child.onExit(({ exitCode, signal }) =>
-        this.exit(record, { code: signal ? null : (exitCode ?? null), signal: signalName(signal) }),
-      ),
+      child.onData((data) => this.output(record, child, data)),
+      child.onExit((exit) => this.exit(record, exit)),
       // Device-status queries are answered by the runner's screen, even with no viewer.
       screen.onData((data) => {
         if (!record.exitQueued) child.write(data)
@@ -3561,7 +3478,7 @@ export class Terminals {
    * shell resuming an agent reports its first prompt once the agent exits, so a resume
    * command still waiting by now was never taken.
    */
-  private prompted(record: Record, child: pty.IPty, cwd: string): void {
+  private prompted(record: Record, child: Pty, cwd: string): void {
     if (record.process !== child) return
     record.promptedAt = Date.now()
     // Whether a non-empty line was entered since the last prompt: a command may have run.
@@ -4052,7 +3969,7 @@ export class Terminals {
    * only while a process of that harness's name runs in the terminal's foreground, in turn
    * with the terminal's reports.
    */
-  private screenTitled(record: Record, child: pty.IPty, title: string): void {
+  private screenTitled(record: Record, child: Pty, title: string): void {
     // Any newer title, including Working or a shell's, retires a pending prompt check.
     const seq = (record.titles = (record.titles ?? 0) + 1)
     if (record.readyEntered && agents.some((agent) => harnesses[agent].titleWorking?.(title)))
@@ -4172,7 +4089,7 @@ export class Terminals {
    */
   private async harnessIn(
     record: Record,
-    child: pty.IPty,
+    child: Pty,
     agent: AgentName,
   ): Promise<{
     readonly where: Install & { readonly program?: string }
@@ -4877,7 +4794,7 @@ export class Terminals {
       record.exitOrder = this.exits
       this.announce(record)
       this.emit(record, { type: "exited", exit })
-      for (const subscription of record.subscribers.values()) subscription.finish()
+      record.terminal.finish()
       record.resolveExit()
       this.evict()
     })
@@ -4890,94 +4807,24 @@ export class Terminals {
     return record.closing
   }
 
-  private async kill(record: Record): Promise<void> {
-    // The second signal bounds shutdown even for shells that ignore SIGHUP.
-    let timer: ReturnType<typeof setTimeout> | undefined
-    try {
-      const group = await this.hangUp(record.process)
-      const child = record.process
-      // Windows hangs up no group: closing the console sends what is attached to it
-      // CTRL_CLOSE_EVENT, and node-pty ends the shell, but nothing reaches what a program
-      // there started apart from it, as an agent's hooks in consoles of their own, which
-      // then run on (a PowerShell 7 hook whose Codex was closed as it started stayed
-      // there). The terminal's tree is read first, while it still leads back to its shell,
-      // and what of it outlives the console's close by `treeGraceMs` is ended. Not once
-      // the shell has exited, its exit only waiting behind draws: its id may name another
-      // process by now. Where the relay can't read it, taskkill ends the tree at once.
-      const owned =
-        process.platform === "win32" &&
-        child.pid > 0 &&
-        drawnTerminals.has(child) &&
-        !record.exitQueued
-      const tree = owned ? await this.trees.read(child.pid, this.runMs(relayMs)) : undefined
-      if (owned && tree === undefined)
-        await taskkillTree(child.pid, this.runMs(5_000)).catch(() => {})
-      try {
-        child.kill()
-      } catch {
-        this.exit(record, { code: null, signal: null })
-      }
-      timer = setTimeout(() => {
-        // A Windows terminal that has drawn ran node-pty's kill, which ended its shell, whose
-        // id may already name another process.
-        const ended = process.platform === "win32" && drawnTerminals.has(child)
-        const forced = ended
-          ? Promise.resolve()
-          : forceKill(child, process.platform, (pid) => this.endTreeNow(pid))
-        forced.then(
-          // node-pty on Windows reports an exit only once the console closes, which a program
-          // the kill could not end can still keep open.
-          () => {
-            if (process.platform === "win32") this.exit(record, { code: null, signal: null })
-          },
-          () => this.exit(record, { code: null, signal: null }),
-        )
-      }, 1000)
-      await Promise.all([record.exited, tree && this.endLeft(tree)])
-      if (group !== undefined) resumeGroup(group)
-    } finally {
-      if (timer) clearTimeout(timer)
-    }
-  }
-
   /**
-   * Ends what is left of a closed terminal's process tree once it has had `treeGraceMs`
-   * to end by itself: the tree read before the close, and what its members started since,
-   * as an agent's hook run as it closes, or left running as they ended, read again from
-   * each by its start.
+   * Ends a terminal's shell and what it started (see the pty's `end`), once its exit is
+   * handled. A close already waiting as shutdown begins takes no more than shutdown's own
+   * time: each relay or taskkill run within what is left of it, and what a Windows tree
+   * left running ends by shutdown's shorter grace.
    */
-  private async endLeft(tree: readonly Member[]): Promise<void> {
-    const began = Date.now()
-    // A close already waiting as shutdown begins waits no longer than shutdown's own grace.
-    const graceEnds = () =>
-      this.shutdownBy === undefined
-        ? began + treeGraceMs
-        : Math.min(began + treeGraceMs, this.shutdownBy - shutdownTreesMs + shutdownTreeGraceMs)
-    while (anyRunning(tree) && Date.now() < graceEnds())
-      // eslint-disable-next-line no-await-in-loop -- Waits for them to end.
-      await sleep(100)
-    const again = await Promise.all(
-      tree.map((member) => this.trees.read(member, this.runMs(relayMs))),
-    )
-    const left = new Map(
-      [...tree, ...again.flatMap((each) => each ?? [])].map((member) => [
-        `${member.pid}:${member.startedAt}`,
-        member,
-      ]),
-    )
-    const members = [...left.values()]
-    if (!anyRunning(members)) return
-    await this.trees.end(members, this.runMs(relayMs))
-    // A pid that still answers a moment later is said, so a process the relay didn't end,
-    // as where it ran out of time, shows. Nothing more is ended by pid alone: another
-    // process may have taken one meanwhile, which the relay rightly refused.
-    await sleep(200)
-    const answering = members.filter((member) => anyRunning([member]))
-    if (answering.length > 0)
-      console.error(
-        "Novadeck: after ending a closed terminal's processes, these pids still answer, each that process or one given its pid since:",
-        answering.map(({ pid, startedAt }) => `${pid} (started ${startedAt})`).join(", "),
-      )
+  private async kill(record: Record): Promise<void> {
+    const budget: EndBudget = {
+      run: (usual) => this.runMs(usual),
+      graceEnds: (began) =>
+        this.shutdownBy === undefined
+          ? began + treeGraceMs
+          : Math.min(began + treeGraceMs, this.shutdownBy - shutdownTreesMs + shutdownTreeGraceMs),
+    }
+    await Promise.all([
+      record.process.end({ graceMs: 1000, treeGraceMs, trees: this.trees, budget }),
+      record.exited,
+    ])
   }
 
   /**
@@ -4989,32 +4836,6 @@ export class Terminals {
     return Math.max(250, Math.min(usual, this.shutdownBy - Date.now()))
   }
 
-  /** Ends a Windows process and every one under it now, by taskkill where the relay can't. */
-  private async endTreeNow(pid: number): Promise<void> {
-    const tree = await this.trees.read(pid)
-    if (tree === undefined) return taskkillTree(pid)
-    await this.trees.end(tree)
-  }
-
-  /**
-   * Hangs up the program in the terminal's foreground, as closing a real terminal does,
-   * and returns its process group; undefined when there is none to hang up, as on Windows,
-   * where no foreground group is known.
-   * A shell passes its own hangup on to the jobs it started, but not always: bash does
-   * not to a command its prompt hook ran, as a resumed agent is, and would leave it
-   * running without a terminal, still holding its session.
-   */
-  private async hangUp(child: pty.IPty): Promise<number | undefined> {
-    const group = await terminalForeground(child.pid)
-    if (group === undefined || group === child.pid) return undefined
-    try {
-      process.kill(-group, "SIGHUP")
-    } catch {
-      // Gone meanwhile.
-    }
-    return group
-  }
-
   /**
    * Drops the oldest exited, unattached records beyond `maxRetained`, and more when a
    * new terminal needs `room` under `maxTerminals`.
@@ -5024,7 +4845,7 @@ export class Terminals {
       .filter(
         (record) =>
           record.summary.exit !== null &&
-          record.subscribers.size === 0 &&
+          record.terminal.attached === 0 &&
           record.pendingAttachments === 0 &&
           !record.restarting,
       )
@@ -5067,7 +4888,7 @@ export class Terminals {
   private settle(record: Record): void {
     const id = record.summary.id
     if (this.draining.get(id) !== record) return
-    if (record.subscribers.size > 0 || record.pendingAttachments > 0) return
+    if (record.terminal.attached > 0 || record.pendingAttachments > 0) return
     this.draining.delete(id)
     this.dispose(record)
   }

@@ -11,13 +11,14 @@ import {
   type ReactNode,
 } from "react"
 
-import { noConversation, type ChatDialog, type Conversation } from "../../model/conversation"
-import { terminalLabel } from "../../model/handle"
-import { endingText, terminalEnding } from "../../model/terminal-ending"
-import type { TerminalMetadata } from "../../model/types"
+import { noConversation, type ChatDialog, type Conversation } from "#core/conversation"
+import { terminalLabel } from "#core/handle"
+import { terminalKeyId } from "#core/registry"
+import { endingText, terminalEnding } from "#core/terminal-ending"
+import type { TerminalMetadata } from "#core/types"
+
 import { TerminalEndingBar, TerminalLock, TerminalNotice } from "../../ui-toolkit/TerminalStatus"
 import type { BackendConnectionState, TerminalKey, TerminalSurfaceProps } from "../port"
-import { terminalKeyId } from "../registry"
 import { readLine, shownRequest, withWords } from "./agent-input"
 import { DemoAgentContext, type DemoAgentLink } from "./agent-link"
 import { AgentScreen, tailOf } from "./AgentScreen"

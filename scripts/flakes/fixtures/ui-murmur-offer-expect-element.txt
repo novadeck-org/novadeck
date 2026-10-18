@@ -1,0 +1,285 @@
+2026-10-17T22:17:02.7472761Z  [31m❯[39m [30m[43m behaviour (chromium) [49m[39m src/specs/murmur-offer.spec.tsx [2m([22m[2m16 tests[22m[2m | [22m[31m16 failed[39m[2m)[22m[33m 5367[2mms[22m[39m
+2026-10-17T22:17:02.7473059Z    [31m❯[39m Murmur's one-time offer [2m(16)[22m
+2026-10-17T22:17:02.7473252Z      [31m❯[39m when the first agent finishes on screen and Murmur is not on the computer [2m(8)[22m
+2026-10-17T22:17:02.7473454Z [31m       [31m×[31m puts a chip beside that terminal's title, with no ×[39m[33m 553[2mms[22m[39m
+2026-10-17T22:17:02.7473721Z [31m       [31m×[31m opens a popover with the size and the answers, focus off the buttons, and Esc dismisses it[39m[33m 502[2mms[22m[39m
+2026-10-17T22:17:02.7473961Z [31m       [31m×[31m leaves focus where the person put it when a press outside closes the popover[39m[33m 369[2mms[22m[39m
+2026-10-17T22:17:02.7474193Z [31m       [31m×[31m keeps a right-click in the popover from opening the terminal's own menu[39m[32m 280[2mms[22m[39m
+2026-10-17T22:17:02.7474417Z [31m       [31m×[31m turns on into the footer item, then says it is done, and the chip is gone[39m[33m 353[2mms[22m[39m
+2026-10-17T22:17:02.7474707Z [31m       [31m×[31m opens the item's sheet with the step, the bar and Cancel, and Esc closes it[39m[33m 328[2mms[22m[39m
+2026-10-17T22:17:02.7474927Z [31m       [31m×[31m turns Murmur down for good on No thanks, and Preferences shows it off[39m[33m 375[2mms[22m[39m
+2026-10-17T22:17:02.7475133Z [31m       [31m×[31m shrinks to its icon in a narrow Grid tile, and the name stays[39m[33m 352[2mms[22m[39m
+2026-10-17T22:17:02.7475366Z [31m     [31m×[31m with Murmur not on the computer, a finished turn shows a chip (the control)[39m[32m 248[2mms[22m[39m
+2026-10-17T22:17:02.7475559Z [31m     [31m×[31m with Murmur unsupported, a finished turn shows no chip[39m[33m 441[2mms[22m[39m
+2026-10-17T22:17:02.7475750Z [31m     [31m×[31m with Murmur offered-out, a finished turn shows no chip[39m[33m 313[2mms[22m[39m
+2026-10-17T22:17:02.7475934Z [31m     [31m×[31m with Murmur installed, a finished turn shows no chip[39m[32m 211[2mms[22m[39m
+2026-10-17T22:17:02.7476081Z      [31m❯[39m when the finished terminal does not qualify [2m(1)[22m
+2026-10-17T22:17:02.7476316Z [31m       [31m×[31m lets go of a finish in a session that is not on screen, and takes the next that is[39m[32m 222[2mms[22m[39m
+2026-10-17T22:17:02.7476444Z      [31m❯[39m when the install fails on the network [2m(2)[22m
+2026-10-17T22:17:02.7476668Z [31m       [31m×[31m turns the footer item to danger and opens its sheet once, with Try again[39m[32m 227[2mms[22m[39m
+2026-10-17T22:17:02.7476838Z [31m       [31m×[31m hides the item on Not now, and it is no decline[39m[32m 284[2mms[22m[39m
+2026-10-17T22:17:02.7476957Z      [31m❯[39m when the computer can't run Murmur [2m(1)[22m
+2026-10-17T22:17:02.7477185Z [31m       [31m×[31m says so in the footer's sheet when Turn on finds it can't, and the item leaves[39m[33m 308[2mms[22m[39m
+2026-10-17T22:17:02.7477463Z  [32m✓[39m [30m[43m behaviour (chromium) [49m[39m src/specs/routing.spec.tsx [2m([22m[2m17 tests[22m[2m)[22m[33m 9637[2mms[22m[39m
+2026-10-17T22:17:02.7513634Z [31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 16 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-17T22:17:02.7513637Z 
+2026-10-17T22:17:02.7514203Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/murmur-offer.spec.tsx[2m > [22mMurmur's one-time offer[2m > [22mwhen the first agent finishes on screen and Murmur is not on the computer[2m > [22mputs a chip beside that terminal's title, with no ×
+2026-10-17T22:17:02.7514337Z [31m[1mTypeError[22m: expect.element is not a function[39m
+2026-10-17T22:17:02.7514340Z 
+2026-10-17T22:17:02.7514397Z Failure screenshot:
+2026-10-17T22:17:02.7515048Z   - [2m.vitest/attachments/failure-screenshots/murmur-offer.spec.tsx/Murmur-s-one-time-offer---when-the-first-agent-finishes-on-screen-and-Murmur-is-not-on-the-computer---puts-a-chip-beside-that-terminal-s-title--with-no--.png[22m
+2026-10-17T22:17:02.7515051Z 
+2026-10-17T22:17:02.7515219Z [36m [2m❯[22m openWorkspace src/specs/support/workspace.tsx:[2m37:16[22m[39m
+2026-10-17T22:17:02.7515291Z     [90m 35|[39m   )
+2026-10-17T22:17:02.7515451Z     [90m 36|[39m   // A link may open with a modal dialog, which hides the rest of the …
+2026-10-17T22:17:02.7515615Z     [90m 37|[39m   await expect.element(viewSwitcher().or(page.getByRole("dialog"))).to…
+2026-10-17T22:17:02.7515704Z     [90m   |[39m                [31m^[39m
+2026-10-17T22:17:02.7515800Z     [90m 38|[39m   await layoutSettled()
+2026-10-17T22:17:02.7515867Z     [90m 39|[39m }
+2026-10-17T22:17:02.7516025Z [90m [2m❯[22m promptBuild src/specs/murmur-offer.spec.tsx:[2m19:3[22m[39m
+2026-10-17T22:17:02.7516156Z [90m [2m❯[22m src/specs/murmur-offer.spec.tsx:[2m50:7[22m[39m
+2026-10-17T22:17:02.7516159Z 
+2026-10-17T22:17:02.7516262Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/16]⎯[22m[39m
+2026-10-17T22:17:02.7516265Z 
+2026-10-17T22:17:02.7516910Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/murmur-offer.spec.tsx[2m > [22mMurmur's one-time offer[2m > [22mwhen the first agent finishes on screen and Murmur is not on the computer[2m > [22mopens a popover with the size and the answers, focus off the buttons, and Esc dismisses it
+2026-10-17T22:17:02.7517031Z [31m[1mTypeError[22m: expect.element is not a function[39m
+2026-10-17T22:17:02.7517038Z 
+2026-10-17T22:17:02.7517086Z Failure screenshot:
+2026-10-17T22:17:02.7517947Z   - [2m.vitest/attachments/failure-screenshots/murmur-offer.spec.tsx/Murmur-s-one-time-offer---when-the-first-agent-finishes-on-screen-and-Murmur-is-not-on-the-computer---opens-a-popover-with-the-size-and-the-answers--focus-off-the-buttons--and-Esc-dismisses-it.png[22m
+2026-10-17T22:17:02.7517951Z 
+2026-10-17T22:17:02.7518109Z [36m [2m❯[22m openWorkspace src/specs/support/workspace.tsx:[2m37:16[22m[39m
+2026-10-17T22:17:02.7518174Z     [90m 35|[39m   )
+2026-10-17T22:17:02.7518327Z     [90m 36|[39m   // A link may open with a modal dialog, which hides the rest of the …
+2026-10-17T22:17:02.7518491Z     [90m 37|[39m   await expect.element(viewSwitcher().or(page.getByRole("dialog"))).to…
+2026-10-17T22:17:02.7518577Z     [90m   |[39m                [31m^[39m
+2026-10-17T22:17:02.7518656Z     [90m 38|[39m   await layoutSettled()
+2026-10-17T22:17:02.7518722Z     [90m 39|[39m }
+2026-10-17T22:17:02.7518876Z [90m [2m❯[22m promptBuild src/specs/murmur-offer.spec.tsx:[2m19:3[22m[39m
+2026-10-17T22:17:02.7519274Z [90m [2m❯[22m src/specs/murmur-offer.spec.tsx:[2m60:7[22m[39m
+2026-10-17T22:17:02.7519276Z 
+2026-10-17T22:17:02.7519376Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/16]⎯[22m[39m
+2026-10-17T22:17:02.7519379Z 
+2026-10-17T22:17:02.7519977Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/murmur-offer.spec.tsx[2m > [22mMurmur's one-time offer[2m > [22mwhen the first agent finishes on screen and Murmur is not on the computer[2m > [22mleaves focus where the person put it when a press outside closes the popover
+2026-10-17T22:17:02.7520100Z [31m[1mTypeError[22m: expect.element is not a function[39m
+2026-10-17T22:17:02.7520102Z 
+2026-10-17T22:17:02.7520152Z Failure screenshot:
+2026-10-17T22:17:02.7520918Z   - [2m.vitest/attachments/failure-screenshots/murmur-offer.spec.tsx/Murmur-s-one-time-offer---when-the-first-agent-finishes-on-screen-and-Murmur-is-not-on-the-computer---leaves-focus-where-the-person-put-it-when-a-press-outside-closes-the-popover.png[22m
+2026-10-17T22:17:02.7520931Z 
+2026-10-17T22:17:02.7521087Z [36m [2m❯[22m openWorkspace src/specs/support/workspace.tsx:[2m37:16[22m[39m
+2026-10-17T22:17:02.7521148Z     [90m 35|[39m   )
+2026-10-17T22:17:02.7521303Z     [90m 36|[39m   // A link may open with a modal dialog, which hides the rest of the …
+2026-10-17T22:17:02.7521466Z     [90m 37|[39m   await expect.element(viewSwitcher().or(page.getByRole("dialog"))).to…
+2026-10-17T22:17:02.7521550Z     [90m   |[39m                [31m^[39m
+2026-10-17T22:17:02.7521633Z     [90m 38|[39m   await layoutSettled()
+2026-10-17T22:17:02.7521697Z     [90m 39|[39m }
+2026-10-17T22:17:02.7521841Z [90m [2m❯[22m promptBuild src/specs/murmur-offer.spec.tsx:[2m19:3[22m[39m
+2026-10-17T22:17:02.7521963Z [90m [2m❯[22m src/specs/murmur-offer.spec.tsx:[2m94:7[22m[39m
+2026-10-17T22:17:02.7521966Z 
+2026-10-17T22:17:02.7522064Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/16]⎯[22m[39m
+2026-10-17T22:17:02.7522066Z 
+2026-10-17T22:17:02.7522714Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/murmur-offer.spec.tsx[2m > [22mMurmur's one-time offer[2m > [22mwhen the first agent finishes on screen and Murmur is not on the computer[2m > [22mkeeps a right-click in the popover from opening the terminal's own menu
+2026-10-17T22:17:02.7522835Z [31m[1mTypeError[22m: expect.element is not a function[39m
+2026-10-17T22:17:02.7522838Z 
+2026-10-17T22:17:02.7522887Z Failure screenshot:
+2026-10-17T22:17:02.7523597Z   - [2m.vitest/attachments/failure-screenshots/murmur-offer.spec.tsx/Murmur-s-one-time-offer---when-the-first-agent-finishes-on-screen-and-Murmur-is-not-on-the-computer---keeps-a-right-click-in-the-popover-from-opening-the-terminal-s-own-menu.png[22m
+2026-10-17T22:17:02.7523601Z 
+2026-10-17T22:17:02.7523753Z [36m [2m❯[22m openWorkspace src/specs/support/workspace.tsx:[2m37:16[22m[39m
+2026-10-17T22:17:02.7523816Z     [90m 35|[39m   )
+2026-10-17T22:17:02.7523975Z     [90m 36|[39m   // A link may open with a modal dialog, which hides the rest of the …
+2026-10-17T22:17:02.7524312Z     [90m 37|[39m   await expect.element(viewSwitcher().or(page.getByRole("dialog"))).to…
+2026-10-17T22:17:02.7524398Z     [90m   |[39m                [31m^[39m
+2026-10-17T22:17:02.7524480Z     [90m 38|[39m   await layoutSettled()
+2026-10-17T22:17:02.7524545Z     [90m 39|[39m }
+2026-10-17T22:17:02.7524692Z [90m [2m❯[22m promptBuild src/specs/murmur-offer.spec.tsx:[2m19:3[22m[39m
+2026-10-17T22:17:02.7524820Z [90m [2m❯[22m src/specs/murmur-offer.spec.tsx:[2m109:7[22m[39m
+2026-10-17T22:17:02.7524823Z 
+2026-10-17T22:17:02.7524924Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/16]⎯[22m[39m
+2026-10-17T22:17:02.7524927Z 
+2026-10-17T22:17:02.7525510Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/murmur-offer.spec.tsx[2m > [22mMurmur's one-time offer[2m > [22mwhen the first agent finishes on screen and Murmur is not on the computer[2m > [22mturns on into the footer item, then says it is done, and the chip is gone
+2026-10-17T22:17:02.7525629Z [31m[1mTypeError[22m: expect.element is not a function[39m
+2026-10-17T22:17:02.7525634Z 
+2026-10-17T22:17:02.7525680Z Failure screenshot:
+2026-10-17T22:17:02.7526386Z   - [2m.vitest/attachments/failure-screenshots/murmur-offer.spec.tsx/Murmur-s-one-time-offer---when-the-first-agent-finishes-on-screen-and-Murmur-is-not-on-the-computer---turns-on-into-the-footer-item--then-says-it-is-done--and-the-chip-is-gone.png[22m
+2026-10-17T22:17:02.7526389Z 
+2026-10-17T22:17:02.7526539Z [36m [2m❯[22m openWorkspace src/specs/support/workspace.tsx:[2m37:16[22m[39m
+2026-10-17T22:17:02.7526604Z     [90m 35|[39m   )
+2026-10-17T22:17:02.7526755Z     [90m 36|[39m   // A link may open with a modal dialog, which hides the rest of the …
+2026-10-17T22:17:02.7526919Z     [90m 37|[39m   await expect.element(viewSwitcher().or(page.getByRole("dialog"))).to…
+2026-10-17T22:17:02.7527000Z     [90m   |[39m                [31m^[39m
+2026-10-17T22:17:02.7527085Z     [90m 38|[39m   await layoutSettled()
+2026-10-17T22:17:02.7527147Z     [90m 39|[39m }
+2026-10-17T22:17:02.7527295Z [90m [2m❯[22m promptBuild src/specs/murmur-offer.spec.tsx:[2m19:3[22m[39m
+2026-10-17T22:17:02.7527422Z [90m [2m❯[22m src/specs/murmur-offer.spec.tsx:[2m120:7[22m[39m
+2026-10-17T22:17:02.7527425Z 
+2026-10-17T22:17:02.7527521Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/16]⎯[22m[39m
+2026-10-17T22:17:02.7527523Z 
+2026-10-17T22:17:02.7528103Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/murmur-offer.spec.tsx[2m > [22mMurmur's one-time offer[2m > [22mwhen the first agent finishes on screen and Murmur is not on the computer[2m > [22mopens the item's sheet with the step, the bar and Cancel, and Esc closes it
+2026-10-17T22:17:02.7528222Z [31m[1mTypeError[22m: expect.element is not a function[39m
+2026-10-17T22:17:02.7528225Z 
+2026-10-17T22:17:02.7528275Z Failure screenshot:
+2026-10-17T22:17:02.7529061Z   - [2m.vitest/attachments/failure-screenshots/murmur-offer.spec.tsx/Murmur-s-one-time-offer---when-the-first-agent-finishes-on-screen-and-Murmur-is-not-on-the-computer---opens-the-item-s-sheet-with-the-step--the-bar-and-Cancel--and-Esc-closes-it.png[22m
+2026-10-17T22:17:02.7529064Z 
+2026-10-17T22:17:02.7529215Z [36m [2m❯[22m openWorkspace src/specs/support/workspace.tsx:[2m37:16[22m[39m
+2026-10-17T22:17:02.7529275Z     [90m 35|[39m   )
+2026-10-17T22:17:02.7529427Z     [90m 36|[39m   // A link may open with a modal dialog, which hides the rest of the …
+2026-10-17T22:17:02.7529589Z     [90m 37|[39m   await expect.element(viewSwitcher().or(page.getByRole("dialog"))).to…
+2026-10-17T22:17:02.7529670Z     [90m   |[39m                [31m^[39m
+2026-10-17T22:17:02.7529750Z     [90m 38|[39m   await layoutSettled()
+2026-10-17T22:17:02.7529812Z     [90m 39|[39m }
+2026-10-17T22:17:02.7529953Z [90m [2m❯[22m promptBuild src/specs/murmur-offer.spec.tsx:[2m19:3[22m[39m
+2026-10-17T22:17:02.7530241Z [90m [2m❯[22m src/specs/murmur-offer.spec.tsx:[2m133:7[22m[39m
+2026-10-17T22:17:02.7530244Z 
+2026-10-17T22:17:02.7530341Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/16]⎯[22m[39m
+2026-10-17T22:17:02.7530344Z 
+2026-10-17T22:17:02.7530919Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/murmur-offer.spec.tsx[2m > [22mMurmur's one-time offer[2m > [22mwhen the first agent finishes on screen and Murmur is not on the computer[2m > [22mturns Murmur down for good on No thanks, and Preferences shows it off
+2026-10-17T22:17:02.7531039Z [31m[1mTypeError[22m: expect.element is not a function[39m
+2026-10-17T22:17:02.7531043Z 
+2026-10-17T22:17:02.7531297Z Failure screenshot:
+2026-10-17T22:17:02.7532000Z   - [2m.vitest/attachments/failure-screenshots/murmur-offer.spec.tsx/Murmur-s-one-time-offer---when-the-first-agent-finishes-on-screen-and-Murmur-is-not-on-the-computer---turns-Murmur-down-for-good-on-No-thanks--and-Preferences-shows-it-off.png[22m
+2026-10-17T22:17:02.7532008Z 
+2026-10-17T22:17:02.7532165Z [36m [2m❯[22m openWorkspace src/specs/support/workspace.tsx:[2m37:16[22m[39m
+2026-10-17T22:17:02.7532231Z     [90m 35|[39m   )
+2026-10-17T22:17:02.7532386Z     [90m 36|[39m   // A link may open with a modal dialog, which hides the rest of the …
+2026-10-17T22:17:02.7532546Z     [90m 37|[39m   await expect.element(viewSwitcher().or(page.getByRole("dialog"))).to…
+2026-10-17T22:17:02.7532626Z     [90m   |[39m                [31m^[39m
+2026-10-17T22:17:02.7532706Z     [90m 38|[39m   await layoutSettled()
+2026-10-17T22:17:02.7532770Z     [90m 39|[39m }
+2026-10-17T22:17:02.7532918Z [90m [2m❯[22m promptBuild src/specs/murmur-offer.spec.tsx:[2m19:3[22m[39m
+2026-10-17T22:17:02.7533044Z [90m [2m❯[22m src/specs/murmur-offer.spec.tsx:[2m150:7[22m[39m
+2026-10-17T22:17:02.7533047Z 
+2026-10-17T22:17:02.7533145Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/16]⎯[22m[39m
+2026-10-17T22:17:02.7533148Z 
+2026-10-17T22:17:02.7533707Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/murmur-offer.spec.tsx[2m > [22mMurmur's one-time offer[2m > [22mwhen the first agent finishes on screen and Murmur is not on the computer[2m > [22mshrinks to its icon in a narrow Grid tile, and the name stays
+2026-10-17T22:17:02.7533828Z [31m[1mTypeError[22m: expect.element is not a function[39m
+2026-10-17T22:17:02.7533836Z 
+2026-10-17T22:17:02.7533883Z Failure screenshot:
+2026-10-17T22:17:02.7534578Z   - [2m.vitest/attachments/failure-screenshots/murmur-offer.spec.tsx/Murmur-s-one-time-offer---when-the-first-agent-finishes-on-screen-and-Murmur-is-not-on-the-computer---shrinks-to-its-icon-in-a-narrow-Grid-tile--and-the-name-stays.png[22m
+2026-10-17T22:17:02.7534582Z 
+2026-10-17T22:17:02.7534735Z [36m [2m❯[22m openWorkspace src/specs/support/workspace.tsx:[2m37:16[22m[39m
+2026-10-17T22:17:02.7534802Z     [90m 35|[39m   )
+2026-10-17T22:17:02.7534957Z     [90m 36|[39m   // A link may open with a modal dialog, which hides the rest of the …
+2026-10-17T22:17:02.7535196Z     [90m 37|[39m   await expect.element(viewSwitcher().or(page.getByRole("dialog"))).to…
+2026-10-17T22:17:02.7535281Z     [90m   |[39m                [31m^[39m
+2026-10-17T22:17:02.7535360Z     [90m 38|[39m   await layoutSettled()
+2026-10-17T22:17:02.7535424Z     [90m 39|[39m }
+2026-10-17T22:17:02.7535549Z [90m [2m❯[22m src/specs/murmur-offer.spec.tsx:[2m162:7[22m[39m
+2026-10-17T22:17:02.7535552Z 
+2026-10-17T22:17:02.7535649Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/16]⎯[22m[39m
+2026-10-17T22:17:02.7535652Z 
+2026-10-17T22:17:02.7536078Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/murmur-offer.spec.tsx[2m > [22mMurmur's one-time offer[2m > [22mwith Murmur not on the computer, a finished turn shows a chip (the control)
+2026-10-17T22:17:02.7536198Z [31m[1mTypeError[22m: expect.element is not a function[39m
+2026-10-17T22:17:02.7536201Z 
+2026-10-17T22:17:02.7536252Z Failure screenshot:
+2026-10-17T22:17:02.7536898Z   - [2m.vitest/attachments/failure-screenshots/murmur-offer.spec.tsx/Murmur-s-one-time-offer---with-Murmur-not-on-the-computer--a-finished-turn-shows-a-chip--the-control-.png[22m
+2026-10-17T22:17:02.7536902Z 
+2026-10-17T22:17:02.7537054Z [36m [2m❯[22m openWorkspace src/specs/support/workspace.tsx:[2m37:16[22m[39m
+2026-10-17T22:17:02.7537115Z     [90m 35|[39m   )
+2026-10-17T22:17:02.7537267Z     [90m 36|[39m   // A link may open with a modal dialog, which hides the rest of the …
+2026-10-17T22:17:02.7537430Z     [90m 37|[39m   await expect.element(viewSwitcher().or(page.getByRole("dialog"))).to…
+2026-10-17T22:17:02.7537511Z     [90m   |[39m                [31m^[39m
+2026-10-17T22:17:02.7537592Z     [90m 38|[39m   await layoutSettled()
+2026-10-17T22:17:02.7537655Z     [90m 39|[39m }
+2026-10-17T22:17:02.7537804Z [90m [2m❯[22m promptBuild src/specs/murmur-offer.spec.tsx:[2m19:3[22m[39m
+2026-10-17T22:17:02.7537925Z [90m [2m❯[22m src/specs/murmur-offer.spec.tsx:[2m178:5[22m[39m
+2026-10-17T22:17:02.7537931Z 
+2026-10-17T22:17:02.7538034Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/16]⎯[22m[39m
+2026-10-17T22:17:02.7538036Z 
+2026-10-17T22:17:02.7538416Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/murmur-offer.spec.tsx[2m > [22mMurmur's one-time offer[2m > [22mwith Murmur unsupported, a finished turn shows no chip
+2026-10-17T22:17:02.7538793Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/murmur-offer.spec.tsx[2m > [22mMurmur's one-time offer[2m > [22mwith Murmur offered-out, a finished turn shows no chip
+2026-10-17T22:17:02.7539158Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/murmur-offer.spec.tsx[2m > [22mMurmur's one-time offer[2m > [22mwith Murmur installed, a finished turn shows no chip
+2026-10-17T22:17:02.7539279Z [31m[1mTypeError[22m: expect.element is not a function[39m
+2026-10-17T22:17:02.7539281Z 
+2026-10-17T22:17:02.7539333Z Failure screenshots:
+2026-10-17T22:17:02.7539730Z   - [2m.vitest/attachments/failure-screenshots/murmur-offer.spec.tsx/Murmur-s-one-time-offer---with-Murmur-unsupported--a-finished-turn-shows-no-chip.png[22m
+2026-10-17T22:17:02.7540112Z   - [2m.vitest/attachments/failure-screenshots/murmur-offer.spec.tsx/Murmur-s-one-time-offer---with-Murmur-offered-out--a-finished-turn-shows-no-chip.png[22m
+2026-10-17T22:17:02.7540488Z   - [2m.vitest/attachments/failure-screenshots/murmur-offer.spec.tsx/Murmur-s-one-time-offer---with-Murmur-installed--a-finished-turn-shows-no-chip.png[22m
+2026-10-17T22:17:02.7540491Z 
+2026-10-17T22:17:02.7540641Z [36m [2m❯[22m openWorkspace src/specs/support/workspace.tsx:[2m37:16[22m[39m
+2026-10-17T22:17:02.7540707Z     [90m 35|[39m   )
+2026-10-17T22:17:02.7540860Z     [90m 36|[39m   // A link may open with a modal dialog, which hides the rest of the …
+2026-10-17T22:17:02.7541027Z     [90m 37|[39m   await expect.element(viewSwitcher().or(page.getByRole("dialog"))).to…
+2026-10-17T22:17:02.7541183Z     [90m   |[39m                [31m^[39m
+2026-10-17T22:17:02.7541265Z     [90m 38|[39m   await layoutSettled()
+2026-10-17T22:17:02.7541327Z     [90m 39|[39m }
+2026-10-17T22:17:02.7541475Z [90m [2m❯[22m promptBuild src/specs/murmur-offer.spec.tsx:[2m19:3[22m[39m
+2026-10-17T22:17:02.7541597Z [90m [2m❯[22m src/specs/murmur-offer.spec.tsx:[2m186:7[22m[39m
+2026-10-17T22:17:02.7541600Z 
+2026-10-17T22:17:02.7541697Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/16]⎯[22m[39m
+2026-10-17T22:17:02.7541700Z 
+2026-10-17T22:17:02.7542237Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/murmur-offer.spec.tsx[2m > [22mMurmur's one-time offer[2m > [22mwhen the finished terminal does not qualify[2m > [22mlets go of a finish in a session that is not on screen, and takes the next that is
+2026-10-17T22:17:02.7542357Z [31m[1mTypeError[22m: expect.element is not a function[39m
+2026-10-17T22:17:02.7542360Z 
+2026-10-17T22:17:02.7542407Z Failure screenshot:
+2026-10-17T22:17:02.7543104Z   - [2m.vitest/attachments/failure-screenshots/murmur-offer.spec.tsx/Murmur-s-one-time-offer---when-the-finished-terminal-does-not-qualify---lets-go-of-a-finish-in-a-session-that-is-not-on-screen--and-takes-the-next-that-is.png[22m
+2026-10-17T22:17:02.7543107Z 
+2026-10-17T22:17:02.7543260Z [36m [2m❯[22m openWorkspace src/specs/support/workspace.tsx:[2m37:16[22m[39m
+2026-10-17T22:17:02.7543325Z     [90m 35|[39m   )
+2026-10-17T22:17:02.7543475Z     [90m 36|[39m   // A link may open with a modal dialog, which hides the rest of the …
+2026-10-17T22:17:02.7543637Z     [90m 37|[39m   await expect.element(viewSwitcher().or(page.getByRole("dialog"))).to…
+2026-10-17T22:17:02.7543720Z     [90m   |[39m                [31m^[39m
+2026-10-17T22:17:02.7543800Z     [90m 38|[39m   await layoutSettled()
+2026-10-17T22:17:02.7543864Z     [90m 39|[39m }
+2026-10-17T22:17:02.7544014Z [90m [2m❯[22m promptBuild src/specs/murmur-offer.spec.tsx:[2m19:3[22m[39m
+2026-10-17T22:17:02.7544147Z [90m [2m❯[22m src/specs/murmur-offer.spec.tsx:[2m195:7[22m[39m
+2026-10-17T22:17:02.7544149Z 
+2026-10-17T22:17:02.7544248Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/16]⎯[22m[39m
+2026-10-17T22:17:02.7544250Z 
+2026-10-17T22:17:02.7544765Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/murmur-offer.spec.tsx[2m > [22mMurmur's one-time offer[2m > [22mwhen the install fails on the network[2m > [22mturns the footer item to danger and opens its sheet once, with Try again
+2026-10-17T22:17:02.7544885Z [31m[1mTypeError[22m: expect.element is not a function[39m
+2026-10-17T22:17:02.7544888Z 
+2026-10-17T22:17:02.7544939Z Failure screenshot:
+2026-10-17T22:17:02.7545516Z   - [2m.vitest/attachments/failure-screenshots/murmur-offer.spec.tsx/Murmur-s-one-time-offer---when-the-install-fails-on-the-network---turns-the-footer-item-to-danger-and-opens-its-sheet-once--with-Try-again.png[22m
+2026-10-17T22:17:02.7545519Z 
+2026-10-17T22:17:02.7545676Z [36m [2m❯[22m openWorkspace src/specs/support/workspace.tsx:[2m37:16[22m[39m
+2026-10-17T22:17:02.7545744Z     [90m 35|[39m   )
+2026-10-17T22:17:02.7545897Z     [90m 36|[39m   // A link may open with a modal dialog, which hides the rest of the …
+2026-10-17T22:17:02.7546062Z     [90m 37|[39m   await expect.element(viewSwitcher().or(page.getByRole("dialog"))).to…
+2026-10-17T22:17:02.7546145Z     [90m   |[39m                [31m^[39m
+2026-10-17T22:17:02.7546224Z     [90m 38|[39m   await layoutSettled()
+2026-10-17T22:17:02.7546288Z     [90m 39|[39m }
+2026-10-17T22:17:02.7546434Z [90m [2m❯[22m promptBuild src/specs/murmur-offer.spec.tsx:[2m19:3[22m[39m
+2026-10-17T22:17:02.7546555Z [90m [2m❯[22m src/specs/murmur-offer.spec.tsx:[2m209:7[22m[39m
+2026-10-17T22:17:02.7546558Z 
+2026-10-17T22:17:02.7546656Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/16]⎯[22m[39m
+2026-10-17T22:17:02.7546659Z 
+2026-10-17T22:17:02.7547180Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/murmur-offer.spec.tsx[2m > [22mMurmur's one-time offer[2m > [22mwhen the install fails on the network[2m > [22mhides the item on Not now, and it is no decline
+2026-10-17T22:17:02.7547304Z [31m[1mTypeError[22m: expect.element is not a function[39m
+2026-10-17T22:17:02.7547307Z 
+2026-10-17T22:17:02.7547357Z Failure screenshot:
+2026-10-17T22:17:02.7547850Z   - [2m.vitest/attachments/failure-screenshots/murmur-offer.spec.tsx/Murmur-s-one-time-offer---when-the-install-fails-on-the-network---hides-the-item-on-Not-now--and-it-is-no-decline.png[22m
+2026-10-17T22:17:02.7547853Z 
+2026-10-17T22:17:02.7548004Z [36m [2m❯[22m openWorkspace src/specs/support/workspace.tsx:[2m37:16[22m[39m
+2026-10-17T22:17:02.7548071Z     [90m 35|[39m   )
+2026-10-17T22:17:02.7548223Z     [90m 36|[39m   // A link may open with a modal dialog, which hides the rest of the …
+2026-10-17T22:17:02.7548387Z     [90m 37|[39m   await expect.element(viewSwitcher().or(page.getByRole("dialog"))).to…
+2026-10-17T22:17:02.7548529Z     [90m   |[39m                [31m^[39m
+2026-10-17T22:17:02.7548607Z     [90m 38|[39m   await layoutSettled()
+2026-10-17T22:17:02.7548667Z     [90m 39|[39m }
+2026-10-17T22:17:02.7548816Z [90m [2m❯[22m promptBuild src/specs/murmur-offer.spec.tsx:[2m19:3[22m[39m
+2026-10-17T22:17:02.7548941Z [90m [2m❯[22m src/specs/murmur-offer.spec.tsx:[2m227:7[22m[39m
+2026-10-17T22:17:02.7548944Z 
+2026-10-17T22:17:02.7549041Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/16]⎯[22m[39m
+2026-10-17T22:17:02.7549044Z 
+2026-10-17T22:17:02.7549555Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/murmur-offer.spec.tsx[2m > [22mMurmur's one-time offer[2m > [22mwhen the computer can't run Murmur[2m > [22msays so in the footer's sheet when Turn on finds it can't, and the item leaves
+2026-10-17T22:17:02.7549675Z [31m[1mTypeError[22m: expect.element is not a function[39m
+2026-10-17T22:17:02.7549677Z 
+2026-10-17T22:17:02.7549726Z Failure screenshot:
+2026-10-17T22:17:02.7550313Z   - [2m.vitest/attachments/failure-screenshots/murmur-offer.spec.tsx/Murmur-s-one-time-offer---when-the-computer-can-t-run-Murmur---says-so-in-the-footer-s-sheet-when-Turn-on-finds-it-can-t--and-the-item-leaves.png[22m
+2026-10-17T22:17:02.7550317Z 
+2026-10-17T22:17:02.7550471Z [36m [2m❯[22m openWorkspace src/specs/support/workspace.tsx:[2m37:16[22m[39m
+2026-10-17T22:17:02.7550533Z     [90m 35|[39m   )
+2026-10-17T22:17:02.7550686Z     [90m 36|[39m   // A link may open with a modal dialog, which hides the rest of the …
+2026-10-17T22:17:02.7550852Z     [90m 37|[39m   await expect.element(viewSwitcher().or(page.getByRole("dialog"))).to…
+2026-10-17T22:17:02.7550934Z     [90m   |[39m                [31m^[39m
+2026-10-17T22:17:02.7551015Z     [90m 38|[39m   await layoutSettled()
+2026-10-17T22:17:02.7551077Z     [90m 39|[39m }
+2026-10-17T22:17:02.7551430Z [90m [2m❯[22m promptBuild src/specs/murmur-offer.spec.tsx:[2m19:3[22m[39m
+2026-10-17T22:17:02.7551556Z [90m [2m❯[22m src/specs/murmur-offer.spec.tsx:[2m243:7[22m[39m
+2026-10-17T22:17:02.7551567Z 
+2026-10-17T22:17:02.7551660Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/16]⎯[22m[39m
+2026-10-17T22:17:02.7551662Z 
+2026-10-17T22:17:02.7551664Z 
+2026-10-17T22:17:02.7551864Z [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m238 passed[39m[22m[90m (239)[39m
+2026-10-17T22:17:02.7552108Z [2m      Tests [22m [1m[31m16 failed[39m[22m[2m | [22m[1m[32m3133 passed[39m[22m[2m | [22m[33m8 skipped[39m[90m (3157)[39m
+2026-10-17T22:17:02.7552187Z [2m   Start at [22m 22:12:54
+2026-10-17T22:17:02.7552383Z [2m   Duration [22m 247.44s[2m (worker 82%, tests 13%, environment 4%, import 1%, transform 1%)[22m

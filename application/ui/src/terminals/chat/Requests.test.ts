@@ -1,12 +1,8 @@
 import { act, createElement } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import {
-  WordsLost,
-  type ChatAnswer,
-  type ChatDialog,
-  type ChatRequest,
-} from "../../model/conversation"
+import { WordsLost, type ChatAnswer, type ChatDialog, type ChatRequest } from "#core/conversation"
+
 import { describe, expect, it } from "../../test"
 import { refusing } from "../../test/fixtures"
 import { render } from "../../test/render"
@@ -227,7 +223,7 @@ describe("a request's card", () => {
     expect(button(container, "Answer in terminal")).toBeDefined()
   })
 
-  it("keeps the words typed when the dialog is read again, and answers the new one", () => {
+  it("keeps the words typed when the dialog is read again, and answers the new one", async () => {
     const onAnswer = vi.fn<(request: string, answer: ChatAnswer) => Promise<void>>(async () => {})
     const { container, rerender } = show(choices, onAnswer)
     click(button(container, "No, and tell"))
@@ -241,6 +237,8 @@ describe("a request's card", () => {
     expect(container.querySelector("textarea")?.value).toBe("use pnpm")
     expect(container.querySelector("pre")?.textContent).toBe("ls -la")
     click(button(container, "Send answer"))
+    // The answer's promise settles the card once it's sent.
+    await settle()
     expect(onAnswer).toHaveBeenCalledWith("r1", {
       type: "choice",
       dialog: "d2",

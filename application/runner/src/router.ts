@@ -3,11 +3,11 @@ import { homedir } from "node:os"
 import {
   contract,
   errors as contractErrors,
-  protocolVersion,
   type AgentName,
   type ItemContent,
 } from "@novadeck/protocol"
 import { TerminalError } from "@novadeck/terminal"
+import type { SessionContext } from "@novadeck/wire/server"
 import { implement, ORPCError } from "@orpc/server"
 
 import { savePlan } from "./companions/content.js"
@@ -21,24 +21,11 @@ import type { Voice } from "./voice/service.js"
 import type { Projects } from "./workspaces/projects.js"
 import type { WorkspaceStore } from "./workspaces/store.js"
 
-/** One client of a runner. Its transport decides how the handshake token is checked. */
-export type Connection = {
-  readonly id: string
-  readonly verify: (token: string | undefined) => boolean
-  /** Ends the transport, e.g. when a newer connection of the same client takes over. */
-  readonly terminate: () => void
-  readonly onAuthenticated: () => void
-  /** Calls this connection may have in flight; beyond it, calls fail with `RESOURCE_LIMIT`. */
-  readonly maxCalls: number
-  clientId: string | undefined
-  authenticated: boolean
-  closed: boolean
-  calls: number
-}
+// The wire serves its own handshake; the runner serves the rest of the contract.
+const { wire: _, ...served } = contract
 
-type Context = { connection: Connection }
-
-const apiError = (error: unknown): unknown => {
+/** The runner's failures as the contract's errors, which its clients see. */
+export const apiError = (error: unknown): unknown => {
   if (error instanceof DomainError)
     return new ORPCError(error.code, {
       status: contractErrors[error.code].status,
@@ -54,9 +41,11 @@ const apiError = (error: unknown): unknown => {
   return error
 }
 
+/**
+ * The runner's procedures. Its sessions serve them (`createSessions`): only to authenticated
+ * sessions, and mapping their failures with `apiError`.
+ */
 export const createRouter = (options: {
-  runnerId: string
-  claim: (connection: Connection, clientId: string) => void
   store: WorkspaceStore
   terminals: Terminals
   projects: Projects
@@ -77,187 +66,115 @@ export const createRouter = (options: {
       : content
   // The save of each plan under way, which the next waits for.
   const saving = new Map<string, Promise<void>>()
-  const api = implement(contract).$context<Context>()
-  const authorized = api.use(async ({ context, next }) => {
-    const connection = context.connection
-    if (!connection.authenticated || connection.closed) throw new ORPCError("UNAUTHORIZED")
-    if (connection.calls >= connection.maxCalls)
-      throw new ORPCError("RESOURCE_LIMIT", { status: 429 })
-    connection.calls += 1
-    try {
-      return await next()
-    } catch (error) {
-      throw apiError(error)
-    } finally {
-      connection.calls -= 1
-    }
-  })
+  const api = implement(served).$context<SessionContext>()
 
   return api.router({
-    runner: {
-      handshake: api.runner.handshake.handler(({ input, context, errors }) => {
-        const connection = context.connection
-        if (connection.closed || !connection.verify(input.token)) {
-          throw errors.UNAUTHORIZED()
-        }
-        if (input.protocolVersion !== protocolVersion) throw errors.INCOMPATIBLE_PROTOCOL()
-        connection.authenticated = true
-        if (input.clientId !== undefined) options.claim(connection, input.clientId)
-        connection.onAuthenticated()
-        return {
-          runnerId: options.runnerId,
-          protocolVersion,
-        }
-      }),
-    },
     projects: {
-      list: authorized.projects.list.handler(() => projects.list()),
-      create: authorized.projects.create.handler(({ input }) =>
+      list: api.projects.list.handler(() => projects.list()),
+      create: api.projects.create.handler(({ input }) =>
         store.createProject({ ...input, cwd: input.cwd ?? homedir() }),
       ),
-      rename: authorized.projects.rename.handler(({ input }) => store.renameProject(input)),
-      remove: authorized.projects.remove.handler(({ input }) => projects.remove(input.projectId)),
+      rename: api.projects.rename.handler(({ input }) => store.renameProject(input)),
+      remove: api.projects.remove.handler(({ input }) => projects.remove(input.projectId)),
     },
     sessions: {
-      list: authorized.sessions.list.handler(({ input }) => store.sessions(input.projectId)),
-      create: authorized.sessions.create.handler(({ input }) => {
+      list: api.sessions.list.handler(({ input }) => store.sessions(input.projectId)),
+      create: api.sessions.create.handler(({ input }) => {
         projects.ensureNotRemoving(input.projectId)
         return store.createSession(input)
       }),
-      rename: authorized.sessions.rename.handler(({ input }) => store.renameSession(input)),
-      save: authorized.sessions.save.handler(({ input }) => {
+      rename: api.sessions.rename.handler(({ input }) => store.renameSession(input)),
+      save: api.sessions.save.handler(({ input }) => {
         // Shells exiting during shutdown would otherwise overwrite the last state saved
         // before it with one where nothing runs.
-        if (options.closing()) throw new DomainError("RUNTIME_CLOSING")
+        if (options.closing()) throw new DomainError("CLOSING")
         store.saveSession(input)
       }),
     },
     terminals: {
-      list: authorized.terminals.list.handler(({ input }) => {
+      list: api.terminals.list.handler(({ input }) => {
         store.session(input.sessionId)
         return terminals.list(input.sessionId)
       }),
-      create: authorized.terminals.create.handler(async ({ input, context }) => {
+      create: api.terminals.create.handler(async ({ input, context }) => {
         const session = store.session(input.sessionId)
         const project = store.project(session.projectId)
         return projects.creatingIn(project.id, () =>
-          terminals.create({ ...input, cwd: input.cwd ?? project.cwd }, context.connection.id),
+          terminals.create({ ...input, cwd: input.cwd ?? project.cwd }, context.session.id),
         )
       }),
-      requests: authorized.terminals.requests.handler(async function* ({ context, signal }) {
-        if (context.connection.closed) return
-        try {
-          yield* terminals.requests(context.connection.id, signal)
-        } catch (error) {
-          throw apiError(error)
-        }
-      }),
-      answerRequest: authorized.terminals.answerRequest.handler(({ input, context }) =>
-        terminals.answerRequest(input, context.connection.id),
+      requests: api.terminals.requests.handler(({ context, signal }) =>
+        terminals.requests(context.session.id, signal),
       ),
-      watch: authorized.terminals.watch.handler(async function* ({ context, signal }) {
-        // A connection that closed before this stream began has already been released.
-        if (context.connection.closed) return
-        try {
-          yield* terminals.watch(context.connection.id, signal)
-        } catch (error) {
-          throw apiError(error)
-        }
-      }),
-      attach: authorized.terminals.attach.handler(async function* ({ input, context, signal }) {
-        try {
-          yield* terminals.attach(
-            {
-              terminalId: input.terminalId,
-              ...(input.afterSequence !== undefined && { afterSequence: input.afterSequence }),
-              ...(input.mode !== undefined && { mode: input.mode }),
-            },
-            context.connection.id,
-            signal,
-          )
-        } catch (error) {
-          throw apiError(error)
-        }
-      }),
-      write: authorized.terminals.write.handler(({ input, context }) =>
-        terminals.write(input, context.connection.id),
+      answerRequest: api.terminals.answerRequest.handler(({ input, context }) =>
+        terminals.answerRequest(input, context.session.id),
       ),
-      resize: authorized.terminals.resize.handler(({ input, context }) =>
-        terminals.resize(input, context.connection.id),
+      watch: api.terminals.watch.handler(({ context, signal }) =>
+        terminals.watch(context.session.id, signal),
       ),
-      ack: authorized.terminals.ack.handler(({ input, context }) =>
-        terminals.ack(input, context.connection.id),
+      attach: api.terminals.attach.handler(({ input, context, signal }) =>
+        terminals.attach(
+          {
+            terminalId: input.terminalId,
+            ...(input.afterSequence !== undefined && { afterSequence: input.afterSequence }),
+            ...(input.mode !== undefined && { mode: input.mode }),
+          },
+          context.session.id,
+          signal,
+        ),
       ),
-      upload: authorized.terminals.upload.handler(async ({ input }) => {
+      write: api.terminals.write.handler(({ input, context }) =>
+        terminals.write(input, context.session.id),
+      ),
+      resize: api.terminals.resize.handler(({ input, context }) =>
+        terminals.resize(input, context.session.id),
+      ),
+      ack: api.terminals.ack.handler(({ input, context }) =>
+        terminals.ack(input, context.session.id),
+      ),
+      upload: api.terminals.upload.handler(async ({ input }) => {
         if (!terminals.place(input.terminalId)) throw new DomainError("TERMINAL_NOT_FOUND")
         return { path: await uploads.save(input) }
       }),
-      restart: authorized.terminals.restart.handler(async ({ input, context }) =>
-        terminals.restart(input, context.connection.id),
+      restart: api.terminals.restart.handler(async ({ input, context }) =>
+        terminals.restart(input, context.session.id),
       ),
-      close: authorized.terminals.close.handler(({ input }) => terminals.close(input)),
-      rename: authorized.terminals.rename.handler(({ input }) => terminals.rename(input)),
-      resetTitle: authorized.terminals.resetTitle.handler(({ input }) =>
-        terminals.resetTitle(input),
-      ),
+      close: api.terminals.close.handler(({ input }) => terminals.close(input)),
+      rename: api.terminals.rename.handler(({ input }) => terminals.rename(input)),
+      resetTitle: api.terminals.resetTitle.handler(({ input }) => terminals.resetTitle(input)),
     },
     agents: {
-      list: authorized.agents.list.handler(() => agents.list()),
-      detail: authorized.agents.detail.handler(async function* ({ input, context, signal }) {
-        if (context.connection.closed) return
-        try {
-          yield* terminals.detail(input.terminalId, signal)
-        } catch (error) {
-          throw apiError(error)
-        }
-      }),
-      transcript: authorized.agents.transcript.handler(async function* ({
-        input,
-        context,
-        signal,
-      }) {
-        if (context.connection.closed) return
-        try {
-          yield* terminals.transcript(input.terminalId, input.actor, signal)
-        } catch (error) {
-          throw apiError(error)
-        }
-      }),
-      prompt: authorized.agents.prompt.handler(({ input }) => terminals.prompt(input)),
-      answer: authorized.agents.answer.handler(({ input }) => terminals.answer(input)),
-      interrupt: authorized.agents.interrupt.handler(({ input }) => terminals.interrupt(input)),
-      set: authorized.agents.set.handler(async ({ input }) => {
+      list: api.agents.list.handler(() => agents.list()),
+      detail: api.agents.detail.handler(({ input, signal }) =>
+        terminals.detail(input.terminalId, signal),
+      ),
+      transcript: api.agents.transcript.handler(({ input, signal }) =>
+        terminals.transcript(input.terminalId, input.actor, signal),
+      ),
+      prompt: api.agents.prompt.handler(({ input }) => terminals.prompt(input)),
+      answer: api.agents.answer.handler(({ input }) => terminals.answer(input)),
+      interrupt: api.agents.interrupt.handler(({ input }) => terminals.interrupt(input)),
+      set: api.agents.set.handler(async ({ input }) => {
         const result = await agents.set(input.agent, input.connected)
         if (!result.connected) terminals.forgetAgent(input.agent)
         return result
       }),
     },
     companions: {
-      list: authorized.companions.list.handler(({ input }) => {
+      list: api.companions.list.handler(({ input }) => {
         store.session(input.sessionId)
         return items.list(input.sessionId)
       }),
-      watch: authorized.companions.watch.handler(async function* ({ context, signal }) {
-        // A connection that closed before this stream began has already been released.
-        if (context.connection.closed) return
-        try {
-          yield* items.watch(context.connection.id, signal)
-        } catch (error) {
-          throw apiError(error)
-        }
+      watch: api.companions.watch.handler(({ context, signal }) =>
+        items.watch(context.session.id, signal),
+      ),
+      content: api.companions.content.handler(async function* ({ input, signal }) {
+        for await (const content of items.content(input.itemId, input.reveal === true, signal))
+          yield await withSkill(content, store.item(input.itemId)?.plan?.agent)
       }),
-      content: authorized.companions.content.handler(async function* ({ input, context, signal }) {
-        if (context.connection.closed) return
-        try {
-          for await (const content of items.content(input.itemId, input.reveal === true, signal))
-            yield await withSkill(content, store.item(input.itemId)?.plan?.agent)
-        } catch (error) {
-          throw apiError(error)
-        }
-      }),
-      save: authorized.companions.save.handler(async ({ input }) => {
+      save: api.companions.save.handler(async ({ input }) => {
         const item = store.item(input.itemId)
-        if (!item) throw apiError(new DomainError("NOT_FOUND", "Item not found"))
+        if (!item) throw new DomainError("NOT_FOUND", "Item not found")
         // One save of a plan at a time, each judged by the file the one before left.
         const run = async () => {
           const result = await savePlan(item, input.text, input.basedOn)
@@ -283,101 +200,73 @@ export const createRouter = (options: {
               `Novadeck could not save a plan (${(error as NodeJS.ErrnoException | undefined)?.code ?? "unknown"}) at ${item.path ?? "no path"}:`,
               error,
             )
-          throw apiError(error)
+          throw error
         }
       }),
-      attach: authorized.companions.attach.handler(({ input }) => items.attach(input)),
-      move: authorized.companions.move.handler(({ input }) =>
-        items.move(input.itemId, input.terminalId),
-      ),
-      undock: authorized.companions.undock.handler(({ input }) =>
+      attach: api.companions.attach.handler(({ input }) => items.attach(input)),
+      move: api.companions.move.handler(({ input }) => items.move(input.itemId, input.terminalId)),
+      undock: api.companions.undock.handler(({ input }) =>
         items.undock(input.itemId, input.windowId),
       ),
-      close: authorized.companions.close.handler(({ input }) => items.close(input.itemId)),
-      renameWindow: authorized.companions.renameWindow.handler(({ input }) =>
+      close: api.companions.close.handler(({ input }) => items.close(input.itemId)),
+      renameWindow: api.companions.renameWindow.handler(({ input }) =>
         items.renameWindow(input.windowId, input.title),
       ),
-      resetWindowTitle: authorized.companions.resetWindowTitle.handler(({ input }) =>
+      resetWindowTitle: api.companions.resetWindowTitle.handler(({ input }) =>
         items.renameWindow(input.windowId, null),
       ),
     },
     asks: {
-      list: authorized.asks.list.handler(() => terminals.inboxLetters()),
-      watch: authorized.asks.watch.handler(async function* ({ context, signal }) {
-        for await (const listing of terminals.watchAsks(signal)) {
-          if (context.connection.closed) return
-          yield listing
-        }
-      }),
-      answer: authorized.asks.answer.handler(({ input }) =>
-        terminals.answerAsk(input.id, input.answer),
-      ),
-      read: authorized.asks.read.handler(({ input }) => terminals.readTells(input.ids)),
+      list: api.asks.list.handler(() => terminals.inboxLetters()),
+      watch: api.asks.watch.handler(({ signal }) => terminals.watchAsks(signal)),
+      answer: api.asks.answer.handler(({ input }) => terminals.answerAsk(input.id, input.answer)),
+      read: api.asks.read.handler(({ input }) => terminals.readTells(input.ids)),
     },
     messages: {
-      list: authorized.messages.list.handler(({ input }) => terminals.messages(input.terminalId)),
-      watch: authorized.messages.watch.handler(async function* ({ input, context, signal }) {
-        if (context.connection.closed) return
-        try {
-          yield* terminals.watchMessages(input.terminalId, signal)
-        } catch (error) {
-          throw apiError(error)
-        }
-      }),
-      pause: authorized.messages.pause.handler(({ input }) =>
-        terminals.pauseMessages(input.paused),
+      list: api.messages.list.handler(({ input }) => terminals.messages(input.terminalId)),
+      watch: api.messages.watch.handler(({ input, signal }) =>
+        terminals.watchMessages(input.terminalId, signal),
       ),
-      release: authorized.messages.release.handler(({ input }) =>
-        terminals.releaseThread(input.thread),
-      ),
-      stop: authorized.messages.stop.handler(({ input }) => terminals.stopThread(input.thread)),
+      pause: api.messages.pause.handler(({ input }) => terminals.pauseMessages(input.paused)),
+      release: api.messages.release.handler(({ input }) => terminals.releaseThread(input.thread)),
+      stop: api.messages.stop.handler(({ input }) => terminals.stopThread(input.thread)),
     },
     voice: {
-      watch: authorized.voice.watch.handler(async function* ({ context, signal }) {
-        if (context.connection.closed) return
-        try {
-          yield* voice.watch(context.connection.id, signal)
-        } catch (error) {
-          throw apiError(error)
-        }
-      }),
-      install: authorized.voice.install.handler(() => voice.install()),
-      cancel: authorized.voice.cancel.handler(() => voice.cancel()),
-      uninstall: authorized.voice.uninstall.handler(() => voice.uninstall()),
-      set: authorized.voice.set.handler(({ input }) => voice.set(input)),
-      record: authorized.voice.record.handler(({ input, context }) =>
-        voice.record(context.connection.id, input.clipId, input.offset, input.data),
+      watch: api.voice.watch.handler(({ context, signal }) =>
+        voice.watch(context.session.id, signal),
       ),
-      transcribe: authorized.voice.transcribe.handler(({ input, context }) =>
-        voice.transcribe(context.connection.id, input.clipId, input.terminalId),
+      install: api.voice.install.handler(() => voice.install()),
+      cancel: api.voice.cancel.handler(() => voice.cancel()),
+      uninstall: api.voice.uninstall.handler(() => voice.uninstall()),
+      set: api.voice.set.handler(({ input }) => voice.set(input)),
+      record: api.voice.record.handler(({ input, context }) =>
+        voice.record(context.session.id, input.clipId, input.offset, input.data),
       ),
-      discard: authorized.voice.discard.handler(({ input, context }) =>
-        voice.discard(context.connection.id, input.clipId),
+      transcribe: api.voice.transcribe.handler(({ input, context }) =>
+        voice.transcribe(context.session.id, input.clipId, input.terminalId),
+      ),
+      discard: api.voice.discard.handler(({ input, context }) =>
+        voice.discard(context.session.id, input.clipId),
       ),
     },
     murmur: {
-      watch: authorized.murmur.watch.handler(async function* ({ context, signal }) {
-        if (context.connection.closed) return
-        try {
-          yield* murmur.watch(context.connection.id, signal)
-        } catch (error) {
-          throw apiError(error)
-        }
-      }),
-      install: authorized.murmur.install.handler(() => murmur.install()),
-      cancel: authorized.murmur.cancel.handler(() => murmur.cancel()),
-      uninstall: authorized.murmur.uninstall.handler(() => murmur.uninstall()),
-      set: authorized.murmur.set.handler(({ input }) => murmur.set(input)),
-      noteOffered: authorized.murmur.noteOffered.handler(() => murmur.noteOffered()),
-      gist: authorized.murmur.gist.handler(({ input }) =>
+      watch: api.murmur.watch.handler(({ context, signal }) =>
+        murmur.watch(context.session.id, signal),
+      ),
+      install: api.murmur.install.handler(() => murmur.install()),
+      cancel: api.murmur.cancel.handler(() => murmur.cancel()),
+      uninstall: api.murmur.uninstall.handler(() => murmur.uninstall()),
+      set: api.murmur.set.handler(({ input }) => murmur.set(input)),
+      noteOffered: api.murmur.noteOffered.handler(() => murmur.noteOffered()),
+      gist: api.murmur.gist.handler(({ input }) =>
         terminals.gistWanted(input.terminalId, input.at),
       ),
     },
     // The store keeps the settings; the terminals apply the transcript switch.
     settings: {
-      get: authorized.settings.get.handler(() => store.settings()),
-      set: authorized.settings.set.handler(({ input }) => {
-        if (options.closing()) throw new DomainError("RUNTIME_CLOSING")
+      get: api.settings.get.handler(() => store.settings()),
+      set: api.settings.set.handler(({ input }) => {
+        if (options.closing()) throw new DomainError("CLOSING")
         store.saveSettings(input)
         if (input.transcripts !== undefined) terminals.keepTranscripts(input.transcripts)
       }),

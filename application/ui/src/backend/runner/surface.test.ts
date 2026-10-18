@@ -1,12 +1,18 @@
-import { FitAddon, Terminal } from "@novadeck/emulator/browser"
+import {
+  createRenderers,
+  createView,
+  type Drawing,
+  type Terminal as EmulatorTerminal,
+} from "@novadeck/emulator/browser"
 import type { TerminalEvent, TerminalExit } from "@novadeck/protocol"
 import { type AttachedTerminal } from "@novadeck/protocol/client"
 import { WireError } from "@novadeck/wire"
-import { act, createElement, type ReactNode } from "react"
+import { act, createElement, useSyncExternalStore, type ReactNode } from "react"
 import { afterEach, onTestFinished, vi } from "vitest"
 
-import { createStore } from "../../model/store"
-import type { TerminalMetadata, ViewMode } from "../../model/types"
+import { createStore } from "#core/store"
+import type { TerminalMetadata, ViewMode } from "#core/types"
+
 import { context, describe, expect, it } from "../../test"
 import { terminalFixture } from "../../test/fixtures"
 import { render, type Rendered } from "../../test/render"
@@ -14,9 +20,8 @@ import { themeChangeEvent } from "../../theme/apply"
 import type { BackendConnectionState } from "../port"
 import type { SurfaceRuntime } from "./backend"
 import { ctrlVHoldMs } from "./paste"
-import { createRenderers, type Drawing } from "./renderer"
 import { createRunnerTerminal } from "./RunnerTerminal"
-import { createScreens, pasteNoticeMs } from "./screens"
+import { createScreens, pasteNoticeMs, type RunnerScreen } from "./screens"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
 vi.hoisted(() => {
@@ -38,6 +43,29 @@ vi.hoisted(() => {
     }),
   })
 })
+
+// The emulator's terminal class is not exported; the tests spy on its prototype.
+type Terminal = EmulatorTerminal
+
+// Waits as vi.waitFor does, inside act: what the surface's stores tell it meanwhile, as a
+// screen's stream once its attachment answers, renders as part of the test. Only a store's
+// update renders before the wait ends; a component's own state set meanwhile waits for it.
+const until = <T>(check: () => T, options?: Parameters<typeof vi.waitFor>[1]): Promise<T> =>
+  act(() => vi.waitFor(check, options))
+
+const Terminal = {
+  prototype: (() => {
+    const view = createView(document.createElement("div"), {
+      fontSize: 13,
+      fontFamily: "monospace",
+      theme: {},
+      scrollback: 0,
+    })
+    const prototype = Object.getPrototypeOf(view.terminal) as Terminal
+    view.dispose()
+    return prototype
+  })(),
+}
 
 const mounted: Rendered[] = []
 // A screen closes once its session has stayed off screen for its retention; it closes
@@ -177,6 +205,190 @@ const Agent = (props: { children: ReactNode }) => createElement("section", props
 const Plain = (props: { children: ReactNode }) => createElement("article", props)
 
 describe("runner terminal surface", () => {
+  it("takes focus asked for while off screen into the screen opened again when it's back", () => {
+    // The parked-screen cap closed its screen while it was away: the one it comes back to is
+    // a new one, which the focus must reach.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const { runtime } = starting()
+      const screens = createScreens(runtime, undefined, 0)
+      const acquired: RunnerScreen[] = []
+      const Surface = createRunnerTerminal(runtime, {
+        ...screens,
+        acquire: (...args) => {
+          const screen = screens.acquire(...args)
+          acquired.push(screen)
+          return screen
+        },
+      })
+      const request = createStore(false)
+      const Host = ({ onScreen }: { onScreen: boolean }) => {
+        const wanted = useSyncExternalStore(request.subscribe, request.getSnapshot)
+        return createElement(Surface, {
+          terminalKey: key,
+          terminal: { ...terminalFixture(1, "~"), state: "starting" },
+          projectName: "P",
+          view: "canvas",
+          fontSize: 13,
+          focusInput: wanted && onScreen,
+          onInputFocused: () => request.update(() => false),
+          onScreen,
+          renderWindow: (content) => content,
+        })
+      }
+      const page = render(createElement(Host, { onScreen: true }))
+      page.rerender(createElement(Host, { onScreen: false }))
+      vi.advanceTimersByTime(6_000)
+      act(() => request.update(() => true))
+      page.rerender(createElement(Host, { onScreen: true }))
+
+      expect(acquired[1]).not.toBe(acquired[0])
+      expect(document.activeElement).toBe(acquired[1]!.xterm.textarea)
+      expect(request.getSnapshot()).toBe(false)
+      page.unmount()
+      vi.advanceTimersByTime(31 * 60 * 1000)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("places the host its screen opened in, when that is not the one it rendered with", () => {
+    // As when the parked-screen cap closes the screen between the surface's render and its
+    // effect: the screen opens again in a host of its own.
+    const { runtime } = starting()
+    const screens = createScreens(runtime)
+    const stale = document.createElement("div")
+    const Surface = createRunnerTerminal(runtime, { ...screens, host: () => stale })
+    const page = render(
+      createElement(Surface, {
+        terminalKey: key,
+        terminal: { ...terminalFixture(1, "~"), state: "starting" },
+        projectName: "P",
+        view: "focus",
+        fontSize: 13,
+        focusInput: false,
+        onInputFocused: () => {},
+        renderWindow: (content) => content,
+      }),
+    )
+    mounted.push(page)
+    expect(screens.host(key).isConnected).toBe(true)
+    expect(stale.isConnected).toBe(false)
+  })
+
+  context("when it is out of the person's sight", () => {
+    // Surfaces over screens that note each acquire and release. The timers are fake, so the
+    // screen's parking and retention timers run out before the test ends, not after it.
+    const watched = (test: (harness: ReturnType<typeof surfaces>) => void) => () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+      try {
+        test(surfaces())
+        vi.advanceTimersByTime(31 * 60 * 1000)
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+    const surfaces = () => {
+      const { runtime } = starting()
+      const screens = createScreens(runtime)
+      const calls: string[] = []
+      const acquired: RunnerScreen[] = []
+      const Surface = createRunnerTerminal(runtime, {
+        ...screens,
+        acquire: (...args) => {
+          calls.push("acquire")
+          const screen = screens.acquire(...args)
+          acquired.push(screen)
+          return screen
+        },
+        release: (...args) => {
+          calls.push("release")
+          screens.release(...args)
+        },
+      })
+      const surface = (onScreen: boolean) =>
+        createElement(Surface, {
+          terminalKey: key,
+          terminal: { ...terminalFixture(1, "~"), state: "starting" },
+          projectName: "P",
+          view: "canvas",
+          fontSize: 13,
+          focusInput: false,
+          onInputFocused: () => {},
+          onScreen,
+          renderWindow: (content) => content,
+        })
+      return { screens, calls, acquired, surface }
+    }
+
+    it(
+      "lets its screen go and takes it again, one release for each acquire",
+      watched(({ screens, calls, surface }) => {
+        const page = render(surface(true))
+        const xterm = page.container.querySelector(".xterm")
+        expect(calls).toEqual(["acquire"])
+
+        page.rerender(surface(false))
+        expect(calls).toEqual(["acquire", "release"])
+        // It stays mounted, showing the host's last drawing.
+        expect(page.container.querySelector(".xterm")).toBe(xterm)
+
+        page.rerender(surface(true))
+        expect(calls).toEqual(["acquire", "release", "acquire"])
+        expect(screens.host(key).isConnected).toBe(true)
+        expect(page.container.querySelector(".xterm")).toBe(xterm)
+
+        page.rerender(surface(true))
+        expect(calls).toEqual(["acquire", "release", "acquire"])
+        page.unmount()
+        expect(calls).toEqual(["acquire", "release", "acquire", "release"])
+      }),
+    )
+
+    it(
+      "leaves no refocus waiting when it takes back a screen that never left its slot",
+      watched(({ calls, acquired, surface }) => {
+        const page = render(surface(true))
+        const screen = acquired[0]!
+        screen.xterm.focus()
+        expect(screen.host.contains(document.activeElement)).toBe(true)
+
+        page.rerender(surface(false))
+        page.rerender(surface(true))
+        expect(calls).toEqual(["acquire", "release", "acquire"])
+        expect(acquired[1]).toBe(screen)
+        // Nothing waits to refocus the host: a later body change must not steal focus.
+        expect(screen.refocus).toBe(false)
+        // Only an unmount leaves focus for the next surface to restore.
+        page.unmount()
+        expect(screen.refocus).toBe(true)
+      }),
+    )
+
+    it(
+      "releases nothing again when it unmounts off screen",
+      watched(({ calls, surface }) => {
+        const page = render(surface(true))
+        page.rerender(surface(false))
+        expect(calls).toEqual(["acquire", "release"])
+        page.unmount()
+        expect(calls).toEqual(["acquire", "release"])
+      }),
+    )
+
+    it(
+      "takes no screen while it has never been on screen",
+      watched(({ calls, surface }) => {
+        const page = render(surface(false))
+        expect(calls).toEqual([])
+        page.rerender(surface(true))
+        expect(calls).toEqual(["acquire"])
+        page.unmount()
+        expect(calls).toEqual(["acquire", "release"])
+      }),
+    )
+  })
+
   it("keeps one live xterm, its output and focus while the body around it changes", async () => {
     const { runtime } = starting()
     const views: Terminal[] = []
@@ -250,7 +462,7 @@ describe("runner terminal surface", () => {
     try {
       const page = render(props("terminal"))
       mounted.push(page)
-      await vi.waitFor(() =>
+      await until(() =>
         expect(views[0]?.buffer.active.getLine(0)?.translateToString()).toContain(
           "hello from the same shell",
         ),
@@ -374,7 +586,7 @@ describe("runner terminal surface", () => {
       try {
         const page = render(inView("grid"))
         mounted.push(page)
-        await vi.waitFor(() =>
+        await until(() =>
           expect(opened[0]?.buffer.active.getLine(0)?.translateToString()).toContain(
             "still the same shell",
           ),
@@ -403,9 +615,9 @@ describe("runner terminal surface", () => {
       try {
         const page = render(inView("grid"))
         page.unmount()
-        await vi.advanceTimersByTimeAsync(29 * 60 * 1000)
+        await act(() => vi.advanceTimersByTimeAsync(29 * 60 * 1000))
         expect(screen.mock.calls.map((call) => call[1])).not.toContain("gone")
-        await vi.advanceTimersByTimeAsync(2 * 60 * 1000)
+        await act(() => vi.advanceTimersByTimeAsync(2 * 60 * 1000))
         expect(screen.mock.calls.map((call) => call[1])).toContain("gone")
       } finally {
         vi.useRealTimers()
@@ -418,9 +630,9 @@ describe("runner terminal surface", () => {
       const { open, opened, attach, screen, inView } = following(false)
       try {
         const page = render(inView("grid"))
-        await vi.advanceTimersByTimeAsync(0)
+        await act(() => vi.advanceTimersByTimeAsync(0))
         page.unmount()
-        await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
+        await act(() => vi.advanceTimersByTimeAsync(10 * 60 * 1000))
         mounted.push(render(inView("focus")))
         expect(opened).toHaveLength(1)
         expect(attach).toHaveBeenCalledTimes(1)
@@ -437,13 +649,13 @@ describe("runner terminal surface", () => {
       try {
         const page = render(inView("grid"))
         page.unmount()
-        await vi.advanceTimersByTimeAsync(20 * 60 * 1000)
+        await act(() => vi.advanceTimersByTimeAsync(20 * 60 * 1000))
         putOnScreen(true)
-        await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+        await act(() => vi.advanceTimersByTimeAsync(5 * 60 * 1000))
         putOnScreen(false)
-        await vi.advanceTimersByTimeAsync(20 * 60 * 1000)
+        await act(() => vi.advanceTimersByTimeAsync(20 * 60 * 1000))
         expect(screen.mock.calls.map((call) => call[1])).not.toContain("gone")
-        await vi.advanceTimersByTimeAsync(11 * 60 * 1000)
+        await act(() => vi.advanceTimersByTimeAsync(11 * 60 * 1000))
         expect(screen.mock.calls.map((call) => call[1])).toContain("gone")
       } finally {
         vi.useRealTimers()
@@ -457,9 +669,9 @@ describe("runner terminal surface", () => {
       try {
         const page = render(inView("grid"))
         page.unmount()
-        await vi.advanceTimersByTimeAsync(1_000)
+        await act(() => vi.advanceTimersByTimeAsync(1_000))
         vi.setSystemTime(Date.now() + 31 * 60 * 1000)
-        await vi.advanceTimersByTimeAsync(1_000)
+        await act(() => vi.advanceTimersByTimeAsync(1_000))
         expect(screen.mock.calls.map((call) => call[1])).toContain("gone")
       } finally {
         vi.useRealTimers()
@@ -474,12 +686,12 @@ describe("runner terminal surface", () => {
         const { open, screen, detach, inView, end } = following(true)
         try {
           const page = render(inView("grid"))
-          await vi.advanceTimersByTimeAsync(0)
+          await act(() => vi.advanceTimersByTimeAsync(0))
           page.unmount()
-          await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
+          await act(() => vi.advanceTimersByTimeAsync(10 * 60 * 1000))
           expect(screen.mock.calls.map((call) => call[1])).not.toContain("gone")
           end(how)
-          await vi.advanceTimersByTimeAsync(1_000)
+          await act(() => vi.advanceTimersByTimeAsync(1_000))
           expect(screen.mock.calls.map((call) => call[1])).toContain("gone")
           expect(detach).toHaveBeenCalled()
         } finally {
@@ -495,7 +707,7 @@ describe("runner terminal surface", () => {
       try {
         const page = render(inView("grid"))
         page.unmount()
-        await vi.advanceTimersByTimeAsync(60 * 60 * 1000)
+        await act(() => vi.advanceTimersByTimeAsync(60 * 60 * 1000))
         expect(screen.mock.calls.map((call) => call[1])).not.toContain("gone")
       } finally {
         vi.useRealTimers()
@@ -768,7 +980,7 @@ describe("runner terminal surface", () => {
 
     it("says only that it failed when the runner is unreachable", async () => {
       const page = pasteRefused(new WireError("DISCONNECTED"))
-      await vi.waitFor(() => expect(notice(page)?.textContent).toBe("Couldn't paste the image"))
+      await until(() => expect(notice(page)?.textContent).toBe("Couldn't paste the image"))
     })
   })
 
@@ -790,7 +1002,7 @@ describe("runner terminal surface", () => {
         value: { files: [file], items: [], getData: () => "" },
       })
       act(() => void input(page).dispatchEvent(event))
-      await vi.waitFor(() => expect(paste).toHaveBeenCalledWith("/home/me/notes.txt "))
+      await until(() => expect(paste).toHaveBeenCalledWith("/home/me/notes.txt "))
       expect(upload).not.toHaveBeenCalled()
     })
   })
@@ -872,9 +1084,7 @@ describe("runner terminal surface", () => {
           }),
         )
       const ready = () =>
-        vi.waitFor(() =>
-          expect(xterm().buffer.active.getLine(0)?.translateToString()).toContain("$"),
-        )
+        until(() => expect(xterm().buffer.active.getLine(0)?.translateToString()).toContain("$"))
       // The shell's exit, as the stream tells it.
       const exit = () =>
         event?.({
@@ -900,7 +1110,7 @@ describe("runner terminal surface", () => {
       expect(shell.press()).toBe(false)
       shell.xterm().input("ls")
       clipboard.give([clipboardImage()])
-      await vi.waitFor(() => expect(shell.written).toHaveLength(2))
+      await until(() => expect(shell.written).toHaveLength(2))
       expect(shell.written).toEqual(["/u/pasted-00000000-000000.png ", "ls"])
     })
 
@@ -911,7 +1121,7 @@ describe("runner terminal surface", () => {
       await shell.ready()
       shell.press()
       shell.xterm().input("w")
-      await vi.waitFor(() => expect(shell.written).toEqual(["\u0016", "w"]))
+      await until(() => expect(shell.written).toEqual(["\u0016", "w"]))
       expect(notice(shell.page)).toBeNull()
     })
 
@@ -937,7 +1147,7 @@ describe("runner terminal surface", () => {
       input(shell.page).dispatchEvent(paste)
       expect(shell.written).toEqual([])
       clipboard.give([])
-      await vi.waitFor(() => expect(shell.written).toEqual(["\u0016", "\u001b[M !!", "echo"]))
+      await until(() => expect(shell.written).toEqual(["\u0016", "\u001b[M !!", "echo"]))
     })
 
     it("lets typing go after a while when the image is slow to upload, pasting its path later", async () => {
@@ -967,10 +1177,10 @@ describe("runner terminal surface", () => {
       await shell.ready()
       shell.press()
       shell.xterm().input("ls")
-      shell.exit()
-      await new Promise((resolve) => setTimeout(resolve, 10))
+      act(() => shell.exit())
+      await act(() => new Promise((resolve) => setTimeout(resolve, 10)))
       clipboard.give([])
-      await new Promise((resolve) => setTimeout(resolve, 10))
+      await act(() => new Promise((resolve) => setTimeout(resolve, 10)))
       expect(shell.written).toEqual([])
     })
 
@@ -1083,7 +1293,9 @@ describe("typing into a terminal's screen", () => {
       return shown
     }
     const page = showAgain()
-    const ready = () => vi.waitFor(() => expect(page.container.textContent).toContain("$"))
+    // Its first draw, which a slow runner (Windows in CI) may take seconds over.
+    const ready = () =>
+      until(() => expect(page.container.textContent).toContain("$"), { timeout: 5_000 })
     // Out of sight long enough for its screen to stop following the shell.
     const park = () => {
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
@@ -1119,9 +1331,9 @@ describe("typing into a terminal's screen", () => {
   it("types nothing while the runner is out of reach", async () => {
     const { screens, written, ready, connection } = running("$ ")
     await ready()
-    connection.update(() => "reconnecting")
+    act(() => void connection.update(() => "reconnecting"))
     expect(screens.typeInto(key, "run the tests")).toBe(false)
-    connection.update(() => "unavailable")
+    act(() => void connection.update(() => "unavailable"))
     expect(screens.typeInto(key, "run the tests")).toBe(false)
     expect(written).toEqual([])
   })
@@ -1133,8 +1345,8 @@ describe("typing into a terminal's screen", () => {
     showAgain()
     // Shown, but its screen isn't there yet.
     expect(screens.typeInto(key, "too soon")).toBe(false)
-    await vi.waitFor(() => expect(attachments).toHaveLength(2))
-    await vi.waitFor(() => expect(screens.typeInto(key, "run the tests")).toBe(true))
+    await until(() => expect(attachments).toHaveLength(2))
+    await until(() => expect(screens.typeInto(key, "run the tests")).toBe(true))
     expect(written).toEqual(["run the tests"])
   })
 
@@ -1274,7 +1486,22 @@ describe("a surface's renderer", () => {
       },
       renderers,
     )
-    vi.spyOn(FitAddon.prototype, "proposeDimensions").mockReturnValue({ cols: 100, rows: 30 })
+    // The fit addon is the view's own, so it is reached as the terminal loads it.
+    const loadAddon = Terminal.prototype.loadAddon
+    vi.spyOn(Terminal.prototype, "loadAddon").mockImplementation(function (
+      this: Terminal,
+      addon: Parameters<Terminal["loadAddon"]>[0],
+    ) {
+      if ("proposeDimensions" in addon && typeof addon.proposeDimensions === "function")
+        vi.spyOn(
+          addon as { proposeDimensions: () => unknown },
+          "proposeDimensions",
+        ).mockReturnValue({
+          cols: 100,
+          rows: 30,
+        })
+      return loadAddon.call(this, addon)
+    })
     const Surface = createRunnerTerminal(runtime, screens)
     const place = (terminalId: string, view: ViewMode) => {
       const terminalKey = { ...key, terminalId }
@@ -1322,6 +1549,30 @@ describe("a surface's renderer", () => {
     expect(resized).toHaveBeenCalledTimes(1)
     again(page, "focus", "01")
     expect(resized).toHaveBeenCalledTimes(2)
+  })
+
+  it("fits the screen again once a font it waited for arrives", async () => {
+    const { resized, mount } = wired()
+    const root = document.documentElement
+    root.style.setProperty("--font-mono", "Bundled Mono")
+    const font = loading()
+    // A resize's settling refit waits on a timer, and a placed host's second fit on the next
+    // frame; with both held, only the font's refit counts.
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"],
+    })
+    try {
+      mount("focus", "01")
+      resized.mockClear()
+
+      await act(async () => font.arrive())
+
+      expect(resized).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+      root.style.removeProperty("--font-mono")
+      font.restore()
+    }
   })
 
   it("gives the context back when the screen parks, not when a surface returns in time", () => {

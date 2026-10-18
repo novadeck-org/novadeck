@@ -1,4 +1,4 @@
-import type { SidebarPanel } from "../model/types"
+import type { SidebarPanel } from "#core/types"
 
 // What each sidebar panel is called to assistive technology, on the sidebar and its phone drawer.
 export const panelLabels: Readonly<Record<SidebarPanel, string>> = {

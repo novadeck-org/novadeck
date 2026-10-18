@@ -1,9 +1,10 @@
 import { ArrowUpRight, Layers, Terminal, X } from "lucide-react"
 import { useEffect, useRef } from "react"
 
-import { terminalLabel } from "../model/handle"
-import { isWindow } from "../model/roster"
-import type { Tile } from "../model/types"
+import { terminalLabel } from "#core/handle"
+import { isWindow } from "#core/roster"
+import type { Tile } from "#core/types"
+
 import { HandleChip } from "../ui-toolkit/HandleChip"
 import { searchResultClasses } from "../ui-toolkit/SearchCombobox"
 

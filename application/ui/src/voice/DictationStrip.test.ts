@@ -1,8 +1,9 @@
 import { act, createElement } from "react"
 
-import { createStore, type MutableStore } from "../model/store"
-import type { TerminalKey } from "../model/types"
-import type { VoiceState } from "../model/voice"
+import { createStore, type MutableStore } from "#core/store"
+import type { TerminalKey } from "#core/types"
+import type { VoiceState } from "#core/voice"
+
 import { describe, expect, it } from "../test"
 import { render } from "../test/render"
 import { Shown } from "../ui-toolkit/shown"
