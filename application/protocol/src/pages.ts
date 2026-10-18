@@ -19,3 +19,9 @@ export const pageKey = (address: string): string => {
 }
 
 const local = new Set(["localhost", "127.0.0.1", "[::1]", "0.0.0.0", "[::]"])
+
+/**
+ * The session live pages load in, named once for both halves of the browser viewer: the
+ * UI's page views ask for it, and the desktop app's lockdown keeps them to it, in memory.
+ */
+export const pagesPartition = "novadeck-pages"
