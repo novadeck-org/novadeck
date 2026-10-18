@@ -27,8 +27,10 @@ export const openEmulator =
       view.terminal.options.screenReaderMode = on
     }
     const focus = (): void => reading(true)
-    // Focus moving between the input and the tree's rows stays in the terminal.
+    // Focus moving between the input and the tree's rows stays in the terminal, and so does
+    // focus the window takes with it, which comes back to the row a reader was on.
     const blur = (event: FocusEvent): void => {
+      if (!element.ownerDocument.hasFocus()) return
       if (!(event.relatedTarget instanceof Node && element.contains(event.relatedTarget)))
         reading(false)
     }

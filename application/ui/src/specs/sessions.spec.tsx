@@ -241,8 +241,8 @@ describe("projects", () => {
 
     it("keeps each project's terminals, output, and selection separate", async () => {
       await openWorkspace()
-      await terminalTab("Runtime").click()
-      await run("Runtime", "echo storefront history")
+      await terminalTab("Checkout review").click()
+      await run("Checkout review", "echo storefront history")
       await sidebar()
         .getByRole("button", { name: labelled("Close ", "Build") })
         .click()
@@ -257,7 +257,7 @@ describe("projects", () => {
       await switchProject("storefront")
 
       await expect.element(terminalTab("Build")).not.toBeInTheDocument()
-      await expectSelected("Runtime")
+      await expectSelected("Checkout review")
       await expect.poll(() => terminalsShow("storefront history")).toBe(true)
     })
   })
@@ -342,9 +342,9 @@ describe("sessions sidebar", () => {
   context("when selecting a saved session", () => {
     it("switches back to its terminals with their output and drafts", async () => {
       await openWorkspace()
-      await terminalTab("Runtime").click()
-      await run("Runtime", "echo saved output")
-      await typeInto("Runtime", "echo unfinished")
+      await terminalTab("Checkout review").click()
+      await run("Checkout review", "echo saved output")
+      await typeInto("Checkout review", "echo unfinished")
       await sidebarPanel("Sessions").click()
       const original = await currentSessionName()
       await page.getByRole("button", { name: "New session" }).click()
@@ -352,8 +352,8 @@ describe("sessions sidebar", () => {
 
       await savedSession(original).click()
 
-      await expect.element(terminal("Runtime")).toBeVisible()
-      await expect.poll(() => draftOf("Runtime")).toBe("echo unfinished")
+      await expect.element(terminal("Checkout review")).toBeVisible()
+      await expect.poll(() => draftOf("Checkout review")).toBe("echo unfinished")
       await expect.poll(() => terminalsShow("saved output")).toBe(true)
       await expectCurrentSession(original)
     })

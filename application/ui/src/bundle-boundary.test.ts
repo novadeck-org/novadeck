@@ -154,7 +154,7 @@ describe("the visitor build's budgets", () => {
     ).toEqual([])
   })
 
-  it("counts what the first chunks' styles weigh, and the fonts they name, in the first load", () => {
+  it("counts what the first chunks' styles weigh, and every font they declare, in the first load", () => {
     const font = { type: "asset", fileName: "assets/mono.woff2", source: new Uint8Array(5000) }
     const styled = (fontSize: number) => ({
       ...built(visitorBudgets.first - 10_000, 0),

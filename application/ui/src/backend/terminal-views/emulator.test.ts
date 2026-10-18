@@ -1,5 +1,5 @@
 import { createRenderers, type Terminal } from "@novadeck/emulator/browser"
-import { afterEach, vi } from "vitest"
+import { afterEach, beforeEach, vi } from "vitest"
 
 import { describe, expect, it } from "../../test"
 import { openEmulator } from "./emulator"
@@ -50,7 +50,12 @@ const open = (screenReader: boolean) => {
 const liveRegion = (element: Element): Element | null => element.querySelector("[aria-live]")
 
 describe("a screen's emulator", () => {
-  afterEach(() => document.body.replaceChildren())
+  // jsdom's window never has focus; a page a person types in does.
+  beforeEach(() => vi.spyOn(document, "hasFocus").mockReturnValue(true))
+  afterEach(() => {
+    vi.restoreAllMocks()
+    document.body.replaceChildren()
+  })
 
   it("speaks for the terminal in focus alone, and stops once it leaves", () => {
     const first = open(true)
@@ -83,8 +88,17 @@ describe("a screen's emulator", () => {
   })
 
   it("stops listening for focus once disposed", () => {
-    const { view, input } = open(true)
+    const { element, view } = open(true)
     view.dispose()
-    expect(() => input.dispatchEvent(new FocusEvent("focusin", { bubbles: true }))).not.toThrow()
+    element.dispatchEvent(new FocusEvent("focusin"))
+    expect(view.terminal.options.screenReaderMode).toBe(false)
+  })
+
+  it("keeps the tree while the window, not the terminal, loses focus", () => {
+    const { element, input } = open(true)
+    input.focus()
+    vi.spyOn(document, "hasFocus").mockReturnValue(false)
+    input.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: null }))
+    expect(liveRegion(element)).not.toBeNull()
   })
 })

@@ -92,7 +92,7 @@ export const missingScreenStyles = (bundle: Readonly<Record<string, BuiltAsset>>
   )
 
 // What the visitor build may weigh: what the page loads first (its scripts and styles
-// gzipped, and every font those styles declare, in bytes as they are, though a browser
+// gzipped, and every woff2 font those styles declare, in bytes as they are, though a browser
 // fetches only the faces the page draws with), and the demo, which loads with its
 // connection, the terminal emulator among it (scripts and styles gzipped). Set from the first
 // build with the demo drawn as terminals, 1,058 kB (663 kB of it the eleven fonts declared;
@@ -150,7 +150,7 @@ export const budgetViolations = (
     new Set(
       [...files].flatMap((fileName) => [...(bundle[fileName]?.viteMetadata?.importedCss ?? [])]),
     )
-  // Every font a stylesheet declares, by its file in the bundle, weighed as it is.
+  // Every woff2 font a stylesheet declares, by its file in the bundle, weighed as it is.
   const fonts = (sheets: Iterable<string>): number => {
     const named = new Set(
       [...sheets].flatMap((sheet) =>

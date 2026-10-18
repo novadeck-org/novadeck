@@ -581,16 +581,16 @@ describe("closing terminals", () => {
       it("leaves the terminal open when Delete is pressed in its command input", async () => {
         await openWorkspace()
         await chooseView(name)
-        await terminalTab("Dev server").click()
-        await typeInto("Dev server", "npm run")
+        await terminalTab("Checkout review").click()
+        await typeInto("Checkout review", "npm run")
         // Home does not move the input caret to its start on macOS.
         await press("{ArrowLeft}".repeat("npm run".length))
 
         await press("{Delete}")
 
-        await expect.poll(() => draftOf("Dev server")).toBe("pm run")
+        await expect.poll(() => draftOf("Checkout review")).toBe("pm run")
         await expectStaysAbsent(page.getByText("5 terminals", { exact: true }))
-        await expectSelected("Dev server")
+        await expectSelected("Checkout review")
         await expect.poll(visibleTerminalCounts).toEqual(["6 terminals"])
       })
     })
@@ -734,14 +734,14 @@ describe("hiding terminals from Grid and Canvas", () => {
       it("keeps its content", async () => {
         await openWorkspace()
         await chooseView(name)
-        await typeInto("Dev server", "unfinished command")
+        await typeInto("Checkout review", "unfinished command")
         await terminalTab("Tests").click()
-        await visibilityToggle("Dev server", "Hide").click()
-        await expect.element(terminal("Dev server")).not.toBeInTheDocument()
+        await visibilityToggle("Checkout review", "Hide").click()
+        await expect.element(terminal("Checkout review")).not.toBeInTheDocument()
 
-        await hiddenTerminalTab("Dev server").click()
+        await hiddenTerminalTab("Checkout review").click()
 
-        await expect.poll(() => draftOf("Dev server")).toBe("unfinished command")
+        await expect.poll(() => draftOf("Checkout review")).toBe("unfinished command")
       })
     })
   }

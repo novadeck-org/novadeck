@@ -927,8 +927,8 @@ poster run first boots the demo alone three times on a CPU four times slower and
 the median is above 8 seconds from the address to Claude Code's terminal drawn (about 2 s
 now, as main's; the website gives up at 15). The build fails over its budgets
 (`src/bundle-boundary.ts`): what the page loads first, its scripts and styles gzipped and
-every font they declare, 1,100 kB, and the demo with its terminal emulator, which loads with the
-connection, 190 kB.
+every woff2 font they declare, 1,100 kB, and the demo with its terminal emulator, which
+loads with the connection, 190 kB.
 
 The hero's terminals are real terminal cells, as the desktop app draws them: the theme's
 ANSI palette, boxes in box-drawing characters, text wrapped at the column count. Where xterm
@@ -936,8 +936,8 @@ draws with the DOM (Canvas, and browsers without hardware WebGL 2) its box sides
 between rows. A program running in front, as the dev server, draws no prompt under its
 output: what is typed shows on a bare line, and it runs no command. The terminal with focus
 anywhere in it keeps a screen reader's tree and live region (`screenReaderMode`), and only
-that one, so the terminals that go on printing out of focus
-don't talk over it; a key typed writes the key alone, which it takes as the key's echo.
+that one, so the terminals that go on printing out of focus don't talk over it; a key typed
+writes the key alone, which it takes as the key's echo.
 
 Setting it up takes a Cloudflare Pages project named `novadeck-try`, made in the dashboard
 (Workers & Pages, Create, Pages, Upload assets) with production branch `main`: wrangler's

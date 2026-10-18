@@ -21,7 +21,7 @@ const percent = () => page.getByText(/^\d+%$/)
 const announcer = () => page.getByRole("status").filter({ hasText: /Novadeck update/ })
 // A demo download takes 3 seconds to finish, then the bar stays 4 more before it fades.
 const slow = { timeout: 10_000 }
-const typing = () => commandInput("Dev server")
+const typing = () => commandInput("Checkout review")
 
 const availableChip = (): Locator =>
   page.getByRole("button", { name: "Update available: Novadeck 0.0.80" })
@@ -60,12 +60,12 @@ describe("the update progress bar", () => {
     it("never takes the keyboard's focus, so typing still reaches the terminal", async () => {
       await openWorkspace("/?update=download")
       await expect.element(updating()).toBeVisible()
-      await terminalTab("Dev server").click()
+      await terminalTab("Checkout review").click()
       await expect.element(typing()).toHaveFocus()
       expect(bar()?.contains(document.activeElement) ?? false).toBe(false)
       await press("echo hi")
-      await expect.poll(() => draftOf("Dev server")).toBe("echo hi")
-      await expectTypingIn("Dev server")
+      await expect.poll(() => draftOf("Checkout review")).toBe("echo hi")
+      await expectTypingIn("Checkout review")
     })
 
     it("lets clicks through to what is under it", async () => {
