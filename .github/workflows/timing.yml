@@ -107,7 +107,7 @@ jobs:
         if: steps.browser-cache.outputs.cache-hit == 'true'
         run: pnpm --filter @novadeck/ui exec playwright install-deps chromium
 
-      # Builds the runner and the sandbox, then times the app. It writes its report even
+      # Builds the runner, the sandbox and the UI's libraries, then times the app. It writes its report even
       # when the run stops short, saying why in the report, and fails when the sandbox
       # leaked or couldn't be made: the steps after still report it.
       - name: Play Timing Run
