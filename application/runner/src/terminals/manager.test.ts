@@ -362,7 +362,7 @@ describe("terminal interrupts", () => {
   it("keeps the resizes of a hold taken over waiting for the deadline of the hold before, past an early settle", async ({
     terminals,
   }) => {
-    const { manager, id } = await agent(terminals, "idle")
+    const { manager, id, record } = await agent(terminals, "idle")
     const inside = manager as unknown as {
       holdInput: (
         id: string,
@@ -381,8 +381,8 @@ describe("terminal interrupts", () => {
     // The next entry fails at once and settles: the resizes are not let go by it.
     const second = inside.holdInput(id, budget)
     second.settle()
-    await new Promise((resolve) => setTimeout(resolve, 100))
-    expect(manager.get(id)).toMatchObject({ cols: 80, rows: 24 })
+    // A size applies at once to the pty, before its screen: none did, its deadline ahead.
+    expect(record.terminal.resizedAt).toBe(0)
     await vi.waitFor(() => expect(manager.get(id)).toMatchObject({ cols: 100, rows: 30 }))
   })
 
