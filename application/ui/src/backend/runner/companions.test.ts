@@ -6,7 +6,8 @@ import type { ItemContent as RunnerContent, PlanSaveResult } from "@novadeck/pro
 import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
-import { itemIdOf, PlanUnwritableError, type ItemContent } from "../../model/companion"
+import { itemIdOf, PlanUnwritableError, type ItemContent } from "#core/companion"
+
 import { context, describe, expect, it } from "../../test"
 import { createRunnerCompanions, itemOf, windowOf } from "./companions"
 import { channel } from "./scripted"

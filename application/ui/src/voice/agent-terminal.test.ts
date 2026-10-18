@@ -1,4 +1,5 @@
-import type { TerminalMetadata } from "../model/types"
+import type { TerminalMetadata } from "#core/types"
+
 import { describe, expect, it } from "../test"
 import { isAgentTerminal } from "./agent-terminal"
 

@@ -1,9 +1,9 @@
 import type { MurmurState as WireMurmurState } from "@novadeck/protocol"
 import type { Runner } from "@novadeck/protocol/client"
 
-import type { Refusal } from "../../model/addon"
-import type { Murmur, MurmurState } from "../../model/murmur"
-import { createStore } from "../../model/store"
+import type { Refusal } from "#core/addon"
+import type { Murmur, MurmurState } from "#core/murmur"
+import { createStore } from "#core/store"
 
 // The runner's murmur addon: its state as `murmur.watch` streams it, and installs and
 // settings as calls whose refusals show in that state until the next snapshot.

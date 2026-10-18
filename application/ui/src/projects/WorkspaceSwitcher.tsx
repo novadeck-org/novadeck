@@ -1,7 +1,8 @@
 import { ChevronDown, Folder, FolderOpen } from "lucide-react"
 import { useRef, useState } from "react"
 
-import type { Project } from "../model/types"
+import type { Project } from "#core/types"
+
 import { ConfirmDialog } from "../ui-toolkit/ConfirmDialog"
 import { Popover } from "../ui-toolkit/Popover"
 import { Tooltip } from "../ui-toolkit/Tooltip"

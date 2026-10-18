@@ -1,7 +1,8 @@
 import { act, createElement } from "react"
 
-import { emptyInbox, type Inbox, type InboxItem, type InboxState } from "../model/inbox"
-import { createStore } from "../model/store"
+import { emptyInbox, type Inbox, type InboxItem, type InboxState } from "#core/inbox"
+import { createStore } from "#core/store"
+
 import { context, describe, expect, it } from "../test"
 import { render } from "../test/render"
 import { HeldPill, InboxList } from "./InboxList"

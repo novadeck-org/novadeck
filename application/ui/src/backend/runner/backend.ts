@@ -13,16 +13,18 @@ import {
 } from "@novadeck/protocol/client"
 import type { WireStatus } from "@novadeck/wire/client"
 
-import { createStore } from "../../model/store"
-import { createTelemetryStore, dropTerminal, setUsage } from "../../model/telemetry"
-import { sameTitleSource } from "../../model/title-source"
+import { createTerminalRegistry } from "#core/registry"
+import { createStore } from "#core/store"
+import { createTelemetryStore, dropTerminal, setUsage } from "#core/telemetry"
+import { sameTitleSource } from "#core/title-source"
 import type {
   AgentUsage,
   TerminalMetadata,
   TerminalStatus,
   TitleSource,
   Workspace,
-} from "../../model/types"
+} from "#core/types"
+
 import type {
   AgentConnection,
   Backend,
@@ -31,7 +33,6 @@ import type {
   BackendSink,
   TerminalKey,
 } from "../port"
-import { createTerminalRegistry } from "../registry"
 import { defaultQuickExitMs, exitStatus, restartable, terminalActivity } from "./activity"
 import { createBootProgress } from "./boot-progress"
 import { createRunnerCompanions } from "./companions"

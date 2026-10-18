@@ -8,8 +8,9 @@ import {
   notesIn,
   type CompanionItem,
   type PlanUnwritableReason,
-} from "../../model/companion"
-import type { WorkspaceTarget } from "../../model/types"
+} from "#core/companion"
+import type { WorkspaceTarget } from "#core/types"
+
 import { Tooltip } from "../../ui-toolkit/Tooltip"
 import { ArtifactViewer, CopyText, Unavailable } from "./ArtifactViewer"
 import type { BarMember } from "./bar"

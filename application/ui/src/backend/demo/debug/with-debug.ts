@@ -1,7 +1,7 @@
-import type { SandboxState } from "../../../model/sandbox"
-import { createStore, type MutableStore } from "../../../model/store"
-import type { Workspace } from "../../../model/types"
-import type { BootRehearsals } from "../../boot-rehearsal"
+import type { SandboxState } from "#core/sandbox"
+import { createStore, type MutableStore } from "#core/store"
+import type { Workspace } from "#core/types"
+
 import type {
   Backend,
   BackendConnectionState,
@@ -14,6 +14,7 @@ import { isDemoMurmur } from "../murmur"
 import { demoTurns } from "../turns"
 import { createDemo, type DemoVariant } from "../variants"
 import { isDemoVoice } from "../voice"
+import type { BootRehearsals } from "./boot-rehearsal"
 import { createDebugPanel, type DebugPanel } from "./DebugPanel"
 import { doorbellGroups } from "./doorbell"
 import { inboxGroups } from "./inbox"

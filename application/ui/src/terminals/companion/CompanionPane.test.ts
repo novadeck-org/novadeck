@@ -1,9 +1,10 @@
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
-import type { Companions, ItemContent } from "../../model/companion"
-import { workspaceReducer } from "../../model/state"
-import { createWorkspaceStore } from "../../model/store"
+import type { Companions, ItemContent } from "#core/companion"
+import { workspaceReducer } from "#core/state"
+import { createWorkspaceStore } from "#core/store"
+
 import { context, describe, expect, it } from "../../test"
 import { itemFixture, workspaceFixture } from "../../test/fixtures"
 import { render } from "../../test/render"

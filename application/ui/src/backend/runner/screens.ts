@@ -6,7 +6,8 @@ import {
   type Terminal,
 } from "@novadeck/emulator/browser"
 
-import { createStore, type Store } from "../../model/store"
+import { createStore, type Store } from "#core/store"
+
 import { themeChangeEvent } from "../../theme/apply"
 import { tokenColors } from "../../theme/probe"
 import type { TerminalKey } from "../port"

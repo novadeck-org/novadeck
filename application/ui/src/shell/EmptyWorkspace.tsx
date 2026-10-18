@@ -1,7 +1,8 @@
 import { Plus } from "lucide-react"
 
+import type { ViewMode } from "#core/types"
+
 import { backgroundPointerHandlers } from "../layouts/background"
-import type { ViewMode } from "../model/types"
 import { NovaMark } from "../ui-toolkit/NovaLogo"
 
 export const EmptyWorkspace = ({

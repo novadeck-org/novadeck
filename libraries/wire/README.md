@@ -1,9 +1,10 @@
 # @novadeck/wire
 
 RPC calls and streams between processes over a WebSocket or a MessagePort: channels, a client
-generic over its contract, its transports, a connection that keeps itself alive, the server's
-sessions, transports and streams of state, and its errors. It carries an oRPC contract it doesn't
-know: the app's procedures and their codes stay the app's, beside the wire's own handshake.
+generic over its contract, its transports, a connection that keeps itself alive and the streams it
+follows across it, the server's sessions, transports and streams of state, and its errors. It
+carries an oRPC contract it doesn't know: the app's procedures and their codes stay the app's,
+beside the wire's own handshake.
 
 ## Subpaths
 
@@ -48,6 +49,29 @@ know: the app's procedures and their codes stay the app's, beside the wire's own
       throws `DISCONNECTED` while reconnecting and why it closed (or `CLOSED`) once closed,
       and never queues;
     - `ready()`, which waits for a live session, and `close()`.
+  - `follow(wire, { open, resume, gone })`, a stream followed across the connection's
+    sessions, which its reader sees as one. `open(client, { after, signal })` opens it on a
+    session. It resumes one of two ways:
+    - from a cursor (`{ cursor, ack }`): a new session's stream picks up after the last item
+      read (`after`), unless the epoch changed or the server refused the reader as too slow
+      (`SLOW_CONSUMER`), which start it afresh. Each item counts as read once the next is
+      asked for, and `ack` tells the server, one acknowledgement in flight at a time, a
+      refused one retried after 50 ms. Its first stream opens on the live session or fails.
+      Once it has yielded, only a lost connection is resumed: any other failure, or why the
+      connection closed, ends it, thrown to the reader;
+    - by starting over (`{ restart: true, reset, holdReset }`): each new subscription says
+      `reset` first, so the reader replaces what it has with what follows, up to its own
+      marker (such as `synced`). With `holdReset`, `reset` waits for the new subscription's
+      first item, and the first subscription has none. It never throws: a lost connection or
+      a closing server (`CLOSING`) is followed to the next session, and any other refusal is
+      retried after `min(200·2ⁿ, 3000)` ms.
+
+    For a restarting stream, `gone(error)` says its subject was removed, which ends it. One
+    that can lose its subject is opened again as soon as its server ends it, to learn whether
+    it's still there; one that can't is opened again on the next session. The `Following` it gives says
+    which `session` its stream is open on, and why it `finished`: `ended` by the server,
+    `stopped` by `return()` or the connection's close, or `failed`.
+
   - `Watched<T>`, a value and its changes: `value`, `next()` for the next change, and
     `watch()`, which yields the latest value after each change, coalescing quick ones, until
     a final one.

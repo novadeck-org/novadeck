@@ -11,7 +11,8 @@ import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable } from "@dnd-kit/react/sortable"
 import { useMemo, useState, type ReactNode } from "react"
 
-import type { Tile } from "../model/types"
+import type { Tile } from "#core/types"
+
 import { sidebarListClasses } from "../sidebar/SidebarItem"
 
 const sensors = [

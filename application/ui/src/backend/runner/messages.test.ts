@@ -1,7 +1,8 @@
 import type { TerminalMessages } from "@novadeck/protocol"
 import { vi } from "vitest"
 
-import { companionKeyId } from "../../model/companion"
+import { companionKeyId } from "#core/companion"
+
 import { context, describe, expect, it } from "../../test"
 import { createRunnerMessages, mailOf, type MailStreams } from "./messages"
 

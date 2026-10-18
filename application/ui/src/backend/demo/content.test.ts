@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { itemIdOf } from "../../model/companion"
-import type { ChatAnswer, ChatDialog } from "../../model/conversation"
-import { workspaceFromSeed } from "../../model/seed"
-import { createWorkspaceStore } from "../../model/store"
-import type { AgentStatus } from "../../model/types"
+import { itemIdOf } from "#core/companion"
+import type { ChatAnswer, ChatDialog } from "#core/conversation"
+import { workspaceFromSeed } from "#core/seed"
+import { createWorkspaceStore } from "#core/store"
+import type { AgentStatus } from "#core/types"
+
 import { answerMs, answeredMs } from "./chat"
 import { demoTerminalId } from "./samples"
 import { authAgent, studioAgent } from "./showcase/agents"

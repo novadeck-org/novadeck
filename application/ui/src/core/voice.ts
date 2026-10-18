@@ -5,7 +5,7 @@ import type { Store } from "./store"
 // machine by an engine and a model the person installs when they reach for it (or from
 // Preferences), and typed into a terminal as if pasted, for the person to read and send.
 
-// The longest clip a backend takes, in seconds. The model layer can't import the protocol,
+// The longest clip a backend takes, in seconds. The core can't import the protocol's wire contracts,
 // so backend/runner/voice.test.ts checks this against its `maxVoiceSeconds`.
 export const maxClipSeconds = 120
 

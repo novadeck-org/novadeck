@@ -3,7 +3,7 @@
 // character with no glyph) is set out as a mark that says what is there, never hidden
 // below the card's fold or past its edge. The command itself is never changed.
 
-import { hiddenAt } from "../model/command-text"
+import { hiddenAt } from "#core/command-text"
 
 // The longest run of spaces or tabs shown as itself inside a line, and at its start, where
 // it is indentation (a heredoc's YAML or Python reads as written).

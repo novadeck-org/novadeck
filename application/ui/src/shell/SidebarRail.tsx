@@ -1,7 +1,8 @@
 import { Bell, History, Inbox, Terminal as TerminalIcon } from "lucide-react"
 
+import { sidebarPanels, type SidebarPanel } from "#core/types"
+
 import { shortcutBindings } from "../interaction/shortcuts"
-import { sidebarPanels, type SidebarPanel } from "../model/types"
 import { ToggleGroup, ToggleGroupItem } from "../ui-toolkit/ToggleGroup"
 import type { BellBadge } from "./notification-badge"
 import { NotificationBadge } from "./NotificationBadge"

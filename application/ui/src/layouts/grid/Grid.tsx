@@ -16,15 +16,10 @@ import {
   verticalCompactor,
 } from "react-grid-layout"
 
-import { canvasPresetSize, gridPresetWidth } from "../../model/layout/terminal-size"
-import { dropOnGrid, type WindowPlace } from "../../model/layout/window-place"
-import type {
-  SizePreset,
-  Tile,
-  GridBreakpoint,
-  GridLayouts,
-  GridRestoreWidths,
-} from "../../model/types"
+import { canvasPresetSize, gridPresetWidth } from "#core/layout/terminal-size"
+import { dropOnGrid, type WindowPlace } from "#core/layout/window-place"
+import type { SizePreset, Tile, GridBreakpoint, GridLayouts, GridRestoreWidths } from "#core/types"
+
 import { useDrag, useDragSession } from "../../terminals/drag-session"
 import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 import { ContextMenu } from "../../ui-toolkit/ContextMenu"

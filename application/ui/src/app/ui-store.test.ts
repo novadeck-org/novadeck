@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { clearPortableCardRaised } from "../backend/portable-card-raised"
-import type { PortableState } from "../model/portable"
-import { createWorkspaceStore } from "../model/store"
-import type { AgentStatus } from "../model/types"
-import type { UpdateOffer } from "../model/update"
+import type { PortableState } from "#core/portable"
+import { clearPortableCardRaised } from "#core/portable-card-raised"
+import { createWorkspaceStore } from "#core/store"
+import type { AgentStatus } from "#core/types"
+import type { UpdateOffer } from "#core/update"
+
 import { context, describe, expect, it } from "../test"
 import { appearance, workspaceFixture } from "../test/fixtures"
 import {

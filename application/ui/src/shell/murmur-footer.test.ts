@@ -1,5 +1,6 @@
-import type { Refusal } from "../model/addon"
-import type { MurmurState } from "../model/murmur"
+import type { Refusal } from "#core/addon"
+import type { MurmurState } from "#core/murmur"
+
 import { describe, expect, it } from "../test"
 import { footerPhase, footerText, installPercent, stepText } from "./murmur-footer"
 

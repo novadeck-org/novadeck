@@ -1,6 +1,7 @@
-import { harnesses, type AgentName } from "../model/harnesses"
-import type { Store } from "../model/store"
-import type { OfferedUninstall, UninstallResult } from "../model/uninstall"
+import { harnesses, type AgentName } from "#core/harnesses"
+import type { Store } from "#core/store"
+import type { OfferedUninstall, UninstallResult } from "#core/uninstall"
+
 import type { AgentSwitch } from "./AgentSwitches"
 
 // What the uninstall row and its dialog say and do, as plain functions of the plan and of

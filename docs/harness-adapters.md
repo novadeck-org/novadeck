@@ -30,15 +30,15 @@ transcripts and telemetry are fixed only after per-harness coverage probes
 
 ## Existing seams
 
-| Current code                              | Responsibility to preserve                                                    | Destination                                                              |
-| ----------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `runner/src/shell/agents.ts`              | Detect config, inspect plugin connection, plan install/remove commands        | `home`, `connected`, `connect`/`disconnect`; shared inspection and setup |
-| `runner/src/shell/resume.ts`              | Build the exact resume command for an identified session                      | `resume` field                                                           |
-| `runner/src/shell/scripts.ts`             | Provider manifests, hook configuration, Codex launch shim                     | `files` and `shims`; shared artifact writer                              |
-| `runner/src/shell/hook.ts`                | Native payload interpretation, nested-session filtering, hook response format | Per-harness `decode.ts` in its package; one shared hook script           |
-| `runner/src/shell/reports.ts`             | Authenticate and accept session reports                                       | Shared ingress and binding policy                                        |
-| `runner/src/terminals/manager.ts`         | PTY lifetime, resume claims, persistence, foreground ownership                | Terminal manager, using the harness service                              |
-| `ui/src/model/process.ts` and `resume.ts` | Provider recognition and resume eligibility                                   | `programs` and shared recognition; UI keeps generic program presentation |
+| Current code                             | Responsibility to preserve                                                    | Destination                                                              |
+| ---------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `runner/src/shell/agents.ts`             | Detect config, inspect plugin connection, plan install/remove commands        | `home`, `connected`, `connect`/`disconnect`; shared inspection and setup |
+| `runner/src/shell/resume.ts`             | Build the exact resume command for an identified session                      | `resume` field                                                           |
+| `runner/src/shell/scripts.ts`            | Provider manifests, hook configuration, Codex launch shim                     | `files` and `shims`; shared artifact writer                              |
+| `runner/src/shell/hook.ts`               | Native payload interpretation, nested-session filtering, hook response format | Per-harness `decode.ts` in its package; one shared hook script           |
+| `runner/src/shell/reports.ts`            | Authenticate and accept session reports                                       | Shared ingress and binding policy                                        |
+| `runner/src/terminals/manager.ts`        | PTY lifetime, resume claims, persistence, foreground ownership                | Terminal manager, using the harness service                              |
+| `ui/src/core/process.ts` and `resume.ts` | Provider recognition and resume eligibility                                   | `programs` and shared recognition; UI keeps generic program presentation |
 
 Paths above are relative to `application/`. In particular, `acceptReport` currently
 interprets native `source` values and treats a missing source specially for AGY.

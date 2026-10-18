@@ -11,7 +11,8 @@ import {
   type ReactNode,
 } from "react"
 
-import type { Inbox, InboxAnswer, InboxItem, InboxState } from "../model/inbox"
+import type { Inbox, InboxAnswer, InboxItem, InboxState } from "#core/inbox"
+
 import type { Picks } from "../terminals/chat/answers"
 import { rowOf } from "./inbox-dom"
 import {

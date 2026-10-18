@@ -1,6 +1,7 @@
 import { CheckCheck, CircleCheck, LoaderCircle } from "lucide-react"
 
-import { inboxType, type InboxItem } from "../model/inbox"
+import { inboxType, type InboxItem } from "#core/inbox"
+
 import { sidebarListClasses } from "../sidebar/SidebarItem"
 import { NovaMark } from "../ui-toolkit/NovaLogo"
 import { Tooltip } from "../ui-toolkit/Tooltip"

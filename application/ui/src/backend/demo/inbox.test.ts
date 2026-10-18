@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { inboxType, type InboxItem } from "../../model/inbox"
+import { inboxType, type InboxItem } from "#core/inbox"
+
 import { context, describe, expect, it } from "../../test"
 import {
   answerMs,

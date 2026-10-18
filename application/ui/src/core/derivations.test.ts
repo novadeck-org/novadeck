@@ -1,7 +1,7 @@
-import { workspaceReducer } from "../model/state"
 import { describe, expect, it } from "../test"
 import { terminalFixture, workspaceFixture } from "../test/fixtures"
-import { handleNames, runningLeads, terminalOrigins } from "./selectors"
+import { handleNames, runningLeads, terminalOrigins } from "./derivations"
+import { workspaceReducer } from "./state"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
 

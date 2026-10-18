@@ -1,8 +1,9 @@
 import { memo } from "react"
 
-import { orderedTiles } from "../model/roster"
-import { activeProject } from "../model/state"
-import type { WorkspaceSession } from "../model/types"
+import { orderedTiles } from "#core/roster"
+import { activeProject } from "#core/state"
+import type { WorkspaceSession } from "#core/types"
+
 import { useDesktop } from "../shell/desktop"
 import { shownPanel } from "../shell/panels"
 import { sidebarVisible } from "../shell/shell-state"

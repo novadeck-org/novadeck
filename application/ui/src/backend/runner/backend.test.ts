@@ -5,18 +5,19 @@ import { join } from "node:path"
 import { WireError } from "@novadeck/wire"
 import { afterAll, vi } from "vitest"
 
-import { companionKeyId, itemIdOf } from "../../model/companion"
-import { messagesKey } from "../../model/companion-bar"
-import { workspaceFromSeed } from "../../model/seed"
+import { companionKeyId, itemIdOf } from "#core/companion"
+import { messagesKey } from "#core/companion-bar"
+import { workspaceFromSeed } from "#core/seed"
 import {
   activeProject,
   activeSession,
   createTerminalState,
   workspaceReducer,
   type WorkspaceAction,
-} from "../../model/state"
-import { createStore } from "../../model/store"
-import type { Workspace, WorkspaceTarget } from "../../model/types"
+} from "#core/state"
+import { createStore } from "#core/store"
+import type { Workspace, WorkspaceTarget } from "#core/types"
+
 import { context, describe, expect, it } from "../../test"
 import { workspaceFixture } from "../../test/fixtures"
 import type { BackendAction } from "../port"

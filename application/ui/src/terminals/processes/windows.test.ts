@@ -1,7 +1,8 @@
 import { Terminal } from "lucide-react"
 import { act, createElement } from "react"
 
-import type { TerminalMetadata } from "../../model/types"
+import type { TerminalMetadata } from "#core/types"
+
 import { context, describe, expect, it } from "../../test"
 import { terminalFixture } from "../../test/fixtures"
 import { render } from "../../test/render"

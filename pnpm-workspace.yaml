@@ -3,6 +3,7 @@ packages:
   - engines/*
   - harnesses/*
   - libraries/*
+  - tools/*
   - atlas
 
 # Dependencies pinned once for every package: zod, whose schemas cross package lines (a

@@ -1,9 +1,8 @@
-import { createTerminalState, workspaceReducer, type WorkspaceAction } from "../model/state"
-import type { TerminalMetadata, Workspace } from "../model/types"
 import { context, describe, expect, it } from "../test"
 import { itemFixture, terminalFixture } from "../test/fixtures"
-import type { TerminalKey } from "./port"
 import { createTerminalRegistry } from "./registry"
+import { createTerminalState, workspaceReducer, type WorkspaceAction } from "./state"
+import type { TerminalKey, TerminalMetadata, Workspace } from "./types"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
 const first = { ...target, terminalId: "01" }

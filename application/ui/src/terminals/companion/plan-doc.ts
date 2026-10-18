@@ -1,4 +1,4 @@
-import type { ItemContent, PlanUnwritableReason, PlanVersion } from "../../model/companion"
+import type { ItemContent, PlanUnwritableReason, PlanVersion } from "#core/companion"
 
 // A stretch of the text the agent's latest revision wrote.
 export type Mark = { readonly from: number; readonly to: number }

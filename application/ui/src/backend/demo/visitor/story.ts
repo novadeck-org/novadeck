@@ -1,4 +1,5 @@
-import type { TerminalMetadata, Workspace } from "../../../model/types"
+import type { TerminalMetadata, Workspace } from "#core/types"
+
 import type { Backend, BackendSink, TerminalKey } from "../../port"
 import { demoHandle } from "../handles"
 import { demoAgent, demoTerminalId } from "../samples"

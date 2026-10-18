@@ -5,7 +5,7 @@ import { Tooltip } from "./Tooltip"
 // What a terminal surface lays over its output, whichever backend draws it: the notice
 // while typing is paused, and the bar that says how the shell ended.
 
-// How a shell ended, as `terminalEnding` in model/terminal-ending words it.
+// How a shell ended, as `terminalEnding` in core/terminal-ending words it.
 export type TerminalEndingView = {
   readonly tone: "danger" | "warning"
   readonly status: string

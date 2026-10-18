@@ -1,7 +1,8 @@
 import { useEffect, useRef, useSyncExternalStore } from "react"
 
-import type { CompanionItem, ItemContent, ItemId } from "../../model/companion"
-import type { WorkspaceTarget } from "../../model/types"
+import type { CompanionItem, ItemContent, ItemId } from "#core/companion"
+import type { WorkspaceTarget } from "#core/types"
+
 import type { PlanDoc } from "./plan-doc"
 import type { Panes } from "./state"
 
