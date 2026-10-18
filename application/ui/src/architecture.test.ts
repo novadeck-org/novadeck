@@ -412,6 +412,25 @@ describe("UI architecture", () => {
     expect(found).toEqual([])
   })
 
+  it("keeps the demo's debug panel and visitor build above its core", () => {
+    // debug/ and visitor/ build on the demo's core; the core reaches neither, and the visitor
+    // build never carries the debug panel.
+    const debug = `${demo}debug/`
+    const visitor = `${demo}visitor/`
+    const found = files
+      .filter((file) => file.startsWith(demo) && !file.startsWith(debug))
+      .flatMap((file) =>
+        imports(file).flatMap(({ specifier }) => {
+          const target = specifier.startsWith(".") ? resolveFile(file, specifier) : undefined
+          const above = file.startsWith(visitor) ? [debug] : [debug, visitor]
+          return target && above.some((layer) => target.startsWith(layer))
+            ? [`${file} -> ${target}`]
+            : []
+        }),
+      )
+    expect(found).toEqual([])
+  })
+
   it("keeps imports statically resolvable", () => {
     expect(files.filter((file) => /\bimport\(\s*[^"'\s]/.test(source(file)))).toEqual([])
   })
