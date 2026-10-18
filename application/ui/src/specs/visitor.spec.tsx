@@ -13,6 +13,7 @@ import {
   sidebar,
   sidebarPanel,
   tabDescription,
+  terminalText,
   typeInto,
   view,
   viewSwitcher,
@@ -25,6 +26,28 @@ const openVisitor = async (): Promise<void> => {
 
 const panel = () => page.getByRole("main", { name: "Best on a desktop browser" })
 const download = () => panel().getByRole("link", { name: "Download Novadeck" })
+// What Claude Code's screen says once it asks for its plan to be reviewed.
+const planAsked = "Claude has written up a plan"
+
+// The page as one that prefers motion, as specs run with less: only what asks about it
+// changes, so every other media query still answers as the browser does.
+const preferringMotion = () => {
+  const real = window.matchMedia.bind(window)
+  return vi.spyOn(window, "matchMedia").mockImplementation((query) => {
+    if (!query.includes("prefers-reduced-motion")) return real(query)
+    return {
+      matches: !query.includes("reduce"),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }
+  })
+}
+
 const framesPass = (count: number): Promise<void> =>
   count === 0
     ? Promise.resolve()
@@ -245,16 +268,38 @@ describe("the visitor build", () => {
     })
 
     // The page around treats focus moving into the frame as the visitor's first click, so
-    // nothing the desk does by itself, reading and then asking, may take it.
+    // nothing the desk does by itself, reading and then asking, may take it. Specs ask for
+    // less motion, where Claude Code has no reading to watch, so this one asks for motion.
     it("reads before it asks for its plan, and takes no focus meanwhile", async () => {
-      await openWorkspace("/?visitor=on&readingMs=1500", { embedded: true })
+      const motion = preferringMotion()
+      try {
+        await openWorkspace("/?visitor=on&readingMs=1500", { embedded: true })
+        await expect.element(terminalCount(4)).toBeVisible()
+        await expect
+          .poll(() => terminalText("Checkout implementation"))
+          .toContain("read the checkout layout")
+        expect(terminalText("Checkout implementation")).not.toContain(planAsked)
+        expect(tabDescription("Checkout implementation")).not.toBe("Plan ready for review")
+        await expect
+          .poll(() => terminalText("Checkout implementation"), { timeout: 4000 })
+          .toContain(planAsked)
+        await expect
+          .poll(() => tabDescription("Checkout implementation"))
+          .toBe("Plan ready for review")
+        await framesPass(10)
+        expect(document.activeElement).toBe(document.body)
+      } finally {
+        motion.mockRestore()
+      }
+    })
+
+    it("asks for its plan from the start where the visitor asked for less motion", async () => {
+      await openWorkspace("/?visitor=on&readingMs=60000", { embedded: true })
       await expect.element(terminalCount(4)).toBeVisible()
-      expect(page.getByText("Claude has written up a plan").query()).toBeNull()
+      await expect.poll(() => terminalText("Checkout implementation")).toContain(planAsked)
       await expect
-        .poll(() => tabDescription("Checkout implementation"), { timeout: 4000 })
+        .poll(() => tabDescription("Checkout implementation"))
         .toBe("Plan ready for review")
-      await framesPass(10)
-      expect(document.activeElement).toBe(document.body)
     })
 
     // True of the app anywhere; framed, it leaves the page around it its focus.
