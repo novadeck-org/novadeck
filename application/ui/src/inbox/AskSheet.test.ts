@@ -11,7 +11,7 @@ import {
 import { createStore } from "#core/store"
 
 import { describe, expect, it } from "../test"
-import { render } from "../test/render"
+import { nextFrame, render } from "../test/render"
 import { InboxList } from "./InboxList"
 import { InboxProvider } from "./InboxProvider"
 import { InboxSheet } from "./InboxSheet"
@@ -113,15 +113,16 @@ const mount = (shape: keyof typeof shapes) => {
 }
 
 describe("An Inbox reply's length", () => {
-  it("promises no exact count, since the runner limits the encoded size", () => {
+  it("promises no exact count, since the runner limits the encoded size", async () => {
     const sheet = mount("text")
     expect(document.querySelector(".inbox-reply-limit")?.textContent).toBe(
       "Up to about 4,000 characters, fewer with emoji or some languages.",
     )
+    await nextFrame()
     sheet.view.unmount()
   })
 
-  it("accepts 4,096 characters and names the limit", () => {
+  it("accepts 4,096 characters and names the limit", async () => {
     const sheet = mount("text")
     expect(sheet.field().maxLength).toBe(4096)
     sheet.type("a".repeat(4096))
@@ -133,11 +134,12 @@ describe("An Inbox reply's length", () => {
     expect(sheet.sent).toEqual([
       { kind: "ask", answer: { type: "reply", option: null, text: "a".repeat(4096) } },
     ])
+    await nextFrame()
     sheet.view.unmount()
   })
 
   for (const shape of ["text", "options", "action"] as const) {
-    it(`keeps an overlong own answer to ${shape} editable and blocks button and Enter submission`, () => {
+    it(`keeps an overlong own answer to ${shape} editable and blocks button and Enter submission`, async () => {
       const sheet = mount(shape)
       if (shape === "action") sheet.press("Reply instead")
       sheet.type("a".repeat(4097))
@@ -158,11 +160,12 @@ describe("An Inbox reply's length", () => {
       expect(sheet.sent).toEqual([
         { kind: "ask", answer: { type: "reply", option: null, text: "Use samples." } },
       ])
+      await nextFrame()
       sheet.view.unmount()
     })
   }
 
-  it("preserves the draft when encoded delivery size rejects an otherwise valid length", () => {
+  it("preserves the draft when encoded delivery size rejects an otherwise valid length", async () => {
     const sheet = mount("text")
     const text = "🦋".repeat(2048)
     sheet.type(text)
@@ -171,12 +174,13 @@ describe("An Inbox reply's length", () => {
     expect(sheet.field().value).toBe(text)
     expect(document.querySelector(".inbox-failure")?.textContent).toContain("delivery size limit")
     expect(document.querySelector(".inbox-sent")).toBeNull()
+    await nextFrame()
     sheet.view.unmount()
   })
 })
 
 describe("An accepted reply's delivery", () => {
-  it("replaces its queued confirmation when the reply cannot arrive", () => {
+  it("replaces its queued confirmation when the reply cannot arrive", async () => {
     const sheet = mount("text")
     sheet.type("Use samples.")
     sheet.press("Send")
@@ -190,6 +194,7 @@ describe("An accepted reply's delivery", () => {
     expect(sheet.field().value).toBe("Use samples.")
     expect(document.querySelector(".inbox-status")?.textContent).toBe("reply not delivered")
     expect(sheet.send().disabled).toBe(true)
+    await nextFrame()
     sheet.view.unmount()
   })
 })

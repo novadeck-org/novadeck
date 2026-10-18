@@ -11,7 +11,7 @@ import {
 import { createStore } from "#core/store"
 
 import { describe, expect, it } from "../test"
-import { render } from "../test/render"
+import { nextFrame, render } from "../test/render"
 import { InboxList } from "./InboxList"
 import { InboxProvider } from "./InboxProvider"
 import { InboxSheet } from "./InboxSheet"
@@ -122,17 +122,18 @@ const mount = (
 }
 
 describe("A command permission's answers", () => {
-  it("allows with the dialog's plain yes", () => {
+  it("allows with the dialog's plain yes", async () => {
     const sheet = mount(codex)
     sheet.press("Allow")
 
     expect(sheet.sent).toEqual([
       { kind: "request", answer: { type: "choice", dialog: "d", option: "yes" } },
     ])
+    await nextFrame()
     sheet.view.unmount()
   })
 
-  it("denies with a note by the option that takes words, sending the note", () => {
+  it("denies with a note by the option that takes words, sending the note", async () => {
     const sheet = mount(codex)
     sheet.press("Deny")
     sheet.type("Use npm.")
@@ -144,10 +145,11 @@ describe("A command permission's answers", () => {
         answer: { type: "choice", dialog: "d", option: "differently", text: "Use npm." },
       },
     ])
+    await nextFrame()
     sheet.view.unmount()
   })
 
-  it("denies without a note by the plain no", () => {
+  it("denies without a note by the plain no", async () => {
     const sheet = mount(codex)
     sheet.press("Deny")
     sheet.press("Deny")
@@ -155,10 +157,11 @@ describe("A command permission's answers", () => {
     expect(sheet.sent).toEqual([
       { kind: "request", answer: { type: "choice", dialog: "d", option: "no" } },
     ])
+    await nextFrame()
     sheet.view.unmount()
   })
 
-  it("denies at once, with no note to write, where the only no takes none", () => {
+  it("denies at once, with no note to write, where the only no takes none", async () => {
     const sheet = mount([
       { id: "a", label: "Allow once", text: null },
       { id: "d", label: "Deny", text: null },
@@ -168,13 +171,15 @@ describe("A command permission's answers", () => {
     expect(sheet.sent).toEqual([
       { kind: "request", answer: { type: "choice", dialog: "d", option: "d" } },
     ])
+    await nextFrame()
     sheet.view.unmount()
   })
 
-  it("offers no Deny where no option says no", () => {
+  it("offers no Deny where no option says no", async () => {
     const sheet = mount([{ id: "a", label: "Yes", text: null }])
 
     expect(document.querySelector(".inbox-sheet")?.textContent).not.toContain("Deny")
+    await nextFrame()
     sheet.view.unmount()
   })
 })
@@ -186,7 +191,7 @@ describe("A plan's sheet", () => {
     { id: "keep", label: "No, keep planning", text: "prompt" },
   ]
 
-  it("approves with the plain yes, and offers bypass only as a quiet link", () => {
+  it("approves with the plain yes, and offers bypass only as a quiet link", async () => {
     const sheet = mount(plan, { kind: "plan" })
     const text = document.querySelector(".inbox-sheet")?.textContent ?? ""
 
@@ -200,12 +205,13 @@ describe("A plan's sheet", () => {
     expect(sheet.sent).toEqual([
       { kind: "request", answer: { type: "choice", dialog: "d", option: "manual" } },
     ])
+    await nextFrame()
     sheet.view.unmount()
   })
 })
 
 describe("An answer that does not take", () => {
-  it("shows why, offers the answer again, and confirms nothing", () => {
+  it("shows why, offers the answer again, and confirms nothing", async () => {
     const sheet = mount(codex, { failing: true })
     sheet.press("Allow")
 
@@ -218,12 +224,13 @@ describe("An answer that does not take", () => {
         (button) => button.textContent === "Allow",
       ),
     ).toBe(true)
+    await nextFrame()
     sheet.view.unmount()
   })
 })
 
 describe("An item that takes the place of one answered", () => {
-  it("shows as waiting, not as the old answer", () => {
+  it("shows as waiting, not as the old answer", async () => {
     const sheet = mount(codex)
     sheet.press("Allow")
     expect(document.querySelector(".inbox-sent")).toBeNull()
@@ -239,6 +246,7 @@ describe("An item that takes the place of one answered", () => {
 
     expect(document.querySelector(".inbox-sent")).toBeNull()
     expect(document.querySelector(".inbox-sheet .button.primary")?.textContent).toBe("Allow")
+    await nextFrame()
     sheet.view.unmount()
   })
 })
