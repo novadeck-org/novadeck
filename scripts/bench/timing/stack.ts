@@ -167,10 +167,11 @@ export const openStack = (): Stack => {
       const token = randomBytes(32).toString("hex")
       const origin = `http://127.0.0.1:${uiPort}`
       const dist = join(sandbox.root, "ui")
-      // The runner's address and token are baked into the build, as the dev-web path does.
+      // The web app's entry, as the dev-web path serves it: the runner's address and token are
+      // baked into the build.
       await run(
         process.execPath,
-        [vite, "build", "--mode", "production", "--outDir", dist, "--emptyOutDir"],
+        [vite, "build", "--mode", "web", "--outDir", dist, "--emptyOutDir"],
         {
           cwd: ui,
           // A production build whatever the developer's shell says, as the numbers need one.

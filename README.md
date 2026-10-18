@@ -546,8 +546,9 @@ pnpm dev:web
 Open <http://127.0.0.1:5173>. `dev:web` starts a runner with a fresh random token
 and hands the same token to the UI dev server. A browser has no desktop host, so it shows
 no notification when an agent finishes; its terminals are still marked done. For UI-only work, use
-`pnpm --filter @novadeck/ui dev` with `VITE_NOVADECK_RUNNER_URL` and
-`VITE_NOVADECK_RUNNER_TOKEN` pointing at a runner you started.
+`pnpm --filter @novadeck/ui dev --mode web` with `VITE_NOVADECK_RUNNER_URL` and
+`VITE_NOVADECK_RUNNER_TOKEN` pointing at a runner you started; the web entry reads
+`.env.web` rather than `.env.development`.
 
 Novadeck has no database migrations before its first release. A runner that opens a
 `workspace.sqlite` an earlier build wrote, whose tables or schema version differ from its
@@ -1329,8 +1330,9 @@ cp application/runner/example.env application/runner/.env
 - UI: `VITE_API_URL` sets, at build time, the API origin that the Content Security
   Policy permits; by default only the same origin. The UI does not call the API yet.
 - Browser UI: `VITE_NOVADECK_RUNNER_URL` (a `ws:` or `wss:` URL ending in `/api/rpc`)
-  and `VITE_NOVADECK_RUNNER_TOKEN` name the runner a browser build connects to; the
-  CSP permits that origin. The desktop app ignores them and uses its own runner.
+  and `VITE_NOVADECK_RUNNER_TOKEN` name the runner a browser build (the web entry,
+  `--mode web`) connects to; the CSP permits that origin. The desktop app ignores them and
+  uses its own runner.
 
   > **Warning:** a browser build made with `VITE_NOVADECK_RUNNER_TOKEN` embeds the
   > token in its JavaScript. Anyone who can load that bundle can run shells on the

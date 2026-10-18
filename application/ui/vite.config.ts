@@ -1,4 +1,4 @@
-import { isAbsolute, resolve } from "node:path"
+import { isAbsolute, relative, resolve } from "node:path"
 
 import { contentSecurityPolicy } from "@novadeck/build-kit/content-security-policy"
 import { fontsAsFiles } from "@novadeck/build-kit/fonts"
@@ -22,14 +22,27 @@ const entries: Readonly<Record<string, { readonly root: string; readonly outDir:
   "content-preview": { root: "entries/previews", outDir: "dist-previews" },
 }
 
+// A folder within the package, not the package itself.
+const inPackage = (path: string): boolean => {
+  const within = relative(import.meta.dirname, path)
+  return within !== "" && !within.startsWith("..") && !isAbsolute(within)
+}
+
 // A path of the package's, as an entry's config gives it.
 const own = (path: string): string => (isAbsolute(path) ? path : resolve(import.meta.dirname, path))
+
+// The modes that build the desktop app, from the package's own root; any other names an entry.
+const desktopModes = new Set(["production", "development", "test"])
 
 const entryOf = (): Plugin => ({
   name: "novadeck-entry",
   config(config, { mode }) {
     const entry = entries[mode]
-    if (!entry) return
+    if (!entry) {
+      if (desktopModes.has(mode)) return
+      throw new Error(`No entry is named ${mode}: the modes are ${Object.keys(entries).join(", ")}`)
+    }
+    const outDir = own(config.build?.outDir ?? entry.outDir)
     return {
       root: own(entry.root),
       // What every entry shares stays the package's: its public files and its env files.
@@ -38,8 +51,9 @@ const entryOf = (): Plugin => ({
       // An outDir given on the command line is the package's, as it was before entries. It's
       // outside the entry's root, which Vite empties only when told.
       build: {
-        outDir: own(config.build?.outDir ?? entry.outDir),
-        emptyOutDir: config.build?.emptyOutDir ?? true,
+        outDir,
+        // Within the package only, as Vite itself empties only its root's: never a folder elsewhere.
+        ...((config.build?.emptyOutDir ?? inPackage(outDir)) && { emptyOutDir: true }),
       },
     }
   },

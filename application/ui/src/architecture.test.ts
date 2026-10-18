@@ -88,7 +88,8 @@ const rules: Record<string, readonly string[]> = {
   "specs/": ["specs/", "app/App.tsx", "theme/", "styles.css"],
   // Entry point and support modules outside the feature layers.
   // Each app's entry: it renders the app with the backend it chose (see `entryAdapters`).
-  "entries/": ["entries/", "app/", "backend/", "theme/", "styles.css"],
+  // One entry never reaches another's, only how they all start.
+  "entries/": ["entries/start.tsx", "app/", "backend/", "theme/", "styles.css"],
   "test/": [
     "test/",
     "test.ts",
@@ -413,6 +414,25 @@ describe("UI architecture", () => {
     )
     expect(exported).toEqual(["entries/start.tsx start"])
     expect(Object.keys(entryAdapters).every((file) => files.includes(file))).toBe(true)
+  })
+
+  it("lets each page's script do nothing but start its entry", () => {
+    // Outside src/, beside each page for its dev server: no rule above reaches them.
+    const pages = join(process.cwd(), "entries")
+    const scripts = readdirSync(pages).map((name) => [
+      name,
+      readFileSync(join(pages, name, "main.tsx"), "utf8")
+        .split("\n")
+        .filter((line) => line !== "" && !line.startsWith("//")),
+    ])
+    expect(scripts).toEqual(
+      readdirSync(pages).map((name) => [name, [`import "../../src/entries/${name}"`]]),
+    )
+    expect(scripts.map(([name]) => `entries/${String(name)}.tsx`)).toEqual(
+      expect.arrayContaining(
+        Object.keys(entryAdapters).filter((file) => !file.endsWith("desktop.tsx")),
+      ),
+    )
   })
 
   it("names hook contracts instead of inferring them from the hook", () => {
