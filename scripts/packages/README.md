@@ -142,3 +142,65 @@ line by hand and commit it. Then run the script again, which should say there is
   - e2e on all three systems;
   - the packaging run, which packages the relay and the runner from their new places.
 - A second run of the script says there is nothing to do.
+
+# Moving the desktop app into apps/desktop
+
+`node scripts/packages/move-desktop.ts` is step 5's 5.3c, after 5.3a and 5.3b. It moves the host
+into `apps/desktop`, with the two pages it serves, which leave the UI for a build of the app's
+own. Its table and rewrite are in `desktop.ts`, and its templates in `desktop/`. It shares
+`move.ts` with the backend's move, and works like it. It makes the tree so, it carries what git
+doesn't track, it installs on every run, and a second run says there is nothing to do.
+
+| From                                  | To                                          |
+| ------------------------------------- | ------------------------------------------- |
+| `application/host`                    | `apps/desktop`                              |
+| `frontend/ui/index.html`              | `apps/desktop/renderer/index.html`          |
+| `frontend/ui/src/entries/desktop.tsx` | `apps/desktop/renderer/main.tsx`            |
+| `frontend/ui/entries/web/index.html`  | `apps/desktop/renderer/web/index.html`      |
+| `frontend/ui/src/entries/web.tsx`     | `apps/desktop/renderer/web/main.tsx`        |
+| `frontend/ui/src/build.test.ts`       | `apps/desktop/src/build.test.ts`            |
+| `frontend/ui/entries/web/main.tsx`    | (deleted: a page's script is its entry now) |
+| `frontend/ui/vite.config.ts`          | (deleted: the app builds its pages)         |
+
+## What it does
+
+1. **It moves the files.** A deleted one goes with `git rm`.
+2. **It rewrites the host's folder and each page's old path as text,** with the same bounds as
+   the backend's move.
+3. **It makes the handwritten edits** in `edits`, each guarded and done once its old text is
+   gone:
+   - the entries import the UI by its package's subpaths, as `apps/try`'s do;
+   - the desktop page's script is `./main.tsx`;
+   - `electron-builder.yml` copies the app's own `dist`;
+   - the app's `dev`, `build` and `typecheck` cover its pages;
+   - `dev:web` and the timing bench serve and build the web page from the app;
+   - the profile bench names the app's folder;
+   - the README's web command and the dev-web test follow;
+   - the UI's tsconfig, its architecture test (the runner adapter's entries) and the
+     browser fence's globs, which name `apps/desktop/renderer`, as the app's `src/` is Node's.
+4. **It cuts two of the UI's tests that leave with the pages:** the pages' scripts, and the SVG
+   filters the page carries. The app has its own `page.test.ts`.
+5. **It changes the manifests.** The app takes the pages' packages, at the UI's versions. The
+   UI drops the runner adapter and its `dev`, `build` and `preview` scripts.
+6. **It writes the app's new files from `desktop/`:**
+   - `vite.config.ts`, the pages' build: `renderer/` to `dist/`, and mode `web` to `dist-web/`,
+     on port 5173;
+   - `vitest.config.ts`, so Vitest doesn't take the pages' build;
+   - `renderer/tsconfig.json`;
+   - `src/page.test.ts`;
+   - `src/packaging.test.ts`.
+7. **It installs, formats, carries and scans for leftovers,** as the backend's move does.
+   This includes `--filter @novadeck/ui dev|build|preview` and the UI's old page paths.
+
+The catch-up for a branch made before 5.3c is the backend's recipe above, with
+`move-desktop.ts`, and `git clean -fd apps/desktop` in the recovery.
+
+## What to check after
+
+- `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test`.
+- `pnpm --filter @novadeck/host build`, which builds `dist/` (the page) and `out/` (the main
+  process).
+- On the pull request: the packaging run on all three systems with signing, the smoke test, the
+  try deploy and previews.
+- By hand, once: `pnpm dev`, which shows the desktop window and needs a display, and
+  `pnpm dev:web`.
