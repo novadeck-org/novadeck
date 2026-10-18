@@ -58,6 +58,8 @@ export const terminalErrorCodes = [
   "ALREADY_ATTACHED",
   "SNAPSHOT_TOO_LARGE",
   "TERMINAL_EXITED",
+  // A terminal's state forbids the call now, as a restart while another is under way.
+  "CONFLICT",
   "INVALID_CURSOR",
   "SLOW_CONSUMER",
 ] as const

@@ -40,16 +40,20 @@ resolve it.
     `evicted` listeners are told. `terminate` ends a terminal's program within the kill's
     budget (shorter as the host shuts down), and `remove` keeps a closed one until its viewers
     have read the rest (its caller refuses its id meanwhile; `draining` tells). `shutdown` ends every program, then lets every
-    terminal go.
-  - `createTerminal(options)` hosts a terminal: it starts the program in a pty with a headless
-    screen, and keeps the events that follow the screen and who reads them.
+    terminal go. `attach` attaches a viewer once the draws before it are drawn, keeping
+    the terminal meanwhile, and yields `attached`, then the events. `restart` starts a new
+    run of an exited terminal in place, one restart at a time, after its caller's waiting.
+  - Each `Terminal` the host opens runs its program in a pty with a headless screen, and keeps
+    the events that follow the screen and who reads them.
   - What the program prints is drawn on the screen in order, behind everything queued before
-    it (`enqueue`): reads that arrive while a draw waits join it, the program pauses while a
+    it: reads that arrive while a draw waits join it, the program pauses while a
     lot waits, and an earlier run's output is dropped. Each draw is told to `drawn` listeners,
     then sent in events of at most 4,096 characters. Its title, the directory its prompt
     reports (OSC 7 or 9;9) and a full reset are told too, and its exit, in order: `exit`
     listeners, the `exited` event, every attachment finished, then `exited` listeners.
-  - Its input: `input` writes the controller's keys, `type` the holder's own. `hold(budget, live)`
+    `readScreen(read?)` reads the screen, and `replay(text)` draws on it, behind the draws
+    queued before.
+  - Its input: `input` writes the controller's keys, `type` the holder's own. `hold(budget)`
     holds the person's keys for one piece of work, as a doorbell's paste or an answer's keys,
     and the window's resizes until it settles. Throughout, the terminal's own reports
     (cursor and device answers, the focus and mouse reports its program asked for) go through at once. Keys that count as the person's are told to `keys` listeners

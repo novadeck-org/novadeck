@@ -1,11 +1,14 @@
 import {
   createScreen,
   mouseReporting,
+  readScreen,
+  replay as replayOn,
   snapshot as serialize,
   trackMouse,
   type MouseEncoding,
   type Reporting,
   type Screen,
+  type ScreenText,
 } from "@novadeck/emulator/headless"
 
 import { TerminalError, type Exit, type TerminalEvent } from "../contract.js"
@@ -168,8 +171,11 @@ export type Terminal = {
   ack(owner: string, sequence: number): void
   /** `owner`'s live attachment, to tell whether it's still the same one. */
   attachment(owner: string): Attachment | undefined
-  /** Runs `work` once everything queued before it has, draws included. */
-  enqueue<T>(work: () => T | Promise<T>): Promise<T>
+  /** The screen's text, or what `read` takes of the screen, once the draws queued before it are on it. */
+  readScreen(): Promise<ScreenText>
+  readScreen<T>(read: (screen: Screen) => T): Promise<T>
+  /** Draws `text` on the screen behind the draws queued before it, as a transcript restored. */
+  replay(text: string, separator?: string): Promise<void>
   /**
    * Resizes the pty now, and the screen once the draws queued before are on it. While a
    * hold is in force, the latest size from `owner` waits until it settles.
@@ -190,10 +196,21 @@ export type Terminal = {
   /**
    * Holds the person's input for at most `budget.inputMs`, and the resizes until the hold
    * settles or `budget.sizeMs` passes. Never in force with another, apart from one that only
-   * waits on its resizes, which this one takes over. `live` says whether the terminal still
-   * runs for its holder; a hold on one that doesn't writes nothing and isn't `holding`.
+   * waits on its resizes, which this one takes over. A hold on a terminal that doesn't run, or
+   * that its host let go, writes nothing and isn't `holding`.
    */
-  hold(budget: HoldBudget, live: () => boolean): InputHold
+  hold(budget: HoldBudget): InputHold
+  on<K extends keyof Listeners>(event: K, listener: Listeners[K]): Disposable
+  /** Ends every attachment and all control, as the host stops. */
+  end(): void
+  /** Lets go of the current run's screen and listeners. */
+  dispose(): void
+}
+
+/** A terminal as its host holds it: its draw chain and its restart in place, which the host runs. */
+export type HostedTerminal = Terminal & {
+  /** Runs `work` once everything queued before it has, draws included. */
+  enqueue<T>(work: () => T | Promise<T>): Promise<T>
   /**
    * A new run in place, in an `enqueue` step: `spec` starts, the earlier run's screen and
    * listeners go, attachments end, the ring starts over with a sequence number skipped, so
@@ -202,11 +219,8 @@ export type Terminal = {
    * `SPAWN_FAILED`, leaving the earlier run as it was.
    */
   restart(spec: RunSpec, controller: string | undefined, swapped: () => void): void
-  on<K extends keyof Listeners>(event: K, listener: Listeners[K]): Disposable
-  /** Ends every attachment and all control, as the host stops. */
-  end(): void
-  /** Lets go of the current run's screen and listeners. */
-  dispose(): void
+  /** Its host let it go: no hold holds it any more. */
+  gone(): void
 }
 
 type Retained = { readonly event: TerminalEvent; readonly bytes: number }
@@ -223,7 +237,7 @@ type Run = {
 
 type Read = { readonly run: Pty; readonly data: string }
 
-export const createTerminal = (options: TerminalOptions): Terminal => {
+export const createTerminal = (options: TerminalOptions): HostedTerminal => {
   const { eventBytes, limits } = options
   let sequence = 0
   let history: Retained[] = []
@@ -246,6 +260,7 @@ export const createTerminal = (options: TerminalOptions): Terminal => {
 
   let size = { cols: options.spec.cols, rows: options.spec.rows }
   let resizedAt = 0
+  let gone = false
   // The hold in force: the person's keys it holds (null once released), whether they count
   // only once delivered, when its resizes may apply at the earliest (epoch milliseconds,
   // taken over by the next hold), and the latest size it holds, with the attachment it came
@@ -464,6 +479,9 @@ export const createTerminal = (options: TerminalOptions): Terminal => {
     }
   }
 
+  // Whether a hold still holds: the terminal runs, and its host keeps it.
+  const live = () => !gone && !exiting && exit === null
+
   const applySize = (cols: number, rows: number) => {
     // Only a new size redraws the screen, as a window attaching again may ask for the same.
     if (cols !== size.cols || rows !== size.rows) resizedAt = Date.now()
@@ -476,7 +494,7 @@ export const createTerminal = (options: TerminalOptions): Terminal => {
     })
   }
 
-  const hold = (budget: HoldBudget, live: () => boolean): InputHold => {
+  const hold = (budget: HoldBudget): InputHold => {
     if (!live() || held?.input) return noHold
     const mine: NonNullable<typeof held> = {
       input: [],
@@ -655,6 +673,15 @@ export const createTerminal = (options: TerminalOptions): Terminal => {
       run.pty.write(data)
     },
     type: (data) => run.pty.write(data),
+    readScreen: (<T>(read?: (screen: Screen) => T) =>
+      enqueue(() => (read ? read(run.screen) : readScreen(run.screen)))) as Terminal["readScreen"],
+    replay: (text, separator) => {
+      const { screen } = run
+      return enqueue(() => replayOn(screen, text, separator))
+    },
+    gone: () => {
+      gone = true
+    },
     hold,
     restart: (spec, next, swapped) => {
       // A run still going would be orphaned, its exit heard by no one. Once its exit is
