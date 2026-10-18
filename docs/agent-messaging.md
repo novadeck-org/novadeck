@@ -1078,7 +1078,7 @@ harnesses treat specially (Claude Code attaches an `@path`, Codex opens a file p
 Novadeck knows nothing of how a harness draws its screen: no placeholder text, glyphs,
 row positions or footer text. Every check below is the same for every TUI, built from
 what Novadeck sees anyway: the person's input, the decoded activity, and the screen's
-text in `record.screen` (`@xterm/headless`), with its paste mode. The ring, in order:
+text in `record.terminal.screen` (`@xterm/headless`), with its paste mode. The ring, in order:
 
 1. **Idle.** The terminal is Settled: its last root turn ended normally, nothing runs in
    the background, no request is pending; or Ready: a new session at its own prompt, with
