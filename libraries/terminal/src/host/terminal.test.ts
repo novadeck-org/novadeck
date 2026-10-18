@@ -151,11 +151,11 @@ describe("a terminal's output", () => {
     const viewer = terminal.attach("viewer", { mode: "observe" })
     await viewer.next()
     const seen: unknown[] = []
-    terminal.on("resized", (size) => seen.push([size, terminal.screen.cols]))
+    terminal.on("resized", (size) => seen.push([size, terminal.screen.cols, terminal.size]))
     terminal.resize(30, 5)
     expect(seen).toEqual([])
     await settled()
-    expect(seen).toEqual([[{ cols: 30, rows: 5 }, 30]])
+    expect(seen).toEqual([[{ cols: 30, rows: 5 }, 30, { cols: 30, rows: 5 }]])
     expect(await viewer.next()).toEqual({ type: "resized", cols: 30, rows: 5, sequence: 1 })
   })
 
@@ -412,14 +412,16 @@ describe("a terminal's exit", () => {
     const viewer = terminal.attach("viewer", { mode: "observe" })
     await viewer.next()
     const seen: string[] = []
-    terminal.on("exit", (exit) => seen.push(`exit ${exit.code}, exiting ${terminal.exiting}`))
+    terminal.on("exit", (exit) =>
+      seen.push(`exit ${exit.code}, exiting ${terminal.exiting}, held ${terminal.exit?.code}`),
+    )
     terminal.on("exited", () => seen.push(`exited, ${terminal.attached} attached`))
     void terminal.exited.then(() => seen.push("promise"))
     program.exit(3)
     expect(terminal.exiting).toBe(true)
     await settled()
     await terminal.exited
-    expect(seen).toEqual(["exit 3, exiting true", "exited, 1 attached", "promise"])
+    expect(seen).toEqual(["exit 3, exiting true, held 3", "exited, 1 attached", "promise"])
     expect(await drain(terminal, "viewer", viewer, 3)).toMatchObject([
       { type: "exited", exit: { code: 3, signal: null } },
     ])
@@ -486,6 +488,22 @@ describe("a terminal's restart", () => {
     )
     expect(terminal.pty.exited).toBe(false)
     expect(runs[1]!.calls).toEqual([])
+  })
+
+  it("counts its runs and keeps the size each one is drawn at", async () => {
+    const { terminal, runs, settled } = terminalOf({ runs: 2, controller: "creator" })
+    const [first] = runs as [Program, Program]
+    expect(terminal.run).toBe(1)
+    expect(terminal.size).toEqual({ cols: 20, rows: 4 })
+    terminal.resize(30, 5)
+    await settled()
+    expect(terminal.size).toEqual({ cols: 30, rows: 5 })
+    first.exit(0)
+    await settled()
+    await terminal.enqueue(() => terminal.restart(specOf(40, 6), "creator", () => {}))
+    expect(terminal.run).toBe(2)
+    expect(terminal.size).toEqual({ cols: 40, rows: 6 })
+    expect(terminal.exit).toBeNull()
   })
 
   it("leaves the earlier run as it was when the new one can't start", async () => {

@@ -677,9 +677,10 @@ export const startTrace = (name: string, model: FakeModel) => {
   ]) as unknown as {
     stop: () => Promise<void>
     terminate: (record: {
-      readonly summary: { readonly id: string; readonly exit: unknown }
+      readonly summary: { readonly id: string }
       readonly terminal: {
         readonly exiting: boolean
+        readonly exit: unknown
         readonly pty: { readonly pid: number | undefined }
       }
     }) => Promise<void>
@@ -719,7 +720,7 @@ export const startTrace = (name: string, model: FakeModel) => {
   }
   closing.terminate = async function (record) {
     add(
-      `terminate ${named(record.summary.id)} begins: shell ${record.terminal.pty.pid}, exit queued ${record.terminal.exiting}, exited ${record.summary.exit !== null}`,
+      `terminate ${named(record.summary.id)} begins: shell ${record.terminal.pty.pid}, exit queued ${record.terminal.exiting}, exited ${record.terminal.exit !== null}`,
     )
     closes += 1
     try {
