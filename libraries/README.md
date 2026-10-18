@@ -36,8 +36,8 @@ the build rules and the test sandbox. The app keeps the product.
 - **The import fence** in `.oxlintrc.json`: an override per library refuses app code by package
   name, paths into `application/`, `apps/`, `backend/`, `contract/`, `frontend/`, `harnesses/`,
   `libraries/`, `atlas/` or a sibling's `dist/` (`../../wire/dist`), or up to one of the first
-  eight by name (`../atlas`, so a library's own module
-  one folder up takes another name), and the libraries outside its order; one on
+  eight by name (`../harnesses`, so a library's own module one folder up takes another
+  name), and the libraries outside its order; one on
   `application/ui/src` refuses the Node subpaths of any `@novadeck` package (`/pty`, `/host`,
   `/server`, `/electron`, `/browser/host`, `/shell`, `/headless`). oxlint takes
   `no-restricted-imports` from the last matching override alone, and a `!` pattern in one group
