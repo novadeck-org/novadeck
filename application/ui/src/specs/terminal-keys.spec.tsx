@@ -4,7 +4,7 @@ import { page } from "vitest/browser"
 
 import { App } from "../app/App"
 import { scriptedRunner } from "../backend/runner/scripted-server"
-import { recentSwitcher } from "./support/keyboard"
+import { pressShortcut, recentSwitcher } from "./support/keyboard"
 import { layoutSettled, press, terminalTab } from "./support/workspace"
 
 // The app's shortcuts from a real terminal: the runner's, whose emulator reads the keys it
@@ -53,7 +53,8 @@ describe("the app's shortcuts typed into a runner terminal", () => {
     const focus = page.getByRole("radio", { name: "Focus" })
     const before = (focus.element() as HTMLInputElement).checked
 
-    await press("{Control>}{Shift>}{Enter}{/Shift}{/Control}")
+    // ⌘Enter on a Mac, Ctrl+Shift+Enter elsewhere.
+    await pressShortcut("focus")
     await expect.poll(() => (focus.element() as HTMLInputElement).checked).toBe(!before)
     await expect.element(input("Agent 1")).toHaveFocus()
     expect(shellGotKeys(runner)).toBe(false)
