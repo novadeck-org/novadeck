@@ -15,6 +15,17 @@ const pages = [
 ].map((path) => ({ path, html: readFileSync(join(process.cwd(), path), "utf8") }))
 
 describe("frontend Content Security Policy", () => {
+  it("checks the page of every entry", () => {
+    expect(pages.map(({ path }) => path.split("\\").join("/"))).toEqual(
+      expect.arrayContaining([
+        "index.html",
+        "entries/web/index.html",
+        "entries/try/index.html",
+        "entries/previews/index.html",
+      ]),
+    )
+  })
+
   it.each(pages)(
     "runs only same-origin script files in $path, the theme's boot script too",
     ({ html }) => {

@@ -98,6 +98,17 @@ const infinite = stylesheets.flatMap((file) =>
 )
 
 describe("animations that never end", () => {
+  it("are looked for in every folder's stylesheets, the debug panel's among them", () => {
+    expect(stylesheets).toEqual(
+      expect.arrayContaining([
+        "styles.css",
+        "theme/base.css",
+        "backend/terminal-views/terminal-xterm.css",
+        "backend/demo/debug/debug-panel.css",
+      ]),
+    )
+  })
+
   it("are found in the stylesheets", () => {
     expect(infinite.length).toBeGreaterThan(0)
   })
