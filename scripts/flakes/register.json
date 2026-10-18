@@ -193,6 +193,15 @@
       "status": "known",
       "cause": "Windows only: the App rendered over the spec backend in jsdom (the integration project) runs past its timeout. Since 3.2d (#285) mounted the demo's terminals through the terminal views these tests are slower locally too (WorkspaceTerminal 0.35 to 1.0 s, render-scope 1.8 to 3.1 s, WorkspaceOverlays 0.52 to 0.70 s), and Windows runners stretch them roughly tenfold, with 2.5x between runs (render-scope 12.6 s on #278, 34 s after #285). Not opening xterm (36 opens, 150 ms in all) nor writing to it (no change with attach held); where the rest goes is not yet found.",
       "seen": ["click-into run 39148797754 job 117738016740 (Windows)"]
+    },
+    {
+      "id": "e2e-antigravity-macos-raw-mode",
+      "jobs": ["^Antigravity \\(macOS\\)$"],
+      "test": "src/e2e/chat.e2e.ts > Antigravity > runs a ! command from the chat, the same command again, and a multi-line one",
+      "signature": "can't reach ready: timed out after \\d+ ms\\. \\w+: unbound[\\s\\S]*error entering raw mode: input/output error",
+      "status": "known",
+      "cause": "Antigravity's CLI exited at startup with \"CLI error: error entering raw mode: input/output error\", right after the macOS shell (bash 3.2) reported \"child setpgid (N to N): Operation not permitted\", so the terminal never bound an agent. Suspected: a race in which the CLI leaves bash's process group (as by setsid) before bash puts it in its own, so it isn't in the terminal's foreground group and its tcsetattr fails with EIO. Seen once, on macOS; not reproduced on Linux.",
+      "seen": ["#296 E2E run 39157554949 job 117763910444 (macOS)"]
     }
   ]
 }
