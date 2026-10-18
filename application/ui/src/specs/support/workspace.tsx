@@ -258,16 +258,19 @@ export const terminalLines = (name: string): string[] => linesIn(terminal(name).
 /** What a terminal shows, as one text. */
 export const terminalText = (name: string): string => terminalLines(name).join("\n")
 
-/** Whether a terminal in view shows `line`, a whole line of it, as a command's reply. */
+// The terminals in view.
+const shownTerminals = (): Element[] =>
+  [...document.querySelectorAll('section[aria-label$=" terminal"]')].filter((region) =>
+    region.checkVisibility({ visibilityProperty: true }),
+  )
+
+/** Whether a terminal in view shows `line` as a whole line of it. */
 export const terminalsShow = (line: string): boolean =>
-  [...document.querySelectorAll('section[aria-label$=" terminal"]')]
-    .filter((region) => region.checkVisibility({ visibilityProperty: true }))
-    .some((region) => linesIn(region).some((each) => each.trim() === line))
+  shownTerminals().some((region) => linesIn(region).some((each) => each.trim() === line))
 
 /** What the terminals in view show, as one text. */
 export const terminalsText = (): string =>
-  [...document.querySelectorAll('section[aria-label$=" terminal"]')]
-    .filter((region) => region.checkVisibility({ visibilityProperty: true }))
+  shownTerminals()
     .map((region) => linesIn(region).join("\n"))
     .join("\n")
 
@@ -278,27 +281,40 @@ export const terminalLine = (line: string) => ({
 })
 
 /**
- * What is typed on a terminal's command line and not yet sent: the input's value, or the
- * text after the prompt on the last line that has one, where the line is drawn as output.
+ * What is typed on a terminal's command line and not yet sent: the input's value, or, where
+ * the line is drawn as output, the text after the prompt on the last line that has one.
+ * Undefined while no prompt shows, so a check for an empty draft can't pass without one.
  */
-export const draftOf = (name: string): string => {
+export const draftOf = (name: string): string | undefined => {
   const input = commandInput(name).element()
   if (input instanceof HTMLInputElement) return input.value
-  const prompt = terminalLines(name).findLast((line) => line.startsWith("❯"))
-  return prompt?.replace(/^❯\s?/, "") ?? ""
+  const prompt = terminalLines(name).findLast((line) => line.trimStart().startsWith("❯"))
+  return prompt?.trimStart().replace(/^❯\s?/, "")
 }
 
-/** Clicks where a person clicks to type in a terminal: its input, or the screen an emulator draws. */
+/**
+ * Clicks where a person clicks to type in a terminal: its input, or, where an emulator draws
+ * it, the screen at the cursor, where no link or overlay is in the way. Waits for either.
+ */
 export const clickInto = async (name: string): Promise<void> => {
   const input = commandInput(name)
+  await expect.element(input).toBeInTheDocument()
   if (input.element() instanceof HTMLInputElement) return input.click()
-  const screen = terminal(name).element().querySelector(".xterm-screen")!
-  await page.elementLocator(screen).click()
+  const screenOf = (): Element | null => terminal(name).element().querySelector(".xterm-screen")
+  await expect.poll(screenOf).not.toBeNull()
+  const screen = screenOf()!
+  // The emulator keeps its input over the cursor.
+  const at = input.element().getBoundingClientRect()
+  const box = screen.getBoundingClientRect()
+  await page.elementLocator(screen).click({
+    position: { x: Math.max(1, at.left - box.left + 1), y: Math.max(1, at.top - box.top + 1) },
+  })
 }
 
 /** Types `text` on a terminal's command line, as a person does, after what is there. */
 export const typeInto = async (name: string, text: string): Promise<void> => {
   const input = commandInput(name)
+  await expect.element(input).toBeInTheDocument()
   input.element().focus()
   await expect.element(input).toHaveFocus()
   // `{` and `[` start a key's name in userEvent's syntax.
@@ -306,17 +322,22 @@ export const typeInto = async (name: string, text: string): Promise<void> => {
 }
 
 /**
- * Where a terminal draws `text`, for how it is styled: the element holding it, or, where an
- * emulator draws to a canvas, the element it measures its font with.
+ * Where a terminal draws `text`, for how it is styled: the element holding it, or the
+ * emulator's DOM renderer row. An emulator drawing to a canvas styles no element with its
+ * font (its accessibility tree uses the page's monospace), so there it throws rather than
+ * read the wrong one.
  */
 export const outputTextElement = (name: string, text: string): HTMLElement => {
   const region = terminal(name).element()
-  // The DOM renderer's rows carry the font; the accessibility tree's don't.
-  const rows = region.querySelector(".xterm-rows")?.children ?? []
-  const row = [...rows].find((each) => each.textContent?.includes(text))
-  if (row) return row as HTMLElement
-  const measure = region.querySelector<HTMLElement>(".xterm-char-measure-element")
-  return measure ?? (terminal(name).getByText(text).element() as HTMLElement)
+  const rows = region.querySelector(".xterm-rows")
+  if (rows) {
+    const row = [...rows.children].find((each) => each.textContent?.includes(text))
+    if (!row) throw new Error(`${name} draws no row with "${text}"`)
+    return row as HTMLElement
+  }
+  if (region.querySelector(".xterm"))
+    throw new Error(`${name} draws to a canvas: no element has its font`)
+  return terminal(name).getByText(text).element() as HTMLElement
 }
 
 /** Terminal names in sidebar order. */
