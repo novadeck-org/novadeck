@@ -81,7 +81,7 @@ const terminal = (
     startsOnShell?: boolean
     /** The command its shell mode is given for one as written (the box profile's `shell.command`). */
     command?: (command: string) => string | undefined
-    /** The nonce of a ring under way, which `ringEnds` ms from the first look ends. */
+    /** The nonce of a ring under way, which `ringEnds` ms from the start ends, or else `endRing`. */
     ringing?: string
     ringEnds?: number
     /** How long a hold lasts before it lapses by itself, in milliseconds. */
@@ -102,6 +102,7 @@ const terminal = (
     first ? `${bash ? "!" : ">"} ${line}` : `  ${line}`
   const written: string[] = []
   const started = Date.now()
+  let rang = false
   let looks = 0
   const bindStart = Date.now()
   // How many writes had gone out when the session was first seen bound.
@@ -145,7 +146,9 @@ const terminal = (
       return is
     },
     ringing: () =>
-      options.ringing !== undefined && Date.now() - started < (options.ringEnds ?? 0)
+      options.ringing !== undefined &&
+      !rang &&
+      (options.ringEnds === undefined || Date.now() - started < options.ringEnds)
         ? options.ringing
         : undefined,
     screen: () => {
@@ -247,6 +250,9 @@ const terminal = (
     budgets,
     state: () => ({ held, sizes, holds }),
     writesAtBind: () => writesAtBind,
+    endRing: () => {
+      rang = true
+    },
   }
 }
 
@@ -552,10 +558,12 @@ describe("prompts", () => {
   })
 
   it("wait for a delivery under way to end before it pastes", async () => {
-    const { host, written } = terminal({ ringing: "abc", ringEnds: 40 })
+    // The delivery ends when the test says, not by the clock, which a slow runner outlasts.
+    const { host, written, endRing } = terminal({ ringing: "abc" })
     const prompt = new Prompts(host, host.queue, { ...fast, ringMs: 500 }).prompt("t", "Hello")
     await sleep(15)
     expect(written).toEqual([])
+    endRing()
     await prompt
     expect(enters(written)).toBe(1)
   })
