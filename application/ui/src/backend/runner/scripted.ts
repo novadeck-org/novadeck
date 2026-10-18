@@ -4,7 +4,7 @@ import type { WireStatus } from "@novadeck/wire/client"
 
 import { workspaceFromSeed } from "#core/seed"
 import { createTerminalState, workspaceReducer, type WorkspaceAction } from "#core/state"
-import type { Workspace } from "#core/types"
+import type { CanvasLayout, Workspace } from "#core/types"
 
 import type { BackendAction } from "../port"
 import { runnerBackend, type RunnerApi } from "./backend"
@@ -54,15 +54,21 @@ export const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(1
 type Saved = { readonly id: string; readonly lastProcess: string }
 type Call = { readonly call: string; readonly input: unknown }
 
-// A saved session laying out the terminals.
-export const savedSession = (saved: readonly Saved[], visitedAt: number, name: string) => ({
+// A saved session laying out the terminals: in Grid, or in Canvas where a layout says.
+export const savedSession = (
+  saved: readonly Saved[],
+  visitedAt: number,
+  name: string,
+  canvasLayout?: CanvasLayout,
+) => ({
   id: name,
   name,
   visitedAt,
   state: createTerminalState(
     saved.map((terminal) => startingTerminal(terminal.id, "/tmp")),
-    "grid",
-    "grid",
+    canvasLayout ? "canvas" : "grid",
+    canvasLayout ? "canvas" : "grid",
+    canvasLayout ? { canvasLayout } : {},
   ),
 })
 

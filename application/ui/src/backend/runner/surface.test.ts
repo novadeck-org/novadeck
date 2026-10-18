@@ -7,7 +7,7 @@ import {
 import type { TerminalEvent, TerminalExit } from "@novadeck/protocol"
 import { type AttachedTerminal } from "@novadeck/protocol/client"
 import { WireError } from "@novadeck/wire"
-import { act, createElement, type ReactNode } from "react"
+import { act, createElement, useSyncExternalStore, type ReactNode } from "react"
 import { afterEach, onTestFinished, vi } from "vitest"
 
 import { createStore } from "#core/store"
@@ -21,7 +21,7 @@ import type { BackendConnectionState } from "../port"
 import type { SurfaceRuntime } from "./backend"
 import { ctrlVHoldMs } from "./paste"
 import { createRunnerTerminal } from "./RunnerTerminal"
-import { createScreens, pasteNoticeMs } from "./screens"
+import { createScreens, pasteNoticeMs, type RunnerScreen } from "./screens"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
 vi.hoisted(() => {
@@ -198,6 +198,53 @@ const Agent = (props: { children: ReactNode }) => createElement("section", props
 const Plain = (props: { children: ReactNode }) => createElement("article", props)
 
 describe("runner terminal surface", () => {
+  it("takes focus asked for while off screen into the screen opened again when it's back", () => {
+    // The parked-screen cap closed its screen while it was away: the one it comes back to is
+    // a new one, which the focus must reach.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const { runtime } = starting()
+      const screens = createScreens(runtime, undefined, 0)
+      const acquired: RunnerScreen[] = []
+      const Surface = createRunnerTerminal(runtime, {
+        ...screens,
+        acquire: (...args) => {
+          const screen = screens.acquire(...args)
+          acquired.push(screen)
+          return screen
+        },
+      })
+      const request = createStore(false)
+      const Host = ({ onScreen }: { onScreen: boolean }) => {
+        const wanted = useSyncExternalStore(request.subscribe, request.getSnapshot)
+        return createElement(Surface, {
+          terminalKey: key,
+          terminal: { ...terminalFixture(1, "~"), state: "starting" },
+          projectName: "P",
+          view: "canvas",
+          fontSize: 13,
+          focusInput: wanted && onScreen,
+          onInputFocused: () => request.update(() => false),
+          onScreen,
+          renderWindow: (content) => content,
+        })
+      }
+      const page = render(createElement(Host, { onScreen: true }))
+      page.rerender(createElement(Host, { onScreen: false }))
+      vi.advanceTimersByTime(6_000)
+      act(() => request.update(() => true))
+      page.rerender(createElement(Host, { onScreen: true }))
+
+      expect(acquired[1]).not.toBe(acquired[0])
+      expect(document.activeElement).toBe(acquired[1]!.xterm.textarea)
+      expect(request.getSnapshot()).toBe(false)
+      page.unmount()
+      vi.advanceTimersByTime(31 * 60 * 1000)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("places the host its screen opened in, when that is not the one it rendered with", () => {
     // As when the parked-screen cap closes the screen between the surface's render and its
     // effect: the screen opens again in a host of its own.
@@ -220,6 +267,119 @@ describe("runner terminal surface", () => {
     mounted.push(page)
     expect(screens.host(key).isConnected).toBe(true)
     expect(stale.isConnected).toBe(false)
+  })
+
+  context("when it is out of the person's sight", () => {
+    // Surfaces over screens that note each acquire and release. The timers are fake, so the
+    // screen's parking and retention timers run out before the test ends, not after it.
+    const watched = (test: (harness: ReturnType<typeof surfaces>) => void) => () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+      try {
+        test(surfaces())
+        vi.advanceTimersByTime(31 * 60 * 1000)
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+    const surfaces = () => {
+      const { runtime } = starting()
+      const screens = createScreens(runtime)
+      const calls: string[] = []
+      const acquired: RunnerScreen[] = []
+      const Surface = createRunnerTerminal(runtime, {
+        ...screens,
+        acquire: (...args) => {
+          calls.push("acquire")
+          const screen = screens.acquire(...args)
+          acquired.push(screen)
+          return screen
+        },
+        release: (...args) => {
+          calls.push("release")
+          screens.release(...args)
+        },
+      })
+      const surface = (onScreen: boolean) =>
+        createElement(Surface, {
+          terminalKey: key,
+          terminal: { ...terminalFixture(1, "~"), state: "starting" },
+          projectName: "P",
+          view: "canvas",
+          fontSize: 13,
+          focusInput: false,
+          onInputFocused: () => {},
+          onScreen,
+          renderWindow: (content) => content,
+        })
+      return { screens, calls, acquired, surface }
+    }
+
+    it(
+      "lets its screen go and takes it again, one release for each acquire",
+      watched(({ screens, calls, surface }) => {
+        const page = render(surface(true))
+        const xterm = page.container.querySelector(".xterm")
+        expect(calls).toEqual(["acquire"])
+
+        page.rerender(surface(false))
+        expect(calls).toEqual(["acquire", "release"])
+        // It stays mounted, showing the host's last drawing.
+        expect(page.container.querySelector(".xterm")).toBe(xterm)
+
+        page.rerender(surface(true))
+        expect(calls).toEqual(["acquire", "release", "acquire"])
+        expect(screens.host(key).isConnected).toBe(true)
+        expect(page.container.querySelector(".xterm")).toBe(xterm)
+
+        page.rerender(surface(true))
+        expect(calls).toEqual(["acquire", "release", "acquire"])
+        page.unmount()
+        expect(calls).toEqual(["acquire", "release", "acquire", "release"])
+      }),
+    )
+
+    it(
+      "leaves no refocus waiting when it takes back a screen that never left its slot",
+      watched(({ calls, acquired, surface }) => {
+        const page = render(surface(true))
+        const screen = acquired[0]!
+        screen.xterm.focus()
+        expect(screen.host.contains(document.activeElement)).toBe(true)
+
+        page.rerender(surface(false))
+        page.rerender(surface(true))
+        expect(calls).toEqual(["acquire", "release", "acquire"])
+        expect(acquired[1]).toBe(screen)
+        // Nothing waits to refocus the host: a later body change must not steal focus.
+        expect(screen.refocus).toBe(false)
+        // Only an unmount leaves focus for the next surface to restore.
+        page.unmount()
+        expect(screen.refocus).toBe(true)
+      }),
+    )
+
+    it(
+      "releases nothing again when it unmounts off screen",
+      watched(({ calls, surface }) => {
+        const page = render(surface(true))
+        page.rerender(surface(false))
+        expect(calls).toEqual(["acquire", "release"])
+        page.unmount()
+        expect(calls).toEqual(["acquire", "release"])
+      }),
+    )
+
+    it(
+      "takes no screen while it has never been on screen",
+      watched(({ calls, surface }) => {
+        const page = render(surface(false))
+        expect(calls).toEqual([])
+        page.rerender(surface(true))
+        expect(calls).toEqual(["acquire"])
+        page.unmount()
+        expect(calls).toEqual(["acquire", "release"])
+      }),
+    )
   })
 
   it("keeps one live xterm, its output and focus while the body around it changes", async () => {
