@@ -135,8 +135,8 @@ export class Prompts {
    * rule judges, before the queue; in its turn, for what `admit` throws, which passes as it
    * is, and for a screen that takes no bracketed paste, shows no input box, holds a draft
    * already or has no room for the text, or where the paste never showed as exactly the
-   * text (or the box never switched to its shell mode at a typed `!`), leaving what landed
-   * of it as a draft. All but the last write nothing.
+   * text, or as its tail in a full box (or the box never switched to its shell mode at a
+   * typed `!`), leaving what landed of it as a draft. All but the last write nothing.
    */
   async prompt(terminalId: string, text: string): Promise<void> {
     this.refuse(text)
@@ -384,7 +384,8 @@ export class Prompts {
 
   /**
    * Whether the pasted text showed in time, steady on two reads running: the box, in the
-   * mode asked, holds exactly the text, or only the placeholder its TUI shows for a
+   * mode asked, holds exactly the text, or only its tail where the box is as tall as its
+   * viewport (see `showsTail`), or only the placeholder its TUI shows for a
    * long paste (for a command, only where its shell runs the text the placeholder stands
    * for: `unexpanded` where it showed only a placeholder it would run as text). A box that
    * went into its shell mode as a message landed never counts.

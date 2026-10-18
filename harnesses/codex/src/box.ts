@@ -49,7 +49,7 @@ const queued = (screen: ScreenText): boolean =>
 
 /**
  * Codex's input box: no frame, `› ` leading its first row, the rest indented, and the
- * cursor on its last row (probed 0.159.3 and 0.160.1, fixtures/input-box.probe.json).
+ * cursor on its last row (probed 0.159.3, 0.160.1 and 0.163.0, fixtures/input-box.probe.json).
  * Empty, it shows "Ask Codex to do anything" or another suggestion drawn dim. Its first
  * key changes the welcome screen wholesale, so the box is read from where the cursor is,
  * never against an earlier screen. Pastes of about a thousand characters show as

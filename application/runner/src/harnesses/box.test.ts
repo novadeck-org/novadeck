@@ -40,8 +40,10 @@ const emoji =
   "Thanks \u2764\ufe0f heart \u{1f468}\u200d\u{1f469}\u200d\u{1f467} family \u65e5\u672c\u8a9e"
 const words = (count: number) => Array.from({ length: count }, (_, i) => `w${i % 10}`).join(" ")
 
-/** What a state's box holds: nothing, exactly some text, or a collapsed paste. */
-// A box that holds the text whole, or (`tail`) only its end, at its viewport's height.
+/**
+ * What a state's box holds: nothing, exactly some text, a collapsed paste, or (`tail`) only
+ * the end of a text, the box as tall as its viewport.
+ */
 type Expect = "empty" | "collapsed" | { readonly text: string } | { readonly tail: string }
 
 // The states every harness shows alike.
@@ -204,9 +206,16 @@ describe("Codex 0.163.0's box for a text taller than it", () => {
     },
   )
 
-  it("never shows the tail of another text", () => {
+  it("never shows the tail of a text that ends otherwise", () => {
     const read = codex.read(shown["tall 40 lines at 40 rows"]!)!
     expect(showsTail(codex, read, 40, `${tall}\nOne more line`)).toBe(false)
+  })
+
+  // The head is off the screen, so a text that ends alike but starts otherwise reads as
+  // shown too: the paste check relies on the box being empty before the paste.
+  it("can't tell a text by its head, which the box doesn't show", () => {
+    const read = codex.read(shown["tall 40 lines at 40 rows"]!)!
+    expect(showsTail(codex, read, 40, tall.replace("Tall line 1\n", "Another head\n"))).toBe(true)
   })
 })
 
