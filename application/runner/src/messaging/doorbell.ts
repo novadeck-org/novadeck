@@ -8,10 +8,12 @@ import {
   type InputEntry,
   type InputQueue,
   type Typist,
+  type TypingTarget,
 } from "@novadeck/tui-input"
+import type { BoxProfile } from "@novadeck/tui-input/box"
 
-import type { Waits } from "../messaging/delivery.js"
-import { coalesced } from "./coalesce.js"
+import { coalesced } from "../terminals/coalesce.js"
+import type { Waits } from "./delivery.js"
 
 /**
  * Where the doorbell tells what it decided, line by line, for the e2e trace to show (see
@@ -39,12 +41,6 @@ export type DoorbellHost = {
   readonly ringing: (terminalId: string) => string | undefined
   /** The ring failed: the terminal is Unknown, and its messages wait. */
   readonly ringFailed: (terminalId: string, nonce: string, ours?: boolean) => void
-  /** The screen once it has drawn all pending output; undefined once the terminal is gone. */
-  readonly screen: (terminalId: string) => Promise<ScreenText | undefined>
-  /** Whether the bound instance holds the foreground; undefined where that can't be told. */
-  readonly foreground: (terminalId: string) => Promise<boolean | undefined>
-  /** When its window was last resized, in epoch milliseconds; 0 before any resize. */
-  readonly resizedAt: (terminalId: string) => number
   /**
    * Whether the agent is idle but Fresh, Drafting or Unknown (not ringable by its state), with
    * messages waiting: its screen is looked at for an empty box.
@@ -76,13 +72,14 @@ export type DoorbellHost = {
   readonly ringLeftover: (terminalId: string, nonce: string) => boolean
   /** How much longer the screen is not believed, after a Stop that left a prompt queued; 0 if none. */
   readonly barred?: (terminalId: string) => number
-  /** Writes to the terminal's shell; false once it is gone. */
-  readonly write: (terminalId: string, data: string) => boolean
+  /** What types into the terminal; undefined once it is gone. */
+  readonly target: (terminalId: string) => TypingTarget | undefined
   /**
-   * Whether the agent's input box shows on the screen, empty and taking a prompt (see
-   * `GateFacts.inputBox`), on every platform; undefined where it can't be told.
+   * How the agent bound there, or shown at its prompt before one binds, draws its input box;
+   * undefined where there is none, and the gate finds no box. A host without it (a test's)
+   * leaves the gate unable to tell.
    */
-  readonly inputBox?: (terminalId: string, screen: ScreenText) => boolean | undefined
+  readonly profile?: (terminalId: string) => BoxProfile | undefined
 }
 
 export type DoorbellOptions = {
@@ -301,35 +298,27 @@ export class Doorbell {
     tracer.sink?.(terminalId, line)
   }
 
-  /** What types into the terminal, over the host's reads and writes. */
-  private typist(terminalId: string): Typist {
+  /** What types into the terminal, over the host's target; undefined once it is gone. */
+  private typist(terminalId: string): Typist | undefined {
     const known = this.typists.get(terminalId)
     if (known) return known
     const { host } = this
-    const typist = createTypist(
-      {
-        type: (data) => host.write(terminalId, data),
-        screen: () => host.screen(terminalId),
-        get resizedAt() {
-          return host.resizedAt(terminalId)
-        },
-        holdsForeground: () => host.foreground(terminalId),
+    const target = host.target(terminalId)
+    if (!target) return undefined
+    const typist = createTypist(target, {
+      ...(host.profile && { profile: () => host.profile!(terminalId) }),
+      boxCheck: this.boxCheck,
+      timing: {
+        now: this.now,
+        pollMs: this.pollMs,
+        pasteMs: this.pasteMs,
+        calmMs: this.calmMs,
+        watchMs: this.watchMs,
+        tickWindowMs: this.tickWindowMs,
+        sizeCapMs: ringSizeCapMs(this.pasteMs, this.confirmMs),
       },
-      {
-        profile: (screen) => host.inputBox?.(terminalId, screen),
-        boxCheck: this.boxCheck,
-        timing: {
-          now: this.now,
-          pollMs: this.pollMs,
-          pasteMs: this.pasteMs,
-          calmMs: this.calmMs,
-          watchMs: this.watchMs,
-          tickWindowMs: this.tickWindowMs,
-          sizeCapMs: ringSizeCapMs(this.pasteMs, this.confirmMs),
-        },
-        trace: (line) => this.note(terminalId, line),
-      },
-    )
+      trace: (line) => this.note(terminalId, line),
+    })
     this.typists.set(terminalId, typist)
     return typist
   }
@@ -395,8 +384,8 @@ export class Doorbell {
       this.lookedStamp.set(terminalId, this.host.stamp(terminalId))
     }
     const typist = this.typist(terminalId)
-    const look = await typist.look()
-    if (!look) return undefined
+    const look = await typist?.look()
+    if (!typist || !look) return undefined
     const { screen, at: now, calmFor: calm } = look
     if (!look.calm) {
       this.note(terminalId, `screen not calm: ${Math.round(calm)} of ${this.calmMs} ms`)
@@ -509,7 +498,7 @@ export class Doorbell {
         return
       }
       // The same gate as a ring: the agent holds the terminal and it takes a paste.
-      const foreground = await this.host.foreground(terminalId)
+      const foreground = await this.host.target(terminalId)?.holdsForeground()
       if (foreground === false || !screen.bracketedPaste) {
         this.refused(terminalId, screen, "away")
         return
@@ -560,10 +549,12 @@ export class Doorbell {
     if (this.closed) return
     const calmSince = await this.open(terminalId)
     if (calmSince === undefined) return
+    const typist = this.typist(terminalId)
+    if (!typist) return
     let started: string | undefined
     let delivered
     try {
-      delivered = await this.typist(terminalId).deliver(entry, doorbellLine, {
+      delivered = await typist.deliver(entry, doorbellLine, {
         // Only a Ready terminal may lose a block of text as the line lands, as Codex's logo.
         vanish: () => this.host.ready(terminalId),
         calmSince,
@@ -604,10 +595,12 @@ export class Doorbell {
     if ((await this.open(terminalId, true)) !== undefined) return
     if (this.leftovers.get(terminalId) !== nonce) return
     this.leftovers.delete(terminalId)
-    const screen = await this.host.screen(terminalId)
+    const screen = await this.host.target(terminalId)?.screen()
     if (!screen || this.host.leftover(terminalId, screen) !== nonce) return
     if (!this.host.ringLeftover(terminalId, nonce)) return
-    const delivered = await this.typist(terminalId).submit(
+    const typist = this.typist(terminalId)
+    if (!typist) return
+    const delivered = await typist.submit(
       entry,
       nonce,
       (now) => this.host.ringing(terminalId) === now,

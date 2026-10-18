@@ -16,7 +16,6 @@ export type {
   DeliveryFailed,
   DeliveryFailure,
   Entered,
-  InputBoxCheck,
   Look,
   NotBegun,
   Readiness,

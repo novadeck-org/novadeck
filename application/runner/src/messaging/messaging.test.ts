@@ -2336,7 +2336,7 @@ describe("untouched, erring toward Drafting", () => {
     expect(messaging.delivery("B")?.state).toBe("drafting")
   })
 
-  // The settle window itself is the doorbell's: see terminals/doorbell.test.ts.
+  // The settle window itself is the doorbell's: see messaging/doorbell.test.ts.
   it("tells the doorbell since when it is Settled, for its screen to settle first", () => {
     const { messaging, send, prompt, stop, codex, clock: time } = settledCodex()
     expect(messaging.settledSince("B")).toBe(time.now)

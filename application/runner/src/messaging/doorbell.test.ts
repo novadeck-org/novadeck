@@ -1,11 +1,12 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
 import { screen } from "@novadeck/harness-core/testing/screens"
-import { InputQueue, pasteMsOn } from "@novadeck/tui-input"
+import { InputQueue, pasteMsOn, type TypingTarget } from "@novadeck/tui-input"
+import type { BoxProfile } from "@novadeck/tui-input/box"
 import { vi } from "vitest"
 
-import type { Waits } from "../messaging/delivery.js"
 import { describe, expect, it } from "../test.js"
+import type { Waits } from "./delivery.js"
 import { confirmMs, Doorbell, ringSizeCapMs, type DoorbellHost } from "./doorbell.js"
 
 /**
@@ -98,11 +99,18 @@ const terminal = (
     options.streamMs === undefined
       ? undefined
       : setInterval(() => (rows[2] = `output ${Math.random()}`), options.streamMs)
+  const profile = options.inputBox && {
+    read: () =>
+      options.inputBox![((boxReads += 1) - 1) % options.inputBox!.length]!
+        ? { mode: "prompt", text: "" }
+        : undefined,
+    overlay: () => false,
+  }
   const host: DoorbellHost = {
     stamp: () => String(stamp),
-    ...(options.inputBox && {
-      inputBox: () => options.inputBox![((boxReads += 1) - 1) % options.inputBox!.length]!,
-    }),
+    // Without an `inputBox` sequence there is no profile option: the gate can't tell the box.
+    ...(profile && { profile: () => profile as unknown as BoxProfile }),
+
     leftover: () => leftover,
     ringLeftover: (_, nonce) => {
       ringLeftovers.push(nonce)
@@ -140,6 +148,9 @@ const terminal = (
       // A failed ring leaves the terminal Unknown, idle with its messages waiting.
       stalled = true
     },
+    target: () => target,
+  }
+  const target: TypingTarget = {
     screen: async () => {
       screens += 1
       screensAt.push(Date.now())
@@ -148,15 +159,17 @@ const terminal = (
       if (options.screenMs) await sleep(options.screenMs)
       return text
     },
-    foreground: () => {
+    holdsForeground: () => {
       if (resizeAtForeground) {
         resizeAtForeground = false
         resizedAt = Date.now()
       }
       return Promise.resolve(options.foreground)
     },
-    resizedAt: () => resizedAt,
-    write: (_, data) => {
+    get resizedAt() {
+      return resizedAt
+    },
+    type: (data) => {
       written.push(data)
       // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
       const pasted = /^\x1b\[200~(.*)\x1b\[201~$/.exec(data)?.[1]

@@ -13,8 +13,8 @@ import { isEmpty, sameText, type BoxProfile, type InputBox } from "@novadeck/tui
 
 import { agents, harnesses } from "../harnesses/registry.js"
 import type { DeliveryEvent } from "../messaging/delivery.js"
+import { tracer } from "../messaging/doorbell.js"
 import { Messaging } from "../messaging/messaging.js"
-import { tracer } from "../terminals/doorbell.js"
 import { Terminals } from "../terminals/manager.js"
 import type { FakeModel } from "./model/server.js"
 
