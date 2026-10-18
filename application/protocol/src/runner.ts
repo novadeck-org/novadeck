@@ -1,6 +1,7 @@
 import { normalize, WireError } from "@novadeck/wire"
 import {
   connect,
+  follow,
   type Session,
   type Transport,
   type Wire,
@@ -448,61 +449,55 @@ const failure = (error: unknown, link: Link): unknown => {
   })
 }
 
-const sleep = (ms: number, signal: AbortSignal) =>
-  new Promise<void>((resolve) => {
-    const wake = () => {
-      clearTimeout(timer)
-      signal.removeEventListener("abort", wake)
-      resolve()
-    }
-    const timer = setTimeout(wake, ms)
-    signal.addEventListener("abort", wake, { once: true })
+type Connection = Wire<typeof contract>
+
+// What a stream follows (a terminal, an item) is gone: following it ends.
+const gone = (error: WireError) => hasCode(error, "TERMINAL_NOT_FOUND", "NOT_FOUND")
+
+/**
+ * `agents.detail()`, `agents.transcript()` and the like: one subscription per connection, opened
+ * again after each reconnection or when the runner ends it, until what it follows is no longer
+ * found. Each new subscription starts over; `reset`, where given, says so first.
+ */
+const resubscribe = <T>(
+  connection: Connection,
+  open: (wire: WireClient, signal: AbortSignal) => Promise<AsyncIterable<T>>,
+  reset?: T,
+) =>
+  follow(connection, {
+    open: (wire, { signal }) => open(wire, signal),
+    resume: reset === undefined ? { restart: true } : { restart: true, reset, holdReset: true },
+    gone,
   })
 
-const done = { value: undefined, done: true } as const
+/**
+ * `terminals.watch()` and `companions.watch()`: one subscription per connection, opened again
+ * after each reconnection, each opening with `reset`.
+ */
+const watch = <Change>(
+  connection: Connection,
+  open: (wire: WireClient, signal: AbortSignal) => Promise<AsyncIterable<Change>>,
+) =>
+  follow<typeof contract, Change | { readonly type: "reset" }>(connection, {
+    open: (wire, { signal }) => open(wire, signal),
+    resume: { restart: true, reset: { type: "reset" } },
+  })
 
-type Stream = AsyncIterator<TerminalAttached | TerminalEvent>
-
-class Attachment implements AttachedTerminal {
-  private stream:
-    | { readonly events: Stream; readonly link: Link; readonly cancel: AbortController }
-    | undefined
-  private epoch: string | undefined
-  private cursor: number | undefined
-  /** The last event handed out; it counts as consumed once the next one is requested. */
-  private delivered: number | undefined
-  private unacked: number | undefined
-  private acking = false
-  private attaching: AbortController | undefined
-  private ended: "detached" | "exited" | undefined
-
-  constructor(
-    private readonly connection: Wire<typeof contract>,
-    readonly id: string,
-    readonly mode: TerminalMode,
-  ) {}
-
-  [Symbol.asyncIterator](): this {
-    return this
-  }
-
-  /** Attaches on the given link, resuming after the last produced event when possible. */
-  async attach(link: Link): Promise<void> {
-    if (link.epoch !== this.epoch) {
-      // A cursor belongs to one runner lifetime.
-      this.epoch = link.epoch
-      this.cursor = undefined
-    }
-    const cancel = new AbortController()
-    this.attaching = cancel
-    try {
-      const events: Stream = await link.client.terminals.attach(
-        {
-          terminalId: this.id,
-          mode: this.mode,
-          ...(this.cursor !== undefined && { afterSequence: this.cursor }),
-        },
-        { signal: cancel.signal },
+/**
+ * Attaches to a terminal, resolving once the runner grants it: its events follow the runner
+ * across reconnections from the last one read, each acknowledged as the next is asked for.
+ */
+const attachTerminal = async (
+  connection: Connection,
+  id: string,
+  mode: TerminalMode,
+): Promise<AttachedTerminal> => {
+  const stream = follow<typeof contract, TerminalAttached | TerminalEvent>(connection, {
+    // Each attachment opens with the runner's grant, which a reattachment must also have.
+    open: async function* (wire, { after, signal }) {
+      const events = await wire.terminals.attach(
+        { terminalId: id, mode, ...(after !== undefined && { afterSequence: after }) },
+        { signal },
       )
       const first = await events.next()
       if (first.done || first.value.type !== "attached") {
@@ -511,424 +506,64 @@ class Attachment implements AttachedTerminal {
           "Runner ended the attachment before granting it.",
         )
       }
-      // Detached while attaching: release what the runner just granted.
-      if (this.ended) return cancel.abort()
-      this.stream = { events, link, cancel }
-      this.delivered = undefined
-      this.unacked = undefined
-    } catch (error) {
-      cancel.abort()
-      if (this.ended) return
-      throw failure(error, link)
-    } finally {
-      if (this.attaching === cancel) this.attaching = undefined
-    }
-  }
-
-  async next(): Promise<IteratorResult<TerminalEvent, undefined>> {
-    this.ack()
-    while (!this.ended) {
-      let link: Link | undefined
-      try {
-        // eslint-disable-next-line no-await-in-loop -- Reattach before reading further.
-        const stream = this.stream ?? (await this.reattach())
-        if (!stream) break
-        link = stream.link
-        // eslint-disable-next-line no-await-in-loop -- Events are delivered in order.
-        const result = await stream.events.next()
-        if (this.ended) break
-        if (result.done) {
-          this.end("exited")
-          break
-        }
-        const event = result.value
-        if (event.type === "attached") continue
-        this.cursor = event.sequence
-        this.delivered = event.sequence
-        return { value: event, done: false }
-      } catch (error) {
-        if (this.ended) break
-        const cause = link ? failure(error, link) : normalize(error)
-        // A lost connection resumes after the cursor. A slow viewer skips its backlog
-        // for a fresh snapshot, since replaying it could exceed the budget again.
-        if (hasCode(cause, "DISCONNECTED", "SLOW_CONSUMER")) {
-          if (cause.code === "SLOW_CONSUMER") this.cursor = undefined
-          this.drop()
-          continue
-        }
-        this.end("detached")
-        throw cause
-      }
-    }
-    return { value: undefined, done: true }
-  }
-
-  async return(): Promise<IteratorResult<TerminalEvent, undefined>> {
-    await this.detach()
-    return { value: undefined, done: true }
-  }
-
-  async write(data: string): Promise<void> {
-    const link = this.control()
-    try {
-      await link.client.terminals.write({ terminalId: this.id, data })
-    } catch (error) {
-      throw failure(error, link)
-    }
-  }
-
-  async resize(size: { readonly cols: number; readonly rows: number }): Promise<void> {
-    const link = this.control()
-    try {
-      await link.client.terminals.resize({ terminalId: this.id, cols: size.cols, rows: size.rows })
-    } catch (error) {
-      throw failure(error, link)
-    }
-  }
-
-  detach(): Promise<void> {
-    this.end("detached")
-    return Promise.resolve()
-  }
-
-  private async reattach(): Promise<Attachment["stream"]> {
-    const link = await this.connection.ready()
-    if (!link) {
-      this.end("detached")
-      return undefined
-    }
-    await this.attach(link)
-    return this.stream
-  }
-
-  private control(): Link {
-    if (this.ended === "exited") throw new WireError<RunnerErrorCode>("TERMINAL_EXITED")
-    if (this.ended) throw new WireError<RunnerErrorCode>("CLOSED", "Terminal is detached.")
-    if (this.mode !== "control") throw new WireError<RunnerErrorCode>("CONTROL_REQUIRED")
-    if (!this.stream?.link.channel.open) {
+      yield first.value
+      yield* events
+    },
+    resume: {
+      cursor: (event) => (event.type === "attached" ? undefined : event.sequence),
+      ack: (wire, sequence) => wire.terminals.ack({ terminalId: id, sequence }),
+    },
+  })
+  const granted = await stream.next()
+  if (granted.done) throw new WireError<RunnerErrorCode>("CLOSED", "Terminal is detached.")
+  const control = (): Link => {
+    if (stream.finished === "ended") throw new WireError<RunnerErrorCode>("TERMINAL_EXITED")
+    if (stream.finished) throw new WireError<RunnerErrorCode>("CLOSED", "Terminal is detached.")
+    if (mode !== "control") throw new WireError<RunnerErrorCode>("CONTROL_REQUIRED")
+    const link = stream.session
+    if (!link?.channel.open) {
       throw new WireError<RunnerErrorCode>("DISCONNECTED", "Terminal is reattaching.")
     }
-    return this.stream.link
+    return link
   }
-
-  /**
-   * ACKs are cumulative, so at most one is in flight: later ones replace a waiting
-   * sequence. A rejected ACK is retried, since the runner withholds events until it
-   * lands; a lost connection instead ends in a fresh attachment with a fresh window.
-   */
-  private ack(): void {
-    const stream = this.stream
-    if (this.delivered !== undefined) this.unacked = this.delivered
-    this.delivered = undefined
-    if (this.acking || this.unacked === undefined || !stream) return
-    this.acking = true
-    void (async () => {
+  const terminal: AttachedTerminal = {
+    id,
+    mode,
+    [Symbol.asyncIterator]: () => terminal,
+    async next() {
+      while (true) {
+        // eslint-disable-next-line no-await-in-loop -- Events are delivered in order.
+        const result = await stream.next()
+        if (result.done) return result
+        // A reattachment's grant is the stream's own business.
+        if (result.value.type !== "attached") return { value: result.value, done: false }
+      }
+    },
+    async return() {
+      await stream.return()
+      return { value: undefined, done: true }
+    },
+    async write(data) {
+      const link = control()
       try {
-        while (this.stream === stream && this.unacked !== undefined) {
-          const sequence = this.unacked
-          this.unacked = undefined
-          try {
-            // eslint-disable-next-line no-await-in-loop -- One cumulative ACK at a time.
-            await stream.link.client.terminals.ack({ terminalId: this.id, sequence })
-          } catch {
-            if (!stream.link.channel.open) return
-            this.unacked = Math.max(sequence, this.unacked ?? sequence)
-            // eslint-disable-next-line no-await-in-loop -- Back off before retrying.
-            await sleep(50, stream.cancel.signal)
-          }
-        }
-      } finally {
-        this.acking = false
-      }
-    })()
-  }
-
-  private drop(): void {
-    this.stream?.cancel.abort()
-    this.stream = undefined
-    this.delivered = undefined
-    this.unacked = undefined
-  }
-
-  private end(reason: "detached" | "exited"): void {
-    this.ended ??= reason
-    this.attaching?.abort()
-    this.drop()
-  }
-}
-
-/**
- * `agents.detail()`, `agents.transcript()` and the like: one subscription per connection, renewed
- * after each reconnection or when the runner ends it, until what it follows is no longer
- * found. Each new subscription starts over; `fresh`, where given, says so first.
- */
-class Resubscription<T> implements AsyncIterableIterator<T, undefined> {
-  private stream:
-    | {
-        readonly items: AsyncIterator<T>
-        readonly link: Link
-        readonly cancel: AbortController
-      }
-    | undefined
-  /** The link whose subscription failed; the next one waits for a different link. */
-  private spent: Link | undefined
-  private refusals = 0
-  private ended = false
-  private stop = () => {}
-  private readonly stopped = new Promise<undefined>((resolve) => {
-    this.stop = () => resolve(undefined)
-  })
-
-  /** Whether the next item is the start of a new subscription, after the first. */
-  private started = false
-  /** The first item of a new subscription, held back behind `fresh`. */
-  private held: T | undefined
-  private subscribed = false
-
-  constructor(
-    private readonly connection: Wire<typeof contract>,
-    private readonly open: (wire: WireClient, signal: AbortSignal) => Promise<AsyncIterator<T>>,
-    private readonly fresh?: T,
-  ) {}
-
-  [Symbol.asyncIterator](): this {
-    return this
-  }
-
-  /** Never throws: failures resubscribe, and iteration ends once the terminal is gone. */
-  async next(): Promise<IteratorResult<T, undefined>> {
-    while (!this.ended) {
-      const stream = this.stream
-      if (!stream) {
-        // eslint-disable-next-line no-await-in-loop -- Subscribe before reading further.
-        if (!(await this.subscribe())) break
-        continue
-      }
-      if (this.held !== undefined) {
-        const value = this.held
-        this.held = undefined
-        return { value, done: false }
-      }
-      try {
-        // eslint-disable-next-line no-await-in-loop -- Snapshots are delivered in order.
-        const result = await Promise.race([stream.items.next(), this.stopped])
-        if (this.ended || !result) break
-        if (!result.done) {
-          this.refusals = 0
-          // A new subscription says it starts over only once it has something to follow,
-          // so one that finds nothing does not wipe what came before.
-          if (this.started && this.fresh !== undefined) {
-            this.started = false
-            this.held = result.value
-            return { value: this.fresh, done: false }
-          }
-          this.started = false
-          return { value: result.value, done: false }
-        }
-        // The terminal closed, or the runner is shutting down: a new subscription tells.
-        this.drop()
+        await link.client.terminals.write({ terminalId: id, data })
       } catch (error) {
-        if (this.ended) break
-        // eslint-disable-next-line no-await-in-loop -- Back off before resubscribing.
-        await this.recover(failure(error, stream.link), stream.link)
+        throw failure(error, link)
       }
-    }
-    return done
-  }
-
-  return(): Promise<IteratorResult<T, undefined>> {
-    this.end()
-    return Promise.resolve(done)
-  }
-
-  private async subscribe(): Promise<boolean> {
-    const link = await Promise.race([this.connection.ready().catch(() => undefined), this.stopped])
-    if (!link || this.ended) {
-      this.end()
-      return false
-    }
-    if (link === this.spent) {
-      await Promise.race([link.channel.closed, this.stopped])
-      return true
-    }
-    const cancel = new AbortController()
-    try {
-      const items = await this.open(link.client, cancel.signal)
-      if (this.ended) cancel.abort()
-      else {
-        this.stream = { items, link, cancel }
-        // The first subscription needs no word that it starts over.
-        this.started = this.subscribed
-        this.subscribed = true
-      }
-    } catch (error) {
-      cancel.abort()
-      await this.recover(failure(error, link), link)
-    }
-    return !this.ended
-  }
-
-  /**
-   * What it follows no longer found ends iteration. A lost connection is followed to the next
-   * one; any other failure is retried after a growing delay.
-   */
-  private async recover(cause: unknown, link: Link): Promise<void> {
-    if (hasCode(cause, "TERMINAL_NOT_FOUND", "NOT_FOUND")) {
-      this.end()
-      return
-    }
-    this.drop()
-    if (hasCode(cause, "DISCONNECTED", "CLOSING") || !link.channel.open) {
-      this.spent = link
-      return
-    }
-    const delay = Math.min(200 * 2 ** this.refusals, 3_000)
-    this.refusals += 1
-    await Promise.race([new Promise((resolve) => setTimeout(resolve, delay)), this.stopped])
-  }
-
-  private drop(): void {
-    this.stream?.cancel.abort()
-    this.stream = undefined
-  }
-
-  private end(): void {
-    this.ended = true
-    this.drop()
-    this.stop()
-  }
-}
-
-/**
- * `terminals.watch()` and `companions.watch()`: one subscription per connection, renewed
- * after each reconnection, each opening with `reset`.
- */
-class Watch<Change> implements AsyncIterableIterator<
-  Change | { readonly type: "reset" },
-  undefined
-> {
-  private stream:
-    | {
-        readonly changes: AsyncIterator<Change>
-        readonly link: Link
-        readonly cancel: AbortController
-      }
-    | undefined
-  /** The link whose subscription ended; the next one waits for a different link. */
-  private spent: Link | undefined
-  /** Set by each new subscription, whose sequence opens with `reset`. */
-  private fresh = false
-  /** Consecutive refusals on a live link, which set the next retry's delay. */
-  private refusals = 0
-  private ended = false
-  private stop = () => {}
-  private readonly stopped = new Promise<undefined>((resolve) => {
-    this.stop = () => resolve(undefined)
-  })
-
-  constructor(
-    private readonly connection: Wire<typeof contract>,
-    private readonly open: (
-      wire: WireClient,
-      signal: AbortSignal,
-    ) => Promise<AsyncIterator<Change>>,
-  ) {}
-
-  [Symbol.asyncIterator](): this {
-    return this
-  }
-
-  /** Never throws: failures resubscribe, and iteration ends only on close or `return()`. */
-  async next(): Promise<IteratorResult<Change | { readonly type: "reset" }, undefined>> {
-    while (!this.ended) {
-      const stream = this.stream
-      if (!stream) {
-        // eslint-disable-next-line no-await-in-loop -- Subscribe before reading further.
-        if (!(await this.subscribe())) break
-        continue
-      }
-      if (this.fresh) {
-        this.fresh = false
-        return { value: { type: "reset" }, done: false }
-      }
+    },
+    async resize(size) {
+      const link = control()
       try {
-        // eslint-disable-next-line no-await-in-loop -- Changes are delivered in order.
-        const result = await Promise.race([stream.changes.next(), this.stopped])
-        if (this.ended || !result) break
-        if (!result.done) {
-          this.refusals = 0
-          return { value: result.value, done: false }
-        }
-        // The runner ended the stream, as when it shuts down; follow its next connection.
-        this.drop(true)
+        await link.client.terminals.resize({ terminalId: id, cols: size.cols, rows: size.rows })
       } catch (error) {
-        if (this.ended) break
-        // eslint-disable-next-line no-await-in-loop -- Back off before resubscribing.
-        await this.recover(failure(error, stream.link), stream.link)
+        throw failure(error, link)
       }
-    }
-    return done
+    },
+    async detach() {
+      await stream.return()
+    },
   }
-
-  return(): Promise<IteratorResult<Change | { readonly type: "reset" }, undefined>> {
-    this.end()
-    return Promise.resolve(done)
-  }
-
-  /** Subscribes on the next live link; resolves false once the runner has closed. */
-  private async subscribe(): Promise<boolean> {
-    const link = await Promise.race([this.connection.ready().catch(() => undefined), this.stopped])
-    if (!link || this.ended) {
-      this.end()
-      return false
-    }
-    if (link === this.spent) {
-      await Promise.race([link.channel.closed, this.stopped])
-      return true
-    }
-    const cancel = new AbortController()
-    try {
-      const changes = await this.open(link.client, cancel.signal)
-      if (this.ended) cancel.abort()
-      else {
-        this.stream = { changes, link, cancel }
-        this.fresh = true
-      }
-    } catch (error) {
-      cancel.abort()
-      await this.recover(failure(error, link), link)
-    }
-    return !this.ended
-  }
-
-  /**
-   * A lost or closing connection is followed to the next one. Any other failure on a
-   * live link, such as `RESOURCE_LIMIT`, is retried there after a growing delay.
-   */
-  private async recover(cause: unknown, link: Link): Promise<void> {
-    const lost = hasCode(cause, "DISCONNECTED", "CLOSING") || !link.channel.open
-    if (lost) {
-      this.spent = link
-      this.drop(true)
-      return
-    }
-    this.drop(false)
-    const delay = Math.min(200 * 2 ** this.refusals, 3_000)
-    this.refusals += 1
-    await Promise.race([new Promise((resolve) => setTimeout(resolve, delay)), this.stopped])
-  }
-
-  private drop(spent: boolean): void {
-    if (spent) this.spent = this.stream?.link ?? this.spent
-    this.stream?.cancel.abort()
-    this.stream = undefined
-  }
-
-  private end(): void {
-    this.ended = true
-    this.drop(true)
-    this.stop()
-  }
+  return terminal
 }
 
 // Bytes as base64 parts of at most `length` characters: whole groups of three bytes, so
@@ -993,12 +628,9 @@ export const connectRunner = async (
       list: (input) => call((wire) => wire.terminals.list(input)),
       create: (input) => call((wire) => wire.terminals.create(input)),
       requests: () =>
-        new Resubscription(connection, (wire, signal) =>
-          wire.terminals.requests(undefined, { signal }),
-        ),
+        resubscribe(connection, (wire, signal) => wire.terminals.requests(undefined, { signal })),
       answerRequest: (answer) => call((wire) => wire.terminals.answerRequest(answer)),
-      watch: () =>
-        new Watch(connection, (wire, signal) => wire.terminals.watch(undefined, { signal })),
+      watch: () => watch(connection, (wire, signal) => wire.terminals.watch(undefined, { signal })),
       close: (terminalId) => call((wire) => wire.terminals.close({ terminalId })),
       rename: (terminalId, title) => call((wire) => wire.terminals.rename({ terminalId, title })),
       resetTitle: (terminalId) => call((wire) => wire.terminals.resetTitle({ terminalId })),
@@ -1021,19 +653,15 @@ export const connectRunner = async (
           wire.terminals.restart({ terminalId, cols, rows, ...(resume ? { resume } : {}) }),
         ),
       async attach(terminalId, { mode = "control" } = {}) {
-        const terminal = new Attachment(connection, terminalId, mode)
-        await terminal.attach(connection.session())
-        return terminal
+        return attachTerminal(connection, terminalId, mode)
       },
     },
     agents: {
       list: () => call((wire) => wire.agents.list()),
       detail: (terminalId) =>
-        new Resubscription(connection, (wire, signal) =>
-          wire.agents.detail({ terminalId }, { signal }),
-        ),
+        resubscribe(connection, (wire, signal) => wire.agents.detail({ terminalId }, { signal })),
       transcript: (terminalId, actor) =>
-        new Resubscription<TranscriptChange>(
+        resubscribe<TranscriptChange>(
           connection,
           (wire, signal) => wire.agents.transcript({ terminalId, actor }, { signal }),
           { type: "reset" },
@@ -1047,9 +675,9 @@ export const connectRunner = async (
     companions: {
       list: (input) => call((wire) => wire.companions.list(input)),
       watch: () =>
-        new Watch(connection, (wire, signal) => wire.companions.watch(undefined, { signal })),
+        watch(connection, (wire, signal) => wire.companions.watch(undefined, { signal })),
       content: (itemId, { reveal } = {}) =>
-        new Resubscription(connection, (wire, signal) =>
+        resubscribe(connection, (wire, signal) =>
           wire.companions.content({ itemId, ...(reveal !== undefined && { reveal }) }, { signal }),
         ),
       save: (input) => call((wire) => wire.companions.save(input)),
@@ -1065,23 +693,21 @@ export const connectRunner = async (
     asks: {
       list: () => call((wire) => wire.asks.list()),
       watch: () =>
-        new Resubscription(connection, (wire, signal) => wire.asks.watch(undefined, { signal })),
+        resubscribe(connection, (wire, signal) => wire.asks.watch(undefined, { signal })),
       answer: (id, answer) => call((wire) => wire.asks.answer({ id, answer })),
       read: (ids) => call((wire) => wire.asks.read({ ids: [...ids] })),
     },
     messages: {
       list: (terminalId) => call((wire) => wire.messages.list({ terminalId })),
       watch: (terminalId) =>
-        new Resubscription(connection, (wire, signal) =>
-          wire.messages.watch({ terminalId }, { signal }),
-        ),
+        resubscribe(connection, (wire, signal) => wire.messages.watch({ terminalId }, { signal })),
       pause: (paused) => call((wire) => wire.messages.pause({ paused })),
       release: (thread) => call((wire) => wire.messages.release({ thread })),
       stop: (thread) => call((wire) => wire.messages.stop({ thread })),
     },
     voice: {
       watch: () =>
-        new Resubscription(connection, (wire, signal) => wire.voice.watch(undefined, { signal })),
+        resubscribe(connection, (wire, signal) => wire.voice.watch(undefined, { signal })),
       install: () => call((wire) => wire.voice.install()),
       cancel: () => call((wire) => wire.voice.cancel()),
       uninstall: () => call((wire) => wire.voice.uninstall()),
@@ -1102,7 +728,7 @@ export const connectRunner = async (
     },
     murmur: {
       watch: () =>
-        new Resubscription(connection, (wire, signal) => wire.murmur.watch(undefined, { signal })),
+        resubscribe(connection, (wire, signal) => wire.murmur.watch(undefined, { signal })),
       install: () => call((wire) => wire.murmur.install()),
       cancel: () => call((wire) => wire.murmur.cancel()),
       uninstall: () => call((wire) => wire.murmur.uninstall()),
