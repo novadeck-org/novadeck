@@ -27,6 +27,8 @@
     "package:win": "pnpm --filter @novadeck/host package:win",
     "test": "pnpm run test:repository && turbo run test --filter=!@novadeck/ui --filter=!@novadeck/runner --filter=!@novadeck/host && turbo run test --filter=@novadeck/ui --filter=@novadeck/runner --filter=@novadeck/host --concurrency=1",
     "test:repository": "vitest run --config vitest.config.ts",
+    "test:shard1": "pnpm run test:repository && turbo run test --filter=!@novadeck/ui --filter=!@novadeck/runner --filter=!@novadeck/host && turbo run test --filter=@novadeck/ui --filter=@novadeck/runner --filter=@novadeck/host --concurrency=1 -- --shard=1/2",
+    "test:shard2": "turbo run test --filter=@novadeck/ui --filter=@novadeck/runner --filter=@novadeck/host --concurrency=1 -- --shard=2/2",
     "test:e2e": "pnpm --filter @novadeck/protocol... --filter @novadeck/relay build && pnpm --filter @novadeck/runner test:e2e",
     "test:e2e:install": "pnpm --filter @novadeck/protocol... --filter @novadeck/relay build && node scripts/e2e/install/main.ts",
     "test:e2e:isolated": "pnpm test:e2e:install && node scripts/e2e/isolated/main.ts -- pnpm --filter @novadeck/runner test:e2e",
