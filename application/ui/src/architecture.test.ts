@@ -159,9 +159,9 @@ const terminalKeysSpec = "specs/terminal-keys.spec.tsx"
 const storeHook = "countListenersWoken"
 const hookOwners = ["core/store.ts", counterRun, "architecture.test.ts"]
 // Packages are denied unless listed here, owned through `vendors`, or used by an
-// adapter or test code. theme/, interaction/ and app/commands/ use none. The core takes only the library entries `coreLibraryEntries` lists and the
-// protocol's data entries
-// that `protocolData` names, and no other package.
+// adapter or test code. theme/, interaction/ and app/commands/ use none. The core takes only
+// the library entries `coreLibraryEntries` lists and the protocol's data entries that
+// `protocolData` names, and no other package.
 const everywherePackages = new Set(["react", "lucide-react"])
 const typeOnlyPackages: Record<string, readonly string[]> = {
   "theme/": [],

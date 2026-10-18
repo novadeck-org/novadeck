@@ -1046,12 +1046,11 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `app/selectors.ts`                                 | Pure reads over the stores that sections, commands, and keys share.                     |
 | `app/commands/`                                    | Commands, key commands, and the navigator: plain functions over both stores.            |
 | `app/controller/`                                  | React glue: context, selector hook, route sync, keyboard dispatcher, effects.           |
-| `backend/`                                         | The UI-owned backend port.                                                              |
 | `backend/demo/`                                    | The demo adapter for tests and specs: sample projects and simulated terminals.          |
 | `backend/demo/showcase/`                           | The content preview's sample agents: plans, artifacts, and their simulated work.        |
 | `backend/runner/`                                  | The runner adapter: connection, seed from the runner, saves, and its terminals.         |
 | `backend/terminal-views/`                          | The xterm mount both adapters draw terminals with: theme, renderers, links, styles.     |
-| `core/`                                            | Pure domain: types, reducer, workspace store, seed, and layout rules in `layout/`.      |
+| `core/`                                            | Pure domain: types, reducer, store, seed, layout rules in `layout/`, the backend port.  |
 | `core/companion.ts`                                | Companion items, their content, the `companions` port, and the plan note format.        |
 | `core/companion-bar.ts`                            | A bar as the person arranged it: order, hidden plans and Messages, the open tab.        |
 | `core/messages.ts`                                 | The contract for agents' messages: threads, states, the pause, and a tab's count.       |
@@ -1086,8 +1085,8 @@ Everything outside it reaches it as `#core/*`, the UI package's
 own `imports`; inside it files import one another by relative path. `theme/` imports
 nothing but itself and the core's types; every layer that composes the page may use it, though no backend does (the entries hand them the page's theme), and
 [docs/theming.md](docs/theming.md) is its contract with components.
-`backend/` builds on `core/` and uses React only for the port's types; adapters
-may add `ui-toolkit/`. `interaction/` builds on `core/` and imports no packages;
+Each backend adapter in `backend/` builds on `core/`, where the port is, and the
+terminal views, and may add `ui-toolkit/`. `interaction/` builds on `core/` and imports no packages;
 features add `ui-toolkit/`; `terminals/` may use `sidebar/`; `layouts/` may use
 `terminals/`; `notifications/` builds on the base layers, `sidebar/` and
 `terminals/unread-state.ts`; `inbox/` builds on the base layers, `sidebar/` and the
@@ -1104,11 +1103,11 @@ in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
 `layouts/transition.ts`, `entries/start.tsx`, and `test/`, and the runner client and
 the emulator's view in `backend/runner/`, the demo's terminals (`backend/demo/views.ts`,
 `backend/demo/screen/`) and `backend/terminal-views/`, which both adapters draw their
-terminals with and which imports only the core, the port and libraries; no
+terminals with and which imports only the core and libraries; no
 backend reads `theme/`, as the entries hand it the page's theme. Other packages are denied
 unless the test lists them: React and Lucide are allowed everywhere, while
 backend adapters and test code may use any package. `test/` may import
-`core/`, `backend/`, and what the command harness runs: `app/commands/`, the UI
+`core/` and what the command harness runs: `app/commands/`, the UI
 store, routing, and the Canvas handle type. Hooks declare named contracts instead of
 `ReturnType<typeof useHook>`. `src/architecture.test.ts` enforces these rules and
 fails for a source file that belongs to no layer.
