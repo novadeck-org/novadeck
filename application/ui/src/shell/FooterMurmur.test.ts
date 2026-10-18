@@ -1,4 +1,4 @@
-import { createElement } from "react"
+import { act, createElement } from "react"
 
 import type { Refusal } from "#core/addon"
 import type { MurmurState } from "#core/murmur"
@@ -51,7 +51,7 @@ describe("Murmur's footer item as it mounts and as refusals come", () => {
     expect(sheetText()).toContain("Already installing.")
 
     // A Try again refused again: a new refusal, said too, though the sheet had been closed.
-    document.querySelector<HTMLButtonElement>(".footer-murmur-sheet .primary")?.click()
+    act(() => document.querySelector<HTMLButtonElement>(".footer-murmur-sheet .primary")?.click())
     rerender(item({ ...idle, refused: refusal("The runner is busy.") }))
     expect(chip()).not.toBeNull()
     expect(sheetText()).toContain("The runner is busy.")

@@ -63,7 +63,7 @@ describe("a plan whose file can't be read for now", () => {
   context("when the person has edits that aren't saved", () => {
     it("keeps the editor and offers to copy the edits or retry, instead of hiding them", async () => {
       const { panes, container, emit } = await shown()
-      panes.plan(target, planItem.id).edit("# Plan\nMine\n", [])
+      act(() => panes.plan(target, planItem.id).edit("# Plan\nMine\n", []))
       await emit({ state: "unavailable", reason: "unreadable", size: null })
 
       expect(container.querySelector(".artifact-unavailable")).toBeNull()

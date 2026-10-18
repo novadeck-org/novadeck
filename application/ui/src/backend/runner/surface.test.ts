@@ -46,6 +46,12 @@ vi.hoisted(() => {
 
 // The emulator's terminal class is not exported; the tests spy on its prototype.
 type Terminal = EmulatorTerminal
+
+// Waits as vi.waitFor does, inside act: what the surface's stores tell it meanwhile, as a
+// screen's stream once its attachment answers, renders as part of the test.
+const until = <T>(check: () => T, options?: Parameters<typeof vi.waitFor>[1]): Promise<T> =>
+  act(() => vi.waitFor(check, options))
+
 const Terminal = {
   prototype: (() => {
     const view = createView(document.createElement("div"), {
@@ -455,7 +461,7 @@ describe("runner terminal surface", () => {
     try {
       const page = render(props("terminal"))
       mounted.push(page)
-      await vi.waitFor(() =>
+      await until(() =>
         expect(views[0]?.buffer.active.getLine(0)?.translateToString()).toContain(
           "hello from the same shell",
         ),
@@ -579,7 +585,7 @@ describe("runner terminal surface", () => {
       try {
         const page = render(inView("grid"))
         mounted.push(page)
-        await vi.waitFor(() =>
+        await until(() =>
           expect(opened[0]?.buffer.active.getLine(0)?.translateToString()).toContain(
             "still the same shell",
           ),
@@ -608,9 +614,9 @@ describe("runner terminal surface", () => {
       try {
         const page = render(inView("grid"))
         page.unmount()
-        await vi.advanceTimersByTimeAsync(29 * 60 * 1000)
+        await act(() => vi.advanceTimersByTimeAsync(29 * 60 * 1000))
         expect(screen.mock.calls.map((call) => call[1])).not.toContain("gone")
-        await vi.advanceTimersByTimeAsync(2 * 60 * 1000)
+        await act(() => vi.advanceTimersByTimeAsync(2 * 60 * 1000))
         expect(screen.mock.calls.map((call) => call[1])).toContain("gone")
       } finally {
         vi.useRealTimers()
@@ -623,9 +629,9 @@ describe("runner terminal surface", () => {
       const { open, opened, attach, screen, inView } = following(false)
       try {
         const page = render(inView("grid"))
-        await vi.advanceTimersByTimeAsync(0)
+        await act(() => vi.advanceTimersByTimeAsync(0))
         page.unmount()
-        await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
+        await act(() => vi.advanceTimersByTimeAsync(10 * 60 * 1000))
         mounted.push(render(inView("focus")))
         expect(opened).toHaveLength(1)
         expect(attach).toHaveBeenCalledTimes(1)
@@ -642,13 +648,13 @@ describe("runner terminal surface", () => {
       try {
         const page = render(inView("grid"))
         page.unmount()
-        await vi.advanceTimersByTimeAsync(20 * 60 * 1000)
+        await act(() => vi.advanceTimersByTimeAsync(20 * 60 * 1000))
         putOnScreen(true)
-        await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+        await act(() => vi.advanceTimersByTimeAsync(5 * 60 * 1000))
         putOnScreen(false)
-        await vi.advanceTimersByTimeAsync(20 * 60 * 1000)
+        await act(() => vi.advanceTimersByTimeAsync(20 * 60 * 1000))
         expect(screen.mock.calls.map((call) => call[1])).not.toContain("gone")
-        await vi.advanceTimersByTimeAsync(11 * 60 * 1000)
+        await act(() => vi.advanceTimersByTimeAsync(11 * 60 * 1000))
         expect(screen.mock.calls.map((call) => call[1])).toContain("gone")
       } finally {
         vi.useRealTimers()
@@ -662,9 +668,9 @@ describe("runner terminal surface", () => {
       try {
         const page = render(inView("grid"))
         page.unmount()
-        await vi.advanceTimersByTimeAsync(1_000)
+        await act(() => vi.advanceTimersByTimeAsync(1_000))
         vi.setSystemTime(Date.now() + 31 * 60 * 1000)
-        await vi.advanceTimersByTimeAsync(1_000)
+        await act(() => vi.advanceTimersByTimeAsync(1_000))
         expect(screen.mock.calls.map((call) => call[1])).toContain("gone")
       } finally {
         vi.useRealTimers()
@@ -679,12 +685,12 @@ describe("runner terminal surface", () => {
         const { open, screen, detach, inView, end } = following(true)
         try {
           const page = render(inView("grid"))
-          await vi.advanceTimersByTimeAsync(0)
+          await act(() => vi.advanceTimersByTimeAsync(0))
           page.unmount()
-          await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
+          await act(() => vi.advanceTimersByTimeAsync(10 * 60 * 1000))
           expect(screen.mock.calls.map((call) => call[1])).not.toContain("gone")
           end(how)
-          await vi.advanceTimersByTimeAsync(1_000)
+          await act(() => vi.advanceTimersByTimeAsync(1_000))
           expect(screen.mock.calls.map((call) => call[1])).toContain("gone")
           expect(detach).toHaveBeenCalled()
         } finally {
@@ -700,7 +706,7 @@ describe("runner terminal surface", () => {
       try {
         const page = render(inView("grid"))
         page.unmount()
-        await vi.advanceTimersByTimeAsync(60 * 60 * 1000)
+        await act(() => vi.advanceTimersByTimeAsync(60 * 60 * 1000))
         expect(screen.mock.calls.map((call) => call[1])).not.toContain("gone")
       } finally {
         vi.useRealTimers()
@@ -973,7 +979,7 @@ describe("runner terminal surface", () => {
 
     it("says only that it failed when the runner is unreachable", async () => {
       const page = pasteRefused(new WireError("DISCONNECTED"))
-      await vi.waitFor(() => expect(notice(page)?.textContent).toBe("Couldn't paste the image"))
+      await until(() => expect(notice(page)?.textContent).toBe("Couldn't paste the image"))
     })
   })
 
@@ -995,7 +1001,7 @@ describe("runner terminal surface", () => {
         value: { files: [file], items: [], getData: () => "" },
       })
       act(() => void input(page).dispatchEvent(event))
-      await vi.waitFor(() => expect(paste).toHaveBeenCalledWith("/home/me/notes.txt "))
+      await until(() => expect(paste).toHaveBeenCalledWith("/home/me/notes.txt "))
       expect(upload).not.toHaveBeenCalled()
     })
   })
@@ -1077,9 +1083,7 @@ describe("runner terminal surface", () => {
           }),
         )
       const ready = () =>
-        vi.waitFor(() =>
-          expect(xterm().buffer.active.getLine(0)?.translateToString()).toContain("$"),
-        )
+        until(() => expect(xterm().buffer.active.getLine(0)?.translateToString()).toContain("$"))
       // The shell's exit, as the stream tells it.
       const exit = () =>
         event?.({
@@ -1105,7 +1109,7 @@ describe("runner terminal surface", () => {
       expect(shell.press()).toBe(false)
       shell.xterm().input("ls")
       clipboard.give([clipboardImage()])
-      await vi.waitFor(() => expect(shell.written).toHaveLength(2))
+      await until(() => expect(shell.written).toHaveLength(2))
       expect(shell.written).toEqual(["/u/pasted-00000000-000000.png ", "ls"])
     })
 
@@ -1116,7 +1120,7 @@ describe("runner terminal surface", () => {
       await shell.ready()
       shell.press()
       shell.xterm().input("w")
-      await vi.waitFor(() => expect(shell.written).toEqual(["\u0016", "w"]))
+      await until(() => expect(shell.written).toEqual(["\u0016", "w"]))
       expect(notice(shell.page)).toBeNull()
     })
 
@@ -1142,7 +1146,7 @@ describe("runner terminal surface", () => {
       input(shell.page).dispatchEvent(paste)
       expect(shell.written).toEqual([])
       clipboard.give([])
-      await vi.waitFor(() => expect(shell.written).toEqual(["\u0016", "\u001b[M !!", "echo"]))
+      await until(() => expect(shell.written).toEqual(["\u0016", "\u001b[M !!", "echo"]))
     })
 
     it("lets typing go after a while when the image is slow to upload, pasting its path later", async () => {
@@ -1172,10 +1176,10 @@ describe("runner terminal surface", () => {
       await shell.ready()
       shell.press()
       shell.xterm().input("ls")
-      shell.exit()
-      await new Promise((resolve) => setTimeout(resolve, 10))
+      act(() => shell.exit())
+      await act(() => new Promise((resolve) => setTimeout(resolve, 10)))
       clipboard.give([])
-      await new Promise((resolve) => setTimeout(resolve, 10))
+      await act(() => new Promise((resolve) => setTimeout(resolve, 10)))
       expect(shell.written).toEqual([])
     })
 
@@ -1290,7 +1294,7 @@ describe("typing into a terminal's screen", () => {
     const page = showAgain()
     // Its first draw, which a slow runner (Windows in CI) may take seconds over.
     const ready = () =>
-      vi.waitFor(() => expect(page.container.textContent).toContain("$"), { timeout: 5_000 })
+      until(() => expect(page.container.textContent).toContain("$"), { timeout: 5_000 })
     // Out of sight long enough for its screen to stop following the shell.
     const park = () => {
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
@@ -1326,9 +1330,9 @@ describe("typing into a terminal's screen", () => {
   it("types nothing while the runner is out of reach", async () => {
     const { screens, written, ready, connection } = running("$ ")
     await ready()
-    connection.update(() => "reconnecting")
+    act(() => void connection.update(() => "reconnecting"))
     expect(screens.typeInto(key, "run the tests")).toBe(false)
-    connection.update(() => "unavailable")
+    act(() => void connection.update(() => "unavailable"))
     expect(screens.typeInto(key, "run the tests")).toBe(false)
     expect(written).toEqual([])
   })
@@ -1340,8 +1344,8 @@ describe("typing into a terminal's screen", () => {
     showAgain()
     // Shown, but its screen isn't there yet.
     expect(screens.typeInto(key, "too soon")).toBe(false)
-    await vi.waitFor(() => expect(attachments).toHaveLength(2))
-    await vi.waitFor(() => expect(screens.typeInto(key, "run the tests")).toBe(true))
+    await until(() => expect(attachments).toHaveLength(2))
+    await until(() => expect(screens.typeInto(key, "run the tests")).toBe(true))
     expect(written).toEqual(["run the tests"])
   })
 
