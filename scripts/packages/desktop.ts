@@ -187,8 +187,9 @@ export const edits: readonly Edit[] = [
   {
     file: ".oxlintrc.json",
     before: '"files": ["frontend/*/src/**", "apps/*/src/**"],',
+    // As oxfmt lays it out, so a second run finds it there.
     after:
-      '"files": ["frontend/*/src/**", "apps/try/src/**", "apps/previews/src/**", "apps/desktop/renderer/**"],',
+      '"files": [\n        "frontend/*/src/**",\n        "apps/try/src/**",\n        "apps/previews/src/**",\n        "apps/desktop/renderer/**"\n      ],',
     why: "the browser's code: the desktop app's src/ is its main process, which Node runs",
   },
   // The UI's architecture test: the entries that connect to a runner leave it.
