@@ -65,3 +65,20 @@ The branch keeps its commits in this order so a redo is "re-apply the hand edits
   `pnpm --filter @novadeck/ui exec vitest run --project counters`, then `node scripts/benchmark/main.ts`.
 - If a new file in `model/` imports React, the toolkit or another UI layer, it can't move into
   `core/`: move it out to the UI first (the architecture rule fails otherwise).
+
+## Moving the port into the core
+
+`node scripts/core/move-port.ts` moves the backend port, `ui/src/backend/port.ts`, to
+`ui/src/core/port.ts` (step 3's 3.2c), once the port holds no React. Like the move above, it works
+out what to do from the tree it finds, so it runs again on a fresh base:
+
+- every module specifier that names the port by a relative path (`from`, a bare `import`,
+  `import()`, `vi.mock` and its kin) becomes `#core/port` in `ui/src`, and a relative path to the new
+  place inside `core/` and outside `ui/src`, ending as it did (`.ts`, `.js` or none);
+- the port's own `#core/<x>` imports become `./<x>`, as it now sits beside them.
+
+It stops, changing nothing, on a specifier with a query, any relative import in the port itself
+(which the move would point elsewhere), or a path to the port read as a file or resolved as a URL. It refuses a dirty tree and
+refuses to run when `ui/src/core/port.ts` exists, runs `oxfmt` over what it touched, and ends by
+listing the mentions of `backend/port` it left (rules, atlas anchors, docs), which the docs commit
+fixes.
