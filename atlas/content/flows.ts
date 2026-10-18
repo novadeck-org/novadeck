@@ -89,7 +89,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         from: "renderer",
         to: "runner",
         label: "connect + handshake",
-        text: "The UI connects the protocol client and completes the handshake before anything renders.",
+        text: "The UI connects the runner client and completes the handshake before anything renders.",
         anchor: {
           file: `${ui}/backend/runner/index.ts`,
           text: "runner = await connectRunner(transport(), { signal })",

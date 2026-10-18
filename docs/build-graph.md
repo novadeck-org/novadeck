@@ -5,9 +5,10 @@ a `turbo.json` beside a package only where that package differs.
 
 ## Packages read each other's source, outside builds
 
-The packages others import as built (the protocol, the harnesses, the libraries) export their
-source under the `development` condition, beside their `dist`; the runner exports only source,
-and the relay its binary's path. Tests and typechecks read the source; builds read `dist`.
+The packages others import as built (the protocol, the runner client, the harnesses, the
+libraries) export their source under the `development` condition, beside their `dist`; the
+runner exports only source, and the relay its binary's path. Tests and typechecks read the
+source; builds read `dist`.
 
 - **Vitest** takes `development` itself (it runs Vite outside production), so a package's tests
   run against its dependencies' source with nothing built first.

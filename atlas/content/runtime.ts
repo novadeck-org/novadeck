@@ -34,7 +34,7 @@ export const runtime: {
       title: "Renderer (UI)",
       kind: "process",
       summary:
-        "The React app in the window. It connects to the runner with the protocol client, loads the workspace before rendering, and draws terminals with xterm.js.",
+        "The React app in the window. It connects to the runner with the runner client, loads the workspace before rendering, and draws terminals with xterm.js.",
       anchor: {
         file: "application/ui/src/backend/runner/index.ts",
         text: "export const connectRunnerBackend",

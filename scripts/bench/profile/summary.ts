@@ -500,7 +500,7 @@ export const markdown = (
     "- React's own frames (self time): the production build's samples whose own frame is in React, React DOM or the scheduler, bottom up: React's own cost, without the components it runs.",
     "- React render + commit (React's tracks): the time React's profiling build logs as its render and commit phases, from that build's runs; what the build costs is below.",
     "- Store listener spans: from React's profiling build's runs, the time from the first listener a task wakes to the end of the task's script, measured through the stores' hook once step 1.3a has added it; – until then.",
-    "- Transport: oRPC, the protocol's client side and the UI's handling of a terminal's events, by the nearest frame; T7 runs if it is over 5%.",
+    "- Transport: oRPC, the runner client and the UI's handling of a terminal's events, by the nearest frame; T7 runs if it is over 5%.",
     "- WebGL's cut: how much less, relatively, the main thread is busy in Grid with xterm's WebGL renderer loaded, medians, of the window and of each animation frame; E4 runs if it is 20% or more in the heavy scenario. A main thread busy 95% or more on either build is marked saturated: what it saves goes to more frames, so the cut of the window reads low, and the cut a frame is the one to read.",
     "",
   )
