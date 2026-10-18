@@ -184,6 +184,13 @@ export const edits: readonly Edit[] = [
     after: "",
     why: "the pages' build leaves with the pages",
   },
+  {
+    file: ".oxlintrc.json",
+    before: '"files": ["frontend/*/src/**", "apps/*/src/**"],',
+    after:
+      '"files": ["frontend/*/src/**", "apps/try/src/**", "apps/previews/src/**", "apps/desktop/renderer/**"],',
+    why: "the browser's code: the desktop app's src/ is its main process, which Node runs",
+  },
   // The UI's architecture test: the entries that connect to a runner leave it.
   {
     file: `${ui}/src/architecture.test.ts`,
