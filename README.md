@@ -893,7 +893,7 @@ App:
   Finish restart reloads the demo, as the app comes back on the new version. Early builds on
   and off set the channel Preferences' Updates switch shows once Preferences is reopened.
   For specs, `?update=` opens any of these by key (`download`, `held`, `failed`, `available`,
-  `ready`). Both panels and the spec keys come from one record, `backend/demo/scenarios.ts`.
+  `ready`). Both panels and the spec keys come from one record, `backend/demo/debug/scenarios.ts`.
 
 ### Visitor build
 

@@ -4,15 +4,15 @@ import { createDemoBackend } from "../../backend/demo"
 import { createContentDemo } from "../../backend/demo/content"
 import { createDemoPortable, type DemoPortable } from "../../backend/demo/debug/portable"
 import { createDemoSandbox, sampleFix } from "../../backend/demo/debug/sandbox"
-import { createDemoUninstall, uninstallScenarios } from "../../backend/demo/debug/uninstall"
-import { createDemoUpdates } from "../../backend/demo/debug/updates"
 import {
   portableScenarios,
   updateScenarios,
   type PortableScenarioKey,
   type UpdateScenario,
   type UpdateScenarioKey,
-} from "../../backend/demo/scenarios"
+} from "../../backend/demo/debug/scenarios"
+import { createDemoUninstall, uninstallScenarios } from "../../backend/demo/debug/uninstall"
+import { createDemoUpdates } from "../../backend/demo/debug/updates"
 import { visitorDemo } from "../../backend/demo/visitor"
 import type { Backend } from "../../backend/port"
 
@@ -27,7 +27,7 @@ const showcaseRequested = (): boolean =>
   new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("demo") === "showcase"
 
 // Specs open the demo on a host that has an update with `?update=` one of the debug
-// panel's update scenarios (see backend/demo/scenarios.ts), beside any other variant.
+// panel's update scenarios (see backend/demo/debug/scenarios.ts), beside any other variant.
 const requestedUpdate = (): UpdateScenario | undefined => {
   const key = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("update")
   return key && Object.hasOwn(updateScenarios, key)
@@ -60,7 +60,7 @@ const requestedSandbox = (): SandboxState | undefined => {
 }
 
 // Specs open the demo on a portable copy with `?portable=` one of the debug panel's
-// portable scenarios (see backend/demo/scenarios.ts). Installing takes no time there,
+// portable scenarios (see backend/demo/debug/scenarios.ts). Installing takes no time there,
 // unless `&installMs=` says how long.
 const requestedPortable = (): DemoPortable | undefined => {
   const query = new URLSearchParams(window.location.hash.split("?")[1] ?? "")
