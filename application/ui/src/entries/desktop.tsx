@@ -7,8 +7,10 @@ import { start } from "./start"
 // The desktop app: the runner the host starts, whose client and terminal emulator load with
 // the connection instead of the entry point.
 const runner: BackendSelection = {
-  connect: async (signal, progress) =>
-    (await import("../backend/runner")).connectRunnerBackend(signal, progress),
+  connect: async (signal, progress) => {
+    const { connectRunnerBackend, desktopTransport } = await import("../backend/runner")
+    return connectRunnerBackend(signal, progress, desktopTransport)
+  },
 }
 
 start(<App selection={runner} />)
