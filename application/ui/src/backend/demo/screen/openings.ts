@@ -9,6 +9,27 @@ import { box, span, wrap, type Line } from "./vt"
 // the file, 1 with the file open, 2 once read.
 export type ReadingStep = 0 | 1 | 2
 
+// When Claude Code, still reading as its terminal opens, has opened the file and has read
+// it, in milliseconds after the terminal opened; the plan follows (see visitor/story.ts).
+// The page around a framed app shows it a moment after it booted, so the reading starts
+// with the app's first seconds gone, which a visitor doesn't see.
+const readOpensMs = 2200
+const readEndsMs = 3500
+
+// How far the reading has come `since` the terminal opened, and when it next moves on. Not
+// reading, or where motion is reduced, it has read already; held still, it has not begun.
+export const readingAt = (
+  since: number | undefined,
+  { still, less, now }: { still: boolean; less: boolean; now: number },
+): { readonly step: ReadingStep; readonly nextIn?: number } => {
+  if (since === undefined || (less && !still)) return { step: 2 }
+  if (still) return { step: 0 }
+  const elapsed = now - since
+  if (elapsed >= readEndsMs) return { step: 2 }
+  if (elapsed >= readOpensMs) return { step: 1, nextIn: readEndsMs - elapsed }
+  return { step: 0, nextIn: readOpensMs - elapsed }
+}
+
 const gap: Line = []
 
 // The agent's name and where it runs: Claude Code's on a line, Codex's in a box.

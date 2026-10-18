@@ -208,8 +208,13 @@ const vendors: Record<string, readonly string[]> = {
   "@novadeck/viewers": ["terminals/companion/", "terminals/chat/"],
   "@novadeck/protocol": ["backend/runner/", ...Object.keys(protocolData)],
   "@novadeck/runner": ["backend/runner/"],
-  "@novadeck/emulator": ["backend/runner/", "backend/demo/screen/", terminalViews],
-  "@novadeck/terminal": ["backend/runner/", terminalViews],
+  "@novadeck/emulator": [
+    "backend/runner/",
+    "backend/demo/screen/",
+    "backend/demo/views",
+    terminalViews,
+  ],
+  "@novadeck/terminal": ["backend/runner/", "backend/demo/views", terminalViews],
   "@novadeck/wire": ["backend/runner/"],
   // The runner's server side, which only the counter run's scripted runner serves.
   "@orpc/server": [scriptedServer],

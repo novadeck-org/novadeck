@@ -138,6 +138,15 @@ const phaseLayers: Record<KeyPhase, readonly KeyLayer[]> = {
   blur: ["voice", "release"],
 }
 
+// A terminal's emulator takes the keys it reads before they bubble, so from its input the
+// shortcuts that work everywhere run in capture instead, ahead of it, as the jumps do.
+const terminalCapture: readonly KeyLayer[] = ["switcher", "anywhere", "app"]
+const fromTerminal: Record<KeyPhase, readonly KeyLayer[]> = {
+  ...phaseLayers,
+  capture: [...phaseLayers.capture, ...terminalCapture],
+  bubble: phaseLayers.bubble.filter((layer) => !terminalCapture.includes(layer)),
+}
+
 const modified = (input: KeyInput): boolean =>
   input.ctrlKey || input.metaKey || input.altKey || input.shiftKey
 
@@ -248,7 +257,10 @@ export const routeKey = (
   if (keydown && (input.defaultPrevented || input.composing)) return []
   // A rename field keeps every key that reaches it.
   if (phase === "bubble" && input.target.rename) return []
-  return phaseLayers[phase].flatMap((layer) => {
+  const layers = (input.target.terminalInput && !input.target.chat ? fromTerminal : phaseLayers)[
+    phase
+  ]
+  return layers.flatMap((layer) => {
     const candidates = bindings.filter(
       (binding) =>
         binding.layer === layer &&

@@ -9,6 +9,7 @@ import { activeProject, activeSession, workspaceReducer } from "#core/state"
 import type { WorkspaceAction } from "#core/state"
 
 import { describe, expect, it } from "../../test"
+import { noTheme } from "../terminal-views/theme"
 import { runnerBackend } from "./backend"
 import { startTestRunner } from "./testing"
 
@@ -23,6 +24,7 @@ const launch = async (database: string) => {
   const runner = await startTestRunner({ database })
   let finish: (() => Promise<void>) | undefined
   const { backend, idle } = runnerBackend(runner.client, runner.listing, {
+    theme: noTheme,
     saveDelay: 10,
     beforeQuit: (save) => {
       finish = save

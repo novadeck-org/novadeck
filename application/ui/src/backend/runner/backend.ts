@@ -106,8 +106,8 @@ export type RunnerBackendOptions = {
   // choice, as it said at startup; agents are not offered when absent.
   readonly agents?: readonly AgentIntegration[]
   readonly welcomed?: boolean
-  // The page's theme, which its terminals draw in; the emulator's own colours when absent.
-  readonly theme?: ThemeSource
+  // The page's theme, which its terminals draw in; tests pass `noTheme`.
+  readonly theme: ThemeSource
 }
 
 export type TerminalSize = { readonly cols: number; readonly rows: number }
@@ -293,7 +293,7 @@ const revival = (): Pick<RunnerEntry, "revived" | "revive"> => {
 export const runnerBackend = (
   runner: RunnerApi,
   listing: RunnerListing,
-  options: RunnerBackendOptions = {},
+  options: RunnerBackendOptions,
 ): RunnerBackend => {
   const newId = options.newId ?? (() => crypto.randomUUID())
   const now = options.now ?? Date.now
@@ -1331,9 +1331,7 @@ export const runnerBackend = (
     }
   }
 
-  const screens = createTerminalViews(
-    viewOptions(runtime, options.theme ? { theme: options.theme } : {}),
-  )
+  const screens = createTerminalViews(viewOptions(runtime, { theme: options.theme }))
   const backend: Backend = {
     seed,
     newTerminal: ({ directory, launch, title }) => {

@@ -56,9 +56,6 @@ export const firstChunkViolations = (bundle: Readonly<Record<string, BuiltChunk>
 // with xterm's black viewport and its wide scrollbar, which nothing else catches.
 const screenRule = ".terminal-xterm"
 
-// Whether a build in this mode draws terminals with the terminal views: the runner's builds.
-const drawsTerminals = (mode: string): boolean => mode !== "try" && mode !== "content-preview"
-
 // The part of a built bundle's assets this checks: a stylesheet's file and its text.
 export type BuiltAsset = {
   readonly type: string
@@ -66,19 +63,16 @@ export type BuiltAsset = {
   readonly source?: unknown
 }
 
-// Whether a build in this mode lacks the terminal screens' styles it needs.
-export const missingScreenStyles = (
-  mode: string,
-  bundle: Readonly<Record<string, BuiltAsset>>,
-): boolean =>
-  drawsTerminals(mode) &&
+// Whether a build lacks the terminal screens' styles, which every build draws its terminals
+// with: the desktop and web apps the runner's, the visitor build and the preview the demo's.
+export const missingScreenStyles = (bundle: Readonly<Record<string, BuiltAsset>>): boolean =>
   !Object.values(bundle).some(
     (asset) =>
       asset.type === "asset" &&
       asset.fileName.endsWith(".css") &&
       (typeof asset.source === "string"
         ? asset.source
-        : asset.source instanceof Uint8Array
+        : ArrayBuffer.isView(asset.source)
           ? new TextDecoder().decode(asset.source)
           : ""
       ).includes(screenRule),

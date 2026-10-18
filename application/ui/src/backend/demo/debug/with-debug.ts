@@ -8,6 +8,7 @@ import type {
   BackendSink,
   BootProgress,
   TerminalKey,
+  ThemeSource,
 } from "../../port"
 import { isDemoInbox } from "../inbox"
 import { isDemoMurmur } from "../murmur"
@@ -32,6 +33,8 @@ import { voiceGroups } from "./voice"
 // asks for another.
 export type DemoLaunch = {
   readonly rehearsals: BootRehearsals
+  // The page's theme, which the terminals draw in.
+  readonly theme: ThemeSource
   readonly variant: DemoVariant
   // The restored terminals attach one by one, for a few seconds.
   readonly slowAttach: boolean
@@ -105,7 +108,14 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
   const restart = (key: TerminalKey): void => {
     if (sink) states.restart(key, sink.dispatch)
   }
-  const inner = createDemo(launch.variant, { connection, screens: states.screens, restart }, turns)
+  const inner = createDemo(
+    launch.variant,
+    {
+      theme: launch.theme,
+      runtime: { connection, screens: states.screens, restart, failPaste: states.failPaste },
+    },
+    turns,
+  )
   const total = Math.max(
     1,
     inner.seed.projects.reduce(

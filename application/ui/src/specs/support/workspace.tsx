@@ -288,8 +288,9 @@ export const terminalLine = (line: string) => ({
 export const draftOf = (name: string): string | undefined => {
   const input = commandInput(name).element()
   if (input instanceof HTMLInputElement) return input.value
-  const prompt = terminalLines(name).findLast((line) => line.trimStart().startsWith("❯"))
-  return prompt?.trimStart().replace(/^❯\s?/, "")
+  // Claude Code's prompt and a shell's start with ❯, Codex's with ›.
+  const prompt = terminalLines(name).findLast((line) => /^\s*[❯›]/.test(line))
+  return prompt?.trimStart().replace(/^[❯›]\s?/, "")
 }
 
 /**

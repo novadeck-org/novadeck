@@ -130,8 +130,11 @@ const capture = async (
     .getByRole("radiogroup", { name: "Workspace layout" })
     .first()
     .waitFor({ state: "visible", timeout: bootTimeoutMs })
+  // Claude Code's terminal has drawn its opening: its screen reader's tree holds the text the
+  // terminal wrote, and the DOM renderer's rows the same, whichever draws.
   await page
     .getByText("I’ll read the checkout layout")
+    .first()
     .waitFor({ state: "visible", timeout: bootTimeoutMs })
   await page.evaluate(settle)
   const png = await page.screenshot({ type: "png" })

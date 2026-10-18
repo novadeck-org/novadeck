@@ -166,7 +166,6 @@ describe("an agent's live tail", () => {
   it("puts the prompt between rules under the status, and the cursor in the draft", () => {
     const tail = agentTail({
       agent: "claude",
-      name: "Claude",
       request: undefined,
       progress: 0,
       place: undefined,
@@ -186,10 +185,9 @@ describe("an agent's live tail", () => {
     expect(tail.cursor).toEqual({ row: 4, column: 5 })
   })
 
-  it("offers to message the agent while the draft is empty", () => {
+  it("shows nothing but the prompt while the draft is empty", () => {
     const tail = agentTail({
       agent: "codex",
-      name: "Codex",
       request: undefined,
       progress: 0,
       place: undefined,
@@ -198,8 +196,8 @@ describe("an agent's live tail", () => {
       draft: "",
       cursor: 0,
     })(30)
-    expect(plain(tail.lines.at(-2)!)).toBe("› Message Codex…")
-    expect(tail.cursor.column).toBe(2)
+    expect(plain(tail.lines.at(-2)!)).toBe("› ")
+    expect(tail.cursor).toEqual({ row: tail.lines.length - 2, column: 2 })
   })
 
   it("shows a shell's prompt under where it is", () => {

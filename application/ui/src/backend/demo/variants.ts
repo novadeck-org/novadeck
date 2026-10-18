@@ -1,8 +1,8 @@
 import type { Backend } from "../port"
 import { contentDemo } from "./content"
 import { plainDemo, type PlainVariant } from "./index"
-import type { DemoSurfaceRuntime } from "./surface"
 import type { DemoTurns } from "./turns"
+import type { DemoTerminalSetup } from "./views"
 
 // The demos the content preview can run: the content showcase, and the plain ones.
 export type DemoVariant = "showcase" | PlainVariant
@@ -19,12 +19,12 @@ export const demoVariants: readonly DemoVariant[] = [
 // The demo of a variant, whose agents `turns` drives where given: the debug panel's own.
 export const createDemo = (
   variant: DemoVariant,
-  runtime?: DemoSurfaceRuntime,
+  terminals?: DemoTerminalSetup,
   turns?: DemoTurns,
 ): Backend =>
   variant === "showcase"
-    ? contentDemo(runtime, turns)
-    : plainDemo(variant, runtime, undefined, turns)
+    ? contentDemo(terminals, turns)
+    : plainDemo(variant, terminals, undefined, turns)
 
 const remembered = "novadeck.demo-variant"
 

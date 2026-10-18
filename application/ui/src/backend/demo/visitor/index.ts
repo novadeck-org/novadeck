@@ -1,6 +1,6 @@
-import type { Backend } from "../../port"
+import type { Backend, ThemeSource } from "../../port"
 import { createDemoEngine } from "../engine"
-import { demoBackend, surfaceOf, withConversations } from "../index"
+import { demoBackend, withConversations } from "../index"
 import { lessMotion, stillRequested } from "../motion"
 import { agentTranscripts } from "../transcripts"
 import { demoTurns } from "../turns"
@@ -25,11 +25,14 @@ export const visitorDemo = ({
   nudgeMs,
   readingMs = visitorReadingMs,
   ambient = true,
+  theme,
 }: {
   readonly turnMs?: number
   readonly nudgeMs?: number
   readonly readingMs?: number
   readonly ambient?: boolean
+  // The page's theme, which its terminals draw in.
+  readonly theme?: ThemeSource
 } = {}): Backend => {
   const now = Date.now()
   const turns = demoTurns(turnMs)
@@ -40,20 +43,22 @@ export const visitorDemo = ({
   const reading = still ? Number.POSITIVE_INFINITY : lessMotion() ? 0 : readingMs
   const story = visitorStory(agentTranscripts(now), turns, nudgeMs, reading)
   const life = visitorAmbient(turns)
-  const base = demoBackend(
-    createDemoEngine(),
-    false,
-    ambient && !still ? life.introOf : undefined,
-    undefined,
-    visitorSeed(now, reading > 0),
-  )
+  const base = demoBackend(createDemoEngine(), {
+    seed: visitorSeed(now, reading > 0),
+    terminals: {
+      ...(theme && { theme }),
+      ...(ambient && !still && { introOf: life.introOf }),
+    },
+  })
   const storied = story.wrap(withConversations(base, story.transcripts, turns))
   const backend = ambient && !still ? life.wrap(storied) : storied
+  if (!("mountTerminal" in backend)) throw new Error("The demo mounts its terminals")
   return {
     seed: backend.seed,
     newTerminal: backend.newTerminal,
     commit: backend.commit,
-    TerminalSurface: surfaceOf(backend),
+    mountTerminal: backend.mountTerminal,
+    setFont: backend.setFont,
     telemetry: backend.telemetry,
     ...(backend.companions && { companions: backend.companions }),
     ...(backend.start && { start: backend.start }),

@@ -47,9 +47,8 @@ const burst = 30
 const crowd = 12
 // How long clearing waits between the agents working and resting, for the app to see both.
 const calmMs = 100
-// How long a screen takes to arrive, and a failed paste's notice stays, as the runner's.
+// How long a screen takes to arrive, as the runner's.
 const attachMs = 2500
-const noticeMs = 4000
 
 // The second round of kinds in the notification center reads as murmur wrote it, the first
 // as it never ran.
@@ -316,6 +315,8 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
   const chat = createDebugChat()
   const notificationActions = createNotificationActions(verbs)
   const screens = createStore<ReadonlyMap<string, DemoScreen>>(new Map())
+  // The terminals whose next pasted file fails to save.
+  const pasteFails = new Set<string>()
   // Sets what a terminal's screen is doing for a while, then shows its output again.
   const showScreen = (key: TerminalKey, screen: DemoScreen, ms: number): void => {
     const id = terminalKeyId(key)
@@ -357,9 +358,9 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
         setting("Codex", "Window switches to Codex", (key, { dispatch }) =>
           dispatch(runAgent(key, "codex")),
         ),
-        onSelected("Paste fails", "Brief notice at the top", (key) =>
-          showScreen(key, { notice: "Novadeck can't read the clipboard" }, noticeMs),
-        ),
+        onSelected("Paste fails", "The next pasted file, with a notice", (key) => {
+          pasteFails.add(terminalKeyId(key))
+        }),
         setting("Clean exit", "Tile closes", (key, { dispatch }) => dispatch(cleanExit(key))),
         setting("Exit code 3", "Ending bar with Restart", (key, { dispatch }) =>
           dispatch(exitedWithCode(key, 3)),
@@ -579,6 +580,7 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
     pickDirectory,
     chat: chat.wrap,
     screens,
+    failPaste: (key) => pasteFails.delete(terminalKeyId(key)),
     restart: (key, dispatch) => {
       verbs.release(key)
       dispatch(backToPrompt(key))

@@ -80,6 +80,8 @@ export type DemoStates = {
     conversations: NonNullable<Backend["conversations"]>,
   ) => NonNullable<Backend["conversations"]>
   readonly screens: DemoScreens
+  // Whether this paste of the terminal's fails, as the panel armed it for its next one.
+  readonly failPaste: (key: TerminalKey) => boolean
   // A fresh shell in place of an ended one, through the backend's sink.
   readonly restart: (key: TerminalKey, dispatch: BackendSink["dispatch"]) => void
   // Always mounted while the demo runs: where `notices.show` puts its notifications.

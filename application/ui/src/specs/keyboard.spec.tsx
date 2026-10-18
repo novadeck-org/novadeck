@@ -1165,17 +1165,18 @@ describe("dictation", () => {
       await press(`${dictateKeys}${releaseKeys}`)
       await expect.element(offer()).toBeVisible()
 
-      // Esc reaches the terminal, where it interrupts the agent: nothing prevented it.
+      // Esc reaches the terminal, where it interrupts the agent: nothing prevented it. The
+      // document hears it after the app's window listeners and before the terminal's
+      // emulator, which takes it as its own.
       const prevented: boolean[] = []
       const note = (event: KeyboardEvent): void => {
         if (event.key === "Escape") prevented.push(event.defaultPrevented)
       }
-      // A window listener added last, so it runs after the app's own and sees what they did.
-      window.addEventListener("keydown", note)
+      document.addEventListener("keydown", note, true)
       try {
         await press("{Escape}")
       } finally {
-        window.removeEventListener("keydown", note)
+        document.removeEventListener("keydown", note, true)
       }
       expect(prevented).toEqual([false])
 
@@ -1258,9 +1259,7 @@ describe("dictation", () => {
       await expect.element(offer()).toBeVisible()
       const strip = win().querySelector<HTMLElement>(".dictation-strip:not([hidden])")!
       const host = strip.parentElement!.getBoundingClientRect()
-      const form = strip
-        .parentElement!.querySelector(".agent-command-form")!
-        .getBoundingClientRect()
+      const form = strip.parentElement!.querySelector(".terminal-xterm")!.getBoundingClientRect()
       expect(form.bottom).toBeLessThanOrEqual(host.bottom + 0.5)
       expect(overflow()).toBe(without)
       expect(overflow()).toBe(0)

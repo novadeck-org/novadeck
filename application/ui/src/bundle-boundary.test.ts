@@ -92,23 +92,19 @@ describe("the first chunk", () => {
 describe("the terminal screens' styles", () => {
   const sheet = (source: string) => ({ type: "asset", fileName: "assets/connect.css", source })
 
-  it("are in every build that draws terminals", () => {
-    const styled = { "assets/connect.css": sheet(".terminal-xterm .xterm .xterm-viewport{}") }
-    expect(missingScreenStyles("production", styled)).toBe(false)
-    expect(missingScreenStyles("web", styled)).toBe(false)
+  it("pass a build whose stylesheets carry them, as text or as bytes", () => {
+    const rule = ".terminal-xterm .xterm .xterm-viewport{}"
+    expect(missingScreenStyles({ "assets/connect.css": sheet(rule) })).toBe(false)
+    const bytes = { type: "asset", fileName: "a.css", source: new TextEncoder().encode(rule) }
+    expect(missingScreenStyles({ "a.css": bytes })).toBe(false)
   })
 
-  it("fail a build that draws terminals without them", () => {
+  it("fail a build without them, as every build draws terminals", () => {
     const bare = {
       "assets/index.css": sheet(".shell{}"),
       "assets/index.js": { type: "chunk", fileName: "assets/index.js" },
     }
-    expect(missingScreenStyles("production", bare)).toBe(true)
-    expect(missingScreenStyles("web", bare)).toBe(true)
-  })
-
-  it("are not asked of a build that draws no terminals yet", () => {
-    expect(missingScreenStyles("try", {})).toBe(false)
-    expect(missingScreenStyles("content-preview", {})).toBe(false)
+    expect(missingScreenStyles(bare)).toBe(true)
+    expect(missingScreenStyles({})).toBe(true)
   })
 })

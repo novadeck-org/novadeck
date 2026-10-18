@@ -23,6 +23,11 @@ export type ViewOptions = {
   readonly links?: ViewLinks
   /** The page's pool of WebGL contexts. Without it the view stays on the DOM renderer. */
   readonly renderers?: Renderers
+  /**
+   * Keeps an accessibility tree of the screen's rows and announces what is written, for a
+   * screen reader, at the cost of a DOM node per row.
+   */
+  readonly screenReaderMode?: boolean
 }
 
 /** The view's place in the page's pool: whoever shows it says when it is shown and when not. */
@@ -61,13 +66,15 @@ const noRenderer: ScreenRenderer = {
 
 /** An xterm terminal opened in `element`, with the width rule, links and fitting set up. */
 export const createView = (element: HTMLElement, options: ViewOptions): View => {
-  const { fontSize, fontFamily, theme, scrollback, minimumContrastRatio, links } = options
+  const { fontSize, fontFamily, theme, scrollback, minimumContrastRatio, links, screenReaderMode } =
+    options
   const terminal = new Terminal({
     fontSize,
     fontFamily,
     theme,
     scrollback,
     ...(minimumContrastRatio !== undefined && { minimumContrastRatio }),
+    ...(screenReaderMode !== undefined && { screenReaderMode }),
     allowTransparency: false,
     allowProposedApi: true,
   })

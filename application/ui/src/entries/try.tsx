@@ -2,13 +2,16 @@
 import "../styles.css"
 import { App } from "../app/App"
 import type { BackendSelection } from "../backend/port"
+import { pageTheme } from "../theme/source"
 import { start } from "./start"
 
 // The visitor build, for a website: the demo without its debug panel, loaded with the
 // connection, so no other build carries it.
 const visitor: BackendSelection = {
   connect: async (signal, progress) =>
-    (await import("../backend/demo/visitor/connect")).connectVisitor(signal, progress),
+    (await import("../backend/demo/visitor/connect")).connectVisitor(signal, progress, {
+      theme: pageTheme,
+    }),
 }
 
 // A visitor's page can outlive a deploy of the static site, whose files carry new hashes: a

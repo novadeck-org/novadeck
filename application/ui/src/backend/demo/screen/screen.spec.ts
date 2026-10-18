@@ -314,4 +314,25 @@ describe("a demo screen's bytes", () => {
       ).resolves.toBeUndefined()
     },
   )
+
+  it("writes only the rows of a tail that changed, as a key typed changes the prompt alone", async () => {
+    const size = { cols: 30, rows: 12 }
+    const demo = createDemoScreen(size, {
+      transcript: story.map(words),
+      tail: prompt("", ["✻ Working… (esc to interrupt)"]),
+    })
+    const bytes = demo.tail(prompt("l", ["✻ Working… (esc to interrupt)"]))
+    expect(bytes).not.toContain("Working")
+    expect(bytes).not.toContain("\x1b[J")
+    await expect(
+      steps(size, createDemoScreen(size, { transcript: story.map(words), tail: prompt("") }), [
+        (screen) => screen.tail(prompt("l", ["one"])),
+        (screen) => screen.tail(prompt("ls", ["one"])),
+        (screen) => screen.tail(prompt("ls", ["two"])),
+        (screen) => screen.tail(prompt("a draft long enough to wrap the row", ["two"])),
+        (screen) => screen.append(words("output")),
+        (screen) => screen.tail(prompt("x", ["two"])),
+      ]),
+    ).resolves.toBeUndefined()
+  })
 })

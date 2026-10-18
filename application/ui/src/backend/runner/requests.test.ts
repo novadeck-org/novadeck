@@ -11,6 +11,7 @@ import type { Workspace } from "#core/types"
 
 import { context, describe, expect, it } from "../../test"
 import type { BackendAction, TerminalRequest } from "../port"
+import { noTheme } from "../terminal-views/theme"
 import { runnerBackend, type RunnerApi } from "./backend"
 import { startTestRunner } from "./testing"
 
@@ -71,7 +72,7 @@ const open = (app: (request: TerminalRequest, add: (command?: string) => string)
       },
     },
   }
-  const { backend, idle } = runnerBackend(api, runner.listing, { saveDelay: 10 })
+  const { backend, idle } = runnerBackend(api, runner.listing, { theme: noTheme, saveDelay: 10 })
   let workspace: Workspace = workspaceFromSeed(backend.seed, {
     view: "grid",
     windowedView: "grid",

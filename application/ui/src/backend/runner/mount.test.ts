@@ -29,6 +29,7 @@ import type {
   ThemeSource,
 } from "../port"
 import { createTerminalMount } from "../terminal-views/mount"
+import { noTheme } from "../terminal-views/theme"
 import type { SurfaceRuntime } from "./backend"
 import { viewOptions } from "./view-options"
 
@@ -253,7 +254,7 @@ describe("runner terminal mount", () => {
     }
     const surfaces = () => {
       const { runtime } = starting()
-      const screens = createTerminalViews(viewOptions(runtime))
+      const screens = createTerminalViews(viewOptions(runtime, { theme: noTheme }))
       const calls: string[] = []
       const watching: TerminalViews<TerminalKey> = {
         ...screens,
@@ -377,10 +378,13 @@ describe("runner terminal mount", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
       const { runtime } = starting()
-      const page = mountOver(createTerminalViews(viewOptions(runtime, { cap: 0 })), {
-        ...propsOf(startingTerminal(), "canvas"),
-        onScreen: true,
-      })
+      const page = mountOver(
+        createTerminalViews(viewOptions(runtime, { theme: noTheme, cap: 0 })),
+        {
+          ...propsOf(startingTerminal(), "canvas"),
+          onScreen: true,
+        },
+      )
       const first = page.container.querySelector(".terminal-xterm")
       page.update({ onScreen: false })
       vi.advanceTimersByTime(6_000)
@@ -516,21 +520,24 @@ describe("runner terminal mount", () => {
       let onScreen = shown
       let terminalEnd: "open" | "closed" | "removed" = "open"
       const screens = createTerminalViews(
-        viewOptions({
-          ...runtime,
-          entry: () =>
-            terminalEnd === "removed"
-              ? undefined
-              : {
-                  ready: Promise.resolve(true),
-                  revived: new Promise<void>(() => {}),
-                  closed: terminalEnd === "closed",
-                  size: { cols: 80, rows: 24 },
-                },
-          attach,
-          screen,
-          shown: () => onScreen,
-        }),
+        viewOptions(
+          {
+            ...runtime,
+            entry: () =>
+              terminalEnd === "removed"
+                ? undefined
+                : {
+                    ready: Promise.resolve(true),
+                    revived: new Promise<void>(() => {}),
+                    closed: terminalEnd === "closed",
+                    size: { cols: 80, rows: 24 },
+                  },
+            attach,
+            screen,
+            shown: () => onScreen,
+          },
+          { theme: noTheme },
+        ),
       )
       // Each view places its terminals in an element of its own, so a switch mounts them again.
       const inView = (view: string): Mounted => {
@@ -1221,7 +1228,7 @@ describe("typing into a terminal's screen", () => {
       }),
       attach: async () => attachmentOf(),
     }
-    const screens = createTerminalViews(viewOptions(live))
+    const screens = createTerminalViews(viewOptions(live, { theme: noTheme }))
     const showAgain = () =>
       mountOver(screens, propsOf({ ...terminalFixture(1, "~"), state: "running" }))
     const page = showAgain()
@@ -1341,7 +1348,7 @@ describe("a terminal's screen resized out of view", () => {
 
   it("keeps following its shell's output", async () => {
     const view = measured()
-    const screens = createTerminalViews(viewOptions(starting().runtime))
+    const screens = createTerminalViews(viewOptions(starting().runtime, { theme: noTheme }))
     const terminal = { ...key, terminalId: "out-of-view" }
     const opened: Terminal[] = []
     const originalOpen = Terminal.prototype.open
@@ -1428,7 +1435,7 @@ describe("a surface's renderer", () => {
             size: { cols: 80, rows: 24 },
           }),
         },
-        { renderers },
+        { theme: noTheme, renderers },
       ),
     )
     // The fit addon is the view's own, so it is reached as the terminal loads it.

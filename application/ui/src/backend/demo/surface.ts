@@ -6,21 +6,22 @@ import type { BackendConnectionState, TerminalKey } from "../port"
 // visitor's and the debug layer that drives it.
 
 // What a terminal's screen is doing that its metadata doesn't say: its output still on
-// the way after a reconnection, or a notice for a moment, as a failed paste's.
+// the way, as after a reconnection.
 export type DemoScreen = {
   readonly attaching?: true
-  readonly notice?: string
 }
 
 // The demo's screens, by `terminalKeyId`; a terminal without an entry shows its output.
 export type DemoScreens = Store<ReadonlyMap<string, DemoScreen>>
 
-// What the demo's terminal surface reads beyond its engine: whether the far side is
-// there to type into, what its screen is doing, and how to start a fresh shell after one
-// ended.
+// What the demo's terminals read beyond its engine: whether the far side is there to type
+// into, what each screen is doing, how to start a fresh shell after one ended, and whether
+// the debug panel asked for a paste to fail.
 export type DemoSurfaceRuntime = {
   readonly connection: Store<BackendConnectionState>
   readonly screens: DemoScreens
   // Restart, or Enter, on an ended terminal.
   readonly restart: (key: TerminalKey) => void
+  // Whether this paste is to fail, once each time the panel asks.
+  readonly failPaste?: (key: TerminalKey) => boolean
 }

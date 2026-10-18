@@ -1,4 +1,4 @@
-import { createView, type Renderers } from "@novadeck/emulator/browser"
+import type { Renderers } from "@novadeck/emulator/browser"
 import { maxUploadBytes } from "@novadeck/protocol"
 import { hasCode, type AttachedTerminal } from "@novadeck/protocol/client"
 import type { AttachStream, Exit } from "@novadeck/terminal"
@@ -8,10 +8,10 @@ import { parkedCap, parkMs, type TerminalViewOptions } from "@novadeck/terminal/
 import { createStore } from "#core/store"
 
 import type { TerminalKey, ThemeSource } from "../port"
-import { linkOptions } from "../terminal-views/links"
+import { openEmulator } from "../terminal-views/emulator"
 import { screenMarkup } from "../terminal-views/mount"
 import { pageRenderers } from "../terminal-views/renderers"
-import { noTheme, terminalTheme } from "../terminal-views/theme"
+import { terminalTheme } from "../terminal-views/theme"
 import { exitStatus, restartable } from "./activity"
 import type { SurfaceRuntime } from "./backend"
 import { desktopHost } from "./desktop-host"
@@ -59,21 +59,12 @@ export const viewOptions = (
   {
     renderers = pageRenderers(),
     cap = parkedCap,
-    theme = noTheme,
-  }: { renderers?: Renderers; cap?: number; theme?: ThemeSource } = {},
+    theme,
+  }: { renderers?: Renderers; cap?: number; theme: ThemeSource },
 ): TerminalViewOptions<TerminalKey> => ({
   keyOf: ({ projectId, workspaceSessionId, terminalId }) =>
     `${projectId}\u0000${workspaceSessionId}\u0000${terminalId}`,
-  emulator: (element, open) =>
-    createView(element, {
-      ...open,
-      // Programs and agents pick their own colours, often greys meant for another ground;
-      // xterm darkens or lightens any that would read under 4.5:1 against the background.
-      minimumContrastRatio: 4.5,
-      scrollback: 1000,
-      links: linkOptions(),
-      renderers,
-    }),
+  emulator: openEmulator({ renderers }),
   theme: terminalTheme(theme),
   store: createStore,
   markup: screenMarkup,

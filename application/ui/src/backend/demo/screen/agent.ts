@@ -274,18 +274,8 @@ export const askLines = (
 // A line being typed after `prompt`, cut into rows of `width` columns as a line editor
 // wraps it, with where its cursor is: at `cursor`, an offset into the draft as a string
 // counts it, at the start of the character it falls in.
-export const inputLines = (
-  prompt: Line,
-  draft: string,
-  cursor: number,
-  width: number,
-  placeholder?: string,
-): Tail => {
+export const inputLines = (prompt: Line, draft: string, cursor: number, width: number): Tail => {
   const lead = prompt.reduce((sum, run) => sum + cells(run.text), 0)
-  if (!draft && placeholder) {
-    const lines = wrap([span(placeholder, "muted")], width, { first: prompt })
-    return { lines, cursor: { row: 0, column: Math.min(lead, width - 1) } }
-  }
   const rows: Span[][] = [[...prompt]]
   let used = lead
   let at = { row: 0, column: lead }
@@ -315,7 +305,6 @@ export const inputLines = (
 // its input.
 export const agentTail = ({
   agent,
-  name,
   request,
   progress,
   place,
@@ -325,8 +314,6 @@ export const agentTail = ({
   cursor,
 }: {
   readonly agent: ChatAgent
-  // The agent as the person knows it, for the empty prompt's placeholder.
-  readonly name: string
   readonly request: ChatRequest | undefined
   readonly progress: number
   readonly place: { readonly at: number; readonly of: number } | undefined
@@ -343,13 +330,8 @@ export const agentTail = ({
       gap,
       rule(width, undefined, "muted"),
     ]
-    const input = inputLines(
-      [span(`${promptGlyph(agent)} `, "bold")],
-      draft,
-      cursor,
-      width,
-      `Message ${name}…`,
-    )
+    // Nothing but the draft on the prompt's row, as a reader of the screen takes it for one.
+    const input = inputLines([span(`${promptGlyph(agent)} `, "bold")], draft, cursor, width)
     return {
       lines: [...above, ...input.lines, rule(width, undefined, "muted")],
       cursor: { row: above.length + input.cursor.row, column: input.cursor.column },

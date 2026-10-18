@@ -84,7 +84,7 @@ const bundleBoundary = (): Plugin => {
           `The ${mode} build loads the terminal emulator with its first chunk: ${early.join(", ")}`,
         )
       }
-      if (missingScreenStyles(mode, bundle)) {
+      if (missingScreenStyles(bundle)) {
         this.error(
           `The ${mode} build draws terminals without their styles (terminal-views/terminal-xterm.css)`,
         )

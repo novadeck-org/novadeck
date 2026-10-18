@@ -22,6 +22,10 @@ const noTail: TailOf = () => ({ lines: [], cursor: { row: 0, column: 0 } })
 
 const joined = (lines: readonly Line[]): string => lines.map(encode).join("\r\n")
 
+// From one row of the screen to another, keeping the column.
+const moveRows = (from: number, to: number): string =>
+  to > from ? `\x1b[${to - from}B` : to < from ? `\x1b[${from - to}A` : ""
+
 // Clears the screen and what has scrolled off it, and homes the cursor.
 const clearAll = "\x1b[0m\x1b[H\x1b[2J\x1b[3J"
 
@@ -46,8 +50,9 @@ export const createDemoScreen = (
   let size = initial
   let blocks = [...transcript]
   let tailOf = tail
-  // What the tail last drew: how many rows, and on which the cursor sits.
+  // What the tail last drew: how many rows, and on which the cursor sits; and the rows.
   let drawn = { rows: 0, cursor: 0 }
+  let drawnRows: readonly string[] = []
   // Where the cursor is: at the end of the transcript's last row, or in the tail, which
   // starts on the row below the transcript (on the first row while there is none). Every
   // change leaves it as drawing the whole screen would, so a snapshot taken at any point
@@ -69,10 +74,26 @@ export const createDemoScreen = (
   const drawTail = (laid: Tail): string => {
     const { lines, cursor } = laid
     drawn = { rows: lines.length, cursor: cursor.row }
+    drawnRows = lines.map(encode)
     at = "tail"
     if (lines.length === 0) return ""
     const up = lines.length - 1 - cursor.row
     return `${joined(lines)}${up > 0 ? `\x1b[${up}A` : ""}\x1b[${cursor.column + 1}G`
+  }
+  // A tail as tall as the one drawn, with only the rows that changed written again, so a
+  // screen reader hears what changed rather than the whole tail, and the cursor in place.
+  const rewriteTail = (laid: Tail): string => {
+    const rows = laid.lines.map(encode)
+    let bytes = ""
+    let row = drawn.cursor
+    rows.forEach((line, index) => {
+      if (line === drawnRows[index]) return
+      bytes += `${moveRows(row, index)}\r\x1b[2K${line}`
+      row = index
+    })
+    drawn = { rows: rows.length, cursor: laid.cursor.row }
+    drawnRows = rows
+    return `${bytes}${moveRows(row, laid.cursor.row)}\x1b[${laid.cursor.column + 1}G`
   }
   // To the start of the row the tail starts on, erasing the tail.
   const toTail = (): string => {
@@ -84,29 +105,30 @@ export const createDemoScreen = (
   // to erase, so the screen is drawn again instead.
   const tall = (laid: Tail): boolean => Math.max(drawn.rows, laid.lines.length) > size.rows
 
-  // The whole screen, and where it leaves the cursor.
-  const draw = (): { bytes: string; drawn: typeof drawn; at: typeof at } => {
+  // The whole screen, and where it leaves the cursor and what its tail holds.
+  const draw = () => {
     const lines = transcriptLines()
     const laid = laidTail()
-    const before = { drawn, at }
+    const before = { drawn, drawnRows, at }
     drawn = { rows: 0, cursor: 0 }
+    drawnRows = []
     at = lines.length > 0 ? "end" : "tail"
     const bytes =
       laid.lines.length === 0
         ? `${clearAll}${joined(lines)}`
         : `${clearAll}${joined(lines)}${toTail()}${drawTail(laid)}`
-    const after = { bytes, drawn, at }
-    ;({ drawn, at } = before)
+    const after = { bytes, drawn, drawnRows, at }
+    ;({ drawn, drawnRows, at } = before)
     return after
   }
   const full = (): string => {
     const whole = draw()
-    ;({ drawn, at } = whole)
+    ;({ drawn, drawnRows, at } = whole)
     return whole.bytes
   }
 
   // As if drawn whole already: a terminal attaching starts from a snapshot.
-  ;({ drawn, at } = draw())
+  ;({ drawn, drawnRows, at } = draw())
 
   return {
     snapshot: () => draw().bytes,
@@ -119,19 +141,24 @@ export const createDemoScreen = (
       const body = `${toTail()}${joined(lines)}`
       at = "end"
       drawn = { rows: 0, cursor: 0 }
+      drawnRows = []
       return laid.lines.length > 0 ? `${body}${toTail()}${drawTail(laid)}` : body
     },
     tail: (next) => {
       tailOf = next
       const laid = laidTail()
       if (tall(laid)) return full()
-      if (laid.lines.length > 0) return `${toTail()}${drawTail(laid)}`
+      if (laid.lines.length > 0)
+        return at === "tail" && drawn.rows === laid.lines.length
+          ? rewriteTail(laid)
+          : `${toTail()}${drawTail(laid)}`
       if (at === "end") return ""
       // No tail now: back to the end of the transcript, where drawing it whole leaves the
       // cursor.
       const erased = toTail()
       const last = transcriptLines().at(-1)
       drawn = { rows: 0, cursor: 0 }
+      drawnRows = []
       if (!last) return erased
       at = "end"
       return `${erased}\x1b[1A\x1b[${Math.min(widthOf(last), size.cols - 1) + 1}G`
