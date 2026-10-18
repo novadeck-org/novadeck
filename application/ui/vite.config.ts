@@ -12,8 +12,11 @@ import { defineConfig, type Plugin } from "vite"
 import {
   boundaryViolations,
   budgetViolations,
+  firstChunkGaps,
   firstChunkViolations,
+  missingFolders,
   missingScreenStyles,
+  missingUtilities,
 } from "./src/bundle-boundary"
 import { connect, connectSourcesPlaceholder, headerRules, hidden } from "./src/deploy"
 
@@ -66,7 +69,7 @@ const entryOf = (): Plugin => ({
 })
 
 // Fails a build that carries an adapter its mode must not, loads the emulator first, or draws
-// terminals without their styles (see src/bundle-boundary.ts).
+// terminals without their styles, or whose CSS lost a folder Tailwind scans (see src/bundle-boundary.ts).
 const bundleBoundary = (): Plugin => {
   let mode = ""
   return {
@@ -74,9 +77,16 @@ const bundleBoundary = (): Plugin => {
     apply: "build",
     configResolved: (config) => void (mode = config.mode),
     generateBundle(_options, bundle) {
-      const violations = Object.values(bundle).flatMap((chunk) =>
-        chunk.type === "chunk" ? boundaryViolations(mode, Object.keys(chunk.modules)) : [],
+      const moduleIds = Object.values(bundle).flatMap((chunk) =>
+        chunk.type === "chunk" ? Object.keys(chunk.modules) : [],
       )
+      const unmatched = [...missingFolders(mode, moduleIds), ...firstChunkGaps(bundle)]
+      if (unmatched.length > 0) {
+        this.error(
+          `The ${mode} build holds nothing for checks to read, so they would pass on any bundle: ${unmatched.join("; ")}`,
+        )
+      }
+      const violations = boundaryViolations(mode, moduleIds)
       if (violations.length > 0) {
         this.error(`The ${mode} build carries modules it must not: ${violations.join(", ")}`)
       }
@@ -89,6 +99,12 @@ const bundleBoundary = (): Plugin => {
       const heavy = budgetViolations(mode, bundle, (code) => gzipSync(code).length)
       if (heavy.length > 0) {
         this.error(`The ${mode} build is over its budget: ${heavy.join("; ")}`)
+      }
+      const unstyled = missingUtilities(bundle)
+      if (unstyled.length > 0) {
+        this.error(
+          `The ${mode} build lost a folder Tailwind scans (the Tailwind import in src/styles.css scans less than the package): its CSS lacks ${unstyled.join(", ")}`,
+        )
       }
       if (missingScreenStyles(bundle)) {
         this.error(
