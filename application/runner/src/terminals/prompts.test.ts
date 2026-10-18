@@ -1,9 +1,9 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
-import type { BoxProfile, InputBox } from "@novadeck/harness-core/box"
 import { screen as screenOf } from "@novadeck/harness-core/testing/screens"
 import { promptRefusal as refusedBy } from "@novadeck/protocol"
+import type { BoxProfile, InputBox } from "@novadeck/tui-input/box"
 
 import { DomainError } from "../errors.js"
 import { describe, expect, it } from "../test.js"

@@ -6,7 +6,7 @@ import {
   ruledBox,
   type BoxProfile,
   type Markers,
-} from "@novadeck/harness-core/box"
+} from "@novadeck/tui-input/box"
 
 /** The markers leading its box's first row: `❯` as a prompt, `!` in its shell mode. */
 const markers: Markers = { prompt: "❯", shell: "!" }
@@ -47,7 +47,8 @@ export const overlay = (screen: ScreenText): boolean =>
  */
 export const box: BoxProfile = {
   read: (screen) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows)),
-  // Enter runs a command shown as a placeholder as the text it stands for.
+  // Enter runs a command shown as a placeholder as the text it stands for. It binds its session
+  // before any command, so none starts one (`starts`).
   shell: { expands: true, starts: false, footer: shellFooter },
   collapsed: ({ text }) => /^\[Pasted text #\d+(?: \+\d+ lines?)?\]$/.test(text.trim()),
   // Escape twice, over text seen in the box only; it clears a restored prompt or the queued

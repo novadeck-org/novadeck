@@ -3,8 +3,8 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
-import { isEmpty } from "@novadeck/harness-core/box"
 import type { TranscriptItem } from "@novadeck/protocol"
+import { isEmpty } from "@novadeck/tui-input/box"
 
 import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"

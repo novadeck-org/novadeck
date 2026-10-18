@@ -52,7 +52,8 @@
   "dependencies": {
     "@novadeck/emulator": "workspace:*",
     "@novadeck/harness-core": "workspace:*",
-    "@novadeck/protocol": "workspace:*"
+    "@novadeck/protocol": "workspace:*",
+    "@novadeck/tui-input": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

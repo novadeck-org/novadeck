@@ -201,6 +201,9 @@ importers:
       '@novadeck/terminal':
         specifier: workspace:*
         version: link:../../libraries/terminal
+      '@novadeck/tui-input':
+        specifier: workspace:*
+        version: link:../../libraries/tui-input
       '@novadeck/whisper':
         specifier: workspace:*
         version: link:../../engines/whisper
@@ -459,6 +462,9 @@ importers:
       '@novadeck/protocol':
         specifier: workspace:*
         version: link:../../application/protocol
+      '@novadeck/tui-input':
+        specifier: workspace:*
+        version: link:../../libraries/tui-input
     devDependencies:
       '@types/node':
         specifier: ^26.6.5
@@ -481,6 +487,9 @@ importers:
       '@novadeck/protocol':
         specifier: workspace:*
         version: link:../../application/protocol
+      '@novadeck/tui-input':
+        specifier: workspace:*
+        version: link:../../libraries/tui-input
     devDependencies:
       '@types/node':
         specifier: ^26.6.5
@@ -503,6 +512,9 @@ importers:
       '@novadeck/protocol':
         specifier: workspace:*
         version: link:../../application/protocol
+      '@novadeck/tui-input':
+        specifier: workspace:*
+        version: link:../../libraries/tui-input
     devDependencies:
       '@types/node':
         specifier: ^26.6.5
@@ -522,6 +534,9 @@ importers:
       '@novadeck/protocol':
         specifier: workspace:*
         version: link:../../application/protocol
+      '@novadeck/tui-input':
+        specifier: workspace:*
+        version: link:../../libraries/tui-input
     devDependencies:
       '@types/node':
         specifier: ^26.6.5
@@ -597,6 +612,22 @@ importers:
       node-pty:
         specifier: 'catalog:'
         version: 1.2.0-beta.14(patch_hash=c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224)
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@26.6.5)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(jsdom@30.1.2(@noble/hashes@2.4.0))(msw@2.15.0(@types/node@26.6.5)(typescript@7.0.2))(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+
+  libraries/tui-input:
+    dependencies:
+      '@novadeck/emulator':
+        specifier: workspace:*
+        version: link:../emulator
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
       typescript:
         specifier: ^7.0.2
         version: 7.0.2

@@ -17,7 +17,6 @@ import {
   type Screen,
   type ScreenText,
 } from "@novadeck/emulator/headless"
-import { isEmpty, type BoxProfile } from "@novadeck/harness-core/box"
 import type { RequestFacts } from "@novadeck/harness-core/dialogs"
 import type {
   ActivityEvent,
@@ -84,6 +83,7 @@ import {
   type Line,
   type ShellLaunch,
 } from "@novadeck/terminal/shell"
+import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
 import { Latest } from "@novadeck/wire/server"
 
 import { readPlanFile, type PlanText } from "../companions/content.js"

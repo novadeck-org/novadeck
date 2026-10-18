@@ -1,6 +1,6 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
-import type { BoxProfile, InputBox } from "@novadeck/harness-core/box"
 import { screen as screenOf } from "@novadeck/harness-core/testing/screens"
+import type { BoxProfile, InputBox } from "@novadeck/tui-input/box"
 
 import { describe, expect, it } from "../test.js"
 import { Interrupts, type InterruptHost } from "./interrupts.js"
