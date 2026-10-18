@@ -6,7 +6,7 @@ import type { TerminalMetadata, Workspace } from "#core/types"
 
 import type { BackendAction, TerminalKey } from "../../port"
 import type { DemoAgentVerbs } from "../agent-link"
-import type { DemoScreen } from "../surface"
+import type { DemoScreenState } from "../runtime"
 import { terminalOf } from "../terminals"
 import { createDemoAgents } from "./agents"
 import { createDebugChat } from "./chat"
@@ -314,11 +314,11 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
   const { pickDirectory, failNext: failPick } = createDemoFolders()
   const chat = createDebugChat()
   const notificationActions = createNotificationActions(verbs)
-  const screens = createStore<ReadonlyMap<string, DemoScreen>>(new Map())
+  const screens = createStore<ReadonlyMap<string, DemoScreenState>>(new Map())
   // The terminals whose next pasted file fails to save.
   const pasteFails = new Set<string>()
   // Sets what a terminal's screen is doing for a while, then shows its output again.
-  const showScreen = (key: TerminalKey, screen: DemoScreen, ms: number): void => {
+  const showScreen = (key: TerminalKey, screen: DemoScreenState, ms: number): void => {
     const id = terminalKeyId(key)
     screens.update((all) => new Map(all).set(id, screen))
     later(ms, () =>

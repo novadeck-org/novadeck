@@ -72,12 +72,13 @@ const callGlyph = (agent: ChatAgent): string => (agent === "claude" ? "â—" : "â
 
 const gap: Line = []
 
-// What a person asked, set apart by a blank row each side.
+// What a person asked, set apart by a blank row each side, and in bold behind the prompt's
+// glyph in colour, so the person's own turns stand out from the agent's.
 export const requestBlock =
   (agent: ChatAgent, text: string): Block =>
   (width) => [
-    ...wrap([span(text)], width, {
-      first: [span(`${promptGlyph(agent)} `, "bold")],
+    ...wrap([span(text, "bold")], width, {
+      first: [span(`${promptGlyph(agent)} `, "bold", "cyan")],
       rest: [span("  ")],
     }),
     gap,
@@ -312,6 +313,7 @@ export const agentTail = ({
   status,
   draft,
   cursor,
+  noteAgain = false,
 }: {
   readonly agent: ChatAgent
   readonly request: ChatRequest | undefined
@@ -321,11 +323,15 @@ export const agentTail = ({
   readonly status: readonly string[]
   readonly draft: string
   readonly cursor: number
+  // Whether the note is said again, as the same refusal twice, so it's heard again.
+  readonly noteAgain?: boolean
 }): ((width: number) => Tail) => {
   return (width) => {
+    const asking = request ? [gap, ...askLines(request, agent, progress, place, width)] : []
+    const noted = note ? wrap([span(note, "muted")], width) : []
     const above: Line[] = [
-      ...(request ? [gap, ...askLines(request, agent, progress, place, width)] : []),
-      ...(note ? wrap([span(note, "muted")], width) : []),
+      ...asking,
+      ...noted,
       ...status.flatMap((line) => [gap, ...wrap([span(line, "muted")], width)]),
       gap,
       rule(width, undefined, "muted"),
@@ -335,6 +341,7 @@ export const agentTail = ({
     return {
       lines: [...above, ...input.lines, rule(width, undefined, "muted")],
       cursor: { row: above.length + input.cursor.row, column: input.cursor.column },
+      ...(noteAgain && { fresh: noted.map((_, index) => asking.length + index) }),
     }
   }
 }

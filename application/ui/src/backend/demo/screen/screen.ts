@@ -1,3 +1,5 @@
+import { cells } from "@novadeck/emulator/width"
+
 import { clipLine, encode, widthOf, type Line } from "./vt"
 
 // A demo terminal's screen as a TUI draws it, as the bytes to write to the terminal: a
@@ -13,6 +15,8 @@ export type Block = (width: number) => readonly Line[]
 export type Tail = {
   readonly lines: readonly Line[]
   readonly cursor: { readonly row: number; readonly column: number }
+  // Rows to write again though they read the same, so a screen reader hears them once more.
+  readonly fresh?: readonly number[]
 }
 export type TailOf = (width: number) => Tail
 
@@ -21,6 +25,10 @@ export type ScreenSize = { readonly cols: number; readonly rows: number }
 const noTail: TailOf = () => ({ lines: [], cursor: { row: 0, column: 0 } })
 
 const joined = (lines: readonly Line[]): string => lines.map(encode).join("\r\n")
+
+// How many columns a row's bytes draw in, its styles aside.
+// oxlint-disable-next-line no-control-regex -- An SGR sequence starts with ESC.
+const columnsOf = (bytes: string): number => cells(bytes.replace(/\x1b\[[0-9;]*m/g, ""))
 
 // From one row of the screen to another, keeping the column.
 const moveRows = (from: number, to: number): string =>
@@ -64,10 +72,10 @@ export const createDemoScreen = (
   const fit = (lines: readonly Line[]): Line[] => lines.map((line) => clipLine(line, size.cols))
   const transcriptLines = (): Line[] => fit(blocks.flatMap((block) => block(size.cols)))
   const laidTail = (): Tail => {
-    const { lines, cursor } = tailOf(size.cols)
+    const { lines, cursor, fresh } = tailOf(size.cols)
     const row = Math.max(0, Math.min(cursor.row, lines.length - 1))
     const column = Math.max(0, Math.min(cursor.column, size.cols - 1))
-    return { lines: fit(lines), cursor: { row, column } }
+    return { lines: fit(lines), cursor: { row, column }, ...(fresh && { fresh }) }
   }
 
   // The tail, from the row it starts on, with the cursor moved to its place.
@@ -87,9 +95,18 @@ export const createDemoScreen = (
     let bytes = ""
     let row = drawn.cursor
     rows.forEach((line, index) => {
-      if (line === drawnRows[index]) return
-      bytes += `${moveRows(row, index)}\r\x1b[2K${line}`
+      const was = drawnRows[index] ?? ""
+      const again = laid.fresh?.includes(index) === true
+      if (line === was && !again) return
+      bytes += moveRows(row, index)
       row = index
+      // A row that only grew at its end, as a key typed: what it gained alone, which the
+      // emulator takes as the key's echo and doesn't announce. One that only lost its end:
+      // erased from there, announcing nothing. Any other: written again.
+      if (again) bytes += `\r\x1b[2K${line}`
+      else if (line.startsWith(was)) bytes += `\x1b[${columnsOf(was) + 1}G${line.slice(was.length)}`
+      else if (was.startsWith(line)) bytes += `\x1b[${columnsOf(line) + 1}G\x1b[K`
+      else bytes += `\r\x1b[2K${line}`
     })
     drawn = { rows: rows.length, cursor: laid.cursor.row }
     drawnRows = rows
@@ -148,6 +165,9 @@ export const createDemoScreen = (
       tailOf = next
       const laid = laidTail()
       if (tall(laid)) return full()
+      // A tail as tall as the screen may sit with its top row where the cursor can't climb
+      // above, so it goes by drawing the screen whole.
+      if (laid.lines.length === 0 && drawn.rows >= size.rows) return full()
       if (laid.lines.length > 0)
         return at === "tail" && drawn.rows === laid.lines.length
           ? rewriteTail(laid)

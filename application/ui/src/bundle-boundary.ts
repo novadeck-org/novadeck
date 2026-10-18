@@ -32,8 +32,6 @@ export type BuiltChunk = {
   readonly modules?: Readonly<Record<string, unknown>>
 }
 
-// The module ids of the entry chunks and everything they import statically that belong to a
-// deferred library.
 // The chunks `from` and every chunk they import before they run.
 const reached = (
   bundle: Readonly<Record<string, BuiltChunk>>,
@@ -54,6 +52,8 @@ const entries = (bundle: Readonly<Record<string, BuiltChunk>>): string[] =>
     .filter(([, chunk]) => chunk.type === "chunk" && chunk.isEntry)
     .map(([fileName]) => fileName)
 
+// The module ids of the entry chunks and everything they import statically that belong to a
+// deferred library.
 export const firstChunkViolations = (bundle: Readonly<Record<string, BuiltChunk>>): string[] => {
   const first = reached(bundle, entries(bundle))
   return [...first].flatMap((fileName) =>
@@ -91,23 +91,41 @@ export const missingScreenStyles = (bundle: Readonly<Record<string, BuiltAsset>>
       ).includes(screenRule),
   )
 
-// What the visitor build may weigh, gzipped: what the page loads first, and the demo, which
-// loads with its connection, the terminal emulator among it. Set from the first build with
-// the demo drawn as terminals (352 kB and 170 kB), with room to grow; the website's hero
-// waits on both.
-export const visitorBudgets = { first: 380_000, demo: 190_000 }
+// What the visitor build may weigh: what the page loads first (its scripts and styles
+// gzipped, and the fonts those name as they are), and the demo, which loads with its
+// connection, the terminal emulator among it (scripts and styles gzipped). Set from the first
+// build with the demo drawn as terminals, 1,023 kB and 171 kB (main's first load weighed
+// the same), with room to grow; the website's hero waits on both.
+export const visitorBudgets = { first: 1_150_000, demo: 190_000 }
 
-// A built chunk's code and the module it stands for, as the budgets read it.
+// A built chunk's code, the module it stands for and the styles it brings, or an asset's
+// text, as the budgets read them.
 export type WeighedChunk = BuiltChunk & {
   readonly code?: string
+  readonly source?: unknown
   readonly facadeModuleId?: string | null
+  readonly viteMetadata?: { readonly importedCss?: ReadonlySet<string> }
 }
+
+// What a part's weight says of its budget.
+const over = (part: keyof typeof visitorBudgets, size: number): string[] =>
+  size > visitorBudgets[part]
+    ? [`its ${part} load weighs ${size} bytes, over ${visitorBudgets[part]}`]
+    : []
+
+// A built file's text, whatever form the bundle holds it in.
+const textOf = (source: unknown): string =>
+  typeof source === "string"
+    ? source
+    : ArrayBuffer.isView(source)
+      ? new TextDecoder().decode(source)
+      : ""
 
 // How the visitor build goes over its budgets, gzipped by `gzipped`; nothing for any other.
 export const budgetViolations = (
   mode: string,
   bundle: Readonly<Record<string, WeighedChunk>>,
-  gzipped: (code: string) => number,
+  gzipped: (text: string) => number,
 ): string[] => {
   if (mode !== "try") return []
   const first = reached(bundle, entries(bundle))
@@ -116,15 +134,33 @@ export const budgetViolations = (
       chunk.facadeModuleId?.split("\\").join("/").endsWith("/backend/demo/visitor/connect.ts"),
     )
     .map(([fileName]) => fileName)
-  const demo = [...reached(bundle, connect)].filter((fileName) => !first.has(fileName))
-  const weight = (files: Iterable<string>): number =>
-    [...files].reduce((sum, fileName) => sum + gzipped(bundle[fileName]?.code ?? ""), 0)
-  const over = (part: keyof typeof visitorBudgets, files: Iterable<string>): string[] => {
-    const size = weight(files)
-    return size > visitorBudgets[part]
-      ? [`its ${part} chunks weigh ${size} bytes gzipped, over ${visitorBudgets[part]}`]
-      : []
-  }
   if (connect.length === 0) return ["it has no demo chunk to weigh"]
-  return [...over("first", first), ...over("demo", demo)]
+  const demo = [...reached(bundle, connect)].filter((fileName) => !first.has(fileName))
+  const styles = (files: Iterable<string>): Set<string> =>
+    new Set(
+      [...files].flatMap((fileName) => [...(bundle[fileName]?.viteMetadata?.importedCss ?? [])]),
+    )
+  // The fonts a stylesheet names, by their files in the bundle, weighed as they are.
+  const fonts = (sheets: Iterable<string>): number => {
+    const named = new Set(
+      [...sheets].flatMap((sheet) =>
+        [...textOf(bundle[sheet]?.source).matchAll(/url\(["']?([^)"']+\.woff2)["']?\)/g)].map(
+          ([, url]) => url!.split("/").at(-1)!,
+        ),
+      ),
+    )
+    return Object.entries(bundle)
+      .filter(([fileName]) => named.has(fileName.split("/").at(-1)!))
+      .reduce((sum, [, asset]) => sum + textOf(asset.source).length, 0)
+  }
+  const weight = (files: Iterable<string>, withFonts: boolean): number => {
+    const sheets = styles(files)
+    const scripts = [...files].reduce(
+      (sum, fileName) => sum + gzipped(bundle[fileName]?.code ?? ""),
+      0,
+    )
+    const css = [...sheets].reduce((sum, sheet) => sum + gzipped(textOf(bundle[sheet]?.source)), 0)
+    return scripts + css + (withFonts ? fonts(sheets) : 0)
+  }
+  return [...over("first", weight(first, true)), ...over("demo", weight(demo, false))]
 }

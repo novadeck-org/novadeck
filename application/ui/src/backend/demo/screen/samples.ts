@@ -93,7 +93,6 @@ export const testsBlock = (directory: string, beats: number): Block => {
   if (beats === 0)
     return lines(
       typed("pnpm test --watch"),
-      gap,
       [
         span(" DEV ", "reverse", "bold", "blue"),
         span(" v5.0.1 "),

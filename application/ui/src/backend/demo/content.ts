@@ -172,10 +172,12 @@ export const contentDemo = (
     },
     start: (sink) => {
       reset = sink.dispatch
+      const stopTerminals = backend.start?.(sink)
       const stop = showcase.start(sink.dispatch, current)
       return () => {
         if (reset === sink.dispatch) reset = undefined
         stop()
+        stopTerminals?.()
       }
     },
     // A window's name goes back to what it shows, a terminal's to its default.

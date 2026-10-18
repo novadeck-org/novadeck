@@ -1,21 +1,13 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  editLine,
-  emptyLine,
-  restoreLine,
-  typeIntoLine,
-  withReturnedWords,
-  type Line,
-  type LineMode,
-} from "./line-editor"
+import { editLine, emptyLine, restoreLine, withReturnedWords, type Line } from "./line-editor"
 
 // The line after the keys, each chunk as the emulator sends one.
-const keys = (chunks: readonly string[], from: Line = emptyLine(), mode?: LineMode) => {
+const keys = (chunks: readonly string[], from: Line = emptyLine()) => {
   let line = from
   const events = []
   for (const chunk of chunks) {
-    const read = editLine(line, chunk, mode)
+    const read = editLine(line, chunk)
     line = read.line
     events.push(...read.events)
   }
@@ -187,26 +179,6 @@ describe("a demo terminal's command line", () => {
     ]
     expect(keys(["ab", ...replies, "c"]).line.draft).toBe("abc")
     expect(keys([`ab${replies.join("")}c`]).line.draft).toBe("abc")
-  })
-
-  it("takes no keys while locked", () => {
-    const line = keys(["draft"]).line
-    for (const chunk of ["x", "\r", "\x1b", "\x03", up])
-      expect(editLine(line, chunk, "locked")).toEqual({ line, events: [] })
-  })
-
-  it("starts again on Enter once ended, keeping what was typed", () => {
-    const { line, events } = keys(["ls", "\r"], emptyLine(), "ended")
-    expect(events).toEqual([{ type: "restart" }])
-    expect(line.draft).toBe("ls")
-    expect(keys(["\r"], emptyLine(), "ended").events).toEqual([{ type: "restart" }])
-  })
-
-  it("types dictation in at the cursor, as one line", () => {
-    const line = keys(["send  please", left, left, left, left, left, left, left]).line
-    expect(shown(typeIntoLine(line, "it"))).toBe("send it| please")
-    expect(typeIntoLine(emptyLine(), "one\ntwo").draft).toBe("one two")
-    expect(typeIntoLine(line, "")).toBe(line)
   })
 
   it("puts a line it couldn't take back in front of what was typed since", () => {

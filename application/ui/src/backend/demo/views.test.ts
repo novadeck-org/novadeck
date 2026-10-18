@@ -8,8 +8,8 @@ import type { TerminalMetadata, Workspace } from "#core/types"
 import { context, describe, expect, it } from "../../test"
 import type { BackendConnectionState, TerminalKey } from "../port"
 import { createDemoEngine } from "./engine"
+import type { DemoScreenState } from "./runtime"
 import { demoSeed, demoTerminalId } from "./samples"
-import type { DemoScreen } from "./surface"
 import { demoViewOptions } from "./views"
 
 const session = { projectId: "storefront", workspaceSessionId: "initial" }
@@ -44,10 +44,10 @@ const workspaceWith = (change: Partial<TerminalMetadata> = {}): Workspace => {
 const open = (change?: Partial<TerminalMetadata>) => {
   const engine = createDemoEngine()
   engine.reconcile(workspaceWith(change), [])
-  const screens = createStore<ReadonlyMap<string, DemoScreen>>(new Map())
+  const screens = createStore<ReadonlyMap<string, DemoScreenState>>(new Map())
   const fails = new Set<string>()
   const restarted: TerminalKey[] = []
-  const { options } = demoViewOptions(engine, {
+  const { options, start, stop } = demoViewOptions(engine, {
     runtime: {
       connection: createStore<BackendConnectionState>("connected"),
       screens,
@@ -59,7 +59,7 @@ const open = (change?: Partial<TerminalMetadata>) => {
     void screens.update(() =>
       on ? new Map([[terminalKeyId(shell), { attaching: true as const }]]) : new Map(),
     )
-  return { engine, options, attaching, fails, restarted }
+  return { engine, options, attaching, fails, restarted, start, stop, screens }
 }
 
 // The stream's events, one at a time.
@@ -193,6 +193,29 @@ describe("the demo's terminal views", () => {
       expect(
         options.paste.notice({ kind: "file", type: "image/png", tooLarge: true, error: undefined }),
       ).toBe("Couldn't paste the image: it's over 32 MB")
+    })
+  })
+
+  context("once its backend stops, as a reboot leaves it", () => {
+    it("ends its streams and reads its terminals as closed, so the views let them go", async () => {
+      const { options, stop, screens } = open()
+      const next = reader(await options.attach(shell))
+      await next()
+      stop()
+      expect(await ends(next)).toBe(true)
+      expect(options.lifecycle(shell)).toBeUndefined()
+      await expect(options.attach(shell)).rejects.toThrow()
+      // No longer listening for what the debug layer says its screens do.
+      expect(() => screens.update(() => new Map())).not.toThrow()
+    })
+
+    it("lets a wait for a starting shell go, and runs again once started again", async () => {
+      const { options, stop, start } = open({ state: "starting" } as Partial<TerminalMetadata>)
+      const waiting = options.attach(shell)
+      stop()
+      await expect(waiting).rejects.toThrow()
+      start()
+      expect(options.lifecycle(shell)).toBeDefined()
     })
   })
 

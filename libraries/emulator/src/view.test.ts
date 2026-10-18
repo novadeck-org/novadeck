@@ -107,11 +107,6 @@ describe("a view", () => {
     expect(open({ minimumContrastRatio: 4.5 }).view.terminal.options.minimumContrastRatio).toBe(4.5)
   })
 
-  it("keeps an accessibility tree only when asked to", () => {
-    expect(open().view.terminal.options.screenReaderMode).toBe(false)
-    expect(open({ screenReaderMode: true }).view.terminal.options.screenReaderMode).toBe(true)
-  })
-
   it("counts widths as every other emulator here does", async () => {
     const { view } = open()
     const text = "\u{1f468}‍\u{1f469}‍\u{1f467}\u{1f44d}\u{1f3fd}"

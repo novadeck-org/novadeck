@@ -44,6 +44,7 @@ const bootTimeoutMs = 30_000
 // on a CPU four times slower than the machine's: the website gives up waiting at 15 s.
 export const bootBudgetMs = 8000
 const throttle = 4
+const samples = 3
 
 const schemes = ["light", "dark"] as const
 
@@ -161,8 +162,8 @@ const capture = async (
   await context.close()
 }
 
-// How long the demo takes to boot on a slower CPU, failing above `bootBudgetMs`.
-const timeBoot = async (browser: Browser, origin: string): Promise<void> => {
+// How long one boot of the demo takes on a slower CPU.
+const bootOnce = async (browser: Browser, origin: string): Promise<number> => {
   const context = await browser.newContext({ viewport })
   try {
     const page = await context.newPage()
@@ -170,13 +171,25 @@ const timeBoot = async (browser: Browser, origin: string): Promise<void> => {
     await cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle })
     const started = performance.now()
     await boot(page, origin)
-    const took = Math.round(performance.now() - started)
-    console.log(`boot at ${throttle}x CPU: ${took} ms (budget ${bootBudgetMs} ms)`)
-    if (took > bootBudgetMs)
-      throw new Error(`The demo booted in ${took} ms, over its ${bootBudgetMs} ms budget`)
+    return Math.round(performance.now() - started)
   } finally {
     await context.close()
   }
+}
+
+// The median of `samples` boots, one after another, so one slow run fails nothing; above
+// `bootBudgetMs` it fails.
+const timeBoot = async (browser: Browser, origin: string): Promise<void> => {
+  const took: number[] = []
+  for (let run = 0; run < samples; run += 1)
+    // eslint-disable-next-line no-await-in-loop -- Timed alone, one at a time.
+    took.push(await bootOnce(browser, origin))
+  const median = took.toSorted((a, b) => a - b)[Math.floor(samples / 2)]!
+  console.log(
+    `boot at ${throttle}x CPU: median ${median} ms of ${took.join(", ")} (budget ${bootBudgetMs} ms)`,
+  )
+  if (median > bootBudgetMs)
+    throw new Error(`The demo booted in ${median} ms, over its ${bootBudgetMs} ms budget`)
 }
 
 export const main = async (directory = "dist-try"): Promise<void> => {

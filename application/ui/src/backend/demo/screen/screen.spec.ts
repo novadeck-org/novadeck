@@ -46,6 +46,10 @@ const contents = (screen: Terminal) => {
   }
 }
 
+// What bytes print, their control sequences aside.
+// oxlint-disable-next-line no-control-regex -- A control sequence starts with ESC.
+const printed = (bytes: string): string => bytes.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "")
+
 const words =
   (text: string): Block =>
   (width) =>
@@ -276,6 +280,20 @@ describe("a demo screen's bytes", () => {
     ).resolves.toBeUndefined()
   })
 
+  it("lets a tail as tall as the screen go without leaving a blank row", async () => {
+    const size = { cols: 20, rows: 3 }
+    const full: TailOf = () => ({
+      lines: [[span("one")], [span("two")], [span("❯ x")]],
+      cursor: { row: 2, column: 3 },
+    })
+    await expect(
+      steps(size, createDemoScreen(size, { transcript: [words("hello")], tail: full }), [
+        (demo) => demo.tail(none),
+        (demo) => demo.append(words("next")),
+      ]),
+    ).resolves.toBeUndefined()
+  })
+
   it("keeps a block that draws nothing at this width, for a width it draws at", async () => {
     const wide: Block = (width) => (width >= 30 ? [[span("wide only")]] : [])
     const size = { cols: 20, rows: 10 }
@@ -324,6 +342,12 @@ describe("a demo screen's bytes", () => {
     const bytes = demo.tail(prompt("l", ["✻ Working… (esc to interrupt)"]))
     expect(bytes).not.toContain("Working")
     expect(bytes).not.toContain("\x1b[J")
+    // A key typed writes the key alone, and a key deleted writes no text at all.
+    const typed = demo.tail(prompt("ls", ["✻ Working… (esc to interrupt)"]))
+    expect(printed(typed)).toBe("s")
+    const deleted = demo.tail(prompt("l", ["✻ Working… (esc to interrupt)"]))
+    expect(printed(deleted)).toBe("")
+    expect(deleted).toContain("\x1b[K")
     await expect(
       steps(size, createDemoScreen(size, { transcript: story.map(words), tail: prompt("") }), [
         (screen) => screen.tail(prompt("l", ["one"])),

@@ -182,7 +182,9 @@ const open = async (
     await Promise.resolve()
     return settle()
   }
-  return { engine, screen, terminal, settle, type, workspace }
+  // What the screen has sent since it was last written, without writing it.
+  const pending = (): string => queued.join("")
+  return { engine, screen, terminal, settle, type, pending, workspace }
 }
 
 // The agent's status on a terminal in the workspace, as the panel or a turn sets it.
@@ -224,6 +226,15 @@ describe("a demo terminal's screen", () => {
       expect(await type("\r")).toMatch(/❯ pwd\n[^\n]+\n\n\S+ ⎇ main\n❯$/)
     })
 
+    it("draws no prompt under a program running in front, and takes no command", async () => {
+      const { terminal, type, engine } = await open(slot(2), { agents: false })
+      expect(text(terminal)).toContain("ready in")
+      expect(text(terminal)).not.toContain("⎇")
+      await type("ls")
+      await type("\r")
+      expect(engine.getSnapshot(slot(2)).entries).toEqual([])
+    })
+
     it("draws everything again at a new width", async () => {
       const { screen, terminal, settle } = await open(slot(1), { cols: 60, agents: false })
       terminal.resize(30, 40)
@@ -241,16 +252,16 @@ describe("a demo terminal's screen", () => {
       const blocks = createStore([first])
       const { settle } = await open(slot(2), { intro: blocks })
       blocks.update(() => [first, second])
-      expect(await settle()).toMatch(/^pnpm dev\nhmr update\n/)
+      expect(await settle()).toMatch(/^pnpm dev\nhmr update$/)
       blocks.update(() => [second])
-      expect(await settle()).toMatch(/^hmr update\n/)
+      expect(await settle()).toMatch(/^hmr update$/)
     })
 
     it("keeps a fixed one as it is", async () => {
       const { terminal } = await open(slot(2), {
         intro: fixedIntro([(width) => wrap([span("~/projects/studio · codex")], width)]),
       })
-      expect(text(terminal)).toMatch(/^~\/projects\/studio · codex\n/)
+      expect(text(terminal)).toMatch(/^~\/projects\/studio · codex$/)
     })
   })
 
@@ -392,6 +403,21 @@ describe("a demo terminal's screen", () => {
       })
       await second.type("1")
       expect(await second.type("\r")).toContain("This request isn't ready to answer yet.")
+    })
+
+    it("says a refusal again when the same line is refused twice, so it's heard again", async () => {
+      const { link } = agentLink(conversationOf({ requests: [permission] }))
+      const { type, pending, screen } = await open(slot(1), {
+        link,
+        change: withAgent(slot(1), working),
+      })
+      await type("9")
+      expect(await type("\r")).toContain("No option 9.")
+      // The refused line stays, so Enter again refuses it again.
+      screen.input("\r")
+      await Promise.resolve()
+      // oxlint-disable-next-line no-control-regex -- Styles start with ESC.
+      expect(pending().replace(/\x1b\[[0-9;]*m/g, "")).toContain("No option 9.")
     })
 
     it("sends a line as a prompt past a form it can't answer", async () => {

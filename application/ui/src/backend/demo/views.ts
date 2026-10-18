@@ -1,10 +1,6 @@
 import type { Renderers } from "@novadeck/emulator/browser"
 import type { AttachStream, TerminalEvent } from "@novadeck/terminal"
-import {
-  createTerminalViews,
-  type PasteFailure,
-  type TerminalViewOptions,
-} from "@novadeck/terminal/view"
+import { createTerminalViews, type TerminalViewOptions } from "@novadeck/terminal/view"
 
 import { terminalKeyId } from "#core/registry"
 import { createStore, type Store } from "#core/store"
@@ -13,16 +9,17 @@ import type { TerminalMetadata } from "#core/types"
 import type { BackendConnectionState, TerminalKey, ThemeSource } from "../port"
 import { openEmulator } from "../terminal-views/emulator"
 import { createTerminalMount, screenMarkup } from "../terminal-views/mount"
+import { pasteNotice } from "../terminal-views/paste-notice"
 import { pageRenderers } from "../terminal-views/renderers"
 import { noTheme, terminalTheme } from "../terminal-views/theme"
 import type { DemoAgentLink } from "./agent-link"
 import type { DemoEngine } from "./engine"
+import type { DemoTerminalRuntime } from "./runtime"
 import {
   createDemoTerminalScreen,
   type DemoIntro,
   type DemoTerminalScreen,
 } from "./screen/terminal"
-import type { DemoSurfaceRuntime } from "./surface"
 
 // The demo's terminals, drawn as the runner's are: real terminals, through the same views and
 // mount, each fed by a screen the demo writes as terminal output (see screen/terminal.ts).
@@ -35,22 +32,13 @@ export type DemoTerminalSetup = {
   readonly introOf?: (terminal: TerminalMetadata, key: TerminalKey) => DemoIntro | undefined
   // The debug layer's: what its terminals read of the connection, how they restart, and what
   // their screens are doing.
-  readonly runtime?: DemoSurfaceRuntime
+  readonly runtime?: DemoTerminalRuntime
 }
 
 // The size a screen is written at until the views fit it: a terminal's usual one.
 const opening = { cols: 80, rows: 24 }
 // The most a pasted file may be, as the runner takes them.
 const maxUploadBytes = 32 * 1024 * 1024
-
-// What a failed paste tells the person, in the runner's words.
-const pasteNotice = (failure: PasteFailure): string => {
-  if (failure.kind === "clipboard") return "Novadeck can't read the clipboard"
-  const pasted = failure.type.startsWith("image/") ? "image" : "file"
-  return failure.tooLarge
-    ? `Couldn't paste the ${pasted}: it's over ${maxUploadBytes / 1024 / 1024} MB`
-    : `Couldn't paste the ${pasted}`
-}
 
 const always = createStore<BackendConnectionState>("connected")
 
@@ -106,9 +94,13 @@ export const demoViewOptions = (
   // What the debug layer says a screen is doing: its output still on the way.
   const attaching = (key: TerminalKey): boolean =>
     runtime?.screens.getSnapshot().get(terminalKeyId(key))?.attaching === true
-  runtime?.screens.subscribe(() => {
+  const endAttaching = (): void => {
     for (const { key, end } of streams.values()) if (attaching(key)) end()
-  })
+  }
+  // While the backend runs: stopped, as a reboot or the app going leaves it, its terminals
+  // read as closed, so the views let their screens go, and its own screens and waits go too.
+  let running = true
+  let stopAttaching = runtime?.screens.subscribe(endAttaching)
 
   // A stream of the terminal's screen: the whole of it, then each change, until closed. Its
   // keys and sizes go back to the screen.
@@ -180,40 +172,48 @@ export const demoViewOptions = (
   // Resolves once it can be shown, or its terminal is gone: one wait for each terminal while
   // it lasts, as the views ask on every key and every second.
   const waits = new Map<string, Promise<boolean>>()
+  const waiting = new Set<() => void>()
   const shown = (key: TerminalKey): Promise<boolean> => {
     if (showable(key) || !engine.has(key)) return Promise.resolve(engine.has(key))
     const id = terminalKeyId(key)
     const known = waits.get(id)
     if (known) return known
-    const waiting = new Promise<boolean>((resolve) => {
-      const check = (): void => {
-        if (!showable(key) && engine.has(key)) return
+    const wait = new Promise<boolean>((resolve) => {
+      const end = (shows: boolean): void => {
         stopEngine()
         stopScreens?.()
         waits.delete(id)
-        resolve(engine.has(key))
+        waiting.delete(stop)
+        resolve(shows)
       }
+      const check = (): void => {
+        if (!showable(key) && engine.has(key)) return
+        end(engine.has(key))
+      }
+      const stop = (): void => end(false)
       const stopEngine = engine.subscribe(key, check)
       const stopScreens = runtime?.screens.subscribe(check)
+      waiting.add(stop)
     })
-    waits.set(id, waiting)
-    return waiting
+    waits.set(id, wait)
+    return wait
   }
 
   const options: TerminalViewOptions<TerminalKey> = {
     keyOf: terminalKeyId,
-    emulator: openEmulator({ renderers, screenReaderMode: true }),
+    emulator: openEmulator({ renderers, screenReader: true }),
     theme: terminalTheme(theme),
     store: createStore,
-    markup: screenMarkup,
+    // As far in from the window's edge as the demo's output always sat.
+    markup: { ...screenMarkup, hostClass: `${screenMarkup.hostClass} p-3` },
     attach: async (key) => {
-      if (!(await shown(key))) throw new Error("The terminal closed")
+      if (!running || !(await shown(key))) throw new Error("The terminal closed")
       return streamOf(key, screenOf(key))
     },
     // A stream ends only for a screen held back a while, so the views attach again once it
     // can be shown.
     lifecycle: (key) =>
-      engine.has(key)
+      running && engine.has(key)
         ? {
             ready: shown(key),
             get revived() {
@@ -242,12 +242,27 @@ export const demoViewOptions = (
           : Promise.resolve(`/tmp/novadeck-paste/${file.name}`),
       maxBytes: maxUploadBytes,
       trustedClipboard: false,
-      notice: pasteNotice,
+      // The browser pastes on Ctrl+V, as the line editor takes a paste as typed text.
+      ctrlV: "browser",
+      notice: pasteNotice(maxUploadBytes),
     },
   }
 
   return {
     options,
+    start: (): void => {
+      running = true
+      stopAttaching ??= runtime?.screens.subscribe(endAttaching)
+    },
+    stop: (): void => {
+      running = false
+      stopAttaching?.()
+      stopAttaching = undefined
+      ;[...waiting].forEach((stop) => stop())
+      ;[...streams.values()].forEach(({ end }) => end())
+      screens.forEach((screen) => screen.dispose())
+      screens.clear()
+    },
     // Links the terminals' screens to the agents' conversations, as `withConversations` does.
     link: (next: DemoAgentLink): void => {
       link = next
@@ -257,13 +272,15 @@ export const demoViewOptions = (
 }
 
 export const createDemoTerminals = (engine: DemoEngine, setup: DemoTerminalSetup = {}) => {
-  const { options, link } = demoViewOptions(engine, setup)
+  const { options, link, start, stop } = demoViewOptions(engine, setup)
   const views = createTerminalViews(options)
   return {
     mountTerminal: createTerminalMount(views),
     setFont: views.setFont,
     typeInto: views.typeInto,
     link,
+    start,
+    stop,
   }
 }
 

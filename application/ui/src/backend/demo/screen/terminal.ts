@@ -1,5 +1,6 @@
 import type { ChatDialog, ChatItem, ChatRequest, Conversation } from "#core/conversation"
 import type { Store } from "#core/store"
+import type { TerminalMetadata } from "#core/types"
 
 import type { TerminalKey } from "../../port"
 import { readLine, shownRequest } from "../agent-input"
@@ -33,6 +34,12 @@ type QuestionAnswers = Parameters<typeof readLine>[2]
 
 // A dialog by what an answer names it with; a raw one has no id and is never answered.
 const dialogId = (dialog: ChatDialog | null): string => (dialog && "id" in dialog ? dialog.id : "")
+
+// The shells a terminal waits at the prompt of; anything else in front, as a dev server or
+// tests watching, runs on and takes no command.
+const shells = new Set(["zsh", "bash", "sh", "fish", "pwsh", "nu"])
+const runsProgram = (terminal: TerminalMetadata): boolean =>
+  !chatAgent(terminal) && !demoAgent(terminal) && !shells.has(terminal.process)
 
 export type DemoTerminalScreen = {
   // The whole screen at its size, as a stream opens with, and that size.
@@ -80,6 +87,8 @@ export const createDemoTerminalScreen = ({
     | { readonly text: string; readonly request: string | undefined; readonly n: number }
     | undefined
   let notes = 0
+  // The note last drawn, by its count.
+  let heard = 0
   let write: ((data: string) => void) | undefined
   let reading: ReturnType<typeof setTimeout> | undefined
   let watched: { store: Store<Conversation>; stop: () => void } | undefined
@@ -173,6 +182,9 @@ export const createDemoTerminalScreen = ({
     const terminal = engine.terminal(key)
     const { line } = engine.getSnapshot(key)
     const agent = terminal && (chatAgent(terminal) ?? demoAgent(terminal))
+    // A program running in front draws no prompt under its output.
+    if (terminal && runsProgram(terminal))
+      return () => ({ lines: [], cursor: { row: 0, column: 0 } })
     if (!terminal || !agent) return shellTail({ project: engine.projectName(key), ...line })
     const status = terminal.state === "running" ? terminal.agent : undefined
     const { request, requests } = asked()
@@ -187,6 +199,7 @@ export const createDemoTerminalScreen = ({
       status: statusLines(agent, status, request !== undefined && !request.answered),
       draft: line.draft,
       cursor: line.cursor,
+      noteAgain: noted !== undefined && noted.n !== heard,
     })
   }
 
@@ -210,6 +223,7 @@ export const createDemoTerminalScreen = ({
     const signature = tailSignature(nextTail)
     if (signature !== drawnTail) emit(screen.tail(nextTail))
     drawnTail = signature
+    heard = noted?.n ?? heard
     const next = transcript()
     const grows = next.length >= blocks.length && blocks.every((block, at) => next[at] === block)
     const added = next.slice(blocks.length)
@@ -288,6 +302,9 @@ export const createDemoTerminalScreen = ({
       drawnTail = tailSignature(tail())
     },
     input: (data) => {
+      // A program running in front reads nothing the demo would show.
+      const terminal = engine.terminal(key)
+      if (terminal && runsProgram(terminal)) return
       const { line, events } = editLine(engine.getSnapshot(key).line, data)
       // Each event reads the line as it stands, so a submit's cleared draft comes first.
       engine.setLine(key, line)

@@ -70,6 +70,8 @@ export default mergeConfig(
           extends: true,
           // Let concurrent runs pick free ports; the app dev server keeps its strict one.
           server: { strictPort: false },
+          // Nearly every spec opens the demo's terminals, the emulator among them.
+          optimizeDeps: { include: optimizedUpFront },
           test: {
             name: "behaviour",
             // The specs, and the browser checks of modules that need a real one, as WebGL does.
@@ -153,7 +155,7 @@ export default mergeConfig(
         {
           extends: true,
           server: { strictPort: false },
-          // Its specs open the demo's terminals, the emulator among them, as the counter run does.
+          // Its specs open the demo's terminals, the emulator among them, as the behaviour specs do.
           optimizeDeps: { include: optimizedUpFront },
           test: {
             name: "motion",

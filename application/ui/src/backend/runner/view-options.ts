@@ -10,6 +10,7 @@ import { createStore } from "#core/store"
 import type { TerminalKey, ThemeSource } from "../port"
 import { openEmulator } from "../terminal-views/emulator"
 import { screenMarkup } from "../terminal-views/mount"
+import { pasteNotice as sharedNotice } from "../terminal-views/paste-notice"
 import { pageRenderers } from "../terminal-views/renderers"
 import { terminalTheme } from "../terminal-views/theme"
 import { exitStatus, restartable } from "./activity"
@@ -42,15 +43,15 @@ const waitsForEnter = (exit: Exit): boolean => {
   return status !== "clean" && restartable(status)
 }
 
-// What a failed paste tells the person: that the clipboard could not be read, or which
-// file could not be saved, and why when it was too large.
-export const pasteNotice = (failure: PasteFailure): string => {
-  if (failure.kind === "clipboard") return "Novadeck can't read the clipboard"
-  const pasted = failure.type.startsWith("image/") ? "image" : "file"
-  return failure.tooLarge || hasCode(failure.error, "UPLOAD_TOO_LARGE")
-    ? `Couldn't paste the ${pasted}: it's over ${maxUploadBytes / 1024 / 1024} MB`
-    : `Couldn't paste the ${pasted}`
-}
+// What a failed paste tells the person, in the app's words: a file the runner found too large
+// is too large too.
+const words = sharedNotice(maxUploadBytes)
+export const pasteNotice = (failure: PasteFailure): string =>
+  words(
+    failure.kind === "file" && hasCode(failure.error, "UPLOAD_TOO_LARGE")
+      ? { ...failure, tooLarge: true }
+      : failure,
+  )
 
 // The runner backend's terminal views: its runtime, the emulator drawn with the page's
 // WebGL pool and theme, and the app's words and policies.

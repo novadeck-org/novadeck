@@ -42,7 +42,12 @@ const banner =
     const where: Line = [span(directory, "muted")]
     const widest = Math.max(">_ Codex".length, directory.length)
     return [
-      ...box(Math.min(width, widest + 4), (inner) => [...wrap(name, inner), ...wrap(where, inner)]),
+      // Drawn dim, as Codex draws it.
+      ...box(
+        Math.min(width, widest + 4),
+        (inner) => [...wrap(name, inner), ...wrap(where, inner)],
+        "muted",
+      ),
       gap,
     ]
   }

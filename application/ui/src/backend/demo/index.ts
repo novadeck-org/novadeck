@@ -146,6 +146,16 @@ export const demoBackend = (
   return backend
 }
 
+// Starts and stops the terminals of a backend `demoBackend` made, however wrapped: stopped,
+// they let their screens, timers and subscriptions go, as a reboot of the debug layer's demo
+// leaves them. Nothing for any other backend.
+export const demoTerminalsLife = (
+  backend: Backend,
+): { readonly start: () => void; readonly stop: () => void } | undefined => {
+  const terminals = "mountTerminal" in backend ? terminalsOf.get(backend.mountTerminal) : undefined
+  return terminals && { start: terminals.start, stop: terminals.stop }
+}
+
 // A window's name handed back: the name of what it shows, as a runner gives it. Nothing
 // for an id the workspace holds no window by.
 export const windowReset = (
@@ -241,7 +251,9 @@ export const withMessages = (backend: Backend, now: number): Backend => {
     },
     start: (next) => {
       sink = next
+      const stop = backend.start?.(next)
       return () => {
+        stop?.()
         if (sink === next) sink = undefined
       }
     },

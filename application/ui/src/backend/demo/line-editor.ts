@@ -3,8 +3,9 @@ import { withWords } from "./agent-input"
 // The command line of a demo terminal drawn as terminal output: what the emulator sends
 // for the person's keys, read as the line a shell's readline keeps. Pure, so the terminal
 // only routes what comes of it. It follows the form it replaces: Enter submits a line with
-// something in it, a locked terminal takes no keys, an ended one starts again on Enter, and
-// Escape is left to the terminal, which interrupts a working agent.
+// something in it, and Escape is left to the terminal, which interrupts a working agent. A
+// locked or ended terminal is the views' to hold: their emulator sends no keys while locked,
+// and takes Enter itself once ended.
 
 export type Line = {
   readonly draft: string
@@ -17,15 +18,9 @@ export type Line = {
   readonly stashed: string
 }
 
-// Whether the line takes keys: as usual, not at all (the far side away, a shell starting),
-// or only to start again (its shell ended).
-export type LineMode = "open" | "locked" | "ended"
-
 export type LineEvent =
   // A line with something in it; the draft is cleared and the line kept in the history.
   | { readonly type: "submit"; readonly line: string }
-  // Enter in an ended terminal.
-  | { readonly type: "restart" }
   // A lone Escape, which the emulator sends as a chunk of its own.
   | { readonly type: "escape" }
 
@@ -184,9 +179,7 @@ const keyed = (line: Line, parameters: string, final: string): Line => {
 export const editLine = (
   start: Line,
   data: string,
-  mode: LineMode = "open",
 ): { readonly line: Line; readonly events: readonly LineEvent[] } => {
-  if (mode === "locked") return { line: start, events: [] }
   if (data === "\x1b") return { line: start, events: [{ type: "escape" }] }
   let line = start
   const events: LineEvent[] = []
@@ -219,8 +212,7 @@ export const editLine = (
       case "\n":
         // A line break as CR LF is one Enter.
         if (key === "\r" && rest[1] === "\n") at += 1
-        if (mode === "ended") events.push({ type: "restart" })
-        else if (draft.trim()) {
+        if (draft.trim()) {
           events.push({ type: "submit", line: draft })
           line = submitted(line)
         }
@@ -270,9 +262,6 @@ export const editLine = (
   }
   return { line, events }
 }
-
-// Text typed in at the cursor, as dictation types, as one line.
-export const typeIntoLine = (line: Line, text: string): Line => insert(line, asText(text))
 
 // A submitted line the terminal couldn't take, put back in front of what was typed since.
 export const restoreLine = (line: Line, text: string): Line => ({

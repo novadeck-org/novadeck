@@ -153,4 +153,24 @@ describe("the visitor build's budgets", () => {
       ),
     ).toEqual([])
   })
+
+  it("counts what the first chunks' styles weigh, and the fonts they name, in the first load", () => {
+    const font = { type: "asset", fileName: "assets/mono.woff2", source: new Uint8Array(5000) }
+    const styled = (fontSize: number) => ({
+      ...built(visitorBudgets.first - 10_000, 0),
+      "index.js": chunk("x".repeat(visitorBudgets.first - 10_000), {
+        isEntry: true,
+        imports: ["shared.js"],
+        viteMetadata: { importedCss: new Set(["assets/index.css"]) },
+      }),
+      "assets/index.css": {
+        type: "asset",
+        fileName: "assets/index.css",
+        source: "@font-face{src:url(./mono.woff2)}",
+      },
+      "assets/mono.woff2": { ...font, source: new Uint8Array(fontSize) },
+    })
+    expect(budgetViolations("try", styled(5_000), weigh)).toEqual([])
+    expect(budgetViolations("try", styled(20_000), weigh)).toHaveLength(1)
+  })
 })

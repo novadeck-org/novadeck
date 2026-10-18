@@ -11,6 +11,7 @@ import type {
   ThemeSource,
 } from "../../port"
 import { isDemoInbox } from "../inbox"
+import { demoTerminalsLife } from "../index"
 import { isDemoMurmur } from "../murmur"
 import { demoTurns } from "../turns"
 import { createDemo, type DemoVariant } from "../variants"
@@ -116,6 +117,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     },
     turns,
   )
+  const demoTerminals = demoTerminalsLife(inner)
   const total = Math.max(
     1,
     inner.seed.projects.reduce(
@@ -175,6 +177,8 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     },
     start: (next) => {
       sink = next
+      // Its terminals go with it, so a reboot leaves none of the old demo's behind.
+      demoTerminals?.start()
       const stopInner = inner.start?.(next)
       if (launch.variant === "welcome") states.openWelcome()
       // The terminals attach one after another until all are.
@@ -189,6 +193,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
         clearInterval(ticker)
         clearTimeout(outage)
         stopInner?.()
+        demoTerminals?.stop()
         if (sink === next) sink = undefined
       }
     },

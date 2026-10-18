@@ -923,15 +923,20 @@ at its own pixel density (1280 × 640 and 2560 × 1280 pixels) rather than scale
 matches the visitor's color scheme and screen until the live demo is ready, so it always
 pictures the deployed demo; the posters exist only in `dist-try`. Quality's "Build (try)"
 captures them too. Run workflow can deploy only releases made since the posters. The
-poster run first boots the demo alone on a CPU four times slower and fails above 8 seconds
-from the address to Claude Code's terminal drawn (the website gives up at 15), and the build
-fails over its budgets: what the page loads first, 380 kB gzipped, and the demo with its
-terminal emulator, which loads with the connection, 190 kB (`src/bundle-boundary.ts`).
+poster run first boots the demo alone three times on a CPU four times slower and fails when
+the median is above 8 seconds from the address to Claude Code's terminal drawn (about 2 s
+now, as main's; the website gives up at 15). The build fails over its budgets
+(`src/bundle-boundary.ts`): what the page loads first, its scripts and styles gzipped and
+the fonts they name, 1,150 kB, and the demo with its terminal emulator, which loads with the
+connection, 190 kB.
 
 The hero's terminals are real terminal cells, as the desktop app draws them: the theme's
-ANSI palette, boxes in box-drawing characters, text wrapped at the column count. Their
-emulator keeps a screen reader's tree (`screenReaderMode`), which speaks what a terminal
-writes; its rows are what specs and the posters read.
+ANSI palette, boxes in box-drawing characters, text wrapped at the column count. Where xterm
+draws with the DOM (Canvas, and browsers without hardware WebGL 2) its box sides show a gap
+between rows. A program running in front, as the dev server, draws no prompt under its
+output. The terminal in focus keeps a screen reader's tree and live region
+(`screenReaderMode`), and only that one, so the terminals that go on printing out of focus
+don't talk over it; a key typed writes the key alone, which it takes as the key's echo.
 
 Setting it up takes a Cloudflare Pages project named `novadeck-try`, made in the dashboard
 (Workers & Pages, Create, Pages, Upload assets) with production branch `main`: wrangler's
@@ -1096,8 +1101,9 @@ libraries stay in their adapters: XYFlow in `layouts/canvas/`, React Grid Layout
 in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
 `ui-toolkit/`, React Router in `app/` and `shell/`, and React DOM in
 `layouts/transition.ts`, `entries/start.tsx`, and `test/`, and the runner client and
-the emulator's view in `backend/runner/` and `backend/terminal-views/`, which both adapters
-draw their terminals with and which imports only the core, the port and libraries; no
+the emulator's view in `backend/runner/`, the demo's terminals (`backend/demo/views.ts`,
+`backend/demo/screen/`) and `backend/terminal-views/`, which both adapters draw their
+terminals with and which imports only the core, the port and libraries; no
 backend reads `theme/`, as the entries hand it the page's theme. Other packages are denied
 unless the test lists them: React and Lucide are allowed everywhere, while
 backend adapters and test code may use any package. `test/` may import

@@ -158,8 +158,8 @@ export const describeBackendContract = (name: string, options: BackendContractOp
   // Only an adapter with `start` reports on its own, and it must bring a driver to test it.
   const probed = options.create().backend
   const starts = Boolean(probed.start)
-  // How it draws a terminal: into an element it is given, or as a component. Until the demo
-  // mounts too, each shape has its own checks.
+  // How it draws a terminal: into an element it is given, or as a component. Both backends
+  // mount now; the component's checks go with that shape in 3.2c.
   const mounts = "mountTerminal" in probed
   const surfaces = "TerminalSurface" in probed
 
