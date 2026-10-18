@@ -54,8 +54,8 @@ describe("kindOf", () => {
     expect(kindOf(at("/x/node_modules/@orpc/client/dist/index.mjs"))).toBe("transport")
     expect(kindOf(at("/r/libraries/wire/dist/client.js"))).toBe("transport")
     expect(kindOf(at("/r/libraries/wire/src/channel.ts"))).toBe("transport")
-    expect(kindOf(at("/r/application/runner-client/src/index.ts"))).toBe("transport")
-    expect(kindOf(at("/r/application/protocol/dist/text.js"))).toBeUndefined()
+    expect(kindOf(at("/r/contract/runner-client/src/index.ts"))).toBe("transport")
+    expect(kindOf(at("/r/contract/protocol/dist/text.js"))).toBeUndefined()
     expect(kindOf(at("/r/libraries/terminal/src/view/follow.ts"))).toBe("transport")
   })
 })
@@ -81,8 +81,8 @@ describe("groupOf", () => {
     expect(groupOf(at("/r/node_modules/.pnpm/zod@4.6.5/node_modules/zod/v4/core/util.js"))).toBe(
       "packages",
     )
-    expect(groupOf(at("/r/application/runner-client/dist/runner.js"))).toBe("protocol")
-    expect(groupOf(at("/r/application/protocol/dist/schemas.js"))).toBe("protocol")
+    expect(groupOf(at("/r/contract/runner-client/dist/runner.js"))).toBe("protocol")
+    expect(groupOf(at("/r/contract/protocol/dist/schemas.js"))).toBe("protocol")
     expect(groupOf(at("/r/libraries/wire/src/client.ts"))).toBe("protocol")
     expect(groupOf(at("/r/application/ui/src/App.tsx"))).toBe("app")
     expect(groupOf(undefined)).toBe("unmapped")

@@ -103,7 +103,7 @@ const returning = (anchors: Anchors, files: string[], tables: Table[]): void => 
   }
 }
 
-const schemasFile = "application/protocol/src/schemas.ts"
+const schemasFile = "contract/protocol/src/schemas.ts"
 
 const typeName = (schema: z.core.JSONSchema.JSONSchema): string => {
   if (schema.enum) return schema.enum.map((each) => JSON.stringify(each)).join(" | ")
@@ -157,12 +157,12 @@ const localIn = (anchors: Anchors, files: string[]): LocalKey[] =>
 
 // The runner's SQLite tables, the settings it keeps, and the UI's browser storage.
 export const extractData = async (repo: string, anchors: Anchors): Promise<Data> => {
-  const runnerFiles = sourceFiles(repo, "application/runner/src")
+  const runnerFiles = sourceFiles(repo, "backend/runner/src")
   const tables = runnerFiles.flatMap((file) => tablesIn(file, anchors.read(file) ?? ""))
   usage(anchors, runnerFiles, tables)
   returning(anchors, runnerFiles, tables)
   if (tables.length === 0)
-    anchors.report("data tables", "application/runner/src", "found 0 `CREATE TABLE` statements")
+    anchors.report("data tables", "backend/runner/src", "found 0 `CREATE TABLE` statements")
   return {
     tables,
     settings: await settingsIn(anchors),

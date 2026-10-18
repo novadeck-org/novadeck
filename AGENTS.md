@@ -44,7 +44,7 @@ window phase, a backend field it never sets — add it in the same change:
 Before changing, reviewing or explaining a part of the code, run
 `pnpm -s atlas:brief <subject>` for a short brief of it: an area token such as
 `runner/terminals`, a procedure, a UI action or a table (no subject: the index). Name
-areas by those tokens when you report or plan. See [atlas/AGENTS.md](atlas/AGENTS.md).
+areas by those tokens when you report or plan. See [tools/atlas/AGENTS.md](tools/atlas/AGENTS.md).
 
 <!-- BEGIN:turborepo-agent-rules -->
 

@@ -2,7 +2,7 @@
   "harness": "claude",
   "version": "2.1.287",
   "source": "captured",
-  "how": "e2e sandbox (application/runner/src/e2e/probes/claude-ask-*.e2e.ts): real Claude Code TUI in a Novadeck terminal against the fake model, a probe-only hook registered for every event in the sandbox's user settings that logs payloads and can wait for a reply file; screens are the runner's headless render at 120x40 (and 60x20 where noted); sandbox paths, ids and times normalised",
+  "how": "e2e sandbox (backend/runner/src/e2e/probes/claude-ask-*.e2e.ts): real Claude Code TUI in a Novadeck terminal against the fake model, a probe-only hook registered for every event in the sandbox's user settings that logs payloads and can wait for a reply file; screens are the runner's headless render at 120x40 (and 60x20 where noted); sandbox paths, ids and times normalised",
   "scenarios": {
     "ask-long": {
       "what": "ask-long",

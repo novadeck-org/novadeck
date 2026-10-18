@@ -2,7 +2,7 @@
 // gathers the facts (the event, turbo's affected packages, git's changed files).
 
 // The table's source, which imports nothing, so the plan needs no package built first.
-import { harnesses } from "../../../application/protocol/src/harnesses.ts"
+import { harnesses } from "../../../contract/protocol/src/harnesses.ts"
 
 /** The facts a decision rests on; `undefined` where they couldn't be had. */
 export type Facts = {
@@ -35,7 +35,7 @@ const sharedFiles = new Set([
 ])
 export const sharedFolders = [
   ".github/actions/e2e-harness-cache/",
-  "application/runner/",
+  "backend/runner/",
   // The terminal library, with node-pty's patch: the suite's pty. The emulator's patches
   // belong to its package, which reaches the suite as an affected package like any other.
   "libraries/terminal/",
@@ -72,8 +72,8 @@ export const browserOnlyFiles = [
 ]
 export const allSystemsFolders = [
   ".github/actions/e2e-harness-cache/",
-  "application/relay/",
-  "application/runner/",
+  "backend/relay/",
+  "backend/runner/",
   "harnesses/",
   "libraries/emulator/",
   "libraries/sandbox/",

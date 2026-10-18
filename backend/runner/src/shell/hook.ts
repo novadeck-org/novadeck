@@ -6,7 +6,7 @@ import { agentName } from "@novadeck/protocol"
 import { harnesses } from "../harnesses/registry.js"
 
 /**
- * An agent hook, as the runner takes it from Novadeck's relay (see application/relay).
+ * An agent hook, as the runner takes it from Novadeck's relay (see backend/relay).
  * A connected agent's Novadeck plugin runs the hook launcher, which starts the relay; the
  * relay sends what the hook knows, unread: the event its agent reported, the agent's
  * payload as it came, when the hook started, the processes it runs under and when each

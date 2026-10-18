@@ -11,7 +11,6 @@ type Manifest = { readonly [kind: string]: unknown }
 const manifests = (): readonly (readonly [string, Manifest])[] =>
   [
     ".",
-    "atlas",
     ...[
       "application",
       "apps",
