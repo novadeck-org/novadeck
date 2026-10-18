@@ -7,6 +7,8 @@
 //   "copy"          answers with the first example of the kind asked for, whatever it is asked
 //   "overflow"      answers 400 exceed_context_size_error, as the real server does for a request too big
 //   "hang"          never answers a completion
+//   "seen"          appends a line to the model's file name + ".seen" as each completion arrives,
+//                   before anything else it does, so a test can wait for a request to be under way
 //   "truncate"      answers 200 with a body cut off in the middle, as an engine that crashed while writing
 //   "garbage"       answers with something that isn't the JSON asked for
 //   "device"        puts the device it runs on in its title
@@ -84,6 +86,7 @@ const server = createServer(async (request, response) => {
   }
   const asked = await body(request)
   const mode = current()
+  if (mode.includes("seen")) appendFileSync(`${argument("-m")}.seen`, "\n")
   if (mode.includes("crash")) {
     console.error("GGML_ASSERT: out of memory")
     process.exit(3)
