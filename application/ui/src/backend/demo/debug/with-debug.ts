@@ -1,7 +1,3 @@
-import type { SandboxState } from "#core/sandbox"
-import { createStore, type MutableStore } from "#core/store"
-import type { Workspace } from "#core/types"
-
 import type {
   Backend,
   BackendConnectionState,
@@ -9,7 +5,11 @@ import type {
   BootProgress,
   TerminalKey,
   ThemeSource,
-} from "../../port"
+} from "#core/port"
+import type { SandboxState } from "#core/sandbox"
+import { createStore, type MutableStore } from "#core/store"
+import type { Workspace } from "#core/types"
+
 import { isDemoInbox } from "../inbox"
 import { demoTerminalsLife } from "../index"
 import { isDemoMurmur } from "../murmur"

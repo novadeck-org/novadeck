@@ -1,6 +1,5 @@
+import type { Backend, TerminalRequest } from "#core/port"
 import type { WorkspaceStore } from "#core/store"
-
-import type { Backend, TerminalRequest } from "../../backend/port"
 
 // Starts the backend's inbound events and returns the matching stop. The sink goes
 // quiet before the adapter's own stop runs, so late events from a stopped start

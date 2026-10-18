@@ -1,9 +1,9 @@
 import { nearestInDirection } from "#core/layout/spatial"
+import type { TerminalKey } from "#core/port"
 import { hasTile, isWindow, orderedTiles, tilesOf } from "#core/roster"
 import { viewModes } from "#core/state"
 import type { SidebarPanel, Tile } from "#core/types"
 
-import type { TerminalKey } from "../../backend/port"
 import {
   arrowDirections,
   type Arrow,

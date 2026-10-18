@@ -1,4 +1,5 @@
-import type { Backend } from "../port"
+import type { Backend } from "#core/port"
+
 import { contentDemo } from "./content"
 import { plainDemo, type PlainVariant } from "./index"
 import type { DemoTurns } from "./turns"

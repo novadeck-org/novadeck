@@ -7,6 +7,7 @@ import { afterAll, vi } from "vitest"
 
 import { companionKeyId, itemIdOf } from "#core/companion"
 import { messagesKey } from "#core/companion-bar"
+import type { BackendAction } from "#core/port"
 import { workspaceFromSeed } from "#core/seed"
 import {
   activeProject,
@@ -20,7 +21,6 @@ import type { Workspace, WorkspaceTarget } from "#core/types"
 
 import { context, describe, expect, it } from "../../test"
 import { workspaceFixture } from "../../test/fixtures"
-import type { BackendAction } from "../port"
 import { noTheme } from "../terminal-views/theme"
 import {
   runnerBackend,

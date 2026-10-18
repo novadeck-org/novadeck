@@ -1,6 +1,5 @@
+import type { TerminalKey } from "#core/port"
 import type { TerminalMetadata, Workspace } from "#core/types"
-
-import type { TerminalKey } from "../port"
 
 // The terminal as the workspace last held it.
 export const terminalOf = (

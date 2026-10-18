@@ -10,9 +10,9 @@ import { memoryPorts } from "@novadeck/wire/testing"
 import { implement, ORPCError } from "@orpc/server"
 import { RPCHandler } from "@orpc/server/message-port"
 
+import type { ThemeSource } from "#core/port"
 import type { CanvasLayout } from "#core/types"
 
-import type { ThemeSource } from "../port"
 import { connectRunnerBackend } from "./index"
 import { channel, id, keptSummary, savedSession } from "./scripted"
 import { encodeSession } from "./session-state"

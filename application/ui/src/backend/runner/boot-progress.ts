@@ -1,6 +1,5 @@
+import type { BootProgress, TerminalKey } from "#core/port"
 import { createStore, type Store } from "#core/store"
-
-import type { BootProgress, TerminalKey } from "../port"
 
 // What boot progress needs to know of a terminal.
 export type BootEntry = {

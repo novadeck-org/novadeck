@@ -3,12 +3,12 @@ import { WireError } from "@novadeck/wire"
 import type { WireStatus } from "@novadeck/wire/client"
 import { vi } from "vitest"
 
+import type { BackendAction } from "#core/port"
 import { workspaceFromSeed } from "#core/seed"
 import { activeSession, createTerminalState } from "#core/state"
 import { createWorkspaceStore } from "#core/store"
 
 import { describe, expect, it } from "../../test"
-import type { BackendAction } from "../port"
 import { noTheme } from "../terminal-views/theme"
 import { runnerBackend, type RunnerApi } from "./backend"
 import { keptSummary, noCompanions } from "./scripted"

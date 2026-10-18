@@ -2,11 +2,11 @@ import type { Renderers } from "@novadeck/emulator/browser"
 import type { AttachStream, TerminalEvent } from "@novadeck/terminal"
 import { createTerminalViews, type TerminalViewOptions } from "@novadeck/terminal/view"
 
+import type { BackendConnectionState, TerminalKey, ThemeSource } from "#core/port"
 import { terminalKeyId } from "#core/registry"
 import { createStore, type Store } from "#core/store"
 import type { TerminalMetadata } from "#core/types"
 
-import type { BackendConnectionState, TerminalKey, ThemeSource } from "../port"
 import { openEmulator } from "../terminal-views/emulator"
 import { createTerminalMount, screenMarkup } from "../terminal-views/mount"
 import { pasteNotice } from "../terminal-views/paste-notice"

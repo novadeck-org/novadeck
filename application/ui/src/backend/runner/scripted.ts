@@ -2,11 +2,11 @@ import type { TerminalSummary } from "@novadeck/protocol"
 import type { CompanionWatchItem, Runner, TerminalWatchItem } from "@novadeck/protocol/client"
 import type { WireStatus } from "@novadeck/wire/client"
 
+import type { BackendAction } from "#core/port"
 import { workspaceFromSeed } from "#core/seed"
 import { createTerminalState, workspaceReducer, type WorkspaceAction } from "#core/state"
 import type { CanvasLayout, Workspace } from "#core/types"
 
-import type { BackendAction } from "../port"
 import { noTheme } from "../terminal-views/theme"
 import { runnerBackend, type RunnerApi } from "./backend"
 import { startingTerminal, type ListedCompanions, type RunnerListing } from "./seed"

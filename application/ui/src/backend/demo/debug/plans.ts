@@ -1,4 +1,5 @@
-import type { Backend } from "../../port"
+import type { Backend } from "#core/port"
+
 import { isShowcase, type PlanFault } from "../showcase/simulation"
 import type { DemoActionGroup } from "./types"
 

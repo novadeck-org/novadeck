@@ -2,10 +2,10 @@ import type { AttachedTerminal } from "@novadeck/protocol/client"
 import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
+import type { BackendConnectionState } from "#core/port"
 import { createStore } from "#core/store"
 
 import { describe, expect, it } from "../../test"
-import type { BackendConnectionState } from "../port"
 import { noTheme } from "../terminal-views/theme"
 import type { SurfaceRuntime } from "./backend"
 import { pasteNotice, viewOptions } from "./view-options"

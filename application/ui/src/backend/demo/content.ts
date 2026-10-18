@@ -1,5 +1,6 @@
 import { companionKeyId } from "#core/companion"
 import { gridColumns } from "#core/layout/grid-placement"
+import type { Backend, BackendSink, TerminalKey } from "#core/port"
 import { viewOf } from "#core/seed"
 import { createTerminalState } from "#core/state"
 import type {
@@ -11,7 +12,6 @@ import type {
   Workspace,
 } from "#core/types"
 
-import type { Backend, BackendSink, TerminalKey } from "../port"
 import { createDemoEngine } from "./engine"
 import { demoBackend, windowReset, withConversations } from "./index"
 import { createDemoMessages, studioMailbox } from "./messages"

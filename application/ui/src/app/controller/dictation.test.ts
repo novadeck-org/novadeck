@@ -1,10 +1,10 @@
 import { vi } from "vitest"
 
+import type { TerminalKey } from "#core/port"
 import { createWorkspaceStore } from "#core/store"
 import { createStore } from "#core/store"
 import type { TerminalMetadata } from "#core/types"
 
-import type { TerminalKey } from "../../backend/port"
 import { chatDraftOf, setChatDraft } from "../../terminals/chat/mode-state"
 import { describe, expect, it } from "../../test"
 import { workspaceFixture } from "../../test/fixtures"

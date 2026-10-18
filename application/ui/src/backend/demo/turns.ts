@@ -1,9 +1,9 @@
+import type { BackendAction, BackendSink, TerminalKey } from "#core/port"
 import { isAgentProgram } from "#core/process"
 import { terminalKeyId } from "#core/registry"
 import { createTelemetryStore, dropTerminal, setUsage } from "#core/telemetry"
 import type { AgentStatus, AgentTurnEnd, TerminalMetadata } from "#core/types"
 
-import type { BackendAction, BackendSink, TerminalKey } from "../port"
 import type { DemoAgentVerbs } from "./agent-link"
 import { chatAgent } from "./samples"
 

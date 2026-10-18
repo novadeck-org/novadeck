@@ -1,6 +1,6 @@
+import type { Backend } from "#core/port"
 import type { UninstallPlan, UninstallResult } from "#core/uninstall"
 
-import type { Backend } from "../../port"
 import type { DemoActionGroup } from "./types"
 import type { DemoLaunch } from "./with-debug"
 

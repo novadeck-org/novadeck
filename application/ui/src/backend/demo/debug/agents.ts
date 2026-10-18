@@ -1,6 +1,6 @@
+import type { AgentConnection } from "#core/port"
 import { createStore } from "#core/store"
 
-import type { AgentConnection } from "../../port"
 import type { DemoStates } from "./types"
 
 // How long connecting takes, so the switch shows its busy state.

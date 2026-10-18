@@ -1,7 +1,7 @@
+import type { BackendConnection, ConnectBackend, ThemeSource } from "#core/port"
 import { clearPortableCardRaised } from "#core/portable-card-raised"
 import type { SandboxState } from "#core/sandbox"
 
-import type { BackendConnection, ConnectBackend, ThemeSource } from "../../port"
 import { keepVariant, rememberVariant, requestedVariant } from "../variants"
 import { bootFailures } from "./boot-failures"
 import type { BootRehearsals } from "./boot-rehearsal"

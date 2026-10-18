@@ -11,9 +11,9 @@ import {
   type ItemId,
   type PlanVersion,
 } from "#core/companion"
+import type { BackendAction } from "#core/port"
 import type { WorkspaceTarget } from "#core/types"
 
-import type { BackendAction } from "../../port"
 import type { SampleAgent } from "./agents"
 import type { SampleArtifact } from "./artifacts"
 import { applyEdits, removeNotes } from "./revise"
