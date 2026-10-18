@@ -13,6 +13,7 @@ import {
   rm,
   rmdir,
 } from "node:fs/promises"
+import { createRequire } from "node:module"
 import { homedir } from "node:os"
 import { basename, dirname, join, win32 } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -185,12 +186,15 @@ const waitFor = async (origin: string, attempts = 100): Promise<void> => {
   return waitFor(origin, attempts - 1)
 }
 
-/** The relay agents start for Novadeck's MCP server and hooks: shipped beside the UI, or built. */
+/**
+ * The relay agents start for Novadeck's MCP server and hooks: shipped beside the UI, or built
+ * in the relay's package, which the host's dependency on it finds wherever its folder is.
+ */
 const relayPath = (): string => {
   const name = process.platform === "win32" ? "novadeck-relay.exe" : "novadeck-relay"
-  return app.isPackaged
-    ? join(process.resourcesPath, "relay", name)
-    : join(app.getAppPath(), "..", "relay", "dist", name)
+  if (app.isPackaged) return join(process.resourcesPath, "relay", name)
+  const relay = createRequire(join(app.getAppPath(), "package.json")).resolve("@novadeck/relay")
+  return join(dirname(relay), "dist", name)
 }
 
 /**
