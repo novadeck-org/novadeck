@@ -4,6 +4,7 @@ import { page, type Locator } from "vitest/browser"
 import { preferencesDialog } from "./support/keyboard"
 import {
   commandInput,
+  draftOf,
   expectStaysAbsent,
   expectTypingIn,
   openWorkspace,
@@ -63,7 +64,7 @@ describe("the update progress bar", () => {
       await expect.element(typing()).toHaveFocus()
       expect(bar()?.contains(document.activeElement) ?? false).toBe(false)
       await press("echo hi")
-      await expect.element(typing()).toHaveValue("echo hi")
+      await expect.poll(() => draftOf("Dev server")).toBe("echo hi")
       await expectTypingIn("Dev server")
     })
 

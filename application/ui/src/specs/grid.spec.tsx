@@ -14,18 +14,20 @@ import {
 } from "./support/layouts"
 import {
   chooseView,
+  clickInto,
   commandInput,
+  draftOf,
   enterNavigateMode,
   expectSelected,
   expectStaysAbsent,
   focusStage,
+  labelled,
+  nameOf,
   openWorkspace,
   press,
   terminal,
   terminalTab,
   view,
-  nameOf,
-  labelled,
 } from "./support/workspace"
 
 const resizeButton = (label: "Make full width" | "Restore width", name: string) =>
@@ -283,15 +285,15 @@ describe("Grid arrow keys", () => {
   context(`when pressing ${jump("Right").label} while typing in a terminal`, () => {
     it("selects the tile on that side and keeps typing there", async () => {
       await openGrid()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
       await expectSelected("Checkout implementation")
 
       await press(jump("Right").keys)
       await expectSelected("Dev server")
       await expect.element(commandInput("Dev server")).toHaveFocus()
       await press("ls")
-      await expect.element(commandInput("Dev server")).toHaveValue("ls")
-      await expect.element(commandInput("Checkout implementation")).toHaveValue("")
+      await expect.poll(() => draftOf("Dev server")).toBe("ls")
+      await expect.poll(() => draftOf("Checkout implementation")).toBe("")
 
       await press(jump("Down").keys)
       await expectSelected("Runtime")
@@ -300,12 +302,12 @@ describe("Grid arrow keys", () => {
 
     it("stays put at the edge without typing anything", async () => {
       await openGrid()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
 
       await press(jump("Left").keys)
       await expectSelected("Checkout implementation")
       await expect.element(commandInput("Checkout implementation")).toHaveFocus()
-      await expect.element(commandInput("Checkout implementation")).toHaveValue("")
+      await expect.poll(() => draftOf("Checkout implementation")).toBe("")
     })
   })
 

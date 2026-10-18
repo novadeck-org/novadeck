@@ -13,17 +13,20 @@ import {
 import { confirmClose } from "./support/terminals"
 import {
   chooseView,
-  commandInput,
+  draftOf,
   expectSelected,
   expectStaysAbsent,
+  labelled,
   openWorkspace,
   reloadWorkspace,
   sidebar,
   sidebarPanel,
   terminal,
+  terminalsShow,
   terminalTab,
+  terminalText,
+  typeInto,
   view,
-  labelled,
 } from "./support/workspace"
 
 // A demo terminal by its project and number, as its ID is made.
@@ -44,8 +47,8 @@ describe("deep links", () => {
       await expect.element(view("Canvas")).toBeChecked()
       await expectSelected("Dev server")
       await expect
-        .element(terminal("Checkout implementation").getByText("~/projects/api-service"))
-        .toBeInTheDocument()
+        .poll(() => terminalText("Checkout implementation"))
+        .toContain("~/projects/api-service")
     })
 
     it("opens the Sessions sidebar when the link names it", async () => {
@@ -165,7 +168,7 @@ describe("browser history", () => {
   context("when going Back and Forward through terminal and view changes", () => {
     it("restores each step without discarding drafts", async () => {
       await openWorkspace(home)
-      await commandInput("Checkout implementation").fill("unfinished")
+      await typeInto("Checkout implementation", "unfinished")
       await terminalTab("Runtime").click()
       await expect.element(terminal("Runtime")).toBeVisible()
       await chooseView("Grid")
@@ -176,7 +179,7 @@ describe("browser history", () => {
 
       history.back()
       await expect.element(terminal("Checkout implementation")).toBeVisible()
-      await expect.element(commandInput("Checkout implementation")).toHaveValue("unfinished")
+      await expect.poll(() => draftOf("Checkout implementation")).toBe("unfinished")
 
       history.forward()
       await expect.element(terminal("Runtime")).toBeVisible()
@@ -189,16 +192,16 @@ describe("browser history", () => {
   context("when going Back from a new session", () => {
     it("returns to the previous session with its output and drafts", async () => {
       await openWorkspace(home)
-      await run(commandInput("Checkout implementation"), "echo kept output")
-      await commandInput("Checkout implementation").fill("kept draft")
+      await run("Checkout implementation", "echo kept output")
+      await typeInto("Checkout implementation", "kept draft")
       await pressNewSession()
       await expect.element(emptyWorkspace()).toBeVisible()
 
       history.back()
 
       await expect.element(terminal("Checkout implementation")).toBeVisible()
-      await expect.element(page.getByText("kept output", { exact: true })).toBeVisible()
-      await expect.element(commandInput("Checkout implementation")).toHaveValue("kept draft")
+      await expect.poll(() => terminalsShow("kept output")).toBe(true)
+      await expect.poll(() => draftOf("Checkout implementation")).toBe("kept draft")
 
       history.forward()
 
