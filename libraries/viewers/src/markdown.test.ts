@@ -1,7 +1,7 @@
 import "./markdown.css"
 import { undo } from "@codemirror/commands"
 import { EditorView } from "@codemirror/view"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { Viewer, ViewerState } from "./index.js"
 import { mountMarkdown, type ClassedRange, type MarkdownContent } from "./markdown.js"
@@ -210,6 +210,24 @@ describe("the markdown viewer", () => {
     const there = host.scrollTop
     viewer.jumpTo({ line: 1 })
     await expect.poll(() => host.scrollTop, { timeout: 4000 }).toBeLessThan(there / 2)
+  })
+
+  it("jumps smoothly where motion isn't reduced, landing on its line", async () => {
+    // The tests run with reduced motion, which jumps at once; a person who hasn't asked for
+    // it gets the smooth scroll and its correction once it ends.
+    const real = window.matchMedia.bind(window)
+    vi.stubGlobal("matchMedia", (query: string) =>
+      query.includes("prefers-reduced-motion") ? { matches: false, media: query } : real(query),
+    )
+    try {
+      const text = Array.from({ length: 120 }, (_, at) => `Line ${at + 1}`).join("\n\n")
+      const { viewer, host } = mount({ text })
+      await expect.poll(() => host.scrollHeight).toBeGreaterThan(host.clientHeight + 500)
+      viewer.jumpTo({ offset: text.indexOf("Line 100") })
+      await expect.poll(() => host.scrollTop).toBeGreaterThan(1000)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it("takes everything it added out of its element", () => {
