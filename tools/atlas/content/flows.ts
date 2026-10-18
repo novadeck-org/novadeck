@@ -3,10 +3,10 @@ import type { AnchorRef, Flow, FlowStep } from "../src/atlas.ts"
 type CuratedStep = Omit<FlowStep, "anchor" | "label"> & { label?: string; anchor: AnchorRef }
 
 const host = "application/host/src"
-const runnerSrc = "application/runner/src"
+const runnerSrc = "backend/runner/src"
 const hostSrc = "libraries/terminal/src/host"
 const ui = "application/ui/src"
-const relay = "application/relay/src"
+const relay = "backend/relay/src"
 
 // Paths written by hand from the code. `pnpm --filter @novadeck/atlas check` fails when an anchor stops resolving; the steps
 // themselves are not traced, so a flow can go stale while its anchors still resolve.
@@ -57,7 +57,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "request runner port",
         text: "The UI's desktop transport asks the host for a runner port, which the preload sends over IPC.",
         anchor: {
-          file: "application/runner-client/src/desktop.ts",
+          file: "contract/runner-client/src/desktop.ts",
           text: "host.requestRunner(id)",
         },
       },
@@ -129,7 +129,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "terminals.write",
         text: "The attachment sends the data in a terminals.write call.",
         anchor: {
-          file: "application/runner-client/src/runner.ts",
+          file: "contract/runner-client/src/runner.ts",
           text: "await link.client.terminals.write({ terminalId: id, data })",
         },
       },

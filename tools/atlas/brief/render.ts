@@ -47,7 +47,7 @@ export const renderIndex = (atlas: Atlas): string => {
     `# Novadeck atlas (${atlas.commit.slice(0, 7)})`,
     "",
     "Areas are named by tokens that mirror where the code lives: a package, then a segment per",
-    "folder (`runner/terminals` is application/runner/src/terminals). Use them when you talk",
+    "folder (`runner/terminals` is backend/runner/src/terminals). Use them when you talk",
     "about the code.",
     "",
     "Ask for a brief: `pnpm -s atlas:brief <subject>`. A subject is an area token, a procedure",
@@ -466,7 +466,7 @@ export const renderFlows = (atlas: Atlas): string =>
   [
     "# Flows: hand-written end-to-end paths",
     "",
-    "Written by hand in atlas/content/flows.ts; each step's anchor is checked to still exist in the code, but the steps are not traced by Atlas.",
+    "Written by hand in tools/atlas/content/flows.ts; each step's anchor is checked to still exist in the code, but the steps are not traced by Atlas.",
     "",
     ...atlas.flows.map((f) => `- \`${f.id}\` ${f.title}: ${clip(f.summary, 120)}`),
     "",

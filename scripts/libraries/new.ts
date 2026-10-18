@@ -29,7 +29,7 @@ const taken = [
       ? readdirSync(join(root, folder)).map((each) => join(root, folder, each, "package.json"))
       : [],
   )
-  .concat(join(root, "atlas/package.json"))
+  .concat(join(root, "tools/atlas/package.json"))
   .filter((file) => existsSync(file))
   .map((file) =>
     (JSON.parse(readFileSync(file, "utf8")) as { name: string }).name.split("/").at(-1)!,

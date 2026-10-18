@@ -20,7 +20,7 @@ export const ensureProtocol = (repo: string): void => {
   for (const [name, folder] of [
     ["@novadeck/wire", "libraries/wire"],
     ["@novadeck/terminal", "libraries/terminal"],
-    ["@novadeck/protocol", "application/protocol"],
+    ["@novadeck/protocol", "contract/protocol"],
   ] as const) {
     const root = join(repo, folder)
     const built = join(root, "dist/index.js")

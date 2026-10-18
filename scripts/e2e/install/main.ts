@@ -12,7 +12,7 @@ type Installer = {
 
 // The suite's own installer, so the cache holds exactly what the suite looks for. Loaded
 // by its address, so the scripts' typecheck stays out of the runner's sources.
-const installer = new URL("../../../application/runner/src/e2e/install.ts", import.meta.url)
+const installer = new URL("../../../backend/runner/src/e2e/install.ts", import.meta.url)
 
 /** The harnesses to install: those named, or every pinned one. */
 export const harnesses = (

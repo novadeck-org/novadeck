@@ -5,7 +5,7 @@ import type { Anchors } from "./anchors.ts"
 import { sourceFiles } from "./files.ts"
 import { findDefinition, routerFile, servicesOf, type Service } from "./runner-services.ts"
 
-const contractFile = "application/protocol/src/contract.ts"
+const contractFile = "contract/protocol/src/contract.ts"
 // The wire's sessions: the gate in front of every router procedure, and the handshake.
 const sessionsFile = "libraries/wire/src/sessions.ts"
 
@@ -193,11 +193,11 @@ export const extractApi = async (repo: string, anchors: Anchors): Promise<Api> =
   const source = anchors.read(contractFile) ?? ""
   const router = anchors.read(routerFile) ?? ""
   const routed = servicesOf(anchors, router)
-  const runnerFiles = sourceFiles(repo, "application/runner/src")
+  const runnerFiles = sourceFiles(repo, "backend/runner/src")
   // The runner client calls some procedures (write, resize, ack) for the UI.
   const callerFiles = [
     ...sourceFiles(repo, "application/ui/src"),
-    ...sourceFiles(repo, "application/runner-client/src"),
+    ...sourceFiles(repo, "contract/runner-client/src"),
   ]
 
   const apiErrors = extractErrors(anchors, source)

@@ -38,10 +38,10 @@ export const covered = [
 ]
 
 export const roots: Root[] = [
-  { token: "runner", dir: "application/runner", src: "src", node: "runner" },
-  { token: "protocol", dir: "application/protocol", node: "runner" },
-  { token: "runner-client", dir: "application/runner-client", node: "renderer" },
-  { token: "relay", dir: "application/relay", node: "relay" },
+  { token: "runner", dir: "backend/runner", src: "src", node: "runner" },
+  { token: "protocol", dir: "contract/protocol", node: "runner" },
+  { token: "runner-client", dir: "contract/runner-client", node: "renderer" },
+  { token: "relay", dir: "backend/relay", node: "relay" },
   { token: "harness/core", dir: "harnesses/core", node: "runner" },
   { token: "harness/claude", dir: "harnesses/claude", node: "runner" },
   { token: "harness/codex", dir: "harnesses/codex", node: "runner" },
@@ -59,7 +59,7 @@ export const roots: Root[] = [
   { token: "engine/murmur", dir: "engines/murmur", node: "murmur" },
 ]
 
-const runner = "application/runner/src"
+const runner = "backend/runner/src"
 const ui = "application/ui/src"
 
 export const notes: Record<string, Note> = {
@@ -165,15 +165,15 @@ export const notes: Record<string, Note> = {
   protocol: {
     purpose:
       "The contract between UI and runner: the oRPC procedures with Zod schemas and error codes, and the Electron bridge types. It never imports its client, which is a package of its own.",
-    entries: [{ file: "application/protocol/src/contract.ts", text: "export const contract" }],
+    entries: [{ file: "contract/protocol/src/contract.ts", text: "export const contract" }],
     docs: ["docs/backend-api.md"],
   },
   "runner-client": {
     purpose:
       "The connectRunner client UIs reach a runner with, over the wire library (libraries/wire), which holds the channels, transports and the wire's own error codes; the desktop app's transport to its bundled runner, and the error codes a client reports.",
     entries: [
-      { file: "application/runner-client/src/index.ts" },
-      { file: "application/runner-client/src/runner.ts", text: "export const connectRunner" },
+      { file: "contract/runner-client/src/index.ts" },
+      { file: "contract/runner-client/src/runner.ts", text: "export const connectRunner" },
     ],
     docs: ["docs/backend-api.md"],
   },
@@ -181,9 +181,9 @@ export const notes: Record<string, Note> = {
     purpose:
       "A small Rust binary agents start for Novadeck: it runs hooks and the status line by forwarding them to the runner and printing its answer, and carries the MCP server's JSON-RPC.",
     entries: [
-      { file: "application/relay/src/main.rs" },
-      { file: "application/relay/src/hook.rs" },
-      { file: "application/relay/src/mcp.rs", text: "pub fn run" },
+      { file: "backend/relay/src/main.rs" },
+      { file: "backend/relay/src/hook.rs" },
+      { file: "backend/relay/src/mcp.rs", text: "pub fn run" },
     ],
     docs: ["docs/agent-messaging.md"],
   },

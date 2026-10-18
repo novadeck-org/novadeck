@@ -18,7 +18,7 @@ pnpm -s atlas:brief table:terminals    # a table, its store methods and who reac
 pnpm -s atlas:brief state              # how UI state and calls are wired
 ```
 
-`node atlas/brief/main.ts <subject>` is the same without pnpm. A brief is short Markdown,
+`node tools/atlas/brief/main.ts <subject>` is the same without pnpm. A brief is short Markdown,
 read fresh from the source on every call (it builds `@novadeck/wire` and `@novadeck/protocol` first
 if they are missing or stale; the same goes for `extract` and `check`), with `file:line` anchors to open next.
 
@@ -30,7 +30,7 @@ if they are missing or stale; the same goes for `extract` and `check`), with `fi
 ## Area tokens
 
 Areas are named by tokens that mirror where the code lives: the package, then one
-segment per folder (`runner/terminals` is `application/runner/src/terminals`,
+segment per folder (`runner/terminals` is `backend/runner/src/terminals`,
 `ui/backend/runner` is `application/ui/src/backend/runner`). Use the tokens when you
 report, plan or describe changes, so people and agents name the same thing the same way.
 
@@ -46,7 +46,7 @@ says as a map, not a proof:
 - Error lists come from the handler and the router only; deeper helpers may raise more.
 - Before you act on an absence ("nothing writes this table"), check the source.
 
-The full data is `atlas/src/generated/atlas.json` after `pnpm --filter @novadeck/atlas
+The full data is `tools/atlas/src/generated/atlas.json` after `pnpm --filter @novadeck/atlas
 extract`, for `jq`; it is large, so prefer briefs.
 
 # Changing Atlas
@@ -71,5 +71,5 @@ extract`, for `jq`; it is large, so prefer briefs.
   `src/chrome.css`) rather than importing `@novadeck/ui`; copy again when those change.
 - Atlas has no build script and never ships. Checks: `pnpm --filter @novadeck/atlas check`,
   `typecheck` (it runs `extract` first, because `src/generated/atlas.json` is gitignored) and
-  `test`, plus the repository's `oxlint` and `oxfmt`. `atlas/turbo.json` turns off turbo's cache
+  `test`, plus the repository's `oxlint` and `oxfmt`. `tools/atlas/turbo.json` turns off turbo's cache
   for `test` and `typecheck`: they read the whole repository, which turbo does not hash.

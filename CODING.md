@@ -30,7 +30,7 @@ that needs a real browser to check, as WebGL does, gets a `*.spec.ts` beside it,
 which the UI's behaviour project lists by name. A `*.test.ts` that renders the whole
 workspace over the spec backend lives in `application/ui/src/specs/`, where the
 integration project runs it in jsdom. Name groups after what they test
-and cases after the behavior being checked. In `application/runner`, use
+and cases after the behavior being checked. In `backend/runner`, use
 top-level `describe` groups and direct `it` cases, without nested `describe` or
 `context` layers. Elsewhere, use `describe`, `context`, and `it` to show the
 situation and its observable result. Use fixtures for stable examples and mock

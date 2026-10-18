@@ -32,7 +32,7 @@ export type ShellPaths = ShellScriptPaths & {
   readonly hook: string
   /** The MCP server's launcher, which connected agents' plugins start. */
   readonly mcp: string
-  /** Novadeck's copy of the relay the launchers start (see application/relay). */
+  /** Novadeck's copy of the relay the launchers start (see backend/relay). */
   readonly relay: string
   /** What the runner tells the relay about the agents, which the hook launcher names. */
   readonly relayConfig: string
@@ -59,7 +59,7 @@ export const staleShellFiles = (directory: string): string[] => [
   join(directory, "mcp-idle.js"),
 ]
 
-// The launchers start Novadeck's relay (see application/relay), which carries an agent's
+// The launchers start Novadeck's relay (see backend/relay), which carries an agent's
 // hooks and MCP messages to the runner of the terminal it runs in, or, outside Novadeck's
 // terminals, answers itself: for the MCP server, the handshake with no tools. Its copy
 // lives here, beside them, so it stays when the app's own folder goes (an AppImage's
