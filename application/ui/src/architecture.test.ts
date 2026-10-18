@@ -434,6 +434,21 @@ describe("UI architecture", () => {
     expect(found).toEqual([])
   })
 
+  it("keeps the runner's own code free of React and the UI toolkit", () => {
+    // It draws terminals through the port's mount, into an element it is given; the chrome
+    // around them is the app's. This holds until the adapter rule covers every adapter.
+    const found = files
+      .filter((file) => file.startsWith("backend/runner/") && !isTest(file))
+      .flatMap((file) =>
+        imports(file).flatMap(({ specifier }) => {
+          const target = specifier.startsWith(".") ? resolveFile(file, specifier) : undefined
+          const react = !specifier.startsWith(".") && /^react(-dom)?(\/|$)/.test(specifier)
+          return react || target?.startsWith("ui-toolkit/") ? [`${file} -> ${specifier}`] : []
+        }),
+      )
+    expect(found).toEqual([])
+  })
+
   it("keeps the demo's debug panel and visitor build above its core", () => {
     // debug/ and visitor/ build on the demo's core; the core reaches neither, and the visitor
     // build never carries the debug panel. Tests too, as each folder becomes its own package.

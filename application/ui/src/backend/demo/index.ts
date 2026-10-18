@@ -1,4 +1,4 @@
-import { createElement, type ReactNode } from "react"
+import { createElement, type ComponentType, type ReactNode } from "react"
 
 import { emptyCompanions } from "#core/companion"
 import type { Conversations } from "#core/conversation"
@@ -14,6 +14,7 @@ import type {
   BackendSink,
   CreateBackend,
   TerminalKey,
+  TerminalSurfaceProps,
 } from "../port"
 import { DemoAgentContext, type DemoAgentLink } from "./agent-link"
 import { createDemoChat } from "./chat"
@@ -246,6 +247,12 @@ export const withMessages = (backend: Backend, now: number): Backend => {
   }
 }
 
+// The component the demo draws its terminals with, until 3.2d gives it the port's mount.
+export const surfaceOf = (backend: Backend): ComponentType<TerminalSurfaceProps> => {
+  if ("TerminalSurface" in backend) return backend.TerminalSurface
+  throw new Error("The demo draws its terminals as components")
+}
+
 // A backend with the conversations of its agents, as `transcripts` open them and `turns`
 // run what the person sends: the status of each turn goes through the sink it starts with.
 // Its terminals' screens read the conversations as the chat does (see `DemoAgentLink`);
@@ -264,8 +271,8 @@ export const withConversations = (
     opening: chat.opening,
   }
   // One component per backend, so its identity stays stable.
-  const Surface = backend.TerminalSurface
-  const TerminalSurface: Backend["TerminalSurface"] = (props) =>
+  const Surface = surfaceOf(backend)
+  const TerminalSurface: ComponentType<TerminalSurfaceProps> = (props) =>
     createElement(DemoAgentContext, { value: link }, createElement(Surface, props))
   return {
     ...backend,
