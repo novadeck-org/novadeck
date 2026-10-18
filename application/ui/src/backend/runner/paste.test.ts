@@ -426,9 +426,13 @@ describe("pasting into a runner terminal", () => {
       ])
       Object.defineProperty(navigator, "clipboard", { configurable: true, value: { read } })
       const page = terminal(() => Promise.reject(new Error("connection lost")))
+      // Silent, and told before the test ends: a log still on its way to the test runner as
+      // its worker closes fails the run.
+      const error = vi.spyOn(console, "error").mockImplementation(() => {})
       page.field.dispatchEvent(pasteEvent({}))
       await vi.waitFor(() => expect(page.pasted).toEqual([""]))
       expect(page.notices).toEqual(["Couldn't paste the image"])
+      expect(error).toHaveBeenCalledOnce()
     })
 
     it("says so when the page may not read the clipboard", async () => {
@@ -455,9 +459,11 @@ describe("pasting into a runner terminal", () => {
       const page = terminal()
       const huge = shot()
       Object.defineProperty(huge, "size", { value: 32 * 1024 * 1024 + 1 })
+      const error = vi.spyOn(console, "error").mockImplementation(() => {})
       page.field.dispatchEvent(pasteEvent({ items: [huge] }))
       await vi.waitFor(() => expect(page.notices).toHaveLength(1))
       expect(page.notices).toEqual(["Couldn't paste the image: it's over 32 MB"])
+      expect(error).toHaveBeenCalledOnce()
       expect(page.uploads).toEqual([])
       expect(page.pasted).toEqual([])
     })

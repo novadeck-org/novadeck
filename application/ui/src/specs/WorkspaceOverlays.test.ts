@@ -1,10 +1,10 @@
 import { act, createElement } from "react"
 import { beforeAll, vi } from "vitest"
 
-import { createSpecBackend } from "../backend/demo/spec-variants"
+import { App } from "../app/App"
 import { describe, expect, it } from "../test"
 import { render } from "../test/render"
-import { App } from "./App"
+import { createSpecBackend } from "./support/backend"
 
 // jsdom has no layout: answer every media query as unmatched (a phone without motion
 // preferences, which keeps the page off the desktop panel library) and observe no resizes.
@@ -32,8 +32,8 @@ const chunks = vi.hoisted(() => {
   return { arrived, release }
 })
 
-vi.mock("./deferred-views", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./deferred-views")>()
+vi.mock("../app/deferred-views", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../app/deferred-views")>()
   const { lazy } = await import("react")
   return {
     ...actual,

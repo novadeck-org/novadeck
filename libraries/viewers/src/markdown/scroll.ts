@@ -77,6 +77,11 @@ const scaleOf = (view: EditorView): number => {
   return tall ? view.dom.getBoundingClientRect().height / tall : 1
 }
 
+// Whether CodeMirror's lines are still measured at another zoom than the one showing, as
+// a pane scales in on a page too busy to draw the frame that measures it: its heights are
+// then the old zoom's, and a place worked out from them lands somewhere else.
+const behindOnZoom = (view: EditorView): boolean => Math.abs(view.scaleY - scaleOf(view)) > 0.01
+
 // Follows where the scroller is scrolled in the text, while it's on screen; returns the stop.
 export const followScroll = (view: EditorView, on: (scroll: Scroll) => void): (() => void) => {
   const scroller = scrollerOf(view.dom)
@@ -180,16 +185,22 @@ export const restoreScroll = (
       placed = scroller.scrollTop
     }
     frames += 1
-    const moving = go()
+    // Not worked out, nor counted as settled, until the editor has measured at this zoom.
+    const behind = behindOnZoom(view)
+    if (behind) view.requestMeasure()
+    const moving = !behind && go()
     const seen = layoutOf()
     const changed = seen !== layout
     layout = seen
-    if (moving || changed) {
+    if (moving || changed || behind) {
       moved = now
       still = 0
     } else still += 1
     const held = now - moved >= 150 && still >= 8
-    const late = (now - began >= 500 && frames >= 20) || now - began >= 3000
+    const late = (!behind && now - began >= 500 && frames >= 20) || now - began >= 3000
+    // Out of time with the editor still behind: the best place its measure gives, rather than
+    // the plan's top.
+    if (late && behind) go()
     if (!held && !late) frame = requestAnimationFrame(settle)
   }
   const resume = (): void => {

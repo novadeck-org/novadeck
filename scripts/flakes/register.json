@@ -7,8 +7,11 @@
       "test": "src/specs/companions.spec.tsx > Switching views > opens a plan's editor as it was left",
       "signature": "AssertionError: expected .+ to be ",
       "status": "fixed",
-      "cause": "The spec scrolled the pane to line 200 right after typing at the top of a restored one. Typing scrolls the caret into view in the editor's next measure, which on a slow frame came after the spec's scroll and put the pane back at the top, so its saved place was the first line. Reproduced by delaying animation frames by 120ms after the typing (3 of 10 runs). The spec now waits two frames after typing; scroll.ts and PlanEditor.tsx were right.",
-      "seen": ["#218 run 39027513580 job 117381311744 (macOS)"]
+      "cause": "Two causes, both fixed. First (#232), the spec: it scrolled the pane to line 200 right after typing at the top of a restored one, and typing scrolls the caret into view in the editor's next measure, which on a slow frame came after the spec's scroll and put the pane back at the top, so its saved place was the first line; the spec now waits two frames after typing. Second, the app: a plan restored in Canvas, which scales the pane in, aimed at its saved line from the live zoom while CodeMirror's line heights were still at its last measured scale, as a transform alone doesn't make it measure; on a busy page the restore settled on a wrong line (the Steps heading) before the editor measured again. The restore now asks for a measure and waits while the editor's scale lags the pane's (libraries/viewers markdown/scroll.ts).",
+      "seen": [
+        "#218 run 39027513580 job 117381311744 (macOS)",
+        "#263 flaky capture run 39087530964 job 117557134347 (macOS), after #232"
+      ]
     },
     {
       "id": "ui-companions-plan-restore-layout",
