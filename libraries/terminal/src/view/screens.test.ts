@@ -1,14 +1,21 @@
-import { createView, type Terminal as EmulatorTerminal } from "@novadeck/emulator/browser"
-import { createTerminalViews, parkMs, type Hold } from "@novadeck/terminal/view"
-import { vi } from "vitest"
+import type { Terminal } from "@novadeck/emulator/browser"
+import { describe, expect, it, vi } from "vitest"
 
-import type { BackendConnectionState, TerminalKey } from "#core/port"
-import { createStore } from "#core/store"
-
-import { describe, expect, it } from "../../test"
-import { noTheme } from "../terminal-views/theme"
-import type { SurfaceRuntime } from "./backend"
-import { retainMs, viewOptions } from "./view-options"
+import {
+  closeViews,
+  emulatorPrototype,
+  inputOf,
+  openedTerminals,
+  optionsOf,
+  retainMs,
+  running,
+  slot,
+  themed,
+  viewsOf,
+} from "./fakes.test-support.js"
+import type { ViewEvents } from "./follow.js"
+import { parkMs, type Hold } from "./screens.js"
+import { createStore, type ViewLink } from "./view-state.js"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
 vi.hoisted(() => {
@@ -31,96 +38,51 @@ vi.hoisted(() => {
   })
 })
 
-// The emulator's terminal class is not exported; the tests spy on its prototype.
-const emulatorPrototype = (): EmulatorTerminal => {
-  const view = createView(document.createElement("div"), {
-    fontSize: 13,
-    fontFamily: "monospace",
-    theme: {},
-    scrollback: 0,
-  })
-  const prototype = Object.getPrototypeOf(view.terminal) as EmulatorTerminal
-  view.dispose()
-  return prototype
-}
-
-const keyOf = (terminalId: string): TerminalKey => ({
-  projectId: "p",
-  workspaceSessionId: "s",
-  terminalId,
-})
-const options = { label: "Input for T", phase: "running", webgl: false } as const
-
-// Each test's screens close before its clock goes back to real time, while the file's DOM
-// is still there to take their listeners off: their terminals close, and the check that
-// notices runs.
-const closers: (() => void)[] = []
-const closeScreens = (): void => {
-  closers.splice(0).forEach((close) => close())
-  vi.advanceTimersByTime(retainMs)
-}
-
-// Screens capped at `cap` over a runtime whose shells are ready and whose streams never
-// draw, recording what the runtime is told and each attachment it is asked for.
+// Screens capped at `cap` over terminals whose shells are ready and whose streams never
+// draw, recording what the owner is told and each attachment it is asked for. Each test's
+// screens close before its clock goes back to real time, while the file's DOM is still there
+// to take their listeners off: their terminals close, and the check that notices runs.
 const capped = (cap: number) => {
   const told: string[] = []
   const attached: string[] = []
   const holds = new Map<string, Hold[]>()
   const elements = new Map<string, HTMLElement>()
-  let closed = false
-  const connection = createStore<BackendConnectionState>("connected")
-  const resized = vi.fn<SurfaceRuntime["resized"]>()
-  const runtime: SurfaceRuntime = {
-    entry: () => ({
-      ready: Promise.resolve(true),
-      revived: new Promise<void>(() => {}),
-      closed,
-      size: { cols: 80, rows: 24 },
+  const connection = createStore<ViewLink>("connected")
+  const resized = vi.fn<NonNullable<ViewEvents<string>["resized"]>>()
+  const screens = viewsOf(
+    optionsOf({
+      attach: (key) => {
+        attached.push(key)
+        return new Promise(() => {})
+      },
+      connection,
+      // The hosts are marked, so the test can give them a size.
+      markup: { hostClass: "screen" },
+      park: { afterMs: parkMs, keep: cap },
+      on: { resized, stage: (key, stage) => void told.push(`${key} ${stage}`) },
     }),
-    attach: (terminalId) => {
-      attached.push(String(terminalId))
-      return new Promise(() => {})
-    },
-    upload: () => new Promise(() => {}),
-    resized,
-    attached: () => () => {},
-    connected: async () => {},
-    lost: () => {},
-    restart: () => {},
-    exited: () => {},
-    connection,
-    track: (work) => work,
-    screen: ({ terminalId }, state) => void told.push(`${terminalId} ${state}`),
-    shown: () => false,
-  }
-  const screens = createTerminalViews(viewOptions(runtime, { theme: noTheme, cap }))
+  )
   // The element a terminal's screen is placed in, as a mount's is.
-  const elementOf = (terminalId: string): HTMLElement => {
-    let element = elements.get(terminalId)
+  const elementOf = (id: string): HTMLElement => {
+    let element = elements.get(id)
     if (!element) {
-      element = document.createElement("div")
-      document.body.append(element)
-      elements.set(terminalId, element)
+      element = slot()
+      elements.set(id, element)
     }
     return element
   }
   // Shown in an element, as a mount does.
-  const show = (terminalId: string) => {
-    const hold = screens.acquire(keyOf(terminalId), options)
-    holds.set(terminalId, [...(holds.get(terminalId) ?? []), hold])
-    hold.place(elementOf(terminalId))
+  const show = (id: string) => {
+    const hold = screens.acquire(id, running)
+    holds.set(id, [...(holds.get(id) ?? []), hold])
+    hold.place(elementOf(id))
     return hold
   }
-  const hide = (terminalId: string) => holds.get(terminalId)?.pop()?.release()
-  closers.push(() => {
-    closed = true
-    for (const [terminalId, held] of holds) while (held.length > 0) hide(terminalId)
-    elements.forEach((element) => element.remove())
-  })
+  const hide = (id: string) => holds.get(id)?.pop()?.release()
   // The screen the terminal's element holds, while it is open.
-  const hostOf = (terminalId: string) => elementOf(terminalId).firstElementChild
-  const present = (terminalId: string) => hostOf(terminalId)?.isConnected === true
-  return { screens, told, attached, show, hide, present, hostOf, connection, resized }
+  const hostOf = (id: string) => elementOf(id).firstElementChild
+  const present = (id: string) => hostOf(id)?.isConnected === true
+  return { screens, told, attached, show, hide, present, hostOf, elementOf, connection, resized }
 }
 
 describe("the cap on parked screens", () => {
@@ -140,7 +102,7 @@ describe("the cap on parked screens", () => {
       expect(present("b")).toBe(true)
       expect(present("c")).toBe(true)
     } finally {
-      closeScreens()
+      closeViews()
       vi.useRealTimers()
     }
   })
@@ -164,7 +126,7 @@ describe("the cap on parked screens", () => {
       vi.advanceTimersByTime(1)
       expect(told.filter((entry) => entry.endsWith("gone"))).toEqual(["a gone", "b gone"])
     } finally {
-      closeScreens()
+      closeViews()
       vi.useRealTimers()
     }
   })
@@ -187,7 +149,7 @@ describe("the cap on parked screens", () => {
       vi.advanceTimersByTime(parkMs)
       expect(told.filter((entry) => entry.endsWith("gone"))).toEqual(["b gone"])
     } finally {
-      closeScreens()
+      closeViews()
       vi.useRealTimers()
     }
   })
@@ -212,7 +174,7 @@ describe("the cap on parked screens", () => {
       expect(told.filter((entry) => entry === "a mounted")).toHaveLength(2)
       expect(attached.filter((id) => id === "a").length).toBeGreaterThan(before)
     } finally {
-      closeScreens()
+      closeViews()
       vi.useRealTimers()
     }
   })
@@ -229,7 +191,7 @@ describe("the cap on parked screens", () => {
       vi.advanceTimersByTime(retainMs + 60_000)
       expect(told.filter((entry) => entry === "a gone")).toHaveLength(1)
     } finally {
-      closeScreens()
+      closeViews()
       vi.useRealTimers()
     }
   })
@@ -253,7 +215,7 @@ describe("a mount's hold on a screen", () => {
       vi.advanceTimersByTime(parkMs)
       expect(told).toContain("a gone")
     } finally {
-      closeScreens()
+      closeViews()
       vi.useRealTimers()
     }
   })
@@ -261,7 +223,7 @@ describe("a mount's hold on a screen", () => {
   it("tells the state of its screen, locked until the runner is reachable", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
-      const { show, connection } = capped(2)
+      const { show, elementOf, connection } = capped(2)
       const hold = show("a")
       expect(hold.state.getSnapshot().lock).toBe("loading")
       const woken = vi.fn<() => void>()
@@ -272,11 +234,9 @@ describe("a mount's hold on a screen", () => {
       expect(hold.state.getSnapshot().lock).toBe("offline")
       expect(woken).toHaveBeenCalledTimes(2)
       // Input is refused where the person can see it.
-      expect(document.querySelector("[data-terminal-input]")?.getAttribute("aria-disabled")).toBe(
-        "true",
-      )
+      expect(inputOf(elementOf("a")).getAttribute("aria-disabled")).toBe("true")
     } finally {
-      closeScreens()
+      closeViews()
       vi.useRealTimers()
     }
   })
@@ -294,7 +254,7 @@ describe("a mount's hold on a screen", () => {
       // Held again, it reads the connection as it is.
       expect(show("a").state.getSnapshot().lock).toBe("offline")
     } finally {
-      closeScreens()
+      closeViews()
       vi.useRealTimers()
     }
   })
@@ -303,27 +263,14 @@ describe("a mount's hold on a screen", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
       const { screens, show } = capped(2)
-      const probe = createView(document.createElement("div"), {
-        fontSize: 13,
-        fontFamily: "monospace",
-        theme: {},
-        scrollback: 0,
-      })
-      const prototype = Object.getPrototypeOf(probe.terminal) as EmulatorTerminal
-      probe.dispose()
-      const opened: EmulatorTerminal[] = []
-      const open = prototype.open
-      vi.spyOn(prototype, "open").mockImplementation(function (this: EmulatorTerminal, element) {
-        opened.push(this)
-        return open.call(this, element)
-      })
+      const opened = openedTerminals()
       screens.setFont({ size: 15 })
       show("a")
       expect(opened[0]?.options.fontSize).toBe(15)
       screens.setFont({ size: 12 })
       expect(opened[0]?.options.fontSize).toBe(12)
     } finally {
-      closeScreens()
+      closeViews()
       vi.useRealTimers()
     }
   })
@@ -336,7 +283,7 @@ describe("a mount's hold on a screen", () => {
       vi.spyOn(emulatorPrototype(), "open").mockImplementationOnce(() => {
         throw new Error("The emulator failed to open")
       })
-      expect(() => screens.acquire(keyOf("a"), options)).toThrow("failed to open")
+      expect(() => screens.acquire("a", running)).toThrow("failed to open")
       vi.mocked(emulatorPrototype().open).mockImplementation(original)
       show("a")
       hide("a")
@@ -344,7 +291,7 @@ describe("a mount's hold on a screen", () => {
       vi.advanceTimersByTime(parkMs)
       expect(told).toContain("a gone")
     } finally {
-      closeScreens()
+      closeViews()
       vi.useRealTimers()
     }
   })
@@ -353,12 +300,12 @@ describe("a mount's hold on a screen", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
       const { screens, show } = capped(2)
-      const unplaced = screens.acquire(keyOf("loose"), options)
+      const unplaced = screens.acquire("loose", running)
       expect(unplaced.focus()).toBe(false)
       expect(show("a").focus()).toBe(true)
       unplaced.release()
     } finally {
-      closeScreens()
+      closeViews()
       vi.useRealTimers()
     }
   })
@@ -366,9 +313,9 @@ describe("a mount's hold on a screen", () => {
   it("writes its input's lock only when the lock changes", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
-      const { show, connection } = capped(2)
+      const { show, elementOf, connection } = capped(2)
       const hold = show("a")
-      const input = document.querySelector<HTMLElement>("[data-terminal-input]")!
+      const input = inputOf(elementOf("a"))
       expect(input.getAttribute("aria-disabled")).toBe("true")
       const written = vi.spyOn(input, "setAttribute")
       // Locked for another reason: the words change, the lock holds.
@@ -381,7 +328,7 @@ describe("a mount's hold on a screen", () => {
       connection.update(() => "connected")
       expect(written.mock.calls).toEqual([["aria-disabled", "false"]])
     } finally {
-      closeScreens()
+      closeViews()
       vi.useRealTimers()
     }
   })
@@ -397,14 +344,14 @@ describe("a mount's hold on a screen", () => {
       ] as const) {
         const original = Object.getOwnPropertyDescriptor(Element.prototype, name)!.get!
         vi.spyOn(Element.prototype, name, "get").mockImplementation(function (this: Element) {
-          return this.classList.contains("terminal-xterm") ? value : original.call(this)
+          return this.classList.contains("screen") ? value : original.call(this)
         })
       }
       const prototype = emulatorPrototype()
       const loadAddon = prototype.loadAddon
       vi.spyOn(prototype, "loadAddon").mockImplementation(function (
-        this: EmulatorTerminal,
-        addon: Parameters<EmulatorTerminal["loadAddon"]>[0],
+        this: Terminal,
+        addon: Parameters<Terminal["loadAddon"]>[0],
       ) {
         if ("proposeDimensions" in addon && typeof addon.proposeDimensions === "function")
           vi.spyOn(
@@ -423,7 +370,7 @@ describe("a mount's hold on a screen", () => {
       await vi.advanceTimersByTimeAsync(0)
       expect(resized).toHaveBeenCalledTimes(1)
     } finally {
-      closeScreens()
+      closeViews()
       vi.useRealTimers()
     }
   })
@@ -435,50 +382,24 @@ describe("the views over options of their own", () => {
   const standalone = (marked: { markup?: boolean } = {}) => {
     const told: string[] = []
     const stores: unknown[] = []
-    const listeners = new Set<() => void>()
-    const element = document.createElement("div")
-    document.body.append(element)
-    const views = createTerminalViews<string>({
-      keyOf: (key) => key,
-      emulator: (host, open) => createView(host, { ...open, scrollback: 0 }),
-      theme: {
-        resolve: () => ({ theme: {}, fontFamily: "monospace" }),
-        changed: (listener) => {
-          listeners.add(listener)
-          return () => void listeners.delete(listener)
+    const { theme, listeners } = themed()
+    const element = slot()
+    const views = viewsOf(
+      optionsOf({
+        theme,
+        store: <S>(initial: S) => {
+          const own = createStore(initial)
+          stores.push(own)
+          return own
         },
-      },
-      store: <S>(initial: S) => {
-        const own = createStore(initial)
-        stores.push(own)
-        return own
-      },
-      ...(marked.markup
-        ? { markup: { input: { "data-input": "mine" }, hostClass: "my-screen" } }
-        : {}),
-      attach: () => new Promise(() => {}),
-      lifecycle: () => ({
-        ready: Promise.resolve(true),
-        revived: new Promise<void>(() => {}),
-        closed: false,
-        size: { cols: 80, rows: 24 },
+        ...(marked.markup
+          ? { markup: { input: { "data-input": "mine" }, hostClass: "my-screen" } }
+          : {}),
+        park: { afterMs: 50, keep: 1 },
+        retain: { afterMs: 10_000, shown: () => false },
+        on: { stage: (key, stage) => void told.push(`${key} ${stage}`) },
       }),
-      connection: createStore<BackendConnectionState>("connected"),
-      reconnected: async () => {},
-      classify: () => "fatal",
-      waitsAfter: () => false,
-      restart: () => {},
-      park: { afterMs: 50, keep: 1 },
-      retain: { afterMs: 10_000, shown: () => false },
-      paste: {
-        upload: async () => "",
-        maxBytes: 1,
-        trustedClipboard: false,
-        notice: () => "",
-      },
-      on: { stage: (key, stage) => void told.push(`${key} ${stage}`) },
-    })
-    closers.push(() => element.remove())
+    )
     return { views, told, stores, listeners, element }
   }
 
@@ -497,7 +418,7 @@ describe("the views over options of their own", () => {
       expect(field.getAttribute("aria-label")).toBe("Input for a")
       hold.release()
     } finally {
-      closeScreens()
+      closeViews()
       vi.useRealTimers()
     }
   })
@@ -513,7 +434,7 @@ describe("the views over options of their own", () => {
       expect(host.querySelector("textarea")!.hasAttribute("data-terminal-input")).toBe(false)
       hold.release()
     } finally {
-      closeScreens()
+      closeViews()
       vi.useRealTimers()
     }
   })
@@ -535,7 +456,7 @@ describe("the views over options of their own", () => {
       expect(told).toEqual(["a mounted", "b mounted", "a gone"])
       expect(listeners.size).toBe(1)
     } finally {
-      closeScreens()
+      closeViews()
       vi.useRealTimers()
     }
   })

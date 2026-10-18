@@ -171,7 +171,7 @@ const everywherePackages = new Set(["react", "lucide-react"])
 // included. The most specific folder or file wins.
 const backendPackages: Record<string, readonly string[]> = {
   "backend/demo/debug/": ["react", "lucide-react"],
-  "backend/runner/renderer.spec.ts": ["vitest"],
+  "backend/terminal-views/renderers.spec.ts": ["vitest"],
   "backend/demo/screen/screen.spec.ts": ["vitest"],
 }
 // A folder key covers what it holds; a file key only itself.
