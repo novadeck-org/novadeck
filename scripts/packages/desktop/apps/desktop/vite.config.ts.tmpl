@@ -54,11 +54,13 @@ export default defineConfig(({ mode }) => ({
         }),
     }),
     bundleChecks({
-      // A utility of the UI's that every desktop page draws (the workspace header's), written
-      // in one file of the folder its styles.css scans and nowhere else that is scanned: this
-      // file is outside it, so the check reads the page's build and not its own words.
+      // A utility from each folder the UI's styles.css scans that every desktop page carries:
+      // the workspace header's, and the debug panel's, which the UI's sources keep in every
+      // build. Each is written in one file of its folder, and these words are in no scanned
+      // folder, so the check reads the page's build and not this file.
       utilities: [
         { folder: "frontend/ui/", utility: "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" },
+        { folder: "frontend/demo-debug/", utility: "h-[min(760px,calc(100vh-80px))]" },
       ],
     }),
   ],
