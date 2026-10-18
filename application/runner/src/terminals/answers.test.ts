@@ -3,7 +3,7 @@ import { fakeAdapter, FakeTui } from "@novadeck/harness-core/testing/dialogs"
 import { screen } from "@novadeck/harness-core/testing/screens"
 import { requestAnswer } from "@novadeck/protocol"
 import { InputQueue } from "@novadeck/tui-input"
-import { vi } from "vitest"
+import { afterEach, vi } from "vitest"
 
 import { DomainError } from "../errors.js"
 import { describe, expect, it } from "../test.js"
@@ -32,7 +32,8 @@ const timed = async <T>(work: () => Promise<T>): Promise<T> => {
       () => (state.settled = true),
     )
     for (let step = 0; !state.settled; step += 1) {
-      if (step >= 100_000) throw new Error("The work never ended.")
+      // The longest timed case takes about sixty steps; a thousand is a wait that never ends.
+      if (step >= 1_000) throw new Error("The work never ended.")
       // eslint-disable-next-line no-await-in-loop -- One timer at a time.
       await vi.advanceTimersToNextTimerAsync()
     }
@@ -41,6 +42,11 @@ const timed = async <T>(work: () => Promise<T>): Promise<T> => {
     vi.useRealTimers()
   }
 }
+
+// A timed case that failed by timing out leaves its fake clock behind; the next case doesn't run on it.
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 const facts: RequestFacts = {
   kind: "permission",
@@ -338,7 +344,8 @@ describe("answering a request through its dialog", () => {
         after: () => (firstKey ??= Date.now()),
       })
       await give(tui, answers, { type: "choice", option: "2" })
-      expect(firstKey! - began).toBeGreaterThanOrEqual(150)
+      // The settle time, then the dialog's two reads, `stillMs` (5 ms here) apart.
+      expect(firstKey! - began).toBe(150 + 5)
       expect(tui.written).toEqual(["2"])
     }))
 
@@ -354,7 +361,8 @@ describe("answering a request through its dialog", () => {
         })
         // eslint-disable-next-line no-await-in-loop -- One after the other, as timed.
         await give(tui, answers, { type: "choice", option: "2" })
-        expect(firstKey! - started).toBeLessThan(150)
+        // No settle wait: only the dialog's two reads, 5 ms apart.
+        expect(firstKey! - started).toBe(5)
       }
     }))
 
@@ -368,8 +376,8 @@ describe("answering a request through its dialog", () => {
         after: () => (firstKey ??= Date.now()),
       })
       await give(tui, answers, { type: "choice", option: "2" })
-      // The settle time, and one poll (5 ms here) to see it has passed.
-      expect(firstKey! - started).toBeLessThanOrEqual(150 + 5)
+      // The settle time at most, then the dialog's two reads, 5 ms apart.
+      expect(firstKey! - started).toBe(150 + 5)
     }))
 
   it("refuses a dialog read for a request that registered during the turn's settle wait", () =>
@@ -563,29 +571,31 @@ describe("answering a request through its dialog", () => {
     expect(calls).not.toContain("done")
   })
 
-  it("waits for a screen that is still drawing before it reads", async () => {
-    const { tui, answers } = terminal()
-    // The noise row changes with every look for a while, as a redraw does.
-    let looks = 0
-    const drawn = tui.screen.bind(tui)
-    tui.screen = () => {
-      looks += 1
-      if (looks < 6) tui.noise = looks
-      return drawn()
-    }
-    await give(tui, answers, { type: "choice", option: "1" })
-    expect(looks).toBeGreaterThan(6)
-    expect(tui.written).toEqual(["1"])
-  })
+  it("waits for a screen that is still drawing before it reads", () =>
+    timed(async () => {
+      const { tui, answers } = terminal()
+      // The noise row changes with every look for a while, as a redraw does.
+      let looks = 0
+      const drawn = tui.screen.bind(tui)
+      tui.screen = () => {
+        looks += 1
+        if (looks < 6) tui.noise = looks
+        return drawn()
+      }
+      await give(tui, answers, { type: "choice", option: "1" })
+      expect(looks).toBeGreaterThan(6)
+      expect(tui.written).toEqual(["1"])
+    }))
 
-  it("reads again before refusing a dialog that was half drawn", async () => {
-    const { tui, answers, locks } = terminal()
-    tui.state = "other"
-    setTimeout(() => (tui.state = "ask"), 30)
-    await give(tui, answers, { type: "choice", option: "1" }, shown(new FakeTui()))
-    expect(tui.written).toEqual(["1"])
-    expect(locks).toEqual([])
-  })
+  it("reads again before refusing a dialog that was half drawn", () =>
+    timed(async () => {
+      const { tui, answers, locks } = terminal()
+      tui.state = "other"
+      setTimeout(() => (tui.state = "ask"), 30)
+      await give(tui, answers, { type: "choice", option: "1" }, shown(new FakeTui()))
+      expect(tui.written).toEqual(["1"])
+      expect(locks).toEqual([])
+    }))
 
   it("presses nothing where its adapter would type words without checking they showed", async () => {
     const { tui, answers } = terminal({ unchecked: true })
@@ -829,14 +839,15 @@ describe("answering a request through its dialog", () => {
   })
 
   describe("the words that follow an answer", () => {
-    it("are tried again while a request is still pending, which clears by itself", async () => {
-      const { answers, calls, read } = terminal({
-        prompting: true,
-        refusals: [refusal("pending"), refusal("pending")],
-      })
-      await answers.answer("t", "r1", choose(read))
-      expect(calls.filter((call) => call.startsWith("prompt"))).toHaveLength(3)
-    })
+    it("are tried again while a request is still pending, which clears by itself", () =>
+      timed(async () => {
+        const { answers, calls, read } = terminal({
+          prompting: true,
+          refusals: [refusal("pending"), refusal("pending")],
+        })
+        await answers.answer("t", "r1", choose(read))
+        expect(calls.filter((call) => call.startsWith("prompt"))).toHaveLength(3)
+      }))
 
     it.each(["draft", "no-box"] as const)(
       "fail at once as WORDS_NOT_SENT where the refusal is %s",
@@ -877,8 +888,9 @@ describe("answering a request through its dialog", () => {
         const started = Date.now()
         await busy.answers.answer("t", "r1", choose(busy.read))
         // A still screen settles after six reads' time (30 ms here) with no turn running, and
-        // after fifteen's (75 ms) while one runs; each look is two polls (10 ms) apart.
-        expect(Date.now() - started - idle).toBeGreaterThanOrEqual(9 * 5 - 10)
+        // after fifteen's (75 ms) while one runs. Looks are two polls (10 ms) apart, so they
+        // land at 30 and 80 ms: everything else in the two answers is the same.
+        expect(Date.now() - started - idle).toBe(80 - 30)
       }))
   })
 
