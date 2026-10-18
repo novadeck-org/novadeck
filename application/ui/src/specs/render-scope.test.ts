@@ -12,14 +12,14 @@ import { afterEach, beforeAll, vi } from "vitest"
 import { createTelemetryStore, setUsage, type TelemetryStore } from "#core/telemetry"
 import type { AgentUsage } from "#core/types"
 
-import { createSpecBackend } from "../backend/demo/spec-variants"
+import { WorkspaceApp } from "../app/App"
+import { useWorkspaceServices, type WorkspaceServices } from "../app/controller/context"
+import { WorkspaceProvider } from "../app/WorkspaceProvider"
 import { context, describe, expect, it } from "../test"
 import { itemFixture } from "../test/fixtures"
 import { testPhases } from "../test/phases"
 import { render } from "../test/render"
-import { WorkspaceApp } from "./App"
-import { useWorkspaceServices, type WorkspaceServices } from "./controller/context"
-import { WorkspaceProvider } from "./WorkspaceProvider"
+import { createSpecBackend } from "./support/backend"
 
 // jsdom has no layout: a desktop-wide window without motion preferences, and no resizes.
 vi.hoisted(() => {

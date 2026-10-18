@@ -46,6 +46,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@novadeck/emulator": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

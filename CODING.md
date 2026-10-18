@@ -27,7 +27,9 @@ to follow without a trail of casts.
 Tests should read like accounts of behavior. Use `*.test.ts` for colocated tests
 and `*.spec.tsx` for UI behaviour specs in `application/ui/src/specs/`. A module
 that needs a real browser to check, as WebGL does, gets a `*.spec.ts` beside it,
-which the UI's behaviour project lists by name. Name groups after what they test
+which the UI's behaviour project lists by name. A `*.test.ts` that renders the whole
+workspace over the spec backend lives in `application/ui/src/specs/`, where the
+integration project runs it in jsdom. Name groups after what they test
 and cases after the behavior being checked. In `application/runner`, use
 top-level `describe` groups and direct `it` cases, without nested `describe` or
 `context` layers. Elsewhere, use `describe`, `context`, and `it` to show the

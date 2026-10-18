@@ -61,6 +61,9 @@ export type TerminalSurfaceProps = {
   readonly focusInput: boolean
   // Stable across renders; call it after focusing the input.
   readonly onInputFocused: () => void
+  // Whether the surface's window is where the person can see it. A surface off screen may
+  // let its screen go, and takes it again when it is back. Absent means on screen.
+  readonly onScreen?: boolean
 }
 
 // Workspace changes a backend reports on its own, as the owner of every terminal, item

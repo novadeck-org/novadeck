@@ -1,16 +1,18 @@
 import { EventEmitter } from "node:events"
 
 import type { Session, WebContents, WebPreferences } from "electron"
+import { describe, expect, it } from "vitest"
 
-import { describe, expect, it } from "../test"
 import {
   attachPage,
   gestureMs,
   guardPage,
   lockPagesSession,
-  pagesPartition,
+  pagesSession,
   webAddress,
-} from "./pages"
+} from "./browser-host.js"
+
+const pagesPartition = "pages"
 
 describe("a live page's address", () => {
   it("is http or https only", () => {
@@ -39,7 +41,7 @@ describe("a page view as it attaches", () => {
       webviewTag: true,
     }
     const params = { src: "http://localhost:5173/" }
-    expect(attachPage(preferences, params)).toBe(true)
+    expect(attachPage(preferences, params, pagesPartition)).toBe(true)
     expect(preferences).toEqual({
       nodeIntegration: false,
       nodeIntegrationInSubFrames: false,
@@ -54,8 +56,17 @@ describe("a page view as it attaches", () => {
   })
 
   it("is refused for anything but an http(s) address", () => {
-    expect(attachPage({}, { src: "file:///etc/passwd" })).toBe(false)
-    expect(attachPage({}, {})).toBe(false)
+    expect(attachPage({}, { src: "file:///etc/passwd" }, pagesPartition)).toBe(false)
+    expect(attachPage({}, {}, pagesPartition)).toBe(false)
+  })
+
+  it("is refused for a session that isn't in memory and apart from the app's", () => {
+    for (const partition of ["", "persist:", `persist:${pagesPartition}`]) {
+      const preferences: WebPreferences = { nodeIntegration: true }
+      expect(attachPage(preferences, { src: "https://example.com" }, partition)).toBe(false)
+      // Locked down all the same, whatever the host makes of the refusal.
+      expect(preferences.nodeIntegration).toBe(false)
+    }
   })
 })
 
@@ -163,7 +174,12 @@ describe("the pages' session", () => {
         this.device = handler
       },
     })
-    lockPagesSession(session as unknown as Session)
+    const asked: string[] = []
+    lockPagesSession((partition) => {
+      asked.push(partition)
+      return session as unknown as Session
+    }, pagesPartition)
+    expect(asked).toEqual([pagesPartition])
     expect(session.check?.()).toBe(false)
     expect(session.device?.()).toBe(false)
     let granted: boolean | undefined
@@ -175,5 +191,14 @@ describe("the pages' session", () => {
     const file = session.schemes.get("file")?.()
     expect(file?.status).toBe(403)
     await expect(file?.text()).resolves.toBe("")
+  })
+})
+
+describe("the pages' session's name", () => {
+  it("is refused when it would be the app's session, or kept on disk", () => {
+    expect(pagesSession(pagesPartition)).toBe(pagesPartition)
+    for (const partition of ["", "persist:", `persist:${pagesPartition}`])
+      expect(() => pagesSession(partition)).toThrow("must be in memory")
+    expect(() => lockPagesSession(() => ({}) as Session, "")).toThrow("must be in memory")
   })
 })

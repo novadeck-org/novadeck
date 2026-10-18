@@ -5,7 +5,7 @@ import {
   markedBox,
   type BoxProfile,
   type Markers,
-} from "@novadeck/harness-core/box"
+} from "@novadeck/tui-input/box"
 
 /** The markers leading its box's first row: `›` as a prompt, `!` in its shell mode. */
 const markers: Markers = { prompt: "›", shell: "!" }
@@ -37,12 +37,14 @@ export const overlay = (screen: ScreenText): boolean =>
  * cursor on its last row (probed 0.159.3 and 0.160.1, fixtures/input-box.probe.json).
  * Empty, it shows "Ask Codex to do anything" or another suggestion drawn dim. Its first
  * key changes the welcome screen wholesale, so the box is read from where the cursor is,
- * never against an earlier screen. Pastes of about a thousand characters show as `[Pasted Content 1030 chars]`, however
- * many lines (25 short lines show whole).
+ * never against an earlier screen. Pastes of about a thousand characters show as
+ * `[Pasted Content 1030 chars]`, however many lines (25 short lines show whole). It leaves a
+ * ZWJ family sequence blank (probed), so the library compares text without such emoji.
  */
 export const box: BoxProfile = {
   read: (screen) => agreeing(markedBox(screen, markers), shellFooter(screen.rows)),
-  // Enter runs a command shown as a placeholder as the text it stands for.
+  // Enter runs a command shown as a placeholder as the text it stands for. Its commands run
+  // without a session, as it binds none (`starts`).
   shell: { expands: true, starts: false, footer: shellFooter },
   collapsed: ({ text }) => /^\[Pasted Content \d+ chars?\]$/.test(text.trim()),
   // 999 and 1,000 characters showed whole, 1,024 did not, whatever the lines: 30 short

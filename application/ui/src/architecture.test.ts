@@ -85,7 +85,20 @@ const rules: Record<string, readonly string[]> = {
     // The dictation contract's types, which keys call.
     "voice/dictation-control.ts",
   ],
-  "specs/": ["specs/", "app/App.tsx", "theme/", "styles.css"],
+  // Specs drive the whole UI over the demo: the layers they render, mock or read, the port,
+  // and the page's styles. The demo is reached through the spec entry alone; see
+  // `specBackend`.
+  "specs/": [
+    "specs/",
+    "app/",
+    "backend/port.ts",
+    ...base,
+    ...features,
+    "terminals/",
+    "layouts/",
+    "shell/",
+    "styles.css",
+  ],
   // Entry point and support modules outside the feature layers.
   // Each app's entry: it renders the app with the backend it chose (see `entryAdapters`).
   // One entry never reaches another's, only how they all start.
@@ -123,14 +136,18 @@ const entryAdapters: Record<string, readonly string[]> = {
   "entries/try.tsx": ["backend/demo/visitor/"],
   "entries/previews.tsx": ["backend/demo/debug/"],
 }
-// Tests and specs open the demo through its spec entry, never another adapter module.
-const specBackend = "backend/demo/spec-variants.ts"
+// The one other importer of the demo: the spec entry, which specs and the tests that render
+// the whole workspace open the demo through, never another adapter module.
+const demo = "backend/demo/"
+const specBackend = "specs/support/backend.ts"
 // The counter run drives the real UI over the runner adapter, scripted: the one spec
-// that may reach that adapter, through its scripted server alone, and core/store.ts, for
-// its instrumentation hook.
+// that may reach core/store.ts, for its instrumentation hook. It and the spec below reach
+// the runner adapter through its scripted server alone.
 const counterRun = "specs/counters/"
 const scriptedServer = "backend/runner/scripted-server.ts"
 const counterRunReaches = [scriptedServer, "core/store.ts"]
+// Canvas's out-of-sight spec opens the same scripted runner, to see which screens are open.
+const canvasOffscreenSpec = "specs/canvas-offscreen.spec.tsx"
 // The stores' instrumentation hook, which only the counter run installs; named here once,
 // so this file is the one other place it appears.
 const storeHook = "countListenersWoken"
@@ -176,7 +193,7 @@ const vendors: Record<string, readonly string[]> = {
     "projects/ProjectList.tsx",
     "projects/ProjectRow.tsx",
   ],
-  "react-router": ["app/", "shell/"],
+  "react-router": ["app/", "shell/", "specs/"],
   "react-dom": ["layouts/transition.ts", "entries/start.tsx", "test/"],
   // One entry per workspace package, with the folders that own it. The runner client and its
   // test runner serve one adapter, the terminal emulator its screens, and the content viewers
@@ -266,12 +283,15 @@ const importViolation = (file: string, layer: string | undefined) => {
     const target = resolveFile(file, specifier)
     if (!target) return [`${file} -> ${specifier} (unresolved)`]
     if (file.startsWith(counterRun) && counterRunReaches.includes(target)) return []
+    if (file === canvasOffscreenSpec && target === scriptedServer) return []
     const targetLayer = layerOf(target)
     if (targetLayer && adapterOf(targetLayer) && targetLayer !== layer)
       return entryAdapters[file]?.some((own) => target.startsWith(own)) ||
-        ((isTest(file) || layer === "specs/") && target === specBackend)
+        (file === specBackend && targetLayer === demo)
         ? []
-        : [`${file} -> ${target} (only its entry selects an adapter)`]
+        : [
+            `${file} -> ${target} (only its entry, or ${specBackend} for the demo, selects an adapter)`,
+          ]
     // Root-level tests exercise the root modules beside them.
     if (!layer)
       return target.includes("/") && !target.startsWith("test/") ? [`${file} -> ${target}`] : []
@@ -386,7 +406,12 @@ describe("UI architecture", () => {
           ),
       )
       .map((reached) => `${counterRun} -> ${reached}`)
-    expect([...deadLayers, ...deadVendors, ...deadExceptions]).toEqual([])
+    const deadSpecBackend = imports(specBackend).some(({ specifier }) =>
+      resolveFile(specBackend, specifier)?.startsWith(demo),
+    )
+      ? []
+      : [`${specBackend} -> ${demo}`]
+    expect([...deadLayers, ...deadVendors, ...deadExceptions, ...deadSpecBackend]).toEqual([])
   })
 
   it("keeps the stores' instrumentation hook to the counter run", () => {

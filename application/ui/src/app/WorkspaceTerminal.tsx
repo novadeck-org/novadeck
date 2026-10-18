@@ -169,7 +169,7 @@ export const WorkspaceTerminal = memo(
     readonly terminal: TerminalMetadata
     readonly controls: TerminalLayoutControls
   }): React.JSX.Element => {
-    const { onReveal } = controls
+    const { onReveal, onScreen = true } = controls
     const { backend, commands, panes, navigation } = useWorkspaceServices()
     const { setKeyboardFocus } = commands
     const dictation = useContext(DictationContext)
@@ -235,7 +235,10 @@ export const WorkspaceTerminal = memo(
       () => (showChat ? conversations?.conversation(terminalKey) : undefined),
       [showChat, conversations, terminalKey],
     )
-    const wanted = keyboardFocus?.view === view && active
+    // Keyboard focus waits for the node to be on screen: its input is in a subtree a
+    // Canvas node out of sight hides, and a request spent there would be lost. The request
+    // stays until the surface can take it.
+    const wanted = keyboardFocus?.view === view && active && onScreen
     const withChat = (content: ReactNode): ReactNode =>
       conversations ? (
         <div className="chat-host relative flex min-h-0 min-w-0 flex-1 flex-col">
@@ -339,6 +342,7 @@ export const WorkspaceTerminal = memo(
         fontSize={fontSize}
         focusInput={wanted && !showChat}
         onInputFocused={onInputFocused}
+        onScreen={onScreen}
         renderWindow={renderWindow}
       />
     )

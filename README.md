@@ -161,7 +161,9 @@ minutes after its session leaves the screen, so going back to a session or proje
 its output in place; they go when that time passes or the terminal closes. Of the screens
 no view shows, `screens.ts` keeps at most the 16 parked most recently, closing the one
 parked longest first (a closed one resyncs from the runner's snapshot when shown again);
-screens a view shows, Focus's kept windows among them, don't count. Focus keeps
+screens a view shows, Focus's kept windows among them, don't count. A Canvas node out of
+sight keeps its surface mounted but lets its screen go, so the screen parks after 5 s and
+counts toward the cap, and the node's content is hidden until it is back in sight. Focus keeps
 the last four terminals it displayed mounted, parked out of sight with `display:none`,
 so switching back finds a terminal's companion pane as it was: a page still loaded, a
 plan's editor, where each was scrolled. A component that docks status, opens over the
@@ -1057,7 +1059,7 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `assets/`                                          | Static files referenced from CSS.                                                       |
 | `theme/`                                           | Tailwind's layout-only theme, token defaults, Graphite and Phosphor, `apply.ts`.        |
 | `styles.css`                                       | The cascade order, every recipe, theme and vendor sheet in its layer, Tailwind sources. |
-| `specs/`                                           | Behaviour specs for the whole UI, run in a real browser.                                |
+| `specs/`                                           | Behaviour specs for the whole UI, and the spec backend over the demo.                   |
 
 Imports point down the layers. `core/` (what `model/` was, with the backends'
 shared registry and the workspace-only derivations) imports nothing else: no UI layer, no
@@ -1190,7 +1192,7 @@ colocated `contract.test.ts`, with a probe of what it holds and the I/O it
 started, and a driver when it has `start`. `App` reads its backend once at mount: each
 app's entry (`src/entries/`) chooses its own, a runner connection for the desktop and web
 apps, or the demo in the content preview and visitor builds. Tests and specs pass the demo's
-spec backend (`backend/demo/spec-variants.ts`) themselves.
+spec backend (`specs/support/backend.ts`) themselves.
 
 Each app is an entry of its own, named by its Vite mode, so a deploy carries only its own
 chunks. The desktop app's page is the package's `index.html` (built to `dist/`, which the host
@@ -1259,9 +1261,13 @@ through accessible markup, improve the markup rather than adding test IDs.
 Install the browser once with `pnpm --filter @novadeck/ui exec playwright install chromium`.
 Run a single spec with `pnpm --filter @novadeck/ui exec vitest run --project behaviour src/specs/canvas.spec.tsx`,
 or `--project unit` for reducer invariants, terminal lifecycle, layout rules,
-stores, commands, keymap routing, render scope, architecture rules, and build
+stores, commands, keymap routing, architecture rules, and build
 checks in colocated `*.test.ts` files. Files in `src/specs/` keep
-the `*.spec.tsx` suffix. Use `--project motion` for transition behavior. The build
+the `*.spec.tsx` suffix, except the tests that render the whole workspace in jsdom
+(render scope, the terminal and overlay wiring): they need the spec backend
+(`specs/support/backend.ts`, the one file that may import the demo), so they sit there as
+`*.test.ts` and run with
+`--project integration`. Use `--project motion` for transition behavior. The build
 checks validate both entry assets and deferred chunks with relative packaged paths.
 
 ### UI counter run
