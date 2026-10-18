@@ -2,6 +2,7 @@
 // Usage (after `pnpm run package:<target>`): node scripts/smoke.mjs
 import { execFileSync } from "node:child_process"
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -160,8 +161,10 @@ worker.once("message", (reply) => {
   console.log("The packaged murmur worker started from app.asar.")
 }
 
+// The client as the host depends on it: its built code, which plain node resolves to, so the
+// package can move without this changing.
 const bundle = await esbuild.build({
-  entryPoints: [join(host, "..", "protocol", "dist", "client.js")],
+  entryPoints: [createRequire(join(host, "package.json")).resolve("@novadeck/runner-client")],
   bundle: true,
   format: "iife",
   globalName: "novadeckClient",
