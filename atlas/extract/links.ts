@@ -12,7 +12,7 @@ type Exports = { prefix: string; target: string }[]
 // A package's own `imports` ("#core/*"), which only files inside its folder may use.
 type Imports = { base: string; prefix: string; target: string }[]
 
-const roots = ["application", "harnesses", "engines"]
+const roots = ["application", "apps", "backend", "contract", "frontend", "harnesses", "engines"]
 const sourcePattern = /\.(?:tsx?|rs)$/
 const skipPattern = /\.(?:test|spec|e2e)\.|\/(?:e2e|testing|test|fixtures)\/|\/testing\.tsx?$/
 const specifierPattern =

@@ -12,7 +12,7 @@ import { openSandbox } from "./sandbox.ts"
 // runner and every shell it starts get the sandbox's environment alone.
 
 const root = join(import.meta.dirname, "..", "..", "..")
-const ui = join(root, "application", "ui")
+const ui = join(root, "application/ui")
 
 /** The runner's environment: the sandbox's alone, with what the runner itself is told. */
 export const runnerEnv = (
@@ -184,15 +184,11 @@ export const openStack = (): Stack => {
         },
         track,
       )
-      const runner = start(
-        process.execPath,
-        [join(root, "application", "runner", "dist", "cli.js")],
-        {
-          cwd: sandbox.root,
-          env: runnerEnv(sandbox, { token, port: runnerPort!, origin }),
-          stdio: ["ignore", "inherit", "inherit"],
-        },
-      )
+      const runner = start(process.execPath, [join(root, "application/runner/dist/cli.js")], {
+        cwd: sandbox.root,
+        env: runnerEnv(sandbox, { token, port: runnerPort!, origin }),
+        stdio: ["ignore", "inherit", "inherit"],
+      })
       track(runner)
       await ready(`http://127.0.0.1:${runnerPort}/`, runner, 60_000)
       const preview = start(

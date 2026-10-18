@@ -12,7 +12,17 @@ const manifests = (): readonly (readonly [string, Manifest])[] =>
   [
     ".",
     "atlas",
-    ...["application", "engines", "harnesses", "libraries", "tools"].flatMap((folder) =>
+    ...[
+      "application",
+      "apps",
+      "backend",
+      "contract",
+      "engines",
+      "frontend",
+      "harnesses",
+      "libraries",
+      "tools",
+    ].flatMap((folder) =>
       existsSync(join(root, folder))
         ? readdirSync(join(root, folder)).map((name) => `${folder}/${name}`)
         : [],
