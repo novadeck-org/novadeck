@@ -208,6 +208,7 @@
                 "group": [
                   "**/../atlas",
                   "**/atlas/**",
+                  "**/../tools/atlas",
                   "**/../application",
                   "**/application/**",
                   "**/../backend",
@@ -262,6 +263,7 @@
                 "group": [
                   "**/../atlas",
                   "**/atlas/**",
+                  "**/../tools/atlas",
                   "**/../application",
                   "**/application/**",
                   "**/../backend",
@@ -331,6 +333,7 @@
                 "group": [
                   "**/../atlas",
                   "**/atlas/**",
+                  "**/../tools/atlas",
                   "**/../application",
                   "**/application/**",
                   "**/../backend",
@@ -400,6 +403,7 @@
                 "group": [
                   "**/../atlas",
                   "**/atlas/**",
+                  "**/../tools/atlas",
                   "**/../application",
                   "**/application/**",
                   "**/../backend",
@@ -467,6 +471,7 @@
                 "group": [
                   "**/../atlas",
                   "**/atlas/**",
+                  "**/../tools/atlas",
                   "**/../application",
                   "**/application/**",
                   "**/../backend",
@@ -534,6 +539,7 @@
                 "group": [
                   "**/../atlas",
                   "**/atlas/**",
+                  "**/../tools/atlas",
                   "**/../application",
                   "**/application/**",
                   "**/../backend",
@@ -603,6 +609,7 @@
                 "group": [
                   "**/../atlas",
                   "**/atlas/**",
+                  "**/../tools/atlas",
                   "**/../application",
                   "**/application/**",
                   "**/../backend",

@@ -38,8 +38,9 @@ const app = [
   "../../wire/dist/index.js",
   "../../wire/dist",
   "../../../../atlas/src/index.ts",
-  // A folder named alone, its package's entry.
+  // A folder named alone, its package's entry, where it is and where step 5 moves it.
   "../../../../atlas",
+  "../../../../tools/atlas",
   "../../../../application",
   "../../../../backend",
   "../../../../contract",
