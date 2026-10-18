@@ -1,7 +1,6 @@
-import type { AttachStream, Exit, TerminalEvent } from "@novadeck/terminal"
-
-import { pause } from "./pause"
-import type { Store, ViewLink } from "./view-state"
+import type { AttachStream, Exit, TerminalEvent } from "../contract.js"
+import { pause } from "./pause.js"
+import type { Store, ViewLink } from "./view-state.js"
 
 // A terminal's shell as following it needs to know it: when it is ready to attach to, when
 // a fresh one replaces it, and whether it is gone. The fields are read as they stand, so an

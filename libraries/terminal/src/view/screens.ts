@@ -1,15 +1,16 @@
 import type { ITheme, Terminal, View, ViewRenderer } from "@novadeck/emulator/browser"
 
-import { followTerminal, type FollowedTerminal, type FollowOptions, type Screen } from "./follow"
+import { followTerminal, type FollowedTerminal, type FollowOptions, type Screen } from "./follow.js"
 import {
   clipboardAccess,
   takeCtrlV,
   takeFilePastes,
   type PasteFailure,
   type PasteTarget,
-} from "./paste"
-import { silenceQueries } from "./queries"
+} from "./paste.js"
+import { silenceQueries } from "./queries.js"
 import {
+  createStore,
   nextViewState,
   openingState,
   type MutableStore,
@@ -17,7 +18,7 @@ import {
   type ViewChange,
   type ViewPhase,
   type ViewState,
-} from "./view-state"
+} from "./view-state.js"
 
 // The sizes a terminal accepts.
 const clamp = (value: number, min: number, max: number): number =>
@@ -55,8 +56,8 @@ export type TerminalViewOptions<K> = FollowOptions<K> & {
     readonly changed: (listener: () => void) => () => void
   }
   // Makes the store of each screen's state; the owner's own, so what it observes of stores
-  // reaches the views' too.
-  readonly store: <S>(initial: S) => MutableStore<S>
+  // reaches the views' too. Default: a plain store.
+  readonly store?: <S>(initial: S) => MutableStore<S>
   readonly markup?: {
     // Attributes of the emulator's input field, set before its accessible name.
     readonly input?: Readonly<Record<string, string>>
@@ -239,7 +240,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
     // brings it, so each change notifies once. The emulator's input follows the lock.
     let stage = phase
     const facts = () => ({ link: o.connection.getSnapshot(), phase: stage })
-    const state = o.store<ViewState>(openingState(facts()))
+    const state = (o.store ?? createStore)<ViewState>(openingState(facts()))
     let locked: boolean | undefined
     const refresh = (change: ViewChange = {}): void => {
       const { lock } = state.update((current) => nextViewState(current, change, facts()))

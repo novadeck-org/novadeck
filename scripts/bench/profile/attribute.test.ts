@@ -56,7 +56,7 @@ describe("kindOf", () => {
     expect(kindOf(at("/r/libraries/wire/src/channel.ts"))).toBe("transport")
     expect(kindOf(at("/r/application/protocol/src/client.ts"))).toBe("transport")
     expect(kindOf(at("/r/application/protocol/dist/text.js"))).toBeUndefined()
-    expect(kindOf(at("/r/application/ui/src/backend/runner/follow.ts"))).toBe("transport")
+    expect(kindOf(at("/r/libraries/terminal/src/view/follow.ts"))).toBe("transport")
   })
 })
 

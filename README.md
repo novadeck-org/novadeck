@@ -156,7 +156,7 @@ puts that element in the shared window and the profile's body, and draws what li
 the element for the terminal's life, so a program change swaps the body without restarting
 the terminal; the UI moves the element into the new body, keeping output, selection and
 focus. Switching between Focus, Grid and Canvas mounts a new one, which takes the same
-xterm and attachment from `backend/runner/screens.ts` instead of opening and attaching
+xterm and attachment from `libraries/terminal/src/view/screens.ts` instead of opening and attaching
 again. A terminal no view shows keeps them while its session is on screen, and for 30
 minutes after its session leaves the screen, so going back to a session or project finds
 its output in place; they go when that time passes or the terminal closes. Of the screens
