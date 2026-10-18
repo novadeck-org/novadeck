@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import { chmod, readdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
@@ -1887,9 +1888,13 @@ describe("notes giving way", () => {
   })
 
   it("count no failure when murmur is turned off under them", async ({ resources }) => {
-    const context = await installed(resources, { now: () => 1_000, behaviour: "slow" })
+    const context = await installed(resources, { now: () => 1_000 })
+    // The engine never answers, and says when the note's request has reached it: the note is
+    // under way when murmur is turned off, however slow the machine.
+    const model = await modelOf(context.directory)
+    await writeFile(model, "hang seen")
     const job = context.murmur.note(reply, { terminal: "a" })
-    await sleep(150)
+    await vi.waitFor(() => expect(existsSync(`${model}.seen`)).toBe(true), { timeout: 10_000 })
     await context.murmur.set({ enabled: false })
     expect(await job).toBeUndefined()
 
