@@ -327,11 +327,12 @@ for (const setup of setups) {
       // Whatever of the keys the harness took is in its box, as its own reader tells.
       const live = (
         run.deck.terminals as unknown as {
-          live(id: string): { screen: Parameters<typeof readScreen>[0] }
+          live(id: string): { terminal: { screen: Parameters<typeof readScreen>[0] } }
         }
       ).live(t2.id)
       const kept =
-        (harnesses[setup.agent].box.read(readScreen(live.screen))?.text.trim() ?? "") !== ""
+        (harnesses[setup.agent].box.read(readScreen(live.terminal.screen))?.text.trim() ?? "") !==
+        ""
       await message(t1, t2, "Tell fox the news")
       if (!kept) {
         const carrying = await run.model.waitFor((call) => delivered(call, "moth"), {

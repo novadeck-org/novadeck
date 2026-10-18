@@ -432,7 +432,7 @@
   border-top-style: dashed;
   border-top-color: var(--window-phase-unheard-border-color, var(--color-muted));
 }
-.terminal-window[data-terminal-phase="ended"] .runner-terminal .xterm {
+.terminal-window[data-terminal-phase="ended"] .terminal-mounted .xterm {
   opacity: var(--window-ended-content-opacity, 0.55);
 }
 @keyframes terminal-sweep {

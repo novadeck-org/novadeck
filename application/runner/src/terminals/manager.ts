@@ -6,15 +6,11 @@ import { basename, delimiter, isAbsolute, join, resolve as resolvePath } from "n
 import { setTimeout as sleep } from "node:timers/promises"
 
 import {
-  createScreen,
   mouseReporting,
   readScreen,
   replay,
-  trackMouse,
   transcript as transcriptOf,
   type IMarker,
-  type MouseEncoding,
-  type Screen,
   type ScreenText,
 } from "@novadeck/emulator/headless"
 import type { RequestFacts } from "@novadeck/harness-core/dialogs"
@@ -42,6 +38,7 @@ import type {
   TerminalAttached,
   TerminalChange,
   TerminalEvent,
+  TerminalExit,
   TerminalMessages,
   TerminalRequest,
   RequestAnswer,
@@ -51,10 +48,11 @@ import type {
 } from "@novadeck/protocol"
 import { murmurGist, murmurHeadline } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
+import { TerminalError } from "@novadeck/terminal"
 import {
   createTerminal,
   type Attachment,
-  type Emitted,
+  type RunSpec,
   type Terminal,
   type TerminalOptions as HostOptions,
 } from "@novadeck/terminal/host"
@@ -67,10 +65,8 @@ import {
   relayMs,
   sampleForeground,
   shellInForeground,
-  spawnPty,
   terminalForeground,
   Trees,
-  type Disposable,
   type EndBudget,
   type Foreground,
   type NativeSpawn,
@@ -80,8 +76,6 @@ import {
 import {
   afterKeys,
   emptyLine,
-  osc7Directory,
-  osc9Directory,
   pathKey,
   refreshPath,
   startsCommands,
@@ -217,13 +211,6 @@ import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
 import { transcriptChanges } from "./transcripts.js"
 import { TerminalWatcher } from "./watcher.js"
 import { judgedFirst, workAfter, type Work } from "./work.js"
-
-const OUTPUT_CHARS = 4096
-// How much read output may wait to be drawn before the program is paused, in characters.
-// Pausing for every chunk until it is drawn waits on a timer each time, about 15 ms on
-// Windows: a TUI that redraws for every key of a paste, as Codex does there, where the
-// paste reaches it as keys, then showed 100 characters in 6 s rather than 0.3 s.
-const OUTPUT_WAITING_CHARS = 256 * 1024
 
 /** How long after the person's last key an untrusted agent's hooks are asked about again. */
 export const trustRecheckMs = 1000
@@ -362,31 +349,12 @@ type Size = { cols: number; rows: number }
 type Attach = { terminalId: string; afterSequence?: number; mode?: "control" | "observe" }
 type Record = {
   summary: TerminalSummary
-  process: Pty
-  screen: Screen
-  /** Its events and who reads them. */
+  /** Its run, its screen, its events and who reads them. */
   terminal: Terminal
-  chain: Promise<void>
-  pendingReads: number
-  /** The output read but not yet on its screen, in characters; see `output`. */
-  pendingOutput: number
-  /**
-   * Output read for the draw queued last, and the program each came from, while that draw
-   * is still the chain's last work and hasn't begun: later output joins it. Null once it
-   * began, or once other work was queued after it, as a resize, which later output must
-   * not be drawn ahead of.
-   */
-  unread: { readonly child: Pty; readonly data: string }[] | null
   pendingAttachments: number
-  exitQueued: boolean
   /** Closed by the person or an agent, and forgotten: nothing saves it again. */
   closed: boolean
-  exited: Promise<void>
-  resolveExit: () => void
-  listeners: Disposable[]
   closing: Promise<void> | undefined
-  /** `performance.now()` at spawn, for the exit's `ranMs`. */
-  startedAt: number
   restarting: boolean
   /** When the shell last exited, in exit order across terminals; eviction goes oldest first. */
   exitOrder: number
@@ -541,19 +509,14 @@ type Record = {
   boxDoubtEpoch?: number
   /** `performance.now()` at the last save of its screen, so saves take turns. */
   savedAt: number
-} & Omit<Started, "process" | "screen" | "startedAt">
+} & Started
 
 /**
- * A spawned shell with its own headless screen, before it belongs to a record: the token
+ * A shell's launch, before its terminal belongs to a record: the token
  * its agents report with, whether it runs a startup command, as one that resumes an
  * agent, and the file holding that command, until the shell takes it or it is cancelled.
  */
 type Started = {
-  process: Pty
-  screen: Screen
-  /** The mouse's encoding a program set on its screen. */
-  mouseEncoding: () => MouseEncoding
-  startedAt: number
   token: string
   resumes: boolean
   resumeFile: string | undefined
@@ -610,13 +573,13 @@ const murmurSubject = (record: Record): MurmurSubject => ({
  * there is best-effort.
  */
 const commandRowOf = (record: Record): number | undefined => {
-  const buffer = record.screen.buffer.active
+  const buffer = record.terminal.screen.buffer.active
   if (buffer.type === "alternate") return undefined
   const running = !shellAtPrompt(record) || record.lineEntered
   const marker = running ? record.prompts.at(-1) : record.prompts.at(-2)
   if (!marker || marker.isDisposed || marker.line < 0) return undefined
   const row = marker.line - buffer.viewportY
-  if (row < 0 || row >= record.screen.rows) return undefined
+  if (row < 0 || row >= record.terminal.screen.rows) return undefined
   const line = buffer.getLine(marker.line)
   return line && line.translateToString(true).trim() !== "" ? row : undefined
 }
@@ -627,7 +590,7 @@ const commandRowOf = (record: Record): number | undefined => {
 // on Windows), it does.
 const shellAtPrompt = (record: Record): boolean => {
   const group = record.foreground?.group
-  if (group !== undefined && group !== null) return group === record.process.pid
+  if (group !== undefined && group !== null) return group === record.terminal.pty.pid
   const name = record.summary.process?.name
   return name === undefined || record.shellName === undefined || name === record.shellName
 }
@@ -678,30 +641,41 @@ const positive = (value: number | undefined, fallback: number): number => {
 }
 
 /**
- * A terminal's events and attachments, its budgets counting each event as the wire sends
- * it, in its envelope; its snapshots are of `record`'s screen.
+ * `error` as the caller sees it: a shell that didn't start is `SPAWN_FAILED`, and the
+ * command it was to take never runs.
  */
-const hosted = (
-  limits: HostOptions["limits"],
-  terminalId: string,
-  record: () => Record,
-  controller: string | undefined,
-): Terminal =>
-  createTerminal({
-    eventBytes: (event) => Buffer.byteLength(JSON.stringify({ ...event, terminalId })),
-    limits,
-    controller,
-    view: () => {
-      const { screen, summary, mouseEncoding } = record()
-      return {
-        screen,
-        cols: summary.cols,
-        rows: summary.rows,
-        exit: summary.exit,
-        mouse: mouseEncoding(),
-      }
-    },
-  })
+const startFailed = (started: Started, error: unknown): unknown => {
+  if (!(error instanceof TerminalError && error.code === "SPAWN_FAILED")) return error
+  if (started.resumeFile) rmSync(started.resumeFile, { force: true })
+  return new DomainError("SPAWN_FAILED", "Could not start the configured shell.")
+}
+
+/**
+ * A terminal running `spec`, its budgets counting each event as the wire sends it, in its
+ * envelope.
+ */
+const hosted = (o: {
+  limits: HostOptions["limits"]
+  terminalId: string
+  spec: RunSpec
+  started: Started
+  controller: string | undefined
+  pty: NonNullable<HostOptions["pty"]>
+}): Terminal => {
+  try {
+    return createTerminal({
+      eventBytes: (event) =>
+        Buffer.byteLength(JSON.stringify({ ...event, terminalId: o.terminalId })),
+      limits: o.limits,
+      spec: o.spec,
+      scrollback: 1000,
+      controller: o.controller,
+      pty: o.pty,
+    })
+  } catch (error) {
+    throw startFailed(o.started, error)
+  }
+}
 
 /** How long `settleBox` looks at a screen for an empty box, in milliseconds. */
 const boxSettleMs = 5_000
@@ -943,7 +917,9 @@ export class Terminals {
       messaging: this.messaging,
       caller: (terminalId, token) => {
         const record = this.records.get(terminalId)
-        return record && !record.exitQueued && sameToken(record.token, token) ? record : undefined
+        return record && !record.terminal.exiting && sameToken(record.token, token)
+          ? record
+          : undefined
       },
       terminal: (terminalId) => this.records.get(terminalId),
       running: (sessionId) =>
@@ -1050,7 +1026,23 @@ export class Terminals {
         input.command !== undefined
           ? { command: input.command, required: true }
           : resume && { command: resume.argv.join(" ") }
-      const started = this.spawn(shell, cwd, input, integration, env, startup || undefined)
+      const { spec, started } = this.launch(
+        shell,
+        cwd,
+        input,
+        integration,
+        env,
+        startup || undefined,
+      )
+      const terminal = hosted({
+        limits: this.options,
+        terminalId: input.id,
+        spec,
+        started,
+        controller: pending.released ? undefined : ownerId,
+        pty: this.pty,
+      })
+      // Claimed once its shell runs, so a shell that didn't start holds no session.
       if (resume && started.resumes) {
         this.claims.set(resume.key, input.id)
         started.resumeClaim = resume.key
@@ -1079,22 +1071,9 @@ export class Terminals {
           telemetry: null,
         },
         ...started,
-        terminal: hosted(
-          this.options,
-          input.id,
-          () => record,
-          pending.released ? undefined : ownerId,
-        ),
-        chain: Promise.resolve(),
-        pendingReads: 0,
-        pendingOutput: 0,
-        unread: null,
+        terminal,
         pendingAttachments: 0,
-        exitQueued: false,
         closed: false,
-        exited: Promise.resolve(),
-        resolveExit: () => {},
-        listeners: [],
         closing: undefined,
         restarting: false,
         exitOrder: 0,
@@ -1336,7 +1315,7 @@ export class Terminals {
         this.reportingOf(record),
         held.deferred === true,
       )
-      if (reports) record.process.write(reports)
+      if (reports) record.terminal.pty.write(reports)
       // An answer's hold drops the mouse's wheel and motion reports it was given back as
       // `mouse`, never replaying them.
       if (typed) {
@@ -1348,7 +1327,7 @@ export class Terminals {
     }
     this.keyed(record, input.data)
     // node-pty accepts each write synchronously; no input is retried after an uncertain delivery.
-    record.process.write(input.data)
+    record.terminal.pty.write(input.data)
   }
 
   /**
@@ -1428,9 +1407,9 @@ export class Terminals {
 
   /** Which reports the terminal's TUI asked for, as its screen shows. */
   private reportingOf(record: Record) {
-    const { modes } = record.screen
+    const { modes } = record.terminal.screen
     return {
-      mouse: mouseReporting(modes.mouseTrackingMode, record.mouseEncoding()),
+      mouse: mouseReporting(modes.mouseTrackingMode, record.terminal.mouse()),
       focus: modes.sendFocusMode,
     }
   }
@@ -1474,7 +1453,7 @@ export class Terminals {
   /** The record of a terminal that is running, if it is. */
   private live(terminalId: string): Record | undefined {
     const record = this.records.get(terminalId)
-    return record && !record.exitQueued && record.summary.exit === null ? record : undefined
+    return record && !record.terminal.exiting && record.summary.exit === null ? record : undefined
   }
 
   /** What murmur reads of the terminals and writes to them. */
@@ -1569,12 +1548,15 @@ export class Terminals {
   ): Promise<{ text: ScreenText; commandRow?: number } | undefined> {
     const record = this.live(terminalId)
     if (!record) return undefined
-    const { process: child } = record
-    const shown = await this.enqueue(record, () => {
+    const child = record.terminal.pty
+    const shown = await record.terminal.enqueue(() => {
       const commandRow = commandRowOf(record)
-      return { text: readScreen(record.screen), ...(commandRow !== undefined && { commandRow }) }
+      return {
+        text: readScreen(record.terminal.screen),
+        ...(commandRow !== undefined && { commandRow }),
+      }
     })
-    return record.process === child && this.live(terminalId) ? shown : undefined
+    return record.terminal.pty === child && this.live(terminalId) ? shown : undefined
   }
 
   /**
@@ -1584,7 +1566,7 @@ export class Terminals {
    */
   private markPrompt(record: Record, entered: boolean): void {
     if (!entered) record.prompts.pop()?.dispose()
-    const marker = record.screen.registerMarker(0)
+    const marker = record.terminal.screen.registerMarker(0)
     if (!marker) return
     record.prompts.push(marker)
     while (record.prompts.length > 2) record.prompts.shift()?.dispose()
@@ -1600,9 +1582,9 @@ export class Terminals {
   private async screenOf(terminalId: string): Promise<ScreenText | undefined> {
     const record = this.live(terminalId)
     if (!record) return undefined
-    const { process: child } = record
-    const text = await this.enqueue(record, () => readScreen(record.screen))
-    return record.process === child && this.live(terminalId) ? text : undefined
+    const child = record.terminal.pty
+    const text = await record.terminal.enqueue(() => readScreen(record.terminal.screen))
+    return record.terminal.pty === child && this.live(terminalId) ? text : undefined
   }
 
   /**
@@ -1637,7 +1619,7 @@ export class Terminals {
       held.input = null
       if (input.length === 0 || live(terminalId) !== record) return
       if (held.deferred) this.keyed(record, input.join(""))
-      record.process.write(input.join(""))
+      record.terminal.pty.write(input.join(""))
     }
     const settle = () => {
       release()
@@ -1721,7 +1703,7 @@ export class Terminals {
         const record = this.live(terminalId)
         if (!record) return false
         this.keyed(record, data)
-        record.process.write(data)
+        record.terminal.pty.write(data)
         return true
       },
     }
@@ -1742,13 +1724,13 @@ export class Terminals {
         const record = this.live(terminalId)
         if (!record) return false
         this.keyed(record, data)
-        record.process.write(data)
+        record.terminal.pty.write(data)
         return true
       },
       write: (terminalId, data) => {
         const record = this.live(terminalId)
         if (!record) return false
-        record.process.write(data)
+        record.terminal.pty.write(data)
         return true
       },
     }
@@ -1802,7 +1784,7 @@ export class Terminals {
         const record = this.live(terminalId)
         if (!record) return false
         this.keyed(record, data)
-        record.process.write(data)
+        record.terminal.pty.write(data)
         return true
       },
       prompt: (entry, terminalId, text) => this.prompts.promptIn(entry, terminalId, text),
@@ -2029,7 +2011,7 @@ export class Terminals {
         // A prompt shown before any session bound: its agent must still hold the
         // terminal, as the shell's prompt may have come back unseen (a nested shell).
         const shown = record.binding ? undefined : this.messaging.shownAgent(terminalId)
-        if (shown) return foregroundRuns(record.process.pid, shown)
+        if (shown) return foregroundRuns(record.terminal.pty.pid, shown)
         const { binding } = record
         const instance = binding?.instance
         if (!instance) return undefined
@@ -2047,7 +2029,7 @@ export class Terminals {
           return false
         }
         const [held, own] = await Promise.all([
-          terminalForeground(record.process.pid),
+          terminalForeground(record.terminal.pty.pid),
           processGroup(Number(instance)),
         ])
         return held === undefined || own === undefined ? undefined : held === own
@@ -2056,7 +2038,7 @@ export class Terminals {
       write: (terminalId, data) => {
         const record = live(terminalId)
         if (!record) return false
-        record.process.write(data)
+        record.terminal.pty.write(data)
         return true
       },
     }
@@ -2082,13 +2064,7 @@ export class Terminals {
   private applySize(record: Record, { cols, rows }: { cols: number; rows: number }): void {
     // Only a new size redraws the screen, as a window attaching again may ask for the same.
     if (cols !== record.summary.cols || rows !== record.summary.rows) record.resizedAt = Date.now()
-    record.process.resize(cols, rows)
-    void this.enqueue(record, () => {
-      record.screen.resize(cols, rows)
-      record.summary = { ...record.summary, cols, rows }
-      this.announce(record)
-      this.emit(record, { type: "resized", cols, rows })
-    })
+    record.terminal.resize(cols, rows)
   }
 
   /**
@@ -2121,7 +2097,7 @@ export class Terminals {
       const connected = await this.connected(input.resume)
       const env = await environment
       // The swap waits for the old shell's queued work, which still uses the old screen.
-      return await this.enqueue(record, () => {
+      return await record.terminal.enqueue(() => {
         if (this.stopping) throw new DomainError("CLOSING")
         // Closed meanwhile, or its project is closing: no shell starts in it again.
         if (
@@ -2138,7 +2114,7 @@ export class Terminals {
             record.agents[input.resume]?.sessionId,
             connected,
           )
-        const started = this.spawn(
+        const { spec, started } = this.launch(
           shell,
           cwd,
           input,
@@ -2146,64 +2122,66 @@ export class Terminals {
           env,
           resume ? { command: resume.argv.join(" ") } : undefined,
         )
-        if (resume && started.resumes) {
-          this.claims.set(resume.key, record.summary.id)
-          started.resumeClaim = resume.key
-        }
-        this.forgetPrompts(record)
         const earlier =
           this.transcripts && !started.resumes
-            ? transcriptOf(record.screen, this.options.transcriptChars)
+            ? transcriptOf(record.terminal.screen, this.options.transcriptChars)
             : null
-        // Earlier attachments ended at the exit; any still draining are dropped, and any
-        // earlier cursor gets a fresh snapshot.
-        record.terminal.restarted(pending.released ? undefined : ownerId)
-        this.dispose(record)
-        Object.assign(record, started, {
-          summary: {
-            ...record.summary,
-            cwd,
-            cols: input.cols,
-            rows: input.rows,
-            exit: null,
-            process: shellProcess(shell),
-            run: record.summary.run + 1,
-            agent: null,
-            ready: null,
-            activity: null,
-            telemetry: null,
-          } satisfies TerminalSummary,
-          foreground: undefined,
-          binding: null,
-          suspended: null,
-          root: null,
-          held: null,
-          seenEntry: undefined,
-          shellName: shellProcess(shell)?.name,
-          activity: null,
-          telemetry: null,
-          watching: null,
-          transcript: null,
-          exitQueued: false,
-          closing: undefined,
-          submitted: started.resumes,
-          startupRuns: started.resumes,
-          readyEntered: false,
-          // Delivery epochs start over with the new shell's registration.
-          boxDoubtEpoch: undefined,
-          prompts: [],
-          line: emptyLine,
-          lineEntered: started.resumes,
-        })
-        // The earlier shell's screen shows above the new one's.
-        if (earlier) this.show(record, earlier, null)
-        // Restarted to resume the worker's agent session, it stays led; restarted as a plain
-        // shell, there is no agent left to lead.
-        if (!started.resumes) this.endLead(record)
-        // The earlier shell's job and what murmur kept of it are not the new one's.
-        this.murmur?.gone(record.summary.id)
-        this.register(record, input.resume ?? null)
-        this.listen(record)
+        try {
+          // Earlier attachments ended at the exit; any still draining are dropped, and any
+          // earlier cursor gets a fresh snapshot.
+          record.terminal.restart(spec, pending.released ? undefined : ownerId, () => {
+            if (resume && started.resumes) {
+              this.claims.set(resume.key, record.summary.id)
+              started.resumeClaim = resume.key
+            }
+            this.forgetPrompts(record)
+            Object.assign(record, started, {
+              summary: {
+                ...record.summary,
+                cwd,
+                cols: input.cols,
+                rows: input.rows,
+                exit: null,
+                process: shellProcess(shell),
+                run: record.summary.run + 1,
+                agent: null,
+                ready: null,
+                activity: null,
+                telemetry: null,
+              } satisfies TerminalSummary,
+              foreground: undefined,
+              binding: null,
+              suspended: null,
+              root: null,
+              held: null,
+              seenEntry: undefined,
+              shellName: shellProcess(shell)?.name,
+              activity: null,
+              telemetry: null,
+              watching: null,
+              transcript: null,
+              closing: undefined,
+              submitted: started.resumes,
+              startupRuns: started.resumes,
+              readyEntered: false,
+              // Delivery epochs start over with the new shell's registration.
+              boxDoubtEpoch: undefined,
+              prompts: [],
+              line: emptyLine,
+              lineEntered: started.resumes,
+            })
+            // The earlier shell's screen shows above the new one's.
+            if (earlier) this.show(record, earlier, null)
+            // Restarted to resume the worker's agent session, it stays led; restarted as a plain
+            // shell, there is no agent left to lead.
+            if (!started.resumes) this.endLead(record)
+            // The earlier shell's job and what murmur kept of it are not the new one's.
+            this.murmur?.gone(record.summary.id)
+            this.register(record, input.resume ?? null)
+          })
+        } catch (error) {
+          throw startFailed(started, error)
+        }
         this.announce(record)
         this.sampleProcesses()
         return { ...record.summary }
@@ -2532,19 +2510,21 @@ export class Terminals {
     }
     signal?.addEventListener("abort", abort, { once: true })
     try {
-      await this.enqueue(record, () => {
-        if (signal?.aborted || pending.released) return
-        if (this.stopping) throw new DomainError("CLOSING")
-        // Closed, or closing, while this attachment waited its turn.
-        if (record.closed || this.records.get(input.terminalId) !== record)
-          throw new DomainError("TERMINAL_NOT_FOUND")
-        attachment = record.terminal.attach(ownerId, {
-          after: input.afterSequence,
-          mode: input.mode ?? "control",
+      await record.terminal
+        .enqueue(() => {
+          if (signal?.aborted || pending.released) return
+          if (this.stopping) throw new DomainError("CLOSING")
+          // Closed, or closing, while this attachment waited its turn.
+          if (record.closed || this.records.get(input.terminalId) !== record)
+            throw new DomainError("TERMINAL_NOT_FOUND")
+          attachment = record.terminal.attach(ownerId, {
+            after: input.afterSequence,
+            mode: input.mode ?? "control",
+          })
         })
-      }).finally(() => {
-        record.pendingAttachments -= 1
-      })
+        .finally(() => {
+          record.pendingAttachments -= 1
+        })
       if (!attachment) return
       // Tells the client that control or observation is established before any event arrives.
       yield { type: "attached", terminalId: input.terminalId, mode: attachment.mode }
@@ -2606,7 +2586,8 @@ export class Terminals {
    */
   async present(call: Call): Promise<PresentAnswer> {
     const record = this.records.get(call.terminalId)
-    if (!record || record.exitQueued || !sameToken(record.token, call.token)) return unanswered
+    if (!record || record.terminal.exiting || !sameToken(record.token, call.token))
+      return unanswered
     const read = readRequest(call.request)
     if (!read.ok) return read
     const place = this.place(call.terminalId)
@@ -2621,7 +2602,7 @@ export class Terminals {
    */
   async dismiss(call: Call): Promise<DismissAnswer> {
     const record = this.records.get(call.terminalId)
-    if (!record || record.exitQueued || !sameToken(record.token, call.token))
+    if (!record || record.terminal.exiting || !sameToken(record.token, call.token))
       return unansweredCalls.dismiss
     const read = readDismissRequest(call.request)
     if (!read.ok) return read
@@ -2633,7 +2614,7 @@ export class Terminals {
   /** What the caller's own terminal's bar holds, as its agent asked through Novadeck's MCP server. */
   private showing(call: Call): { ok: true; text: string } | typeof unansweredCalls.showing {
     const record = this.records.get(call.terminalId)
-    if (!record || record.exitQueued || !sameToken(record.token, call.token))
+    if (!record || record.terminal.exiting || !sameToken(record.token, call.token))
       return unansweredCalls.showing
     if (!this.options.items) return unansweredCalls.showing
     return { ok: true, text: this.options.items.listing(call.terminalId) }
@@ -2649,7 +2630,7 @@ export class Terminals {
    */
   async open(call: Call): Promise<OpenAnswer> {
     const record = this.records.get(call.terminalId)
-    if (!record || record.exitQueued || !sameToken(record.token, call.token))
+    if (!record || record.terminal.exiting || !sameToken(record.token, call.token))
       return unansweredCalls.open
     const read = readOpenRequest(call.request)
     if (!read.ok) return read
@@ -2783,7 +2764,7 @@ export class Terminals {
    */
   async closePeer(call: Call): Promise<CloseAnswer> {
     const record = this.records.get(call.terminalId)
-    if (!record || record.exitQueued || !sameToken(record.token, call.token))
+    if (!record || record.terminal.exiting || !sameToken(record.token, call.token))
       return unansweredCalls.close
     const read = readCloseRequest(call.request)
     if (!read.ok) return read
@@ -2845,7 +2826,7 @@ export class Terminals {
       case "ask":
       case "tell": {
         const record = this.records.get(call.terminalId)
-        if (!record || record.exitQueued || !sameToken(record.token, call.token))
+        if (!record || record.terminal.exiting || !sameToken(record.token, call.token))
           return Promise.resolve(unansweredCalls[call.type])
         return Promise.resolve(this.asks.call(call.terminalId, call.type, call.request))
       }
@@ -2867,7 +2848,7 @@ export class Terminals {
    */
   async summarize(call: Call): Promise<SummarizeAnswer> {
     const record = this.records.get(call.terminalId)
-    if (!record || record.exitQueued || !sameToken(record.token, call.token))
+    if (!record || record.terminal.exiting || !sameToken(record.token, call.token))
       return unansweredCalls.summarize
     const read = readSummarizeRequest(call.request)
     if (!read.ok) return read
@@ -3186,9 +3167,9 @@ export class Terminals {
   private sample(): void {
     let running = false
     for (const record of this.records.values()) {
-      if (record.summary.exit !== null || record.exitQueued) continue
+      if (record.summary.exit !== null || record.terminal.exiting) continue
       running = true
-      record.foreground = sampleForeground(record.process, record.foreground)
+      record.foreground = sampleForeground(record.terminal.pty, record.foreground)
       const current = record.foreground.process
       if (sameProcess(current, record.summary.process)) continue
       // The program a fresh shell resumes, should this one be lost.
@@ -3225,7 +3206,7 @@ export class Terminals {
   }
 
   private running(record: Record): void {
-    if (record.summary.exit !== null || record.exitQueued || record.closing)
+    if (record.summary.exit !== null || record.terminal.exiting || record.closing)
       throw new DomainError("TERMINAL_EXITED")
   }
 
@@ -3282,91 +3263,21 @@ export class Terminals {
     throw new DomainError("SPAWN_FAILED", "Configured shell must be an executable file.")
   }
 
-  private enqueue<T>(record: Record, operation: () => T | Promise<T>): Promise<T> {
-    // Output read from now on is drawn after this, in a draw of its own.
-    record.unread = null
-    const result = record.chain.then(operation)
-    record.chain = result.then(
-      () => {},
-      () => {},
-    )
-    return result
-  }
-
   /**
-   * Draws output on the terminal's screen in order, after what was queued before it: what
-   * arrives while a draw waits joins one batch, drawn by the next. Each draw waits for the
-   * screen's callback, a timer, about 15 ms on Windows: a TUI that redraws for every key of
-   * a paste, as Codex does there, took over a second to show 100 characters drawn one
-   * chunk at a time, though it had drawn them in 0.2 s. The program is paused only while a
-   * lot of its output waits (`OUTPUT_WAITING_CHARS`), and goes on once all of it is drawn,
-   * so a program can't outrun its screen.
-   */
-  private output(record: Record, child: Pty, data: string): void {
-    record.pendingOutput += data.length
-    if (record.pendingOutput > OUTPUT_WAITING_CHARS) child.pause()
-    // The draw queued last takes this with it, while nothing was queued after it.
-    if (record.unread) {
-      record.unread.push({ child, data })
-      return
-    }
-    const batch = [{ child, data }]
-    record.pendingReads += 1
-    let drawn = 0
-    void this.enqueue(record, async () => {
-      if (record.unread === batch) record.unread = null
-      drawn = batch.reduce((total, one) => total + one.data.length, 0)
-      // Output a previous run left queued belongs to a screen that is gone.
-      const text = batch
-        .filter((one) => one.child === record.process)
-        .map((one) => one.data)
-        .join("")
-      if (text === "") return
-      await new Promise<void>((resolve) => record.screen.write(text, resolve))
-      this.doorbell?.changed(record.summary.id)
-      this.dialogs.changed(record.summary.id)
-      // Once on the screen: a save while it was drawing may have taken the screen before.
-      record.changed = true
-      for (let start = 0; start < text.length;) {
-        let end = Math.min(start + OUTPUT_CHARS, text.length)
-        const last = text.charCodeAt(end - 1)
-        if (end < text.length && last >= 0xd800 && last <= 0xdbff) end -= 1
-        const chunk = text.slice(start, end)
-        this.emit(record, { type: "output", data: chunk })
-        start = end
-      }
-    }).finally(() => {
-      record.pendingReads -= 1
-      record.pendingOutput -= drawn
-      // Each program of the batch that still runs, as a restart's shell may have been
-      // paused in a batch the one before began.
-      if (record.pendingReads === 0 && !record.exitQueued)
-        for (const one of new Set(batch.map((each) => each.child)))
-          if (one === record.process) one.resume()
-    })
-    record.unread = batch
-  }
-
-  // Each event through one place, which a test watches.
-  private emit(record: Record, event: Emitted): void {
-    record.terminal.emit(event)
-  }
-
-  /**
-   * Spawns a shell with a fresh screen; the caller attaches it to a record. Every shell
+   * A shell's run, for a terminal to start; the caller attaches it to a record. Every shell
    * knows its terminal's id; with the integration it also loads it, and gets the hook's
    * launcher and the endpoint and token its connected agents report with. A `startup`
    * command runs as the integration starts; configured shell arguments leave it out,
    * unless it is `required`, when the shell does not start without it.
    */
-  private spawn(
+  private launch(
     shell: string,
     cwd: string,
     input: Size & { id?: string; terminalId?: string },
     integration: (Integration & { shims: readonly AgentName[] }) | undefined,
     base: NodeJS.ProcessEnv,
     startup?: { readonly command: string; readonly required?: boolean },
-  ): Started {
+  ): { spec: RunSpec; started: Started } {
     const { cols, rows } = input
     const id = input.id ?? input.terminalId ?? ""
     const token = randomBytes(24).toString("hex")
@@ -3403,74 +3314,35 @@ export class Terminals {
         NOVADECK_REPORT_TOKEN: token,
       }),
     }
-    const screen = createScreen({ cols, rows, scrollback: 1000 })
-    const mouseEncoding = trackMouse(screen)
-    try {
-      const child = spawnPty({
-        file: shell,
-        args: this.options.shellArgs ?? launched.args,
-        cwd,
-        env,
-        cols,
-        rows,
-        ...this.pty,
-      })
-      return {
-        process: child,
-        screen,
-        mouseEncoding,
-        startedAt: performance.now(),
-        token,
-        resumes: launched.resumes,
-        resumeFile,
-        resumeClaim: undefined,
-      }
-    } catch {
-      screen.dispose()
-      if (resumeFile) rmSync(resumeFile, { force: true })
-      throw new DomainError("SPAWN_FAILED", "Could not start the configured shell.")
+    return {
+      spec: { file: shell, args: this.options.shellArgs ?? launched.args, cwd, env, cols, rows },
+      started: { token, resumes: launched.resumes, resumeFile, resumeClaim: undefined },
     }
   }
 
-  /** Connects a record to its current shell and screen. */
+  /** Reacts to the terminal: what it draws, its exit, its size, title and prompts. */
   private listen(record: Record): void {
-    const { process: child, screen } = record
-    record.exited = new Promise<void>((resolve) => {
-      record.resolveExit = resolve
+    const { terminal } = record
+    terminal.on("drawn", () => {
+      this.doorbell?.changed(record.summary.id)
+      this.dialogs.changed(record.summary.id)
+      // Once on the screen: a save while it was drawing may have taken the screen before.
+      record.changed = true
     })
-    record.listeners = [
-      child.onData((data) => this.output(record, child, data)),
-      child.onExit((exit) => this.exit(record, exit)),
-      // Device-status queries are answered by the runner's screen, even with no viewer.
-      screen.onData((data) => {
-        if (!record.exitQueued) child.write(data)
-      }),
-      // A harness may tell by the title it sets that its prompt shows.
-      screen.onTitleChange((title) => {
-        record.title = title
-        this.screenTitled(record, child, title)
-      }),
-      // The shell integration reports the directory at each prompt: OSC 7 from bash, zsh
-      // and fish, OSC 9;9 from PowerShell and cmd. A directory on another machine, as
-      // from a shell over SSH, is not this shell's prompt.
-      screen.parser.registerOscHandler(7, (data) => {
-        const cwd = osc7Directory(data)
-        if (cwd !== undefined) this.prompted(record, child, cwd)
-        return true
-      }),
-      // A full reset (ESC c, as `reset` sends) clears the screen: no marker keeps a line
-      // that is no longer the one it marked. The screen still handles the reset itself.
-      screen.parser.registerEscHandler({ final: "c" }, () => {
-        this.forgetPrompts(record)
-        return false
-      }),
-      screen.parser.registerOscHandler(9, (data) => {
-        const cwd = osc9Directory(data)
-        if (cwd === undefined) return false
-        this.prompted(record, child, cwd)
-        return true
-      }),
-    ]
+    terminal.on("exit", (exit) => this.exited(record, exit))
+    terminal.on("exited", () => this.evict())
+    terminal.on("resized", ({ cols, rows }) => {
+      record.summary = { ...record.summary, cols, rows }
+      this.announce(record)
+    })
+    // A harness may tell by the title it sets that its prompt shows.
+    terminal.on("title", (title, child) => {
+      record.title = title
+      this.screenTitled(record, child, title)
+    })
+    terminal.on("cwd", (cwd, child) => this.prompted(record, child, cwd))
+    // No marker keeps a line that is no longer the one it marked.
+    terminal.on("reset", () => this.forgetPrompts(record))
   }
 
   /**
@@ -3479,7 +3351,7 @@ export class Terminals {
    * command still waiting by now was never taken.
    */
   private prompted(record: Record, child: Pty, cwd: string): void {
-    if (record.process !== child) return
+    if (record.terminal.pty !== child) return
     record.promptedAt = Date.now()
     // Whether a non-empty line was entered since the last prompt: a command may have run.
     const entered = record.lineEntered
@@ -3566,7 +3438,7 @@ export class Terminals {
       stdout: silentFor(harnesses[report.agent].messaging, report.event),
     }
     const record = this.records.get(report.terminalId)
-    if (!record || record.exitQueued || !sameToken(record.token, report.token)) return silent
+    if (!record || record.terminal.exiting || !sameToken(record.token, report.token)) return silent
     const decoded = firedFacts(harnesses[report.agent].decode(report), report)
     // A turn's end its hook named no reply for reads the reply from the agent's
     // transcript; any other report goes on at once.
@@ -3584,7 +3456,7 @@ export class Terminals {
     const promptShown = harnesses[report.agent].shown?.(report)
     const shown = promptShown && firedFacts([promptShown], report)[0]
     if (events.length === 0 && !shown) return silent
-    const { process: child } = record
+    const child = record.terminal.pty
     const disconnections = this.disconnections.get(report.agent)
     const observes =
       shown !== undefined || events.some((event) => event.type === "session-observed")
@@ -3595,7 +3467,7 @@ export class Terminals {
           this.reusedBinding(record, events, deadline),
         ])
       : [undefined, true, undefined]
-    if (record.process !== child || record.exitQueued) return silent
+    if (record.terminal.pty !== child || record.terminal.exiting) return silent
     // A disconnection while this waited forgot what the report would bring back.
     if (this.disconnections.get(report.agent) !== disconnections) return silent
     // The bound agent process may have exited without the shell showing a prompt, as in
@@ -3620,7 +3492,7 @@ export class Terminals {
     // one whose hooks its harness says don't run there can take no message.
     if (shown && foreground !== true && (process.platform !== "win32" || record.submitted)) {
       const trust = await this.promptTrust(record, report.agent)
-      if (record.process === child && shown.startedAt > (record.promptedAt ?? 0)) {
+      if (record.terminal.pty === child && shown.startedAt > (record.promptedAt ?? 0)) {
         if (trust === "counts") this.showPrompt(record, shown)
         else if (trust === "untrusted") this.messaging.untrusted(record.summary.id, report.agent)
       }
@@ -3998,7 +3870,8 @@ export class Terminals {
       // binding it found, ended since as its process was found gone (by a ring's check or a
       // report while this asked), and nothing after: its prompt shows as from no binding.
       const current = () => {
-        if (record.titles !== seq || record.process !== child || record.exitQueued) return false
+        if (record.titles !== seq || record.terminal.pty !== child || record.terminal.exiting)
+          return false
         const now = this.messaging.delivery(record.summary.id)?.epoch
         if (now === epoch) return true
         return (
@@ -4097,7 +3970,7 @@ export class Terminals {
     readonly pid: number | undefined
   } | null> {
     const found = await foregroundProcess(child.pid, agent)
-    if (found === null || record.process !== child) return null
+    if (found === null || record.terminal.pty !== child) return null
     const install = await this.options.install(agent)
     const own = found ? processSetting(found.pid, harnesses[agent].environment ?? []) : undefined
     const env = { ...this.options.env, ...install?.env, ...own?.env }
@@ -4403,14 +4276,14 @@ export class Terminals {
    */
   private recheckTrust(record: Record): void {
     if (record.recheck) clearTimeout(record.recheck)
-    const child = record.process
+    const child = record.terminal.pty
     record.recheck = setTimeout(() => {
       record.recheck = undefined
       const { title } = record
       if (
         title === undefined ||
-        record.process !== child ||
-        record.exitQueued ||
+        record.terminal.pty !== child ||
+        record.terminal.exiting ||
         !this.messaging.untrustedAgent(record.summary.id)
       )
         return
@@ -4670,10 +4543,10 @@ export class Terminals {
     record.readyTurned = false
     this.publishAgent(record, false)
     if (record.readyReturn) clearTimeout(record.readyReturn)
-    const child = record.process
+    const child = record.terminal.pty
     record.readyReturn = setTimeout(() => {
       record.readyReturn = undefined
-      if (record.process !== child || record.exitQueued || record.binding) return
+      if (record.terminal.pty !== child || record.terminal.exiting || record.binding) return
       if (!record.readyEntered || record.readyTurned) return
       record.readyEntered = false
       this.publishAgent(record, false)
@@ -4689,8 +4562,8 @@ export class Terminals {
 
   /** Shows a transcript on the record's fresh screen, ahead of its shell's output. */
   private show(record: Record, transcript: string, savedAt: Date | null): void {
-    const { screen } = record
-    void this.enqueue(record, () => replay(screen, transcript, restoredSeparator(savedAt)))
+    const { screen } = record.terminal
+    void record.terminal.enqueue(() => replay(screen, transcript, restoredSeparator(savedAt)))
   }
 
   private saved(terminalId: string, sessionId?: string): SavedTerminal | undefined {
@@ -4728,7 +4601,7 @@ export class Terminals {
         promptedAt: record.promptedAt,
         ...(transcript && {
           transcript: this.transcripts
-            ? transcriptOf(record.screen, this.options.transcriptChars)
+            ? transcriptOf(record.terminal.screen, this.options.transcriptChars)
             : null,
         }),
       }),
@@ -4763,46 +4636,38 @@ export class Terminals {
     this.saver.unref()
   }
 
-  private exit(record: Record, ended: { code: number | null; signal: string | null }): void {
-    if (record.exitQueued) return
-    record.exitQueued = true
-    const exit = { ...ended, ranMs: Math.max(0, Math.round(performance.now() - record.startedAt)) }
-    void this.enqueue(record, () => {
-      record.binding = null
-      record.root = null
-      record.activity = null
-      record.telemetry = null
-      this.forgetPrompts(record)
-      this.unwatch(record)
-      // An exited terminal takes no messages; its agent's are gone until it runs again.
-      this.messaging.unregister(record.summary.id)
-      this.asks.reconcile(record.summary.id)
-      this.doorbell?.forget(record.summary.id)
-      this.dialogs.forget(record.summary.id)
-      record.summary = {
-        ...record.summary,
-        exit,
-        process: null,
-        agent: null,
-        ready: null,
-        activity: null,
-        telemetry: null,
-      }
-      this.cancelResume(record)
-      this.save(record, true)
-      this.exits += 1
-      record.exitOrder = this.exits
-      this.announce(record)
-      this.emit(record, { type: "exited", exit })
-      record.terminal.finish()
-      record.resolveExit()
-      this.evict()
-    })
+  /** The shell exited: the agent layer lets go of it, before its viewers read the exit. */
+  private exited(record: Record, exit: TerminalExit): void {
+    record.binding = null
+    record.root = null
+    record.activity = null
+    record.telemetry = null
+    this.forgetPrompts(record)
+    this.unwatch(record)
+    // An exited terminal takes no messages; its agent's are gone until it runs again.
+    this.messaging.unregister(record.summary.id)
+    this.asks.reconcile(record.summary.id)
+    this.doorbell?.forget(record.summary.id)
+    this.dialogs.forget(record.summary.id)
+    record.summary = {
+      ...record.summary,
+      exit,
+      process: null,
+      agent: null,
+      ready: null,
+      activity: null,
+      telemetry: null,
+    }
+    this.cancelResume(record)
+    this.save(record, true)
+    this.exits += 1
+    record.exitOrder = this.exits
+    this.announce(record)
   }
 
   private terminate(record: Record): Promise<void> {
     if (record.closing) return record.closing
-    if (record.summary.exit !== null) return record.exited
+    if (record.summary.exit !== null) return record.terminal.exited
     record.closing = this.kill(record)
     return record.closing
   }
@@ -4822,8 +4687,8 @@ export class Terminals {
           : Math.min(began + treeGraceMs, this.shutdownBy - shutdownTreesMs + shutdownTreeGraceMs),
     }
     await Promise.all([
-      record.process.end({ graceMs: 1000, treeGraceMs, trees: this.trees, budget }),
-      record.exited,
+      record.terminal.pty.end({ graceMs: 1000, treeGraceMs, trees: this.trees, budget }),
+      record.terminal.exited,
     ])
   }
 
@@ -4894,7 +4759,6 @@ export class Terminals {
   }
 
   private dispose(record: Record): void {
-    for (const listener of record.listeners) listener.dispose()
-    record.screen.dispose()
+    record.terminal.dispose()
   }
 }

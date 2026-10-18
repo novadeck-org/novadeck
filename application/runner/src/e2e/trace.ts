@@ -99,10 +99,9 @@ type Runner = {
 }
 type Titled = Traced & {
   readonly agents: Readonly<Record<string, { readonly seq: number } | undefined>>
-  readonly process: object
+  readonly terminal: { readonly pty: object; readonly exiting: boolean }
   readonly titles?: number
   readonly submitted: boolean
-  readonly exitQueued: boolean
   readonly promptedAt: number | null
   readonly left?: Bound
 }
@@ -171,8 +170,8 @@ export const startTrace = (name: string, model: FakeModel) => {
         observedAt: record?.binding?.agent ? record.agents[record.binding.agent]?.seq : undefined,
         left: record?.left,
         sameRecord: record === probe.record,
-        sameProcess: record?.process === probe.child,
-        exitQueued: record?.exitQueued,
+        sameProcess: record?.terminal.pty === probe.child,
+        exitQueued: record?.terminal.exiting,
         submitted: record?.submitted,
         promptedAt: record?.promptedAt,
         disconnected: runner.disconnections.get(probe.report.agent) !== probe.disconnected,
@@ -190,8 +189,8 @@ export const startTrace = (name: string, model: FakeModel) => {
         bound: record.binding,
         sameBinding: record.binding === binding,
         leftBinding: record.left === binding,
-        sameProcess: record.process === child,
-        exitQueued: record.exitQueued,
+        sameProcess: record.terminal.pty === child,
+        exitQueued: record.terminal.exiting,
         submitted: record.submitted,
         promptedAt: record.promptedAt,
       },
@@ -503,7 +502,7 @@ export const startTrace = (name: string, model: FakeModel) => {
     const probe = {
       report,
       record,
-      child: record?.process,
+      child: record?.terminal.pty,
       disconnected: this.disconnections.get(report.agent),
     }
     add(
@@ -677,8 +676,10 @@ export const startTrace = (name: string, model: FakeModel) => {
   ]) as unknown as {
     kill: (record: {
       readonly summary: { readonly id: string; readonly exit: unknown }
-      readonly exitQueued: boolean
-      readonly process: { readonly pid: number }
+      readonly terminal: {
+        readonly exiting: boolean
+        readonly pty: { readonly pid: number | undefined }
+      }
     }) => Promise<void>
   }
   const { read: readTree, end: endTree } = treeing
@@ -705,7 +706,7 @@ export const startTrace = (name: string, model: FakeModel) => {
   }
   closing.kill = async function (record) {
     add(
-      `kill ${named(record.summary.id)} begins: shell ${record.process.pid}, exit queued ${record.exitQueued}`,
+      `kill ${named(record.summary.id)} begins: shell ${record.terminal.pty.pid}, exit queued ${record.terminal.exiting}`,
     )
     closes += 1
     try {

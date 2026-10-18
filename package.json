@@ -18,7 +18,7 @@
     "poster:try": "pnpm --filter @novadeck/ui poster:try",
     "build": "turbo run build",
     "bench:profile": "pnpm --filter @novadeck/host package && node scripts/bench/profile/main.ts",
-    "bench:timing": "turbo run build --filter=@novadeck/runner --filter=@novadeck/sandbox && node scripts/bench/timing/main.ts",
+    "bench:timing": "turbo run build --filter=@novadeck/runner --filter=@novadeck/sandbox && pnpm --filter-prod \"@novadeck/ui^...\" build && node scripts/bench/timing/main.ts",
     "new:library": "node scripts/libraries/new.ts",
     "preview": "pnpm --filter @novadeck/runner start",
     "package": "pnpm --filter @novadeck/host package",

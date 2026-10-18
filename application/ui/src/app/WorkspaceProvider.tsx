@@ -61,6 +61,8 @@ const createServices = (
   const workspace = createWorkspaceStore(initial, backend.commit)
   // The store only reports later commits; give the backend the starting terminals now.
   backend.commit(initial, [])
+  // Terminals mount in layout effects, before any effect of the app's could tell the font.
+  if ("setFont" in backend) backend.setFont({ size: preferences.fontSize })
   const ui = createUiStore(
     initialUi({
       location: { route, dialogDepth: dialogDepthOf(location.state), navigationType },

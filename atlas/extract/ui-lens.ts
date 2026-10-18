@@ -745,9 +745,9 @@ export const extractUiLens = (input: LensInput): UiLens => {
     prefixes.set(action.prefix, [...(prefixes.get(action.prefix) ?? []), action])
 
   const portLines = source(portFile)?.lines ?? []
-  const backendStart = portLines.findIndex((l) => l.startsWith("export type Backend = {"))
+  const backendStart = portLines.findIndex((l) => l.startsWith("export type BackendFields = {"))
   if (backendStart === -1)
-    anchors.report("ui backend port", portFile, 'expected "export type Backend = {"')
+    anchors.report("ui backend port", portFile, 'expected "export type BackendFields = {"')
   const portMembers: BoxItem[] = []
   for (let i = backendStart + 1; i < portLines.length && !portLines[i]!.startsWith("}"); i++) {
     const match = /^ {2}readonly (\w+)\??[:=]/.exec(portLines[i]!)
@@ -762,7 +762,7 @@ export const extractUiLens = (input: LensInput): UiLens => {
       )
   }
   if (backendStart !== -1 && portMembers.length === 0)
-    anchors.report("ui backend port", portFile, "found 0 members in `Backend`")
+    anchors.report("ui backend port", portFile, "found 0 members in `BackendFields`")
   portMembers.sort((a, b) => Number(b.label === "commit") - Number(a.label === "commit"))
 
   // The action types the adapter may dispatch back: the quoted types in `BackendAction`.

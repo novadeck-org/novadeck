@@ -15,6 +15,7 @@ import type { TelemetryReader } from "#core/telemetry"
 import type {
   TerminalKey,
   TerminalMetadata,
+  TerminalStatus,
   ViewMode,
   Workspace,
   WorkspaceTarget,
@@ -27,20 +28,80 @@ import type { Voice } from "#core/voice"
 
 export type { TerminalKey }
 
-// What a terminal's content area receives. The surface renders one content element and
-// hands it to `renderWindow`; the window around it is the UI's to choose.
+// One terminal drawn into an element the UI gives it, synchronously: its input exists on
+// return. The mount owns the element's children; the UI owns the element (its classes, its
+// place) and moves it, never the children. A new key is a new mount.
 //
-// The rest of the UI relies on this markup from the surface:
-// - Its root carries `data-terminal-content` (view transitions morph it) and the
-//   `terminal-content` class (layout and canvas styles size and fade it).
-// - Its root carries `nodrag nopan`, so Canvas does not drag or pan from the content,
-//   and stops `wheel` propagation without Ctrl/Meta, so scrolling output does not
-//   zoom the canvas while pinch and Ctrl+wheel still do.
-// - The element that takes typed input carries `data-terminal-input`, so shortcuts
-//   treat it as terminal input and search returns focus to it.
+// The UI draws the terminal's window and what lies over its output (the lock, the notice of a
+// failed paste, the ending bar) around the element, from `TerminalMount.state`, and relies on
+// this markup:
+// - The UI's host puts `data-terminal-content` on its root (view transitions morph it),
+//   `nodrag nopan` so Canvas does not drag or pan from the content, and a wheel stop without
+//   Ctrl/Meta so scrolling output does not zoom the canvas while pinch and Ctrl+wheel still
+//   do. The mount never needs to know.
+// - The mount puts exactly one `data-terminal-input` inside its element, on the element that
+//   takes typed input. Shortcuts treat it as terminal input, search returns focus to it,
+//   overlays and dictation find the terminal by it.
 // - Its own styles may key off the frame's `terminal-compact` (Grid and Canvas) and
 //   `terminal-focused` (Focus) classes; ship them with the adapter.
-// Attach to a running terminal from the surface's effects; `commit` handles lifecycle.
+export type MountTerminal = (
+  element: HTMLElement,
+  key: TerminalKey,
+  props: TerminalMountProps,
+) => TerminalMount
+
+// Plain data; the UI passes a fresh object when a field changes.
+export type TerminalMountProps = {
+  // Names its input for assistive technology.
+  readonly name: string
+  // The terminal's status. An exited or failed one takes only Enter, to start again.
+  readonly status: TerminalStatus["state"]
+  // The view it shows in. A backend may draw differently in one, as the runner's keeps
+  // Canvas's on the DOM renderer, since Canvas zooms with a transform that stretches a
+  // GPU-drawn screen.
+  readonly view: ViewMode
+  // Whether the element is where the person can see it. A mount off screen may let its screen
+  // go, and takes it again when it is back; the element keeps the last drawing. A mount
+  // created off screen takes none until it is on screen. Absent means on screen.
+  readonly onScreen?: boolean
+}
+
+export type TerminalMount = {
+  // What the UI draws around the terminal: a stable snapshot until something changes, and
+  // the same store for the mount's life, so `useSyncExternalStore` can hold it. Methods may
+  // be called unbound.
+  readonly state: Store<ViewState>
+  // Equal values change nothing: no I/O, no notification, no DOM write.
+  readonly update: (props: TerminalMountProps) => void
+  // Focuses the input, and says whether the focus landed in the terminal. A mount that is
+  // off screen, or whose screen is on its way, answers false; the UI asks again.
+  readonly focus: () => boolean
+  // A fresh shell in an exited or failed terminal.
+  readonly restart: () => void
+  // Called while the element is still in the document, so focus carries to the next mount.
+  // Safe twice; leaves the element's content where it is.
+  readonly dispose: () => void
+}
+
+// Why a terminal refuses input.
+export type TerminalLock = "starting" | "loading" | "reconnecting" | "offline"
+export type ViewState = {
+  // A stream draws the current shell.
+  readonly live: boolean
+  // Taking up again after a reconnection.
+  readonly resuming: boolean
+  // The stream told of an exit before the status did.
+  readonly waits: boolean
+  // Why input is refused; null while it takes input.
+  readonly lock: TerminalLock | null
+  // Why the last paste failed, for a few seconds after it did.
+  readonly notice: string | null
+}
+// The terminal font from Preferences, in CSS pixels.
+export type TerminalFont = { readonly size: number }
+
+// What a terminal's content area receives from a backend that renders it as a component.
+// Until 3.2d the demo keeps this; the mount above replaces it.
 export type TerminalSurfaceProps = {
   // Wraps the content in the terminal's window and the body its program calls for;
   // render what it returns. The surface keeps its controller and emulator mounted above
@@ -51,9 +112,7 @@ export type TerminalSurfaceProps = {
   readonly terminalKey: TerminalKey
   readonly terminal: TerminalMetadata
   readonly projectName: string
-  // The view it shows in. A backend may draw differently in one, as the runner's keeps
-  // Canvas's on the DOM renderer, since Canvas zooms with a transform that stretches a
-  // GPU-drawn screen.
+  // The view it shows in.
   readonly view: ViewMode
   // The terminal font size from Preferences, in CSS pixels.
   readonly fontSize: number
@@ -61,10 +120,24 @@ export type TerminalSurfaceProps = {
   readonly focusInput: boolean
   // Stable across renders; call it after focusing the input.
   readonly onInputFocused: () => void
-  // Whether the surface's window is where the person can see it. A surface off screen may
-  // let its screen go, and takes it again when it is back. Absent means on screen.
+  // Whether the surface's window is where the person can see it. Absent means on screen.
   readonly onScreen?: boolean
 }
+
+// How a backend draws terminals: the runner mounts them into elements, the demo renders them
+// as components until 3.2d. A backend offers exactly one shape.
+export type TerminalPort =
+  | {
+      // Created once per backend instance so its identity is stable across renders.
+      readonly mountTerminal: MountTerminal
+      // The font size from Preferences, called once before the first mount and again when
+      // it changes. Synchronous bookkeeping with no I/O.
+      readonly setFont: (font: TerminalFont) => void
+    }
+  | {
+      // Created once per backend instance so its identity is stable across renders.
+      readonly TerminalSurface: ComponentType<TerminalSurfaceProps>
+    }
 
 // Workspace changes a backend reports on its own, as the owner of every terminal, item
 // and window: a terminal added elsewhere (another window, an agent), a name or directory
@@ -109,7 +182,7 @@ export type BackendSink = {
   readonly open: (request: TerminalRequest) => void
 }
 
-export type Backend = {
+export type BackendFields = {
   // The workspace to start from, available before the app first renders. It needs at
   // least one project, each with at least one session; mounting throws otherwise.
   readonly seed: WorkspaceSeed
@@ -133,8 +206,6 @@ export type Backend = {
   // I/O, such as ending the process of a closed terminal that no view shows. Make
   // that I/O safe to repeat for the same terminal.
   readonly commit: (workspace: Workspace, actions: readonly WorkspaceAction[]) => void
-  // Created once per backend instance so its identity is stable across renders.
-  readonly TerminalSurface: ComponentType<TerminalSurfaceProps>
   // What the agents in its terminals say of their tokens and quotas, by session and
   // terminal. Apart from the terminals' metadata, since an agent reports it often and a
   // report should reach only what reads the telemetry, not every subscriber of the roster.
@@ -281,6 +352,8 @@ export type Backend = {
   // simulation, with a call to download, and a narrow window gets a panel instead.
   readonly visitor?: true
 }
+
+export type Backend = BackendFields & TerminalPort
 
 // How the page looks, for the window around it: the scheme its native parts use
 // (`system` while the page follows the system, so the page keeps seeing the system's
