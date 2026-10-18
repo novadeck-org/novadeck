@@ -415,10 +415,20 @@ describe("a look and the gate on it", () => {
     await sleep(40)
     const second = await typist.look()
     expect(second).toMatchObject({ calm: true })
-    expect(second!.calmFor).toBeGreaterThanOrEqual(30)
+    expect(second!.calmFor).toBe(40)
     expect(second!.calmSince).toBe(first!.at)
     fake.rows[1] = "a clock ticked"
     expect((await typist.look())?.calm).toBe(false)
+  })
+
+  it("calls the screen calm once it has been still for the whole period, not a moment before", async () => {
+    const fake = terminal()
+    const typist = looking(fake)
+    await typist.look()
+    await sleep(fast.calmMs - 1)
+    expect(await typist.look()).toMatchObject({ calm: false, calmFor: fast.calmMs - 1 })
+    await sleep(1)
+    expect(await typist.look()).toMatchObject({ calm: true, calmFor: fast.calmMs })
   })
 
   it("counts a resize as an end to the calm, as the screen may not have redrawn for it yet", async () => {
