@@ -4,26 +4,29 @@ import { RPCHandler } from "@orpc/server/message-port"
 import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import type { Channel, MessagePortLike } from "./channel.js"
-import { connect, Watched, type ConnectOptions, type HandshakeInput } from "./connection.js"
+import { connect, Watched, type ConnectOptions } from "./connection.js"
 import { wireErrors } from "./errors.js"
+import { wireContract } from "./handshake.js"
 import { fakeChannel, memoryPorts } from "./testing.js"
 import { messagePort } from "./transport.js"
 
 const contract = {
-  hello: oc
-    .errors(wireErrors)
-    .input(type<{ clientId: string; token?: string }>())
-    .output(type<{ epoch: string }>()),
+  ...wireContract,
   echo: oc.input(type<string>()).output(type<string>()),
 }
+
+const protocolVersion = 3
 
 type Server = {
   epoch: string
   // What the next handshakes answer, in turn; once spent, they answer with the epoch.
   refusals: (() => never)[]
-  // Holds every handshake back, as a server that never answers.
+  // Holds every handshake back, as a server that never answers, until `answer` is called.
   silent: boolean
-  seen: Omit<HandshakeInput, "signal">[]
+  answer?: () => void
+  // The protocol version it answers with.
+  protocolVersion: number
+  seen: { clientId?: string | undefined; token?: string | undefined; protocolVersion: number }[]
   ports: MessagePortLike[]
   // How many of its ports have closed.
   closed: number
@@ -35,18 +38,25 @@ const serve = (): Server & { transport: ConnectOptions<typeof contract>["transpo
     epoch: "e1",
     refusals: [],
     silent: false,
+    protocolVersion,
     seen: [],
     ports: [],
     closed: 0,
   }
   const api = implement(contract)
   const router = api.router({
-    hello: api.hello.handler(({ input }) => {
-      server.seen.push(input)
-      if (server.silent) return new Promise<never>(() => {})
-      server.refusals.shift()?.()
-      return { epoch: server.epoch }
-    }),
+    wire: {
+      handshake: api.wire.handshake.handler(({ input }) => {
+        server.seen.push(input)
+        const answer = { epoch: server.epoch, protocolVersion: server.protocolVersion }
+        if (server.silent)
+          return new Promise<typeof answer>((resolve) => {
+            server.answer = () => resolve(answer)
+          })
+        server.refusals.shift()?.()
+        return answer
+      }),
+    },
     echo: api.echo.handler(({ input }) => input),
   })
   const transport = messagePort(() => {
@@ -69,8 +79,7 @@ const open = async (
   const wire = await connect({
     contract,
     transport: server.transport,
-    handshake: (client, { clientId, token, signal }) =>
-      client.hello({ clientId, ...(token !== undefined && { token }) }, { signal }),
+    protocolVersion,
     retryDelay: () => 0,
     ...options,
   })
@@ -104,7 +113,11 @@ describe("connect", () => {
     await until(wire, "reconnecting")
     await until(wire, "connected")
     expect(server.seen).toHaveLength(2)
-    expect(server.seen[0]).toEqual({ clientId: expect.any(String), token: "secret" })
+    expect(server.seen[0]).toEqual({
+      clientId: expect.any(String),
+      token: "secret",
+      protocolVersion,
+    })
     expect(server.seen[1]).toEqual(server.seen[0])
   })
 
@@ -181,7 +194,7 @@ describe("connect", () => {
     const [end, client] = memoryPorts()
     const api = implement(contract)
     const router = api.router({
-      hello: api.hello.handler(() => ({ epoch: "e1" })),
+      wire: { handshake: api.wire.handshake.handler(() => ({ epoch: "e1", protocolVersion })) },
       echo: api.echo.handler(({ input }) => input),
     })
     new RPCHandler(router).upgrade(end, { context: {} })
@@ -194,6 +207,12 @@ describe("connect", () => {
   it("fails the first connection with the handshake's refusal", async () => {
     const server = serve()
     server.refusals.push(refusal("INCOMPATIBLE_PROTOCOL"))
+    await expect(open(server)).rejects.toMatchObject({ code: "INCOMPATIBLE_PROTOCOL" })
+  })
+
+  it("refuses a server that answers in another protocol", async () => {
+    const server = serve()
+    server.protocolVersion = protocolVersion + 1
     await expect(open(server)).rejects.toMatchObject({ code: "INCOMPATIBLE_PROTOCOL" })
   })
 
@@ -216,21 +235,15 @@ describe("connect", () => {
     await expect(opening).rejects.toBe(reason)
   })
 
-  it("stays cancelled when a handshake that ignores its signal answers late", async () => {
+  it("stays cancelled when the handshake answers as it aborts", async () => {
     const server = serve()
-    let answer: (() => void) | undefined
+    server.silent = true
     const abort = new AbortController()
-    const opening = open(server, {
-      signal: abort.signal,
-      handshake: () =>
-        new Promise((resolve) => {
-          answer = () => resolve({ epoch: "late" })
-        }),
-    })
-    await vi.waitFor(() => expect(answer).toBeDefined())
+    const opening = open(server, { signal: abort.signal })
+    await vi.waitFor(() => expect(server.answer).toBeDefined())
     const reason = new Error("Gave up.")
     abort.abort(reason)
-    answer?.()
+    server.answer?.()
     await expect(opening).rejects.toBe(reason)
     expect(server.closed).toBe(1)
   })

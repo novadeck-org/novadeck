@@ -6,7 +6,7 @@ import { connectFailure } from "./index"
 describe("connection failure", () => {
   context("when the runner is away or busy", () => {
     it("counts as transient, so the splash retries on its own", () => {
-      const kinds = ["DISCONNECTED", "CLOSED", "RUNTIME_CLOSING", "RESOURCE_LIMIT"].map(
+      const kinds = ["DISCONNECTED", "CLOSED", "CLOSING", "RESOURCE_LIMIT"].map(
         (code) => connectFailure(new WireError(code)).kind,
       )
       expect(kinds).toEqual(["transient", "transient", "transient", "transient"])

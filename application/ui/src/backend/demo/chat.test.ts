@@ -1,10 +1,11 @@
 import { createElement, useContext } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { Conversations } from "../../model/conversation"
-import { workspaceFromSeed } from "../../model/seed"
-import { activeSession } from "../../model/state"
-import { createWorkspaceStore } from "../../model/store"
+import type { Conversations } from "#core/conversation"
+import { workspaceFromSeed } from "#core/seed"
+import { activeSession } from "#core/state"
+import { createWorkspaceStore } from "#core/store"
+
 import { render } from "../../test/render"
 import { DemoAgentContext, type DemoAgentLink } from "./agent-link"
 import { answerMs, answeredMs } from "./chat"

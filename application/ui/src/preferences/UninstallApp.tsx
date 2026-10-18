@@ -1,7 +1,8 @@
 import { useState } from "react"
 
-import type { AgentName } from "../model/harnesses"
-import type { OfferedUninstall, UninstallResult } from "../model/uninstall"
+import type { AgentName } from "#core/harnesses"
+import type { OfferedUninstall, UninstallResult } from "#core/uninstall"
+
 import { Checkbox } from "../ui-toolkit/Checkbox"
 import { Dialog, DialogDescription, DialogTitle } from "../ui-toolkit/Dialog"
 import { AddonFailure, AddonRow, addonNoteClasses, addonRowClasses } from "./addon-parts"

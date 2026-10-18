@@ -6,6 +6,8 @@ import { sourceFiles } from "./files.ts"
 import { findDefinition, routerFile, servicesOf, type Service } from "./runner-services.ts"
 
 const contractFile = "application/protocol/src/contract.ts"
+// The wire's sessions: the gate in front of every router procedure, and the handshake.
+const sessionsFile = "libraries/wire/src/sessions.ts"
 
 type Definition = { inputSchema?: unknown; outputSchema?: unknown }
 
@@ -49,9 +51,15 @@ const handlerOf = (
   known: Service[],
   id: string,
 ): Anchor | null => {
-  const start = router.indexOf(`authorized.${id}.handler(`)
-  const at = start === -1 ? router.indexOf(`api.${id}.handler(`) : start
-  if (at === -1) return null
+  const at = router.indexOf(`api.${id}.handler(`)
+  if (at === -1) {
+    // The wire's own procedures are answered in its sessions.
+    const sessions = anchors.read(sessionsFile) ?? ""
+    const own = sessions.indexOf(`.${id}.handler(`)
+    return own === -1
+      ? null
+      : { file: sessionsFile, line: sessions.slice(0, own).split("\n").length }
+  }
   const line = router.slice(0, at).split("\n").length
   const skip = at + id.length + 20
   const next = router.slice(skip).search(/\.handler\(/)
@@ -108,7 +116,11 @@ const errorsOf = (
   const texts: string[] = []
   const at = router.indexOf(`.${id}.handler(`)
   if (at !== -1) texts.push(blockFrom(router, at + id.length + 1, "("))
-  if (handler && handler.line !== null && handler.file !== routerFile) {
+  if (handler && handler.line !== null && handler.file === sessionsFile) {
+    const source = anchors.read(sessionsFile) ?? ""
+    const own = source.indexOf(`.${id}.handler(`)
+    if (own !== -1) texts.push(blockFrom(source, own + id.length + 1, "("))
+  } else if (handler && handler.line !== null && handler.file !== routerFile) {
     const source = anchors.read(handler.file)
     if (source) {
       const offset = source
@@ -121,10 +133,9 @@ const errorsOf = (
   const found = texts.flatMap((text) =>
     [...text.matchAll(errorPattern)].map((match) => match[1] ?? match[2]!),
   )
-  const authorized = router.includes(`authorized.${id}.handler(`)
-  return [...new Set([...(authorized ? routerWide : []), ...found])].filter((code) =>
-    known.has(code),
-  )
+  // Every procedure the runner's router serves is behind the sessions' gate.
+  const gated = router.includes(`api.${id}.handler(`)
+  return [...new Set([...(gated ? routerWide : []), ...found])].filter((code) => known.has(code))
 }
 
 const callersOf = (anchors: Anchors, uiFiles: string[], id: string): Anchor[] => {
@@ -193,10 +204,15 @@ export const extractApi = async (repo: string, anchors: Anchors): Promise<Api> =
   if (apiErrors.length === 0 && source !== "")
     anchors.report("api errors", contractFile, "found 0 errors in `export const errors`")
   anchors.expect(contractFile, "export const contract", "api procedures")
-  anchors.expect(routerFile, "const authorized", "api router middleware")
+  anchors.expect(sessionsFile, "const gate", "api router middleware")
   const known = new Set(apiErrors.map((each) => each.code))
-  // What the `authorized` middleware raises for every procedure behind it.
-  const middleware = blockFrom(router, router.indexOf("const authorized"), "(")
+  // What the sessions' gate raises for every procedure behind it.
+  const sessions = anchors.read(sessionsFile) ?? ""
+  const middleware = blockFrom(
+    sessions,
+    sessions.indexOf(".middleware(", sessions.indexOf("const gate")),
+    "(",
+  )
   const routerWide = [...middleware.matchAll(/new ORPCError\("([A-Z_]+)"/g)].map((m) => m[1]!)
 
   const procedures = walk(contract).map(({ path, definition }): Procedure => {
@@ -222,10 +238,7 @@ export const extractApi = async (repo: string, anchors: Anchors): Promise<Api> =
   if (procedures.length === 0)
     anchors.report("api procedures", contractFile, "found 0 procedures in the contract")
   for (const procedure of procedures)
-    if (
-      !router.includes(`authorized.${procedure.id}.handler(`) &&
-      !router.includes(`api.${procedure.id}.handler(`)
-    )
+    if (procedure.handler === null)
       anchors.report("api handlers", routerFile, `no router handler for ${procedure.id}`)
   const resolved = procedures.filter(
     (procedure) => procedure.handler !== null && procedure.handler.file !== routerFile,

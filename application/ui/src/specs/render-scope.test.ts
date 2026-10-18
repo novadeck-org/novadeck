@@ -9,11 +9,12 @@ import {
 import { HashRouter } from "react-router"
 import { afterEach, beforeAll, vi } from "vitest"
 
+import { createTelemetryStore, setUsage, type TelemetryStore } from "#core/telemetry"
+import type { AgentUsage } from "#core/types"
+
 import { WorkspaceApp } from "../app/App"
 import { useWorkspaceServices, type WorkspaceServices } from "../app/controller/context"
 import { WorkspaceProvider } from "../app/WorkspaceProvider"
-import { createTelemetryStore, setUsage, type TelemetryStore } from "../model/telemetry"
-import type { AgentUsage } from "../model/types"
 import { context, describe, expect, it } from "../test"
 import { itemFixture } from "../test/fixtures"
 import { testPhases } from "../test/phases"

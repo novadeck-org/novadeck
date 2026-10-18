@@ -1,4 +1,4 @@
-import type { CanvasLayout } from "../../model/types"
+import type { CanvasLayout } from "#core/types"
 
 type Viewport = NonNullable<CanvasLayout["viewport"]>
 type Flight = { viewport: Viewport }

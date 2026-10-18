@@ -1,5 +1,5 @@
-import { companionKeyId } from "../../model/companion"
-import type { AgentAsk, InboxAnswer, InboxItem } from "../../model/inbox"
+import { companionKeyId } from "#core/companion"
+import type { AgentAsk, InboxAnswer, InboxItem } from "#core/inbox"
 import {
   noMail,
   type AgentMessage,
@@ -9,9 +9,10 @@ import {
   type MessageThread,
   type Messages,
   type TerminalMail,
-} from "../../model/messages"
-import { createStore } from "../../model/store"
-import type { WorkspaceTarget } from "../../model/types"
+} from "#core/messages"
+import { createStore } from "#core/store"
+import type { WorkspaceTarget } from "#core/types"
+
 import { demoTerminalId } from "./samples"
 
 // A demo mailbox: threads between the sample terminals, kept the way the runner keeps

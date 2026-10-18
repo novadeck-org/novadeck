@@ -1,7 +1,8 @@
 import { memo, useEffect, useState, useSyncExternalStore } from "react"
 
+import { movedOrder, nextAccountReset, runningSeats, sameSeats } from "#core/account-usage"
+
 import type { Backend, BackendConnectionState } from "../backend/port"
-import { movedOrder, nextAccountReset, runningSeats, sameSeats } from "../model/account-usage"
 import { readSubscriptionOrder, writeSubscriptionOrder } from "../shell/shell-storage"
 import { SubscriptionUsage } from "../shell/SubscriptionUsage"
 import { WorkspaceFooter as Footer, type FooterStatus } from "../shell/WorkspaceFooter"

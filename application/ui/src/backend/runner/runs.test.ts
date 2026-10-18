@@ -4,9 +4,10 @@ import { WireError } from "@novadeck/wire"
 import type { WireStatus } from "@novadeck/wire/client"
 import { afterAll, vi } from "vitest"
 
-import { workspaceFromSeed } from "../../model/seed"
-import { activeSession, createTerminalState, workspaceReducer } from "../../model/state"
-import type { Workspace } from "../../model/types"
+import { workspaceFromSeed } from "#core/seed"
+import { activeSession, createTerminalState, workspaceReducer } from "#core/state"
+import type { Workspace } from "#core/types"
+
 import { context, describe, expect, it } from "../../test"
 import type { BackendAction } from "../port"
 import { runnerBackend, type RunnerApi } from "./backend"

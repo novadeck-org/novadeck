@@ -1,7 +1,7 @@
-import { itemIdOf, type CompanionItem } from "../model/companion"
-import type { Refused } from "../model/prompt-refusal"
-import { createTerminalState, workspaceReducer, type WorkspaceAction } from "../model/state"
-import type { PreferencesValue, TerminalMetadata, ViewMode, Workspace } from "../model/types"
+import { itemIdOf, type CompanionItem } from "#core/companion"
+import type { Refused } from "#core/prompt-refusal"
+import { createTerminalState, workspaceReducer, type WorkspaceAction } from "#core/state"
+import type { PreferencesValue, TerminalMetadata, ViewMode, Workspace } from "#core/types"
 
 // A backend's rule for a message's shape that refuses just these texts, as given.
 export const refusing =

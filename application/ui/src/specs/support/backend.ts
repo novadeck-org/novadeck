@@ -1,3 +1,5 @@
+import type { SandboxState } from "#core/sandbox"
+
 import { createDemoBackend } from "../../backend/demo"
 import { createContentDemo } from "../../backend/demo/content"
 import { createDemoPortable, type DemoPortable } from "../../backend/demo/debug/portable"
@@ -13,7 +15,6 @@ import {
 } from "../../backend/demo/scenarios"
 import { visitorDemo } from "../../backend/demo/visitor"
 import type { Backend } from "../../backend/port"
-import type { SandboxState } from "../../model/sandbox"
 
 // The demo's variants a spec asks for in its address, and the backend that offers them:
 // the one place specs and tests reach the demo, kept out of the file that chooses

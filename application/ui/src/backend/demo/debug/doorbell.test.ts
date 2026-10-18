@@ -1,5 +1,6 @@
-import { companionKeyId } from "../../../model/companion"
-import type { MailState } from "../../../model/messages"
+import { companionKeyId } from "#core/companion"
+import type { MailState } from "#core/messages"
+
 import { describe, expect, it } from "../../../test"
 import { checkoutMailboxes, createDemoMessages } from "../messages"
 import { doorbellGroups } from "./doorbell"

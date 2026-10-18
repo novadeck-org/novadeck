@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 
-import type { InboxAnswer, InboxItem } from "../model/inbox"
+import type { InboxAnswer, InboxItem } from "#core/inbox"
+
 import { labelOf, fromNovadeck, subjectOf, type Standing } from "./inbox-text"
 import type { Sent as SentAnswer } from "./InboxProvider"
 import { Byline, Text } from "./sheet-parts"

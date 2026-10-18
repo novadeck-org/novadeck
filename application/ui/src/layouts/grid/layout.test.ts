@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import type { GridLayouts, TerminalMetadata } from "../../model/types"
+import type { GridLayouts, TerminalMetadata } from "#core/types"
+
 import {
   dropLayout,
   dropPlaceholder,

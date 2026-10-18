@@ -1,8 +1,9 @@
 import { X } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
-import type { PortableInstall as InstallState } from "../model/portable"
-import type { UpdateOffer } from "../model/update"
+import type { PortableInstall as InstallState } from "#core/portable"
+import type { UpdateOffer } from "#core/update"
+
 import { Progress } from "../ui-toolkit/Progress"
 import { useLinger } from "./linger"
 import { KeepFocus, useOverlayOpen, useRecoverFocus } from "./notice-focus"

@@ -1,4 +1,5 @@
-import type { ItemContent } from "../../model/companion"
+import type { ItemContent } from "#core/companion"
+
 import { describe, expect, it } from "../../test"
 import { docOf, stuckEdits } from "./plan-doc"
 

@@ -4,9 +4,10 @@ import { join } from "node:path"
 
 import { afterAll, vi } from "vitest"
 
-import { workspaceFromSeed } from "../../model/seed"
-import { activeProject, activeSession, workspaceReducer } from "../../model/state"
-import type { WorkspaceAction } from "../../model/state"
+import { workspaceFromSeed } from "#core/seed"
+import { activeProject, activeSession, workspaceReducer } from "#core/state"
+import type { WorkspaceAction } from "#core/state"
+
 import { describe, expect, it } from "../../test"
 import { runnerBackend } from "./backend"
 import { startTestRunner } from "./testing"

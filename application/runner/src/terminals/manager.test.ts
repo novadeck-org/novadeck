@@ -5,7 +5,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSy
 import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
 
-import { Terminal } from "@novadeck/emulator/headless"
+import { createScreen } from "@novadeck/emulator/headless"
 import type { ActivityEvent } from "@novadeck/harness-core/events"
 import { screen as screenWith } from "@novadeck/harness-core/testing/screens"
 import type { TerminalChange, TerminalEvent } from "@novadeck/protocol"
@@ -608,11 +608,7 @@ describe.skipIf(process.platform === "win32")("terminal manager", () => {
     const snapshot = (await observer.next()).value!
     expect(snapshot.type).toBe("snapshot")
     if (snapshot.type !== "snapshot") throw new Error("Expected snapshot")
-    const restored = new Terminal({
-      cols: snapshot.cols,
-      rows: snapshot.rows,
-      allowProposedApi: true,
-    })
+    const restored = createScreen({ cols: snapshot.cols, rows: snapshot.rows, scrollback: 1000 })
     try {
       await new Promise<void>((resolve) => restored.write(snapshot.data, resolve))
       const content = Array.from({ length: restored.buffer.active.length }, (_, index) =>
@@ -884,7 +880,7 @@ describe.skipIf(process.platform === "win32")("terminal manager", () => {
     expect(() => process.kill(secondPid, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }))
     await expect(
       manager.create({ id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 }, "owner"),
-    ).rejects.toMatchObject({ code: "RUNTIME_CLOSING" })
+    ).rejects.toMatchObject({ code: "CLOSING" })
   })
 
   // bash takes the terminal back as it hangs up, so a TUI still restoring the terminal is
@@ -1109,7 +1105,7 @@ describe("terminal watching", () => {
     await expect(pending[1]).resolves.toMatchObject({ done: true })
     await manager.shutdown()
     await expect(pending[2]).resolves.toMatchObject({ done: true })
-    await expect(manager.watch("late").next()).rejects.toMatchObject({ code: "RUNTIME_CLOSING" })
+    await expect(manager.watch("late").next()).rejects.toMatchObject({ code: "CLOSING" })
   })
 })
 
@@ -1601,7 +1597,7 @@ describe.skipIf(process.platform === "win32")("terminal message watches", () => 
     await manager.shutdown()
     await expect(ending).resolves.toEqual({ done: true, value: undefined })
     await expect(manager.watchMessages(id).next()).rejects.toMatchObject({
-      code: "RUNTIME_CLOSING",
+      code: "CLOSING",
     })
   })
 })

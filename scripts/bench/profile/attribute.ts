@@ -43,7 +43,7 @@ const reactStore = new Set(["checkIfSnapshotChanged", "subscribeToStore", "force
 
 // The UI's stores: their dispatch with the reducers it runs, their updates, and the
 // listeners they wake.
-const store = /\/application\/ui\/src\/model\/store\.ts$/
+const store = /\/application\/ui\/src\/core\/store\.ts$/
 
 // The transport: oRPC, the wire library, the protocol's client side of it, and the UI's
 // handling of a terminal's events as they arrive.

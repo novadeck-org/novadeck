@@ -1,6 +1,7 @@
 import { createElement, createRef } from "react"
 
-import type { Voice, VoiceState } from "../model/voice"
+import type { Voice, VoiceState } from "#core/voice"
+
 import { describe, expect, it } from "../test"
 import { render } from "../test/render"
 import { VoiceInput } from "./VoiceInput"

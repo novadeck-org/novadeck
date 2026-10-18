@@ -1,6 +1,7 @@
 import { memo } from "react"
 
-import { sameBlock, type ChatBlock } from "../../model/conversation-turns"
+import { sameBlock, type ChatBlock } from "#core/conversation-turns"
+
 import { Markdown } from "./Markdown"
 import { ToolRun } from "./ToolRun"
 

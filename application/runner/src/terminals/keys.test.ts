@@ -1,5 +1,7 @@
+import type { Reporting } from "@novadeck/emulator/headless"
+
 import { describe, expect, it } from "../test.js"
-import { keysOf, splitReports, type Reporting } from "./keys.js"
+import { keysOf, splitReports } from "./keys.js"
 
 const off: Reporting = { mouse: null, focus: false }
 const sgr: Reporting = { mouse: "sgr", focus: true }

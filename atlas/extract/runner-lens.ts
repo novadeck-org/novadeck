@@ -331,8 +331,7 @@ export const extractRunnerLens = (input: LensInput): RunnerLens => {
 
   const trace = (procedure: Procedure): ProcedureTrace => {
     const id = procedure.id
-    const at = router.indexOf(`authorized.${id}.handler(`)
-    const start = at === -1 ? router.indexOf(`api.${id}.handler(`) : at
+    const start = router.indexOf(`api.${id}.handler(`)
     if (start === -1) return { id, steps: [], reached: [], traced: false }
     const skip = start + id.length + 20
     const next = router.slice(skip).search(/\.handler\(/)

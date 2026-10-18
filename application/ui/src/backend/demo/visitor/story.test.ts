@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { workspaceFromSeed } from "../../../model/seed"
-import { createWorkspaceStore } from "../../../model/store"
+import { workspaceFromSeed } from "#core/seed"
+import { createWorkspaceStore } from "#core/store"
+
 import { answerMs, answeredMs } from "../chat"
 import { createDemoEngine } from "../engine"
 import { demoBackend, withConversations } from "../index"

@@ -1,5 +1,6 @@
-import type { ChatDialog, ChatItem, ChatRequest, Conversation } from "../../model/conversation"
-import type { AgentStatus } from "../../model/types"
+import type { ChatDialog, ChatItem, ChatRequest, Conversation } from "#core/conversation"
+import type { AgentStatus } from "#core/types"
+
 import { chatAgents, type ChatAgent } from "./samples"
 
 // What an agent's terminal shows after its intro, as the TUI would: the conversation

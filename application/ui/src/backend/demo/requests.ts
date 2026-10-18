@@ -1,4 +1,5 @@
-import type { ChatAnswer, ChatDialog, ChatRequest } from "../../model/conversation"
+import type { ChatAnswer, ChatDialog, ChatRequest } from "#core/conversation"
+
 import type { DemoOutcome } from "./transcripts"
 
 export type DemoRequestOutcome = (answer: ChatAnswer, dialog: ChatDialog) => DemoOutcome

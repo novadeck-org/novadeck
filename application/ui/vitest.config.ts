@@ -1,3 +1,4 @@
+import { contentSecurityPolicyName } from "@novadeck/build-kit/content-security-policy"
 import { playwright } from "@vitest/browser-playwright"
 import { mergeConfig } from "vite"
 import { defineConfig } from "vitest/config"
@@ -11,8 +12,9 @@ const ci = Boolean(process.env.CI)
 const trace = Boolean(process.env.NOVADECK_UI_TRACE)
 
 // The CSP plugin guards the app's index.html; the browser runner serves its own tester page.
+// The noindex plugin stays: no test mode hides a build.
 const plugins = viteConfig.plugins?.filter(
-  (plugin) => !(plugin && "name" in plugin && plugin.name === "novadeck-content-security-policy"),
+  (plugin) => !(plugin && "name" in plugin && plugin.name === contentSecurityPolicyName),
 )
 
 export default mergeConfig(

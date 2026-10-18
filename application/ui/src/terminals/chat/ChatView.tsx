@@ -9,11 +9,12 @@ import {
   useSyncExternalStore,
 } from "react"
 
-import { WordsLost, type ChatAnswer, type Conversation } from "../../model/conversation"
-import { agentName, groupItems, turnStatus } from "../../model/conversation-turns"
-import { shellCommand, type Refused } from "../../model/prompt-refusal"
-import type { Store } from "../../model/store"
-import type { AgentStatus } from "../../model/types"
+import { WordsLost, type ChatAnswer, type Conversation } from "#core/conversation"
+import { agentName, groupItems, turnStatus } from "#core/conversation-turns"
+import { shellCommand, type Refused } from "#core/prompt-refusal"
+import type { Store } from "#core/store"
+import type { AgentStatus } from "#core/types"
+
 import { wordsOf } from "./answers"
 import { Composer } from "./Composer"
 import {

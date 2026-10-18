@@ -1,5 +1,6 @@
-import { workspaceFromSeed } from "../../model/seed"
-import { activeProject, activeSession, workspaceReducer } from "../../model/state"
+import { workspaceFromSeed } from "#core/seed"
+import { activeProject, activeSession, workspaceReducer } from "#core/state"
+
 import { context, describe, expect, it } from "../../test"
 import { itemFixture } from "../../test/fixtures"
 import type { BackendAction } from "../port"

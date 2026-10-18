@@ -54,7 +54,7 @@ describe("project removal", () => {
       items.undock(item.id, windowId)
 
       const removing = projects.remove(project.id)
-      const refused = expect(removing).rejects.toMatchObject({ code: "RUNTIME_CLOSING" })
+      const refused = expect(removing).rejects.toMatchObject({ code: "CLOSING" })
       // Under way, waiting for the shell to end, when the runner starts shutting down.
       await new Promise((resolve) => setTimeout(resolve, 50))
       await terminals.shutdown()

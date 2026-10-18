@@ -1,7 +1,8 @@
 import { act, createElement, useState } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { Project } from "../model/types"
+import type { Project } from "#core/types"
+
 import { render, type Rendered } from "../test/render"
 import { moveProject, noArrangement, pinLimit, togglePin } from "./project-arrangement"
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher"

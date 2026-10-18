@@ -1,7 +1,8 @@
 import { act, createElement } from "react"
 
-import { emptyInbox, type Inbox, type InboxAnswer, type InboxItem } from "../model/inbox"
-import { createStore } from "../model/store"
+import { emptyInbox, type Inbox, type InboxAnswer, type InboxItem } from "#core/inbox"
+import { createStore } from "#core/store"
+
 import { describe, expect, it } from "../test"
 import { render } from "../test/render"
 import { InboxList } from "./InboxList"

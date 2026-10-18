@@ -134,8 +134,8 @@ export const scriptedRunner = ({ terminals: count }: { readonly terminals: numbe
     throw new Error(`The counter run doesn't script ${name}`)
   }
   const router = api.router({
-    runner: {
-      handshake: api.runner.handshake.handler(() => ({ runnerId: id(99), protocolVersion })),
+    wire: {
+      handshake: api.wire.handshake.handler(() => ({ epoch: id(99), protocolVersion })),
     },
     projects: {
       list: api.projects.list.handler(() => [{ id: projectId, name: "Agents", cwd: "/tmp" }]),

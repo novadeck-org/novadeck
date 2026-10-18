@@ -1,7 +1,8 @@
 import { maxClientStateLength, maxWebSocketMessageBytes } from "@novadeck/protocol"
 import { hasCode } from "@novadeck/protocol/client"
 
-import type { Workspace, WorkspaceSession } from "../../model/types"
+import type { Workspace, WorkspaceSession } from "#core/types"
+
 import { encodeSession } from "./session-state"
 
 export type SessionSavesOptions = {

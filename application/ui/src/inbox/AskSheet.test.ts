@@ -7,8 +7,9 @@ import {
   type InboxAnswer,
   type InboxItem,
   type InboxState,
-} from "../model/inbox"
-import { createStore } from "../model/store"
+} from "#core/inbox"
+import { createStore } from "#core/store"
+
 import { describe, expect, it } from "../test"
 import { render } from "../test/render"
 import { InboxList } from "./InboxList"

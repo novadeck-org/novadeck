@@ -1,4 +1,5 @@
-import type { InboxItem } from "../model/inbox"
+import type { InboxItem } from "#core/inbox"
+
 import { context, describe, expect, it } from "../test"
 import {
   clearArrived,

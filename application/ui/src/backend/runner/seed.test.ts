@@ -1,11 +1,12 @@
 import type { Project, TerminalSummary, WorkspaceSession } from "@novadeck/protocol"
 
-import { showsHandle } from "../../model/handle"
-import { initialGridLayouts } from "../../model/layout/grid-placement"
-import { setTerminalProcess, setTerminalStatus } from "../../model/roster"
-import { workspaceFromSeed } from "../../model/seed"
-import { createTerminalState } from "../../model/state"
-import type { TerminalStatus, WorkspaceSession as Session, WorkspaceState } from "../../model/types"
+import { showsHandle } from "#core/handle"
+import { initialGridLayouts } from "#core/layout/grid-placement"
+import { setTerminalProcess, setTerminalStatus } from "#core/roster"
+import { workspaceFromSeed } from "#core/seed"
+import { createTerminalState } from "#core/state"
+import type { TerminalStatus, WorkspaceSession as Session, WorkspaceState } from "#core/types"
+
 import { context, describe, expect, it } from "../../test"
 import { cleanlyExited, lostTerminals, runnerSeed, type RunnerListing } from "./seed"
 import { encodeSession } from "./session-state"

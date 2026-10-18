@@ -1,5 +1,6 @@
-import type { MurmurState } from "../model/murmur"
-import { createWorkspaceStore } from "../model/store"
+import type { MurmurState } from "#core/murmur"
+import { createWorkspaceStore } from "#core/store"
+
 import { describe, expect, it } from "../test"
 import { workspaceFixture } from "../test/fixtures"
 import {

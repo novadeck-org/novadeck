@@ -1,4 +1,4 @@
-import { inboxType, ordered, type InboxItem, type InboxState } from "../model/inbox"
+import { inboxType, ordered, type InboxItem, type InboxState } from "#core/inbox"
 
 // Which item the person has open, and what the list shows meanwhile. While a sheet is
 // open the list neither reorders nor grows: items that arrive are held, counted by the

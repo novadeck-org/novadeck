@@ -1,5 +1,6 @@
-import type { ChatDialogOption } from "../model/conversation"
-import type { InboxItem } from "../model/inbox"
+import type { ChatDialogOption } from "#core/conversation"
+import type { InboxItem } from "#core/inbox"
+
 import { context, describe, expect, it } from "../test"
 import {
   choicesOf,

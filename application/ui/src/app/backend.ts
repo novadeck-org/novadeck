@@ -1,4 +1,4 @@
-import { createBootRehearsals } from "../backend/boot-rehearsal"
+import { createBootRehearsals } from "../backend/demo/debug/boot-rehearsal"
 import type { DebugPanel } from "../backend/demo/debug/DebugPanel"
 import type { Backend, BackendSelection, ConnectBackend } from "../backend/port"
 

@@ -1,4 +1,4 @@
-import type { ChatAnswer, ChatDialog, ChatItem, ChatRequest } from "../../model/conversation"
+import type { ChatAnswer, ChatDialog, ChatItem, ChatRequest } from "#core/conversation"
 
 // What a demo agent's conversation opens with: its records, as its harness wrote them, and
 // what waits on the person.

@@ -1389,15 +1389,15 @@ describe("closing voice input", () => {
 
     await voice.close()
 
-    await expect(voice.install()).rejects.toMatchObject({ code: "RUNTIME_CLOSING" })
+    await expect(voice.install()).rejects.toMatchObject({ code: "CLOSING" })
     await expect(voice.set({ language: "de" })).rejects.toThrowError(
-      expect.objectContaining({ code: "RUNTIME_CLOSING" }),
+      expect.objectContaining({ code: "CLOSING" }),
     )
     await expect(voice.record("owner", "clip", 0, pcm(2))).rejects.toThrowError(
-      expect.objectContaining({ code: "RUNTIME_CLOSING" }),
+      expect.objectContaining({ code: "CLOSING" }),
     )
     await expect(voice.transcribe("owner", "clip")).rejects.toMatchObject({
-      code: "RUNTIME_CLOSING",
+      code: "CLOSING",
     })
   })
 
@@ -1411,8 +1411,8 @@ describe("closing voice input", () => {
     const recording = voice.record("owner", "clip", 0, pcm(2))
     const closing = voice.close()
 
-    await expect(setting).rejects.toMatchObject({ code: "RUNTIME_CLOSING" })
-    await expect(recording).rejects.toMatchObject({ code: "RUNTIME_CLOSING" })
+    await expect(setting).rejects.toMatchObject({ code: "CLOSING" })
+    await expect(recording).rejects.toMatchObject({ code: "CLOSING" })
     await closing
   })
 
@@ -1427,8 +1427,8 @@ describe("closing voice input", () => {
     const transcribing = voice.transcribe("owner", "clip")
     const closing = voice.close()
 
-    await expect(watching).rejects.toMatchObject({ code: "RUNTIME_CLOSING" })
-    await expect(transcribing).rejects.toMatchObject({ code: "RUNTIME_CLOSING" })
+    await expect(watching).rejects.toMatchObject({ code: "CLOSING" })
+    await expect(transcribing).rejects.toMatchObject({ code: "CLOSING" })
     await closing
   })
 

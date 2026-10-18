@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef } from "react"
 
+import { tilesOf } from "#core/roster"
+
 import { cancelTerminalTransition } from "../../layouts/transition"
-import { tilesOf } from "../../model/roster"
 import { currentContext, currentPresentation, currentState, shallowEqual } from "../selectors"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./context"
 

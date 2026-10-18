@@ -103,20 +103,27 @@ export const readLog = (log: string): LogReading => {
   const lines = cleanLog(log).map((line) => line.trim())
   const found = new Map<string, string[]>()
   const unreadable: string[] = []
+  // Vitest prints tests that failed with the same error as their FAIL lines in a row, then
+  // the error once: each of them has that report.
+  let group: string[] = []
   lines.forEach((line, index) => {
     if (unhandled.test(line)) unreadable.push(`an error outside any test: ${line}`)
     if (!failedMark.test(line)) return
     const match = failedLine.exec(line)
     if (!match) {
       unreadable.push(`a failure this can't read: ${line}`)
+      group = []
       return
     }
     const rest = lines.slice(index + 1, index + blockLines)
     const end = rest.findIndex((next) => blockEnd.test(next))
     const own = end < 0 ? rest : rest.slice(0, end)
-    const reports = found.get(match[1]!) ?? []
-    if (own.some((each) => each !== "")) reports.push([line, ...own].join("\n"))
-    found.set(match[1]!, reports)
+    found.set(match[1]!, found.get(match[1]!) ?? [])
+    group.push(match[1]!)
+    if (end === 0 && failedMark.test(rest[0]!)) return
+    if (own.some((each) => each !== ""))
+      for (const test of group) found.get(test)!.push([line, ...own].join("\n"))
+    group = []
   })
   return {
     failures: [...found].map(([test, reports]) => ({ test, reports })),
@@ -165,7 +172,8 @@ export const judgeJob = (register: Register, job: string, log: string): JobVerdi
     if (flake) flakes.push(flake.id)
     else unknown.push(failure.test)
   }
-  return { job, flakes, unknown }
+  // A flake that failed several tests at once, as a file failing whole, is one flake.
+  return { job, flakes: [...new Set(flakes)], unknown }
 }
 
 export type RunVerdict = {

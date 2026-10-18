@@ -1,12 +1,13 @@
 import type { AgentDetail, InboxLetter } from "@novadeck/protocol"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import type { ChatDialog } from "../../model/conversation"
-import type { InboxBinding, InboxFinish, InboxUnread } from "../../model/inbox"
-import { noMail, type AgentMessage, type MailState, type MessageThread } from "../../model/messages"
-import { createTerminalState } from "../../model/state"
-import { createStore } from "../../model/store"
-import type { AgentStatus, AgentTurnEnd, TerminalMetadata, Workspace } from "../../model/types"
+import type { ChatDialog } from "#core/conversation"
+import type { InboxBinding, InboxFinish, InboxUnread } from "#core/inbox"
+import { noMail, type AgentMessage, type MailState, type MessageThread } from "#core/messages"
+import { createTerminalState } from "#core/state"
+import { createStore } from "#core/store"
+import type { AgentStatus, AgentTurnEnd, TerminalMetadata, Workspace } from "#core/types"
+
 import { describe, expect, it } from "../../test"
 import {
   createRunnerInbox,

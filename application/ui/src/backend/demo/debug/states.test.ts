@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { isAgentProgram } from "../../../model/process"
-import { workspaceFromSeed } from "../../../model/seed"
-import { workspaceReducer } from "../../../model/state"
-import { createWorkspaceStore } from "../../../model/store"
-import { terminalPhase } from "../../../model/terminal-ending"
-import type { AgentStatus, AgentUsage, TerminalMetadata, Workspace } from "../../../model/types"
+import { isAgentProgram } from "#core/process"
+import { workspaceFromSeed } from "#core/seed"
+import { workspaceReducer } from "#core/state"
+import { createWorkspaceStore } from "#core/store"
+import { terminalPhase } from "#core/terminal-ending"
+import type { AgentStatus, AgentUsage, TerminalMetadata, Workspace } from "#core/types"
+
 import { context, describe, expect, it } from "../../../test"
 import type { BackendAction, TerminalKey } from "../../port"
 import type { DemoAgentVerbs } from "../agent-link"

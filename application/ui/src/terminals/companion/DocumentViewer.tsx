@@ -1,7 +1,8 @@
 import { outline } from "@novadeck/viewers/text"
 import { lazy, Suspense, useRef, type ReactNode } from "react"
 
-import type { FileContent } from "../../model/companion"
+import type { FileContent } from "#core/companion"
+
 import type { PlanEditorHandle } from "./plan-editor/PlanEditor"
 
 // The plan's editor, read-only: a markdown document the agent showed reads as a plan does,
