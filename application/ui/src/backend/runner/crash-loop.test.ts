@@ -9,6 +9,7 @@ import { createWorkspaceStore } from "#core/store"
 
 import { describe, expect, it } from "../../test"
 import type { BackendAction } from "../port"
+import { noTheme } from "../terminal-views/theme"
 import { runnerBackend, type RunnerApi } from "./backend"
 import { keptSummary, noCompanions } from "./scripted"
 import { startingTerminal, type RunnerListing } from "./seed"
@@ -110,7 +111,7 @@ const openCrashing = () => {
       ],
     },
   ]
-  const created = runnerBackend(runner.api, listing, { saveDelay: 10 })
+  const created = runnerBackend(runner.api, listing, { theme: noTheme, saveDelay: 10 })
   created.backend.commit(
     workspaceFromSeed(created.backend.seed, { view: "grid", windowedView: "grid", now: 1 }),
     [],
@@ -191,7 +192,7 @@ const openInStore = () => {
       ],
     },
   ]
-  const created = runnerBackend(runner.api, listing, { saveDelay: 10 })
+  const created = runnerBackend(runner.api, listing, { theme: noTheme, saveDelay: 10 })
   const initial = workspaceFromSeed(created.backend.seed, {
     view: "grid",
     windowedView: "grid",

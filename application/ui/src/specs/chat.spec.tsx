@@ -2,7 +2,7 @@ import { describe as context, describe, expect, it, vi } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
 import { chatOf, composer, conversation, openChat, openChatDemo, requestCard } from "./support/chat"
-import { chooseView, commandInput, terminal, terminalTab } from "./support/workspace"
+import { chooseView, commandInput, terminal, terminalTab, terminalText } from "./support/workspace"
 
 // The scenario's answer and settlement delays. Specs use the selected backend through
 // the app, so they keep their timing expectations here rather than importing its adapter.
@@ -46,9 +46,7 @@ describe("The chat view", () => {
       .toBeVisible()
     await setChatView(false)
     await expect.element(chatOf("Build")).not.toBeInTheDocument()
-    await expect
-      .element(terminal("Build").getByText("Added the order summary", { exact: false }))
-      .toBeVisible()
+    await expect.poll(() => terminalText("Build")).toContain("Added the order summary")
   })
 })
 

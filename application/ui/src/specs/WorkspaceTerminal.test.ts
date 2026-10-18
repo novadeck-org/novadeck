@@ -1,4 +1,4 @@
-import { act, createElement, Fragment, useEffect, type ComponentProps } from "react"
+import { act, createElement, useEffect, type ComponentProps } from "react"
 import { HashRouter } from "react-router"
 import { vi } from "vitest"
 
@@ -10,19 +10,32 @@ import {
 import { currentState } from "../app/selectors"
 import { WorkspaceProvider } from "../app/WorkspaceProvider"
 import { WorkspaceTerminal } from "../app/WorkspaceTerminal"
-import type { CreateBackend, TerminalSurfaceProps } from "../backend/port"
+import type { CreateBackend, MountTerminal } from "../backend/port"
 import { context, describe, expect, it } from "../test"
 import { testPhases } from "../test/phases"
 import { render } from "../test/render"
 import { createSpecBackend } from "./support/backend"
 
-// jsdom has no layout and no resizes; the taskbar's drag-to-reorder asks for them.
+// jsdom has no layout and no resizes, which the taskbar's drag-to-reorder asks for, and no
+// media queries or canvas, which the terminals' emulator falls back without.
 vi.hoisted(() => {
   globalThis.ResizeObserver ??= class {
     observe(): void {}
     unobserve(): void {}
     disconnect(): void {}
   }
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+    }),
+  })
+  HTMLCanvasElement.prototype.getContext = () => null
 })
 
 // The second terminal of the demo's storefront.
@@ -51,28 +64,21 @@ const open = async (id: string) => {
     phase("before backend creation")
     const backend = createSpecBackend()
     phase("after backend creation")
-    const TerminalSurface = ({
-      terminal,
-      renderWindow,
-    }: TerminalSurfaceProps): React.JSX.Element => {
-      useEffect(() => {
-        lifecycle.mounted += 1
-        phase("surface mounted")
-        return () => {
+    if (!("mountTerminal" in backend)) throw new Error("The spec backend mounts its terminals")
+    // Counts the terminal's mounts, which a program starting or ending must not redo.
+    const mountTerminal: MountTerminal = (element, key, props) => {
+      lifecycle.mounted += 1
+      phase("surface mounted")
+      const mount = backend.mountTerminal(element, key, props)
+      return {
+        ...mount,
+        dispose: () => {
           lifecycle.unmounted += 1
-        }
-      }, [])
-      const content = createElement(
-        "div",
-        { "data-terminal-content": "" },
-        createElement("input", {
-          "data-terminal-input": "",
-          "aria-label": `Input for ${terminal.name}`,
-        }),
-      )
-      return createElement(Fragment, null, renderWindow(content))
+          mount.dispose()
+        },
+      }
     }
-    return { ...backend, TerminalSurface }
+    return { ...backend, mountTerminal }
   }
   let found!: (services: WorkspaceServices) => void
   const handedOver = new Promise<WorkspaceServices>((resolve) => {

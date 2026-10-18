@@ -292,7 +292,10 @@ export type CtrlVTarget = PasteTarget & {
 // sends Ctrl+V to the program, without a word, as programs such as vim take it. Typing
 // meanwhile waits, to arrive after the paths or Ctrl+V, for `holdMs` at most. Ctrl+V
 // pressed again, or repeating, while typing waits does nothing, so an image goes in once;
-// once typing goes again, as past a slow upload, Ctrl+V does too.
+// once typing goes again, as past a slow upload, Ctrl+V does too. Where the clipboard
+// can't be read, `unreadable: "browser"` leaves the key to the browser, which pastes the
+// clipboard's text as a paste, for a terminal whose program edits lines and has no use
+// for Ctrl+V.
 export const takeCtrlV = (
   xterm: Pick<Terminal, "attachCustomKeyEventHandler">,
   target: CtrlVTarget,
@@ -301,6 +304,13 @@ export const takeCtrlV = (
     readable = (): boolean => true,
     waitMs = ctrlVWaitMs,
     holdMs = ctrlVHoldMs,
+    unreadable = "program",
+  }: {
+    platform?: Platform
+    readable?: () => boolean
+    waitMs?: number
+    holdMs?: number
+    unreadable?: "program" | "browser"
   } = {},
 ): void => {
   let holding = false
@@ -326,7 +336,8 @@ export const takeCtrlV = (
     release((await pasteFiles(images, target)) === 0)
   }
   xterm.attachCustomKeyEventHandler((event) => {
-    if (!plainCtrlV(event, platform) || !target.active() || !readable()) return true
+    if (!plainCtrlV(event, platform) || !target.active()) return true
+    if (!readable()) return unreadable === "program"
     event.preventDefault()
     if (holding) return false
     holding = true

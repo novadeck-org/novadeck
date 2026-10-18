@@ -11,18 +11,19 @@ import type {
   Workspace,
 } from "#core/types"
 
-import type { Backend, BackendSink, CreateBackend, TerminalKey } from "../port"
+import type { Backend, BackendSink, TerminalKey } from "../port"
 import { createDemoEngine } from "./engine"
 import { demoBackend, windowReset, withConversations } from "./index"
 import { createDemoMessages, studioMailbox } from "./messages"
 import { defaultName, demoTerminalId } from "./samples"
+import { fixedIntro } from "./screen/terminal"
 import { authAgent, studioAgent, type SampleAgent } from "./showcase/agents"
 import { devServerArtifacts } from "./showcase/artifacts"
 import { createShowcase, planFaults, type PlanFault } from "./showcase/simulation"
-import type { DemoSurfaceRuntime } from "./surface"
 import { terminalOf } from "./terminals"
 import { showcaseTranscripts } from "./transcripts"
 import { demoTurns, type DemoTurns } from "./turns"
+import type { DemoTerminalSetup } from "./views"
 
 // Both sample agents wrote a plan, and wait on the person to approve it.
 const planned: AgentStatus = {
@@ -33,7 +34,7 @@ const planned: AgentStatus = {
 
 // A UI-only workspace. The previews never start processes or request a runner.
 export const contentDemo = (
-  runtime?: DemoSurfaceRuntime,
+  setup?: DemoTerminalSetup,
   turns: DemoTurns = demoTurns(),
   // Opens with the plan of the Build Studio agent in this fault, as the debug panel's
   // Plan group would put it.
@@ -144,12 +145,13 @@ export const contentDemo = (
   if (planFault) showcase.fault(agents[0]!.key, planFault)
   const agentAt = (key: TerminalKey): SampleAgent | undefined =>
     agents.find((agent) => companionKeyId(agent.key) === companionKeyId(key))?.sample
-  const backend = demoBackend(
-    createDemoEngine(),
-    false,
-    (_terminal, key) => agentAt(key)?.transcript,
-    runtime,
-  )
+  const transcriptOf = (key: TerminalKey) => {
+    const sample = agentAt(key)
+    return sample && fixedIntro(sample.transcript)
+  }
+  const backend = demoBackend(createDemoEngine(), {
+    terminals: { ...setup, introOf: (_terminal, key) => transcriptOf(key) },
+  })
   let latest: Workspace | undefined
   let reset: BackendSink["dispatch"] | undefined
   // The showcase session's items as they stand, which an agent showing something again
@@ -170,10 +172,12 @@ export const contentDemo = (
     },
     start: (sink) => {
       reset = sink.dispatch
+      const stopTerminals = backend.start?.(sink)
       const stop = showcase.start(sink.dispatch, current)
       return () => {
         if (reset === sink.dispatch) reset = undefined
         stop()
+        stopTerminals?.()
       }
     },
     // A window's name goes back to what it shows, a terminal's to its default.
@@ -273,11 +277,12 @@ export const contentDemo = (
   }))
 }
 
-// Specs open the showcase with `&planFault=` one of the debug panel's plan faults.
-export const createContentDemo: CreateBackend = () => {
+// Specs open the showcase with `&planFault=` one of the debug panel's plan faults, its
+// terminals drawn where `terminals` says.
+export const createContentDemo = (terminals?: DemoTerminalSetup): Backend => {
   const fault = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("planFault")
   return contentDemo(
-    undefined,
+    terminals,
     undefined,
     planFaults.find((each) => each === fault),
   )

@@ -23,13 +23,7 @@ const codex = { ...session, terminalId: demoTerminalId(session, 4) }
 const open = (readingMs = 0) => {
   const turns = demoTurns(turnMs)
   const story = visitorStory(agentTranscripts(Date.now()), turns, nudgeMs, readingMs)
-  const base = demoBackend(
-    createDemoEngine(),
-    false,
-    undefined,
-    undefined,
-    visitorSeed(Date.now(), readingMs > 0),
-  )
+  const base = demoBackend(createDemoEngine(), { seed: visitorSeed(Date.now(), readingMs > 0) })
   const backend = story.wrap(withConversations(base, story.transcripts, turns))
   const store = createWorkspaceStore(
     workspaceFromSeed(backend.seed, { view: "focus", windowedView: "grid", now: 0 }),

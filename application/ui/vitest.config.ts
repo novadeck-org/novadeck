@@ -17,6 +17,25 @@ const plugins = viteConfig.plugins?.filter(
   (plugin) => !(plugin && "name" in plugin && plugin.name === contentSecurityPolicyName),
 )
 
+// The dependencies a browser project loads only once its views or terminals open, optimized
+// before it starts, as a reload partway through fails the specs it reaches.
+const optimizedUpFront = [
+  "@ark-ui/react/select",
+  "@ark-ui/react/tabs",
+  "@novadeck/protocol > @orpc/contract",
+  "@novadeck/protocol > zod",
+  "@novadeck/emulator > @xterm/addon-fit",
+  "@novadeck/emulator > @xterm/addon-unicode-graphemes",
+  "@novadeck/emulator > @xterm/addon-web-links",
+  "@novadeck/emulator > @xterm/addon-webgl",
+  "@novadeck/emulator > @xterm/xterm",
+  "@novadeck/wire > @orpc/client",
+  "@novadeck/wire > @orpc/client/standard",
+  "@novadeck/wire > @orpc/standard-server-peer",
+  "@xyflow/react",
+  "react-grid-layout",
+]
+
 export default mergeConfig(
   { ...viteConfig, plugins },
   defineConfig({
@@ -51,10 +70,16 @@ export default mergeConfig(
           extends: true,
           // Let concurrent runs pick free ports; the app dev server keeps its strict one.
           server: { strictPort: false },
+          // Nearly every spec opens the demo's terminals, the emulator among them.
+          optimizeDeps: { include: optimizedUpFront },
           test: {
             name: "behaviour",
             // The specs, and the browser checks of modules that need a real one, as WebGL does.
-            include: ["src/specs/**/*.spec.tsx", "src/backend/runner/renderer.spec.ts"],
+            include: [
+              "src/specs/**/*.spec.tsx",
+              "src/backend/runner/renderer.spec.ts",
+              "src/backend/demo/screen/screen.spec.ts",
+            ],
             exclude: ["src/specs/motion.spec.tsx", "src/specs/counters/**"],
             setupFiles: ["./src/specs/setup.ts"],
             // Whole-app renders under CI load can take longer than the 1s default.
@@ -106,24 +131,7 @@ export default mergeConfig(
           server: { strictPort: false },
           // The counter run fails the build on its counts, so it must not meet a reload when
           // Vite finds a dependency to optimize partway through: they are optimized up front.
-          optimizeDeps: {
-            include: [
-              "@ark-ui/react/select",
-              "@ark-ui/react/tabs",
-              "@novadeck/protocol > @orpc/contract",
-              "@novadeck/protocol > zod",
-              "@novadeck/emulator > @xterm/addon-fit",
-              "@novadeck/emulator > @xterm/addon-unicode-graphemes",
-              "@novadeck/emulator > @xterm/addon-web-links",
-              "@novadeck/emulator > @xterm/addon-webgl",
-              "@novadeck/emulator > @xterm/xterm",
-              "@novadeck/wire > @orpc/client",
-              "@novadeck/wire > @orpc/client/standard",
-              "@novadeck/wire > @orpc/standard-server-peer",
-              "@xyflow/react",
-              "react-grid-layout",
-            ],
-          },
+          optimizeDeps: { include: optimizedUpFront },
           test: {
             name: "counters",
             include: ["src/specs/counters/**/*.spec.tsx"],
@@ -147,6 +155,8 @@ export default mergeConfig(
         {
           extends: true,
           server: { strictPort: false },
+          // Its specs open the demo's terminals, the emulator among them, as the behaviour specs do.
+          optimizeDeps: { include: optimizedUpFront },
           test: {
             name: "motion",
             include: ["src/specs/motion.spec.tsx"],

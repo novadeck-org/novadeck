@@ -2,6 +2,7 @@ import { pause } from "@novadeck/terminal/view"
 import { afterAll, vi } from "vitest"
 
 import { describeBackendContract } from "../../test/backend-contract"
+import { noTheme } from "../terminal-views/theme"
 import { runnerBackend, type RunnerBackend } from "./backend"
 import { recordingRunner, startTestRunner } from "./testing"
 
@@ -39,6 +40,7 @@ describeBackendContract("runner", {
   create: () => {
     const io: string[] = []
     const created = runnerBackend(recordingRunner(runner.client, io), runner.listing, {
+      theme: noTheme,
       saveDelay: 10,
       transcripts: true,
     })

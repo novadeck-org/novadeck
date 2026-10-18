@@ -1,16 +1,17 @@
 /* xterm's own stylesheet sits in the base layer with the other vendor CSS. */
 @import "@novadeck/emulator/browser.css" layer(base);
 
-/* The runner recipe: how xterm draws inside the element a mount gives its screen. What lies
-   over it (the lock's grey, the notice, the ending bar) is the UI's (app/mounted-terminal.css).
+/* The terminal views' recipe: how xterm draws inside the element a mount gives its screen,
+   for every backend. What lies over it (the lock's grey, the notice, the ending bar) is the
+   UI's (app/mounted-terminal.css).
 
-   Parts: `.runner-screen` (where xterm draws). */
+   Parts: `.terminal-xterm` (where xterm draws). */
 
 @layer components {
   /* xterm.css paints its scroll viewport black under the themed screen. At fractional
      display scales the screen's edges land between pixels and that black shows through
      as thin lines, so the viewport takes the surface's own background. */
-  .runner-screen .xterm .xterm-viewport {
+  .terminal-xterm .xterm .xterm-viewport {
     background-color: transparent;
   }
 
@@ -18,7 +19,7 @@
      (one spacing unit, control radius) against the right edge. The track keeps its
      width so the slider stays easy to grab. xterm sets the slider's left and width
      inline, which only `!important` overrides. */
-  .runner-screen .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
+  .terminal-xterm .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
     left: auto !important;
     right: 2px;
     width: var(--spacing) !important;

@@ -5,11 +5,12 @@ import { visitorDemo } from "./index"
 describe("the visitor demo", () => {
   it("offers exactly the fields the visitor page needs", () => {
     expect(Object.keys(visitorDemo()).toSorted()).toEqual([
-      "TerminalSurface",
       "commit",
       "companions",
+      "mountTerminal",
       "newTerminal",
       "seed",
+      "setFont",
       "start",
       "telemetry",
       "visitor",

@@ -34,7 +34,9 @@ import type {
   BackendConnectionState,
   BackendSink,
   TerminalKey,
+  ThemeSource,
 } from "../port"
+import { createTerminalMount } from "../terminal-views/mount"
 import { defaultQuickExitMs, exitStatus, restartable, terminalActivity } from "./activity"
 import { createBootProgress } from "./boot-progress"
 import { createRunnerCompanions } from "./companions"
@@ -42,7 +44,6 @@ import { createRunnerConversations } from "./conversations"
 import { createRunnerInbox } from "./inbox"
 import { createRunnerItems } from "./items"
 import { createRunnerMessages } from "./messages"
-import { createRunnerMount } from "./mount"
 import { createRunnerMurmur } from "./murmur"
 import { resumableProgram } from "./resumable"
 import { createSessionSaves } from "./saves"
@@ -105,6 +106,8 @@ export type RunnerBackendOptions = {
   // choice, as it said at startup; agents are not offered when absent.
   readonly agents?: readonly AgentIntegration[]
   readonly welcomed?: boolean
+  // The page's theme, which its terminals draw in; tests pass `noTheme`.
+  readonly theme: ThemeSource
 }
 
 export type TerminalSize = { readonly cols: number; readonly rows: number }
@@ -290,7 +293,7 @@ const revival = (): Pick<RunnerEntry, "revived" | "revive"> => {
 export const runnerBackend = (
   runner: RunnerApi,
   listing: RunnerListing,
-  options: RunnerBackendOptions = {},
+  options: RunnerBackendOptions,
 ): RunnerBackend => {
   const newId = options.newId ?? (() => crypto.randomUUID())
   const now = options.now ?? Date.now
@@ -1328,7 +1331,7 @@ export const runnerBackend = (
     }
   }
 
-  const screens = createTerminalViews(viewOptions(runtime))
+  const screens = createTerminalViews(viewOptions(runtime, { theme: options.theme }))
   const backend: Backend = {
     seed,
     newTerminal: ({ directory, launch, title }) => {
@@ -1343,7 +1346,7 @@ export const runnerBackend = (
       return terminal
     },
     commit,
-    mountTerminal: createRunnerMount(screens),
+    mountTerminal: createTerminalMount(screens),
     setFont: screens.setFont,
     telemetry,
     voice: voice.voice,

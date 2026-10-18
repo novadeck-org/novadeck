@@ -196,13 +196,9 @@
   --progress-track-shadow: var(--toggle-track-shadow);
 
   /* Fills inside a panel: a light step off the paper, where the soft ground would weigh
-     on it. The lines an agent pointed at take a trace of the accent; inline code and the
-     demo's requests share a fill; the demo's command form is carved as fields are. */
+     on it. The lines an agent pointed at take a trace of the accent. */
   --artifact-code-pointed-bg: #e6eae4;
   --prose-code-bg: oklch(from var(--color-paper) calc(l - 0.03) c h);
-  --demo-request-bg: var(--prose-code-bg);
-  --demo-form-bg: oklch(from var(--color-paper) calc(l - 0.021) c h);
-  --demo-form-shadow: var(--field-shadow);
 
   /* Brand: the choice-card tiles are dark in both schemes, their glyphs the bright cyan. */
   --brand-tile-bg: linear-gradient(180deg, #2e2d2a, #181816);

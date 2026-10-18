@@ -15,6 +15,7 @@ import { createDemoUninstall, uninstallScenarios } from "../../backend/demo/debu
 import { createDemoUpdates } from "../../backend/demo/debug/updates"
 import { visitorDemo } from "../../backend/demo/visitor"
 import type { Backend } from "../../backend/port"
+import { pageTheme } from "../../theme/source"
 
 // The demo's variants a spec asks for in its address, and the backend that offers them:
 // the one place specs and tests reach the demo, kept out of the file that chooses
@@ -120,12 +121,14 @@ const visitorTimings = (): {
 
 // The demo a spec opens, as its address's hash asks.
 export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
-  if (visitorRequested()) return visitorDemo(visitorTimings())
-  if (showcaseRequested()) return createContentDemo()
+  if (visitorRequested()) return visitorDemo({ ...visitorTimings(), theme: pageTheme })
+  if (showcaseRequested()) return createContentDemo({ theme: pageTheme })
   const update = requestedUpdate()
   const sandbox = requestedSandbox()
   const portable = requestedPortable()
-  const demo = requestedVersion(demoWithUpdate(update, portable, createDemoBackend()))
+  const demo = requestedVersion(
+    demoWithUpdate(update, portable, createDemoBackend({ theme: pageTheme })),
+  )
   const uninstall = requestedUninstall()
   const withSandbox = sandbox ? { ...demo, sandbox: createDemoSandbox(sandbox) } : demo
   const withUninstall = uninstall ? { ...withSandbox, uninstall } : withSandbox

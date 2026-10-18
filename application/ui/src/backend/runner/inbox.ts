@@ -21,8 +21,8 @@ import { isAgentProgram } from "#core/process"
 import { createStore, type Store } from "#core/store"
 import type { TerminalMetadata, Workspace, WorkspaceProject, WorkspaceSession } from "#core/types"
 
+import { currentPlatform } from "../terminal-views/platform"
 import { requestOf } from "./conversations"
-import { currentPlatform } from "./platform"
 
 // The runner's Inbox: what every agent terminal waits on the person for, one item per
 // terminal, built from what the UI already has: the terminals' statuses (a finished turn,

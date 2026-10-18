@@ -22,21 +22,23 @@ import {
 import {
   chooseView,
   commandInput,
-  expectNothingSelected,
+  draftOf,
   enterNavigateMode,
+  expectNothingSelected,
   expectSelected,
+  expectStaysAbsent,
   focusStage,
   focusTab,
-  expectStaysAbsent,
+  labelled,
   openWorkspace,
   press,
   sidebar,
   terminal,
   terminalTab,
   terminalTabNames,
-  visibleTerminalCounts,
+  typeInto,
   view,
-  labelled,
+  visibleTerminalCounts,
 } from "./support/workspace"
 
 const views = ["Focus", "Grid", "Canvas"] as const
@@ -89,7 +91,7 @@ describe("creating terminals", () => {
           await expect.element(anyRenameField()).not.toBeInTheDocument()
           await expectSelected(newTerminalName)
           await expect.element(terminal(newTerminalName)).toBeInViewport()
-          await expect.element(commandInput(newTerminalName)).toHaveValue("")
+          await expect.poll(() => draftOf(newTerminalName)).toBe("")
           await expect.poll(visibleTerminalCounts).toEqual(["7 terminals"])
         })
       })
@@ -108,7 +110,7 @@ describe("creating terminals", () => {
 
         await press("echo hi")
 
-        await expect.element(commandInput(newTerminalName)).toHaveValue("echo hi")
+        await expect.poll(() => draftOf(newTerminalName)).toBe("echo hi")
         await expect.element(anyRenameField()).not.toBeInTheDocument()
         await expectSelected(newTerminalName)
       })
@@ -579,16 +581,16 @@ describe("closing terminals", () => {
       it("leaves the terminal open when Delete is pressed in its command input", async () => {
         await openWorkspace()
         await chooseView(name)
-        await terminalTab("Dev server").click()
-        await commandInput("Dev server").fill("npm run")
+        await terminalTab("Checkout review").click()
+        await typeInto("Checkout review", "npm run")
         // Home does not move the input caret to its start on macOS.
         await press("{ArrowLeft}".repeat("npm run".length))
 
         await press("{Delete}")
 
-        await expect.element(commandInput("Dev server")).toHaveValue("pm run")
+        await expect.poll(() => draftOf("Checkout review")).toBe("pm run")
         await expectStaysAbsent(page.getByText("5 terminals", { exact: true }))
-        await expectSelected("Dev server")
+        await expectSelected("Checkout review")
         await expect.poll(visibleTerminalCounts).toEqual(["6 terminals"])
       })
     })
@@ -732,14 +734,14 @@ describe("hiding terminals from Grid and Canvas", () => {
       it("keeps its content", async () => {
         await openWorkspace()
         await chooseView(name)
-        await commandInput("Dev server").fill("unfinished command")
+        await typeInto("Checkout review", "unfinished command")
         await terminalTab("Tests").click()
-        await visibilityToggle("Dev server", "Hide").click()
-        await expect.element(terminal("Dev server")).not.toBeInTheDocument()
+        await visibilityToggle("Checkout review", "Hide").click()
+        await expect.element(terminal("Checkout review")).not.toBeInTheDocument()
 
-        await hiddenTerminalTab("Dev server").click()
+        await hiddenTerminalTab("Checkout review").click()
 
-        await expect.element(commandInput("Dev server")).toHaveValue("unfinished command")
+        await expect.poll(() => draftOf("Checkout review")).toBe("unfinished command")
       })
     })
   }

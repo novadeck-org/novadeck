@@ -1,5 +1,5 @@
-import type { ReactNode } from "react"
-
+import type { Block } from "../screen/screen"
+import { span, wrap, type Line, type Style } from "../screen/vt"
 import { studioArtifacts, type SampleArtifacts } from "./artifacts"
 import authV1 from "./plans/auth-v1.md?raw"
 import studioV1 from "./plans/studio-v1.md?raw"
@@ -21,8 +21,19 @@ export type SampleAgent = {
   // Each later revision, as edits to the file as it then stands. Feedback moves it on.
   readonly revisions: readonly (readonly PlanEdit[])[]
   readonly artifacts: SampleArtifacts
-  readonly transcript: ReactNode
+  // How its terminal opens, as terminal output.
+  readonly transcript: readonly Block[]
 }
+
+const gap: Line = []
+// A paragraph after a blank row, or the first one without.
+const said =
+  (text: string, first = false, ...style: Style[]): Block =>
+  (width) => [...(first ? [] : [gap]), ...wrap([span(text, ...style)], width)]
+// The steps the agent took, muted, after a blank row.
+const steps =
+  (...lines: readonly string[]): Block =>
+  (width) => [gap, ...lines.flatMap((line) => wrap([span(line, "muted")], width))]
 
 // Codex with a structured plan and Novadeck's skill: it re-reads the plan on its own.
 export const studioAgent: SampleAgent = {
@@ -46,23 +57,17 @@ export const studioAgent: SampleAgent = {
     ],
   ],
   artifacts: studioArtifacts,
-  transcript: (
-    <>
-      <p className="muted">~/projects/studio · codex</p>
-      <p className="output-gap">
-        <strong>❯ Plan a small portfolio for Studio before we start building.</strong>
-      </p>
-      <div className="output-gap muted">
-        <p>✓ Reviewed the project structure</p>
-        <p>✓ Wrote plans/studio.md</p>
-      </div>
-      <p className="output-gap">The plan is ready.</p>
-      <p className="output-gap muted">
-        Demo: once the plan is approved, type show to have Codex show you something, or open to ask
-        it to open it.
-      </p>
-    </>
-  ),
+  transcript: [
+    said("~/projects/studio · codex", true, "muted"),
+    said("❯ Plan a small portfolio for Studio before we start building.", false, "bold"),
+    steps("✓ Reviewed the project structure", "✓ Wrote plans/studio.md"),
+    said("The plan is ready."),
+    said(
+      "Demo: once the plan is approved, type show to have Codex show you something, or open to ask it to open it.",
+      false,
+      "muted",
+    ),
+  ],
 }
 
 // Claude Code with a prose plan and no skill: notes wait until it's asked to re-read.
@@ -83,20 +88,14 @@ export const authAgent: SampleAgent = {
     ],
   ],
   artifacts: { shown: [], next: [] },
-  transcript: (
-    <>
-      <p className="muted">~/projects/studio · claude</p>
-      <p className="output-gap">
-        <strong>❯ Why does the mobile app log people out early? Plan a fix first.</strong>
-      </p>
-      <div className="output-gap muted">
-        <p>● Read server/auth.ts</p>
-        <p>● Read 3 route files</p>
-        <p>● Wrote ~/.claude/plans/refactor-auth.md</p>
-      </div>
-      <p className="output-gap">
-        Expiry is checked three different ways. I’ve written up a plan to consolidate it.
-      </p>
-    </>
-  ),
+  transcript: [
+    said("~/projects/studio · claude", true, "muted"),
+    said("❯ Why does the mobile app log people out early? Plan a fix first.", false, "bold"),
+    steps(
+      "● Read server/auth.ts",
+      "● Read 3 route files",
+      "● Wrote ~/.claude/plans/refactor-auth.md",
+    ),
+    said("Expiry is checked three different ways. I’ve written up a plan to consolidate it."),
+  ],
 }

@@ -1,5 +1,3 @@
-import { createContext } from "react"
-
 import type { Conversations } from "#core/conversation"
 import type { AgentTurnEnd, AgentUsage, TerminalMetadata } from "#core/types"
 
@@ -68,6 +66,3 @@ export type DemoAgentLink = {
   readonly conversations: Conversations
   readonly opening: (key: TerminalKey) => number
 }
-
-// Provided around the demo's terminal surface by `withConversations`; undefined without.
-export const DemoAgentContext = createContext<DemoAgentLink | undefined>(undefined)

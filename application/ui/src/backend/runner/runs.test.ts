@@ -10,6 +10,7 @@ import type { Workspace } from "#core/types"
 
 import { context, describe, expect, it } from "../../test"
 import type { BackendAction } from "../port"
+import { noTheme } from "../terminal-views/theme"
 import { runnerBackend, type RunnerApi } from "./backend"
 import { noCompanions } from "./scripted"
 import { startingTerminal, type RunnerListing } from "./seed"
@@ -109,7 +110,7 @@ const scripted = (reported: TerminalSummary, lastProgram = "") => {
       ],
     },
   ]
-  const created = runnerBackend(api, listing, { saveDelay: 10 })
+  const created = runnerBackend(api, listing, { theme: noTheme, saveDelay: 10 })
   created.backend.commit(
     workspaceFromSeed(created.backend.seed, { view: "grid", windowedView: "grid", now: 1 }),
     [],
@@ -353,7 +354,10 @@ afterAll(() => limited.close())
 
 describe("terminal limits and retries", () => {
   it("fails a terminal over the runner's limit instead of retrying it", async () => {
-    const created = runnerBackend(limited.client, limited.listing, { saveDelay: 10 })
+    const created = runnerBackend(limited.client, limited.listing, {
+      theme: noTheme,
+      saveDelay: 10,
+    })
     const { backend } = created
     let workspace: Workspace = workspaceFromSeed(backend.seed, {
       view: "grid",
@@ -400,7 +404,7 @@ describe("terminal limits and retries", () => {
         },
       },
     } as RunnerApi
-    const created = runnerBackend(busy, limited.listing, { saveDelay: 10 })
+    const created = runnerBackend(busy, limited.listing, { theme: noTheme, saveDelay: 10 })
     const { backend } = created
     let workspace = workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 1 })
     backend.commit(workspace, [])

@@ -12,7 +12,7 @@ import { websocket, type Transport } from "@novadeck/wire/client"
 
 import { sessionName } from "#core/session-name"
 
-import type { BackendConnection, ConnectFailure } from "../port"
+import type { BackendConnection, ConnectFailure, ThemeSource } from "../port"
 import { runnerBackend, type RunnerBackend } from "./backend"
 import {
   desktopHost,
@@ -137,15 +137,16 @@ const unavailable = (error: unknown): Error => {
 
 // Connects to the desktop app's own runner, or in a browser to the one the build
 // names, and loads the workspace before the app renders. The counter run passes the
-// transport to its scripted runner.
+// transport to its scripted runner. The entry hands over the page's theme, which the
+// terminals draw in.
 export const connectRunnerBackend = async (
   signal: AbortSignal,
   progress: (stage: "loading") => void,
-  through: () => Transport,
+  { transport, theme }: { readonly transport: () => Transport; readonly theme: ThemeSource },
 ): Promise<BackendConnection> => {
   let runner: Runner
   try {
-    runner = await connectRunner(through(), { signal })
+    runner = await connectRunner(transport(), { signal })
   } catch (error) {
     throw unavailable(error)
   }
@@ -172,6 +173,7 @@ export const connectRunnerBackend = async (
       createBackend: () => {
         const next = runnerBackend(runner, listing, {
           newId,
+          theme,
           ...(pick ? { pickDirectory: () => pick() } : {}),
           ...(beforeQuit ? { beforeQuit: (save) => beforeQuit(save) } : {}),
           ...(showAppearance ? { showAppearance: (look) => showAppearance(look) } : {}),

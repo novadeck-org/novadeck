@@ -85,6 +85,10 @@ export type TerminalViewOptions<K> = FollowOptions<K> & {
     readonly maxBytes: number
     // Whether Ctrl+V may read the clipboard without asking.
     readonly trustedClipboard: boolean
+    // What Ctrl+V does where it may not read: by default the program gets the key, as a
+    // shell's programs take Ctrl+V; "browser" leaves the key to the browser, which pastes the
+    // clipboard's text.
+    readonly ctrlV?: "program" | "browser"
     // The wording of a failed paste's notice.
     readonly notice: (failure: PasteFailure) => string
   }
@@ -347,7 +351,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
           }
         },
       },
-      { readable },
+      { readable, ...(o.paste.ctrlV && { unreadable: o.paste.ctrlV }) },
     )
     let settling: ReturnType<typeof setTimeout> | undefined
     // The theme's font, once it has loaded: a bundled font still on its way arrives later,

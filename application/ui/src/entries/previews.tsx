@@ -3,6 +3,7 @@ import "../styles.css"
 import { App, type WorkspacePanel } from "../app/App"
 import { createBootRehearsals } from "../backend/demo/debug/boot-rehearsal"
 import type { Backend, BackendSelection, ConnectBackend } from "../backend/port"
+import { pageTheme } from "../theme/source"
 import { start } from "./start"
 
 // The content preview (`pnpm dev:previews`): the demo with its debug panel, both loaded with
@@ -20,7 +21,7 @@ const load = (): Promise<ConnectBackend> =>
   (loading ??= import("../backend/demo/debug/connect").then(
     ({ connectDemo, debugPanelOf }) => {
       panelOf = debugPanelOf
-      return connectDemo(rehearsals)
+      return connectDemo(rehearsals, pageTheme)
     },
     (error: unknown) => {
       loading = undefined
