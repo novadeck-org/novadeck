@@ -1006,15 +1006,20 @@ describe("Novadeck's MCP server", () => {
     it("answers by itself, with no tools, when the runner doesn't answer in time", async () => {
       const silent = await runner(undefined)
       try {
+        const spawned = Date.now()
         const [, tools] = await session(silent.env, [initialize, list])
         const answered = Date.now()
         expect(tools?.result?.tools).toEqual([])
         // It waits eight seconds for a busy runner from when it asked, within the ten an agent
         // gives it to start. Timed from the runner's side, so how long the relay took to start
         // on a busy machine counts for neither bound.
-        const waited = answered - silent.asked()!
-        expect(waited).toBeGreaterThan(7_500)
+        const asked = silent.asked()
+        expect(asked).toBeDefined()
+        const waited = answered - asked!
+        expect(waited).toBeGreaterThan(7_000)
         expect(waited).toBeLessThan(10_000)
+        // Its start counts too, loosely: a relay that took seconds to ask would miss the ten.
+        expect(asked! - spawned).toBeLessThan(5_000)
       } finally {
         await silent.close()
       }

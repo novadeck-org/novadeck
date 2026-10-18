@@ -4,6 +4,7 @@ import { type Report } from "@novadeck/harness-core/report"
 import { vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
+import { askMs } from "./hook.js"
 import {
   listenForReports,
   unanswered,
@@ -456,6 +457,8 @@ describe("relay hooks", () => {
           return asked.length === 1 ? Promise.resolve(answer) : new Promise(() => {})
         },
       }),
+      // A call's own wait, longer than the relay below listens for.
+      { answerMs: 8_000 },
     )
     resources.defer(() => reports.close())
     const seq = Date.now()
@@ -465,8 +468,9 @@ describe("relay hooks", () => {
     // A runner too slow for the hook answers it as unheard, by the hook's own deadline,
     // which an ask's start leaves only moments before. The relay listens for 4 s, less than
     // the 8 s a call is given (`answerMs`): only the deadline can answer it in that time.
+    const late = Date.now() - 3_400
     await expect(
-      relay(reports.endpoint, [hook({ seq: Date.now() - 3_400 })], { waitMs: 4_000 }),
+      relay(reports.endpoint, [hook({ seq: late })], { waitMs: 4_000 }),
     ).resolves.toEqual([unheard])
     // An ask it can't read is unheard at once, without asking.
     await expect(relay(reports.endpoint, [hook({ seq: "soon" })])).resolves.toEqual([unheard])
@@ -483,8 +487,10 @@ describe("relay hooks", () => {
       { report: { ...report, seq }, deadline: expect.any(Number) },
       { report: { ...report, seq: expect.any(Number) }, deadline: expect.any(Number) },
     ])
-    // Its deadline is the hook's own, after it started.
-    expect(asked[0]!.deadline).toBeGreaterThan(seq)
+    // Its deadline is the hook's own, after it started: the relay gives up `askMs` after the
+    // hook began, and the runner leaves it half a second to print the answer.
+    expect(asked[0]!.deadline).toBe(seq + askMs - 500)
+    expect(asked[1]!.deadline).toBe(late + askMs - 500)
   })
 })
 
