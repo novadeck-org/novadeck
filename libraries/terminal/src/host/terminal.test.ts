@@ -224,7 +224,6 @@ describe("a terminal's hold", () => {
       vi.useRealTimers()
     })
   }
-  const live = () => true
   const writes = (program: Program) =>
     program.calls.filter((call) => call.startsWith("write")).map((call) => call.slice(6))
 
@@ -232,7 +231,7 @@ describe("a terminal's hold", () => {
     const { terminal, program } = terminalOf()
     const keys: string[] = []
     terminal.on("keys", (typed) => keys.push(typed))
-    const hold = terminal.hold(budget, live)
+    const hold = terminal.hold(budget)
     expect(hold.holding()).toBe(true)
     terminal.input("a\x1b[12;40Rb")
     terminal.input("c")
@@ -256,14 +255,14 @@ describe("a terminal's hold", () => {
     await settled()
     const keys: string[] = []
     terminal.on("keys", (typed) => keys.push(typed))
-    const first = terminal.hold({ ...budget, deferred: true }, live)
+    const first = terminal.hold({ ...budget, deferred: true })
     terminal.input("\x1b[<64;5;5Mx")
     expect(keys).toEqual([])
     first.discard()
     first.release()
     expect(writes(program)).toEqual([])
     first.settle()
-    const second = terminal.hold({ ...budget, deferred: true }, live)
+    const second = terminal.hold({ ...budget, deferred: true })
     terminal.input("y")
     second.release()
     expect(keys).toEqual(["y"])
@@ -275,19 +274,18 @@ describe("a terminal's hold", () => {
     const seen: string[] = []
     terminal.on("keys", (typed) => seen.push(`keys ${typed}, written ${writes(program).length}`))
     terminal.input("a")
-    const hold = terminal.hold({ ...budget, deferred: true }, live)
+    const hold = terminal.hold({ ...budget, deferred: true })
     terminal.input("b")
     hold.release()
     expect(seen).toEqual(["keys a, written 0", "keys b, written 1"])
   })
 
-  it("writes nothing, and applies no size, once its terminal stops running", () => {
+  it("writes nothing, and applies no size, once its host lets it go", () => {
     const { terminal, program } = terminalOf({ controller: "window" })
-    let running = true
-    const hold = terminal.hold(budget, () => running)
+    const hold = terminal.hold(budget)
     terminal.input("k")
     terminal.resize(30, 5, "window")
-    running = false
+    terminal.gone()
     expect(hold.holding()).toBe(false)
     hold.settle()
     expect(writes(program)).toEqual([])
@@ -297,7 +295,7 @@ describe("a terminal's hold", () => {
   it("applies no held size for the same window attached anew, which asks its own", () => {
     const { terminal, program } = terminalOf({ controller: "window" })
     terminal.attach("window", { mode: "control" })
-    const hold = terminal.hold(budget, live)
+    const hold = terminal.hold(budget)
     terminal.resize(30, 5, "window")
     terminal.release("window")
     terminal.attach("window", { mode: "control" })
@@ -309,7 +307,7 @@ describe("a terminal's hold", () => {
     const { terminal, runs, settled } = terminalOf({ runs: 2, controller: "window" })
     const [first, second] = runs as [Program, Program]
     // A hold the earlier run's work never settled, its size still waiting.
-    terminal.hold(budget, live)
+    terminal.hold(budget)
     terminal.resize(30, 5, "window")
     first.exit(0)
     await settled()
@@ -322,16 +320,17 @@ describe("a terminal's hold", () => {
 
   it("refuses a second hold while one holds the input, and holds nothing where the terminal doesn't run", () => {
     const { terminal } = terminalOf()
-    const first = terminal.hold(budget, live)
-    expect(terminal.hold(budget, live).holding()).toBe(false)
+    const first = terminal.hold(budget)
+    expect(terminal.hold(budget).holding()).toBe(false)
     first.settle()
-    expect(terminal.hold(budget, () => false).holding()).toBe(false)
+    terminal.gone()
+    expect(terminal.hold(budget).holding()).toBe(false)
   })
 
   it("lets the keys go at its input cap, and the sizes at its size cap", async () => {
     clock()
     const { terminal, program, settled } = terminalOf({ controller: "window" })
-    const hold = terminal.hold({ inputMs: 20, sizeMs: 1_000 }, live)
+    const hold = terminal.hold({ inputMs: 20, sizeMs: 1_000 })
     terminal.input("k")
     terminal.resize(30, 5, "window")
     await vi.advanceTimersByTimeAsync(19)
@@ -349,10 +348,10 @@ describe("a terminal's hold", () => {
 
   it("hands the sizes a lapsed hold left to the next, which applies them as it settles", async () => {
     const { terminal, program, settled } = terminalOf({ controller: "window" })
-    const first = terminal.hold(budget, live)
+    const first = terminal.hold(budget)
     terminal.resize(30, 5, "window")
     first.release()
-    const second = terminal.hold(budget, live)
+    const second = terminal.hold(budget)
     // The first's late settle changes nothing: the second holds them now.
     first.settle()
     expect(program.calls).not.toContain("resize 30x5")
@@ -367,10 +366,10 @@ describe("a terminal's hold", () => {
   it("keeps the sizes waiting for the deadline the hold before set, past an early settle", async () => {
     clock()
     const { terminal, program } = terminalOf({ controller: "window" })
-    const first = terminal.hold(budget, live)
+    const first = terminal.hold(budget)
     terminal.resize(30, 5, "window")
     first.settleAfter(80)
-    const second = terminal.hold(budget, live)
+    const second = terminal.hold(budget)
     second.settle()
     await vi.advanceTimersByTimeAsync(79)
     expect(program.calls).not.toContain("resize 30x5")
@@ -381,13 +380,29 @@ describe("a terminal's hold", () => {
   it("applies a held size only for the attachment still in control", async () => {
     const { terminal, program } = terminalOf({ controller: "window" })
     terminal.attach("window", { mode: "control" })
-    const hold = terminal.hold(budget, live)
+    const hold = terminal.hold(budget)
     terminal.resize(30, 5, "window")
     // Another window takes control meanwhile, and is told the size in force.
     terminal.release("window")
     terminal.attach("other", { mode: "control" })
     hold.settle()
     expect(program.calls).not.toContain("resize 30x5")
+  })
+})
+
+describe("a terminal's screen reads", () => {
+  it("read the screen once the draws queued before them are on it", async () => {
+    const { terminal, program } = terminalOf()
+    program.draw("hello")
+    expect((await terminal.readScreen()).rows[0]?.trimEnd()).toBe("hello")
+    program.draw("\r\nthere")
+    expect(await terminal.readScreen((screen) => screen.buffer.active.cursorY)).toBe(1)
+  })
+
+  it("draw a replay ahead of what is read after it", async () => {
+    const { terminal } = terminalOf()
+    void terminal.replay("restored")
+    expect((await terminal.readScreen()).rows[0]?.trimEnd()).toBe("restored")
   })
 })
 

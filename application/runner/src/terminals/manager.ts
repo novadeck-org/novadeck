@@ -7,7 +7,6 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import {
   readScreen,
-  replay,
   transcript as transcriptOf,
   type IMarker,
   type ScreenText,
@@ -50,7 +49,6 @@ import { relayPath } from "@novadeck/relay"
 import { TerminalError } from "@novadeck/terminal"
 import {
   createTerminalHost,
-  type Attachment,
   noHold,
   type RunSpec,
   type Terminal,
@@ -351,7 +349,6 @@ type Record = {
   terminal: Terminal
   /** Closed by the person or an agent, and forgotten: nothing saves it again. */
   closed: boolean
-  restarting: boolean
   /** The current shell's last foreground sample; undefined until the first. */
   foreground: Foreground | undefined
   /** Where the terminal was created, for a restart once its last directory is gone. */
@@ -1026,7 +1023,6 @@ export class Terminals {
         ...started,
         terminal,
         closed: false,
-        restarting: false,
         foreground: undefined,
         origin,
         agents: saved?.agents ?? {},
@@ -1469,12 +1465,9 @@ export class Terminals {
     const record = this.live(terminalId)
     if (!record) return undefined
     const child = record.terminal.pty
-    const shown = await record.terminal.enqueue(() => {
+    const shown = await record.terminal.readScreen((screen) => {
       const commandRow = commandRowOf(record)
-      return {
-        text: readScreen(record.terminal.screen),
-        ...(commandRow !== undefined && { commandRow }),
-      }
+      return { text: readScreen(screen), ...(commandRow !== undefined && { commandRow }) }
     })
     return record.terminal.pty === child && this.live(terminalId) ? shown : undefined
   }
@@ -1503,7 +1496,7 @@ export class Terminals {
     const record = this.live(terminalId)
     if (!record) return undefined
     const child = record.terminal.pty
-    const text = await record.terminal.enqueue(() => readScreen(record.terminal.screen))
+    const text = await record.terminal.readScreen()
     return record.terminal.pty === child && this.live(terminalId) ? text : undefined
   }
 
@@ -1516,7 +1509,7 @@ export class Terminals {
   private holdInput(terminalId: string, budget: HoldBudget): InputHold {
     const record = this.live(terminalId)
     if (!record) return noHold
-    return record.terminal.hold(budget, () => this.live(terminalId) === record)
+    return record.terminal.hold(budget)
   }
 
   /** What prompts ask of the terminals and messaging. */
@@ -1902,117 +1895,111 @@ export class Terminals {
   ): Promise<TerminalSummary> {
     if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(input.terminalId)
-    if (record.closed || this.closingSessions.has(record.summary.sessionId))
-      throw new DomainError("TERMINAL_NOT_FOUND")
-    if (record.summary.exit === null || record.restarting)
-      throw new DomainError("CONFLICT", "Only an exited terminal can restart.")
-    if (record.terminal.controller !== undefined && record.terminal.controller !== ownerId)
-      throw new DomainError("CONTROL_IN_USE")
-    record.restarting = true
-    // An exited terminal stays while it restarts.
-    const kept = this.host.keep(input.terminalId)
+    // Closed, even meanwhile, or its project is closing: no shell starts in it again.
+    const check = () => {
+      if (
+        record.closed ||
+        this.records.get(input.terminalId) !== record ||
+        this.closingSessions.has(record.summary.sessionId)
+      )
+        throw new DomainError("TERMINAL_NOT_FOUND")
+    }
     const pending = this.pending(ownerId)
     try {
-      const environment = this.shellEnvironment()
-      // The last directory, or where the terminal started once that is gone.
-      const cwd = await this.directory(record.summary.cwd).catch(() =>
-        this.directory(record.origin),
-      )
-      const shell = await this.executable(cwd, environment)
-      const integration = await this.shellIntegration()
-      const connected = await this.connected(input.resume)
-      const env = await environment
-      // The swap waits for the old shell's queued work, which still uses the old screen.
-      return await record.terminal.enqueue(() => {
-        if (this.stopping) throw new DomainError("CLOSING")
-        // Closed meanwhile, or its project is closing: no shell starts in it again.
-        if (
-          record.closed ||
-          this.records.get(input.terminalId) !== record ||
-          this.closingSessions.has(record.summary.sessionId)
-        )
-          throw new DomainError("TERMINAL_NOT_FOUND")
-        const resume =
-          input.resume &&
-          this.resumable(
-            record.summary.id,
-            input.resume,
-            record.agents[input.resume]?.sessionId,
-            connected,
+      return await this.host.restart(input.terminalId, ownerId, {
+        check,
+        prepare: async () => {
+          const environment = this.shellEnvironment()
+          // The last directory, or where the terminal started once that is gone.
+          const cwd = await this.directory(record.summary.cwd).catch(() =>
+            this.directory(record.origin),
           )
-        const { spec, started } = this.launch(
-          shell,
-          cwd,
-          input,
-          integration,
-          env,
-          resume ? { command: resume.argv.join(" ") } : undefined,
-        )
-        const earlier =
-          this.transcripts && !started.resumes
-            ? transcriptOf(record.terminal.screen, this.options.transcriptChars)
-            : null
-        try {
-          // Earlier attachments ended at the exit; any still draining are dropped, and any
-          // earlier cursor gets a fresh snapshot.
-          record.terminal.restart(spec, pending.released ? undefined : ownerId, () => {
-            if (resume && started.resumes) {
-              this.claims.set(resume.key, record.summary.id)
-              started.resumeClaim = resume.key
+          const shell = await this.executable(cwd, environment)
+          const integration = await this.shellIntegration()
+          const connected = await this.connected(input.resume)
+          const env = await environment
+          return (restart) => {
+            const resume =
+              input.resume &&
+              this.resumable(
+                record.summary.id,
+                input.resume,
+                record.agents[input.resume]?.sessionId,
+                connected,
+              )
+            const { spec, started } = this.launch(
+              shell,
+              cwd,
+              input,
+              integration,
+              env,
+              resume ? { command: resume.argv.join(" ") } : undefined,
+            )
+            const earlier =
+              this.transcripts && !started.resumes
+                ? transcriptOf(record.terminal.screen, this.options.transcriptChars)
+                : null
+            try {
+              // Earlier attachments ended at the exit; any still draining are dropped, and any
+              // earlier cursor gets a fresh snapshot.
+              restart(spec, pending.released ? undefined : ownerId, () => {
+                if (resume && started.resumes) {
+                  this.claims.set(resume.key, record.summary.id)
+                  started.resumeClaim = resume.key
+                }
+                this.forgetPrompts(record)
+                Object.assign(record, started, {
+                  summary: {
+                    ...record.summary,
+                    cwd,
+                    cols: input.cols,
+                    rows: input.rows,
+                    exit: null,
+                    process: shellProcess(shell),
+                    run: record.summary.run + 1,
+                    agent: null,
+                    ready: null,
+                    activity: null,
+                    telemetry: null,
+                  } satisfies TerminalSummary,
+                  foreground: undefined,
+                  binding: null,
+                  suspended: null,
+                  root: null,
+                  seenEntry: undefined,
+                  shellName: shellProcess(shell)?.name,
+                  activity: null,
+                  telemetry: null,
+                  watching: null,
+                  transcript: null,
+                  submitted: started.resumes,
+                  startupRuns: started.resumes,
+                  readyEntered: false,
+                  // Delivery epochs start over with the new shell's registration.
+                  boxDoubtEpoch: undefined,
+                  prompts: [],
+                  line: emptyLine,
+                  lineEntered: started.resumes,
+                })
+                // The earlier shell's screen shows above the new one's.
+                if (earlier) this.show(record, earlier, null)
+                // Restarted to resume the worker's agent session, it stays led; restarted as a plain
+                // shell, there is no agent left to lead.
+                if (!started.resumes) this.endLead(record)
+                // The earlier shell's job and what murmur kept of it are not the new one's.
+                this.murmur?.gone(record.summary.id)
+                this.register(record, input.resume ?? null)
+              })
+            } catch (error) {
+              throw startFailed(started, error)
             }
-            this.forgetPrompts(record)
-            Object.assign(record, started, {
-              summary: {
-                ...record.summary,
-                cwd,
-                cols: input.cols,
-                rows: input.rows,
-                exit: null,
-                process: shellProcess(shell),
-                run: record.summary.run + 1,
-                agent: null,
-                ready: null,
-                activity: null,
-                telemetry: null,
-              } satisfies TerminalSummary,
-              foreground: undefined,
-              binding: null,
-              suspended: null,
-              root: null,
-              seenEntry: undefined,
-              shellName: shellProcess(shell)?.name,
-              activity: null,
-              telemetry: null,
-              watching: null,
-              transcript: null,
-              submitted: started.resumes,
-              startupRuns: started.resumes,
-              readyEntered: false,
-              // Delivery epochs start over with the new shell's registration.
-              boxDoubtEpoch: undefined,
-              prompts: [],
-              line: emptyLine,
-              lineEntered: started.resumes,
-            })
-            // The earlier shell's screen shows above the new one's.
-            if (earlier) this.show(record, earlier, null)
-            // Restarted to resume the worker's agent session, it stays led; restarted as a plain
-            // shell, there is no agent left to lead.
-            if (!started.resumes) this.endLead(record)
-            // The earlier shell's job and what murmur kept of it are not the new one's.
-            this.murmur?.gone(record.summary.id)
-            this.register(record, input.resume ?? null)
-          })
-        } catch (error) {
-          throw startFailed(started, error)
-        }
-        this.announce(record)
-        this.sampleProcesses()
-        return { ...record.summary }
+            this.announce(record)
+            this.sampleProcesses()
+            return { ...record.summary }
+          }
+        },
       })
     } finally {
-      record.restarting = false
-      kept()
       this.complete(ownerId, pending)
     }
   }
@@ -2320,51 +2307,27 @@ export class Terminals {
   ): AsyncGenerator<TerminalAttached | TerminalEvent> {
     const record = this.record(input.terminalId)
     const pending = this.pending(ownerId)
-    // An exited terminal stays, and a closed one is still read, until this is attached.
-    const kept = this.host.keep(input.terminalId)
-    let attachment: Attachment | undefined
-    const detach = () => {
-      if (!attachment) {
-        if (signal?.aborted || pending.released) record.terminal.forgo(ownerId)
-        return
-      }
-      if (record.terminal.attachment(ownerId) === attachment) record.terminal.release(ownerId)
-    }
-    const abort = () => {
-      attachment?.cancel()
-      detach()
-    }
-    signal?.addEventListener("abort", abort, { once: true })
+    const { terminalId } = input
     try {
-      await record.terminal
-        .enqueue(() => {
-          if (signal?.aborted || pending.released) return
-          if (this.stopping) throw new DomainError("CLOSING")
+      for await (const event of this.host.attach(
+        terminalId,
+        ownerId,
+        { after: input.afterSequence, mode: input.mode ?? "control" },
+        {
+          ...(signal && { signal }),
+          released: () => pending.released,
           // Closed, or closing, while this attachment waited its turn.
-          if (record.closed || this.records.get(input.terminalId) !== record)
-            throw new DomainError("TERMINAL_NOT_FOUND")
-          attachment = record.terminal.attach(ownerId, {
-            after: input.afterSequence,
-            mode: input.mode ?? "control",
-          })
-        })
-        .finally(kept)
-      if (!attachment) return
-      // Tells the client that control or observation is established before any event arrives.
-      yield { type: "attached", terminalId: input.terminalId, mode: attachment.mode }
-      while (true) {
-        // eslint-disable-next-line no-await-in-loop -- Each delivery waits for consumption ACKs.
-        const event = await attachment.next()
-        if (event === undefined) return
-        yield { ...event, terminalId: input.terminalId }
-      }
+          check: () => {
+            if (record.closed || this.records.get(terminalId) !== record)
+              throw new DomainError("TERMINAL_NOT_FOUND")
+          },
+        },
+      ))
+        yield event.type === "attached"
+          ? { type: "attached", terminalId, mode: event.mode }
+          : { ...event, terminalId }
     } finally {
-      signal?.removeEventListener("abort", abort)
-      attachment?.cancel()
-      detach()
       this.complete(ownerId, pending)
-      this.host.settle(input.terminalId)
-      this.host.evict()
     }
   }
 
@@ -4383,8 +4346,7 @@ export class Terminals {
 
   /** Shows a transcript on the record's fresh screen, ahead of its shell's output. */
   private show(record: Record, transcript: string, savedAt: Date | null): void {
-    const { screen } = record.terminal
-    void record.terminal.enqueue(() => replay(screen, transcript, restoredSeparator(savedAt)))
+    void record.terminal.replay(transcript, restoredSeparator(savedAt))
   }
 
   private saved(terminalId: string, sessionId?: string): SavedTerminal | undefined {

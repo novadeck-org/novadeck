@@ -1,6 +1,12 @@
 import { TerminalError, type TerminalEvent } from "../contract.js"
 import type { Disposable, EndBudget, NativeSpawn, ProcessTrees } from "../pty/pty.js"
-import { createTerminal, type RunSpec, type Terminal, type TerminalOptions } from "./terminal.js"
+import {
+  createTerminal,
+  type HostedTerminal,
+  type RunSpec,
+  type Terminal,
+  type TerminalOptions,
+} from "./terminal.js"
 
 export type TerminalHostOptions = {
   /** An event's size as the transport sends it, for the terminal `id`. */
@@ -71,27 +77,50 @@ export type TerminalHost = {
   /** Ends `owner`'s attachments and control, on every terminal, closed ones too. */
   release(owner: string): void
   /**
-   * Keeps terminal `id` from going, exited or closed, until the returned function is called,
-   * as while an attach or a restart is under way; then a closed one no one reads goes.
-   * Interim, until the host attaches and restarts.
+   * Attaches `owner` to terminal `id` once the draws queued before it are on its screen, and
+   * keeps the terminal, exited or closed, until then. In that step it refuses, in this order:
+   * `CLOSING` once the host shuts down, whatever the caller's `check` throws, then the
+   * terminal's own refusals. Yields `attached` with its mode, then the events. Given up
+   * before it attached, as `signal` aborts or `released` says, it attaches nothing and lets
+   * go of control `owner` held without an attachment.
    */
-  keep(id: string): () => void
-  /** Lets the oldest exited terminals no one reads go, past `maxRetained`. */
-  evict(): void
-  /** Lets closed terminal `id` go once no one reads or keeps it. Interim, as `keep`. */
-  settle(id: string): void
+  attach(
+    id: string,
+    owner: string,
+    options: { after?: number | undefined; mode: "control" | "observe" },
+    o?: { signal?: AbortSignal; released?: () => boolean; check?: () => void },
+  ): AsyncGenerator<{ type: "attached"; mode: "control" | "observe" } | TerminalEvent>
+  /**
+   * Starts a new run of exited terminal `id` in place, keeping it meanwhile. Refuses, in
+   * this order: `CLOSING`, `TERMINAL_NOT_FOUND` for one it doesn't hold open, `check`'s
+   * refusal, `CONFLICT` unless it exited and no other restart is under way, then
+   * `CONTROL_IN_USE` for another controller. `prepare` does
+   * the caller's waiting and gives back its step. Once the draws queued before are drawn, the
+   * step runs with `CLOSING` and `check` asked again, and calls `restart` with the new run.
+   */
+  restart<T>(
+    id: string,
+    owner: string,
+    o: {
+      check: () => void
+      prepare: () => Promise<
+        (restart: (spec: RunSpec, controller: string | undefined, swapped: () => void) => void) => T
+      >
+    },
+  ): Promise<T>
   /** Ends every program within the shutdown's budget, then lets every terminal go. */
   shutdown(): Promise<void>
   on<K extends keyof Listeners>(event: K, listener: Listeners[K]): Disposable
 }
 
 type Entry = {
-  readonly terminal: Terminal
+  readonly terminal: HostedTerminal
   closing?: Promise<void>
   /** In exit order across terminals; eviction goes oldest first. */
   exitOrder: number
   /** Work under way that the terminal must outlast. */
   kept: number
+  restarting: boolean
 }
 
 export const createTerminalHost = (options: TerminalHostOptions): TerminalHost => {
@@ -121,6 +150,7 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
       const full = room && open.size + reserved.size >= limits.maxTerminals
       if (excess <= 0 && !full) return
       excess -= 1
+      entry.terminal.gone()
       entry.terminal.dispose()
       open.delete(id)
       for (const listener of evicted) listener(id, entry.terminal)
@@ -162,6 +192,21 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
     ])
   }
 
+  // Keeps terminal `id` from going, exited or closed, until the returned function is called;
+  // then a closed one no one reads goes.
+  const keep = (id: string) => {
+    const entry = open.get(id) ?? drained.get(id)
+    if (!entry) return () => {}
+    entry.kept += 1
+    let done = false
+    return () => {
+      if (done) return
+      done = true
+      entry.kept -= 1
+      settle(id)
+    }
+  }
+
   const terminate = (entry: Entry): Promise<void> => {
     if (entry.closing) return entry.closing
     if (entry.terminal.exit !== null) return entry.terminal.exited
@@ -189,7 +234,7 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
             controller,
             ...(options.pty && { pty: options.pty }),
           })
-          const entry: Entry = { terminal, exitOrder: 0, kept: 0 }
+          const entry: Entry = { terminal, exitOrder: 0, kept: 0, restarting: false }
           open.set(id, entry)
           terminal.on("exit", () => {
             exits += 1
@@ -213,6 +258,7 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
     remove: (id) => {
       const entry = open.get(id)
       if (!entry || stopping) return
+      entry.terminal.gone()
       open.delete(id)
       drained.set(id, entry)
       settle(id)
@@ -223,25 +269,84 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
         settle(id)
       }
     },
-    keep: (id) => {
-      const entry = open.get(id) ?? drained.get(id)
-      if (!entry) return () => {}
-      entry.kept += 1
-      let done = false
-      return () => {
-        if (done) return
-        done = true
-        entry.kept -= 1
+    attach: async function* (id, owner, how, o = {}) {
+      const entry = open.get(id)
+      if (!entry) throw new TerminalError("TERMINAL_NOT_FOUND")
+      const { terminal } = entry
+      const { signal, released = () => false, check } = o
+      // An exited terminal stays, and a closed one is still read, until this is attached.
+      const kept = keep(id)
+      let attachment: ReturnType<Terminal["attach"]> | undefined
+      const detach = () => {
+        if (!attachment) {
+          if (signal?.aborted || released()) terminal.forgo(owner)
+          return
+        }
+        if (terminal.attachment(owner) === attachment) terminal.release(owner)
+      }
+      const abort = () => {
+        attachment?.cancel()
+        detach()
+      }
+      signal?.addEventListener("abort", abort, { once: true })
+      try {
+        await terminal
+          .enqueue(() => {
+            if (signal?.aborted || released()) return
+            if (stopping) throw new TerminalError("CLOSING")
+            check?.()
+            attachment = terminal.attach(owner, how)
+          })
+          .finally(kept)
+        if (!attachment) return
+        // Control or observation is established before any event arrives.
+        yield { type: "attached", mode: attachment.mode }
+        while (true) {
+          // eslint-disable-next-line no-await-in-loop -- Each delivery waits for its acks.
+          const event = await attachment.next()
+          if (event === undefined) return
+          yield event
+        }
+      } finally {
+        signal?.removeEventListener("abort", abort)
+        attachment?.cancel()
+        detach()
         settle(id)
+        evict()
       }
     },
-    evict: () => evict(),
-    settle,
+    restart: async (id, owner, { check, prepare }) => {
+      if (stopping) throw new TerminalError("CLOSING")
+      const entry = open.get(id)
+      if (!entry) throw new TerminalError("TERMINAL_NOT_FOUND")
+      check()
+      const { terminal } = entry
+      if (terminal.exit === null || entry.restarting)
+        throw new TerminalError("CONFLICT", "Only an exited terminal can restart.")
+      if (terminal.controller !== undefined && terminal.controller !== owner)
+        throw new TerminalError("CONTROL_IN_USE")
+      entry.restarting = true
+      // An exited terminal stays while it restarts.
+      const kept = keep(id)
+      try {
+        const step = await prepare()
+        // The swap waits for the old run's queued work, which still uses its screen.
+        return await terminal.enqueue(() => {
+          if (stopping) throw new TerminalError("CLOSING")
+          check()
+          return step((spec, controller, swapped) => terminal.restart(spec, controller, swapped))
+        })
+      } finally {
+        entry.restarting = false
+        kept()
+      }
+    },
     shutdown: async () => {
       stopping = true
       shutdownBy = Date.now() + kill.shutdownTreesMs
       await Promise.all([...open.values()].map(terminate))
       for (const entry of [...open.values(), ...drained.values()]) {
+        entry.terminal.gone()
         entry.terminal.end()
         entry.terminal.dispose()
       }
