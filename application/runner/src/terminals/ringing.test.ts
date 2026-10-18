@@ -32,17 +32,19 @@ const record = (binding: Binding | null = null) => {
 const world = (initial: RingRecord | undefined) => {
   const state = { current: initial, shown: undefined as "claude" | "codex" | undefined }
   const exits: Binding[] = []
+  const tasks: (() => void)[] = []
   const host = {
     live: (id: string) => (id === "t" ? state.current : undefined),
     screen: () => Promise.resolve(screen({ rows: ["> "] })),
     shownAgent: () => state.shown,
     alive: () => true,
-    exited: (_: string, __: RingRecord, binding: Binding) => void exits.push(binding),
+    queued: (_: string, work: () => void) => void tasks.push(work),
+    endExited: (found: RingRecord) => void exits.push(found.binding!),
     messaging: { shownAgent: () => state.shown } as unknown as Messaging,
     working: () => false,
     stopping: () => false,
   }
-  return { state, exits, host }
+  return { state, exits, tasks, host }
 }
 
 describe("a terminal's typing target", () => {
@@ -81,13 +83,13 @@ describe("a terminal's typing target", () => {
     expect(await target.holdsForeground()).toBeUndefined()
   })
 
-  it("says false, and ends the binding, when the bound agent left unseen", async () => {
+  it("says false, and calls nothing, when the bound agent left unseen", async () => {
     const binding = bound("claude", "999999999")
     const { running } = record(binding)
     const { host, exits } = world(running)
     const target = typingTarget("t", { ...host, alive: () => false })
     expect(await target.holdsForeground()).toBe(false)
-    expect(exits).toEqual([binding])
+    expect(exits).toEqual([])
   })
 })
 
@@ -100,6 +102,55 @@ describe("the doorbell's host", () => {
     expect(rings.target("other")).toBeUndefined()
     state.current = undefined
     expect(rings.target("t")).toBeUndefined()
+  })
+
+  describe("on an agent found gone", () => {
+    const gone = (binding: Binding | null, alive = false) => {
+      const { running } = record(binding)
+      const w = world(running)
+      const rings = doorbellHost({ ...w.host, alive: () => alive })
+      /** Asks, then runs what was queued. */
+      const ask = () => {
+        rings.agentGone?.("t")
+        const queued = w.tasks.length
+        for (const task of w.tasks.splice(0)) task()
+        return queued
+      }
+      return { ...w, rings, running, ask }
+    }
+
+    it("only queues the end of a bound dead instance's binding, without running it", () => {
+      const { rings, tasks, exits } = gone(bound("claude", "999999999"))
+      rings.agentGone?.("t")
+      expect(tasks).toHaveLength(1)
+      expect(exits).toEqual([])
+    })
+
+    it("ends it when the queue gets to it", () => {
+      const binding = bound("claude", "999999999")
+      const w = gone(binding)
+      expect(w.ask()).toBe(1)
+      expect(w.exits).toEqual([binding])
+    })
+
+    it("queues nothing for a live instance, no instance, a prompt only shown, or a gone terminal", () => {
+      const live = gone(bound("claude", "999999999"), true)
+      const none = gone(bound("claude"))
+      const shown = gone(null)
+      shown.state.shown = "claude"
+      const away = gone(bound("claude", "999999999"))
+      away.state.current = undefined
+      expect([live.ask(), none.ask(), shown.ask(), away.ask()]).toEqual([0, 0, 0, 0])
+      expect([live.exits, none.exits, shown.exits, away.exits]).toEqual([[], [], [], []])
+    })
+
+    it("leaves a binding replaced before the queue got to it", () => {
+      const w = gone(bound("claude", "999999999"))
+      w.rings.agentGone?.("t")
+      ;(w.running as { binding: Binding | null }).binding = bound("codex", "888888888")
+      for (const task of w.tasks.splice(0)) task()
+      expect(w.exits).toEqual([])
+    })
   })
 
   it("answers the profile of the agent bound or shown now, as they change", () => {
