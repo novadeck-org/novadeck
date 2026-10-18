@@ -148,6 +148,33 @@
       "status": "known",
       "cause": "Unknown, not reproduced: every test of the file failed at its first expect.element (openWorkspace's), and its rerun passed. Browser mode adds expect.element through a module script of its own (@vitest/browser's expect-element.js) in each file's page, before the tester; a page where that script didn't load or ran against another copy of vitest runs without it. Vite optimizing a dependency mid-run would do it, but a cold-cache run of the behaviour project optimized everything up front. Its test is the whole file, as the whole file fails.",
       "seen": ["#248 run 39073838168 attempt 1 job 117516789196 (Windows)"]
+    },
+    {
+      "id": "e2e-codex-macos-queued-follow-up",
+      "jobs": ["^Codex \\(macOS\\)$"],
+      "test": "src/e2e/chat.e2e.ts > Codex > gives its agent prompts back to back, awaited one by one and queued together",
+      "signature": "Timed out after \\d+ ms waiting for \\w+: its second prompt to be queued or steered before the model replies",
+      "status": "fixed",
+      "cause": "The adapter knew one of Codex's two lists of waiting prompts. A prompt that lands right behind the one starting a turn shows under \"• Queued follow-up inputs\", not \"Messages to be submitted after next tool call\", so the second prompt never read as queued (the CI screen showed it queued, with the model's reply held). The Codex profile now reads both (harnesses/codex/src/box.ts), which the doorbell's draft check, the box-settle check and interrupts use too.",
+      "seen": ["#278 E2E run 39103046027 job 117603229503 (macOS)"]
+    },
+    {
+      "id": "e2e-antigravity-windows-startup-mode-report-in-box",
+      "jobs": ["^Antigravity \\(Windows\\)$"],
+      "test": "src/e2e/escape-race.e2e.ts > Antigravity > reads a turn that finished despite the Escape as completed with its reply, and one the Escape stopped as interrupted",
+      "signature": "input box holds text already: a draft the prompt would merge into",
+      "status": "known",
+      "cause": "A freshly started Antigravity on Windows showed the runner screen's own mode-2026 report (a DECRQM reply with its ESC dropped, '[[?2026;2$y') as typed text in its input box, there at the first read after the banner and still there 3 s later (the run's trace), so that terminal's first prompt was refused as a draft. The runner's headless screen writes the reply to the pty (libraries/terminal host/terminal.ts, screen.onData). That the reply is the cause is inferred from the match, not probed on Windows ConPTY; fixing it is a product choice (not answering mode queries for Antigravity, or holding replies until its input is in VT mode) that needs a Windows probe. The signature is the generic draft refusal, which the log shows without the box's text, so a real regression of this test (an Escape leaving text in the box) reads as this flake once; its second failure is triaged.",
+      "seen": ["#285 E2E run 39122015715 job 117659615675 (Windows)"]
+    },
+    {
+      "id": "terminal-native-pty-final-output",
+      "jobs": ["^Test \\(macOS\\)$"],
+      "test": "src/pty/native.test.ts > installed native PTY dependency > starts a child and delivers its final output without hiding native startup errors",
+      "signature": "AssertionError: expected '' to contain 'NATIVE_PTY_OK'",
+      "status": "known",
+      "cause": "Suspected, not reproduced on Linux (40 spawns each with the event loop stalled 0, 100 and 400 ms all delivered): node-pty reported the child's exit (code 0) without its output on macOS. Either node-pty's unixTerminal.js destroyed the pty socket 200 ms (DESTROY_SOCKET_TIMEOUT_MS) after the native exit callback, before the master was read, or macOS dropped the pending output when the last slave fd closed. Both are inside node-pty or the kernel; the repo's node-pty patch touches only Windows files.",
+      "seen": ["#288 run 39128108243 job 117677654572 (macOS)"]
     }
   ]
 }
