@@ -4,7 +4,7 @@ import { cleanup, render } from "vitest-browser-react"
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import { App } from "../../app/App"
-import { createSpecBackend } from "../../backend/demo/spec-variants"
+import { createSpecBackend } from "./backend"
 
 // User-level vocabulary for behaviour specs. Specs describe what a person sees and
 // does; only this module knows how that maps to accessible roles and names, so a

@@ -8,12 +8,12 @@ const contexts = [
 ]
 const report = (): GridReport => ({
   success: true,
-  numTotalTests: 30,
-  numPassedTests: 30,
+  numTotalTests: 32,
+  numPassedTests: 32,
   testResults: [
     {
       name: "/checkout/application/ui/src/specs/companions.spec.tsx",
-      assertionResults: Array.from({ length: 30 }, (_, index) => ({
+      assertionResults: Array.from({ length: 32 }, (_, index) => ({
         title: "opens a window there",
         ancestorTitles: [contexts[index] ?? `preceding case ${index}`],
         status: "passed",
@@ -22,7 +22,7 @@ const report = (): GridReport => ({
   ],
 })
 const captures = (): GridCapture[] =>
-  Array.from({ length: 30 }, (_, index) => ({
+  Array.from({ length: 32 }, (_, index) => ({
     name: contexts[index] ?? `preceding case ${index}`,
     events: [{ type: "pointerup" }, { type: "app-drop" }],
   }))
@@ -37,7 +37,7 @@ describe("Grid capture completeness", () => {
   })
 
   it("rejects skipped or missing cases even if the process exits successfully", () => {
-    expect(validateGridCapture({ ...report(), numPassedTests: 29 }, captures())).toBeDefined()
+    expect(validateGridCapture({ ...report(), numPassedTests: 31 }, captures())).toBeDefined()
     expect(validateGridCapture(report(), captures().slice(1))).toBeDefined()
   })
 

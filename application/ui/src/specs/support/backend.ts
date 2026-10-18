@@ -1,22 +1,23 @@
 import type { SandboxState } from "#core/sandbox"
 
-import type { Backend } from "../port"
-import { createContentDemo } from "./content"
-import { createDemoPortable, type DemoPortable } from "./debug/portable"
-import { createDemoSandbox, sampleFix } from "./debug/sandbox"
-import { createDemoUninstall, uninstallScenarios } from "./debug/uninstall"
-import { createDemoUpdates } from "./debug/updates"
-import { createDemoBackend } from "./index"
+import { createDemoBackend } from "../../backend/demo"
+import { createContentDemo } from "../../backend/demo/content"
+import { createDemoPortable, type DemoPortable } from "../../backend/demo/debug/portable"
+import { createDemoSandbox, sampleFix } from "../../backend/demo/debug/sandbox"
+import { createDemoUninstall, uninstallScenarios } from "../../backend/demo/debug/uninstall"
+import { createDemoUpdates } from "../../backend/demo/debug/updates"
 import {
   portableScenarios,
   updateScenarios,
   type PortableScenarioKey,
   type UpdateScenario,
   type UpdateScenarioKey,
-} from "./scenarios"
-import { visitorDemo } from "./visitor"
+} from "../../backend/demo/scenarios"
+import { visitorDemo } from "../../backend/demo/visitor"
+import type { Backend } from "../../backend/port"
 
-// The demo's variants a spec asks for in its address, kept out of the file that chooses
+// The demo's variants a spec asks for in its address, and the backend that offers them:
+// the one place specs and tests reach the demo, kept out of the file that chooses
 // the backend so the demo stays one folder.
 
 // Specs open the content demo, with its agents' plans and artifacts, by adding
