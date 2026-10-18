@@ -1085,8 +1085,10 @@ Everything outside it reaches it as `#core/*`, the UI package's
 own `imports`; inside it files import one another by relative path. `theme/` imports
 nothing but itself and the core's types; every layer that composes the page may use it, though no backend does (the entries hand them the page's theme), and
 [docs/theming.md](docs/theming.md) is its contract with components.
-Each backend adapter in `backend/` builds on `core/`, where the port is, and the
-terminal views, and may add `ui-toolkit/`. `interaction/` builds on `core/` and imports no packages;
+Each backend adapter in `backend/` builds only on `core/`, where the port is, and
+`backend/terminal-views/`, never on the app's chrome. It imports only the packages the test
+gives it as an owner, with React and Lucide in the demo's debug panel (`backend/demo/debug/`)
+alone. `interaction/` builds on `core/` and imports no packages;
 features add `ui-toolkit/`; `terminals/` may use `sidebar/`; `layouts/` may use
 `terminals/`; `notifications/` builds on the base layers, `sidebar/` and
 `terminals/unread-state.ts`; `inbox/` builds on the base layers, `sidebar/` and the
@@ -1105,8 +1107,9 @@ the emulator's view in `backend/runner/`, the demo's terminals (`backend/demo/vi
 `backend/demo/screen/`) and `backend/terminal-views/`, which both adapters draw their
 terminals with and which imports only the core and libraries; no
 backend reads `theme/`, as the entries hand it the page's theme. Other packages are denied
-unless the test lists them: React and Lucide are allowed everywhere, while
-backend adapters and test code may use any package. `test/` may import
+unless the test lists them: React and Lucide are allowed in every layer above that takes
+packages, outside `backend/`, and test code may use any package but one the test gives other
+owners. `test/` may import
 `core/` and what the command harness runs: `app/commands/`, the UI
 store, routing, and the Canvas handle type. Hooks declare named contracts instead of
 `ReturnType<typeof useHook>`. `src/architecture.test.ts` enforces these rules and
