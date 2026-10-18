@@ -63,8 +63,10 @@ type Internals = {
     ringFailed(terminalId: string, nonce: string, ours?: boolean): void
   }
   live(terminalId: string): {
-    readonly screen: { write(data: string): void }
-    readonly process: { write(data: string): void }
+    readonly terminal: {
+      readonly screen: { write(data: string): void }
+      readonly pty: { write(data: string): void }
+    }
   }
 }
 const internals = (run: E2E): Internals => run.deck.terminals as unknown as Internals
@@ -74,7 +76,9 @@ const tick = (run: E2E, terminal: DeckTerminal): (() => void) => {
   let seconds = 0
   const timer = setInterval(() => {
     seconds += 1
-    internals(run).live(terminal.id).screen.write(`\x1b7\x1b[2;1Huptime ${seconds}s\x1b[K\x1b8`)
+    internals(run)
+      .live(terminal.id)
+      .terminal.screen.write(`\x1b7\x1b[2;1Huptime ${seconds}s\x1b[K\x1b8`)
   }, 1000)
   return () => clearInterval(timer)
 }
@@ -89,7 +93,7 @@ const lost = (run: E2E, terminal: DeckTerminal, nonce: string): void => {
   expect(messaging.ring(terminal.id, nonce)).toBe(true)
   internals(run)
     .live(terminal.id)
-    .process.write(`\x1b[200~${doorbellLine(nonce)}\x1b[201~`)
+    .terminal.pty.write(`\x1b[200~${doorbellLine(nonce)}\x1b[201~`)
   // The paste check had accepted the line: it is alone in the box, Novadeck's own.
   messaging.ringFailed(terminal.id, nonce, true)
 }

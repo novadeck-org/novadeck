@@ -2,9 +2,8 @@
 
 Hosting terminals and attaching to them: a pty, a headless screen kept in step with it, a
 resumable stream of it, its browser view, and shell integration. So far it has the attach
-contract, a terminal's events and attachments, the pty, the process facts and the shell
-integration; the rest arrives
-a part at a time.
+contract, a hosted terminal (its run, screen, events and attachments), the pty, the process
+facts and the shell integration; the rest arrives a part at a time.
 
 ## Subpaths
 
@@ -23,18 +22,25 @@ The others are Node only: each names only the `node` condition, so a browser bun
 resolve it.
 
 - `./host`: hosting a terminal.
-  - `createTerminal(options)` keeps a terminal's events and who reads them. It sequences each
-    event and keeps a replay ring bounded in bytes. A viewer attaches from a cursor the ring
-    still holds, or else from a snapshot of the screen, with as much scrollback as fits its own
-    cap. One attachment controls the terminal and the rest observe.
+  - `createTerminal(options)` hosts a terminal: it starts the program in a pty with a headless
+    screen, and keeps the events that follow the screen and who reads them.
+  - What the program prints is drawn on the screen in order, behind everything queued before
+    it (`enqueue`): reads that arrive while a draw waits join it, the program pauses while a
+    lot waits, and an earlier run's output is dropped. Each draw is told to `drawn` listeners,
+    then sent in events of at most 4,096 characters. Its title, the directory its prompt
+    reports (OSC 7 or 9;9) and a full reset are told too, and its exit, in order: `exit`
+    listeners, the `exited` event, every attachment finished, then `exited` listeners.
+  - It sequences each event and keeps a replay ring bounded in bytes. A viewer attaches from a
+    cursor the ring still holds, or else from a snapshot of the screen, with as much
+    scrollback as fits its own cap. One attachment controls the terminal and the rest observe.
   - Each attachment has a queue bounded in bytes, and an ack window that holds delivery until
     the viewer catches up. A viewer that falls behind fails with `SLOW_CONSUMER`, to reconnect
     and resume.
   - Every budget counts an event at `eventBytes`: what the transport sends, envelope and all.
-  - A restart in place starts the ring over and skips a sequence number, so an earlier cursor
-    gets a snapshot.
-  - Until the host owns the screen and the output, its caller gives it the screen to snapshot
-    (`view`) and emits the events.
+  - `restart` starts a new run in place, in one step: the earlier run's screen goes, the ring
+    starts over and skips a sequence number, so an earlier cursor gets a snapshot, and the
+    caller's own state is swapped in the same step. A program that can't start throws
+    `SPAWN_FAILED`, leaving the earlier run as it was.
 
 - `./pty`: a terminal's processes.
   - `spawnPty(options)` starts a program in a pty, through node-pty (an optional peer: install

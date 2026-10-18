@@ -173,9 +173,9 @@ describe("an answer's hold of the person's input", () => {
     // then is the wheel's report one the TUI asked for, rather than typed text.
     const { screen } = (
       manager as unknown as {
-        records: Map<string, { screen: { modes: { mouseTrackingMode: string } } }>
+        records: Map<string, { terminal: { screen: { modes: { mouseTrackingMode: string } } } }>
       }
-    ).records.get(terminal.id)!
+    ).records.get(terminal.id)!.terminal
     await vi.waitFor(() => expect(screen.modes.mouseTrackingMode).toBe("any"), {
       timeout: 5_000,
     })
@@ -296,7 +296,7 @@ describe("terminal interrupts", () => {
         binding: unknown
         activity: unknown
         held: { input: string[] | null; size: null } | null
-        process: { write: (data: string) => void }
+        terminal: { pty: { write: (data: string) => void } }
       }
     >
   }
@@ -320,7 +320,9 @@ describe("terminal interrupts", () => {
     record.binding = { agent: "claude" }
     record.activity = { state, pending: [], plans: [], background: null }
     const writes: string[] = []
-    record.process = { ...record.process, write: (data: string) => void writes.push(data) }
+    // The manager's writes, not the terminal's own replies to the screen's queries.
+    const pty = { ...record.terminal.pty, write: (data: string) => void writes.push(data) }
+    record.terminal = Object.create(record.terminal, { pty: { value: pty } })
     return { manager, id: terminal.id, writes, record }
   }
 
@@ -403,9 +405,9 @@ describe("terminal interrupts", () => {
 
   it("presses one Escape for two interrupts of one turn", async ({ terminals }) => {
     const { manager, id, writes, record } = await agent(terminals, "working")
-    const write = record.process.write
+    const write = record.terminal.pty.write
     // The turn ends as the harness takes the Escape.
-    record.process.write = (data) => {
+    record.terminal.pty.write = (data) => {
       write(data)
       record.activity = { state: "idle", pending: [], plans: [], background: null }
     }
@@ -1621,48 +1623,6 @@ describe.skipIf(process.platform === "win32")("terminal message watches", () => 
     await expect(manager.watchMessages(id).next()).rejects.toMatchObject({
       code: "CLOSING",
     })
-  })
-})
-
-describe("a terminal's output", () => {
-  type Inside = {
-    records: Map<string, { process: unknown }>
-    output: (record: unknown, child: unknown, data: string) => void
-    applySize: (record: unknown, size: { cols: number; rows: number }) => void
-    emit: (record: unknown, payload: { type: string; data?: string }) => void
-  }
-
-  it("is drawn in order with a resize queued between, never joining a draw ahead of it", async ({
-    terminals,
-  }) => {
-    const manager = terminals.manager(ptyOptions)
-    const terminal = await manager.create(
-      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
-      "creator",
-    )
-    const inside = manager as unknown as Inside
-    const record = inside.records.get(terminal.id)!
-    const seen: string[] = []
-    const { emit } = inside
-    inside.emit = function (target, payload) {
-      if (payload.type === "resized") seen.push("resized")
-      else if (payload.type === "output")
-        for (const mark of ["DRAW-A", "DRAW-B", "DRAW-C"])
-          if (payload.data?.includes(mark)) seen.push(mark)
-      emit.call(this, target, payload)
-    }
-    try {
-      // Output, a resize as a pane changes size, and the program's redraw after it.
-      inside.output(record, record.process, "DRAW-A")
-      inside.applySize(record, { cols: 100, rows: 30 })
-      inside.output(record, record.process, "DRAW-B")
-      // Output while a draw waits, with nothing between, still joins it.
-      inside.output(record, record.process, "DRAW-C")
-      await vi.waitFor(() => expect(seen).toHaveLength(4))
-      expect(seen).toEqual(["DRAW-A", "resized", "DRAW-B", "DRAW-C"])
-    } finally {
-      inside.emit = emit
-    }
   })
 })
 

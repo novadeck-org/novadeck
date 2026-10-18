@@ -3,8 +3,7 @@
 export {
   createTerminal,
   type Attachment,
-  type Emitted,
+  type RunSpec,
   type Terminal,
   type TerminalOptions,
-  type TerminalView,
 } from "./host/terminal.js"
