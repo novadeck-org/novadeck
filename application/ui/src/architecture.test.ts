@@ -119,14 +119,12 @@ const rules: Record<string, readonly string[]> = {
   // How each build is deployed, which vite.config.ts hands the build kit.
   "deploy.ts": [],
 }
-const adapterRule = (layer: string): readonly string[] => [
-  layer,
-  "backend/terminal-views/",
-  "core/",
-  "ui-toolkit/",
-]
 // Not an adapter, though in backend/: both adapters draw their terminals with it.
 const terminalViews = "backend/terminal-views/"
+// An adapter takes the core and the terminal views from the UI, never the app's chrome: the
+// app draws what is around its terminals. Its packages are its vendors' (see
+// `backendPackages`).
+const adapterRule = (layer: string): readonly string[] => [layer, terminalViews, "core/"]
 // The entries are the only files that import a backend adapter, each only its own: the
 // runner for the desktop and web apps, the visitor demo for the try build, and the demo with
 // its debug panel for the content preview.
@@ -148,6 +146,8 @@ const specBackend = "specs/support/backend.ts"
 // the runner adapter through its scripted server alone.
 const counterRun = "specs/counters/"
 const scriptedServer = "backend/runner/scripted-server.ts"
+// The runner the adapter's tests start in a worker, with the server half of the wire.
+const runnerTesting = "backend/runner/testing.ts"
 const counterRunReaches = [scriptedServer, "core/store.ts"]
 // Canvas's out-of-sight spec opens the same scripted runner, to see which screens are open.
 const canvasOffscreenSpec = "specs/canvas-offscreen.spec.tsx"
@@ -158,11 +158,31 @@ const terminalKeysSpec = "specs/terminal-keys.spec.tsx"
 // so this file is the one other place it appears.
 const storeHook = "countListenersWoken"
 const hookOwners = ["core/store.ts", counterRun, "architecture.test.ts"]
-// Packages are denied unless listed here, owned through `vendors`, or used by an
-// adapter or test code. theme/, interaction/ and app/commands/ use none. The core takes only
-// the library entries `coreLibraryEntries` lists and the protocol's data entries that
-// `protocolData` names, and no other package.
+// Packages are denied unless listed here or owned through `vendors`; test code (the test
+// layers and every layer's tests) may use any other package too. theme/, interaction/ and
+// app/commands/ use none. The core takes only the library entries `coreLibraryEntries` lists
+// and the protocol's data entries that `protocolData` names, and no other package. backend/
+// takes `backendPackages` in place of these.
 const everywherePackages = new Set(["react", "lucide-react"])
+// The packages a backend's files may import beyond their vendors' entries: React and its
+// icons in the demo's debug panel alone, and vitest in the browser checks of modules that need
+// a real browser, as WebGL does, which the browser project runs by name (see vitest.config.ts).
+// Everything else in backend/ (the adapters and the terminal views) takes none, a new adapter
+// included. The most specific folder or file wins.
+const backendPackages: Record<string, readonly string[]> = {
+  "backend/demo/debug/": ["react", "lucide-react"],
+  "backend/runner/renderer.spec.ts": ["vitest"],
+  "backend/demo/screen/screen.spec.ts": ["vitest"],
+}
+// A folder key covers what it holds; a file key only itself.
+const covers = (key: string, file: string): boolean =>
+  key.endsWith("/") ? file.startsWith(key) : file === key
+const backendPackagesOf = (file: string): readonly string[] | undefined =>
+  file.startsWith("backend/")
+    ? (Object.entries(backendPackages)
+        .filter(([key]) => covers(key, file))
+        .toSorted(([a], [b]) => b.length - a.length)[0]?.[1] ?? [])
+    : undefined
 const typeOnlyPackages: Record<string, readonly string[]> = {
   "theme/": [],
   "app/commands/": [],
@@ -199,12 +219,13 @@ const vendors: Record<string, readonly string[]> = {
   ],
   "react-router": ["app/", "shell/", "specs/"],
   "react-dom": ["layouts/transition.ts", "entries/start.tsx", "test/"],
-  // One entry per workspace package, with the folders that own it. The runner client and its
-  // test runner serve one adapter, the terminal emulator its screens, and the content viewers
-  // the companion pane and chat.
+  // One entry per workspace package, with the folders that own it, or per entry where only
+  // some of them may take it (the most specific entry wins). The runner client and its test
+  // runner serve one adapter, the terminal emulator its screens, and the content viewers the
+  // companion pane and chat.
   "@novadeck/viewers": ["terminals/companion/", "terminals/chat/"],
   "@novadeck/protocol": ["backend/runner/", ...Object.keys(protocolData)],
-  "@novadeck/runner": ["backend/runner/"],
+  "@novadeck/runner": [runnerTesting],
   "@novadeck/emulator": [
     "backend/runner/",
     "backend/demo/screen/",
@@ -213,8 +234,11 @@ const vendors: Record<string, readonly string[]> = {
   ],
   "@novadeck/terminal": ["backend/runner/", "backend/demo/views", terminalViews],
   "@novadeck/wire": ["backend/runner/"],
+  "@novadeck/wire/server": [runnerTesting],
+  "node:worker_threads": [runnerTesting],
   // The runner's server side, which only the counter run's scripted runner serves.
   "@orpc/server": [scriptedServer],
+  "@novadeck/wire/testing": [scriptedServer],
 }
 
 const src = join(process.cwd(), "src")
@@ -277,20 +301,28 @@ const packageName = (specifier: string): string =>
     .slice(0, specifier.startsWith("@") ? 2 : 1)
     .join("/")
 const vendorOf = (specifier: string): string | undefined =>
-  Object.keys(vendors).find((name) => specifier === name || specifier.startsWith(`${name}/`))
+  Object.keys(vendors)
+    .filter((name) => specifier === name || specifier.startsWith(`${name}/`))
+    .reduce<string | undefined>(
+      (found, name) => (name.length > (found?.length ?? 0) ? name : found),
+      undefined,
+    )
 
 const importViolation = (file: string, layer: string | undefined) => {
   const allowed = layer ? allowedFor(file, layer) : []
   return ({ specifier, typeOnly }: { specifier: string; typeOnly: boolean }): string[] => {
     if (!specifier.startsWith(".") && !isCoreSpecifier(specifier)) {
       if (protocolData[file] === specifier) return []
-      if (isTest(file) || (layer && (adapterOf(layer) || testLayers.has(layer)))) return []
+      if (isTest(file) || (layer && testLayers.has(layer))) return []
       // The core takes the listed library entries and, through `protocolData`, the protocol's.
       if (layer === "core/") return coreLibrary(specifier) ? [] : [`${file} -> ${specifier}`]
       const limited = layer ? typeOnlyPackages[layer] : undefined
+      const backend = backendPackagesOf(file)
       const ok = limited
         ? limited.includes(packageName(specifier)) && typeOnly
-        : everywherePackages.has(packageName(specifier)) || Boolean(vendorOf(specifier))
+        : (backend?.includes(packageName(specifier)) ??
+            everywherePackages.has(packageName(specifier))) ||
+          Boolean(vendorOf(specifier))
       return ok ? [] : [`${file} -> ${specifier}`]
     }
     const target = resolveFile(file, specifier)
@@ -395,20 +427,6 @@ describe("UI architecture", () => {
     expect(found).toEqual([])
   })
 
-  // Packages other than the workspace's libraries: React among them, which the layer rule
-  // alone would let through.
-  it("keeps the terminal views to the workspace's libraries among packages, React not among them", () => {
-    const found = files
-      .filter((file) => file.startsWith(terminalViews) && !isTest(file))
-      .flatMap((file) =>
-        imports(file)
-          .filter(({ specifier }) => !specifier.startsWith(".") && !isCoreSpecifier(specifier))
-          .filter(({ specifier }) => !specifier.startsWith("@novadeck/"))
-          .map(({ specifier }) => `${file} -> ${specifier}`),
-      )
-    expect(found).toEqual([])
-  })
-
   it("imports no workspace package the table doesn't give an owner", () => {
     const found = files.flatMap((file) =>
       imports(file)
@@ -454,12 +472,26 @@ describe("UI architecture", () => {
     const deadDemoLayers = [demoDebug, demoVisitor].filter(
       (layer) => !files.some((file) => file.startsWith(layer)),
     )
+    const deadBackendPackages = Object.entries(backendPackages).flatMap(([key, names]) =>
+      names
+        .filter(
+          (name) =>
+            !files.some(
+              (file) =>
+                covers(key, file) &&
+                !isTest(file) &&
+                imports(file).some(({ specifier }) => packageName(specifier) === name),
+            ),
+        )
+        .map((name) => `${name} in ${key}`),
+    )
     expect([
       ...deadLayers,
       ...deadVendors,
       ...deadExceptions,
       ...deadSpecBackend,
       ...deadDemoLayers,
+      ...deadBackendPackages,
     ]).toEqual([])
   })
 
@@ -468,21 +500,6 @@ describe("UI architecture", () => {
     const found = files.filter(
       (file) => named.test(source(file)) && !hookOwners.some((owner) => file.startsWith(owner)),
     )
-    expect(found).toEqual([])
-  })
-
-  it("keeps the runner's own code free of React and the UI toolkit", () => {
-    // It draws terminals through the port's mount, into an element it is given; the chrome
-    // around them is the app's. This holds until the adapter rule covers every adapter.
-    const found = files
-      .filter((file) => file.startsWith("backend/runner/") && !isTest(file))
-      .flatMap((file) =>
-        imports(file).flatMap(({ specifier }) => {
-          const target = specifier.startsWith(".") ? resolveFile(file, specifier) : undefined
-          const react = !specifier.startsWith(".") && /^react(-dom)?(\/|$)/.test(specifier)
-          return react || target?.startsWith("ui-toolkit/") ? [`${file} -> ${specifier}`] : []
-        }),
-      )
     expect(found).toEqual([])
   })
 
