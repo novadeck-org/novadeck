@@ -1,7 +1,7 @@
 import { MessageChannel } from "node:worker_threads"
 
 import { contract, protocolVersion, type TranscriptChange } from "@novadeck/protocol"
-import { connectRunner } from "@novadeck/protocol/client"
+import { connectRunner } from "@novadeck/runner-client"
 import { messagePort } from "@novadeck/wire/client"
 import { implement, ORPCError } from "@orpc/server"
 import { RPCHandler } from "@orpc/server/message-port"

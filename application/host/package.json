@@ -27,6 +27,7 @@
     "@novadeck/protocol": "workspace:*",
     "@novadeck/relay": "workspace:*",
     "@novadeck/runner": "workspace:*",
+    "@novadeck/runner-client": "workspace:*",
     "@novadeck/ui": "workspace:*",
     "@novadeck/viewers": "workspace:*",
     "@novadeck/wire": "workspace:*",

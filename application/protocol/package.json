@@ -2,18 +2,13 @@
   "name": "@novadeck/protocol",
   "version": "0.0.0",
   "private": true,
-  "description": "Shared Novadeck runner contracts and client.",
+  "description": "Shared Novadeck runner contracts.",
   "type": "module",
   "exports": {
     ".": {
       "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./client": {
-      "development": "./src/client.ts",
-      "types": "./dist/client.d.ts",
-      "default": "./dist/client.js"
     },
     "./bridge": {
       "development": "./src/bridge.ts",

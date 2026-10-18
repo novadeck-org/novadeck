@@ -1,17 +1,8 @@
-import { normalize, WireError } from "@novadeck/wire"
 import {
-  connect,
-  follow,
-  type Session,
-  type Transport,
-  type Wire,
-  type WireStatus,
-} from "@novadeck/wire/client"
-
-import { contract, type WireClient } from "./contract.js"
-import { hasCode, type RunnerErrorCode } from "./errors.js"
-import type { AskAnswer, InboxLetter } from "./inbox.js"
-import {
+  contract,
+  type WireClient,
+  type AskAnswer,
+  type InboxLetter,
   maxUploadBytes,
   maxUploadPartLength,
   maxVoicePartLength,
@@ -42,7 +33,18 @@ import {
   type VoiceState,
   type VoiceTranscript,
   type WorkspaceSession,
-} from "./schemas.js"
+} from "@novadeck/protocol"
+import { normalize, WireError } from "@novadeck/wire"
+import {
+  connect,
+  follow,
+  type Session,
+  type Transport,
+  type Wire,
+  type WireStatus,
+} from "@novadeck/wire/client"
+
+import { hasCode, type RunnerErrorCode } from "./errors.js"
 
 export type ConnectOptions = {
   /** Cancels the initial connection. Afterwards, use `runner.close()`. */

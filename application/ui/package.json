@@ -28,6 +28,7 @@
     "@fontsource/share-tech-mono": "5.3.0",
     "@novadeck/emulator": "workspace:*",
     "@novadeck/protocol": "workspace:*",
+    "@novadeck/runner-client": "workspace:*",
     "@novadeck/terminal": "workspace:*",
     "@novadeck/viewers": "workspace:*",
     "@novadeck/wire": "workspace:*",

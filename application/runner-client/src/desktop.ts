@@ -1,7 +1,7 @@
+import { runnerPortMessage, type DesktopHost } from "@novadeck/protocol/bridge"
 import { WireError } from "@novadeck/wire"
 import { hostTransport, type Transport } from "@novadeck/wire/client"
 
-import { runnerPortMessage, type DesktopHost } from "./bridge.js"
 import type { RunnerErrorCode } from "./errors.js"
 
 /**

@@ -190,7 +190,8 @@ const typeOnlyPackages: Record<string, readonly string[]> = {
 }
 // The files in core/ that read the wire package, each through one data-only entry: its
 // table of harnesses, the key that tells pages apart, and what draws as nothing in a command.
-// An entry is added here when the core needs one; never `/client` or `/wire`.
+// An entry is added here when the core needs one; never the wire, or the runner client, which
+// is a package of its own.
 const protocolData: Record<string, string> = {
   "core/harnesses.ts": "@novadeck/protocol/harnesses",
   "core/pages.ts": "@novadeck/protocol/pages",
@@ -225,6 +226,7 @@ const vendors: Record<string, readonly string[]> = {
   // companion pane and chat.
   "@novadeck/viewers": ["terminals/companion/", "terminals/chat/"],
   "@novadeck/protocol": ["backend/runner/", ...Object.keys(protocolData)],
+  "@novadeck/runner-client": ["backend/runner/"],
   "@novadeck/runner": [runnerTesting],
   "@novadeck/emulator": [
     "backend/runner/",
@@ -407,7 +409,7 @@ describe("UI architecture", () => {
               : [`${file} -> ${specifier}`]
           }
           if (dataEntries.has(specifier)) return []
-          // The protocol isn't a library, so only its data entries pass; its `/client` and `/wire` don't.
+          // The protocol isn't a library, so only its data entries pass; its index doesn't.
           return coreLibrary(specifier) ? [] : [`${file} -> ${specifier}`]
         }),
       )

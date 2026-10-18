@@ -998,23 +998,24 @@ adapters and the contract they share; `libraries/` holds the mechanics that neve
 app code (see [libraries/README.md](libraries/README.md)); `tools/` holds the apps' build
 helpers.
 
-| Package                | Responsibility                                                        |
-| ---------------------- | --------------------------------------------------------------------- |
-| `application/ui`       | React frontend built with Vite, Tailwind CSS, and Lucide icons.       |
-| `application/runner`   | The runner: shells and metadata, served over WebSocket or port.       |
-| `application/protocol` | Shared Zod contracts and the `connectRunner` client for UIs.          |
-| `application/host`     | Electron host that starts the runner and loads the packaged UI.       |
-| `application/relay`    | Rust relay for agents' Novadeck MCP server and hooks.                 |
-| `engines/whisper`      | Voice engine: whisper.cpp built for download (`build:engine`).        |
-| `engines/murmur`       | Murmur engine: llama.cpp built for download (`build:engine`).         |
-| `engines/ggml-build`   | The engine build both of those share.                                 |
-| `harnesses/core`       | The harness adapters' contract and the helpers they share.            |
-| `harnesses/claude`     | The Claude Code adapter: hooks, transcripts, dialogs, input box.      |
-| `harnesses/codex`      | The Codex adapter, same shape.                                        |
-| `harnesses/agy`        | The Antigravity adapter, same shape.                                  |
-| `tools/build-kit`      | The apps' Vite helpers: CSP sources, hosting headers, noindex, fonts. |
-| `scripts`              | Repository checks and automation.                                     |
-| `atlas`                | Dev-only code map: `pnpm atlas`; agent briefs: `pnpm -s atlas:brief`. |
+| Package                     | Responsibility                                                        |
+| --------------------------- | --------------------------------------------------------------------- |
+| `application/ui`            | React frontend built with Vite, Tailwind CSS, and Lucide icons.       |
+| `application/runner`        | The runner: shells and metadata, served over WebSocket or port.       |
+| `application/protocol`      | Shared Zod contracts the runner and its clients agree on.             |
+| `application/runner-client` | The `connectRunner` client UIs reach a runner with.                   |
+| `application/host`          | Electron host that starts the runner and loads the packaged UI.       |
+| `application/relay`         | Rust relay for agents' Novadeck MCP server and hooks.                 |
+| `engines/whisper`           | Voice engine: whisper.cpp built for download (`build:engine`).        |
+| `engines/murmur`            | Murmur engine: llama.cpp built for download (`build:engine`).         |
+| `engines/ggml-build`        | The engine build both of those share.                                 |
+| `harnesses/core`            | The harness adapters' contract and the helpers they share.            |
+| `harnesses/claude`          | The Claude Code adapter: hooks, transcripts, dialogs, input box.      |
+| `harnesses/codex`           | The Codex adapter, same shape.                                        |
+| `harnesses/agy`             | The Antigravity adapter, same shape.                                  |
+| `tools/build-kit`           | The apps' Vite helpers: CSP sources, hosting headers, noindex, fonts. |
+| `scripts`                   | Repository checks and automation.                                     |
+| `atlas`                     | Dev-only code map: `pnpm atlas`; agent briefs: `pnpm -s atlas:brief`. |
 
 Build an engine locally with `pnpm --filter @novadeck/whisper build:engine` or
 `pnpm --filter @novadeck/murmur build:engine`; the archive and `engine.json` land in

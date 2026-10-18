@@ -43,6 +43,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@novadeck/runner-client": "workspace:*",
     "@novadeck/sandbox": "workspace:*",
     "@types/node": "^26.6.5",
     "@types/ws": "8.18.2",

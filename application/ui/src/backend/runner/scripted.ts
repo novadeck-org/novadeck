@@ -1,5 +1,5 @@
 import type { TerminalSummary } from "@novadeck/protocol"
-import type { CompanionWatchItem, Runner, TerminalWatchItem } from "@novadeck/protocol/client"
+import type { CompanionWatchItem, Runner, TerminalWatchItem } from "@novadeck/runner-client"
 import type { WireStatus } from "@novadeck/wire/client"
 
 import type { BackendAction } from "#core/port"

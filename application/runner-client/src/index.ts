@@ -8,5 +8,4 @@ export {
   type TerminalMode,
   type TerminalWatchItem,
 } from "./runner.js"
-export { runnerPortMessage, type DesktopBridge, type DesktopHost } from "./bridge.js"
 export { desktop } from "./desktop.js"

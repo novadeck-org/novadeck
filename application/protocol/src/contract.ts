@@ -435,6 +435,6 @@ export const contract = {
   },
 }
 
-/** The raw oRPC client. Applications use `connectRunner` from `@novadeck/protocol/client`. */
+/** The raw oRPC client. Applications use `connectRunner` from `@novadeck/runner-client`. */
 export type WireClient = ContractRouterClient<typeof contract>
 export type ErrorCode = keyof typeof errors
