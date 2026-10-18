@@ -11,7 +11,7 @@ import {
   type CompanionWatchItem,
   type Runner,
   type TerminalWatchItem,
-} from "@novadeck/protocol/client"
+} from "@novadeck/runner-client"
 import { command } from "@novadeck/terminal/testing"
 import { type Channel } from "@novadeck/wire"
 import { messagePort, websocket, type Transport, type WireStatus } from "@novadeck/wire/client"

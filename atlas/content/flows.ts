@@ -56,7 +56,10 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         to: "electron-main",
         label: "request runner port",
         text: "The UI's desktop transport asks the host for a runner port, which the preload sends over IPC.",
-        anchor: { file: "application/protocol/src/desktop.ts", text: "host.requestRunner(id)" },
+        anchor: {
+          file: "application/runner-client/src/desktop.ts",
+          text: "host.requestRunner(id)",
+        },
       },
       {
         from: "electron-main",
@@ -126,7 +129,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "terminals.write",
         text: "The attachment sends the data in a terminals.write call.",
         anchor: {
-          file: "application/protocol/src/runner.ts",
+          file: "application/runner-client/src/runner.ts",
           text: "await link.client.terminals.write({ terminalId: id, data })",
         },
       },

@@ -1,5 +1,5 @@
 import type { MurmurState as WireMurmurState } from "@novadeck/protocol"
-import type { Runner } from "@novadeck/protocol/client"
+import type { Runner } from "@novadeck/runner-client"
 
 import type { Refusal } from "#core/addon"
 import type { Murmur, MurmurState } from "#core/murmur"

@@ -158,7 +158,7 @@ export const notes: Record<string, Note> = {
       "The contract between UI and runner: the oRPC procedures with Zod schemas and error codes, the Electron bridge types, and the connectRunner client over the wire library (libraries/wire), which holds the channels, transports and the wire's own error codes.",
     entries: [
       { file: "application/protocol/src/contract.ts", text: "export const contract" },
-      { file: "application/protocol/src/client.ts" },
+      { file: "application/runner-client/src/index.ts" },
     ],
     docs: ["docs/backend-api.md"],
   },

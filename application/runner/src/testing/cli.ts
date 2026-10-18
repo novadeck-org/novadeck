@@ -2,7 +2,7 @@ import { execFile, spawn } from "node:child_process"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 
-import { connectRunner } from "@novadeck/protocol/client"
+import { connectRunner } from "@novadeck/runner-client"
 import { websocket } from "@novadeck/wire/client"
 
 import type { Resources } from "./resources.js"

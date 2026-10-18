@@ -2,7 +2,7 @@ import { mkdtemp, realpath, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import type { AttachedTerminal } from "@novadeck/protocol/client"
+import type { AttachedTerminal } from "@novadeck/runner-client"
 
 import { describe, expect, it } from "./test.js"
 import { launchCli } from "./testing/cli.js"

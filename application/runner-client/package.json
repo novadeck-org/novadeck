@@ -1,0 +1,25 @@
+{
+  "name": "@novadeck/runner-client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The client UIs connect to a Novadeck runner with.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@novadeck/protocol": "workspace:*",
+    "@novadeck/wire": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

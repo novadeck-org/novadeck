@@ -54,7 +54,7 @@ describe("kindOf", () => {
     expect(kindOf(at("/x/node_modules/@orpc/client/dist/index.mjs"))).toBe("transport")
     expect(kindOf(at("/r/libraries/wire/dist/client.js"))).toBe("transport")
     expect(kindOf(at("/r/libraries/wire/src/channel.ts"))).toBe("transport")
-    expect(kindOf(at("/r/application/protocol/src/client.ts"))).toBe("transport")
+    expect(kindOf(at("/r/application/runner-client/src/index.ts"))).toBe("transport")
     expect(kindOf(at("/r/application/protocol/dist/text.js"))).toBeUndefined()
     expect(kindOf(at("/r/libraries/terminal/src/view/follow.ts"))).toBe("transport")
   })

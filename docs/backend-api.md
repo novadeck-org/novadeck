@@ -102,7 +102,7 @@ The runner owns shells and workspace metadata. The UI talks to it through one
 separately; only the transport differs.
 
 ```ts
-import { connectRunner, desktop } from "@novadeck/protocol/client"
+import { connectRunner, desktop } from "@novadeck/runner-client"
 import { messagePort, websocket } from "@novadeck/wire/client"
 
 // Deployed separately: a token-authenticated WebSocket (use wss:// remotely).

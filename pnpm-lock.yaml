@@ -104,6 +104,9 @@ importers:
       '@novadeck/runner':
         specifier: workspace:*
         version: link:../runner
+      '@novadeck/runner-client':
+        specifier: workspace:*
+        version: link:../runner-client
       '@novadeck/ui':
         specifier: workspace:*
         version: link:../ui
@@ -229,6 +232,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.5
     devDependencies:
+      '@novadeck/runner-client':
+        specifier: workspace:*
+        version: link:../runner-client
       '@novadeck/sandbox':
         specifier: workspace:*
         version: link:../../libraries/sandbox
@@ -250,6 +256,19 @@ importers:
       vitest:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@26.6.5)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(jsdom@30.1.2(@noble/hashes@2.4.0))(msw@2.15.0(@types/node@26.6.5)(typescript@7.0.2))(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+
+  application/runner-client:
+    dependencies:
+      '@novadeck/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@novadeck/wire':
+        specifier: workspace:*
+        version: link:../../libraries/wire
+    devDependencies:
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
 
   application/ui:
     dependencies:
@@ -283,6 +302,9 @@ importers:
       '@novadeck/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@novadeck/runner-client':
+        specifier: workspace:*
+        version: link:../runner-client
       '@novadeck/terminal':
         specifier: workspace:*
         version: link:../../libraries/terminal

@@ -153,7 +153,7 @@ export const runtime: {
       summary:
         "Everything the UI does goes through the typed oRPC contract over a MessagePort; holding the port is the credential. A browser build (`pnpm dev:web`) reaches a standalone runner over an authenticated WebSocket instead.",
       anchor: {
-        file: "application/protocol/src/desktop.ts",
+        file: "application/runner-client/src/desktop.ts",
         text: "export const desktop = (): Transport",
       },
     },

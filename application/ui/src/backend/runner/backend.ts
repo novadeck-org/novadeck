@@ -10,7 +10,7 @@ import {
   type AttachedTerminal,
   type Runner,
   type TerminalWatchItem,
-} from "@novadeck/protocol/client"
+} from "@novadeck/runner-client"
 import { pause } from "@novadeck/terminal/view"
 import { createTerminalViews } from "@novadeck/terminal/view"
 import type { WireStatus } from "@novadeck/wire/client"

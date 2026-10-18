@@ -1,7 +1,7 @@
 import { MessageChannel } from "node:worker_threads"
 
-import { connectRunner, type AttachedTerminal, type Runner } from "@novadeck/protocol/client"
 import { createRunner, type RunnerOptions } from "@novadeck/runner"
+import { connectRunner, type AttachedTerminal, type Runner } from "@novadeck/runner-client"
 import { type MessagePortLike } from "@novadeck/wire"
 import { messagePort } from "@novadeck/wire/client"
 // Tests run here in Node, serving a real runner in process; the app never imports this file.
