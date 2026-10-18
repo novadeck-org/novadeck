@@ -12,6 +12,7 @@ import {
   type Runner,
   type TerminalWatchItem,
 } from "@novadeck/protocol/client"
+import { command } from "@novadeck/terminal/testing"
 import { type Channel } from "@novadeck/wire"
 import { messagePort, websocket, type Transport, type WireStatus } from "@novadeck/wire/client"
 import { servePort } from "@novadeck/wire/server"
@@ -19,7 +20,7 @@ import { servePort } from "@novadeck/wire/server"
 import { createRunner } from "./index.js"
 import { startServer, type ServerOptions } from "./server.js"
 import { describe, expect, it } from "./test.js"
-import { command, ptyOptions } from "./testing/pty.js"
+import { ptyOptions } from "./testing/pty.js"
 import type { Resources } from "./testing/resources.js"
 import { WorkspaceStore } from "./workspaces/store.js"
 

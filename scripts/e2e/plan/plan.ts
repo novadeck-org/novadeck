@@ -36,9 +36,9 @@ const sharedFiles = new Set([
 const sharedFolders = [
   ".github/actions/e2e-harness-cache/",
   "application/runner/",
-  // node-pty's patch: the suite's pty. The emulator's patches belong to its package, which
-  // reaches the suite as an affected package like any other.
-  "patches/node-pty",
+  // The terminal library, with node-pty's patch: the suite's pty. The emulator's patches
+  // belong to its package, which reaches the suite as an affected package like any other.
+  "libraries/terminal/",
   "scripts/e2e/",
 ]
 
@@ -52,11 +52,12 @@ const sharedFolders = [
 //   `pnpm-workspace.yaml`, `turbo.json`: a moved version that breaks one system shows on
 //   every system that installs it, and the next change to the runner, a harness or the
 //   nightly run finds it; node-pty, the one native module the suite loads, is pinned in
-//   the runner's and the terminal's own manifests, which run every system).
+//   the catalog here too, but its patch is named for its version under
+//   `libraries/terminal/`, so a bump renames or drops it there, which runs every system).
 // - Every system: the runner, `libraries/terminal` (the pty and the host), `libraries/wire`,
 //   the emulator's headless side, the harnesses, the relay, `libraries/sandbox` (the suite's
 //   own sandbox, whose process tables and Git Bash lookup differ on each system), node-pty's
-//   patch (Windows code alone), and the way CI runs the suite (`scripts/e2e/`,
+//   patch (Windows code alone, in `libraries/terminal`), and the way CI runs the suite (`scripts/e2e/`,
 //   the workflow, the harness cache's actions), which changes how each system runs it.
 //
 // The emulator's browser-only side (its view, renderer and the patch of xterm's browser
@@ -78,7 +79,6 @@ const allSystemsFolders = [
   "libraries/sandbox/",
   "libraries/terminal/",
   "libraries/wire/",
-  "patches/node-pty",
   "scripts/e2e/",
 ]
 
