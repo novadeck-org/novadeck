@@ -25,8 +25,10 @@ export class DomainError extends Error {
     readonly data?: unknown,
     /** Why a `CONFLICT` is one, sent as its data where `data` gives none. */
     readonly reason?: ConflictReason,
+    /** The error this one stands for, so that its stack still shows where it was thrown. */
+    options?: ErrorOptions,
   ) {
-    super(message)
+    super(message, options)
     this.name = "DomainError"
   }
 }
