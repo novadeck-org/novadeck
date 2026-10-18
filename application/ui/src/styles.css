@@ -1,7 +1,8 @@
 /* The cascade order every stylesheet fits into; see docs/theming.md. */
 @layer theme, base, components, themes, accessibility, utilities;
 
-@import "tailwindcss";
+/* The package, whichever entry's page Vite serves from: Tailwind looks for classes from here. */
+@import "tailwindcss" source("..");
 @import "./theme/contract.css";
 @import "allotment/dist/style.css" layer(base);
 @import "./theme/base.css" layer(base);
