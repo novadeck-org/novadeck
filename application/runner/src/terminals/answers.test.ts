@@ -3,11 +3,44 @@ import { fakeAdapter, FakeTui } from "@novadeck/harness-core/testing/dialogs"
 import { screen } from "@novadeck/harness-core/testing/screens"
 import { requestAnswer } from "@novadeck/protocol"
 import { InputQueue } from "@novadeck/tui-input"
+import { vi } from "vitest"
 
 import { DomainError } from "../errors.js"
 import { describe, expect, it } from "../test.js"
 import { Answers, type AnswerHost } from "./answers.js"
 import { identified } from "./dialogs.js"
+
+// The answer driver's sleeps go through the global setTimeout, so a case that times them runs
+// them on a fake clock (see `timed`); every other case gets the real timer, as before.
+vi.mock("node:timers/promises", () => ({
+  setTimeout: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
+}))
+
+/**
+ * Runs `work` on a fake clock, stepping from each timer that comes due to the next, so a
+ * timing is the same on every machine however busy it is. `Date.now` is the fake clock's.
+ */
+const timed = async <T>(work: () => Promise<T>): Promise<T> => {
+  vi.useFakeTimers({
+    toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
+  })
+  try {
+    const running = work()
+    const state = { settled: false }
+    running.then(
+      () => (state.settled = true),
+      () => (state.settled = true),
+    )
+    for (let step = 0; !state.settled; step += 1) {
+      if (step >= 100_000) throw new Error("The work never ended.")
+      // eslint-disable-next-line no-await-in-loop -- One timer at a time.
+      await vi.advanceTimersToNextTimerAsync()
+    }
+    return await running
+  } finally {
+    vi.useRealTimers()
+  }
+}
 
 const facts: RequestFacts = {
   kind: "permission",
@@ -295,58 +328,62 @@ describe("answering a request through its dialog", () => {
     expect(busy()).toBe(0)
   })
 
-  it("presses nothing until the turn that put the dialog up has run for the settle time", async () => {
-    const began = Date.now()
-    let firstKey: number | undefined
-    const { tui, answers } = terminal({
-      settleMs: 150,
-      turnStartedAt: () => began,
-      after: () => (firstKey ??= Date.now()),
-    })
-    await give(tui, answers, { type: "choice", option: "2" })
-    // A timer may fire a millisecond early.
-    expect(firstKey! - began).toBeGreaterThanOrEqual(148)
-    expect(tui.written).toEqual(["2"])
-  })
+  it("presses nothing until the turn that put the dialog up has run for the settle time", () =>
+    timed(async () => {
+      const began = Date.now()
+      let firstKey: number | undefined
+      const { tui, answers } = terminal({
+        settleMs: 150,
+        turnStartedAt: () => began,
+        after: () => (firstKey ??= Date.now()),
+      })
+      await give(tui, answers, { type: "choice", option: "2" })
+      expect(firstKey! - began).toBeGreaterThanOrEqual(150)
+      expect(tui.written).toEqual(["2"])
+    }))
 
-  it("waits for no turn that has not begun, or began long ago", async () => {
-    for (const turnStartedAt of [undefined, Date.now() - 60_000]) {
+  it("waits for no turn that has not begun, or began long ago", () =>
+    timed(async () => {
+      for (const turnStartedAt of [undefined, Date.now() - 60_000]) {
+        const started = Date.now()
+        let firstKey: number | undefined
+        const { tui, answers } = terminal({
+          settleMs: 150,
+          turnStartedAt: () => turnStartedAt,
+          after: () => (firstKey ??= Date.now()),
+        })
+        // eslint-disable-next-line no-await-in-loop -- One after the other, as timed.
+        await give(tui, answers, { type: "choice", option: "2" })
+        expect(firstKey! - started).toBeLessThan(150)
+      }
+    }))
+
+  it("waits no longer than the settle time for a turn that began, by the clock, in the future", () =>
+    timed(async () => {
       const started = Date.now()
       let firstKey: number | undefined
       const { tui, answers } = terminal({
         settleMs: 150,
-        turnStartedAt: () => turnStartedAt,
+        turnStartedAt: () => started + 60_000,
         after: () => (firstKey ??= Date.now()),
       })
-      // eslint-disable-next-line no-await-in-loop -- One after the other, as timed.
       await give(tui, answers, { type: "choice", option: "2" })
-      expect(firstKey! - started).toBeLessThan(100)
-    }
-  })
+      // The settle time, and one poll (5 ms here) to see it has passed.
+      expect(firstKey! - started).toBeLessThanOrEqual(150 + 5)
+    }))
 
-  it("waits no longer than the settle time for a turn that began, by the clock, in the future", async () => {
-    const started = Date.now()
-    let firstKey: number | undefined
-    const { tui, answers } = terminal({
-      settleMs: 150,
-      turnStartedAt: () => started + 60_000,
-      after: () => (firstKey ??= Date.now()),
-    })
-    await give(tui, answers, { type: "choice", option: "2" })
-    expect(firstKey! - started).toBeLessThan(1_000)
-  })
-
-  it("refuses a dialog read for a request that registered during the turn's settle wait", async () => {
-    const others: { ref: string; facts: RequestFacts }[] = []
-    const { tui, answers } = terminal({
-      settleMs: 100,
-      turnStartedAt: () => Date.now(),
-      others,
-    })
-    setTimeout(() => others.push({ ref: "r2", facts: { ...facts, cwd: "/elsewhere" } }), 30)
-    expect(await fails(give(tui, answers, { type: "choice", option: "1" }))).toBe("CONFLICT")
-    expect(tui.written).toEqual([])
-  })
+  it("refuses a dialog read for a request that registered during the turn's settle wait", () =>
+    timed(async () => {
+      const others: { ref: string; facts: RequestFacts }[] = []
+      const { tui, answers } = terminal({
+        settleMs: 100,
+        turnStartedAt: () => Date.now(),
+        others,
+      })
+      setTimeout(() => others.push({ ref: "r2", facts: { ...facts, cwd: "/elsewhere" } }), 30)
+      expect(await fails(give(tui, answers, { type: "choice", option: "1" }))).toBe("CONFLICT")
+      expect(tui.written).toEqual([])
+    }))
 
   it("opens a field, types the person's words as one bracketed paste and presses Enter", async () => {
     const { tui, answers } = terminal()
@@ -369,13 +406,15 @@ describe("answering a request through its dialog", () => {
     expect(tui.written).toEqual(["3", "one two", "\r"])
   })
 
-  it("lets go of the window's resizes once the keys have", async () => {
-    const { tui, answers, settled } = terminal()
-    await give(tui, answers, { type: "choice", option: "1" })
-    expect(settled()).toBe(0)
-    await new Promise((resolve) => setTimeout(resolve, 40))
-    expect(settled()).toBe(1)
-  })
+  it("lets go of the window's resizes once the keys have", () =>
+    timed(async () => {
+      const { tui, answers, settled } = terminal()
+      await give(tui, answers, { type: "choice", option: "1" })
+      expect(settled()).toBe(0)
+      // The settle time after the last key, 10 ms here.
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      expect(settled()).toBe(1)
+    }))
 
   it("follows an option that sends the person's words as the next prompt with them, once it took", async () => {
     const { tui, answers, calls, read } = terminal({ prompting: true })
@@ -828,16 +867,19 @@ describe("answering a request through its dialog", () => {
       )
     })
 
-    it("wait for the screen to settle before they go, longer while a turn runs", async () => {
-      const quiet = terminal({ prompting: true })
-      const began = Date.now()
-      await quiet.answers.answer("t", "r1", choose(quiet.read))
-      const idle = Date.now() - began
-      const busy = terminal({ prompting: true, working: true })
-      const started = Date.now()
-      await busy.answers.answer("t", "r1", choose(busy.read))
-      expect(Date.now() - started).toBeGreaterThan(idle)
-    })
+    it("wait for the screen to settle before they go, longer while a turn runs", () =>
+      timed(async () => {
+        const quiet = terminal({ prompting: true })
+        const began = Date.now()
+        await quiet.answers.answer("t", "r1", choose(quiet.read))
+        const idle = Date.now() - began
+        const busy = terminal({ prompting: true, working: true })
+        const started = Date.now()
+        await busy.answers.answer("t", "r1", choose(busy.read))
+        // A still screen settles after six reads' time (30 ms here) with no turn running, and
+        // after fifteen's (75 ms) while one runs; each look is two polls (10 ms) apart.
+        expect(Date.now() - started - idle).toBeGreaterThanOrEqual(9 * 5 - 10)
+      }))
   })
 
   it("refuses follow-up words a prompt can't carry before pressing any key", async () => {
@@ -888,33 +930,38 @@ describe("waiting for an agent's screen to settle before words follow an answer"
     return (answers as unknown as Calm).calm("t")
   }
 
-  it("settles once a still screen has no turn running, after 0.6 s", async () => {
-    const started = Date.now()
-    await settling({})
-    const took = Date.now() - started
-    expect(took).toBeGreaterThanOrEqual(550)
-    expect(took).toBeLessThan(1_400)
-  })
+  // Each look is two polls (100 ms) apart, so a wait ends on the first look past its time.
+  it("settles once a still screen has no turn running, after 0.6 s", () =>
+    timed(async () => {
+      const started = Date.now()
+      await settling({})
+      const took = Date.now() - started
+      expect(took).toBeGreaterThanOrEqual(600)
+      expect(took).toBeLessThan(700)
+    }))
 
-  it("settles after 1.5 s of a still screen whatever the activity says", async () => {
-    const started = Date.now()
-    await settling({ working: true })
-    const took = Date.now() - started
-    expect(took).toBeGreaterThanOrEqual(1_450)
-    expect(took).toBeLessThan(2_600)
-  })
+  it("settles after 1.5 s of a still screen whatever the activity says", () =>
+    timed(async () => {
+      const started = Date.now()
+      await settling({ working: true })
+      const took = Date.now() - started
+      expect(took).toBeGreaterThanOrEqual(1_500)
+      expect(took).toBeLessThan(1_600)
+    }))
 
-  it("gives up after 6 s on a screen that never holds still, and goes on", async () => {
-    const started = Date.now()
-    await settling({ drawing: true })
-    const took = Date.now() - started
-    expect(took).toBeGreaterThanOrEqual(5_900)
-    expect(took).toBeLessThan(7_500)
-  })
+  it("gives up after 6 s on a screen that never holds still, and goes on", () =>
+    timed(async () => {
+      const started = Date.now()
+      await settling({ drawing: true })
+      const took = Date.now() - started
+      expect(took).toBeGreaterThanOrEqual(6_000)
+      expect(took).toBeLessThan(6_100)
+    }))
 
-  it("returns at once for a terminal that is gone", async () => {
-    const started = Date.now()
-    await settling({ gone: true })
-    expect(Date.now() - started).toBeLessThan(300)
-  })
+  it("returns at once for a terminal that is gone", () =>
+    timed(async () => {
+      const started = Date.now()
+      await settling({ gone: true })
+      expect(Date.now() - started).toBe(0)
+    }))
 })
