@@ -8,7 +8,7 @@
   "lines": {
     "budget": 4937,
     "reason": "tui-input slice 2: the typing mechanics come from @novadeck/tui-input, and the doorbell's leftover line, which stays the app's, from terminals/leftover.ts: one import line more.",
-    "from": "task/arch-step-2@tui-mechanics"
+    "from": "#266"
   },
   "methods": 172,
   "slack": { "lines": 100, "methods": 5 }
