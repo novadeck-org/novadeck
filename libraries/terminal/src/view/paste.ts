@@ -1,6 +1,6 @@
 import type { Terminal } from "@novadeck/emulator/browser"
 
-import { currentPlatform, type Platform } from "./platform"
+import { currentPlatform, type Platform } from "./platform.js"
 
 // Files pasted into a terminal reach its programs as paths: the runner saves each one on
 // its machine, and the terminal gets their paths as pasted text, as a native terminal
@@ -174,7 +174,7 @@ const pasteFiles = async (files: readonly File[], target: PasteTarget): Promise<
       target.paste(`${await save(file, target, now)} `)
       pasted += 1
     } catch (error) {
-      console.error("Novadeck could not save a pasted file on the runner:", error)
+      console.error("Could not save a pasted file on the runner:", error)
       notice ??= target.notice({
         kind: "file",
         type: file.type,

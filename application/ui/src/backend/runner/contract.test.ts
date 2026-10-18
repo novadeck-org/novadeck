@@ -1,8 +1,8 @@
+import { pause } from "@novadeck/terminal/view"
 import { afterAll, vi } from "vitest"
 
 import { describeBackendContract } from "../../test/backend-contract"
 import { runnerBackend, type RunnerBackend } from "./backend"
-import { pause } from "./pause"
 import { recordingRunner, startTestRunner } from "./testing"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.

@@ -11,6 +11,8 @@ import {
   type Runner,
   type TerminalWatchItem,
 } from "@novadeck/protocol/client"
+import { pause } from "@novadeck/terminal/view"
+import { createTerminalViews } from "@novadeck/terminal/view"
 import type { WireStatus } from "@novadeck/wire/client"
 
 import { createTerminalRegistry } from "#core/registry"
@@ -42,10 +44,8 @@ import { createRunnerItems } from "./items"
 import { createRunnerMessages } from "./messages"
 import { createRunnerMount } from "./mount"
 import { createRunnerMurmur } from "./murmur"
-import { pause } from "./pause"
 import { resumableProgram } from "./resumable"
 import { createSessionSaves } from "./saves"
-import { createTerminalViews } from "./screens"
 import {
   cleanlyExited,
   lostTerminals,
