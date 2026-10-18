@@ -1,7 +1,4 @@
 import type { Terminal } from "@novadeck/emulator/browser"
-import { maxUploadBytes } from "@novadeck/protocol"
-import { hasCode, type RunnerErrorCode } from "@novadeck/protocol/client"
-import { WireError } from "@novadeck/wire"
 
 import { currentPlatform, type Platform } from "./platform"
 
@@ -113,16 +110,24 @@ const imagesOf = async (items: readonly ClipboardEntry[], now: Date): Promise<Fi
   return images.filter((image) => image !== undefined)
 }
 
-// What a failed paste tells the person: that the clipboard could not be read, or which
-// file could not be saved, and why when it was too large.
-export const pasteNotice = (
-  failure: "clipboard" | { readonly type: string; readonly error: unknown },
-): string => {
-  if (failure === "clipboard") return "Novadeck can't read the clipboard"
-  const pasted = failure.type.startsWith("image/") ? "image" : "file"
-  return hasCode(failure.error, "UPLOAD_TOO_LARGE")
-    ? `Couldn't paste the ${pasted}: it's over ${maxUploadBytes / 1024 / 1024} MB`
-    : `Couldn't paste the ${pasted}`
+// Why a paste failed, for the owner to word: the clipboard could not be read, or a file could
+// not be saved (`tooLarge`: it was over `maxBytes` and never read; any other reason is in
+// `error`, as the upload gave it).
+export type PasteFailure =
+  | { readonly kind: "clipboard" }
+  | {
+      readonly kind: "file"
+      readonly type: string
+      readonly tooLarge: boolean
+      readonly error: unknown
+    }
+
+// The failure of a file over `maxBytes`, which is not read.
+class FileTooLarge extends Error {
+  constructor() {
+    super("The file is over the size a paste may upload")
+    this.name = "FileTooLarge"
+  }
 }
 
 export type PasteTarget = {
@@ -132,6 +137,10 @@ export type PasteTarget = {
   readonly paste: (text: string) => void
   // Tells the person why a paste failed, in a short notice.
   readonly failed: (notice: string) => void
+  // The wording of that notice.
+  readonly notice: (failure: PasteFailure) => string
+  // The most a file may be to upload; a larger one is never read.
+  readonly maxBytes: number
   // A file's own path on the runner's machine, or "" for one that has none there. Only
   // the desktop app, whose runner is its own, knows it.
   readonly pathOf?: ((file: File) => string) | undefined
@@ -143,7 +152,7 @@ export type PasteTarget = {
 const save = async (file: File, target: PasteTarget, now: Date): Promise<string> => {
   const own = ownPath(target.pathOf?.(file) ?? "")
   if (own) return own
-  if (file.size > maxUploadBytes) throw new WireError<RunnerErrorCode>("UPLOAD_TOO_LARGE")
+  if (file.size > target.maxBytes) throw new FileTooLarge()
   const path = await target.upload({
     name: uploadName(file, now),
     data: new Uint8Array(await file.arrayBuffer()),
@@ -166,7 +175,12 @@ const pasteFiles = async (files: readonly File[], target: PasteTarget): Promise<
       pasted += 1
     } catch (error) {
       console.error("Novadeck could not save a pasted file on the runner:", error)
-      notice ??= pasteNotice({ type: file.type, error })
+      notice ??= target.notice({
+        kind: "file",
+        type: file.type,
+        tooLarge: error instanceof FileTooLarge,
+        error,
+      })
     }
   }
   if (notice) target.failed(notice)
@@ -194,7 +208,7 @@ export const takeFilePastes = (host: HTMLElement, target: PasteTarget): (() => v
     void clipboardImages(new Date()).then(async (images) => {
       if (images && images.length > 0 && (await pasteFiles(images, target)) > 0) return
       target.paste("")
-      if (!images) target.failed(pasteNotice("clipboard"))
+      if (!images) target.failed(target.notice({ kind: "clipboard" }))
     })
   }
   host.addEventListener("paste", listener, true)
