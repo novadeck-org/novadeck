@@ -1,8 +1,8 @@
+import type { Backend, BackendSink, TerminalRequest } from "#core/port"
 import { createTerminalState } from "#core/state"
 import { createWorkspaceStore } from "#core/store"
 import type { Workspace } from "#core/types"
 
-import type { Backend, BackendSink, TerminalRequest } from "../../backend/port"
 import { context, describe, expect, it } from "../../test"
 import { terminalFixture } from "../../test/fixtures"
 import { connectBackend } from "./backend-connection"

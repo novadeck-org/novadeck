@@ -1,12 +1,12 @@
 import type { AttachStream, TerminalEvent } from "@novadeck/terminal"
 
+import type { BackendConnectionState, TerminalKey } from "#core/port"
 import { terminalKeyId } from "#core/registry"
 import { workspaceFromSeed } from "#core/seed"
 import { createStore } from "#core/store"
 import type { TerminalMetadata, Workspace } from "#core/types"
 
 import { context, describe, expect, it } from "../../test"
-import type { BackendConnectionState, TerminalKey } from "../port"
 import { createDemoEngine } from "./engine"
 import type { DemoScreenState } from "./runtime"
 import { demoSeed, demoTerminalId } from "./samples"

@@ -1,8 +1,8 @@
 import type { ChatDialog, ChatItem, ChatRequest, Conversation } from "#core/conversation"
+import type { TerminalKey } from "#core/port"
 import type { Store } from "#core/store"
 import type { TerminalMetadata } from "#core/types"
 
-import type { TerminalKey } from "../../port"
 import { readLine, shownRequest } from "../agent-input"
 import type { DemoAgentLink } from "../agent-link"
 import type { DemoEngine, Entry } from "../engine"

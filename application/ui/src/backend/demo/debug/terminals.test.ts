@@ -1,3 +1,4 @@
+import type { BackendAction, TerminalKey } from "#core/port"
 import { isAgentProgram } from "#core/process"
 import { workspaceFromSeed } from "#core/seed"
 import { workspaceReducer } from "#core/state"
@@ -6,7 +7,6 @@ import { terminalPhase } from "#core/terminal-ending"
 import type { AgentStatus, TerminalMetadata, Workspace } from "#core/types"
 
 import { describe, expect, it } from "../../../test"
-import type { BackendAction, TerminalKey } from "../../port"
 import { demoSeed, demoTerminalId } from "../samples"
 import { terminalOf } from "../terminals"
 import {

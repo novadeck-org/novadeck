@@ -1,7 +1,6 @@
 import type { Conversations } from "#core/conversation"
+import type { TerminalKey } from "#core/port"
 import type { AgentTurnEnd, AgentUsage, TerminalMetadata } from "#core/types"
-
-import type { TerminalKey } from "../port"
 
 // The demo's agents have one owner, `demoTurns`: each terminal's agent status, the
 // requests its conversation holds and what its screen shows all follow from it, as the

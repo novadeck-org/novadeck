@@ -16,18 +16,18 @@ import {
 import { WireError } from "@novadeck/wire"
 import { afterEach, onTestFinished, vi } from "vitest"
 
-import { createStore } from "#core/store"
-import type { TerminalMetadata, ViewMode } from "#core/types"
-
-import { context, describe, expect, it } from "../../test"
-import { terminalFixture } from "../../test/fixtures"
 import type {
   BackendConnectionState,
   TerminalKey,
   TerminalMount,
   TerminalMountProps,
   ThemeSource,
-} from "../port"
+} from "#core/port"
+import { createStore } from "#core/store"
+import type { TerminalMetadata, ViewMode } from "#core/types"
+
+import { context, describe, expect, it } from "../../test"
+import { terminalFixture } from "../../test/fixtures"
 import { createTerminalMount } from "../terminal-views/mount"
 import { noTheme } from "../terminal-views/theme"
 import type { SurfaceRuntime } from "./backend"

@@ -1,8 +1,8 @@
+import type { TerminalKey } from "#core/port"
 import { createTerminalRegistry, terminalKeyId } from "#core/registry"
 import type { WorkspaceAction } from "#core/state"
 import type { TerminalMetadata, Workspace } from "#core/types"
 
-import type { TerminalKey } from "../port"
 import { emptyLine, type Line } from "./line-editor"
 import { demoAgent, mockReply, type DemoAgent } from "./samples"
 

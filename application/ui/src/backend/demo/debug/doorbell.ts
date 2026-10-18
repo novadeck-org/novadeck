@@ -1,6 +1,6 @@
 import type { MailWaits } from "#core/messages"
+import type { Backend } from "#core/port"
 
-import type { Backend } from "../../port"
 import type { DemoActionGroup } from "./types"
 
 const states: readonly {

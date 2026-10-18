@@ -1,7 +1,8 @@
 import { afterEach, vi } from "vitest"
 
+import type { ThemeSource } from "#core/port"
+
 import { describe, expect, it } from "../../test"
-import type { ThemeSource } from "../port"
 import { terminalTheme } from "./theme"
 
 // A theme whose tokens are what the test says, counting each read.

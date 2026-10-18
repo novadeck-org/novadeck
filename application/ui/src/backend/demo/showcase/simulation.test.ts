@@ -5,9 +5,9 @@ import {
   type CompanionKey,
   type ItemContent,
 } from "#core/companion"
+import type { BackendAction } from "#core/port"
 
 import { context, describe, expect, it } from "../../../test"
-import type { BackendAction } from "../../port"
 import { authAgent, studioAgent } from "./agents"
 import { devServerArtifacts, studioArtifacts } from "./artifacts"
 import { createShowcase } from "./simulation"

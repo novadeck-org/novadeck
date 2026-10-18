@@ -15,6 +15,15 @@ import { pause } from "@novadeck/terminal/view"
 import { createTerminalViews } from "@novadeck/terminal/view"
 import type { WireStatus } from "@novadeck/wire/client"
 
+import type {
+  AgentConnection,
+  Backend,
+  BackendAction,
+  BackendConnectionState,
+  BackendSink,
+  TerminalKey,
+  ThemeSource,
+} from "#core/port"
 import { createTerminalRegistry } from "#core/registry"
 import { createStore } from "#core/store"
 import { createTelemetryStore, dropTerminal, setUsage } from "#core/telemetry"
@@ -27,15 +36,6 @@ import type {
   Workspace,
 } from "#core/types"
 
-import type {
-  AgentConnection,
-  Backend,
-  BackendAction,
-  BackendConnectionState,
-  BackendSink,
-  TerminalKey,
-  ThemeSource,
-} from "../port"
 import { createTerminalMount } from "../terminal-views/mount"
 import { defaultQuickExitMs, exitStatus, restartable, terminalActivity } from "./activity"
 import { createBootProgress } from "./boot-progress"

@@ -1,6 +1,6 @@
+import type { TerminalKey } from "#core/port"
 import type { Workspace } from "#core/types"
 
-import type { TerminalKey } from "../../backend/port"
 import {
   chatDraftOf,
   chatReplyOf,

@@ -9,6 +9,7 @@ import {
   parseUpdateOffer,
 } from "@novadeck/protocol/bridge"
 
+import type { Backend, Notice } from "#core/port"
 import { maxFixLength, type SandboxState } from "#core/sandbox"
 import {
   maxUninstallPath,
@@ -17,8 +18,6 @@ import {
   type UninstallPlan,
   type UninstallResult,
 } from "#core/uninstall"
-
-import type { Backend, Notice } from "../port"
 
 // What the desktop host's preload script offers the page; absent in a browser.
 export const desktopHost = (): DesktopHost | undefined =>

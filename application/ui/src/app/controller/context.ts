@@ -1,9 +1,9 @@
 import { createContext, useContext, type RefObject } from "react"
 
+import type { Backend } from "#core/port"
 import type { WorkspaceStore } from "#core/store"
 import type { Workspace } from "#core/types"
 
-import type { Backend } from "../../backend/port"
 import type { CanvasHandle } from "../../layouts/canvas/types"
 import type { Panes } from "../../terminals/companion/state"
 import type { DragSession } from "../../terminals/drag-session"

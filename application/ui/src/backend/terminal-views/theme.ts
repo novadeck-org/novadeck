@@ -1,6 +1,6 @@
 import type { ITheme } from "@novadeck/emulator/browser"
 
-import type { ThemeSource } from "../port"
+import type { ThemeSource } from "#core/port"
 
 const ansi = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"] as const
 type AnsiName = (typeof ansi)[number]

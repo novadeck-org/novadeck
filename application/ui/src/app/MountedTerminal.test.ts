@@ -1,16 +1,16 @@
 import { act, createElement, type ReactNode } from "react"
 import { vi, type Mock } from "vitest"
 
-import { createStore } from "#core/store"
-import type { TerminalMetadata, ViewMode } from "#core/types"
-
 import type {
   MountTerminal,
   TerminalKey,
   TerminalMount,
   TerminalMountProps,
   ViewState,
-} from "../backend/port"
+} from "#core/port"
+import { createStore } from "#core/store"
+import type { TerminalMetadata, ViewMode } from "#core/types"
+
 import { context, describe, expect, it } from "../test"
 import { terminalFixture } from "../test/fixtures"
 import { render } from "../test/render"

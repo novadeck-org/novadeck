@@ -2,10 +2,10 @@ import { createView, type Terminal as EmulatorTerminal } from "@novadeck/emulato
 import { createTerminalViews, parkMs, type Hold } from "@novadeck/terminal/view"
 import { vi } from "vitest"
 
+import type { BackendConnectionState, TerminalKey } from "#core/port"
 import { createStore } from "#core/store"
 
 import { describe, expect, it } from "../../test"
-import type { BackendConnectionState, TerminalKey } from "../port"
 import { noTheme } from "../terminal-views/theme"
 import type { SurfaceRuntime } from "./backend"
 import { retainMs, viewOptions } from "./view-options"

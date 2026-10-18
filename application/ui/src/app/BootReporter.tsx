@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 
-import type { BootProgress } from "../backend/port"
+import type { BootProgress } from "#core/port"
+
 import { useWorkspaceServices } from "./controller/context"
 
 const ready: BootProgress = { attached: 0, total: 0, done: true }

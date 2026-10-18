@@ -1,4 +1,5 @@
-import type { Backend, ThemeSource } from "../../port"
+import type { Backend, ThemeSource } from "#core/port"
+
 import { createDemoEngine } from "../engine"
 import { demoBackend, withConversations } from "../index"
 import { lessMotion, stillRequested } from "../motion"
@@ -52,7 +53,6 @@ export const visitorDemo = ({
   })
   const storied = story.wrap(withConversations(base, story.transcripts, turns))
   const backend = ambient && !still ? life.wrap(storied) : storied
-  if (!("mountTerminal" in backend)) throw new Error("The demo mounts its terminals")
   return {
     seed: backend.seed,
     newTerminal: backend.newTerminal,

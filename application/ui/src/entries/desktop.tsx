@@ -1,7 +1,8 @@
 // First, so its `@layer` order statement leads the bundle.
 import "../styles.css"
+import type { BackendSelection } from "#core/port"
+
 import { App } from "../app/App"
-import type { BackendSelection } from "../backend/port"
 import { pageTheme } from "../theme/source"
 import { start } from "./start"
 
