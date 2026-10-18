@@ -12,6 +12,7 @@ import { RPCHandler } from "@orpc/server/message-port"
 
 import type { CanvasLayout } from "#core/types"
 
+import type { ThemeSource } from "../port"
 import { connectRunnerBackend } from "./index"
 import { channel, id, keptSummary, savedSession } from "./scripted"
 import { encodeSession } from "./session-state"
@@ -305,16 +306,15 @@ export const scriptedRunner = ({
     },
   })
   let connections = 0
-  const connect = (signal: AbortSignal) => {
+  const connect = (signal: AbortSignal, theme: ThemeSource) => {
     const [server, client] = memoryPorts()
     connections += 1
     server.addEventListener("close", () => (connections -= 1))
     new RPCHandler(router).upgrade(server, { context: {} })
-    return connectRunnerBackend(
-      signal,
-      () => {},
-      () => messagePort(client),
-    )
+    return connectRunnerBackend(signal, () => {}, {
+      transport: () => messagePort(client),
+      theme,
+    })
   }
   return {
     terminalIds,

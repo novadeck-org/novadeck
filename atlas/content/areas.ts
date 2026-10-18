@@ -245,12 +245,19 @@ export const notes: Record<string, Note> = {
   },
   "ui/backend/runner": {
     purpose:
-      "The backend port against the runner: connection and reconnects, seeding, saves, conversations, companions, messages and the xterm terminal mount.",
+      "The backend port against the runner: connection and reconnects, seeding, saves, conversations, companions, messages and its terminals' streams.",
     entries: [
       { file: `${ui}/backend/runner/backend.ts`, text: "export type RunnerBackendOptions" },
-      { file: `${ui}/backend/runner/mount.ts` },
+      { file: `${ui}/backend/runner/view-options.ts`, text: "export const viewOptions" },
     ],
     docs: ["docs/backend-api.md"],
+  },
+  "ui/backend/terminal-views": {
+    purpose:
+      "The xterm mount every backend draws its terminals with: the page's theme, the WebGL pool, links and the screens' styles.",
+    entries: [
+      { file: `${ui}/backend/terminal-views/mount.ts`, text: "export const createTerminalMount" },
+    ],
   },
   "ui/backend/demo": {
     purpose: "The demo backend with sample data that tests, specs and the web preview run on.",

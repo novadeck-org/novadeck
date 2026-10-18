@@ -7,13 +7,14 @@ import { parkedCap, parkMs, type TerminalViewOptions } from "@novadeck/terminal/
 
 import { createStore } from "#core/store"
 
-import type { TerminalKey } from "../port"
+import type { TerminalKey, ThemeSource } from "../port"
+import { linkOptions } from "../terminal-views/links"
+import { screenMarkup } from "../terminal-views/mount"
+import { pageRenderers } from "../terminal-views/renderers"
+import { noTheme, terminalTheme } from "../terminal-views/theme"
 import { exitStatus, restartable } from "./activity"
 import type { SurfaceRuntime } from "./backend"
 import { desktopHost } from "./desktop-host"
-import { linkOptions } from "./links"
-import { pageRenderers } from "./renderers"
-import { terminalTheme } from "./theme"
 
 // How long a screen stays once its session leaves the screen, so going back to a session or
 // a project within a working break finds its output in place instead of a screen to reopen.
@@ -55,7 +56,11 @@ export const pasteNotice = (failure: PasteFailure): string => {
 // WebGL pool and theme, and the app's words and policies.
 export const viewOptions = (
   runtime: SurfaceRuntime,
-  { renderers = pageRenderers(), cap = parkedCap }: { renderers?: Renderers; cap?: number } = {},
+  {
+    renderers = pageRenderers(),
+    cap = parkedCap,
+    theme = noTheme,
+  }: { renderers?: Renderers; cap?: number; theme?: ThemeSource } = {},
 ): TerminalViewOptions<TerminalKey> => ({
   keyOf: ({ projectId, workspaceSessionId, terminalId }) =>
     `${projectId}\u0000${workspaceSessionId}\u0000${terminalId}`,
@@ -69,9 +74,9 @@ export const viewOptions = (
       links: linkOptions(),
       renderers,
     }),
-  theme: terminalTheme,
+  theme: terminalTheme(theme),
   store: createStore,
-  markup: { input: { "data-terminal-input": "" }, hostClass: "runner-screen min-h-0 flex-1" },
+  markup: screenMarkup,
   attach: async (key) => streamOf(await runtime.attach(key.terminalId)),
   lifecycle: (key) => runtime.entry(key),
   connection: runtime.connection,

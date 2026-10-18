@@ -10,14 +10,17 @@ import { describe, expect, it } from "./test"
 // files import one another by relative path.
 // theme/ (the theme file and how its scheme is applied) is open to every layer that
 // composes the page; it imports nothing but itself and the core's types, for the scheme
-// preference they hold, and adapters resolve colour tokens with it for what they paint
-// outside CSS, such as the terminal emulator.
+// preference they hold. Backends never read it: what they paint outside CSS, such as the
+// terminal emulator, takes the page's theme from the entry, as the port's `ThemeSource`.
 const base = ["core/", "interaction/", "ui-toolkit/", "theme/"]
 const features = ["sidebar/", "projects/", "preferences/", "search/"]
 const rules: Record<string, readonly string[]> = {
   "core/": ["core/"],
   "theme/": ["theme/", "core/types.ts"],
   "backend/": ["backend/", "core/"],
+  // The terminal views every backend draws its terminals with (see `terminalViews`): the
+  // core, the port and libraries, never an adapter.
+  "backend/terminal-views/": ["backend/terminal-views/", "backend/port.ts", "core/"],
   "ui-toolkit/": ["ui-toolkit/", "class-name.ts"],
   "interaction/": ["interaction/", "core/"],
   ...Object.fromEntries(features.map((layer) => [layer, [...base, layer]])),
@@ -125,8 +128,9 @@ const adapterRule = (layer: string): readonly string[] => [
   "backend/",
   "core/",
   "ui-toolkit/",
-  "theme/",
 ]
+// Not an adapter, though in backend/: both adapters draw their terminals with it.
+const terminalViews = "backend/terminal-views/"
 // The entries are the only files that import a backend adapter, each only its own: the
 // runner for the desktop and web apps, the visitor demo for the try build, and the demo with
 // its debug panel for the content preview.
@@ -204,8 +208,8 @@ const vendors: Record<string, readonly string[]> = {
   "@novadeck/viewers": ["terminals/companion/", "terminals/chat/"],
   "@novadeck/protocol": ["backend/runner/", ...Object.keys(protocolData)],
   "@novadeck/runner": ["backend/runner/"],
-  "@novadeck/emulator": ["backend/runner/", "backend/demo/screen/"],
-  "@novadeck/terminal": ["backend/runner/"],
+  "@novadeck/emulator": ["backend/runner/", "backend/demo/screen/", terminalViews],
+  "@novadeck/terminal": ["backend/runner/", terminalViews],
   "@novadeck/wire": ["backend/runner/"],
   // The runner's server side, which only the counter run's scripted runner serves.
   "@orpc/server": [scriptedServer],
@@ -249,7 +253,10 @@ const resolveFile = (file: string, specifier: string): string | undefined => {
 }
 const isTest = (file: string): boolean => /\.test\.tsx?$/.test(file)
 const rootTest = (file: string): boolean => isTest(file) && !file.includes("/")
-const adapterOf = (file: string): string | undefined => /^backend\/[^/]+\//.exec(file)?.[0]
+const adapterOf = (file: string): string | undefined => {
+  const folder = /^backend\/[^/]+\//.exec(file)?.[0]
+  return folder === terminalViews ? undefined : folder
+}
 // The most specific layer wins, so backend/demo/ is not treated as backend/.
 const layerOf = (file: string): string | undefined =>
   adapterOf(file) ??
@@ -370,6 +377,32 @@ describe("UI architecture", () => {
           : [`${file} -> ${specifier}`]
       }),
     )
+    expect(found).toEqual([])
+  })
+
+  it("lets only the backends and tests import the terminal views, which load with a connection", () => {
+    const found = files
+      .filter((file) => !file.startsWith(terminalViews) && !adapterOf(file) && !isTest(file))
+      .flatMap((file) =>
+        imports(file)
+          .filter(({ specifier }) => specifier.startsWith("."))
+          .filter(({ specifier }) => resolveFile(file, specifier)?.startsWith(terminalViews))
+          .map(({ specifier }) => `${file} -> ${specifier}`),
+      )
+    expect(found).toEqual([])
+  })
+
+  // Packages other than the workspace's libraries: React among them, which the layer rule
+  // alone would let through.
+  it("keeps the terminal views to the workspace's libraries among packages, React not among them", () => {
+    const found = files
+      .filter((file) => file.startsWith(terminalViews) && !isTest(file))
+      .flatMap((file) =>
+        imports(file)
+          .filter(({ specifier }) => !specifier.startsWith(".") && !isCoreSpecifier(specifier))
+          .filter(({ specifier }) => !specifier.startsWith("@novadeck/"))
+          .map(({ specifier }) => `${file} -> ${specifier}`),
+      )
     expect(found).toEqual([])
   })
 

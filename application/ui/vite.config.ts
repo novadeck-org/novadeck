@@ -8,7 +8,11 @@ import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig, type Plugin } from "vite"
 
-import { boundaryViolations, firstChunkViolations } from "./src/bundle-boundary"
+import {
+  boundaryViolations,
+  firstChunkViolations,
+  missingScreenStyles,
+} from "./src/bundle-boundary"
 import { connect, connectSourcesPlaceholder, headerRules, hidden } from "./src/deploy"
 
 // Each app is an entry of its own, by the mode that names it: its page is entries/<name>/index.html,
@@ -59,7 +63,8 @@ const entryOf = (): Plugin => ({
   },
 })
 
-// Fails a build that carries an adapter its mode must not (see src/bundle-boundary.ts).
+// Fails a build that carries an adapter its mode must not, loads the emulator first, or draws
+// terminals without their styles (see src/bundle-boundary.ts).
 const bundleBoundary = (): Plugin => {
   let mode = ""
   return {
@@ -77,6 +82,11 @@ const bundleBoundary = (): Plugin => {
       if (early.length > 0) {
         this.error(
           `The ${mode} build loads the terminal emulator with its first chunk: ${early.join(", ")}`,
+        )
+      }
+      if (missingScreenStyles(mode, bundle)) {
+        this.error(
+          `The ${mode} build draws terminals without their styles (terminal-views/terminal-xterm.css)`,
         )
       }
     },

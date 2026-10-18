@@ -1034,7 +1034,8 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `backend/`                                         | The UI-owned backend port.                                                              |
 | `backend/demo/`                                    | The demo adapter for tests and specs: sample projects and simulated terminals.          |
 | `backend/demo/showcase/`                           | The content preview's sample agents: plans, artifacts, and their simulated work.        |
-| `backend/runner/`                                  | The runner adapter: connection, seed from the runner, saves, and the xterm mount.       |
+| `backend/runner/`                                  | The runner adapter: connection, seed from the runner, saves, and its terminals.         |
+| `backend/terminal-views/`                          | The xterm mount both adapters draw terminals with: theme, renderers, links, styles.     |
 | `core/`                                            | Pure domain: types, reducer, workspace store, seed, and layout rules in `layout/`.      |
 | `core/companion.ts`                                | Companion items, their content, the `companions` port, and the plan note format.        |
 | `core/companion-bar.ts`                            | A bar as the person arranged it: order, hidden plans and Messages, the open tab.        |
@@ -1068,7 +1069,7 @@ React, and among packages only the protocol's data-only entries (`/harnesses`, `
 `/text`) and the library entries `architecture.test.ts` lists as data only (none yet).
 Everything outside it reaches it as `#core/*`, the UI package's
 own `imports`; inside it files import one another by relative path. `theme/` imports
-nothing but itself and the core's types; every layer that composes the page may use it, adapters included, and
+nothing but itself and the core's types; every layer that composes the page may use it, though no backend does (the entries hand them the page's theme), and
 [docs/theming.md](docs/theming.md) is its contract with components.
 `backend/` builds on `core/` and uses React only for the port's types; adapters
 may add `ui-toolkit/`. `interaction/` builds on `core/` and imports no packages;
@@ -1086,7 +1087,9 @@ libraries stay in their adapters: XYFlow in `layouts/canvas/`, React Grid Layout
 in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
 `ui-toolkit/`, React Router in `app/` and `shell/`, and React DOM in
 `layouts/transition.ts`, `entries/start.tsx`, and `test/`, and the runner client and
-the emulator's view in `backend/runner/`. Other packages are denied
+the emulator's view in `backend/runner/` and `backend/terminal-views/`, which both adapters
+draw their terminals with and which imports only the core, the port and libraries; no
+backend reads `theme/`, as the entries hand it the page's theme. Other packages are denied
 unless the test lists them: React and Lucide are allowed everywhere, while
 backend adapters and test code may use any package. `test/` may import
 `core/`, `backend/`, and what the command harness runs: `app/commands/`, the UI

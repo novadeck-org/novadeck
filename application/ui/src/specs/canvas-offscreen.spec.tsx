@@ -4,6 +4,7 @@ import { page } from "vitest/browser"
 
 import { App } from "../app/App"
 import { scriptedRunner } from "../backend/runner/scripted-server"
+import { pageTheme } from "../theme/source"
 import { boxOf, dragBackground, settled, viewBox } from "./support/canvas"
 import { layoutSettled, terminal, terminalTab } from "./support/workspace"
 
@@ -48,7 +49,7 @@ const openCanvas = async (secondX = window.innerWidth * 2.5 + 700) => {
       },
     },
   })
-  const connection = await runner.connect(new AbortController().signal)
+  const connection = await runner.connect(new AbortController().signal, pageTheme)
   onTestFinished(async () => {
     await cleanup()
     connection.close()

@@ -50,3 +50,36 @@ export const firstChunkViolations = (bundle: Readonly<Record<string, BuiltChunk>
     }),
   )
 }
+
+// The rule every build that draws terminals must carry: where xterm draws in a screen's host
+// (backend/terminal-views/terminal-xterm.css). A build that lost its terminal styles still draws, but
+// with xterm's black viewport and its wide scrollbar, which nothing else catches.
+const screenRule = ".terminal-xterm"
+
+// Whether a build in this mode draws terminals with the terminal views: the runner's builds.
+const drawsTerminals = (mode: string): boolean => mode !== "try" && mode !== "content-preview"
+
+// The part of a built bundle's assets this checks: a stylesheet's file and its text.
+export type BuiltAsset = {
+  readonly type: string
+  readonly fileName: string
+  readonly source?: unknown
+}
+
+// Whether a build in this mode lacks the terminal screens' styles it needs.
+export const missingScreenStyles = (
+  mode: string,
+  bundle: Readonly<Record<string, BuiltAsset>>,
+): boolean =>
+  drawsTerminals(mode) &&
+  !Object.values(bundle).some(
+    (asset) =>
+      asset.type === "asset" &&
+      asset.fileName.endsWith(".css") &&
+      (typeof asset.source === "string"
+        ? asset.source
+        : asset.source instanceof Uint8Array
+          ? new TextDecoder().decode(asset.source)
+          : ""
+      ).includes(screenRule),
+  )

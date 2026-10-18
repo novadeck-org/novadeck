@@ -396,7 +396,7 @@ describe("a mount's hold on a screen", () => {
       ] as const) {
         const original = Object.getOwnPropertyDescriptor(Element.prototype, name)!.get!
         vi.spyOn(Element.prototype, name, "get").mockImplementation(function (this: Element) {
-          return this.classList.contains("runner-screen") ? value : original.call(this)
+          return this.classList.contains("terminal-xterm") ? value : original.call(this)
         })
       }
       const prototype = emulatorPrototype()

@@ -124,6 +124,14 @@ export type TerminalSurfaceProps = {
   readonly onScreen?: boolean
 }
 
+// The page's theme, as a backend reads it for what it paints outside CSS, such as a
+// terminal's colours: the tokens' values where `element` draws, and each time a theme is
+// applied. The app's entry hands it over, so no backend reads the theme layer itself.
+export type ThemeSource = {
+  readonly tokens: (element: Element, names: readonly string[]) => Partial<Record<string, string>>
+  readonly onChange: (listener: () => void) => () => void
+}
+
 // How a backend draws terminals: the runner mounts them into elements, the demo renders them
 // as components until 3.2d. A backend offers exactly one shape.
 export type TerminalPort =

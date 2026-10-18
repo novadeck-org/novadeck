@@ -1,4 +1,9 @@
-import { boundaryViolations, firstChunkViolations, type BuiltChunk } from "./bundle-boundary"
+import {
+  boundaryViolations,
+  firstChunkViolations,
+  missingScreenStyles,
+  type BuiltChunk,
+} from "./bundle-boundary"
 import { context, describe, expect, it } from "./test"
 
 const demo = "/work/ui/src/backend/demo/index.ts"
@@ -81,5 +86,29 @@ describe("the first chunk", () => {
         "style.css": { type: "asset" },
       }),
     ).toEqual([])
+  })
+})
+
+describe("the terminal screens' styles", () => {
+  const sheet = (source: string) => ({ type: "asset", fileName: "assets/connect.css", source })
+
+  it("are in every build that draws terminals", () => {
+    const styled = { "assets/connect.css": sheet(".terminal-xterm .xterm .xterm-viewport{}") }
+    expect(missingScreenStyles("production", styled)).toBe(false)
+    expect(missingScreenStyles("web", styled)).toBe(false)
+  })
+
+  it("fail a build that draws terminals without them", () => {
+    const bare = {
+      "assets/index.css": sheet(".shell{}"),
+      "assets/index.js": { type: "chunk", fileName: "assets/index.js" },
+    }
+    expect(missingScreenStyles("production", bare)).toBe(true)
+    expect(missingScreenStyles("web", bare)).toBe(true)
+  })
+
+  it("are not asked of a build that draws no terminals yet", () => {
+    expect(missingScreenStyles("try", {})).toBe(false)
+    expect(missingScreenStyles("content-preview", {})).toBe(false)
   })
 })
