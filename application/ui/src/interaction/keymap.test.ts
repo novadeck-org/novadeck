@@ -108,6 +108,20 @@ describe("keymap", () => {
           ])
         })
 
+        it("starts from a terminal's input before the terminal reads Ctrl+Tab as a Tab", () => {
+          expect(
+            route(platform, "capture", { key: "Tab", ctrlKey: true, target: terminalInput }),
+          ).toEqual(["recent.next"])
+          expect(
+            route(platform, "bubble", { key: "Tab", ctrlKey: true, target: terminalInput }),
+          ).toEqual([])
+          expect(route(platform, "capture", { key: "Tab", ctrlKey: true })).toEqual([])
+          const chat = { editing: true, terminalInput: true, chat: true }
+          expect(route(platform, "capture", { key: "Tab", ctrlKey: true, target: chat })).toEqual(
+            [],
+          )
+        })
+
         it("moves with Up and Down even while Control or Shift is held, and ignores Left and Right", () => {
           const open = { state: { switcher: "held" as const, held: true } }
           expect(route(platform, "capture", { key: "ArrowUp", ctrlKey: true }, open)).toEqual([
