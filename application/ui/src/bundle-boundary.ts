@@ -92,11 +92,13 @@ export const missingScreenStyles = (bundle: Readonly<Record<string, BuiltAsset>>
   )
 
 // What the visitor build may weigh: what the page loads first (its scripts and styles
-// gzipped, and the fonts those name as they are), and the demo, which loads with its
+// gzipped, and every font those styles declare, in bytes as they are, though a browser
+// fetches only the faces the page draws with), and the demo, which loads with its
 // connection, the terminal emulator among it (scripts and styles gzipped). Set from the first
-// build with the demo drawn as terminals, 1,023 kB and 171 kB (main's first load weighed
-// the same), with room to grow; the website's hero waits on both.
-export const visitorBudgets = { first: 1_150_000, demo: 190_000 }
+// build with the demo drawn as terminals, 1,058 kB (663 kB of it the eleven fonts declared;
+// main's first load weighed the same) and 172 kB, with room to grow; the website's hero
+// waits on both.
+export const visitorBudgets = { first: 1_100_000, demo: 190_000 }
 
 // A built chunk's code, the module it stands for and the styles it brings, or an asset's
 // text, as the budgets read them.
@@ -121,6 +123,14 @@ const textOf = (source: unknown): string =>
       ? new TextDecoder().decode(source)
       : ""
 
+// A built file's size in bytes, as it is served.
+const bytesOf = (source: unknown): number =>
+  typeof source === "string"
+    ? new TextEncoder().encode(source).byteLength
+    : ArrayBuffer.isView(source)
+      ? source.byteLength
+      : 0
+
 // How the visitor build goes over its budgets, gzipped by `gzipped`; nothing for any other.
 export const budgetViolations = (
   mode: string,
@@ -140,7 +150,7 @@ export const budgetViolations = (
     new Set(
       [...files].flatMap((fileName) => [...(bundle[fileName]?.viteMetadata?.importedCss ?? [])]),
     )
-  // The fonts a stylesheet names, by their files in the bundle, weighed as they are.
+  // Every font a stylesheet declares, by its file in the bundle, weighed as it is.
   const fonts = (sheets: Iterable<string>): number => {
     const named = new Set(
       [...sheets].flatMap((sheet) =>
@@ -151,7 +161,7 @@ export const budgetViolations = (
     )
     return Object.entries(bundle)
       .filter(([fileName]) => named.has(fileName.split("/").at(-1)!))
-      .reduce((sum, [, asset]) => sum + textOf(asset.source).length, 0)
+      .reduce((sum, [, asset]) => sum + bytesOf(asset.source), 0)
   }
   const weight = (files: Iterable<string>, withFonts: boolean): number => {
     const sheets = styles(files)

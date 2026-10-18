@@ -9,7 +9,7 @@ import type { DemoEngine, Entry } from "../engine"
 import { editLine, restoreLine, withReturnedWords } from "../line-editor"
 import { lessMotion, stillRequested } from "../motion"
 import { chatAgent, demoAgent, sampleOutput } from "../samples"
-import { agentTail, itemBlock, shellTail, statusLines } from "./agent"
+import { agentTail, inputLines, itemBlock, shellTail, statusLines } from "./agent"
 import { openingBlocks, readingAt } from "./openings"
 import { commandBlock, sampleBlocks } from "./samples"
 import { createDemoScreen, type Block, type ScreenSize, type TailOf } from "./screen"
@@ -36,7 +36,7 @@ type QuestionAnswers = Parameters<typeof readLine>[2]
 const dialogId = (dialog: ChatDialog | null): string => (dialog && "id" in dialog ? dialog.id : "")
 
 // The shells a terminal waits at the prompt of; anything else in front, as a dev server or
-// tests watching, runs on and takes no command.
+// tests watching, runs on: what is typed shows on a bare line, and it runs no command.
 const shells = new Set(["zsh", "bash", "sh", "fish", "pwsh", "nu"])
 const runsProgram = (terminal: TerminalMetadata): boolean =>
   !chatAgent(terminal) && !demoAgent(terminal) && !shells.has(terminal.process)
@@ -182,11 +182,10 @@ export const createDemoTerminalScreen = ({
     const terminal = engine.terminal(key)
     const { line } = engine.getSnapshot(key)
     const agent = terminal && (chatAgent(terminal) ?? demoAgent(terminal))
-    // A program running in front draws no prompt under its output, until the person types
-    // into it, as a terminal shows what is typed there.
-    const typed = line.draft !== "" || engine.getSnapshot(key).entries.length > 0
-    if (terminal && runsProgram(terminal) && !typed)
-      return () => ({ lines: [], cursor: { row: 0, column: 0 } })
+    // A program running in front draws no prompt under its output; the terminal shows what
+    // is typed there on a bare line.
+    if (terminal && runsProgram(terminal))
+      return (width) => inputLines([], line.draft, line.cursor, width)
     if (!terminal || !agent) return shellTail({ project: engine.projectName(key), ...line })
     const status = terminal.state === "running" ? terminal.agent : undefined
     const { request, requests } = asked()
@@ -251,6 +250,7 @@ export const createDemoTerminalScreen = ({
   const submit = (text: string): void => {
     const terminal = engine.terminal(key)
     const agent = link()
+    if (terminal && runsProgram(terminal)) return
     if (!terminal || !agent || !chatAgent(terminal)) return engine.run(key, text)
     const refused = (why: string): void => {
       note(why)

@@ -173,4 +173,24 @@ describe("the visitor build's budgets", () => {
     expect(budgetViolations("try", styled(5_000), weigh)).toEqual([])
     expect(budgetViolations("try", styled(20_000), weigh)).toHaveLength(1)
   })
+
+  it("weighs a font by its bytes, not as text", () => {
+    // Pairs of bytes that read as one character each.
+    const bytes = new Uint8Array(15_000).map((_, at) => (at % 2 === 0 ? 0xc3 : 0xa9))
+    const fonted = {
+      ...built(visitorBudgets.first - 10_000, 0),
+      "index.js": chunk("x".repeat(visitorBudgets.first - 10_000), {
+        isEntry: true,
+        imports: ["shared.js"],
+        viteMetadata: { importedCss: new Set(["assets/index.css"]) },
+      }),
+      "assets/index.css": {
+        type: "asset",
+        fileName: "assets/index.css",
+        source: "@font-face{src:url(./mono.woff2)}",
+      },
+      "assets/mono.woff2": { type: "asset", fileName: "assets/mono.woff2", source: bytes },
+    }
+    expect(budgetViolations("try", fonted, weigh)).toHaveLength(1)
+  })
 })

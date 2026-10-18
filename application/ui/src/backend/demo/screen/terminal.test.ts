@@ -226,11 +226,15 @@ describe("a demo terminal's screen", () => {
       expect(await type("\r")).toMatch(/❯ pwd\n[^\n]+\n\n\S+ ⎇ main\n❯$/)
     })
 
-    it("draws no prompt under a program running in front, until it's typed into", async () => {
-      const { terminal, type } = await open(slot(2), { agents: false })
+    it("draws no prompt under a program running in front, and takes no command", async () => {
+      const { terminal, type, engine } = await open(slot(2), { agents: false })
       expect(text(terminal)).toContain("ready in")
       expect(text(terminal)).not.toContain("⎇")
-      expect(await type("l")).toMatch(/⎇ main\n❯ l$/)
+      const typed = (await type("ls")).split("\n")
+      expect(typed.at(-1)).toBe("ls")
+      expect(typed.at(-2)).not.toMatch(/⎇|❯/)
+      await type("\r")
+      expect(engine.getSnapshot(slot(2)).entries).toEqual([])
     })
 
     it("draws everything again at a new width", async () => {

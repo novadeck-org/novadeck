@@ -4,9 +4,9 @@ import { linkOptions } from "./links"
 
 // How every backend's screens open their emulator: in the font and theme the views pass, with
 // the page's WebGL pool and its links. With `screenReader`, the terminal keeps a screen
-// reader's tree and live region while its input has focus, and only then: an emulator
-// announces whatever is written to it, so terminals out of focus, which go on printing,
-// would talk over the one the person is in.
+// reader's tree and live region while focus is anywhere in it, its input or the tree's rows a
+// reader moves into, and only then: an emulator announces whatever is written to it, so
+// terminals out of focus, which go on printing, would talk over the one the person is in.
 export const openEmulator =
   ({ renderers, screenReader = false }: { renderers: Renderers; screenReader?: boolean }) =>
   (
@@ -22,21 +22,24 @@ export const openEmulator =
       links: linkOptions(),
       renderers,
     })
-    const input = view.terminal.textarea
-    if (!screenReader || !input) return view
-    const reading = (on: boolean) => (): void => {
+    if (!screenReader) return view
+    const reading = (on: boolean): void => {
       view.terminal.options.screenReaderMode = on
     }
-    const focus = reading(true)
-    const blur = reading(false)
-    input.addEventListener("focus", focus)
-    input.addEventListener("blur", blur)
-    if (element.ownerDocument.activeElement === input) focus()
+    const focus = (): void => reading(true)
+    // Focus moving between the input and the tree's rows stays in the terminal.
+    const blur = (event: FocusEvent): void => {
+      if (!(event.relatedTarget instanceof Node && element.contains(event.relatedTarget)))
+        reading(false)
+    }
+    element.addEventListener("focusin", focus)
+    element.addEventListener("focusout", blur)
+    if (element.contains(element.ownerDocument.activeElement)) focus()
     return {
       ...view,
       dispose: () => {
-        input.removeEventListener("focus", focus)
-        input.removeEventListener("blur", blur)
+        element.removeEventListener("focusin", focus)
+        element.removeEventListener("focusout", blur)
         view.dispose()
       },
     }

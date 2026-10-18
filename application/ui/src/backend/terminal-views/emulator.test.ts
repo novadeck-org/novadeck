@@ -64,6 +64,18 @@ describe("a screen's emulator", () => {
     expect(liveRegion(second.element)).not.toBeNull()
   })
 
+  it("keeps the tree while a reader moves focus into its rows, and drops it once focus leaves", () => {
+    const { element, input } = open(true)
+    const outside = document.body.appendChild(document.createElement("button"))
+    input.focus()
+    const row = element.querySelector<HTMLElement>(".xterm-accessibility-tree [role=listitem]")!
+    row.focus()
+    expect(document.activeElement).toBe(row)
+    expect(liveRegion(element)).not.toBeNull()
+    outside.focus()
+    expect(liveRegion(element)).toBeNull()
+  })
+
   it("keeps no screen reader's tree where not asked, focused or not", () => {
     const { element, input } = open(false)
     input.focus()
@@ -73,6 +85,6 @@ describe("a screen's emulator", () => {
   it("stops listening for focus once disposed", () => {
     const { view, input } = open(true)
     view.dispose()
-    expect(() => input.dispatchEvent(new FocusEvent("focus"))).not.toThrow()
+    expect(() => input.dispatchEvent(new FocusEvent("focusin", { bubbles: true }))).not.toThrow()
   })
 })
