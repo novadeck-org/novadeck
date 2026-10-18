@@ -832,7 +832,8 @@ forgets it, including one from an earlier runner.
   would: Claude Code and Antigravity queue it (their box shows "Press up to edit queued
   messages") and run it as its own turn once the turn ends; Codex shows it as "Messages to
   be submitted after next tool call", submitting it into the running turn then, or at its
-  end when no tool follows. Each shows up as a separate user item in the transcript. The
+  end when no tool follows, or, for one right behind the prompt starting the turn, under
+  "Queued follow-up inputs", waiting for the turn to end. Each shows up as a separate user item in the transcript. The
   window's resizes are held until a second after the Enter; the next entry of the queue takes
   them over and keeps that deadline, so one that is refused at once lets none go earlier. The
   client's `agents.prompt(terminalId, text)` is that call.
@@ -957,7 +958,7 @@ forgets it, including one from an earlier runner.
   its box, one to a line; Claude Code stops the turn and sends the queued messages as the
   next turn, which the runner stops with a second Escape, and Claude Code then puts them
   back in its box; Codex sends them as a steer, which a second Escape stops, and its box
-  stays empty. Whatever the box then holds, steady, which was empty before the Escape, is
+  stays empty (what an Escape does to its "Queued follow-up inputs" is unprobed). Whatever the box then holds, steady, which was empty before the Escape, is
   the queued words: the runner writes the adapter's clear keys (Ctrl-U and Backspace per
   line for Antigravity, a double Escape for Claude Code), looks that the box reads empty,
   and gives the words as `returned`. The call resolves with `{ returned: string | null }`
