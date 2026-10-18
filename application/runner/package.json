@@ -33,11 +33,12 @@
     "@novadeck/protocol": "workspace:*",
     "@novadeck/relay": "workspace:*",
     "@novadeck/terminal": "workspace:*",
+    "@novadeck/tui-input": "workspace:*",
     "@novadeck/whisper": "workspace:*",
     "@novadeck/wire": "workspace:*",
     "@orpc/server": "catalog:",
     "hono": "^4.13.13",
-    "node-pty": "1.2.0-beta.14",
+    "node-pty": "catalog:",
     "ws": "catalog:",
     "zod": "catalog:"
   },

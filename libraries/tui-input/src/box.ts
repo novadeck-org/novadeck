@@ -2,9 +2,8 @@ import type { ScreenText } from "@novadeck/emulator/headless"
 import { cells } from "@novadeck/emulator/width"
 
 /**
- * What a harness's input box holds, as its adapter reads it off the screen. Only a
- * harness knows how its box is drawn; prompts only ask what it holds (see
- * the runner's `terminals/prompts.ts`).
+ * What a program's input box holds, as a profile reads it off the screen. Only a profile
+ * knows how its program draws the box; callers only ask what it holds.
  */
 export type InputBox = {
   /**
@@ -15,7 +14,7 @@ export type InputBox = {
   /**
    * Whether the box is in its shell mode (`!`), where Enter runs what it holds as a
    * command, or takes a prompt: told by the marker leading its first row, and checked
-   * against the harness's footer, so a footer in shell mode over a prompt's marker reads
+   * against the program's footer, so a footer in shell mode over a prompt's marker reads
    * as no box at all.
    */
   readonly mode: "prompt" | "shell"
@@ -27,86 +26,83 @@ export type InputBox = {
 /** The markers leading a box's first row: in its prompt mode, and in its shell mode. */
 export type Markers = { readonly prompt: string; readonly shell: string }
 
-/** How a harness's input box reads off a screen; undefined where the screen shows none. */
+/** How a program's input box reads off a screen; undefined where the screen shows none. */
 export type BoxReader = (screen: ScreenText) => InputBox | undefined
 
-/** How a harness draws its input box, as its adapter knows it. */
+/** How a program draws its input box, as its profile knows it. */
 export type BoxProfile = {
   readonly read: BoxReader
   /**
-   * Whether the box holds nothing but the placeholder the harness shows for a long paste
-   * (Claude Code's `[Pasted text #1 +39 lines]`), which stands for the pasted text.
+   * Whether the box holds nothing but the placeholder the program shows for a long paste
+   * (`[Pasted text #1 +39 lines]`), which stands for the pasted text.
    */
   readonly collapsed: (box: InputBox) => boolean
   /**
-   * The keys that clear the text a box holds, for a harness that puts text back in its box
-   * (an interrupted prompt: Claude Code; the messages the person queued: Claude Code and
-   * Antigravity): written only over text seen there, as Claude Code's Escape twice open
-   * its rewind picker over an empty box. Omitted where nothing comes back (probed: Codex
-   * leaves the box empty), and nothing is pressed. The screen it was read from comes too,
-   * where the keys depend on what the harness has taken of an earlier try: Claude Code's
-   * first Escape says "Esc again to clear", and a pair of them written over that clears
-   * the box and then opens the rewind picker.
+   * The keys that clear the text a box holds, for a program that puts text back in its box
+   * (an interrupted prompt, messages queued behind a turn): written only over text seen
+   * there, as a program's Escape twice may open a picker over an empty box. Omitted where
+   * nothing comes back, and nothing is pressed. The screen it was read from comes too,
+   * where the keys depend on what the program has taken of an earlier try: a first Escape
+   * that says "Esc again to clear", and a pair of them written over that clears the box and
+   * then opens a picker.
    */
   readonly clear?: (box: InputBox, screen?: ScreenText) => string
   /**
    * How the box takes a shell command (`!` typed in an empty box, then the command pasted):
    * `expands` where Enter runs a command it shows as a placeholder as the text the
-   * placeholder stands for (Claude Code, Codex), false where it would run the
-   * placeholder's own text (Antigravity; probed 2026-10-07).
+   * placeholder stands for, false where it would run the placeholder's own text.
    */
   readonly shell: {
     readonly expands: boolean
     /**
-     * Whether a command given to an agent with no session yet starts its conversation
-     * (Antigravity: probed 2026-10-08, a `!` command creates it and binds the session);
-     * Codex's runs without a session (it binds none), and Claude Code binds before any.
+     * Whether a command given to a program with no conversation yet starts one, as some
+     * do; false where it runs without one, or the conversation exists before any command.
      */
     readonly starts: boolean
     /**
-     * Whether the harness's footer rows say the box is in its shell mode: the cross-check
+     * Whether the program's footer rows say the box is in its shell mode: the cross-check
      * of the marker, for the box reader and for tests that only have a screen's text.
      */
     readonly footer: (rows: readonly string[]) => boolean
     /**
      * The command to give the shell mode for `command` as written, where its shell runs
-     * one otherwise than sh (Antigravity's cmd on Windows); as written where omitted, and
+     * one otherwise than sh (cmd on Windows); as written where omitted, and
      * undefined for one that can't run there as written means.
      */
     readonly command?: (command: string, platform?: NodeJS.Platform) => string | undefined
   }
   /**
-   * Whether the screen shows, just above the box, the harness's word that the person's
-   * Escape stopped the turn, where it may say so of a turn whose reply it kept and fired
-   * no Stop for (Antigravity); omitted where its hooks or records tell.
+   * Whether the screen shows, just above the box, the program's word that whoever types
+   * pressed Escape to stop the turn, where it may say so of a turn whose reply it kept;
+   * omitted where something other than the screen tells.
    */
   readonly interrupted?: (screen: ScreenText) => boolean | undefined
   /**
-   * Whether the screen shows a view, panel or search of the harness beside or over its
+   * Whether the screen shows a view, panel or search of the program beside or over its
    * conversation whose field or footer looks like its input box, so an empty box read off
-   * it is not the agent's own prompt (probed per harness; see the doorbell's look at an
-   * idle terminal): a line pasted there would go to the view, and its Enter act in it.
+   * it is not the program's own prompt: a line pasted there would go to the view, and its
+   * Enter act in it.
    */
   readonly overlay: (screen: ScreenText) => boolean
   /**
-   * Whether the screen shows messages the person queued behind the running turn, which
-   * the harness holds until the turn ends (or, for Codex, steers the turn with).
+   * Whether the screen shows messages queued behind the running turn, which the program
+   * holds until the turn ends (or steers the turn with).
    */
   readonly queued: (screen: ScreenText) => boolean
   /**
    * Whether a paste of the text certainly shows as a placeholder, however small the
-   * screen (probed thresholds); false where it may show whole.
+   * screen; false where it may show whole.
    */
   readonly collapses: (text: string) => boolean
   /**
-   * How many rows the box may take on a screen of `rows` rows, with what the harness
+   * How many rows the box may take on a screen of `rows` rows, with what the program
    * draws around it kept: a paste that shows whole and needs more has no first row to read.
    */
   readonly room: (rows: number) => number
   /**
    * How many rows the box shows of a text taller than that on a screen of `rows` rows: it
    * shows the text's tail, so a box that tall may hold only the end of what was put in it.
-   * Omitted where the harness's box shows all (or grows to `room`).
+   * Omitted where the program's box shows all (or grows to `room`).
    */
   readonly viewport?: (rows: number) => number
 }
@@ -130,7 +126,7 @@ const untabbed = (line: string): string => {
 
 /**
  * How many rows a line takes at `width` columns, wrapped greedily at word boundaries as
- * the harnesses' boxes do (a word longer than a row breaks across rows).
+ * TUI boxes do (a word longer than a row breaks across rows).
  */
 const wrappedLine = (line: string, width: number): number => {
   let rows = 1
@@ -162,8 +158,8 @@ export const wrappedRows = (text: string, columns: number): number => {
 /** Text without its whitespace, as a TUI may wrap and indent it anywhere. */
 export const compact = (text: string): string => text.replace(/\s+/g, "")
 
-// What a screen may draw differently from the emoji it was given: Codex and Antigravity
-// left a ZWJ family sequence blank (probed), so a box's text is compared without them.
+// What a screen may draw differently from the emoji it was given: some programs
+// leave a ZWJ family sequence blank, so a box's text is compared without them.
 const pictures = /\p{Extended_Pictographic}|\p{Emoji_Modifier}|\u200d|\ufe0f/gu
 
 /**
@@ -193,7 +189,7 @@ export const isEmpty = (box: InputBox): boolean => compact(box.text) === ""
 
 /**
  * The text of the rows `first` to `last`, whose first row starts with `marker`: the rows
- * as drawn undimmed, as a faint placeholder suggestion is not the person's. Faint text is
+ * as drawn undimmed, as a faint placeholder suggestion is not what was typed. Faint text is
  * still taken for content where the cursor is not right behind the marker, as a box with
  * text in it has it elsewhere. Undefined where the first row does not start with the marker.
  */
@@ -222,7 +218,7 @@ const read = (
   const text = lines(lit)
   const faint = lines(rows)
   const home = screen.cursor.row === first && screen.cursor.column <= marker.length + 1
-  // The cursor's cell over a placeholder's first letter is drawn undimmed (Claude Code's
+  // The cursor's cell over a placeholder's first letter is drawn undimmed (a hint such as
   // "Press up to edit queued messages" read as "P"): with the cursor at home and the rest
   // of the text faint, it is the placeholder, not a draft of one letter.
   const letter = compact(text).length === 1 && compact(faint).length > 1 && home
@@ -235,10 +231,10 @@ const leads = (row: string | undefined, markers: Markers): boolean =>
   row !== undefined && (row.startsWith(markers.prompt) || row.startsWith(markers.shell))
 
 /**
- * The box, unless the harness's footer says its shell mode (`shell`) over a box whose
+ * The box, unless the program's footer says its shell mode (`shell`) over a box whose
  * marker says it takes a prompt: a screen half drawn, or one not known, reads as no box.
- * The other way round is no contradiction: the footer gives way to other hints (Claude
- * Code's "paste again to expand" under a pasted command), while a marker of `!` is only
+ * The other way round is no contradiction: the footer gives way to other hints (a
+ * "paste again to expand" under a pasted command), while a marker of `!` is only
  * ever the shell mode's.
  */
 export const agreeing = (box: InputBox | undefined, shell: boolean): InputBox | undefined =>
@@ -247,7 +243,7 @@ export const agreeing = (box: InputBox | undefined, shell: boolean): InputBox | 
 /**
  * The rows of a screen that show anything, from the one the cursor is on (in the box, or the
  * field of a view) down, and at least the last `count` of them: the box's footer and what a
- * view draws under it, where a harness says which view it is in (`BoxProfile.overlay`),
+ * view draws under it, where a profile says which view it is in (`BoxProfile.overlay`),
  * however many rows a status line takes; never the conversation above. A cursor far above
  * the foot (more than `reach` rows) is no anchor.
  */
@@ -263,8 +259,8 @@ export const footerRows = (screen: ScreenText, count = 4, reach = 12): readonly 
 export const rule = (row: string | undefined): boolean => /^─{8,}$/.test((row ?? "").trim())
 
 /**
- * A box drawn between two horizontal rules, its first row led by `marker` (Claude Code's
- * `❯`, Antigravity's `>`): the lowest pair of rules on the screen, the cursor between them.
+ * A box drawn between two horizontal rules, its first row led by `marker` (`❯`, `>`): the
+ * lowest pair of rules on the screen, the cursor between them.
  * It starts at the nearest row led by the marker at or above the cursor, so rows a TUI's
  * redraw left stale between the rules above its first row (it counts a wide character's
  * width differently, and erases the wrong rows) are no part of it. History above the
@@ -283,7 +279,7 @@ export const ruledBox = (screen: ScreenText, markers: Markers): InputBox | undef
 }
 
 /**
- * A box drawn with no frame (Codex's), its first row led by `marker` and its last the
+ * A box drawn with no frame, its first row led by `marker` and its last the
  * cursor's row: rows indented under the marker go up from the cursor to it. The history
  * above is no part of it: it ends at the nearest row led by the marker.
  */
@@ -293,7 +289,7 @@ export const markedBox = (screen: ScreenText, markers: Markers): InputBox | unde
   for (; first >= 0; first -= 1) {
     const row = screen.rows[first] ?? ""
     if (leads(row, markers)) break
-    // The body is indented under the marker, however much more the person's own lines
+    // The body is indented under the marker, however much more the typed lines
     // are; a blank line may lie inside it, but the cursor's own row holds text, or the
     // cursor is elsewhere.
     const body = /^ {2}.*\S/.test(row) || (row.trim() === "" && first !== cursor.row)

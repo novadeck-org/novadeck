@@ -2,11 +2,9 @@ import { execFileSync } from "node:child_process"
 import { EventEmitter } from "node:events"
 
 import * as pty from "node-pty"
-import { vi } from "vitest"
+import { describe, expect, it, onTestFinished, vi } from "vitest"
 
-import { describe, expect, it } from "../test.js"
-import { command, ptyOptions } from "../testing/pty.js"
-import type { Resources } from "../testing/resources.js"
+import { command, ptyChild } from "../testing.js"
 
 const bounded = async <T>(operation: Promise<T>, label: string): Promise<T> => {
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -22,11 +20,7 @@ const bounded = async <T>(operation: Promise<T>, label: string): Promise<T> => {
   }
 }
 
-const spawn = (
-  resources: Resources,
-  args = ptyOptions.shellArgs,
-  options: { useConptyDll?: boolean } = {},
-) => {
+const spawn = (args = [ptyChild], options: { useConptyDll?: boolean } = {}) => {
   // Exercise the installed native package directly so failures retain their cause.
   const child = pty.spawn(process.execPath, args, {
     cwd: process.cwd(),
@@ -50,7 +44,7 @@ const spawn = (
     resolveExit(event)
     events.emit("exit")
   })
-  resources.defer(async () => {
+  onTestFinished(async () => {
     try {
       if (!exited) child.kill()
       await bounded(exit, `PTY ${child.pid} cleanup`)
@@ -100,19 +94,15 @@ const descriptors = () => {
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 1_000))
 
 describe("installed native PTY dependency", () => {
-  it("starts a child and delivers its final output without hiding native startup errors", async ({
-    resources,
-  }) => {
-    const terminal = spawn(resources, ["-e", 'process.stdout.write("NATIVE_PTY_OK")'])
+  it("starts a child and delivers its final output without hiding native startup errors", async () => {
+    const terminal = spawn(["-e", 'process.stdout.write("NATIVE_PTY_OK")'])
     expect((await terminal.exit()).exitCode).toBe(0)
     expect(terminal.output()).toContain("NATIVE_PTY_OK")
   }, 20_000)
 
-  it("keeps repeated child sessions alive for multiple writes and their natural exit", async ({
-    resources,
-  }) => {
+  it("keeps repeated child sessions alive for multiple writes and their natural exit", async () => {
     for (let session = 0; session < 6; session++) {
-      const terminal = spawn(resources)
+      const terminal = spawn()
       // eslint-disable-next-line no-await-in-loop -- Each session must finish before its successor starts.
       await terminal.until("PTY_READY")
       for (let write = 0; write < 3; write++) {
@@ -129,26 +119,26 @@ describe("installed native PTY dependency", () => {
     }
   }, 60_000)
 
-  it("closes repeated running children after their first output", async ({ resources }) => {
+  it("closes repeated running children after their first output", async () => {
     for (let session = 0; session < 6; session++) {
-      const terminal = spawn(resources)
+      const terminal = spawn()
       // eslint-disable-next-line no-await-in-loop -- Wait for native startup before explicitly closing this child.
       await terminal.until("PTY_READY")
       terminal.child.kill()
       // eslint-disable-next-line no-await-in-loop -- Every child must exit before starting its successor.
-      await terminal.exit()
+      expect(await terminal.exit()).toHaveProperty("exitCode")
     }
   }, 60_000)
 
   it.skipIf(process.platform !== "darwin")(
     "releases PTY and kqueue descriptors across successful native spawns",
-    async ({ resources }) => {
-      const warmup = spawn(resources, ["-e", "process.exit(0)"])
+    async () => {
+      const warmup = spawn(["-e", "process.exit(0)"])
       await warmup.exit()
       await settle()
       const before = descriptors()
       for (let session = 0; session < 24; session++) {
-        const terminal = spawn(resources, ["-e", "process.exit(0)"])
+        const terminal = spawn(["-e", "process.exit(0)"])
         // eslint-disable-next-line no-await-in-loop -- Count descriptors only after all native child exits complete.
         expect((await terminal.exit()).exitCode).toBe(0)
       }
@@ -161,15 +151,15 @@ describe("installed native PTY dependency", () => {
 
   it.skipIf(process.platform !== "darwin")(
     "releases PTY descriptors when native spawn rejects oversized arguments",
-    async ({ resources }) => {
-      const warmup = spawn(resources, ["-e", "process.exit(0)"])
+    async () => {
+      const warmup = spawn(["-e", "process.exit(0)"])
       await warmup.exit()
       await settle()
       const before = descriptors()
       // Exceed macOS ARG_MAX without creating a child or exhausting system resources.
       const argument = "x".repeat(1024 * 1024)
       for (let session = 0; session < 24; session++) {
-        expect(() => spawn(resources, ["-e", "process.exit(0)", argument])).toThrow()
+        expect(() => spawn(["-e", "process.exit(0)", argument])).toThrow(Error)
       }
       await settle()
       expect(descriptors()).toEqual(before)
@@ -182,11 +172,11 @@ describe("installed native PTY dependency", () => {
     { conpty: "bundled", useConptyDll: true },
   ])(
     "ends a Windows terminal whose input failed instead of crashing the process ($conpty ConPTY)",
-    async ({ useConptyDll }, { resources }) => {
-      const terminal = spawn(resources, ptyOptions.shellArgs, { useConptyDll })
+    async ({ useConptyDll }) => {
+      const terminal = spawn([ptyChild], { useConptyDll })
       await terminal.until("PTY_READY")
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
-      resources.defer(() => warn.mockRestore())
+      onTestFinished(() => warn.mockRestore())
       // Our node-pty patch guards this private socket; unpatched, the emit below throws.
       const agent = (terminal.child as unknown as { _agent: { inSocket: NodeJS.EventEmitter } })
         // eslint-disable-next-line no-underscore-dangle -- The patched socket is private to node-pty.

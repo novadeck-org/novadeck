@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto"
 import { constants, rmSync, writeFileSync } from "node:fs"
 import { access, realpath, stat } from "node:fs/promises"
-import { homedir, constants as system } from "node:os"
+import { homedir } from "node:os"
 import { basename, delimiter, isAbsolute, join, resolve as resolvePath } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
@@ -17,7 +17,6 @@ import {
   type Screen,
   type ScreenText,
 } from "@novadeck/emulator/headless"
-import { isEmpty, type BoxProfile } from "@novadeck/harness-core/box"
 import type { RequestFacts } from "@novadeck/harness-core/dialogs"
 import type {
   ActivityEvent,
@@ -54,7 +53,6 @@ import { murmurGist, murmurHeadline } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 import { Subscription } from "@novadeck/terminal/host"
 import {
-  anyRunning,
   foregroundProcess,
   foregroundRuns,
   openFiles,
@@ -63,11 +61,15 @@ import {
   relayMs,
   sampleForeground,
   shellInForeground,
-  taskkillTree,
+  spawnPty,
   terminalForeground,
   Trees,
+  type Disposable,
+  type EndBudget,
   type Foreground,
-  type Member,
+  type NativeSpawn,
+  type ProcessTrees,
+  type Pty,
 } from "@novadeck/terminal/pty"
 import {
   afterKeys,
@@ -81,8 +83,8 @@ import {
   type Line,
   type ShellLaunch,
 } from "@novadeck/terminal/shell"
+import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
 import { Latest } from "@novadeck/wire/server"
-import * as pty from "node-pty"
 
 import { readPlanFile, type PlanText } from "../companions/content.js"
 import type { CompanionItems, TerminalPlace } from "../companions/items.js"
@@ -323,6 +325,16 @@ export type TerminalOptions = {
    * for agents, which may be another build's, and waits on the shell files being written.
    */
   relay?: string
+  /**
+   * The pty as a test plays it: node-pty's `spawn`, the platform its ending follows (this
+   * system's when omitted, whatever `platform` says, as real shells run here), and the
+   * process trees a Windows terminal's programs are ended by.
+   */
+  pty?: {
+    readonly native?: NativeSpawn
+    readonly platform?: NodeJS.Platform
+    readonly trees?: ProcessTrees
+  }
 }
 
 type Create = {
@@ -345,7 +357,7 @@ type Attach = { terminalId: string; afterSequence?: number; mode?: "control" | "
 type Retained = { event: TerminalEvent; bytes: number }
 type Record = {
   summary: TerminalSummary
-  process: pty.IPty
+  process: Pty
   screen: Screen
   sequence: number
   history: Retained[]
@@ -362,14 +374,14 @@ type Record = {
    * began, or once other work was queued after it, as a resize, which later output must
    * not be drawn ahead of.
    */
-  unread: { readonly child: pty.IPty; readonly data: string }[] | null
+  unread: { readonly child: Pty; readonly data: string }[] | null
   pendingAttachments: number
   exitQueued: boolean
   /** Closed by the person or an agent, and forgotten: nothing saves it again. */
   closed: boolean
   exited: Promise<void>
   resolveExit: () => void
-  listeners: pty.IDisposable[]
+  listeners: Disposable[]
   closing: Promise<void> | undefined
   /** `performance.now()` at spawn, for the exit's `ranMs`. */
   startedAt: number
@@ -535,7 +547,7 @@ type Record = {
  * agent, and the file holding that command, until the shell takes it or it is cancelled.
  */
 type Started = {
-  process: pty.IPty
+  process: Pty
   screen: Screen
   /** The mouse's encoding a program set on its screen. */
   mouseEncoding: () => MouseEncoding
@@ -558,23 +570,6 @@ const alive = (pid: string): boolean => {
     return true
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === "EPERM"
-  }
-}
-
-/**
- * Resumes a process group hung up as its terminal closed, once the shell has exited. On
- * its own hangup bash takes the terminal back for itself before it exits, so a program
- * still restoring the terminal then, as an agent's TUI does on its way out, is stopped
- * by SIGTTIN or SIGTTOU. Should that stop not have finished as bash exits, the kernel
- * doesn't send the orphaned group its SIGHUP and SIGCONT, and the program stays stopped
- * for good. Once the shell is gone the terminal answers with an error instead, so the
- * resumed program finishes exiting. A group already gone is skipped.
- */
-const resumeGroup = (group: number): void => {
-  try {
-    process.kill(-group, "SIGCONT")
-  } catch {
-    // Gone.
   }
 }
 
@@ -673,37 +668,6 @@ const shutdownTreeGraceMs = 1_000
 // and for closing the rest of the runner after.
 const shutdownTreesMs = 3_000
 
-/**
- * Terminals that have drawn. node-pty on Windows queues a kill until then; after, its kill
- * ends the shell at once and closes the console, which ends the programs still attached.
- */
-const drawnTerminals = new WeakSet<pty.IPty>()
-
-/**
- * Ends a terminal's program that its first kill left running. On Windows, which has no
- * signals, node-pty throws on one, and later still when it queued the kill until the
- * terminal first drew: its process and every program it started are ended by its id
- * instead. Until its output connects, node-pty names that id 0, which would end the runner
- * itself, so it rejects, and the terminal is taken as ended while node-pty's queued kill
- * closes its console later.
- */
-export const forceKill = async (
-  child: Pick<pty.IPty, "pid" | "kill">,
-  platform: NodeJS.Platform = process.platform,
-  end: (pid: number) => Promise<void> | void = taskkillTree,
-): Promise<void> => {
-  if (platform !== "win32") return child.kill("SIGKILL")
-  if (!(child.pid > 0)) throw new Error("The terminal's program has no process id yet.")
-  await end(child.pid)
-}
-
-/** A signal number's name, such as `SIGKILL`; Windows has no signals. */
-const signalName = (signal: number | undefined): string | null => {
-  if (!signal || process.platform === "win32") return null
-  const entry = Object.entries(system.signals).find(([, value]) => value === signal)
-  return entry?.[0] ?? null
-}
-
 const positive = (value: number | undefined, fallback: number): number => {
   const result = value ?? fallback
   if (!Number.isSafeInteger(result) || result < 1)
@@ -778,6 +742,7 @@ export class Terminals {
       | "items"
       | "describer"
       | "murmurTimes"
+      | "pty"
     >
   > & {
     env: NodeJS.ProcessEnv
@@ -793,7 +758,9 @@ export class Terminals {
   }
   private readonly integration: Promise<Integration | undefined>
   /** Windows' process trees, which a closed terminal's programs are ended by. */
-  private readonly trees: Trees
+  private readonly trees: ProcessTrees
+  /** How terminals' ptys start, and the platform their ending follows. */
+  private readonly pty: { readonly native?: NativeSpawn; readonly platform: NodeJS.Platform }
   private transcripts: boolean
   /** The handles each session has given, without records to keep them. */
   private readonly handles = new Map<string, ReadonlySet<string>>()
@@ -873,7 +840,11 @@ export class Terminals {
     // Child programs do not need the runner's network capability, nor the identity of a
     // Novadeck terminal the runner itself was started from.
     for (const name of inherited) delete this.options.env[name]
-    this.trees = new Trees(async () => this.options.relay)
+    this.trees = options.pty?.trees ?? new Trees(async () => this.options.relay)
+    this.pty = {
+      ...(options.pty?.native && { native: options.pty.native }),
+      platform: options.pty?.platform ?? process.platform,
+    }
     // Read once now, so the first terminal doesn't wait for it; see `shellEnvironment`.
     // After the deletes, as the relay, or PowerShell, that reads it gets this environment.
     if (this.options.freshPath) void this.shellEnvironment()
@@ -3352,7 +3323,7 @@ export class Terminals {
    * lot of its output waits (`OUTPUT_WAITING_CHARS`), and goes on once all of it is drawn,
    * so a program can't outrun its screen.
    */
-  private output(record: Record, child: pty.IPty, data: string): void {
+  private output(record: Record, child: Pty, data: string): void {
     record.pendingOutput += data.length
     if (record.pendingOutput > OUTPUT_WAITING_CHARS) child.pause()
     // The draw queued last takes this with it, while nothing was queued after it.
@@ -3471,18 +3442,14 @@ export class Terminals {
     const screen = createScreen({ cols, rows, scrollback: 1000 })
     const mouseEncoding = trackMouse(screen)
     try {
-      const args = this.options.shellArgs ?? launched.args
-      const child = pty.spawn(shell, typeof args === "string" ? args : [...args], {
-        name: "xterm-256color",
-        cols,
-        rows,
+      const child = spawnPty({
+        file: shell,
+        args: this.options.shellArgs ?? launched.args,
         cwd,
         env,
-        // Windows' built-in console host can lose input; node-pty ships a newer one. Closing
-        // a terminal relies on it too: with it, node-pty's kill closes the pseudoconsole,
-        // which sends its programs CTRL_CLOSE_EVENT, and ends only the shell (see `kill`);
-        // without it, it ends everything on the console at once.
-        useConptyDll: process.platform === "win32",
+        cols,
+        rows,
+        ...this.pty,
       })
       return {
         process: child,
@@ -3508,15 +3475,8 @@ export class Terminals {
       record.resolveExit = resolve
     })
     record.listeners = [
-      child.onData((data) => {
-        drawnTerminals.add(child)
-        this.output(record, child, data)
-      }),
-      // node-pty can report an exit before it learns the code, e.g. after ending a
-      // Windows terminal whose input failed.
-      child.onExit(({ exitCode, signal }) =>
-        this.exit(record, { code: signal ? null : (exitCode ?? null), signal: signalName(signal) }),
-      ),
+      child.onData((data) => this.output(record, child, data)),
+      child.onExit((exit) => this.exit(record, exit)),
       // Device-status queries are answered by the runner's screen, even with no viewer.
       screen.onData((data) => {
         if (!record.exitQueued) child.write(data)
@@ -3554,7 +3514,7 @@ export class Terminals {
    * shell resuming an agent reports its first prompt once the agent exits, so a resume
    * command still waiting by now was never taken.
    */
-  private prompted(record: Record, child: pty.IPty, cwd: string): void {
+  private prompted(record: Record, child: Pty, cwd: string): void {
     if (record.process !== child) return
     record.promptedAt = Date.now()
     // Whether a non-empty line was entered since the last prompt: a command may have run.
@@ -4045,7 +4005,7 @@ export class Terminals {
    * only while a process of that harness's name runs in the terminal's foreground, in turn
    * with the terminal's reports.
    */
-  private screenTitled(record: Record, child: pty.IPty, title: string): void {
+  private screenTitled(record: Record, child: Pty, title: string): void {
     // Any newer title, including Working or a shell's, retires a pending prompt check.
     const seq = (record.titles = (record.titles ?? 0) + 1)
     if (record.readyEntered && agents.some((agent) => harnesses[agent].titleWorking?.(title)))
@@ -4165,7 +4125,7 @@ export class Terminals {
    */
   private async harnessIn(
     record: Record,
-    child: pty.IPty,
+    child: Pty,
     agent: AgentName,
   ): Promise<{
     readonly where: Install & { readonly program?: string }
@@ -4883,94 +4843,24 @@ export class Terminals {
     return record.closing
   }
 
-  private async kill(record: Record): Promise<void> {
-    // The second signal bounds shutdown even for shells that ignore SIGHUP.
-    let timer: ReturnType<typeof setTimeout> | undefined
-    try {
-      const group = await this.hangUp(record.process)
-      const child = record.process
-      // Windows hangs up no group: closing the console sends what is attached to it
-      // CTRL_CLOSE_EVENT, and node-pty ends the shell, but nothing reaches what a program
-      // there started apart from it, as an agent's hooks in consoles of their own, which
-      // then run on (a PowerShell 7 hook whose Codex was closed as it started stayed
-      // there). The terminal's tree is read first, while it still leads back to its shell,
-      // and what of it outlives the console's close by `treeGraceMs` is ended. Not once
-      // the shell has exited, its exit only waiting behind draws: its id may name another
-      // process by now. Where the relay can't read it, taskkill ends the tree at once.
-      const owned =
-        process.platform === "win32" &&
-        child.pid > 0 &&
-        drawnTerminals.has(child) &&
-        !record.exitQueued
-      const tree = owned ? await this.trees.read(child.pid, this.runMs(relayMs)) : undefined
-      if (owned && tree === undefined)
-        await taskkillTree(child.pid, this.runMs(5_000)).catch(() => {})
-      try {
-        child.kill()
-      } catch {
-        this.exit(record, { code: null, signal: null })
-      }
-      timer = setTimeout(() => {
-        // A Windows terminal that has drawn ran node-pty's kill, which ended its shell, whose
-        // id may already name another process.
-        const ended = process.platform === "win32" && drawnTerminals.has(child)
-        const forced = ended
-          ? Promise.resolve()
-          : forceKill(child, process.platform, (pid) => this.endTreeNow(pid))
-        forced.then(
-          // node-pty on Windows reports an exit only once the console closes, which a program
-          // the kill could not end can still keep open.
-          () => {
-            if (process.platform === "win32") this.exit(record, { code: null, signal: null })
-          },
-          () => this.exit(record, { code: null, signal: null }),
-        )
-      }, 1000)
-      await Promise.all([record.exited, tree && this.endLeft(tree)])
-      if (group !== undefined) resumeGroup(group)
-    } finally {
-      if (timer) clearTimeout(timer)
-    }
-  }
-
   /**
-   * Ends what is left of a closed terminal's process tree once it has had `treeGraceMs`
-   * to end by itself: the tree read before the close, and what its members started since,
-   * as an agent's hook run as it closes, or left running as they ended, read again from
-   * each by its start.
+   * Ends a terminal's shell and what it started (see the pty's `end`), once its exit is
+   * handled. A close already waiting as shutdown begins takes no more than shutdown's own
+   * time: each relay or taskkill run within what is left of it, and what a Windows tree
+   * left running ends by shutdown's shorter grace.
    */
-  private async endLeft(tree: readonly Member[]): Promise<void> {
-    const began = Date.now()
-    // A close already waiting as shutdown begins waits no longer than shutdown's own grace.
-    const graceEnds = () =>
-      this.shutdownBy === undefined
-        ? began + treeGraceMs
-        : Math.min(began + treeGraceMs, this.shutdownBy - shutdownTreesMs + shutdownTreeGraceMs)
-    while (anyRunning(tree) && Date.now() < graceEnds())
-      // eslint-disable-next-line no-await-in-loop -- Waits for them to end.
-      await sleep(100)
-    const again = await Promise.all(
-      tree.map((member) => this.trees.read(member, this.runMs(relayMs))),
-    )
-    const left = new Map(
-      [...tree, ...again.flatMap((each) => each ?? [])].map((member) => [
-        `${member.pid}:${member.startedAt}`,
-        member,
-      ]),
-    )
-    const members = [...left.values()]
-    if (!anyRunning(members)) return
-    await this.trees.end(members, this.runMs(relayMs))
-    // A pid that still answers a moment later is said, so a process the relay didn't end,
-    // as where it ran out of time, shows. Nothing more is ended by pid alone: another
-    // process may have taken one meanwhile, which the relay rightly refused.
-    await sleep(200)
-    const answering = members.filter((member) => anyRunning([member]))
-    if (answering.length > 0)
-      console.error(
-        "Novadeck: after ending a closed terminal's processes, these pids still answer, each that process or one given its pid since:",
-        answering.map(({ pid, startedAt }) => `${pid} (started ${startedAt})`).join(", "),
-      )
+  private async kill(record: Record): Promise<void> {
+    const budget: EndBudget = {
+      run: (usual) => this.runMs(usual),
+      graceEnds: (began) =>
+        this.shutdownBy === undefined
+          ? began + treeGraceMs
+          : Math.min(began + treeGraceMs, this.shutdownBy - shutdownTreesMs + shutdownTreeGraceMs),
+    }
+    await Promise.all([
+      record.process.end({ graceMs: 1000, treeGraceMs, trees: this.trees, budget }),
+      record.exited,
+    ])
   }
 
   /**
@@ -4980,32 +4870,6 @@ export class Terminals {
   private runMs(usual: number): number {
     if (this.shutdownBy === undefined) return usual
     return Math.max(250, Math.min(usual, this.shutdownBy - Date.now()))
-  }
-
-  /** Ends a Windows process and every one under it now, by taskkill where the relay can't. */
-  private async endTreeNow(pid: number): Promise<void> {
-    const tree = await this.trees.read(pid)
-    if (tree === undefined) return taskkillTree(pid)
-    await this.trees.end(tree)
-  }
-
-  /**
-   * Hangs up the program in the terminal's foreground, as closing a real terminal does,
-   * and returns its process group; undefined when there is none to hang up, as on Windows,
-   * where no foreground group is known.
-   * A shell passes its own hangup on to the jobs it started, but not always: bash does
-   * not to a command its prompt hook ran, as a resumed agent is, and would leave it
-   * running without a terminal, still holding its session.
-   */
-  private async hangUp(child: pty.IPty): Promise<number | undefined> {
-    const group = await terminalForeground(child.pid)
-    if (group === undefined || group === child.pid) return undefined
-    try {
-      process.kill(-group, "SIGHUP")
-    } catch {
-      // Gone meanwhile.
-    }
-    return group
   }
 
   /**

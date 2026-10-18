@@ -4,11 +4,11 @@ import { readdir, stat } from "node:fs/promises"
 import { basename, dirname, isAbsolute, join, relative } from "node:path"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
-import { isEmpty, sameText, type BoxProfile, type InputBox } from "@novadeck/harness-core/box"
 import type { PromptShown } from "@novadeck/harness-core/events"
 import type { Harness, Install } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
 import { Trees, type Member } from "@novadeck/terminal/pty"
+import { isEmpty, sameText, type BoxProfile, type InputBox } from "@novadeck/tui-input/box"
 
 import { agents, harnesses } from "../harnesses/registry.js"
 import type { DeliveryEvent } from "../messaging/delivery.js"
