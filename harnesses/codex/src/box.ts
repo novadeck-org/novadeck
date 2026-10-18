@@ -53,7 +53,8 @@ const queued = (screen: ScreenText): boolean =>
  * Empty, it shows "Ask Codex to do anything" or another suggestion drawn dim. Its first
  * key changes the welcome screen wholesale, so the box is read from where the cursor is,
  * never against an earlier screen. Pastes of about a thousand characters show as
- * `[Pasted Content 1030 chars]`, however many lines (25 short lines show whole). It leaves a
+ * `[Pasted Content 1030 chars]`, however many lines (25 short lines show whole up to 0.160.1,
+ * and only their tail in a box of `viewport` rows from 0.163.0). It leaves a
  * ZWJ family sequence blank (probed), so the library compares text without such emoji.
  */
 export const box: BoxProfile = {
@@ -73,4 +74,9 @@ export const box: BoxProfile = {
   collapses: (text) => text.length > 1024,
   // The cursor's row is the box's last, a blank row, its status line and its hints below.
   room: (rows) => rows - 3,
+  // From 0.163.0 a text taller than this shows only its tail, an `↑` drawn dim at the end of
+  // the box's first row: 12, 16, 22 and 29 rows on screens of 24, 30, 40 and 50 rows (probed
+  // 2026-10-18, the `tall` states of fixtures/input-box.probe.json). Earlier versions grow
+  // the box to `room` instead, so a box this tall shows the whole text there.
+  viewport: (rows) => Math.floor((2 * (rows - 6)) / 3),
 }
