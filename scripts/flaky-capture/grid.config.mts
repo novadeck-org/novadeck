@@ -8,7 +8,9 @@ const root = fileURLToPath(new URL("../../application/ui/", import.meta.url))
 const repo = fileURLToPath(new URL("../../", import.meta.url))
 const output = process.env.NOVADECK_GRID_OUTPUT
 if (!output) throw new Error("Run Grid capture through scripts/flaky-capture/grid.ts")
-const behaviour = base.test.projects[1]
+// Found by name: the UI's config lists its projects in no promised order.
+const behaviour = base.test.projects.find((project) => project.test.name === "behaviour")
+if (!behaviour) throw new Error("The UI's Vitest config has no behaviour project")
 
 export default {
   ...base,
