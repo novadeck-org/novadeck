@@ -12,8 +12,8 @@ pnpm bench:timing [--output <file>]
 ```
 
 It builds the runner, the sandbox library and what they need (turbo; the relay among them,
-which needs Rust), then the libraries the UI ships (as `build:try` does), and drives Playwright's Chromium (`pnpm exec playwright install chromium`
-once), then:
+which needs Rust), then the libraries the UI ships (as `build:try` does), and drives
+Playwright's Chromium (`pnpm exec playwright install chromium` once), then:
 
 1. makes a sandbox (`@novadeck/sandbox`): a throwaway home holding a `.claude/settings.json`
    with Novadeck's plugin on, so the runner counts Claude Code connected, and a PATH whose only
