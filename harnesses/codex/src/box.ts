@@ -33,6 +33,21 @@ export const overlay = (screen: ScreenText): boolean =>
   )
 
 /**
+ * Whether it shows a prompt given mid-turn as waiting. It draws one of two lists by when the
+ * prompt came: "Messages to be submitted after next tool call" for one it will steer into the
+ * running turn, and "Queued follow-up inputs" (with "shift+← edit last queued message") for
+ * one that waits for the turn to end, as when it came right behind the prompt starting the
+ * turn (the second only seen in CI, 0.159.3 on macOS, 2026-10-18; the first probed 2026-10-07).
+ */
+const queued = (screen: ScreenText): boolean =>
+  screen.rows.some(
+    (row) =>
+      row.includes("Messages to be submitted after next tool call") ||
+      // Its heading's row alone: the shorter phrase could be in output the agent shows.
+      row.trim() === "• Queued follow-up inputs",
+  )
+
+/**
  * Codex's input box: no frame, `› ` leading its first row, the rest indented, and the
  * cursor on its last row (probed 0.159.3 and 0.160.1, fixtures/input-box.probe.json).
  * Empty, it shows "Ask Codex to do anything" or another suggestion drawn dim. Its first
@@ -50,10 +65,11 @@ export const box: BoxProfile = {
   // 999 and 1,000 characters showed whole, 1,024 did not, whatever the lines: 30 short
   // lines showed whole.
   // A queued message waits "to be submitted after next tool call", and an Escape sends it
-  // at once as a steer, which a second Escape stops; the box stays empty (probed).
+  // at once as a steer, which a second Escape stops; the box stays empty (probed). One under
+  // "Queued follow-up inputs" waits for the turn to end; what an Escape does to it is
+  // unprobed.
   overlay,
-  queued: (screen) =>
-    screen.rows.some((row) => row.includes("Messages to be submitted after next tool call")),
+  queued,
   collapses: (text) => text.length > 1024,
   // The cursor's row is the box's last, a blank row, its status line and its hints below.
   room: (rows) => rows - 3,
