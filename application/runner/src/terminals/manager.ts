@@ -36,7 +36,6 @@ import type {
   TerminalAttached,
   TerminalChange,
   TerminalEvent,
-  TerminalExit,
   TerminalMessages,
   TerminalRequest,
   RequestAnswer,
@@ -204,6 +203,7 @@ import {
 } from "./records.js"
 import { restoredSeparator } from "./restored.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
+import { summaryOf, type AgentSummary } from "./summary.js"
 import { transcriptChanges } from "./transcripts.js"
 import { TerminalWatcher } from "./watcher.js"
 import { judgedFirst, workAfter, type Work } from "./work.js"
@@ -344,7 +344,8 @@ type Create = {
 type Size = { cols: number; rows: number }
 type Attach = { terminalId: string; afterSequence?: number; mode?: "control" | "observe" }
 type Record = {
-  summary: TerminalSummary
+  /** The agent layer's half of its summary; `summaryOf` composes the whole with the host's. */
+  summary: AgentSummary
   /** Its run, its screen, its events and who reads them. */
   terminal: Terminal
   /** Closed by the person or an agent, and forgotten: nothing saves it again. */
@@ -882,7 +883,7 @@ export class Terminals {
       terminal: (terminalId) => this.records.get(terminalId),
       running: (sessionId) =>
         [...this.records.values()].filter(
-          (record) => record.summary.sessionId === sessionId && record.summary.exit === null,
+          (record) => record.summary.sessionId === sessionId && record.terminal.exit === null,
         ),
       projectFolder: (sessionId) => this.projectFolder(sessionId),
       stopping: () => this.stopping,
@@ -1010,11 +1011,7 @@ export class Terminals {
           command,
           lastProgram: saved?.lastProgram ?? null,
           cwd,
-          cols: input.cols,
-          rows: input.rows,
-          exit: null,
           process: shellProcess(shell),
-          run: 1,
           agent: null,
           ready: null,
           activity: null,
@@ -1072,7 +1069,7 @@ export class Terminals {
       // A restored transcript stays saved until this shell's own screen replaces it.
       this.save(record, !saved)
       this.saveChanges()
-      return { ...record.summary }
+      return summaryOf(record)
     } finally {
       place.done()
       this.complete(ownerId, pending)
@@ -1090,7 +1087,7 @@ export class Terminals {
           (record) =>
             !record.closed && (sessionId === undefined || record.summary.sessionId === sessionId),
         )
-        .map((record) => [record.summary.id, { ...record.summary }] as const),
+        .map((record) => [record.summary.id, summaryOf(record)] as const),
     )
     let kept: readonly ListedTerminal[] = []
     this.persisting(() => {
@@ -1244,7 +1241,7 @@ export class Terminals {
   }
 
   get(terminalId: string): TerminalSummary {
-    return { ...this.record(terminalId).summary }
+    return summaryOf(this.record(terminalId))
   }
 
   write(input: { terminalId: string; data: string }, ownerId: string): void {
@@ -1369,7 +1366,7 @@ export class Terminals {
   /** The record of a terminal that is running, if it is. */
   private live(terminalId: string): Record | undefined {
     const record = this.records.get(terminalId)
-    return record && !record.terminal.exiting && record.summary.exit === null ? record : undefined
+    return record && !record.terminal.exiting && record.terminal.exit === null ? record : undefined
   }
 
   /** What murmur reads of the terminals and writes to them. */
@@ -1952,16 +1949,12 @@ export class Terminals {
                   summary: {
                     ...record.summary,
                     cwd,
-                    cols: input.cols,
-                    rows: input.rows,
-                    exit: null,
                     process: shellProcess(shell),
-                    run: record.summary.run + 1,
                     agent: null,
                     ready: null,
                     activity: null,
                     telemetry: null,
-                  } satisfies TerminalSummary,
+                  } satisfies AgentSummary,
                   foreground: undefined,
                   binding: null,
                   suspended: null,
@@ -1995,7 +1988,7 @@ export class Terminals {
             }
             this.announce(record)
             this.sampleProcesses()
-            return { ...record.summary }
+            return summaryOf(record)
           }
         },
       })
@@ -2904,7 +2897,7 @@ export class Terminals {
   private announce(record: Record): void {
     // A closed terminal's watchers already heard it is gone; its exit must not add it back.
     if (!record.closed)
-      for (const watcher of this.watchers.keys()) watcher.changed({ ...record.summary })
+      for (const watcher of this.watchers.keys()) watcher.changed(summaryOf(record))
     this.detailed(record)
   }
 
@@ -2946,7 +2939,7 @@ export class Terminals {
   private sample(): void {
     let running = false
     for (const record of this.records.values()) {
-      if (record.summary.exit !== null || record.terminal.exiting) continue
+      if (record.terminal.exit !== null || record.terminal.exiting) continue
       running = true
       record.foreground = sampleForeground(record.terminal.pty, record.foreground)
       const current = record.foreground.process
@@ -2986,7 +2979,7 @@ export class Terminals {
 
   private running(record: Record): void {
     if (
-      record.summary.exit !== null ||
+      record.terminal.exit !== null ||
       record.terminal.exiting ||
       this.host.closing(record.summary.id)
     )
@@ -3112,9 +3105,9 @@ export class Terminals {
       // Once on the screen: a save while it was drawing may have taken the screen before.
       record.changed = true
     })
-    terminal.on("exit", (exit) => this.exited(record, exit))
-    terminal.on("resized", ({ cols, rows }) => {
-      record.summary = { ...record.summary, cols, rows }
+    terminal.on("exit", () => this.exited(record))
+    // Its summary's size is the terminal's own, drawn now.
+    terminal.on("resized", () => {
       this.announce(record)
     })
     // A harness may tell by the title it sets that its prompt shows.
@@ -4420,7 +4413,7 @@ export class Terminals {
   }
 
   /** The shell exited: the agent layer lets go of it, before its viewers read the exit. */
-  private exited(record: Record, exit: TerminalExit): void {
+  private exited(record: Record): void {
     record.binding = null
     record.root = null
     record.activity = null
@@ -4434,7 +4427,6 @@ export class Terminals {
     this.dialogs.forget(record.summary.id)
     record.summary = {
       ...record.summary,
-      exit,
       process: null,
       agent: null,
       ready: null,

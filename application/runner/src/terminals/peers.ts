@@ -1,6 +1,6 @@
 import { basename, isAbsolute, relative } from "node:path"
 
-import type { CompanionItem, TerminalMessages, TerminalSummary } from "@novadeck/protocol"
+import type { CompanionItem, TerminalMessages } from "@novadeck/protocol"
 
 import { planTitle } from "../companions/content.js"
 import { secret } from "../companions/secrets.js"
@@ -13,11 +13,13 @@ import type { HintFacts } from "../voice/hint.js"
 import { gitBranch } from "./branch.js"
 import type { Naming } from "./naming.js"
 import type { Facts } from "./nudges.js"
+import type { AgentSummary } from "./summary.js"
 import { busiestFolders, shorten, type Work } from "./work.js"
 
 /** What the terminal manager tells of a terminal, for its agent to message others. */
 export type PeerTerminal = {
-  readonly summary: TerminalSummary
+  /** Its summary as the agent layer keeps it: what its host keeps, as its size, isn't read. */
+  readonly summary: AgentSummary
   readonly naming: Naming
   readonly work: Work | null
   readonly activity: Activity | null

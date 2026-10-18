@@ -151,6 +151,10 @@ export type Terminal = {
   readonly exiting: boolean
   /** The current run's exit, once handled; null while it runs. */
   readonly exit: Exit | null
+  /** Which run this is: 1 at the first, one more for each restart. */
+  readonly run: number
+  /** The screen's size: its run's spec's, then as each resize leaves it once drawn. */
+  readonly size: { readonly cols: number; readonly rows: number }
   /** The current run's exit, once handled. */
   readonly exited: Promise<void>
   /**
@@ -260,6 +264,7 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
 
   let size = { cols: options.spec.cols, rows: options.spec.rows }
   let resizedAt = 0
+  let runs = 1
   let gone = false
   // The hold in force: the person's keys it holds (null once released), whether they count
   // only once delivered, when its resizes may apply at the earliest (epoch milliseconds,
@@ -592,6 +597,12 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
     get exit() {
       return exit
     },
+    get run() {
+      return runs
+    },
+    get size() {
+      return size
+    },
     get exited() {
       return run.exited
     },
@@ -697,6 +708,7 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
       dispose()
       run = started
       size = { cols: spec.cols, rows: spec.rows }
+      runs += 1
       exit = null
       exiting = false
       held = null

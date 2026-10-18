@@ -1301,6 +1301,32 @@ describe("a terminal in Windows' ConPTY", () => {
   })
 })
 
+describe("a terminal's summary", () => {
+  it("tells its size, exit and run as its host has them, wherever it's read", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const watch = terminals.watch(manager, "watcher")
+    const id = randomUUID()
+    await manager.create({ id, sessionId: "session", cwd, cols: 80, rows: 24 }, "owner")
+    await watch.until((change) => change.type === "synced")
+    const agree = () => {
+      const got = manager.get(id)
+      expect(manager.list().find((terminal) => terminal.id === id)).toEqual(got)
+      return got
+    }
+    manager.resize({ terminalId: id, cols: 100, rows: 30 }, "owner")
+    await watch.until((change) => changed(id)(change) && change.terminal.cols === 100)
+    expect(agree()).toMatchObject({ cols: 100, rows: 30, exit: null, run: 1 })
+    manager.write({ terminalId: id, data: command({ type: "exit", code: 4 }) }, "owner")
+    await watch.until((change) => changed(id)(change) && change.terminal.exit !== null)
+    expect(agree()).toMatchObject({ cols: 100, rows: 30, exit: { code: 4 }, run: 1 })
+    const restarted = await manager.restart({ terminalId: id, cols: 90, rows: 20 }, "owner")
+    expect(restarted).toMatchObject({ cols: 90, rows: 20, exit: null, run: 2 })
+    expect(agree()).toEqual(restarted)
+  })
+})
+
 describe("terminal restart", () => {
   it("starts a fresh shell in the same exited terminal and grants the caller control", async ({
     terminals,
