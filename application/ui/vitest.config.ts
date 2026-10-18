@@ -54,7 +54,11 @@ export default mergeConfig(
           test: {
             name: "behaviour",
             // The specs, and the browser checks of modules that need a real one, as WebGL does.
-            include: ["src/specs/**/*.spec.tsx", "src/backend/runner/renderer.spec.ts"],
+            include: [
+              "src/specs/**/*.spec.tsx",
+              "src/backend/runner/renderer.spec.ts",
+              "src/backend/demo/screen/screen.spec.ts",
+            ],
             exclude: ["src/specs/motion.spec.tsx", "src/specs/counters/**"],
             setupFiles: ["./src/specs/setup.ts"],
             // Whole-app renders under CI load can take longer than the 1s default.

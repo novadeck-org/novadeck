@@ -2,6 +2,7 @@ import type { ChatDialog, ChatItem, ChatRequest, Conversation } from "#core/conv
 import type { AgentStatus } from "#core/types"
 
 import { chatAgents, type ChatAgent } from "./samples"
+import { clip, resultLines, statusLines, summary } from "./screen/agent"
 
 // What an agent's terminal shows after its intro, as the TUI would: the conversation
 // since the terminal opened, the dialog of the request that waits, and the status line.
@@ -12,33 +13,6 @@ export type AgentTail = {
   readonly status: readonly string[]
   // Changes whenever the tail grows, for the surface to scroll it into view.
   readonly mark: string
-}
-
-const working = {
-  claude: "✻ Working…",
-  codex: "• Working",
-  agy: "◆ Working…",
-} as const
-
-const plural = (count: number, noun: string): string => `${count} ${noun}${count === 1 ? "" : "s"}`
-
-const statusLines = (
-  agent: ChatAgent,
-  status: AgentStatus | undefined,
-  asking: boolean,
-): string[] => {
-  if (!status) return []
-  const lines: string[] = []
-  if (status.working && !asking) lines.push(`${working[agent]} (esc to interrupt)`)
-  if (status.planning) lines.push("⏸ plan mode on")
-  if (status.subagents?.length)
-    lines.push(`⏺ ${plural(status.subagents.length, "subagent")} running`)
-  const { agents = 0, tasks = 0 } = status.working ? {} : (status.background ?? {})
-  if (agents || tasks) {
-    const parts = [agents && plural(agents, "agent"), tasks && plural(tasks, "task")]
-    lines.push(`⏵ ${parts.filter(Boolean).join(", ")} running in the background`)
-  }
-  return lines
 }
 
 export const tailOf = (
@@ -57,33 +31,6 @@ export const tailOf = (
     status: lines,
     mark: `${items.length}|${request?.id ?? ""}${request?.answered ? "!" : ""}|${lines.length}`,
   }
-}
-
-const clip = (text: string, length: number): string =>
-  text.length > length ? `${text.slice(0, length)}…` : text
-
-// A tool call's input as one line: the argument people read it by, else its first line.
-const summary = (input: string): string => {
-  try {
-    const parsed: unknown = JSON.parse(input)
-    if (parsed && typeof parsed === "object") {
-      for (const name of ["command", "file_path", "path", "pattern", "query", "description"]) {
-        const value = (parsed as Record<string, unknown>)[name]
-        if (typeof value === "string") return clip(value.split("\n")[0]!, 90)
-      }
-    }
-  } catch {
-    // Not JSON: read it as text.
-  }
-  return clip(input.trim().split("\n")[0] ?? "", 90)
-}
-
-const resultLines = (item: ChatItem): string[] => {
-  const lines = item.text.split("\n").filter((line) => line.trim())
-  const shown = lines.slice(0, 3).map((line) => clip(line, 100))
-  return lines.length > 3 || item.truncated
-    ? [...shown.slice(0, -1), `${shown.at(-1) ?? ""}…`]
-    : shown
 }
 
 const Item = ({ item, agent }: { item: ChatItem; agent: ChatAgent }): React.JSX.Element => {
