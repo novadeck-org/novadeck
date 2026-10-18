@@ -113,11 +113,13 @@ export type BuiltAsset = {
 // `source("..")` is the only thing that reaches them (src/styles.css), and a scan that lost
 // a folder would drop its looks without failing anything else. Each is written in one file of
 // its folder only. The visitor build's demo has no utility of its own to name: its markup is
-// the debug panel's, so only the debug folder is guarded.
+// the debug panel's, so only the debug folder is guarded. Each utility is written here in two
+// halves: Tailwind scans this file too, and a whole copy would make the class itself, so the
+// check would pass however much the scan lost.
 export const scannedUtilities: readonly { readonly folder: string; readonly utility: string }[] = [
   {
     folder: "src/backend/demo/debug/",
-    utility: "h-[min(760px,calc(100vh-80px))]",
+    utility: ["h-[min(760px,", "calc(100vh-80px))]"].join(""),
   },
 ]
 
