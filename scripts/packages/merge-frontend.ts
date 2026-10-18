@@ -158,7 +158,7 @@ export const resolveMerge = (root: string, head: string): { done: string[]; left
       settle(file)
     } else if (!isText(file)) {
       left.push(
-        `${file}: both sides wrote it and it isn't text: choose one (git checkout --ours or --theirs)`,
+        `${file}: both sides wrote it and it isn't text: choose one (git checkout --ours or --theirs), then git add it`,
       )
     } else {
       // The branch's against main's, from main's commit that wrote it.
@@ -208,7 +208,7 @@ export const resolveMerge = (root: string, head: string): { done: string[]; left
         if (merged.status === 0) settle(file)
         else
           left.push(
-            `${file}: both sides changed the same lines: resolve the markers, then git add it`,
+            `${file}: both sides changed the same lines: resolve the markers, or take one side (git checkout --ours or --theirs), then git add it at once, as a rerun merges a file still unmerged again`,
           )
       } finally {
         rmSync(dir, { recursive: true, force: true })

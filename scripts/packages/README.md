@@ -265,8 +265,11 @@ can't account for:
 - **Only files both moves wrote are its to merge.** These are the files main's move commit and
   the branch's added new. Any other add/add, or a conflict with a base, is git's, and is left to
   you.
-- **A file the branch changed after its move** is left for you, with the diff to put back onto
-  main's: a package's manifest, or a generated file both sides changed.
+- **A manifest the branch changed after its move** is left for you, with the diff to put back
+  onto main's. A generated config both sides changed is merged by `git merge-file`, and left
+  for you only where both changed the same lines. Resolve it, or take a side with
+  `git checkout --ours` or `--theirs`, then `git add` it at once: a rerun merges a file that is
+  still unmerged again.
 - **A generated file one side deleted after its move**, which git would bring back from the
   other side, is named. Commit the merge as it is to keep it.
 - **A file that isn't text** is left for you to choose a side.
