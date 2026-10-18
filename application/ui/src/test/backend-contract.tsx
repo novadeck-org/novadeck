@@ -1,4 +1,4 @@
-import { act, type ReactNode } from "react"
+import { act } from "react"
 import { afterEach, vi } from "vitest"
 
 import { workspaceFromSeed } from "#core/seed"
@@ -12,10 +12,8 @@ import type {
   TerminalKey,
   TerminalMount,
   TerminalMountProps,
-  TerminalSurfaceProps,
 } from "../backend/port"
 import { context, describe, expect, it } from "../test"
-import { render, type Rendered } from "./render"
 
 // What the suite may observe about an adapter without going through the UI.
 export type BackendProbe = {
@@ -60,28 +58,12 @@ const commit = (backend: Backend, workspace: Workspace, actions: WorkspaceAction
   return next
 }
 
-const ignore = (): void => {}
-// The content alone, with no window around it.
-const bare = (content: ReactNode): ReactNode => content
-// Two windows of different component types, as two programs' bodies are: switching
-// between them remounts the content inside.
-const FirstWindow = ({ children }: { readonly children: ReactNode }): React.JSX.Element => (
-  <section data-window="first">{children}</section>
-)
-const SecondWindow = ({ children }: { readonly children: ReactNode }): React.JSX.Element => (
-  <article data-window="second">{children}</article>
-)
-const inFirst = (content: ReactNode): ReactNode => <FirstWindow>{content}</FirstWindow>
-const inSecond = (content: ReactNode): ReactNode => <SecondWindow>{content}</SecondWindow>
-
 // Checks the port contract in backend/port.ts against one adapter. Call it from the
 // adapter's colocated contract.test.ts.
 export const describeBackendContract = (name: string, options: BackendContractOptions): void => {
   const settle = options.settle ?? microtask
-  const mounted: Rendered[] = []
   const mountings: { readonly mount: TerminalMount; readonly element: HTMLElement }[] = []
   afterEach(() => {
-    mounted.splice(0).forEach((surface) => surface.unmount())
     mountings.splice(0).forEach(({ mount, element }) => {
       mount.dispose()
       element.remove()
@@ -102,39 +84,12 @@ export const describeBackendContract = (name: string, options: BackendContractOp
     const key: TerminalKey = { ...target, terminalId: terminal.id }
     const close = (): Workspace =>
       commit(backend, workspace, [{ type: "terminal/close", target, terminalId: terminal.id }])
-    const mountSurface = (props: Partial<TerminalSurfaceProps> = {}) => {
-      if (!("TerminalSurface" in backend)) throw new Error("This backend mounts its terminals")
-      const { TerminalSurface } = backend
-      const element = (next: Partial<TerminalSurfaceProps>) => (
-        <TerminalSurface
-          terminalKey={key}
-          terminal={terminal}
-          projectName={project.name}
-          view="focus"
-          fontSize={13}
-          focusInput={false}
-          onInputFocused={ignore}
-          renderWindow={bare}
-          {...props}
-          {...next}
-        />
-      )
-      const surface = render(element({}))
-      mounted.push(surface)
-      const root = surface.container.firstElementChild as HTMLElement
-      return {
-        ...surface,
-        root,
-        rerender: (next: Partial<TerminalSurfaceProps>) => surface.rerender(element(next)),
-      }
-    }
     // The terminal mounted into an element in the page, as the UI would, and unmounted after
     // the test.
     const mountInto = (
       props: Partial<TerminalMountProps> = {},
       element = document.body.appendChild(document.createElement("div")),
     ) => {
-      if (!("mountTerminal" in backend)) throw new Error("This backend renders its terminals")
       let current: TerminalMountProps = {
         name: terminal.name,
         status: terminal.state,
@@ -152,16 +107,12 @@ export const describeBackendContract = (name: string, options: BackendContractOp
         input: () => element.querySelector<HTMLTextAreaElement>("[data-terminal-input]"),
       }
     }
-    return { ...created, target, terminal, key, workspace, close, mount: mountSurface, mountInto }
+    return { ...created, target, terminal, key, workspace, close, mountInto }
   }
 
   // Only an adapter with `start` reports on its own, and it must bring a driver to test it.
   const probed = options.create().backend
   const starts = Boolean(probed.start)
-  // How it draws a terminal: into an element it is given, or as a component. Both backends
-  // mount now; the component's checks go with that shape in 3.2c.
-  const mounts = "mountTerminal" in probed
-  const surfaces = "TerminalSurface" in probed
 
   describe(`${name} backend contract`, () => {
     context("before the app mounts", () => {
@@ -231,57 +182,17 @@ export const describeBackendContract = (name: string, options: BackendContractOp
         expect(held()).toBeUndefined()
       })
 
-      it("offers exactly one terminal shape, kept for the backend's lifetime", () => {
+      it("keeps its terminal mount for the backend's lifetime, and takes the font", () => {
         const { backend } = options.create()
-        expect("mountTerminal" in backend).not.toBe("TerminalSurface" in backend)
-        if ("mountTerminal" in backend) expect(backend.setFont).toBeTypeOf("function")
-        const shape = "mountTerminal" in backend ? backend.mountTerminal : backend.TerminalSurface
+        expect(backend.setFont).toBeTypeOf("function")
+        const mount = backend.mountTerminal
         backend.commit(seeded(backend), [])
-        expect("mountTerminal" in backend ? backend.mountTerminal : backend.TerminalSurface).toBe(
-          shape,
-        )
-      })
-    })
-
-    // The first mounts the terminal surface cold, which took 14 s on a busy Windows runner.
-    context.skipIf(!surfaces)("when its surface renders", { timeout: 30_000 }, () => {
-      it("marks the content root for view transitions, layout styles and Canvas", () => {
-        const { root } = withTerminal().mount()
-        expect(root.hasAttribute("data-terminal-content")).toBe(true)
-        expect([...root.classList]).toEqual(
-          expect.arrayContaining(["terminal-content", "nodrag", "nopan"]),
-        )
-        expect(root.hidden).toBe(false)
-        expect(root.getAttribute("aria-hidden")).not.toBe("true")
-        expect(root.hasAttribute("inert")).toBe(false)
-      })
-
-      it("marks exactly one element as the typed input", () => {
-        const { root } = withTerminal().mount()
-        expect(root.querySelectorAll("[data-terminal-input]")).toHaveLength(1)
-      })
-
-      it("keeps plain wheel scrolling to itself and lets zoom gestures through", () => {
-        const { root, container } = withTerminal().mount()
-        const reached: boolean[] = []
-        container.addEventListener("wheel", (event) => reached.push(event.ctrlKey))
-        root.dispatchEvent(new WheelEvent("wheel", { bubbles: true }))
-        root.dispatchEvent(new WheelEvent("wheel", { bubbles: true, ctrlKey: true }))
-        expect(reached).toEqual([true])
-      })
-
-      it("focuses its input when asked and reports it", () => {
-        const onInputFocused = vi.fn<() => void>()
-        const surface = withTerminal().mount({ onInputFocused })
-        expect(onInputFocused).not.toHaveBeenCalled()
-        surface.rerender({ onInputFocused, focusInput: true })
-        expect(document.activeElement).toBe(surface.root.querySelector("[data-terminal-input]"))
-        expect(onInputFocused).toHaveBeenCalled()
+        expect(backend.mountTerminal).toBe(mount)
       })
     })
 
     // The first mounts the terminal cold, which took 14 s on a busy Windows runner.
-    context.skipIf(!mounts)("when its terminal mounts", { timeout: 30_000 }, () => {
+    context("when its terminal mounts", { timeout: 30_000 }, () => {
       it("puts exactly one typed input in its element, and none outside it", () => {
         const { element, input } = withTerminal().mountInto()
         expect(element.querySelectorAll("[data-terminal-input]")).toHaveLength(1)
@@ -407,7 +318,6 @@ export const describeBackendContract = (name: string, options: BackendContractOp
 
       it("takes the font before and after it mounts, starting no I/O", async () => {
         const { backend, probe, mountInto } = withTerminal()
-        if (!("setFont" in backend)) throw new Error("A mounting backend takes the font")
         const io = [...probe.io()]
         expect(() => backend.setFont({ size: 15 })).not.toThrow()
         expect(probe.io()).toEqual(io)
@@ -450,30 +360,6 @@ export const describeBackendContract = (name: string, options: BackendContractOp
       })
     })
 
-    context.skipIf(!surfaces)("when the UI wraps its content in a window", () => {
-      it("renders its one content element inside the window", () => {
-        const { container } = withTerminal().mount({ renderWindow: inFirst })
-        const window = container.querySelector("[data-window=first]")!
-        expect(window.querySelectorAll("[data-terminal-content]")).toHaveLength(1)
-        expect(container.querySelectorAll("[data-terminal-content]")).toHaveLength(1)
-      })
-
-      it("keeps the terminal and starts no I/O when the window changes and back", async () => {
-        const { probe, key, mount } = withTerminal()
-        const surface = mount({ renderWindow: inFirst })
-        await act(settle)
-        const io = [...probe.io()]
-        for (const renderWindow of [inSecond, inFirst]) {
-          surface.rerender({ renderWindow })
-          // eslint-disable-next-line no-await-in-loop -- Each change settles before the next.
-          await act(settle)
-          expect(surface.container.querySelectorAll("[data-terminal-content]")).toHaveLength(1)
-        }
-        expect(probe.holds(key)).toBe(true)
-        expect(probe.io()).toEqual(io)
-      })
-    })
-
     context("when the UI closes a terminal", () => {
       it("lets go of it and does not repeat the close on later commits", async () => {
         const { backend, probe, key, close } = withTerminal()
@@ -485,43 +371,6 @@ export const describeBackendContract = (name: string, options: BackendContractOp
         await settle()
         expect(probe.io()).toEqual(io)
       })
-
-      it.skipIf(!surfaces)(
-        "ignores input from a surface that was mounted before the close",
-        async () => {
-          const { probe, key, close, mount } = withTerminal()
-          const { root } = mount()
-          await act(async () => {
-            close()
-            await settle()
-          })
-          const io = [...probe.io()]
-          const errors: unknown[] = []
-          const report = (event: ErrorEvent): void => {
-            event.preventDefault()
-            errors.push(event.error)
-          }
-          window.addEventListener("error", report)
-          try {
-            const input = root.querySelector<HTMLElement>("[data-terminal-input]")!
-            const setValue = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), "value")
-            await act(async () => {
-              setValue?.set?.call(input, "echo stale")
-              input.dispatchEvent(new Event("input", { bubbles: true }))
-              input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
-              input
-                .closest("form")
-                ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
-              await settle()
-            })
-          } finally {
-            window.removeEventListener("error", report)
-          }
-          expect(errors).toEqual([])
-          expect(probe.holds(key)).toBe(false)
-          expect(probe.io()).toEqual(io)
-        },
-      )
     })
 
     context("when the far side reports terminal status", () => {

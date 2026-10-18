@@ -52,7 +52,6 @@ export const visitorDemo = ({
   })
   const storied = story.wrap(withConversations(base, story.transcripts, turns))
   const backend = ambient && !still ? life.wrap(storied) : storied
-  if (!("mountTerminal" in backend)) throw new Error("The demo mounts its terminals")
   return {
     seed: backend.seed,
     newTerminal: backend.newTerminal,

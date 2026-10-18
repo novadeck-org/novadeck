@@ -152,7 +152,7 @@ export const demoBackend = (
 export const demoTerminalsLife = (
   backend: Backend,
 ): { readonly start: () => void; readonly stop: () => void } | undefined => {
-  const terminals = "mountTerminal" in backend ? terminalsOf.get(backend.mountTerminal) : undefined
+  const terminals = terminalsOf.get(backend.mountTerminal)
   return terminals && { start: terminals.start, stop: terminals.stop }
 }
 
@@ -278,7 +278,7 @@ export const withConversations = (
     conversations,
     opening: chat.opening,
   }
-  const terminals = "mountTerminal" in backend ? terminalsOf.get(backend.mountTerminal) : undefined
+  const terminals = terminalsOf.get(backend.mountTerminal)
   if (!terminals) throw new Error("withConversations wraps a backend demoBackend made")
   terminals.link(link)
   const linked: Backend = {

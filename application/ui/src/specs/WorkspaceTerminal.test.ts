@@ -64,7 +64,6 @@ const open = async (id: string) => {
     phase("before backend creation")
     const backend = createSpecBackend()
     phase("after backend creation")
-    if (!("mountTerminal" in backend)) throw new Error("The spec backend mounts its terminals")
     // Counts the terminal's mounts, which a program starting or ending must not redo.
     const mountTerminal: MountTerminal = (element, key, props) => {
       lifecycle.mounted += 1
