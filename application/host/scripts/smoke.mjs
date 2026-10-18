@@ -192,7 +192,22 @@ try {
   const result = await page.evaluate(
     async ({ cwd, typed }) => {
       const { connectRunner, desktop } = globalThis.novadeckClient
-      const runner = await connectRunner(desktop())
+      // How long the first connection took, and why it failed: a runner slow to start
+      // reads differently from one that never answers.
+      const started = performance.now()
+      let runner
+      try {
+        runner = await connectRunner(desktop())
+      } catch (error) {
+        return {
+          connect: {
+            ms: Math.round(performance.now() - started),
+            code: error?.code,
+            message: String(error?.message ?? error),
+            cause: String(error?.cause?.message ?? error?.cause ?? ""),
+          },
+        }
+      }
       globalThis.smoke = runner
       const project = await runner.projects.create({ id: crypto.randomUUID(), name: "Smoke", cwd })
       const session = await runner.sessions.create({
@@ -223,6 +238,11 @@ try {
     },
     { cwd: work, typed: input },
   )
+  if (result.connect)
+    fail(
+      `The page could not reach the packaged runner after ${result.connect.ms} ms: ` +
+        `${result.connect.message} (${result.connect.code}), caused by: ${result.connect.cause || "nothing given"}`,
+    )
   if (!result.answered) fail(`The packaged shell did not answer: ${JSON.stringify(result.tail)}`)
   console.log("A shell in the packaged app answered through the runner.")
 
