@@ -4,7 +4,7 @@ import { emptyInbox, type Inbox, type InboxAnswer, type InboxItem } from "#core/
 import { createStore } from "#core/store"
 
 import { describe, expect, it } from "../test"
-import { render } from "../test/render"
+import { nextFrame, render } from "../test/render"
 import { InboxList } from "./InboxList"
 import { InboxProvider } from "./InboxProvider"
 import { InboxSheet } from "./InboxSheet"
@@ -59,24 +59,26 @@ const mount = (item: InboxItem) => {
 }
 
 describe("A usage limit's sheet", () => {
-  it("offers the auto-resume switch where Novadeck can resume the agent", () => {
+  it("offers the auto-resume switch where Novadeck can resume the agent", async () => {
     const open = mount(limit(true, Date.now() + 3_600_000))
 
     expect(
       document.querySelector('.inbox-sheet [role="switch"], .inbox-sheet input'),
     ).not.toBeNull()
+    await nextFrame()
     open.view.unmount()
   })
 
-  it("offers no switch where Novadeck can't, and says it stays stopped", () => {
+  it("offers no switch where Novadeck can't, and says it stays stopped", async () => {
     const open = mount(limit(null, Date.now() + 3_600_000))
 
     expect(document.querySelector(".inbox-switch-row")).toBeNull()
     expect(open.sheet()).toContain("It stays stopped until you continue it.")
+    await nextFrame()
     open.view.unmount()
   })
 
-  it("offers Continue once the limit has reset", () => {
+  it("offers Continue once the limit has reset", async () => {
     const open = mount(limit(null, Date.now() - 60_000))
     const button = Array.from(
       document.querySelectorAll<HTMLButtonElement>(".inbox-sheet button"),
@@ -84,14 +86,16 @@ describe("A usage limit's sheet", () => {
     act(() => button.click())
 
     expect(open.sent).toEqual([{ kind: "trouble", action: { type: "continue" } }])
+    await nextFrame()
     open.view.unmount()
   })
 
-  it("names a window of unknown length plainly", () => {
+  it("names a window of unknown length plainly", async () => {
     const open = mount(limit(null, Date.now() + 3_600_000, 0))
 
     expect(open.sheet()).toContain("used up its usage window")
     expect(open.sheet()).not.toContain("0-hour")
+    await nextFrame()
     open.view.unmount()
   })
 })

@@ -2,11 +2,15 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { normalisedText, promptRefusal, shellCommand } from "@novadeck/protocol"
+import {
+  bracketedPaste,
+  type HoldBudget,
+  type InputEntry,
+  type InputQueue,
+} from "@novadeck/tui-input"
 import { isEmpty, sameText, wrappedRows, type BoxProfile } from "@novadeck/tui-input/box"
 
 import { DomainError } from "../errors.js"
-import type { HoldBudget, InputEntry, InputQueue } from "./input-queue.js"
-import { bracketedPaste } from "./ring.js"
 
 /** What prompts need of the terminal manager and messaging, by terminal. */
 export type PromptHost = {

@@ -266,7 +266,8 @@ A theme's rules may select:
     outlines fall outside the clip or under its content;
 - `.terminal-content`, the terminal's output, which a theme may filter.
 
-A theme may also apply the SVG filters `index.html` carries, by id: Chromium applies
+A theme may also apply the SVG filters every app's page carries (`index.html`, and each
+entry's copy of it in `entries/`, which `src/deploy.test.ts` keeps the same), by id: Chromium applies
 only filters in the page itself, so a theme file can't bring its own. `crt-barrel`
 bulges an element like a tube's face, by the same pixels whatever its size; it moves
 pixels without moving clicks, so apply it where a few pixels' error near the edge does

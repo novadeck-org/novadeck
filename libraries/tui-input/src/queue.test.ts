@@ -1,7 +1,8 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
-import { describe, expect, it } from "../test.js"
-import { InputQueue, type HoldBudget, type InputHold } from "./input-queue.js"
+import { describe, expect, it } from "vitest"
+
+import { InputQueue, type HoldBudget, type InputHold } from "./queue.js"
 
 /** A queue over a terminal host that records its holds: who took them, with what, and their end. */
 const queued = () => {

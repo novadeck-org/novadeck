@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { headersFile } from "@novadeck/build-kit/hosting-headers"
@@ -8,15 +8,31 @@ import { context, describe, expect, it } from "./test"
 
 const env = (values: Record<string, string> = {}) => values
 
+// Each entry's page: the desktop app's at the package's root, the others in entries/.
+const pages = [
+  "index.html",
+  ...readdirSync(join(process.cwd(), "entries")).map((name) => join("entries", name, "index.html")),
+].map((path) => ({ path, html: readFileSync(join(process.cwd(), path), "utf8") }))
+
 describe("frontend Content Security Policy", () => {
-  it("runs only same-origin script files, so the theme's boot script is one too", () => {
-    const html = readFileSync(join(process.cwd(), "index.html"), "utf8")
-    expect(html).toContain("script-src 'self';")
-    expect(html).toContain('<script src="./theme-boot.js"></script>')
-    // Every script has a source; none is inline.
-    expect([...html.matchAll(/<script\b[^>]*>/g)].every(([tag]) => tag.includes(" src="))).toBe(
-      true,
-    )
+  it.each(pages)(
+    "runs only same-origin script files in $path, the theme's boot script too",
+    ({ html }) => {
+      expect(html).toContain("script-src 'self';")
+      expect(html).toContain('<script src="./theme-boot.js"></script>')
+      // Every script has a source; none is inline.
+      expect([...html.matchAll(/<script\b[^>]*>/g)].every(([tag]) => tag.includes(" src="))).toBe(
+        true,
+      )
+    },
+  )
+
+  it("gives every entry's page the same document, but for the script it starts", () => {
+    // The theme's boot script, the policy and the SVG filters are every app's.
+    const shared = (html: string) =>
+      html.replace(/<script type="module" src="[^"]*"><\/script>/, "")
+    expect(pages.length).toBe(4)
+    for (const page of pages) expect(shared(page.html)).toBe(shared(pages[0]!.html))
   })
 
   context("for a standalone production build", () => {

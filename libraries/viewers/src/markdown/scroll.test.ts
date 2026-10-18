@@ -8,6 +8,9 @@ const scrollers: HTMLElement[] = []
 // A measured editor whose line moves when a late font or resize changes its layout.
 const setup = () => {
   let lineTop = 200
+  // How much of its height the page shows the editor at, and the zoom the editor last measured.
+  let zoom = 1
+  let measured = 1
   const frames = new Map<number, FrameRequestCallback>()
   let frame = 0
   const observers = new Set<() => void>()
@@ -45,13 +48,18 @@ const setup = () => {
   document.body.append(scroller)
   scrollers.push(scroller)
   Object.defineProperty(dom, "offsetHeight", { value: 1000 })
-  dom.getBoundingClientRect = () => ({ height: 1000 }) as DOMRect
+  dom.getBoundingClientRect = () => ({ height: 1000 * zoom }) as DOMRect
+  const requestMeasure = vi.fn<() => void>()
   const view = {
     dom,
     state: { doc: { length: 1000 } },
     get documentTop() {
-      return -scroller.scrollTop
+      return -scroller.scrollTop * zoom
     },
+    get scaleY() {
+      return measured
+    },
+    requestMeasure,
     get contentHeight() {
       return lineTop + 800
     },
@@ -72,7 +80,27 @@ const setup = () => {
     for (const run of observers) run()
     settle()
   }
-  return { scroller, frames, observers, restore, done, settle, resize }
+  // The page zooms the editor, which measures its lines at that zoom only later.
+  const zoomTo = (to: number) => {
+    zoom = to
+  }
+  const measure = () => {
+    measured = zoom
+    lineTop *= zoom
+  }
+  return {
+    scroller,
+    frames,
+    observers,
+    restore,
+    done,
+    settle,
+    resize,
+    tick,
+    zoomTo,
+    measure,
+    requestMeasure,
+  }
 }
 
 afterEach(() => {
@@ -89,6 +117,18 @@ describe("restoring a scroll", () => {
     app.resize()
     expect(app.scroller.scrollTop).toBe(300)
     expect(app.frames.size).toBe(0)
+  })
+
+  it("waits for the editor to measure at a new zoom, however late, before it settles", () => {
+    const app = setup()
+    app.zoomTo(0.5)
+    // The page is too busy for the editor's measure: its lines are still the old zoom's.
+    for (let time = 0; time <= 300; time += 20) app.tick(time)
+    expect(app.requestMeasure).toHaveBeenCalled()
+    expect(app.scroller.scrollTop).toBe(0)
+    app.measure()
+    for (let time = 320; time <= 900; time += 20) app.tick(time)
+    expect(app.scroller.scrollTop).toBe(200)
   })
 
   it("leaves a deliberate scroll alone when layout changes later", () => {

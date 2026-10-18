@@ -1,3 +1,5 @@
+import type { KeyKind } from "@novadeck/tui-input"
+
 /**
  * How a terminal's agent can take a message now, one state machine per terminal (see
  * docs/agent-messaging.md, "States"). Every terminal with an agent is in one state at
@@ -202,15 +204,6 @@ export const firing = (
   firedAt === undefined
     ? { at, windowMs: submitWindowMs + slackMs }
     : { at: firedAt + firedClockMs, windowMs: submitWindowMs + firedClockMs }
-
-/**
- * A key the person sent, as `terminals/keys.ts` tells it: a bare Enter, a harness's queue
- * key, one that never changes a draft (Left, Home, End: input wherever the person has no
- * draft of their own, as no caret moves there and what it does is the harness's own),
- * Escape, which never changes it either but may interrupt the agent's turn, one that may
- * take a prompt suggestion into an empty box (Right, Tab), or content.
- */
-export type KeyKind = "enter" | "queue" | "neutral" | "escape" | "accept" | "content"
 
 /**
  * What changes a terminal's delivery:

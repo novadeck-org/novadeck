@@ -1,3 +1,5 @@
+import type { KeyKind } from "@novadeck/tui-input"
+
 import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it } from "../test.js"
 import {
@@ -14,7 +16,6 @@ import {
   unbound,
   type Delivery,
   type DeliveryEvent,
-  type KeyKind,
 } from "./delivery.js"
 
 const run = (from: Delivery, ...events: (DeliveryEvent | readonly DeliveryEvent[])[]): Delivery =>

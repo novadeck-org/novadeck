@@ -1,5 +1,6 @@
 {
-  "source": "Probed 2026-10-01 in a PTY, the screen's text before and after a bracketed paste of the doorbell line with nonce n7Q2 (docs/agent-messaging.md, The doorbell).",
+  "source": "Probed 2026-10-01 in a PTY, the screen's text before and after a bracketed paste of a line with nonce n7Q2.",
+  "line": "[Novadeck: automatic notice, agent messages waiting, n7Q2]",
   "pairs": [
     {
       "name": "empty prompt, width 60, the box growing up",
@@ -106,7 +107,7 @@
     },
     {
       "name": "first screen, its logo erased as the line lands, width 120",
-      "source": "Captured 2026-10-02 in the e2e sandbox (Codex 0.159.3 against the fake model), Ready at its first screen; the path, model and nonce replaced to match the probes.",
+      "source": "Captured 2026-10-02 in a sandbox against a fake model, at the program's first screen; the path, model and nonce replaced to match the probes.",
       "expected": "accept",
       "before": {
         "height": 40,
