@@ -24,3 +24,9 @@ export const render = (element: ReactElement): Rendered => {
     },
   }
 }
+
+// Lets the next animation frame run, inside act: what a component deferred to it, as Ark's
+// layers look up their element a frame after opening, is done before the test goes on, and
+// before an unmount leaves it nothing to find.
+export const nextFrame = (): Promise<void> =>
+  act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())))

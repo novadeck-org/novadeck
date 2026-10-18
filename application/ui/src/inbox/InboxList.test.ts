@@ -4,7 +4,7 @@ import { emptyInbox, type Inbox, type InboxItem, type InboxState } from "#core/i
 import { createStore } from "#core/store"
 
 import { context, describe, expect, it } from "../test"
-import { render } from "../test/render"
+import { nextFrame, render } from "../test/render"
 import { HeldPill, InboxList } from "./InboxList"
 import { InboxProvider } from "./InboxProvider"
 import { InboxSheet } from "./InboxSheet"
@@ -104,16 +104,17 @@ const mount = (items: readonly InboxItem[]) => {
 
 describe("The Inbox's list", () => {
   context("when nothing waits", () => {
-    it("says so", () => {
+    it("says so", async () => {
       const inbox = mount([])
 
       expect(inbox.view.container.textContent).toContain("Nothing needs you")
+      await nextFrame()
       inbox.view.unmount()
     })
   })
 
   context("when an item arrives with no sheet open", () => {
-    it("joins the list at once", () => {
+    it("joins the list at once", async () => {
       const inbox = mount([permission("a", 1)])
       inbox.arrive(permission("b", 2))
 
@@ -121,22 +122,24 @@ describe("The Inbox's list", () => {
         ["Run `a`?", "Run `b`?"].map((each) => each.replaceAll("`", "")),
       )
       expect(inbox.pill()).toBeNull()
+      await nextFrame()
       inbox.view.unmount()
     })
   })
 
   context("when an item arrives while a sheet is open", () => {
-    it("is held: the list stays as it was, and the header counts it", () => {
+    it("is held: the list stays as it was, and the header counts it", async () => {
       const inbox = mount([permission("a", 1), permission("b", 2)])
       inbox.open("a")
       inbox.arrive(permission("c", 3))
 
       expect(inbox.subjects()).toHaveLength(2)
       expect(inbox.pill()?.textContent).toBe("1 new · show")
+      await nextFrame()
       inbox.view.unmount()
     })
 
-    it("joins when the pill is pressed, while the sheet stays open", () => {
+    it("joins when the pill is pressed, while the sheet stays open", async () => {
       const inbox = mount([permission("a", 1)])
       inbox.open("a")
       inbox.arrive(permission("c", 3))
@@ -145,10 +148,11 @@ describe("The Inbox's list", () => {
       expect(inbox.subjects()).toHaveLength(2)
       expect(inbox.pill()).toBeNull()
       expect(document.querySelector(".inbox-sheet")).not.toBeNull()
+      await nextFrame()
       inbox.view.unmount()
     })
 
-    it("joins, marked as arrived, when the sheet closes on Esc", () => {
+    it("joins, marked as arrived, when the sheet closes on Esc", async () => {
       const inbox = mount([permission("a", 1)])
       inbox.open("a")
       inbox.arrive(permission("c", 3))
@@ -158,27 +162,36 @@ describe("The Inbox's list", () => {
       expect(
         inbox.view.container.querySelector('[data-inbox-item="c"]')?.getAttribute("data-arrived"),
       ).toBe("true")
+      await nextFrame()
       inbox.view.unmount()
     })
   })
 
   context("when moving with j and k", () => {
-    it("opens the item below and above, within the list", () => {
+    it("opens the item below and above, within the list", async () => {
       const inbox = mount([permission("a", 1), permission("b", 2), permission("c", 3)])
       inbox.open("a")
+      await nextFrame()
       const current = (): string | null =>
         inbox.view.container
           .querySelector('[aria-current="true"]')
           ?.closest("[data-inbox-item]")
           ?.getAttribute("data-inbox-item") ?? null
 
-      inbox.press("j")
+      // A frame between keys, as a person's presses have: each sheet opened finds itself.
+      const press = async (key: string) => {
+        inbox.press(key)
+        await nextFrame()
+      }
+      await press("j")
       expect(current()).toBe("b")
+      // Two quick presses, with no frame between them, still both move.
       inbox.press("j")
-      inbox.press("j")
+      await press("j")
       expect(current()).toBe("c")
-      inbox.press("k")
+      await press("k")
       expect(current()).toBe("b")
+      await nextFrame()
       inbox.view.unmount()
     })
   })
