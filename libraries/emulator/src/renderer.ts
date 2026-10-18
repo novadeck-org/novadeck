@@ -1,4 +1,5 @@
-import { WebglAddon, type IEvent, type Terminal } from "@novadeck/emulator/browser"
+import { WebglAddon } from "@xterm/addon-webgl"
+import type { IEvent, Terminal } from "@xterm/xterm"
 
 // xterm draws with its DOM renderer unless the WebGL addon takes over, which costs a
 // fraction of the main thread's time on a busy page of terminals. This module is all the WebGL

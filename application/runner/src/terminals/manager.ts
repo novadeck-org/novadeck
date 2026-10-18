@@ -83,13 +83,8 @@ import {
   type Line,
   type ShellLaunch,
 } from "@novadeck/terminal/shell"
-import {
-  freshNonce,
-  InputQueue,
-  keysOf,
-  type HoldBudget,
-  type InputHold,
-} from "@novadeck/tui-input"
+import { freshNonce, InputQueue, keysOf } from "@novadeck/tui-input"
+import type { HoldBudget, InputHold } from "@novadeck/tui-input"
 import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
 import { Latest } from "@novadeck/wire/server"
 
