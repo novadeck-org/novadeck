@@ -48,7 +48,7 @@ const store = /\/application\/ui\/src\/core\/store\.ts$/
 // The transport: oRPC, the wire library, the protocol's client side of it, and the UI's
 // handling of a terminal's events as they arrive.
 const transport =
-  /\/@orpc\/|\/libraries\/wire\/(?:src|dist)\/|\/application\/protocol\/(?:src|dist)\/(?:client|runner|desktop|bridge|schemas|errors|contract)\.[jt]s$|\/application\/ui\/src\/backend\/runner\/follow\.ts$/
+  /\/@orpc\/|\/libraries\/wire\/(?:src|dist)\/|\/application\/protocol\/(?:src|dist)\/(?:client|runner|desktop|bridge|schemas|errors|contract)\.[jt]s$|\/libraries\/terminal\/(?:src|dist)\/view\/follow\.[jt]s$/
 
 /**
  * Where a frame's function is: `file`, the source the UI's build bundled (a package's own

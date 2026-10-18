@@ -27,7 +27,7 @@ export const NodeVisibilityContext = createContext<NodeVisibility>({
 
 // How long a node out of sight waits before its content stops being laid out: past the 5 s
 // a runner screen nobody shows keeps following before it parks (`parkMs`, in
-// backend/runner/screens.ts, which a layout does not import), so the screen has measured and
+// libraries/terminal/src/view/screens.ts, which a layout does not import), so the screen has measured and
 // parked first.
 const hideMs = 6_000
 

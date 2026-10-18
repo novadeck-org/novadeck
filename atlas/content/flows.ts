@@ -115,7 +115,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "key → xterm data",
         text: "xterm turns the key into data, and the screen passes it on unless the shell has exited.",
         anchor: {
-          file: `${ui}/backend/runner/screens.ts`,
+          file: "libraries/terminal/src/view/screens.ts",
           text: "const input = xterm.onData(send)",
         },
       },
@@ -182,7 +182,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "xterm draws chunk",
         text: "The UI writes the chunk into xterm, which draws it.",
         anchor: {
-          file: `${ui}/backend/runner/follow.ts`,
+          file: "libraries/terminal/src/view/follow.ts",
           text: 'else if (event.type === "output") await screen.write(event.data)',
         },
       },

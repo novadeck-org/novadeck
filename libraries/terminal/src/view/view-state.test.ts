@@ -1,4 +1,5 @@
-import { describe, expect, it } from "../../test"
+import { describe, expect, it } from "vitest"
+
 import {
   lockOf,
   nextViewState,
@@ -6,7 +7,7 @@ import {
   type ViewFacts,
   type ViewLink,
   type ViewPhase,
-} from "./view-state"
+} from "./view-state.js"
 
 const facts = (link: ViewLink, phase: ViewPhase): ViewFacts => ({ link, phase })
 const stream = (live = false, resuming = false, waits = false) => ({ live, resuming, waits })

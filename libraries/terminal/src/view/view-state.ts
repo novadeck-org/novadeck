@@ -11,6 +11,27 @@ export type Store<S> = {
 // value notifies nobody.
 export type MutableStore<S> = Store<S> & { readonly update: (change: (state: S) => S) => S }
 
+// The views' own store, for an owner with none to inject: the same rule as the app's, a
+// change that returns the same value notifies nobody.
+export const createStore = <S>(initial: S): MutableStore<S> => {
+  let snapshot = initial
+  const listeners = new Set<() => void>()
+  return {
+    getSnapshot: () => snapshot,
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    update: (change) => {
+      const next = change(snapshot)
+      if (Object.is(next, snapshot)) return snapshot
+      snapshot = next
+      listeners.forEach((listener) => listener())
+      return snapshot
+    },
+  }
+}
+
 // The shell's stage as the screen needs it: waiting to start, running, or ended and taking
 // only Enter, to start again.
 export type ViewPhase = "starting" | "running" | "ended"

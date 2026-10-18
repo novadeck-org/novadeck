@@ -1,8 +1,9 @@
 import "./runner.css"
+import type { Hold, TerminalViews } from "@novadeck/terminal/view"
+import type { ViewPhase } from "@novadeck/terminal/view"
+
 import type { TerminalKey, TerminalMountProps, MountTerminal, ViewState } from "../port"
 import { wantsWebgl } from "./renderers"
-import type { Hold, TerminalViews } from "./screens"
-import type { ViewPhase } from "./view-state"
 
 // The shell's stage for a terminal's status: an exited or failed one waits for Enter.
 const phaseOf = (status: TerminalMountProps["status"]): ViewPhase =>

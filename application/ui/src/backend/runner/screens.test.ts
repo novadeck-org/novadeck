@@ -1,4 +1,5 @@
 import { createView, type Terminal as EmulatorTerminal } from "@novadeck/emulator/browser"
+import { createTerminalViews, parkMs, type Hold } from "@novadeck/terminal/view"
 import { vi } from "vitest"
 
 import { createStore } from "#core/store"
@@ -6,7 +7,6 @@ import { createStore } from "#core/store"
 import { describe, expect, it } from "../../test"
 import type { BackendConnectionState, TerminalKey } from "../port"
 import type { SurfaceRuntime } from "./backend"
-import { createTerminalViews, parkMs, type Hold } from "./screens"
 import { retainMs, viewOptions } from "./view-options"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
