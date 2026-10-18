@@ -1,7 +1,6 @@
 import type { ITheme } from "@novadeck/emulator/browser"
 
-import { themeChangeEvent } from "../../theme/apply"
-import { tokenColors } from "../../theme/probe"
+import type { ThemeSource } from "../port"
 
 const ansi = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"] as const
 type AnsiName = (typeof ansi)[number]
@@ -25,8 +24,8 @@ const scopeOf = (element: Element): Element =>
   element.isConnected ? element : element.ownerDocument.body
 
 // The theme's terminal tokens as the emulator's colours.
-const themeOf = (element: Element): ITheme => {
-  const colors: Partial<Record<string, string>> = tokenColors(scopeOf(element), terminalTokens)
+const themeOf = (source: ThemeSource, element: Element): ITheme => {
+  const colors = source.tokens(scopeOf(element), terminalTokens)
   const entries: [keyof ITheme, string | undefined][] = [
     ["background", colors["--terminal-bg"]],
     ["foreground", colors["--terminal-fg"]],
@@ -51,18 +50,18 @@ const monospace = (element: Element): string =>
 // The terminal theme the page is in: what the emulator draws with where `element` is. Each
 // part is read when asked for, as resolving the colours adds a probe to the page, which a
 // caller that needs only the font should not pay for.
-export const terminalTheme = {
+export const terminalTheme = (source: ThemeSource) => ({
   resolve: (element: Element) => ({
     get theme(): ITheme {
-      return themeOf(element)
+      return themeOf(source, element)
     },
     get fontFamily(): string {
       return monospace(element)
     },
   }),
   // Calls `listener` whenever a theme is applied, until the returned stop.
-  changed: (listener: () => void): (() => void) => {
-    window.addEventListener(themeChangeEvent, listener)
-    return () => window.removeEventListener(themeChangeEvent, listener)
-  },
-}
+  changed: source.onChange,
+})
+
+// No theme: the emulator's own colours, for a backend that is handed none, as in tests.
+export const noTheme: ThemeSource = { tokens: () => ({}), onChange: () => () => {} }

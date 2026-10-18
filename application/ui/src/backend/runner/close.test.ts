@@ -7,6 +7,7 @@ import { activeProject, activeSession, workspaceReducer } from "#core/state"
 import type { WorkspaceAction } from "#core/state"
 
 import { describe, expect, it } from "../../test"
+import { noTheme } from "../terminal-views/theme"
 import { runnerBackend, type RunnerApi } from "./backend"
 import { noCompanions } from "./scripted"
 import type { RunnerListing } from "./seed"
@@ -82,7 +83,7 @@ describe("closing a terminal while its create is unanswered", () => {
         sessions: [{ session: { id: "s", projectId: "p", name: "S", state: null }, terminals: [] }],
       },
     ]
-    const { backend } = runnerBackend(runner.api, listing, { saveDelay: 10 })
+    const { backend } = runnerBackend(runner.api, listing, { theme: noTheme, saveDelay: 10 })
     let workspace = workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 1 })
     backend.commit(workspace, [])
     const stop = backend.start!({ dispatch: () => {}, open: () => {} })

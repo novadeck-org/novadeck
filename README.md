@@ -922,7 +922,22 @@ at its own pixel density (1280 × 640 and 2560 × 1280 pixels) rather than scale
 @novadeck/ui exec playwright install chromium`). novadeck.dev's hero shows the one that
 matches the visitor's color scheme and screen until the live demo is ready, so it always
 pictures the deployed demo; the posters exist only in `dist-try`. Quality's "Build (try)"
-captures them too. Run workflow can deploy only releases made since the posters.
+captures them too. Run workflow can deploy only releases made since the posters. The
+poster run first boots the demo alone three times on a CPU four times slower and fails when
+the median is above 8 seconds from the address to Claude Code's terminal drawn (about 2 s
+now, as main's; the website gives up at 15). The build fails over its budgets
+(`src/bundle-boundary.ts`): what the page loads first, its scripts and styles gzipped and
+every woff2 font they declare, 1,100 kB, and the demo with its terminal emulator, which
+loads with the connection, 190 kB.
+
+The hero's terminals are real terminal cells, as the desktop app draws them: the theme's
+ANSI palette, boxes in box-drawing characters, text wrapped at the column count. Where xterm
+draws with the DOM (Canvas, and browsers without hardware WebGL 2) its box sides show a gap
+between rows. A program running in front, as the dev server, draws no prompt under its
+output: what is typed shows on a bare line, and it runs no command. The terminal with focus
+anywhere in it keeps a screen reader's tree and live region (`screenReaderMode`), and only
+that one, so the terminals that go on printing out of focus don't talk over it; a key typed
+writes the key alone, which it takes as the key's echo.
 
 Setting it up takes a Cloudflare Pages project named `novadeck-try`, made in the dashboard
 (Workers & Pages, Create, Pages, Upload assets) with production branch `main`: wrangler's
@@ -1034,7 +1049,8 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `backend/`                                         | The UI-owned backend port.                                                              |
 | `backend/demo/`                                    | The demo adapter for tests and specs: sample projects and simulated terminals.          |
 | `backend/demo/showcase/`                           | The content preview's sample agents: plans, artifacts, and their simulated work.        |
-| `backend/runner/`                                  | The runner adapter: connection, seed from the runner, saves, and the xterm mount.       |
+| `backend/runner/`                                  | The runner adapter: connection, seed from the runner, saves, and its terminals.         |
+| `backend/terminal-views/`                          | The xterm mount both adapters draw terminals with: theme, renderers, links, styles.     |
 | `core/`                                            | Pure domain: types, reducer, workspace store, seed, and layout rules in `layout/`.      |
 | `core/companion.ts`                                | Companion items, their content, the `companions` port, and the plan note format.        |
 | `core/companion-bar.ts`                            | A bar as the person arranged it: order, hidden plans and Messages, the open tab.        |
@@ -1068,7 +1084,7 @@ React, and among packages only the protocol's data-only entries (`/harnesses`, `
 `/text`) and the library entries `architecture.test.ts` lists as data only (none yet).
 Everything outside it reaches it as `#core/*`, the UI package's
 own `imports`; inside it files import one another by relative path. `theme/` imports
-nothing but itself and the core's types; every layer that composes the page may use it, adapters included, and
+nothing but itself and the core's types; every layer that composes the page may use it, though no backend does (the entries hand them the page's theme), and
 [docs/theming.md](docs/theming.md) is its contract with components.
 `backend/` builds on `core/` and uses React only for the port's types; adapters
 may add `ui-toolkit/`. `interaction/` builds on `core/` and imports no packages;
@@ -1086,7 +1102,10 @@ libraries stay in their adapters: XYFlow in `layouts/canvas/`, React Grid Layout
 in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
 `ui-toolkit/`, React Router in `app/` and `shell/`, and React DOM in
 `layouts/transition.ts`, `entries/start.tsx`, and `test/`, and the runner client and
-the emulator's view in `backend/runner/`. Other packages are denied
+the emulator's view in `backend/runner/`, the demo's terminals (`backend/demo/views.ts`,
+`backend/demo/screen/`) and `backend/terminal-views/`, which both adapters draw their
+terminals with and which imports only the core, the port and libraries; no
+backend reads `theme/`, as the entries hand it the page's theme. Other packages are denied
 unless the test lists them: React and Lucide are allowed everywhere, while
 backend adapters and test code may use any package. `test/` may import
 `core/`, `backend/`, and what the command harness runs: `app/commands/`, the UI
@@ -1182,9 +1201,18 @@ else about a terminal belongs to a backend behind the port in `backend/port.ts`:
 it supplies the starting workspace seed, allocates new terminals synchronously,
 sees every store commit before listeners run, and renders the content inside
 each terminal frame. A terminal's mount marks the element that takes typed input with
-`data-terminal-input`, so shortcuts treat it as terminal input. The demo adapter
-keeps drafts, output, and scroll offsets per terminal with one subscription
-each, so output does not trigger workspace-wide renders. A terminal's
+`data-terminal-input`, so shortcuts treat it as terminal input; from there the app's
+shortcuts run in capture, ahead of the terminal's emulator, which takes the keys it reads
+before they bubble. The demo adapter draws its terminals as the runner's are drawn, through
+`backend/terminal-views/` and `@novadeck/terminal/view`: each is a real xterm fed by a
+stream the demo writes as terminal output (`backend/demo/views.ts`). Its screen
+(`backend/demo/screen/`) keeps an append-only transcript (the program's sample output or
+the agent's opening, the commands typed and their replies, the agent's conversation) and
+redraws a live tail in place (the dialog an agent waits on, its status, the prompt), as Claude
+Code and Codex redraw their bottom; a resize draws it whole at the new width. Keys come back
+through a line editor (`backend/demo/line-editor.ts`). The engine keeps each terminal's
+command line and output with one subscription each, so output does not trigger
+workspace-wide renders. A terminal's
 presentation can unmount during view or session changes without losing that
 state; closing the terminal removes it. `core/registry.ts` provides this
 lifecycle for any adapter. An adapter opts into the port contract suite by

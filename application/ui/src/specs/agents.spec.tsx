@@ -7,14 +7,14 @@ import { pinPointer } from "./support/pointer"
 import { workspaceSwitcher } from "./support/sessions"
 import {
   chooseView,
-  commandInput,
   expectStaysAbsent,
   isMac,
+  labelled,
   openWorkspace,
   tabDescription,
   terminal,
   terminalTab,
-  labelled,
+  typeInto,
 } from "./support/workspace"
 
 const agentSwitch = (scope: Locator, name: "Claude Code" | "Codex" | "Antigravity"): Locator =>
@@ -179,7 +179,7 @@ const promptBuild = async (view?: "Grid"): Promise<void> => {
   if (await skip.query()) await skip.click()
   if (view) await chooseView(view)
   await terminalTab("Build").click()
-  await commandInput("Build").fill("Ship the docs")
+  await typeInto("Build", "Ship the docs")
   await userEvent.keyboard("{Enter}")
   await expect.element(terminal("Build")).toHaveAttribute("data-terminal-phase", "running")
 }

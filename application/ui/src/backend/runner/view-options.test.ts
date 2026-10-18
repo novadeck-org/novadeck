@@ -6,6 +6,7 @@ import { createStore } from "#core/store"
 
 import { describe, expect, it } from "../../test"
 import type { BackendConnectionState } from "../port"
+import { noTheme } from "../terminal-views/theme"
 import type { SurfaceRuntime } from "./backend"
 import { pasteNotice, viewOptions } from "./view-options"
 
@@ -75,7 +76,7 @@ describe("the runner's terminal views' options", () => {
       detach: vi.fn<AttachedTerminal["detach"]>(async () => {}),
     }
     const { runtime, noted, released } = runtimeOf(attached)
-    const options = viewOptions(runtime)
+    const options = viewOptions(runtime, { theme: noTheme })
     const stream = await options.attach(key)
     expect(stream.mode).toBe("control")
     await stream.write("ls\r")
@@ -90,7 +91,7 @@ describe("the runner's terminal views' options", () => {
   })
 
   it("tell a busy runner and a lost link apart from a failure", () => {
-    const { classify } = viewOptions(runtimeOf({} as AttachedTerminal).runtime)
+    const { classify } = viewOptions(runtimeOf({} as AttachedTerminal).runtime, { theme: noTheme })
     expect(classify(new WireError("RESOURCE_LIMIT"))).toBe("busy")
     expect(classify(new WireError("DISCONNECTED"))).toBe("offline")
     expect(classify(new WireError("CONTROL_IN_USE"))).toBe("fatal")
@@ -98,7 +99,9 @@ describe("the runner's terminal views' options", () => {
   })
 
   it("wait for Enter after an exit that can start again, not after a clean one", () => {
-    const { waitsAfter } = viewOptions(runtimeOf({} as AttachedTerminal).runtime)
+    const { waitsAfter } = viewOptions(runtimeOf({} as AttachedTerminal).runtime, {
+      theme: noTheme,
+    })
     expect(waitsAfter({ code: 0, signal: null, ranMs: 60_000 })).toBe(false)
     expect(waitsAfter({ code: 1, signal: null, ranMs: 60_000 })).toBe(true)
   })

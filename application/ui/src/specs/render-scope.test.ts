@@ -30,8 +30,12 @@ vi.hoisted(() => {
       media: query,
       addEventListener: () => {},
       removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
     }),
   })
+  // Nor a canvas: the terminals' emulator measures with the DOM.
+  HTMLCanvasElement.prototype.getContext = () => null
   globalThis.ResizeObserver ??= class {
     observe(): void {}
     unobserve(): void {}

@@ -688,11 +688,11 @@ const importantExceptions: readonly {
     ],
   },
   {
-    file: "backend/runner/runner.css",
+    file: "backend/terminal-views/terminal-xterm.css",
     reason: "xterm sets its scrollbar slider's position and width inline",
     declarations: [
-      ".runner-screen .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider { left }",
-      ".runner-screen .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider { width }",
+      ".terminal-xterm .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider { left }",
+      ".terminal-xterm .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider { width }",
     ],
   },
 ]

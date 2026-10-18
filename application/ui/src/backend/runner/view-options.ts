@@ -1,4 +1,4 @@
-import { createView, type Renderers } from "@novadeck/emulator/browser"
+import type { Renderers } from "@novadeck/emulator/browser"
 import { maxUploadBytes } from "@novadeck/protocol"
 import { hasCode, type AttachedTerminal } from "@novadeck/protocol/client"
 import type { AttachStream, Exit } from "@novadeck/terminal"
@@ -7,13 +7,15 @@ import { parkedCap, parkMs, type TerminalViewOptions } from "@novadeck/terminal/
 
 import { createStore } from "#core/store"
 
-import type { TerminalKey } from "../port"
+import type { TerminalKey, ThemeSource } from "../port"
+import { openEmulator } from "../terminal-views/emulator"
+import { screenMarkup } from "../terminal-views/mount"
+import { pasteNotice as sharedNotice } from "../terminal-views/paste-notice"
+import { pageRenderers } from "../terminal-views/renderers"
+import { terminalTheme } from "../terminal-views/theme"
 import { exitStatus, restartable } from "./activity"
 import type { SurfaceRuntime } from "./backend"
 import { desktopHost } from "./desktop-host"
-import { linkOptions } from "./links"
-import { pageRenderers } from "./renderers"
-import { terminalTheme } from "./theme"
 
 // How long a screen stays once its session leaves the screen, so going back to a session or
 // a project within a working break finds its output in place instead of a screen to reopen.
@@ -41,37 +43,32 @@ const waitsForEnter = (exit: Exit): boolean => {
   return status !== "clean" && restartable(status)
 }
 
-// What a failed paste tells the person: that the clipboard could not be read, or which
-// file could not be saved, and why when it was too large.
-export const pasteNotice = (failure: PasteFailure): string => {
-  if (failure.kind === "clipboard") return "Novadeck can't read the clipboard"
-  const pasted = failure.type.startsWith("image/") ? "image" : "file"
-  return failure.tooLarge || hasCode(failure.error, "UPLOAD_TOO_LARGE")
-    ? `Couldn't paste the ${pasted}: it's over ${maxUploadBytes / 1024 / 1024} MB`
-    : `Couldn't paste the ${pasted}`
-}
+// What a failed paste tells the person, in the app's words: a file the runner found too large
+// is too large too.
+const words = sharedNotice(maxUploadBytes)
+export const pasteNotice = (failure: PasteFailure): string =>
+  words(
+    failure.kind === "file" && hasCode(failure.error, "UPLOAD_TOO_LARGE")
+      ? { ...failure, tooLarge: true }
+      : failure,
+  )
 
 // The runner backend's terminal views: its runtime, the emulator drawn with the page's
 // WebGL pool and theme, and the app's words and policies.
 export const viewOptions = (
   runtime: SurfaceRuntime,
-  { renderers = pageRenderers(), cap = parkedCap }: { renderers?: Renderers; cap?: number } = {},
+  {
+    renderers = pageRenderers(),
+    cap = parkedCap,
+    theme,
+  }: { renderers?: Renderers; cap?: number; theme: ThemeSource },
 ): TerminalViewOptions<TerminalKey> => ({
   keyOf: ({ projectId, workspaceSessionId, terminalId }) =>
     `${projectId}\u0000${workspaceSessionId}\u0000${terminalId}`,
-  emulator: (element, open) =>
-    createView(element, {
-      ...open,
-      // Programs and agents pick their own colours, often greys meant for another ground;
-      // xterm darkens or lightens any that would read under 4.5:1 against the background.
-      minimumContrastRatio: 4.5,
-      scrollback: 1000,
-      links: linkOptions(),
-      renderers,
-    }),
-  theme: terminalTheme,
+  emulator: openEmulator({ renderers }),
+  theme: terminalTheme(theme),
   store: createStore,
-  markup: { input: { "data-terminal-input": "" }, hostClass: "runner-screen min-h-0 flex-1" },
+  markup: screenMarkup,
   attach: async (key) => streamOf(await runtime.attach(key.terminalId)),
   lifecycle: (key) => runtime.entry(key),
   connection: runtime.connection,

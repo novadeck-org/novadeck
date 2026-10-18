@@ -8,8 +8,10 @@ import type {
   BackendSink,
   BootProgress,
   TerminalKey,
+  ThemeSource,
 } from "../../port"
 import { isDemoInbox } from "../inbox"
+import { demoTerminalsLife } from "../index"
 import { isDemoMurmur } from "../murmur"
 import { demoTurns } from "../turns"
 import { createDemo, type DemoVariant } from "../variants"
@@ -32,6 +34,8 @@ import { voiceGroups } from "./voice"
 // asks for another.
 export type DemoLaunch = {
   readonly rehearsals: BootRehearsals
+  // The page's theme, which the terminals draw in.
+  readonly theme: ThemeSource
   readonly variant: DemoVariant
   // The restored terminals attach one by one, for a few seconds.
   readonly slowAttach: boolean
@@ -105,7 +109,15 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
   const restart = (key: TerminalKey): void => {
     if (sink) states.restart(key, sink.dispatch)
   }
-  const inner = createDemo(launch.variant, { connection, screens: states.screens, restart }, turns)
+  const inner = createDemo(
+    launch.variant,
+    {
+      theme: launch.theme,
+      runtime: { connection, screens: states.screens, restart, failPaste: states.failPaste },
+    },
+    turns,
+  )
+  const demoTerminals = demoTerminalsLife(inner)
   const total = Math.max(
     1,
     inner.seed.projects.reduce(
@@ -165,6 +177,8 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     },
     start: (next) => {
       sink = next
+      // Its terminals go with it, so a reboot leaves none of the old demo's behind.
+      demoTerminals?.start()
       const stopInner = inner.start?.(next)
       if (launch.variant === "welcome") states.openWelcome()
       // The terminals attach one after another until all are.
@@ -179,6 +193,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
         clearInterval(ticker)
         clearTimeout(outage)
         stopInner?.()
+        demoTerminals?.stop()
         if (sink === next) sink = undefined
       }
     },

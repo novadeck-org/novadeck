@@ -41,8 +41,11 @@
     @apply size-7;
     user-select: none;
   }
-  .terminal-grid:has(.grid-terminal.resizing),
-  .terminal-grid:has(.grid-terminal.resizing) * {
+  /* Nothing in the grid takes a selection while a tile moves or resizes. The class is the
+     one react-draggable sets on the body for a drag: a `:has()` on the grid would have the
+     browser restyle every tile each time a terminal draws a row. */
+  .react-draggable-transparent-selection .terminal-grid,
+  .react-draggable-transparent-selection .terminal-grid * {
     user-select: none;
   }
   .terminal-grid .react-resizable-handle::after {

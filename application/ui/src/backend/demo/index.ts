@@ -1,24 +1,20 @@
-import { createElement, type ComponentType, type ReactNode } from "react"
-
 import { emptyCompanions } from "#core/companion"
 import type { Conversations } from "#core/conversation"
 import type { WorkspaceSeed } from "#core/seed"
 import { createStore } from "#core/store"
 import { createTelemetryStore, dropProject, dropTerminal, noTelemetry } from "#core/telemetry"
-import type { TerminalMetadata, TitleSource, Workspace } from "#core/types"
+import type { TitleSource, Workspace } from "#core/types"
 
 import type {
   AgentConnection,
   Backend,
   BackendAction,
   BackendSink,
-  CreateBackend,
+  MountTerminal,
   TerminalKey,
-  TerminalSurfaceProps,
 } from "../port"
-import { DemoAgentContext, type DemoAgentLink } from "./agent-link"
+import type { DemoAgentLink } from "./agent-link"
 import { createDemoChat } from "./chat"
-import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { demoHandle } from "./handles"
 import { createDemoInbox, isDemoInbox } from "./inbox"
@@ -35,10 +31,10 @@ import {
 } from "./samples"
 import { createShowcase } from "./showcase/simulation"
 import { storefrontArtifacts } from "./showcase/storefront"
-import type { DemoSurfaceRuntime } from "./surface"
 import { terminalOf } from "./terminals"
 import { agentTranscripts, type DemoTranscript } from "./transcripts"
 import { demoTurns, type DemoTurns } from "./turns"
+import { createDemoTerminals, type DemoTerminals, type DemoTerminalSetup } from "./views"
 import { createDemoVoice, heldVoiceTiming, requestedVoice } from "./voice"
 
 // Sample agents: Claude Code and Codex installed, Antigravity not.
@@ -56,18 +52,23 @@ const installHeld = (): boolean =>
   typeof window !== "undefined" &&
   new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("install") === "held"
 
+// Each demo backend's terminals by the mount they serve, which the backends wrapping it keep:
+// `withConversations` links them to its agents.
+const terminalsOf = new WeakMap<MountTerminal, DemoTerminals>()
+
 // A self-contained backend with sample projects and simulated terminals. It keeps no
 // transcripts and connects no agents, but its settings switch like the runner's.
-// `welcome` opens the first-run welcome dialog; `introOf` gives terminals their own
-// opening output. `runtime` is the debug layer's: what its terminals read of the
-// connection, and how they restart. `seed` is the workspace it opens with.
+// `welcome` opens the first-run welcome dialog, `seed` is the workspace it opens with, and
+// `terminals` says where its terminals draw and what they open with (see `DemoTerminalSetup`).
 export const demoBackend = (
   engine: DemoEngine,
-  welcome = false,
-  introOf?: (terminal: TerminalMetadata, key: TerminalKey) => ReactNode,
-  runtime?: DemoSurfaceRuntime,
-  seed: WorkspaceSeed = demoSeed(Date.now()),
+  {
+    welcome = false,
+    seed = demoSeed(Date.now()),
+    terminals: setup,
+  }: { welcome?: boolean; seed?: WorkspaceSeed; terminals?: DemoTerminalSetup } = {},
 ): Backend => {
+  const terminals = createDemoTerminals(engine, setup)
   const transcripts = createStore(true)
   const agents = createStore(sampleAgents)
   const welcomeOpen = createStore(welcome)
@@ -87,7 +88,7 @@ export const demoBackend = (
     ),
   )
   let latest: Workspace | undefined
-  return {
+  const backend: Backend = {
     seed,
     newTerminal: ({ target, directory, title, launch }) => {
       const session = latest?.projects
@@ -116,18 +117,16 @@ export const demoBackend = (
       latest = workspace
       engine.reconcile(workspace, actions)
     },
-    TerminalSurface: createDemoTerminal(engine, introOf, runtime),
+    mountTerminal: terminals.mountTerminal,
+    setFont: terminals.setFont,
     // Where the agents say nothing of their usage; `withConversations` gives it the turns'.
     telemetry: createTelemetryStore(),
     voice,
     murmur,
     // Older than every update the demo offers (see debug/states.ts).
     version: () => Promise.resolve("0.0.79"),
-    // The demo's command line takes dictation as typed text, which it never submits.
-    typeInto: (key, text) => {
-      engine.setDraft(key, engine.getSnapshot(key).draft + text.replaceAll(/\s*\r?\n\s*/g, " "))
-      return true
-    },
+    // Dictation pastes into the command line, which never submits it.
+    typeInto: terminals.typeInto,
     transcripts: {
       enabled: transcripts,
       set: (enabled) => transcripts.update(() => enabled),
@@ -143,6 +142,18 @@ export const demoBackend = (
       finishWelcome: () => welcomeOpen.update(() => false),
     },
   }
+  terminalsOf.set(terminals.mountTerminal, terminals)
+  return backend
+}
+
+// Starts and stops the terminals of a backend `demoBackend` made, however wrapped: stopped,
+// they let their screens, timers and subscriptions go, as a reboot of the debug layer's demo
+// leaves them. Nothing for any other backend.
+export const demoTerminalsLife = (
+  backend: Backend,
+): { readonly start: () => void; readonly stop: () => void } | undefined => {
+  const terminals = "mountTerminal" in backend ? terminalsOf.get(backend.mountTerminal) : undefined
+  return terminals && { start: terminals.start, stop: terminals.stop }
 }
 
 // A window's name handed back: the name of what it shows, as a runner gives it. Nothing
@@ -240,22 +251,19 @@ export const withMessages = (backend: Backend, now: number): Backend => {
     },
     start: (next) => {
       sink = next
+      const stop = backend.start?.(next)
       return () => {
+        stop?.()
         if (sink === next) sink = undefined
       }
     },
   }
 }
 
-// The component the demo draws its terminals with, until 3.2d gives it the port's mount.
-export const surfaceOf = (backend: Backend): ComponentType<TerminalSurfaceProps> => {
-  if ("TerminalSurface" in backend) return backend.TerminalSurface
-  throw new Error("The demo draws its terminals as components")
-}
-
 // A backend with the conversations of its agents, as `transcripts` open them and `turns`
 // run what the person sends: the status of each turn goes through the sink it starts with.
-// Its terminals' screens read the conversations as the chat does (see `DemoAgentLink`);
+// Its terminals' screens read the conversations as the chat does (see `DemoAgentLink`), as
+// `demoBackend`'s, which it must wrap, are linked here;
 // `wrap` gives both the same conversations, for a demo whose agents act on what they are
 // told, so a prompt or an answer from the screen reaches them as one from the chat.
 export const withConversations = (
@@ -270,13 +278,11 @@ export const withConversations = (
     conversations,
     opening: chat.opening,
   }
-  // One component per backend, so its identity stays stable.
-  const Surface = surfaceOf(backend)
-  const TerminalSurface: ComponentType<TerminalSurfaceProps> = (props) =>
-    createElement(DemoAgentContext, { value: link }, createElement(Surface, props))
-  return {
+  const terminals = "mountTerminal" in backend ? terminalsOf.get(backend.mountTerminal) : undefined
+  if (!terminals) throw new Error("withConversations wraps a backend demoBackend made")
+  terminals.link(link)
+  const linked: Backend = {
     ...backend,
-    TerminalSurface,
     conversations,
     telemetry: turns.telemetry,
     commit: (workspace, actions) => {
@@ -309,6 +315,7 @@ export const withConversations = (
       }
     },
   }
+  return linked
 }
 
 // The agents demo's storefront terminals hold what their agents showed, on their bars,
@@ -381,19 +388,18 @@ export type PlainVariant = "plain" | "agents" | "messages" | "inbox" | "welcome"
 
 export const plainDemo = (
   variant: PlainVariant,
-  runtime?: DemoSurfaceRuntime,
+  terminals?: DemoTerminalSetup,
   turnMs?: number,
   turns: DemoTurns = demoTurns(turnMs),
 ): Backend => {
   // Every agent takes a prompt, works a moment, and finishes, however it is sent; the
   // seeds and the debug panel drive the same turns.
-  const backend = demoBackend(
-    createDemoEngine(),
-    variant === "welcome" ||
+  const backend = demoBackend(createDemoEngine(), {
+    welcome:
+      variant === "welcome" ||
       (import.meta.env.DEV && import.meta.env.VITE_WELCOME_PREVIEW === "true"),
-    undefined,
-    runtime,
-  )
+    ...(terminals && { terminals }),
+  })
   const now = Date.now()
   turns.telemetry.update(() =>
     variant === "plain" || variant === "welcome" ? noTelemetry : demoTelemetry(now),
@@ -419,8 +425,9 @@ export const plainDemo = (
 
 // The variant the address's hash asks for, as specs do with `?demo=`, and how long an
 // agent's turn works with `&turnMs=`, as a spec does that must act on the screen before
-// the turn ends, which a busy machine may not in the usual 1.5 s.
-export const createDemoBackend: CreateBackend = () => {
+// the turn ends, which a busy machine may not in the usual 1.5 s. `terminals` is where
+// they draw, as specs give them the page's theme.
+export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
   const params = new URLSearchParams(window.location.hash.split("?")[1])
   const demo = params.get("demo")
   const turnMs = Number(params.get("turnMs"))
@@ -428,7 +435,7 @@ export const createDemoBackend: CreateBackend = () => {
     demo === "agents" || demo === "messages" || demo === "inbox" || demo === "welcome"
       ? demo
       : "plain",
-    undefined,
+    terminals,
     turnMs > 0 ? turnMs : undefined,
   )
   if (isDemoInbox(backend.inbox)) {

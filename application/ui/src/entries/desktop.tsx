@@ -2,6 +2,7 @@
 import "../styles.css"
 import { App } from "../app/App"
 import type { BackendSelection } from "../backend/port"
+import { pageTheme } from "../theme/source"
 import { start } from "./start"
 
 // The desktop app: the runner the host starts, whose client and terminal emulator load with
@@ -9,7 +10,7 @@ import { start } from "./start"
 const runner: BackendSelection = {
   connect: async (signal, progress) => {
     const { connectRunnerBackend, desktopTransport } = await import("../backend/runner")
-    return connectRunnerBackend(signal, progress, desktopTransport)
+    return connectRunnerBackend(signal, progress, { transport: desktopTransport, theme: pageTheme })
   },
 }
 

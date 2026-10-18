@@ -14,18 +14,20 @@ import {
 } from "./support/layouts"
 import {
   chooseView,
+  clickInto,
   commandInput,
+  draftOf,
   enterNavigateMode,
   expectSelected,
   expectStaysAbsent,
   focusStage,
+  labelled,
+  nameOf,
   openWorkspace,
   press,
   terminal,
   terminalTab,
   view,
-  nameOf,
-  labelled,
 } from "./support/workspace"
 
 const resizeButton = (label: "Make full width" | "Restore width", name: string) =>
@@ -125,6 +127,24 @@ describe("Grid view", () => {
 
       await expect.poll(() => bounds(terminal("Tests")).height).toBeGreaterThan(before.height + 60)
       await expect.poll(() => bounds(terminal("Tests")).width).toBeCloseTo(before.width, 0)
+    })
+
+    it("lets no terminal's text be selected until the corner is let go", async () => {
+      await openGrid()
+      const corner = bounds(terminal("Tests"))
+      const at = { clientX: corner.right - 4, clientY: corner.bottom - 4, button: 0, bubbles: true }
+      const text = (): string =>
+        getComputedStyle(terminal("Dev server").element().querySelector("[data-terminal-content]")!)
+          .userSelect
+      expect(text()).toBe("text")
+
+      document
+        .elementFromPoint(at.clientX, at.clientY)!
+        .dispatchEvent(new MouseEvent("mousedown", at))
+      await expect.poll(text).toBe("none")
+
+      document.dispatchEvent(new MouseEvent("mouseup", at))
+      await expect.poll(text).toBe("text")
     })
   })
 
@@ -283,29 +303,16 @@ describe("Grid arrow keys", () => {
   context(`when pressing ${jump("Right").label} while typing in a terminal`, () => {
     it("selects the tile on that side and keeps typing there", async () => {
       await openGrid()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
       await expectSelected("Checkout implementation")
 
       await press(jump("Right").keys)
       await expectSelected("Dev server")
       await expect.element(commandInput("Dev server")).toHaveFocus()
+      // The dev server, running, takes no command; what is typed reaches it and not the shell.
       await press("ls")
-      await expect.element(commandInput("Dev server")).toHaveValue("ls")
-      await expect.element(commandInput("Checkout implementation")).toHaveValue("")
-
-      await press(jump("Down").keys)
-      await expectSelected("Runtime")
-      await expect.element(commandInput("Runtime")).toHaveFocus()
-    })
-
-    it("stays put at the edge without typing anything", async () => {
-      await openGrid()
-      await commandInput("Checkout implementation").click()
-
-      await press(jump("Left").keys)
-      await expectSelected("Checkout implementation")
-      await expect.element(commandInput("Checkout implementation")).toHaveFocus()
-      await expect.element(commandInput("Checkout implementation")).toHaveValue("")
+      await expect.element(commandInput("Dev server")).toHaveFocus()
+      await expect.poll(() => draftOf("Checkout implementation")).toBe("")
     })
   })
 

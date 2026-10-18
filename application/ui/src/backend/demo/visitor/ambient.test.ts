@@ -27,13 +27,10 @@ const open = () => {
   const turns = demoTurns(1000)
   const story = visitorStory(agentTranscripts(Date.now()), turns, 2000)
   const life = visitorAmbient(turns)
-  const base = demoBackend(
-    createDemoEngine(),
-    false,
-    life.introOf,
-    undefined,
-    visitorSeed(Date.now()),
-  )
+  const base = demoBackend(createDemoEngine(), {
+    seed: visitorSeed(Date.now()),
+    terminals: { introOf: life.introOf },
+  })
   const backend = life.wrap(story.wrap(withConversations(base, story.transcripts, turns)))
   const store = createWorkspaceStore(
     workspaceFromSeed(backend.seed, { view: "focus", windowedView: "grid", now: 0 }),

@@ -1,4 +1,3 @@
-import { createElement, useContext } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { Conversations } from "#core/conversation"
@@ -6,11 +5,10 @@ import { workspaceFromSeed } from "#core/seed"
 import { activeSession } from "#core/state"
 import { createWorkspaceStore } from "#core/store"
 
-import { render } from "../../test/render"
-import { DemoAgentContext, type DemoAgentLink } from "./agent-link"
+import type { DemoAgentLink } from "./agent-link"
 import { answerMs, answeredMs } from "./chat"
 import { createDemoEngine } from "./engine"
-import { demoBackend, surfaceOf, withConversations } from "./index"
+import { demoBackend, withConversations } from "./index"
 import { demoSeed, demoTerminalId } from "./samples"
 import { agentTranscripts } from "./transcripts"
 import { demoTurns, demoTurnMs } from "./turns"
@@ -22,18 +20,28 @@ const key = (slot: string, projectId = "storefront") => ({
   terminalId: demoTerminalId({ projectId, workspaceSessionId: "initial" }, Number(slot)),
 })
 
+// What the terminals' screens read of the agents, as `withConversations` links them.
+const linked = vi.hoisted(() => ({ link: undefined as DemoAgentLink | undefined }))
+vi.mock("./views", async (original) => {
+  const views = await original<typeof import("./views")>()
+  return {
+    ...views,
+    createDemoTerminals: (...args: Parameters<typeof views.createDemoTerminals>) => {
+      const terminals = views.createDemoTerminals(...args)
+      return {
+        ...terminals,
+        link: (next: DemoAgentLink) => {
+          linked.link = next
+          terminals.link(next)
+        },
+      }
+    },
+  }
+})
+
 const open = (wrap?: (conversations: Conversations) => Conversations) => {
   const turns = demoTurns()
-  // What the terminal surface's screens read of the agents, as it provides it.
-  let link: DemoAgentLink | undefined
-  const capture = (value: DemoAgentLink | undefined): void => {
-    link = value
-  }
-  const Probe = () => {
-    capture(useContext(DemoAgentContext))
-    return null
-  }
-  const base = { ...demoBackend(createDemoEngine()), TerminalSurface: Probe }
+  const base = demoBackend(createDemoEngine())
   const backend = withConversations(
     { ...base, seed: demoSeed(Date.now(), true) },
     agentTranscripts(Date.now()),
@@ -48,7 +56,6 @@ const open = (wrap?: (conversations: Conversations) => Conversations) => {
     }),
     backend.commit,
   )
-  render(createElement(surfaceOf(backend), {} as never)).unmount()
   backend.commit(store.getSnapshot(), [])
   backend.start!({
     dispatch: (actions) => store.transact(actions as never),
@@ -78,7 +85,7 @@ const open = (wrap?: (conversations: Conversations) => Conversations) => {
       .items.filter((item) => item.role === "user")
       .map((item) => item.text)
   const chat = backend.conversations!
-  return { chat, agent, status, said, opening: link!.opening, link: link!, turns }
+  return { chat, agent, status, said, opening: linked.link!.opening, link: linked.link!, turns }
 }
 
 describe("demo conversations", () => {

@@ -21,15 +21,16 @@ import type { TerminalMetadata, ViewMode } from "#core/types"
 
 import { context, describe, expect, it } from "../../test"
 import { terminalFixture } from "../../test/fixtures"
-import { themeChangeEvent } from "../../theme/apply"
 import type {
   BackendConnectionState,
   TerminalKey,
   TerminalMount,
   TerminalMountProps,
+  ThemeSource,
 } from "../port"
+import { createTerminalMount } from "../terminal-views/mount"
+import { noTheme } from "../terminal-views/theme"
 import type { SurfaceRuntime } from "./backend"
-import { createRunnerMount } from "./mount"
 import { viewOptions } from "./view-options"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
@@ -136,7 +137,7 @@ const mountOver = (
   screens: TerminalViews<TerminalKey>,
   props: TerminalMountProps,
   terminalKey = key,
-  mountTerminal = createRunnerMount(screens),
+  mountTerminal = createTerminalMount(screens),
 ): Mounted => {
   const container = document.createElement("div")
   document.body.append(container)
@@ -155,8 +156,19 @@ const mountOver = (
   return page
 }
 
+// The page's theme as the tests apply it: no colour tokens, and a change when they say.
+const themeChanges = new Set<() => void>()
+const theme: ThemeSource = {
+  tokens: () => ({}),
+  onChange: (listener) => {
+    themeChanges.add(listener)
+    return () => void themeChanges.delete(listener)
+  },
+}
+const applyTheme = (): void => themeChanges.forEach((listener) => listener())
+
 const show = (runtime: SurfaceRuntime, terminal: TerminalMetadata = startingTerminal()) =>
-  mountOver(createTerminalViews(viewOptions(runtime)), propsOf(terminal))
+  mountOver(createTerminalViews(viewOptions(runtime, { theme })), propsOf(terminal))
 
 // An image on the clipboard.
 const clipboardImage = () => ({
@@ -242,7 +254,7 @@ describe("runner terminal mount", () => {
     }
     const surfaces = () => {
       const { runtime } = starting()
-      const screens = createTerminalViews(viewOptions(runtime))
+      const screens = createTerminalViews(viewOptions(runtime, { theme: noTheme }))
       const calls: string[] = []
       const watching: TerminalViews<TerminalKey> = {
         ...screens,
@@ -263,7 +275,7 @@ describe("runner terminal mount", () => {
           watching,
           { ...propsOf(startingTerminal(), "canvas"), onScreen },
           key,
-          createRunnerMount(watching),
+          createTerminalMount(watching),
         )
       return { screens, calls, open }
     }
@@ -366,17 +378,20 @@ describe("runner terminal mount", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
       const { runtime } = starting()
-      const page = mountOver(createTerminalViews(viewOptions(runtime, { cap: 0 })), {
-        ...propsOf(startingTerminal(), "canvas"),
-        onScreen: true,
-      })
-      const first = page.container.querySelector(".runner-screen")
+      const page = mountOver(
+        createTerminalViews(viewOptions(runtime, { theme: noTheme, cap: 0 })),
+        {
+          ...propsOf(startingTerminal(), "canvas"),
+          onScreen: true,
+        },
+      )
+      const first = page.container.querySelector(".terminal-xterm")
       page.update({ onScreen: false })
       vi.advanceTimersByTime(6_000)
-      expect(page.container.querySelector(".runner-screen")).toBeNull()
+      expect(page.container.querySelector(".terminal-xterm")).toBeNull()
       expect(page.mount.focus()).toBe(false)
       page.update({ onScreen: true })
-      const second = page.container.querySelector(".runner-screen")
+      const second = page.container.querySelector(".terminal-xterm")
       expect(second).not.toBe(first)
       expect(page.mount.focus()).toBe(true)
       expect(document.activeElement).toBe(input(page))
@@ -505,21 +520,24 @@ describe("runner terminal mount", () => {
       let onScreen = shown
       let terminalEnd: "open" | "closed" | "removed" = "open"
       const screens = createTerminalViews(
-        viewOptions({
-          ...runtime,
-          entry: () =>
-            terminalEnd === "removed"
-              ? undefined
-              : {
-                  ready: Promise.resolve(true),
-                  revived: new Promise<void>(() => {}),
-                  closed: terminalEnd === "closed",
-                  size: { cols: 80, rows: 24 },
-                },
-          attach,
-          screen,
-          shown: () => onScreen,
-        }),
+        viewOptions(
+          {
+            ...runtime,
+            entry: () =>
+              terminalEnd === "removed"
+                ? undefined
+                : {
+                    ready: Promise.resolve(true),
+                    revived: new Promise<void>(() => {}),
+                    closed: terminalEnd === "closed",
+                    size: { cols: 80, rows: 24 },
+                  },
+            attach,
+            screen,
+            shown: () => onScreen,
+          },
+          { theme: noTheme },
+        ),
       )
       // Each view places its terminals in an element of its own, so a switch mounts them again.
       const inView = (view: string): Mounted => {
@@ -700,7 +718,7 @@ describe("runner terminal mount", () => {
         expect(opened[0]?.options.fontFamily).toBe("Old Mono")
 
         root.style.setProperty("--font-mono", "New Mono")
-        window.dispatchEvent(new CustomEvent(themeChangeEvent))
+        applyTheme()
 
         expect(opened[0]?.options.fontFamily).toBe("New Mono")
       } finally {
@@ -749,8 +767,8 @@ describe("runner terminal mount", () => {
         const before = changes.length
 
         root.style.setProperty("--font-mono", "New Mono")
-        window.dispatchEvent(new CustomEvent(themeChangeEvent))
-        window.dispatchEvent(new CustomEvent(themeChangeEvent))
+        applyTheme()
+        applyTheme()
         expect(changes.slice(before)).toEqual([])
 
         font?.arrive()
@@ -780,7 +798,7 @@ describe("runner terminal mount", () => {
         const before = changes.length
 
         root.style.setProperty("--font-mono", "New Mono")
-        window.dispatchEvent(new CustomEvent(themeChangeEvent))
+        applyTheme()
         font?.fail()
         await settled()
 
@@ -1210,7 +1228,7 @@ describe("typing into a terminal's screen", () => {
       }),
       attach: async () => attachmentOf(),
     }
-    const screens = createTerminalViews(viewOptions(live))
+    const screens = createTerminalViews(viewOptions(live, { theme: noTheme }))
     const showAgain = () =>
       mountOver(screens, propsOf({ ...terminalFixture(1, "~"), state: "running" }))
     const page = showAgain()
@@ -1330,7 +1348,7 @@ describe("a terminal's screen resized out of view", () => {
 
   it("keeps following its shell's output", async () => {
     const view = measured()
-    const screens = createTerminalViews(viewOptions(starting().runtime))
+    const screens = createTerminalViews(viewOptions(starting().runtime, { theme: noTheme }))
     const terminal = { ...key, terminalId: "out-of-view" }
     const opened: Terminal[] = []
     const originalOpen = Terminal.prototype.open
@@ -1399,7 +1417,7 @@ describe("a surface's renderer", () => {
     ] as const) {
       const original = Object.getOwnPropertyDescriptor(Element.prototype, name)!.get!
       vi.spyOn(Element.prototype, name, "get").mockImplementation(function (this: Element) {
-        return this.classList.contains("runner-screen") ? value : original.call(this)
+        return this.classList.contains("terminal-xterm") ? value : original.call(this)
       })
     }
     const { runtime } = starting()
@@ -1417,7 +1435,7 @@ describe("a surface's renderer", () => {
             size: { cols: 80, rows: 24 },
           }),
         },
-        { renderers },
+        { theme: noTheme, renderers },
       ),
     )
     // The fit addon is the view's own, so it is reached as the terminal loads it.

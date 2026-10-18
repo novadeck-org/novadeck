@@ -6,6 +6,7 @@ import { createStore } from "#core/store"
 
 import { describe, expect, it } from "../../test"
 import type { BackendConnectionState, TerminalKey } from "../port"
+import { noTheme } from "../terminal-views/theme"
 import type { SurfaceRuntime } from "./backend"
 import { retainMs, viewOptions } from "./view-options"
 
@@ -92,7 +93,7 @@ const capped = (cap: number) => {
     screen: ({ terminalId }, state) => void told.push(`${terminalId} ${state}`),
     shown: () => false,
   }
-  const screens = createTerminalViews(viewOptions(runtime, { cap }))
+  const screens = createTerminalViews(viewOptions(runtime, { theme: noTheme, cap }))
   // The element a terminal's screen is placed in, as a mount's is.
   const elementOf = (terminalId: string): HTMLElement => {
     let element = elements.get(terminalId)
@@ -396,7 +397,7 @@ describe("a mount's hold on a screen", () => {
       ] as const) {
         const original = Object.getOwnPropertyDescriptor(Element.prototype, name)!.get!
         vi.spyOn(Element.prototype, name, "get").mockImplementation(function (this: Element) {
-          return this.classList.contains("runner-screen") ? value : original.call(this)
+          return this.classList.contains("terminal-xterm") ? value : original.call(this)
         })
       }
       const prototype = emulatorPrototype()

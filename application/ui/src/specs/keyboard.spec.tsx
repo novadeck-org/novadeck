@@ -29,18 +29,20 @@ import { workspaceSwitcher } from "./support/sessions"
 import { sidebarRenameField, tabAction } from "./support/terminals"
 import {
   chooseView,
+  clickInto,
   commandInput,
+  draftOf,
   enterNavigateMode,
   expectNothingSelected,
   expectSelected,
+  expectStaysAbsent,
   expectTypingIn,
   focusStage,
-  focusViewChoice,
   focusTab,
-  navigateChip,
-  expectStaysAbsent,
+  focusViewChoice,
   isMac,
   labelled,
+  navigateChip,
   openWorkspace,
   press,
   reloadWorkspace,
@@ -239,7 +241,7 @@ describe("Focus toggle", () => {
     it("toggles the view and keeps typing focus", async () => {
       await openWorkspace()
       await chooseView("Canvas")
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
 
       await pressShortcut("focus")
       await expect.element(view("Focus")).toBeChecked()
@@ -281,7 +283,7 @@ describe("new terminal shortcut", () => {
   context(`when pressing ${shortcut.newTerminal().label} in a terminal input`, () => {
     it("creates a terminal without typing into the input", async () => {
       await openWorkspace()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
 
       await pressShortcut("newTerminal")
 
@@ -413,7 +415,7 @@ describe("navigate mode", () => {
   context(`when pressing Shift+Esc in a terminal's command input`, () => {
     it("starts navigating, and arrows then move the selection", async () => {
       await openWorkspace()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
       await expect.element(commandInput("Checkout implementation")).toHaveFocus()
       await expect.element(navigateChip()).not.toBeInTheDocument()
 
@@ -471,13 +473,14 @@ describe("navigate mode", () => {
     it("types into the selected terminal and stops navigating", async () => {
       await openWorkspace()
       await enterNavigateMode()
-      await press("{ArrowDown}")
-      await expectSelected("Dev server")
+      // Down to the first shell, past the programs running in the two before it.
+      await press("{ArrowDown}{ArrowDown}{ArrowDown}")
+      await expectSelected("Checkout review")
 
       await press("ls")
 
-      await expectTypingIn("Dev server")
-      await expect.element(commandInput("Dev server")).toHaveValue("ls")
+      await expectTypingIn("Checkout review")
+      await expect.poll(() => draftOf("Checkout review")).toBe("ls")
     })
   })
 
@@ -527,12 +530,12 @@ describe("sidebar shortcuts", () => {
 
     it("works from a terminal input", async () => {
       await openWorkspace()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
 
       await pressShortcut("sessions")
 
       await expect.element(sidebarPanel("Sessions")).toBeChecked()
-      await expect.element(commandInput("Checkout implementation")).toHaveValue("")
+      await expect.poll(() => draftOf("Checkout implementation")).toBe("")
     })
   })
 })
@@ -716,7 +719,7 @@ describe("pinned project shortcuts", () => {
       pinInOrder()
       await openWorkspace()
       const input = commandInput("Checkout implementation").element()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
 
       // The key is ours, so it never reaches the terminal's own handlers.
       expect(digitKeydown(2, {}, input).defaultPrevented).toBe(true)
@@ -821,7 +824,7 @@ describe("pinned project shortcuts", () => {
     it("changes nothing and leaves the key, held or not, to the terminal", async () => {
       pinInOrder()
       await openWorkspace()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
       const input = commandInput("Checkout implementation").element()
 
       expect(digitKeydown(3, {}, input).defaultPrevented).toBe(false)
@@ -846,11 +849,11 @@ describe("typing in a terminal", () => {
   context("when typing workspace keys into a command input", () => {
     it("types them instead of running workspace shortcuts", async () => {
       await openWorkspace()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
 
       await press("tfb/")
 
-      await expect.element(commandInput("Checkout implementation")).toHaveValue("tfb/")
+      await expect.poll(() => draftOf("Checkout implementation")).toBe("tfb/")
       await expectStaysAbsent(terminal(newTerminalName))
       await expectStaysAbsent(findDialog())
       await expectStaysAbsent(viewRegion("grid"))
@@ -863,8 +866,8 @@ describe("typing in a terminal", () => {
   context("when typing single letters with focus outside a terminal", () => {
     it("does not run workspace actions", async () => {
       await openWorkspace()
-      await terminalTab("Dev server").click()
-      await expectSelected("Dev server")
+      await terminalTab("Checkout review").click()
+      await expectSelected("Checkout review")
 
       await press("tfzb/")
 
@@ -874,9 +877,9 @@ describe("typing in a terminal", () => {
       await expect.element(page.getByRole("button", { name: "Enter Zen mode" })).toBeVisible()
       await expect.element(view("Focus")).toBeChecked()
       await expect.element(sidebar()).toBeVisible()
-      await expectSelected("Dev server")
-      await expect.element(commandInput("Dev server")).toHaveFocus()
-      await expect.element(commandInput("Dev server")).toHaveValue("tfzb/")
+      await expectSelected("Checkout review")
+      await expect.element(commandInput("Checkout review")).toHaveFocus()
+      await expect.poll(() => draftOf("Checkout review")).toBe("tfzb/")
     })
   })
 
@@ -898,7 +901,7 @@ describe("typing in a terminal", () => {
   context("when typing while the Find dialog is open", () => {
     it("types into the search, not the terminal", async () => {
       await openWorkspace()
-      await terminalTab("Dev server").click()
+      await terminalTab("Checkout review").click()
       await pressShortcut("find")
       await expectSearchReady()
 
@@ -907,19 +910,19 @@ describe("typing in a terminal", () => {
       await expect.element(searchField()).toHaveValue("xyz")
       await press("{Escape}")
       await expect.element(findDialog()).not.toBeInTheDocument()
-      await expect.element(commandInput("Dev server")).toHaveValue("")
+      await expect.poll(() => draftOf("Checkout review")).toBe("")
     })
   })
 
   context("when pressing Space with focus on a terminal tab", () => {
     it("does not move focus into the terminal", async () => {
       await openWorkspace()
-      await focusTab("Dev server")
+      await focusTab("Checkout review")
 
       await press(" ")
 
-      await expect.element(commandInput("Dev server")).not.toHaveFocus()
-      await expect.element(commandInput("Dev server")).toHaveValue("")
+      await expect.element(commandInput("Checkout review")).not.toHaveFocus()
+      await expect.poll(() => draftOf("Checkout review")).toBe("")
     })
   })
 
@@ -927,7 +930,7 @@ describe("typing in a terminal", () => {
     it("keeps the selection and the view", async () => {
       await openWorkspace()
       await expect.element(terminal("Checkout implementation")).toBeVisible()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
 
       await press("{ArrowDown}{ArrowRight}{Shift>}{ArrowRight}{/Shift}")
 
@@ -942,7 +945,7 @@ describe("typing in a terminal", () => {
   context("when pressing a modifier shortcut in a command input", () => {
     it("still runs it", async () => {
       await openWorkspace()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
 
       await pressShortcut("find")
 
@@ -1129,7 +1132,7 @@ describe("dictation", () => {
 
     it("offers it in the strip when the shortcut is pressed, without recording or downloading", async () => {
       await openWithoutVoice()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
 
       await press(`${dictateKeys}${releaseKeys}`)
 
@@ -1146,7 +1149,7 @@ describe("dictation", () => {
 
     it("offers it again after it was ignored: typing hides it, which is not an answer", async () => {
       await openWithoutVoice()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
       await press(`${dictateKeys}${releaseKeys}`)
       await expect.element(offer()).toBeVisible()
 
@@ -1159,21 +1162,22 @@ describe("dictation", () => {
 
     it("leaves Esc to the terminal while the offer shows", async () => {
       await openWithoutVoice()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
       await press(`${dictateKeys}${releaseKeys}`)
       await expect.element(offer()).toBeVisible()
 
-      // Esc reaches the terminal, where it interrupts the agent: nothing prevented it.
+      // Esc reaches the terminal, where it interrupts the agent: nothing prevented it. The
+      // document hears it after the app's window listeners and before the terminal's
+      // emulator, which takes it as its own.
       const prevented: boolean[] = []
       const note = (event: KeyboardEvent): void => {
         if (event.key === "Escape") prevented.push(event.defaultPrevented)
       }
-      // A window listener added last, so it runs after the app's own and sees what they did.
-      window.addEventListener("keydown", note)
+      document.addEventListener("keydown", note, true)
       try {
         await press("{Escape}")
       } finally {
-        window.removeEventListener("keydown", note)
+        document.removeEventListener("keydown", note, true)
       }
       expect(prevented).toEqual([false])
 
@@ -1184,7 +1188,7 @@ describe("dictation", () => {
 
     it("lets the keyboard reach the offer's buttons, and answers with Enter", async () => {
       await openWithoutVoice()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
       await press(`${dictateKeys}${releaseKeys}`)
       await expect.element(offer()).toBeVisible()
 
@@ -1212,7 +1216,7 @@ describe("dictation", () => {
 
     it("turns on when the shortcut is pressed again on a layout where M is elsewhere", async () => {
       await openWithoutVoice()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
       await press(`${dictateKeys}${releaseKeys}`)
       await expect.element(offer()).toBeVisible()
 
@@ -1226,7 +1230,7 @@ describe("dictation", () => {
 
     it("makes room for the offer instead of covering the terminal's last lines", async () => {
       await openWithoutVoice()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
       await press(`${dictateKeys}${releaseKeys}`)
       await expect.element(offer()).toBeVisible()
 
@@ -1256,9 +1260,7 @@ describe("dictation", () => {
       await expect.element(offer()).toBeVisible()
       const strip = win().querySelector<HTMLElement>(".dictation-strip:not([hidden])")!
       const host = strip.parentElement!.getBoundingClientRect()
-      const form = strip
-        .parentElement!.querySelector(".agent-command-form")!
-        .getBoundingClientRect()
+      const form = strip.parentElement!.querySelector(".terminal-xterm")!.getBoundingClientRect()
       expect(form.bottom).toBeLessThanOrEqual(host.bottom + 0.5)
       expect(overflow()).toBe(without)
       expect(overflow()).toBe(0)
@@ -1288,7 +1290,7 @@ describe("dictation", () => {
 
     it("installs on Turn on, shows it in the strip, and does not start recording", async () => {
       await openWithoutVoice()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
       await press(`${dictateKeys}${releaseKeys}`)
 
       await offer().getByRole("button", { name: "Turn on" }).click()
@@ -1301,7 +1303,7 @@ describe("dictation", () => {
 
     it("turns on when the shortcut is pressed again while the offer shows", async () => {
       await openWithoutVoice()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
       await press(`${dictateKeys}${releaseKeys}`)
       await expect.element(offer()).toBeVisible()
 
@@ -1332,7 +1334,7 @@ describe("dictation", () => {
       }
       document.addEventListener("keydown", note)
       try {
-        await commandInput("Checkout implementation").click()
+        await clickInto("Checkout implementation")
         await press(`${dictateKeys}${releaseKeys}`)
       } finally {
         document.removeEventListener("keydown", note)
@@ -1379,7 +1381,7 @@ describe("dictation", () => {
   context("when voice input is installed", () => {
     it("records while the shortcut is held and pastes the transcript into the terminal without sending it", async () => {
       await openWorkspace()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
 
       await press(dictateKeys)
       await expect.element(saying("Release to send")).toBeVisible()
@@ -1395,15 +1397,15 @@ describe("dictation", () => {
       // "Transcribing" shows only as long as the demo takes, too briefly to wait for.
       await saidWhile(microphone, async () => {
         await expect
-          .element(commandInput("Checkout implementation"), { timeout: 15_000 })
-          .toHaveValue("Add a retry to the checkout request and run the tests.")
+          .poll(() => draftOf("Checkout implementation"), { timeout: 15_000 })
+          .toBe("Add a retry to the checkout request and run the tests.")
       })
       expect(microphone.live()).toBe(0)
     })
 
     it("keeps recording after a quick tap until the next press", async () => {
       await openWorkspace()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
 
       tapDictation()
       await expect.element(saying("Esc discard")).toBeVisible()
@@ -1414,8 +1416,8 @@ describe("dictation", () => {
       // "Transcribing" shows only as long as the demo takes, too briefly to wait for.
       await saidWhile(microphone, async () => {
         await expect
-          .element(commandInput("Checkout implementation"), { timeout: 15_000 })
-          .toHaveValue("Add a retry to the checkout request and run the tests.")
+          .poll(() => draftOf("Checkout implementation"), { timeout: 15_000 })
+          .toBe("Add a retry to the checkout request and run the tests.")
       })
     })
 
@@ -1443,7 +1445,7 @@ describe("dictation", () => {
 
     it("drops the recording on Escape and releases the microphone", async () => {
       await openWorkspace()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
 
       await press(dictateKeys)
       await wait(500)
@@ -1453,7 +1455,7 @@ describe("dictation", () => {
 
       await expect.poll(() => saying(/Listening|Transcribing/).elements().length).toBe(0)
       expect(microphone.live()).toBe(0)
-      await expect.element(commandInput("Checkout implementation")).toHaveValue("")
+      await expect.poll(() => draftOf("Checkout implementation")).toBe("")
     })
   })
 })

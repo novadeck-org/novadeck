@@ -7,6 +7,7 @@ import { createTerminalState, workspaceReducer, type WorkspaceAction } from "#co
 import type { CanvasLayout, Workspace } from "#core/types"
 
 import type { BackendAction } from "../port"
+import { noTheme } from "../terminal-views/theme"
 import { runnerBackend, type RunnerApi } from "./backend"
 import { startingTerminal, type ListedCompanions, type RunnerListing } from "./seed"
 import { encodeSession } from "./session-state"
@@ -237,6 +238,7 @@ export const scripted = ({
     },
   ]
   const created = runnerBackend(api, listing, {
+    theme: noTheme,
     saveDelay: 10,
     transcripts: true,
     agents: [

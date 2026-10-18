@@ -546,6 +546,7 @@ const keyboard = (
     holdMs?: number
     active?: boolean
     saved?: () => Promise<string>
+    unreadable?: "program" | "browser"
   } = {},
 ) => {
   let handler: ((event: KeyboardEvent) => boolean) | undefined
@@ -573,6 +574,7 @@ const keyboard = (
       readable: () => options.readable ?? true,
       waitMs: options.waitMs ?? 1000,
       holdMs: options.holdMs ?? 2000,
+      ...(options.unreadable && { unreadable: options.unreadable }),
     },
   )
   const press = (init?: Parameters<typeof key>[0]) => {
@@ -690,6 +692,15 @@ describe("Ctrl+V in a runner terminal", () => {
       clipboard(read)
       const page = keyboard({ readable: false })
       expect(page.press()).toEqual({ passed: true, prevented: false })
+      expect(read).not.toHaveBeenCalled()
+      expect(page.log).toEqual([])
+    })
+
+    it("leaves Ctrl+V to the browser to paste, where the terminal asks for that", () => {
+      const read = vi.fn<() => Promise<unknown[]>>(async () => [item("image/png")])
+      clipboard(read)
+      const page = keyboard({ readable: false, unreadable: "browser" })
+      expect(page.press()).toEqual({ passed: false, prevented: false })
       expect(read).not.toHaveBeenCalled()
       expect(page.log).toEqual([])
     })

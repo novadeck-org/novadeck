@@ -5,6 +5,7 @@ import { followTerminal, type FollowOptions } from "@novadeck/terminal/view"
 import { vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
+import { noTheme } from "../terminal-views/theme"
 import type { SurfaceRuntime } from "./backend"
 import { viewOptions } from "./view-options"
 
@@ -134,7 +135,7 @@ describe("following a runner terminal", () => {
       screen: () => {},
       shown: () => false,
     } satisfies SurfaceRuntime
-    const followed = followTerminal(viewOptions(runtime), key, {
+    const followed = followTerminal(viewOptions(runtime, { theme: noTheme }), key, {
       write: async (data) => void drawn.push(data),
       reset: () => {},
       resize: () => {},
@@ -156,7 +157,11 @@ describe("following a runner terminal", () => {
         .mockResolvedValueOnce(first.attached)
         .mockResolvedValue(second.attached)
       const drawn: string[] = []
-      const followed = followTerminal(viewOptions(runtimeWith(attach)), key, drawing(drawn))
+      const followed = followTerminal(
+        viewOptions(runtimeWith(attach), { theme: noTheme }),
+        key,
+        drawing(drawn),
+      )
       await vi.waitFor(() => expect(drawn).toEqual(["reset", "$ before"]))
       followed.park()
       expect(first.detach).toHaveBeenCalled()
@@ -175,7 +180,11 @@ describe("following a runner terminal", () => {
         .mockResolvedValueOnce(first.attached)
         .mockResolvedValue(second.attached)
       const drawn: string[] = []
-      const followed = followTerminal(viewOptions(runtimeWith(attach)), key, drawing(drawn))
+      const followed = followTerminal(
+        viewOptions(runtimeWith(attach), { theme: noTheme }),
+        key,
+        drawing(drawn),
+      )
       await vi.waitFor(() => expect(drawn).toEqual(["reset", "$ before"]))
       followed.park()
       followed.unpark()
@@ -198,7 +207,11 @@ describe("following a runner terminal", () => {
         .fn<SurfaceRuntime["attach"]>()
         .mockResolvedValue(replaying([snapshot("$ exit 1", exit)]))
       const drawn: string[] = []
-      const followed = followTerminal(viewOptions(runtimeWith(attach, entry)), key, drawing(drawn))
+      const followed = followTerminal(
+        viewOptions(runtimeWith(attach, entry), { theme: noTheme }),
+        key,
+        drawing(drawn),
+      )
       followed.park()
       followed.unpark()
       start(true)
@@ -221,7 +234,11 @@ describe("following a runner terminal", () => {
         )
         .mockResolvedValue(second.attached)
       const drawn: string[] = []
-      const followed = followTerminal(viewOptions(runtimeWith(attach)), key, drawing(drawn))
+      const followed = followTerminal(
+        viewOptions(runtimeWith(attach), { theme: noTheme }),
+        key,
+        drawing(drawn),
+      )
       await vi.waitFor(() => expect(attach).toHaveBeenCalledTimes(1))
       followed.park()
       land(first.attached)
@@ -248,7 +265,11 @@ describe("following a runner terminal", () => {
         .mockResolvedValueOnce(first.attached)
         .mockResolvedValue(replaying([snapshot("$ fresh exited", exit)]))
       const drawn: string[] = []
-      const followed = followTerminal(viewOptions(runtimeWith(attach, entry)), key, drawing(drawn))
+      const followed = followTerminal(
+        viewOptions(runtimeWith(attach, entry), { theme: noTheme }),
+        key,
+        drawing(drawn),
+      )
       await vi.waitFor(() => expect(drawn).toEqual(["reset", "$ before"]))
       followed.park()
       await new Promise((resolve) => setTimeout(resolve, 10))
@@ -285,7 +306,11 @@ describe("following a runner terminal", () => {
         .mockResolvedValueOnce(replaying([snapshot("$ exit 1", exit)]))
         .mockResolvedValue(fresh.attached)
       const drawn: string[] = []
-      const followed = followTerminal(viewOptions(runtimeWith(attach, entry)), key, drawing(drawn))
+      const followed = followTerminal(
+        viewOptions(runtimeWith(attach, entry), { theme: noTheme }),
+        key,
+        drawing(drawn),
+      )
       await vi.waitFor(() => expect(drawn).toEqual(["reset", "$ exit 1"]))
       followed.park()
       entry.revived = new Promise<void>(() => {})

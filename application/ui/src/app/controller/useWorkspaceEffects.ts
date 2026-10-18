@@ -30,7 +30,7 @@ export const useWorkspaceEffects = (): void => {
 
   // Ligatures follow the preference on <html>, so dialogs outside the workspace follow it
   // too (theme/base.css). Set before any effect of the terminals, whose renderer depends
-  // on the setting (backend/runner/renderers.ts), so a screen never loads WebGL to drop.
+  // on the setting (backend/terminal-views/renderers.ts), so a screen never loads WebGL to drop.
   useLayoutEffect(() => {
     document.documentElement.dataset.ligatures = ligatures ? "on" : "off"
   }, [ligatures])
