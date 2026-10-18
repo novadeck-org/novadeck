@@ -602,6 +602,9 @@ importers:
 
   libraries/terminal:
     dependencies:
+      '@novadeck/emulator':
+        specifier: workspace:*
+        version: link:../emulator
       zod:
         specifier: 'catalog:'
         version: 4.6.5
