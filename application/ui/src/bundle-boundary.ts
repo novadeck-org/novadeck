@@ -9,6 +9,16 @@ const forbiddenFolders = (mode: string): readonly string[] =>
       ? ["src/backend/runner/"]
       : ["src/backend/demo/"]
 
+// What each build must carry for the checks to mean anything: a module under the adapter its
+// mode runs on. A build that holds none means the folder names above no longer match this tree,
+// and "carries nothing forbidden" would pass on any bundle at all.
+const carriedFolders = (mode: string): readonly string[] =>
+  mode === "try"
+    ? ["src/backend/demo/"]
+    : mode === "content-preview"
+      ? ["src/backend/demo/debug/"]
+      : ["src/backend/runner/"]
+
 // The module ids of a bundle that a build in this mode must not carry.
 export const boundaryViolations = (mode: string, moduleIds: readonly string[]): string[] => {
   const folders = forbiddenFolders(mode)
@@ -16,6 +26,12 @@ export const boundaryViolations = (mode: string, moduleIds: readonly string[]): 
     const path = id.split("\\").join("/")
     return folders.some((folder) => path.includes(`/${folder}`))
   })
+}
+
+// The folders this mode's build must carry that hold no module of its bundle.
+export const missingFolders = (mode: string, moduleIds: readonly string[]): string[] => {
+  const paths = moduleIds.map((id) => id.split("\\").join("/"))
+  return carriedFolders(mode).filter((folder) => !paths.some((path) => path.includes(`/${folder}`)))
 }
 
 // What the first chunk must not carry: the terminal emulator and its library. The app opens
@@ -52,6 +68,23 @@ const entries = (bundle: Readonly<Record<string, BuiltChunk>>): string[] =>
     .filter(([, chunk]) => chunk.type === "chunk" && chunk.isEntry)
     .map(([fileName]) => fileName)
 
+// Why the first-chunk check has nothing to read: no entry chunk, or no module of any deferred
+// library in any chunk (every build carries the emulator, so a bundle that holds none has
+// patterns that no longer match).
+export const firstChunkGaps = (bundle: Readonly<Record<string, BuiltChunk>>): string[] => {
+  const held = Object.values(bundle).flatMap((chunk) =>
+    chunk.type === "chunk" ? Object.keys(chunk.modules ?? {}) : [],
+  )
+  const library = held.some((id) => {
+    const path = id.split("\\").join("/")
+    return deferredLibraries.some((name) => path.includes(name))
+  })
+  return [
+    ...(entries(bundle).length === 0 ? ["it has no entry chunk"] : []),
+    ...(library ? [] : ["it holds no module of the terminal emulator or its library"]),
+  ]
+}
+
 // The module ids of the entry chunks and everything they import statically that belong to a
 // deferred library.
 export const firstChunkViolations = (bundle: Readonly<Record<string, BuiltChunk>>): string[] => {
@@ -76,6 +109,31 @@ export type BuiltAsset = {
   readonly source?: unknown
 }
 
+// The utilities a build's CSS must hold, one from each folder Tailwind scans: the stylesheet's
+// `source("..")` is the only thing that reaches them (src/styles.css), and a scan that lost
+// a folder would drop its looks without failing anything else. Each is written in one file of
+// its folder only. The visitor build's demo has no utility of its own to name: its markup is
+// the debug panel's, so only the debug folder is guarded.
+export const scannedUtilities: readonly { readonly folder: string; readonly utility: string }[] = [
+  {
+    folder: "src/backend/demo/debug/",
+    utility: "h-[min(760px,calc(100vh-80px))]",
+  },
+]
+
+// The folders whose utility no stylesheet of the build holds.
+export const missingUtilities = (bundle: Readonly<Record<string, BuiltAsset>>): string[] => {
+  const css = Object.values(bundle)
+    .filter((asset) => asset.type === "asset" && asset.fileName.endsWith(".css"))
+    .map((asset) => textOf(asset.source))
+  return scannedUtilities
+    .filter(({ utility }) => {
+      const selector = `.${utility.replace(/[^\w-]/g, "\\$&")}`
+      return !css.some((text) => text.includes(selector))
+    })
+    .map(({ folder, utility }) => `${utility} from ${folder}`)
+}
+
 // Whether a build lacks the terminal screens' styles, which every build draws its terminals
 // with: the desktop and web apps the runner's, the visitor build and the preview the demo's.
 export const missingScreenStyles = (bundle: Readonly<Record<string, BuiltAsset>>): boolean =>
@@ -90,6 +148,9 @@ export const missingScreenStyles = (bundle: Readonly<Record<string, BuiltAsset>>
           : ""
       ).includes(screenRule),
   )
+
+// The module the demo chunk is named for.
+const demoConnect = "/backend/demo/visitor/connect.ts"
 
 // What the visitor build may weigh: what the page loads first (its scripts and styles
 // gzipped, and every woff2 font those styles declare, in bytes as they are, though a browser
@@ -140,11 +201,9 @@ export const budgetViolations = (
   if (mode !== "try") return []
   const first = reached(bundle, entries(bundle))
   const connect = Object.entries(bundle)
-    .filter(([, chunk]) =>
-      chunk.facadeModuleId?.split("\\").join("/").endsWith("/backend/demo/visitor/connect.ts"),
-    )
+    .filter(([, chunk]) => chunk.facadeModuleId?.split("\\").join("/").endsWith(demoConnect))
     .map(([fileName]) => fileName)
-  if (connect.length === 0) return ["it has no demo chunk to weigh"]
+  if (connect.length === 0) return [`no demo chunk found for ${demoConnect}`]
   const demo = [...reached(bundle, connect)].filter((fileName) => !first.has(fileName))
   const styles = (files: Iterable<string>): Set<string> =>
     new Set(

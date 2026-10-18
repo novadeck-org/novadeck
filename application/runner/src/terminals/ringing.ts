@@ -37,8 +37,6 @@ export type TargetHost<R extends RingRecord> = {
   readonly shownAgent: (terminalId: string) => AgentName | undefined
   /** Whether process `pid` still runs. */
   readonly alive: (pid: string) => boolean
-  /** The bound agent left unseen: its binding ends, in turn with the reports. */
-  readonly exited: (terminalId: string, record: R, binding: Binding) => void
 }
 
 /**
@@ -59,8 +57,6 @@ export const typingTarget = <R extends RingRecord>(
   get resizedAt() {
     return host.live(terminalId)?.terminal.resizedAt ?? 0
   },
-  // Known wart: this query ends the binding of an agent found gone (`exited`), which a pure
-  // read would not; a follow-up splits it into the read and an agent-gone hook.
   holdsForeground: async () => {
     const record = host.live(terminalId)
     if (!record) return undefined
@@ -71,12 +67,8 @@ export const typingTarget = <R extends RingRecord>(
     const { binding } = record
     const instance = binding?.instance
     if (!instance) return undefined
-    // The bound agent left unseen: no ring for its session, whatever holds the terminal
-    // now, and its binding ends, in turn with the reports.
-    if (!host.alive(instance)) {
-      host.exited(terminalId, record, binding)
-      return false
-    }
+    // The bound agent left unseen: no ring for its session, whatever holds the terminal now.
+    if (!host.alive(instance)) return false
     const [held, own] = await Promise.all([
       terminalForeground(record.terminal.pty.pid),
       processGroup(Number(instance)),
@@ -86,6 +78,10 @@ export const typingTarget = <R extends RingRecord>(
 })
 
 export type RingHost<R extends RingRecord> = TargetHost<R> & {
+  /** Runs `work` in the terminal's turn, after what is queued there. */
+  readonly queued: (terminalId: string, work: () => void) => void
+  /** Ends the binding of an agent known to have exited. */
+  readonly endExited: (record: R) => void
   readonly messaging: Messaging
   /** Whether the activity says a turn or subagents run, where that outweighs what messaging knows. */
   readonly working: (terminalId: string, activity: Activity | null) => boolean
@@ -124,6 +120,17 @@ export const doorbellHost = <R extends RingRecord>(
       )
     },
     ringing: (terminalId) => messaging.ringing(terminalId),
+    // The doorbell asks before it reads the foreground; the read itself ends nothing.
+    agentGone: (terminalId) => {
+      const record = live(terminalId)
+      const binding = record?.binding
+      const instance = binding?.instance
+      // Its binding ends in turn with the reports, if it is still the one found.
+      if (record && binding && instance && !host.alive(instance))
+        host.queued(terminalId, () => {
+          if (record.binding === binding) host.endExited(record)
+        })
+    },
     ready: (terminalId) => messaging.ready(terminalId),
     // Idle but not Ready by its state, with messages waiting: its screen is looked at.
     // Never while its activity says a turn or subagents run (a spinner is no calm), and

@@ -81,6 +81,8 @@ const terminal = (
   let leftover = options.leftover
   const oursReported: boolean[] = []
   const ringLeftovers: string[] = []
+  // What the doorbell asked of the agent and the foreground, in order.
+  const asked: ("agentGone" | "holdsForeground")[] = []
   let tick = 0
   const ticker =
     options.tickMs === undefined
@@ -148,6 +150,7 @@ const terminal = (
       // A failed ring leaves the terminal Unknown, idle with its messages waiting.
       stalled = true
     },
+    agentGone: () => void asked.push("agentGone"),
     target: () => target,
   }
   const target: TypingTarget = {
@@ -160,6 +163,7 @@ const terminal = (
       return text
     },
     holdsForeground: () => {
+      asked.push("holdsForeground")
       if (resizeAtForeground) {
         resizeAtForeground = false
         resizedAt = Date.now()
@@ -225,6 +229,7 @@ const terminal = (
     emptied,
     blocks,
     ringLeftovers,
+    asked,
     emptiedAt,
     oursReported,
     bump: () => (stamp += 1),
@@ -553,6 +558,19 @@ describe("the doorbell", () => {
     }
   })
 
+  it("asks whether the agent is gone right before each read of the foreground, never after", async () => {
+    const { host, written, asked } = terminal()
+    const doorbell = new Doorbell(host, host.queue, fast)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(enters(written)).toBe(1))
+    // Ordered: ending a gone agent's binding is queued ahead of the typist's read.
+    expect(asked).toEqual(
+      Array.from({ length: asked.length / 2 }, () => ["agentGone", "holdsForeground"]).flat(),
+    )
+    expect(asked.length).toBeGreaterThan(0)
+    doorbell.close()
+  })
+
   it("rings where the platform can't tell the foreground", async () => {
     const { host, written } = terminal({ foreground: undefined })
     const doorbell = new Doorbell(host, host.queue, fast)
@@ -862,6 +880,23 @@ describe("the doorbell's word on every refusal and look", () => {
     await vi.waitFor(() => expect(blocks).toContain("away"))
     expect(written).toEqual([])
     expect(ringLeftovers).toEqual([])
+    stop()
+    doorbell.close()
+  })
+
+  it("asks whether the agent is gone right before it reads the foreground for a leftover line", async () => {
+    const { host, asked, ringLeftovers, stop } = terminal({
+      ringable: false,
+      stalled: "draft",
+      leftover: "k3f9Xz",
+    })
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(ringLeftovers).toEqual(["k3f9Xz"]))
+    expect(asked.slice(0, 2)).toEqual(["agentGone", "holdsForeground"])
+    expect(asked.filter((ask) => ask === "agentGone")).toHaveLength(
+      asked.filter((ask) => ask === "holdsForeground").length,
+    )
     stop()
     doorbell.close()
   })

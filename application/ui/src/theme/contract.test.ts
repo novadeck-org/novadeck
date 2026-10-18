@@ -189,6 +189,16 @@ const expand = (token: string): string[] => {
 }
 
 describe("theme contract", () => {
+  it("reads the stylesheets of every folder, the debug panel's among them", () => {
+    expect(stylesheets).toEqual(
+      expect.arrayContaining([
+        "styles.css",
+        "theme/base.css",
+        "backend/demo/debug/debug-panel.css",
+      ]),
+    )
+  })
+
   describe("foundation tokens", () => {
     it("are the ones the theming guide's table lists", () => {
       const section = doc.slice(

@@ -349,6 +349,17 @@ const importViolation = (file: string, layer: string | undefined) => {
 }
 
 describe("UI architecture", () => {
+  it("reads the source of every folder, the core and the debug panel among them", () => {
+    expect(files).toEqual(
+      expect.arrayContaining([
+        "app/App.tsx",
+        "core/store.ts",
+        "backend/runner/index.ts",
+        "backend/demo/debug/DebugPanel.tsx",
+      ]),
+    )
+  })
+
   it("places every source file in a layer", () => {
     expect(files.filter((file) => !layerOf(file) && !rootTest(file))).toEqual([])
   })
@@ -377,6 +388,7 @@ describe("UI architecture", () => {
     const core = readdirSync(join(src, "core"), { recursive: true, withFileTypes: true })
       .filter((entry) => entry.isFile())
       .map((entry) => relative(src, join(entry.parentPath, entry.name)).split("\\").join("/"))
+    expect(core).toContain("core/store.ts")
     expect(core.filter((file) => !file.endsWith(".ts"))).toEqual([])
   })
 
@@ -549,6 +561,9 @@ describe("UI architecture", () => {
         .split(/\r?\n/)
         .filter((line) => line !== "" && !line.startsWith("//")),
     ])
+    expect(scripts.map(([name]) => name)).toEqual(
+      expect.arrayContaining(["previews", "try", "web"]),
+    )
     expect(scripts).toEqual(
       readdirSync(pages).map((name) => [name, [`import "../../src/entries/${name}"`]]),
     )
