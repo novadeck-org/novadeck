@@ -161,7 +161,9 @@ minutes after its session leaves the screen, so going back to a session or proje
 its output in place; they go when that time passes or the terminal closes. Of the screens
 no view shows, `screens.ts` keeps at most the 16 parked most recently, closing the one
 parked longest first (a closed one resyncs from the runner's snapshot when shown again);
-screens a view shows, Focus's kept windows among them, don't count. Focus keeps
+screens a view shows, Focus's kept windows among them, don't count. A Canvas node out of
+sight keeps its surface mounted but lets its screen go, so the screen parks after 5 s and
+counts toward the cap, and the node's content is hidden until it is back in sight. Focus keeps
 the last four terminals it displayed mounted, parked out of sight with `display:none`,
 so switching back finds a terminal's companion pane as it was: a page still loaded, a
 plan's editor, where each was scrolled. A component that docks status, opens over the

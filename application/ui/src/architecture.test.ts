@@ -117,11 +117,13 @@ const adapterSelection = "app/backend.ts"
 // Tests and specs open the demo through its spec entry, never another adapter module.
 const specBackend = "backend/demo/spec-variants.ts"
 // The counter run drives the real UI over the runner adapter, scripted: the one spec
-// that may reach that adapter, through its scripted server alone, and core/store.ts, for
-// its instrumentation hook.
+// that may reach core/store.ts, for its instrumentation hook. It and the spec below reach
+// the runner adapter through its scripted server alone.
 const counterRun = "specs/counters/"
 const scriptedServer = "backend/runner/scripted-server.ts"
 const counterRunReaches = [scriptedServer, "core/store.ts"]
+// Canvas's out-of-sight spec opens the same scripted runner, to see which screens are open.
+const canvasOffscreenSpec = "specs/canvas-offscreen.spec.tsx"
 // The stores' instrumentation hook, which only the counter run installs; named here once,
 // so this file is the one other place it appears.
 const storeHook = "countListenersWoken"
@@ -258,6 +260,7 @@ const importViolation = (file: string, layer: string | undefined) => {
     const target = resolveFile(file, specifier)
     if (!target) return [`${file} -> ${specifier} (unresolved)`]
     if (file.startsWith(counterRun) && counterRunReaches.includes(target)) return []
+    if (file === canvasOffscreenSpec && target === scriptedServer) return []
     const targetLayer = layerOf(target)
     if (targetLayer && adapterOf(targetLayer) && targetLayer !== layer)
       return file === adapterSelection ||
