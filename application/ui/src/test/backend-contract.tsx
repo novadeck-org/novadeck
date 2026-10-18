@@ -323,7 +323,8 @@ export const describeBackendContract = (name: string, options: BackendContractOp
         const io = [...probe.io()]
         const woken = vi.fn<() => void>()
         mount.state.subscribe(woken)
-        const written = new MutationObserver(() => {})
+        const records: MutationRecord[] = []
+        const written = new MutationObserver((batch) => records.push(...batch))
         written.observe(element, {
           subtree: true,
           attributes: true,
@@ -333,8 +334,9 @@ export const describeBackendContract = (name: string, options: BackendContractOp
         update({})
         update({ view: "focus", onScreen: true })
         await settle()
-        expect(written.takeRecords()).toEqual([])
+        records.push(...written.takeRecords())
         written.disconnect()
+        expect(records).toEqual([])
         expect(woken).not.toHaveBeenCalled()
         expect(probe.io()).toEqual(io)
       })

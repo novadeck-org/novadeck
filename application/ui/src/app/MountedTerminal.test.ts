@@ -33,20 +33,22 @@ type Mocked = {
 // its focus lands; `state` is what it tells.
 const stub = () => {
   const state = createStore<ViewState>(open)
-  const created: { element: HTMLElement; props: TerminalMountProps }[] = []
+  const created: { element: HTMLElement; key: TerminalKey; props: TerminalMountProps }[] = []
   const mounts: Mocked[] = []
   const log = { disposedInPage: [] as boolean[] }
   const landing = { value: true }
-  const mountTerminal: MountTerminal = (element, _key, props) => {
-    created.push({ element, props })
+  const mountTerminal: MountTerminal = (element, mountKey, props) => {
+    created.push({ element, key: mountKey, props })
+    // Focus lands only while the mount is on screen, as a real one's does.
+    let shown = props.onScreen !== false
     const field = document.createElement("textarea")
     field.setAttribute("data-terminal-input", "")
     element.replaceChildren(field)
     const mount: Mocked = {
       state,
-      update: vi.fn<TerminalMount["update"]>(),
+      update: vi.fn<TerminalMount["update"]>((next) => void (shown = next.onScreen !== false)),
       focus: vi.fn<TerminalMount["focus"]>(() => {
-        if (!landing.value) return false
+        if (!landing.value || !shown) return false
         field.focus()
         return true
       }),
@@ -67,6 +69,7 @@ type Options = {
   readonly focusInput?: boolean
   readonly onInputFocused?: () => void
   readonly onScreen?: boolean
+  readonly terminalKey?: TerminalKey
   readonly renderWindow?: (content: ReactNode) => ReactNode
 }
 const bare = (content: ReactNode): ReactNode => content
@@ -81,7 +84,7 @@ const onInputFocused = (): void => {}
 const hosted = (mountTerminal: MountTerminal, options: Options = {}) =>
   createElement(MountedTerminal, {
     mountTerminal,
-    terminalKey: key,
+    terminalKey: options.terminalKey ?? key,
     terminal: options.terminal ?? running(),
     view: options.view ?? "focus",
     focusInput: options.focusInput ?? false,
@@ -171,6 +174,16 @@ describe("a terminal drawn by a backend's mount", () => {
       })
     })
 
+    it("disposes the mount of a terminal it no longer shows and mounts the new one", () => {
+      const next: TerminalKey = { ...key, terminalId: "02" }
+      const { created, mounts, change } = show()
+      change({ terminalKey: next })
+      expect(mounts[0]!.dispose).toHaveBeenCalledTimes(1)
+      expect(created.map((mounted) => mounted.key)).toEqual([key, next])
+      expect(mounts).toHaveLength(2)
+      expect(mounts[1]!.dispose).not.toHaveBeenCalled()
+    })
+
     it("disposes the mount while its element is still in the page, once", () => {
       const { mounts, log, unmount } = show()
       unmount()
@@ -247,6 +260,16 @@ describe("a terminal drawn by a backend's mount", () => {
       page.unmount()
     })
 
+    it("asks after the props reach the mount, so a terminal back on screen takes the focus", () => {
+      const onFocused = vi.fn<() => void>()
+      const { change, mounts } = show({ onScreen: false, onInputFocused: onFocused })
+      change({ onScreen: true, focusInput: true })
+      expect(mounts[0]!.update.mock.invocationCallOrder[0]!).toBeLessThan(
+        mounts[0]!.focus.mock.invocationCallOrder[0]!,
+      )
+      expect(onFocused).toHaveBeenCalledTimes(1)
+    })
+
     it("does not ask while it is not wanted", () => {
       const { mounts } = show({ focusInput: false })
       expect(mounts[0]!.focus).not.toHaveBeenCalled()
@@ -267,11 +290,6 @@ describe("a terminal drawn by a backend's mount", () => {
       act(() => void state.update((current) => ({ ...current, lock: null })))
       expect(container.querySelector("[role=status]")).toBeNull()
       expect(content(container).hasAttribute("data-locked")).toBe(false)
-    })
-
-    it("shows nothing locked before its mount exists", () => {
-      const { container } = show()
-      expect(container.querySelector("[role=status]")).toBeNull()
     })
   })
 

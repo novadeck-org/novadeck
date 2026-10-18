@@ -29,6 +29,19 @@ vi.hoisted(() => {
   })
 })
 
+// The emulator's terminal class is not exported; the tests spy on its prototype.
+const emulatorPrototype = (): EmulatorTerminal => {
+  const view = createView(document.createElement("div"), {
+    fontSize: 13,
+    fontFamily: "monospace",
+    theme: {},
+    scrollback: 0,
+  })
+  const prototype = Object.getPrototypeOf(view.terminal) as EmulatorTerminal
+  view.dispose()
+  return prototype
+}
+
 const keyOf = (terminalId: string): TerminalKey => ({
   projectId: "p",
   workspaceSessionId: "s",
@@ -54,6 +67,7 @@ const capped = (cap: number) => {
   const elements = new Map<string, HTMLElement>()
   let closed = false
   const connection = createStore<BackendConnectionState>("connected")
+  const resized = vi.fn<SurfaceRuntime["resized"]>()
   const runtime: SurfaceRuntime = {
     entry: () => ({
       ready: Promise.resolve(true),
@@ -66,7 +80,7 @@ const capped = (cap: number) => {
       return new Promise(() => {})
     },
     upload: () => new Promise(() => {}),
-    resized: () => {},
+    resized,
     attached: () => () => {},
     connected: async () => {},
     lost: () => {},
@@ -104,7 +118,7 @@ const capped = (cap: number) => {
   // The screen the terminal's element holds, while it is open.
   const hostOf = (terminalId: string) => elementOf(terminalId).firstElementChild
   const present = (terminalId: string) => hostOf(terminalId)?.isConnected === true
-  return { screens, told, attached, show, hide, present, hostOf, connection }
+  return { screens, told, attached, show, hide, present, hostOf, connection, resized }
 }
 
 describe("the cap on parked screens", () => {
@@ -306,6 +320,106 @@ describe("a mount's hold on a screen", () => {
       expect(opened[0]?.options.fontSize).toBe(15)
       screens.setFont({ size: 12 })
       expect(opened[0]?.options.fontSize).toBe(12)
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+    }
+  })
+
+  it("is not held by a screen that failed to open, which a later acquire opens afresh", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const { screens, told, show, hide } = capped(0)
+      const original = emulatorPrototype().open
+      vi.spyOn(emulatorPrototype(), "open").mockImplementationOnce(() => {
+        throw new Error("The emulator failed to open")
+      })
+      expect(() => screens.acquire(keyOf("a"), options)).toThrow("failed to open")
+      vi.mocked(emulatorPrototype().open).mockImplementation(original)
+      show("a")
+      hide("a")
+      // Held once, released once: it parks, and the cap of none closes it.
+      vi.advanceTimersByTime(parkMs)
+      expect(told).toContain("a gone")
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+    }
+  })
+
+  it("says its focus did not land when its host is not in the page", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const { screens, show } = capped(2)
+      const unplaced = screens.acquire(keyOf("loose"), options)
+      expect(unplaced.focus()).toBe(false)
+      expect(show("a").focus()).toBe(true)
+      unplaced.release()
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+    }
+  })
+
+  it("writes its input's lock only when the lock changes", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const { show, connection } = capped(2)
+      const hold = show("a")
+      const input = document.querySelector<HTMLElement>("[data-terminal-input]")!
+      expect(input.getAttribute("aria-disabled")).toBe("true")
+      const written = vi.spyOn(input, "setAttribute")
+      // Locked for another reason: the words change, the lock holds.
+      connection.update(() => "reconnecting")
+      connection.update(() => "unavailable")
+      hold.update({ phase: "running" })
+      expect(written).not.toHaveBeenCalled()
+      hold.update({ phase: "ended" })
+      hold.update({ phase: "ended" })
+      connection.update(() => "connected")
+      expect(written.mock.calls).toEqual([["aria-disabled", "false"]])
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+    }
+  })
+
+  it("fits the screens that are open again at a new font size, and only those that differ", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "requestAnimationFrame"] })
+    try {
+      const { screens, show, resized } = capped(2)
+      // The screens' hosts have a size, as laid out; nothing else in the page does.
+      for (const [name, value] of [
+        ["clientWidth", 800],
+        ["clientHeight", 600],
+      ] as const) {
+        const original = Object.getOwnPropertyDescriptor(Element.prototype, name)!.get!
+        vi.spyOn(Element.prototype, name, "get").mockImplementation(function (this: Element) {
+          return this.classList.contains("runner-screen") ? value : original.call(this)
+        })
+      }
+      const prototype = emulatorPrototype()
+      const loadAddon = prototype.loadAddon
+      vi.spyOn(prototype, "loadAddon").mockImplementation(function (
+        this: EmulatorTerminal,
+        addon: Parameters<EmulatorTerminal["loadAddon"]>[0],
+      ) {
+        if ("proposeDimensions" in addon && typeof addon.proposeDimensions === "function")
+          vi.spyOn(
+            addon as { proposeDimensions: () => unknown },
+            "proposeDimensions",
+          ).mockReturnValue({ cols: 100, rows: 30 })
+        return loadAddon.call(this, addon)
+      })
+      show("a")
+      await vi.advanceTimersByTimeAsync(0)
+      resized.mockClear()
+      screens.setFont({ size: 13 })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(resized).not.toHaveBeenCalled()
+      screens.setFont({ size: 15 })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(resized).toHaveBeenCalledTimes(1)
     } finally {
       closeScreens()
       vi.useRealTimers()

@@ -450,14 +450,24 @@ export const createScreens = (
   // Takes one more hold on the terminal's screen, opening it on first use.
   const take = (key: TerminalKey, { webgl, ...options }: ShowOptions): RunnerScreen => {
     const entry = entryOf(key)
+    const known = entry.screen
+    // The hold counts once the screen is open: one that fails to open leaves nothing held.
+    let screen: RunnerScreen
+    if (known) screen = known
+    else {
+      try {
+        screen = entry.screen = open(key, entry, options)
+      } catch (error) {
+        entries.delete(id(key))
+        throw error
+      }
+    }
     entry.users += 1
     if (entry.timer !== undefined) clearTimeout(entry.timer)
     entry.timer = undefined
     clearTimeout(entry.parking)
     entry.parking = undefined
     parked.delete(id(key))
-    const known = entry.screen
-    const screen = (entry.screen ??= open(key, entry, options))
     // The connection reaches the screen while a mount holds it; what changed while none did
     // is read now.
     if (entry.users === 1) {
