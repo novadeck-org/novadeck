@@ -1,0 +1,27 @@
+{
+  "name": "@novadeck/build-kit",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The apps' Vite helpers: the Content Security Policy's sources, hosting headers, noindex and the font rule.",
+  "type": "module",
+  "exports": {
+    "./connect-sources": "./src/connect-sources.ts",
+    "./content-security-policy": "./src/content-security-policy.ts",
+    "./fonts": "./src/fonts.ts",
+    "./hosting-headers": "./src/hosting-headers.ts",
+    "./search-visibility": "./src/search-visibility.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6",
+    "vitest": "^5.0.3"
+  },
+  "peerDependencies": {
+    "vite": "^7.3.6"
+  }
+}

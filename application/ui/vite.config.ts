@@ -1,57 +1,15 @@
 import { resolve } from "node:path"
 
+import { contentSecurityPolicy } from "@novadeck/build-kit/content-security-policy"
+import { fontsAsFiles } from "@novadeck/build-kit/fonts"
+import { hostingHeaders } from "@novadeck/build-kit/hosting-headers"
+import { searchVisibility } from "@novadeck/build-kit/search-visibility"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
-import { defineConfig, loadEnv, type ConfigEnv, type Plugin } from "vite"
+import { defineConfig, type Plugin } from "vite"
 
 import { boundaryViolations } from "./src/bundle-boundary"
-import { buildConnectSources } from "./src/content-security-policy"
-import { tryHeaders } from "./src/hosting-headers"
-import { withSearchVisibility } from "./src/search-visibility"
-
-const connectSourcesPlaceholder = "__NOVADECK_CONNECT_SOURCES__"
-
-const contentSecurityPolicy = (): Plugin => {
-  let environment: ConfigEnv
-  let apiUrl: string | undefined
-  let runnerUrl: string | undefined
-
-  return {
-    name: "novadeck-content-security-policy",
-    config(_config, configEnvironment) {
-      environment = configEnvironment
-      const fileEnvironment = loadEnv(environment.mode, process.cwd(), "VITE_")
-      apiUrl = process.env.VITE_API_URL ?? fileEnvironment.VITE_API_URL
-      runnerUrl = process.env.VITE_NOVADECK_RUNNER_URL ?? fileEnvironment.VITE_NOVADECK_RUNNER_URL
-    },
-    transformIndexHtml(html) {
-      if (!html.includes(connectSourcesPlaceholder)) {
-        throw new Error("Content Security Policy connect-src placeholder is missing")
-      }
-
-      const sources = buildConnectSources(environment, apiUrl, runnerUrl)
-      return withSearchVisibility(
-        html.replace(connectSourcesPlaceholder, sources.join(" ")),
-        environment.mode,
-      )
-    },
-  }
-}
-
-// Gives the visitor build the response headers its host serves it with (see
-// src/hosting-headers.ts).
-const hostingHeaders = (): Plugin => {
-  let mode = ""
-  return {
-    name: "novadeck-hosting-headers",
-    apply: "build",
-    configResolved: (config) => void (mode = config.mode),
-    generateBundle() {
-      if (mode === "try")
-        this.emitFile({ type: "asset", fileName: "_headers", source: tryHeaders() })
-    },
-  }
-}
+import { connect, connectSourcesPlaceholder, headerRules, hidden } from "./src/deploy"
 
 // Fails a build that carries an adapter its mode must not (see src/bundle-boundary.ts).
 const bundleBoundary = (): Plugin => {
@@ -81,11 +39,18 @@ export default defineConfig({
   },
   build: {
     manifest: true,
-    // Fonts always ship as files: the Content Security Policy loads them only from the
-    // app itself, so a small subset Vite would inline as a data: URL would be blocked.
-    assetsInlineLimit: (file) => (/\.woff2?$/.test(file) ? false : undefined),
+    // Fonts always ship as files, which the Content Security Policy allows.
+    assetsInlineLimit: fontsAsFiles,
   },
-  plugins: [tailwindcss(), react(), contentSecurityPolicy(), bundleBoundary(), hostingHeaders()],
+  // How each build is deployed is the app's (see src/deploy.ts); the build kit applies it.
+  plugins: [
+    tailwindcss(),
+    react(),
+    contentSecurityPolicy({ placeholder: connectSourcesPlaceholder, connect }),
+    searchVisibility({ hidden }),
+    bundleBoundary(),
+    hostingHeaders({ rules: headerRules }),
+  ],
   resolve: {
     alias: [{ find: /^react$/, replacement: resolve("node_modules/react/index.js") }],
     dedupe: ["react", "react-dom"],
