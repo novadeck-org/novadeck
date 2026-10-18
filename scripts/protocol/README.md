@@ -31,4 +31,6 @@ spelling a path out, such as the bench's attribution.
 
 1. Cherry-pick the script's commits (`git log --oneline -- scripts/protocol`).
 2. Run `CI=true node scripts/protocol/move-client.ts` on a clean tree and commit its output.
-3. Cherry-pick the rules commit and the docs commit; their edits are additions and path updates.
+3. Cherry-pick every commit after the script's run, oldest first: the rules, the docs, and the
+   host's smoke check, which named the client's built file by path segments the rewrite
+   doesn't read and now resolves the package.
