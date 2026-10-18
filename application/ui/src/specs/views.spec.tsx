@@ -3,6 +3,7 @@ import { page } from "vitest/browser"
 
 import {
   chooseView,
+  clickInto,
   commandInput,
   expectSelected,
   expectStaysAbsent,
@@ -63,7 +64,7 @@ describe("workspace views", () => {
         await openWorkspace()
         await chooseView(name)
         await terminalTab("Dev server").click()
-        await commandInput("Dev server").click()
+        await clickInto("Dev server")
 
         await press("{Escape}")
 

@@ -12,6 +12,7 @@ import {
 } from "./support/keyboard"
 import {
   chooseView,
+  clickInto,
   commandInput,
   expectSelected,
   expectStaysAbsent,
@@ -50,7 +51,7 @@ describe("finding a terminal", () => {
   context("when pressing Ctrl+K alone in a terminal input", () => {
     it(`leaves the key to the terminal and still opens search with ${shortcut.find().label}`, async () => {
       await openWorkspace()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
       await expect.element(commandInput("Checkout implementation")).toHaveFocus()
 
       await press("{Control>}k{/Control}")

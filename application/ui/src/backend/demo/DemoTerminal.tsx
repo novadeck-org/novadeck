@@ -255,7 +255,7 @@ const DemoTerminalSurface = ({
           <input
             ref={commandInput}
             data-terminal-input
-            aria-label={`Command for ${terminalLabel(terminal.name, terminal.handle)}`}
+            aria-label={`Input for ${terminalLabel(terminal.name, terminal.handle)}`}
             autoComplete="off"
             spellCheck={false}
             value={input}

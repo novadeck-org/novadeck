@@ -6,7 +6,6 @@ import { pressShortcut, terminalCount } from "./support/keyboard"
 import { workspaceSwitcher } from "./support/sessions"
 import {
   chooseView,
-  commandInput,
   expectStaysAbsent,
   labelled,
   openWorkspace,
@@ -14,6 +13,7 @@ import {
   sidebar,
   sidebarPanel,
   tabDescription,
+  typeInto,
   view,
   viewSwitcher,
 } from "./support/workspace"
@@ -273,7 +273,7 @@ describe("the visitor build", () => {
     // Answers what the agent in the terminal asks with its first option, on its screen.
     const answer = async (name: string): Promise<void> => {
       await page.getByRole("button", { name: labelled("Select ", name) }).click()
-      await commandInput(name).fill("1")
+      await typeInto(name, "1")
       await press("{Enter}")
     }
 

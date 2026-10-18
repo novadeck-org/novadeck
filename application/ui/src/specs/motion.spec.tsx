@@ -2,15 +2,17 @@ import { afterEach, describe as context, describe, expect, it, onTestFailed } fr
 
 import { pageScheme, saveFromAnotherWindow, systemScheme } from "./support/appearance"
 import {
-  commandInput,
+  clickInto,
+  draftOf,
   expectSelected,
+  labelled,
   openWorkspace,
   press,
   terminal,
   terminalTab,
+  typeInto,
   view,
   viewSwitcher,
-  labelled,
 } from "./support/workspace"
 
 // This project uses ordinary motion: the main behavior suite opts out of animations.
@@ -65,23 +67,23 @@ describe("workspace motion", () => {
       expect(document.startViewTransition).toBeTypeOf("function")
       await openWorkspace()
       await terminalTab("Dev server").click()
-      await commandInput("Dev server").fill("retained draft")
+      await typeInto("Dev server", "retained draft")
 
       await viewSwitcher().getByText("Grid", { exact: true }).click()
       await expect.element(view("Grid")).toBeChecked()
       await animationsFinished()
       await expectSelected("Dev server")
-      await expect.element(commandInput("Dev server")).toHaveValue("retained draft")
+      await expect.poll(() => draftOf("Dev server")).toBe("retained draft")
 
       await terminal("Dev server")
         .getByRole("button", { name: labelled("Focus ", "Dev server") })
         .click()
       await expect.element(view("Focus")).toBeChecked()
       await animationsFinished()
-      await expect.element(commandInput("Dev server")).toHaveValue("retained draft")
-      await commandInput("Dev server").click()
+      await expect.poll(() => draftOf("Dev server")).toBe("retained draft")
+      await clickInto("Dev server")
       await press("!")
-      await expect.element(commandInput("Dev server")).toHaveValue("retained draft!")
+      await expect.poll(() => draftOf("Dev server")).toBe("retained draft!")
     })
   })
 
@@ -97,8 +99,8 @@ describe("workspace motion", () => {
       await viewSwitcher().getByText("Focus", { exact: true }).click()
       await expect.element(view("Focus")).toBeChecked()
       await animationsFinished()
-      await commandInput("Checkout implementation").fill("still interactive")
-      await expect.element(commandInput("Checkout implementation")).toHaveValue("still interactive")
+      await typeInto("Checkout implementation", "still interactive")
+      await expect.poll(() => draftOf("Checkout implementation")).toBe("still interactive")
     })
   })
 })

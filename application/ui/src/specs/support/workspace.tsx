@@ -76,14 +76,16 @@ export const layoutSettled = async (): Promise<void> => {
 }
 
 /**
- * Confirms that something does not happen: the element stays absent for several
- * rendered frames, so a reaction the app defers by a frame or two still fails the check,
- * and for at least `ms` milliseconds, for one it defers by a timer.
+ * Confirms that something does not happen: the element stays absent, or `shown` stays
+ * false, for several rendered frames, so a reaction the app defers by a frame or two still
+ * fails the check, and for at least `ms` milliseconds, for one it defers by a timer.
  */
 export const expectStaysAbsent = async (
-  locator: Locator,
+  what: Locator | { readonly shown: () => boolean; readonly name: string },
   { frames = 10, ms = 0 }: { readonly frames?: number; readonly ms?: number } = {},
 ): Promise<void> => {
+  const [shown, name] =
+    "shown" in what ? [what.shown, what.name] : [() => what.query() !== null, what.selector]
   let absent = 0
   let appeared = false
   const since = performance.now()
@@ -91,14 +93,14 @@ export const expectStaysAbsent = async (
     .poll(
       async () => {
         await nextFrame()
-        appeared ||= locator.query() !== null
+        appeared ||= shown()
         absent += 1
         return appeared || (absent >= frames && performance.now() - since >= ms)
       },
-      { message: `${locator.selector} appeared`, timeout: ms + stillFor(frames).timeout },
+      { message: `${name} appeared`, timeout: ms + stillFor(frames).timeout },
     )
     .toBe(true)
-  expect(appeared, `${locator.selector} appeared`).toBe(false)
+  expect(appeared, `${name} appeared`).toBe(false)
 }
 
 /**
@@ -227,8 +229,95 @@ export const expectTypingIn = async (name: string): Promise<void> => {
   await expect.element(navigateChip()).not.toBeInTheDocument()
 }
 
+/** A terminal's input, as both backends name it for assistive technology. */
 export const commandInput = (name: string): Locator =>
-  page.getByRole("textbox", { name: labelled("Command for ", name) })
+  page.getByRole("textbox", { name: labelled("Input for ", name) })
+
+// A terminal's text is read as a person reads it, whatever draws it: the demo's output
+// as page text today, and a terminal emulator's rows (its accessibility tree, or the DOM
+// renderer's rows) once the demo draws real terminal output.
+
+// The rows an emulator shows, where a terminal is drawn as terminal output.
+const emulatorRows = (region: Element): Element[] | undefined => {
+  const rows =
+    region.querySelector(".xterm-accessibility-tree") ?? region.querySelector(".xterm-rows")
+  return rows ? [...rows.children] : undefined
+}
+
+// A terminal's lines: its emulator's rows, or its output's text as laid out.
+const linesIn = (region: Element): string[] => {
+  const rows = emulatorRows(region)
+  if (rows) return rows.map((row) => (row.textContent ?? "").replace(/\u00a0/g, " ").trimEnd())
+  const content = region.querySelector<HTMLElement>("[data-terminal-content]") ?? region
+  return (content as HTMLElement).innerText.split("\n").map((line) => line.trimEnd())
+}
+
+/** What a terminal shows, line by line. */
+export const terminalLines = (name: string): string[] => linesIn(terminal(name).element())
+
+/** What a terminal shows, as one text. */
+export const terminalText = (name: string): string => terminalLines(name).join("\n")
+
+/** Whether a terminal in view shows `line`, a whole line of it, as a command's reply. */
+export const terminalsShow = (line: string): boolean =>
+  [...document.querySelectorAll('section[aria-label$=" terminal"]')]
+    .filter((region) => region.checkVisibility({ visibilityProperty: true }))
+    .some((region) => linesIn(region).some((each) => each.trim() === line))
+
+/** What the terminals in view show, as one text. */
+export const terminalsText = (): string =>
+  [...document.querySelectorAll('section[aria-label$=" terminal"]')]
+    .filter((region) => region.checkVisibility({ visibilityProperty: true }))
+    .map((region) => linesIn(region).join("\n"))
+    .join("\n")
+
+/** A line no terminal in view should show, for `expectStaysAbsent`. */
+export const terminalLine = (line: string) => ({
+  shown: () => terminalsShow(line),
+  name: `a terminal's line "${line}"`,
+})
+
+/**
+ * What is typed on a terminal's command line and not yet sent: the input's value, or the
+ * text after the prompt on the last line that has one, where the line is drawn as output.
+ */
+export const draftOf = (name: string): string => {
+  const input = commandInput(name).element()
+  if (input instanceof HTMLInputElement) return input.value
+  const prompt = terminalLines(name).findLast((line) => line.startsWith("❯"))
+  return prompt?.replace(/^❯\s?/, "") ?? ""
+}
+
+/** Clicks where a person clicks to type in a terminal: its input, or the screen an emulator draws. */
+export const clickInto = async (name: string): Promise<void> => {
+  const input = commandInput(name)
+  if (input.element() instanceof HTMLInputElement) return input.click()
+  const screen = terminal(name).element().querySelector(".xterm-screen")!
+  await page.elementLocator(screen).click()
+}
+
+/** Types `text` on a terminal's command line, as a person does, after what is there. */
+export const typeInto = async (name: string, text: string): Promise<void> => {
+  const input = commandInput(name)
+  input.element().focus()
+  await expect.element(input).toHaveFocus()
+  // `{` and `[` start a key's name in userEvent's syntax.
+  await userEvent.keyboard(text.replace(/[{[]/g, (bracket) => bracket + bracket))
+}
+
+/**
+ * Where a terminal draws `text`, for how it is styled: the element holding it, or, where an
+ * emulator draws to a canvas, the element it measures its font with.
+ */
+export const outputTextElement = (name: string, text: string): HTMLElement => {
+  const region = terminal(name).element()
+  // The DOM renderer's rows carry the font; the accessibility tree's don't.
+  const rows = region.querySelector(".xterm-rows")?.children ?? []
+  const row = [...rows].find((each) => each.textContent?.includes(text))
+  if (row) return row as HTMLElement
+  const measure = region.querySelector<HTMLElement>(".xterm-char-measure-element")
+  return measure ?? (terminal(name).getByText(text).element() as HTMLElement)
+}
 
 /** Terminal names in sidebar order. */
 export const terminalTabNames = (): string[] =>

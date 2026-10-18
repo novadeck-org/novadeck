@@ -3,7 +3,14 @@ import { page, type Locator } from "vitest/browser"
 
 import { pageScheme, saveFromAnotherWindow, systemScheme } from "./support/appearance"
 import { escapeFrom, expectFocusWithin, preferencesDialog } from "./support/keyboard"
-import { openWorkspace, reloadWorkspace, terminal, view, viewSwitcher } from "./support/workspace"
+import {
+  openWorkspace,
+  outputTextElement,
+  reloadWorkspace,
+  terminal,
+  view,
+  viewSwitcher,
+} from "./support/workspace"
 
 const openPreferences = async (): Promise<void> => {
   await page.getByRole("button", { name: "Workspace preferences" }).click()
@@ -41,9 +48,7 @@ const showShortcuts = async (): Promise<void> => {
 const outputTextSize = (): number =>
   parseFloat(
     getComputedStyle(
-      terminal("Checkout implementation")
-        .getByText("Nothing to commit, working tree clean.")
-        .element(),
+      outputTextElement("Checkout implementation", "Nothing to commit, working tree clean."),
     ).fontSize,
   )
 
@@ -68,9 +73,7 @@ const ligaturesSwitch = (): Locator =>
 /** A style of a terminal's output text, as drawn. */
 const outputStyle = (property: "fontVariantLigatures" | "fontFamily"): string =>
   getComputedStyle(
-    terminal("Checkout implementation")
-      .getByText("Nothing to commit, working tree clean.")
-      .element(),
+    outputTextElement("Checkout implementation", "Nothing to commit, working tree clean."),
   )[property]
 
 describe("Preferences' version", () => {
