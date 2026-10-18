@@ -10,22 +10,29 @@ describe("an edit by hand", () => {
     why: "w",
   }
 
-  it("is made once, and a second run finds it made", () => {
-    const made = applyEdit("from: ../relay/dist\n", edit)
-    expect(made).toEqual({ text: "from: ../../backend/relay/dist\n" })
+  it("is made once, and a second run finds it there", () => {
+    expect(applyEdit("from: ../relay/dist\n", edit)).toEqual({
+      text: "from: ../../backend/relay/dist\n",
+      state: "made",
+    })
     expect(applyEdit("from: ../../backend/relay/dist\n", edit)).toEqual({
       text: "from: ../../backend/relay/dist\n",
+      state: "there",
     })
   })
 
-  it("stands as done once its old text is gone, whatever a later change put there", () => {
-    expect(applyEdit("from: elsewhere\n", edit)).toEqual({ text: "from: elsewhere\n" })
+  it("has nothing to do, and says so, once a person changed the line", () => {
+    expect(applyEdit("from: elsewhere\n", edit)).toEqual({
+      text: "from: elsewhere\n",
+      state: "gone",
+    })
   })
 
   it("stops the run where the old text is there twice, unless it's meant everywhere", () => {
     expect(applyEdit("../relay/dist ../relay/dist", edit)).toHaveProperty("problem")
     expect(applyEdit("../relay/dist ../relay/dist", { ...edit, all: true })).toEqual({
       text: "../../backend/relay/dist ../../backend/relay/dist",
+      state: "made",
     })
   })
 })

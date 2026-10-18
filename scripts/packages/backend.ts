@@ -1,3 +1,5 @@
+import { posix } from "node:path"
+
 import { isText, keeps, type Edit, type Kept } from "./move.ts"
 
 // What step 5's 5.3a moves, and how each mention of a moved folder is rewritten: pure, so
@@ -49,13 +51,14 @@ const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\
 const before = String.raw`(^|[\s"'\x60(\[=:,]|(?:\.\.?\/)+)`
 const rootOnly = String.raw`(^|[\s"'\x60(\[=:,])`
 // What may follow it: its next segment, or the end of the path, a markdown anchor, a query or
-// a sentence's full stop. Not another `.` or a `*`: `application/runner.ts` is another file, and `application/runner*` a glob
-// that also took the runner client, which moves elsewhere; the leftover scan shows both.
+// a sentence's full stop. Not another `.` or a `*`: `application/runner.ts` is another file,
+// and `application/runner*` a glob that also took the runner client, which moves elsewhere;
+// the leftover scan shows both.
 const after = String.raw`(?=[/"'\x60\s)\],:;#?]|\.(?:\s|$)|$)`
 
 // The atlas's folder shares its name with the atlas's own data and with a glyph atlas, so it
-// is a path only where a segment follows.
-const atlasAfter = "(?=/)"
+// is a path only where a segment follows it, a name and not a space.
+const atlasAfter = String.raw`(?=/[\w.*-])`
 
 const forms = rows.flatMap(({ from, to }) => {
   const atlas = from === "atlas"
@@ -69,10 +72,11 @@ const forms = rows.flatMap(({ from, to }) => {
       to,
     },
     // In a regular expression, slashes escaped, as the bench's attribution reads a stack:
-    // after an escaped slash, or where a path from the root may start.
+    // after an escaped slash, or where a path from the root may start. The atlas only from
+    // the root, as above: after a slash it may be tools/'s already, or a glyph atlas's.
     {
       pattern: new RegExp(
-        `(\\\\/|${rootOnly.slice(1, -1)})${escape(from.replaceAll("/", "\\/"))}(?=\\\\/)`,
+        `(${atlas ? "" : "\\\\/|"}${rootOnly.slice(1, -1)})${escape(from.replaceAll("/", "\\/"))}(?=\\\\/)`,
         "gm",
       ),
       to: to.replaceAll("/", "\\/"),
@@ -151,6 +155,12 @@ export const edits: readonly Edit[] = [
     after: "| `tools/atlas`",
     why: "the map's row for the atlas, which has no other path to match",
   },
+  {
+    file: "scripts/libraries/pins.test.ts",
+    before: '    ".",\n    "atlas",\n',
+    after: '    ".",\n',
+    why: "the atlas's own manifest entry, which tools/ now scans",
+  },
 ]
 
 // Any mention of an old folder, however it is written: wider than the rewrite, so what the
@@ -163,17 +173,37 @@ const leftover = new RegExp(
     String.raw`application\\\/(?:runner|relay|protocol)\b`,
     // In an alternation or a brace glob: `application/(ui|runner)/`, `application/{a,relay}`.
     String.raw`application\\?\/[({](?:\?:)?[^)}]*\b(?:runner|relay|protocol)\b`,
-    String.raw`"application",\s*"(?:runner|relay|protocol|runner-client)"`,
-    // From a sibling that stays, as the host's `../relay/dist` was.
-    String.raw`(?:^|[^.\w])\.\.\/(?:runner|relay|protocol|runner-client)\/`,
-    // The atlas: from the root, with a backslash, from anywhere above it, joined, in a URL.
-    String.raw`(?:^|[\s"'\x60(\[=:,])atlas[\\/]`,
-    String.raw`(?:\.\.\/)+atlas\/`,
-    String.raw`"atlas",\s*"`,
+    // Built: a glob or a template over application/'s folders.
+    String.raw`application\/(?:\*\/|\$\{)`,
+    // Joined, with either quote.
+    String.raw`["']application["'],\s*["'](?:runner|relay|protocol|runner-client)["']`,
+    // The atlas: from the root, with a backslash, negated, entered, joined, in a URL.
+    String.raw`(?:^|[\s"'\x60(\[=:,!])atlas[\\/][\w.*-]`,
+    String.raw`\bcd\s+atlas\b`,
+    String.raw`["']atlas["'],\s*["']`,
     String.raw`\/(?:blob|tree)\/[^/\s]+\/atlas\/`,
   ].join("|"),
   "m",
 )
+
+const olds = rows.map(({ from }) => from)
+const tops = ["application", "apps", "backend", "contract", "engines", "frontend", "harnesses"]
+const relativePath = /(?:^|[^.\w/])((?:\.\.\/)+[\w.@-]+(?:\/[\w.@-]+)*)/g
+
+/**
+ * Whether a relative path in a file at `file` lands where it no longer should, from the file's
+ * own folder (a config at a package's root resolves from there too): at an old folder; or,
+ * from a file in the atlas, which sits one folder deeper now, in a top folder under tools/.
+ */
+const strays = (file: string, text: string): boolean =>
+  [...text.matchAll(relativePath)].some(([, path]) => {
+    const landed = posix.normalize(posix.join(posix.dirname(file), path!))
+    return (
+      olds.some((old) => landed === old || landed.startsWith(`${old}/`)) ||
+      (file.startsWith("tools/atlas/") &&
+        tops.some((top) => landed === `tools/${top}` || landed.startsWith(`tools/${top}/`)))
+    )
+  })
 
 /** The lines of a file at `file` that still name a folder that moved. */
 export const leftovers = (file: string, text: string): string[] =>
@@ -182,5 +212,5 @@ export const leftovers = (file: string, text: string): string[] =>
     : text
         .split(/\r?\n/)
         .flatMap((line, index) =>
-          leftover.test(line) ? [`${file}:${index + 1}: ${line.trim()}`] : [],
+          leftover.test(line) || strays(file, line) ? [`${file}:${index + 1}: ${line.trim()}`] : [],
         )

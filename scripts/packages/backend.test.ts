@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { destinationOf, edits, leftovers, rewritable, rewrite } from "./backend.ts"
+import { destinationOf, edits, leftovers, rewritable, rewrite, rows } from "./backend.ts"
 import { applyEdit } from "./move.ts"
 
 describe("where 5.3a moves a file", () => {
@@ -92,9 +92,26 @@ describe("the rewrite", () => {
       expect(rewrite(text)).toBe(text)
   })
 
-  it("changes nothing a second time", () => {
-    const once = rewrite('"application/runner/src", `atlas/x`, \\/application\\/protocol\\/')
+  it("changes nothing a second time, for every folder in every form", () => {
+    const once = rewrite(
+      rows
+        .flatMap(({ from }) => [
+          `"${from}/a.ts"`,
+          `\`${from}\``,
+          `../../${from}/b`,
+          ` ${from.replaceAll("/", "\\/")}\\/c`,
+          `\\/${from.replaceAll("/", "\\/")}\\/d`,
+          `[x](${from}#y)`,
+        ])
+        .join("\n"),
+    )
     expect(rewrite(once)).toBe(once)
+    expect(once).not.toMatch(/tools\/tools|tools\\\/tools/)
+  })
+
+  it("keeps the atlas's escaped form from the root alone, off tools/'s and a glyph atlas's", () => {
+    for (const text of [String.raw`\/tools\/atlas\/`, String.raw`\/libraries\/emulator\/atlas\/`])
+      expect(rewrite(text)).toBe(text)
   })
 })
 
@@ -105,6 +122,9 @@ describe("the handwritten edits", () => {
     for (const edit of edits) {
       const made = applyEdit(edit.before, edit)
       expect("text" in made && made.text.includes(edit.before), edit.why).toBe(false)
+      expect("text" in made && applyEdit(made.text, edit), edit.why).toMatchObject({
+        state: edit.after ? "there" : "gone",
+      })
     }
   })
 })
@@ -113,27 +133,40 @@ describe("what the move leaves", () => {
   it("finds an old folder however it's written, outside what keeps one on purpose", () => {
     const text = [
       'join(root, "application", "runner", "dist")',
+      "join(root, 'application', 'relay')",
       "a prose application/relay mention",
       "C:/novadeck/application/protocol",
-      "fine: backend/runner and tools/atlas/x",
-    ].join("\n")
-    expect(leftovers("docs/x.md", text)).toHaveLength(3)
-    // What neither the rewrite nor a hand edit reaches, as a stale branch may write it.
-    const stale = [
-      'resolve("../runner/src/murmur/worker.ts")',
-      "  - from: ../relay/dist",
       "'^(application/(ui|runner|protocol)/|",
       "application/{runner,relay}/**",
-      "node ../../atlas/brief/main.ts",
+      "application/*/src and `application/${name}`",
+      "cd atlas && ls",
+      "!atlas/**",
       'join(root, "atlas", "package.json")',
       "https://github.com/o/r/blob/main/atlas/AGENTS.md",
-      "atlas\\extract\\main.ts",
-    ]
-    expect(stale.filter((line) => leftovers("x.ts", line).length === 0)).toEqual([])
-    // A module's own sibling folder of the same name, inside a moved package or a library, is
-    // its own.
-    expect(leftovers("x.ts", 'import "./relay/index.ts"\nconst a = "src/../relay"')).toEqual([])
+      String.raw`atlas\extract\main.ts`,
+      "fine: backend/runner and tools/atlas/x, application/* and **/application/**",
+    ].join("\n")
+    expect(leftovers("docs/x.md", text)).toHaveLength(12)
     expect(leftovers("scripts/flakes/fixtures/run.txt", text)).toEqual([])
+  })
+
+  it("follows a relative path from its file, or its package, to an old folder", () => {
+    // A config at its package's root: the host's `../runner` was the runner.
+    expect(
+      leftovers("application/host/electron.vite.config.ts", 'resolve("../runner/src")'),
+    ).toHaveLength(1)
+    expect(leftovers("application/host/x.yml", "  - from: ../relay/dist")).toHaveLength(1)
+    expect(leftovers("application/ui/tsconfig.json", '{ "path": "../protocol" }')).toHaveLength(1)
+    // A sibling folder of the same name is its own.
+    expect(
+      leftovers("application/ui/src/backend/demo/x.ts", 'import "../runner/mount.ts"'),
+    ).toEqual([])
+    expect(leftovers("backend/runner/src/x/y.ts", 'import "../relay/z.ts"')).toEqual([])
+  })
+
+  it("finds a path out of the atlas written for the depth it had", () => {
+    expect(leftovers("tools/atlas/extract/x.ts", '"../../application/ui/src"')).toHaveLength(1)
+    expect(leftovers("tools/atlas/extract/x.ts", '"../../../application/ui/src"')).toEqual([])
   })
 
   it("reads text files, outside what keeps an old path", () => {

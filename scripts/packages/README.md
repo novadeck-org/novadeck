@@ -1,7 +1,7 @@
 # Moving the backend into its packages
 
-`node scripts/packages/move-backend.ts` is step 5's 5.3a
-([step 5](../../architecture/step-5-packages/README.md)). It moves:
+`node scripts/packages/move-backend.ts` is step 5's 5.3a, the first of the architecture
+plan's package moves. It moves:
 
 | From                        | To                       |
 | --------------------------- | ------------------------ |
@@ -29,10 +29,17 @@ tree with nothing to do, it says so and changes nothing.
 ## What it does
 
 1. **It refuses a dirty tree, and a tree where `oxfmt` can't run.** It takes `oxfmt` from
-   `node_modules/.bin`, since `pnpm exec` refuses once the manifests change.
-2. **It plans everything before writing.** It stops with nothing changed if a file is tracked
-   at both an old place and its new one, or if a handwritten edit finds its old text more than
-   once.
+   `node_modules/.bin`, since `pnpm exec` refuses once the manifests change. Files git doesn't
+   track are allowed at the old places. A merge that moved a package's `.gitignore` leaves
+   them there, and the script carries them over (step 6).
+2. **It plans everything before writing.** It stops with nothing changed on any of these:
+   - a file tracked at both an old place and its new one;
+   - a tracked file that its package ignores as build output, at either place;
+   - a destination that no glob in `pnpm-workspace.yaml` takes in;
+   - a handwritten edit that finds its old text more than once;
+   - on a branch that merged the move, a file the branch removed or renamed that came back at
+     its new place from main's side, as a rename on the branch against main's move leaves it.
+     Delete it with `git rm` if the branch's change stands.
 3. **It moves each tracked file** with `git mv`, folders kept.
 4. **It rewrites paths as text,** in every tracked text file except those in `kept` (see
    below), with these rules:
@@ -56,26 +63,30 @@ tree with nothing to do, it says so and changes nothing.
      bench attribution's regex and its sample stack paths;
    - dependabot's `/application/relay`;
    - the README map's first sentence, its sentence on `tools/`, and its atlas row.
-6. **It runs `pnpm install --no-frozen-lockfile`** with `CI=true`. The lockfile names each
-   package by its folder.
-7. **It runs `oxfmt` on what it wrote,** which also re-pads the README's table.
+6. **It empties each old folder where no tracked file is left.**
+   - A file git doesn't track goes to its place in the new folder: a `.env`, or build output
+     that a package's own `.gitignore` covers, such as the atlas's `src/generated/`.
+   - A build's `dist`, `target` and `.turbo` go where the new folder has none.
+   - `node_modules` is deleted, since the install makes it again.
+   - A file whose new place already holds a different one stays put. The script names it and
+     exits non-zero.
+7. **It runs `pnpm install --no-frozen-lockfile`** with `CI=true`, on every run. The lockfile
+   names each package by its folder, and a catch-up may have taken main's lockfile. Then it
+   runs `oxfmt` on what it wrote, which also re-pads the README's table.
 8. **It lists any mention of an old folder left anywhere outside `kept`.** That means any
    mention in any form:
-   - segments joined (`"application", "runner"`);
-   - in an alternation or a brace glob;
-   - from a sibling folder that stays (`../relay/dist`);
-   - the atlas from above it, with a backslash, or in a URL.
+   - segments joined with either quote (`"application", "runner"`);
+   - in an alternation, a brace glob, or a glob or template over `application/`;
+   - a relative path that lands at an old folder from its file's own folder (`../relay/dist`
+     in the host's config), or that leaves the atlas at the depth it had;
+   - the atlas with a backslash, negated, entered with `cd`, joined, or in a URL.
 
-   This is also what shows a handwritten edit left unmade, where a branch changed the line it
-   looks for, since that edit then stands as done. If there is any mention, the script exits
-   non-zero.
+   This is also what shows a handwritten edit left unmade where a branch changed the line it
+   looks for. Such an edit is reported as having nothing to do, along with any edit whose file
+   is gone. If any mention is left, the script exits non-zero.
 
-9. **It names the old folders where no tracked file is left,** holding `node_modules`, `dist`
-   and the relay's `target`. Delete them once nothing runs from there.
-   - A file there that a package's own `.gitignore` covered (the atlas's `src/generated/`)
-     stops being ignored once that `.gitignore` moves with the package. `git add -A` would
-     commit it at the old place.
-   - The script lists such files and exits non-zero. Delete the old folders before committing.
+If it fails partway, in `git mv`, a write, the carry or the install, it says so with the way
+back: `git reset --hard`, delete the new folders where no tracked file is, then run again.
 
 `kept` covers what names an old folder on purpose:
 
@@ -95,21 +106,22 @@ git merge origin/main
 # Conflicts: a file the branch changed and main moved usually merges at its new place, by
 # rename detection. For a modify/delete conflict, or a file left in a folder main renamed,
 # keep the branch's content at the new place.
-git checkout --theirs pnpm-lock.yaml   # the script's install makes it whole
-git add -A && git commit --no-edit     # the script runs on a clean tree only
+git checkout --theirs pnpm-lock.yaml   # the script's install gives the branch's packages back
+git add -u && git commit --no-edit     # tracked files only: what git now sees as new at an old
+                                       # place stays out, for the script to carry over
 node scripts/packages/move-backend.ts
-rm -rf application/runner application/relay application/protocol application/runner-client atlas
-                                       # the old folders it names: no tracked file is left there
 git add -A && git commit -m "chore: catch up with 5.3a's move"
 ```
 
-The script moves what the branch added at an old place, and rewrites the paths its new lines
-name. If it lists a mention left over, fix that line by hand and commit it. Run the script
-again, which should then say there is nothing to do.
+The script:
 
-If the script fails partway through, in `git mv`, the install or `oxfmt`, the tree is half
-moved. Run `git reset --hard`, and delete the new folders that hold only ignored files.
-Then run it again.
+- moves what the branch added at an old place;
+- carries what git doesn't track (a `.env`, the atlas's generated files) to the new place;
+- rewrites the paths the branch's new lines name;
+- installs, so the lockfile is the branch's again.
+
+If it stops on a plan problem, fix that and commit. If it lists a mention left over, fix that
+line by hand and commit it. Then run the script again, which should say there is nothing to do.
 
 ## What to check after
 
