@@ -21,6 +21,7 @@ import type { Workspace, WorkspaceTarget } from "#core/types"
 import { context, describe, expect, it } from "../../test"
 import { workspaceFixture } from "../../test/fixtures"
 import type { BackendAction } from "../port"
+import { noTheme } from "../terminal-views/theme"
 import {
   runnerBackend,
   type RunnerApi,
@@ -44,11 +45,12 @@ afterAll(() => runner.close())
 // A backend over the runner as the app drives it: seeded, committed and started.
 const open = (
   listing: RunnerListing = runner.listing,
-  options: RunnerBackendOptions = {},
+  options: Partial<RunnerBackendOptions> = {},
   api: RunnerApi = runner.client,
 ) => {
   const created: RunnerBackend = runnerBackend(api, listing, {
     saveDelay: 10,
+    theme: noTheme,
     ...options,
   })
   const { backend } = created

@@ -6,7 +6,9 @@ import { emptyWorkspace, pressNewSession } from "./support/sessions"
 import { anyRenameField } from "./support/terminals"
 import {
   chooseView,
+  clickInto,
   commandInput,
+  draftOf,
   expectNothingSelected,
   expectSelected,
   expectStaysAbsent,
@@ -17,6 +19,7 @@ import {
   sidebarPanel,
   terminal,
   terminalTab,
+  typeInto,
   viewSwitcher,
   visibleTerminalCounts,
 } from "./support/workspace"
@@ -105,15 +108,13 @@ describe("Zen mode", () => {
         await openWorkspace()
         await chooseView(name)
         await terminalTab("Checkout implementation").click()
-        await commandInput("Checkout implementation").fill("unfinished command")
+        await typeInto("Checkout implementation", "unfinished command")
 
         await enterZen().click()
 
         await expectInZen()
         await expect.element(commandInput("Checkout implementation")).toBeVisible()
-        await expect
-          .element(commandInput("Checkout implementation"))
-          .toHaveValue("unfinished command")
+        await expect.poll(() => draftOf("Checkout implementation")).toBe("unfinished command")
         await showControls().click()
         await expect.element(dockView(name)).toHaveAttribute("aria-pressed", "true")
       })
@@ -275,16 +276,16 @@ describe("Zen mode", () => {
 
     it("toggles Zen from a terminal input without typing into it", async () => {
       await openWorkspace()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
 
       await pressShortcut("zen")
       await expectInZen()
       await expect.element(commandInput("Checkout implementation")).toHaveFocus()
-      await expect.element(commandInput("Checkout implementation")).toHaveValue("")
+      await expect.poll(() => draftOf("Checkout implementation")).toBe("")
 
       await pressShortcut("zen")
       await expectOutOfZen()
-      await expect.element(commandInput("Checkout implementation")).toHaveValue("")
+      await expect.poll(() => draftOf("Checkout implementation")).toBe("")
     })
 
     it("moves focus the header hides to New terminal", async () => {

@@ -4,11 +4,11 @@ import { page, userEvent, type Locator } from "vitest/browser"
 import { switchProject } from "./support/sessions"
 import {
   chooseView,
-  commandInput,
   expectStaysAbsent,
   openWorkspace,
   terminal,
   terminalTab,
+  typeInto,
 } from "./support/workspace"
 
 // The agents demo's Claude Code in Build is idle at its prompt; a prompt there works a moment
@@ -20,7 +20,7 @@ const promptBuild = async (murmur: string, { away = false, held = false } = {}):
   const skip = page.getByRole("button", { name: "Skip for now" })
   if (await skip.query()) await skip.click()
   await terminalTab("Build").click()
-  await commandInput("Build").fill("Ship the docs")
+  await typeInto("Build", "Ship the docs")
   await userEvent.keyboard("{Enter}")
   await expect.element(terminal("Build")).toHaveAttribute("data-terminal-phase", "running")
   // Looking at another project as the turn ends, one whose agent finishes nothing itself.
@@ -164,7 +164,7 @@ describe("Murmur's one-time offer", () => {
       if (await skip.query()) await skip.click()
       await chooseView("Grid")
       await terminalTab("Build").click()
-      await commandInput("Build").fill("Ship the docs")
+      await typeInto("Build", "Ship the docs")
       await userEvent.keyboard("{Enter}")
 
       await expect.element(chip(), { timeout: 10_000 }).toBeVisible()
@@ -198,7 +198,7 @@ describe("Murmur's one-time offer", () => {
       // Back at Build, a turn that ends on screen is the one.
       await switchProject("storefront")
       await terminalTab("Build").click()
-      await commandInput("Build").fill("And the changelog")
+      await typeInto("Build", "And the changelog")
       await userEvent.keyboard("{Enter}")
       await expect.element(chip(), { timeout: 12_000 }).toBeVisible()
     })

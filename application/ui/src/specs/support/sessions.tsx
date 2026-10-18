@@ -1,7 +1,7 @@
 import { expect } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
-import { isMac, press } from "./workspace"
+import { draftOf, isMac, press, typeInto } from "./workspace"
 
 // Vocabulary for projects, saved sessions, and navigation through the address bar.
 
@@ -69,11 +69,10 @@ export const pressNewSession = (): Promise<void> => {
 }
 
 /** Types a command into a terminal and runs it. */
-export const run = async (input: Locator, command: string): Promise<void> => {
-  await input.fill(command)
-  await input.click()
+export const run = async (name: string, command: string): Promise<void> => {
+  await typeInto(name, command)
   await press("{Enter}")
-  await expect.element(input).toHaveValue("")
+  await expect.poll(() => draftOf(name)).toBe("")
 }
 
 /** The current address as a workspace route, e.g. `/projects/storefront/sessions/initial/focus?terminal=01`. */

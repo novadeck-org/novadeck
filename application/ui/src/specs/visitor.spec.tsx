@@ -6,7 +6,6 @@ import { pressShortcut, terminalCount } from "./support/keyboard"
 import { workspaceSwitcher } from "./support/sessions"
 import {
   chooseView,
-  commandInput,
   expectStaysAbsent,
   labelled,
   openWorkspace,
@@ -14,6 +13,8 @@ import {
   sidebar,
   sidebarPanel,
   tabDescription,
+  terminalText,
+  typeInto,
   view,
   viewSwitcher,
 } from "./support/workspace"
@@ -25,6 +26,28 @@ const openVisitor = async (): Promise<void> => {
 
 const panel = () => page.getByRole("main", { name: "Best on a desktop browser" })
 const download = () => panel().getByRole("link", { name: "Download Novadeck" })
+// What Claude Code's screen says once it asks for its plan to be reviewed.
+const planAsked = "Claude has written up a plan"
+
+// The page as one that prefers motion, as specs run with less: only what asks about it
+// changes, so every other media query still answers as the browser does.
+const preferringMotion = () => {
+  const real = window.matchMedia.bind(window)
+  return vi.spyOn(window, "matchMedia").mockImplementation((query) => {
+    if (!query.includes("prefers-reduced-motion")) return real(query)
+    return {
+      matches: !query.includes("reduce"),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }
+  })
+}
+
 const framesPass = (count: number): Promise<void> =>
   count === 0
     ? Promise.resolve()
@@ -196,13 +219,13 @@ describe("the visitor build", () => {
     })
 
     // The page around the app is still tilted and not the visitor's yet: its wheel is that
-    // page's, until the page says the visitor engaged the app. Nothing in the app takes it or
-    // scrolls with it, not even a terminal with history above, and nothing cancels it, so
-    // the browser scrolls the page with it.
+    // page's, until the page says the visitor engaged the app. Nothing in the app takes it,
+    // not even a terminal with history above, whose emulator scrolls by the wheel events it
+    // hears, and nothing cancels it, so the browser scrolls the page with it.
     it("leaves the wheel to the page around it until that page engages it", async () => {
       expect(window.parent).not.toBe(window)
       await openEmbedded()
-      const target = document.querySelector<HTMLElement>("[data-terminal-content]")!
+      const target = document.querySelector<HTMLElement>(".terminal-xterm .xterm")!
       const reached = vi.fn<() => void>()
       target.addEventListener("wheel", reached)
       const wheel = (): WheelEvent => {
@@ -212,7 +235,6 @@ describe("the visitor build", () => {
       }
       expect(wheel().defaultPrevented).toBe(false)
       expect(reached).not.toHaveBeenCalled()
-      expect(getComputedStyle(target).overflowY).toBe("hidden")
       window.dispatchEvent(
         new MessageEvent("message", {
           data: { type: "novadeck:engaged" },
@@ -221,14 +243,13 @@ describe("the visitor build", () => {
       )
       wheel()
       expect(reached).toHaveBeenCalled()
-      expect(getComputedStyle(target).overflowY).toBe("auto")
     })
 
     it("tells the page of its first click once, and keeps the wheel once pressed in", async () => {
       const post = vi.spyOn(window.parent, "postMessage")
       try {
         await openEmbedded()
-        const target = document.querySelector("[data-terminal-content]")!
+        const target = document.querySelector(".terminal-xterm .xterm")!
         target.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
         const event = new WheelEvent("wheel", { deltaY: 60, cancelable: true, bubbles: true })
         target.dispatchEvent(event)
@@ -245,16 +266,38 @@ describe("the visitor build", () => {
     })
 
     // The page around treats focus moving into the frame as the visitor's first click, so
-    // nothing the desk does by itself, reading and then asking, may take it.
+    // nothing the desk does by itself, reading and then asking, may take it. Specs ask for
+    // less motion, where Claude Code has no reading to watch, so this one asks for motion.
     it("reads before it asks for its plan, and takes no focus meanwhile", async () => {
-      await openWorkspace("/?visitor=on&readingMs=1500", { embedded: true })
+      const motion = preferringMotion()
+      try {
+        await openWorkspace("/?visitor=on&readingMs=1500", { embedded: true })
+        await expect.element(terminalCount(4)).toBeVisible()
+        await expect
+          .poll(() => terminalText("Checkout implementation"))
+          .toContain("read the checkout layout")
+        expect(terminalText("Checkout implementation")).not.toContain(planAsked)
+        expect(tabDescription("Checkout implementation")).not.toBe("Plan ready for review")
+        await expect
+          .poll(() => terminalText("Checkout implementation"), { timeout: 4000 })
+          .toContain(planAsked)
+        await expect
+          .poll(() => tabDescription("Checkout implementation"))
+          .toBe("Plan ready for review")
+        await framesPass(10)
+        expect(document.activeElement).toBe(document.body)
+      } finally {
+        motion.mockRestore()
+      }
+    })
+
+    it("asks for its plan from the start where the visitor asked for less motion", async () => {
+      await openWorkspace("/?visitor=on&readingMs=60000", { embedded: true })
       await expect.element(terminalCount(4)).toBeVisible()
-      expect(page.getByText("Claude has written up a plan").query()).toBeNull()
+      await expect.poll(() => terminalText("Checkout implementation")).toContain(planAsked)
       await expect
-        .poll(() => tabDescription("Checkout implementation"), { timeout: 4000 })
+        .poll(() => tabDescription("Checkout implementation"))
         .toBe("Plan ready for review")
-      await framesPass(10)
-      expect(document.activeElement).toBe(document.body)
     })
 
     // True of the app anywhere; framed, it leaves the page around it its focus.
@@ -273,7 +316,7 @@ describe("the visitor build", () => {
     // Answers what the agent in the terminal asks with its first option, on its screen.
     const answer = async (name: string): Promise<void> => {
       await page.getByRole("button", { name: labelled("Select ", name) }).click()
-      await commandInput(name).fill("1")
+      await typeInto(name, "1")
       await press("{Enter}")
     }
 

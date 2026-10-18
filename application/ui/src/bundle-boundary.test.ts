@@ -1,4 +1,12 @@
-import { boundaryViolations, firstChunkViolations, type BuiltChunk } from "./bundle-boundary"
+import {
+  boundaryViolations,
+  budgetViolations,
+  firstChunkViolations,
+  missingScreenStyles,
+  visitorBudgets,
+  type BuiltChunk,
+  type WeighedChunk,
+} from "./bundle-boundary"
 import { context, describe, expect, it } from "./test"
 
 const demo = "/work/ui/src/backend/demo/index.ts"
@@ -81,5 +89,108 @@ describe("the first chunk", () => {
         "style.css": { type: "asset" },
       }),
     ).toEqual([])
+  })
+})
+
+describe("the terminal screens' styles", () => {
+  const sheet = (source: string) => ({ type: "asset", fileName: "assets/connect.css", source })
+
+  it("pass a build whose stylesheets carry them, as text or as bytes", () => {
+    const rule = ".terminal-xterm .xterm .xterm-viewport{}"
+    expect(missingScreenStyles({ "assets/connect.css": sheet(rule) })).toBe(false)
+    const bytes = { type: "asset", fileName: "a.css", source: new TextEncoder().encode(rule) }
+    expect(missingScreenStyles({ "a.css": bytes })).toBe(false)
+  })
+
+  it("fail a build without them, as every build draws terminals", () => {
+    const bare = {
+      "assets/index.css": sheet(".shell{}"),
+      "assets/index.js": { type: "chunk", fileName: "assets/index.js" },
+    }
+    expect(missingScreenStyles(bare)).toBe(true)
+    expect(missingScreenStyles({})).toBe(true)
+  })
+})
+
+describe("the visitor build's budgets", () => {
+  // Chunks as heavy as their code is long, so a test says what each weighs.
+  const chunk = (code: string, fields: Partial<WeighedChunk> = {}): WeighedChunk => ({
+    type: "chunk",
+    code,
+    ...fields,
+  })
+  const weigh = (code: string): number => code.length
+  const built = (first: number, demoSize: number) => ({
+    "index.js": chunk("x".repeat(first), { isEntry: true, imports: ["shared.js"] }),
+    "shared.js": chunk(""),
+    "connect.js": chunk("y".repeat(demoSize), {
+      facadeModuleId: "/work/ui/src/backend/demo/visitor/connect.ts",
+      imports: ["shared.js", "emulator.js"],
+    }),
+    "emulator.js": chunk(""),
+  })
+
+  it("passes a build within them, weighing what it shares with the page once", () => {
+    expect(
+      budgetViolations("try", built(visitorBudgets.first, visitorBudgets.demo), weigh),
+    ).toEqual([])
+  })
+
+  it("fails a build whose first or demo chunks weigh more", () => {
+    expect(budgetViolations("try", built(visitorBudgets.first + 1, 0), weigh)).toHaveLength(1)
+    expect(budgetViolations("try", built(0, visitorBudgets.demo + 1), weigh)).toHaveLength(1)
+  })
+
+  it("fails a visitor build with no demo chunk to weigh, and asks nothing of the others", () => {
+    expect(budgetViolations("try", { "index.js": chunk("", { isEntry: true }) }, weigh)).toEqual([
+      "it has no demo chunk to weigh",
+    ])
+    expect(
+      budgetViolations(
+        "production",
+        built(visitorBudgets.first + 1, visitorBudgets.demo + 1),
+        weigh,
+      ),
+    ).toEqual([])
+  })
+
+  it("counts what the first chunks' styles weigh, and every font they declare, in the first load", () => {
+    const font = { type: "asset", fileName: "assets/mono.woff2", source: new Uint8Array(5000) }
+    const styled = (fontSize: number) => ({
+      ...built(visitorBudgets.first - 10_000, 0),
+      "index.js": chunk("x".repeat(visitorBudgets.first - 10_000), {
+        isEntry: true,
+        imports: ["shared.js"],
+        viteMetadata: { importedCss: new Set(["assets/index.css"]) },
+      }),
+      "assets/index.css": {
+        type: "asset",
+        fileName: "assets/index.css",
+        source: "@font-face{src:url(./mono.woff2)}",
+      },
+      "assets/mono.woff2": { ...font, source: new Uint8Array(fontSize) },
+    })
+    expect(budgetViolations("try", styled(5_000), weigh)).toEqual([])
+    expect(budgetViolations("try", styled(20_000), weigh)).toHaveLength(1)
+  })
+
+  it("weighs a font by its bytes, not as text", () => {
+    // Pairs of bytes that read as one character each.
+    const bytes = new Uint8Array(15_000).map((_, at) => (at % 2 === 0 ? 0xc3 : 0xa9))
+    const fonted = {
+      ...built(visitorBudgets.first - 10_000, 0),
+      "index.js": chunk("x".repeat(visitorBudgets.first - 10_000), {
+        isEntry: true,
+        imports: ["shared.js"],
+        viteMetadata: { importedCss: new Set(["assets/index.css"]) },
+      }),
+      "assets/index.css": {
+        type: "asset",
+        fileName: "assets/index.css",
+        source: "@font-face{src:url(./mono.woff2)}",
+      },
+      "assets/mono.woff2": { type: "asset", fileName: "assets/mono.woff2", source: bytes },
+    }
+    expect(budgetViolations("try", fonted, weigh)).toHaveLength(1)
   })
 })

@@ -1,4 +1,4 @@
-import "./runner.css"
+import "./terminal-xterm.css"
 import type { Hold, TerminalViews } from "@novadeck/terminal/view"
 import type { ViewPhase } from "@novadeck/terminal/view"
 
@@ -16,6 +16,13 @@ const phaseOf = (status: TerminalMountProps["status"]): ViewPhase =>
 // The input's accessible name, in the app's words.
 const labelOf = (name: string): string => `Input for ${name}`
 
+// What every backend's screens are drawn in: the one input the port asks for, and the host
+// element this folder's styles reach (terminal-xterm.css).
+export const screenMarkup = {
+  input: { "data-terminal-input": "" },
+  hostClass: "terminal-xterm min-h-0 flex-1",
+} as const
+
 // What the UI sees of a mount before it has a screen, or while it lets its screen go.
 const opening: ViewState = { live: false, resuming: false, waits: false, lock: null, notice: null }
 
@@ -23,7 +30,7 @@ const opening: ViewState = { live: false, resuming: false, waits: false, lock: n
 // screen while it is on screen, and places it in its element. The screens outlive the
 // mounts: a view switch disposes one mount and creates the next, which takes the same
 // emulator and attachment instead of opening them again.
-export const createRunnerMount =
+export const createTerminalMount =
   (screens: TerminalViews<TerminalKey>): MountTerminal =>
   (element, key, initial) => {
     let props = initial

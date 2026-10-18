@@ -101,7 +101,7 @@ export type ViewState = {
 export type TerminalFont = { readonly size: number }
 
 // What a terminal's content area receives from a backend that renders it as a component.
-// Until 3.2d the demo keeps this; the mount above replaces it.
+// No backend does since the demo mounts its terminals too (3.2d); 3.2c removes it.
 export type TerminalSurfaceProps = {
   // Wraps the content in the terminal's window and the body its program calls for;
   // render what it returns. The surface keeps its controller and emulator mounted above
@@ -124,8 +124,16 @@ export type TerminalSurfaceProps = {
   readonly onScreen?: boolean
 }
 
-// How a backend draws terminals: the runner mounts them into elements, the demo renders them
-// as components until 3.2d. A backend offers exactly one shape.
+// The page's theme, as a backend reads it for what it paints outside CSS, such as a
+// terminal's colours: the tokens' values where `element` draws, and each time a theme is
+// applied. The app's entry hands it over, so no backend reads the theme layer itself.
+export type ThemeSource = {
+  readonly tokens: (element: Element, names: readonly string[]) => Partial<Record<string, string>>
+  readonly onChange: (listener: () => void) => () => void
+}
+
+// How a backend draws terminals: both backends mount them into elements; the component shape
+// is left for 3.2c to remove. A backend offers exactly one shape.
 export type TerminalPort =
   | {
       // Created once per backend instance so its identity is stable across renders.

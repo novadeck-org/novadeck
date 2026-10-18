@@ -17,18 +17,25 @@ import {
 } from "./support/sessions"
 import {
   chooseView,
+  clickInto,
   commandInput,
+  draftOf,
   expectSelected,
   expectStaysAbsent,
   isMac,
+  labelled,
   openWorkspace,
   press,
   sidebar,
   sidebarPanel,
   terminal,
+  terminalLine,
+  terminalsShow,
+  terminalsText,
   terminalTab,
+  terminalText,
+  typeInto,
   view,
-  labelled,
 } from "./support/workspace"
 
 const switchMenu = (): Locator => page.getByRole("dialog", { name: "Switch workspace" })
@@ -221,21 +228,21 @@ describe("projects", () => {
     it("shows that project's terminals", async () => {
       await openWorkspace()
       await expect
-        .element(terminal("Checkout implementation").getByText("~/projects/storefront"))
-        .toBeVisible()
+        .poll(() => terminalText("Checkout implementation"))
+        .toContain("~/projects/storefront")
 
       await switchProject("api-service")
 
       await expect
-        .element(terminal("Checkout implementation").getByText("~/projects/api-service"))
-        .toBeVisible()
-      await expect.element(page.getByText("~/projects/storefront")).not.toBeInTheDocument()
+        .poll(() => terminalText("Checkout implementation"))
+        .toContain("~/projects/api-service")
+      await expect.poll(terminalsText).not.toContain("~/projects/storefront")
     })
 
     it("keeps each project's terminals, output, and selection separate", async () => {
       await openWorkspace()
-      await terminalTab("Runtime").click()
-      await run(commandInput("Runtime"), "echo storefront history")
+      await terminalTab("Checkout review").click()
+      await run("Checkout review", "echo storefront history")
       await sidebar()
         .getByRole("button", { name: labelled("Close ", "Build") })
         .click()
@@ -245,13 +252,13 @@ describe("projects", () => {
 
       await expect.element(terminalTab("Build")).toBeVisible()
       await expectSelected("Checkout implementation")
-      await expectStaysAbsent(page.getByText("storefront history", { exact: true }))
+      await expectStaysAbsent(terminalLine("storefront history"))
 
       await switchProject("storefront")
 
       await expect.element(terminalTab("Build")).not.toBeInTheDocument()
-      await expectSelected("Runtime")
-      await expect.element(page.getByText("storefront history", { exact: true })).toBeVisible()
+      await expectSelected("Checkout review")
+      await expect.poll(() => terminalsShow("storefront history")).toBe(true)
     })
   })
 })
@@ -301,7 +308,7 @@ describe("sessions sidebar", () => {
       await openWorkspace()
       await sidebarPanel("Terminals").click()
       await expect.element(sidebar()).not.toBeInTheDocument()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
 
       await pressNewSession()
 
@@ -335,9 +342,9 @@ describe("sessions sidebar", () => {
   context("when selecting a saved session", () => {
     it("switches back to its terminals with their output and drafts", async () => {
       await openWorkspace()
-      await terminalTab("Runtime").click()
-      await run(commandInput("Runtime"), "echo saved output")
-      await commandInput("Runtime").fill("echo unfinished")
+      await terminalTab("Checkout review").click()
+      await run("Checkout review", "echo saved output")
+      await typeInto("Checkout review", "echo unfinished")
       await sidebarPanel("Sessions").click()
       const original = await currentSessionName()
       await page.getByRole("button", { name: "New session" }).click()
@@ -345,9 +352,9 @@ describe("sessions sidebar", () => {
 
       await savedSession(original).click()
 
-      await expect.element(terminal("Runtime")).toBeVisible()
-      await expect.element(commandInput("Runtime")).toHaveValue("echo unfinished")
-      await expect.element(page.getByText("saved output", { exact: true })).toBeVisible()
+      await expect.element(terminal("Checkout review")).toBeVisible()
+      await expect.poll(() => draftOf("Checkout review")).toBe("echo unfinished")
+      await expect.poll(() => terminalsShow("saved output")).toBe(true)
       await expectCurrentSession(original)
     })
 
@@ -360,7 +367,7 @@ describe("sessions sidebar", () => {
       const fresh = await newSessionName(original)
       await page.getByRole("button", { name: "New terminal" }).click()
       await expect.element(commandInput(newTerminalName)).toHaveFocus()
-      await commandInput(newTerminalName).fill("new draft")
+      await typeInto(newTerminalName, "new draft")
 
       await sidebarPanel("Sessions").click()
       await savedSession(original).click()
@@ -371,7 +378,7 @@ describe("sessions sidebar", () => {
         .toBeVisible()
 
       await savedSession(fresh).click()
-      await expect.element(commandInput(newTerminalName)).toHaveValue("new draft")
+      await expect.poll(() => draftOf(newTerminalName)).toBe("new draft")
     })
 
     it("restores the terminal and view each session last had selected", async () => {
@@ -486,7 +493,7 @@ describe("narrow screens", () => {
     it("keeps the sidebar closed so the new terminal is visible and focused", async () => {
       await phone()
       await openWorkspace()
-      await commandInput("Checkout implementation").click()
+      await clickInto("Checkout implementation")
 
       await pressShortcut("newTerminal")
 

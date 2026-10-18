@@ -4,6 +4,7 @@ import { commands, server } from "vitest/browser"
 
 import { App } from "../../app/App"
 import { scriptedRunner } from "../../backend/runner/scripted-server"
+import { pageTheme } from "../../theme/source"
 import { chooseView, layoutSettled } from "../support/workspace"
 import { startClock } from "./clock"
 import { countNotifications, counts, observeMutations } from "./probes"
@@ -42,7 +43,7 @@ const close = async (
 const leftoverMs = 6_000
 const warmUp = async (): Promise<void> => {
   const runner = scriptedRunner({ terminals: 13 })
-  const connection = await runner.connect(new AbortController().signal)
+  const connection = await runner.connect(new AbortController().signal, pageTheme)
   await render(<App createBackend={connection.createBackend} />)
   await layoutSettled()
   await chooseView("Focus")
@@ -67,7 +68,7 @@ describe("Counter run", () => {
     let connection: Awaited<ReturnType<typeof runner.connect>> | undefined
     try {
       // The app connects and loads the workspace on the clock, as everything after does.
-      connection = await clock.until(runner.connect(new AbortController().signal))
+      connection = await clock.until(runner.connect(new AbortController().signal, pageTheme))
       // Rendering takes its own `act`; the clock's frames then let the app settle.
       await render(<App createBackend={connection.createBackend} />)
       await clock.frames(60)

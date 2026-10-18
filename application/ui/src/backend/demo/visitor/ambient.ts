@@ -1,14 +1,14 @@
-import { createElement, type ReactNode } from "react"
-
-import { createStore } from "#core/store"
+import { createStore, type Store } from "#core/store"
 import type { TerminalMetadata, Workspace } from "#core/types"
 
 import type { Backend, TerminalKey } from "../../port"
 import { lessMotion } from "../motion"
 import { demoTerminalId, sampleOutput } from "../samples"
+import { sampleBlocks } from "../screen/samples"
+import type { Block } from "../screen/screen"
+import type { DemoIntro } from "../screen/terminal"
 import { terminalOf } from "../terminals"
 import type { DemoTurns } from "../turns"
-import { AmbientOutput } from "./AmbientOutput"
 import { reviewing } from "./story"
 
 // What goes on at the visitor's desk by itself, slowly, so it reads as a place where work
@@ -33,16 +33,46 @@ export const reviewLullMs = 26_000
 const session = { projectId: "storefront", workspaceSessionId: "initial" }
 const codex: TerminalKey = { ...session, terminalId: demoTerminalId(session, 4) }
 
+// A block as it draws, to tell two apart.
+const drawn = (block: Block | undefined): string => JSON.stringify(block?.(80))
+
+// The screen a count of beats draws, made once per count: a later count whose blocks start
+// with an earlier one's keeps them, so its screen appends what the beat adds.
+const ambientIntro = (beats: Store<Beats>, draw: (beats: Beats) => Block[]): DemoIntro => {
+  let made: { beats: Beats; blocks: Block[] } | undefined
+  return {
+    getSnapshot: () => {
+      const counted = beats.getSnapshot()
+      if (made?.beats === counted) return made.blocks
+      const fresh = draw(counted)
+      // The blocks of the count before that draw the same keep their identity.
+      const kept = made?.blocks ?? []
+      const same = (at: number): boolean => drawn(kept[at]) === drawn(fresh[at])
+      const blocks = fresh.map((block, at) => (same(at) ? kept[at]! : block))
+      made = { beats: counted, blocks }
+      return blocks
+    },
+    subscribe: beats.subscribe,
+  }
+}
+
 export const visitorAmbient = (turns: DemoTurns) => {
   const beats = createStore<Beats>({ server: 0, tests: 0 })
 
-  // The dev server's and the tests' screens, which count the beats; any other terminal
-  // opens with its own.
-  const introOf = (terminal: TerminalMetadata, key: TerminalKey): ReactNode => {
+  // The dev server's and the tests' screens, which count the beats: the server logs one
+  // more hot update, and the tests clear the screen to rerun. Any other terminal opens with
+  // its own.
+  const introOf = (terminal: TerminalMetadata, key: TerminalKey): DemoIntro | undefined => {
     const output = sampleOutput(terminal)
     if (key.projectId !== session.projectId || (output !== "server" && output !== "tests"))
       return undefined
-    return createElement(AmbientOutput, { terminal, projectName: key.projectId, beats })
+    return ambientIntro(beats, (counted) =>
+      sampleBlocks(output, {
+        directory: terminal.directory,
+        projectName: key.projectId,
+        beats: output === "server" ? counted.server : counted.tests,
+      }),
+    )
   }
 
   const wrap = (backend: Backend): Backend => {

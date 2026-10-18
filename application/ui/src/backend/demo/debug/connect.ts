@@ -1,7 +1,7 @@
 import { clearPortableCardRaised } from "#core/portable-card-raised"
 import type { SandboxState } from "#core/sandbox"
 
-import type { BackendConnection, ConnectBackend } from "../../port"
+import type { BackendConnection, ConnectBackend, ThemeSource } from "../../port"
 import { keepVariant, rememberVariant, requestedVariant } from "../variants"
 import { bootFailures } from "./boot-failures"
 import type { BootRehearsals } from "./boot-rehearsal"
@@ -20,8 +20,9 @@ const unavailable = (code: string): Error => {
 }
 
 // The content preview's start: a connection that always succeeds, after whatever the
-// debug panel rehearsed, into the demo variant it last chose (the address's, at first).
-export const connectDemo = (rehearsals: BootRehearsals): ConnectBackend => {
+// debug panel rehearsed, into the demo variant it last chose (the address's, at first). Its
+// terminals draw in the page's theme, which the entry hands over.
+export const connectDemo = (rehearsals: BootRehearsals, theme: ThemeSource): ConnectBackend => {
   let variant = requestedVariant()
   keepVariant(variant)
   restoreIconGuides()
@@ -44,6 +45,7 @@ export const connectDemo = (rehearsals: BootRehearsals): ConnectBackend => {
     if (armed) play = undefined
     const launch: DemoLaunch = {
       rehearsals,
+      theme,
       variant,
       slowAttach: slow,
       switchVariant: (next) => {

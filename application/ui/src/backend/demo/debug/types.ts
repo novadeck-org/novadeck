@@ -4,7 +4,7 @@ import type { Workspace } from "#core/types"
 import type { UpdateOffer } from "#core/update"
 
 import type { Backend, BackendSink, TerminalKey } from "../../port"
-import type { DemoScreens } from "../surface"
+import type { DemoScreenStates } from "../runtime"
 import type { DemoUpdates } from "./updates"
 
 // The demo's debug layer, in two halves: the shell (startup, connection, crash loop, the
@@ -79,7 +79,9 @@ export type DemoStates = {
   readonly chat: (
     conversations: NonNullable<Backend["conversations"]>,
   ) => NonNullable<Backend["conversations"]>
-  readonly screens: DemoScreens
+  readonly screens: DemoScreenStates
+  // Whether this paste of the terminal's fails, as the panel armed it for its next one.
+  readonly failPaste: (key: TerminalKey) => boolean
   // A fresh shell in place of an ended one, through the backend's sink.
   readonly restart: (key: TerminalKey, dispatch: BackendSink["dispatch"]) => void
   // Always mounted while the demo runs: where `notices.show` puts its notifications.
