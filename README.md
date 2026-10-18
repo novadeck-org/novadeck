@@ -922,7 +922,16 @@ at its own pixel density (1280 × 640 and 2560 × 1280 pixels) rather than scale
 @novadeck/ui exec playwright install chromium`). novadeck.dev's hero shows the one that
 matches the visitor's color scheme and screen until the live demo is ready, so it always
 pictures the deployed demo; the posters exist only in `dist-try`. Quality's "Build (try)"
-captures them too. Run workflow can deploy only releases made since the posters.
+captures them too. Run workflow can deploy only releases made since the posters. The
+poster run first boots the demo alone on a CPU four times slower and fails above 8 seconds
+from the address to Claude Code's terminal drawn (the website gives up at 15), and the build
+fails over its budgets: what the page loads first, 380 kB gzipped, and the demo with its
+terminal emulator, which loads with the connection, 190 kB (`src/bundle-boundary.ts`).
+
+The hero's terminals are real terminal cells, as the desktop app draws them: the theme's
+ANSI palette, boxes in box-drawing characters, text wrapped at the column count. Their
+emulator keeps a screen reader's tree (`screenReaderMode`), which speaks what a terminal
+writes; its rows are what specs and the posters read.
 
 Setting it up takes a Cloudflare Pages project named `novadeck-try`, made in the dashboard
 (Workers & Pages, Create, Pages, Upload assets) with production branch `main`: wrangler's
@@ -1185,9 +1194,18 @@ else about a terminal belongs to a backend behind the port in `backend/port.ts`:
 it supplies the starting workspace seed, allocates new terminals synchronously,
 sees every store commit before listeners run, and renders the content inside
 each terminal frame. A terminal's mount marks the element that takes typed input with
-`data-terminal-input`, so shortcuts treat it as terminal input. The demo adapter
-keeps drafts, output, and scroll offsets per terminal with one subscription
-each, so output does not trigger workspace-wide renders. A terminal's
+`data-terminal-input`, so shortcuts treat it as terminal input; from there the app's
+shortcuts run in capture, ahead of the terminal's emulator, which takes the keys it reads
+before they bubble. The demo adapter draws its terminals as the runner's are drawn, through
+`backend/terminal-views/` and `@novadeck/terminal/view`: each is a real xterm fed by a
+stream the demo writes as terminal output (`backend/demo/views.ts`). Its screen
+(`backend/demo/screen/`) keeps an append-only transcript (the program's sample output or
+the agent's opening, the commands typed and their replies, the agent's conversation) and
+redraws a live tail in place (the dialog an agent waits on, its status, the prompt), as Claude
+Code and Codex redraw their bottom; a resize draws it whole at the new width. Keys come back
+through a line editor (`backend/demo/line-editor.ts`). The engine keeps each terminal's
+command line and output with one subscription each, so output does not trigger
+workspace-wide renders. A terminal's
 presentation can unmount during view or session changes without losing that
 state; closing the terminal removes it. `core/registry.ts` provides this
 lifecycle for any adapter. An adapter opts into the port contract suite by
