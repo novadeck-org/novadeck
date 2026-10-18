@@ -4,6 +4,7 @@ type CuratedStep = Omit<FlowStep, "anchor" | "label"> & { label?: string; anchor
 
 const host = "application/host/src"
 const runnerSrc = "application/runner/src"
+const hostSrc = "libraries/terminal/src/host"
 const ui = "application/ui/src"
 const relay = "application/relay/src"
 
@@ -146,7 +147,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "Unless a doorbell or answer holds the input, the manager writes the data to the PTY.",
         anchor: {
           file: `${runnerSrc}/terminals/manager.ts`,
-          text: "record.process.write(input.data)",
+          text: "record.terminal.pty.write(input.data)",
         },
       },
       {
@@ -154,16 +155,16 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         to: "runner",
         label: "PTY output",
         text: "The shell or agent in the PTY prints, and node-pty reports the output.",
-        anchor: { file: `${runnerSrc}/terminals/manager.ts`, text: "child.onData((data) => {" },
+        anchor: { file: `${hostSrc}/terminal.ts`, text: "pty.onData((data) => output(pty, data))" },
       },
       {
         from: "runner",
         to: "runner",
         label: "draw headless screen",
-        text: "The manager draws the output on its own headless screen, then emits it in chunks to every subscriber.",
+        text: "The terminal draws the output on its own headless screen, then emits it in chunks to every subscriber.",
         anchor: {
-          file: `${runnerSrc}/terminals/manager.ts`,
-          text: "private output(record: Record, child: pty.IPty, data: string): void",
+          file: `${hostSrc}/terminal.ts`,
+          text: "const output = (from: Pty, data: string) => {",
         },
       },
       {

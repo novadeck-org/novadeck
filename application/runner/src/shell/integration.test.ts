@@ -953,8 +953,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
           {
             agents: { agy?: { seq: number } }
             binding: { agent: string; sessionId: string; instance: string | null } | null
-            process: object
-            exitQueued: boolean
+            terminal: { pty: object; exiting: boolean }
           }
         >
         trees: Trees
@@ -984,11 +983,16 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
       await reading
       const record = inside.records.get(terminal.id)!
-      const original = { binding: record.binding, process: record.process }
+      const original = { binding: record.binding, terminal: record.terminal }
       const switched = { agent: "codex", sessionId: "new-root", instance: null }
       if (change === "binding") record.binding = switched
-      if (change === "process") record.process = { ...record.process }
-      if (change === "exit") record.exitQueued = true
+      // Another run, or this one's exit queued, as the manager sees its terminal.
+      if (change === "process")
+        record.terminal = Object.create(original.terminal, {
+          pty: { value: { ...original.terminal.pty } },
+        })
+      if (change === "exit")
+        record.terminal = Object.create(original.terminal, { exiting: { value: true } })
       if (change === "disconnection") inside.disconnections.set("claude", 1)
       release()
       try {
@@ -997,8 +1001,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         expect(manager.reportedSession(terminal.id, "claude")).toBeNull()
       } finally {
         record.binding = original.binding
-        record.process = original.process
-        record.exitQueued = false
+        record.terminal = original.terminal
       }
     },
   )

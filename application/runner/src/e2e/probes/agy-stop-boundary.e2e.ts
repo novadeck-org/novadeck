@@ -24,7 +24,7 @@ type Process = {
   write: (data: string) => void
   onData: (listen: (data: string) => void) => { dispose: () => void }
 }
-type Record = { process: Process; binding: Binding | null }
+type Record = { terminal: { pty: Process }; binding: Binding | null }
 type Inside = {
   records: Map<string, Record>
   report: (report: Report, deadline?: number) => Promise<HookAnswer>
@@ -170,7 +170,7 @@ describe.skipIf(!enabled || !supported)("Antigravity natural Stop boundary captu
     let thenPasted = false
     try {
       const terminal = await start(run, agy)
-      child = inside.records.get(terminal.id)!.process
+      child = inside.records.get(terminal.id)!.terminal.pty
       original = child.write
       const state = () => ({
         binding: binding(terminal.id),
