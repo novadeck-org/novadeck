@@ -303,12 +303,19 @@ export const clickInto = async (name: string): Promise<void> => {
   if (input.element() instanceof HTMLInputElement) return input.click()
   const screenOf = (): Element | null => terminal(name).element().querySelector(".xterm-screen")
   await expect.poll(screenOf).not.toBeNull()
-  const screen = screenOf()!
-  // The emulator keeps its input over the cursor.
+  // The emulator keeps its input over the cursor. The click goes through the terminal's own
+  // locator: one made from the screen would name it by the text it shows at that moment,
+  // which no longer matches once the terminal draws again.
+  // Playwright places the point from inside the terminal's border.
+  const region = terminal(name)
   const at = input.element().getBoundingClientRect()
-  const box = screen.getBoundingClientRect()
-  await page.elementLocator(screen).click({
-    position: { x: Math.max(1, at.left - box.left + 1), y: Math.max(1, at.top - box.top + 1) },
+  const { left, top } = region.element().getBoundingClientRect()
+  const { clientLeft, clientTop } = region.element()
+  await region.click({
+    position: {
+      x: Math.max(1, at.left - left - clientLeft + 1),
+      y: Math.max(1, at.top - top - clientTop + 1),
+    },
   })
 }
 

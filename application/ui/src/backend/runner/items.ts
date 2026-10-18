@@ -3,7 +3,7 @@ import {
   type CompanionItem as RunnerItem,
   type CompanionWindow as RunnerWindow,
 } from "@novadeck/protocol"
-import { hasCode, type CompanionWatchItem, type Runner } from "@novadeck/protocol/client"
+import { hasCode, type CompanionWatchItem, type Runner } from "@novadeck/runner-client"
 
 import type { ItemId } from "#core/companion"
 import type { BackendAction } from "#core/port"

@@ -190,7 +190,8 @@ const typeOnlyPackages: Record<string, readonly string[]> = {
 }
 // The files in core/ that read the wire package, each through one data-only entry: its
 // table of harnesses, the key that tells pages apart, and what draws as nothing in a command.
-// An entry is added here when the core needs one; never `/client` or `/wire`.
+// An entry is added here when the core needs one; never the wire, or the runner client, which
+// is a package of its own.
 const protocolData: Record<string, string> = {
   "core/harnesses.ts": "@novadeck/protocol/harnesses",
   "core/pages.ts": "@novadeck/protocol/pages",
@@ -225,6 +226,7 @@ const vendors: Record<string, readonly string[]> = {
   // companion pane and chat.
   "@novadeck/viewers": ["terminals/companion/", "terminals/chat/"],
   "@novadeck/protocol": ["backend/runner/", ...Object.keys(protocolData)],
+  "@novadeck/runner-client": ["backend/runner/"],
   "@novadeck/runner": [runnerTesting],
   "@novadeck/emulator": [
     "backend/runner/",
@@ -349,6 +351,17 @@ const importViolation = (file: string, layer: string | undefined) => {
 }
 
 describe("UI architecture", () => {
+  it("reads the source of every folder, the core and the debug panel among them", () => {
+    expect(files).toEqual(
+      expect.arrayContaining([
+        "app/App.tsx",
+        "core/store.ts",
+        "backend/runner/index.ts",
+        "backend/demo/debug/DebugPanel.tsx",
+      ]),
+    )
+  })
+
   it("places every source file in a layer", () => {
     expect(files.filter((file) => !layerOf(file) && !rootTest(file))).toEqual([])
   })
@@ -377,6 +390,7 @@ describe("UI architecture", () => {
     const core = readdirSync(join(src, "core"), { recursive: true, withFileTypes: true })
       .filter((entry) => entry.isFile())
       .map((entry) => relative(src, join(entry.parentPath, entry.name)).split("\\").join("/"))
+    expect(core).toContain("core/store.ts")
     expect(core.filter((file) => !file.endsWith(".ts"))).toEqual([])
   })
 
@@ -395,7 +409,7 @@ describe("UI architecture", () => {
               : [`${file} -> ${specifier}`]
           }
           if (dataEntries.has(specifier)) return []
-          // The protocol isn't a library, so only its data entries pass; its `/client` and `/wire` don't.
+          // The protocol isn't a library, so only its data entries pass; its index doesn't.
           return coreLibrary(specifier) ? [] : [`${file} -> ${specifier}`]
         }),
       )
@@ -549,6 +563,9 @@ describe("UI architecture", () => {
         .split(/\r?\n/)
         .filter((line) => line !== "" && !line.startsWith("//")),
     ])
+    expect(scripts.map(([name]) => name)).toEqual(
+      expect.arrayContaining(["previews", "try", "web"]),
+    )
     expect(scripts).toEqual(
       readdirSync(pages).map((name) => [name, [`import "../../src/entries/${name}"`]]),
     )

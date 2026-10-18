@@ -6,8 +6,8 @@ import { DatabaseSync } from "node:sqlite"
 import { pathToFileURL } from "node:url"
 import { MessageChannel, Worker } from "node:worker_threads"
 
-import { connectRunner } from "@novadeck/protocol/client"
 import { relayName, relayPath } from "@novadeck/relay"
+import { connectRunner } from "@novadeck/runner-client"
 import { messagePort } from "@novadeck/wire/client"
 
 import { databaseArgumentPrefix, graphicsArgumentPrefix, relayArgumentPrefix } from "../bridge"

@@ -40,7 +40,7 @@ NOVADECK_E2E_AGENTS=claude pnpm --filter @novadeck/runner test:e2e   # one harne
 
 The runner's own script doesn't build `@novadeck/protocol` or `@novadeck/relay`, which
 agents start for Novadeck's MCP server and hooks, so build them first when running the suite
-from `application/runner`, as the root script does.
+from `backend/runner`, as the root script does.
 
 The first run installs the pinned harnesses (a few hundred MB). Later runs reuse them.
 Each `e2e(...)` installs its harnesses once, before its tests, so a download counts
@@ -48,7 +48,7 @@ against the hook timeout (ten minutes) rather than a test's. A harness left out 
 `NOVADECK_E2E_AGENTS` is neither installed nor run.
 
 `npm run test` never runs the suite: its files end in `.e2e.ts`, and only
-`application/runner/vitest.e2e.config.ts` includes them. The unit tests for its parts
+`backend/runner/vitest.e2e.config.ts` includes them. The unit tests for its parts
 (`src/e2e/**/*.test.ts`) run with the rest.
 
 | Variable                      | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -88,7 +88,7 @@ otherwise. Otherwise:
   runner runs everything until a rule says otherwise; an adapter not yet pinned counts as
   one; a package outside the paths that trigger this workflow, a new `application/<name>`
   say, needs its path added there for its changes to run anything), or a changed file is in
-  `application/runner/` (the suite and the pins), node-pty's patch, `scripts/e2e/`,
+  `backend/runner/` (the suite and the pins), node-pty's patch, `scripts/e2e/`,
   `.github/actions/e2e-harness-cache/`, or is `.github/workflows/e2e.yml`, the root
   `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` or `turbo.json`. The runner is
   judged by its files, not by turbo: turbo calls it affected by any adapter, which would
@@ -128,14 +128,14 @@ and so the home and Novadeck's launcher, is named with a space, which cmd reads 
 short name. It runs `messaging`, `requests` and `lifecycle` for its harness;
 `windows-quirks.e2e.ts` (Claude Code's job) opens a terminal whose PATH is read from the
 registry, as the app's are, and runs the marker; and with the AutoRun set, a test in
-`application/runner/src/harnesses/service.test.ts` (`NOVADECK_TEST_CMD_AUTORUN=1`) checks that Antigravity's
+`backend/runner/src/harnesses/service.test.ts` (`NOVADECK_TEST_CMD_AUTORUN=1`) checks that Antigravity's
 PreToolUse goes unregistered, and that a connected copy that still has it is installed
 again without it. These tests skip anywhere else. Its traces upload as
 `e2e-traces-<harness>-Windows-quirks`.
 
 ## What is pinned
 
-`application/runner/src/e2e/harnesses.json` pins each harness's release:
+`backend/runner/src/e2e/harnesses.json` pins each harness's release:
 
 | Harness     | Published as                                          | Version |
 | ----------- | ----------------------------------------------------- | ------- |
@@ -842,7 +842,7 @@ probe output, and keep their own loader.
 
 1. Pin it in `harnesses.json` (an npm package, or an archive with its SHA-512) and make
    sure `installHarness` can install it. Its name must be one of the protocol's
-   `agentName`s, a row of its harness table (`application/protocol/src/harnesses.ts`).
+   `agentName`s, a row of its harness table (`contract/protocol/src/harnesses.ts`).
 2. Write its API's dialect in `src/e2e/model/`, unless it speaks one already there: it
    parses requests into `Call`s and encodes `Reply`s the way the harness reads them. It
    also answers the side endpoints the harness calls on the way to its prompt. To find

@@ -2,7 +2,7 @@
   "harness": "claude",
   "version": "2.1.287",
   "source": "captured",
-  "how": "session records of commands run in shell mode (`!`) by the shell-bang probe (application/runner/src/e2e/probes/shell-bang.e2e.ts): the user record holding the command and the one holding its output; ids and times as written, the caveat record Claude Code writes before a command still running when the person leaves it (Esc)",
+  "how": "session records of commands run in shell mode (`!`) by the shell-bang probe (backend/runner/src/e2e/probes/shell-bang.e2e.ts): the user record holding the command and the one holding its output; ids and times as written, the caveat record Claude Code writes before a command still running when the person leaves it (Esc)",
   "scenarios": {
     "stderr": [
       {

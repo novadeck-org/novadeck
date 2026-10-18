@@ -2,7 +2,7 @@
   "harness": "agy",
   "version": "1.2.14",
   "source": "captured",
-  "how": "the e2e sandbox with the fake model, Novadeck connected, a probe hook registered for every event in the project's .agents/hooks.json, driven by application/runner/src/e2e/probes/agy-ask.e2e.ts at 120x40 and 60x20; paths and ids replaced",
+  "how": "the e2e sandbox with the fake model, Novadeck connected, a probe hook registered for every event in the project's .agents/hooks.json, driven by backend/runner/src/e2e/probes/agy-ask.e2e.ts at 120x40 and 60x20; paths and ids replaced",
   "scenarios": {
     "command": {
       "what": "run_command the person has no setting allowing, as the e2e seed leaves it",

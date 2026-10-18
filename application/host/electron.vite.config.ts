@@ -1,6 +1,10 @@
-import { resolve } from "node:path"
+import { createRequire } from "node:module"
+import { dirname, resolve } from "node:path"
 
 import { defineConfig } from "electron-vite"
+
+// The runner's source, which the host's dependency on it finds wherever its folder is.
+const runnerSource = dirname(createRequire(import.meta.url).resolve("@novadeck/runner"))
 
 export default defineConfig({
   main: {
@@ -17,7 +21,7 @@ export default defineConfig({
           // The runner runs in its own utility process.
           runner: resolve("src/runner/index.ts"),
           // The thread murmur redacts digests in, which the runner starts from a file beside it.
-          murmurWorker: resolve("../runner/src/murmur/worker.ts"),
+          murmurWorker: resolve(runnerSource, "murmur/worker.ts"),
         },
         // Native PTYs load through Node's own resolver, from the unpacked package.
         external: ["node-pty"],

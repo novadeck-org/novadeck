@@ -2,7 +2,7 @@ import { stripTypeScriptTypes } from "node:module"
 
 import { parseAst } from "vitest/node"
 
-// The ratchet on application/runner/src/terminals/manager.ts: what it measures, and how a
+// The ratchet on backend/runner/src/terminals/manager.ts: what it measures, and how a
 // measure stands against its budget.
 
 export const measures = ["lines", "methods"] as const
@@ -21,7 +21,7 @@ export type Budgets = Readonly<Record<Measure, Budget>> & {
   readonly notes?: readonly string[]
 }
 
-export const managerPath = "application/runner/src/terminals/manager.ts"
+export const managerPath = "backend/runner/src/terminals/manager.ts"
 export const budgetsPath = "scripts/ratchet/manager.json"
 const raiseForm = '{ "budget": n, "reason": "why", "from": "#PR or commit" }'
 
@@ -164,7 +164,7 @@ export const ratchetProblems = (counts: Counts, budgets: Budgets, base?: Budgets
     if (count > budget)
       return [
         ...raised,
-        `${managerPath} has ${count} ${advice[measure]}, past its budget of ${budget}. Put new code in a sibling module under application/runner/src/terminals/ (as closes.ts, opens.ts and naming.ts are) and call it from the class, instead of growing the Terminals class. If it really can't go there, raise the budget in ${budgetsPath} to ${count}, written ${raiseForm}. Where changes to it merged one after the other had already put the base branch past the budget, not all of the overrun is this change's: say so in the reason.`,
+        `${managerPath} has ${count} ${advice[measure]}, past its budget of ${budget}. Put new code in a sibling module under backend/runner/src/terminals/ (as closes.ts, opens.ts and naming.ts are) and call it from the class, instead of growing the Terminals class. If it really can't go there, raise the budget in ${budgetsPath} to ${count}, written ${raiseForm}. Where changes to it merged one after the other had already put the base branch past the budget, not all of the overrun is this change's: say so in the reason.`,
       ]
     if (budget - count > slack)
       return [

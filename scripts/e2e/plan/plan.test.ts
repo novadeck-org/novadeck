@@ -1,15 +1,20 @@
 import { execFileSync } from "node:child_process"
+import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { context, describe, expect, it } from "../../test"
 import {
+  allSystemsFolders,
+  browserOnlyFiles,
   type Facts,
+  firstShard,
   parseAffected,
   plan,
   quirks,
   select,
   selectSystems,
   setups,
+  sharedFolders,
   systems,
 } from "./plan.ts"
 
@@ -92,9 +97,9 @@ describe("E2E selection", () => {
     })
 
     it.each([
-      "application/runner/src/e2e/harnesses.json",
-      "application/runner/src/e2e/fixture.ts",
-      "application/runner/src/harnesses/service.ts",
+      "backend/runner/src/e2e/harnesses.json",
+      "backend/runner/src/e2e/fixture.ts",
+      "backend/runner/src/harnesses/service.ts",
     ])("runs everything for the runner's %s", (file) => {
       const affected = ["@novadeck/runner", "@novadeck/host"]
       expect(select(pullRequest(affected, [file]), ids)).toEqual(ids)
@@ -102,7 +107,7 @@ describe("E2E selection", () => {
 
     it("runs everything for the runner beside one adapter", () => {
       const affected = ["@novadeck/harness-codex", "@novadeck/runner"]
-      const files = ["harnesses/codex/src/index.ts", "application/runner/src/index.ts"]
+      const files = ["harnesses/codex/src/index.ts", "backend/runner/src/index.ts"]
       expect(select(pullRequest(affected, files), ids)).toEqual(ids)
     })
 
@@ -205,7 +210,7 @@ describe("E2E systems", () => {
   })
 
   it.each([
-    "application/runner/src/terminals/manager.ts",
+    "backend/runner/src/terminals/manager.ts",
     "libraries/terminal/src/pty/index.ts",
     "libraries/wire/src/index.ts",
     "libraries/emulator/src/headless.ts",
@@ -215,7 +220,7 @@ describe("E2E systems", () => {
     "libraries/emulator/patches/@xterm__addon-unicode-graphemes@0.4.0.patch",
     "harnesses/claude/src/index.ts",
     "harnesses/core/src/index.ts",
-    "application/relay/src/main.rs",
+    "backend/relay/src/main.rs",
     "scripts/e2e/plan/plan.ts",
     ".github/workflows/e2e.yml",
     ".github/actions/e2e-harness-cache/save/action.yml",
@@ -227,7 +232,7 @@ describe("E2E systems", () => {
   })
 
   it.each([
-    "application/protocol/src/harnesses.ts",
+    "contract/protocol/src/harnesses.ts",
     "engines/whisper/src/index.ts",
     "pnpm-lock.yaml",
     "package.json",
@@ -291,7 +296,7 @@ describe("E2E jobs by change", () => {
       15,
       4,
     ],
-    ["the runner alone", ["@novadeck/runner"], ["application/runner/src/index.ts"], 15, 4],
+    ["the runner alone", ["@novadeck/runner"], ["backend/runner/src/index.ts"], 15, 4],
     ["the lockfile alone", [], ["pnpm-lock.yaml"], 4, 0],
     [
       "harnesses/claude",
@@ -312,7 +317,7 @@ describe("E2E jobs by change", () => {
     const files = [
       "libraries/terminal/src/pty/index.ts",
       "libraries/terminal/package.json",
-      "application/runner/src/terminals/manager.ts",
+      "backend/runner/src/terminals/manager.ts",
     ]
     const planned = plan(pullRequest(affected, files), ids)
     expect(planned.run).toBe(true)
@@ -408,6 +413,62 @@ describe("E2E rows", () => {
   })
 })
 
+describe("E2E jobs", () => {
+  it("runs Claude Code and Codex in two halves on Linux and Windows, and macOS whole", () => {
+    expect(plan(nightly, ids).rows.map((row) => row.job)).toEqual([
+      "Claude Code (1/2)",
+      "Claude Code (2/2)",
+      "Codex (1/2)",
+      "Codex (2/2)",
+      "Antigravity",
+      "Mixed",
+      "Claude Code (Windows, 1/2)",
+      "Claude Code (Windows, 2/2)",
+      "Codex (Windows, 1/2)",
+      "Codex (Windows, 2/2)",
+      "Antigravity (Windows)",
+      "Mixed (Windows)",
+      "Claude Code (macOS)",
+      "Codex (macOS)",
+      "Antigravity (macOS)",
+      "Mixed (macOS)",
+    ])
+  })
+
+  it("gives the first half its files and the second every other file", () => {
+    const [first, second] = plan(nightly, ids).rows.filter((row) => row.os === systems.windows)
+    expect(first?.setup).toEqual({
+      agents: "claude",
+      name: "Claude Code",
+      files: firstShard.map((file) => `src/e2e/${file}`).join(" "),
+      part: 1,
+    })
+    expect(second?.setup.files).toBe(
+      firstShard.map((file) => `--exclude src/e2e/${file}`).join(" "),
+    )
+  })
+
+  it("names only files the suite has, so a renamed one can't drop out of both halves", () => {
+    const suite = readdirSync(join(import.meta.dirname, "../../../backend/runner/src/e2e"))
+    for (const file of firstShard) expect(suite).toContain(file)
+  })
+
+  it("splits only the systems the plan chose", () => {
+    const linux = plan(
+      pullRequest(["@novadeck/protocol"], ["contract/protocol/src/schemas.ts"]),
+      ids,
+    )
+    expect(linux.rows.map((row) => row.job)).toEqual([
+      "Claude Code (1/2)",
+      "Claude Code (2/2)",
+      "Codex (1/2)",
+      "Codex (2/2)",
+      "Antigravity",
+      "Mixed",
+    ])
+  })
+})
+
 describe("the plan script", () => {
   // CI runs it with plain node, no package built: what it imports must load that way too.
   it("runs under plain node and plans every row for a nightly run", () => {
@@ -422,5 +483,36 @@ describe("the plan script", () => {
       "Antigravity",
       "Mixed",
     ])
+  })
+})
+
+// A path that names nothing selects nothing, silently: a folder moved without its entry here
+// would stop running the suite for changes to it.
+describe("the paths the plan and the workflow name", () => {
+  const root = join(import.meta.dirname, "..", "..", "..")
+  const named = (prefix: string) =>
+    execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" })
+      .split("\0")
+      .some((file) => file.startsWith(prefix))
+
+  it("are each the start of a tracked file's path", () => {
+    const prefixes = [...sharedFolders, ...allSystemsFolders, ...browserOnlyFiles]
+    expect(prefixes.filter((prefix) => !named(prefix))).toEqual([])
+  })
+
+  it("include, for the workflow's pull requests, only paths that are tracked", () => {
+    // Line by line, as a Windows checkout ends them with CRLF: the list under the pull
+    // request's `paths:`, its comments and blank lines skipped.
+    const lines = readFileSync(join(root, ".github/workflows/e2e.yml"), "utf8").split(/\r?\n/)
+    const start = lines.findIndex((line) => line === "    paths:")
+    const entries: string[] = []
+    for (const line of lines.slice(start + 1)) {
+      if (/^\s*(#.*)?$/.test(line)) continue
+      const entry = /^ {6}- (.+)$/.exec(line)?.[1]
+      if (entry === undefined) break
+      entries.push(entry.trim())
+    }
+    expect(entries.length).toBeGreaterThan(0)
+    expect(entries.filter((entry) => !named(entry.replace(/\*\*$/, "")))).toEqual([])
   })
 })

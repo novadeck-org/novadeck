@@ -6,10 +6,10 @@ the build rules and the test sandbox. The app keeps the product.
 
 ## The rules
 
-- **No app code.** A library never imports `@novadeck/protocol`, the runner, the UI, the host,
-  the relay, the atlas or a harness, by package name or by path. Product specifics (names,
-  wording, environment variables, storage keys) come in as options. A library's README reads
-  the same with "Novadeck" taken out.
+- **No app code.** A library never imports `@novadeck/protocol`, the runner client, the
+  runner, the UI, the host, the relay, the atlas or a harness, by package name or by path.
+  Product specifics (names, wording, environment variables, storage keys) come in as options.
+  A library's README reads the same with "Novadeck" taken out.
 - **Other libraries in order only.** A library imports another one by its package name, and only
   the ones its design depends on: `terminal` and `tui-input` import `emulator`, and `emulator`,
   `wire`, `viewers` and `sandbox` import none.
@@ -34,9 +34,10 @@ the build rules and the test sandbox. The app keeps the product.
 ## What enforces them
 
 - **The import fence** in `.oxlintrc.json`: an override per library refuses app code by package
-  name, paths into `application/`, `harnesses/`, `libraries/`, `atlas/` or a sibling's `dist/`
-  (`../../wire/dist`), or up to one of the first four by name (`../atlas`, so a library's own module
-  one folder up takes another name), and the libraries outside its order; one on
+  name, paths into `application/`, `apps/`, `backend/`, `contract/`, `frontend/`, `harnesses/`,
+  `libraries/`, `atlas/` or a sibling's `dist/` (`../../wire/dist`), or up to one of the first
+  eight by name (`../harnesses`, so a library's own module one folder up takes another
+  name), and the libraries outside its order; one on
   `application/ui/src` refuses the Node subpaths of any `@novadeck` package (`/pty`, `/host`,
   `/server`, `/electron`, `/browser/host`, `/shell`, `/headless`). oxlint takes
   `no-restricted-imports` from the last matching override alone, and a `!` pattern in one group

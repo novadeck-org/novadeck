@@ -1,5 +1,5 @@
 import type { TerminalSummary } from "@novadeck/protocol"
-import { type TerminalWatchItem } from "@novadeck/protocol/client"
+import { type TerminalWatchItem } from "@novadeck/runner-client"
 import { WireError } from "@novadeck/wire"
 import type { WireStatus } from "@novadeck/wire/client"
 import { afterAll, vi } from "vitest"

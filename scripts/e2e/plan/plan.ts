@@ -2,7 +2,7 @@
 // gathers the facts (the event, turbo's affected packages, git's changed files).
 
 // The table's source, which imports nothing, so the plan needs no package built first.
-import { harnesses } from "../../../application/protocol/src/harnesses.ts"
+import { harnesses } from "../../../contract/protocol/src/harnesses.ts"
 
 /** The facts a decision rests on; `undefined` where they couldn't be had. */
 export type Facts = {
@@ -33,9 +33,9 @@ const sharedFiles = new Set([
   "pnpm-workspace.yaml",
   "turbo.json",
 ])
-const sharedFolders = [
+export const sharedFolders = [
   ".github/actions/e2e-harness-cache/",
-  "application/runner/",
+  "backend/runner/",
   // The terminal library, with node-pty's patch: the suite's pty. The emulator's patches
   // belong to its package, which reaches the suite as an affected package like any other.
   "libraries/terminal/",
@@ -64,16 +64,16 @@ const sharedFolders = [
 // package) is not the headless side the suite runs, so it stays off them
 // (`browserOnlyFiles`); the rest of the emulator, new files included, runs every system.
 const allSystemsFiles = new Set([".github/workflows/e2e.yml"])
-const browserOnlyFiles = [
+export const browserOnlyFiles = [
   "libraries/emulator/patches/@xterm__xterm@",
   "libraries/emulator/src/browser.",
   "libraries/emulator/src/renderer.",
   "libraries/emulator/src/view.",
 ]
-const allSystemsFolders = [
+export const allSystemsFolders = [
   ".github/actions/e2e-harness-cache/",
-  "application/relay/",
-  "application/runner/",
+  "backend/relay/",
+  "backend/runner/",
   "harnesses/",
   "libraries/emulator/",
   "libraries/sandbox/",
@@ -175,12 +175,78 @@ export const quirks = (selected: readonly string[]): readonly Quirk[] =>
     ...(id === "agy" ? { autorun: true as const } : {}),
   }))
 
+// The harnesses whose suite runs longest on Windows and Linux (on Windows 21 and 24 minutes,
+// #285's E2E run), which run there in two jobs each. macOS keeps one job a harness, as its
+// concurrency, not its length, is the limit.
+const sharded = new Set(["claude", "codex"])
+const shardedOn = new Set<string>([systems.linux, systems.windows])
+
+// The first job's files, about half the suite's time (each harness's run on Windows in #285's
+// E2E run: chat 223–284 s, controls 126–136, answers 123–134, requests 55–63, inbox 30–35,
+// lead 21, nested 12–17, tasks 15–16 of the jobs' 21–24 minutes). The second runs every other file, so
+// a file added later runs there.
+export const firstShard = [
+  "chat.e2e.ts",
+  "controls.e2e.ts",
+  "answers.e2e.ts",
+  "requests.e2e.ts",
+  "inbox.e2e.ts",
+  "lead.e2e.ts",
+  "nested.e2e.ts",
+  "tasks.e2e.ts",
+]
+
+/** One job of the `e2e` matrix: its system, its name, and the row it runs. */
+export type Row = {
+  readonly os: string
+  readonly job: string
+  readonly setup: Setup & { readonly part?: number }
+}
+
+// A job's name: the Linux ones bare, the others with their system, and a shard's number.
+const jobName = (name: string, os: string, part: number | undefined): string => {
+  const system = os === systems.windows ? "Windows" : os === systems.macos ? "macOS" : undefined
+  const tags = [system, part === undefined ? undefined : `${part}/2`].filter(Boolean)
+  return tags.length > 0 ? `${name} (${tags.join(", ")})` : name
+}
+
+/**
+ * The `e2e` job's matrix, each system's rows in turn: a row as it is, or, for a long
+ * harness on Windows and Linux, two, one running `firstShard` and one the rest.
+ */
+export const rows = (os: readonly string[], each: readonly Setup[]): readonly Row[] =>
+  os.flatMap((system) =>
+    each.flatMap((setup): Row[] => {
+      if (!sharded.has(setup.agents) || !shardedOn.has(system))
+        return [{ os: system, job: jobName(setup.name, system, undefined), setup }]
+      const rest = firstShard.map((file) => `--exclude src/e2e/${file}`).join(" ")
+      return [
+        {
+          os: system,
+          job: jobName(setup.name, system, 1),
+          setup: {
+            ...setup,
+            files: firstShard.map((file) => `src/e2e/${file}`).join(" "),
+            part: 1,
+          },
+        },
+        {
+          os: system,
+          job: jobName(setup.name, system, 2),
+          setup: { ...setup, files: rest, part: 2 },
+        },
+      ]
+    }),
+  )
+
 /** What the workflow's jobs read. */
 export type Plan = {
   readonly run: boolean
   /** The `runs-on` of each system the `e2e` job runs on; the `quirks` job needs Windows. */
   readonly os: readonly string[]
   readonly e2e: readonly Setup[]
+  /** The `e2e` job's matrix: `os` by `e2e`, with the long harnesses split in two. */
+  readonly rows: readonly Row[]
   readonly quirks: readonly Quirk[]
 }
 
@@ -188,12 +254,15 @@ export const plan = (facts: Facts, ids: readonly string[]): Plan => {
   const selected = select(facts, ids)
   // With nothing to run the jobs are skipped, but their matrices still name every row: a
   // skipped job's matrix is never run, and an empty one is an error where Actions reads it.
-  const rows = selected.length > 0 ? selected : ids
+  const chosen = selected.length > 0 ? selected : ids
+  const os = selected.length > 0 ? selectSystems(facts) : everySystem
+  const e2e = setups(chosen, ids)
   return {
     run: selected.length > 0,
-    os: selected.length > 0 ? selectSystems(facts) : everySystem,
-    e2e: setups(rows, ids),
-    quirks: quirks(rows),
+    os,
+    e2e,
+    rows: rows(os, e2e),
+    quirks: quirks(chosen),
   }
 }
 

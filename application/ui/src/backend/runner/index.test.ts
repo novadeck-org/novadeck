@@ -1,4 +1,4 @@
-import type { Runner } from "@novadeck/protocol/client"
+import type { Runner } from "@novadeck/runner-client"
 import { afterAll, vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"

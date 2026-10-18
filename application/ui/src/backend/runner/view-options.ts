@@ -1,6 +1,6 @@
 import type { Renderers } from "@novadeck/emulator/browser"
 import { maxUploadBytes } from "@novadeck/protocol"
-import { hasCode, type AttachedTerminal } from "@novadeck/protocol/client"
+import { hasCode, type AttachedTerminal } from "@novadeck/runner-client"
 import type { AttachStream, Exit } from "@novadeck/terminal"
 import type { PasteFailure } from "@novadeck/terminal/view"
 import { parkedCap, parkMs, type TerminalViewOptions } from "@novadeck/terminal/view"

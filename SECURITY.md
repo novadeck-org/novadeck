@@ -120,7 +120,7 @@ lost (PowerShell running a `.cmd`, or a paste into a quote already open), such a
 can't run a command or start an option, though its spaces may split it into words. A
 path that fails these rules is uploaded instead, under the runner's own safe name,
 which keeps to the same letters (`safeName` in
-`application/runner/src/terminals/uploads.ts`).
+`backend/runner/src/terminals/uploads.ts`).
 
 An upload's path goes in double-quoted when the person's own folders above it hold a
 space or any character outside those letters, as `C:\R&D\...` does (`shellPath`);

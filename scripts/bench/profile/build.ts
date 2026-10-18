@@ -13,7 +13,7 @@ import { storeSpansPatch, webglPatch } from "./patches.ts"
 // `--webgl`, every screen loads xterm's WebGL renderer once it opens, in place of its DOM one,
 // the addon the emulator library's own. The patches are in patches.ts.
 
-const ui = join(import.meta.dirname, "..", "..", "..", "application", "ui")
+const ui = join(import.meta.dirname, "../../..", "application/ui")
 const { values } = parseArgs({
   options: {
     out: { type: "string" },
