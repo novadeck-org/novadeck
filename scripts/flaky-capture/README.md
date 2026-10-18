@@ -22,7 +22,7 @@ node scripts/flaky-capture/grid.ts --output /path/to/grid-capture --attempts 5
 ```
 
 Each attempt starts a fresh Vitest process and runs the complete, unchanged
-`companions.spec.tsx`: all 30 cases, including the predecessors of the ordinary
+`companions.spec.tsx`: all 32 cases, including the predecessors of the ordinary
 12-move and separate one-move Grid undocking cases. The existing 30-second case
 deadlines and assertions are inherited from the UI config. There is no added delay,
 repeated gesture within a case, app mock or forced scheduling condition.
@@ -33,8 +33,8 @@ setup. Either limit may end collection before five attempts and is reported as a
 not a reproduced Grid failure. The workflow gives capture 17 minutes within a 25-minute
 job so artifacts have time to upload.
 
-A successful attempt requires finalized Vitest JSON reporting all 30 original cases
-passed, 30 per-case records, and native release plus app-drop observations for both Grid
+A successful attempt requires finalized Vitest JSON reporting all 32 original cases
+passed, 32 per-case records, and native release plus app-drop observations for both Grid
 variants. Empty, skipped or incomplete collection cannot report success. If the original
 file changes, review and update this explicit completeness contract.
 

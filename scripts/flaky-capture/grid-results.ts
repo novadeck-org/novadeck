@@ -21,15 +21,15 @@ export const validateGridCapture = (
   const assertions = report.testResults?.flatMap((file) => file.assertionResults ?? []) ?? []
   if (
     !report.success ||
-    report.numTotalTests !== 30 ||
-    report.numPassedTests !== 30 ||
+    report.numTotalTests !== 32 ||
+    report.numPassedTests !== 32 ||
     report.testResults?.length !== 1 ||
     !/[\\/]companions\.spec\.tsx$/.test(report.testResults[0]?.name ?? "") ||
-    assertions.length !== 30 ||
+    assertions.length !== 32 ||
     assertions.some((test) => test.status !== "passed")
   )
-    return "The complete original 30-case companion file did not pass"
-  if (captures.length !== 30) return "Missing per-case capture records"
+    return "The complete original 32-case companion file did not pass"
+  if (captures.length !== 32) return "Missing per-case capture records"
   for (const context of [
     "when dragged onto the Grid's free space",
     "when dropped on the Grid's free space by the move that starts the drag",
