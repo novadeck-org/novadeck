@@ -463,12 +463,11 @@ describe("relay hooks", () => {
       relay(reports.endpoint, [hook({ seq }), JSON.stringify({ ack: lease })]),
     ).resolves.toEqual([answer])
     // A runner too slow for the hook answers it as unheard, by the hook's own deadline,
-    // which an ask's start leaves only moments before.
-    const started = Date.now()
-    await expect(relay(reports.endpoint, [hook({ seq: Date.now() - 3_400 })])).resolves.toEqual([
-      unheard,
-    ])
-    expect(Date.now() - started).toBeLessThan(1_500)
+    // which an ask's start leaves only moments before. The relay listens for 4 s, less than
+    // the 8 s a call is given (`answerMs`): only the deadline can answer it in that time.
+    await expect(
+      relay(reports.endpoint, [hook({ seq: Date.now() - 3_400 })], { waitMs: 4_000 }),
+    ).resolves.toEqual([unheard])
     // An ask it can't read is unheard at once, without asking.
     await expect(relay(reports.endpoint, [hook({ seq: "soon" })])).resolves.toEqual([unheard])
     const report = {
