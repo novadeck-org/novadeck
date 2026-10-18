@@ -2,7 +2,8 @@ import { ChangeSet, EditorSelection, Text, type Line, type Transaction } from "@
 import type { EditorView } from "@codemirror/view"
 import { findTables } from "@novadeck/viewers/markdown"
 
-import { noteClose, noteOpen, notePattern, noteSafe } from "../../../model/companion"
+import { noteClose, noteOpen, notePattern, noteSafe } from "#core/companion"
+
 import type { Mark } from "../plan-doc"
 
 // Notes as Novadeck writes them into the plan, and the control that adds one.

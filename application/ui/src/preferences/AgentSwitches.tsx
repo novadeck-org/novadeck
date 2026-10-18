@@ -1,4 +1,5 @@
-import { harnesses, type AgentName } from "../model/harnesses"
+import { harnesses, type AgentName } from "#core/harnesses"
+
 import { Switch } from "../ui-toolkit/Switch"
 import { settingRowClasses, settingsCardClasses } from "./settings"
 

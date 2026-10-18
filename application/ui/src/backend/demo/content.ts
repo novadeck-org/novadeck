@@ -1,7 +1,7 @@
-import { companionKeyId } from "../../model/companion"
-import { gridColumns } from "../../model/layout/grid-placement"
-import { viewOf } from "../../model/seed"
-import { createTerminalState } from "../../model/state"
+import { companionKeyId } from "#core/companion"
+import { gridColumns } from "#core/layout/grid-placement"
+import { viewOf } from "#core/seed"
+import { createTerminalState } from "#core/state"
 import type {
   AgentStatus,
   CanvasLayout,
@@ -9,7 +9,8 @@ import type {
   GridLayouts,
   TerminalMetadata,
   Workspace,
-} from "../../model/types"
+} from "#core/types"
+
 import type { Backend, BackendSink, CreateBackend, TerminalKey } from "../port"
 import { createDemoEngine } from "./engine"
 import { demoBackend, windowReset, withConversations } from "./index"

@@ -1,27 +1,29 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
-import { join, posix } from "node:path"
+import { join, posix, relative } from "node:path"
 
 import { describe, expect, it } from "./test"
 
-// Every source file belongs to a layer: a folder ("model/") or a single file
+// Every source file belongs to a layer: a folder ("core/") or a single file
 // ("main.tsx"). Each layer lists what it may import from src. Every folder in
-// backend/ is an adapter layer; see `adapterRule`.
+// backend/ is an adapter layer; see `adapterRule`. The core is imported as `#core/*`, the
+// package's own `imports`, so that step 5 changes only configuration; inside the core its
+// files import one another by relative path.
 // theme/ (the theme file and how its scheme is applied) is open to every layer that
-// composes the page; it imports nothing but itself. model/ takes only the scheme
-// types, for the appearance preferences hold, and adapters resolve colour tokens with
-// it for what they paint outside CSS, such as the terminal emulator.
-const base = ["model/", "interaction/", "ui-toolkit/", "theme/"]
+// composes the page; it imports nothing but itself and the core's types, for the scheme
+// preference they hold, and adapters resolve colour tokens with it for what they paint
+// outside CSS, such as the terminal emulator.
+const base = ["core/", "interaction/", "ui-toolkit/", "theme/"]
 const features = ["sidebar/", "projects/", "preferences/", "search/"]
 const rules: Record<string, readonly string[]> = {
-  "model/": ["model/", "theme/scheme.ts"],
-  "theme/": ["theme/"],
-  "backend/": ["backend/", "model/"],
+  "core/": ["core/"],
+  "theme/": ["theme/", "core/types.ts"],
+  "backend/": ["backend/", "core/"],
   "ui-toolkit/": ["ui-toolkit/", "class-name.ts"],
-  "interaction/": ["interaction/", "model/"],
+  "interaction/": ["interaction/", "core/"],
   ...Object.fromEntries(features.map((layer) => [layer, [...base, layer]])),
   // Voice input: capture and the dictation state machine over the model's `Voice`, and the
   // one terminal contract it types into.
-  "voice/": ["voice/", "model/", "ui-toolkit/"],
+  "voice/": ["voice/", "core/", "ui-toolkit/"],
   "terminals/": [...base, "terminals/", "sidebar/"],
   "layouts/": [...base, "layouts/", "sidebar/", "terminals/"],
   // What asks for the person across the workspace: terminals' requests and unread finishes.
@@ -64,7 +66,7 @@ const rules: Record<string, readonly string[]> = {
     "app/ui-store.ts",
     "app/selectors.ts",
     "backend/port.ts",
-    "model/",
+    "core/",
     // The keymap's types only: commands never touch the DOM contracts in interaction/dom.ts.
     "interaction/keymap.ts",
     "shell/shell-state.ts",
@@ -89,7 +91,7 @@ const rules: Record<string, readonly string[]> = {
   "test/": [
     "test/",
     "test.ts",
-    "model/",
+    "core/",
     "backend/",
     // Command tests run the real stores, navigator and commands.
     "app/commands/",
@@ -106,7 +108,7 @@ const rules: Record<string, readonly string[]> = {
 const adapterRule = (layer: string): readonly string[] => [
   layer,
   "backend/",
-  "model/",
+  "core/",
   "ui-toolkit/",
   "theme/",
 ]
@@ -115,33 +117,35 @@ const adapterSelection = "app/backend.ts"
 // Tests and specs open the demo through its spec entry, never another adapter module.
 const specBackend = "backend/demo/spec-variants.ts"
 // The counter run drives the real UI over the runner adapter, scripted: the one spec
-// that may reach that adapter, through its scripted server alone, and model/store.ts, for
+// that may reach that adapter, through its scripted server alone, and core/store.ts, for
 // its instrumentation hook.
 const counterRun = "specs/counters/"
 const scriptedServer = "backend/runner/scripted-server.ts"
-const counterRunReaches = [scriptedServer, "model/store.ts"]
+const counterRunReaches = [scriptedServer, "core/store.ts"]
 // The stores' instrumentation hook, which only the counter run installs; named here once,
 // so this file is the one other place it appears.
 const storeHook = "countListenersWoken"
-const hookOwners = ["model/store.ts", counterRun, "architecture.test.ts"]
+const hookOwners = ["core/store.ts", counterRun, "architecture.test.ts"]
 const adapterSelectionExports = ["debugPanelFor", "selectBackend"]
 // Packages are denied unless listed here, owned through `vendors`, or used by an
-// adapter or test code. model/, theme/, interaction/ and app/commands/ use none; core
-// backend/ uses React types only.
+// adapter or test code. theme/, interaction/ and app/commands/ use none; backend/ uses React
+// types only. The core takes only the library entries `coreLibraryEntries` lists and the
+// protocol's data entries
+// that `protocolData` names, and no other package.
 const everywherePackages = new Set(["react", "lucide-react"])
 const typeOnlyPackages: Record<string, readonly string[]> = {
-  "model/": [],
   "theme/": [],
   "backend/": ["react"],
   "app/commands/": [],
   "interaction/": [],
 }
-// The files in model/ that read the wire package, each through one data-only entry: its
+// The files in core/ that read the wire package, each through one data-only entry: its
 // table of harnesses, the key that tells pages apart, and what draws as nothing in a command.
+// An entry is added here when the core needs one; never `/client` or `/wire`.
 const protocolData: Record<string, string> = {
-  "model/harnesses.ts": "@novadeck/protocol/harnesses",
-  "model/pages.ts": "@novadeck/protocol/pages",
-  "model/command-text.ts": "@novadeck/protocol/text",
+  "core/harnesses.ts": "@novadeck/protocol/harnesses",
+  "core/pages.ts": "@novadeck/protocol/pages",
+  "core/command-text.ts": "@novadeck/protocol/text",
 }
 const testLayers = new Set(["specs/", "test/", "test.ts"])
 const vendors: Record<string, readonly string[]> = {
@@ -179,6 +183,11 @@ const vendors: Record<string, readonly string[]> = {
 }
 
 const src = join(process.cwd(), "src")
+// The library entries the core may import, each one data only: no DOM, no framework, nothing
+// only Node may load. None yet; add an entry when the core needs one, as `protocolData` does
+// for the protocol. Everything else of a library is refused, whatever its subpath.
+const coreLibraryEntries = new Set<string>([])
+const coreLibrary = (specifier: string): boolean => coreLibraryEntries.has(specifier)
 const files = (readdirSync(src, { recursive: true }) as string[])
   .map((file) => file.split("\\").join("/"))
   .filter((file) => /\.tsx?$/.test(file))
@@ -190,15 +199,23 @@ const imports = (file: string) =>
     specifier: match[3]!,
     typeOnly: Boolean(match[1]),
   }))
+const coreSpecifier = "#core/"
+const isCoreSpecifier = (specifier: string): boolean => specifier.startsWith(coreSpecifier)
 const resolveFile = (file: string, specifier: string): string | undefined => {
   // Vite query suffixes such as `?worker` or `?raw` name the same file.
   const bare = specifier.replace(/\?.*$/, "")
+  const isFile = (path: string): boolean =>
+    existsSync(join(src, path)) && statSync(join(src, path)).isFile()
+  // `#core/*` maps to `src/core/*.ts` (see the UI's package.json), and nothing else.
+  if (isCoreSpecifier(bare)) {
+    // As the mapping does: one .ts file, and never out of the core by `..`.
+    const mapped = posix.normalize(`core/${bare.slice(coreSpecifier.length)}.ts`)
+    return mapped.startsWith("core/") && isFile(mapped) ? mapped : undefined
+  }
   const target = posix.normalize(posix.join(posix.dirname(file), bare))
   const candidates = ["", ".ts", ".tsx", "/index.ts", "/index.tsx"].map(
     (suffix) => `${target}${suffix}`,
   )
-  const isFile = (path: string): boolean =>
-    existsSync(join(src, path)) && statSync(join(src, path)).isFile()
   return candidates.find(isFile)
 }
 const isTest = (file: string): boolean => /\.test\.tsx?$/.test(file)
@@ -227,9 +244,11 @@ const vendorOf = (specifier: string): string | undefined =>
 const importViolation = (file: string, layer: string | undefined) => {
   const allowed = layer ? allowedFor(file, layer) : []
   return ({ specifier, typeOnly }: { specifier: string; typeOnly: boolean }): string[] => {
-    if (!specifier.startsWith(".")) {
+    if (!specifier.startsWith(".") && !isCoreSpecifier(specifier)) {
       if (protocolData[file] === specifier) return []
       if (isTest(file) || (layer && (adapterOf(layer) || testLayers.has(layer)))) return []
+      // The core takes the listed library entries and, through `protocolData`, the protocol's.
+      if (layer === "core/") return coreLibrary(specifier) ? [] : [`${file} -> ${specifier}`]
       const limited = layer ? typeOnlyPackages[layer] : undefined
       const ok = limited
         ? limited.includes(packageName(specifier)) && typeOnly
@@ -267,11 +286,54 @@ describe("UI architecture", () => {
     expect(found).toEqual([])
   })
 
+  it("reaches the core as #core/* from outside it, and by relative path from inside", () => {
+    const found = files.flatMap((file) =>
+      imports(file).flatMap(({ specifier }) => {
+        if (file.startsWith("core/"))
+          return isCoreSpecifier(specifier) ? [`${file} -> ${specifier}`] : []
+        const target = specifier.startsWith(".") ? resolveFile(file, specifier) : undefined
+        return target?.startsWith("core/") ? [`${file} -> ${specifier} (use #core/*)`] : []
+      }),
+    )
+    expect(found).toEqual([])
+  })
+
+  it("holds only .ts files in the core, which #core/* maps to", () => {
+    // Every file, not only scripts: a .tsx, .js or stylesheet there is as much out of place.
+    const core = readdirSync(join(src, "core"), { recursive: true, withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => relative(src, join(entry.parentPath, entry.name)).split("\\").join("/"))
+    expect(core.filter((file) => !file.endsWith(".ts"))).toEqual([])
+  })
+
+  it("keeps the core to itself and to the library and protocol entries listed as data only", () => {
+    const dataEntries = new Set(Object.values(protocolData))
+    // The core's own tests may import what tests need, as every layer's tests may.
+    const found = files
+      .filter((file) => file.startsWith("core/") && !isTest(file))
+      .flatMap((file) =>
+        imports(file).flatMap(({ specifier }) => {
+          // Only another .ts file of the core, with no query that makes it a worker or text.
+          if (specifier.startsWith(".")) {
+            const target = resolveFile(file, specifier)
+            return !specifier.includes("?") && target?.startsWith("core/") && target.endsWith(".ts")
+              ? []
+              : [`${file} -> ${specifier}`]
+          }
+          if (dataEntries.has(specifier)) return []
+          // The protocol isn't a library, so only its data entries pass; its `/client` and `/wire` don't.
+          return coreLibrary(specifier) ? [] : [`${file} -> ${specifier}`]
+        }),
+      )
+    expect(found).toEqual([])
+  })
+
   it("keeps vendor libraries inside their adapters", () => {
     const found = files.flatMap((file) =>
       imports(file).flatMap(({ specifier }) => {
         const vendor = vendorOf(specifier)
-        return !vendor || vendors[vendor]!.some((owner) => file.startsWith(owner))
+        const library = file.startsWith("core/") && coreLibrary(specifier)
+        return !vendor || library || vendors[vendor]!.some((owner) => file.startsWith(owner))
           ? []
           : [`${file} -> ${specifier}`]
       }),
@@ -283,6 +345,8 @@ describe("UI architecture", () => {
     const found = files.flatMap((file) =>
       imports(file)
         .filter(({ specifier }) => specifier.startsWith("@novadeck/") && !vendorOf(specifier))
+        // The core takes any library's entries for every environment, owner or not.
+        .filter(({ specifier }) => !(file.startsWith("core/") && coreLibrary(specifier)))
         .map(({ specifier }) => `${file} -> ${specifier}`),
     )
     expect(found).toEqual([])

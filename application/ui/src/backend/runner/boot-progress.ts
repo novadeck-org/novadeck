@@ -1,4 +1,5 @@
-import { createStore, type Store } from "../../model/store"
+import { createStore, type Store } from "#core/store"
+
 import type { BootProgress, TerminalKey } from "../port"
 
 // What boot progress needs to know of a terminal.

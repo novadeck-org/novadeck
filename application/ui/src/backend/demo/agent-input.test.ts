@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import type { ChatDialog, ChatRequest } from "../../model/conversation"
+import type { ChatDialog, ChatRequest } from "#core/conversation"
+
 import { readLine, shownRequest, withWords } from "./agent-input"
 
 const request = (id: string, answered = false): ChatRequest => ({

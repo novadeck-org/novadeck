@@ -1,6 +1,7 @@
-import { formatSize } from "../model/addon-format"
-import type { MurmurState } from "../model/murmur"
-import type { TerminalMetadata, Workspace } from "../model/types"
+import { formatSize } from "#core/addon-format"
+import type { MurmurState } from "#core/murmur"
+import type { TerminalMetadata, Workspace } from "#core/types"
+
 import type { WorkspaceServices } from "./controller/context"
 import { currentContext, currentState } from "./selectors"
 

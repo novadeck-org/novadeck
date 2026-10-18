@@ -5,8 +5,9 @@ import {
   terminalAsks,
   waitingText,
   type TerminalAsk,
-} from "../model/terminal-ending"
-import type { TerminalMetadata, WorkspaceProject } from "../model/types"
+} from "#core/terminal-ending"
+import type { TerminalMetadata, WorkspaceProject } from "#core/types"
+
 import { unreadEnd, type Unread } from "../terminals/unread-state"
 
 // What a terminal asks of the person, as the notification center lists it.

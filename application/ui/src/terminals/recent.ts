@@ -1,4 +1,4 @@
-import type { Placed } from "../model/types"
+import type { Placed } from "#core/types"
 
 // The recent-terminal switcher: held while Control is down, or opened with a click.
 export type RecentSwitcher = {

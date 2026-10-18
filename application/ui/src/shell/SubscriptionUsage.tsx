@@ -9,7 +9,8 @@ import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable, useSortable } from "@dnd-kit/react/sortable"
 import { createElement, useEffect, useState, type ComponentProps } from "react"
 
-import { resetText, type AgentAccount, type UsageWindow } from "../model/account-usage"
+import { resetText, type AgentAccount, type UsageWindow } from "#core/account-usage"
+
 import { programIcon } from "../terminals/processes/profiles"
 import { ContextMenu, type ContextMenuItem } from "../ui-toolkit/ContextMenu"
 import { Popover } from "../ui-toolkit/Popover"

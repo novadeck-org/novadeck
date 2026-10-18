@@ -1,7 +1,8 @@
 import { act, createElement } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { createStore } from "../../../model/store"
+import { createStore } from "#core/store"
+
 import { context, describe, expect, it } from "../../../test"
 import { render, type Rendered } from "../../../test/render"
 import { createDebugPanel } from "./DebugPanel"

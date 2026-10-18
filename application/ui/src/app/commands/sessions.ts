@@ -1,6 +1,6 @@
-import { sessionName } from "../../model/session-name"
-import { createTerminalState, createWorkspaceSession } from "../../model/state"
-import type { Project, ViewMode, WindowedView, WorkspaceSession } from "../../model/types"
+import { sessionName } from "#core/session-name"
+import { createTerminalState, createWorkspaceSession } from "#core/state"
+import type { Project, ViewMode, WindowedView, WorkspaceSession } from "#core/types"
 
 // A fresh, empty workspace session named after the minute it started.
 export const newWorkspaceSession = (

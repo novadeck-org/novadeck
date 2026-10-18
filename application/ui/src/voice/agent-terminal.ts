@@ -1,5 +1,5 @@
-import { harnesses } from "../model/harnesses"
-import type { TerminalMetadata } from "../model/types"
+import { harnesses } from "#core/harnesses"
+import type { TerminalMetadata } from "#core/types"
 
 // The agent CLIs Novadeck runs, by `programName`: Claude Code, Codex and Antigravity.
 const agentPrograms: ReadonlySet<string> = new Set(harnesses.map(({ id }) => id))

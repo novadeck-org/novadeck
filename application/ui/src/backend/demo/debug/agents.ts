@@ -1,4 +1,5 @@
-import { createStore } from "../../../model/store"
+import { createStore } from "#core/store"
+
 import type { AgentConnection } from "../../port"
 import type { DemoStates } from "./types"
 

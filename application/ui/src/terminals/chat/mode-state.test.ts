@@ -1,4 +1,5 @@
-import type { ChatRequest } from "../../model/conversation"
+import type { ChatRequest } from "#core/conversation"
+
 import { context, describe, expect, it } from "../../test"
 import {
   composerState,

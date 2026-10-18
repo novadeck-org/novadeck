@@ -1,4 +1,5 @@
-import type { Tile } from "../../model/types"
+import type { Tile } from "#core/types"
+
 import {
   beginRename,
   changeDraft,

@@ -8,14 +8,15 @@ import type {
   Conversation,
   ConversationKey,
   Conversations,
-} from "../../model/conversation"
-import { createTerminalState } from "../../model/state"
-import { createStore } from "../../model/store"
-import type { TerminalMetadata, Workspace } from "../../model/types"
+} from "#core/conversation"
+import { terminalKeyId } from "#core/registry"
+import { createTerminalState } from "#core/state"
+import { createStore } from "#core/store"
+import type { TerminalMetadata, Workspace } from "#core/types"
+
 import { context, describe, expect, it } from "../../test"
 import { render, type Rendered } from "../../test/render"
 import type { BackendConnectionState, TerminalKey } from "../port"
-import { terminalKeyId } from "../registry"
 import { DemoAgentContext } from "./agent-link"
 import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine } from "./engine"

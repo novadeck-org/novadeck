@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import type { ChatFormField } from "../../model/conversation"
+import type { ChatFormField } from "#core/conversation"
+
 import { complete, enter, formAnswer, keep, valid, type Entries } from "./forms"
 
 const field = (overrides: Partial<ChatFormField> & { id: string }): ChatFormField => ({

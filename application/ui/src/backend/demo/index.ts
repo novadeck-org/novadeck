@@ -1,11 +1,12 @@
 import { createElement, type ReactNode } from "react"
 
-import { emptyCompanions } from "../../model/companion"
-import type { Conversations } from "../../model/conversation"
-import type { WorkspaceSeed } from "../../model/seed"
-import { createStore } from "../../model/store"
-import { createTelemetryStore, dropProject, dropTerminal, noTelemetry } from "../../model/telemetry"
-import type { TerminalMetadata, TitleSource, Workspace } from "../../model/types"
+import { emptyCompanions } from "#core/companion"
+import type { Conversations } from "#core/conversation"
+import type { WorkspaceSeed } from "#core/seed"
+import { createStore } from "#core/store"
+import { createTelemetryStore, dropProject, dropTerminal, noTelemetry } from "#core/telemetry"
+import type { TerminalMetadata, TitleSource, Workspace } from "#core/types"
+
 import type {
   AgentConnection,
   Backend,

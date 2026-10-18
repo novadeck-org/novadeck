@@ -1,4 +1,5 @@
-import type { Store } from "../../model/store"
+import type { Store } from "#core/store"
+
 import type { BackendConnectionState, TerminalKey } from "../port"
 
 // What the demo's terminal surface reads beyond its engine, shared by the plain demo, the

@@ -1,7 +1,8 @@
-import type { WorkspaceSeed } from "../../../model/seed"
-import { sessionName } from "../../../model/session-name"
-import { noTelemetry, setUsage, type Telemetry } from "../../../model/telemetry"
-import type { AgentStatus, CanvasLayout, Project, TerminalMetadata } from "../../../model/types"
+import type { WorkspaceSeed } from "#core/seed"
+import { sessionName } from "#core/session-name"
+import { noTelemetry, setUsage, type Telemetry } from "#core/telemetry"
+import type { AgentStatus, CanvasLayout, Project, TerminalMetadata } from "#core/types"
+
 import { demoHandle } from "../handles"
 import { demoTerminalId, terminals as samples } from "../samples"
 

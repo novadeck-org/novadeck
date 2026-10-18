@@ -1,9 +1,9 @@
 import { maxClientStateLength } from "@novadeck/protocol"
 
-import { isOnBar } from "../../model/companion"
-import { messagesKey, settle, type Bar, type BarKey } from "../../model/companion-bar"
-import type { RestoredView } from "../../model/seed"
-import type { TerminalLayout, ViewMode, WorkspaceSession, WorkspaceState } from "../../model/types"
+import { isOnBar } from "#core/companion"
+import { messagesKey, settle, type Bar, type BarKey } from "#core/companion-bar"
+import type { RestoredView } from "#core/seed"
+import type { TerminalLayout, ViewMode, WorkspaceSession, WorkspaceState } from "#core/types"
 
 // What the runner keeps for a session: opaque to it, and versioned so a state this
 // build cannot read starts the session fresh instead of breaking the load. Only how the

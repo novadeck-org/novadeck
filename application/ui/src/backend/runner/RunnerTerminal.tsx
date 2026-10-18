@@ -8,7 +8,8 @@ import {
   useSyncExternalStore,
 } from "react"
 
-import { endingText, terminalEnding } from "../../model/terminal-ending"
+import { endingText, terminalEnding } from "#core/terminal-ending"
+
 import { TerminalEndingBar, TerminalLock, TerminalNotice } from "../../ui-toolkit/TerminalStatus"
 import type { TerminalSurfaceProps } from "../port"
 import { restartable } from "./activity"

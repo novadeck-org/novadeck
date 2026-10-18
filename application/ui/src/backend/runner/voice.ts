@@ -7,9 +7,9 @@ import {
 } from "@novadeck/protocol"
 import { hasCode, type Runner } from "@novadeck/protocol/client"
 
-import type { Refusal } from "../../model/addon"
-import { createStore } from "../../model/store"
-import type { Voice, VoiceClip, VoiceState } from "../../model/voice"
+import type { Refusal } from "#core/addon"
+import { createStore } from "#core/store"
+import type { Voice, VoiceClip, VoiceState } from "#core/voice"
 
 // The runner's voice input addon: its state as `voice.watch` streams it, installs and
 // settings as calls whose failures show in that state until the next snapshot, and clips

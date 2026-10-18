@@ -1,7 +1,8 @@
-import type { SchemePreference } from "../theme/scheme"
 import type { CompanionItem, ItemId } from "./companion"
 import type { Bar } from "./companion-bar"
 
+// What the person chose for the page: a scheme, or whatever the system uses.
+export type SchemePreference = "system" | "light" | "dark"
 export type ViewMode = "focus" | "grid" | "canvas"
 // The sidebar's panels, each with a toggle on the rail. A backend that has an Inbox shows
 // it in the Notifications panel's place.

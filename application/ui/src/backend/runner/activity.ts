@@ -5,8 +5,8 @@ import type {
   TerminalSummary,
 } from "@novadeck/protocol"
 
-import { isShellProcess, runningProgram } from "../../model/process"
-import type { AgentStatus, AgentUsage, TerminalStatus } from "../../model/types"
+import { isShellProcess, runningProgram } from "#core/process"
+import type { AgentStatus, AgentUsage, TerminalStatus } from "#core/types"
 
 // A shell that exits sooner than this after starting counts as failing to start.
 export const defaultQuickExitMs = 2000

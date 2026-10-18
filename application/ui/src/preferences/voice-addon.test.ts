@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
 
-import { formatSize } from "../model/addon-format"
-import { installSize, type VoiceState } from "../model/voice"
+import { formatSize } from "#core/addon-format"
+import { installSize, type VoiceState } from "#core/voice"
+
 import { installedSize, voiceSetUp } from "./voice-addon"
 
 const megabyte = 1024 * 1024

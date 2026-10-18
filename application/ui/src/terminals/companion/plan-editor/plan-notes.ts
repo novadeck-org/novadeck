@@ -13,7 +13,8 @@ import {
 } from "@codemirror/view"
 import type { RowAnnotations } from "@novadeck/viewers/markdown"
 
-import { noteClose, noteOpen, notePattern, noteSafe } from "../../../model/companion"
+import { noteClose, noteOpen, notePattern, noteSafe } from "#core/companion"
+
 import {
   addNote,
   caretInNote,

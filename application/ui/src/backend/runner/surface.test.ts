@@ -10,8 +10,9 @@ import { WireError } from "@novadeck/wire"
 import { act, createElement, type ReactNode } from "react"
 import { afterEach, onTestFinished, vi } from "vitest"
 
-import { createStore } from "../../model/store"
-import type { TerminalMetadata, ViewMode } from "../../model/types"
+import { createStore } from "#core/store"
+import type { TerminalMetadata, ViewMode } from "#core/types"
+
 import { context, describe, expect, it } from "../../test"
 import { terminalFixture } from "../../test/fixtures"
 import { render, type Rendered } from "../../test/render"

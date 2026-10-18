@@ -1,5 +1,6 @@
-import { viewModes } from "../model/state"
-import type { PreferencesValue } from "../model/types"
+import { viewModes } from "#core/state"
+import type { PreferencesValue } from "#core/types"
+
 import { appearancePreferenceOf, defaultPreference } from "../theme/apply"
 import { themes } from "../theme/themes"
 

@@ -1,5 +1,6 @@
-import { activeProject } from "../../model/state"
-import type { WorkspaceStore, WorkspaceTransaction } from "../../model/store"
+import { activeProject } from "#core/state"
+import type { WorkspaceStore, WorkspaceTransaction } from "#core/store"
+
 import { resetPresentation } from "../../shell/shell-state"
 import {
   resolveRoute,

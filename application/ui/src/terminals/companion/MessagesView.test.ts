@@ -1,6 +1,7 @@
 import { createElement } from "react"
 
-import type { AgentMessage, InboxHistory } from "../../model/messages"
+import type { AgentMessage, InboxHistory } from "#core/messages"
+
 import { describe, expect, it } from "../../test"
 import { render } from "../../test/render"
 import type { MailHandle } from "./mail"

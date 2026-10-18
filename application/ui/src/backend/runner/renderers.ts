@@ -1,6 +1,6 @@
 import { webglRenderers, type Renderers } from "@novadeck/emulator/browser"
 
-import type { ViewMode } from "../../model/types"
+import type { ViewMode } from "#core/types"
 
 // Whether a view's screens draw with WebGL. Canvas zooms its windows with a CSS transform,
 // which the DOM renderer's text is drawn again at but WebGL's canvas is stretched by, soft

@@ -1,5 +1,6 @@
-import type { CompanionItem } from "../../model/companion"
-import type { WorkspaceTarget } from "../../model/types"
+import type { CompanionItem } from "#core/companion"
+import type { WorkspaceTarget } from "#core/types"
+
 import { ArtifactTab, PlanTab } from "./CompanionPane"
 import type { Panes } from "./state"
 

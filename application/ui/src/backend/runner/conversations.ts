@@ -22,9 +22,9 @@ import {
   WordsLost,
   type Conversation,
   type Conversations,
-} from "../../model/conversation"
-import { promptRefusal } from "../../model/prompt-refusal"
-import { createStore, type MutableStore, type Store } from "../../model/store"
+} from "#core/conversation"
+import { promptRefusal } from "#core/prompt-refusal"
+import { createStore, type MutableStore, type Store } from "#core/store"
 
 // The runner's conversations: each terminal's agent as `agents.detail` follows it, and
 // the root agent's transcript as `agents.transcript` streams it. Reading a terminal

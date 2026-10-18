@@ -9,8 +9,9 @@ import {
 } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
+import type { ViewMode } from "#core/types"
+
 import { shortcutBindings } from "../interaction/shortcuts"
-import type { ViewMode } from "../model/types"
 import { Tooltip } from "../ui-toolkit/Tooltip"
 import type { BellBadge } from "./notification-badge"
 import { NotificationBadge } from "./NotificationBadge"

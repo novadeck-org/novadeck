@@ -1,7 +1,8 @@
 import { createElement } from "react"
 import { afterEach } from "vitest"
 
-import type { TerminalMetadata } from "../../model/types"
+import type { TerminalMetadata } from "#core/types"
+
 import { describe, expect, it } from "../../test"
 import { render, type Rendered } from "../../test/render"
 import { createMockTerminal } from "./samples"

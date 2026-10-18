@@ -1,8 +1,9 @@
 import { outline } from "@novadeck/viewers/text"
 
-import type { CompanionItem } from "../../model/companion"
-import { handleText } from "../../model/handle"
-import type { WorkspaceTarget } from "../../model/types"
+import type { CompanionItem } from "#core/companion"
+import { handleText } from "#core/handle"
+import type { WorkspaceTarget } from "#core/types"
+
 import { ArtifactThumb } from "./ArtifactViewer"
 import type { MailHandle } from "./mail"
 import { titleOf } from "./plan-text"

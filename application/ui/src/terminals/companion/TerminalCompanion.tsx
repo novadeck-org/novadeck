@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
-import { isOnBar, type CompanionItem, type CompanionKey, type ItemId } from "../../model/companion"
-import { messagesKey, type Bar, type BarKey } from "../../model/companion-bar"
-import type { WindowPlace } from "../../model/layout/window-place"
-import type { Messages } from "../../model/messages"
-import type { ViewMode } from "../../model/types"
+import { isOnBar, type CompanionItem, type CompanionKey, type ItemId } from "#core/companion"
+import { messagesKey, type Bar, type BarKey } from "#core/companion-bar"
+import type { WindowPlace } from "#core/layout/window-place"
+import type { Messages } from "#core/messages"
+import type { ViewMode } from "#core/types"
+
 import { ConfirmDialog } from "../../ui-toolkit/ConfirmDialog"
 import { usePresence, type Presence } from "../../ui-toolkit/presence"
 import { useDrag, type BarDrag } from "../drag-session"

@@ -1,7 +1,8 @@
 import { createElement, type ReactNode } from "react"
 
-import { createStore } from "../../../model/store"
-import type { TerminalMetadata, Workspace } from "../../../model/types"
+import { createStore } from "#core/store"
+import type { TerminalMetadata, Workspace } from "#core/types"
+
 import type { Backend, TerminalKey } from "../../port"
 import { lessMotion } from "../motion"
 import { demoTerminalId, sampleOutput } from "../samples"
