@@ -1,6 +1,6 @@
 /**
  * Novadeck's MCP server, as the runner serves it to a connected agent's plugin. The
- * agent starts Novadeck's relay (see application/relay), which carries its messages, one
+ * agent starts Novadeck's relay (see backend/relay), which carries its messages, one
  * JSON-RPC message per line, to the runner of the terminal it runs in, over the endpoint
  * the agent's hooks report to, and the answers back; outside Novadeck's terminals the
  * relay answers the handshake itself, with no tools. Its tools: `show`, which puts an

@@ -15,7 +15,7 @@ import {
 } from "./render.ts"
 
 // `pnpm -s atlas:brief [subject]`: a short Markdown brief of a part of the code, read
-// fresh from the source on every call. See atlas/AGENTS.md.
+// fresh from the source on every call. See tools/atlas/AGENTS.md.
 
 type Subject = { kind: string; name: string; render: () => string }
 

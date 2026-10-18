@@ -11,8 +11,8 @@ import type {
 } from "../src/atlas.ts"
 import type { Anchors } from "./anchors.ts"
 
-const mcpFile = "application/runner/src/shell/mcp.ts"
-const managerFile = "application/runner/src/terminals/manager.ts"
+const mcpFile = "backend/runner/src/shell/mcp.ts"
+const managerFile = "backend/runner/src/terminals/manager.ts"
 const contractFile = "harnesses/core/src/harness.ts"
 
 // The manager method that performs each tool's call.

@@ -270,7 +270,7 @@ export type Reports = {
 }
 
 /**
- * Listens for Novadeck's relays (see application/relay), which speak only the relay
+ * Listens for Novadeck's relays (see backend/relay), which speak only the relay
  * protocol (docs/backend-api.md, "Relay protocol"). Each connection's first line names
  * the relay's version and what it carries: an agent's hook, a report or an ask, answered
  * with one line, a `HookAnswer`, and then perhaps acknowledged (see `serveHook`); or an

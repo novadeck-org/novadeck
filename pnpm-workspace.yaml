@@ -8,7 +8,6 @@ packages:
   - harnesses/*
   - libraries/*
   - tools/*
-  - atlas
 
 # Dependencies pinned once for every package: zod, whose schemas cross package lines (a
 # library exports them and protocol composes them), so two versions can't meet; oRPC, whose

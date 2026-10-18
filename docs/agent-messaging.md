@@ -1701,24 +1701,24 @@ again.
 
 1. **Mailbox and hook delivery:** handles, the mailbox, `send` and `agents`, leases and
    asks for all three harnesses, the states except the doorbell, guards, pause and the
-   runner API. Built: `application/runner/src/messaging/`, with the runner API as
+   runner API. Built: `backend/runner/src/messaging/`, with the runner API as
    `messages.list`, `messages.pause` and `messages.release`.
 2. **Doorbell and starting a task:** the Settled path, the ring with its generic
    checks, and `open_terminal(agent, message)`. Touches no UI. Built: the checks in
    `@novadeck/tui-input` (`checkPaste` in `./box`, `gate`), the ring in
-   `application/runner/src/messaging/doorbell.ts`, the person's keys in the same library's
+   `backend/runner/src/messaging/doorbell.ts`, the person's keys in the same library's
    `keysOf`, Antigravity's typed prompts in
-   `application/runner/src/harnesses/typed-prompts.ts`, and the Ringing state and the untouched rule in
+   `backend/runner/src/harnesses/typed-prompts.ts`, and the Ringing state and the untouched rule in
    `messaging/delivery.ts`.
 3. **UI:** badges, the Messages view and the pause switch. Built: `messages.watch` in
-   `application/runner/src/terminals/manager.ts` over `Messaging.subscribe`, the
+   `backend/runner/src/terminals/manager.ts` over `Messaging.subscribe`, the
    contract in `core/messages.ts` of `application/ui`, the runner's side in
    `backend/runner/messages.ts`, the tab's mark in `terminals/companion/TabKinds.tsx`, the view in
    `terminals/companion/MessagesView.tsx`, and the title's source and reset on the tab in
    `terminals/TerminalTab.tsx`.
 4. **Naming:** the title's layers (the person, murmur, the opener, the default) and
    agents' own `summarize`, which replaced `describe` and the first-prompt title. Built:
-   the layers in `application/runner/src/terminals/naming.ts`, the summary tool in
+   the layers in `backend/runner/src/terminals/naming.ts`, the summary tool in
    `terminals/summarize.ts`, its nudges in `terminals/nudges.ts`, murmur's triggers and
    digests in `terminals/murmur.ts`, their wiring in `terminals/manager.ts`, the person's turn
    (`byPerson`) in `messaging/delivery.ts` and their prompt in `messaging/messaging.ts`,
@@ -1727,7 +1727,7 @@ again.
 
 5. **Ringing a new session at its prompt:** the Ready state. Built: `atPrompt` in Claude
    Code's decoder (`harnesses/claude/src/decode.ts`), `ready` on a new root
-   (`application/runner/src/harnesses/roots.ts`), and the state and its untouched rule in
+   (`backend/runner/src/harnesses/roots.ts`), and the state and its untouched rule in
    `messaging/delivery.ts`. A `resume` and a `fork` count too, so a Claude Code the
    runner restores is rung like one started anew. For parity, Codex and Antigravity
    tell their prompt the same way before any session binds (`prompt-shown`): Codex's

@@ -97,16 +97,16 @@ importers:
     devDependencies:
       '@novadeck/protocol':
         specifier: workspace:*
-        version: link:../protocol
+        version: link:../../contract/protocol
       '@novadeck/relay':
         specifier: workspace:*
-        version: link:../relay
+        version: link:../../backend/relay
       '@novadeck/runner':
         specifier: workspace:*
-        version: link:../runner
+        version: link:../../backend/runner
       '@novadeck/runner-client':
         specifier: workspace:*
-        version: link:../runner-client
+        version: link:../../contract/runner-client
       '@novadeck/ui':
         specifier: workspace:*
         version: link:../ui
@@ -147,129 +147,6 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@26.6.5)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(jsdom@30.1.2(@noble/hashes@2.4.0))(msw@2.15.0(@types/node@26.6.5)(typescript@7.0.2))(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
 
-  application/protocol:
-    dependencies:
-      '@novadeck/terminal':
-        specifier: workspace:*
-        version: link:../../libraries/terminal
-      '@novadeck/wire':
-        specifier: workspace:*
-        version: link:../../libraries/wire
-      '@orpc/contract':
-        specifier: 'catalog:'
-        version: 1.15.5
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.5
-    devDependencies:
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-
-  application/relay:
-    devDependencies:
-      '@types/node':
-        specifier: ^26.6.5
-        version: 26.6.5
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-
-  application/runner:
-    dependencies:
-      '@hono/node-server':
-        specifier: ^2.1.4
-        version: 2.1.4(hono@4.13.13)
-      '@novadeck/emulator':
-        specifier: workspace:*
-        version: link:../../libraries/emulator
-      '@novadeck/harness-agy':
-        specifier: workspace:*
-        version: link:../../harnesses/agy
-      '@novadeck/harness-claude':
-        specifier: workspace:*
-        version: link:../../harnesses/claude
-      '@novadeck/harness-codex':
-        specifier: workspace:*
-        version: link:../../harnesses/codex
-      '@novadeck/harness-core':
-        specifier: workspace:*
-        version: link:../../harnesses/core
-      '@novadeck/murmur':
-        specifier: workspace:*
-        version: link:../../engines/murmur
-      '@novadeck/protocol':
-        specifier: workspace:*
-        version: link:../protocol
-      '@novadeck/relay':
-        specifier: workspace:*
-        version: link:../relay
-      '@novadeck/terminal':
-        specifier: workspace:*
-        version: link:../../libraries/terminal
-      '@novadeck/tui-input':
-        specifier: workspace:*
-        version: link:../../libraries/tui-input
-      '@novadeck/whisper':
-        specifier: workspace:*
-        version: link:../../engines/whisper
-      '@novadeck/wire':
-        specifier: workspace:*
-        version: link:../../libraries/wire
-      '@orpc/server':
-        specifier: 'catalog:'
-        version: 1.15.5(ws@8.22.0)
-      hono:
-        specifier: ^4.13.13
-        version: 4.13.13
-      node-pty:
-        specifier: 'catalog:'
-        version: 1.2.0-beta.14(patch_hash=c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224)
-      ws:
-        specifier: 'catalog:'
-        version: 8.22.0
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.5
-    devDependencies:
-      '@novadeck/runner-client':
-        specifier: workspace:*
-        version: link:../runner-client
-      '@novadeck/sandbox':
-        specifier: workspace:*
-        version: link:../../libraries/sandbox
-      '@types/node':
-        specifier: ^26.6.5
-        version: 26.6.5
-      '@types/ws':
-        specifier: 8.18.2
-        version: 8.18.2
-      fast-check:
-        specifier: 4.10.2
-        version: 4.10.2
-      tsx:
-        specifier: ^4.20.6
-        version: 4.23.15
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      vitest:
-        specifier: ^5.0.3
-        version: 5.0.3(@types/node@26.6.5)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(jsdom@30.1.2(@noble/hashes@2.4.0))(msw@2.15.0(@types/node@26.6.5)(typescript@7.0.2))(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
-
-  application/runner-client:
-    dependencies:
-      '@novadeck/protocol':
-        specifier: workspace:*
-        version: link:../protocol
-      '@novadeck/wire':
-        specifier: workspace:*
-        version: link:../../libraries/wire
-    devDependencies:
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-
   application/ui:
     dependencies:
       '@ark-ui/react':
@@ -301,10 +178,10 @@ importers:
         version: link:../../libraries/emulator
       '@novadeck/protocol':
         specifier: workspace:*
-        version: link:../protocol
+        version: link:../../contract/protocol
       '@novadeck/runner-client':
         specifier: workspace:*
-        version: link:../runner-client
+        version: link:../../contract/runner-client
       '@novadeck/terminal':
         specifier: workspace:*
         version: link:../../libraries/terminal
@@ -347,7 +224,7 @@ importers:
         version: link:../../tools/build-kit
       '@novadeck/runner':
         specifier: workspace:*
-        version: link:../runner
+        version: link:../../backend/runner
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.15.5(ws@8.22.0)
@@ -388,63 +265,128 @@ importers:
         specifier: ^2.3.0
         version: 2.3.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.3)
 
-  atlas:
-    dependencies:
-      '@fontsource-variable/jetbrains-mono':
-        specifier: ^5.3.0
-        version: 5.3.0
-      '@xyflow/react':
-        specifier: ^12.12.0
-        version: 12.12.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
-      lucide-react:
-        specifier: ^1.55.0
-        version: 1.55.0(@types/react@19.3.0)(react@19.3.0)
-      react:
-        specifier: ^19.3.0
-        version: 19.3.0
-      react-dom:
-        specifier: ^19.3.0
-        version: 19.3.0(react@19.3.0)
-      react-router:
-        specifier: ^8.4.0
-        version: 8.4.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+  backend/relay:
     devDependencies:
-      '@novadeck/protocol':
-        specifier: workspace:*
-        version: link:../application/protocol
-      '@tailwindcss/vite':
-        specifier: ^4.3.3
-        version: 4.3.3(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
-      '@types/react':
-        specifier: ^19.3.0
-        version: 19.3.0
-      '@types/react-dom':
-        specifier: ^19.3.0
-        version: 19.3.0(@types/react@19.3.0)
-      '@vitejs/plugin-react':
-        specifier: ^5.2.0
-        version: 5.2.0(supports-color@10.2.2)(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
-      tailwindcss:
-        specifier: ^4.3.3
-        version: 4.3.3
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
-      vite:
-        specifier: ^7.3.6
-        version: 7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
-      vitest:
-        specifier: ^5.0.3
-        version: 5.0.3(@types/node@26.6.5)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(jsdom@30.1.2(@noble/hashes@2.4.0))(msw@2.15.0(@types/node@26.6.5)(typescript@7.0.2))(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+
+  backend/runner:
+    dependencies:
+      '@hono/node-server':
+        specifier: ^2.1.4
+        version: 2.1.4(hono@4.13.13)
+      '@novadeck/emulator':
+        specifier: workspace:*
+        version: link:../../libraries/emulator
+      '@novadeck/harness-agy':
+        specifier: workspace:*
+        version: link:../../harnesses/agy
+      '@novadeck/harness-claude':
+        specifier: workspace:*
+        version: link:../../harnesses/claude
+      '@novadeck/harness-codex':
+        specifier: workspace:*
+        version: link:../../harnesses/codex
+      '@novadeck/harness-core':
+        specifier: workspace:*
+        version: link:../../harnesses/core
+      '@novadeck/murmur':
+        specifier: workspace:*
+        version: link:../../engines/murmur
+      '@novadeck/protocol':
+        specifier: workspace:*
+        version: link:../../contract/protocol
+      '@novadeck/relay':
+        specifier: workspace:*
+        version: link:../relay
+      '@novadeck/terminal':
+        specifier: workspace:*
+        version: link:../../libraries/terminal
+      '@novadeck/tui-input':
+        specifier: workspace:*
+        version: link:../../libraries/tui-input
+      '@novadeck/whisper':
+        specifier: workspace:*
+        version: link:../../engines/whisper
+      '@novadeck/wire':
+        specifier: workspace:*
+        version: link:../../libraries/wire
+      '@orpc/server':
+        specifier: 'catalog:'
+        version: 1.15.5(ws@8.22.0)
+      hono:
+        specifier: ^4.13.13
+        version: 4.13.13
+      node-pty:
+        specifier: 'catalog:'
+        version: 1.2.0-beta.14(patch_hash=c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224)
+      ws:
+        specifier: 'catalog:'
+        version: 8.22.0
       zod:
         specifier: 'catalog:'
         version: 4.6.5
+    devDependencies:
+      '@novadeck/runner-client':
+        specifier: workspace:*
+        version: link:../../contract/runner-client
+      '@novadeck/sandbox':
+        specifier: workspace:*
+        version: link:../../libraries/sandbox
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
+      '@types/ws':
+        specifier: 8.18.2
+        version: 8.18.2
+      fast-check:
+        specifier: 4.10.2
+        version: 4.10.2
+      tsx:
+        specifier: ^4.20.6
+        version: 4.23.15
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@26.6.5)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(jsdom@30.1.2(@noble/hashes@2.4.0))(msw@2.15.0(@types/node@26.6.5)(typescript@7.0.2))(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+
+  contract/protocol:
+    dependencies:
+      '@novadeck/terminal':
+        specifier: workspace:*
+        version: link:../../libraries/terminal
+      '@novadeck/wire':
+        specifier: workspace:*
+        version: link:../../libraries/wire
+      '@orpc/contract':
+        specifier: 'catalog:'
+        version: 1.15.5
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.5
+    devDependencies:
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
+  contract/runner-client:
+    dependencies:
+      '@novadeck/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@novadeck/wire':
+        specifier: workspace:*
+        version: link:../../libraries/wire
+    devDependencies:
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
 
   engines/ggml-build:
     devDependencies:
@@ -489,7 +431,7 @@ importers:
         version: link:../core
       '@novadeck/protocol':
         specifier: workspace:*
-        version: link:../../application/protocol
+        version: link:../../contract/protocol
       '@novadeck/tui-input':
         specifier: workspace:*
         version: link:../../libraries/tui-input
@@ -514,7 +456,7 @@ importers:
         version: link:../core
       '@novadeck/protocol':
         specifier: workspace:*
-        version: link:../../application/protocol
+        version: link:../../contract/protocol
       '@novadeck/tui-input':
         specifier: workspace:*
         version: link:../../libraries/tui-input
@@ -539,7 +481,7 @@ importers:
         version: link:../core
       '@novadeck/protocol':
         specifier: workspace:*
-        version: link:../../application/protocol
+        version: link:../../contract/protocol
       '@novadeck/tui-input':
         specifier: workspace:*
         version: link:../../libraries/tui-input
@@ -561,7 +503,7 @@ importers:
         version: link:../../libraries/emulator
       '@novadeck/protocol':
         specifier: workspace:*
-        version: link:../../application/protocol
+        version: link:../../contract/protocol
       '@novadeck/tui-input':
         specifier: workspace:*
         version: link:../../libraries/tui-input
@@ -793,6 +735,64 @@ importers:
       ws:
         specifier: 'catalog:'
         version: 8.22.0
+
+  tools/atlas:
+    dependencies:
+      '@fontsource-variable/jetbrains-mono':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@xyflow/react':
+        specifier: ^12.12.0
+        version: 12.12.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      lucide-react:
+        specifier: ^1.55.0
+        version: 1.55.0(@types/react@19.3.0)(react@19.3.0)
+      react:
+        specifier: ^19.3.0
+        version: 19.3.0
+      react-dom:
+        specifier: ^19.3.0
+        version: 19.3.0(react@19.3.0)
+      react-router:
+        specifier: ^8.4.0
+        version: 8.4.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+    devDependencies:
+      '@novadeck/protocol':
+        specifier: workspace:*
+        version: link:../../contract/protocol
+      '@tailwindcss/vite':
+        specifier: ^4.3.3
+        version: 4.3.3(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      '@vitejs/plugin-react':
+        specifier: ^5.2.0
+        version: 5.2.0(supports-color@10.2.2)(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+      tailwindcss:
+        specifier: ^4.3.3
+        version: 4.3.3
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vite:
+        specifier: ^7.3.6
+        version: 7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@26.6.5)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(jsdom@30.1.2(@noble/hashes@2.4.0))(msw@2.15.0(@types/node@26.6.5)(typescript@7.0.2))(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.5
 
   tools/build-kit:
     devDependencies:

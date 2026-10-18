@@ -1,8 +1,8 @@
 import type { Anchor } from "../src/atlas.ts"
 import type { Anchors } from "./anchors.ts"
 
-export const routerFile = "application/runner/src/router.ts"
-export const runnerDir = "application/runner/src"
+export const routerFile = "backend/runner/src/router.ts"
+export const runnerDir = "backend/runner/src"
 
 // A service the router hands its calls to: `terminals: Terminals` in the options of
 // `createRouter`, with the file its type is imported from.

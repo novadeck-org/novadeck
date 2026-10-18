@@ -6,8 +6,8 @@ on:
     paths:
       - .github/workflows/flaky-capture.yml
       - scripts/flaky-capture/**
-      - application/runner/src/e2e/probes/agy-stop-boundary.e2e.ts
-      - application/runner/vitest.agy-capture.config.ts
+      - backend/runner/src/e2e/probes/agy-stop-boundary.e2e.ts
+      - backend/runner/vitest.agy-capture.config.ts
 
 permissions:
   contents: read
