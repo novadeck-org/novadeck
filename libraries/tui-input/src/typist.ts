@@ -51,13 +51,13 @@ export type Trace = (line: string) => void
 export const pasteMsOn = (platform: NodeJS.Platform): number =>
   platform === "win32" ? 4_000 : 1_500
 
-// How much longer than its test paste a ring holds the person's input, in milliseconds: a
+// How much longer than its test paste a delivery holds the person's input, in milliseconds: a
 // safety cap, with room for the last looks and the Enter.
 const inputCapMs = 1_500
 
 /**
- * The longest a delivery holds the app's resizes, in milliseconds: a safety cap beyond the wait
- * for the ring's prompt to confirm it.
+ * The longest a delivery holds the app's resizes, in milliseconds: a safety cap beyond the
+ * caller's wait for the program to confirm the line.
  */
 export const sizeCapMs = 8_000
 
@@ -298,7 +298,8 @@ export const createTypist = (
     const nonce = freshNonce()
     const text = line(nonce)
     trace(`ring ${nonce} begins (ticking rows ${[...rows].join(",") || "none"})`)
-    // Only a Ready terminal may lose a block of text as the line lands, as Codex's logo.
+    // Whether a block of text may vanish as the line lands, as a program's first screen may
+    // clear its banner: the caller says when.
     const vanish = o.vanish?.() ?? false
     if (target.resizedAt > o.calmSince) return { entered: false, started: false, reason: "resized" }
     if (!o.start(nonce)) return { entered: false, started: false, reason: "declined" }
