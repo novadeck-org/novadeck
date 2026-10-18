@@ -3,6 +3,7 @@ import { doorbellLine, hookShellSlackMs } from "@novadeck/harness-core/harness"
 import {
   calmMs,
   createTypist,
+  inputCapMs,
   pasteMsOn,
   type InputEntry,
   type InputQueue,
@@ -129,6 +130,16 @@ export type DoorbellOptions = {
  * failed before its Codex hook came, and the message waited for the turn's Stop.
  */
 export const confirmMs = (platform: NodeJS.Platform): number => 5_000 + hookShellSlackMs(platform)
+
+/**
+ * The longest a ring holds the app's resizes, in milliseconds: a backstop for a settle that
+ * never comes, as the prompt's confirmation, or the failure at `confirmMs`, settles the
+ * hold. The hold starts before the paste, but the wait for the prompt starts at the Enter,
+ * which may come as late as the paste and the input cap allow, so the backstop outlasts
+ * all three.
+ */
+export const ringSizeCapMs = (pasteMs: number, confirm: number): number =>
+  pasteMs + inputCapMs + confirm
 
 /**
  * Wakes idle agents (see docs/agent-messaging.md, "The doorbell"): once messaging says a
@@ -314,6 +325,7 @@ export class Doorbell {
           calmMs: this.calmMs,
           watchMs: this.watchMs,
           tickWindowMs: this.tickWindowMs,
+          sizeCapMs: ringSizeCapMs(this.pasteMs, this.confirmMs),
         },
         trace: (line) => this.note(terminalId, line),
       },
