@@ -46,7 +46,7 @@ describe("packaging a pull request", () => {
       "package.json",
       "turbo.json",
       "tsconfig.base.json",
-      "patches/node-pty@1.2.0-beta.14.patch",
+      "libraries/terminal/patches/node-pty@1.2.0-beta.14.patch",
       ".github/workflows/package.yml",
       ".github/workflows/quality.yml",
       "scripts/install/install.sh",

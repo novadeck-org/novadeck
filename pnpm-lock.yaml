@@ -21,6 +21,9 @@ catalogs:
     electron:
       specifier: ^44.7.0
       version: 44.7.0
+    node-pty:
+      specifier: 1.2.0-beta.14
+      version: 1.2.0-beta.14
     ws:
       specifier: 8.22.0
       version: 8.22.0
@@ -89,7 +92,7 @@ importers:
         specifier: 6.8.9
         version: 6.8.9(supports-color@10.2.2)
       node-pty:
-        specifier: 1.2.0-beta.14
+        specifier: 'catalog:'
         version: 1.2.0-beta.14(patch_hash=c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224)
     devDependencies:
       '@novadeck/protocol':
@@ -211,7 +214,7 @@ importers:
         specifier: ^4.13.13
         version: 4.13.13
       node-pty:
-        specifier: 1.2.0-beta.14
+        specifier: 'catalog:'
         version: 1.2.0-beta.14(patch_hash=c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224)
       ws:
         specifier: 'catalog:'
@@ -592,7 +595,7 @@ importers:
         specifier: 4.10.2
         version: 4.10.2
       node-pty:
-        specifier: 1.2.0-beta.14
+        specifier: 'catalog:'
         version: 1.2.0-beta.14(patch_hash=c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224)
       typescript:
         specifier: ^7.0.2

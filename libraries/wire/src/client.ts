@@ -9,3 +9,10 @@ export {
 } from "./connection.js"
 export { hostTransport } from "./page.js"
 export { createWireClient, messagePort, websocket, type Transport } from "./transport.js"
+export {
+  follow,
+  type CursorResume,
+  type FollowOptions,
+  type Following,
+  type RestartResume,
+} from "./follow.js"

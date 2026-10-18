@@ -1,6 +1,5 @@
-import { execFileSync, spawn } from "node:child_process"
+import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
-import { once } from "node:events"
 import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
@@ -9,6 +8,8 @@ import { createScreen } from "@novadeck/emulator/headless"
 import type { ActivityEvent } from "@novadeck/harness-core/events"
 import { screen as screenWith } from "@novadeck/harness-core/testing/screens"
 import type { TerminalChange, TerminalEvent } from "@novadeck/protocol"
+import type { ProcessTrees } from "@novadeck/terminal/pty"
+import { command, nativeStandIn, ptyTrace } from "@novadeck/terminal/testing"
 import { vi } from "vitest"
 
 import {
@@ -19,11 +20,11 @@ import {
 } from "../harnesses/activity.js"
 import { limitGraceMs } from "../harnesses/telemetry.js"
 import { describe, expect, it as base } from "../test.js"
-import { command, ptyOptions, ptyTrace } from "../testing/pty.js"
+import { ptyOptions } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { type HoldBudget, InputQueue } from "./input-queue.js"
-import { forceKill, Terminals } from "./manager.js"
+import { Terminals } from "./manager.js"
 
 const cwd = process.cwd()
 
@@ -1109,19 +1110,6 @@ describe("terminal watching", () => {
   })
 })
 
-// A stand-in for node-pty's terminal, which on Windows throws on any signal.
-const ptyStandIn = (platform: NodeJS.Platform, pid = 4242) => {
-  const signals: (string | undefined)[] = []
-  return {
-    signals,
-    pid,
-    kill: (signal?: string) => {
-      if (platform === "win32" && signal) throw new Error("Signals not supported on windows.")
-      signals.push(signal)
-    },
-  }
-}
-
 /** Whether a process is still running. */
 const isRunning = (id: number): boolean => {
   try {
@@ -1131,70 +1119,6 @@ const isRunning = (id: number): boolean => {
     return false
   }
 }
-
-describe("forcing a terminal's program to end", () => {
-  it("sends SIGKILL on Linux and macOS", async () => {
-    for (const platform of ["linux", "darwin"] as const) {
-      const ended: number[] = []
-      const terminal = ptyStandIn(platform)
-      // eslint-disable-next-line no-await-in-loop -- Each platform is checked in turn.
-      await forceKill(terminal, platform, (pid) => void ended.push(pid))
-      expect(terminal.signals).toEqual(["SIGKILL"])
-      expect(ended).toEqual([])
-    }
-  })
-
-  it("ends the process by its id on Windows, giving node-pty no signal", async () => {
-    const ended: number[] = []
-    const terminal = ptyStandIn("win32")
-    await forceKill(terminal, "win32", (pid) => void ended.push(pid))
-    expect(ended).toEqual([4242])
-    expect(terminal.signals).toEqual([])
-  })
-
-  it("ends nothing on Windows before node-pty knows the process, as id 0 would end the runner", async () => {
-    const ended: number[] = []
-    const terminal = ptyStandIn("win32", 0)
-    await expect(forceKill(terminal, "win32", (pid) => void ended.push(pid))).rejects.toThrow()
-    expect(ended).toEqual([])
-    expect(terminal.signals).toEqual([])
-  })
-
-  it.runIf(process.platform === "win32")(
-    "ends on Windows every program the process started, which could keep its console open",
-    async ({ onTestFinished }) => {
-      const keep = "setInterval(() => {}, 1e6)"
-      const parent = spawn(
-        process.execPath,
-        [
-          "-e",
-          `const started = require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(keep)}], { stdio: "ignore" }); console.log(started.pid); ${keep}`,
-        ],
-        { stdio: ["ignore", "pipe", "ignore"] },
-      )
-      const { pid } = parent
-      if (pid === undefined) throw new Error("The test's process did not start.")
-      const [data] = (await once(parent.stdout, "data")) as [Buffer]
-      const started = Number(data.toString().trim())
-      onTestFinished(() => {
-        for (const leftover of [pid, started]) {
-          try {
-            process.kill(leftover)
-          } catch {
-            // Already ended.
-          }
-        }
-      })
-      expect(isRunning(started)).toBe(true)
-
-      await forceKill(ptyStandIn("win32", pid), "win32")
-      await vi.waitFor(() => {
-        expect(isRunning(started)).toBe(false)
-        expect(isRunning(pid)).toBe(false)
-      })
-    },
-  )
-})
 
 describe("terminal closing", () => {
   it("forgets a closed terminal after its viewers read the exit, but retains unrequested exits", async ({
@@ -1282,6 +1206,104 @@ describe("terminal closing", () => {
     await expect(manager.close({ terminalId: randomUUID() })).rejects.toMatchObject({
       code: "TERMINAL_NOT_FOUND",
     })
+  })
+})
+
+describe("a terminal in Windows' ConPTY", () => {
+  // A stand-in ConPTY and process trees, on any platform: the pty ends as on Windows.
+  const conpty = (terminals: ReturnType<typeof fixture>) => {
+    const standIn = nativeStandIn({ conpty: true })
+    const treeReads: unknown[] = []
+    const trees: ProcessTrees = {
+      read: async (root) => {
+        treeReads.push(root)
+        standIn.calls.push("read tree")
+        return []
+      },
+      end: async () => {},
+    }
+    // A shell that is a real program on every system, as the manager checks it is before the
+    // stand-in runs in its place.
+    const manager = terminals.manager({
+      shell: process.execPath,
+      pty: { native: standIn.spawn, platform: "win32", trees },
+    })
+    const create = () =>
+      manager.create({ id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 }, "owner")
+    return { standIn, treeReads, manager, create }
+  }
+
+  it("closes one that hasn't drawn, its id still unknown, as ended once its kill waits", async ({
+    terminals,
+  }) => {
+    const { standIn, treeReads, manager, create } = conpty(terminals)
+    const terminal = await create()
+    await manager.close({ terminalId: terminal.id })
+    // Nothing is ended by an id ConPTY doesn't know yet: its own queued kill ends it later.
+    expect(treeReads).toEqual([])
+    expect(standIn.calls.filter((call) => call.startsWith("kill"))).toEqual(["kill"])
+    expect(manager.list()).toEqual([])
+  })
+
+  it("reads a drawn one's tree before its kill, which ends the shell before its code is known", async ({
+    terminals,
+  }) => {
+    const { standIn, treeReads, manager, create } = conpty(terminals)
+    const terminal = await create()
+    standIn.draw("C:\\> ")
+    const observer = terminals.attach(manager, terminal.id, "observer", undefined, "observe")
+    await observer.next()
+    await manager.close({ terminalId: terminal.id })
+    const events = await until(manager, observer, "observer", (event) => event.type === "exited")
+    // Above any pid a host gives, so nothing real is read or ended by it.
+    expect(treeReads).toEqual([2 ** 30])
+    const ending = standIn.calls.filter((call) => call === "read tree" || call.startsWith("kill"))
+    expect(ending).toEqual(["read tree", "kill"])
+    expect(events.at(-1)).toMatchObject({ type: "exited", exit: { code: null, signal: null } })
+  })
+
+  it("keeps the exit it reported first, without a code, though the code comes after", async ({
+    terminals,
+  }) => {
+    const { standIn, manager, create } = conpty(terminals)
+    const terminal = await create()
+    standIn.draw("C:\\> ")
+    const watch = terminals.watch(manager, "watcher")
+    await watch.until((change) => change.type === "synced")
+    standIn.exit(undefined)
+    standIn.exit(3)
+    await watch.until((change) => changed(terminal.id)(change) && change.terminal.exit !== null)
+    expect(manager.get(terminal.id)).toMatchObject({ exit: { code: null, signal: null } })
+  })
+
+  // Rule 10's measure (architecture/performance.md): a draw sends its output as one event
+  // per 4,096 characters, and output read while a draw waits joins it.
+  it("sends a draw's output as an event per 4,096 characters, reads joined", async ({
+    terminals,
+  }) => {
+    const { standIn, manager, create } = conpty(terminals)
+    const terminal = await create()
+    const stream = terminals.attach(manager, terminal.id, "owner")
+    await read(manager, stream, "owner", (event) => event.type === "snapshot")
+    // The length of each output event, until `total` characters have come.
+    const outputs = async (total: number) => {
+      const events = await read(manager, stream, "owner", (_event, text) => text.length >= total)
+      return events.flatMap((event) => (event.type === "output" ? [event.data.length] : []))
+    }
+    standIn.draw("a".repeat(10_000))
+    expect(await outputs(10_000)).toEqual([4096, 4096, 1808])
+    standIn.draw("b".repeat(4096))
+    expect(await outputs(4096)).toEqual([4096])
+    // Three reads in one draw: one event, not one a read.
+    standIn.draw("c".repeat(1000))
+    standIn.draw("c".repeat(1000))
+    standIn.draw("c".repeat(1000))
+    expect(await outputs(3000)).toEqual([3000])
+    // Chunked as one: not 3,000 a read.
+    standIn.draw("d".repeat(3000))
+    standIn.draw("d".repeat(3000))
+    standIn.draw("d".repeat(3000))
+    expect(await outputs(9000)).toEqual([4096, 4096, 808])
   })
 })
 
