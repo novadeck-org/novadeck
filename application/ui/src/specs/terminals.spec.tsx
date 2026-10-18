@@ -21,9 +21,11 @@ import {
 } from "./support/terminals"
 import {
   chooseView,
+  clickInto,
   commandInput,
   draftOf,
   enterNavigateMode,
+  expectTypingIn,
   expectNothingSelected,
   expectSelected,
   expectStaysAbsent,
@@ -195,6 +197,29 @@ describe("creating terminals", () => {
       await press("Zen shell{Enter}")
       await expect.element(headerName("Zen shell")).toBeVisible()
     })
+  })
+})
+
+describe("clicking into a terminal", () => {
+  it("types there, however its screen changes as it is clicked", async () => {
+    await openWorkspace()
+    const screenOf = (): Element | null =>
+      terminal("Checkout implementation").element().querySelector(".xterm-screen")
+    await expect.poll(screenOf).not.toBeNull()
+    // Output arriving while the click is on its way, scrolling the top rows: what the screen
+    // shows first never holds still. The DOM renderer draws them as text; WebGL draws none,
+    // so there it goes first on the screen.
+    const top = screenOf()!.querySelector(".xterm-rows") ?? screenOf()!
+    const arriving = top.insertBefore(document.createElement("span"), top.firstChild)
+    arriving.style.cssText = "position: absolute; inset: 0 auto auto 0; pointer-events: none"
+    const writing = setInterval(() => (arriving.textContent = `${Date.now()}`), 5)
+    try {
+      await clickInto("Checkout implementation")
+    } finally {
+      clearInterval(writing)
+      arriving.remove()
+    }
+    await expectTypingIn("Checkout implementation")
   })
 })
 
