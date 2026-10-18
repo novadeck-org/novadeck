@@ -1,0 +1,35 @@
+@reference "../styles.css";
+
+/* The mounted terminal recipe: the content a mounted terminal draws into, greyed while typing
+   is paused, and where a failed paste says why for a moment at the top. The notice and the
+   ending bar are the terminal-status recipe's (ui-toolkit/terminal-status.css).
+
+   Hooks: data-locked on `.terminal-mounted`. Parts: `.terminal-screen` (the element a mount
+   draws in, greyed after a moment while locked), `.terminal-paste`. */
+
+@layer components {
+  /* The content's padding, which views override. */
+  :where(.terminal-mounted) {
+    @apply p-3;
+  }
+
+  /* While typing is paused the screen greys, after a moment. It also eases up out of the
+     ending bar's way. */
+  .terminal-screen {
+    transition:
+      filter var(--motion-state) var(--ease-interface),
+      margin-bottom var(--motion-state) var(--ease-interface);
+  }
+  .terminal-mounted[data-locked] .terminal-screen {
+    filter: grayscale(1);
+    transition-delay: 200ms;
+  }
+  .terminal-paste {
+    transition: opacity var(--motion-state) var(--ease-interface);
+  }
+  @starting-style {
+    .terminal-paste {
+      opacity: 0;
+    }
+  }
+}

@@ -1,6 +1,6 @@
 import type { Backend } from "../../port"
 import { createDemoEngine } from "../engine"
-import { demoBackend, withConversations } from "../index"
+import { demoBackend, surfaceOf, withConversations } from "../index"
 import { lessMotion, stillRequested } from "../motion"
 import { agentTranscripts } from "../transcripts"
 import { demoTurns } from "../turns"
@@ -53,7 +53,7 @@ export const visitorDemo = ({
     seed: backend.seed,
     newTerminal: backend.newTerminal,
     commit: backend.commit,
-    TerminalSurface: backend.TerminalSurface,
+    TerminalSurface: surfaceOf(backend),
     telemetry: backend.telemetry,
     ...(backend.companions && { companions: backend.companions }),
     ...(backend.start && { start: backend.start }),

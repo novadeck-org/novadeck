@@ -1,4 +1,4 @@
-import { boundaryViolations } from "./bundle-boundary"
+import { boundaryViolations, firstChunkViolations, type BuiltChunk } from "./bundle-boundary"
 import { context, describe, expect, it } from "./test"
 
 const demo = "/work/ui/src/backend/demo/index.ts"
@@ -28,5 +28,58 @@ describe("bundle boundary", () => {
     it("allows the demo and its debug layer, but not the runner client", () => {
       expect(boundaryViolations("content-preview", [demo, debug, runner])).toEqual([runner])
     })
+  })
+})
+
+describe("the first chunk", () => {
+  const xterm =
+    "/work/node_modules/.pnpm/@xterm+xterm@6.0.0/node_modules/@xterm/xterm/lib/xterm.mjs"
+  const emulator = "/work/libraries/emulator/src/view.ts"
+  const chunk = (
+    modules: readonly string[],
+    imports: readonly string[] = [],
+    isEntry = false,
+  ): BuiltChunk => ({
+    type: "chunk",
+    isEntry,
+    imports,
+    modules: Object.fromEntries(modules.map((id) => [id, {}])),
+  })
+
+  it("passes when the emulator loads later, from a chunk the entry only imports dynamically", () => {
+    expect(
+      firstChunkViolations({
+        "index.js": chunk([app], ["vendor.js"], true),
+        "vendor.js": chunk(["/work/node_modules/react/index.js"]),
+        "emulator.js": chunk([xterm, emulator]),
+      }),
+    ).toEqual([])
+  })
+
+  it("rejects the emulator in the entry chunk or in a chunk it imports", () => {
+    expect(firstChunkViolations({ "index.js": chunk([app, emulator], [], true) })).toEqual([
+      emulator,
+    ])
+    expect(
+      firstChunkViolations({
+        "index.js": chunk([app], ["shared.js"], true),
+        "shared.js": chunk(["/work/other.ts"], ["deeper.js"]),
+        "deeper.js": chunk([xterm]),
+      }),
+    ).toEqual([xterm])
+  })
+
+  it("reads Windows-style module ids", () => {
+    const id = "C:\\work\\node_modules\\@xterm\\xterm\\lib\\xterm.mjs"
+    expect(firstChunkViolations({ "index.js": chunk([id], [], true) })).toEqual([id])
+  })
+
+  it("ignores assets and imports it has no chunk for", () => {
+    expect(
+      firstChunkViolations({
+        "index.js": chunk([app], ["missing.js", "style.css"], true),
+        "style.css": { type: "asset" },
+      }),
+    ).toEqual([])
   })
 })

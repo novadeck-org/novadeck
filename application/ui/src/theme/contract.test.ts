@@ -691,8 +691,8 @@ const importantExceptions: readonly {
     file: "backend/runner/runner.css",
     reason: "xterm sets its scrollbar slider's position and width inline",
     declarations: [
-      ".runner-terminal .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider { left }",
-      ".runner-terminal .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider { width }",
+      ".runner-screen .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider { left }",
+      ".runner-screen .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider { width }",
     ],
   },
 ]

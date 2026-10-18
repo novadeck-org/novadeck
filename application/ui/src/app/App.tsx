@@ -154,6 +154,11 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
   const view = useWorkspaceState((workspace) => currentState(workspace).view)
   const voice = useDictationController(services)
   useKeyboard(voice?.dictation)
+  const { backend } = services
+  // The terminals' font follows Preferences.
+  useEffect(() => {
+    if ("setFont" in backend) backend.setFont({ size: fontSize })
+  }, [backend, fontSize])
   const sidebarRail = (mobile = false): React.JSX.Element => (
     <RailWithBadge
       mobile={mobile}

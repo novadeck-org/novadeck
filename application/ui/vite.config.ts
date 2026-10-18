@@ -8,7 +8,7 @@ import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig, type Plugin } from "vite"
 
-import { boundaryViolations } from "./src/bundle-boundary"
+import { boundaryViolations, firstChunkViolations } from "./src/bundle-boundary"
 import { connect, connectSourcesPlaceholder, headerRules, hidden } from "./src/deploy"
 
 // Each app is an entry of its own, by the mode that names it: its page is entries/<name>/index.html,
@@ -72,6 +72,12 @@ const bundleBoundary = (): Plugin => {
       )
       if (violations.length > 0) {
         this.error(`The ${mode} build carries modules it must not: ${violations.join(", ")}`)
+      }
+      const early = firstChunkViolations(bundle)
+      if (early.length > 0) {
+        this.error(
+          `The ${mode} build loads the terminal emulator with its first chunk: ${early.join(", ")}`,
+        )
       }
     },
   }
