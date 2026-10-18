@@ -33,18 +33,34 @@ jobs:
           - name: Shell
             os: ubuntu-latest
             command: shellcheck -s sh scripts/install/install.sh
-          - name: Test (Linux)
+          # The tests in two halves on Linux and Windows, where they take longest (about 13
+          # minutes whole): the first runs the repository's own and the smaller packages',
+          # and each half of the UI's and the runner's, which take most of the time (Vitest's
+          # `--shard`). macOS runs them whole, as its concurrency, not its length, is the limit.
+          - name: Test (Linux, 1/2)
             os: ubuntu-latest
             browser: true
-            command: npm run test
+            shard: 1
+            command: npm run test:shard1
+          - name: Test (Linux, 2/2)
+            os: ubuntu-latest
+            browser: true
+            shard: 2
+            command: npm run test:shard2
           - name: Test (macOS)
             os: macos-latest
             browser: true
             command: npm run test
-          - name: Test (Windows)
+          - name: Test (Windows, 1/2)
             os: windows-latest
             browser: true
-            command: npm run test
+            shard: 1
+            command: npm run test:shard1
+          - name: Test (Windows, 2/2)
+            os: windows-latest
+            browser: true
+            shard: 2
+            command: npm run test:shard2
           - name: Build
             os: ubuntu-latest
             command: npm run build
@@ -137,7 +153,7 @@ jobs:
         if: failure() && matrix.browser
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ui-test-failures-${{ runner.os }}
+          name: ui-test-failures-${{ runner.os }}${{ matrix.shard && format('-{0}', matrix.shard) || '' }}
           path: application/ui/.vitest/attachments/
           if-no-files-found: ignore
           retention-days: 7
