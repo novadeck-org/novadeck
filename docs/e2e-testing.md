@@ -798,7 +798,7 @@ for (const setup of setups) {
 
 The probes under `src/e2e/probes/` record what a real harness showed, and the adapters'
 tests replay it from `harnesses/<agent>/src/fixtures/*.probe.json` and
-`terminals/fixtures/doorbell-<agent>.json`. Every screen in them has one shape, a
+`libraries/tui-input/src/fixtures/paste-*.json` (read by that library's own `testing/fixtures.ts`). Every screen in them has one shape, a
 `ScreenRecord` (`harnesses/core/src/testing/probes.ts`), the one the input-box probe first used:
 
 ```json
@@ -820,7 +820,7 @@ tests replay it from `harnesses/<agent>/src/fixtures/*.probe.json` and
   Read back, they default as `harnesses/core/src/testing/screens.ts` does: 80 columns, the cursor on the last
   row that shows anything, bracketed paste on. `styles` is a probe's note on each row's
   style runs, for a reader's eyes; no test reads it.
-- A screen sits wherever its fixture needs it (`screens.wide`, `steps[].screen`, a doorbell
+- A screen sits wherever its fixture needs it (`screens.wide`, `steps[].screen`, a paste
   pair's `before` and `after`), beside whatever else the probe saw (hooks, status lines,
   what the model received). That stays as the probe wrote it.
 

@@ -1,6 +1,7 @@
 import type { ActivityEvent, Background, HarnessEvent } from "@novadeck/harness-core/events"
 import { hookShellSlackMs, silentFor, type MessagingProfile } from "@novadeck/harness-core/harness"
 import type { AgentName, MessageThread, TerminalMessages } from "@novadeck/protocol"
+import type { KeyKind } from "@novadeck/tui-input"
 import { z } from "zod"
 
 import { DomainError } from "../errors.js"
@@ -22,7 +23,6 @@ import {
   firing,
   pendingEnter,
   type DeliveryEvent,
-  type KeyKind,
   queueBarLeft,
   type Waits,
   waitsIn,
