@@ -23,11 +23,11 @@ export const shellFooter = (rows: readonly string[]): boolean => {
  * Whether it shows its history search (Ctrl-R: "reverse-i-search:" under its box, which
  * then takes the line as its query), its shortcuts panel (`?`: "? / esc close"), or a
  * `/side` conversation ("Side from main thread · ctrl+/ to switch · ctrl+c to close", `^`
- * for ctrl in 0.161.0), whose turns are no root's: all drawn with its empty box on screen (probed 0.159.3 in the e2e sandbox, 2026-10-16).
+ * for ctrl in 0.161.0, and `⌃` on macOS in 0.163.0, seen in CI 2026-10-18), whose turns are no root's: all drawn with its empty box on screen (probed 0.159.3 in the e2e sandbox, 2026-10-16).
  */
 export const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) =>
-    /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:ctrl\+|\^)\/ to switch/.test(
+    /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch/.test(
       row,
     ),
   )

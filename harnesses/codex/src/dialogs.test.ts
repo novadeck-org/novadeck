@@ -169,6 +169,11 @@ describe("Codex's exec approval, as an update might change it", () => {
     const rebound = replaced(replaced(rows, "(y)", "(a)"), "(esc)", "(ctrl+x)")
     expect(keys(rebound, facts, choice("1"))).toEqual([{ press: "a" }])
     expect(keys(rebound, facts, choice("3"))).toEqual([{ press: "\x18" }])
+    // Ctrl as Codex 0.161.0 and 0.163.0 on macOS draw it in their footer.
+    for (const ctrl of ["^x", "⌃x"])
+      expect(keys(replaced(rows, "(esc)", `(${ctrl})`), facts, choice("3"))).toEqual([
+        { press: "\x18" },
+      ])
     expect(keys(rebound, facts, choice("2"))).toEqual([{ press: "p" }])
     const unbound = replaced(rows, " (p)", "")
     const found = read(unbound, facts)!

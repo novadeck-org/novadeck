@@ -566,7 +566,7 @@ describe("a view drawn beside an empty box", () => {
       codex.overlay(shown("› Ask Codex to do anything", "  fake-model default", "  ? / esc close")),
     ).toBe(true)
     // A /side conversation's box is no root's, whichever way the keys are spelled.
-    for (const keys of ["ctrl+", "^"])
+    for (const keys of ["ctrl+", "^", "⌃"])
       expect(
         codex.overlay(
           shown(
