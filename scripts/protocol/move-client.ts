@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 
 // `node scripts/protocol/move-client.ts`: moves the runner client out of the protocol, into its
 // own package `@novadeck/runner-client` (`application/runner-client`), and points every importer
@@ -158,6 +158,25 @@ for (const file of git("ls-files", "-z").split("\0").filter(Boolean)) {
 // The client depends on the wire as the protocol does.
 if (protocolPackage.dependencies["@novadeck/wire"] === undefined)
   problems.push(`${protocol} no longer depends on @novadeck/wire, which the client needs`)
+// Every package whose code imports the client must be one the script gives it to: a new
+// importer elsewhere would lose its dependency, and only a person knows whether it ships it.
+const packageOf = (file: string): string | undefined => {
+  for (let folder = dirname(file); folder !== "."; folder = dirname(folder))
+    if (existsSync(join(root, folder, "package.json"))) return folder
+  return undefined
+}
+const importsClient =
+  /(?:\bfrom\s*|^\s*import\s*|\bimport\(\s*|\bvi\.\w+\(\s*)["']@novadeck\/protocol\/client["']/m
+for (const file of rewrites.keys()) {
+  if (!/\.(?:ts|tsx|mts)$/.test(file) || !importsClient.test(read(file))) continue
+  const owner = packageOf(file)
+  if (owner === undefined || !(owner in consumers))
+    problems.push(
+      `${file} imports the client, but ${owner ?? "no package"} isn't among the consumers ` +
+        `(${Object.keys(consumers).join(", ")}): add it to \`consumers\` with the field it needs`,
+    )
+}
+
 if (problems.length > 0) {
   console.error(`Stopped, nothing changed. Decide these first:\n${problems.join("\n")}`)
   process.exit(1)

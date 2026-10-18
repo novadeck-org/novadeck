@@ -11,7 +11,9 @@ protocol's index where that re-exports it, or the protocol's own entry (`@novade
 a re-export of a file that stays is dropped, as importers take it from the protocol, and the
 protocol's names a file took from several of its files become one import of its index. It stops,
 changing nothing, when a moved file imports a file that is neither, when a file that stays imports
-one that moves, or when the protocol no longer depends on the wire, which the client needs.
+one that moves, when the protocol no longer depends on the wire, which the client needs, or when
+a package outside its list of consumers (the UI, the host, the runner) imports the client: add it
+to `consumers` with the dependency field it needs.
 
 It rewrites, as text in every tracked `.ts`, `.tsx`, `.mts`, `.md`, `.yml` and `.json` file,
 `@novadeck/protocol/client` to `@novadeck/runner-client` and the moved files' paths to their new
