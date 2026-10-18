@@ -1,6 +1,6 @@
-import type { Refusal } from "../model/addon"
-import { formatSize, stepLabel } from "../model/addon-format"
-import { MURMUR_NAME, murmurChecking, type MurmurState } from "../model/murmur"
+import type { Refusal } from "#core/addon"
+import { formatSize, stepLabel } from "#core/addon-format"
+import { MURMUR_NAME, murmurChecking, type MurmurState } from "#core/murmur"
 
 // What Murmur's footer item shows, as a plain function of the addon's state: an install's
 // progress as it goes, then how it ended. Only an install seen from here (started in this

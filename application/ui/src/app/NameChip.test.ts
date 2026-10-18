@@ -1,9 +1,10 @@
 import { createElement } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import type { Murmur, MurmurState } from "../model/murmur"
-import { createStore } from "../model/store"
-import type { AgentStatus } from "../model/types"
+import type { Murmur, MurmurState } from "#core/murmur"
+import { createStore } from "#core/store"
+import type { AgentStatus } from "#core/types"
+
 import { describe, expect, it } from "../test"
 import { openCommands } from "../test/commands"
 import { render } from "../test/render"

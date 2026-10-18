@@ -1,5 +1,6 @@
-import { noConversation, type Conversations } from "../../model/conversation"
-import type { AgentStatus } from "../../model/types"
+import { noConversation, type Conversations } from "#core/conversation"
+import type { AgentStatus } from "#core/types"
+
 import { chatDraftOf, chatReplyOf, chatSendOf, chatShown } from "../../terminals/chat/mode-state"
 import { context, describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"

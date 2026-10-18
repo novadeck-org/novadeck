@@ -37,7 +37,9 @@ export type MountOptions<Content> = {
   readonly saved?: ViewerState
 }
 
-export type Mount<Content, Options = Record<never, never>> = (
-  element: HTMLElement,
-  options: Options & MountOptions<Content>,
-) => Viewer<Content>
+/** Mounts a viewer: one of a kind may offer more than the contract, as an image's zoom. */
+export type Mount<
+  Content,
+  Options = Record<never, never>,
+  Kind extends Viewer<Content> = Viewer<Content>,
+> = (element: HTMLElement, options: Options & MountOptions<Content>) => Kind

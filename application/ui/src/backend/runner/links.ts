@@ -1,4 +1,4 @@
-import { WebLinksAddon, type ILinkHandler, type Terminal } from "@novadeck/emulator/browser"
+import type { ViewLinks } from "@novadeck/emulator/browser"
 
 import { currentPlatform, type Platform } from "./platform"
 
@@ -34,21 +34,12 @@ export const linkTitle = (text: string, platform: Platform): string => {
   return url ? `${url}\n${linkHint(platform)}` : text
 }
 
-// Links in a terminal: addresses in its text and the hyperlinks a program prints (OSC 8).
-export const linkTerminal = (
-  xterm: Terminal,
-  { platform = currentPlatform(), open = openPage } = {},
-): void => {
-  const activate = (event: MouseEvent, text: string): void => {
+// Links in a terminal, which the emulator wires: addresses in its text and the hyperlinks a
+// program prints (OSC 8). Only web pages open, on the platform's click.
+export const linkOptions = ({ platform = currentPlatform(), open = openPage } = {}): ViewLinks => ({
+  open: (text, event) => {
     const url = webLink(text)
     if (url && opensLink(event, platform)) open(url)
-  }
-  const hint = {
-    hover: (_event: MouseEvent, text: string) =>
-      xterm.element?.setAttribute("title", linkTitle(text, platform)),
-    leave: () => xterm.element?.removeAttribute("title"),
-  }
-  const handler: ILinkHandler = { activate, ...hint }
-  xterm.options.linkHandler = handler
-  xterm.loadAddon(new WebLinksAddon(activate, hint))
-}
+  },
+  title: (text) => linkTitle(text, platform),
+})

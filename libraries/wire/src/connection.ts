@@ -2,6 +2,7 @@ import type { AnyContractRouter, ContractRouterClient } from "@orpc/contract"
 
 import type { Channel } from "./channel.js"
 import { hasCode, normalize, WireError } from "./errors.js"
+import type { WireContract } from "./handshake.js"
 import { createWireClient, type Transport } from "./transport.js"
 
 /**
@@ -25,25 +26,12 @@ export type Session<C extends AnyContractRouter> = {
 
 type Link<C extends AnyContractRouter> = Session<C> & { readonly channel: Channel }
 
-/** What the handshake is told, on each new channel, before any other call. */
-export type HandshakeInput = {
-  /** The same for every connection of one client, so a server can take over from a half-open one. */
-  readonly clientId: string
-  /** The transport's token, when it has one. */
-  readonly token?: string
-  /** Aborts when the connection gives up on this attempt; the handshake should stop then. */
-  readonly signal: AbortSignal
-}
-
-export type ConnectOptions<C extends AnyContractRouter> = {
-  /** The contract the server serves, for the client's types. */
+export type ConnectOptions<C extends AnyContractRouter & WireContract> = {
+  /** The contract the server serves, for the client's types: the app's, with the wire's. */
   readonly contract: C
   readonly transport: Transport
-  /** Opens a session on a fresh channel: checks the protocol, authenticates, names the epoch. */
-  readonly handshake: (
-    client: ContractRouterClient<C>,
-    input: HandshakeInput,
-  ) => Promise<{ readonly epoch: string }>
+  /** The protocol the client speaks; a server that speaks another refuses it. */
+  readonly protocolVersion: number
   /**
    * Codes that end the connection for good, beside the wire's own (`UNAUTHORIZED`,
    * `INCOMPATIBLE_PROTOCOL`, `CLOSED`): no reconnection would succeed.
@@ -163,7 +151,7 @@ export class Watched<T> {
   }
 }
 
-class Connection<C extends AnyContractRouter> implements Wire<C> {
+class Connection<C extends AnyContractRouter & WireContract> implements Wire<C> {
   readonly status = new Watched<WireStatus>(
     { state: "reconnecting", error: new WireError("DISCONNECTED", "Not connected yet.") },
     (status) => status.state === "closed",
@@ -206,12 +194,21 @@ class Connection<C extends AnyContractRouter> implements Wire<C> {
     try {
       channel = await transport.connect(signal)
       const client = createWireClient<C>(channel)
-      const { epoch } = await this.options.handshake(client, {
-        clientId: this.clientId,
-        ...(transport.token !== undefined && { token: transport.token }),
-        signal,
-      })
-      return { client, epoch, channel }
+      const { protocolVersion } = this.options
+      // Every contract a connection serves has the wire's handshake.
+      const wire = (client as unknown as ContractRouterClient<WireContract>).wire
+      const opened = await wire.handshake(
+        {
+          protocolVersion,
+          clientId: this.clientId,
+          ...(transport.token !== undefined && { token: transport.token }),
+        },
+        { signal },
+      )
+      if (opened.protocolVersion !== protocolVersion) {
+        throw new WireError("INCOMPATIBLE_PROTOCOL", "The server speaks another protocol.")
+      }
+      return { client, epoch: opened.epoch, channel }
     } catch (error) {
       channel?.close()
       throw asWireError(error)
@@ -290,7 +287,7 @@ class Connection<C extends AnyContractRouter> implements Wire<C> {
  * Connects, resolving after the first handshake. Later disconnections reconnect on their
  * own, backing off, until a fatal code or `close()`; `status` reports each step.
  */
-export const connect = async <C extends AnyContractRouter>(
+export const connect = async <C extends AnyContractRouter & WireContract>(
   options: ConnectOptions<C>,
 ): Promise<Wire<C>> => {
   const connection = new Connection(options)

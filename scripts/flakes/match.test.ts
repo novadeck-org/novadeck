@@ -13,6 +13,7 @@ const fixtures: Record<string, string> = {
   "ui-agents-pinned-drag-top": "Test (macOS)",
   "ui-preferences-murmur-cancel": "Test (Linux)",
   "ui-preferences-voice-cancel": "Test (macOS)",
+  "ui-murmur-offer-expect-element": "Test (Windows)",
   "e2e-codex-quirks-stopped-thread": "Codex (Windows quirks)",
   "e2e-antigravity-macos-lead-tool-call": "Antigravity (macOS)",
   "e2e-claude-windows-interrupted-draft": "Claude Code (Windows)",
@@ -155,6 +156,25 @@ describe("the known-flake register", () => {
         flakes: [],
         unknown: [expect.stringContaining("drops a stopped thread's waiting message")],
       })
+    })
+
+    it("gives each of the tests Vitest groups under one error that error", () => {
+      const log = [
+        " FAIL  behaviour (chromium)  src/specs/a.spec.tsx > first",
+        " FAIL  behaviour (chromium)  src/specs/a.spec.tsx > second",
+        "TypeError: Cannot read properties of null",
+        "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯",
+      ].join("\n")
+      expect(
+        failuresOf(log).map(({ test, reports }) => [
+          test,
+          reports.length,
+          /TypeError/.test(reports[0] ?? ""),
+        ]),
+      ).toEqual([
+        ["src/specs/a.spec.tsx > first", 1, true],
+        ["src/specs/a.spec.tsx > second", 1, true],
+      ])
     })
 
     const known = (): string => fixture("ui-agents-pinned-drag-top")

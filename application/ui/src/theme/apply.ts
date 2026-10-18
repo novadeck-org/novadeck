@@ -1,4 +1,6 @@
-import type { Scheme, SchemePreference } from "./scheme"
+import type { SchemePreference } from "#core/types"
+
+import type { Scheme } from "./scheme"
 import type { ThemeManifest } from "./themes"
 
 // What the person chose. The theme is a plain string until it is checked against the

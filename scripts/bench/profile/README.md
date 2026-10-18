@@ -18,7 +18,7 @@ It packages the app unpacked (`pnpm --filter @novadeck/host package`), then:
    isn't split and `problems` says so;
 2. builds each other variant's UI (`build.ts`) and puts it in a copy of the package: React DOM's
    profiling build in place of its production one (`profiling`), or every screen drawing with
-   xterm's WebGL renderer (`webgl`), a patch to screens.ts made in that build only
+   xterm's WebGL renderer (`webgl`), a patch to the emulator library's view made in that build only
    (`patches.ts`); a run on it fails should a screen not load the renderer or lose its WebGL
    context; the copies are removed at the end;
 3. for each run, the scenarios and builds taking turns, makes a sandbox as the timing run does
@@ -133,7 +133,7 @@ time.
     `performUnitOfWork`, `beginWork`, `completeWork` and the like), the components it renders
     included; **React commit** is `commitRoot` and the effects it flushes (mutation, layout,
     passive), what the effects run included;
-  - **stores** are the UI's stores (`model/store.ts`): their dispatch with the reducers it runs,
+  - **stores** are the UI's stores (`core/store.ts`): their dispatch with the reducers it runs,
     their updates, the listeners they wake, and the selectors those read in
     `useSyncExternalStore`'s check of whether a snapshot changed (React's `checkIfSnapshotChanged`
     and its store subscription, which run outside render);
@@ -161,7 +161,7 @@ time.
   commit together, of busy: what a change of state costs from its dispatch to its commit.
 - **Store listener spans**, on React's profiling build only, are `performance.measure` spans the
   build puts around the stores' listeners through the stores' instrumentation hook,
-  `countListenersWoken`, should `model/store.ts` have it (`patches.ts`). The hook arrives with
+  `countListenersWoken`, should `core/store.ts` have it (`patches.ts`). The hook arrives with
   step 1.3a: until that has landed the build measures none and the row is empty. As the hook
   tells of a listener about to run, never of one done, a span runs from the first listener
   woken to a microtask queued then, which runs at the next microtask checkpoint: once the script

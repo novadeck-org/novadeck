@@ -38,7 +38,7 @@ const rowsOf = (screen: ScreenText | undefined): string => screen?.rows.join("\n
 export type InterruptHost = {
   /**
    * Throws what refuses keys to the terminal's agent now: `TERMINAL_NOT_FOUND`,
-   * `TERMINAL_EXITED`, `RUNTIME_CLOSING`, and `CONFLICT` where no agent is there to take
+   * `TERMINAL_EXITED`, `CLOSING`, and `CONFLICT` where no agent is there to take
    * them or one waits on the person's answer, whose dialog would take them.
    */
   readonly admit: (terminalId: string) => void

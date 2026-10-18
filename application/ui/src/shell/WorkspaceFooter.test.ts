@@ -1,8 +1,9 @@
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
-import type { PortableInstall } from "../model/portable"
-import type { UpdateOffer } from "../model/update"
+import type { PortableInstall } from "#core/portable"
+import type { UpdateOffer } from "#core/update"
+
 import { context, describe, expect, it } from "../test"
 import { render, type Rendered } from "../test/render"
 import { fadeMs, finishedForMs } from "./linger"

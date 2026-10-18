@@ -56,11 +56,11 @@ const ui = "application/ui/src"
 export const notes: Record<string, Note> = {
   runner: {
     purpose:
-      "Builds the runner from its parts and serves the protocol contract over a WebSocket, a port or HTTP, with token auth, the router that maps procedures to domain objects, and the CLI that starts it.",
+      "Builds the runner from its parts and serves the protocol contract through the wire's sessions over a WebSocket or a port, with the router that maps procedures to domain objects, HTTP status, and the CLI that starts it.",
     entries: [
       { file: `${runner}/runner.ts`, text: "export const createRunner" },
       { file: `${runner}/router.ts`, text: "export const createRouter" },
-      { file: `${runner}/websocket.ts`, text: "export const serveWebSocket" },
+      { file: `${runner}/server.ts`, text: "serveWebSocket(runner.sessions" },
     ],
     docs: ["docs/backend-api.md", "docs/backend-plan.md"],
   },
@@ -230,21 +230,18 @@ export const notes: Record<string, Note> = {
       { file: `${ui}/app/commands/context.ts`, text: "export type CommandContext" },
     ],
   },
-  "ui/model": {
+  "ui/core": {
     purpose:
-      "The pure domain of the workspace: state, reducer and store, seed data, layout rules, roster, conversations, messages, companions and usage, with no React.",
+      "The pure domain of the workspace: state, reducer and store, seed data, layout rules, roster, conversations, messages, companions and usage, and the terminal lifecycle registry the backends share, with no React.",
     entries: [
-      { file: `${ui}/model/store.ts`, text: "export const createStore" },
-      { file: `${ui}/model/types.ts` },
+      { file: `${ui}/core/store.ts`, text: "export const createStore" },
+      { file: `${ui}/core/types.ts` },
+      { file: `${ui}/core/registry.ts` },
     ],
   },
   "ui/backend": {
-    purpose:
-      "The port the UI talks to its backend through, and the shared terminal lifecycle registry.",
-    entries: [
-      { file: `${ui}/backend/port.ts`, text: "export type TerminalSurfaceProps" },
-      { file: `${ui}/backend/registry.ts` },
-    ],
+    purpose: "The port the UI talks to its backend through.",
+    entries: [{ file: `${ui}/backend/port.ts`, text: "export type TerminalSurfaceProps" }],
   },
   "ui/backend/runner": {
     purpose:

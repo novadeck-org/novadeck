@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import {
   forgetPath,
@@ -113,6 +113,11 @@ describe("refreshing PATH", () => {
 
   it("reads the registry once at a time, and again once its answer is old", async () => {
     forgetPath()
+    // The clock alone, so a slow machine can't age the answer between two calls.
+    vi.useFakeTimers({ toFake: ["Date"] })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
     let reads = 0
     let answering = ["C:\\First"]
     const read = () => {
@@ -130,7 +135,7 @@ describe("refreshing PATH", () => {
     expect(reads).toBe(1)
     // Once old, as after an install, the very next terminal waits for the new answer.
     answering = ["C:\\Second"]
-    await new Promise((resolve) => setTimeout(resolve, 60))
+    vi.advanceTimersByTime(60)
     const after = await Promise.all([refreshPath(env, options), refreshPath(env, options)])
     expect(after.map((one) => one.Path)).toEqual(["C:\\Here;C:\\Second", "C:\\Here;C:\\Second"])
     expect(reads).toBe(2)

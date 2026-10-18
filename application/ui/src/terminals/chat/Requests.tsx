@@ -1,8 +1,9 @@
 import { CircleHelp, ClipboardList, Loader, ShieldQuestion, type LucideIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
-import { WordsLost, type ChatAnswer, type ChatRequest } from "../../model/conversation"
-import type { Refused } from "../../model/prompt-refusal"
+import { WordsLost, type ChatAnswer, type ChatRequest } from "#core/conversation"
+import type { Refused } from "#core/prompt-refusal"
+
 import { RequestDialog } from "./RequestDialog"
 
 const kinds: Readonly<Record<ChatRequest["kind"], { title: string; Icon: LucideIcon }>> = {

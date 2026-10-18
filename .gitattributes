@@ -1,6 +1,6 @@
 # Plan fixtures and sample plans are read byte for byte, as an agent writes them, so
 # they keep LF line endings on every platform.
-application/ui/src/**/plan-editor/fixtures/*.md text eol=lf
+libraries/viewers/src/markdown/fixtures/*.md text eol=lf
 application/ui/src/backend/demo/showcase/plans/*.md text eol=lf
 # whisper.cpp patches apply to its LF sources, so they keep LF on every platform.
 engines/whisper/patches/*.patch text eol=lf

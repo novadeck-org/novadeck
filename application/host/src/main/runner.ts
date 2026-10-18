@@ -1,10 +1,4 @@
-import {
-  MessageChannelMain,
-  utilityProcess,
-  type MessagePortMain,
-  type UtilityProcess,
-  type WebContents,
-} from "electron"
+import { utilityProcess, type MessagePortMain, type UtilityProcess } from "electron"
 
 import {
   databaseArgumentPrefix,
@@ -12,18 +6,20 @@ import {
   graphicsArgumentPrefix,
   murmurSourceArgumentPrefix,
   relayArgumentPrefix,
-  runnerPortChannel,
   voiceEngineArgumentPrefix,
   voiceSourceArgumentPrefix,
   type RunnerCommand,
 } from "../bridge.js"
 
 export type RunnerHost = {
-  /** Gives a renderer a fresh port to the runner, starting the runner again if it stopped. */
-  connect(contents: WebContents, id: string): void
+  /**
+   * Hands the runner a fresh port to serve, starting the runner again if it stopped; false
+   * once it closes, as `brokerPorts` takes it.
+   */
+  deliver(port: MessagePortMain): boolean
   /**
    * Ends the runner's shells, then the process; forcibly after `timeoutMs`. Final:
-   * later connection requests are ignored.
+   * later ports aren't delivered.
    */
   close(timeoutMs?: number): Promise<void>
   /** Saves every terminal's restore state now, as when the system session is ending. */
@@ -73,11 +69,10 @@ export const startRunner = (options: {
   }
   spawn()
   return {
-    connect(contents, id) {
-      if (closing) return
-      const { port1, port2 } = new MessageChannelMain()
-      send(child ?? spawn(), { type: "connect" }, [port1])
-      contents.postMessage(runnerPortChannel, id, [port2])
+    deliver(port) {
+      if (closing) return false
+      send(child ?? spawn(), { type: "connect" }, [port])
+      return true
     },
     persist() {
       if (child && !closing) send(child, { type: "persist" })

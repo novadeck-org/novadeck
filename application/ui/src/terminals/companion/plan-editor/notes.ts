@@ -1,13 +1,17 @@
 import { ChangeSet, EditorSelection, Text, type Line, type Transaction } from "@codemirror/state"
 import type { EditorView } from "@codemirror/view"
+import { findTables } from "@novadeck/viewers/markdown"
 
-import { noteClose, noteOpen, notePattern, noteSafe } from "../../../model/companion"
+import { noteClose, noteOpen, notePattern, noteSafe } from "#core/companion"
+
 import type { Mark } from "../plan-doc"
-import { findTables } from "./tables"
 
 // Notes as Novadeck writes them into the plan, and the control that adds one.
 
 export { noteClose, noteOpen, noteSafe }
+
+// What a table row's note is written between.
+const rowNoteMarkers = { open: noteOpen, close: noteClose }
 
 // Lucide's message-square-plus, as the plan's other note controls use. Widgets are plain
 // DOM, so it's drawn here rather than through lucide-react.
@@ -44,7 +48,7 @@ export const noteIcon = (plus = true): SVGSVGElement => {
 // cursor ready in it.
 export const addNote = (view: EditorView, at: number): void => {
   // A note beside a table goes after it: a line inside would split the table.
-  const table = findTables(view.state.doc.toString()).find(
+  const table = findTables(view.state.doc.toString(), rowNoteMarkers).find(
     (found) => at >= found.from && at <= found.to,
   )
   const current = view.state.doc.lineAt(table ? table.to : at)
@@ -155,7 +159,7 @@ export const emptyNoteRemovals = (
   const text = doc.toString()
   const empty = noteOpen + noteClose
   // A table's row notes are edited, and dropped when left empty, by the table itself.
-  const tables = findTables(text)
+  const tables = findTables(text, rowNoteMarkers)
   const removals: { from: number; to: number }[] = []
   for (let from = text.indexOf(empty); from >= 0; from = text.indexOf(empty, from + 1)) {
     const to = from + empty.length
@@ -187,5 +191,37 @@ export const withoutEmptyNotes = (
   return {
     text: changes.apply(doc).toString(),
     marks: marks.map(({ from, to }) => ({ from: changes.mapPos(from), to: changes.mapPos(to) })),
+  }
+}
+
+// The agent read Novadeck's notes, applied them, and removed each one, with the line it
+// sat on when the note had a line to itself.
+export const resolveNotes = (
+  text: string,
+  marks: readonly Mark[],
+): { text: string; marks: Mark[]; resolved: number } => {
+  const removals: { from: number; to: number }[] = []
+  for (const match of text.matchAll(notePattern)) {
+    const from = match.index
+    const to = from + match[0].length
+    const line = Text.of(text.split("\n")).lineAt(from)
+    const alone = text.slice(line.from, line.to).trim() === match[0]
+    removals.push(
+      alone
+        ? {
+            from: line.from === 0 ? 0 : line.from - 1,
+            to: line.from === 0 ? Math.min(line.to + 1, text.length) : line.to,
+          }
+        : // A note inside a line, like a table row's, takes the space before it.
+          { from: text[from - 1] === " " ? from - 1 : from, to },
+    )
+  }
+  const removal = ChangeSet.of(removals, text.length)
+  return {
+    text: removal.apply(Text.of(text.split("\n"))).toString(),
+    marks: marks
+      .map((mark) => ({ from: removal.mapPos(mark.from, 1), to: removal.mapPos(mark.to, -1) }))
+      .filter((mark) => mark.to > mark.from),
+    resolved: removals.length,
   }
 }

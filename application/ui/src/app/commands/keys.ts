@@ -1,3 +1,8 @@
+import { nearestInDirection } from "#core/layout/spatial"
+import { hasTile, isWindow, orderedTiles, tilesOf } from "#core/roster"
+import { viewModes } from "#core/state"
+import type { SidebarPanel, Tile } from "#core/types"
+
 import type { TerminalKey } from "../../backend/port"
 import {
   arrowDirections,
@@ -8,10 +13,6 @@ import {
   type KeyPhase,
   type KeyState,
 } from "../../interaction/keymap"
-import { nearestInDirection } from "../../model/layout/spatial"
-import { hasTile, isWindow, orderedTiles, tilesOf } from "../../model/roster"
-import { viewModes } from "../../model/state"
-import type { SidebarPanel, Tile } from "../../model/types"
 import { arrangeProjects } from "../../projects/project-arrangement"
 import { shownPanel } from "../../shell/panels"
 import { sidebarVisible } from "../../shell/shell-state"

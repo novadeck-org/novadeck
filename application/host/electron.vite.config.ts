@@ -25,6 +25,11 @@ export default defineConfig({
     },
   },
   preload: {
+    // The preload runs in Electron, not a page: it also takes a library's Node-only
+    // subpath for it, as wire's `/electron`, which names only the `node` condition. That
+    // condition is added to the preset's, so a package's Node build could win where it lists
+    // `node` first: the bundle is checked to need nothing but electron.
+    ssr: { resolve: { conditions: ["node"] } },
     build: {
       rollupOptions: {
         input: resolve("src/preload/index.ts"),

@@ -1,4 +1,5 @@
-import type { SidebarPanel } from "../../model/types"
+import type { SidebarPanel } from "#core/types"
+
 import { shownPanel } from "../../shell/panels"
 import {
   bumpNavigation,

@@ -178,7 +178,7 @@ The shared recipes, and what they cover:
 | `artifact`           | The viewers for what an agent shows: image, file, page and document                                                         | `--artifact-meta-{fg,border-color}`, `--artifact-image-image`, `--artifact-browser-bg`, `--artifact-webview-bg`                                                                                                                                                                                                                                                                   |
 | `mail`               | A terminal's threads with the other agents                                                                                  | `--mail-{border-color,meta-fg,sent-border-color,held-fg}`                                                                                                                                                                                                                                                                                                                         |
 | `chat`               | A terminal's agent as a conversation: bubbles, prose and code, tool rows, requests, the composer                            | `--chat-{bg,fg,muted-fg}`, `--chat-user-{bg,fg,border-color,radius}`, `--chat-tool-{bg,border-color,hover-bg}`, `--chat-code-bg`                                                                                                                                                                                                                                                  |
-| `prose`              | Plans and documents in the plan editor, its notes, tables and checkboxes                                                    | `--prose-{fg,heading-fg,code-bg,quote-fg}`, `--prose-changed-bg`, `--prose-note-{bg,fg}`, `--prose-table-border-color`                                                                                                                                                                                                                                                            |
+| `prose`              | Plans and documents in the markdown viewer (mapped onto its `--md-*`), a plan's notes, tables and checkboxes                | `--prose-{fg,heading-fg,code-bg,quote-fg}`, `--prose-changed-bg`, `--prose-note-{bg,fg}`, `--prose-table-border-color`                                                                                                                                                                                                                                                            |
 | `syntax`             | `.tok-*` highlighting in the code viewer and chat's fenced blocks                                                           | maps the syntax tokens onto the code viewer's `--syntax-*` (`@novadeck/viewers/code.css`)                                                                                                                                                                                                                                                                                         |
 | `settings`           | Preferences: its cards and rows, notes; `.choice-card`, shared with the welcome, whose cards are `.solid`                   | `--settings-description-fg`, `--settings-card-shadow`, `--choice-card-{bg,fg,border-color}`, `--choice-card-checked-{bg,fg,border-color,shadow}`, `--choice-card-solid-{bg,fg,hover-bg}`                                                                                                                                                                                          |
 | `welcome`            | The welcome dialog, its start button and its miniature workspace                                                            | `--welcome-{intro-bg,pattern-fg,caret-bg,skip-fg}`, `--welcome-stage-{border-color,dots-fg}`; reads `--brand-tile-*`, `--window-*`, `--workspace-*`                                                                                                                                                                                                                               |
@@ -224,8 +224,8 @@ fonts only from the app itself, so they always ship as files: `vite.config.ts` n
 inlines a font as a `data:` URL, and `build.test.ts` checks the built stylesheets.
 
 A terminal measures its cells when its font changes, with whatever has loaded by then
-(`backend/runner/screens.ts`). One opened before its font arrives measures again when it
-does; on a theme change it keeps the font it has until the new theme's font has loaded,
+(`setFont` of the emulator's view, which `backend/runner/screens.ts` calls). One opened before
+its font arrives measures again when it does; on a theme change it keeps the font it has until the new theme's font has loaded,
 then measures once, and a font that fails to load is taken all the same, so the family
 falls back.
 
@@ -353,11 +353,12 @@ fails too, and fails when one is no longer needed.
   position and width xterm sets inline.
 - `theme/accessibility.css` may name system colours (`Canvas`, `Highlight`) for forced
   colours; no other stylesheet may.
-- CodeMirror, the plan editor, injects its own styles as CSS-in-JS at run time, outside
-  every layer, so no recipe can override them, and its base theme carries colours of its
-  own. `terminals/companion/plan-editor/editor-theme.ts` overrides the ones the plan
-  shows (the gutter, selection and caret) in an editor theme, which CodeMirror orders
-  after its base theme, with token `var()`s and their fallbacks.
+- CodeMirror, the markdown viewer's editor, injects its own styles as CSS-in-JS at run
+  time, outside every layer, so no recipe can override them, and its base theme carries
+  colours of its own. `libraries/viewers/src/markdown/theme.ts` overrides the ones the
+  viewer shows (the gutter, selection and caret) in an editor theme, which CodeMirror
+  orders after its base theme, with `--md-*` `var()`s and their fallbacks; `prose.css`
+  maps the prose tokens onto them.
 
 ## Themes
 

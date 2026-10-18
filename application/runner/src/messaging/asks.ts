@@ -11,11 +11,11 @@ import {
   type InboxLetter,
   type TerminalMessages,
 } from "@novadeck/protocol"
+import { Latest } from "@novadeck/wire/server"
 import { z } from "zod"
 
 import { DomainError } from "../errors.js"
 import type { RootChange } from "../harnesses/roots.js"
-import { Latest } from "../terminals/latest.js"
 import {
   allowSend,
   byteLength,
@@ -369,7 +369,7 @@ export class Asks {
   }
 
   answer(id: string, input: AskAnswer): void {
-    if (this.closed) throw new DomainError("RUNTIME_CLOSING")
+    if (this.closed) throw new DomainError("CLOSING")
     const letter = this.letters.get(id)
     if (
       !letter ||
@@ -418,7 +418,7 @@ export class Asks {
   }
 
   read(ids: readonly string[]): void {
-    if (this.closed) throw new DomainError("RUNTIME_CLOSING")
+    if (this.closed) throw new DomainError("CLOSING")
     for (const id of ids) {
       const letter = this.letters.get(id)
       if (letter?.state === "open" && letter.content.kind === "tell")

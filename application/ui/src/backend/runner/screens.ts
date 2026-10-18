@@ -1,17 +1,23 @@
-import { FitAddon, Terminal, type ITheme } from "@novadeck/emulator/browser"
-import { applyWidths } from "@novadeck/emulator/width"
+import {
+  createView,
+  type ITheme,
+  type Renderers,
+  type ViewRenderer,
+  type Terminal,
+} from "@novadeck/emulator/browser"
 
-import { createStore, type Store } from "../../model/store"
+import { createStore, type Store } from "#core/store"
+
 import { themeChangeEvent } from "../../theme/apply"
 import { tokenColors } from "../../theme/probe"
 import type { TerminalKey } from "../port"
 import type { SurfaceRuntime } from "./backend"
 import { desktopHost } from "./desktop-host"
 import { followTerminal, type FollowedTerminal, type Screen } from "./follow"
-import { linkTerminal } from "./links"
+import { linkOptions } from "./links"
 import { clipboardAccess, takeCtrlV, takeFilePastes, type PasteTarget } from "./paste"
 import { silenceQueries } from "./queries"
-import { pageRenderers, type Renderers, type ScreenRenderer } from "./renderer"
+import { pageRenderers } from "./renderers"
 
 // The sizes the runner accepts.
 const clamp = (value: number, min: number, max: number): number =>
@@ -96,7 +102,7 @@ export type RunnerScreen = {
   readonly followed: FollowedTerminal
   // Which renderer draws it: WebGL while shown where its view wants it and a context is
   // free, else the DOM one.
-  readonly renderer: ScreenRenderer
+  readonly renderer: ViewRenderer
   readonly stream: Store<ScreenStream>
   // Why the last paste failed, for a few seconds after it did.
   readonly notice: Store<string | null>
@@ -126,11 +132,17 @@ type Entry = {
 const releaseCheckMs = 1000
 // How long a screen stays once its session leaves the screen, so going back to a session or
 // a project within a working break finds its output in place instead of a screen to reopen.
-const retainMs = 30 * 60 * 1000
+export const retainMs = 30 * 60 * 1000
 // How long a screen nobody shows keeps following its terminal's output before it parks:
 // long enough for the next view to take it as it is, short enough that a dozen busy agents
 // out of sight cost nothing to draw. Shown again, it takes the runner's screen as it is then.
-const parkMs = 5_000
+export const parkMs = 5_000
+// How many parked screens stay before the one parked longest closes. Each holds its emulator's
+// buffer, so without a count a long session's grows without bound. With 16, a Grid of up to 16
+// terminals finds every screen still parked, not closed, after a trip to another session or
+// view; a bigger one loses those parked first. Fewer would close some of a common Grid's, and
+// a closed screen costs a full snapshot resync when it is shown again.
+export const parkedCap = 16
 
 const id = ({ projectId, workspaceSessionId, terminalId }: TerminalKey): string =>
   `${projectId}\u0000${workspaceSessionId}\u0000${terminalId}`
@@ -138,9 +150,17 @@ const id = ({ projectId, workspaceSessionId, terminalId }: TerminalKey): string 
 // The screens of one backend's terminals. A surface acquires its terminal's screen
 // while it shows it and releases it after. A released screen stays while its terminal
 // exists, so the other views, and later the other sessions and projects, find it ready; it
-// closes once its terminal does, or its session has stayed off screen for `retainMs`.
-export const createScreens = (runtime: SurfaceRuntime, renderers: Renderers = pageRenderers()) => {
+// closes once its terminal does, its session has stayed off screen for `retainMs`, or more than
+// `cap` screens are parked and it was parked longest.
+export const createScreens = (
+  runtime: SurfaceRuntime,
+  renderers: Renderers = pageRenderers(),
+  cap = parkedCap,
+) => {
   const entries = new Map<string, Entry>()
+  // The parked screens, the one parked longest first: a map keeps the order its keys were
+  // added in, so a screen shown again leaves it and parking it again puts it last.
+  const parked = new Map<string, { key: TerminalKey; entry: Entry }>()
   // Whether Ctrl+V may read the clipboard, the same for every terminal.
   const readable = clipboardAccess(desktopHost() !== undefined)
   const entryOf = (key: TerminalKey): Entry => {
@@ -157,7 +177,7 @@ export const createScreens = (runtime: SurfaceRuntime, renderers: Renderers = pa
     { fontSize, name, waiting }: OpenOptions,
   ): RunnerScreen => {
     const element = entry.host
-    const xterm = new Terminal({
+    const view = createView(element, {
       fontSize,
       fontFamily: monospace(element),
       theme: themeOf(element),
@@ -165,16 +185,10 @@ export const createScreens = (runtime: SurfaceRuntime, renderers: Renderers = pa
       // xterm darkens or lightens any that would read under 4.5:1 against the background.
       minimumContrastRatio: 4.5,
       scrollback: 1000,
-      allowTransparency: false,
-      allowProposedApi: true,
+      links: linkOptions(),
+      renderers,
     })
-    const fit = new FitAddon()
-    xterm.loadAddon(fit)
-    // Widths as the runner's screen counts them, emoji sequences and CJK included, so a
-    // screen it gives back replays on the same rows.
-    applyWidths(xterm)
-    linkTerminal(xterm)
-    xterm.open(element)
+    const xterm = view.terminal
     const queries = silenceQueries(xterm)
     xterm.textarea?.setAttribute("data-terminal-input", "")
     xterm.textarea?.setAttribute("aria-label", `Input for ${name}`)
@@ -189,11 +203,8 @@ export const createScreens = (runtime: SurfaceRuntime, renderers: Renderers = pa
         if (xterm.cols !== cols || xterm.rows !== rows) xterm.resize(cols, rows)
       },
       fit: () => {
-        if (!element.clientWidth || !element.clientHeight) return undefined
-        const size = fit.proposeDimensions()
-        return size && Number.isFinite(size.cols) && Number.isFinite(size.rows)
-          ? runnerSize(size)
-          : undefined
+        const size = view.fit()
+        return size && runnerSize(size)
       },
     }
     const followed = followTerminal(runtime, key, {
@@ -207,12 +218,12 @@ export const createScreens = (runtime: SurfaceRuntime, renderers: Renderers = pa
     })
     // The two renderers measure a cell apart (WebGL to whole device pixels), so a screen
     // that changes renderer fits its slot again.
-    const renderer = renderers.screen(xterm, () => followed.refit())
+    view.onRendererChange(() => followed.refit())
     const screen: RunnerScreen = {
       host: element,
       xterm,
       followed,
-      renderer,
+      renderer: view.renderer,
       stream,
       notice,
       waiting,
@@ -289,40 +300,17 @@ export const createScreens = (runtime: SurfaceRuntime, renderers: Renderers = pa
       { readable },
     )
     let settling: ReturnType<typeof setTimeout> | undefined
-    // xterm measures its cells when its font changes, with whatever has loaded by then.
-    // It is told another family first when the family stays, since only a change makes it
-    // measure again; a new font changes the cell size, so the terminal fits again.
-    const measure = (font: string): void => {
-      if (xterm.options.fontFamily === font) xterm.options.fontFamily = "monospace"
-      xterm.options.fontFamily = font
-      // Glyphs the WebGL atlas drew in the family's fallback stay cached under its name.
-      renderer.refresh()
-      followed.refit()
-    }
     // The theme's font, once it has loaded: a bundled font still on its way arrives later,
-    // and the terminal keeps the font it has until then. One that fails to load is taken
-    // all the same, so the family falls back as the browser would.
-    let awaited: string | undefined
+    // and the terminal keeps the font it has until then. A new font changes the cell size,
+    // so the terminal fits again.
     const takeFont = (): void => {
-      const font = monospace(element)
-      const fonts = element.ownerDocument.fonts as FontFaceSet | undefined
-      if (!fonts || fonts.check(`${xterm.options.fontSize}px ${font}`)) {
-        awaited = undefined
-        if (xterm.options.fontFamily !== font) measure(font)
-        return
-      }
-      if (awaited === font) return
-      awaited = font
-      const settle = (): void => {
-        if (gone || awaited !== font) return
-        awaited = undefined
-        measure(font)
-      }
-      fonts.load(`${xterm.options.fontSize}px ${font}`).then(settle, settle)
+      void view.setFont(monospace(element)).then((measured) => {
+        if (measured && !gone) followed.refit()
+      })
     }
     // A theme sets the colours and the font.
     const retheme = (): void => {
-      xterm.options.theme = themeOf(element)
+      view.setTheme(themeOf(element))
       takeFont()
     }
     // A host opened before it had a slot took the page's colours and font; once in one,
@@ -360,8 +348,7 @@ export const createScreens = (runtime: SurfaceRuntime, renderers: Renderers = pa
       clearTimeout(noticed)
       queries.dispose()
       followed.stop()
-      renderer.dispose()
-      xterm.dispose()
+      view.dispose()
       element.remove()
     }
     return screen
@@ -369,8 +356,19 @@ export const createScreens = (runtime: SurfaceRuntime, renderers: Renderers = pa
 
   const close = (key: TerminalKey, entry: Entry): void => {
     entries.delete(id(key))
+    parked.delete(id(key))
+    clearTimeout(entry.timer)
     clearTimeout(entry.parking)
     entry.dispose?.()
+  }
+  // A screen that parks joins the parked; one more than the cap closes the one parked longest,
+  // through the same path as retention. A screen shown or not yet parked never closes here.
+  const keep = (key: TerminalKey, entry: Entry): void => {
+    parked.set(id(key), { key, entry })
+    for (const [, oldest] of parked) {
+      if (parked.size <= cap) break
+      close(oldest.key, oldest.entry)
+    }
   }
   // A screen nobody shows goes once its terminal closes, or once its session has been off
   // screen for `retainMs` of the clock's time, which timers falling behind in a hidden
@@ -399,6 +397,7 @@ export const createScreens = (runtime: SurfaceRuntime, renderers: Renderers = pa
       entry.timer = undefined
       clearTimeout(entry.parking)
       entry.parking = undefined
+      parked.delete(id(key))
       entry.screen ??= open(key, entry, options)
       entry.screen.followed.unpark()
       entry.screen.renderer.take(webgl)
@@ -416,8 +415,10 @@ export const createScreens = (runtime: SurfaceRuntime, renderers: Renderers = pa
       entry.parking = setTimeout(() => {
         entry.parking = undefined
         if (entry.users !== 0) return
-        entry.screen?.followed.park()
-        entry.screen?.renderer.release()
+        if (!entry.screen) return
+        entry.screen.followed.park()
+        entry.screen.renderer.release()
+        keep(key, entry)
       }, parkMs)
     },
     // Pastes text into the terminal's screen as the person's own paste: bracketed when its

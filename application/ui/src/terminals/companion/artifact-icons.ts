@@ -9,7 +9,8 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import type { ArtifactKind } from "../../model/companion"
+import type { ArtifactKind } from "#core/companion"
+
 import type { BarMember, BarSlot } from "./bar"
 
 export const kindIcons: Record<ArtifactKind, LucideIcon> = {

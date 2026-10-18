@@ -1,6 +1,10 @@
 import { act, type ReactNode } from "react"
 import { afterEach, vi } from "vitest"
 
+import { workspaceFromSeed } from "#core/seed"
+import { activeProject, activeSession, workspaceReducer, type WorkspaceAction } from "#core/state"
+import type { TerminalStatus, Workspace, WorkspaceTarget } from "#core/types"
+
 import type {
   Backend,
   BackendAction,
@@ -8,14 +12,6 @@ import type {
   TerminalKey,
   TerminalSurfaceProps,
 } from "../backend/port"
-import { workspaceFromSeed } from "../model/seed"
-import {
-  activeProject,
-  activeSession,
-  workspaceReducer,
-  type WorkspaceAction,
-} from "../model/state"
-import type { TerminalStatus, Workspace, WorkspaceTarget } from "../model/types"
 import { context, describe, expect, it } from "../test"
 import { render, type Rendered } from "./render"
 

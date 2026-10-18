@@ -199,7 +199,7 @@ export class OpenRequests {
    * or the runner shuts down. Those still waiting once it ends go without an answer.
    */
   async *follow(owner: string, signal?: AbortSignal): AsyncGenerator<TerminalRequest> {
-    if (this.finished) throw new DomainError("RUNTIME_CLOSING")
+    if (this.finished) throw new DomainError("CLOSING")
     const follower = new Follower(owner)
     this.followers.push(follower)
     const abort = () => follower.finish()

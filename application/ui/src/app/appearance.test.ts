@@ -1,7 +1,8 @@
 import { afterEach, vi } from "vitest"
 
+import type { PreferencesValue } from "#core/types"
+
 import type { WindowAppearance } from "../backend/port"
-import type { PreferencesValue } from "../model/types"
 import { context, describe, expect, it } from "../test"
 import { bootRecordKey } from "../theme/apply"
 import { releaseMs, watchAppearance } from "./appearance"

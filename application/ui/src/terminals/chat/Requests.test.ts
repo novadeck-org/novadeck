@@ -1,12 +1,8 @@
 import { act, createElement } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import {
-  WordsLost,
-  type ChatAnswer,
-  type ChatDialog,
-  type ChatRequest,
-} from "../../model/conversation"
+import { WordsLost, type ChatAnswer, type ChatDialog, type ChatRequest } from "#core/conversation"
+
 import { describe, expect, it } from "../../test"
 import { refusing } from "../../test/fixtures"
 import { render } from "../../test/render"

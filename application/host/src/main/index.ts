@@ -19,6 +19,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 
 import type { UpdateChannel } from "@novadeck/protocol/bridge"
 import { startHttpServer, type HttpServer } from "@novadeck/runner/http"
+import { brokerPorts } from "@novadeck/wire/electron"
 import {
   app,
   autoUpdater as nativeUpdater,
@@ -936,9 +937,10 @@ const launch = async (): Promise<void> => {
   })
   // A port is shell access: only the main frame of this app's own window showing its
   // own UI may ask for one.
-  ipcMain.on(runnerPortChannel, (event, id: unknown) => {
-    if (!appWindow(event) || typeof id !== "string") return
-    runner?.connect(event.sender, id)
+  brokerPorts({
+    channel: runnerPortChannel,
+    allow: (event) => appWindow(event) !== undefined,
+    deliver: (port) => runner?.deliver(port) ?? false,
   })
   // The window follows the page: native menus and the page's prefers-color-scheme use
   // its scheme, and the window its ground.

@@ -1,7 +1,8 @@
 import { createElement } from "react"
 import { afterEach } from "vitest"
 
-import type { TerminalMetadata } from "../model/types"
+import type { TerminalMetadata } from "#core/types"
+
 import { context, describe, expect, it } from "../test"
 import { terminalFixture } from "../test/fixtures"
 import { render } from "../test/render"

@@ -10,7 +10,8 @@ import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable } from "@dnd-kit/react/sortable"
 import { Fragment, useContext, useLayoutEffect, useMemo, useRef, useState } from "react"
 
-import type { Project } from "../model/types"
+import type { Project } from "#core/types"
+
 import { PinDropContext } from "./pin-drop"
 import { arrangeProjects, pinLimit, type ProjectArrangement } from "./project-arrangement"
 import type { ProjectStatus } from "./project-status"

@@ -1,13 +1,16 @@
-import type { SandboxState } from "../../../model/sandbox"
-import type { BootRehearsals } from "../../boot-rehearsal"
+import { clearPortableCardRaised } from "#core/portable-card-raised"
+import type { SandboxState } from "#core/sandbox"
+
 import type { BackendConnection, ConnectBackend } from "../../port"
-import { clearPortableCardRaised } from "../../portable-card-raised"
 import { keepVariant, rememberVariant, requestedVariant } from "../variants"
 import { bootFailures } from "./boot-failures"
+import type { BootRehearsals } from "./boot-rehearsal"
 import { restoreIconGuides } from "./icon-guides"
 import type { DemoPortable } from "./portable"
 import type { DemoUninstall } from "./uninstall"
 import { createDebugDemo, type DemoLaunch } from "./with-debug"
+
+export { debugPanelOf } from "./with-debug"
 
 const unavailable = (code: string): Error => {
   const failure =

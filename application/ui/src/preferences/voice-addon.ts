@@ -1,4 +1,4 @@
-import type { VoiceState } from "../model/voice"
+import type { VoiceState } from "#core/voice"
 
 // What the voice input card says, as plain functions of the addon's state.
 

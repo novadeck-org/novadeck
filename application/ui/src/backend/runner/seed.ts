@@ -6,10 +6,11 @@ import type {
   WorkspaceSession,
 } from "@novadeck/protocol"
 
-import { isShellProcess } from "../../model/process"
-import type { SessionSeed, WorkspaceSeed } from "../../model/seed"
-import { noTelemetry, setUsage, type Telemetry } from "../../model/telemetry"
-import type { TerminalMetadata } from "../../model/types"
+import { isShellProcess } from "#core/process"
+import type { SessionSeed, WorkspaceSeed } from "#core/seed"
+import { noTelemetry, setUsage, type Telemetry } from "#core/telemetry"
+import type { TerminalMetadata } from "#core/types"
+
 import { defaultQuickExitMs, restartable, terminalActivity } from "./activity"
 import { itemOf, windowOf } from "./companions"
 import { decodeSession } from "./session-state"

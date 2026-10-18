@@ -1,7 +1,8 @@
 import type { Node } from "@xyflow/react"
 import type { Dispatch, SetStateAction, Ref, ReactNode } from "react"
 
-import type { SizePreset, Tile, CanvasLayout } from "../../model/types"
+import type { SizePreset, Tile, CanvasLayout } from "#core/types"
+
 import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 
 export type TerminalNode = Node<

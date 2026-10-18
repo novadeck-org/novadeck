@@ -9,8 +9,9 @@ import {
 import { useSyncExternalStore } from "react"
 import { Link } from "react-router"
 
+import type { Project, ViewMode } from "#core/types"
+
 import { shortcutBindings } from "../interaction/shortcuts"
-import type { Project, ViewMode } from "../model/types"
 import type { ProjectArrangement } from "../projects/project-arrangement"
 import type { ProjectStatus } from "../projects/project-status"
 import { WorkspaceSwitcher } from "../projects/WorkspaceSwitcher"

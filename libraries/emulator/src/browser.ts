@@ -1,6 +1,6 @@
-// xterm and the addons a browser screen loads, from the one place that pins them.
-export { Terminal } from "@xterm/xterm"
-export type { IDisposable, IEvent, ILinkHandler, ITheme } from "@xterm/xterm"
-export { FitAddon } from "@xterm/addon-fit"
-export { WebLinksAddon } from "@xterm/addon-web-links"
-export { WebglAddon } from "@xterm/addon-webgl"
+// The browser emulator: xterm's terminal in a view, and the pool that draws it with WebGL.
+export { createView } from "./view.js"
+export type { View, ViewLinks, ViewOptions, ViewRenderer } from "./view.js"
+export { createRenderers, loadWebgl, webglRenderers } from "./renderer.js"
+export type { Drawing, RendererDeps, Renderers, ScreenRenderer } from "./renderer.js"
+export type { IDisposable, ITheme, Terminal } from "@xterm/xterm"

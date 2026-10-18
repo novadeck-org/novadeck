@@ -1,4 +1,5 @@
-import { MURMUR_NAME } from "../model/murmur"
+import { MURMUR_NAME } from "#core/murmur"
+
 import { context, describe, expect, it } from "../test"
 import { terminalFixture } from "../test/fixtures"
 import { windowMenu } from "./window-menu"

@@ -1,6 +1,8 @@
 import { createKept, type ViewerState } from "@novadeck/viewers"
 import { mountCode, type CodeContent } from "@novadeck/viewers/code"
+import { mountImage, type ImageContent as Image } from "@novadeck/viewers/image"
 import { useViewer } from "@novadeck/viewers/react"
+import { outline } from "@novadeck/viewers/text"
 import { ArrowLeft, ArrowRight, ExternalLink, RotateCw } from "lucide-react"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
@@ -12,11 +14,12 @@ import {
   type ItemContent,
   type PageContent,
   type UnavailableReason,
-} from "../../model/companion"
+} from "#core/companion"
+
 import { useShown } from "../../ui-toolkit/shown"
 import { isMarkdown } from "./artifact-icons"
 import { DocumentViewer } from "./DocumentViewer"
-import { headingsOf, titleOf } from "./plan-text"
+import { titleOf } from "./plan-text"
 import { createWebview, type WebviewElement } from "./webview"
 
 // Viewers for what an agent shows beside its terminal, as it loads from the file or page
@@ -31,15 +34,26 @@ import { createWebview, type WebviewElement } from "./webview"
 // What the place showing an artifact offers for it, at the end of its viewer's header.
 type Actions = { actions?: ReactNode }
 
+// Where each image's viewer was, by item: its zoom and where it was scrolled.
+const imageStates = createKept<ViewerState>(24)
+
 const ImageViewer = ({
   artifact,
-  content,
+  content: image,
   actions,
 }: Actions & {
   artifact: CompanionItem
   content: ImageContent
 }): React.JSX.Element => {
   const [actual, setActual] = useState(false)
+  const content = useMemo((): Image => ({ src: image.src, alt: artifact.name }), [image, artifact])
+  const { ref, viewer } = useViewer(mountImage, {
+    id: artifact.id,
+    content,
+    label: artifact.name,
+    kept: imageStates,
+    onZoom: setActual,
+  })
   return (
     <>
       <div className="artifact-meta">
@@ -51,7 +65,7 @@ const ImageViewer = ({
             className="segment"
             data-state={actual ? "off" : "on"}
             aria-pressed={!actual}
-            onClick={() => setActual(false)}
+            onClick={() => viewer?.zoom(false)}
           >
             Fit
           </button>
@@ -59,16 +73,14 @@ const ImageViewer = ({
             className="segment"
             data-state={actual ? "on" : "off"}
             aria-pressed={actual}
-            onClick={() => setActual(true)}
+            onClick={() => viewer?.zoom(true)}
           >
             100%
           </button>
         </div>
         {actions}
       </div>
-      <div className="artifact-image" data-actual={actual}>
-        <img src={content.src} alt={artifact.name} />
-      </div>
+      <div ref={ref} className="artifact-image" />
     </>
   )
 }
@@ -96,7 +108,12 @@ const FileViewer = ({
     }),
     [artifact],
   )
-  const code = useViewer(mountCode, { id, content, label: artifact.path, kept: codeStates })
+  const { ref: code } = useViewer(mountCode, {
+    id,
+    content,
+    label: artifact.path,
+    kept: codeStates,
+  })
   return (
     <>
       <div className="artifact-meta">
@@ -329,7 +346,7 @@ export const ArtifactThumb = ({
     // A document in miniature, as a plan is: its title over its sections.
     <span className="peek-plan">
       <b>{titleOf(content.path, content.lines.join("\n"))}</b>
-      {headingsOf(content.lines.join("\n"))
+      {outline(content.lines.join("\n"))
         .slice(0, 4)
         .map((heading) => (
           <span key={heading.at}>{heading.text}</span>

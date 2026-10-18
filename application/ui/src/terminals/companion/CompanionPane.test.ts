@@ -1,9 +1,10 @@
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
-import type { Companions, ItemContent } from "../../model/companion"
-import { workspaceReducer } from "../../model/state"
-import { createWorkspaceStore } from "../../model/store"
+import type { Companions, ItemContent } from "#core/companion"
+import { workspaceReducer } from "#core/state"
+import { createWorkspaceStore } from "#core/store"
+
 import { context, describe, expect, it } from "../../test"
 import { itemFixture, workspaceFixture } from "../../test/fixtures"
 import { render } from "../../test/render"
@@ -20,10 +21,10 @@ const planItem = itemFixture("plan", "01", {
   path: "plan.md",
   plan: { agent: "Codex", role: "root", source: "file" },
 })
-const ready = (text: string): ItemContent => ({
+const ready = (text: string, writable = true, stamp = "1"): ItemContent => ({
   state: "ready",
-  stamp: "1",
-  content: { kind: "plan", text, truncated: false, writable: true, skill: true },
+  stamp,
+  content: { kind: "plan", text, truncated: false, writable, skill: true },
 })
 
 // A plan the test gives the content of, which nothing can save.
@@ -47,7 +48,15 @@ const shown = async () => {
   await act(async () => {
     await vi.dynamicImportSettled()
   })
-  return { panes, container, emit: (content: ItemContent) => act(() => emit(content)) }
+  // A new content applies once what it loads has, as revising a plan imports its sync.
+  const emitted = async (content: ItemContent): Promise<void> => {
+    await act(async () => {
+      emit(content)
+      await vi.dynamicImportSettled()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+  }
+  return { panes, container, emit: emitted }
 }
 
 describe("a plan whose file can't be read for now", () => {

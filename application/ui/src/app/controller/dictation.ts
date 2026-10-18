@@ -1,9 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from "react"
 
+import type { WorkspaceStore } from "#core/store"
+import type { TerminalMetadata, Workspace } from "#core/types"
+
 import type { TerminalKey } from "../../backend/port"
 import { currentPlatform, matchesShortcut, shortcutBindings } from "../../interaction/shortcuts"
-import type { WorkspaceStore } from "../../model/store"
-import type { TerminalMetadata, Workspace } from "../../model/types"
 import { chatDraftOf, chatShown, setChatDraft } from "../../terminals/chat/mode-state"
 import type { DictationControls } from "../../terminals/WindowShell"
 import { isAgentTerminal } from "../../voice/agent-terminal"

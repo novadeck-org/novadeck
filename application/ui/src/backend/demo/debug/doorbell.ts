@@ -1,4 +1,5 @@
-import type { MailWaits } from "../../../model/messages"
+import type { MailWaits } from "#core/messages"
+
 import type { Backend } from "../../port"
 import type { DemoActionGroup } from "./types"
 

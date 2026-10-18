@@ -1,7 +1,8 @@
 import { act, createElement } from "react"
 import { afterEach } from "vitest"
 
-import { SettleInTerminal } from "../../model/conversation"
+import { SettleInTerminal } from "#core/conversation"
+
 import { describe, expect, it } from "../../test"
 import { refusing } from "../../test/fixtures"
 import { render } from "../../test/render"

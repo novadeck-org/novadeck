@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react"
 
-import type { Tile } from "../../model/types"
+import type { Tile } from "#core/types"
+
 import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 import { Shown, useShown } from "../../ui-toolkit/shown"
 import { backgroundPointerHandlers } from "../background"

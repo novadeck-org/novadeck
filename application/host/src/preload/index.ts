@@ -11,6 +11,7 @@ import {
   type UninstallPlan,
   type UninstallResult,
 } from "@novadeck/protocol/bridge"
+import { relayPorts } from "@novadeck/wire/electron"
 import { contextBridge, ipcRenderer, webUtils } from "electron"
 
 import {
@@ -124,9 +125,8 @@ const uninstallResultOf = (value: unknown): UninstallResult => {
 }
 
 const bridge = {
-  requestRunner: (id) => {
-    if (typeof id === "string") ipcRenderer.send(runnerPortChannel, id)
-  },
+  // The page asks for each port to the runner; its answer comes as a window message.
+  requestRunner: relayPorts({ channel: runnerPortChannel, message: runnerPortMessage }),
   pickDirectory: async () => {
     const path: unknown = await ipcRenderer.invoke(directoryPickerChannel)
     return typeof path === "string" ? path : null
@@ -228,16 +228,6 @@ const bridge = {
     }
   },
 } satisfies DesktopBridge
-
-// The host compiles without DOM types; the preload uses only this member of the page.
-declare const window: {
-  postMessage(message: unknown, targetOrigin: string, transfer: readonly unknown[]): void
-}
-
-// A MessagePort cannot cross the context bridge, so it is relayed as a window message.
-ipcRenderer.on(runnerPortChannel, (event, id: string) => {
-  window.postMessage({ type: runnerPortMessage, id }, "*", event.ports)
-})
 
 contextBridge.exposeInMainWorld("novadeck", {
   apiUrl: apiUrl.href,

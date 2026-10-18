@@ -13,6 +13,7 @@ import {
   type VoiceTranscript,
   type VoiceUnavailable,
 } from "@novadeck/protocol"
+import { Versioned } from "@novadeck/wire/server"
 
 import { ActivityTracker, type Activity } from "../engines/activity.js"
 import { DownloadError, download } from "../engines/download.js"
@@ -21,7 +22,6 @@ import { readManifest, type Manifest } from "../engines/manifest.js"
 import { modelFile, pruneModels } from "../engines/models.js"
 import type { Launch } from "../engines/server.js"
 import { EngineError, engineFolder, exists } from "../engines/unpack.js"
-import { Watchers } from "../engines/watchers.js"
 import { DomainError } from "../errors.js"
 import type { VoiceSettingsChange } from "../workspaces/store.js"
 import { catalog as pinned, recommend, type Catalog } from "./catalog.js"
@@ -87,6 +87,9 @@ const hintMs = 500
 // network was down: soon enough to recover by itself, not once per clip.
 export const updateRetryMs = 60_000
 
+// How often install progress reaches watchers, at most.
+const progressMs = 100
+
 /**
  * Voice input: the engine and models people install, the settings, the clips being
  * recorded, and the transcribing of them. Everything on this machine.
@@ -116,7 +119,7 @@ export class Voice {
   private running:
     | { readonly done: Promise<void>; readonly controller: AbortController }
     | undefined
-  private readonly watchers = new Watchers<VoiceState>()
+  private readonly watchers = new Versioned<VoiceState>({ throttleMs: progressMs })
   // Transcriptions and install checks running now, which with open clips make voice busy.
   private working = 0
   private closed = false
@@ -495,7 +498,7 @@ export class Voice {
   }
 
   private assertOpen(): void {
-    if (this.closed) throw new DomainError("RUNTIME_CLOSING")
+    if (this.closed) throw new DomainError("CLOSING")
   }
 
   /** The engine's files, for voice input that is on and installed; VOICE_UNAVAILABLE, saying why, otherwise. */

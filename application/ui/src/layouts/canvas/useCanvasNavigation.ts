@@ -8,7 +8,8 @@ import {
 } from "@xyflow/react"
 import { useEffect, useRef, type RefObject } from "react"
 
-import type { CanvasLayout } from "../../model/types"
+import type { CanvasLayout } from "#core/types"
+
 import { centerOf, fitOptions } from "./geometry"
 import type { CanvasProps, CanvasViewport, TerminalNode } from "./types"
 import type { createCanvasVisit } from "./visit"

@@ -1,4 +1,5 @@
-import type { TerminalMetadata } from "../../model/types"
+import type { TerminalMetadata } from "#core/types"
+
 import { AgentOutput } from "./AgentOutput"
 import { demoAgent, sampleOutput } from "./samples"
 

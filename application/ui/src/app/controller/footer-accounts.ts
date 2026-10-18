@@ -1,13 +1,9 @@
 import { useCallback } from "react"
 
-import {
-  accountUsage,
-  sameAccounts,
-  type AgentAccount,
-  type AgentSeat,
-} from "../../model/account-usage"
-import type { Store } from "../../model/store"
-import type { Telemetry } from "../../model/telemetry"
+import { accountUsage, sameAccounts, type AgentAccount, type AgentSeat } from "#core/account-usage"
+import type { Store } from "#core/store"
+import type { Telemetry } from "#core/telemetry"
+
 import { useStoreSelector } from "./useStoreSelector"
 
 // The footer's subscriptions, worked out from what the running agents report: a new list

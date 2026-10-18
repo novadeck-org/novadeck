@@ -18,6 +18,15 @@ catalogs:
     '@orpc/standard-server-peer':
       specifier: 1.15.5
       version: 1.15.5
+    electron:
+      specifier: ^44.7.0
+      version: 44.7.0
+    node-pty:
+      specifier: 1.2.0-beta.14
+      version: 1.2.0-beta.14
+    ws:
+      specifier: 8.22.0
+      version: 8.22.0
     zod:
       specifier: 4.6.5
       version: 4.6.5
@@ -83,7 +92,7 @@ importers:
         specifier: 6.8.9
         version: 6.8.9(supports-color@10.2.2)
       node-pty:
-        specifier: 1.2.0-beta.14
+        specifier: 'catalog:'
         version: 1.2.0-beta.14(patch_hash=c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224)
     devDependencies:
       '@novadeck/protocol':
@@ -108,7 +117,7 @@ importers:
         specifier: ^10.0.6
         version: 10.0.6
       electron:
-        specifier: ^44.7.0
+        specifier: 'catalog:'
         version: 44.7.0(supports-color@10.2.2)
       electron-builder:
         specifier: ^26.15.3
@@ -198,6 +207,9 @@ importers:
       '@novadeck/whisper':
         specifier: workspace:*
         version: link:../../engines/whisper
+      '@novadeck/wire':
+        specifier: workspace:*
+        version: link:../../libraries/wire
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.15.5(ws@8.22.0)
@@ -205,10 +217,10 @@ importers:
         specifier: ^4.13.13
         version: 4.13.13
       node-pty:
-        specifier: 1.2.0-beta.14
+        specifier: 'catalog:'
         version: 1.2.0-beta.14(patch_hash=c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224)
       ws:
-        specifier: 8.22.0
+        specifier: 'catalog:'
         version: 8.22.0
       zod:
         specifier: 'catalog:'
@@ -217,9 +229,6 @@ importers:
       '@novadeck/sandbox':
         specifier: workspace:*
         version: link:../../libraries/sandbox
-      '@novadeck/wire':
-        specifier: workspace:*
-        version: link:../../libraries/wire
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -244,12 +253,6 @@ importers:
       '@ark-ui/react':
         specifier: ^5.39.3
         version: 5.39.3(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
-      '@codemirror/commands':
-        specifier: ^6.11.1
-        version: 6.11.1
-      '@codemirror/language':
-        specifier: ^6.13.1
-        version: 6.13.1
       '@codemirror/state':
         specifier: ^6.7.6
         version: 6.7.6
@@ -271,9 +274,6 @@ importers:
       '@fontsource/share-tech-mono':
         specifier: 5.3.0
         version: 5.3.0
-      '@lezer/markdown':
-        specifier: ^1.8.0
-        version: 1.8.0
       '@novadeck/emulator':
         specifier: workspace:*
         version: link:../../libraries/emulator
@@ -314,6 +314,9 @@ importers:
         specifier: ^3.3.1
         version: 3.7.0
     devDependencies:
+      '@novadeck/build-kit':
+        specifier: workspace:*
+        version: link:../../tools/build-kit
       '@novadeck/runner':
         specifier: workspace:*
         version: link:../runner
@@ -607,7 +610,7 @@ importers:
         specifier: 4.10.2
         version: 4.10.2
       node-pty:
-        specifier: 1.2.0-beta.14
+        specifier: 'catalog:'
         version: 1.2.0-beta.14(patch_hash=c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224)
       typescript:
         specifier: ^7.0.2
@@ -634,6 +637,12 @@ importers:
 
   libraries/viewers:
     dependencies:
+      '@codemirror/commands':
+        specifier: ^6.11.1
+        version: 6.11.1
+      '@codemirror/language':
+        specifier: ^6.13.1
+        version: 6.13.1
       '@lezer/common':
         specifier: ^1.5.3
         version: 1.5.3
@@ -677,6 +686,12 @@ importers:
         specifier: ^1.0.4
         version: 1.0.4
     devDependencies:
+      '@codemirror/state':
+        specifier: ^6.7.6
+        version: 6.7.6
+      '@codemirror/view':
+        specifier: ^6.43.14
+        version: 6.43.14
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -716,6 +731,9 @@ importers:
       '@orpc/standard-server-peer':
         specifier: 'catalog:'
         version: 1.15.5
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.5
     devDependencies:
       '@orpc/server':
         specifier: 'catalog:'
@@ -723,9 +741,33 @@ importers:
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
+      '@types/ws':
+        specifier: 8.18.2
+        version: 8.18.2
+      electron:
+        specifier: 'catalog:'
+        version: 44.7.0(supports-color@10.2.2)
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@26.6.5)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(jsdom@30.1.2(@noble/hashes@2.4.0))(msw@2.15.0(@types/node@26.6.5)(typescript@7.0.2))(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+      ws:
+        specifier: 'catalog:'
+        version: 8.22.0
+
+  tools/build-kit:
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vite:
+        specifier: ^7.3.6
+        version: 7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
       vitest:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@26.6.5)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(jsdom@30.1.2(@noble/hashes@2.4.0))(msw@2.15.0(@types/node@26.6.5)(typescript@7.0.2))(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))

@@ -1,4 +1,4 @@
-import type { AgentStats } from "../model/agent-usage"
+import type { AgentStats } from "#core/agent-usage"
 
 const radius = 5.5
 const circumference = 2 * Math.PI * radius

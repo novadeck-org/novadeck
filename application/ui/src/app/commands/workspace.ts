@@ -1,8 +1,7 @@
-import type { TerminalRequest } from "../../backend/port"
-import { addCompactGridTerminal } from "../../model/layout/grid-placement"
-import { canvasNewTerminalSize } from "../../model/layout/terminal-size"
-import { tilesOf } from "../../model/roster"
-import { activeProject, type WorkspaceAction } from "../../model/state"
+import { addCompactGridTerminal } from "#core/layout/grid-placement"
+import { canvasNewTerminalSize } from "#core/layout/terminal-size"
+import { tilesOf } from "#core/roster"
+import { activeProject, type WorkspaceAction } from "#core/state"
 import type {
   PreferencesValue,
   Project,
@@ -11,7 +10,9 @@ import type {
   WorkspaceProject,
   WorkspaceSession,
   WorkspaceTarget,
-} from "../../model/types"
+} from "#core/types"
+
+import type { TerminalRequest } from "../../backend/port"
 import {
   moveProject as arrangeMove,
   pinAt,

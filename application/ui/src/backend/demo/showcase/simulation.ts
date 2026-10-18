@@ -10,8 +10,9 @@ import {
   type ItemContent,
   type ItemId,
   type PlanVersion,
-} from "../../../model/companion"
-import type { WorkspaceTarget } from "../../../model/types"
+} from "#core/companion"
+import type { WorkspaceTarget } from "#core/types"
+
 import type { BackendAction } from "../../port"
 import type { SampleAgent } from "./agents"
 import type { SampleArtifact } from "./artifacts"

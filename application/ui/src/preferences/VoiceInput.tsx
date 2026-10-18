@@ -1,9 +1,10 @@
 import { useState, type RefObject } from "react"
 
+import { refusalText } from "#core/addon"
+import { formatSize, stepLabel } from "#core/addon-format"
+import { installSize, type Voice, type VoiceState } from "#core/voice"
+
 import { dictationKeys } from "../interaction/shortcuts"
-import { refusalText } from "../model/addon"
-import { formatSize, stepLabel } from "../model/addon-format"
-import { installSize, type Voice, type VoiceState } from "../model/voice"
 import { Chord } from "../ui-toolkit/Chord"
 import { ConfirmDialog } from "../ui-toolkit/ConfirmDialog"
 import { Select } from "../ui-toolkit/Select"

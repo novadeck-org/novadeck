@@ -1,14 +1,15 @@
 import { ArrowUp, Square, X } from "lucide-react"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
-import { SettleInTerminal } from "../../model/conversation"
+import { SettleInTerminal } from "#core/conversation"
 import {
   controlHint,
   hasControlCharacters,
   messageHint,
   shellCommand,
   type Refused,
-} from "../../model/prompt-refusal"
+} from "#core/prompt-refusal"
+
 import { Tooltip } from "../../ui-toolkit/Tooltip"
 import { oneLine } from "./answers"
 import { Hint } from "./Hint"

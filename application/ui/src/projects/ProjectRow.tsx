@@ -2,7 +2,8 @@ import { useSortable } from "@dnd-kit/react/sortable"
 import { Pin, PinOff, Trash2 } from "lucide-react"
 import { useEffect, useRef } from "react"
 
-import type { Project } from "../model/types"
+import type { Project } from "#core/types"
+
 import { Tooltip } from "../ui-toolkit/Tooltip"
 import { statusText, type ProjectStatus } from "./project-status"
 
