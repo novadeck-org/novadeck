@@ -26,7 +26,7 @@ const iconButtonCss = readFileSync(
 )
 
 describe("the icon button's open look", () => {
-  it("keys on what every open select, menu or popover trigger says, not on Ark's state", async () => {
+  it("keys on what every open select, menu or popover trigger says, not on Ark's state", () => {
     expect(iconButtonCss).toContain(`${openTrigger} {`)
   })
 })

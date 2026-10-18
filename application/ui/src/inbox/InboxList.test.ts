@@ -185,7 +185,8 @@ describe("The Inbox's list", () => {
       }
       await press("j")
       expect(current()).toBe("b")
-      await press("j")
+      // Two quick presses, with no frame between them, still both move.
+      inbox.press("j")
       await press("j")
       expect(current()).toBe("c")
       await press("k")

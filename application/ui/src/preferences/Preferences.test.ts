@@ -1,8 +1,8 @@
-import { act, createElement, type ComponentProps } from "react"
+import { createElement, type ComponentProps } from "react"
 import { afterEach, vi } from "vitest"
 
 import { describe, expect, it } from "../test"
-import { render, type Rendered } from "../test/render"
+import { nextFrame, render, type Rendered } from "../test/render"
 import { Preferences } from "./Preferences"
 import { readPreferences } from "./preferences-storage"
 
@@ -32,7 +32,7 @@ const show = async (addons: Partial<ComponentProps<typeof Preferences>>): Promis
   )
   mounted.push(page)
   // The tabs' segment group measures its indicator a frame later: let that frame pass here.
-  await act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())))
+  await nextFrame()
 }
 
 const tabs = (): string[] =>

@@ -48,7 +48,8 @@ vi.hoisted(() => {
 type Terminal = EmulatorTerminal
 
 // Waits as vi.waitFor does, inside act: what the surface's stores tell it meanwhile, as a
-// screen's stream once its attachment answers, renders as part of the test.
+// screen's stream once its attachment answers, renders as part of the test. Only a store's
+// update renders before the wait ends; a component's own state set meanwhile waits for it.
 const until = <T>(check: () => T, options?: Parameters<typeof vi.waitFor>[1]): Promise<T> =>
   act(() => vi.waitFor(check, options))
 
