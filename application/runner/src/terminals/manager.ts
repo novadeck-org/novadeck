@@ -6,7 +6,6 @@ import { basename, delimiter, isAbsolute, join, resolve as resolvePath } from "n
 import { setTimeout as sleep } from "node:timers/promises"
 
 import {
-  mouseReporting,
   readScreen,
   replay,
   transcript as transcriptOf,
@@ -52,6 +51,7 @@ import { TerminalError } from "@novadeck/terminal"
 import {
   createTerminal,
   type Attachment,
+  noHold,
   type RunSpec,
   type Terminal,
   type TerminalOptions as HostOptions,
@@ -164,7 +164,6 @@ import { expectedAgent, promptIn } from "./commands.js"
 import { Dialogs, type DialogsHost, type DialogsOptions } from "./dialogs.js"
 import { Doorbell, tracer, type DoorbellHost, type DoorbellOptions } from "./doorbell.js"
 import { mention, nextHandle, wordOf } from "./handles.js"
-import { splitReports } from "./keys.js"
 import { leftoverNonce } from "./leftover.js"
 import {
   Murmur,
@@ -431,33 +430,6 @@ type Record = {
    * binds its saved session again is not.
    */
   murmurSession: string | null
-  /**
-   * What waits while the input queue's work is at the agent's box (see `InputQueue`): the
-   * person's input, while a ring's test paste, a prompt's paste or an answer's keys are on
-   * screen (null once that's let go, after its Enter), and the latest size the app asked
-   * for, until the work has settled (a ring's prompt confirms it or it fails), as a
-   * resize redraws the screen the paste is checked on, and one landing as the doorbell's
-   * turn starts crashed Codex (0.159.3); null otherwise.
-   */
-  held: {
-    input: string[] | null
-    /** Whether the keys held count as the person's only once delivered (an answer's hold may drop them). */
-    deferred?: boolean
-    /**
-     * When the resizes may be applied at the earliest, in epoch milliseconds: a settle
-     * before it waits (see `InputHold.settleAfter`), and the next hold takes it over.
-     */
-    notBefore?: number
-    size: {
-      readonly cols: number
-      readonly rows: number
-      readonly owner: string
-      /** The owner's attachment that asked, as a window showing it anew attaches again. */
-      readonly attachment: Attachment | undefined
-    } | null
-  } | null
-  /** When its window was last resized, in epoch milliseconds; 0 before any resize. */
-  resizedAt: number
   /** The handle of the terminal whose agent opened this one; null otherwise. */
   openedBy: string | null
   /**
@@ -1101,8 +1073,6 @@ export class Terminals {
         root: null,
         work,
         murmurSession: work?.session ?? null,
-        held: null,
-        resizedAt: 0,
         openedBy,
         openerCommand: opener?.command ?? null,
         // Only a session the opener's command started, running an agent, is the opener's.
@@ -1307,27 +1277,8 @@ export class Terminals {
     const record = this.control(input.terminalId, ownerId)
     this.running(record)
     // While the doorbell's test paste, or an answer's keys, are on screen, the person's
-    // keys wait their turn; the terminal's own reports never do.
-    const held = record.held?.input ? record.held : undefined
-    if (held?.input) {
-      const { reports, typed } = splitReports(
-        input.data,
-        this.reportingOf(record),
-        held.deferred === true,
-      )
-      if (reports) record.terminal.pty.write(reports)
-      // An answer's hold drops the mouse's wheel and motion reports it was given back as
-      // `mouse`, never replaying them.
-      if (typed) {
-        // An answer's hold may drop them: they count once they are delivered.
-        if (!held.deferred) this.keyed(record, typed)
-        held.input.push(typed)
-      }
-      return
-    }
-    this.keyed(record, input.data)
-    // node-pty accepts each write synchronously; no input is retried after an uncertain delivery.
-    record.terminal.pty.write(input.data)
+    // keys wait their turn (see `keyed`, which they reach when they count).
+    record.terminal.input(input.data)
   }
 
   /**
@@ -1405,15 +1356,6 @@ export class Terminals {
     return record
   }
 
-  /** Which reports the terminal's TUI asked for, as its screen shows. */
-  private reportingOf(record: Record) {
-    const { modes } = record.terminal.screen
-    return {
-      mouse: mouseReporting(modes.mouseTrackingMode, record.terminal.mouse()),
-      focus: modes.sendFocusMode,
-    }
-  }
-
   /**
    * What the person's keys do beyond reaching the terminal, for what watches them: whether
    * a request waits on them, and what they did to the agent's box, which messaging's
@@ -1422,7 +1364,7 @@ export class Terminals {
    */
   private keyed(record: Record, data: string): void {
     const queueKey = record.binding ? harnesses[record.binding.agent].messaging.queueKey : undefined
-    const keys = keysOf(data, queueKey, this.reportingOf(record))
+    const keys = keysOf(data, queueKey, record.terminal.reporting())
     if (keys.length === 0) return
     // A prompt whose trust is still being checked is no longer known empty after a key.
     record.titles = (record.titles ?? 0) + 1
@@ -1594,88 +1536,9 @@ export class Terminals {
    * before may be, which this hold takes over.
    */
   private holdInput(terminalId: string, budget: HoldBudget): InputHold {
-    const live = (id: string) => this.live(id)
-    const record = live(terminalId)
-    const none = {
-      release: () => {},
-      settle: () => {},
-      settleAfter: () => {},
-      holding: () => false,
-      discard: () => {},
-    }
-    if (!record || record.held?.input) return none
-    const held: NonNullable<Record["held"]> = {
-      input: [],
-      size: record.held?.size ?? null,
-      ...(record.held?.notBefore !== undefined && { notBefore: record.held.notBefore }),
-      ...(budget.deferred && { deferred: true }),
-    }
-    record.held = held
-    let lapse: ReturnType<typeof setTimeout> | undefined
-    const release = () => {
-      clearTimeout(inputCap)
-      const { input } = held
-      if (record.held !== held || !input) return
-      held.input = null
-      if (input.length === 0 || live(terminalId) !== record) return
-      if (held.deferred) this.keyed(record, input.join(""))
-      record.terminal.pty.write(input.join(""))
-    }
-    const settle = () => {
-      release()
-      if (record.held !== held) return
-      // Taken over from a hold whose last key was pressed lately: the resizes keep waiting
-      // until it has lapsed, as one landing as a turn starts crashed Codex.
-      const wait = (held.notBefore ?? 0) - Date.now()
-      if (wait > 0) {
-        clearTimeout(lapse)
-        lapse = setTimeout(settle, wait)
-        lapse.unref()
-        return
-      }
-      finish()
-    }
-    const finish = () => {
-      release()
-      clearTimeout(sizeCap)
-      clearTimeout(lapse)
-      if (record.held !== held) return
-      record.held = null
-      if (live(terminalId) !== record) return
-      // Only for the attachment still in control: one that took over meanwhile, or
-      // the same window attached anew, was told the size in force and asks its own.
-      const { size } = held
-      if (
-        !size ||
-        record.terminal.controller !== size.owner ||
-        record.terminal.attachment(size.owner) !== size.attachment
-      )
-        return
-      try {
-        this.applySize(record, size)
-      } catch {
-        // A shell that exited meanwhile takes no size; its exit is handled in turn.
-      }
-    }
-    // A ring or a prompt takes well under these; should it not, the person's keys, then
-    // the app's sizes, go on.
-    const inputCap = setTimeout(release, budget.inputMs)
-    inputCap.unref()
-    // Past the input's own cap, as an answer's hold needs, the resizes stay held too.
-    const sizeCap = setTimeout(finish, budget.sizeMs)
-    sizeCap.unref()
-    return {
-      release,
-      settle,
-      settleAfter: (ms) => {
-        held.notBefore = Date.now() + ms
-        settle()
-      },
-      holding: () => record.held === held && held.input !== null && live(terminalId) === record,
-      discard: () => {
-        if (held.input) held.input.length = 0
-      },
-    }
+    const record = this.live(terminalId)
+    if (!record) return noHold
+    return record.terminal.hold(budget, () => this.live(terminalId) === record)
   }
 
   /** What prompts ask of the terminals and messaging. */
@@ -1703,7 +1566,7 @@ export class Terminals {
         const record = this.live(terminalId)
         if (!record) return false
         this.keyed(record, data)
-        record.terminal.pty.write(data)
+        record.terminal.type(data)
         return true
       },
     }
@@ -1724,13 +1587,13 @@ export class Terminals {
         const record = this.live(terminalId)
         if (!record) return false
         this.keyed(record, data)
-        record.terminal.pty.write(data)
+        record.terminal.type(data)
         return true
       },
       write: (terminalId, data) => {
         const record = this.live(terminalId)
         if (!record) return false
-        record.terminal.pty.write(data)
+        record.terminal.type(data)
         return true
       },
     }
@@ -1784,7 +1647,7 @@ export class Terminals {
         const record = this.live(terminalId)
         if (!record) return false
         this.keyed(record, data)
-        record.terminal.pty.write(data)
+        record.terminal.type(data)
         return true
       },
       prompt: (entry, terminalId, text) => this.prompts.promptIn(entry, terminalId, text),
@@ -2034,11 +1897,11 @@ export class Terminals {
         ])
         return held === undefined || own === undefined ? undefined : held === own
       },
-      resizedAt: (terminalId) => live(terminalId)?.resizedAt ?? 0,
+      resizedAt: (terminalId) => live(terminalId)?.terminal.resizedAt ?? 0,
       write: (terminalId, data) => {
         const record = live(terminalId)
         if (!record) return false
-        record.terminal.pty.write(data)
+        record.terminal.type(data)
         return true
       },
     }
@@ -2047,24 +1910,7 @@ export class Terminals {
   resize(input: { terminalId: string; cols: number; rows: number }, ownerId: string): void {
     const record = this.control(input.terminalId, ownerId)
     this.running(record)
-    // While the doorbell rings, a resize would redraw the screen its paste is checked on,
-    // or land as its turn starts: the latest waits for the ring's hold to settle.
-    if (record.held) {
-      record.held.size = {
-        cols: input.cols,
-        rows: input.rows,
-        owner: ownerId,
-        attachment: record.terminal.attachment(ownerId),
-      }
-      return
-    }
-    this.applySize(record, input)
-  }
-
-  private applySize(record: Record, { cols, rows }: { cols: number; rows: number }): void {
-    // Only a new size redraws the screen, as a window attaching again may ask for the same.
-    if (cols !== record.summary.cols || rows !== record.summary.rows) record.resizedAt = Date.now()
-    record.terminal.resize(cols, rows)
+    record.terminal.resize(input.cols, input.rows, ownerId)
   }
 
   /**
@@ -2153,7 +1999,6 @@ export class Terminals {
               binding: null,
               suspended: null,
               root: null,
-              held: null,
               seenEntry: undefined,
               shellName: shellProcess(shell)?.name,
               activity: null,
@@ -3343,6 +3188,8 @@ export class Terminals {
     terminal.on("cwd", (cwd, child) => this.prompted(record, child, cwd))
     // No marker keeps a line that is no longer the one it marked.
     terminal.on("reset", () => this.forgetPrompts(record))
+    // What the person's keys did, once they count.
+    terminal.on("keys", (keys) => this.keyed(record, keys))
   }
 
   /**
