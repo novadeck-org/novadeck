@@ -298,6 +298,21 @@ describe("a terminal's hold", () => {
     expect(program.calls).not.toContain("resize 30x5")
   })
 
+  it("is dropped by a restart, so the new run's sizes apply at once", async () => {
+    const { terminal, runs, settled } = terminalOf({ runs: 2, controller: "window" })
+    const [first, second] = runs as [Program, Program]
+    // A hold the earlier run's work never settled, its size still waiting.
+    terminal.hold(budget, live)
+    terminal.resize(30, 5, "window")
+    first.exit(0)
+    await settled()
+    await terminal.enqueue(() => terminal.restart(specOf(), "window", () => {}))
+    terminal.resize(40, 6, "window")
+    expect(second.calls).toContain("resize 40x6")
+    expect(second.calls).not.toContain("resize 30x5")
+    expect(first.calls).not.toContain("resize 30x5")
+  })
+
   it("refuses a second hold while one holds the input, and holds nothing where the terminal doesn't run", () => {
     const { terminal } = terminalOf()
     const first = terminal.hold(budget, live)

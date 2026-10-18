@@ -295,7 +295,7 @@ describe("terminal interrupts", () => {
       {
         binding: unknown
         activity: unknown
-        terminal: { pty: { write: (data: string) => void } }
+        terminal: { pty: { write: (data: string) => void }; resizedAt: number }
       }
     >
   }
@@ -331,7 +331,7 @@ describe("terminal interrupts", () => {
   it("hands the resizes a lapsed hold left held to the next hold, and applies them once it settles", async ({
     terminals,
   }) => {
-    const { manager, id } = await agent(terminals, "idle")
+    const { manager, id, record } = await agent(terminals, "idle")
     const inside = manager as unknown as {
       holdInput: (
         id: string,
@@ -353,8 +353,8 @@ describe("terminal interrupts", () => {
     expect(second.holding()).toBe(true)
     // The first's late settle changes nothing: the second holds them now.
     first.settle()
-    await new Promise((resolve) => setTimeout(resolve, 50))
-    expect(manager.get(id)).toMatchObject({ cols: 80, rows: 24 })
+    // A size applies at once to the pty, before its screen: none did.
+    expect(record.terminal.resizedAt).toBe(0)
     second.settle()
     await vi.waitFor(() => expect(manager.get(id)).toMatchObject({ cols: 100, rows: 30 }))
   })
