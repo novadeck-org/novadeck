@@ -91,7 +91,8 @@ tree with nothing to do, it says so and changes nothing.
    is gone. If any mention is left, the script exits non-zero.
 
 If it fails partway, in `git mv`, a write or the install, it says so with the way back:
-`git reset --hard`, delete the new folders, then run again. Nothing git doesn't track has
+`git reset --hard && git clean -fd backend contract tools/atlas`, then run again. `git clean -fd`
+keeps what git ignores, such as a `.env` made at a new place. Nothing git doesn't track has
 moved by then. If the carry fails, the move is done, and the script says to move what is left
 at the old places by hand.
 

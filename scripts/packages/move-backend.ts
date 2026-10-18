@@ -104,8 +104,9 @@ try {
 } catch (error) {
   console.error(
     `The move stopped partway: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}\n` +
-      "The tree is half moved, and nothing git doesn't track has moved yet. Run `git reset --hard`, " +
-      "delete the new folders (backend/, contract/, tools/atlas), then run the script again.",
+      "The tree is half moved, and nothing git doesn't track has moved yet. Run " +
+      "`git reset --hard && git clean -fd backend contract tools/atlas`, which keeps what git " +
+      "ignores there, then run the script again.",
   )
   process.exit(1)
 }

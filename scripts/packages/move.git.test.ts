@@ -40,6 +40,16 @@ const repo = () => {
   return { root, git, write }
 }
 
+/** A symbolic link at `path` to `../elsewhere`, and its target as read; none where not allowed. */
+const linked = (path: string): string | undefined => {
+  try {
+    symlinkSync("../elsewhere", path)
+  } catch {
+    return undefined
+  }
+  return readlinkSync(path)
+}
+
 const to = (file: string) =>
   file.startsWith("old/") ? `new/${file.slice("old/".length)}` : undefined
 
@@ -92,14 +102,16 @@ describe("what is left at an old place", () => {
     write("old/dist/cli.js")
     write("old/same.txt", "same")
     write("new/same.txt", "same")
-    symlinkSync("../elsewhere", join(root, "old/link"))
+    // A link, where the system lets the test make one (Windows may not); its target as the
+    // system wrote it, which on Windows takes backslashes, is the target it keeps.
+    const target = linked(join(root, "old/link"))
     const { carried, clashes } = carry(root, ["old"], to)
     expect(carried.map(({ to: place }) => place).toSorted()).toEqual([
-      "new/link",
+      ...(target === undefined ? [] : ["new/link"]),
       "new/src/generated/a.json",
     ])
     expect(clashes).toEqual(["old/.env (new/.env holds another)"])
-    expect(readlinkSync(join(root, "new/link"))).toBe("../elsewhere")
+    expect(target && readlinkSync(join(root, "new/link"))).toBe(target)
     expect(existsSync(join(root, "new/dist/cli.js"))).toBe(true)
     expect(existsSync(join(root, "new/node_modules"))).toBe(false)
     // What stands at the old place is the clash alone.
