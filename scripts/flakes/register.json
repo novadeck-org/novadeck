@@ -202,6 +202,17 @@
       "status": "known",
       "cause": "Antigravity's CLI exited at startup with \"CLI error: error entering raw mode: input/output error\", right after the macOS shell (bash 3.2) reported \"child setpgid (N to N): Operation not permitted\", so the terminal never bound an agent. Suspected: a race in which the CLI leaves bash's process group (as by setsid) before bash puts it in its own, so it isn't in the terminal's foreground group and its tcsetattr fails with EIO. Seen once, on macOS; not reproduced on Linux.",
       "seen": ["#296 E2E run 39157554949 job 117763910444 (macOS)"]
+    },
+    {
+      "id": "package-windows-smoke-connect",
+      "jobs": ["^(?:Package [/-] )?Windows$"],
+      "signature": "page\\.evaluate: WireError: Could not connect\\.|could not reach the packaged runner after \\d+ ms",
+      "status": "known",
+      "cause": "Not a test: the packaged smoke check's first connection to the runner fails on Windows now and then. Both times it gave up 14 to 16 s after the app's launch, the launch plus the first connection's 10 s handshake limit, where a passing run reaches the shell in under 3 s; so the packaged runner sometimes takes over 10 s to start answering on a fresh Windows runner (suspected: a cold start, as Defender scanning the new package). The same limit applies to the app's own first connection. The smoke check now reports the failure's cause and how long it took, which the next occurrence will settle.",
+      "seen": [
+        "#295 Quality run, Package / Windows job 117742372717",
+        "#296 run 39167023271 job 117797708667 (Package / Windows)"
+      ]
     }
   ]
 }
