@@ -34,15 +34,28 @@ export type BuiltChunk = {
 
 // The module ids of the entry chunks and everything they import statically that belong to a
 // deferred library.
-export const firstChunkViolations = (bundle: Readonly<Record<string, BuiltChunk>>): string[] => {
-  const first = new Set<string>()
+// The chunks `from` and every chunk they import before they run.
+const reached = (
+  bundle: Readonly<Record<string, BuiltChunk>>,
+  from: readonly string[],
+): Set<string> => {
+  const found = new Set<string>()
   const visit = (fileName: string): void => {
-    if (first.has(fileName) || bundle[fileName]?.type !== "chunk") return
-    first.add(fileName)
+    if (found.has(fileName) || bundle[fileName]?.type !== "chunk") return
+    found.add(fileName)
     bundle[fileName].imports?.forEach(visit)
   }
-  for (const [fileName, chunk] of Object.entries(bundle))
-    if (chunk.type === "chunk" && chunk.isEntry) visit(fileName)
+  from.forEach(visit)
+  return found
+}
+
+const entries = (bundle: Readonly<Record<string, BuiltChunk>>): string[] =>
+  Object.entries(bundle)
+    .filter(([, chunk]) => chunk.type === "chunk" && chunk.isEntry)
+    .map(([fileName]) => fileName)
+
+export const firstChunkViolations = (bundle: Readonly<Record<string, BuiltChunk>>): string[] => {
+  const first = reached(bundle, entries(bundle))
   return [...first].flatMap((fileName) =>
     Object.keys(bundle[fileName]?.modules ?? {}).filter((id) => {
       const path = id.split("\\").join("/")
@@ -77,3 +90,41 @@ export const missingScreenStyles = (bundle: Readonly<Record<string, BuiltAsset>>
           : ""
       ).includes(screenRule),
   )
+
+// What the visitor build may weigh, gzipped: what the page loads first, and the demo, which
+// loads with its connection, the terminal emulator among it. Set from the first build with
+// the demo drawn as terminals (352 kB and 170 kB), with room to grow; the website's hero
+// waits on both.
+export const visitorBudgets = { first: 380_000, demo: 190_000 }
+
+// A built chunk's code and the module it stands for, as the budgets read it.
+export type WeighedChunk = BuiltChunk & {
+  readonly code?: string
+  readonly facadeModuleId?: string | null
+}
+
+// How the visitor build goes over its budgets, gzipped by `gzipped`; nothing for any other.
+export const budgetViolations = (
+  mode: string,
+  bundle: Readonly<Record<string, WeighedChunk>>,
+  gzipped: (code: string) => number,
+): string[] => {
+  if (mode !== "try") return []
+  const first = reached(bundle, entries(bundle))
+  const connect = Object.entries(bundle)
+    .filter(([, chunk]) =>
+      chunk.facadeModuleId?.split("\\").join("/").endsWith("/backend/demo/visitor/connect.ts"),
+    )
+    .map(([fileName]) => fileName)
+  const demo = [...reached(bundle, connect)].filter((fileName) => !first.has(fileName))
+  const weight = (files: Iterable<string>): number =>
+    [...files].reduce((sum, fileName) => sum + gzipped(bundle[fileName]?.code ?? ""), 0)
+  const over = (part: keyof typeof visitorBudgets, files: Iterable<string>): string[] => {
+    const size = weight(files)
+    return size > visitorBudgets[part]
+      ? [`its ${part} chunks weigh ${size} bytes gzipped, over ${visitorBudgets[part]}`]
+      : []
+  }
+  if (connect.length === 0) return ["it has no demo chunk to weigh"]
+  return [...over("first", first), ...over("demo", demo)]
+}

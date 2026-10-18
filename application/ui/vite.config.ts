@@ -1,4 +1,5 @@
 import { isAbsolute, relative, resolve } from "node:path"
+import { gzipSync } from "node:zlib"
 
 import { contentSecurityPolicy } from "@novadeck/build-kit/content-security-policy"
 import { fontsAsFiles } from "@novadeck/build-kit/fonts"
@@ -10,6 +11,7 @@ import { defineConfig, type Plugin } from "vite"
 
 import {
   boundaryViolations,
+  budgetViolations,
   firstChunkViolations,
   missingScreenStyles,
 } from "./src/bundle-boundary"
@@ -83,6 +85,10 @@ const bundleBoundary = (): Plugin => {
         this.error(
           `The ${mode} build loads the terminal emulator with its first chunk: ${early.join(", ")}`,
         )
+      }
+      const heavy = budgetViolations(mode, bundle, (code) => gzipSync(code).length)
+      if (heavy.length > 0) {
+        this.error(`The ${mode} build is over its budget: ${heavy.join("; ")}`)
       }
       if (missingScreenStyles(bundle)) {
         this.error(

@@ -3,7 +3,7 @@ import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { extname, join, normalize, resolve, sep } from "node:path"
 
-import { chromium, type Browser } from "playwright"
+import { chromium, type Browser, type Page } from "playwright"
 
 // `pnpm poster:try [dir]`: writes `poster-<scheme>-<width>.webp` into a built visitor demo
 // (`dist-try` unless a directory is given), for light and dark and for 1280 and 2560
@@ -13,6 +13,26 @@ import { chromium, type Browser } from "playwright"
 // them while the live demo loads, so the Try workflow makes them from the very build it
 // deploys. Needs the build and Playwright's Chromium (`playwright install chromium`).
 
+// Opens the demo held at its first frames, and waits until it has booted and Claude Code's
+// terminal has drawn its opening.
+const boot = async (page: Page, origin: string): Promise<void> => {
+  await page.goto(`${origin}/?embed&still`)
+  // Booted means the splash came and has left the page, and the header's view choice shows.
+  const splash = page.locator(".boot-splash")
+  await splash.waitFor({ state: "attached", timeout: bootTimeoutMs })
+  await splash.waitFor({ state: "detached", timeout: bootTimeoutMs })
+  await page
+    .getByRole("radiogroup", { name: "Workspace layout" })
+    .first()
+    .waitFor({ state: "visible", timeout: bootTimeoutMs })
+  // Claude Code's terminal has drawn its opening: its screen reader's tree holds the text the
+  // terminal wrote, and the DOM renderer's rows the same, whichever draws.
+  await page
+    .getByText("I’ll read the checkout layout")
+    .first()
+    .waitFor({ state: "visible", timeout: bootTimeoutMs })
+}
+
 // The hero's resting shape: twice as wide as tall, with the app laid out 1280 px wide.
 const viewport = { width: 1280, height: 640 }
 // A phone is served the smaller poster, a dense screen the larger.
@@ -20,6 +40,10 @@ const scales = [1, 2] as const
 // Keeps the interface's text crisp at around 60 KB for 1280 wide and 150 KB for 2560.
 const quality = 0.9
 const bootTimeoutMs = 30_000
+// How long the demo may take, held still, from the address to Claude Code's terminal drawn,
+// on a CPU four times slower than the machine's: the website gives up waiting at 15 s.
+export const bootBudgetMs = 8000
+const throttle = 4
 
 const schemes = ["light", "dark"] as const
 
@@ -121,21 +145,7 @@ const capture = async (
   const page = await context.newPage()
   // `still` holds the desk at its first frames, where the live app begins, so the swap
   // to it shows no jump and the plan arriving is the first thing to move.
-  await page.goto(`${origin}/?embed&still`)
-  // Booted means the splash came and has left the page, and the header's view choice shows.
-  const splash = page.locator(".boot-splash")
-  await splash.waitFor({ state: "attached", timeout: bootTimeoutMs })
-  await splash.waitFor({ state: "detached", timeout: bootTimeoutMs })
-  await page
-    .getByRole("radiogroup", { name: "Workspace layout" })
-    .first()
-    .waitFor({ state: "visible", timeout: bootTimeoutMs })
-  // Claude Code's terminal has drawn its opening: its screen reader's tree holds the text the
-  // terminal wrote, and the DOM renderer's rows the same, whichever draws.
-  await page
-    .getByText("I’ll read the checkout layout")
-    .first()
-    .waitFor({ state: "visible", timeout: bootTimeoutMs })
+  await boot(page, origin)
   await page.evaluate(settle)
   const png = await page.screenshot({ type: "png" })
   // The browser already does WebP, so no image library is needed. It does so on a blank
@@ -151,6 +161,24 @@ const capture = async (
   await context.close()
 }
 
+// How long the demo takes to boot on a slower CPU, failing above `bootBudgetMs`.
+const timeBoot = async (browser: Browser, origin: string): Promise<void> => {
+  const context = await browser.newContext({ viewport })
+  try {
+    const page = await context.newPage()
+    const cdp = await context.newCDPSession(page)
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle })
+    const started = performance.now()
+    await boot(page, origin)
+    const took = Math.round(performance.now() - started)
+    console.log(`boot at ${throttle}x CPU: ${took} ms (budget ${bootBudgetMs} ms)`)
+    if (took > bootBudgetMs)
+      throw new Error(`The demo booted in ${took} ms, over its ${bootBudgetMs} ms budget`)
+  } finally {
+    await context.close()
+  }
+}
+
 export const main = async (directory = "dist-try"): Promise<void> => {
   const root = resolve(directory)
   const { origin, stop } = await serve(root)
@@ -159,6 +187,8 @@ export const main = async (directory = "dist-try"): Promise<void> => {
   try {
     const browser = await chromium.launch()
     try {
+      // Timed alone, so the posters' captures don't share its CPU.
+      await timeBoot(browser, origin)
       await Promise.all(
         schemes.flatMap((scheme) =>
           scales.map((scale) => capture(browser, origin, root, scheme, scale)),

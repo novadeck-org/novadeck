@@ -1,8 +1,11 @@
 import {
   boundaryViolations,
+  budgetViolations,
   firstChunkViolations,
   missingScreenStyles,
+  visitorBudgets,
   type BuiltChunk,
+  type WeighedChunk,
 } from "./bundle-boundary"
 import { context, describe, expect, it } from "./test"
 
@@ -106,5 +109,48 @@ describe("the terminal screens' styles", () => {
     }
     expect(missingScreenStyles(bare)).toBe(true)
     expect(missingScreenStyles({})).toBe(true)
+  })
+})
+
+describe("the visitor build's budgets", () => {
+  // Chunks as heavy as their code is long, so a test says what each weighs.
+  const chunk = (code: string, fields: Partial<WeighedChunk> = {}): WeighedChunk => ({
+    type: "chunk",
+    code,
+    ...fields,
+  })
+  const weigh = (code: string): number => code.length
+  const built = (first: number, demoSize: number) => ({
+    "index.js": chunk("x".repeat(first), { isEntry: true, imports: ["shared.js"] }),
+    "shared.js": chunk(""),
+    "connect.js": chunk("y".repeat(demoSize), {
+      facadeModuleId: "/work/ui/src/backend/demo/visitor/connect.ts",
+      imports: ["shared.js", "emulator.js"],
+    }),
+    "emulator.js": chunk(""),
+  })
+
+  it("passes a build within them, weighing what it shares with the page once", () => {
+    expect(
+      budgetViolations("try", built(visitorBudgets.first, visitorBudgets.demo), weigh),
+    ).toEqual([])
+  })
+
+  it("fails a build whose first or demo chunks weigh more", () => {
+    expect(budgetViolations("try", built(visitorBudgets.first + 1, 0), weigh)).toHaveLength(1)
+    expect(budgetViolations("try", built(0, visitorBudgets.demo + 1), weigh)).toHaveLength(1)
+  })
+
+  it("fails a visitor build with no demo chunk to weigh, and asks nothing of the others", () => {
+    expect(budgetViolations("try", { "index.js": chunk("", { isEntry: true }) }, weigh)).toEqual([
+      "it has no demo chunk to weigh",
+    ])
+    expect(
+      budgetViolations(
+        "production",
+        built(visitorBudgets.first + 1, visitorBudgets.demo + 1),
+        weigh,
+      ),
+    ).toEqual([])
   })
 })
