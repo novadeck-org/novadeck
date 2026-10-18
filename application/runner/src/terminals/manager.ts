@@ -1738,15 +1738,9 @@ export class Terminals {
       screen: (terminalId) => this.screenOf(terminalId),
       shownAgent: (terminalId) => this.messaging.shownAgent(terminalId),
       alive,
-      exited: (terminalId, record, binding) =>
-        void this.queue(
-          terminalId,
-          () => {
-            if (record.binding === binding) this.endExited(record)
-            return Promise.resolve()
-          },
-          undefined,
-        ),
+      queued: (terminalId, work) =>
+        void this.queue(terminalId, () => Promise.resolve(work()), undefined),
+      endExited: (record) => this.endExited(record),
       messaging: this.messaging,
       working: (terminalId, activity) => this.working(terminalId, activity),
       stopping: () => this.stopping,
