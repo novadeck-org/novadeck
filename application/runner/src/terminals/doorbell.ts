@@ -1,16 +1,14 @@
-import { setTimeout as sleep } from "node:timers/promises"
-
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { doorbellLine, hookShellSlackMs } from "@novadeck/harness-core/harness"
 import {
-  bracketedPaste,
   calmMs,
-  freshNonce,
-  gate,
+  createTypist,
+  inputCapMs,
+  pasteMsOn,
   type InputEntry,
   type InputQueue,
+  type Typist,
 } from "@novadeck/tui-input"
-import { changedRows, checkPaste } from "@novadeck/tui-input/box"
 
 import type { Waits } from "../messaging/delivery.js"
 import { coalesced } from "./coalesce.js"
@@ -133,13 +131,15 @@ export type DoorbellOptions = {
  */
 export const confirmMs = (platform: NodeJS.Platform): number => 5_000 + hookShellSlackMs(platform)
 
-// How much longer than its test paste a ring holds the person's input, in milliseconds: a
-// safety cap, with room for the last looks and the Enter.
-const inputCapMs = 1_500
-
-// The longest it holds the app's resizes, in milliseconds: a safety cap beyond the wait for
-// the ring's prompt to confirm it.
-const sizeCapMs = 8_000
+/**
+ * The longest a ring holds the app's resizes, in milliseconds: a backstop for a settle that
+ * never comes, as the prompt's confirmation, or the failure at `confirmMs`, settles the
+ * hold. The hold starts before the paste, but the wait for the prompt starts at the Enter,
+ * which may come as late as the paste and the input cap allow, so the backstop outlasts
+ * all three.
+ */
+export const ringSizeCapMs = (pasteMs: number, confirm: number): number =>
+  pasteMs + inputCapMs + confirm
 
 /**
  * Wakes idle agents (see docs/agent-messaging.md, "The doorbell"): once messaging says a
@@ -161,11 +161,8 @@ export class Doorbell {
   private readonly boxCheck: boolean
   private readonly watchMs: number
   private readonly tickWindowMs: number
-  /** The rows of each terminal's screen as last seen, and when each row changed, lately. */
-  private readonly seen = new Map<
-    string,
-    { readonly rows: readonly string[]; readonly changes: Map<number, number[]> }
-  >()
+  /** What types into each terminal, once it is looked at. */
+  private readonly typists = new Map<string, Typist>()
   /** The nonce of the leftover line to submit, found by the look at an idle terminal. */
   private readonly leftovers = new Map<string, string>()
   private readonly maxFailures = 3
@@ -188,8 +185,6 @@ export class Doorbell {
   private readonly looked = new Map<string, number>()
   /** The stamp each stalled terminal had when its screen was last looked at. */
   private readonly lookedStamp = new Map<string, string>()
-  /** Each terminal's screen text as last seen, and since when. */
-  private readonly still = new Map<string, { readonly text: string; readonly since: number }>()
   /** Looks at each terminal changed, once a tick. */
   private readonly schedule = coalesced(
     (terminalId) => this.check(terminalId),
@@ -211,10 +206,7 @@ export class Doorbell {
   ) {
     this.now = options.now ?? Date.now
     this.pollMs = options.pollMs ?? 50
-    // A loaded Windows runner stalls the runner for a second at a time (probed on CI), so
-    // the screen is looked at less often than the test paste's check needs: more time there.
-    this.pasteMs =
-      options.pasteMs ?? ((options.platform ?? process.platform) === "win32" ? 4_000 : 1_500)
+    this.pasteMs = options.pasteMs ?? pasteMsOn(options.platform ?? process.platform)
     this.confirmMs = options.confirmMs ?? confirmMs(options.platform ?? process.platform)
     this.calmMs = options.calmMs ?? calmMs
     this.settleMs = options.settleMs ?? 6_000
@@ -247,10 +239,10 @@ export class Doorbell {
     this.settle(terminalId)
     clearTimeout(this.timers.get(terminalId))
     this.timers.delete(terminalId)
-    this.still.delete(terminalId)
     this.backoff.delete(terminalId)
     this.failures.delete(terminalId)
-    this.seen.delete(terminalId)
+    this.typists.get(terminalId)?.forget()
+    this.typists.delete(terminalId)
     this.looked.delete(terminalId)
     this.lookedStamp.delete(terminalId)
     this.notBefore.delete(terminalId)
@@ -307,6 +299,39 @@ export class Doorbell {
    */
   private note(terminalId: string, line: string): void {
     tracer.sink?.(terminalId, line)
+  }
+
+  /** What types into the terminal, over the host's reads and writes. */
+  private typist(terminalId: string): Typist {
+    const known = this.typists.get(terminalId)
+    if (known) return known
+    const { host } = this
+    const typist = createTypist(
+      {
+        type: (data) => host.write(terminalId, data),
+        screen: () => host.screen(terminalId),
+        get resizedAt() {
+          return host.resizedAt(terminalId)
+        },
+        holdsForeground: () => host.foreground(terminalId),
+      },
+      {
+        profile: (screen) => host.inputBox?.(terminalId, screen),
+        boxCheck: this.boxCheck,
+        timing: {
+          now: this.now,
+          pollMs: this.pollMs,
+          pasteMs: this.pasteMs,
+          calmMs: this.calmMs,
+          watchMs: this.watchMs,
+          tickWindowMs: this.tickWindowMs,
+          sizeCapMs: ringSizeCapMs(this.pasteMs, this.confirmMs),
+        },
+        trace: (line) => this.note(terminalId, line),
+      },
+    )
+    this.typists.set(terminalId, typist)
+    return typist
   }
 
   private async open(terminalId: string, again = false): Promise<number | undefined> {
@@ -369,19 +394,11 @@ export class Doorbell {
       this.looked.set(terminalId, this.now())
       this.lookedStamp.set(terminalId, this.host.stamp(terminalId))
     }
-    const screen = await this.host.screen(terminalId)
-    if (!screen) return undefined
-    const now = this.now()
-    this.observe(terminalId, screen.rows, now)
-    const text = screen.rows.join("\n")
-    let still = this.still.get(terminalId)
-    if (still?.text !== text) {
-      still = { text, since: now }
-      this.still.set(terminalId, still)
-    }
-    // A resize ends the calm too: the TUI may not have redrawn for it yet.
-    const calm = now - Math.max(still.since, this.host.resizedAt(terminalId))
-    if (calm < this.calmMs) {
+    const typist = this.typist(terminalId)
+    const look = await typist.look()
+    if (!look) return undefined
+    const { screen, at: now, calmFor: calm } = look
+    if (!look.calm) {
       this.note(terminalId, `screen not calm: ${Math.round(calm)} of ${this.calmMs} ms`)
       // A stalled terminal whose screen keeps changing is looked at less and less often.
       if (stalled) {
@@ -395,29 +412,14 @@ export class Doorbell {
       await this.recover(terminalId, screen, now - calm)
       return undefined
     }
-    const foreground = await this.host.foreground(terminalId)
-    const inputBox = this.boxCheck ? this.host.inputBox?.(terminalId, screen) : undefined
-    const verdict = gate(
-      {
-        ringable: this.host.ringable(terminalId),
-        calmMs: calm,
-        bracketedPaste: screen.bracketedPaste,
-        foreground,
-        ...(inputBox !== undefined && { inputBox }),
-      },
-      this.calmMs,
-    )
-    this.note(
-      terminalId,
-      `gate ${verdict} (foreground ${String(foreground)}, input box ${String(inputBox)}, bracketed paste ${screen.bracketedPaste})`,
-    )
+    const verdict = await typist.ready(look, () => !this.host.ringable(terminalId))
     if (verdict === "open") {
       this.backoff.delete(terminalId)
       this.notBefore.delete(terminalId)
       this.host.blocked(terminalId, null)
       return now - calm
     }
-    if (verdict !== "not-ringable") this.refused(terminalId, screen, verdict)
+    if (verdict !== "vetoed") this.refused(terminalId, screen, verdict)
     return undefined
   }
 
@@ -444,30 +446,6 @@ export class Doorbell {
       reading === "empty" || reading === "starting" ? "dialog" : reading,
     )
     this.later(terminalId, this.nextWait(terminalId))
-  }
-
-  /** Notes which rows of the terminal's screen changed since it was last seen. */
-  private observe(terminalId: string, rows: readonly string[], now: number): void {
-    const seen = this.seen.get(terminalId)
-    const changes = seen?.changes ?? new Map<number, number[]>()
-    if (seen)
-      for (const at of changedRows(seen.rows, rows))
-        changes.set(at, [...(changes.get(at) ?? []), now])
-    this.seen.set(terminalId, { rows, changes })
-  }
-
-  /** The rows that changed at least twice lately, with nothing of ours to cause it: ticking. */
-  private ticking(terminalId: string, now: number): ReadonlySet<number> {
-    const rows = new Set<number>()
-    const changes = this.seen.get(terminalId)?.changes
-    if (!changes) return rows
-    for (const [at, times] of changes) {
-      const lately = times.filter((time) => now - time <= this.tickWindowMs)
-      if (lately.length === 0) changes.delete(at)
-      else changes.set(at, lately)
-      if (lately.length >= 2) rows.add(at)
-    }
-    return rows
   }
 
   /** Whether three rings in a row failed and nothing has happened in the terminal since. */
@@ -582,95 +560,34 @@ export class Doorbell {
     if (this.closed) return
     const calmSince = await this.open(terminalId)
     if (calmSince === undefined) return
-    // Watch the screen for rows that change by themselves, which the paste's check then
-    // lets be. A change in any other row means the screen is not calm after all.
-    const ticking = await this.watch(terminalId)
-    if (ticking === undefined) return this.later(terminalId, this.calmMs)
-    const nonce = freshNonce()
-    const line = doorbellLine(nonce)
-    this.note(terminalId, `ring ${nonce} begins (ticking rows ${[...ticking].join(",") || "none"})`)
-    // Only a Ready terminal may lose a block of text as the line lands, as Codex's logo.
-    const vanish = this.host.ready(terminalId)
-    if (this.host.resizedAt(terminalId) > calmSince) return this.later(terminalId, this.calmMs)
-    if (!this.host.ring(terminalId, nonce)) return
-    const hold = entry.hold({ inputMs: this.pasteMs + inputCapMs, sizeMs: sizeCapMs })
-    let pressed = false
-    // Whether the paste check accepted the line: then it is alone in the agent's box.
-    let acceptedTwice = false
+    let started: string | undefined
+    let delivered
     try {
-      const before = await this.host.screen(terminalId)
-      // The box is looked at again now, on every platform: a key of the person's or a view
-      // since the calm may have left text in it or something else in its place.
-      if (before && this.boxCheck && this.host.inputBox?.(terminalId, before) === false) {
-        hold.settle()
-        this.failed(terminalId, nonce, false)
-        return
-      }
-      if (before && this.host.write(terminalId, bracketedPaste(line))) {
-        const until = this.now() + this.pasteMs
-        let landed: string | undefined
-        while (this.host.ringing(terminalId) === nonce) {
-          // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
-          await sleep(this.pollMs)
-          // eslint-disable-next-line no-await-in-loop -- As above.
-          const after = await this.host.screen(terminalId)
-          if (!after) break
-          const text = after.rows.join("\n")
-          const checked = checkPaste(before.rows, after.rows, line, { vanish, ticking })
-          const accepted = checked.accepted
-          if (!accepted && this.now() >= until)
-            this.note(terminalId, `ring ${nonce}: paste not accepted: ${checked.reason}`)
-          // Accepted twice running on the same screen, so it isn't caught mid-draw.
-          if (accepted && landed === text) {
-            acceptedTwice = true
-            this.note(terminalId, `ring ${nonce}: paste accepted, Enter`)
-            pressed =
-              hold.holding() &&
-              this.host.ringing(terminalId) === nonce &&
-              this.host.write(terminalId, "\r")
-            break
-          }
-          landed = accepted ? text : undefined
-          if (this.now() >= until) break
-        }
-      }
+      delivered = await this.typist(terminalId).deliver(entry, doorbellLine, {
+        // Only a Ready terminal may lose a block of text as the line lands, as Codex's logo.
+        vanish: () => this.host.ready(terminalId),
+        calmSince,
+        start: (nonce) => {
+          if (!this.host.ring(terminalId, nonce)) return false
+          started = nonce
+          return true
+        },
+        still: (nonce) => this.host.ringing(terminalId) === nonce,
+      })
     } catch (error) {
       // A throw (the screen's) fails the ring as any other end does: the nonce no longer
       // blocks prompts and answers, and the resizes go on.
-      hold.settle()
-      this.failed(terminalId, nonce)
+      if (started) this.failed(terminalId, started)
       throw error
-    } finally {
-      hold.release()
     }
-    if (!pressed) {
-      hold.settle()
-      this.failed(terminalId, nonce, true, acceptedTwice)
+    if (!delivered.entered) {
+      if (delivered.started)
+        this.failed(terminalId, delivered.nonce, delivered.counted, delivered.ours)
+      // Not calm after all, or resized since: looked at again once calm; refused: left.
+      else if (delivered.reason !== "declined") this.later(terminalId, this.calmMs)
       return
     }
-    this.confirming(terminalId, nonce, hold.settle)
-  }
-
-  /**
-   * Watches the terminal's screen for `watchMs` and returns the rows that tick by
-   * themselves; undefined when some other row changed meanwhile, or the terminal is gone.
-   */
-  private async watch(terminalId: string): Promise<ReadonlySet<number> | undefined> {
-    const began = this.now()
-    const until = began + this.watchMs
-    while (this.now() < until) {
-      // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
-      await sleep(Math.min(this.pollMs, Math.max(until - this.now(), 1)))
-      // eslint-disable-next-line no-await-in-loop -- As above.
-      const screen = await this.host.screen(terminalId)
-      if (!screen) return undefined
-      this.observe(terminalId, screen.rows, this.now())
-    }
-    const ticking = this.ticking(terminalId, this.now())
-    const changes = this.seen.get(terminalId)?.changes ?? new Map<number, number[]>()
-    for (const [at, times] of changes)
-      if (!ticking.has(at) && times.some((time) => time >= began)) return undefined
-    return ticking
+    this.confirming(terminalId, delivered.nonce, delivered.settle)
   }
 
   /**
@@ -690,22 +607,16 @@ export class Doorbell {
     const screen = await this.host.screen(terminalId)
     if (!screen || this.host.leftover(terminalId, screen) !== nonce) return
     if (!this.host.ringLeftover(terminalId, nonce)) return
-    const hold = entry.hold({ inputMs: this.pasteMs + inputCapMs, sizeMs: sizeCapMs })
-    let pressed = false
-    try {
-      pressed =
-        hold.holding() &&
-        this.host.ringing(terminalId) === nonce &&
-        this.host.write(terminalId, "\r")
-    } finally {
-      hold.release()
-    }
-    if (!pressed) {
-      hold.settle()
-      this.failed(terminalId, nonce, true, true)
+    const delivered = await this.typist(terminalId).submit(
+      entry,
+      nonce,
+      (now) => this.host.ringing(terminalId) === now,
+    )
+    if (!delivered.entered) {
+      this.failed(terminalId, nonce, delivered.counted, delivered.ours)
       return
     }
-    this.confirming(terminalId, nonce, hold.settle)
+    this.confirming(terminalId, nonce, delivered.settle)
   }
 
   /** The ring's Enter is pressed: its prompt confirms it, or it fails after `confirmMs`. */

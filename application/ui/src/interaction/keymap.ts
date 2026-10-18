@@ -257,9 +257,8 @@ export const routeKey = (
   if (keydown && (input.defaultPrevented || input.composing)) return []
   // A rename field keeps every key that reaches it.
   if (phase === "bubble" && input.target.rename) return []
-  const layers = (input.target.terminalInput && !input.target.chat ? fromTerminal : phaseLayers)[
-    phase
-  ]
+  const fromTerminalInput = input.target.terminalInput && !input.target.chat
+  const layers = (fromTerminalInput ? fromTerminal : phaseLayers)[phase]
   return layers.flatMap((layer) => {
     const candidates = bindings.filter(
       (binding) =>

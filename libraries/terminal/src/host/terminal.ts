@@ -1,14 +1,17 @@
 import {
   createScreen,
+  mouseReporting,
   snapshot as serialize,
   trackMouse,
   type MouseEncoding,
+  type Reporting,
   type Screen,
 } from "@novadeck/emulator/headless"
 
 import { TerminalError, type Exit, type TerminalEvent } from "../contract.js"
 import { spawnPty, type Disposable, type NativeSpawn, type Pty, type PtyExit } from "../pty/pty.js"
 import { osc7Directory, osc9Directory } from "../shell/osc.js"
+import { splitReports } from "./reports.js"
 import { Subscription } from "./subscription.js"
 
 type Snapshot = Extract<TerminalEvent, { type: "snapshot" }>
@@ -32,6 +35,46 @@ export type Attachment = {
   /** The next event, once the ack window lets it go; undefined once the attachment ended. */
   next(): Promise<TerminalEvent | undefined>
   cancel(): void
+}
+
+/** How long a hold's safety caps let it last, in milliseconds. */
+export type HoldBudget = {
+  /** How long the person's input is held at most. */
+  readonly inputMs: number
+  /** How long the window's resizes are held at most, or until `settle`. */
+  readonly sizeMs: number
+  /**
+   * Whether the keys held count as the person's only once delivered, as an answer's hold
+   * may drop them (see `discard`).
+   */
+  readonly deferred?: boolean
+}
+
+/** The person's input to a terminal, held for one piece of work at the agent's input box. */
+export type InputHold = {
+  /** Lets the person's input go on, writing the keys it held; the resizes stay held. */
+  readonly release: () => void
+  /** Lets the window's resizes go on too, releasing the input if it is still held. */
+  readonly settle: () => void
+  /**
+   * Lets the window's resizes go on in `ms`, after the work's last key: a `settle` before
+   * then, by this hold or by the one that takes it over, waits until then instead of
+   * applying them, as a resize as a turn starts may crash a TUI.
+   */
+  readonly settleAfter: (ms: number) => void
+  /** Whether the input is still held. */
+  readonly holding: () => boolean
+  /** Drops what the person typed while their input was held. */
+  readonly discard: () => void
+}
+
+/** A hold on a terminal that doesn't run: it holds nothing. */
+export const noHold: InputHold = {
+  release: () => {},
+  settle: () => {},
+  settleAfter: () => {},
+  holding: () => false,
+  discard: () => {},
 }
 
 /** A run of the terminal: its program, where it starts and the size it starts at. */
@@ -82,6 +125,8 @@ type Listeners = {
   cwd: (cwd: string, run: Pty) => void
   /** A full reset (ESC c) cleared the screen. */
   reset: () => void
+  /** Keys that count as the person's, just before they are written (see `input`). */
+  keys: (keys: string) => void
 }
 
 /**
@@ -101,6 +146,8 @@ export type Terminal = {
   mouse(): MouseEncoding
   /** Whether the current run's exit is queued or handled. */
   readonly exiting: boolean
+  /** The current run's exit, once handled; null while it runs. */
+  readonly exit: Exit | null
   /** The current run's exit, once handled. */
   readonly exited: Promise<void>
   /**
@@ -123,8 +170,30 @@ export type Terminal = {
   attachment(owner: string): Attachment | undefined
   /** Runs `work` once everything queued before it has, draws included. */
   enqueue<T>(work: () => T | Promise<T>): Promise<T>
-  /** Resizes the pty now, and the screen once the draws queued before are on it. */
-  resize(cols: number, rows: number): void
+  /**
+   * Resizes the pty now, and the screen once the draws queued before are on it. While a
+   * hold is in force, the latest size from `owner` waits until it settles.
+   */
+  resize(cols: number, rows: number, owner?: string): void
+  /** When a resize last changed the size, in epoch milliseconds; 0 before any. */
+  readonly resizedAt: number
+  /** What the terminal reports to its program now: the mouse and focus a TUI asked for. */
+  reporting(): Reporting
+  /**
+   * The controller's keys: written now, or, while a hold is in force, the terminal's own
+   * reports now and the keys once it releases. Keys that count as the person's are told to
+   * `keys` listeners first.
+   */
+  input(data: string): void
+  /** The holder's own writes, as a ring's paste or an answer's keys: never held. */
+  type(data: string): void
+  /**
+   * Holds the person's input for at most `budget.inputMs`, and the resizes until the hold
+   * settles or `budget.sizeMs` passes. Never in force with another, apart from one that only
+   * waits on its resizes, which this one takes over. `live` says whether the terminal still
+   * runs for its holder; a hold on one that doesn't writes nothing and isn't `holding`.
+   */
+  hold(budget: HoldBudget, live: () => boolean): InputHold
   /**
    * A new run in place, in an `enqueue` step: `spec` starts, the earlier run's screen and
    * listeners go, attachments end, the ring starts over with a sequence number skipped, so
@@ -169,12 +238,24 @@ export const createTerminal = (options: TerminalOptions): Terminal => {
     title: new Set(),
     cwd: new Set(),
     reset: new Set(),
+    keys: new Set(),
   }
   const fire = <K extends keyof Listeners>(event: K, ...args: Parameters<Listeners[K]>) => {
     for (const listener of listeners[event]) (listener as (...all: typeof args) => void)(...args)
   }
 
   let size = { cols: options.spec.cols, rows: options.spec.rows }
+  let resizedAt = 0
+  // The hold in force: the person's keys it holds (null once released), whether they count
+  // only once delivered, when its resizes may apply at the earliest (epoch milliseconds,
+  // taken over by the next hold), and the latest size it holds, with the attachment it came
+  // from.
+  let held: {
+    input: string[] | null
+    deferred?: boolean
+    notBefore?: number
+    size: { cols: number; rows: number; owner: string; attachment: Subscription | undefined } | null
+  } | null = null
   let exit: Exit | null = null
   let exiting = false
   let chain = Promise.resolve()
@@ -375,6 +456,102 @@ export const createTerminal = (options: TerminalOptions): Terminal => {
     subscribers.clear()
   }
 
+  const reporting = (): Reporting => {
+    const { modes } = run.screen
+    return {
+      mouse: mouseReporting(modes.mouseTrackingMode, run.mouse()),
+      focus: modes.sendFocusMode,
+    }
+  }
+
+  const applySize = (cols: number, rows: number) => {
+    // Only a new size redraws the screen, as a window attaching again may ask for the same.
+    if (cols !== size.cols || rows !== size.rows) resizedAt = Date.now()
+    run.pty.resize(cols, rows)
+    void enqueue(() => {
+      run.screen.resize(cols, rows)
+      size = { cols, rows }
+      fire("resized", { cols, rows })
+      emit({ type: "resized", cols, rows })
+    })
+  }
+
+  const hold = (budget: HoldBudget, live: () => boolean): InputHold => {
+    if (!live() || held?.input) return noHold
+    const mine: NonNullable<typeof held> = {
+      input: [],
+      size: held?.size ?? null,
+      ...(held?.notBefore !== undefined && { notBefore: held.notBefore }),
+      ...(budget.deferred && { deferred: true }),
+    }
+    held = mine
+    let lapse: ReturnType<typeof setTimeout> | undefined
+    const release = () => {
+      clearTimeout(inputCap)
+      const { input } = mine
+      if (held !== mine || !input) return
+      mine.input = null
+      if (input.length === 0 || !live()) return
+      if (mine.deferred) fire("keys", input.join(""))
+      run.pty.write(input.join(""))
+    }
+    const settle = () => {
+      release()
+      if (held !== mine) return
+      // Taken over from a hold whose last key was pressed lately: the resizes keep waiting
+      // until it has lapsed, as one landing as a turn starts crashed Codex.
+      const wait = (mine.notBefore ?? 0) - Date.now()
+      if (wait > 0) {
+        clearTimeout(lapse)
+        lapse = setTimeout(settle, wait)
+        lapse.unref()
+        return
+      }
+      finish()
+    }
+    const finish = () => {
+      release()
+      clearTimeout(sizeCap)
+      clearTimeout(lapse)
+      if (held !== mine) return
+      held = null
+      if (!live()) return
+      // Only for the attachment still in control: one that took over meanwhile, or the same
+      // window attached anew, was told the size in force and asks its own.
+      const { size: waiting } = mine
+      if (
+        !waiting ||
+        controller !== waiting.owner ||
+        subscribers.get(waiting.owner) !== waiting.attachment
+      )
+        return
+      try {
+        applySize(waiting.cols, waiting.rows)
+      } catch {
+        // A program that exited meanwhile takes no size; its exit is handled in turn.
+      }
+    }
+    // A ring or a prompt takes well under these; should it not, the person's keys, then
+    // the window's sizes, go on.
+    const inputCap = setTimeout(release, budget.inputMs)
+    inputCap.unref()
+    // Past the input's own cap, as an answer's hold needs, the resizes stay held too.
+    const sizeCap = setTimeout(finish, budget.sizeMs)
+    sizeCap.unref()
+    return {
+      release,
+      settle,
+      settleAfter: (ms) => {
+        mine.notBefore = Date.now() + ms
+        settle()
+      },
+      holding: () => held === mine && mine.input !== null && live(),
+      discard: () => {
+        if (mine.input) mine.input.length = 0
+      },
+    }
+  }
+
   listen(run)
 
   return {
@@ -393,6 +570,9 @@ export const createTerminal = (options: TerminalOptions): Terminal => {
     mouse: () => run.mouse(),
     get exiting() {
       return exiting
+    },
+    get exit() {
+      return exit
     },
     get exited() {
       return run.exited
@@ -442,15 +622,40 @@ export const createTerminal = (options: TerminalOptions): Terminal => {
     },
     attachment: (owner) => subscribers.get(owner),
     enqueue,
-    resize: (cols, rows) => {
-      run.pty.resize(cols, rows)
-      void enqueue(() => {
-        run.screen.resize(cols, rows)
-        size = { cols, rows }
-        fire("resized", { cols, rows })
-        emit({ type: "resized", cols, rows })
-      })
+    resize: (cols, rows, owner) => {
+      // While a ring or an answer holds the terminal, a resize would redraw the screen it
+      // checks, or land as its turn starts: the latest waits for the hold to settle.
+      if (held && owner !== undefined) {
+        held.size = { cols, rows, owner, attachment: subscribers.get(owner) }
+        return
+      }
+      applySize(cols, rows)
     },
+    get resizedAt() {
+      return resizedAt
+    },
+    reporting,
+    input: (data) => {
+      // While a hold is in force, the person's keys wait their turn; the terminal's own
+      // reports never do.
+      const holding = held?.input ? held : undefined
+      if (holding?.input) {
+        // An answer's hold drops the mouse's wheel and motion reports, never replaying them.
+        const { reports, typed } = splitReports(data, reporting(), holding.deferred === true)
+        if (reports) run.pty.write(reports)
+        if (typed) {
+          // An answer's hold may drop them: they count once they are delivered.
+          if (!holding.deferred) fire("keys", typed)
+          holding.input.push(typed)
+        }
+        return
+      }
+      fire("keys", data)
+      // node-pty takes each write synchronously; no input is retried after an uncertain delivery.
+      run.pty.write(data)
+    },
+    type: (data) => run.pty.write(data),
+    hold,
     restart: (spec, next, swapped) => {
       // A run still going would be orphaned, its exit heard by no one. Once its exit is
       // handled, no step of the earlier run is left to run after the swap.
@@ -467,6 +672,7 @@ export const createTerminal = (options: TerminalOptions): Terminal => {
       size = { cols: spec.cols, rows: spec.rows }
       exit = null
       exiting = false
+      held = null
       // The new run is heard even if its caller's part fails, so its exit still comes.
       try {
         swapped()

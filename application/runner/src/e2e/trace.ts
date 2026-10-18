@@ -672,9 +672,11 @@ export const startTrace = (name: string, model: FakeModel) => {
     end: (members: readonly Member[], timeoutMs?: number) => Promise<void>
   }
   const closing = methods(Terminals.prototype as unknown as Record<string, never>, "Terminals", [
-    "kill",
+    "terminate",
+    "stop",
   ]) as unknown as {
-    kill: (record: {
+    stop: () => Promise<void>
+    terminate: (record: {
       readonly summary: { readonly id: string; readonly exit: unknown }
       readonly terminal: {
         readonly exiting: boolean
@@ -683,7 +685,7 @@ export const startTrace = (name: string, model: FakeModel) => {
     }) => Promise<void>
   }
   const { read: readTree, end: endTree } = treeing
-  const { kill } = closing
+  const { terminate, stop } = closing
   let closes = 0
   const during = () => (closes > 0 ? "in a close" : "outside a close")
   treeing.read = async function (root, timeoutMs) {
@@ -704,16 +706,27 @@ export const startTrace = (name: string, model: FakeModel) => {
     await endTree.call(this, members, timeoutMs)
     add(`tree end ${members.length} returned`)
   }
-  closing.kill = async function (record) {
+  // The runner's shutdown ends every terminal's tree in the host: a close, as the reap's isn't.
+  closing.stop = async function () {
+    add("shutdown begins")
+    closes += 1
+    try {
+      await stop.call(this)
+    } finally {
+      closes -= 1
+      add("shutdown done")
+    }
+  }
+  closing.terminate = async function (record) {
     add(
-      `kill ${named(record.summary.id)} begins: shell ${record.terminal.pty.pid}, exit queued ${record.terminal.exiting}`,
+      `terminate ${named(record.summary.id)} begins: shell ${record.terminal.pty.pid}, exit queued ${record.terminal.exiting}, exited ${record.summary.exit !== null}`,
     )
     closes += 1
     try {
-      await kill.call(this, record)
+      await terminate.call(this, record)
     } finally {
       closes -= 1
-      add(`kill ${named(record.summary.id)} done`)
+      add(`terminate ${named(record.summary.id)} done`)
     }
   }
 
@@ -730,7 +743,7 @@ export const startTrace = (name: string, model: FakeModel) => {
       reports.disable()
       clearInterval(calls)
       Object.assign(treeing, { read: readTree, end: endTree })
-      Object.assign(closing, { kill })
+      Object.assign(closing, { terminate, stop })
       Object.assign(interrupting, { once, settled })
       Object.assign(prompting, { emptied, landed })
       for (const [host, original] of seeing) Object.assign(host, original)

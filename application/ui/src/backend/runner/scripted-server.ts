@@ -214,7 +214,9 @@ export const scriptedRunner = ({
           streaming -= 1
         }
       }),
-      write: api.terminals.write.handler(() => {}),
+      write: api.terminals.write.handler(({ input: { terminalId, data } }) => {
+        typed.push({ terminalId, data })
+      }),
       // As the runner does: the terminal takes the size, the watch announces it, then its
       // streams hear of it, the same size included.
       resize: api.terminals.resize.handler(({ input: { terminalId, cols, rows } }) => {
@@ -305,6 +307,8 @@ export const scriptedRunner = ({
       set: api.settings.set.handler(() => {}),
     },
   })
+  // What the app typed into the terminals.
+  const typed: { terminalId: string; data: string }[] = []
   let connections = 0
   const connect = (signal: AbortSignal, theme: ThemeSource) => {
     const [server, client] = memoryPorts()
@@ -343,6 +347,8 @@ export const scriptedRunner = ({
     bytes: () => bytes,
     // The bytes written to the terminals' screens, whoever streams them.
     written: () => written,
+    // What the app typed into the terminals, in order.
+    typed: (): readonly { readonly terminalId: string; readonly data: string }[] => typed,
     // How many terminals' streams are attached now.
     streaming: () => streaming,
     // How many streams have attached, over the runner's life.

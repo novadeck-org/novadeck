@@ -112,6 +112,9 @@ describe("keymap", () => {
           expect(
             route(platform, "capture", { key: "Tab", ctrlKey: true, target: terminalInput }),
           ).toEqual(["recent.next"])
+          expect(
+            route(platform, "bubble", { key: "Tab", ctrlKey: true, target: terminalInput }),
+          ).toEqual([])
           expect(route(platform, "capture", { key: "Tab", ctrlKey: true })).toEqual([])
           const chat = { editing: true, terminalInput: true, chat: true }
           expect(route(platform, "capture", { key: "Tab", ctrlKey: true, target: chat })).toEqual(

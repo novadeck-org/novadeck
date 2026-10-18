@@ -155,6 +155,9 @@ const scriptedServer = "backend/runner/scripted-server.ts"
 const counterRunReaches = [scriptedServer, "core/store.ts"]
 // Canvas's out-of-sight spec opens the same scripted runner, to see which screens are open.
 const canvasOffscreenSpec = "specs/canvas-offscreen.spec.tsx"
+// The shortcuts typed into a runner terminal open the same scripted runner, for a real
+// emulator's input.
+const terminalKeysSpec = "specs/terminal-keys.spec.tsx"
 // The stores' instrumentation hook, which only the counter run installs; named here once,
 // so this file is the one other place it appears.
 const storeHook = "countListenersWoken"
@@ -300,6 +303,7 @@ const importViolation = (file: string, layer: string | undefined) => {
     if (!target) return [`${file} -> ${specifier} (unresolved)`]
     if (file.startsWith(counterRun) && counterRunReaches.includes(target)) return []
     if (file === canvasOffscreenSpec && target === scriptedServer) return []
+    if (file === terminalKeysSpec && target === scriptedServer) return []
     const targetLayer = layerOf(target)
     if (targetLayer && adapterOf(targetLayer) && targetLayer !== layer)
       return entryAdapters[file]?.some((own) => target.startsWith(own)) ||

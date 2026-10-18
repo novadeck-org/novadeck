@@ -30,7 +30,7 @@ export const splitReports = (
     if (reported?.kind === "none") {
       const text = rest.slice(0, reported.length)
       // The mouse's reports start with `ESC [ <` (SGR) or `ESC [ M` (X10).
-      // eslint-disable-next-line no-control-regex -- The control character is what it matches.
+      // eslint-disable-next-line no-control-regex -- Escape sequences are what it reads.
       if (holdMouse && /^\x1b\[[<M]/.test(text)) mouse += text
       else reports += text
       at += reported.length
