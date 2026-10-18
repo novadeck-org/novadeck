@@ -105,7 +105,7 @@ name, updating as programs start and finish; the line stays empty when it is unk
 The runner reports each terminal's foreground process as its name and, on Linux, the
 process group leader's command line (`argv`); macOS reports only the name (the one the
 program was run by, not a versioned file a link points at, as Claude Code's `claude` is), and Windows
-reports none. `application/ui/src/model/process.ts` turns that into a program name,
+reports none. `application/ui/src/core/process.ts` turns that into a program name,
 resolving known Node CLIs from the script Node runs, so the Codex and Claude packages
 show as `codex` and `claude` while other Node programs stay `node`. Where the process
 cannot tell, as on Windows or for a Node CLI on macOS, a connected agent that reported
@@ -120,9 +120,9 @@ program starting or ending never replaces the header: a rename in progress, focu
 and the terminal switcher carry on. Claude and Codex have their own icons in
 `application/ui/src/ui-toolkit/icons/` and their own bodies beside the profiles, where
 their presentation can grow. To give another program its own look, add a profile
-entry, with its own body if needed, and a launcher entry in `model/process.ts` if it
+entry, with its own body if needed, and a launcher entry in `core/process.ts` if it
 runs as a Node script. Profiles are presentation only: per-program behaviour goes beside
-`programName` in `model/`, as `model/resume.ts` names the agents whose sessions resume.
+`programName` in `core/`, as `core/resume.ts` names the agents whose sessions resume.
 
 A terminal running an agent (Claude Code, Codex or Antigravity) has a **Chat** button in
 its window header wherever the backend reads the agents' transcripts
@@ -158,7 +158,10 @@ Switching between Focus, Grid and Canvas mounts a new surface, which takes the s
 xterm and attachment from `backend/runner/screens.ts` instead of opening and attaching
 again. A terminal no view shows keeps them while its session is on screen, and for 30
 minutes after its session leaves the screen, so going back to a session or project finds
-its output in place; they go when that time passes or the terminal closes. Focus keeps
+its output in place; they go when that time passes or the terminal closes. Of the screens
+no view shows, `screens.ts` keeps at most the 16 parked most recently, closing the one
+parked longest first (a closed one resyncs from the runner's snapshot when shown again);
+screens a view shows, Focus's kept windows among them, don't count. Focus keeps
 the last four terminals it displayed mounted, parked out of sight with `display:none`,
 so switching back finds a terminal's companion pane as it was: a page still loaded, a
 plan's editor, where each was scrolled. A component that docks status, opens over the
@@ -675,7 +678,7 @@ each sits.
 
 Items and windows reach the workspace the way terminals do, through the backend's seed
 and its changes. The pane loads what an item points at through the backend's optional
-`companions` capability (`model/companion.ts`): its content as it changes, and a save
+`companions` capability (`core/companion.ts`): its content as it changes, and a save
 that writes the user's edits and notes into the plan file unless it changed since, in
 which case the pane merges and saves again. Edits save once typing pauses and when focus
 leaves the plan. The runner reads content from disk and can't write plans yet, so its
@@ -902,9 +905,9 @@ https://try.novadeck.dev, beside the website, so the demo always shows a publish
 version. Until launch, Release runs it for each version it publishes, prereleases
 included; at launch it moves to Promote to Stable, so the demo shows what Download gives
 people. Run workflow deploys a tag by hand. Quality builds it on every pull request. The
-build carries a `_headers` file (`src/hosting-headers.ts`): only novadeck.dev may frame
-it, nothing of it is indexed, hashed assets are kept for good, and the posters for five
-minutes.
+build carries a `_headers` file (the UI's `src/deploy.ts`, written by `tools/build-kit`):
+only novadeck.dev may frame it, nothing of it is indexed, hashed assets are kept for good,
+and the posters for five minutes.
 
 The Try workflow also writes four posters into the build before it deploys it, and
 `pnpm poster:try` does the same for a local build: `poster-light-1280.webp`,
@@ -973,7 +976,8 @@ This is a TypeScript monorepo using pnpm workspaces and Turborepo. `application/
 what makes up the app; `engines/` holds the native inference engines Novadeck downloads
 once installed, and the build they share; `harnesses/` holds what the agent harness
 adapters and the contract they share; `libraries/` holds the mechanics that never import
-app code (see [libraries/README.md](libraries/README.md)).
+app code (see [libraries/README.md](libraries/README.md)); `tools/` holds the apps' build
+helpers.
 
 | Package                | Responsibility                                                        |
 | ---------------------- | --------------------------------------------------------------------- |
@@ -989,6 +993,7 @@ app code (see [libraries/README.md](libraries/README.md)).
 | `harnesses/claude`     | The Claude Code adapter: hooks, transcripts, dialogs, input box.      |
 | `harnesses/codex`      | The Codex adapter, same shape.                                        |
 | `harnesses/agy`        | The Antigravity adapter, same shape.                                  |
+| `tools/build-kit`      | The apps' Vite helpers: CSP sources, hosting headers, noindex, fonts. |
 | `scripts`              | Repository checks and automation.                                     |
 | `atlas`                | Dev-only code map: `pnpm atlas`; agent briefs: `pnpm -s atlas:brief`. |
 
@@ -1022,19 +1027,19 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `app/selectors.ts`                                 | Pure reads over the stores that sections, commands, and keys share.                     |
 | `app/commands/`                                    | Commands, key commands, and the navigator: plain functions over both stores.            |
 | `app/controller/`                                  | React glue: context, selector hook, route sync, keyboard dispatcher, effects.           |
-| `backend/`                                         | The UI-owned backend port and the shared terminal lifecycle registry.                   |
+| `backend/`                                         | The UI-owned backend port.                                                              |
 | `backend/demo/`                                    | The demo adapter for tests and specs: sample projects and simulated terminals.          |
 | `backend/demo/showcase/`                           | The content preview's sample agents: plans, artifacts, and their simulated work.        |
 | `backend/runner/`                                  | The runner adapter: connection, seed from the runner, saves, and the xterm surface.     |
-| `model/`                                           | Pure domain: types, reducer, workspace store, seed, and layout rules in `layout/`.      |
-| `model/companion.ts`                               | Companion items, their content, the `companions` port, and the plan note format.        |
-| `model/companion-bar.ts`                           | A bar as the person arranged it: order, hidden plans and Messages, the open tab.        |
-| `model/messages.ts`                                | The contract for agents' messages: threads, states, the pause, and a tab's count.       |
-| `model/conversation.ts`                            | The contract for an agent's conversation: transcript items, requests, the port.         |
-| `model/inbox.ts`                                   | The contract for the Inbox: items by source, their type and urgency, answers, the port. |
-| `model/conversation-turns.ts`                      | A conversation grouped into blocks, tool calls summed up in a line, the turn's status.  |
-| `model/roster.ts`                                  | A session's terminals and undocked windows, laid out as tiles, their order and status.  |
-| `model/layout/workspace-layout.ts`                 | Where each terminal sits and how big it is in each view.                                |
+| `core/`                                            | Pure domain: types, reducer, workspace store, seed, and layout rules in `layout/`.      |
+| `core/companion.ts`                                | Companion items, their content, the `companions` port, and the plan note format.        |
+| `core/companion-bar.ts`                            | A bar as the person arranged it: order, hidden plans and Messages, the open tab.        |
+| `core/messages.ts`                                 | The contract for agents' messages: threads, states, the pause, and a tab's count.       |
+| `core/conversation.ts`                             | The contract for an agent's conversation: transcript items, requests, the port.         |
+| `core/inbox.ts`                                    | The contract for the Inbox: items by source, their type and urgency, answers, the port. |
+| `core/conversation-turns.ts`                       | A conversation grouped into blocks, tool calls summed up in a line, the turn's status.  |
+| `core/roster.ts`                                   | A session's terminals and undocked windows, laid out as tiles, their order and status.  |
+| `core/layout/workspace-layout.ts`                  | Where each terminal sits and how big it is in each view.                                |
 | `terminals/`                                       | Terminal frame, tabs, rename state, and the recent-terminal switcher.                   |
 | `terminals/companion/`                             | Taskbar and pane: the panes' store, `bar.ts` rules, viewers, `plan-editor/` (notes).    |
 | `terminals/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.        |
@@ -1053,19 +1058,23 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `styles.css`                                       | The cascade order, every recipe, theme and vendor sheet in its layer, Tailwind sources. |
 | `specs/`                                           | Behaviour specs for the whole UI, run in a real browser.                                |
 
-Imports point down the layers. `model/` imports nothing else, not even packages,
-apart from the scheme and theme manifest types, and `theme/` imports nothing at
-all; every layer that composes the page may use it, adapters included, and
+Imports point down the layers. `core/` (what `model/` was, with the backends'
+shared registry and the workspace-only derivations) imports nothing else: no UI layer, no
+React, and among packages only the protocol's data-only entries (`/harnesses`, `/pages`,
+`/text`) and the library entries `architecture.test.ts` lists as data only (none yet).
+Everything outside it reaches it as `#core/*`, the UI package's
+own `imports`; inside it files import one another by relative path. `theme/` imports
+nothing but itself and the core's types; every layer that composes the page may use it, adapters included, and
 [docs/theming.md](docs/theming.md) is its contract with components.
-`backend/` builds on `model/` and uses React only for the port's types; adapters
-may add `ui-toolkit/`. `interaction/` builds on `model/` and imports no packages;
+`backend/` builds on `core/` and uses React only for the port's types; adapters
+may add `ui-toolkit/`. `interaction/` builds on `core/` and imports no packages;
 features add `ui-toolkit/`; `terminals/` may use `sidebar/`; `layouts/` may use
 `terminals/`; `notifications/` builds on the base layers, `sidebar/` and
 `terminals/unread-state.ts`; `inbox/` builds on the base layers, `sidebar/` and the
 chat's markdown reader and answers; `shell/` may use `layouts/`, `projects/`,
 `notifications/` and `inbox/`. `app/` composes every feature layer, `notifications/`, `inbox/` and `backend/`, and within it only `app/backend.ts` imports a
 backend adapter (tests and specs may import the demo's spec entry). `app/commands/` has no direct React or package imports, though
-routing still loads React Router at runtime: it builds on `model/`,
+routing still loads React Router at runtime: it builds on `core/`,
 `interaction/keymap.ts`, `backend/port.ts`, the UI store, routing, selectors,
 the Canvas handle type in `layouts/canvas/types.ts`, and the pure state modules
 of `shell/` and `terminals/` (unread finishes among them), the companion panes' store and the chat's modes among them. Vendor
@@ -1076,7 +1085,7 @@ in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
 the emulator's view in `backend/runner/`. Other packages are denied
 unless the test lists them: React and Lucide are allowed everywhere, while
 backend adapters and test code may use any package. `test/` may import
-`model/`, `backend/`, and what the command harness runs: `app/commands/`, the UI
+`core/`, `backend/`, and what the command harness runs: `app/commands/`, the UI
 store, routing, and the Canvas handle type. Hooks declare named contracts instead of
 `ReturnType<typeof useHook>`. `src/architecture.test.ts` enforces these rules and
 fails for a source file that belongs to no layer.
@@ -1101,9 +1110,9 @@ Unknown routes, missing terminals, and disabled views are replaced with a valid 
 
 The page renders from two synchronous stores, and from a third where a backend has
 companions; the backend also keeps small stores of its own, such as `telemetry`. The
-workspace store in `model/store.ts` holds the model: every session's
+workspace store in `core/store.ts` holds the model: every session's
 roster of terminals and undocked windows, layout, navigation memory, its companion items
-as the backend reports them, and how the person arranged each bar (`model/companion-bar.ts`),
+as the backend reports them, and how the person arranged each bar (`core/companion-bar.ts`),
 changed through one pure reducer. The UI store in `app/ui-store.ts`
 holds what the model does not own: the current route, preferences, the shell
 state from `shell/shell-state.ts`, the rename in progress, the recent-terminal
@@ -1173,7 +1182,7 @@ each terminal frame. A surface marks the element that takes typed input with
 keeps drafts, output, and scroll offsets per terminal with one subscription
 each, so output does not trigger workspace-wide renders. A terminal's
 presentation can unmount during view or session changes without losing that
-state; closing the terminal removes it. `backend/registry.ts` provides this
+state; closing the terminal removes it. `core/registry.ts` provides this
 lifecycle for any adapter. An adapter opts into the port contract suite by
 calling `describeBackendContract` from `test/backend-contract.tsx` in a
 colocated `contract.test.ts`, with a probe of what it holds and the I/O it
@@ -1257,7 +1266,7 @@ when the script moves them, React works inside `act`, and a frame that changed t
 waits real frames until it is still. The fixed script plays 13 Claude terminals'
 status-line ticks and output in Grid, then in Focus once the terminals Focus doesn't show
 have parked, then switches between them in Focus. It counts store listeners woken (through
-`countListenersWoken` in `model/store.ts`, test instrumentation that does nothing
+`countListenersWoken` in `core/store.ts`, test instrumentation that does nothing
 otherwise) and DOM mutation records per tick, output bytes the runner sends the UI, and
 terminals streaming at once. React commits and component renders per tick are counted
 beside them, through a stand-in for React DevTools' hook. Every run gives the same counts,

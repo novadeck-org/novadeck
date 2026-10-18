@@ -1,4 +1,4 @@
-import type { ValueUpdate } from "../../model/state"
+import type { ValueUpdate } from "#core/state"
 import type {
   CanvasLayout,
   GridLayouts,
@@ -6,7 +6,8 @@ import type {
   SizePreset,
   WindowedView,
   WorkspaceTarget,
-} from "../../model/types"
+} from "#core/types"
+
 import type { CommandContext } from "./context"
 
 // Layout changes a view reports. Each takes the target the view rendered for: Canvas

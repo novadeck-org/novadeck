@@ -1,7 +1,8 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
-import type { Refusal } from "../model/addon"
-import { MURMUR_NAME, type Murmur, type MurmurState } from "../model/murmur"
+import type { Refusal } from "#core/addon"
+import { MURMUR_NAME, type Murmur, type MurmurState } from "#core/murmur"
+
 import { Progress } from "../ui-toolkit/Progress"
 import { ProgressRing } from "../ui-toolkit/ProgressRing"
 import {

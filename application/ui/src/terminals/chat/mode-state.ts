@@ -1,7 +1,8 @@
-import type { ChatAnswer, ChatRequest } from "../../model/conversation"
-import { isAgentProgram } from "../../model/process"
-import { shellCommand } from "../../model/prompt-refusal"
-import type { TerminalMetadata } from "../../model/types"
+import type { ChatAnswer, ChatRequest } from "#core/conversation"
+import { isAgentProgram } from "#core/process"
+import { shellCommand } from "#core/prompt-refusal"
+import type { TerminalMetadata } from "#core/types"
+
 import { chatAnswer, oneLine } from "./answers"
 
 // A value kept for some terminals, by session context and terminal id; a terminal without

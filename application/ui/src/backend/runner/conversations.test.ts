@@ -2,8 +2,9 @@ import type { AgentDetail, TranscriptChange, TranscriptItem } from "@novadeck/pr
 import { WireError } from "@novadeck/wire"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { SettleInTerminal, WordsLost } from "../../model/conversation"
-import { promptRefusal } from "../../model/prompt-refusal"
+import { SettleInTerminal, WordsLost } from "#core/conversation"
+import { promptRefusal } from "#core/prompt-refusal"
+
 import { describe, expect, it } from "../../test"
 import {
   createRunnerConversations,

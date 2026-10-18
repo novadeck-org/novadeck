@@ -1,8 +1,9 @@
 import { memo, useMemo, useState } from "react"
 
+import { viewModes } from "#core/state"
+import type { Project } from "#core/types"
+
 import { transitionWorkspace } from "../layouts/transition"
-import { viewModes } from "../model/state"
-import type { Project } from "../model/types"
 import { createPinDrop, PinDropContext } from "../projects/pin-drop"
 import { PinsBar } from "../projects/PinsBar"
 import { arrangeProjects } from "../projects/project-arrangement"

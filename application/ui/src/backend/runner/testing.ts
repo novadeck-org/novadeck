@@ -1,9 +1,12 @@
 import { MessageChannel } from "node:worker_threads"
 
 import { connectRunner, type AttachedTerminal, type Runner } from "@novadeck/protocol/client"
-import { createRunner, servePort, type RunnerOptions } from "@novadeck/runner"
+import { createRunner, type RunnerOptions } from "@novadeck/runner"
 import { type MessagePortLike } from "@novadeck/wire"
 import { messagePort } from "@novadeck/wire/client"
+// Tests run here in Node, serving a real runner in process; the app never imports this file.
+// eslint-disable-next-line no-restricted-imports -- the wire's server, for the test runner
+import { servePort } from "@novadeck/wire/server"
 
 import type { RunnerApi } from "./backend"
 import { loadListing } from "./index"
@@ -56,7 +59,7 @@ export const startTestRunner = async (options: RunnerOptions = {}): Promise<Test
   // A fresh port for every connection, as the desktop host hands out.
   const connect = (): Promise<MessagePortLike> => {
     const { port1, port2 } = new MessageChannel()
-    const dispose = servePort(service, port1)
+    const dispose = servePort(service.sessions, port1)
     links.add(dispose)
     current = dispose
     return Promise.resolve(port2)
@@ -76,7 +79,7 @@ export const startTestRunner = async (options: RunnerOptions = {}): Promise<Test
       const other = await connectRunner(
         messagePort(() => {
           const { port1, port2 } = new MessageChannel()
-          links.add(servePort(service, port1))
+          links.add(servePort(service.sessions, port1))
           return Promise.resolve(port2)
         }),
       )

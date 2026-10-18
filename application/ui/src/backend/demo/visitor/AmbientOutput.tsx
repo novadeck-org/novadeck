@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from "react"
 
-import type { Store } from "../../../model/store"
-import type { TerminalMetadata } from "../../../model/types"
+import type { Store } from "#core/store"
+import type { TerminalMetadata } from "#core/types"
+
 import { sampleOutput } from "../samples"
 import { TerminalOutput } from "../TerminalOutput"
 import type { Beats } from "./ambient"

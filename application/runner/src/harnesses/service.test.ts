@@ -7,9 +7,10 @@ import { MessageChannel } from "node:worker_threads"
 import { agy } from "@novadeck/harness-agy/index"
 import { connectRunner } from "@novadeck/protocol/client"
 import { messagePort } from "@novadeck/wire/client"
+import { servePort } from "@novadeck/wire/server"
 import { vi } from "vitest"
 
-import { createRunner, servePort } from "../index.js"
+import { createRunner } from "../index.js"
 import { cmdPrints, installShellFiles } from "../shell/install.js"
 import type { ShellPaths } from "../shell/scripts.js"
 import { describe, expect, it as base } from "../test.js"
@@ -414,7 +415,7 @@ describe.skipIf(windows)("resuming an agent's saved session", () => {
     })
     resources.defer(() => runner.close())
     const { port1, port2 } = new MessageChannel()
-    servePort(runner, port1)
+    servePort(runner.sessions, port1)
     const client = await connectRunner(messagePort(() => Promise.resolve(port2)))
     resources.defer(() => client.close())
     const restore = (id: string) =>

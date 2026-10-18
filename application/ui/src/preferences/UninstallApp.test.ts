@@ -1,7 +1,8 @@
 import { act, createElement } from "react"
 import { vi } from "vitest"
 
-import type { OfferedUninstall, UninstallResult } from "../model/uninstall"
+import type { OfferedUninstall, UninstallResult } from "#core/uninstall"
+
 import { describe, expect, it } from "../test"
 import { render } from "../test/render"
 import { UninstallApp, type UninstallValue } from "./UninstallApp"

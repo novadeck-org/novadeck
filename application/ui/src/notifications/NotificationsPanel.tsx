@@ -10,7 +10,8 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import { terminalLabel } from "../model/handle"
+import { terminalLabel } from "#core/handle"
+
 import { SidebarItem, sidebarListClasses } from "../sidebar/SidebarItem"
 import type { Viewing } from "../terminals/unread-state"
 import { HandleChip } from "../ui-toolkit/HandleChip"

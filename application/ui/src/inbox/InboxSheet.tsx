@@ -1,7 +1,8 @@
 import { ArrowLeft, CircleCheck, Terminal, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
-import { inboxType, type InboxItem } from "../model/inbox"
+import { inboxType, type InboxItem } from "#core/inbox"
+
 import { HandleChip } from "../ui-toolkit/HandleChip"
 import { Sheet } from "../ui-toolkit/Sheet"
 import { Tooltip } from "../ui-toolkit/Tooltip"

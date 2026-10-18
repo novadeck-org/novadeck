@@ -3,6 +3,7 @@ packages:
   - engines/*
   - harnesses/*
   - libraries/*
+  - tools/*
   - atlas
 
 # Dependencies pinned once for every package: zod, whose schemas cross package lines (a
@@ -16,6 +17,7 @@ catalog:
   "@orpc/server": 1.15.5
   "@orpc/standard-server-peer": 1.15.5
   electron: ^44.7.0
+  ws: 8.22.0
   zod: 4.6.5
 
 publicHoistPattern:

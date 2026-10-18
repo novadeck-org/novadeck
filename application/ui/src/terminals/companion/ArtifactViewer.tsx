@@ -15,8 +15,9 @@ import {
   type ItemContent,
   type PageContent,
   type UnavailableReason,
-} from "../../model/companion"
-import { pagesPartition } from "../../model/pages"
+} from "#core/companion"
+import { pagesPartition } from "#core/pages"
+
 import { useShown } from "../../ui-toolkit/shown"
 import { isMarkdown } from "./artifact-icons"
 import { DocumentViewer } from "./DocumentViewer"

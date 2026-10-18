@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { join } from "node:path"
 
-import { Terminal, type ScreenText } from "@novadeck/emulator/headless"
+import { createScreen, readScreen, type ScreenText } from "@novadeck/emulator/headless"
 import type {
   AgentActivity,
   AgentDetail,
@@ -18,7 +18,6 @@ import type {
 import { wire } from "../runner.js"
 import { shellPaths, type ShellPaths } from "../shell/scripts.js"
 import type { Terminals } from "../terminals/index.js"
-import { screenText } from "../terminals/screen.js"
 import type { WorkspaceStore } from "../workspaces/store.js"
 import { createHistory, type Reach, type ReachOptions, type Snapshot } from "./history.js"
 
@@ -31,15 +30,10 @@ const owner = "e2e"
  * its own.
  */
 const render = async (snapshot: string, cols: number, rows: number): Promise<ScreenText> => {
-  const screen = new Terminal({
-    cols,
-    rows,
-    scrollback: 0,
-    allowProposedApi: true,
-  })
+  const screen = createScreen({ cols, rows, scrollback: 0 })
   try {
     await new Promise<void>((resolve) => screen.write(snapshot, resolve))
-    return screenText(screen)
+    return readScreen(screen)
   } finally {
     screen.dispose()
   }

@@ -811,7 +811,7 @@ tests replay it from `harnesses/<agent>/src/fixtures/*.probe.json` and
 }
 ```
 
-- `rows` is sparse: only rows that show anything, by row number, as `screenText` reads
+- `rows` is sparse: only rows that show anything, by row number, as `readScreen` reads
   them. `height` is how many rows the record holds, the screen's own or, for a probe that
   only had the screen's text, those up to the last that shows anything.
 - `bright` holds only the rows whose dim cells blank some of their text (a placeholder
@@ -827,7 +827,7 @@ tests replay it from `harnesses/<agent>/src/fixtures/*.probe.json` and
 **Reading:** `loadProbe<T>(folder, name)` reads `<folder>/fixtures/<name>` and gives every
 `ScreenRecord` in it back as the `ScreenText` it recorded; `T` is the test's own account
 of the rest. Every test that reads a probe fixture goes through it, screens or not.
-**Writing:** a probe makes a record with `screenRecord(screenText(terminal))`, or
+**Writing:** a probe makes a record with `screenRecord(readScreen(terminal))`, or
 `screenRecord(text, { columns })` where it only has the screen's text, and puts it in what
 it writes. A fixture is that output copied in, scrubbed of the sandbox's paths.
 

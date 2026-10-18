@@ -1,5 +1,5 @@
-import type { Murmur, MurmurState } from "../../model/murmur"
-import { createStore, type MutableStore } from "../../model/store"
+import type { Murmur, MurmurState } from "#core/murmur"
+import { createStore, type MutableStore } from "#core/store"
 
 // A pretend murmur addon for the browser demo and the specs. It starts installed and on,
 // as the try demo shows it and never offers it; started uninstalled, nothing is installed

@@ -1,4 +1,4 @@
-import type { SidebarPanel } from "../model/types"
+import type { SidebarPanel } from "#core/types"
 
 // DOM contracts for keyboard policy and focus restoration. Library-specific
 // overlay markup stays here so interaction owners do not depend on it. `data-own-keys`

@@ -498,7 +498,7 @@ export class Voice {
   }
 
   private assertOpen(): void {
-    if (this.closed) throw new DomainError("RUNTIME_CLOSING")
+    if (this.closed) throw new DomainError("CLOSING")
   }
 
   /** The engine's files, for voice input that is on and installed; VOICE_UNAVAILABLE, saying why, otherwise. */

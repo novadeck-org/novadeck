@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from "react"
 
-import type { ChatQuestion } from "../model/conversation"
-import type { AgentAsk, AskOption } from "../model/inbox"
+import type { ChatQuestion } from "#core/conversation"
+import type { AgentAsk, AskOption } from "#core/inbox"
+
 import { choose, complete, questionsAnswer, write, type Picks } from "../terminals/chat/answers"
 import { Markdown } from "../terminals/chat/Markdown"
 import { Unanswerable } from "./ApproveSheet"

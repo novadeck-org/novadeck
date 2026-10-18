@@ -892,10 +892,13 @@ describe("the time redaction takes", () => {
     expect(characters).toBeLessThan(screen.join("").length * 80)
   })
 
+  // This thread's own CPU time, in milliseconds: a loaded machine makes the wall clock run on
+  // while the test waits for a core, but not this.
   const time = (screen: string[]): number => {
-    const started = performance.now()
+    const started = process.threadCpuUsage()
     redactDigest({ ...shell(screen), continues: screen.map((_row, i) => i < screen.length - 1) })
-    return performance.now() - started
+    const { user, system } = process.threadCpuUsage(started)
+    return (user + system) / 1000
   }
   it.each([
     ["Ab1+ repeated", () => rows("Ab1+".repeat(100))],
@@ -903,8 +906,9 @@ describe("the time redaction takes", () => {
     ["a=b without spaces", () => rows(`${"a=b".repeat(133)}a`)],
     ["quotes", () => rows('"a: '.repeat(100))],
     ["random base64", () => Array.from({ length: 60 }, random)],
-  ])("is quick for a 60 by 400 continued screen of %s", { timeout: 5000 }, (_name, screen) => {
-    // A budget to catch a blow-up (it was 13 s once), not to benchmark: a loaded runner is slow.
+  ])("is quick for a 60 by 400 continued screen of %s", { timeout: 30_000 }, (_name, screen) => {
+    // A budget to catch a blow-up (it was 13 s once), not to benchmark: about 150 ms of CPU here.
+    // The timeout only bounds a hang, as a loaded runner's wall clock runs far past the CPU's.
     expect(time(screen())).toBeLessThan(2000)
   })
 })

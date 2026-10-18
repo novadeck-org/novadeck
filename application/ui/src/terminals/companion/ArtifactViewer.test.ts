@@ -1,8 +1,9 @@
 import { act, createElement } from "react"
 import { afterEach } from "vitest"
 
-import type { ItemContent, PageContent } from "../../model/companion"
-import { pagesPartition } from "../../model/pages"
+import type { ItemContent, PageContent } from "#core/companion"
+import { pagesPartition } from "#core/pages"
+
 import { context, describe, expect, it } from "../../test"
 import { itemFixture } from "../../test/fixtures"
 import { render } from "../../test/render"

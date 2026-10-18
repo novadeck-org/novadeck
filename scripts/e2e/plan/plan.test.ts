@@ -24,6 +24,7 @@ const runner = [
   "@novadeck/protocol",
   "@novadeck/relay",
   "@novadeck/terminal",
+  "@novadeck/emulator",
   "@novadeck/wire",
   "@novadeck/sandbox",
   "@novadeck/whisper",
@@ -119,11 +120,13 @@ describe("E2E selection", () => {
       expect(select(pullRequest([], ["README.md", file]), ids)).toEqual(ids)
     })
 
-    it("leaves a patch for the UI alone to the lockfile's hash of it", () => {
-      expect(select(pullRequest([], ["patches/@xterm__xterm@6.0.0.patch"]), ids)).toEqual([])
-      expect(
-        selectSystems(pullRequest([], ["patches/@xterm__xterm@6.0.0.patch", "pnpm-lock.yaml"])),
-      ).toEqual([systems.linux])
+    it("runs xterm's browser patch as a change to the emulator, on Linux alone", () => {
+      const patch = "libraries/emulator/patches/@xterm__xterm@6.0.0.patch"
+      const affected = ["@novadeck/emulator", "@novadeck/runner", "@novadeck/ui"]
+      expect(select(pullRequest(affected, [patch, "pnpm-lock.yaml"]), ids)).toEqual(ids)
+      expect(selectSystems(pullRequest(affected, [patch, "pnpm-lock.yaml"]))).toEqual([
+        systems.linux,
+      ])
     })
   })
 
@@ -205,7 +208,11 @@ describe("E2E systems", () => {
     "application/runner/src/terminals/manager.ts",
     "libraries/terminal/src/pty/index.ts",
     "libraries/wire/src/index.ts",
-    "libraries/emulator/src/index.ts",
+    "libraries/emulator/src/headless.ts",
+    "libraries/emulator/src/width.ts",
+    "libraries/emulator/src/screen.ts",
+    "libraries/emulator/package.json",
+    "libraries/emulator/patches/@xterm__addon-unicode-graphemes@0.4.0.patch",
     "harnesses/claude/src/index.ts",
     "harnesses/core/src/index.ts",
     "application/relay/src/main.rs",
@@ -228,6 +235,11 @@ describe("E2E systems", () => {
     "turbo.json",
     "application/ui/src/app.tsx",
     "libraries/viewers/src/index.ts",
+    "libraries/emulator/patches/@xterm__xterm@6.0.0.patch",
+    "libraries/emulator/src/browser.ts",
+    "libraries/emulator/src/browser.css",
+    "libraries/emulator/src/view.ts",
+    "libraries/emulator/src/renderer.test.ts",
   ])("runs Linux alone for %s", (file) => {
     expect(selectSystems(pullRequest([], [file]))).toEqual(linux)
   })

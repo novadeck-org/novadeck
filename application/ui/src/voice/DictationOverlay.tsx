@@ -1,8 +1,9 @@
 import { Check, Loader, Mic, TriangleAlert } from "lucide-react"
 import { useEffect, useState, useSyncExternalStore } from "react"
 
-import type { Store } from "../model/store"
-import type { TerminalKey } from "../model/types"
+import type { Store } from "#core/store"
+import type { TerminalKey } from "#core/types"
+
 import { dictationKey, type DictationController } from "./dictation"
 import { VoiceSetupContent } from "./VoiceSetup"
 

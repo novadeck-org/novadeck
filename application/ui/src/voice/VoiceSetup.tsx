@@ -1,8 +1,9 @@
 import { Check, Mic, TriangleAlert } from "lucide-react"
 import { useState, useSyncExternalStore } from "react"
 
-import { formatSize, stepLabel } from "../model/addon-format"
-import { installFailure, installSize } from "../model/voice"
+import { formatSize, stepLabel } from "#core/addon-format"
+import { installFailure, installSize } from "#core/voice"
+
 import { Chord } from "../ui-toolkit/Chord"
 import { Progress } from "../ui-toolkit/Progress"
 import type { DictationController, VoiceSetup } from "./dictation"

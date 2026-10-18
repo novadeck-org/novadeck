@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react"
 
-import { companionKeyId, type CompanionKey } from "../../model/companion"
+import { companionKeyId, type CompanionKey } from "#core/companion"
 import {
   hasMail,
   mailBadge,
@@ -9,8 +9,8 @@ import {
   type MailState,
   type Messages,
   type TerminalMail,
-} from "../../model/messages"
-import type { Store } from "../../model/store"
+} from "#core/messages"
+import type { Store } from "#core/store"
 
 const none: Store<MailState> = { getSnapshot: () => noMail, subscribe: () => () => {} }
 

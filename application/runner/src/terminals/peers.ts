@@ -126,7 +126,7 @@ export class TerminalPeers {
 
   /** A terminal's threads and messages with their states. */
   messages(terminalId: string): TerminalMessages {
-    if (this.options.stopping()) throw new DomainError("RUNTIME_CLOSING")
+    if (this.options.stopping()) throw new DomainError("CLOSING")
     const terminal = this.options.terminal(terminalId)
     if (!terminal) throw new DomainError("TERMINAL_NOT_FOUND")
     return this.options.messaging.list(terminalId, terminal.summary.handle)
@@ -134,19 +134,19 @@ export class TerminalPeers {
 
   /** Pauses messaging across the whole runner, or resumes it. */
   pause(paused: boolean): void {
-    if (this.options.stopping()) throw new DomainError("RUNTIME_CLOSING")
+    if (this.options.stopping()) throw new DomainError("CLOSING")
     this.options.messaging.pause(paused)
   }
 
   /** Releases a thread held for going back and forth too often. */
   release(thread: string): void {
-    if (this.options.stopping()) throw new DomainError("RUNTIME_CLOSING")
+    if (this.options.stopping()) throw new DomainError("CLOSING")
     this.options.messaging.release(thread)
   }
 
   /** Stops a thread: its messages not yet delivered are gone, and nothing continues it. */
   stop(thread: string): void {
-    if (this.options.stopping()) throw new DomainError("RUNTIME_CLOSING")
+    if (this.options.stopping()) throw new DomainError("CLOSING")
     this.options.messaging.stop(thread)
   }
 

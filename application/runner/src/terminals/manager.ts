@@ -6,13 +6,17 @@ import { basename, delimiter, isAbsolute, join, resolve as resolvePath } from "n
 import { setTimeout as sleep } from "node:timers/promises"
 
 import {
-  SerializeAddon,
-  Terminal,
+  createScreen,
+  mouseReporting,
+  readScreen,
+  replay,
+  trackMouse,
+  transcript as transcriptOf,
   type IMarker,
+  type MouseEncoding,
+  type Screen,
   type ScreenText,
-  type Terminal as Screen,
 } from "@novadeck/emulator/headless"
-import { applyWidths } from "@novadeck/emulator/width"
 import { isEmpty, type BoxProfile } from "@novadeck/harness-core/box"
 import type { RequestFacts } from "@novadeck/harness-core/dialogs"
 import type {
@@ -158,7 +162,6 @@ import { mention, nextHandle, wordOf } from "./handles.js"
 import { InputQueue, type HoldBudget, type InputHold } from "./input-queue.js"
 import { Interrupts, type InterruptHost, type InterruptOptions } from "./interrupts.js"
 import { keysOf, splitReports } from "./keys.js"
-import { type MouseEncoding, mouseReporting, watchMouseEncoding } from "./mouse.js"
 import {
   Murmur,
   type MurmurHost,
@@ -199,11 +202,10 @@ import {
   type TerminalIdentity,
   type TerminalRecords,
 } from "./records.js"
+import { restoredSeparator } from "./restored.js"
 import { freshNonce, leftoverNonce } from "./ring.js"
-import { screenText } from "./screen.js"
 import { snapshot } from "./snapshot.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
-import { replay, transcriptOf } from "./transcript.js"
 import { transcriptChanges } from "./transcripts.js"
 import { TerminalWatcher } from "./watcher.js"
 import { judgedFirst, workAfter, type Work } from "./work.js"
@@ -345,7 +347,6 @@ type Record = {
   summary: TerminalSummary
   process: pty.IPty
   screen: Screen
-  serializer: SerializeAddon
   sequence: number
   history: Retained[]
   historyBytes: number
@@ -526,7 +527,7 @@ type Record = {
   boxDoubtEpoch?: number
   /** `performance.now()` at the last save of its screen, so saves take turns. */
   savedAt: number
-} & Omit<Started, "process" | "screen" | "serializer" | "startedAt">
+} & Omit<Started, "process" | "screen" | "startedAt">
 
 /**
  * A spawned shell with its own headless screen, before it belongs to a record: the token
@@ -536,7 +537,6 @@ type Record = {
 type Started = {
   process: pty.IPty
   screen: Screen
-  serializer: SerializeAddon
   /** The mouse's encoding a program set on its screen. */
   mouseEncoding: () => MouseEncoding
   startedAt: number
@@ -989,7 +989,7 @@ export class Terminals {
    * integration, does not start.
    */
   async create(input: Create, ownerId: string): Promise<TerminalSummary> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     // A closed terminal stays closed, even while its shell is still ending.
     if (this.closedIds.has(input.id)) throw new DomainError("TERMINAL_NOT_FOUND")
     // Checked before eviction, so a retained exited record keeps its id taken.
@@ -1018,7 +1018,7 @@ export class Terminals {
       const integration = await this.shellIntegration()
       const connected = await this.connected(input.resume)
       const env = await environment
-      if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+      if (this.stopping) throw new DomainError("CLOSING")
       // Closed, even while it was being restored, as from another window, or its project is
       // going: it stays closed, and none starts there.
       if (this.closedIds.has(input.id) || this.closingSessions.has(input.sessionId))
@@ -1257,7 +1257,7 @@ export class Terminals {
     this.persisting(() => {
       handle = records.giveHandle(sessionId)
     })
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     if (handle === undefined)
       throw new Error(
         "Novadeck couldn't give a new terminal a handle in its workspace database, so it didn't create it.",
@@ -1288,7 +1288,7 @@ export class Terminals {
    * nothing of is TERMINAL_NOT_FOUND.
    */
   rename(input: { terminalId: string; title: string }): void {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     this.name(input.terminalId, input.title)
   }
 
@@ -1297,7 +1297,7 @@ export class Terminals {
    * automatic again (see `titleOf`), and tells every watcher; as `rename` otherwise.
    */
   resetTitle(input: { terminalId: string }): void {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     this.name(input.terminalId, null)
   }
 
@@ -1406,7 +1406,7 @@ export class Terminals {
    * that waits on the person's answer to a request, whose dialog would take them.
    */
   private promptable(terminalId: string): Record {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(terminalId)
     this.running(record)
     if (!record.binding && this.messaging.shownAgent(terminalId) === undefined)
@@ -1572,7 +1572,7 @@ export class Terminals {
     const { process: child } = record
     const shown = await this.enqueue(record, () => {
       const commandRow = commandRowOf(record)
-      return { text: screenText(record.screen), ...(commandRow !== undefined && { commandRow }) }
+      return { text: readScreen(record.screen), ...(commandRow !== undefined && { commandRow }) }
     })
     return record.process === child && this.live(terminalId) ? shown : undefined
   }
@@ -1601,7 +1601,7 @@ export class Terminals {
     const record = this.live(terminalId)
     if (!record) return undefined
     const { process: child } = record
-    const text = await this.enqueue(record, () => screenText(record.screen))
+    const text = await this.enqueue(record, () => readScreen(record.screen))
     return record.process === child && this.live(terminalId) ? text : undefined
   }
 
@@ -1776,7 +1776,7 @@ export class Terminals {
   private answerHost(): AnswerHost {
     return {
       request: (terminalId, ref) => {
-        if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+        if (this.stopping) throw new DomainError("CLOSING")
         const record = this.record(terminalId)
         this.running(record)
         const found = this.waiting(record, ref)
@@ -2100,7 +2100,7 @@ export class Terminals {
     input: { terminalId: string; resume?: AgentName | undefined } & Size,
     ownerId: string,
   ): Promise<TerminalSummary> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(input.terminalId)
     if (record.closed || this.closingSessions.has(record.summary.sessionId))
       throw new DomainError("TERMINAL_NOT_FOUND")
@@ -2122,7 +2122,7 @@ export class Terminals {
       const env = await environment
       // The swap waits for the old shell's queued work, which still uses the old screen.
       return await this.enqueue(record, () => {
-        if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+        if (this.stopping) throw new DomainError("CLOSING")
         // Closed meanwhile, or its project is closing: no shell starts in it again.
         if (
           record.closed ||
@@ -2153,7 +2153,7 @@ export class Terminals {
         this.forgetPrompts(record)
         const earlier =
           this.transcripts && !started.resumes
-            ? transcriptOf(record.screen, record.serializer, this.options.transcriptChars)
+            ? transcriptOf(record.screen, this.options.transcriptChars)
             : null
         // Earlier attachments ended at the exit; any still draining are dropped.
         for (const subscription of record.subscribers.values()) subscription.cancel()
@@ -2225,7 +2225,7 @@ export class Terminals {
    * the shell has ended, as the app quits, keeps nothing of it to bring back.
    */
   async close(input: { terminalId: string }): Promise<void> {
-    if (this.stopped) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopped) throw new DomainError("CLOSING")
     this.closedIds.add(input.terminalId)
     const record = this.records.get(input.terminalId)
     if (!record) {
@@ -2271,7 +2271,7 @@ export class Terminals {
    * project is going. Its records are the caller's to delete.
    */
   async closeProject(projectId: string, sessionIds: readonly string[]): Promise<void> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const sessions = new Set(sessionIds)
     // Marked first, so a restart or create under way can't start a shell behind the close,
     // and left marked once closed: the project and its sessions are going for good.
@@ -2284,7 +2284,7 @@ export class Terminals {
     }
     // Shutting down meanwhile: the project, and what of its terminals was only saved, stay
     // for the next runner to remove.
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     this.asks.forgetProject(projectId)
     this.messaging.forgetProject(projectId)
   }
@@ -2491,7 +2491,7 @@ export class Terminals {
 
   /** Turning transcripts off forgets every saved one; turning them on saves each anew. */
   keepTranscripts(enabled: boolean): void {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     this.transcripts = enabled
     if (enabled) for (const record of this.records.values()) record.changed = true
     if (!enabled) this.persisting(() => this.options.records?.clearTranscripts())
@@ -2546,7 +2546,7 @@ export class Terminals {
     try {
       await this.enqueue(record, () => {
         if (signal?.aborted || pending.released) return
-        if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+        if (this.stopping) throw new DomainError("CLOSING")
         // Closed, or closing, while this attachment waited its turn.
         if (record.closed || this.records.get(input.terminalId) !== record)
           throw new DomainError("TERMINAL_NOT_FOUND")
@@ -2578,7 +2578,6 @@ export class Terminals {
           subscription.push(
             snapshot(
               record.screen,
-              record.serializer,
               record.summary,
               record.sequence,
               this.options.snapshotBytes,
@@ -2614,7 +2613,7 @@ export class Terminals {
    * signal aborts, the owner is released, or the runner shuts down.
    */
   async *watch(ownerId: string, signal?: AbortSignal): AsyncGenerator<TerminalChange> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const watcher = new TerminalWatcher(this.list())
     this.watchers.set(watcher, ownerId)
     const abort = () => watcher.finish()
@@ -2639,7 +2638,7 @@ export class Terminals {
    * until the terminal is closed or `signal` aborts.
    */
   async *detail(terminalId: string, signal?: AbortSignal): AsyncGenerator<AgentDetail> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(terminalId)
     yield* this.snapshots(this.details, terminalId, this.detailOf(record), signal)
   }
@@ -2978,7 +2977,7 @@ export class Terminals {
    * aborts.
    */
   async *watchMessages(terminalId: string, signal?: AbortSignal): AsyncGenerator<TerminalMessages> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     // Only for a terminal the runner holds: closing or evicting it ends the stream.
     this.record(terminalId)
     yield* this.snapshots(this.mail, terminalId, this.messages(terminalId), signal)
@@ -3033,7 +3032,7 @@ export class Terminals {
    * owner is released, or the runner shuts down.
    */
   requests(ownerId: string, signal?: AbortSignal): AsyncGenerator<TerminalRequest> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     return this.opens.follow(ownerId, signal)
   }
 
@@ -3094,7 +3093,7 @@ export class Terminals {
     actor: string,
     signal?: AbortSignal,
   ): AsyncGenerator<TranscriptChange> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(terminalId)
     const { binding, transcript: root } = record
     const source = binding && harnesses[binding.agent].transcripts
@@ -3269,7 +3268,7 @@ export class Terminals {
   }
 
   private control(id: string, ownerId: string): Record {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(id)
     if (record.controller !== ownerId) throw new DomainError("CONTROL_REQUIRED")
     return record
@@ -3469,13 +3468,8 @@ export class Terminals {
         NOVADECK_REPORT_TOKEN: token,
       }),
     }
-    const screen = new Terminal({ cols, rows, scrollback: 1000, allowProposedApi: true })
-    const serializer = new SerializeAddon()
-    screen.loadAddon(serializer)
-    // Widths as a TUI's own (Ink's) count them, emoji sequences and CJK included: by the
-    // default's, a row it erased is a different number of rows, and stale ones stay.
-    applyWidths(screen)
-    const mouseEncoding = watchMouseEncoding(screen)
+    const screen = createScreen({ cols, rows, scrollback: 1000 })
+    const mouseEncoding = trackMouse(screen)
     try {
       const args = this.options.shellArgs ?? launched.args
       const child = pty.spawn(shell, typeof args === "string" ? args : [...args], {
@@ -3493,7 +3487,6 @@ export class Terminals {
       return {
         process: child,
         screen,
-        serializer,
         mouseEncoding,
         startedAt: performance.now(),
         token,
@@ -4773,7 +4766,7 @@ export class Terminals {
   /** Shows a transcript on the record's fresh screen, ahead of its shell's output. */
   private show(record: Record, transcript: string, savedAt: Date | null): void {
     const { screen } = record
-    void this.enqueue(record, () => replay(screen, transcript, savedAt))
+    void this.enqueue(record, () => replay(screen, transcript, restoredSeparator(savedAt)))
   }
 
   private saved(terminalId: string, sessionId?: string): SavedTerminal | undefined {
@@ -4811,7 +4804,7 @@ export class Terminals {
         promptedAt: record.promptedAt,
         ...(transcript && {
           transcript: this.transcripts
-            ? transcriptOf(record.screen, record.serializer, this.options.transcriptChars)
+            ? transcriptOf(record.screen, this.options.transcriptChars)
             : null,
         }),
       }),

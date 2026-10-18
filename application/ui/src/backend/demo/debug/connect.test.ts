@@ -1,8 +1,8 @@
 import { afterEach } from "vitest"
 
 import { context, describe, expect, it } from "../../../test"
-import { createBootRehearsals } from "../../boot-rehearsal"
 import { requestedVariant } from "../variants"
+import { createBootRehearsals } from "./boot-rehearsal"
 import { connectDemo } from "./connect"
 
 afterEach(() => {

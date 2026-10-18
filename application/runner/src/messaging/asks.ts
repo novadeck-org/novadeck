@@ -369,7 +369,7 @@ export class Asks {
   }
 
   answer(id: string, input: AskAnswer): void {
-    if (this.closed) throw new DomainError("RUNTIME_CLOSING")
+    if (this.closed) throw new DomainError("CLOSING")
     const letter = this.letters.get(id)
     if (
       !letter ||
@@ -418,7 +418,7 @@ export class Asks {
   }
 
   read(ids: readonly string[]): void {
-    if (this.closed) throw new DomainError("RUNTIME_CLOSING")
+    if (this.closed) throw new DomainError("CLOSING")
     for (const id of ids) {
       const letter = this.letters.get(id)
       if (letter?.state === "open" && letter.content.kind === "tell")

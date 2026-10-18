@@ -1,6 +1,7 @@
 import { useId, useState } from "react"
 
-import type { Trouble } from "../model/inbox"
+import type { Trouble } from "#core/inbox"
+
 import { Switch } from "../ui-toolkit/Switch"
 import { agentName, clock, limitWindow } from "./inbox-text"
 import { useInboxContext } from "./InboxProvider"

@@ -7,7 +7,6 @@ import { join } from "node:path"
 
 /** Each library, and the libraries its design lets it import. */
 export const order: Readonly<Record<string, readonly string[]>> = {
-  "build-kit": [],
   emulator: [],
   sandbox: [],
   terminal: ["emulator"],

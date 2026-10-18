@@ -1,5 +1,6 @@
-import { emptyInbox } from "../model/inbox"
-import { createStore } from "../model/store"
+import { emptyInbox } from "#core/inbox"
+import { createStore } from "#core/store"
+
 import { notifications, type Notification } from "../notifications/notifications"
 import { inboxBadge, notificationBadge, type BellBadge } from "../shell/notification-badge"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"

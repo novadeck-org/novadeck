@@ -1,9 +1,10 @@
 import { Check, Loader, Mic, MicOff, TriangleAlert } from "lucide-react"
 import { useEffect, useState, useSyncExternalStore } from "react"
 
-import type { Store } from "../model/store"
-import type { TerminalKey } from "../model/types"
-import { maxClipSeconds } from "../model/voice"
+import type { Store } from "#core/store"
+import type { TerminalKey } from "#core/types"
+import { maxClipSeconds } from "#core/voice"
+
 import { Chord } from "../ui-toolkit/Chord"
 import { useShown } from "../ui-toolkit/shown"
 import { dictationKey, type DictationController } from "./dictation"

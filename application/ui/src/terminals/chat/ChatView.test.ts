@@ -7,8 +7,9 @@ import {
   type ChatAnswer,
   type Conversation,
   type Conversations,
-} from "../../model/conversation"
-import { createStore, type Store } from "../../model/store"
+} from "#core/conversation"
+import { createStore, type Store } from "#core/store"
+
 import { describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"
 import { refusing } from "../../test/fixtures"

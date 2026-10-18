@@ -1,5 +1,5 @@
 import { columns, rows, sequence } from "@novadeck/terminal"
-import { wireErrors } from "@novadeck/wire"
+import { wireContract, wireErrors } from "@novadeck/wire"
 import { eventIterator, oc, type ContractRouterClient } from "@orpc/contract"
 import { z } from "zod"
 
@@ -26,7 +26,6 @@ import {
   murmurState,
   name,
   project,
-  protocolVersion,
   runnerSettings,
   startupCommand,
   terminalAttached,
@@ -67,7 +66,6 @@ export const errors = {
   SNAPSHOT_TOO_LARGE: { status: 413 },
   UPLOAD_TOO_LARGE: { status: 413 },
   SPAWN_FAILED: { status: 500 },
-  RUNTIME_CLOSING: { status: 503 },
   AGENT_SETUP_FAILED: { status: 500 },
   PROMPT_FAILED: { status: 409 },
   // A prompt a TUI would read as more than text (`promptRefusal`): a control character, a
@@ -89,25 +87,8 @@ export const errors = {
 const procedure = oc.errors(errors)
 
 export const contract = {
-  runner: {
-    // Trusted transports, such as a host-provided MessagePort, need no token.
-    handshake: procedure
-      .input(
-        z.strictObject({
-          protocolVersion: z.number().int(),
-          token: z.string().min(1).max(512).optional(),
-          // Stable per client across reconnections. A new connection with the same
-          // client ID takes over from the old one, even if that one is still half-open.
-          clientId: id.optional(),
-        }),
-      )
-      .output(
-        z.strictObject({
-          runnerId: id,
-          protocolVersion: z.literal(protocolVersion),
-        }),
-      ),
-  },
+  // The handshake, which opens every connection and names the runner's lifetime as its epoch.
+  ...wireContract,
   projects: {
     list: procedure.input(z.void()).output(z.array(project)),
     // The client names the project before the runner answers; a taken id is a
