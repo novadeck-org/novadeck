@@ -36,6 +36,13 @@ describe("the rewrite", () => {
     expect(rewrite(once)).toBe(once)
   })
 
+  it("points a page that moved on its own at its new place, and nothing that starts like it", () => {
+    expect(rewrite('"frontend/ui/index.html", "frontend/ui/entries/web/index.html"')).toBe(
+      '"apps/desktop/renderer/index.html", "apps/desktop/renderer/web/index.html"',
+    )
+    expect(rewrite("frontend/ui/index.html.bak")).toBe("frontend/ui/index.html.bak")
+  })
+
   it("leaves another folder that starts with its name", () => {
     expect(rewrite("application/hostess/a.ts and /w/repo/application/host")).toBe(
       "application/hostess/a.ts and /w/repo/application/host",

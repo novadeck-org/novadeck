@@ -58,8 +58,15 @@ export const rewritable = (file: string): boolean => isText(file) && !keeps(kept
 // query or a sentence's full stop after it.
 const lead = String.raw`(^|[\s"'\x60(\[=:,]|(?:\.\.?\/)+)`
 const tail = String.raw`(?=[/"'\x60\s)\],:;#?]|\.(?:\s|$)|$)`
+const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 const forms = [
   { pattern: new RegExp(`${lead}application\\/host${tail}`, "gm"), to: host.to },
+  // Each page and file that moves on its own, by its whole path from the root.
+  ...singles.flatMap(({ from, to }) =>
+    to
+      ? [{ pattern: new RegExp(`(^|[\\s"'\x60(\\[=:,])${escape(from)}(?![\\w.-])`, "gm"), to }]
+      : [],
+  ),
   {
     pattern: new RegExp(String.raw`(\\\/|^|[\s"'\x60(\[=:,])application\\\/host(?=\\\/)`, "gm"),
     to: String.raw`apps\/desktop`,
@@ -125,6 +132,25 @@ export const edits: readonly Edit[] = [
     after:
       '"typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p renderer/tsconfig.json",',
     why: "the page's code has its own config, for the DOM and JSX",
+  },
+  {
+    file: "README.md",
+    before: "`pnpm --filter @novadeck/ui dev --mode web`",
+    after: "`pnpm --filter @novadeck/host exec vite --host 127.0.0.1 --mode web`",
+    why: "the browser app's page is the desktop app's",
+  },
+  {
+    file: "scripts/dev-web/web.test.ts",
+    before: 'expect(ui?.command).toBe("pnpm --filter @novadeck/ui dev --mode web")',
+    after:
+      'expect(ui?.command).toBe("pnpm --filter @novadeck/host exec vite --host 127.0.0.1 --mode web")',
+    why: "as scripts/dev-web/web.ts",
+  },
+  {
+    file: "scripts/bench/profile/app.ts",
+    before: 'join(import.meta.dirname, "..", "..", "..", "application", "host")',
+    after: 'join(import.meta.dirname, "..", "..", "..", "apps", "desktop")',
+    why: "the packaged app's folder, joined by segment",
   },
   {
     file: "scripts/dev-web/web.ts",
