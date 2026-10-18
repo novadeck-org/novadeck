@@ -1,7 +1,8 @@
 # @novadeck/tui-input
 
 Typing into a running full-screen program and checking that the text landed: reading a TUI's input
-box, checking a paste landed, classifying keys, and queueing the work that types.
+box, checking a paste landed, classifying keys, queueing the work that types, giving the program a
+prompt and interrupting its turn.
 
 ## Subpaths
 
@@ -36,6 +37,21 @@ box, checking a paste landed, classifying keys, and queueing the work that types
   - `InputQueue`, one writer per terminal at a time, in order, over a host that holds the user's
     input (`InputQueueHost`, `HoldBudget`, `InputHold`); an entry that fails wedges nothing, and
     the input it held is let go however it ends.
+  - `Prompts`, giving a program a prompt as a user would, in the terminal's turn in an
+    `InputQueue`: the text as one bracketed paste with the user's keys held, and Enter only once
+    the box shows exactly that text (or its placeholder) on two reads running. It pastes only into
+    an empty box, never over a draft or into the box's shell mode, and presses no Enter after a
+    check that failed. A text starting with `!` goes the way a user types a shell command: the `!`
+    as a key, then, once the box switches, the command. The caller says what text may be given
+    with `refuse` (why it can't be, or undefined), asked before the queue; `PromptRefusal`
+    carries the reason (`PromptRefusalReason`) of every prompt not given, and whatever the host's
+    `admit` throws passes as it is. `PromptHost` is what it needs of the terminal, and
+    `collapsible` says whether a TUI may show a paste as a placeholder.
+  - `Interrupts`, stopping a turn as a user's Escape does and leaving the box as it was: it waits
+    for the box to settle, writes a second Escape for a turn started from queued messages, clears
+    what is not the restored prompt and gives the words back as `{ returned }`, or
+    `undefined` where there were none. A box left holding text it could not clear throws
+    `BoxNotCleared`. `InterruptHost` is what it needs of the terminal.
 
 `ScreenText` comes from `@novadeck/emulator/headless`, as a type only, and the width of a
 character from `@novadeck/emulator/width`.
