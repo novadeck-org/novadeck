@@ -27,6 +27,8 @@ export type TerminalLayoutControls = {
   readonly onResizePreset?: (button: HTMLButtonElement) => void
   // Frames the terminal together with content hanging past its right edge.
   readonly onReveal?: (extent: { readonly right: number; readonly height: number }) => void
+  // False while the layout holds the terminal out of the person's sight. Absent means in sight.
+  readonly onScreen?: boolean
 }
 
 const headerActionClasses = "icon-button dim"

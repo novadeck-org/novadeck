@@ -2,19 +2,19 @@ import { act, createElement, Fragment, useEffect, type ComponentProps } from "re
 import { HashRouter } from "react-router"
 import { vi } from "vitest"
 
-import { createSpecBackend } from "../backend/demo/spec-variants"
-import type { CreateBackend, TerminalSurfaceProps } from "../backend/port"
-import { context, describe, expect, it } from "../test"
-import { testPhases } from "../test/phases"
-import { render } from "../test/render"
 import {
   useWorkspaceServices,
   useWorkspaceState,
   type WorkspaceServices,
-} from "./controller/context"
-import { currentState } from "./selectors"
-import { WorkspaceProvider } from "./WorkspaceProvider"
-import { WorkspaceTerminal } from "./WorkspaceTerminal"
+} from "../app/controller/context"
+import { currentState } from "../app/selectors"
+import { WorkspaceProvider } from "../app/WorkspaceProvider"
+import { WorkspaceTerminal } from "../app/WorkspaceTerminal"
+import type { CreateBackend, TerminalSurfaceProps } from "../backend/port"
+import { context, describe, expect, it } from "../test"
+import { testPhases } from "../test/phases"
+import { render } from "../test/render"
+import { createSpecBackend } from "./support/backend"
 
 // jsdom has no layout and no resizes; the taskbar's drag-to-reorder asks for them.
 vi.hoisted(() => {

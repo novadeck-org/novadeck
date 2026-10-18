@@ -29,6 +29,12 @@
   .canvas-viewport[data-has-selection="false"] .canvas-node {
     opacity: 1;
   }
+  /* A node out of sight whose screen has parked: its content is not laid out or painted,
+     and keeps the size its node gives it. Never `auto`, which clips the node's shadow and
+     focus ring, and skips layout where xterm measures at mount (performance rule 13). */
+  .canvas-node .terminal-visibility[data-off-screen] {
+    content-visibility: hidden;
+  }
   .canvas-node .terminal-resize-grip {
     /* Its look is the workspace recipe's, shared with Grid's resize handle. */
     @apply absolute right-px bottom-px z-10 flex size-7 items-end justify-end p-1.5;

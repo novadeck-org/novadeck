@@ -107,6 +107,9 @@ importers:
       '@novadeck/ui':
         specifier: workspace:*
         version: link:../ui
+      '@novadeck/viewers':
+        specifier: workspace:*
+        version: link:../../libraries/viewers
       '@novadeck/wire':
         specifier: workspace:*
         version: link:../../libraries/wire
@@ -599,6 +602,9 @@ importers:
 
   libraries/terminal:
     dependencies:
+      '@novadeck/emulator':
+        specifier: workspace:*
+        version: link:../emulator
       zod:
         specifier: 'catalog:'
         version: 4.6.5
@@ -704,6 +710,9 @@ importers:
       '@vitest/browser-playwright':
         specifier: 5.0.3
         version: 5.0.3(msw@2.15.0(@types/node@26.6.5)(typescript@7.0.2))(playwright@1.64.0)(vite@7.3.6(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))(vitest@5.0.3)
+      electron:
+        specifier: 'catalog:'
+        version: 44.7.0(supports-color@10.2.2)
       playwright:
         specifier: ^1.64.0
         version: 1.64.0

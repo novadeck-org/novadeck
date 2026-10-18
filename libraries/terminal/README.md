@@ -2,7 +2,8 @@
 
 Hosting terminals and attaching to them: a pty, a headless screen kept in step with it, a
 resumable stream of it, its browser view, and shell integration. So far it has the attach
-contract, an attached viewer's queue, the process facts and the shell integration; the rest arrives
+contract, a terminal's events and attachments, the pty, the process facts and the shell
+integration; the rest arrives
 a part at a time.
 
 ## Subpaths
@@ -21,11 +22,19 @@ a part at a time.
 The others are Node only: each names only the `node` condition, so a browser bundle can't
 resolve it.
 
-- `./host`: `Subscription`, one attached viewer's events: a queue bounded in bytes, an ack
-  window that holds delivery until the viewer catches up, and one initial snapshot under its
-  own cap. A viewer that falls behind fails with `SLOW_CONSUMER`, to reconnect and resume. It
-  counts each event at its JSON's size in its consumer's envelope, so the budgets are what the
-  transport sends.
+- `./host`: hosting a terminal.
+  - `createTerminal(options)` keeps a terminal's events and who reads them. It sequences each
+    event and keeps a replay ring bounded in bytes. A viewer attaches from a cursor the ring
+    still holds, or else from a snapshot of the screen, with as much scrollback as fits its own
+    cap. One attachment controls the terminal and the rest observe.
+  - Each attachment has a queue bounded in bytes, and an ack window that holds delivery until
+    the viewer catches up. A viewer that falls behind fails with `SLOW_CONSUMER`, to reconnect
+    and resume.
+  - Every budget counts an event at `eventBytes`: what the transport sends, envelope and all.
+  - A restart in place starts the ring over and skips a sequence number, so an earlier cursor
+    gets a snapshot.
+  - Until the host owns the screen and the output, its caller gives it the screen to snapshot
+    (`view`) and emits the events.
 
 - `./pty`: a terminal's processes.
   - `spawnPty(options)` starts a program in a pty, through node-pty (an optional peer: install
