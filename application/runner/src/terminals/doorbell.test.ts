@@ -1,12 +1,12 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
 import { screen } from "@novadeck/harness-core/testing/screens"
-import { InputQueue, sizeCapMs } from "@novadeck/tui-input"
+import { InputQueue, pasteMsOn } from "@novadeck/tui-input"
 import { vi } from "vitest"
 
 import type { Waits } from "../messaging/delivery.js"
 import { describe, expect, it } from "../test.js"
-import { confirmMs, Doorbell, type DoorbellHost } from "./doorbell.js"
+import { confirmMs, Doorbell, ringSizeCapMs, type DoorbellHost } from "./doorbell.js"
 
 /**
  * A terminal as the doorbell sees it: a screen that a paste changes as `takes` says,
@@ -48,6 +48,8 @@ const terminal = (
     barredMs?: number
     /** Resizes it as the foreground is looked at, once: after the calm, before the ring. */
     resizeAtForeground?: boolean
+    /** Its hold's settle never takes effect: only the size cap ends the hold of the resizes. */
+    settleLost?: boolean
   } = {},
 ) => {
   const rows = options.logo
@@ -59,8 +61,13 @@ const terminal = (
   const failed: string[] = []
   let holds = 0
   let held = false
-  // Whether the app's resizes are held, until the hold settles.
+  // Whether the app's resizes are held, until the hold settles or its size cap lapses.
   let sizes = false
+  // This models one hold at a time: the sizes waiting are shared, and applied at its end.
+  // The app's sizes that reached the terminal, and one that waits on the hold.
+  let applied = 0
+  let holdAt: number | undefined
+  let waiting = false
   let rings = 0
   let pastedAt: number | undefined
   let resizedAt = 0
@@ -164,10 +171,21 @@ const terminal = (
     },
   }
   const queue = new InputQueue({
-    hold: () => {
+    hold: (_, budget) => {
       holds += 1
+      holdAt = Date.now()
       held = true
       sizes = true
+      // As the terminal's hold: the size cap ends the hold of the resizes, applying the one waiting.
+      const finish = () => {
+        clearTimeout(sizeCap)
+        if (!sizes) return
+        sizes = false
+        if (waiting) applied += 1
+        waiting = false
+      }
+      const sizeCap = setTimeout(finish, budget.sizeMs)
+      sizeCap.unref()
       const lapse =
         options.holdMs === undefined ? undefined : setTimeout(() => (held = false), options.holdMs)
       const release = () => {
@@ -178,7 +196,7 @@ const terminal = (
         release,
         settle: () => {
           release()
-          sizes = false
+          if (!options.settleLost) finish()
         },
         settleAfter: () => {},
         holding: () => held,
@@ -209,7 +227,12 @@ const terminal = (
     clearLeftover: () => (leftover = undefined),
     // What its screen reads as now, for a stalled terminal.
     read: (next: "empty" | "starting" | Waits) => (reading = next),
-    state: () => ({ ringing, holds, held, sizes, rings, pastedAt, resizedAt }),
+    state: () => ({ ringing, holds, held, sizes, rings, pastedAt, resizedAt, applied, holdAt }),
+    // The app sends a size: it waits while the resizes are held, else reaches the terminal.
+    send: () => {
+      if (sizes) waiting = true
+      else applied += 1
+    },
     // The app resized its window now.
     resize: () => (resizedAt = Date.now()),
     // The ring's prompt arrived: messaging leaves Ringing.
@@ -236,16 +259,109 @@ describe("a ring's wait for its doorbell prompt", () => {
     expect(confirmMs("linux")).toBe(5_000)
   })
 
-  it("ends inside the longest a ring holds the app's resizes on Linux and macOS", () => {
-    // The hold's safety cap only holds while the prompt's wait stays within it.
-    for (const platform of ["linux", "darwin"] as const)
-      expect(confirmMs(platform)).toBeLessThan(sizeCapMs)
+  it("holds the app's resizes until the latest Enter's wait is over, from production defaults", () => {
+    const cap = (platform: NodeJS.Platform) =>
+      ringSizeCapMs(pasteMsOn(platform), confirmMs(platform))
+    expect(cap("linux")).toBe(8_000)
+    expect(cap("darwin")).toBe(8_000)
+    expect(cap("win32")).toBe(30_500)
+  })
+})
+
+describe("the app's resizes during a ring's wait for its prompt on Windows", () => {
+  const win = { calmMs: 30, pollMs: 5, watchMs: 10, platform: "win32" } as const
+  /**
+   * Runs the fake clock until the ring's Enter is pressed; when it was. The typist's own short
+   * sleeps are real, so each step also lets a few real milliseconds pass.
+   */
+  const pressed = async (doorbell: Doorbell, t: ReturnType<typeof terminal>) => {
+    doorbell.changed("t")
+    for (let i = 0; i < 200 && enters(t.written) === 0; i += 1)
+      // eslint-disable-next-line no-await-in-loop -- Each step waits for the one before.
+      await Promise.all([vi.advanceTimersByTimeAsync(50), sleep(10)])
+    expect(enters(t.written)).toBe(1)
+    return Date.now()
+  }
+  const elapsed = (since: number) => Date.now() - since
+
+  it("holds past the old 8 s cap until the prompt confirms, then applies right after", async () => {
+    vi.useFakeTimers()
+    try {
+      const t = terminal()
+      const doorbell = new Doorbell(t.host, t.host.queue, win)
+      const at = await pressed(doorbell, t)
+      await vi.advanceTimersByTimeAsync(10_000 - elapsed(at))
+      t.send()
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(t.state()).toMatchObject({ sizes: true, applied: 0 })
+      t.confirm()
+      doorbell.changed("t")
+      expect(t.state()).toMatchObject({ sizes: false, applied: 1 })
+      doorbell.close()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
-  it("outlasts that cap on Windows, where the hook's shell slack is added: the cap lets the resizes go first", () => {
-    // Pinned as it is today (the delivery's timings are unchanged by the typist's move), so
-    // closing the gap is a deliberate change that updates this.
-    expect(confirmMs("win32")).toBeGreaterThan(sizeCapMs)
+  it("applies it once confirmMs fails the ring, not before", async () => {
+    vi.useFakeTimers()
+    try {
+      const t = terminal()
+      const doorbell = new Doorbell(t.host, t.host.queue, win)
+      const at = await pressed(doorbell, t)
+      await vi.advanceTimersByTimeAsync(10_000 - elapsed(at))
+      t.send()
+      await vi.advanceTimersByTimeAsync(confirmMs("win32") - 1_000 - 10_000)
+      expect(t.failed).toHaveLength(0)
+      expect(t.state()).toMatchObject({ sizes: true, applied: 0 })
+      await vi.advanceTimersByTimeAsync(1_000 + 50)
+      expect(t.failed).toHaveLength(1)
+      expect(t.state()).toMatchObject({ sizes: false, applied: 1 })
+      doorbell.close()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("still holds at the confirmation deadline when the line landed late, as the Enter comes late", async () => {
+    vi.useFakeTimers()
+    try {
+      // The line shows 3.8 s after it was written: the Enter comes long after the hold began.
+      const t = terminal({ landMs: 3_800 })
+      const doorbell = new Doorbell(t.host, t.host.queue, win)
+      const at = await pressed(doorbell, t)
+      await vi.advanceTimersByTimeAsync(10_000 - elapsed(at))
+      t.send()
+      await vi.advanceTimersByTimeAsync(24_500 - 10_000)
+      expect(t.state()).toMatchObject({ ringing: expect.any(String), sizes: true, applied: 0 })
+      expect(t.failed).toHaveLength(0)
+      t.confirm()
+      doorbell.changed("t")
+      expect(t.state()).toMatchObject({ sizes: false, applied: 1 })
+      doorbell.close()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("releases it at the cap, after the confirmation deadline, when its settle never comes", async () => {
+    vi.useFakeTimers()
+    try {
+      const t = terminal({ settleLost: true })
+      const doorbell = new Doorbell(t.host, t.host.queue, win)
+      await pressed(doorbell, t)
+      t.send()
+      const lapse = t.state().holdAt! + 30_500
+      // Past confirmMs the ring has failed, but its settle is lost: the cap still holds.
+      await vi.advanceTimersByTimeAsync(lapse - 1 - Date.now())
+      expect(t.failed).toHaveLength(1)
+      expect(t.state()).toMatchObject({ sizes: true, applied: 0 })
+      await vi.advanceTimersByTimeAsync(2)
+      expect(t.state()).toMatchObject({ sizes: false, applied: 1 })
+      doorbell.close()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
