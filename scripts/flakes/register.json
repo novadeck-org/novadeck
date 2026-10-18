@@ -3,7 +3,7 @@
   "flakes": [
     {
       "id": "ui-companions-plan-reopen-place",
-      "jobs": ["^Test \\((Linux|macOS|Windows)(, [12][/-]2)?\\)$"],
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/specs/companions.spec.tsx > Switching views > opens a plan's editor as it was left",
       "signature": "AssertionError: expected .+ to be ",
       "status": "fixed",
@@ -15,7 +15,7 @@
     },
     {
       "id": "ui-companions-plan-restore-layout",
-      "jobs": ["^Test \\((Linux|macOS|Windows)(, [12][/-]2)?\\)$"],
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/specs/companions.spec.tsx > Switching views > keeps a restored plan at its saved line when its layout changes later",
       "signature": "AssertionError: expected \\d+ to be less than 1",
       "status": "known",
@@ -24,7 +24,7 @@
     },
     {
       "id": "ui-agents-pinned-drag-top",
-      "jobs": ["^Test \\((Linux|macOS|Windows)(, [12][/-]2)?\\)$"],
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/specs/agents.spec.tsx > A pinned project > dragged from the switcher menu > still reorders the list when dragged to its top",
       "signature": "AssertionError: expected undefined to be 'docs-site'",
       "status": "known",
@@ -33,7 +33,7 @@
     },
     {
       "id": "ui-preferences-murmur-cancel",
-      "jobs": ["^Test \\((Linux|macOS|Windows)(, [12][/-]2)?\\)$"],
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/specs/preferences.spec.tsx > Preferences Addons > when murmur is not installed > stops an install on Cancel",
       "signature": "Cannot find element with locator: getByRole\\('dialog', \\{ name: 'Preferences' \\}\\).*getByRole\\('button', \\{ name: 'Install' \\}\\)|locator\\.click: Timeout \\d+ms exceeded[\\s\\S]*name: 'Cancel'",
       "status": "fixed",
@@ -47,7 +47,7 @@
     },
     {
       "id": "ui-preferences-voice-cancel",
-      "jobs": ["^Test \\((Linux|macOS|Windows)(, [12][/-]2)?\\)$"],
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/specs/preferences.spec.tsx > Preferences Addons > when voice input is not installed > stops an install on Cancel",
       "signature": "Cannot find element with locator: getByRole\\('dialog', \\{ name: 'Preferences' \\}\\).*getByRole\\('button', \\{ name: 'Install' \\}\\)|locator\\.click: Timeout \\d+ms exceeded[\\s\\S]*name: 'Cancel'",
       "status": "fixed",
@@ -56,7 +56,7 @@
     },
     {
       "id": "ui-companions-grid-undock",
-      "jobs": ["^Test \\((Linux|macOS|Windows)(, [12][/-]2)?\\)$"],
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/specs/companions.spec.tsx > Undocking an item into a window of its own > when dragged onto the Grid's free space > opens a window there",
       "signature": "(AssertionError|VitestBrowserElementError)",
       "status": "known",
@@ -68,7 +68,7 @@
     },
     {
       "id": "e2e-codex-windows-folder-trust",
-      "jobs": ["^Codex \\(Windows(, [12][/-]2)?\\)$"],
+      "jobs": ["^Codex \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/e2e/controls.e2e.ts > Codex, its folder untrusted > never rings an agent at its folder-trust question",
       "signature": "Timed out after \\d+ ms",
       "status": "fixed",
@@ -104,7 +104,7 @@
     },
     {
       "id": "e2e-claude-windows-interrupted-draft",
-      "jobs": ["^Claude Code \\(Windows(, [12][/-]2)?\\)$"],
+      "jobs": ["^Claude Code \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/e2e/chat.e2e.ts > Claude Code > leaves the box as it was before the interrupted prompt",
       "signature": "The agent's input box holds text already: a draft",
       "status": "known",
@@ -116,7 +116,7 @@
     },
     {
       "id": "e2e-claude-windows-interrupt-draft",
-      "jobs": ["^Claude Code \\(Windows(, [12][/-]2)?\\)$"],
+      "jobs": ["^Claude Code \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/e2e/interrupt.e2e.ts > Claude Code > presses one Escape for a double Stop",
       "signature": "The agent's input box holds text already: a draft",
       "status": "known",
@@ -142,7 +142,7 @@
     },
     {
       "id": "ui-murmur-offer-expect-element",
-      "jobs": ["^Test \\(Windows(, [12][/-]2)?\\)$"],
+      "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/specs/murmur-offer.spec.tsx > ",
       "signature": "TypeError: expect\\.element is not a function",
       "status": "known",
