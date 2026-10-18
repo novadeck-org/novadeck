@@ -28,6 +28,7 @@
     "@novadeck/relay": "workspace:*",
     "@novadeck/runner": "workspace:*",
     "@novadeck/ui": "workspace:*",
+    "@novadeck/viewers": "workspace:*",
     "@novadeck/wire": "workspace:*",
     "@types/node": "^26.6.5",
     "concurrently": "^10.0.6",

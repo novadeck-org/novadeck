@@ -2,16 +2,11 @@
   "name": "@novadeck/harness-core",
   "version": "0.0.0",
   "private": true,
-  "description": "The contract every agent harness adapter fills in, and the helpers they share: hook reports, events, dialogs, input boxes, transcripts and plugin files.",
+  "description": "The contract every agent harness adapter fills in, and the helpers they share: hook reports, events, dialogs, transcripts and plugin files.",
   "author": "mzpkdev",
   "type": "module",
   "sideEffects": false,
   "exports": {
-    "./box": {
-      "development": "./src/box.ts",
-      "types": "./dist/box.d.ts",
-      "default": "./dist/box.js"
-    },
     "./dialogs": {
       "development": "./src/dialogs.ts",
       "types": "./dist/dialogs.d.ts",
@@ -75,7 +70,8 @@
   },
   "dependencies": {
     "@novadeck/emulator": "workspace:*",
-    "@novadeck/protocol": "workspace:*"
+    "@novadeck/protocol": "workspace:*",
+    "@novadeck/tui-input": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

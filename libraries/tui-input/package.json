@@ -1,0 +1,28 @@
+{
+  "name": "@novadeck/tui-input",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Typing into a running full-screen program and checking that the text landed: reading a TUI's input box, and comparing what it shows with what was sent.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./box": {
+      "development": "./src/box.ts",
+      "types": "./dist/box.d.ts",
+      "default": "./dist/box.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@novadeck/emulator": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

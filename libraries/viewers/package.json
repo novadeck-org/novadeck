@@ -41,6 +41,19 @@
       "types": "./dist/text.d.ts",
       "default": "./dist/text.js"
     },
+    "./browser": {
+      "development": "./src/browser.ts",
+      "types": "./dist/browser.d.ts",
+      "default": "./dist/browser.js"
+    },
+    "./browser.css": "./src/browser.css",
+    "./browser/host": {
+      "node": {
+        "development": "./src/browser-host.ts",
+        "types": "./dist/browser-host.d.ts",
+        "default": "./dist/browser-host.js"
+      }
+    },
     "./react": {
       "development": "./src/react.ts",
       "types": "./dist/react.d.ts",
@@ -77,6 +90,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitest/browser-playwright": "5.0.3",
+    "electron": "catalog:",
     "playwright": "^1.64.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -86,9 +100,13 @@
   "peerDependencies": {
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.14",
+    "electron": "catalog:",
     "react": "^19.3.0"
   },
   "peerDependenciesMeta": {
+    "electron": {
+      "optional": true
+    },
     "react": {
       "optional": true
     }

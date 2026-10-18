@@ -6,15 +6,9 @@ import {
 } from "@novadeck/harness-agy/box"
 import { box as claude, shellFooter as claudeFooter } from "@novadeck/harness-claude/box"
 import { box as codex, shellFooter as codexFooter } from "@novadeck/harness-codex/box"
-import {
-  compact,
-  isEmpty,
-  sameText,
-  wrappedRows,
-  type BoxProfile,
-} from "@novadeck/harness-core/box"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { screen as screenWith } from "@novadeck/harness-core/testing/screens"
+import { compact, isEmpty, sameText, wrappedRows, type BoxProfile } from "@novadeck/tui-input/box"
 
 import { describe, expect, it } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"

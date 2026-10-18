@@ -174,7 +174,7 @@ export const notes: Record<string, Note> = {
   },
   "harness/core": {
     purpose:
-      "The contract every harness adapter implements, and what they share: hook commands, events, reports, dialogs, input box profiles and shell quoting.",
+      "The contract every harness adapter implements, and what they share: hook commands, events, reports, dialogs and shell quoting, and the `Harness` type whose `box` is a tui-input `BoxProfile`.",
     entries: [
       { file: "harnesses/core/src/harness.ts", text: "export type Harness = {" },
       { file: "harnesses/core/src/events.ts" },

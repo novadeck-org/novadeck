@@ -36,7 +36,7 @@ const audioOnly = (types: readonly string[] | undefined): boolean =>
 /**
  * Refuses the app's session every permission but the clipboard and the microphone for
  * the app's own page, which `own` recognises by its address. Live pages have a session of
- * their own, which refuses them everything (see ./pages.ts).
+ * their own, which refuses them everything (see @novadeck/viewers/browser/host).
  *
  * `microphone` asks the system to allow the microphone before a request is granted, as
  * macOS requires; the system's answer decides, and it is asked only for the page's own

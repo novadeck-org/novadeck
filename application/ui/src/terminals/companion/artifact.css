@@ -4,8 +4,9 @@
    zoom, a segmented control (`.artifact-zoom`); a file's lines (`.artifact-code`,
    holding the code viewer, @novadeck/viewers/code.css); a page in a browser frame
    (`.artifact-browser`, its bar `.artifact-browser-bar` with `.icon-button`s, its
-   address `.artifact-url` and a link to open it, `.artifact-open`, and a snapshot in
-   `.artifact-page-scroll`); and a markdown document, which the prose recipe formats.
+   address `.artifact-url` and a link to open it, `.artifact-open`, and the page in
+   `.artifact-page-frame`, holding the browser viewer, with `.artifact-page-failed`
+   over it when it didn't load); and a markdown document, which the prose recipe formats.
    `.artifact-status` says when there's nothing to show yet; `.artifact-unavailable`
    says why something can't show, over `.artifact-unavailable-actions`, what can be done
    about it. `.artifact-actions` holds what the place showing it offers, as
@@ -214,29 +215,36 @@
   --_bg: var(--artifact-open-hover-bg, var(--color-soft));
   --_fg: var(--artifact-open-hover-fg, var(--color-ink));
 }
-/* A live page fills the viewer, and scrolls itself; a snapshot scrolls under the bar. */
-.artifact-page-scroll {
+/* The page, in the browser viewer (@novadeck/viewers/browser.css): live, it fills the
+   viewer and scrolls itself; a snapshot scrolls under the bar. */
+.artifact-page-frame {
+  display: flex;
+  position: relative;
   flex: 1;
+  flex-direction: column;
   min-height: 0;
-  overflow: auto;
 }
-.artifact-webview-frame {
+.artifact-page-view {
   display: flex;
   flex: 1;
+  flex-direction: column;
   min-height: 0;
+  --browser-page-bg: var(--artifact-webview-bg, var(--color-paper));
 }
-.artifact-webview {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  border: 0;
-  background-color: var(--artifact-webview-bg, var(--color-paper));
+/* A page that didn't load, over what's left of it. */
+.artifact-page-failed {
+  display: grid;
+  position: absolute;
+  inset: 0;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  background-color: var(--color-paper);
+  color: var(--artifact-status-fg, var(--color-muted));
+  font-size: var(--text-body);
 }
-/* The mocked Studio site, in its own palette. */
-.artifact-page {
-  display: block;
-  width: 100%;
-  height: auto;
+.artifact-page-failed p {
+  margin: 0;
 }
 
 /* What an agent showed, in a window of its own: the viewer fills the window. */
