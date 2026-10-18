@@ -1,10 +1,5 @@
 import { emptyCompanions } from "#core/companion"
 import type { Conversations } from "#core/conversation"
-import type { WorkspaceSeed } from "#core/seed"
-import { createStore } from "#core/store"
-import { createTelemetryStore, dropProject, dropTerminal, noTelemetry } from "#core/telemetry"
-import type { TitleSource, Workspace } from "#core/types"
-
 import type {
   AgentConnection,
   Backend,
@@ -12,7 +7,12 @@ import type {
   BackendSink,
   MountTerminal,
   TerminalKey,
-} from "../port"
+} from "#core/port"
+import type { WorkspaceSeed } from "#core/seed"
+import { createStore } from "#core/store"
+import { createTelemetryStore, dropProject, dropTerminal, noTelemetry } from "#core/telemetry"
+import type { TitleSource, Workspace } from "#core/types"
+
 import type { DemoAgentLink } from "./agent-link"
 import { createDemoChat } from "./chat"
 import { createDemoEngine, type DemoEngine } from "./engine"
@@ -152,7 +152,7 @@ export const demoBackend = (
 export const demoTerminalsLife = (
   backend: Backend,
 ): { readonly start: () => void; readonly stop: () => void } | undefined => {
-  const terminals = "mountTerminal" in backend ? terminalsOf.get(backend.mountTerminal) : undefined
+  const terminals = terminalsOf.get(backend.mountTerminal)
   return terminals && { start: terminals.start, stop: terminals.stop }
 }
 
@@ -278,7 +278,7 @@ export const withConversations = (
     conversations,
     opening: chat.opening,
   }
-  const terminals = "mountTerminal" in backend ? terminalsOf.get(backend.mountTerminal) : undefined
+  const terminals = terminalsOf.get(backend.mountTerminal)
   if (!terminals) throw new Error("withConversations wraps a backend demoBackend made")
   terminals.link(link)
   const linked: Backend = {

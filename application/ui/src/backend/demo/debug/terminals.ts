@@ -1,7 +1,6 @@
+import type { BackendAction, TerminalKey } from "#core/port"
 import { terminalAsks, type TerminalAsk } from "#core/terminal-ending"
 import type { AgentStatus, AgentUsage, TerminalMetadata, Workspace } from "#core/types"
-
-import type { BackendAction, TerminalKey } from "../../port"
 
 // The actions that put a terminal in a state, as the backend would report it. Pure, so
 // each can be tested: the panel's actions dispatch what they return.

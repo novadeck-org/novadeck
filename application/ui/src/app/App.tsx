@@ -1,7 +1,8 @@
 import { useEffect, useRef, type ComponentProps, type ComponentType } from "react"
 import { HashRouter, MemoryRouter } from "react-router"
 
-import type { Backend, BackendSelection, CreateBackend, TerminalKey } from "../backend/port"
+import type { Backend, BackendSelection, CreateBackend, TerminalKey } from "#core/port"
+
 import { sidebarToggle } from "../interaction/dom"
 import { dictationKeys } from "../interaction/shortcuts"
 import { cancelTerminalTransition } from "../layouts/transition"
@@ -157,7 +158,7 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
   const { backend } = services
   // The terminals' font follows Preferences.
   useEffect(() => {
-    if ("setFont" in backend) backend.setFont({ size: fontSize })
+    backend.setFont({ size: fontSize })
   }, [backend, fontSize])
   const sidebarRail = (mobile = false): React.JSX.Element => (
     <RailWithBadge

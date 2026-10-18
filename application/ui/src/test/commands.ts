@@ -1,4 +1,5 @@
 import type { Rect } from "#core/layout/spatial"
+import type { Backend } from "#core/port"
 import { activeSession } from "#core/state"
 import { createWorkspaceStore } from "#core/store"
 import type { PreferencesValue, Workspace } from "#core/types"
@@ -16,7 +17,6 @@ import {
   watchPresentation,
   watchSwitcher,
 } from "../app/ui-store"
-import type { Backend } from "../backend/port"
 import type { CanvasHandle } from "../layouts/canvas/types"
 import { appearance, workspaceFixture } from "./fixtures"
 

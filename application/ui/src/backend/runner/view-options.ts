@@ -5,9 +5,9 @@ import type { AttachStream, Exit } from "@novadeck/terminal"
 import type { PasteFailure } from "@novadeck/terminal/view"
 import { parkedCap, parkMs, type TerminalViewOptions } from "@novadeck/terminal/view"
 
+import type { TerminalKey, ThemeSource } from "#core/port"
 import { createStore } from "#core/store"
 
-import type { TerminalKey, ThemeSource } from "../port"
 import { openEmulator } from "../terminal-views/emulator"
 import { screenMarkup } from "../terminal-views/mount"
 import { pasteNotice as sharedNotice } from "../terminal-views/paste-notice"

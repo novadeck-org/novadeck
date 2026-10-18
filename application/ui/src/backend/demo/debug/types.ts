@@ -1,9 +1,9 @@
 import type { ComponentType } from "react"
 
+import type { Backend, BackendSink, TerminalKey } from "#core/port"
 import type { Workspace } from "#core/types"
 import type { UpdateOffer } from "#core/update"
 
-import type { Backend, BackendSink, TerminalKey } from "../../port"
 import type { DemoScreenStates } from "../runtime"
 import type { DemoUpdates } from "./updates"
 

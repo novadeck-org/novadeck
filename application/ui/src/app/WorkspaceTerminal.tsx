@@ -3,7 +3,6 @@ import { memo, useCallback, useContext, useMemo, useSyncExternalStore, type Reac
 import { agentStats } from "#core/agent-usage"
 import { handleNames, runningLeads, terminalOrigins } from "#core/derivations"
 import { isWindow } from "#core/roster"
-import { activeProject } from "#core/state"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "#core/types"
 
 import { shortcutBindings } from "../interaction/shortcuts"
@@ -177,10 +176,9 @@ export const WorkspaceTerminal = memo(
     const terminalId = terminal.id
     // Each terminal selects only what concerns it, so a rename keystroke or a keyboard
     // focus change re-renders just the terminals involved.
-    const { projectName, view, active } = useWorkspaceState((workspace) => {
+    const { view, active } = useWorkspaceState((workspace) => {
       const state = currentState(workspace)
       return {
-        projectName: activeProject(workspace)!.name,
         view: state.view,
         active: state.selected === terminalId,
       }
@@ -190,11 +188,10 @@ export const WorkspaceTerminal = memo(
     const terminalName = useWorkspaceState(terminalOrigins, shallowEqual)
     const names = useWorkspaceState(handleNames, shallowEqual)
     const lead = useWorkspaceState((workspace) => runningLeads(workspace)[terminalId], shallowEqual)
-    const { keyboardFocus, fontSize } = useUiState(
+    const { keyboardFocus } = useUiState(
       (state) => ({
         keyboardFocus:
           state.shell.keyboardFocus?.id === terminalId ? state.shell.keyboardFocus : null,
-        fontSize: state.preferences.fontSize,
       }),
       shallowEqual,
     )
@@ -334,24 +331,12 @@ export const WorkspaceTerminal = memo(
         </WindowShell>
       )
     }
-    return "mountTerminal" in backend ? (
+    return (
       <MountedTerminal
         mountTerminal={backend.mountTerminal}
         terminalKey={terminalKey}
         terminal={terminal}
         view={view}
-        focusInput={wanted && !showChat}
-        onInputFocused={onInputFocused}
-        onScreen={onScreen}
-        renderWindow={renderWindow}
-      />
-    ) : (
-      <backend.TerminalSurface
-        terminalKey={terminalKey}
-        terminal={terminal}
-        projectName={projectName}
-        view={view}
-        fontSize={fontSize}
         focusInput={wanted && !showChat}
         onInputFocused={onInputFocused}
         onScreen={onScreen}

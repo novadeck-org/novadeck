@@ -1,6 +1,5 @@
+import type { BackendConnectionState, TerminalKey } from "#core/port"
 import type { Store } from "#core/store"
-
-import type { BackendConnectionState, TerminalKey } from "../port"
 
 // What the demo's terminals read beyond its engine, shared by the plain demo, the
 // visitor's and the debug layer that drives it.

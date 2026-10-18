@@ -1,6 +1,6 @@
+import type { Backend, BackendSink, TerminalKey } from "#core/port"
 import type { TerminalMetadata, Workspace } from "#core/types"
 
-import type { Backend, BackendSink, TerminalKey } from "../../port"
 import { demoHandle } from "../handles"
 import { demoAgent, demoTerminalId } from "../samples"
 import { createShowcase } from "../showcase/simulation"

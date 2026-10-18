@@ -1,4 +1,5 @@
-import type { ConnectFailure } from "../../port"
+import type { ConnectFailure } from "#core/port"
+
 import { bootFailures } from "./boot-failures"
 import { iconGuidesGroup } from "./icon-guides"
 import { sampleFix } from "./sandbox"

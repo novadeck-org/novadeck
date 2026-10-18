@@ -7,6 +7,7 @@ import {
   type AgentFinish,
   type SeenEnd,
 } from "#core/agent-finish"
+import type { Backend } from "#core/port"
 import type { PortableState } from "#core/portable"
 import { readPortableCardRaised, writePortableCardRaised } from "#core/portable-card-raised"
 import { orderedTiles } from "#core/roster"
@@ -16,7 +17,6 @@ import { createStore, type MutableStore, type Store } from "#core/store"
 import type { PreferencesValue, TerminalMetadata, Workspace } from "#core/types"
 import type { UpdateOffer } from "#core/update"
 
-import type { Backend } from "../backend/port"
 import { writePreferences } from "../preferences/preferences-storage"
 import { noArrangement, type ProjectArrangement } from "../projects/project-arrangement"
 import { writeProjectArrangement } from "../projects/project-arrangement-storage"
