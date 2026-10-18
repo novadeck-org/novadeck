@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { spawn } from "node-pty"
-import { describe, expect, it, vi } from "vitest"
+import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest"
 
 import { parseCommandLine, parseProcessStat, sampleForeground, statName } from "./foreground.js"
 
@@ -73,45 +73,55 @@ describe("a process's name, as /proc names it", () => {
 
 describe.skipIf(process.platform !== "darwin")("macOS foreground naming", () => {
   // A program installed as a link into a versioned file, as Claude Code is. A system binary
-  // copied here is killed for its broken signature, so build one.
-  const versioned = (): { dir: string; link: string } => {
-    const dir = mkdtempSync(join(tmpdir(), "foreground-version-"))
+  // copied here is killed for its broken signature, so build one, once: a cold compiler
+  // takes seconds, and macOS checks each new binary before it first runs.
+  let dir = ""
+  let link = ""
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "foreground-version-"))
     writeFileSync(join(dir, "wait.c"), "#include <unistd.h>\nint main(){sleep(30);return 0;}")
     execFileSync("cc", [join(dir, "wait.c"), "-o", join(dir, "2.1.300")])
-    symlinkSync(join(dir, "2.1.300"), join(dir, "claude"))
-    return { dir, link: join(dir, "claude") }
-  }
+    link = join(dir, "claude")
+    symlinkSync(join(dir, "2.1.300"), link)
+  }, 60_000)
+  afterAll(() => {
+    if (dir) rmSync(dir, { recursive: true, force: true })
+  })
 
-  it("names a program run from the shell by its link, asking ps once while it runs", async () => {
-    const { dir, link } = versioned()
-    // An interactive shell runs it as a job of its own, holding the terminal, as at a prompt.
-    const child = spawn("/bin/zsh", ["-fic", `"${link}"; :`], { name: "xterm-256color" })
-    try {
-      await vi.waitFor(() => expect(child.process).toBe("2.1.300"), { timeout: 10_000 })
+  // Until the program runs: the shell's start and macOS's check of it, under load.
+  const runsMs = 20_000
+  // Each sample's two ps runs, each bounded at 2 s.
+  const sampleMs = 2 * 2_000
+  const testMs = runsMs + sampleMs + 5_000
+
+  it(
+    "names a program run from the shell by its link, asking ps once while it runs",
+    async () => {
+      // An interactive shell runs it as a job of its own, holding the terminal, as at a prompt.
+      const child = spawn("/bin/zsh", ["-fic", `"${link}"; :`], { name: "xterm-256color" })
+      onTestFinished(() => child.kill())
+      await vi.waitFor(() => expect(child.process).toBe("2.1.300"), { timeout: runsMs })
       const first = sampleForeground(child, undefined)
       expect(first.process?.name).toBe("claude")
       expect(first.group).not.toBe(child.pid)
       expect(sampleForeground(child, first)).toBe(first)
-    } finally {
-      child.kill()
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
+    },
+    testMs,
+  )
 
-  it("names a program run in the shell's place by its link too", async () => {
-    const { dir, link } = versioned()
-    const child = spawn(link, [], { name: "xterm-256color" })
-    try {
+  it(
+    "names a program run in the shell's place by its link too",
+    async () => {
+      const child = spawn(link, [], { name: "xterm-256color" })
+      onTestFinished(() => child.kill())
       // The name is the program's only once the spawned process has run exec, which macOS
       // may hold back while it first checks a new binary.
-      await vi.waitFor(() => expect(child.process).toBe("2.1.300"), { timeout: 10_000 })
+      await vi.waitFor(() => expect(child.process).toBe("2.1.300"), { timeout: runsMs })
       const sample = sampleForeground(child, undefined)
       expect(sample.process?.name).toBe("claude")
       // Its group is the shell's pid, as at a prompt, so the name decides instead.
       expect(sample.group).toBeNull()
-    } finally {
-      child.kill()
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
+    },
+    testMs,
+  )
 })

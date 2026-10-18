@@ -16,7 +16,6 @@ on:
       - package.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
-      - patches/**
       - turbo.json
   schedule:
     # Nightly, against each harness's latest release, to catch drift before a pin moves.

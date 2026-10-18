@@ -12,7 +12,7 @@ relay. `node-pty` is a native dependency;
 installation can require Python and a C/C++ toolchain for your platform.
 `node-pty` is pinned exactly to `1.2.0-beta.14` for its native cleanup fixes and
 correct macOS spawn-helper permissions. One local patch
-(`patches/node-pty@1.2.0-beta.14.patch`) adds an error listener to its Windows input
+(`libraries/terminal/patches/node-pty@1.2.0-beta.14.patch`) adds an error listener to its Windows input
 socket ([#942](https://github.com/microsoft/node-pty/issues/942),
 [#976](https://github.com/microsoft/node-pty/issues/976)). A failed write, such as
 EAGAIN, used to crash the process. The failed socket cannot take input again, so the
