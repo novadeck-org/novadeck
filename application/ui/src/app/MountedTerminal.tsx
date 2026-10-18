@@ -10,16 +10,16 @@ import {
   type ReactNode,
 } from "react"
 
-import { endingText, terminalEnding } from "#core/terminal-ending"
-import type { TerminalMetadata, ViewMode } from "#core/types"
-
 import type {
   MountTerminal,
   TerminalKey,
   TerminalLock as Lock,
   TerminalMount,
   ViewState,
-} from "../backend/port"
+} from "#core/port"
+import { endingText, terminalEnding } from "#core/terminal-ending"
+import type { TerminalMetadata, ViewMode } from "#core/types"
+
 import { TerminalEndingBar, TerminalLock, TerminalNotice } from "../ui-toolkit/TerminalStatus"
 
 // Why typing is paused. A failed paste says why in the same notice.

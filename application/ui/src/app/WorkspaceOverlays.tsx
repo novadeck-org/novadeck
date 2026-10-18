@@ -9,11 +9,11 @@ import {
 } from "react"
 
 import type { AgentName } from "#core/harnesses"
+import type { Backend } from "#core/port"
 import { orderedTiles } from "#core/roster"
 import { activeProject } from "#core/state"
 import type { OfferedUninstall } from "#core/uninstall"
 
-import type { Backend } from "../backend/port"
 import { terminalElement } from "../interaction/dom"
 import type { MurmurAddonValue } from "../preferences/MurmurAddon"
 import { disconnectAgent, runUninstall } from "../preferences/uninstall"

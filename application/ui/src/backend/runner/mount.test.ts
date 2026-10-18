@@ -2,17 +2,17 @@ import { createRenderers, type Drawing, type Terminal } from "@novadeck/emulator
 import { createTerminalViews, type Hold, type TerminalViews } from "@novadeck/terminal/view"
 import { afterEach, vi } from "vitest"
 
-import { createStore } from "#core/store"
-import type { TerminalMetadata, ViewMode } from "#core/types"
-
-import { context, describe, expect, it } from "../../test"
-import { terminalFixture } from "../../test/fixtures"
 import type {
   BackendConnectionState,
   TerminalKey,
   TerminalMount,
   TerminalMountProps,
-} from "../port"
+} from "#core/port"
+import { createStore } from "#core/store"
+import type { TerminalMetadata, ViewMode } from "#core/types"
+
+import { context, describe, expect, it } from "../../test"
+import { terminalFixture } from "../../test/fixtures"
 import { createTerminalMount } from "../terminal-views/mount"
 import { noTheme } from "../terminal-views/theme"
 import type { SurfaceRuntime } from "./backend"

@@ -415,7 +415,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         to: "agent",
         label: "doorbell paste",
         text: "If the recipient is idle at its prompt, the doorbell pastes a short line into its PTY and presses Enter once it has landed alone.",
-        anchor: { file: `${runnerSrc}/terminals/doorbell.ts`, text: "export class Doorbell {" },
+        anchor: { file: `${runnerSrc}/messaging/doorbell.ts`, text: "export class Doorbell {" },
       },
       {
         from: "agent",

@@ -5,12 +5,12 @@ import { join } from "node:path"
 import type { TerminalRequest as RunnerRequest, TerminalRequestAnswer } from "@novadeck/protocol"
 import { afterAll, vi } from "vitest"
 
+import type { BackendAction, TerminalRequest } from "#core/port"
 import { workspaceFromSeed } from "#core/seed"
 import { activeProject, activeSession, workspaceReducer } from "#core/state"
 import type { Workspace } from "#core/types"
 
 import { context, describe, expect, it } from "../../test"
-import type { BackendAction, TerminalRequest } from "../port"
 import { noTheme } from "../terminal-views/theme"
 import { runnerBackend, type RunnerApi } from "./backend"
 import { startTestRunner } from "./testing"

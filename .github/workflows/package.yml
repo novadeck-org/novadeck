@@ -565,7 +565,14 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$bundle"
           spctl --assess --type execute --verbose=2 "$bundle"
           xcrun stapler validate "$bundle"
-          hdiutil detach -force "$image" > /dev/null
+          # The system's assessment can still hold the image a moment after spctl answers
+          # ("hdiutil: couldn't eject … Resource busy", Release run 39127891782), so the
+          # detach is tried again, waiting a little longer each time.
+          for attempt in 1 2 3 4 5; do
+            hdiutil detach -force "$image" > /dev/null && break
+            if (( attempt == 5 )); then exit 1; fi
+            sleep $((attempt * 3))
+          done
 
           mkdir -p "$verify/murmur"
           tar -xzf engines/whisper/dist/novadeck-whisper-*.tar.gz -C "$verify/engine"

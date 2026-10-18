@@ -20,7 +20,7 @@ import type { LensInput } from "./lens-input.ts"
 
 const ui = "application/ui/src"
 const stateFile = `${ui}/core/state.ts`
-const portFile = `${ui}/backend/port.ts`
+const portFile = `${ui}/core/port.ts`
 const adapterDir = `${ui}/backend/runner/`
 const backendFile = `${adapterDir}backend.ts`
 

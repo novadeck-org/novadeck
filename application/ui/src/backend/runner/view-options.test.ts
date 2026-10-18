@@ -4,10 +4,10 @@ import { createTerminalViews } from "@novadeck/terminal/view"
 import { WireError } from "@novadeck/wire"
 import { afterEach, vi } from "vitest"
 
+import type { BackendConnectionState } from "#core/port"
 import { createStore } from "#core/store"
 
 import { context, describe, expect, it } from "../../test"
-import type { BackendConnectionState } from "../port"
 import { noTheme } from "../terminal-views/theme"
 import type { SurfaceRuntime } from "./backend"
 import { pasteNotice, retainMs, viewOptions } from "./view-options"

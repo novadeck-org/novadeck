@@ -6,7 +6,8 @@ import type {
   BootProgress,
   ConnectFailure,
   CreateBackend,
-} from "../backend/port"
+} from "#core/port"
+
 import {
   autoRetryDelay,
   bootFill,

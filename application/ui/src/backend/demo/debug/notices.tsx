@@ -1,9 +1,9 @@
 import "./notices.css"
 import { useSyncExternalStore } from "react"
 
+import type { Notice } from "#core/port"
 import { createStore } from "#core/store"
 
-import type { Notice } from "../../port"
 import type { DemoStates } from "./types"
 
 // How long a notification stays, unless clicked.

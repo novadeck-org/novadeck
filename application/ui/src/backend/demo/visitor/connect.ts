@@ -1,4 +1,5 @@
-import type { BackendConnection, ThemeSource } from "../../port"
+import type { BackendConnection, ThemeSource } from "#core/port"
+
 import { visitorDemo } from "./index"
 
 // The visitor build's start: a connection that always succeeds, with nothing to reach. Its

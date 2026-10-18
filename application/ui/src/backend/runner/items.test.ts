@@ -3,10 +3,10 @@ import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
 import { itemIdOf } from "#core/companion"
+import type { BackendAction } from "#core/port"
 import { activeSession, createTerminalState, createWorkspaceSession } from "#core/state"
 
 import { context, describe, expect, it } from "../../test"
-import type { BackendAction } from "../port"
 import { itemOf } from "./companions"
 import { id, keptSummary, scripted } from "./scripted"
 import type { ListedCompanions } from "./seed"

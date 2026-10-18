@@ -2,12 +2,12 @@ import { createView, type Terminal } from "@novadeck/emulator/browser"
 import { afterEach, vi } from "vitest"
 
 import type { ChatItem, ChatRequest, Conversation, Conversations } from "#core/conversation"
+import type { TerminalKey } from "#core/port"
 import { workspaceFromSeed } from "#core/seed"
 import { createStore } from "#core/store"
 import type { AgentStatus, Workspace } from "#core/types"
 
 import { context, describe, expect, it } from "../../../test"
-import type { TerminalKey } from "../../port"
 import type { DemoAgentLink } from "../agent-link"
 import { createDemoEngine } from "../engine"
 import { demoSeed, demoTerminalId } from "../samples"

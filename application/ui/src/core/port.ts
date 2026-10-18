@@ -1,17 +1,15 @@
-import type { ComponentType, ReactNode } from "react"
-
-import type { Companions } from "#core/companion"
-import type { Conversations } from "#core/conversation"
-import type { AgentName } from "#core/harnesses"
-import type { Inbox } from "#core/inbox"
-import type { Messages } from "#core/messages"
-import type { Murmur } from "#core/murmur"
-import type { PortableState } from "#core/portable"
-import type { SandboxState } from "#core/sandbox"
-import type { WorkspaceSeed } from "#core/seed"
-import type { WorkspaceAction } from "#core/state"
-import type { Store } from "#core/store"
-import type { TelemetryReader } from "#core/telemetry"
+import type { Companions } from "./companion"
+import type { Conversations } from "./conversation"
+import type { AgentName } from "./harnesses"
+import type { Inbox } from "./inbox"
+import type { Messages } from "./messages"
+import type { Murmur } from "./murmur"
+import type { PortableState } from "./portable"
+import type { SandboxState } from "./sandbox"
+import type { WorkspaceSeed } from "./seed"
+import type { WorkspaceAction } from "./state"
+import type { Store } from "./store"
+import type { TelemetryReader } from "./telemetry"
 import type {
   TerminalKey,
   TerminalMetadata,
@@ -19,10 +17,10 @@ import type {
   ViewMode,
   Workspace,
   WorkspaceTarget,
-} from "#core/types"
-import type { UninstallPlan, UninstallResult } from "#core/uninstall"
-import type { UpdateChannel, UpdateOffer } from "#core/update"
-import type { Voice } from "#core/voice"
+} from "./types"
+import type { UninstallPlan, UninstallResult } from "./uninstall"
+import type { UpdateChannel, UpdateOffer } from "./update"
+import type { Voice } from "./voice"
 
 // The UI-owned contract every terminal backend implements. Only app/ talks to it.
 
@@ -100,30 +98,6 @@ export type ViewState = {
 // The terminal font from Preferences, in CSS pixels.
 export type TerminalFont = { readonly size: number }
 
-// What a terminal's content area receives from a backend that renders it as a component.
-// No backend does since the demo mounts its terminals too (3.2d); 3.2c removes it.
-export type TerminalSurfaceProps = {
-  // Wraps the content in the terminal's window and the body its program calls for;
-  // render what it returns. The surface keeps its controller and emulator mounted above
-  // it: a different body remounts the content element, which must not restart the
-  // session or its emulator.
-  readonly renderWindow: (content: ReactNode) => ReactNode
-  // Stable for the terminal's lifetime, so it is safe in effect dependencies.
-  readonly terminalKey: TerminalKey
-  readonly terminal: TerminalMetadata
-  readonly projectName: string
-  // The view it shows in.
-  readonly view: ViewMode
-  // The terminal font size from Preferences, in CSS pixels.
-  readonly fontSize: number
-  // True while keyboard navigation asks the surface to focus its input.
-  readonly focusInput: boolean
-  // Stable across renders; call it after focusing the input.
-  readonly onInputFocused: () => void
-  // Whether the surface's window is where the person can see it. Absent means on screen.
-  readonly onScreen?: boolean
-}
-
 // The page's theme, as a backend reads it for what it paints outside CSS, such as a
 // terminal's colours: the tokens' values where `element` draws, and each time a theme is
 // applied. The app's entry hands it over, so no backend reads the theme layer itself.
@@ -132,20 +106,14 @@ export type ThemeSource = {
   readonly onChange: (listener: () => void) => () => void
 }
 
-// How a backend draws terminals: both backends mount them into elements; the component shape
-// is left for 3.2c to remove. A backend offers exactly one shape.
-export type TerminalPort =
-  | {
-      // Created once per backend instance so its identity is stable across renders.
-      readonly mountTerminal: MountTerminal
-      // The font size from Preferences, called once before the first mount and again when
-      // it changes. Synchronous bookkeeping with no I/O.
-      readonly setFont: (font: TerminalFont) => void
-    }
-  | {
-      // Created once per backend instance so its identity is stable across renders.
-      readonly TerminalSurface: ComponentType<TerminalSurfaceProps>
-    }
+// How a backend draws terminals: it mounts them into elements the UI gives it.
+export type TerminalPort = {
+  // Created once per backend instance so its identity is stable across renders.
+  readonly mountTerminal: MountTerminal
+  // The font size from Preferences, called once before the first mount and again when it
+  // changes. Synchronous bookkeeping with no I/O.
+  readonly setFont: (font: TerminalFont) => void
+}
 
 // Workspace changes a backend reports on its own, as the owner of every terminal, item
 // and window: a terminal added elsewhere (another window, an agent), a name or directory

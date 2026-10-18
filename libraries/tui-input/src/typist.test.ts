@@ -1,11 +1,41 @@
-import { setTimeout as sleep } from "node:timers/promises"
-
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { BoxProfile } from "./box.js"
 import type { InputEntry } from "./queue.js"
 import { screen } from "./testing/screens.js"
 import { createTypist, pasteMsOn, sizeCapMs, type Timing, type Typist } from "./typist.js"
+
+// The clock is fake, so a timing is the same on every machine: the typist's sleeps go through
+// the faked setTimeout, and `run` and `sleep` fire each timer as it comes due.
+vi.mock("node:timers/promises", () => ({
+  setTimeout: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
+}))
+
+beforeEach(() => {
+  vi.useFakeTimers({
+    toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
+  })
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+/** Runs `work` to its end on the fake clock, stepping from each timer that comes due to the next. */
+const run = async <T>(work: Promise<T>): Promise<T> => {
+  const state = { settled: false }
+  work.then(
+    () => (state.settled = true),
+    () => (state.settled = true),
+  )
+  for (let step = 0; !state.settled; step += 1) {
+    if (step >= 10_000) throw new Error("The work never ended.")
+    // eslint-disable-next-line no-await-in-loop -- One timer at a time.
+    await vi.advanceTimersToNextTimerAsync()
+  }
+  return work
+}
+const sleep = (ms: number) => vi.advanceTimersByTimeAsync(ms)
 
 /**
  * A terminal as the typist sees it: a screen that a paste changes as `takes` says, and the
@@ -70,7 +100,7 @@ const terminal = (
       if (options.gone) return undefined
       if (options.screenThrowsAfterPaste && written.length > 0) throw new Error("no screen")
       const text = screen({ rows: [...rows], bracketedPaste: options.bracketedPaste ?? true })
-      if (options.screenMs) await sleep(options.screenMs)
+      if (options.screenMs) await new Promise((resolve) => setTimeout(resolve, options.screenMs))
       return text
     },
     get resizedAt() {
@@ -102,7 +132,15 @@ const terminal = (
     },
   }
   const reads = options.inputBox
-  const inputBox = () => (reads ? reads[((boxReads += 1) - 1) % reads.length]! : true)
+  // The profile the box is read by: it shows an empty prompt at each read, as `reads` says.
+  const profile = {
+    read: () =>
+      (reads ? reads[((boxReads += 1) - 1) % reads.length]! : true)
+        ? { mode: "prompt", text: "" }
+        : undefined,
+    overlay: () => false,
+  } as unknown as BoxProfile
+  const inputBox = () => profile
   return {
     target,
     entry,
@@ -133,12 +171,14 @@ const typing = (fake: ReturnType<typeof terminal>, timing: Partial<Timing> = {})
       still?: (nonce: string) => boolean
     } = {},
   ) =>
-    typist.deliver(fake.entry, line, {
-      calmSince: 0,
-      start: () => true,
-      still: () => true,
-      ...options,
-    })
+    run(
+      typist.deliver(fake.entry, line, {
+        calmSince: 0,
+        start: () => true,
+        still: () => true,
+        ...options,
+      }),
+    )
   return { typist, deliver }
 }
 
@@ -162,10 +202,12 @@ describe("a delivery", () => {
     const budgets: unknown[] = []
     const fake = terminal()
     const typist = createTypist(fake.target, { profile: fake.inputBox, timing: fast })
-    await typist.deliver(
-      { hold: (budget) => (budgets.push(budget), fake.entry.hold(budget)) },
-      line,
-      { calmSince: 0, start: () => true, still: () => true },
+    await run(
+      typist.deliver({ hold: (budget) => (budgets.push(budget), fake.entry.hold(budget)) }, line, {
+        calmSince: 0,
+        start: () => true,
+        still: () => true,
+      }),
     )
     expect(budgets).toEqual([{ inputMs: 100 + 1_500, sizeMs: sizeCapMs }])
   })
@@ -234,11 +276,9 @@ describe("a delivery", () => {
       boxCheck: false,
       timing: fast,
     })
-    const delivered = await typist.deliver(fake.entry, line, {
-      calmSince: 0,
-      start: () => true,
-      still: () => true,
-    })
+    const delivered = await run(
+      typist.deliver(fake.entry, line, { calmSince: 0, start: () => true, still: () => true }),
+    )
     expect(delivered).toMatchObject({ entered: true })
   })
 
@@ -329,7 +369,9 @@ describe("a delivery", () => {
       timing: fast,
       trace: (text) => lines.push(text),
     })
-    await typist.deliver(fake.entry, line, { calmSince: 0, start: () => true, still: () => true })
+    await run(
+      typist.deliver(fake.entry, line, { calmSince: 0, start: () => true, still: () => true }),
+    )
     expect(lines).toEqual([
       expect.stringMatching(/^ring [A-Za-z0-9]{6} begins \(ticking rows none\)$/),
       expect.stringMatching(/^ring [A-Za-z0-9]{6}: paste accepted, Enter$/),
@@ -342,10 +384,12 @@ describe("a submission", () => {
     const fake = terminal()
     const typist = createTypist(fake.target, { profile: fake.inputBox, timing: fast })
     const nonces: string[] = []
-    const delivered = await typist.submit(fake.entry, "k3f9Xz", (nonce) => {
-      nonces.push(nonce)
-      return true
-    })
+    const delivered = await run(
+      typist.submit(fake.entry, "k3f9Xz", (nonce) => {
+        nonces.push(nonce)
+        return true
+      }),
+    )
     expect(delivered).toMatchObject({ entered: true, nonce: "k3f9Xz" })
     expect(fake.written).toEqual(["\r"])
     expect(nonces).toEqual(["k3f9Xz"])
@@ -355,7 +399,7 @@ describe("a submission", () => {
   it("presses nothing once the nonce is no longer the caller's, and says the line is ours", async () => {
     const fake = terminal()
     const typist = createTypist(fake.target, { profile: fake.inputBox, timing: fast })
-    const delivered = await typist.submit(fake.entry, "k3f9Xz", () => false)
+    const delivered = await run(typist.submit(fake.entry, "k3f9Xz", () => false))
     expect(delivered).toMatchObject({
       entered: false,
       reason: "not-pressed",
@@ -379,10 +423,20 @@ describe("a look and the gate on it", () => {
     await sleep(40)
     const second = await typist.look()
     expect(second).toMatchObject({ calm: true })
-    expect(second!.calmFor).toBeGreaterThanOrEqual(30)
+    expect(second!.calmFor).toBe(40)
     expect(second!.calmSince).toBe(first!.at)
     fake.rows[1] = "a clock ticked"
     expect((await typist.look())?.calm).toBe(false)
+  })
+
+  it("calls the screen calm once it has been still for the whole period, not a moment before", async () => {
+    const fake = terminal()
+    const typist = looking(fake)
+    await typist.look()
+    await sleep(fast.calmMs - 1)
+    expect(await typist.look()).toMatchObject({ calm: false, calmFor: fast.calmMs - 1 })
+    await sleep(1)
+    expect(await typist.look()).toMatchObject({ calm: true, calmFor: fast.calmMs })
   })
 
   it("counts a resize as an end to the calm, as the screen may not have redrawn for it yet", async () => {
@@ -459,7 +513,7 @@ describe("a look and the gate on it", () => {
       overlay: () => overlay,
     } as unknown as BoxProfile
     const fake = terminal()
-    const typist = createTypist(fake.target, { profile, timing: fast })
+    const typist = createTypist(fake.target, { profile: () => profile, timing: fast })
     await typist.look()
     await sleep(40)
     const look = (await typist.look())!
@@ -469,6 +523,25 @@ describe("a look and the gate on it", () => {
     text = ""
     overlay = true
     expect(await typist.ready(look)).toBe("no-input-box")
+  })
+
+  it("can't tell whether the box shows without a profile option, and finds none with a getter that has none", async () => {
+    let profile: BoxProfile | undefined
+    const fake = terminal()
+    const bare = createTypist(fake.target, { timing: fast })
+    const asked = createTypist(fake.target, { profile: () => profile, timing: fast })
+    await Promise.all([bare.look(), asked.look()])
+    await sleep(40)
+    const look = (await bare.look())!
+    expect(await bare.ready(look)).toBe("open")
+    expect(await asked.ready((await asked.look())!)).toBe("no-input-box")
+    profile = {
+      read: () => ({ mode: "prompt", text: "" }),
+      overlay: () => false,
+    } as unknown as BoxProfile
+    expect(await asked.ready((await asked.look())!)).toBe("open")
+    profile = undefined
+    expect(await asked.ready((await asked.look())!)).toBe("no-input-box")
   })
 
   it("tells the gate's verdict to the trace", async () => {

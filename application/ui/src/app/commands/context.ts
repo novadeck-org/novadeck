@@ -1,9 +1,9 @@
 import type { Rect } from "#core/layout/spatial"
 import type { Murmur } from "#core/murmur"
+import type { Backend } from "#core/port"
 import type { WorkspaceStore } from "#core/store"
 import type { SidebarPanel } from "#core/types"
 
-import type { Backend } from "../../backend/port"
 import type { CanvasHandle } from "../../layouts/canvas/types"
 import type { Panes } from "../../terminals/companion/state"
 import type { Dictation } from "../../voice/dictation-control"

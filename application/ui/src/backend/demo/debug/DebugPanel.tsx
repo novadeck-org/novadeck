@@ -7,9 +7,9 @@ import "./debug-panel.css"
 import { Bug, ChevronDown, ChevronRight, ChevronUp, RotateCcw, Search, X } from "lucide-react"
 import { useEffect, useRef, useState, useSyncExternalStore, type ComponentType } from "react"
 
+import type { BackendConnectionState, BackendSink, TerminalKey } from "#core/port"
 import type { Workspace } from "#core/types"
 
-import type { BackendConnectionState, BackendSink, TerminalKey } from "../../port"
 import { demoVariants } from "../variants"
 import { portableGroup } from "./portable"
 import { shellGroups } from "./shell-groups"

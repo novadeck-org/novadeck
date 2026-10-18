@@ -5,7 +5,8 @@ import { describe, expect, it } from "./test"
 
 // Every source file belongs to a layer: a folder ("core/") or a single file
 // ("deploy.ts"). Each layer lists what it may import from src. Every folder in
-// backend/ is an adapter layer; see `adapterRule`. The core is imported as `#core/*`, the
+// backend/ but the terminal views is an adapter layer; see `adapterRule`. The port the app talks
+// to its backend through is the core's (`core/port.ts`). The core is imported as `#core/*`, the
 // package's own `imports`, so that step 5 changes only configuration; inside the core its
 // files import one another by relative path.
 // theme/ (the theme file and how its scheme is applied) is open to every layer that
@@ -17,10 +18,9 @@ const features = ["sidebar/", "projects/", "preferences/", "search/"]
 const rules: Record<string, readonly string[]> = {
   "core/": ["core/"],
   "theme/": ["theme/", "core/types.ts"],
-  "backend/": ["backend/", "core/"],
-  // The terminal views every backend draws its terminals with (see `terminalViews`): the
-  // core, the port and libraries, never an adapter.
-  "backend/terminal-views/": ["backend/terminal-views/", "backend/port.ts", "core/"],
+  // The terminal views every backend draws its terminals with (see `terminalViews`): the core
+  // and libraries only, never an adapter.
+  "backend/terminal-views/": ["backend/terminal-views/", "core/"],
   "ui-toolkit/": ["ui-toolkit/", "class-name.ts"],
   "interaction/": ["interaction/", "core/"],
   ...Object.fromEntries(features.map((layer) => [layer, [...base, layer]])),
@@ -52,7 +52,6 @@ const rules: Record<string, readonly string[]> = {
   ],
   "app/": [
     "app/",
-    "backend/",
     ...base,
     ...features,
     "terminals/",
@@ -68,7 +67,6 @@ const rules: Record<string, readonly string[]> = {
     "app/routing.ts",
     "app/ui-store.ts",
     "app/selectors.ts",
-    "backend/port.ts",
     "core/",
     // The keymap's types only: commands never touch the DOM contracts in interaction/dom.ts.
     "interaction/keymap.ts",
@@ -88,13 +86,12 @@ const rules: Record<string, readonly string[]> = {
     // The dictation contract's types, which keys call.
     "voice/dictation-control.ts",
   ],
-  // Specs drive the whole UI over the demo: the layers they render, mock or read, the port,
-  // and the page's styles. The demo is reached through the spec entry alone; see
+  // Specs drive the whole UI over the demo: the layers they render, mock or read, the core's
+  // port among them, and the page's styles. The demo is reached through the spec entry alone; see
   // `specBackend`.
   "specs/": [
     "specs/",
     "app/",
-    "backend/port.ts",
     ...base,
     ...features,
     "terminals/",
@@ -105,12 +102,11 @@ const rules: Record<string, readonly string[]> = {
   // Entry point and support modules outside the feature layers.
   // Each app's entry: it renders the app with the backend it chose (see `entryAdapters`).
   // One entry never reaches another's, only how they all start.
-  "entries/": ["entries/start.tsx", "app/", "backend/", "theme/", "styles.css"],
+  "entries/": ["entries/start.tsx", "app/", "backend/", "core/port.ts", "theme/", "styles.css"],
   "test/": [
     "test/",
     "test.ts",
     "core/",
-    "backend/",
     // Command tests run the real stores, navigator and commands.
     "app/commands/",
     "app/routing.ts",
@@ -125,7 +121,7 @@ const rules: Record<string, readonly string[]> = {
 }
 const adapterRule = (layer: string): readonly string[] => [
   layer,
-  "backend/",
+  "backend/terminal-views/",
   "core/",
   "ui-toolkit/",
 ]
@@ -166,14 +162,12 @@ const terminalKeysSpec = "specs/terminal-keys.spec.tsx"
 const storeHook = "countListenersWoken"
 const hookOwners = ["core/store.ts", counterRun, "architecture.test.ts"]
 // Packages are denied unless listed here, owned through `vendors`, or used by an
-// adapter or test code. theme/, interaction/ and app/commands/ use none; backend/ uses React
-// types only. The core takes only the library entries `coreLibraryEntries` lists and the
-// protocol's data entries
-// that `protocolData` names, and no other package.
+// adapter or test code. theme/, interaction/ and app/commands/ use none. The core takes only
+// the library entries `coreLibraryEntries` lists and the protocol's data entries that
+// `protocolData` names, and no other package.
 const everywherePackages = new Set(["react", "lucide-react"])
 const typeOnlyPackages: Record<string, readonly string[]> = {
   "theme/": [],
-  "backend/": ["react"],
   "app/commands/": [],
   "interaction/": [],
 }

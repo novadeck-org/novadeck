@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 
-import type { ConnectFailure } from "../backend/port"
+import type { ConnectFailure } from "#core/port"
+
 import { failureAction, failureDetails, failureTitle, retryCountdown } from "./boot"
 
 // Puts text on the clipboard, falling back to a hidden field where the clipboard API

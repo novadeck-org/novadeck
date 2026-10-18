@@ -1,4 +1,4 @@
-import type { ConnectFailure } from "../../port"
+import type { ConnectFailure } from "#core/port"
 
 // What the demo fails a boot with, one for each kind of failure, in the words and codes
 // the runner adapter gives it (`connectFailure` in backend/runner).

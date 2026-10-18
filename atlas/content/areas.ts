@@ -70,7 +70,7 @@ export const notes: Record<string, Note> = {
     entries: [
       { file: `${runner}/terminals/manager.ts`, text: "export class Terminals" },
       { file: `${runner}/terminals/opens.ts` },
-      { file: `${runner}/terminals/doorbell.ts` },
+      { file: `${runner}/messaging/doorbell.ts` },
     ],
     docs: ["docs/agent-workspace.md"],
   },
@@ -232,16 +232,13 @@ export const notes: Record<string, Note> = {
   },
   "ui/core": {
     purpose:
-      "The pure domain of the workspace: state, reducer and store, seed data, layout rules, roster, conversations, messages, companions and usage, and the terminal lifecycle registry the backends share, with no React.",
+      "The pure domain of the workspace: state, reducer and store, seed data, layout rules, roster, conversations, messages, companions and usage, the terminal lifecycle registry the backends share, and the port the UI talks to its backend through, with no React.",
     entries: [
       { file: `${ui}/core/store.ts`, text: "export const createStore" },
       { file: `${ui}/core/types.ts` },
       { file: `${ui}/core/registry.ts` },
+      { file: `${ui}/core/port.ts`, text: "export type MountTerminal" },
     ],
-  },
-  "ui/backend": {
-    purpose: "The port the UI talks to its backend through.",
-    entries: [{ file: `${ui}/backend/port.ts`, text: "export type MountTerminal" }],
   },
   "ui/backend/runner": {
     purpose:

@@ -1,7 +1,7 @@
+import type { Backend, TerminalKey } from "#core/port"
 import { createStore, type Store } from "#core/store"
 import type { TerminalMetadata, Workspace } from "#core/types"
 
-import type { Backend, TerminalKey } from "../../port"
 import { lessMotion } from "../motion"
 import { demoTerminalId, sampleOutput } from "../samples"
 import { sampleBlocks } from "../screen/samples"

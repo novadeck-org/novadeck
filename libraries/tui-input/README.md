@@ -43,8 +43,9 @@ prompt and interrupting its turn.
     fresh nonce into the box and presses Enter only once it shows alone, twice running, with the hold
     still in force (`Delivered`), `submit` presses Enter alone for a line left behind, and `forget`
     drops what it saw. It decides nothing of when to ring: that stays with the caller. `profile` is a
-    `BoxProfile`, or the caller's own `(screen) => boolean | undefined` for whether the box shows
-    empty. `Timing` holds its durations; `pasteMsOn` and `sizeCapMs` are the defaults to build on.
+    optional getter, `() => BoxProfile | undefined`, asked at each look as a terminal's agent can
+    change; a getter answering undefined says no box shows, and without the option the gate can't
+    tell. `Timing` holds its durations; `pasteMsOn` and `sizeCapMs` are the defaults to build on.
   - `Prompts`, giving a program a prompt as a user would, in the terminal's turn in an
     `InputQueue`: the text as one bracketed paste with the user's keys held, and Enter only once
     the box shows exactly that text (or its placeholder) on two reads running. It pastes only into

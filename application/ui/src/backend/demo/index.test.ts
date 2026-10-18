@@ -1,9 +1,9 @@
+import type { BackendAction } from "#core/port"
 import { workspaceFromSeed } from "#core/seed"
 import { activeProject, activeSession, workspaceReducer } from "#core/state"
 
 import { context, describe, expect, it } from "../../test"
 import { itemFixture } from "../../test/fixtures"
-import type { BackendAction } from "../port"
 import { createDemoEngine } from "./engine"
 import { demoHandle } from "./handles"
 import { demoBackend, withMessages } from "./index"

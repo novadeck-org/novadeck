@@ -1,5 +1,6 @@
 import { addCompactGridTerminal } from "#core/layout/grid-placement"
 import { canvasNewTerminalSize } from "#core/layout/terminal-size"
+import type { TerminalRequest } from "#core/port"
 import { tilesOf } from "#core/roster"
 import { activeProject, type WorkspaceAction } from "#core/state"
 import type {
@@ -12,7 +13,6 @@ import type {
   WorkspaceTarget,
 } from "#core/types"
 
-import type { TerminalRequest } from "../../backend/port"
 import {
   moveProject as arrangeMove,
   pinAt,
