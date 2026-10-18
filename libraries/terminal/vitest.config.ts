@@ -23,6 +23,8 @@ export default defineConfig({
           // The browser view, which needs a DOM.
           environment: "jsdom",
           include: ["src/view/**/*.test.ts"],
+          // As the UI's tests ran before they moved: a spy lasts one test.
+          restoreMocks: true,
           // A file's first terminal open in jsdom is CPU-bound cold-start work, slower on
           // Windows CI.
           testTimeout: 20_000,
