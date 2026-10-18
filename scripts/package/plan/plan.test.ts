@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest"
 
 import { packages, parseFolders, plan } from "./plan.ts"
 
-// The host and what it's built from, as turbo lists them on 2026-10-17.
+// The host and what it's built from, as turbo lists them on 2026-10-18.
 const packaged = [
   "application/host",
   "application/protocol",
   "application/relay",
   "application/runner",
+  "application/runner-client",
   "application/ui",
   "engines/ggml-build",
   "engines/murmur",

@@ -9,6 +9,7 @@ on:
       - application/protocol/**
       - application/relay/**
       - application/runner/**
+      - application/runner-client/**
       - engines/**
       - harnesses/**
       - libraries/**
