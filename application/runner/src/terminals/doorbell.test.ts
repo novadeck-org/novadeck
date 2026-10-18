@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
 import { screen } from "@novadeck/harness-core/testing/screens"
-import { InputQueue } from "@novadeck/tui-input"
+import { InputQueue, sizeCapMs } from "@novadeck/tui-input"
 import { vi } from "vitest"
 
 import type { Waits } from "../messaging/delivery.js"
@@ -235,6 +235,18 @@ describe("a ring's wait for its doorbell prompt", () => {
     expect(confirmMs("win32")).toBeGreaterThan(15_000)
     expect(confirmMs("linux")).toBe(5_000)
   })
+
+  it("ends inside the longest a ring holds the app's resizes on Linux and macOS", () => {
+    // The hold's safety cap only holds while the prompt's wait stays within it.
+    for (const platform of ["linux", "darwin"] as const)
+      expect(confirmMs(platform)).toBeLessThan(sizeCapMs)
+  })
+
+  it("outlasts that cap on Windows, where the hook's shell slack is added: the cap lets the resizes go first", () => {
+    // Pinned as it is today (the delivery's timings are unchanged by the typist's move), so
+    // closing the gap is a deliberate change that updates this.
+    expect(confirmMs("win32")).toBeGreaterThan(sizeCapMs)
+  })
 })
 
 describe("the doorbell", () => {
@@ -338,17 +350,6 @@ describe("the doorbell", () => {
     refused.close()
   })
 
-  it("abandons a ring whose hold lapsed before its Enter, pressing nothing", async () => {
-    const { host, written, failed, state } = terminal({ holdMs: 40, screenMs: 30 })
-    const doorbell = new Doorbell(host, host.queue, fast)
-    doorbell.changed("t")
-    await vi.waitFor(() => expect(failed).toHaveLength(1))
-    expect(written).toHaveLength(1)
-    expect(enters(written)).toBe(0)
-    expect(state()).toMatchObject({ ringing: undefined, held: false })
-    doorbell.close()
-  })
-
   it("waits for its screen to settle after its turn before it looks", async () => {
     const { host, written } = terminal({ settledAt: Date.now() })
     const doorbell = new Doorbell(host, host.queue, { ...fast, settleMs: 300 })
@@ -396,20 +397,6 @@ describe("the doorbell", () => {
     expect(written).toHaveLength(2)
     expect(failed).toEqual([])
     doorbell.close()
-  })
-
-  it("presses nothing when a menu or approval swallows the paste, and fails the ring", async () => {
-    for (const takes of ["nothing", "elsewhere"] as const) {
-      const { host, written, failed, state } = terminal({ takes })
-      const doorbell = new Doorbell(host, host.queue, fast)
-      doorbell.changed("t")
-      // eslint-disable-next-line no-await-in-loop -- One terminal at a time.
-      await vi.waitFor(() => expect(failed).toHaveLength(1))
-      expect(written).toHaveLength(1)
-      expect(enters(written)).toBe(0)
-      expect(state()).toMatchObject({ ringing: undefined, held: false })
-      doorbell.close()
-    }
   })
 
   it("fails a ring no doorbell prompt confirms, and never presses Enter again", async () => {
@@ -521,29 +508,6 @@ describe("the doorbell on an idle terminal its state keeps from ringing", () => 
   })
 })
 
-describe("the doorbell on a screen with a row that ticks by itself", () => {
-  const ticking = { ...fast, watchMs: 250, pasteMs: 400 }
-
-  it("still submits the ring: a row far from the box changing is no sign of a popup", async () => {
-    const { host, written, stop } = terminal({ tickMs: 60 })
-    const doorbell = new Doorbell(host, host.queue, ticking)
-    doorbell.changed("t")
-    await vi.waitFor(() => expect(enters(written)).toBe(1), { timeout: 3_000 })
-    stop()
-    doorbell.close()
-  })
-
-  it("still fails a ring whose paste changed another row far from the box", async () => {
-    const { host, written, failed, stop } = terminal({ tickMs: 60, takes: "elsewhere" })
-    const doorbell = new Doorbell(host, host.queue, ticking)
-    doorbell.changed("t")
-    await vi.waitFor(() => expect(failed).toHaveLength(1), { timeout: 3_000 })
-    expect(enters(written)).toBe(0)
-    stop()
-    doorbell.close()
-  })
-})
-
 describe("the doorbell on the line a failed ring left in the box", () => {
   const recheck = { ...fast, recheckMs: 20, recheckMaxMs: 80 }
 
@@ -589,16 +553,6 @@ describe("the doorbell's care with a terminal it looks at", () => {
     // The read it rests on began at or before the calm's start, a calm long before the look.
     expect(emptiedAt[0]! - emptied[0]!).toBeGreaterThanOrEqual(50)
     expect(emptied[0]!).toBeGreaterThanOrEqual(began - 5)
-    stop()
-    doorbell.close()
-  })
-
-  it("looks at the box again as the ring begins, and gives the ring up if text came", async () => {
-    const { host, written, failed, stop } = terminal({ inputBox: [true, true, false] })
-    const doorbell = new Doorbell(host, host.queue, recheck)
-    doorbell.changed("t")
-    await vi.waitFor(() => expect(failed.length).toBeGreaterThanOrEqual(1))
-    expect(written).toEqual([])
     stop()
     doorbell.close()
   })
@@ -877,5 +831,34 @@ describe("the doorbell on a slow runner, and on a console that keeps redrawing",
     clearInterval(redraws)
     stop()
     doorbell.close()
+  })
+})
+
+describe("the doorbell's promise: it always rings, and never types over a real draft", () => {
+  it("rings an idle box, and never pastes once content keys made a draft", async () => {
+    const idle = terminal()
+    const rung = new Doorbell(idle.host, idle.host.queue, fast)
+    rung.changed("t")
+    await vi.waitFor(() => expect(enters(idle.written)).toBe(1))
+    rung.close()
+
+    // The scheduler's half: messaging knows a key made a draft, so the terminal is not
+    // ringable, and the box's text is never rung over.
+    const known = terminal({ ringable: false, stalled: "draft" })
+    const waiting = new Doorbell(known.host, known.host.queue, { ...fast, recheckMs: 20 })
+    waiting.changed("t")
+    await sleep(250)
+    expect(known.written).toEqual([])
+    waiting.close()
+
+    // The typist's half: the terminal is ringable, but text came into the box after the
+    // calm, which the typist finds as the ring begins: nothing is pasted.
+    const late = terminal({ inputBox: [true, true, false] })
+    const caught = new Doorbell(late.host, late.host.queue, { ...fast, recheckMs: 20 })
+    caught.changed("t")
+    await vi.waitFor(() => expect(late.failed.length).toBeGreaterThanOrEqual(1))
+    expect(late.written).toEqual([])
+    late.stop()
+    caught.close()
   })
 })

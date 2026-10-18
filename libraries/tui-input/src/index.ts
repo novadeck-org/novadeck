@@ -10,3 +10,18 @@ export { InputQueue } from "./queue.js"
 export type { HoldBudget, InputEntry, InputHold, InputQueueHost } from "./queue.js"
 export { bracketedPaste, calmMs, freshNonce, gate } from "./typing.js"
 export type { GateFacts } from "./typing.js"
+export { createTypist, pasteMsOn, sizeCapMs } from "./typist.js"
+export type {
+  Delivered,
+  DeliveryFailed,
+  DeliveryFailure,
+  Entered,
+  InputBoxCheck,
+  Look,
+  NotBegun,
+  Readiness,
+  Timing,
+  Trace,
+  Typist,
+  TypingTarget,
+} from "./typist.js"
