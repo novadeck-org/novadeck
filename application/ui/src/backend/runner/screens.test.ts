@@ -6,7 +6,8 @@ import { createStore } from "#core/store"
 import { describe, expect, it } from "../../test"
 import type { BackendConnectionState, TerminalKey } from "../port"
 import type { SurfaceRuntime } from "./backend"
-import { createScreens, parkMs, retainMs, type ScreenHandle } from "./screens"
+import { createTerminalViews, parkMs, type Hold } from "./screens"
+import { retainMs, viewOptions } from "./view-options"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
 vi.hoisted(() => {
@@ -63,7 +64,7 @@ const closeScreens = (): void => {
 const capped = (cap: number) => {
   const told: string[] = []
   const attached: string[] = []
-  const holds = new Map<string, ScreenHandle[]>()
+  const holds = new Map<string, Hold[]>()
   const elements = new Map<string, HTMLElement>()
   let closed = false
   const connection = createStore<BackendConnectionState>("connected")
@@ -91,7 +92,7 @@ const capped = (cap: number) => {
     screen: ({ terminalId }, state) => void told.push(`${terminalId} ${state}`),
     shown: () => false,
   }
-  const screens = createScreens(runtime, undefined, cap)
+  const screens = createTerminalViews(viewOptions(runtime, { cap }))
   // The element a terminal's screen is placed in, as a mount's is.
   const elementOf = (terminalId: string): HTMLElement => {
     let element = elements.get(terminalId)
@@ -420,6 +421,118 @@ describe("a mount's hold on a screen", () => {
       screens.setFont({ size: 15 })
       await vi.advanceTimersByTimeAsync(0)
       expect(resized).toHaveBeenCalledTimes(1)
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe("the views over options of their own", () => {
+  // Views of string-keyed terminals that never get a stream, over a theme, stores and
+  // timings the test chooses: nothing of the app's.
+  const standalone = (marked: { markup?: boolean } = {}) => {
+    const told: string[] = []
+    const stores: unknown[] = []
+    const listeners = new Set<() => void>()
+    const element = document.createElement("div")
+    document.body.append(element)
+    const views = createTerminalViews<string>({
+      keyOf: (key) => key,
+      emulator: (host, open) => createView(host, { ...open, scrollback: 0 }),
+      theme: {
+        resolve: () => ({ theme: {}, fontFamily: "monospace" }),
+        changed: (listener) => {
+          listeners.add(listener)
+          return () => void listeners.delete(listener)
+        },
+      },
+      store: <S>(initial: S) => {
+        const own = createStore(initial)
+        stores.push(own)
+        return own
+      },
+      ...(marked.markup
+        ? { markup: { input: { "data-input": "mine" }, hostClass: "my-screen" } }
+        : {}),
+      attach: () => new Promise(() => {}),
+      lifecycle: () => ({
+        ready: Promise.resolve(true),
+        revived: new Promise<void>(() => {}),
+        closed: false,
+        size: { cols: 80, rows: 24 },
+      }),
+      connection: createStore<BackendConnectionState>("connected"),
+      reconnected: async () => {},
+      classify: () => "fatal",
+      waitsAfter: () => false,
+      restart: () => {},
+      park: { afterMs: 50, keep: 1 },
+      retain: { afterMs: 10_000, shown: () => false },
+      paste: {
+        upload: async () => "",
+        maxBytes: 1,
+        trustedClipboard: false,
+        notice: () => "",
+      },
+      on: { stage: (key, stage) => void told.push(`${key} ${stage}`) },
+    })
+    closers.push(() => element.remove())
+    return { views, told, stores, listeners, element }
+  }
+
+  it("makes each screen's state with the store it is given, and marks the screen as asked", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const { views, stores, element } = standalone({ markup: true })
+      const hold = views.acquire("a", { label: "Input for a", phase: "running", webgl: false })
+      hold.place(element)
+      expect(stores).toHaveLength(1)
+      expect(hold.state).toBe(stores[0])
+      const host = element.firstElementChild!
+      expect(host.getAttribute("class")).toBe("my-screen")
+      const field = host.querySelector("textarea")!
+      expect(field.getAttribute("data-input")).toBe("mine")
+      expect(field.getAttribute("aria-label")).toBe("Input for a")
+      hold.release()
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+    }
+  })
+
+  it("marks nothing the options do not ask for", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const { views, element } = standalone()
+      const hold = views.acquire("a", { label: "Input for a", phase: "running", webgl: false })
+      hold.place(element)
+      const host = element.firstElementChild!
+      expect(host.hasAttribute("class")).toBe(false)
+      expect(host.querySelector("textarea")!.hasAttribute("data-terminal-input")).toBe(false)
+      hold.release()
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+    }
+  })
+
+  it("parks and closes on the options' timings, and stops listening for the theme once closed", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const { views, told, listeners, element } = standalone()
+      for (const key of ["a", "b"]) {
+        const hold = views.acquire(key, { label: key, phase: "running", webgl: false })
+        hold.place(element)
+        expect(listeners.size).toBe(key === "a" ? 1 : 2)
+        hold.release()
+        vi.advanceTimersByTime(49)
+        expect(told).not.toContain("a gone")
+        vi.advanceTimersByTime(1)
+      }
+      // `b` parked past the cap of one, so `a`, parked longest, closed.
+      expect(told).toEqual(["a mounted", "b mounted", "a gone"])
+      expect(listeners.size).toBe(1)
     } finally {
       closeScreens()
       vi.useRealTimers()

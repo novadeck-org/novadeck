@@ -283,6 +283,9 @@ importers:
       '@novadeck/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@novadeck/terminal':
+        specifier: workspace:*
+        version: link:../../libraries/terminal
       '@novadeck/viewers':
         specifier: workspace:*
         version: link:../../libraries/viewers

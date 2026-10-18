@@ -1,6 +1,16 @@
 // What a terminal's screen tells the person about it, and the rule for when typing is
 // refused. Pure: no app imports, so the view library that replaces the screens can take it.
 
+// A synchronous value that notifies subscribers after each change.
+export type Store<S> = {
+  readonly getSnapshot: () => S
+  readonly subscribe: (listener: () => void) => () => void
+}
+
+// A store its owner changes by deriving the next value. A change that returns the same
+// value notifies nobody.
+export type MutableStore<S> = Store<S> & { readonly update: (change: (state: S) => S) => S }
+
 // The shell's stage as the screen needs it: waiting to start, running, or ended and taking
 // only Enter, to start again.
 export type ViewPhase = "starting" | "running" | "ended"

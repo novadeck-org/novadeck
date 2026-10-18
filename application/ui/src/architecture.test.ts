@@ -205,6 +205,7 @@ const vendors: Record<string, readonly string[]> = {
   "@novadeck/protocol": ["backend/runner/", ...Object.keys(protocolData)],
   "@novadeck/runner": ["backend/runner/"],
   "@novadeck/emulator": ["backend/runner/"],
+  "@novadeck/terminal": ["backend/runner/"],
   "@novadeck/wire": ["backend/runner/"],
   // The runner's server side, which only the counter run's scripted runner serves.
   "@orpc/server": [scriptedServer],

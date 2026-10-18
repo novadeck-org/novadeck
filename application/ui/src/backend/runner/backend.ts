@@ -45,7 +45,7 @@ import { createRunnerMurmur } from "./murmur"
 import { pause } from "./pause"
 import { resumableProgram } from "./resumable"
 import { createSessionSaves } from "./saves"
-import { createScreens } from "./screens"
+import { createTerminalViews } from "./screens"
 import {
   cleanlyExited,
   lostTerminals,
@@ -56,6 +56,7 @@ import {
   terminalRuns,
   type RunnerListing,
 } from "./seed"
+import { viewOptions } from "./view-options"
 import { createRunnerVoice } from "./voice"
 
 // The part of the runner client the adapter uses.
@@ -1327,7 +1328,7 @@ export const runnerBackend = (
     }
   }
 
-  const screens = createScreens(runtime)
+  const screens = createTerminalViews(viewOptions(runtime))
   const backend: Backend = {
     seed,
     newTerminal: ({ directory, launch, title }) => {

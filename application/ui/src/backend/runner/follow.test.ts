@@ -1,10 +1,12 @@
 import type { TerminalEvent, TerminalExit } from "@novadeck/protocol"
 import type { AttachedTerminal } from "@novadeck/protocol/client"
+import type { AttachStream } from "@novadeck/terminal"
 import { vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
 import type { SurfaceRuntime } from "./backend"
-import { followTerminal } from "./follow"
+import { followTerminal, type FollowOptions } from "./follow"
+import { viewOptions } from "./view-options"
 
 const key = { projectId: "p", workspaceSessionId: "s", terminalId: "t" }
 const envelope = { terminalId: "t" }
@@ -132,7 +134,7 @@ describe("following a runner terminal", () => {
       screen: () => {},
       shown: () => false,
     } satisfies SurfaceRuntime
-    const followed = followTerminal(runtime, key, {
+    const followed = followTerminal(viewOptions(runtime), key, {
       write: async (data) => void drawn.push(data),
       reset: () => {},
       resize: () => {},
@@ -154,7 +156,7 @@ describe("following a runner terminal", () => {
         .mockResolvedValueOnce(first.attached)
         .mockResolvedValue(second.attached)
       const drawn: string[] = []
-      const followed = followTerminal(runtimeWith(attach), key, drawing(drawn))
+      const followed = followTerminal(viewOptions(runtimeWith(attach)), key, drawing(drawn))
       await vi.waitFor(() => expect(drawn).toEqual(["reset", "$ before"]))
       followed.park()
       expect(first.detach).toHaveBeenCalled()
@@ -173,7 +175,7 @@ describe("following a runner terminal", () => {
         .mockResolvedValueOnce(first.attached)
         .mockResolvedValue(second.attached)
       const drawn: string[] = []
-      const followed = followTerminal(runtimeWith(attach), key, drawing(drawn))
+      const followed = followTerminal(viewOptions(runtimeWith(attach)), key, drawing(drawn))
       await vi.waitFor(() => expect(drawn).toEqual(["reset", "$ before"]))
       followed.park()
       followed.unpark()
@@ -196,7 +198,7 @@ describe("following a runner terminal", () => {
         .fn<SurfaceRuntime["attach"]>()
         .mockResolvedValue(replaying([snapshot("$ exit 1", exit)]))
       const drawn: string[] = []
-      const followed = followTerminal(runtimeWith(attach, entry), key, drawing(drawn))
+      const followed = followTerminal(viewOptions(runtimeWith(attach, entry)), key, drawing(drawn))
       followed.park()
       followed.unpark()
       start(true)
@@ -219,7 +221,7 @@ describe("following a runner terminal", () => {
         )
         .mockResolvedValue(second.attached)
       const drawn: string[] = []
-      const followed = followTerminal(runtimeWith(attach), key, drawing(drawn))
+      const followed = followTerminal(viewOptions(runtimeWith(attach)), key, drawing(drawn))
       await vi.waitFor(() => expect(attach).toHaveBeenCalledTimes(1))
       followed.park()
       land(first.attached)
@@ -246,7 +248,7 @@ describe("following a runner terminal", () => {
         .mockResolvedValueOnce(first.attached)
         .mockResolvedValue(replaying([snapshot("$ fresh exited", exit)]))
       const drawn: string[] = []
-      const followed = followTerminal(runtimeWith(attach, entry), key, drawing(drawn))
+      const followed = followTerminal(viewOptions(runtimeWith(attach, entry)), key, drawing(drawn))
       await vi.waitFor(() => expect(drawn).toEqual(["reset", "$ before"]))
       followed.park()
       await new Promise((resolve) => setTimeout(resolve, 10))
@@ -283,7 +285,7 @@ describe("following a runner terminal", () => {
         .mockResolvedValueOnce(replaying([snapshot("$ exit 1", exit)]))
         .mockResolvedValue(fresh.attached)
       const drawn: string[] = []
-      const followed = followTerminal(runtimeWith(attach, entry), key, drawing(drawn))
+      const followed = followTerminal(viewOptions(runtimeWith(attach, entry)), key, drawing(drawn))
       await vi.waitFor(() => expect(drawn).toEqual(["reset", "$ exit 1"]))
       followed.park()
       entry.revived = new Promise<void>(() => {})
@@ -294,5 +296,107 @@ describe("following a runner terminal", () => {
       await vi.waitFor(() => expect(drawn).toEqual(["reset", "$ exit 1", "reset", "$ fresh"]))
       followed.stop()
     })
+  })
+})
+
+describe("following over the terminal library's stream", () => {
+  // A stream of its own: events, then open until closed, recording what is sent through it.
+  const stream = (events: readonly TerminalEvent[]) => {
+    const queue = [...events]
+    const sent: string[] = []
+    let end: (() => void) | undefined
+    const closed = new Promise<void>((resolve) => (end = resolve))
+    const attached: AttachStream = {
+      mode: "control",
+      [Symbol.asyncIterator]: () => ({
+        next: async () => {
+          if (queue.length) return { value: queue.shift()!, done: false }
+          await closed
+          return { value: undefined, done: true }
+        },
+      }),
+      write: async (data) => void sent.push(`write ${data}`),
+      resize: async (cols, rows) => void sent.push(`resize ${cols}x${rows}`),
+      close: () => {
+        sent.push("close")
+        end?.()
+      },
+    }
+    return { attached, sent }
+  }
+
+  it("asks its owner for the stream by key, and tells it how the stream goes", async () => {
+    const { attached, sent } = stream([snapshot("$ ")])
+    const told: string[] = []
+    const options: FollowOptions<string> = {
+      attach: async (name) => {
+        told.push(`attach ${name}`)
+        return attached
+      },
+      lifecycle: () => ({
+        ready: Promise.resolve(true),
+        revived: new Promise<void>(() => {}),
+        closed: false,
+        size: { cols: 80, rows: 24 },
+      }),
+      connection: { getSnapshot: () => "connected", subscribe: () => () => {} },
+      reconnected: async () => {},
+      classify: () => "fatal",
+      waitsAfter: () => false,
+      on: {
+        attached: (name) => {
+          told.push(`attached ${name}`)
+          return () => void told.push(`released ${name}`)
+        },
+        stage: (name, stage) => void told.push(`${name} ${stage}`),
+        resized: (name, size) => void told.push(`${name} ${size.cols}x${size.rows}`),
+      },
+    }
+    const drawn: string[] = []
+    const followed = followTerminal(options, "mine", {
+      ...drawing(drawn),
+      fit: () => ({ cols: 100, rows: 30 }),
+    })
+    await vi.waitFor(() => expect(sent).toEqual(["resize 100x30"]))
+    followed.input("ls\r")
+    expect(sent).toEqual(["resize 100x30", "write ls\r"])
+    expect(drawn).toEqual(["reset", "$ "])
+    followed.stop()
+    expect(sent.at(-1)).toBe("close")
+    await vi.waitFor(() => expect(told).toContain("released mine"))
+    expect(told).toEqual([
+      "attach mine",
+      "attached mine",
+      "mine shown",
+      "mine 100x30",
+      "released mine",
+    ])
+  })
+
+  it("lets the owner's classification decide whether a failed attach waits, retries or is lost", async () => {
+    const lost: unknown[] = []
+    const failure = new Error("no such terminal")
+    const followed = followTerminal<string>(
+      {
+        attach: async () => {
+          throw failure
+        },
+        lifecycle: () => ({
+          ready: Promise.resolve(true),
+          revived: new Promise<void>(() => {}),
+          closed: false,
+          size: { cols: 80, rows: 24 },
+        }),
+        connection: { getSnapshot: () => "connected", subscribe: () => () => {} },
+        reconnected: async () => {},
+        classify: () => "fatal",
+        waitsAfter: () => false,
+        on: { lost: (_name, error) => void lost.push(error) },
+      },
+      "mine",
+      drawing([]),
+    )
+    await vi.waitFor(() => expect(lost).toEqual([failure]))
+    followed.stop()
   })
 })
