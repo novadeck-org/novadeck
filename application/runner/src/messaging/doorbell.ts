@@ -72,6 +72,11 @@ export type DoorbellHost = {
   readonly ringLeftover: (terminalId: string, nonce: string) => boolean
   /** How much longer the screen is not believed, after a Stop that left a prompt queued; 0 if none. */
   readonly barred?: (terminalId: string) => number
+  /**
+   * Asked right before the foreground is read: the agent bound there, found gone, has its
+   * binding ended (in turn with the reports). Nothing for a prompt shown before any binds.
+   */
+  readonly agentGone?: (terminalId: string) => void
   /** What types into the terminal; undefined once it is gone. */
   readonly target: (terminalId: string) => TypingTarget | undefined
   /**
@@ -401,6 +406,7 @@ export class Doorbell {
       await this.recover(terminalId, screen, now - calm)
       return undefined
     }
+    this.host.agentGone?.(terminalId)
     const verdict = await typist.ready(look, () => !this.host.ringable(terminalId))
     if (verdict === "open") {
       this.backoff.delete(terminalId)
@@ -498,6 +504,7 @@ export class Doorbell {
         return
       }
       // The same gate as a ring: the agent holds the terminal and it takes a paste.
+      this.host.agentGone?.(terminalId)
       const foreground = await this.host.target(terminalId)?.holdsForeground()
       if (foreground === false || !screen.bracketedPaste) {
         this.refused(terminalId, screen, "away")
