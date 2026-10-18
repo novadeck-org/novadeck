@@ -175,10 +175,13 @@ const leftover = new RegExp(
     String.raw`application\\?\/[({](?:\?:)?[^)}]*\b(?:runner|relay|protocol)\b`,
     // Built: a glob or a template over application/'s folders.
     String.raw`application\/(?:\*\/|\$\{)`,
-    // Joined, with either quote.
+    // Joined, with either quote, or concatenated.
+    String.raw`["']application\/["']\s*\+\s*["'](?:runner|relay|protocol)`,
     String.raw`["']application["'],\s*["'](?:runner|relay|protocol|runner-client)["']`,
     // The atlas: from the root, with a backslash, negated, entered, joined, in a URL.
     String.raw`(?:^|[\s"'\x60(\[=:,!])atlas[\\/][\w.*-]`,
+    String.raw`(?:^|[\s"'\x60(\[=:,!])\\\/atlas\\\/`,
+    String.raw`^\s*-\s*["']atlas["']\s*$`,
     String.raw`\bcd\s+atlas\b`,
     String.raw`["']atlas["'],\s*["']`,
     String.raw`\/(?:blob|tree)\/[^/\s]+\/atlas\/`,
@@ -187,7 +190,18 @@ const leftover = new RegExp(
 )
 
 const olds = rows.map(({ from }) => from)
-const tops = ["application", "apps", "backend", "contract", "engines", "frontend", "harnesses"]
+const tops = [
+  "application",
+  "apps",
+  "backend",
+  "contract",
+  "docs",
+  "engines",
+  "frontend",
+  "harnesses",
+  "libraries",
+  "scripts",
+]
 const relativePath = /(?:^|[^.\w/])((?:\.\.\/)+[\w.@-]+(?:\/[\w.@-]+)*)/g
 
 /**

@@ -164,8 +164,18 @@ describe("what the move leaves", () => {
     expect(leftovers("backend/runner/src/x/y.ts", 'import "../relay/z.ts"')).toEqual([])
   })
 
+  it("finds a concatenated path, an escaped atlas, and a quoted atlas line", () => {
+    for (const line of [
+      'const p = "application/" + "runner"',
+      String.raw`const re = /"\/atlas\/src/`,
+      "  - 'atlas'",
+    ])
+      expect(leftovers("x.ts", line), line).toHaveLength(1)
+  })
+
   it("finds a path out of the atlas written for the depth it had", () => {
     expect(leftovers("tools/atlas/extract/x.ts", '"../../application/ui/src"')).toHaveLength(1)
+    expect(leftovers("tools/atlas/extract/x.ts", '"../../libraries/wire"')).toHaveLength(1)
     expect(leftovers("tools/atlas/extract/x.ts", '"../../../application/ui/src"')).toEqual([])
   })
 

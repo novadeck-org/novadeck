@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
@@ -7,10 +6,11 @@ import {
   applyEdit,
   carry,
   finish,
+  ignoredPlaces,
   outsideWorkspace,
   preflight,
   repository,
-  trackedIgnored,
+  undoneByMerge,
 } from "./move.ts"
 
 // `node scripts/packages/move-backend.ts`: step 5's 5.3a. Moves the runner, the relay, the
@@ -38,57 +38,32 @@ const moves = files.flatMap((file) => {
   return [{ from: file, to }]
 })
 const placeOf = new Map(moves.map(({ from, to }) => [from, to]))
+const sourceOf = new Map(moves.map(({ from, to }) => [to, from]))
 
 // Build output tracked by mistake, which would move into a folder that ignores it.
-for (const file of trackedIgnored(root, [...files.filter(destinationOf), ...placeOf.values()]))
+for (const place of ignoredPlaces(root, [...placeOf.keys(), ...placeOf.values()])) {
+  const file = sourceOf.get(place) ?? place
   problems.push(
-    `${file} is tracked, but its package ignores it as build output: git rm --cached it`,
+    `${file} is tracked, but its package ignores it as build output: git rm --cached ${file}`,
   )
+}
 for (const place of outsideWorkspace(
   root,
   rows.map(({ to }) => to),
 ))
   problems.push(`pnpm-workspace.yaml takes in no ${place}: add its folder's glob first`)
 
-// On a branch that merged the move from main: a file the branch had removed or renamed at an
-// old place, which the merge brought back at its new one from main's side.
-const has = (commit: string, file: string): boolean => {
-  try {
-    execFileSync("git", ["cat-file", "-e", `${commit}:${file}`], { cwd: root, stdio: "ignore" })
-    return true
-  } catch {
-    return false
-  }
-}
-const marker = `${rows[1].from}/package.json`
-const markerAfter = `${rows[1].to}/package.json`
-const merge = git("rev-list", "--first-parent", "--merges", "-n", "500", "HEAD")
-  .split("\n")
-  .filter(Boolean)
-  .find((commit) => has(`${commit}^1`, marker) && has(`${commit}^2`, markerAfter))
-if (merge !== undefined) {
-  const base = git("merge-base", `${merge}^1`, `${merge}^2`).trim()
-  const removed = git(
-    "diff",
-    "--name-status",
-    "-M",
-    "--diff-filter=DR",
-    base,
-    `${merge}^1`,
-    "--",
-    ...olds,
+for (const { back, file, renamed } of undoneByMerge({
+  root,
+  marker: { from: `${rows[1].from}/package.json`, to: `${rows[1].to}/package.json` },
+  olds,
+  destinationOf,
+}))
+  problems.push(
+    renamed
+      ? `${back} came back with main's move beside ${renamed}, the branch's rename of ${file}: git rm the one that doesn't stand, and commit`
+      : `${back} came back with main's move, though the branch deleted ${file}: git rm it if the deletion stands, or commit anything (an empty commit says so) to keep it`,
   )
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => line.split("\t")[1]!)
-  for (const file of removed) {
-    const back = destinationOf(file)
-    if (back !== undefined && present.has(back))
-      problems.push(
-        `${back} came back with main's move, though the branch removed or renamed ${file}: git rm ${back}, if the branch's change stands`,
-      )
-  }
-}
 
 const texts = new Map<string, string>()
 for (const file of files) {
@@ -117,36 +92,59 @@ if (problems.length > 0) {
   process.exit(1)
 }
 
-// The move, the rewritten texts at their new places, what is left at the old ones, and the
-// install, as one piece: a failure in it leaves the tree half moved.
-let carried: { carried: string[]; clashes: string[] }
+// The move, the rewritten texts at their new places and the install, as one piece: a
+// failure in it leaves the tree half moved, with nothing outside git's reach touched yet.
 try {
   for (const { from, to } of moves) {
     mkdirSync(join(root, dirname(to)), { recursive: true })
     git("mv", from, to)
   }
   for (const [file, text] of texts) writeFileSync(join(root, file), text)
-  carried = carry(root, olds, (file) => destinationOf(file))
   finish(root, oxfmt, [...texts.keys()])
 } catch (error) {
   console.error(
     `The move stopped partway: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}\n` +
-      "The tree is half moved. Run `git reset --hard`, delete the new folders where no tracked " +
-      "file is (backend/, contract/, tools/atlas), then run the script again.",
+      "The tree is half moved, and nothing git doesn't track has moved yet. Run `git reset --hard`, " +
+      "delete the new folders (backend/, contract/, tools/atlas), then run the script again.",
   )
   process.exit(1)
 }
 
+// Last, what git doesn't track at the old places, rewritten where it is text: a branch's
+// work in progress names old paths as its tracked files did.
+let carried: ReturnType<typeof carry>
+try {
+  carried = carry(root, olds, destinationOf)
+} catch (error) {
+  console.error(
+    `Carrying what git doesn't track stopped partway: ${error instanceof Error ? error.message : String(error)}\n` +
+      "The move itself is done. Look at what is left at the old places, move it by hand, and run the script again.",
+  )
+  process.exit(1)
+}
+const carriedRewritten = carried.carried.filter(({ to }) => {
+  if (!rewritable(to)) return false
+  const text = read(to)
+  const next = rewrite(text)
+  if (next === text) return false
+  writeFileSync(join(root, to), next)
+  return true
+})
+
 // What the move leaves: mentions of an old folder in a form the rewrite doesn't read.
 const left = tracked().flatMap((file) => (rewritable(file) ? leftovers(file, read(file)) : []))
+const lockfile = git("status", "--porcelain", "--", "pnpm-lock.yaml").trim() !== ""
 
 console.log(
-  moves.length === 0 && texts.size === 0 && carried.carried.length === 0
+  moves.length === 0 && texts.size === 0 && carried.carried.length === 0 && !lockfile
     ? "Nothing to do: the tree is as the move leaves it."
     : `Moved ${moves.length} files and rewrote ${texts.size} that named a moved folder.`,
 )
+if (lockfile && moves.length === 0) console.log("The install made pnpm-lock.yaml whole: commit it.")
 if (carried.carried.length > 0)
-  console.log(`Carried what git doesn't track to the new places:\n${carried.carried.join("\n")}`)
+  console.log(
+    `Carried what git doesn't track to the new places${carriedRewritten.length > 0 ? `, rewriting ${carriedRewritten.length}` : ""}:\n${carried.carried.map(({ from, to }) => `${from} -> ${to}`).join("\n")}`,
+  )
 if (skipped.length > 0)
   console.log(`Handwritten edits with nothing to do, for a person to check:\n${skipped.join("\n")}`)
 if (carried.clashes.length > 0)
