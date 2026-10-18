@@ -107,6 +107,20 @@ jobs:
       - name: Build
         run: pnpm build:try
 
+      # Where the tag's source puts the visitor build. A later layout is added ahead of this
+      # one, so a tag from before it still deploys, as a rollback does; every step below reads
+      # TRY_DIST, never the folder itself.
+      - name: Locate Build
+        run: |
+          for dist in application/ui/dist-try; do
+            if [[ -f "$dist/index.html" ]]; then
+              echo "TRY_DIST=$dist" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+          echo "::error::The visitor build left no index.html where a release puts it."
+          exit 1
+
       # A release from before the visitor build was made public-ready builds a page that
       # search engines may index and that still plays the old tour, and one from before the
       # posters has nothing to make them with; neither is deployed.
@@ -114,8 +128,8 @@ jobs:
         env:
           TAG: ${{ steps.choose.outputs.tag }}
         run: |
-          if ! grep -q '<meta name="robots" content="noindex"' application/ui/dist-try/index.html ||
-            [[ ! -f application/ui/dist-try/_headers ]]; then
+          if ! grep -q '<meta name="robots" content="noindex"' "$TRY_DIST/index.html" ||
+            [[ ! -f "$TRY_DIST/_headers" ]]; then
             echo "::error::$TAG predates the public visitor build; deploy a newer release."
             exit 1
           fi
@@ -156,7 +170,7 @@ jobs:
         run: |
           for scheme in light dark; do
             for width in 1280 2560; do
-              if [[ ! -s "application/ui/dist-try/poster-$scheme-$width.webp" ]]; then
+              if [[ ! -s "$TRY_DIST/poster-$scheme-$width.webp" ]]; then
                 echo "::error::The $scheme poster at $width px wasn't made."
                 exit 1
               fi
@@ -169,6 +183,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           TAG: ${{ steps.choose.outputs.tag }}
         run: >-
-          pnpm dlx wrangler@4.145.0 pages deploy application/ui/dist-try
+          pnpm dlx wrangler@4.145.0 pages deploy "$TRY_DIST"
           --project-name=novadeck-try --branch=main
           --commit-hash="$(git rev-parse HEAD)" --commit-message="Novadeck $TAG"

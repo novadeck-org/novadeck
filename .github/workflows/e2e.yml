@@ -49,7 +49,7 @@ jobs:
     outputs:
       run: ${{ steps.plan.outputs.run }}
       os: ${{ steps.plan.outputs.os }}
-      e2e: ${{ steps.plan.outputs.e2e }}
+      rows: ${{ steps.plan.outputs.rows }}
       quirks: ${{ steps.plan.outputs.quirks }}
     steps:
       # The whole history: turbo and git diff the pull request's base against its head, and
@@ -92,8 +92,9 @@ jobs:
   e2e:
     needs: plan
     if: needs.plan.outputs.run == 'true'
-    # The Linux jobs keep their names; the Windows and macOS ones say so.
-    name: ${{ matrix.setup.name }}${{ matrix.os == 'windows-latest' && ' (Windows)' || matrix.os == 'macos-latest' && ' (macOS)' || '' }}
+    # The Linux jobs keep their names; the Windows and macOS ones say so, and a harness's
+    # two halves say which (`Codex (Windows, 1/2)`).
+    name: ${{ matrix.job }}
     runs-on: ${{ matrix.os }}
     # Windows starts processes and consoles several times slower, and has no namespace;
     # macOS's runners are slower than Linux's too.
@@ -105,13 +106,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The systems the plan chose: Linux for any change to the suite, the others for a
-        # change to what is system-specific, and all three on a schedule or a dispatch.
-        os: ${{ fromJSON(needs.plan.outputs.os) }}
-        # The rows the plan chose: each harness alone, and Mixed, which runs every harness
-        # at once for the scenarios across harnesses (`*.mixed.e2e.ts`) the others skip, as
-        # they leave to it.
-        setup: ${{ fromJSON(needs.plan.outputs.e2e) }}
+        # The rows the plan chose, on each system it chose: Linux for any change to the
+        # suite, the others for a change to what is system-specific, and all three on a
+        # schedule or a dispatch. Each harness alone, and Mixed, which runs every harness at
+        # once for the scenarios across harnesses (`*.mixed.e2e.ts`) the others skip, as they
+        # leave to it. Claude Code and Codex run in two halves on Windows and Linux, where
+        # their suites take longest (scripts/e2e/plan/plan.ts, `firstShard`).
+        include: ${{ fromJSON(needs.plan.outputs.rows) }}
     env:
       NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache
       # Where a failed test writes what the runner heard and did (src/e2e/trace.ts).
@@ -196,11 +197,13 @@ jobs:
       - name: Run E2E
         env:
           FILES: ${{ matrix.setup.files }}
+        # Each file, or a half's `--exclude` and its file, a word of its own.
         run: |
+          # shellcheck disable=SC2086
           if [ "$RUNNER_OS" != Linux ]; then
-            pnpm --filter @novadeck/runner test:e2e ${FILES:+"$FILES"}
+            pnpm --filter @novadeck/runner test:e2e $FILES
           else
-            node scripts/e2e/isolated/main.ts -- pnpm --filter @novadeck/runner test:e2e ${FILES:+"$FILES"}
+            node scripts/e2e/isolated/main.ts -- pnpm --filter @novadeck/runner test:e2e $FILES
           fi
 
       # A failed test leaves its trace: each hook's report and when its hook started, the
@@ -210,15 +213,15 @@ jobs:
         if: failure() || cancelled()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: e2e-traces-${{ matrix.setup.name }}-${{ runner.os }}
+          name: e2e-traces-${{ matrix.setup.name }}-${{ runner.os }}${{ matrix.setup.part && format('-{0}', matrix.setup.part) || '' }}
           path: ${{ env.NOVADECK_E2E_TRACES }}
           if-no-files-found: ignore
           retention-days: 7
 
       # The namespace wrapper's own tests against a real namespace, which only a runner
-      # that allows one can run; once, in one job.
+      # that allows one can run; once, in one job (Claude Code's first half).
       - name: Test Network Namespace
-        if: matrix.setup.agents == 'claude' && runner.os == 'Linux'
+        if: matrix.setup.agents == 'claude' && runner.os == 'Linux' && matrix.setup.part != 2
         env:
           NOVADECK_E2E_NETNS_TESTS: "1"
         run: npx vitest run --config vitest.config.ts scripts/e2e
