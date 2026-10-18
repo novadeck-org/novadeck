@@ -84,7 +84,8 @@ import {
   type ShellLaunch,
 } from "@novadeck/terminal/shell"
 import { freshNonce, InputQueue, keysOf } from "@novadeck/tui-input"
-import type { HoldBudget, InputHold } from "@novadeck/tui-input"
+import type { HoldBudget, InputHold, PromptHost, PromptOptions } from "@novadeck/tui-input"
+import type { InterruptHost, InterruptOptions } from "@novadeck/tui-input"
 import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
 import { Latest } from "@novadeck/wire/server"
 
@@ -163,7 +164,6 @@ import { expectedAgent, promptIn } from "./commands.js"
 import { Dialogs, type DialogsHost, type DialogsOptions } from "./dialogs.js"
 import { Doorbell, tracer, type DoorbellHost, type DoorbellOptions } from "./doorbell.js"
 import { mention, nextHandle, wordOf } from "./handles.js"
-import { Interrupts, type InterruptHost, type InterruptOptions } from "./interrupts.js"
 import { leftoverNonce } from "./leftover.js"
 import {
   Murmur,
@@ -196,7 +196,7 @@ import {
   type OpenAnswer,
 } from "./opens.js"
 import { TerminalPeers } from "./peers.js"
-import { Prompts, type PromptHost, type PromptOptions } from "./prompts.js"
+import { Interrupts, Prompts } from "./prompting.js"
 import {
   hasRun,
   type AgentReport,

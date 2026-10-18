@@ -823,7 +823,9 @@ forgets it, including one from an earlier runner.
   terminals' queues don't wait for each other. The agent and the pending request are
   looked at in the prompt's turn, not when it is called: only the text's shape
   (`PROMPT_REFUSED`) is refused at once, so a prompt given during an answer is not refused
-  for the request that answer is for. A prompt that meets a doorbell ring
+  for the request that answer is for. The typing itself is `Prompts` and `Interrupts` of
+  `@novadeck/tui-input`; the runner's `terminals/prompting.ts` gives them `promptRefusal` as the
+  rule for the text and turns what they refuse into the errors named here. A prompt that meets a doorbell ring
   whose prompt is yet to confirm it waits for it, up to 10 s (`CONFLICT` after). Both keys go through the bookkeeping the
   person's own do (`Terminals.keyed`): what messaging and the doorbell see of the box and
   its Enter, the person's prompt attributed from the harness's transcript. A prompt given while the agent works behaves as typing it

@@ -1,7 +1,7 @@
 import "./runner.css"
-import type { TerminalMountProps, MountTerminal, ViewState } from "../port"
+import type { TerminalKey, TerminalMountProps, MountTerminal, ViewState } from "../port"
 import { wantsWebgl } from "./renderers"
-import type { ScreenHandle, Screens } from "./screens"
+import type { Hold, TerminalViews } from "./screens"
 import type { ViewPhase } from "./view-state"
 
 // The shell's stage for a terminal's status: an exited or failed one waits for Enter.
@@ -23,10 +23,10 @@ const opening: ViewState = { live: false, resuming: false, waits: false, lock: n
 // mounts: a view switch disposes one mount and creates the next, which takes the same
 // emulator and attachment instead of opening them again.
 export const createRunnerMount =
-  (screens: Screens): MountTerminal =>
+  (screens: TerminalViews<TerminalKey>): MountTerminal =>
   (element, key, initial) => {
     let props = initial
-    let hold: ScreenHandle | undefined
+    let hold: Hold | undefined
     let disposed = false
     // What the UI sees while no screen is held: the last state the screen had.
     let last: ViewState = opening
@@ -38,7 +38,7 @@ export const createRunnerMount =
     // Forwarding adds no store, so each change of state still wakes one listener.
     const snapshot = (): ViewState => hold?.state.getSnapshot() ?? last
     const notify = (): void => listeners.forEach((listener) => listener())
-    const holdScreen = (next: ScreenHandle | undefined): void => {
+    const holdScreen = (next: Hold | undefined): void => {
       const before = snapshot()
       if (hold) last = hold.state.getSnapshot()
       unwatch?.()
