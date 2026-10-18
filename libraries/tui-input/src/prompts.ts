@@ -2,7 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 
-import { isEmpty, sameText, wrappedRows, type BoxProfile } from "./box.js"
+import { isEmpty, sameText, showsTail, wrappedRows, type BoxProfile } from "./box.js"
 import { PromptRefusal } from "./errors.js"
 import { type HoldBudget, type InputEntry, type InputQueue } from "./queue.js"
 import { bracketedPaste } from "./typing.js"
@@ -407,7 +407,9 @@ export class Prompts {
       if (!after) return false
       const box = profile.read(after)
       const right = box !== undefined && box.mode === mode
-      const holds = right && sameText(box.text, text)
+      // A text taller than the box's viewport shows only its tail, the box then full.
+      const holds =
+        right && (sameText(box.text, text) || showsTail(profile, box, after.rows.length, text))
       const placeholder = right && collapsible(text) && profile.collapsed(box)
       unexpanded = placeholder && mode === "shell" && !profile.shell.expands
       const fits = holds || (placeholder && (mode === "prompt" || profile.shell.expands))
