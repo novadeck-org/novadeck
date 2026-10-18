@@ -81,20 +81,24 @@ const wordEnd = (draft: string, cursor: number): number => {
   return at
 }
 
-// One character's width back or on, so a cursor never parts a surrogate pair.
+// Where each character the person sees starts, so a cursor never parts an accent from its
+// letter, an emoji from its skin tone, or a surrogate pair.
+const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" })
+const starts = (draft: string): number[] => [
+  ...Array.from(graphemes.segment(draft), (each) => each.index),
+  draft.length,
+]
+
+// One character back or on.
 const back = (draft: string, cursor: number): number =>
-  cursor >= 2 &&
-  /[\udc00-\udfff]/.test(draft[cursor - 1]!) &&
-  /[\ud800-\udbff]/.test(draft[cursor - 2]!)
-    ? cursor - 2
-    : Math.max(0, cursor - 1)
+  starts(draft).findLast((at) => at < cursor) ?? 0
 const on = (draft: string, cursor: number): number =>
-  /[\ud800-\udbff]/.test(draft[cursor] ?? "") && /[\udc00-\udfff]/.test(draft[cursor + 1] ?? "")
-    ? cursor + 2
-    : Math.min(draft.length, cursor + 1)
+  starts(draft).find((at) => at > cursor) ?? draft.length
 
 const moved = (line: Line, cursor: number): Line => ({ ...line, cursor })
 
+// ↑ and ↓ through the history. A recalled line once edited is a draft of its own: ↑ from it
+// keeps it in place of the draft left at first, a simpler rule than readline's.
 const recall = (line: Line, step: -1 | 1): Line => {
   const { history, recalled } = line
   if (step < 0) {
@@ -128,15 +132,24 @@ const submitted = (line: Line): Line => {
   return { ...line, draft: "", cursor: 0, history: kept, recalled: null, stashed: "" }
 }
 
-// A control sequence's final key: CSI's parameters and final byte, or SS3's one letter.
+// A control sequence: CSI with its parameters, intermediates and final byte, or SS3's one
+// letter. The emulator's own replies (device attributes, mode reports, the mouse) are CSI
+// too, and come to nothing.
 // eslint-disable-next-line no-control-regex -- A sequence starts with ESC.
-const sequence = /^\x1b(?:\[([\d;]*)([A-Za-z~])|O([A-Za-z]))/
+const sequence = /^\x1b(?:\[([0-?]*)[ -/]*([@-~])|O([A-Za-z]))/
+// A string the emulator sends whole, as an OSC colour reply, up to BEL or ST.
+// eslint-disable-next-line no-control-regex -- It starts with ESC and ends with BEL or ESC \.
+const string = /^\x1b[\]P_^][^\x07\x1b]*(?:\x07|\x1b\\)?/
 
 // What a CSI or SS3 key does to the line; an unknown one does nothing.
 const keyed = (line: Line, parameters: string, final: string): Line => {
+  // A key's parameters are numbers; a reply's private ones (`?`, `<`, `>`) are no key.
+  if (!/^[\d;]*$/.test(parameters)) return line
   const { draft, cursor } = line
-  // A modifier (Ctrl or Alt, as `1;5` or `1;3`) moves ←/→ a word at a time.
-  const byWord = /^1;[3579]$/.test(parameters)
+  // With Ctrl or Alt (`1;5`, `1;3` and their Shift forms), ←/→ move a word and Delete deletes
+  // one; with Shift alone they move a character.
+  const modifier = Number(parameters.split(";")[1] ?? 1)
+  const byWord = modifier >= 3
   switch (final) {
     case "A":
       return recall(line, -1)
@@ -153,20 +166,21 @@ const keyed = (line: Line, parameters: string, final: string): Line => {
     case "~":
       if (parameters === "1" || parameters === "7") return moved(line, 0)
       if (parameters === "4" || parameters === "8") return moved(line, draft.length)
-      if (parameters === "3" && cursor < draft.length)
-        return edited(line, draft.slice(0, cursor) + draft.slice(on(draft, cursor)), cursor)
+      if (parameters.split(";")[0] === "3" && cursor < draft.length) {
+        const to = byWord ? wordEnd(draft, cursor) : on(draft, cursor)
+        return edited(line, draft.slice(0, cursor) + draft.slice(to), cursor)
+      }
       return line
     default:
       return line
   }
 }
 
-/**
- * Reads what the emulator sent for the person's keys into the line, in order. The terminal
- * runs bracketed paste mode, so a paste arrives whole between its markers and inserts as
- * text, never submitting; a chunk that is exactly ESC is Escape, as the emulator sends a
- * key's whole sequence in one chunk.
- */
+// Reads what the emulator sent for the person's keys into the line, in order. The terminal
+// must run bracketed paste mode (`ESC [ ? 2004 h`, written again after anything that resets
+// it), so a paste arrives whole between its markers and inserts as text: without it, the
+// emulator sends a paste's line breaks as Enter, and each line would submit. A chunk that is
+// exactly ESC is Escape, as the emulator sends each key's whole sequence in one chunk.
 export const editLine = (
   start: Line,
   data: string,
@@ -192,12 +206,19 @@ export const editLine = (
       at += control[0].length
       continue
     }
+    const reply = string.exec(rest)
+    if (reply) {
+      at += reply[0].length
+      continue
+    }
     const { draft, cursor } = line
     const key = rest[0]!
     at += 1
     switch (key) {
       case "\r":
       case "\n":
+        // A line break as CR LF is one Enter.
+        if (key === "\r" && rest[1] === "\n") at += 1
         if (mode === "ended") events.push({ type: "restart" })
         else if (draft.trim()) {
           events.push({ type: "submit", line: draft })
@@ -232,10 +253,10 @@ export const editLine = (
         line = edited(line, "", 0)
         break
       case "\x1b": {
-        // Alt with a key, as ESC then the key: Alt+Backspace deletes the word before the
-        // cursor, and any other is dropped with its key.
+        // Alt with a key, as ESC then the key: Alt+Backspace (and Ctrl+Alt+Backspace) deletes
+        // the word before the cursor, and any other is dropped with its key.
         const next = rest[1]
-        if (next === "\x7f") {
+        if (next === "\x7f" || next === "\b") {
           const from = wordStart(draft, cursor)
           line = edited(line, draft.slice(0, from) + draft.slice(cursor), from)
         }

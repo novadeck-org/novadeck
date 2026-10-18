@@ -47,9 +47,12 @@ describe("a demo terminal's command line", () => {
     // Nothing before or after to delete.
     expect(shown(keys(["\x7f"]).line)).toBe("|")
     expect(shown(keys(["ab", "\x1b[3~"]).line)).toBe("ab|")
-    // A character outside the BMP goes whole, never half a pair.
+    // A character goes whole: never half a pair, an accent without its letter, or a skin
+    // tone without its emoji.
     expect(keys(["a👋", "\x7f"]).line.draft).toBe("a")
     expect(keys(["👋b", "\x01", "\x1b[3~"]).line.draft).toBe("b")
+    expect(keys(["ae\u0301", "\x7f"]).line.draft).toBe("a")
+    expect(keys(["a👍🏽", "\x7f"]).line.draft).toBe("a")
   })
 
   it("moves with ←/→ and Home/End, in each encoding the emulator sends", () => {
@@ -62,15 +65,22 @@ describe("a demo terminal's command line", () => {
     // The ends hold.
     expect(shown(keys(["ab", right]).line)).toBe("ab|")
     expect(shown(keys(["ab", "\x01", left]).line)).toBe("|ab")
-    // Past a character outside the BMP in one step.
+    // Past a character in one step, whatever it is made of.
     expect(keys(["a👋", left]).line.cursor).toBe(1)
     expect(keys(["👋b", "\x01", right]).line.cursor).toBe(2)
+    expect(keys(["a👍🏽", left]).line.cursor).toBe(1)
   })
 
   it("moves a word at a time with Ctrl or Alt and ←/→", () => {
     expect(shown(keys(["git log --all", "\x1b[1;5D"]).line)).toBe("git log |--all")
     expect(shown(keys(["git log --all", "\x1b[1;3D", "\x1b[1;3D"]).line)).toBe("git |log --all")
     expect(shown(keys(["git log --all", "\x01", "\x1b[1;5C"]).line)).toBe("git| log --all")
+    // From a space, on past the next word; with Ctrl, Alt and Shift too.
+    expect(shown(keys(["git log --all", "\x01", "\x1b[1;5C", "\x1b[1;7C"]).line)).toBe(
+      "git log| --all",
+    )
+    // Shift alone moves a character.
+    expect(shown(keys(["git log", "\x1b[1;2D"]).line)).toBe("git lo|g")
   })
 
   it("cuts with Ctrl+U, Ctrl+K and Ctrl+W, and Alt+Backspace", () => {
@@ -79,10 +89,17 @@ describe("a demo terminal's command line", () => {
     expect(shown(keys(["git log  ", "\x17"]).line)).toBe("git |")
     expect(shown(keys(["git log", left, "\x17"]).line)).toBe("git |g")
     expect(shown(keys(["git log", "\x1b\x7f"]).line)).toBe("git |")
+    expect(shown(keys(["git log", "\x1b\b"]).line)).toBe("git |")
+    // Ctrl+Delete deletes the word after the cursor; Shift+Delete one character.
+    expect(shown(keys(["git log --all", "\x01", "\x1b[3;5~"]).line)).toBe("| log --all")
+    expect(shown(keys(["git log", "\x01", "\x1b[3;2~"]).line)).toBe("|it log")
   })
 
   it("clears the draft on Ctrl+C", () => {
     expect(keys(["git log", "\x03"])).toEqual({ line: emptyLine(), events: [] })
+    // A recalled line cleared is a new draft: ↑ starts again from the newest.
+    const { line } = keys(["ls\r", "pwd\r", up, up, "\x03", up])
+    expect(shown(line)).toBe("pwd|")
   })
 
   it("submits on Enter a line with something in it, clearing the draft", () => {
@@ -96,6 +113,9 @@ describe("a demo terminal's command line", () => {
     })
     // As typed, spaces and all: the terminal trims what it needs to.
     expect(keys(["  hi ", "\r"]).events).toEqual([{ type: "submit", line: "  hi " }])
+    // Ctrl+J, and a line break as CR LF, are one Enter.
+    expect(keys(["ls\n"]).events).toEqual([{ type: "submit", line: "ls" }])
+    expect(keys(["ls\r\n"]).events).toEqual([{ type: "submit", line: "ls" }])
     // A blank line submits nothing, as the form's did, and keeps what it had.
     expect(keys(["\r"]).events).toEqual([])
     expect(keys(["   ", "\r"])).toMatchObject({ events: [], line: { draft: "   " } })
@@ -121,6 +141,13 @@ describe("a demo terminal's command line", () => {
     expect(events).toEqual([{ type: "submit", line: "ls -la" }])
     // Seeded, as from the terminal's own commands.
     expect(shown(keys([up], emptyLine(["make"])).line)).toBe("make|")
+    // Kept to the last hundred, seeded or submitted.
+    const many = Array.from({ length: 120 }, (_, n) => `echo ${n}`)
+    expect(emptyLine(many).history).toEqual(many.slice(-100))
+    expect(keys(["one more\r"], emptyLine(many)).line.history).toEqual([
+      ...many.slice(-99),
+      "one more",
+    ])
   })
 
   it("inserts a bracketed paste as text, never submitting", () => {
@@ -148,6 +175,20 @@ describe("a demo terminal's command line", () => {
     expect(keys(["a\tb", "\x1b[I", "\x1b[O", "\x1b[15~", "\x1b[201~"]).line.draft).toBe("ab")
   })
 
+  it("types nothing of what the emulator answers on its own", () => {
+    const replies = [
+      // Device attributes, a mode report, the mouse, a cursor position, a colour.
+      "\x1b[?1;2c",
+      "\x1b[?2004;1$y",
+      "\x1b[<0;10;5M",
+      "\x1b[12;40R",
+      "\x1b]11;rgb:1e1e/1e1e/1e1e\x1b\\",
+      "\x1b]10;rgb:ffff/ffff/ffff\x07",
+    ]
+    expect(keys(["ab", ...replies, "c"]).line.draft).toBe("abc")
+    expect(keys([`ab${replies.join("")}c`]).line.draft).toBe("abc")
+  })
+
   it("takes no keys while locked", () => {
     const line = keys(["draft"]).line
     for (const chunk of ["x", "\r", "\x1b", "\x03", up])
@@ -171,6 +212,10 @@ describe("a demo terminal's command line", () => {
   it("puts a line it couldn't take back in front of what was typed since", () => {
     const { line } = keys(["2 3\rx"])
     expect(shown(restoreLine(line, "2 3"))).toBe("2 3x|")
+    // The cursor stays in what was typed since, and the line is a draft, not a recalled one.
+    const restored = restoreLine(keys(["2 3\rxy", left]).line, "2 3")
+    expect(shown(restored)).toBe("2 3x|y")
+    expect(restored.recalled).toBeNull()
   })
 
   it("adds the words an interrupted turn gives back, as the form did", () => {
