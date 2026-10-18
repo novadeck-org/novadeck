@@ -7,7 +7,7 @@ Qwen3.5-2B (Q4_K_M, 1.28 GB) on llama.cpp's `llama-server`, an engine of its own
 voice input's, installed from Preferences > Addons. Without it, terminals keep their default
 titles.
 
-Code: `application/runner/src/murmur`, the engine build in `engines/murmur`.
+Code: `backend/runner/src/murmur`, the engine build in `engines/murmur`.
 
 ## What it reads
 

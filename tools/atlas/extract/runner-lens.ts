@@ -12,7 +12,7 @@ import { sourceFiles } from "./files.ts"
 import type { LensInput } from "./lens-input.ts"
 import { findDefinition, routerFile, runnerDir, servicesOf } from "./runner-services.ts"
 
-const storeFile = "application/runner/src/workspaces/store.ts"
+const storeFile = "backend/runner/src/workspaces/store.ts"
 
 const lineAt = (source: string, index: number): number => source.slice(0, index).split("\n").length
 

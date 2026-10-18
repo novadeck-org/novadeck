@@ -25,7 +25,7 @@ runs:
         HARNESS: ${{ inputs.harness }}
         CACHE: ${{ inputs.cache }}
       run: |
-        bin=$(jq -r --arg harness "$HARNESS" '.[$harness].bin' application/runner/src/e2e/harnesses.json)
+        bin=$(jq -r --arg harness "$HARNESS" '.[$harness].bin' backend/runner/src/e2e/harnesses.json)
         found=false
         for folder in "$CACHE/$HARNESS"-*; do
           case "$folder" in *.tmp) continue ;; esac

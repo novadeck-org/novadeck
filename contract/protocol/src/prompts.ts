@@ -8,7 +8,7 @@
  * The text with its line breaks as line feeds: a CRLF or a lone CR is one line break. The
  * Node-only @novadeck/tui-input keeps its own `normalised` (protocol can't be its
  * dependency, nor it protocol's): the two must agree, and the drift guard in
- * application/runner/src/terminals/prompting.test.ts fails if they do not.
+ * backend/runner/src/terminals/prompting.test.ts fails if they do not.
  */
 export const normalisedText = (text: string): string => text.replace(/\r\n?/g, "\n")
 
@@ -29,7 +29,7 @@ export const hasControlCharacters = (text: string): boolean => controls.test(nor
  * each switch to it as `!` is typed in an empty box); undefined for any other prompt. The
  * library @novadeck/tui-input keeps its own `shellCommand` for the path it types (see
  * `normalisedText`): the two must agree, and the drift guard in
- * application/runner/src/terminals/prompting.test.ts fails if they do not.
+ * backend/runner/src/terminals/prompting.test.ts fails if they do not.
  */
 export const shellCommand = (text: string): string | undefined => {
   const trimmed = normalisedText(text).trim()

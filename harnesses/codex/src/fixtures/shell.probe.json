@@ -2,7 +2,7 @@
   "harness": "codex",
   "version": "0.159.3",
   "source": "captured",
-  "how": "rollout records of commands run in shell mode (`!`) by the shell-bang probe (application/runner/src/e2e/probes/shell-bang.e2e.ts): the CommandExecution event (source user_shell) where the rollout has one, before the message that records the command and its result; the empty-output record is rebuilt from the probe transcript",
+  "how": "rollout records of commands run in shell mode (`!`) by the shell-bang probe (backend/runner/src/e2e/probes/shell-bang.e2e.ts): the CommandExecution event (source user_shell) where the rollout has one, before the message that records the command and its result; the empty-output record is rebuilt from the probe transcript",
   "scenarios": {
     "stderr": [
       {

@@ -8,7 +8,7 @@ import { parseAffected, plan } from "./plan.ts"
 // reads its changes from `BASE_SHA` and `HEAD_SHA` (the full history must be there); any
 // other event, or anything that can't be read, runs everything.
 
-const pins = new URL("../../../application/runner/src/e2e/harnesses.json", import.meta.url)
+const pins = new URL("../../../backend/runner/src/e2e/harnesses.json", import.meta.url)
 
 const run = (
   command: string,

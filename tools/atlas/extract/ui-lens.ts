@@ -891,7 +891,7 @@ export const extractUiLens = (input: LensInput): UiLens => {
       items: [...byNs.entries()].map(([ns, counts]) =>
         item(
           ns,
-          "application/protocol/src/contract.ts",
+          "contract/protocol/src/contract.ts",
           1,
           `${counts.called} of ${counts.served} called by the UI`,
         ),

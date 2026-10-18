@@ -27,7 +27,7 @@ export const appPackages = (root: string): readonly string[] =>
         readdirSync(join(root, folder)).map((name) => join(root, folder, name, "package.json")),
       ),
     // One path, as step 5's move script rewrites it.
-    join(root, "atlas/package.json"),
+    join(root, "tools/atlas/package.json"),
   ]
     .filter((file) => existsSync(file))
     .map((file) => (JSON.parse(readFileSync(file, "utf8")) as { name: string }).name)

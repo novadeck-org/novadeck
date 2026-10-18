@@ -14,7 +14,7 @@ import {
   type Counts,
 } from "./manager"
 
-// application/runner/src/terminals/manager.ts holds a budget of lines and of methods in
+// backend/runner/src/terminals/manager.ts holds a budget of lines and of methods in
 // its Terminals class that only goes down: new behaviour goes in a sibling module under
 // terminals/, and the class calls it.
 
@@ -154,7 +154,7 @@ describe("the ratchet", () => {
   it("sends new code past a budget to a sibling module under terminals/", () => {
     const [problem] = ratchetProblems({ ...counts, methods: 11 }, budgets)
     expect(problem).toMatch(/11 methods in the Terminals class, past its budget of 10/)
-    expect(problem).toMatch(/sibling module under application\/runner\/src\/terminals\//)
+    expect(problem).toMatch(/sibling module under backend\/runner\/src\/terminals\//)
   })
 
   it("lets the file sit a little under a budget, saying it could come down", () => {

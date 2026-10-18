@@ -59,7 +59,7 @@ export const runtime: {
       kind: "binary",
       summary:
         "A small Rust binary an agent starts for Novadeck's MCP server and for every hook. It only carries lines to the runner of its terminal and the answers back.",
-      anchor: { file: "application/relay/src/main.rs", text: "fn main() -> ExitCode" },
+      anchor: { file: "backend/relay/src/main.rs", text: "fn main() -> ExitCode" },
       position: { x: 1050, y: 140 },
     },
     {
@@ -80,7 +80,7 @@ export const runtime: {
       kind: "server",
       summary:
         "A downloaded whisper speech-to-text server for voice input. The runner starts it on a free loopback port and sends it audio over HTTP.",
-      anchor: { file: "application/runner/src/voice/service.ts", text: "export class Voice" },
+      anchor: { file: "backend/runner/src/voice/service.ts", text: "export class Voice" },
       position: { x: 420, y: 640 },
     },
     {
@@ -89,7 +89,7 @@ export const runtime: {
       kind: "server",
       summary:
         "A downloaded local-LLM server that writes terminal titles and summaries. The runner starts it on a free loopback port and calls its chat completions API.",
-      anchor: { file: "application/runner/src/murmur/service.ts", text: "export class Murmur" },
+      anchor: { file: "backend/runner/src/murmur/service.ts", text: "export class Murmur" },
       position: { x: 760, y: 640 },
     },
     {
@@ -153,7 +153,7 @@ export const runtime: {
       summary:
         "Everything the UI does goes through the typed oRPC contract over a MessagePort; holding the port is the credential. A browser build (`pnpm dev:web`) reaches a standalone runner over an authenticated WebSocket instead.",
       anchor: {
-        file: "application/runner-client/src/desktop.ts",
+        file: "contract/runner-client/src/desktop.ts",
         text: "export const desktop = (): Transport",
       },
     },
@@ -176,7 +176,7 @@ export const runtime: {
       channel: "MCP over stdio",
       summary:
         "The plugin's MCP server entry starts the relay; the agent speaks JSON-RPC to it over stdin and stdout, and the relay forwards the lines unchanged.",
-      anchor: { file: "application/relay/src/mcp.rs", text: "async fn carry(" },
+      anchor: { file: "backend/relay/src/mcp.rs", text: "async fn carry(" },
     },
     {
       id: "agent-relay-hook",
@@ -186,7 +186,7 @@ export const runtime: {
       summary:
         "The plugin registers every hook event as a command that runs the relay with the agent's payload on stdin; whatever the relay prints is the hook's answer to the agent.",
       anchor: {
-        file: "application/relay/src/hook.rs",
+        file: "backend/relay/src/hook.rs",
         text: "pub fn run(agent: &str, event: &str, config: &Config)",
       },
     },
@@ -198,7 +198,7 @@ export const runtime: {
       summary:
         "The relay connects to the endpoint named in NOVADECK_REPORT, identifies its terminal and token, and exchanges one JSON message per line with the runner's report server.",
       anchor: {
-        file: "application/relay/src/endpoint.rs",
+        file: "backend/relay/src/endpoint.rs",
         text: "pub async fn connect(endpoint: &str)",
       },
     },
@@ -210,7 +210,7 @@ export const runtime: {
       summary:
         "The shared engine server spawns the engine on a free 127.0.0.1 port and posts audio to its /inference endpoint.",
       anchor: {
-        file: "application/runner/src/voice/engine.ts",
+        file: "backend/runner/src/voice/engine.ts",
         text: 'this.server.request(running, "/inference"',
       },
     },
@@ -221,7 +221,7 @@ export const runtime: {
       channel: "Loopback HTTP",
       summary:
         "The same engine server spawns the llama.cpp-style server and posts chat completions requests to it to describe terminals.",
-      anchor: { file: "application/runner/src/murmur/service.ts", text: '"/v1/chat/completions"' },
+      anchor: { file: "backend/runner/src/murmur/service.ts", text: '"/v1/chat/completions"' },
     },
     {
       id: "main-github",
@@ -242,7 +242,7 @@ export const runtime: {
       channel: "HTTPS download",
       summary:
         "Installing voice or murmur downloads the engine archive from the running version's release, or from a folder or address an environment variable names.",
-      anchor: { file: "application/runner/src/engines/download.ts", text: "export const download" },
+      anchor: { file: "backend/runner/src/engines/download.ts", text: "export const download" },
     },
   ],
 }

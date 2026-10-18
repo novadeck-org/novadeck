@@ -21,13 +21,13 @@ Keep TypeScript, Node.js, and Hono. Add oRPC with Zod contracts over WebSockets,
 terminal rendering. Use headless xterm and serialization to restore screen state
 after reconnecting.
 
-| Part                        | Responsibility                                                                               |
-| --------------------------- | -------------------------------------------------------------------------------------------- |
-| `application/ui`            | Workspace views, xterm rendering, and a typed runner client.                                 |
-| `application/runner`        | Authentication, oRPC procedures, PTY ownership, output retention, and persistence.           |
-| `application/host`          | Electron windows, desktop integration, and starting or connecting to a local runner process. |
-| `application/protocol`      | Shared Zod schemas, procedure contracts, stream events, and typed errors.                    |
-| `application/runner-client` | The typed client: `connectRunner`, its transports, and the error codes it reports.           |
+| Part                     | Responsibility                                                                               |
+| ------------------------ | -------------------------------------------------------------------------------------------- |
+| `application/ui`         | Workspace views, xterm rendering, and a typed runner client.                                 |
+| `backend/runner`         | Authentication, oRPC procedures, PTY ownership, output retention, and persistence.           |
+| `application/host`       | Electron windows, desktop integration, and starting or connecting to a local runner process. |
+| `contract/protocol`      | Shared Zod schemas, procedure contracts, stream events, and typed errors.                    |
+| `contract/runner-client` | The typed client: `connectRunner`, its transports, and the error codes it reports.           |
 
 Keep the protocol package independent of Electron, React, and server implementation
 code. Define input and output schemas explicitly, including streamed events.

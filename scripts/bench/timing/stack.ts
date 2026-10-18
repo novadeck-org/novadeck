@@ -184,7 +184,7 @@ export const openStack = (): Stack => {
         },
         track,
       )
-      const runner = start(process.execPath, [join(root, "application/runner/dist/cli.js")], {
+      const runner = start(process.execPath, [join(root, "backend/runner/dist/cli.js")], {
         cwd: sandbox.root,
         env: runnerEnv(sandbox, { token, port: runnerPort!, origin }),
         stdio: ["ignore", "inherit", "inherit"],
