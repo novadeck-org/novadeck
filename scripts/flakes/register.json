@@ -175,6 +175,24 @@
       "status": "known",
       "cause": "Suspected, not reproduced on Linux (40 spawns each with the event loop stalled 0, 100 and 400 ms all delivered): node-pty reported the child's exit (code 0) without its output on macOS. Either node-pty's unixTerminal.js destroyed the pty socket 200 ms (DESTROY_SOCKET_TIMEOUT_MS) after the native exit callback, before the master was read, or macOS dropped the pending output when the last slave fd closed. Both are inside node-pty or the kernel; the repo's node-pty patch touches only Windows files.",
       "seen": ["#288 run 39128108243 job 117677654572 (macOS)"]
+    },
+    {
+      "id": "ui-workspace-overlays-windows-timeout",
+      "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/specs/WorkspaceOverlays.test.ts > workspace dialogs that load on demand > opens the dialog requested last when an earlier one never finished loading",
+      "signature": "Test timed out in \\d+ms",
+      "status": "known",
+      "cause": "Windows only: the App rendered over the spec backend in jsdom (the integration project) runs past its timeout. Since 3.2d (#285) mounted the demo's terminals through the terminal views these tests are slower locally too (WorkspaceTerminal 0.35 to 1.0 s, render-scope 1.8 to 3.1 s, WorkspaceOverlays 0.52 to 0.70 s), and Windows runners stretch them roughly tenfold, with 2.5x between runs (render-scope 12.6 s on #278, 34 s after #285). Not opening xterm (36 opens, 150 ms in all) nor writing to it (no change with attach held); where the rest goes is not yet found.",
+      "seen": ["#296 run 39157554970 job 117764023052 (Windows, 1/2)"]
+    },
+    {
+      "id": "ui-render-scope-windows-timeout",
+      "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/specs/render-scope.test.ts > workspace render scope > when the page first renders > renders every section",
+      "signature": "Test timed out in \\d+ms",
+      "status": "known",
+      "cause": "Windows only: the App rendered over the spec backend in jsdom (the integration project) runs past its timeout. Since 3.2d (#285) mounted the demo's terminals through the terminal views these tests are slower locally too (WorkspaceTerminal 0.35 to 1.0 s, render-scope 1.8 to 3.1 s, WorkspaceOverlays 0.52 to 0.70 s), and Windows runners stretch them roughly tenfold, with 2.5x between runs (render-scope 12.6 s on #278, 34 s after #285). Not opening xterm (36 opens, 150 ms in all) nor writing to it (no change with attach held); where the rest goes is not yet found.",
+      "seen": ["click-into run 39148797754 job 117738016740 (Windows)"]
     }
   ]
 }
