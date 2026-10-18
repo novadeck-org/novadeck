@@ -2,6 +2,7 @@ import { afterEach, describe as context, describe, expect, it } from "vitest"
 import { cleanup } from "vitest-browser-react"
 import { page, type Locator } from "vitest/browser"
 
+import { portableInstall } from "./support/backend"
 import { expectStaysAbsent, openWorkspace, press } from "./support/workspace"
 
 // The footer's chips come before the card in the page, which has its own buttons.
@@ -111,11 +112,12 @@ describe("a portable copy's install card", () => {
     })
 
     it("raises the card again with the answer once it was folded", async () => {
-      await openWorkspace("/?portable=no-release&installMs=3000")
+      await openWorkspace("/?portable=no-release&installMs=stepped")
       await primary(quiet()).click()
       await dismiss(installing()).click()
       await expect.element(installing()).not.toBeInTheDocument()
-      await expect.element(done(), { timeout: 8000 }).toBeVisible()
+      portableInstall.advanceTo("installed")
+      await expect.element(done()).toBeVisible()
     })
   })
 
@@ -149,10 +151,12 @@ describe("a portable copy's install card", () => {
 
   context("when the host reports a download", () => {
     it("shows the percent under Installing Novadeck, then the indeterminate bar", async () => {
-      await openWorkspace("/?portable=no-release&installMs=3000")
+      await openWorkspace("/?portable=no-release&installMs=stepped")
       await primary(quiet()).click()
+      portableInstall.advanceTo("downloading")
       await expect.element(installing().getByText("Downloading…")).toBeVisible()
       await expect.element(installing().getByText(/^\d+%$/)).toBeVisible()
+      portableInstall.advanceTo("installing")
       await expect.element(installing().getByText("Keeps your workspace")).toBeVisible()
       // Nothing to measure now: the bar has no value, rather than a stale percent.
       expect(installing().element().querySelector("[role=progressbar]")).not.toBeNull()
@@ -162,6 +166,7 @@ describe("a portable copy's install card", () => {
       expect(
         installing().element().querySelector("[role=progressbar]")!.hasAttribute("aria-valuenow"),
       ).toBe(false)
+      portableInstall.advanceTo("installed")
       await expect.element(done()).toBeVisible()
     })
   })
