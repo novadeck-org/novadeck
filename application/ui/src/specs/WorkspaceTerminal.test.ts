@@ -2,6 +2,8 @@ import { act, createElement, useEffect, type ComponentProps } from "react"
 import { HashRouter } from "react-router"
 import { vi } from "vitest"
 
+import type { CreateBackend, MountTerminal } from "#core/port"
+
 import {
   useWorkspaceServices,
   useWorkspaceState,
@@ -10,7 +12,6 @@ import {
 import { currentState } from "../app/selectors"
 import { WorkspaceProvider } from "../app/WorkspaceProvider"
 import { WorkspaceTerminal } from "../app/WorkspaceTerminal"
-import type { CreateBackend, MountTerminal } from "../backend/port"
 import { context, describe, expect, it } from "../test"
 import { testPhases } from "../test/phases"
 import { render } from "../test/render"

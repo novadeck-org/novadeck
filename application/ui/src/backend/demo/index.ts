@@ -1,10 +1,5 @@
 import { emptyCompanions } from "#core/companion"
 import type { Conversations } from "#core/conversation"
-import type { WorkspaceSeed } from "#core/seed"
-import { createStore } from "#core/store"
-import { createTelemetryStore, dropProject, dropTerminal, noTelemetry } from "#core/telemetry"
-import type { TitleSource, Workspace } from "#core/types"
-
 import type {
   AgentConnection,
   Backend,
@@ -12,7 +7,12 @@ import type {
   BackendSink,
   MountTerminal,
   TerminalKey,
-} from "../port"
+} from "#core/port"
+import type { WorkspaceSeed } from "#core/seed"
+import { createStore } from "#core/store"
+import { createTelemetryStore, dropProject, dropTerminal, noTelemetry } from "#core/telemetry"
+import type { TitleSource, Workspace } from "#core/types"
+
 import type { DemoAgentLink } from "./agent-link"
 import { createDemoChat } from "./chat"
 import { createDemoEngine, type DemoEngine } from "./engine"

@@ -1,15 +1,15 @@
-import type { Companions } from "#core/companion"
-import type { Conversations } from "#core/conversation"
-import type { AgentName } from "#core/harnesses"
-import type { Inbox } from "#core/inbox"
-import type { Messages } from "#core/messages"
-import type { Murmur } from "#core/murmur"
-import type { PortableState } from "#core/portable"
-import type { SandboxState } from "#core/sandbox"
-import type { WorkspaceSeed } from "#core/seed"
-import type { WorkspaceAction } from "#core/state"
-import type { Store } from "#core/store"
-import type { TelemetryReader } from "#core/telemetry"
+import type { Companions } from "./companion"
+import type { Conversations } from "./conversation"
+import type { AgentName } from "./harnesses"
+import type { Inbox } from "./inbox"
+import type { Messages } from "./messages"
+import type { Murmur } from "./murmur"
+import type { PortableState } from "./portable"
+import type { SandboxState } from "./sandbox"
+import type { WorkspaceSeed } from "./seed"
+import type { WorkspaceAction } from "./state"
+import type { Store } from "./store"
+import type { TelemetryReader } from "./telemetry"
 import type {
   TerminalKey,
   TerminalMetadata,
@@ -17,10 +17,10 @@ import type {
   ViewMode,
   Workspace,
   WorkspaceTarget,
-} from "#core/types"
-import type { UninstallPlan, UninstallResult } from "#core/uninstall"
-import type { UpdateChannel, UpdateOffer } from "#core/update"
-import type { Voice } from "#core/voice"
+} from "./types"
+import type { UninstallPlan, UninstallResult } from "./uninstall"
+import type { UpdateChannel, UpdateOffer } from "./update"
+import type { Voice } from "./voice"
 
 // The UI-owned contract every terminal backend implements. Only app/ talks to it.
 

@@ -1,10 +1,10 @@
+import type { BackendAction, TerminalKey } from "#core/port"
 import { isAgentProgram } from "#core/process"
 import { terminalKeyId } from "#core/registry"
 import { createStore } from "#core/store"
 import { terminalAsks } from "#core/terminal-ending"
 import type { TerminalMetadata, Workspace } from "#core/types"
 
-import type { BackendAction, TerminalKey } from "../../port"
 import type { DemoAgentVerbs } from "../agent-link"
 import type { DemoScreenState } from "../runtime"
 import { terminalOf } from "../terminals"

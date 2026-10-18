@@ -1,10 +1,10 @@
 import { createRef, useEffect, useState, type ReactNode } from "react"
 import { useLocation, useNavigate, useNavigationType, type Location } from "react-router"
 
+import type { CreateBackend } from "#core/port"
 import { workspaceFromSeed } from "#core/seed"
 import { createWorkspaceStore, type Store } from "#core/store"
 
-import type { CreateBackend } from "../backend/port"
 import type { CanvasHandle } from "../layouts/canvas/types"
 import { readPreferences } from "../preferences/preferences-storage"
 import { readProjectArrangement } from "../projects/project-arrangement-storage"

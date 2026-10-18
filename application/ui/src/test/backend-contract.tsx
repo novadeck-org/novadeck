@@ -1,10 +1,6 @@
 import { act } from "react"
 import { afterEach, vi } from "vitest"
 
-import { workspaceFromSeed } from "#core/seed"
-import { activeProject, activeSession, workspaceReducer, type WorkspaceAction } from "#core/state"
-import type { TerminalStatus, Workspace, WorkspaceTarget } from "#core/types"
-
 import type {
   Backend,
   BackendAction,
@@ -12,7 +8,11 @@ import type {
   TerminalKey,
   TerminalMount,
   TerminalMountProps,
-} from "../backend/port"
+} from "#core/port"
+import { workspaceFromSeed } from "#core/seed"
+import { activeProject, activeSession, workspaceReducer, type WorkspaceAction } from "#core/state"
+import type { TerminalStatus, Workspace, WorkspaceTarget } from "#core/types"
+
 import { context, describe, expect, it } from "../test"
 
 // What the suite may observe about an adapter without going through the UI.

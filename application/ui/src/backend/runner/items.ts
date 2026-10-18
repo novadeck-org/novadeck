@@ -6,11 +6,11 @@ import {
 import { hasCode, type CompanionWatchItem, type Runner } from "@novadeck/protocol/client"
 
 import type { ItemId } from "#core/companion"
+import type { BackendAction } from "#core/port"
 import { hasWindow } from "#core/roster"
 import type { WorkspaceAction } from "#core/state"
 import type { Workspace, WorkspaceTarget } from "#core/types"
 
-import type { BackendAction } from "../port"
 import { itemOf, windowOf } from "./companions"
 import type { RunnerListing } from "./seed"
 

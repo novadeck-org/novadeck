@@ -10,9 +10,9 @@ import { pause } from "@novadeck/terminal/view"
 import { WireError } from "@novadeck/wire"
 import { websocket, type Transport } from "@novadeck/wire/client"
 
+import type { BackendConnection, ConnectFailure, ThemeSource } from "#core/port"
 import { sessionName } from "#core/session-name"
 
-import type { BackendConnection, ConnectFailure, ThemeSource } from "../port"
 import { runnerBackend, type RunnerBackend } from "./backend"
 import {
   desktopHost,

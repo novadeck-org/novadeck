@@ -1,8 +1,8 @@
 import { afterEach, vi } from "vitest"
 
+import type { TerminalRequest } from "#core/port"
 import { createStore } from "#core/store"
 
-import type { TerminalRequest } from "../../backend/port"
 import { context, describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"
 import { appearance, terminalFixture, workspaceFixture } from "../../test/fixtures"

@@ -1,4 +1,4 @@
-import type { BootProgress, ConnectFailure } from "../backend/port"
+import type { BootProgress, ConnectFailure } from "#core/port"
 
 // Where the boot is: reaching the backend, loading the workspace, attaching the
 // restored session's terminals, or ready.

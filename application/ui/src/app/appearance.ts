@@ -1,7 +1,7 @@
+import type { Backend, WindowAppearance } from "#core/port"
 import type { Store } from "#core/store"
 import type { PreferencesValue } from "#core/types"
 
-import type { Backend, WindowAppearance } from "../backend/port"
 import { preferencesStorageKey, readPreferences } from "../preferences/preferences-storage"
 import {
   applyAppearance,

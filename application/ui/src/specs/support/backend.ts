@@ -1,3 +1,4 @@
+import type { Backend } from "#core/port"
 import type { SandboxState } from "#core/sandbox"
 
 import { createDemoBackend } from "../../backend/demo"
@@ -14,7 +15,6 @@ import {
 import { createDemoUninstall, uninstallScenarios } from "../../backend/demo/debug/uninstall"
 import { createDemoUpdates } from "../../backend/demo/debug/updates"
 import { visitorDemo } from "../../backend/demo/visitor"
-import type { Backend } from "../../backend/port"
 import { pageTheme } from "../../theme/source"
 
 // The demo's variants a spec asks for in its address, and the backend that offers them:
