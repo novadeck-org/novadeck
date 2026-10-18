@@ -53,11 +53,12 @@ export const pasteMsOn = (platform: NodeJS.Platform): number =>
 
 // How much longer than its test paste a delivery holds the person's input, in milliseconds: a
 // safety cap, with room for the last looks and the Enter.
-const inputCapMs = 1_500
+export const inputCapMs = 1_500
 
 /**
- * The longest a delivery holds the app's resizes, in milliseconds: a safety cap beyond the
- * caller's wait for the program to confirm the line.
+ * The longest a delivery holds the app's resizes by default, in milliseconds: the caller's
+ * backstop for a hold it never settles, which a caller that waits longer than this for the
+ * program to confirm the line sets beyond its wait (`Timing.sizeCapMs`).
  */
 export const sizeCapMs = 8_000
 
