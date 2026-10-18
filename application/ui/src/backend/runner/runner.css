@@ -44,6 +44,9 @@
     filter: grayscale(1);
     transition-delay: 200ms;
   }
+  .runner-slot {
+    transition: margin-bottom var(--motion-state) var(--ease-interface);
+  }
   .runner-paste {
     transition: opacity var(--motion-state) var(--ease-interface);
   }

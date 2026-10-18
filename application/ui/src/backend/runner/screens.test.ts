@@ -1,3 +1,4 @@
+import { createView, type Terminal as EmulatorTerminal } from "@novadeck/emulator/browser"
 import { vi } from "vitest"
 
 import { createStore } from "#core/store"
@@ -5,7 +6,7 @@ import { createStore } from "#core/store"
 import { describe, expect, it } from "../../test"
 import type { BackendConnectionState, TerminalKey } from "../port"
 import type { SurfaceRuntime } from "./backend"
-import { createScreens, parkMs, retainMs } from "./screens"
+import { createScreens, parkMs, retainMs, type ScreenHandle } from "./screens"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
 vi.hoisted(() => {
@@ -33,7 +34,7 @@ const keyOf = (terminalId: string): TerminalKey => ({
   workspaceSessionId: "s",
   terminalId,
 })
-const options = { fontSize: 13, name: "T", waiting: false, webgl: false }
+const options = { label: "Input for T", phase: "running", webgl: false } as const
 
 // Each test's screens close before its clock goes back to real time, while the file's DOM
 // is still there to take their listeners off: their terminals close, and the check that
@@ -49,8 +50,10 @@ const closeScreens = (): void => {
 const capped = (cap: number) => {
   const told: string[] = []
   const attached: string[] = []
-  const showing = new Map<string, number>()
+  const holds = new Map<string, ScreenHandle[]>()
+  const elements = new Map<string, HTMLElement>()
   let closed = false
+  const connection = createStore<BackendConnectionState>("connected")
   const runtime: SurfaceRuntime = {
     entry: () => ({
       ready: Promise.resolve(true),
@@ -69,30 +72,39 @@ const capped = (cap: number) => {
     lost: () => {},
     restart: () => {},
     exited: () => {},
-    connection: createStore<BackendConnectionState>("connected"),
+    connection,
     track: (work) => work,
     screen: ({ terminalId }, state) => void told.push(`${terminalId} ${state}`),
     shown: () => false,
   }
   const screens = createScreens(runtime, undefined, cap)
-  // Shown in a slot, as a surface does.
+  // The element a terminal's screen is placed in, as a mount's is.
+  const elementOf = (terminalId: string): HTMLElement => {
+    let element = elements.get(terminalId)
+    if (!element) {
+      element = document.createElement("div")
+      document.body.append(element)
+      elements.set(terminalId, element)
+    }
+    return element
+  }
+  // Shown in an element, as a mount does.
   const show = (terminalId: string) => {
-    showing.set(terminalId, (showing.get(terminalId) ?? 0) + 1)
-    const screen = screens.acquire(keyOf(terminalId), options)
-    document.body.append(screens.host(keyOf(terminalId)))
-    return screen
+    const hold = screens.acquire(keyOf(terminalId), options)
+    holds.set(terminalId, [...(holds.get(terminalId) ?? []), hold])
+    hold.place(elementOf(terminalId))
+    return hold
   }
-  const hide = (terminalId: string) => {
-    showing.set(terminalId, (showing.get(terminalId) ?? 0) - 1)
-    screens.release(keyOf(terminalId))
-  }
+  const hide = (terminalId: string) => holds.get(terminalId)?.pop()?.release()
   closers.push(() => {
     closed = true
-    for (const [terminalId, count] of showing)
-      for (let left = count; left > 0; left -= 1) hide(terminalId)
+    for (const [terminalId, held] of holds) while (held.length > 0) hide(terminalId)
+    elements.forEach((element) => element.remove())
   })
-  const present = (terminalId: string) => screens.host(keyOf(terminalId)).isConnected
-  return { screens, told, attached, show, hide, present }
+  // The screen the terminal's element holds, while it is open.
+  const hostOf = (terminalId: string) => elementOf(terminalId).firstElementChild
+  const present = (terminalId: string) => hostOf(terminalId)?.isConnected === true
+  return { screens, told, attached, show, hide, present, hostOf, connection }
 }
 
 describe("the cap on parked screens", () => {
@@ -167,8 +179,9 @@ describe("the cap on parked screens", () => {
   it("opens a screen it closed afresh when shown again", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
-      const { told, attached, show, hide } = capped(1)
-      const first = show("a")
+      const { told, attached, show, hide, hostOf } = capped(1)
+      show("a")
+      const first = hostOf("a")
       await vi.advanceTimersByTimeAsync(0)
       hide("a")
       vi.advanceTimersByTime(parkMs)
@@ -177,9 +190,9 @@ describe("the cap on parked screens", () => {
       vi.advanceTimersByTime(parkMs)
       expect(told).toContain("a gone")
       const before = attached.filter((id) => id === "a").length
-      const again = show("a")
+      show("a")
       await vi.advanceTimersByTimeAsync(0)
-      expect(again).not.toBe(first)
+      expect(hostOf("a")).not.toBe(first)
       expect(told.filter((entry) => entry === "a mounted")).toHaveLength(2)
       expect(attached.filter((id) => id === "a").length).toBeGreaterThan(before)
     } finally {
@@ -199,6 +212,100 @@ describe("the cap on parked screens", () => {
       }
       vi.advanceTimersByTime(retainMs + 60_000)
       expect(told.filter((entry) => entry === "a gone")).toHaveLength(1)
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe("a mount's hold on a screen", () => {
+  it("lets go once, however often it is told to", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const { told, show, hide } = capped(0)
+      const first = show("a")
+      const second = show("a")
+      first.release()
+      first.release()
+      // The second still holds it: the screen does not park, so the cap never closes it.
+      vi.advanceTimersByTime(parkMs)
+      expect(told).not.toContain("a gone")
+      second.release()
+      hide("a")
+      hide("a")
+      vi.advanceTimersByTime(parkMs)
+      expect(told).toContain("a gone")
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+    }
+  })
+
+  it("tells the state of its screen, locked until the runner is reachable", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const { show, connection } = capped(2)
+      const hold = show("a")
+      expect(hold.state.getSnapshot().lock).toBe("loading")
+      const woken = vi.fn<() => void>()
+      hold.state.subscribe(woken)
+      connection.update(() => "reconnecting")
+      expect(hold.state.getSnapshot().lock).toBe("reconnecting")
+      connection.update(() => "unavailable")
+      expect(hold.state.getSnapshot().lock).toBe("offline")
+      expect(woken).toHaveBeenCalledTimes(2)
+      // Input is refused where the person can see it.
+      expect(document.querySelector("[data-terminal-input]")?.getAttribute("aria-disabled")).toBe(
+        "true",
+      )
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+    }
+  })
+
+  it("does not hear the connection once nobody holds the screen", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const { show, hide, connection } = capped(2)
+      const hold = show("a")
+      const woken = vi.fn<() => void>()
+      hold.state.subscribe(woken)
+      hide("a")
+      connection.update(() => "unavailable")
+      expect(woken).not.toHaveBeenCalled()
+      // Held again, it reads the connection as it is.
+      expect(show("a").state.getSnapshot().lock).toBe("offline")
+    } finally {
+      closeScreens()
+      vi.useRealTimers()
+    }
+  })
+
+  it("opens screens in the font it was given and brings open ones to it", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const { screens, show } = capped(2)
+      const probe = createView(document.createElement("div"), {
+        fontSize: 13,
+        fontFamily: "monospace",
+        theme: {},
+        scrollback: 0,
+      })
+      const prototype = Object.getPrototypeOf(probe.terminal) as EmulatorTerminal
+      probe.dispose()
+      const opened: EmulatorTerminal[] = []
+      const open = prototype.open
+      vi.spyOn(prototype, "open").mockImplementation(function (this: EmulatorTerminal, element) {
+        opened.push(this)
+        return open.call(this, element)
+      })
+      screens.setFont({ size: 15 })
+      show("a")
+      expect(opened[0]?.options.fontSize).toBe(15)
+      screens.setFont({ size: 12 })
+      expect(opened[0]?.options.fontSize).toBe(12)
     } finally {
       closeScreens()
       vi.useRealTimers()

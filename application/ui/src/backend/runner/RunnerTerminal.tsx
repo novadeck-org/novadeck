@@ -9,28 +9,32 @@ import {
 } from "react"
 
 import { endingText, terminalEnding } from "#core/terminal-ending"
+import type { TerminalStatus } from "#core/types"
 
 import { TerminalEndingBar, TerminalLock, TerminalNotice } from "../../ui-toolkit/TerminalStatus"
 import type { TerminalSurfaceProps } from "../port"
 import { restartable } from "./activity"
 import type { SurfaceRuntime } from "./backend"
 import { wantsWebgl } from "./renderers"
-import { createScreens, type RunnerScreen, type Screens, type ScreenStream } from "./screens"
+import { createScreens, type ScreenHandle, type Screens } from "./screens"
+import type { ViewLock, ViewPhase, ViewState } from "./view-state"
 
 // Why typing is paused. A failed paste says why in the same notice.
-const lockNotices = {
-  connected: "Starting shell…",
+const lockNotices: Record<ViewLock, string> = {
+  starting: "Starting shell…",
   // A shell already running, whose screen is on its way.
-  attaching: "Loading output…",
+  loading: "Loading output…",
   reconnecting: "Reconnecting…",
-  unavailable: "Runner offline",
-} as const
+  offline: "Runner offline",
+}
 // A lock this short, such as while a screen arrives, stays out of sight: the dimming
 // and the label fade in only after a moment.
 
-const quiet: ScreenStream = { live: false, resuming: false, waits: false }
-const silent = (): null => null
+const opening: ViewState = { live: false, resuming: false, waits: false, lock: null, notice: null }
 const ignore = (): (() => void) => () => {}
+
+const phaseOf = (status: TerminalStatus): ViewPhase =>
+  restartable(status) ? "ended" : status.state === "starting" ? "starting" : "running"
 
 // One component per backend, so its identity stays stable while the backend lives. Its
 // screens outlive the surfaces: a view switch unmounts one surface and mounts the next,
@@ -51,33 +55,23 @@ export const createRunnerTerminal = (
   }: TerminalSurfaceProps): React.JSX.Element => {
     // React owns each surface's mount slot; the screen owns the one emulator host.
     // Moving the host preserves its textarea, screen, selection, and PTY attachment.
-    const [host, setHost] = useState(() => screens.host(terminalKey))
-    const [screen, setScreen] = useState<RunnerScreen | null>(null)
+    const [handle, setHandle] = useState<ScreenHandle | null>(null)
     const root = useRef<HTMLDivElement | null>(null)
-    const refitFrame = useRef<number | null>(null)
-    const opening = useRef({ fontSize, name: terminal.name, view })
+    const slot = useRef<HTMLDivElement | null>(null)
+    const refocus = useRef(false)
+    const first = useRef({ name: terminal.name, phase: phaseOf(terminal), view })
     const name = terminal.name
-    // An exited or failed terminal waits for Enter, or its bar's Restart. The stream
-    // reports an exit in order with the output, sometimes before the status does; the
-    // status covers a shell that never started, with no stream to tell.
-    const waiting = restartable(terminal)
+    // An exited or failed terminal waits for Enter, or its bar's Restart.
+    const phase = phaseOf(terminal)
     const ending = terminalEnding(terminal)
-    const connection = useSyncExternalStore(
-      runtime.connection.subscribe,
-      runtime.connection.getSnapshot,
-    )
     // Input is refused while the runner is away, and while a running or starting shell
-    // has no stream to take it, as right after a reconnection or a restart.
-    const { live, resuming, waits } = useSyncExternalStore(
-      screen?.stream.subscribe ?? ignore,
-      () => screen?.stream.getSnapshot() ?? quiet,
+    // has no stream to take it, as right after a reconnection or a restart; a failed paste
+    // says why for a moment at the surface's top.
+    const { lock, notice } = useSyncExternalStore(
+      handle?.state.subscribe ?? ignore,
+      () => handle?.state.getSnapshot() ?? opening,
     )
-    const locked = connection !== "connected" || (!waiting && !waits && !live)
-    // Why a paste just failed, shown for a moment at the surface's top.
-    const notice = useSyncExternalStore(
-      screen?.notice.subscribe ?? ignore,
-      screen?.notice.getSnapshot ?? silent,
-    )
+    const locked = lock !== null
 
     const onWheel = useCallback((event: WheelEvent): void => {
       // Intercept before XYFlow's native listener, but let zoom gestures reach it.
@@ -91,51 +85,28 @@ export const createRunnerTerminal = (
       },
       [onWheel],
     )
-    // Places the host in this surface's slot, refitting it there and focusing it again
-    // when it left its previous slot focused.
-    const place = useCallback(
-      (target: HTMLDivElement, current: RunnerScreen | null): void => {
-        // The slot holds the host alone: one a screen opened again replaces the one before.
-        if (host.parentElement !== target) target.replaceChildren(host)
-        current?.followed.refit()
-        if (refitFrame.current !== null) cancelAnimationFrame(refitFrame.current)
-        refitFrame.current = requestAnimationFrame(() => {
-          refitFrame.current = null
-          if (host.isConnected) current?.followed.refit()
-        })
-        if (current?.refocus) {
-          current.xterm.focus()
-          current.refocus = false
-        }
-      },
-      [host],
-    )
-    const onHostMount = useCallback(
+    // A different program body remounts the slot: the screen moves into the new one, and
+    // takes the focus it held in the old.
+    const onSlot = useCallback(
       (element: HTMLDivElement | null): void => {
         if (!element) {
-          if (screen && host.contains(document.activeElement)) screen.refocus = true
+          refocus.current = Boolean(slot.current?.contains(document.activeElement))
+          slot.current = null
           return
         }
-        place(element, screen)
+        slot.current = element
+        if (!handle) return
+        handle.place(element)
+        if (refocus.current) handle.focus()
+        refocus.current = false
       },
-      [host, place, screen],
-    )
-
-    useLayoutEffect(() => {
-      host.setAttribute("class", `runner-screen min-h-0 flex-1 ${ending ? "mb-7" : ""}`)
-    }, [host, ending])
-
-    useEffect(
-      () => () => {
-        if (refitFrame.current !== null) cancelAnimationFrame(refitFrame.current)
-      },
-      [],
+      [handle],
     )
 
     // Whether this surface is mounted, for the cleanup below to tell an unmount from a
     // release; React cleans effects up in the order they are declared.
     const mounted = useRef(false)
-    useEffect(() => {
+    useLayoutEffect(() => {
       mounted.current = true
       return () => {
         mounted.current = false
@@ -145,64 +116,36 @@ export const createRunnerTerminal = (
     // Takes the terminal's screen while this surface shows it: the first surface opens
     // it, later ones find it as the last one left it. A surface out of the person's sight
     // lets it go, staying mounted with the host's last drawing, and takes it again when it
-    // is back; each acquire has the one release its cleanup makes.
-    useEffect(() => {
+    // is back; each acquire has the one release its cleanup makes. The release comes while
+    // the slot is still in the page, so an unmounting surface leaves its focus for the next.
+    useLayoutEffect(() => {
       if (!onScreen) return
       const acquired = screens.acquire(terminalKey, {
-        fontSize: opening.current.fontSize,
-        name: opening.current.name,
-        waiting: restartable(terminal),
-        webgl: wantsWebgl(opening.current.view),
+        label: `Input for ${first.current.name}`,
+        phase: first.current.phase,
+        webgl: wantsWebgl(first.current.view),
       })
-      setScreen(acquired)
-      // A screen closed between this surface's render and now, as the parked-screen cap can,
-      // opened again in a host of its own: the surface places that one.
-      setHost(acquired.host)
-      return () => {
-        // Focus the next surface to show this screen restores is the unmount's to leave: a
-        // surface that stays mounted and lets go of its screen out of sight keeps its host,
-        // and takes the screen again in the same slot.
-        if (!mounted.current && acquired.host.contains(document.activeElement))
-          acquired.refocus = true
-        screens.release(terminalKey)
-      }
+      setHandle(acquired)
+      return () => acquired.release({ unmount: !mounted.current })
       // The screen follows the terminal, not its changing metadata.
       // oxlint-disable-next-line react-hooks/exhaustive-deps
     }, [terminalKey, onScreen])
 
-    useEffect(() => {
-      if (screen) screen.waiting = waiting
-    }, [screen, waiting])
+    useEffect(() => handle?.update({ phase }), [handle, phase])
 
     // A view that changes under a mounted surface changes how its screen draws.
-    useEffect(() => {
-      screen?.renderer.take(wantsWebgl(view))
-    }, [screen, view])
+    useEffect(() => handle?.update({ webgl: wantsWebgl(view) }), [handle, view])
 
-    // While the runner is away, keys are refused where the person can see it.
-    useEffect(() => {
-      if (!screen) return
-      screen.xterm.options.disableStdin = locked
-      screen.xterm.textarea?.setAttribute("aria-disabled", String(locked))
-    }, [screen, locked])
+    useEffect(() => screens.setFont({ size: fontSize }), [fontSize])
 
-    useEffect(() => {
-      if (!screen || screen.xterm.options.fontSize === fontSize) return
-      screen.xterm.options.fontSize = fontSize
-      screen.followed.refit()
-    }, [screen, fontSize])
-
-    useEffect(() => {
-      screen?.xterm.textarea?.setAttribute("aria-label", `Input for ${name}`)
-    }, [screen, name])
+    useEffect(() => handle?.update({ label: `Input for ${name}` }), [handle, name])
 
     // The request stands until the focus lands: a screen the parked-screen cap closed while
     // the surface was away is focused in vain, and its fresh one arrives a render later.
     useEffect(() => {
-      if (!focusInput || !screen) return
-      screen.xterm.focus()
-      if (screen.host.contains(document.activeElement)) onInputFocused()
-    }, [screen, focusInput, onInputFocused])
+      if (!focusInput || !handle) return
+      if (handle.focus()) onInputFocused()
+    }, [handle, focusInput, onInputFocused])
 
     // A different program body remounts this content; the host moves into the new slot.
     return (
@@ -214,16 +157,19 @@ export const createRunnerTerminal = (
             className="terminal-content runner-terminal nodrag nopan relative flex min-h-0 flex-1 flex-col"
             data-locked={locked || undefined}
           >
-            <div ref={onHostMount} className="flex min-h-0 flex-1 flex-col" />
+            <div
+              ref={onSlot}
+              className={`runner-slot flex min-h-0 flex-1 flex-col ${ending ? "mb-7" : ""}`}
+            />
             {/* Room for the bar keeps the output clear of it, as far above it as the
                 surface's own padding. */}
             <TerminalEndingBar
               ending={ending}
               paused={locked}
               onRestart={() => {
-                screen?.restart()
+                handle?.restart()
                 // The button leaves with the bar; typing goes on in the fresh shell.
-                screen?.xterm.focus()
+                handle?.focus()
               }}
             />
             {notice && (
@@ -235,19 +181,7 @@ export const createRunnerTerminal = (
                 <TerminalNotice notice={notice} />
               </div>
             )}
-            {locked && (
-              <TerminalLock
-                notice={
-                  lockNotices[
-                    connection === "connected" && resuming
-                      ? "reconnecting"
-                      : connection === "connected" && terminal.state !== "starting"
-                        ? "attaching"
-                        : connection
-                  ]
-                }
-              />
-            )}
+            {lock && <TerminalLock notice={lockNotices[lock]} />}
           </div>,
         )}
         {/* Announced from outside the window: the bar is inert while hidden, the content

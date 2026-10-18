@@ -6,7 +6,7 @@ import {
   type Terminal,
 } from "@novadeck/emulator/browser"
 
-import { createStore, type Store } from "#core/store"
+import { createStore, type MutableStore, type Store } from "#core/store"
 
 import { themeChangeEvent } from "../../theme/apply"
 import { tokenColors } from "../../theme/probe"
@@ -18,6 +18,13 @@ import { linkOptions } from "./links"
 import { clipboardAccess, takeCtrlV, takeFilePastes, type PasteTarget } from "./paste"
 import { silenceQueries } from "./queries"
 import { pageRenderers } from "./renderers"
+import {
+  nextViewState,
+  openingState,
+  type ViewChange,
+  type ViewPhase,
+  type ViewState,
+} from "./view-state"
 
 // The sizes the runner accepts.
 const clamp = (value: number, min: number, max: number): number =>
@@ -82,50 +89,76 @@ const resizeSettleMs = 120
 // How long a notice of a failed paste stays.
 export const pasteNoticeMs = 4_000
 
-// Whether a stream draws the terminal now, and whether its shell waits for Enter.
-export type ScreenStream = {
-  // A stream draws the current shell; input goes nowhere until one does.
-  readonly live: boolean
-  // The stream is taking up again after a reconnection.
-  readonly resuming: boolean
-  // The stream told of an exit before the status did; Enter restarts from then on.
-  readonly waits: boolean
-}
-
-// One terminal's emulator and its attachment to the runner, outliving the surfaces that
-// show it: switching views moves its host into the next surface instead of opening a
-// new emulator and attaching again.
-export type RunnerScreen = {
-  // The element the emulator draws in; a surface moves it into its own slot.
+// One terminal's emulator and its attachment to the runner, outliving the mounts that
+// show it: switching views moves its host into the next mount's element instead of opening
+// a new emulator and attaching again.
+type RunnerScreen = {
+  // The element the emulator draws in; a mount moves it into its own element.
   readonly host: HTMLDivElement
   readonly xterm: Terminal
   readonly followed: FollowedTerminal
   // Which renderer draws it: WebGL while shown where its view wants it and a context is
   // free, else the DOM one.
   readonly renderer: ViewRenderer
-  readonly stream: Store<ScreenStream>
-  // Why the last paste failed, for a few seconds after it did.
-  readonly notice: Store<string | null>
-  // Whether the terminal's status waits for Enter, as the surface last rendered it.
-  waiting: boolean
+  // What the person is told of it, and why typing is refused.
+  readonly state: MutableStore<ViewState>
+  // Applies a change to the state, and the lock it brings to the emulator's input.
+  readonly refresh: (change?: ViewChange) => void
+  // The input's accessible name, as last written.
+  label: string
+  // The shell's stage, as the mount last said.
+  phase: ViewPhase
   // Starts a fresh shell, as Enter or the Restart button asks.
   readonly restart: () => void
-  // Set when the host leaves a slot while focused, so the next slot focuses it again.
+  // Set when a mount goes while focused, so the next to show this screen focuses it again.
   refocus: boolean
 }
 
-type OpenOptions = { fontSize: number; name: string; waiting: boolean }
-// How a surface shows the screen: with WebGL where its view wants it.
-type ShowOptions = OpenOptions & { webgl: boolean }
+// What a mount opens a screen with: the input's accessible name and the shell's stage, and
+// whether its view wants WebGL.
+export type ShowOptions = {
+  readonly label: string
+  readonly phase: ViewPhase
+  readonly webgl: boolean
+}
+
+// A mount's hold on a terminal's screen, from `acquire` to `release`.
+export type ScreenHandle = {
+  // This screen's state; it is the same store for as long as the screen stays open.
+  readonly state: Store<ViewState>
+  // Puts the screen in `element`, which holds nothing else, and fits it there now and on
+  // the next frame. Focuses it again when a mount before this one left it focused.
+  readonly place: (element: HTMLElement) => void
+  // Changes what differs; equal values write nothing.
+  readonly update: (change: {
+    readonly label?: string
+    readonly phase?: ViewPhase
+    readonly webgl?: boolean
+  }) => void
+  // Focuses the input, and says whether the focus landed in the screen.
+  readonly focus: () => boolean
+  // Starts a fresh shell in an ended terminal.
+  readonly restart: () => void
+  // Lets the screen go, once. With `unmount`, focus the screen holds is left for the next
+  // mount to restore; without it (out of sight, staying mounted) none is.
+  readonly release: (options?: { readonly unmount?: boolean }) => void
+}
 
 type Entry = {
   readonly host: HTMLDivElement
   screen?: RunnerScreen
   dispose?: () => void
   users: number
+  // The connection's changes reach the screen while it has users.
+  unwatch?: (() => void) | undefined
   timer?: ReturnType<typeof setTimeout> | undefined
   parking?: ReturnType<typeof setTimeout> | undefined
 }
+
+// The terminal font from Preferences, in CSS pixels.
+export type TerminalFont = { readonly size: number }
+// The size screens open in until the app says: Preferences' own default.
+const defaultFontSize = 13
 
 // How often a screen nobody shows checks whether to go: often enough for the next view
 // to take it, or for a view whose code is loading to arrive, to find it ready.
@@ -143,6 +176,13 @@ export const parkMs = 5_000
 // view; a bigger one loses those parked first. Fewer would close some of a common Grid's, and
 // a closed screen costs a full snapshot resync when it is shown again.
 export const parkedCap = 16
+
+// Names the screen's input, writing only when the name changes.
+const writeLabel = (screen: RunnerScreen, label: string): void => {
+  if (screen.label === label) return
+  screen.label = label
+  screen.xterm.textarea?.setAttribute("aria-label", label)
+}
 
 const id = ({ projectId, workspaceSessionId, terminalId }: TerminalKey): string =>
   `${projectId}\u0000${workspaceSessionId}\u0000${terminalId}`
@@ -163,10 +203,14 @@ export const createScreens = (
   const parked = new Map<string, { key: TerminalKey; entry: Entry }>()
   // Whether Ctrl+V may read the clipboard, the same for every terminal.
   const readable = clipboardAccess(desktopHost() !== undefined)
+  // The font the app last asked for, which a screen opens in and is brought to.
+  let font: TerminalFont = { size: defaultFontSize }
   const entryOf = (key: TerminalKey): Entry => {
     const known = entries.get(id(key))
     if (known) return known
-    const created: Entry = { host: document.createElement("div"), users: 0 }
+    const host = document.createElement("div")
+    host.setAttribute("class", "runner-screen min-h-0 flex-1")
+    const created: Entry = { host, users: 0 }
     entries.set(id(key), created)
     return created
   }
@@ -174,11 +218,11 @@ export const createScreens = (
   const open = (
     key: TerminalKey,
     entry: Entry,
-    { fontSize, name, waiting }: OpenOptions,
+    { label, phase }: Omit<ShowOptions, "webgl">,
   ): RunnerScreen => {
     const element = entry.host
     const view = createView(element, {
-      fontSize,
+      fontSize: font.size,
       fontFamily: monospace(element),
       theme: themeOf(element),
       // Programs and agents pick their own colours, often greys meant for another ground;
@@ -191,9 +235,7 @@ export const createScreens = (
     const xterm = view.terminal
     const queries = silenceQueries(xterm)
     xterm.textarea?.setAttribute("data-terminal-input", "")
-    xterm.textarea?.setAttribute("aria-label", `Input for ${name}`)
-    const stream = createStore<ScreenStream>({ live: false, resuming: false, waits: false })
-    const notice = createStore<string | null>(null)
+    xterm.textarea?.setAttribute("aria-label", label)
     const drawn: Screen = {
       exited: () => {},
       live: () => {},
@@ -207,14 +249,27 @@ export const createScreens = (
         return size && runnerSize(size)
       },
     }
+    // The state a person sees, with the lock recomputed in the same step as the change that
+    // brings it, so each change notifies once. The emulator's input follows the lock.
+    let stage = phase
+    const facts = () => ({ link: runtime.connection.getSnapshot(), phase: stage })
+    const state = createStore<ViewState>(openingState(facts()))
+    let locked: boolean | undefined
+    const refresh = (change: ViewChange = {}): void => {
+      const { lock } = state.update((current) => nextViewState(current, change, facts()))
+      if (locked === (lock !== null)) return
+      locked = lock !== null
+      xterm.options.disableStdin = locked
+      xterm.textarea?.setAttribute("aria-disabled", String(locked))
+    }
     const followed = followTerminal(runtime, key, {
       ...drawn,
       reset: () => {
-        stream.update((state) => ({ ...state, waits: false }))
+        refresh({ waits: false })
         drawn.reset()
       },
-      exited: (waits) => stream.update((state) => ({ ...state, waits })),
-      live: (live, resuming = false) => stream.update((state) => ({ ...state, live, resuming })),
+      exited: (waits) => refresh({ waits }),
+      live: (live, resuming = false) => refresh({ live, resuming }),
     })
     // The two renderers measure a cell apart (WebGL to whole device pixels), so a screen
     // that changes renderer fits its slot again.
@@ -224,19 +279,26 @@ export const createScreens = (
       xterm,
       followed,
       renderer: view.renderer,
-      stream,
-      notice,
-      waiting,
+      state,
+      refresh,
+      label,
+      get phase() {
+        return stage
+      },
+      set phase(next) {
+        stage = next
+      },
       restart: () => {
         // Locked until the fresh shell's screen arrives.
-        stream.update((state) => ({ ...state, waits: false }))
+        refresh({ waits: false })
         runtime.restart(key)
       },
       refocus: false,
     }
+    refresh()
     // Whether the shell takes input; one that exited or failed to start only listens for
     // Enter, to start again.
-    const taking = (): boolean => !screen.waiting && !stream.getSnapshot().waits
+    const taking = (): boolean => screen.phase !== "ended" && !state.getSnapshot().waits
     const deliver = (data: string): void => {
       if (taking()) return followed.input(data)
       if (data.includes("\r")) screen.restart()
@@ -264,9 +326,9 @@ export const createScreens = (
       },
       failed: (text) => {
         if (gone) return
-        notice.update(() => text)
+        refresh({ notice: text })
         clearTimeout(noticed)
-        noticed = setTimeout(() => notice.update(() => null), pasteNoticeMs)
+        noticed = setTimeout(() => refresh({ notice: null }), pasteNoticeMs)
       },
     }
     const pastes = takeFilePastes(element, target)
@@ -359,6 +421,7 @@ export const createScreens = (
     parked.delete(id(key))
     clearTimeout(entry.timer)
     clearTimeout(entry.parking)
+    entry.unwatch?.()
     entry.dispose?.()
   }
   // A screen that parks joins the parked; one more than the cap closes the one parked longest,
@@ -386,40 +449,115 @@ export const createScreens = (
     }, releaseCheckMs)
   }
 
-  return {
-    // The host a surface places in its slot, the same element for the terminal's life.
-    host: (key: TerminalKey): HTMLDivElement => entryOf(key).host,
-    // The terminal's screen for a surface that shows it, opened on first use.
-    acquire: (key: TerminalKey, { webgl, ...options }: ShowOptions): RunnerScreen => {
-      const entry = entryOf(key)
-      entry.users += 1
-      if (entry.timer !== undefined) clearTimeout(entry.timer)
-      entry.timer = undefined
-      clearTimeout(entry.parking)
+  // Takes one more hold on the terminal's screen, opening it on first use.
+  const take = (key: TerminalKey, { webgl, ...options }: ShowOptions): RunnerScreen => {
+    const entry = entryOf(key)
+    entry.users += 1
+    if (entry.timer !== undefined) clearTimeout(entry.timer)
+    entry.timer = undefined
+    clearTimeout(entry.parking)
+    entry.parking = undefined
+    parked.delete(id(key))
+    const known = entry.screen
+    const screen = (entry.screen ??= open(key, entry, options))
+    // The connection reaches the screen while a mount holds it; what changed while none did
+    // is read now.
+    if (entry.users === 1) {
+      entry.unwatch = runtime.connection.subscribe(() => screen.refresh())
+    }
+    if (known) {
+      screen.phase = options.phase
+      writeLabel(screen, options.label)
+      screen.refresh()
+    }
+    screen.followed.unpark()
+    screen.renderer.take(webgl)
+    return screen
+  }
+  const letGo = (key: TerminalKey): void => {
+    const entry = entries.get(id(key))
+    if (!entry) return
+    entry.users -= 1
+    if (entry.users > 0) return
+    entry.unwatch?.()
+    entry.unwatch = undefined
+    if (entry.timer === undefined) settle(key, entry)
+    // Until it parks it keeps its context, which a shown screen may take meanwhile.
+    entry.screen?.renderer.idle()
+    clearTimeout(entry.parking)
+    entry.parking = setTimeout(() => {
       entry.parking = undefined
-      parked.delete(id(key))
-      entry.screen ??= open(key, entry, options)
-      entry.screen.followed.unpark()
-      entry.screen.renderer.take(webgl)
-      return entry.screen
+      if (entry.users !== 0) return
+      if (!entry.screen) return
+      entry.screen.followed.park()
+      entry.screen.renderer.release()
+      keep(key, entry)
+    }, parkMs)
+  }
+
+  return {
+    // The terminal's screen for a mount that shows it, opened on first use. Each acquire has
+    // the one release its handle makes.
+    acquire: (key: TerminalKey, options: ShowOptions): ScreenHandle => {
+      const screen = take(key, options)
+      let released = false
+      let wantsWebgl = options.webgl
+      let frame: number | undefined
+      const cancelFrame = (): void => {
+        if (frame !== undefined) cancelAnimationFrame(frame)
+        frame = undefined
+      }
+      return {
+        state: screen.state,
+        place: (element) => {
+          // The element holds the host alone: one a screen opened again replaces the one before.
+          if (screen.host.parentElement !== element) element.replaceChildren(screen.host)
+          screen.followed.refit()
+          cancelFrame()
+          frame = requestAnimationFrame(() => {
+            frame = undefined
+            if (screen.host.isConnected) screen.followed.refit()
+          })
+          if (screen.refocus) {
+            screen.xterm.focus()
+            screen.refocus = false
+          }
+        },
+        update: ({ label, phase, webgl }) => {
+          if (released) return
+          if (label !== undefined) writeLabel(screen, label)
+          if (phase !== undefined && phase !== screen.phase) {
+            screen.phase = phase
+            screen.refresh()
+          }
+          if (webgl !== undefined && webgl !== wantsWebgl) {
+            wantsWebgl = webgl
+            screen.renderer.take(webgl)
+          }
+        },
+        focus: () => {
+          screen.xterm.focus()
+          return screen.host.contains(document.activeElement)
+        },
+        restart: screen.restart,
+        release: ({ unmount = false } = {}) => {
+          if (released) return
+          released = true
+          cancelFrame()
+          if (unmount && screen.host.contains(document.activeElement)) screen.refocus = true
+          letGo(key)
+        },
+      }
     },
-    release: (key: TerminalKey): void => {
-      const entry = entries.get(id(key))
-      if (!entry) return
-      entry.users -= 1
-      if (entry.users > 0) return
-      if (entry.timer === undefined) settle(key, entry)
-      // Until it parks it keeps its context, which a shown screen may take meanwhile.
-      entry.screen?.renderer.idle()
-      clearTimeout(entry.parking)
-      entry.parking = setTimeout(() => {
-        entry.parking = undefined
-        if (entry.users !== 0) return
-        if (!entry.screen) return
-        entry.screen.followed.park()
-        entry.screen.renderer.release()
-        keep(key, entry)
-      }, parkMs)
+    // Sets the terminal font from Preferences: new screens open in it and the open ones
+    // whose size differs change to it and fit again.
+    setFont: (next: TerminalFont): void => {
+      font = next
+      for (const { screen } of entries.values()) {
+        if (!screen || screen.xterm.options.fontSize === next.size) continue
+        screen.xterm.options.fontSize = next.size
+        screen.followed.refit()
+      }
     },
     // Pastes text into the terminal's screen as the person's own paste: bracketed when its
     // program asked for that, and never followed by Enter. Dictation targets a terminal the
@@ -432,10 +570,10 @@ export const createScreens = (
     // said.
     typeInto: (key: TerminalKey, text: string): boolean => {
       const screen = entries.get(id(key))?.screen
-      const stream = screen?.stream.getSnapshot()
-      if (!screen || !stream?.live || runtime.connection.getSnapshot() !== "connected") return false
+      const state = screen?.state.getSnapshot()
+      if (!screen || !state?.live || runtime.connection.getSnapshot() !== "connected") return false
       // A shell that exited takes only Enter, to start again.
-      if (screen.waiting || stream.waits) return false
+      if (screen.phase === "ended" || state.waits) return false
       // oxlint-disable-next-line no-control-regex -- Control characters are what this removes.
       const plain = text.replaceAll(/[\u0000-\u001f\u007f-\u009f]+/g, " ").trim()
       if (!plain) return false
