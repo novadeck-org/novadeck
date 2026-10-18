@@ -7,7 +7,7 @@ import type { KeyKind } from "@novadeck/tui-input"
  * is known before any message arrives. A Settled terminal, or a Ready one (the agent's own
  * prompt shows, with no turn yet: a new session its harness announced there, or none yet
  * where the harness starts one only with the first prompt), is rung by the doorbell
- * (`terminals/doorbell.ts`) and is Ringing, with its ring's nonce, until a doorbell
+ * (`messaging/doorbell.ts`) and is Ringing, with its ring's nonce, until a doorbell
  * prompt with that nonce confirms it or the ring fails; a Fresh (bound, but nothing
  * shows its prompt is up), Drafting (person busy) or Unknown one is rung too once its
  * screen shows the agent's own box empty and calm (the `emptied` event, from the
@@ -164,7 +164,7 @@ export type DeliveryState = Delivery["state"]
  * How long after a Stop that left the person's prompt queued the screen is not believed to
  * show an idle box, in milliseconds: the harness submits that prompt itself, and its hook
  * may be late (about 4.5 s on a loaded Windows runner), as a ring's confirmation may be
- * (`confirmMs` in `terminals/doorbell.ts`, 5 s plus the hook shell's slack).
+ * (`confirmMs` in `messaging/doorbell.ts`, 5 s plus the hook shell's slack).
  */
 export const queueBarMs = (slackMs: number): number => 5_000 + slackMs
 

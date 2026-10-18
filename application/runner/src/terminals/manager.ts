@@ -55,14 +55,11 @@ import {
 } from "@novadeck/terminal/host"
 import {
   foregroundProcess,
-  foregroundRuns,
   openFiles,
-  processGroup,
   processSetting,
   relayMs,
   sampleForeground,
   shellInForeground,
-  terminalForeground,
   Trees,
   type Foreground,
   type NativeSpawn,
@@ -122,6 +119,7 @@ import {
 } from "../harnesses/telemetry.js"
 import { transcriptWaitMs, typedPromptStart } from "../harnesses/typed-prompts.js"
 import { Asks, type AskRecords } from "../messaging/asks.js"
+import { Doorbell, type DoorbellHost, type DoorbellOptions } from "../messaging/doorbell.js"
 import { agentLabel } from "../messaging/mailbox.js"
 import {
   leaseMargin,
@@ -158,9 +156,7 @@ import {
 import { coalesced } from "./coalesce.js"
 import { expectedAgent, promptIn } from "./commands.js"
 import { Dialogs, type DialogsHost, type DialogsOptions } from "./dialogs.js"
-import { Doorbell, tracer, type DoorbellHost, type DoorbellOptions } from "./doorbell.js"
 import { mention, nextHandle, wordOf } from "./handles.js"
-import { leftoverNonce } from "./leftover.js"
 import {
   Murmur,
   type MurmurHost,
@@ -202,6 +198,7 @@ import {
   type TerminalRecords,
 } from "./records.js"
 import { restoredSeparator } from "./restored.js"
+import { doorbellHost, profileOf } from "./ringing.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
 import { summaryOf, type AgentSummary } from "./summary.js"
 import { transcriptChanges } from "./transcripts.js"
@@ -1297,8 +1294,7 @@ export class Terminals {
 
   /** The harness of the agent bound to the terminal, or shown at its prompt, as its box reads. */
   private boxOf(record: Record): BoxProfile | undefined {
-    const agent = record.binding?.agent ?? this.messaging.shownAgent(record.summary.id)
-    return agent === undefined ? undefined : harnesses[agent].box
+    return profileOf(record.binding, () => this.messaging.shownAgent(record.summary.id))
   }
 
   /**
@@ -1737,142 +1733,24 @@ export class Terminals {
 
   /** What the doorbell asks of the terminals and messaging. */
   private ringHost(): DoorbellHost {
-    const live = (terminalId: string) => this.live(terminalId)
-    return {
-      // A request asked after the turn's Stop waits on the person though messaging has the
-      // terminal Settled: the line would land in its dialog.
-      ringable: (terminalId) => {
-        const record = live(terminalId)
-        return (
-          record !== undefined &&
-          (record.activity?.pending.length ?? 0) === 0 &&
-          !this.working(terminalId, record.activity) &&
-          !this.stopping &&
-          this.messaging.ringable(terminalId)
-        )
-      },
-      settledSince: (terminalId) => this.messaging.settledSince(terminalId),
-      ring: (terminalId, nonce) => {
-        const record = live(terminalId)
-        return (
-          record !== undefined &&
-          !this.working(terminalId, record.activity) &&
-          this.messaging.ring(terminalId, nonce)
-        )
-      },
-      ringing: (terminalId) => this.messaging.ringing(terminalId),
-      ready: (terminalId) => this.messaging.ready(terminalId),
-      // Idle but not Ready by its state, with messages waiting: its screen is looked at.
-      // Never while its activity says a turn or subagents run (a spinner is no calm), and
-      // for a Settled or Ready one only to say a request waits on the person.
-      stalled: (terminalId) => {
-        const record = live(terminalId)
-        if (!record) return false
-        if (this.working(terminalId, record.activity)) {
-          if (this.messaging.stalled(terminalId) || this.messaging.idleWaiting(terminalId))
-            tracer.sink?.(
-              terminalId,
-              `not looked at: activity ${record.activity?.state}, ${record.activity?.subagents.length ?? 0} subagents, background ${JSON.stringify(record.activity?.background)}`,
-            )
-          return false
-        }
-        return (
-          this.messaging.stalled(terminalId) ||
-          ((record.activity?.pending.length ?? 0) > 0 && this.messaging.idleWaiting(terminalId))
-        )
-      },
-      stamp: (terminalId) => this.messaging.stamp(terminalId),
-      barred: (terminalId) => this.messaging.queueBar(terminalId),
-      // The agent's own box, read by its harness off the calm screen: empty and taking a
-      // prompt makes an idle Fresh, Drafting or Unknown terminal Ready (see
-      // docs/agent-messaging.md, "The doorbell"); anything else says why it is not.
-      reading: (terminalId, screen) => {
-        const record = live(terminalId)
-        if (!record) return "dialog"
-        if ((record.activity?.pending.length ?? 0) > 0) return "asking"
-        if (this.working(terminalId, record.activity)) return "draft"
-        const profile = this.boxOf(record)
-        const box = profile?.read(screen)
-        if (!profile || profile.overlay(screen)) return "dialog"
-        // Before its prompt draws, a new session shows no box yet: nothing to say.
-        if (!box)
-          return this.messaging.delivery(terminalId)?.state === "fresh" ? "starting" : "dialog"
-        if (box.mode !== "prompt") return "draft"
-        // A picker's row starts with the box's marker too (`❯ 1. Yes`): not a box.
-        if (/^\d+[.)]\s/.test(box.text.trimStart())) return "dialog"
-        return isEmpty(box) && !profile.queued(screen) ? "empty" : "draft"
-      },
-      // The line a failed ring left, all the box holds, which the person has not touched.
-      leftover: (terminalId, screen) => {
-        const record = live(terminalId)
-        if (!record || !this.messaging.ours(terminalId)) return undefined
-        const profile = this.boxOf(record)
-        const box = profile?.read(screen)
-        if (!profile || !box || box.mode !== "prompt" || profile.overlay(screen)) return undefined
-        return leftoverNonce(box.text)
-      },
-      ringLeftover: (terminalId, nonce) => this.messaging.ringLeftover(terminalId, nonce),
-      emptied: (terminalId, readAt) => {
-        const delivery = this.messaging.delivery(terminalId)
-        const record = live(terminalId)
-        if (delivery && record && !this.working(terminalId, record.activity))
-          this.messaging.emptied(terminalId, delivery.epoch, readAt)
-      },
-      blocked: (terminalId, waits) => this.messaging.blocked(terminalId, waits),
-      ringFailed: (terminalId, nonce, ours) => this.messaging.ringFailed(terminalId, nonce, ours),
+    return doorbellHost({
+      live: (terminalId) => this.live(terminalId),
       screen: (terminalId) => this.screenOf(terminalId),
-      // The agent's box must show, empty and taking a prompt, as a prompt's must: on Windows
-      // a TUI that reads the console's keys gets a bracketed paste as keys, and everywhere a
-      // key or a view since the calm may have left text there or something else in its
-      // place, so the ring looks again as it begins.
-      inputBox: (terminalId: string, screen: ScreenText) => {
-        const record = live(terminalId)
-        const profile = record && this.boxOf(record)
-        const box = profile?.read(screen)
-        return (
-          box !== undefined &&
-          box.mode === "prompt" &&
-          isEmpty(box) &&
-          profile?.overlay(screen) === false
-        )
-      },
-      foreground: async (terminalId) => {
-        const record = live(terminalId)
-        if (!record) return undefined
-        // A prompt shown before any session bound: its agent must still hold the
-        // terminal, as the shell's prompt may have come back unseen (a nested shell).
-        const shown = record.binding ? undefined : this.messaging.shownAgent(terminalId)
-        if (shown) return foregroundRuns(record.terminal.pty.pid, shown)
-        const { binding } = record
-        const instance = binding?.instance
-        if (!instance) return undefined
-        // The bound agent left unseen: no ring for its session, whatever holds the terminal
-        // now, and its binding ends, in turn with the reports.
-        if (!alive(instance)) {
-          void this.queue(
-            terminalId,
-            () => {
-              if (record.binding === binding) this.endExited(record)
-              return Promise.resolve()
-            },
-            undefined,
-          )
-          return false
-        }
-        const [held, own] = await Promise.all([
-          terminalForeground(record.terminal.pty.pid),
-          processGroup(Number(instance)),
-        ])
-        return held === undefined || own === undefined ? undefined : held === own
-      },
-      resizedAt: (terminalId) => live(terminalId)?.terminal.resizedAt ?? 0,
-      write: (terminalId, data) => {
-        const record = live(terminalId)
-        if (!record) return false
-        record.terminal.type(data)
-        return true
-      },
-    }
+      shownAgent: (terminalId) => this.messaging.shownAgent(terminalId),
+      alive,
+      exited: (terminalId, record, binding) =>
+        void this.queue(
+          terminalId,
+          () => {
+            if (record.binding === binding) this.endExited(record)
+            return Promise.resolve()
+          },
+          undefined,
+        ),
+      messaging: this.messaging,
+      working: (terminalId, activity) => this.working(terminalId, activity),
+      stopping: () => this.stopping,
+    })
   }
 
   resize(input: { terminalId: string; cols: number; rows: number }, ownerId: string): void {

@@ -132,7 +132,15 @@ const terminal = (
     },
   }
   const reads = options.inputBox
-  const inputBox = () => (reads ? reads[((boxReads += 1) - 1) % reads.length]! : true)
+  // The profile the box is read by: it shows an empty prompt at each read, as `reads` says.
+  const profile = {
+    read: () =>
+      (reads ? reads[((boxReads += 1) - 1) % reads.length]! : true)
+        ? { mode: "prompt", text: "" }
+        : undefined,
+    overlay: () => false,
+  } as unknown as BoxProfile
+  const inputBox = () => profile
   return {
     target,
     entry,
@@ -505,7 +513,7 @@ describe("a look and the gate on it", () => {
       overlay: () => overlay,
     } as unknown as BoxProfile
     const fake = terminal()
-    const typist = createTypist(fake.target, { profile, timing: fast })
+    const typist = createTypist(fake.target, { profile: () => profile, timing: fast })
     await typist.look()
     await sleep(40)
     const look = (await typist.look())!
@@ -515,6 +523,25 @@ describe("a look and the gate on it", () => {
     text = ""
     overlay = true
     expect(await typist.ready(look)).toBe("no-input-box")
+  })
+
+  it("can't tell whether the box shows without a profile option, and finds none with a getter that has none", async () => {
+    let profile: BoxProfile | undefined
+    const fake = terminal()
+    const bare = createTypist(fake.target, { timing: fast })
+    const asked = createTypist(fake.target, { profile: () => profile, timing: fast })
+    await Promise.all([bare.look(), asked.look()])
+    await sleep(40)
+    const look = (await bare.look())!
+    expect(await bare.ready(look)).toBe("open")
+    expect(await asked.ready((await asked.look())!)).toBe("no-input-box")
+    profile = {
+      read: () => ({ mode: "prompt", text: "" }),
+      overlay: () => false,
+    } as unknown as BoxProfile
+    expect(await asked.ready((await asked.look())!)).toBe("open")
+    profile = undefined
+    expect(await asked.ready((await asked.look())!)).toBe("no-input-box")
   })
 
   it("tells the gate's verdict to the trace", async () => {
