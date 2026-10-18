@@ -1,4 +1,4 @@
-import { type Runner } from "@novadeck/protocol/client"
+import { type Runner } from "@novadeck/runner-client"
 import { WireError } from "@novadeck/wire"
 import type { WireStatus } from "@novadeck/wire/client"
 import { vi } from "vitest"

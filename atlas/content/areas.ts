@@ -40,6 +40,7 @@ export const covered = [
 export const roots: Root[] = [
   { token: "runner", dir: "application/runner", src: "src", node: "runner" },
   { token: "protocol", dir: "application/protocol", node: "runner" },
+  { token: "runner-client", dir: "application/runner-client", node: "renderer" },
   { token: "relay", dir: "application/relay", node: "relay" },
   { token: "harness/core", dir: "harnesses/core", node: "runner" },
   { token: "harness/claude", dir: "harnesses/claude", node: "runner" },
@@ -163,10 +164,16 @@ export const notes: Record<string, Note> = {
   },
   protocol: {
     purpose:
-      "The contract between UI and runner: the oRPC procedures with Zod schemas and error codes, the Electron bridge types, and the connectRunner client over the wire library (libraries/wire), which holds the channels, transports and the wire's own error codes.",
+      "The contract between UI and runner: the oRPC procedures with Zod schemas and error codes, and the Electron bridge types. It never imports its client, which is a package of its own.",
+    entries: [{ file: "application/protocol/src/contract.ts", text: "export const contract" }],
+    docs: ["docs/backend-api.md"],
+  },
+  "runner-client": {
+    purpose:
+      "The connectRunner client UIs reach a runner with, over the wire library (libraries/wire), which holds the channels, transports and the wire's own error codes; the desktop app's transport to its bundled runner, and the error codes a client reports.",
     entries: [
-      { file: "application/protocol/src/contract.ts", text: "export const contract" },
-      { file: "application/protocol/src/client.ts" },
+      { file: "application/runner-client/src/index.ts" },
+      { file: "application/runner-client/src/runner.ts", text: "export const connectRunner" },
     ],
     docs: ["docs/backend-api.md"],
   },

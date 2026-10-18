@@ -5,7 +5,7 @@ import {
   hasCode,
   type Runner,
   type RunnerErrorCode,
-} from "@novadeck/protocol/client"
+} from "@novadeck/runner-client"
 import { pause } from "@novadeck/terminal/view"
 import { WireError } from "@novadeck/wire"
 import { websocket, type Transport } from "@novadeck/wire/client"

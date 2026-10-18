@@ -194,10 +194,10 @@ export const extractApi = async (repo: string, anchors: Anchors): Promise<Api> =
   const router = anchors.read(routerFile) ?? ""
   const routed = servicesOf(anchors, router)
   const runnerFiles = sourceFiles(repo, "application/runner/src")
-  // The protocol's own client calls some procedures (write, resize, ack) for the UI.
+  // The runner client calls some procedures (write, resize, ack) for the UI.
   const callerFiles = [
     ...sourceFiles(repo, "application/ui/src"),
-    ...sourceFiles(repo, "application/protocol/src").filter((file) => file !== contractFile),
+    ...sourceFiles(repo, "application/runner-client/src"),
   ]
 
   const apiErrors = extractErrors(anchors, source)

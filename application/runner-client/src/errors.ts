@@ -1,6 +1,5 @@
+import type { ErrorCode } from "@novadeck/protocol"
 import { hasCode as wireHasCode, type WireError, type WireErrorCode } from "@novadeck/wire"
-
-import type { ErrorCode } from "./contract.js"
 
 /** Every code a runner client reports: the runner's own, and the wire's. */
 export type RunnerErrorCode = ErrorCode | WireErrorCode

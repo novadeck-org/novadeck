@@ -1,5 +1,5 @@
 import type { TerminalEvent } from "@novadeck/protocol"
-import type { AttachedTerminal } from "@novadeck/protocol/client"
+import type { AttachedTerminal } from "@novadeck/runner-client"
 import { createTerminalViews } from "@novadeck/terminal/view"
 import { WireError } from "@novadeck/wire"
 import { afterEach, vi } from "vitest"

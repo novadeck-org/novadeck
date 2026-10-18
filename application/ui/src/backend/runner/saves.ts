@@ -1,5 +1,5 @@
 import { maxClientStateLength, maxWebSocketMessageBytes } from "@novadeck/protocol"
-import { hasCode } from "@novadeck/protocol/client"
+import { hasCode } from "@novadeck/runner-client"
 
 import type { Workspace, WorkspaceSession } from "#core/types"
 

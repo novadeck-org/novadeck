@@ -5,7 +5,7 @@ import {
   type VoiceState as WireVoiceState,
   type VoiceUnavailable,
 } from "@novadeck/protocol"
-import { hasCode, type Runner } from "@novadeck/protocol/client"
+import { hasCode, type Runner } from "@novadeck/runner-client"
 
 import type { Refusal } from "#core/addon"
 import { createStore } from "#core/store"

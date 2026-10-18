@@ -6,7 +6,7 @@ import {
   type ItemContent as RunnerContent,
 } from "@novadeck/protocol"
 import { planUnwritable } from "@novadeck/protocol"
-import { hasCode, type Runner } from "@novadeck/protocol/client"
+import { hasCode, type Runner } from "@novadeck/runner-client"
 
 import {
   itemIdOf,
