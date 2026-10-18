@@ -217,6 +217,13 @@ describe("a terminal's output", () => {
 
 describe("a terminal's hold", () => {
   const budget = { inputMs: 5_000, sizeMs: 10_000 }
+  // A hold's caps and deadlines, on a clock the test moves, whatever the machine's load.
+  const clock = () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+  }
   const live = () => true
   const writes = (program: Program) =>
     program.calls.filter((call) => call.startsWith("write")).map((call) => call.slice(6))
@@ -322,13 +329,19 @@ describe("a terminal's hold", () => {
   })
 
   it("lets the keys go at its input cap, and the sizes at its size cap", async () => {
+    clock()
     const { terminal, program, settled } = terminalOf({ controller: "window" })
     const hold = terminal.hold({ inputMs: 20, sizeMs: 1_000 }, live)
     terminal.input("k")
     terminal.resize(30, 5, "window")
-    await vi.waitFor(() => expect(writes(program)).toEqual(["k"]))
+    await vi.advanceTimersByTimeAsync(19)
+    expect(writes(program)).toEqual([])
+    await vi.advanceTimersByTimeAsync(1)
+    expect(writes(program)).toEqual(["k"])
+    await vi.advanceTimersByTimeAsync(979)
     expect(program.calls).not.toContain("resize 30x5")
-    await vi.waitFor(() => expect(program.calls).toContain("resize 30x5"), { timeout: 3_000 })
+    await vi.advanceTimersByTimeAsync(1)
+    expect(program.calls).toContain("resize 30x5")
     await settled()
     expect(terminal.screen.cols).toBe(30)
     expect(hold.holding()).toBe(false)
@@ -352,15 +365,16 @@ describe("a terminal's hold", () => {
   })
 
   it("keeps the sizes waiting for the deadline the hold before set, past an early settle", async () => {
+    clock()
     const { terminal, program } = terminalOf({ controller: "window" })
     const first = terminal.hold(budget, live)
     terminal.resize(30, 5, "window")
     first.settleAfter(80)
     const second = terminal.hold(budget, live)
     second.settle()
-    await new Promise((resolve) => setTimeout(resolve, 40))
+    await vi.advanceTimersByTimeAsync(79)
     expect(program.calls).not.toContain("resize 30x5")
-    await new Promise((resolve) => setTimeout(resolve, 80))
+    await vi.advanceTimersByTimeAsync(1)
     expect(program.calls).toContain("resize 30x5")
   })
 
