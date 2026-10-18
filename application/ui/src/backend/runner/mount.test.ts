@@ -15,11 +15,17 @@ import type { TerminalMetadata, ViewMode } from "#core/types"
 import { context, describe, expect, it } from "../../test"
 import { terminalFixture } from "../../test/fixtures"
 import { themeChangeEvent } from "../../theme/apply"
-import type { BackendConnectionState, TerminalMount, TerminalMountProps } from "../port"
+import type {
+  BackendConnectionState,
+  TerminalKey,
+  TerminalMount,
+  TerminalMountProps,
+} from "../port"
 import type { SurfaceRuntime } from "./backend"
 import { createRunnerMount } from "./mount"
 import { ctrlVHoldMs } from "./paste"
-import { createScreens, pasteNoticeMs, type ScreenHandle, type Screens } from "./screens"
+import { createTerminalViews, pasteNoticeMs, type Hold, type TerminalViews } from "./screens"
+import { viewOptions } from "./view-options"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
 vi.hoisted(() => {
@@ -122,7 +128,7 @@ const propsOf = (terminal: TerminalMetadata, view: ViewMode = "focus"): Terminal
 
 // Mounts a terminal in an element in the page, over `screens`.
 const mountOver = (
-  screens: Screens,
+  screens: TerminalViews<TerminalKey>,
   props: TerminalMountProps,
   terminalKey = key,
   mountTerminal = createRunnerMount(screens),
@@ -145,7 +151,7 @@ const mountOver = (
 }
 
 const show = (runtime: SurfaceRuntime, terminal: TerminalMetadata = startingTerminal()) =>
-  mountOver(createScreens(runtime), propsOf(terminal))
+  mountOver(createTerminalViews(viewOptions(runtime)), propsOf(terminal))
 
 // An image on the clipboard.
 const clipboardImage = () => ({
@@ -231,16 +237,16 @@ describe("runner terminal mount", () => {
     }
     const surfaces = () => {
       const { runtime } = starting()
-      const screens = createScreens(runtime)
+      const screens = createTerminalViews(viewOptions(runtime))
       const calls: string[] = []
-      const watching: Screens = {
+      const watching: TerminalViews<TerminalKey> = {
         ...screens,
         acquire: (...args) => {
           calls.push("acquire")
           const hold = screens.acquire(...args)
           return {
             ...hold,
-            release: (...options: Parameters<ScreenHandle["release"]>) => {
+            release: (...options: Parameters<Hold["release"]>) => {
               calls.push("release")
               hold.release(...options)
             },
@@ -355,7 +361,7 @@ describe("runner terminal mount", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
       const { runtime } = starting()
-      const page = mountOver(createScreens(runtime, undefined, 0), {
+      const page = mountOver(createTerminalViews(viewOptions(runtime, { cap: 0 })), {
         ...propsOf(startingTerminal(), "canvas"),
         onScreen: true,
       })
@@ -493,21 +499,23 @@ describe("runner terminal mount", () => {
       const screen = vi.fn<SurfaceRuntime["screen"]>()
       let onScreen = shown
       let terminalEnd: "open" | "closed" | "removed" = "open"
-      const screens = createScreens({
-        ...runtime,
-        entry: () =>
-          terminalEnd === "removed"
-            ? undefined
-            : {
-                ready: Promise.resolve(true),
-                revived: new Promise<void>(() => {}),
-                closed: terminalEnd === "closed",
-                size: { cols: 80, rows: 24 },
-              },
-        attach,
-        screen,
-        shown: () => onScreen,
-      })
+      const screens = createTerminalViews(
+        viewOptions({
+          ...runtime,
+          entry: () =>
+            terminalEnd === "removed"
+              ? undefined
+              : {
+                  ready: Promise.resolve(true),
+                  revived: new Promise<void>(() => {}),
+                  closed: terminalEnd === "closed",
+                  size: { cols: 80, rows: 24 },
+                },
+          attach,
+          screen,
+          shown: () => onScreen,
+        }),
+      )
       // Each view places its terminals in an element of its own, so a switch mounts them again.
       const inView = (view: string): Mounted => {
         const page = mountOver(screens, propsOf({ ...terminalFixture(1, "~"), state: "running" }))
@@ -1197,7 +1205,7 @@ describe("typing into a terminal's screen", () => {
       }),
       attach: async () => attachmentOf(),
     }
-    const screens = createScreens(live)
+    const screens = createTerminalViews(viewOptions(live))
     const showAgain = () =>
       mountOver(screens, propsOf({ ...terminalFixture(1, "~"), state: "running" }))
     const page = showAgain()
@@ -1317,7 +1325,7 @@ describe("a terminal's screen resized out of view", () => {
 
   it("keeps following its shell's output", async () => {
     const view = measured()
-    const screens = createScreens(starting().runtime)
+    const screens = createTerminalViews(viewOptions(starting().runtime))
     const terminal = { ...key, terminalId: "out-of-view" }
     const opened: Terminal[] = []
     const originalOpen = Terminal.prototype.open
@@ -1392,18 +1400,20 @@ describe("a surface's renderer", () => {
     const { runtime } = starting()
     const resized = vi.fn<SurfaceRuntime["resized"]>()
     const closed = new Set<string>()
-    const screens = createScreens(
-      {
-        ...runtime,
-        resized,
-        entry: ({ terminalId }) => ({
-          ready: new Promise<boolean>(() => {}),
-          revived: new Promise<void>(() => {}),
-          closed: closed.has(terminalId),
-          size: { cols: 80, rows: 24 },
-        }),
-      },
-      renderers,
+    const screens = createTerminalViews(
+      viewOptions(
+        {
+          ...runtime,
+          resized,
+          entry: ({ terminalId }) => ({
+            ready: new Promise<boolean>(() => {}),
+            revived: new Promise<void>(() => {}),
+            closed: closed.has(terminalId),
+            size: { cols: 80, rows: 24 },
+          }),
+        },
+        { renderers },
+      ),
     )
     // The fit addon is the view's own, so it is reached as the terminal loads it.
     const loadAddon = Terminal.prototype.loadAddon

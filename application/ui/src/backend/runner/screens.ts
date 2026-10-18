@@ -1,32 +1,25 @@
+import type { ITheme, Terminal, View, ViewRenderer } from "@novadeck/emulator/browser"
+
+import { followTerminal, type FollowedTerminal, type FollowOptions, type Screen } from "./follow"
 import {
-  createView,
-  type ITheme,
-  type Renderers,
-  type ViewRenderer,
-  type Terminal,
-} from "@novadeck/emulator/browser"
-
-import { createStore, type MutableStore, type Store } from "#core/store"
-
-import { themeChangeEvent } from "../../theme/apply"
-import { tokenColors } from "../../theme/probe"
-import type { TerminalFont, TerminalKey } from "../port"
-import type { SurfaceRuntime } from "./backend"
-import { desktopHost } from "./desktop-host"
-import { followTerminal, type FollowedTerminal, type Screen } from "./follow"
-import { linkOptions } from "./links"
-import { clipboardAccess, takeCtrlV, takeFilePastes, type PasteTarget } from "./paste"
+  clipboardAccess,
+  takeCtrlV,
+  takeFilePastes,
+  type PasteFailure,
+  type PasteTarget,
+} from "./paste"
 import { silenceQueries } from "./queries"
-import { pageRenderers } from "./renderers"
 import {
   nextViewState,
   openingState,
+  type MutableStore,
+  type Store,
   type ViewChange,
   type ViewPhase,
   type ViewState,
 } from "./view-state"
 
-// The sizes the runner accepts.
+// The sizes a terminal accepts.
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, Math.floor(value)))
 export const runnerSize = (size: {
@@ -37,51 +30,6 @@ export const runnerSize = (size: {
   rows: clamp(size.rows, 1, 200),
 })
 
-const ansi = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"] as const
-type AnsiName = (typeof ansi)[number]
-const ansiKey = (name: AnsiName, bright: boolean): keyof ITheme =>
-  bright ? (`bright${name[0]!.toUpperCase()}${name.slice(1)}` as keyof ITheme) : name
-const terminalTokens = [
-  "--terminal-bg",
-  "--terminal-fg",
-  "--terminal-cursor",
-  "--terminal-selection",
-  ...ansi.flatMap((name) => [`--terminal-ansi-${name}`, `--terminal-ansi-${name}-bright`]),
-  // The scrollbar matches the app's own: a line-grey thumb that darkens when used.
-  "--color-line",
-  "--color-line-strong",
-  "--color-muted",
-]
-
-// Where a terminal's tokens resolve: where it draws, so a theme that restyles a region
-// reaches it, or the page's body while it has no place yet.
-const scopeOf = (element: Element): Element =>
-  element.isConnected ? element : element.ownerDocument.body
-
-// The theme's terminal tokens as the emulator's colours.
-const themeOf = (element: Element): ITheme => {
-  const colors: Partial<Record<string, string>> = tokenColors(scopeOf(element), terminalTokens)
-  const entries: [keyof ITheme, string | undefined][] = [
-    ["background", colors["--terminal-bg"]],
-    ["foreground", colors["--terminal-fg"]],
-    ["cursor", colors["--terminal-cursor"]],
-    ["cursorAccent", colors["--terminal-bg"]],
-    ["selectionBackground", colors["--terminal-selection"]],
-    ...ansi.flatMap((name): [keyof ITheme, string | undefined][] => [
-      [ansiKey(name, false), colors[`--terminal-ansi-${name}`]],
-      [ansiKey(name, true), colors[`--terminal-ansi-${name}-bright`]],
-    ]),
-    ["scrollbarSliderBackground", colors["--color-line"]],
-    ["scrollbarSliderHoverBackground", colors["--color-line-strong"]],
-    ["scrollbarSliderActiveBackground", colors["--color-muted"]],
-  ]
-  return Object.fromEntries(entries.filter(([, color]) => color !== undefined))
-}
-
-// The theme's monospace font.
-const monospace = (element: Element): string =>
-  getComputedStyle(scopeOf(element)).getPropertyValue("--font-mono").trim() || "monospace"
-
 // How long a terminal's size stays still before it refits after a resize. Each refit
 // forces a layout and may tell the runner, so a zoom or a drag refits once it pauses,
 // not on every frame across dozens of terminals.
@@ -89,10 +37,62 @@ const resizeSettleMs = 120
 // How long a notice of a failed paste stays.
 export const pasteNoticeMs = 4_000
 
-// One terminal's emulator and its attachment to the runner, outliving the mounts that
+// What the views are built from: the owner's emulator, theme, stream and policies. The
+// views know no app, wire or protocol; whatever is the owner's comes in here.
+export type TerminalViewOptions<K> = FollowOptions<K> & {
+  // The key as a string, which names its screen.
+  readonly keyOf: (key: K) => string
+  // Opens an emulator in `element`. The views subscribe to its renderer changes themselves.
+  readonly emulator: (
+    element: HTMLElement,
+    open: { readonly fontSize: number; readonly fontFamily: string; readonly theme: ITheme },
+  ) => View
+  readonly theme: {
+    // The theme where `element` draws, or where the page is while it has no place. The
+    // parts are read when asked for: a font is taken without a resolve of the colours.
+    readonly resolve: (element: Element) => { readonly theme: ITheme; readonly fontFamily: string }
+    // Calls `listener` whenever the theme changes, until the returned stop.
+    readonly changed: (listener: () => void) => () => void
+  }
+  // Makes the store of each screen's state; the owner's own, so what it observes of stores
+  // reaches the views' too.
+  readonly store: <S>(initial: S) => MutableStore<S>
+  readonly markup?: {
+    // Attributes of the emulator's input field, set before its accessible name.
+    readonly input?: Readonly<Record<string, string>>
+    // The class of the element a screen draws in.
+    readonly hostClass?: string
+  }
+  // Called with the terminal's restart, as Enter asks for it in an ended shell.
+  readonly restart: (key: K) => void
+  // How long a screen nobody shows follows its terminal before it parks, and how many parked
+  // screens stay before the one parked longest closes. Defaults: `parkMs`, `parkedCap`.
+  readonly park?: { readonly afterMs: number; readonly keep: number }
+  // The owner's rule for how long a screen nobody shows stays: `shown` says whether the
+  // terminal is wanted on screen, which keeps it indefinitely; otherwise it goes after
+  // `afterMs` of the clock's time.
+  readonly retain: { readonly afterMs: number; readonly shown: (key: K) => boolean }
+  readonly paste: {
+    // Saves a file on the terminal's machine and resolves with its path there.
+    readonly upload: (
+      key: K,
+      file: { readonly name: string; readonly data: Uint8Array },
+    ) => Promise<string>
+    // A file's own path on that machine, or "" for one that has none there.
+    readonly pathOf?: ((file: File) => string) | undefined
+    // The most a file may be to upload.
+    readonly maxBytes: number
+    // Whether Ctrl+V may read the clipboard without asking.
+    readonly trustedClipboard: boolean
+    // The wording of a failed paste's notice.
+    readonly notice: (failure: PasteFailure) => string
+  }
+}
+
+// One terminal's emulator and its attachment to its host, outliving the mounts that
 // show it: switching views moves its host into the next mount's element instead of opening
 // a new emulator and attaching again.
-type RunnerScreen = {
+type OpenScreen = {
   // The element the emulator draws in; a mount moves it into its own element.
   readonly host: HTMLDivElement
   readonly xterm: Terminal
@@ -123,7 +123,7 @@ export type ShowOptions = {
 }
 
 // A mount's hold on a terminal's screen, from `acquire` to `release`.
-export type ScreenHandle = {
+export type Hold = {
   // This screen's state; it is the same store for as long as the screen stays open.
   readonly state: Store<ViewState>
   // Puts the screen in `element`, which holds nothing else, and fits it there now and on
@@ -146,7 +146,7 @@ export type ScreenHandle = {
 
 type Entry = {
   readonly host: HTMLDivElement
-  screen?: RunnerScreen
+  screen?: OpenScreen
   dispose?: () => void
   users: number
   // The connection's changes reach the screen while it has users.
@@ -155,18 +155,18 @@ type Entry = {
   parking?: ReturnType<typeof setTimeout> | undefined
 }
 
-// The size screens open in until the app says: Preferences' own default.
+// The terminal font the owner asks for.
+export type TerminalFont = { readonly size: number }
+
+// The size screens open in until the owner says: Preferences' own default.
 const defaultFontSize = 13
 
 // How often a screen nobody shows checks whether to go: often enough for the next view
 // to take it, or for a view whose code is loading to arrive, to find it ready.
 const releaseCheckMs = 1000
-// How long a screen stays once its session leaves the screen, so going back to a session or
-// a project within a working break finds its output in place instead of a screen to reopen.
-export const retainMs = 30 * 60 * 1000
 // How long a screen nobody shows keeps following its terminal's output before it parks:
 // long enough for the next view to take it as it is, short enough that a dozen busy agents
-// out of sight cost nothing to draw. Shown again, it takes the runner's screen as it is then.
+// out of sight cost nothing to draw. Shown again, it takes the host's screen as it is then.
 export const parkMs = 5_000
 // How many parked screens stay before the one parked longest closes. Each holds its emulator's
 // buffer, so without a count a long session's grows without bound. With 16, a Grid of up to 16
@@ -176,63 +176,51 @@ export const parkMs = 5_000
 export const parkedCap = 16
 
 // Names the screen's input, writing only when the name changes.
-const writeLabel = (screen: RunnerScreen, label: string): void => {
+const writeLabel = (screen: OpenScreen, label: string): void => {
   if (screen.label === label) return
   screen.label = label
   screen.xterm.textarea?.setAttribute("aria-label", label)
 }
 
-const id = ({ projectId, workspaceSessionId, terminalId }: TerminalKey): string =>
-  `${projectId}\u0000${workspaceSessionId}\u0000${terminalId}`
-
-// The screens of one backend's terminals. A surface acquires its terminal's screen
+// The screens of one host's terminals. A mount acquires its terminal's screen
 // while it shows it and releases it after. A released screen stays while its terminal
 // exists, so the other views, and later the other sessions and projects, find it ready; it
-// closes once its terminal does, its session has stayed off screen for `retainMs`, or more than
-// `cap` screens are parked and it was parked longest.
-export const createScreens = (
-  runtime: SurfaceRuntime,
-  renderers: Renderers = pageRenderers(),
-  cap = parkedCap,
-) => {
+// closes once its terminal does, its session has stayed off screen for `retain.afterMs`, or more than
+// `park.keep` screens are parked and it was parked longest.
+export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
+  const id = o.keyOf
+  const parkAfterMs = o.park?.afterMs ?? parkMs
+  const cap = o.park?.keep ?? parkedCap
   const entries = new Map<string, Entry>()
   // The parked screens, the one parked longest first: a map keeps the order its keys were
   // added in, so a screen shown again leaves it and parking it again puts it last.
-  const parked = new Map<string, { key: TerminalKey; entry: Entry }>()
+  const parked = new Map<string, { key: K; entry: Entry }>()
   // Whether Ctrl+V may read the clipboard, the same for every terminal.
-  const readable = clipboardAccess(desktopHost() !== undefined)
+  const readable = clipboardAccess(o.paste.trustedClipboard)
   // The font the app last asked for, which a screen opens in and is brought to.
   let font: TerminalFont = { size: defaultFontSize }
-  const entryOf = (key: TerminalKey): Entry => {
+  const entryOf = (key: K): Entry => {
     const known = entries.get(id(key))
     if (known) return known
     const host = document.createElement("div")
-    host.setAttribute("class", "runner-screen min-h-0 flex-1")
+    if (o.markup?.hostClass !== undefined) host.setAttribute("class", o.markup.hostClass)
     const created: Entry = { host, users: 0 }
     entries.set(id(key), created)
     return created
   }
 
-  const open = (
-    key: TerminalKey,
-    entry: Entry,
-    { label, phase }: Omit<ShowOptions, "webgl">,
-  ): RunnerScreen => {
+  const open = (key: K, entry: Entry, { label, phase }: Omit<ShowOptions, "webgl">): OpenScreen => {
     const element = entry.host
-    const view = createView(element, {
+    const resolved = o.theme.resolve(element)
+    const view = o.emulator(element, {
       fontSize: font.size,
-      fontFamily: monospace(element),
-      theme: themeOf(element),
-      // Programs and agents pick their own colours, often greys meant for another ground;
-      // xterm darkens or lightens any that would read under 4.5:1 against the background.
-      minimumContrastRatio: 4.5,
-      scrollback: 1000,
-      links: linkOptions(),
-      renderers,
+      fontFamily: resolved.fontFamily,
+      theme: resolved.theme,
     })
     const xterm = view.terminal
     const queries = silenceQueries(xterm)
-    xterm.textarea?.setAttribute("data-terminal-input", "")
+    for (const [name, value] of Object.entries(o.markup?.input ?? {}))
+      xterm.textarea?.setAttribute(name, value)
     xterm.textarea?.setAttribute("aria-label", label)
     const drawn: Screen = {
       exited: () => {},
@@ -250,8 +238,8 @@ export const createScreens = (
     // The state a person sees, with the lock recomputed in the same step as the change that
     // brings it, so each change notifies once. The emulator's input follows the lock.
     let stage = phase
-    const facts = () => ({ link: runtime.connection.getSnapshot(), phase: stage })
-    const state = createStore<ViewState>(openingState(facts()))
+    const facts = () => ({ link: o.connection.getSnapshot(), phase: stage })
+    const state = o.store<ViewState>(openingState(facts()))
     let locked: boolean | undefined
     const refresh = (change: ViewChange = {}): void => {
       const { lock } = state.update((current) => nextViewState(current, change, facts()))
@@ -260,7 +248,7 @@ export const createScreens = (
       xterm.options.disableStdin = locked
       xterm.textarea?.setAttribute("aria-disabled", String(locked))
     }
-    const followed = followTerminal(runtime, key, {
+    const followed = followTerminal(o, key, {
       ...drawn,
       reset: () => {
         refresh({ waits: false })
@@ -272,7 +260,7 @@ export const createScreens = (
     // The two renderers measure a cell apart (WebGL to whole device pixels), so a screen
     // that changes renderer fits its slot again.
     view.onRendererChange(() => followed.refit())
-    const screen: RunnerScreen = {
+    const screen: OpenScreen = {
       host: element,
       xterm,
       followed,
@@ -289,7 +277,7 @@ export const createScreens = (
       restart: () => {
         // Locked until the fresh shell's screen arrives.
         refresh({ waits: false })
-        runtime.restart(key)
+        o.restart(key)
       },
       refocus: false,
     }
@@ -316,9 +304,10 @@ export const createScreens = (
     let noticed: ReturnType<typeof setTimeout> | undefined
     let gone = false
     const target: PasteTarget = {
-      upload: (file) => runtime.upload(key.terminalId, file),
-      // The desktop app's runner is on this machine, so a copied file's own path names it.
-      pathOf: desktopHost()?.pathForFile,
+      upload: (file) => o.paste.upload(key, file),
+      pathOf: o.paste.pathOf,
+      maxBytes: o.paste.maxBytes,
+      notice: o.paste.notice,
       paste: (text) => {
         if (!gone) xterm.paste(text)
       },
@@ -363,15 +352,16 @@ export const createScreens = (
     // The theme's font, once it has loaded: a bundled font still on its way arrives later,
     // and the terminal keeps the font it has until then. A new font changes the cell size,
     // so the terminal fits again.
-    const takeFont = (): void => {
-      void view.setFont(monospace(element)).then((measured) => {
+    const takeFont = (theme = o.theme.resolve(element)): void => {
+      void view.setFont(theme.fontFamily).then((measured) => {
         if (measured && !gone) followed.refit()
       })
     }
     // A theme sets the colours and the font.
     const retheme = (): void => {
-      view.setTheme(themeOf(element))
-      takeFont()
+      const theme = o.theme.resolve(element)
+      view.setTheme(theme.theme)
+      takeFont(theme)
     }
     // A host opened before it had a slot took the page's colours and font; once in one,
     // it takes its region's.
@@ -391,14 +381,14 @@ export const createScreens = (
       else settling = setTimeout(() => followed.refit(), resizeSettleMs)
     })
     resizes.observe(element)
-    window.addEventListener(themeChangeEvent, retheme)
+    const unthemed = o.theme.changed(retheme)
     // The terminal opened in its font whether it had loaded or not; one still on its way
     // is measured again once it arrives.
     takeFont()
-    runtime.screen(key, "mounted")
+    o.on?.stage?.(key, "mounted")
     entry.dispose = () => {
-      runtime.screen(key, "gone")
-      window.removeEventListener(themeChangeEvent, retheme)
+      o.on?.stage?.(key, "gone")
+      unthemed()
       clearTimeout(settling)
       resizes.disconnect()
       input.dispose()
@@ -414,7 +404,7 @@ export const createScreens = (
     return screen
   }
 
-  const close = (key: TerminalKey, entry: Entry): void => {
+  const close = (key: K, entry: Entry): void => {
     entries.delete(id(key))
     parked.delete(id(key))
     clearTimeout(entry.timer)
@@ -424,7 +414,7 @@ export const createScreens = (
   }
   // A screen that parks joins the parked; one more than the cap closes the one parked longest,
   // through the same path as retention. A screen shown or not yet parked never closes here.
-  const keep = (key: TerminalKey, entry: Entry): void => {
+  const keep = (key: K, entry: Entry): void => {
     parked.set(id(key), { key, entry })
     for (const [, oldest] of parked) {
       if (parked.size <= cap) break
@@ -432,27 +422,27 @@ export const createScreens = (
     }
   }
   // A screen nobody shows goes once its terminal closes, or once its session has been off
-  // screen for `retainMs` of the clock's time, which timers falling behind in a hidden
+  // screen for `retain.afterMs` of the clock's time, which timers falling behind in a hidden
   // window or a sleeping machine do not stretch; until then it waits, checking now and then.
-  const settle = (key: TerminalKey, entry: Entry, offSince?: number): void => {
+  const settle = (key: K, entry: Entry, offSince?: number): void => {
     entry.timer = setTimeout(() => {
       entry.timer = undefined
       if (entry.users > 0) return
-      const terminal = runtime.entry(key)
+      const terminal = o.lifecycle(key)
       if (!terminal || terminal.closed) return close(key, entry)
-      if (runtime.shown(key)) return settle(key, entry)
+      if (o.retain.shown(key)) return settle(key, entry)
       const since = offSince ?? Date.now()
-      if (Date.now() - since >= retainMs) close(key, entry)
+      if (Date.now() - since >= o.retain.afterMs) close(key, entry)
       else settle(key, entry, since)
     }, releaseCheckMs)
   }
 
   // Takes one more hold on the terminal's screen, opening it on first use.
-  const take = (key: TerminalKey, { webgl, ...options }: ShowOptions): RunnerScreen => {
+  const take = (key: K, { webgl, ...options }: ShowOptions): OpenScreen => {
     const entry = entryOf(key)
     const known = entry.screen
     // The hold counts once the screen is open: one that fails to open leaves nothing held.
-    let screen: RunnerScreen
+    let screen: OpenScreen
     if (known) screen = known
     else {
       try {
@@ -471,7 +461,7 @@ export const createScreens = (
     // The connection reaches the screen while a mount holds it; what changed while none did
     // is read now.
     if (entry.users === 1) {
-      entry.unwatch = runtime.connection.subscribe(() => screen.refresh())
+      entry.unwatch = o.connection.subscribe(() => screen.refresh())
     }
     if (known) {
       screen.phase = options.phase
@@ -482,7 +472,7 @@ export const createScreens = (
     screen.renderer.take(webgl)
     return screen
   }
-  const letGo = (key: TerminalKey): void => {
+  const letGo = (key: K): void => {
     const entry = entries.get(id(key))
     if (!entry) return
     entry.users -= 1
@@ -500,13 +490,13 @@ export const createScreens = (
       entry.screen.followed.park()
       entry.screen.renderer.release()
       keep(key, entry)
-    }, parkMs)
+    }, parkAfterMs)
   }
 
   return {
     // The terminal's screen for a mount that shows it, opened on first use. Each acquire has
     // the one release its handle makes.
-    acquire: (key: TerminalKey, options: ShowOptions): ScreenHandle => {
+    acquire: (key: K, options: ShowOptions): Hold => {
       const screen = take(key, options)
       let released = false
       let wantsWebgl = options.webgl
@@ -576,10 +566,10 @@ export const createScreens = (
     // whether it pasted. Line breaks and other control characters become spaces first:
     // outside bracketed paste xterm turns a newline into Enter, which would submit what was
     // said.
-    typeInto: (key: TerminalKey, text: string): boolean => {
+    typeInto: (key: K, text: string): boolean => {
       const screen = entries.get(id(key))?.screen
       const state = screen?.state.getSnapshot()
-      if (!screen || !state?.live || runtime.connection.getSnapshot() !== "connected") return false
+      if (!screen || !state?.live || o.connection.getSnapshot() !== "connected") return false
       // A shell that exited takes only Enter, to start again.
       if (screen.phase === "ended" || state.waits) return false
       // oxlint-disable-next-line no-control-regex -- Control characters are what this removes.
@@ -597,4 +587,4 @@ export const createScreens = (
   }
 }
 
-export type Screens = ReturnType<typeof createScreens>
+export type TerminalViews<K> = ReturnType<typeof createTerminalViews<K>>

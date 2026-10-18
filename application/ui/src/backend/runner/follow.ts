@@ -1,14 +1,54 @@
-import type { TerminalEvent, TerminalExit } from "@novadeck/protocol"
-import { hasCode, type AttachedTerminal } from "@novadeck/protocol/client"
+import type { AttachStream, Exit, TerminalEvent } from "@novadeck/terminal"
 
-import type { TerminalKey } from "../port"
-import { exitStatus, restartable } from "./activity"
-import type { SurfaceRuntime } from "./backend"
 import { pause } from "./pause"
+import type { Store, ViewLink } from "./view-state"
 
-type FollowedEntry = NonNullable<ReturnType<SurfaceRuntime["entry"]>>
+// A terminal's shell as following it needs to know it: when it is ready to attach to, when
+// a fresh one replaces it, and whether it is gone. The fields are read as they stand, so an
+// owner may hand over the live record.
+export type Lifecycle = {
+  // Resolves once a shell runs, with whether one does.
+  readonly ready: Promise<boolean>
+  // Resolves once a fresh shell replaces an ended one.
+  readonly revived: Promise<void>
+  readonly closed: boolean
+  // The size a fresh shell starts with.
+  readonly size: { readonly cols: number; readonly rows: number }
+}
 
-// The screen a runner terminal draws on, reduced to what following it needs.
+// What the view tells its owner as it goes.
+export type ViewEvents<K> = {
+  // The stream saw the shell exit, in order with its output.
+  readonly exited?: (key: K, exit: Exit) => void
+  // The size that fit.
+  readonly resized?: (key: K, size: { readonly cols: number; readonly rows: number }) => void
+  // The screen's stage: mounted, first screen drawn, or gone.
+  readonly stage?: (key: K, stage: "mounted" | "shown" | "gone") => void
+  // Why the terminal could not be followed.
+  readonly lost?: (key: K, error: unknown) => void
+  // The stream, until the returned release; the owner may note it.
+  readonly attached?: (key: K, stream: AttachStream) => () => void
+}
+
+// What following a terminal asks of its owner.
+export type FollowOptions<K> = {
+  readonly attach: (key: K) => Promise<AttachStream>
+  readonly lifecycle: (key: K) => Lifecycle | undefined
+  // How the link is doing; a stream takes up again when it comes back.
+  readonly connection: Store<ViewLink>
+  // Resolves once the link is reachable again, or closed for good.
+  readonly reconnected: () => Promise<void>
+  // How an attach that failed should go on: try again shortly while busy, wait for the link
+  // while offline, give up and tell of it otherwise.
+  readonly classify: (error: unknown) => "busy" | "offline" | "fatal"
+  // Whether a shell that exited like this waits for Enter to start again.
+  readonly waitsAfter: (exit: Exit) => boolean
+  // Counts the promise as outstanding I/O until it settles.
+  readonly track?: <T>(work: Promise<T>) => Promise<T>
+  readonly on?: ViewEvents<K>
+}
+
+// The screen a terminal draws on, reduced to what following it needs.
 export type Screen = {
   readonly write: (data: string) => Promise<void>
   readonly reset: () => void
@@ -27,11 +67,11 @@ export type Screen = {
 export type FollowedTerminal = {
   // Sends typed input; dropped while there is no attachment.
   readonly input: (data: string) => void
-  // Tells the runner the size that fits now, if it changed.
+  // Tells the owner the size that fits now, and the stream if it changed.
   readonly refit: () => void
   // Lets go of the stream while no view shows the terminal, so its output costs nothing
   // here while the screen keeps what it last drew; `unpark` attaches again, and the
-  // runner's fresh screen brings it up to date. A fresh shell started meanwhile waits
+  // host's fresh screen brings it up to date. A fresh shell started meanwhile waits
   // for it too.
   readonly park: () => void
   readonly unpark: () => void
@@ -39,19 +79,21 @@ export type FollowedTerminal = {
 }
 
 // Attaches to the terminal, draws what it sends, and passes input and size back until
-// stopped. When its shell exits, or the runner loses it, the surface waits for a fresh
+// stopped. When its shell exits, or the host loses it, the view waits for a fresh
 // shell and attaches again. A terminal another window controls is reported instead.
-export const followTerminal = (
-  runtime: SurfaceRuntime,
-  key: TerminalKey,
+export const followTerminal = <K>(
+  options: FollowOptions<K>,
+  key: K,
   screen: Screen,
 ): FollowedTerminal => {
+  const { on, lifecycle, connection } = options
+  const track = options.track ?? (<T>(work: Promise<T>): Promise<T> => work)
   let stopped = false
   let stop: (() => void) | undefined
   const halted = new Promise<void>((resolve) => {
     stop = resolve
   })
-  let attachment: AttachedTerminal | undefined
+  let attachment: AttachStream | undefined
   let sent: string | undefined
   // Resolves once the stream may attach, as it may unless parked.
   let unparked: Promise<void> | undefined
@@ -61,14 +103,14 @@ export const followTerminal = (
   let cut = false
   const refit = (): void => {
     const size = screen.fit()
-    if (size) runtime.resized(key, size)
+    if (size) on?.resized?.(key, size)
     if (!size || !attachment) return
     screen.resize(size)
     const next = `${size.cols}x${size.rows}`
     if (next === sent) return
     sent = next
     const attached = attachment
-    void attached.resize(size).catch(() => {
+    void attached.resize(size.cols, size.rows).catch(() => {
       sent = undefined
       // Busy or reconnecting: try again while this stream lasts.
       setTimeout(() => {
@@ -84,55 +126,56 @@ export const followTerminal = (
       await screen.write(event.data)
       // A park that came while it drew has let go of this stream already.
       if (!unparked) screen.live(true)
-      runtime.screen(key, "shown")
+      on?.stage?.(key, "shown")
       if (event.exit) {
-        runtime.exited(key, event.exit)
-        screen.exited(waitsForEnter(event.exit))
+        on?.exited?.(key, event.exit)
+        screen.exited(options.waitsAfter(event.exit))
       }
       refit()
     } else if (event.type === "output") await screen.write(event.data)
     else if (event.type === "exited") {
-      runtime.exited(key, event.exit)
-      screen.exited(waitsForEnter(event.exit))
+      on?.exited?.(key, event.exit)
+      screen.exited(options.waitsAfter(event.exit))
     } else if (event.type === "resized") {
       sent = `${event.cols}x${event.rows}`
       screen.resize(event)
     }
   }
-  const wanted = (entry: FollowedEntry): boolean => !stopped && !unparked && !entry.closed
-  // Attaches, retrying after the runner comes back; undefined when it cannot, or once
+  const wanted = (entry: Lifecycle): boolean => !stopped && !unparked && !entry.closed
+  // Attaches, retrying after the host comes back; undefined when it cannot, or once
   // parked, which marks the stream cut.
-  const open = async (entry: FollowedEntry): Promise<AttachedTerminal | undefined> => {
+  const open = async (entry: Lifecycle): Promise<AttachStream | undefined> => {
     while (wanted(entry)) {
       try {
-        // eslint-disable-next-line no-await-in-loop -- Retry after the runner comes back.
-        const attached = await runtime.attach(key.terminalId)
+        // eslint-disable-next-line no-await-in-loop -- Retry after the host comes back.
+        const attached = await options.attach(key)
         if (wanted(entry)) return attached
         cut ||= Boolean(unparked)
-        // eslint-disable-next-line no-await-in-loop -- Release before giving up.
-        await attached.detach()
+        // Release before giving up.
+        attached.close()
         return undefined
       } catch (error) {
-        if (hasCode(error, "RESOURCE_LIMIT")) {
+        const failure = options.classify(error)
+        if (failure === "busy") {
           // Too many calls in flight: try again shortly.
           // eslint-disable-next-line no-await-in-loop -- Back off before trying again.
           await Promise.race([pause(300), halted])
           continue
         }
-        if (!hasCode(error, "DISCONNECTED")) {
-          runtime.lost(key, error)
+        if (failure !== "offline") {
+          on?.lost?.(key, error)
           return undefined
         }
-        // eslint-disable-next-line no-await-in-loop -- Wait for the runner to come back.
-        await Promise.race([runtime.connected(), halted])
+        // eslint-disable-next-line no-await-in-loop -- Wait for the host to come back.
+        await Promise.race([options.reconnected(), halted])
       }
     }
     cut ||= Boolean(unparked)
     return undefined
   }
-  const follow = async (attached: AttachedTerminal): Promise<void> => {
+  const follow = async (attached: AttachStream): Promise<void> => {
     attachment = attached
-    const release = runtime.attached(key, attached)
+    const release = on?.attached?.(key, attached)
     try {
       for await (const event of attached) {
         if (stopped) break
@@ -140,9 +183,9 @@ export const followTerminal = (
         await apply(event)
       }
     } catch (error) {
-      if (!stopped) runtime.lost(key, error)
+      if (!stopped) on?.lost?.(key, error)
     } finally {
-      release()
+      release?.()
       attachment = undefined
       screen.live(false)
     }
@@ -150,7 +193,7 @@ export const followTerminal = (
   const running = (): boolean => !stopped
   const run = async (): Promise<void> => {
     while (running()) {
-      const entry = runtime.entry(key)
+      const entry = lifecycle(key)
       if (!entry || entry.closed) return
       // eslint-disable-next-line no-await-in-loop -- Parked, it attaches once shown again.
       if (unparked) await Promise.race([unparked, halted])
@@ -162,7 +205,7 @@ export const followTerminal = (
       // Parked while it started: it attaches once shown.
       if (unparked) continue
       // eslint-disable-next-line no-await-in-loop -- Then attach to it.
-      const attached = ready && (await runtime.track(open(entry)))
+      const attached = ready && (await track(open(entry)))
       // eslint-disable-next-line no-await-in-loop -- One attachment at a time.
       if (attached) await follow(attached)
       if (cut || unparked) {
@@ -175,19 +218,19 @@ export const followTerminal = (
   }
   void run()
   // After a reconnection the attachment takes up again on its own, without a new screen.
-  // Until a call through it succeeds, input would be lost, so the surface stays locked;
+  // Until a call through it succeeds, input would be lost, so the view stays locked;
   // re-sending the current size is a harmless call to find out.
   let resumes = 0
-  const resume = async (attached: AttachedTerminal): Promise<void> => {
+  const resume = async (attached: AttachStream): Promise<void> => {
     const turn = (resumes += 1)
     screen.live(false, true)
     const current = (): boolean =>
       !stopped && !unparked && attachment === attached && turn === resumes
     while (current()) {
-      const size = runtime.entry(key)?.size ?? screen.fit()
+      const size = lifecycle(key)?.size ?? screen.fit()
       try {
         // eslint-disable-next-line no-await-in-loop -- One probe at a time.
-        if (size) await attached.resize(size)
+        if (size) await attached.resize(size.cols, size.rows)
         if (current()) screen.live(true)
         return
       } catch {
@@ -196,16 +239,16 @@ export const followTerminal = (
       }
     }
   }
-  let previous = runtime.connection.getSnapshot()
-  const unsubscribe = runtime.connection.subscribe(() => {
-    const state = runtime.connection.getSnapshot()
+  let previous = connection.getSnapshot()
+  const unsubscribe = connection.subscribe(() => {
+    const state = connection.getSnapshot()
     const back = previous !== "connected" && state === "connected"
     previous = state
     if (back && attachment) void resume(attachment)
   })
   return {
     input: (data) => {
-      const entry = runtime.entry(key)
+      const entry = lifecycle(key)
       if (!attachment || !entry || entry.closed) return
       void attachment.write(data).catch(() => {})
     },
@@ -219,7 +262,7 @@ export const followTerminal = (
       cut = true
       // Nothing draws it from now on, though the stream ends a moment later.
       screen.live(false)
-      void attachment.detach()
+      attachment.close()
     },
     unpark: () => {
       if (!unparked) return
@@ -232,12 +275,7 @@ export const followTerminal = (
       stop?.()
       const attached = attachment
       attachment = undefined
-      void attached?.detach()
+      attached?.close()
     },
   }
-}
-
-const waitsForEnter = (exit: TerminalExit): boolean => {
-  const status = exitStatus(exit)
-  return status !== "clean" && restartable(status)
 }

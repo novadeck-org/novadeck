@@ -1,10 +1,8 @@
-import { WireError } from "@novadeck/wire"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
 import {
   ownPath,
-  pasteNotice,
   pastedFiles,
   pastedText,
   pastesImages,
@@ -14,9 +12,17 @@ import {
   takeCtrlV,
   takeFilePastes,
   uploadName,
+  type PasteFailure,
   type PasteTarget,
 } from "./paste"
 import type { Platform } from "./platform"
+
+// The words of a failed paste's notice, as the app gives them.
+const notice = (failure: PasteFailure): string =>
+  failure.kind === "clipboard"
+    ? "Novadeck can't read the clipboard"
+    : `Couldn't paste the ${failure.type.startsWith("image/") ? "image" : "file"}${failure.tooLarge ? ": it's over 32 MB" : ""}`
+const maxBytes = 32 * 1024 * 1024
 
 // What a paste event carries, as the browser fills `clipboardData`.
 const transfer = (carried: { files?: File[]; items?: File[]; text?: string }) => ({
@@ -61,7 +67,9 @@ const terminal = (
       return saved(file.name)
     },
     paste: (text) => pasted.push(text),
-    failed: (notice) => notices.push(notice),
+    failed: (text) => notices.push(text),
+    notice,
+    maxBytes,
     pathOf: desktop ? pathOf : undefined,
   }
   const reached: Event[] = []
@@ -227,29 +235,6 @@ describe("a file's own path", () => {
 
   it("is none for a file that has no path", () => {
     expect(ownPath("")).toBeUndefined()
-  })
-})
-
-describe("a failed paste's notice", () => {
-  it("says the clipboard could not be read", () => {
-    expect(pasteNotice("clipboard")).toBe("Novadeck can't read the clipboard")
-  })
-
-  it("says an image or a file was too large, as the runner or the client found", () => {
-    const error = new WireError("UPLOAD_TOO_LARGE")
-    expect(pasteNotice({ type: "image/png", error })).toBe(
-      "Couldn't paste the image: it's over 32 MB",
-    )
-    expect(pasteNotice({ type: "application/pdf", error })).toBe(
-      "Couldn't paste the file: it's over 32 MB",
-    )
-  })
-
-  it("says only that it failed for any other reason, as a lost connection", () => {
-    expect(pasteNotice({ type: "image/png", error: new WireError("DISCONNECTED") })).toBe(
-      "Couldn't paste the image",
-    )
-    expect(pasteNotice({ type: "", error: new Error("disk full") })).toBe("Couldn't paste the file")
   })
 })
 
@@ -574,7 +559,9 @@ const keyboard = (
         return options.saved?.() ?? Promise.resolve("/u/shot.png")
       },
       paste: (text) => void log.push(`paste ${text}`),
-      failed: (notice) => void log.push(`notice ${notice}`),
+      failed: (text) => void log.push(`notice ${text}`),
+      notice,
+      maxBytes,
       active: () => options.active ?? true,
       pathOf,
       hold: () => {
@@ -614,7 +601,7 @@ describe("Ctrl+V in a runner terminal", () => {
     it("tells why and sends Ctrl+V when the image can't be saved", async () => {
       clipboard(async () => [item("image/png")])
       vi.spyOn(console, "error").mockImplementation(() => {})
-      const page = keyboard({ saved: () => Promise.reject(new WireError("DISCONNECTED")) })
+      const page = keyboard({ saved: () => Promise.reject(new Error("The link dropped")) })
       page.press()
       await vi.waitFor(() => expect(page.log.at(-1)).toBe("release with ^V"))
       expect(page.log).toContain("notice Couldn't paste the image")
