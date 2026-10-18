@@ -1,5 +1,6 @@
-import { describe, expect, it } from "../../test"
-import { runnerSize } from "./screens"
+import { describe, expect, it } from "vitest"
+
+import { runnerSize } from "./screens.js"
 
 describe("runner terminal size", () => {
   it("keeps a fitted size within what the runner accepts", () => {

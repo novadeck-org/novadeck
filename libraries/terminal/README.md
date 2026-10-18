@@ -18,6 +18,18 @@ facts and the shell integration; the rest arrives a part at a time.
   - `AttachStream`: one attached stream as a client holds it, its events acknowledged as it
     reads the next.
 
+- `./view` (browser): the terminal's view, which the app's terminals mount on.
+  - `createTerminalViews(options)` keeps one screen per terminal: an emulator, its attachment
+    followed into it, and the pastes it takes. `acquire(key, { label, phase, webgl })` returns a
+    `Hold` to `place` the screen in an element, `update`, `focus`, `restart` and `release`; its
+    `state` is a store of what the person is told (`live`, `resuming`, `waits`, `lock`, `notice`).
+    A released screen parks after `park.afterMs`, closes after `retain.afterMs` away, and the
+    parked longest closes past `park.keep`.
+  - The owner gives the emulator, theme, stream, wording and policies as options; the view
+    knows no app, wire or protocol. `store` is optional (a plain store otherwise); an owner
+    that observes its stores passes its own.
+  - It builds on `@novadeck/emulator/browser`, and its tests run under jsdom.
+
 The others are Node only: each names only the `node` condition, so a browser bundle can't
 resolve it.
 

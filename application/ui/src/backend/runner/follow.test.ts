@@ -1,11 +1,11 @@
 import type { TerminalEvent, TerminalExit } from "@novadeck/protocol"
 import type { AttachedTerminal } from "@novadeck/protocol/client"
 import type { AttachStream } from "@novadeck/terminal"
+import { followTerminal, type FollowOptions } from "@novadeck/terminal/view"
 import { vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
 import type { SurfaceRuntime } from "./backend"
-import { followTerminal, type FollowOptions } from "./follow"
 import { viewOptions } from "./view-options"
 
 const key = { projectId: "p", workspaceSessionId: "s", terminalId: "t" }

@@ -6,6 +6,13 @@ import {
 } from "@novadeck/emulator/browser"
 import type { TerminalEvent, TerminalExit } from "@novadeck/protocol"
 import { type AttachedTerminal } from "@novadeck/protocol/client"
+import { ctrlVHoldMs } from "@novadeck/terminal/view"
+import {
+  createTerminalViews,
+  pasteNoticeMs,
+  type Hold,
+  type TerminalViews,
+} from "@novadeck/terminal/view"
 import { WireError } from "@novadeck/wire"
 import { afterEach, onTestFinished, vi } from "vitest"
 
@@ -23,8 +30,6 @@ import type {
 } from "../port"
 import type { SurfaceRuntime } from "./backend"
 import { createRunnerMount } from "./mount"
-import { ctrlVHoldMs } from "./paste"
-import { createTerminalViews, pasteNoticeMs, type Hold, type TerminalViews } from "./screens"
 import { viewOptions } from "./view-options"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
