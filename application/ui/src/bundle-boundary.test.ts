@@ -1,8 +1,12 @@
 import {
   boundaryViolations,
   budgetViolations,
+  firstChunkGaps,
   firstChunkViolations,
+  missingFolders,
   missingScreenStyles,
+  missingUtilities,
+  scannedUtilities,
   visitorBudgets,
   type BuiltChunk,
   type WeighedChunk,
@@ -35,6 +39,25 @@ describe("bundle boundary", () => {
   context("for the content preview", () => {
     it("allows the demo and its debug layer, but not the runner client", () => {
       expect(boundaryViolations("content-preview", [demo, debug, runner])).toEqual([runner])
+    })
+  })
+
+  context("when no module is under the folder a mode runs on", () => {
+    it("asks each mode for its own adapter", () => {
+      expect(missingFolders("production", [app, runner])).toEqual([])
+      expect(missingFolders("web", [app, runner])).toEqual([])
+      expect(missingFolders("try", [app, demo])).toEqual([])
+      expect(missingFolders("content-preview", [app, demo, debug])).toEqual([])
+    })
+
+    it("names the folder a bundle holds nothing of, however it is spelled", () => {
+      expect(missingFolders("production", [app, demo])).toEqual(["src/backend/runner/"])
+      expect(missingFolders("try", [app, runner])).toEqual(["src/backend/demo/"])
+      expect(missingFolders("content-preview", [app, demo])).toEqual(["src/backend/demo/debug/"])
+      expect(missingFolders("production", [])).toEqual(["src/backend/runner/"])
+      expect(
+        missingFolders("production", ["C:\\work\\ui\\src\\backend\\runner\\index.ts"]),
+      ).toEqual([])
     })
   })
 })
@@ -82,6 +105,17 @@ describe("the first chunk", () => {
     expect(firstChunkViolations({ "index.js": chunk([id], [], true) })).toEqual([id])
   })
 
+  it("has nothing to read without an entry chunk or without the emulator in any chunk", () => {
+    const emulatorChunk = chunk([xterm, emulator])
+    expect(
+      firstChunkGaps({ "index.js": chunk([app], [], true), "emulator.js": emulatorChunk }),
+    ).toEqual([])
+    expect(firstChunkGaps({ "emulator.js": emulatorChunk })).toEqual(["it has no entry chunk"])
+    const none = "it holds no module of the terminal emulator or its library"
+    expect(firstChunkGaps({ "index.js": chunk([app], [], true) })).toEqual([none])
+    expect(firstChunkGaps({})).toEqual(["it has no entry chunk", none])
+  })
+
   it("ignores assets and imports it has no chunk for", () => {
     expect(
       firstChunkViolations({
@@ -109,6 +143,26 @@ describe("the terminal screens' styles", () => {
     }
     expect(missingScreenStyles(bare)).toBe(true)
     expect(missingScreenStyles({})).toBe(true)
+  })
+})
+
+describe("the folders Tailwind scans", () => {
+  const sheet = (source: string) => ({ type: "asset", fileName: "assets/index.css", source })
+  const rule = ".h-\\[min\\(760px\\,calc\\(100vh-80px\\)\\)\\]{height:min(760px,100vh - 80px)}"
+
+  it("passes a build whose CSS holds a utility from each, as text or as bytes", () => {
+    expect(missingUtilities({ "assets/index.css": sheet(`.flex{}${rule}`) })).toEqual([])
+    const bytes = { type: "asset", fileName: "a.css", source: new TextEncoder().encode(rule) }
+    expect(missingUtilities({ "a.css": bytes })).toEqual([])
+  })
+
+  it("names the folder whose utility the CSS lost", () => {
+    const lost = [`${scannedUtilities[0]!.utility} from ${scannedUtilities[0]!.folder}`]
+    expect(missingUtilities({ "assets/index.css": sheet(".flex{}") })).toEqual(lost)
+    expect(missingUtilities({})).toEqual(lost)
+    // The class named in a script is not the rule in a stylesheet.
+    const script = { type: "chunk", fileName: "assets/index.js", code: rule }
+    expect(missingUtilities({ "assets/index.js": script })).toEqual(lost)
   })
 })
 
@@ -143,8 +197,19 @@ describe("the visitor build's budgets", () => {
 
   it("fails a visitor build with no demo chunk to weigh, and asks nothing of the others", () => {
     expect(budgetViolations("try", { "index.js": chunk("", { isEntry: true }) }, weigh)).toEqual([
-      "it has no demo chunk to weigh",
+      "no demo chunk found for /backend/demo/visitor/connect.ts",
     ])
+    // A demo chunk moved or renamed is no demo chunk.
+    expect(
+      budgetViolations(
+        "try",
+        {
+          "index.js": chunk("", { isEntry: true }),
+          "connect.js": chunk("", { facadeModuleId: "/work/demo/src/visitor/connect.ts" }),
+        },
+        weigh,
+      ),
+    ).toHaveLength(1)
     expect(
       budgetViolations(
         "production",
