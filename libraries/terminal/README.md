@@ -33,7 +33,14 @@ facts and the shell integration; the rest arrives a part at a time.
 The others are Node only: each names only the `node` condition, so a browser bundle can't
 resolve it.
 
-- `./host`: hosting a terminal.
+- `./host`: hosting terminals.
+  - `createTerminalHost(options)` keeps a host's terminals: `reserve` holds a place for one
+    starting, within `maxTerminals`, letting the oldest exited terminal no one reads go for
+    room. After each exit, exited terminals past `maxRetained` go, oldest first, and
+    `evicted` listeners are told. `terminate` ends a terminal's program within the kill's
+    budget (shorter as the host shuts down), and `remove` keeps a closed one until its viewers
+    have read the rest (its caller refuses its id meanwhile; `draining` tells). `shutdown` ends every program, then lets every
+    terminal go.
   - `createTerminal(options)` hosts a terminal: it starts the program in a pty with a headless
     screen, and keeps the events that follow the screen and who reads them.
   - What the program prints is drawn on the screen in order, behind everything queued before
