@@ -9,8 +9,8 @@ import {
   type AgentName,
   type TranscriptItem,
 } from "@novadeck/protocol"
+import type { BoxProfile } from "@novadeck/tui-input/box"
 
-import type { BoxProfile } from "./box.js"
 import type { DialogAdapter } from "./dialogs.js"
 import type { HarnessEvent, PlanSource, PromptShown } from "./events.js"
 import type { Dialect } from "./hook-command.js"

@@ -28,7 +28,7 @@ const names = Object.keys(order)
 const app = [
   ...appPackages(root).flatMap((name) => [name, `${name}/sub`]),
   "../../../../application/runner/src/manager.ts",
-  "../../../../harnesses/core/src/box.ts",
+  "../../../../harnesses/core/src/harness.ts",
   "../../../../libraries/wire/src/index.ts",
   // A sibling's build, which a declaration file lets typecheck, as no rootDir sees it.
   "../../wire/dist/index.js",

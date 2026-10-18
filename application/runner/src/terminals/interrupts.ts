@@ -1,14 +1,14 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
+import type { InterruptResult } from "@novadeck/protocol"
 import {
   endsText,
   isEmpty,
   sameText,
   type BoxProfile,
   type InputBox,
-} from "@novadeck/harness-core/box"
-import type { InterruptResult } from "@novadeck/protocol"
+} from "@novadeck/tui-input/box"
 
 import { DomainError } from "../errors.js"
 
