@@ -154,11 +154,17 @@ jobs:
         if: matrix.browser && steps.browser-cache.outputs.cache-hit == 'true' && runner.os == 'Linux'
         run: pnpm --filter @novadeck/ui exec playwright install-deps chromium
 
+      # Three minutes inside the job's own limit, so a hung test ends this step and the
+      # failures' upload below still runs, rather than the whole job being cancelled.
       - name: Run ${{ matrix.name }}
         run: ${{ matrix.command }}
+        timeout-minutes: ${{ matrix.timeout && 27 || (matrix.browser || matrix.shard) && 17 || 7 }}
         env:
           # A re-run with debug logging records Playwright traces of failed UI specs.
           NOVADECK_UI_TRACE: ${{ runner.debug == '1' && '1' || '' }}
+          # Each test file's line as it finishes, not a package's whole log once it ends, so
+          # the last line before a hang names the file that hung.
+          TURBO_LOG_ORDER: stream
 
       # A failed UI spec leaves its screenshot, and its trace when one was recorded.
       - name: Upload UI Test Failures
