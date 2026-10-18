@@ -1,6 +1,6 @@
 # The timing run
 
-The benchmark's timing run (rule 16): the UI's production build in headless Chromium against
+The benchmark's timing run (rule 16): the UI's web app, built for production, in headless Chromium against
 a real runner over WebSocket, as the dev-web path wires them, with fake agents that send real
 hooks and status-line telemetry. Its numbers are a trend, too noisy to gate on: it writes a
 report and exits 0 whatever it measured or failed to, stopped by SIGINT, SIGTERM or SIGHUP
@@ -12,15 +12,15 @@ pnpm bench:timing [--output <file>]
 ```
 
 It builds the runner, the sandbox library and what they need (turbo; the relay among them,
-which needs Rust), and drives Playwright's Chromium (`pnpm exec playwright install chromium`
-once), then:
+which needs Rust), then the libraries the UI ships (as `build:try` does), and drives
+Playwright's Chromium (`pnpm exec playwright install chromium` once), then:
 
 1. makes a sandbox (`@novadeck/sandbox`): a throwaway home holding a `.claude/settings.json`
    with Novadeck's plugin on, so the runner counts Claude Code connected, and a PATH whose only
    `claude` is the fake (`agent.ts`); it refuses to start if any other folder on that PATH holds
    `claude`, `codex` or `agy`;
-2. builds the UI, a production build whatever the shell's `NODE_ENV`, with the runner's address
-   and token baked in;
+2. builds the UI's web entry (`--mode web`), a production build whatever the shell's `NODE_ENV`,
+   with the runner's address and token baked in;
 3. starts the runner from its build with the sandbox's environment alone, then serves the UI
    with `vite preview`;
 4. drives Chromium through the scenario (`drive.ts`): 13 terminals, the first 5 running the fake

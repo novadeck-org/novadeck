@@ -90,7 +90,12 @@ const renderTerminal = (
     ),
   )
   unmounts.push(unmount)
-  unmounts.push(panes.connect())
+  // Connecting tells the terminal its messages: a render of its own, inside act.
+  let disconnect = (): void => {}
+  act(() => {
+    disconnect = panes.connect()
+  })
+  unmounts.push(disconnect)
   return { container, workspace }
 }
 

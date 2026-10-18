@@ -2,11 +2,18 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { doorbellLine, hookShellSlackMs } from "@novadeck/harness-core/harness"
+import {
+  bracketedPaste,
+  calmMs,
+  freshNonce,
+  gate,
+  type InputEntry,
+  type InputQueue,
+} from "@novadeck/tui-input"
+import { changedRows, checkPaste } from "@novadeck/tui-input/box"
 
 import type { Waits } from "../messaging/delivery.js"
 import { coalesced } from "./coalesce.js"
-import type { InputEntry, InputQueue } from "./input-queue.js"
-import { bracketedPaste, calmMs, changedRows, checkPaste, freshNonce, gate } from "./ring.js"
 
 /**
  * Where the doorbell tells what it decided, line by line, for the e2e trace to show (see
@@ -74,8 +81,8 @@ export type DoorbellHost = {
   /** Writes to the terminal's shell; false once it is gone. */
   readonly write: (terminalId: string, data: string) => boolean
   /**
-   * On Windows, whether the agent's input box shows on the screen, empty and taking a
-   * prompt (see `GateFacts.inputBox`); undefined where a bracketed paste can't press keys.
+   * Whether the agent's input box shows on the screen, empty and taking a prompt (see
+   * `GateFacts.inputBox`), on every platform; undefined where it can't be told.
    */
   readonly inputBox?: (terminalId: string, screen: ScreenText) => boolean | undefined
 }

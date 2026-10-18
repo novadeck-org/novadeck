@@ -25,8 +25,11 @@ import {
 import { pause } from "./pause"
 import type { RunnerListing } from "./seed"
 
-const transport = (): Transport => {
-  if (desktopHost()) return desktop()
+/** The desktop app's runner: the one its host starts, over a port the host hands the page. */
+export const desktopTransport = (): Transport => desktop()
+
+/** A runner reached over a WebSocket, as `pnpm dev:web` starts one: its URL and token. */
+export const webTransport = (): Transport => {
   const url = import.meta.env.VITE_NOVADECK_RUNNER_URL
   const token = import.meta.env.VITE_NOVADECK_RUNNER_TOKEN
   if (!url || !token)
@@ -138,7 +141,7 @@ const unavailable = (error: unknown): Error => {
 export const connectRunnerBackend = async (
   signal: AbortSignal,
   progress: (stage: "loading") => void,
-  through: () => Transport = transport,
+  through: () => Transport,
 ): Promise<BackendConnection> => {
   let runner: Runner
   try {

@@ -816,7 +816,7 @@ forgets it, including one from an earlier runner.
   mode in all three, idle or mid-turn.
 
   Everything that puts keys in one terminal's agent box takes its turn in that terminal's
-  input queue (`terminals/input-queue.ts`), one entry at a time, in the order it came:
+  input queue (`InputQueue` in `@novadeck/tui-input`), one entry at a time, in the order it came:
   prompts, answers (an answer and the words that follow it are one entry), interrupts and
   the messaging doorbell's rings. So a prompt given while an answer to a request goes
   there waits for it and the words that follow it, and a ring never comes between them;

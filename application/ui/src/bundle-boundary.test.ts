@@ -25,8 +25,8 @@ describe("bundle boundary", () => {
   })
 
   context("for the content preview", () => {
-    it("allows the demo and its debug layer", () => {
-      expect(boundaryViolations("content-preview", [demo, debug])).toEqual([])
+    it("allows the demo and its debug layer, but not the runner client", () => {
+      expect(boundaryViolations("content-preview", [demo, debug, runner])).toEqual([runner])
     })
   })
 })

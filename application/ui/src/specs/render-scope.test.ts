@@ -139,7 +139,7 @@ const open = async (createBackend = createSpecBackend) => {
   const handedOver = new Promise<WorkspaceServices>((resolve) => {
     found = resolve
   })
-  // StrictMode, as main.tsx renders it: each render counts twice.
+  // StrictMode, as an entry renders it (entries/start.tsx): each render counts twice.
   phase("before synchronous render")
   const page = render(
     createElement(

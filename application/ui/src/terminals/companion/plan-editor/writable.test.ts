@@ -65,7 +65,7 @@ describe("a plan that stops being writable, and is again", () => {
     const { container, emit } = await shown()
     const editor = container.querySelector<HTMLElement>(".cm-editor")!
     const view = EditorView.findFromDOM(editor)!
-    view.dispatch({ changes: { from: 0, insert: "Mine " }, userEvent: "input.type" })
+    act(() => view.dispatch({ changes: { from: 0, insert: "Mine " }, userEvent: "input.type" }))
     expect(view.state.doc.toString()).toBe("Mine # Plan\n")
 
     await emit(ready("Mine # Plan\n", false, "2"))
@@ -77,8 +77,11 @@ describe("a plan that stops being writable, and is again", () => {
     expect(container.querySelector(".cm-editor")).toBe(editor)
     expect(view.state.readOnly).toBe(false)
     // Ctrl-Z, as the editor's history keymap takes it.
-    view.contentDOM.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "z", code: "KeyZ", ctrlKey: true, bubbles: true }),
+    act(
+      () =>
+        void view.contentDOM.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "z", code: "KeyZ", ctrlKey: true, bubbles: true }),
+        ),
     )
     expect(view.state.doc.toString()).toBe("# Plan\n")
   })

@@ -4,7 +4,7 @@ import { join, posix, relative } from "node:path"
 import { describe, expect, it } from "./test"
 
 // Every source file belongs to a layer: a folder ("core/") or a single file
-// ("main.tsx"). Each layer lists what it may import from src. Every folder in
+// ("deploy.ts"). Each layer lists what it may import from src. Every folder in
 // backend/ is an adapter layer; see `adapterRule`. The core is imported as `#core/*`, the
 // package's own `imports`, so that step 5 changes only configuration; inside the core its
 // files import one another by relative path.
@@ -100,7 +100,9 @@ const rules: Record<string, readonly string[]> = {
     "styles.css",
   ],
   // Entry point and support modules outside the feature layers.
-  "main.tsx": ["app/", "theme/", "styles.css"],
+  // Each app's entry: it renders the app with the backend it chose (see `entryAdapters`).
+  // One entry never reaches another's, only how they all start.
+  "entries/": ["entries/start.tsx", "app/", "backend/", "theme/", "styles.css"],
   "test/": [
     "test/",
     "test.ts",
@@ -125,12 +127,21 @@ const adapterRule = (layer: string): readonly string[] => [
   "ui-toolkit/",
   "theme/",
 ]
-// The only file in the app that may import a backend adapter; it exports nothing else. It
-// reaches the demo for the try and content-preview builds, and the runner for every other.
-const adapterSelection = "app/backend.ts"
+// The entries are the only files that import a backend adapter, each only its own: the
+// runner for the desktop and web apps, the visitor demo for the try build, and the demo with
+// its debug panel for the content preview.
+const entryAdapters: Record<string, readonly string[]> = {
+  "entries/desktop.tsx": ["backend/runner/"],
+  "entries/web.tsx": ["backend/runner/"],
+  "entries/try.tsx": ["backend/demo/visitor/"],
+  "entries/previews.tsx": ["backend/demo/debug/"],
+}
 // The one other importer of the demo: the spec entry, which specs and the tests that render
 // the whole workspace open the demo through, never another adapter module.
 const demo = "backend/demo/"
+// The demo's debug panel and its visitor build, which build on the demo's core.
+const demoDebug = `${demo}debug/`
+const demoVisitor = `${demo}visitor/`
 const specBackend = "specs/support/backend.ts"
 // The counter run drives the real UI over the runner adapter, scripted: the one spec
 // that may reach core/store.ts, for its instrumentation hook. It and the spec below reach
@@ -144,7 +155,6 @@ const canvasOffscreenSpec = "specs/canvas-offscreen.spec.tsx"
 // so this file is the one other place it appears.
 const storeHook = "countListenersWoken"
 const hookOwners = ["core/store.ts", counterRun, "architecture.test.ts"]
-const adapterSelectionExports = ["debugPanelFor", "selectBackend"]
 // Packages are denied unless listed here, owned through `vendors`, or used by an
 // adapter or test code. theme/, interaction/ and app/commands/ use none; backend/ uses React
 // types only. The core takes only the library entries `coreLibraryEntries` lists and the
@@ -187,7 +197,7 @@ const vendors: Record<string, readonly string[]> = {
     "projects/ProjectRow.tsx",
   ],
   "react-router": ["app/", "shell/", "specs/"],
-  "react-dom": ["layouts/transition.ts", "main.tsx", "test/"],
+  "react-dom": ["layouts/transition.ts", "entries/start.tsx", "test/"],
   // One entry per workspace package, with the folders that own it. The runner client and its
   // test runner serve one adapter, the terminal emulator its screens, and the content viewers
   // the companion pane and chat.
@@ -279,9 +289,12 @@ const importViolation = (file: string, layer: string | undefined) => {
     if (file === canvasOffscreenSpec && target === scriptedServer) return []
     const targetLayer = layerOf(target)
     if (targetLayer && adapterOf(targetLayer) && targetLayer !== layer)
-      return file === adapterSelection || (file === specBackend && targetLayer === demo)
+      return entryAdapters[file]?.some((own) => target.startsWith(own)) ||
+        (file === specBackend && targetLayer === demo)
         ? []
-        : [`${file} -> ${target} (only ${adapterSelection} and ${specBackend} reach an adapter)`]
+        : [
+            `${file} -> ${target} (only its entry, or ${specBackend} for the demo, selects an adapter)`,
+          ]
     // Root-level tests exercise the root modules beside them.
     if (!layer)
       return target.includes("/") && !target.startsWith("test/") ? [`${file} -> ${target}`] : []
@@ -401,7 +414,16 @@ describe("UI architecture", () => {
     )
       ? []
       : [`${specBackend} -> ${demo}`]
-    expect([...deadLayers, ...deadVendors, ...deadExceptions, ...deadSpecBackend]).toEqual([])
+    const deadDemoLayers = [demoDebug, demoVisitor].filter(
+      (layer) => !files.some((file) => file.startsWith(layer)),
+    )
+    expect([
+      ...deadLayers,
+      ...deadVendors,
+      ...deadExceptions,
+      ...deadSpecBackend,
+      ...deadDemoLayers,
+    ]).toEqual([])
   })
 
   it("keeps the stores' instrumentation hook to the counter run", () => {
@@ -427,15 +449,60 @@ describe("UI architecture", () => {
     expect(found).toEqual([])
   })
 
+  it("keeps the demo's debug panel and visitor build above its core", () => {
+    // debug/ and visitor/ build on the demo's core; the core reaches neither, and the visitor
+    // build never carries the debug panel. Tests too, as each folder becomes its own package.
+    const found = files
+      .filter((file) => file.startsWith(demo) && !file.startsWith(demoDebug))
+      .flatMap((file) =>
+        imports(file).flatMap(({ specifier }) => {
+          const target = specifier.startsWith(".") ? resolveFile(file, specifier) : undefined
+          const above = file.startsWith(demoVisitor) ? [demoDebug] : [demoDebug, demoVisitor]
+          return target && above.some((layer) => target.startsWith(layer))
+            ? [`${file} -> ${target}`]
+            : []
+        }),
+      )
+    expect(found).toEqual([])
+  })
+
   it("keeps imports statically resolvable", () => {
     expect(files.filter((file) => /\bimport\(\s*[^"'\s]/.test(source(file)))).toEqual([])
   })
 
-  it("lets the adapter selection export only its choice", () => {
-    const text = source(adapterSelection)
-    const exported = [...text.matchAll(/^export\s+(?:const|let|function|class|type)\s+(\w+)/gm)]
-    expect(/^export\s*(?:\*|\{|default)/m.test(text)).toBe(false)
-    expect(exported.map((match) => match[1])).toEqual(adapterSelectionExports)
+  it("lets the entries export nothing but how they start", () => {
+    const exported = files.flatMap((file) =>
+      !file.startsWith("entries/")
+        ? []
+        : [
+            ...[
+              ...source(file).matchAll(/^export\s+(?:const|let|function|class|type)\s+(\w+)/gm),
+            ].map((match) => `${file} ${match[1]}`),
+            ...(/^export\s*(?:\*|\{|default)/m.test(source(file)) ? [`${file} *`] : []),
+          ],
+    )
+    expect(exported).toEqual(["entries/start.tsx start"])
+    expect(Object.keys(entryAdapters).every((file) => files.includes(file))).toBe(true)
+  })
+
+  it("lets each page's script do nothing but start its entry", () => {
+    // Outside src/, beside each page for its dev server: no rule above reaches them.
+    const pages = join(process.cwd(), "entries")
+    const scripts = readdirSync(pages).map((name) => [
+      name,
+      // Lines, whatever a checkout's line endings are (CRLF on Windows).
+      readFileSync(join(pages, name, "main.tsx"), "utf8")
+        .split(/\r?\n/)
+        .filter((line) => line !== "" && !line.startsWith("//")),
+    ])
+    expect(scripts).toEqual(
+      readdirSync(pages).map((name) => [name, [`import "../../src/entries/${name}"`]]),
+    )
+    expect(scripts.map(([name]) => `entries/${String(name)}.tsx`)).toEqual(
+      expect.arrayContaining(
+        Object.keys(entryAdapters).filter((file) => !file.endsWith("desktop.tsx")),
+      ),
+    )
   })
 
   it("names hook contracts instead of inferring them from the hook", () => {

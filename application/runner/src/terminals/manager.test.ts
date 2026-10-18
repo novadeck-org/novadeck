@@ -10,6 +10,7 @@ import { screen as screenWith } from "@novadeck/harness-core/testing/screens"
 import type { TerminalChange, TerminalEvent } from "@novadeck/protocol"
 import type { ProcessTrees } from "@novadeck/terminal/pty"
 import { command, nativeStandIn, ptyTrace } from "@novadeck/terminal/testing"
+import { type HoldBudget, InputQueue } from "@novadeck/tui-input"
 import { vi } from "vitest"
 
 import {
@@ -23,7 +24,6 @@ import { describe, expect, it as base } from "../test.js"
 import { ptyOptions } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
 import { WorkspaceStore } from "../workspaces/store.js"
-import { type HoldBudget, InputQueue } from "./input-queue.js"
 import { Terminals } from "./manager.js"
 
 const cwd = process.cwd()
