@@ -99,10 +99,9 @@ const rules: Record<string, readonly string[]> = {
   ],
   "test.ts": [],
   "class-name.ts": [],
-  "content-security-policy.ts": [],
   "bundle-boundary.ts": [],
-  "search-visibility.ts": [],
-  "hosting-headers.ts": [],
+  // How each build is deployed, which vite.config.ts hands the build kit.
+  "deploy.ts": [],
 }
 const adapterRule = (layer: string): readonly string[] => [
   layer,
@@ -146,6 +145,7 @@ const protocolData: Record<string, string> = {
 }
 const testLayers = new Set(["specs/", "test/", "test.ts"])
 const vendors: Record<string, readonly string[]> = {
+  "@novadeck/build-kit": ["deploy.ts", "deploy.test.ts"],
   clsx: ["class-name.ts"],
   "tailwind-merge": ["class-name.ts"],
   "@ark-ui": ["ui-toolkit/"],
