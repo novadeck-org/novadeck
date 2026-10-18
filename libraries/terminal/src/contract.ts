@@ -85,5 +85,9 @@ export type AttachStream = AsyncIterable<TerminalEvent> & {
   write(data: string): Promise<void>
   /** Control only; a success after a reconnect shows the stream is live. */
   resize(cols: number, rows: number): Promise<void>
+  /**
+   * Stops the stream at once: no event is read after it returns. A view lets go of one this
+   * way before it attaches again, without waiting.
+   */
   close(): void
 }

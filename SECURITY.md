@@ -110,7 +110,7 @@ they have no bridge to ask through.
 
 A file copied in a file manager pastes its own path, so names chosen outside Novadeck,
 such as a downloaded file's, now reach the terminal's shell. They go in inert or not at
-all (`ownPath` in `application/ui/src/backend/runner/paste.ts`): a path with a control
+all (`ownPath` in `libraries/terminal/src/view/paste.ts`): a path with a control
 character never does; a POSIX path has a backslash before every character a shell
 splits, expands or globs on; a Windows path goes in only when every character is a
 letter, mark, digit, space, `.`, `_`, `-`, `\` or `:`, with no space before a `-`, and

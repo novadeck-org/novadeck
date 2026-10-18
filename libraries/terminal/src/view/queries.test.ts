@@ -1,8 +1,7 @@
 import { createView } from "@novadeck/emulator/browser"
-import { vi } from "vitest"
+import { describe as context, describe, expect, it, vi } from "vitest"
 
-import { context, describe, expect, it } from "../../test"
-import { silenceQueries } from "./queries"
+import { silenceQueries } from "./queries.js"
 
 // jsdom has no canvas or media queries; xterm parses without them.
 vi.hoisted(() => {
