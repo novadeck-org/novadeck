@@ -12,13 +12,14 @@ import {
   type TerminalEvent,
   type WireClient,
 } from "@novadeck/protocol"
+import { command, ptyTrace } from "@novadeck/terminal/testing"
 import { socketChannel } from "@novadeck/wire"
 import { createWireClient } from "@novadeck/wire/client"
 import { WebSocket as NodeWebSocket } from "ws"
 
 import { startServer, type ServerOptions } from "./server.js"
 import { describe, expect, it } from "./test.js"
-import { command, ptyOptions, ptyTrace } from "./testing/pty.js"
+import { ptyOptions } from "./testing/pty.js"
 import type { Resources } from "./testing/resources.js"
 
 const token = "novadeck-api-tests-only-not-a-production-credential"

@@ -4,11 +4,12 @@ import type { ScreenText } from "@novadeck/emulator/headless"
 import { hookShellSlackMs } from "@novadeck/harness-core/harness"
 import { screen as screenWith } from "@novadeck/harness-core/testing/screens"
 import type { TerminalEvent } from "@novadeck/protocol"
+import { command } from "@novadeck/terminal/testing"
 import { vi } from "vitest"
 
 import { submitWindowMs } from "../messaging/delivery.js"
 import { describe, expect, it } from "../test.js"
-import { command, ptyOptions } from "../testing/pty.js"
+import { ptyOptions } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
 import { Terminals } from "./manager.js"
 

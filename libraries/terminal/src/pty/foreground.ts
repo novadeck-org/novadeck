@@ -55,9 +55,12 @@ const leaderArgv = (group: Group): string[] | null => {
 /**
  * The process group holding the shell's terminal's foreground: the shell's own at its
  * prompt, a program's while it runs. Undefined where the platform does not tell, as on
- * Windows, or once the shell is gone.
+ * Windows, while the shell's id isn't known, or once the shell is gone.
  */
-export const terminalForeground = async (shellPid: number): Promise<number | undefined> => {
+export const terminalForeground = async (
+  shellPid: number | undefined,
+): Promise<number | undefined> => {
+  if (shellPid === undefined) return undefined
   try {
     if (process.platform === "linux") {
       const shell = parseProcessStat(readFileSync(`/proc/${shellPid}/stat`, "utf8"))
@@ -120,7 +123,7 @@ export const statName = (stat: string): string | null => {
  * that would set it.
  */
 export const foregroundProcess = async (
-  shellPid: number,
+  shellPid: number | undefined,
   name: string,
 ): Promise<{ readonly pid: number; readonly group: readonly number[] } | null | undefined> => {
   const group = await terminalForeground(shellPid)
@@ -197,7 +200,7 @@ export const openFiles = async (pid: number): Promise<readonly string[] | undefi
 
 /** Whether a process named `name` runs in the terminal's foreground; see `foregroundProcess`. */
 export const foregroundRuns = async (
-  shellPid: number,
+  shellPid: number | undefined,
   name: string,
 ): Promise<boolean | undefined> => {
   const found = await foregroundProcess(shellPid, name)
@@ -231,7 +234,9 @@ export const processSetting = (
 }
 
 /** Whether the shell itself holds its terminal's foreground, as at its prompt. */
-export const shellInForeground = async (shellPid: number): Promise<boolean | undefined> => {
+export const shellInForeground = async (
+  shellPid: number | undefined,
+): Promise<boolean | undefined> => {
   const group = await terminalForeground(shellPid)
   return group === undefined ? undefined : group === shellPid
 }
@@ -287,10 +292,10 @@ const invokedName = (shellPid: number): { name: string; group: number } | null =
  * it counts as unknown.
  */
 export const sampleForeground = (
-  child: { readonly pid: number; readonly process: string },
+  child: { readonly pid: number | undefined; readonly process: string },
   last: Foreground | undefined,
 ): Foreground => {
-  if (process.platform === "win32") return { process: null, group: null }
+  if (process.platform === "win32" || child.pid === undefined) return { process: null, group: null }
   let name: string
   try {
     name = basename(child.process).slice(0, nameChars)

@@ -7,9 +7,9 @@ import { appendFileSync } from "node:fs"
 // Records what reached the child and what it finished writing, so a test that times
 // out can tell lost input from lost output.
 const trace = (entry) => {
-  if (!process.env.NOVADECK_PTY_TRACE) return
+  if (!process.env.PTY_CHILD_TRACE) return
   try {
-    appendFileSync(process.env.NOVADECK_PTY_TRACE, `${process.pid} ${entry}\n`)
+    appendFileSync(process.env.PTY_CHILD_TRACE, `${process.pid} ${entry}\n`)
   } catch {
     // Tracing must never change the child's behaviour.
   }
