@@ -895,8 +895,8 @@ App:
 
 ### Visitor build
 
-A clickable, public version of the demo, for a website. `pnpm dev:try` serves it in vite
-mode `try` (http://127.0.0.1:5190); `pnpm build:try` writes static files to
+A clickable, public version of the demo, for a website. `pnpm dev:try` serves its entry
+(`application/ui/entries/try/`) in vite mode `try` (http://127.0.0.1:5190); `pnpm build:try` writes static files to
 `application/ui/dist-try` (beside `dist/`, which the desktop app packages), with relative
 paths and a hash router, so any static host serves them from any path, and
 `pnpm preview:try` serves them on http://127.0.0.1:5191. The [Try
@@ -1189,7 +1189,17 @@ colocated `contract.test.ts`, with a probe of what it holds and the I/O it
 started, and a driver when it has `start`. `App` reads its backend once at mount: each
 app's entry (`src/entries/`) chooses its own, a runner connection for the desktop and web
 apps, or the demo in the content preview and visitor builds. Tests and specs pass the demo's
-spec backend (`backend/demo/spec-variants.ts`) themselves. A backend that must connect first supplies a
+spec backend (`backend/demo/spec-variants.ts`) themselves.
+
+Each app is an entry of its own, named by its Vite mode, so a deploy carries only its own
+chunks. The desktop app's page is the package's `index.html` (built to `dist/`, which the host
+packages and loads, and the dev server's root page in development), and the others' are
+`entries/web/`, `entries/try/` and `entries/previews/` (mode `web` for `pnpm dev:web`, `try`,
+and `content-preview`), each served at its own server's root and built to `dist-web/`,
+`dist-try/` or `dist-previews/`. Every page is the same document but for the script it starts,
+which `src/deploy.test.ts` checks; a page beside `entries/<name>/` starts
+`src/entries/<name>.tsx` through a one-line `main.tsx`, as a dev server serves only what's under
+its root. A backend that must connect first supplies a
 `ConnectBackend`; `app/BackendGate.tsx` shows a splash until it resolves with the
 seed loaded, or a card saying what failed with a Retry button, and closes it on unmount.
 
