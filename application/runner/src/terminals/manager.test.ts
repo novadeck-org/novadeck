@@ -295,7 +295,6 @@ describe("terminal interrupts", () => {
       {
         binding: unknown
         activity: unknown
-        held: { input: string[] | null; size: null } | null
         terminal: { pty: { write: (data: string) => void } }
       }
     >
@@ -322,14 +321,17 @@ describe("terminal interrupts", () => {
     const writes: string[] = []
     // The manager's writes, not the terminal's own replies to the screen's queries.
     const pty = { ...record.terminal.pty, write: (data: string) => void writes.push(data) }
-    record.terminal = Object.create(record.terminal, { pty: { value: pty } })
+    record.terminal = Object.create(record.terminal, {
+      pty: { value: pty },
+      type: { value: (data: string) => pty.write(data) },
+    })
     return { manager, id: terminal.id, writes, record }
   }
 
   it("hands the resizes a lapsed hold left held to the next hold, and applies them once it settles", async ({
     terminals,
   }) => {
-    const { manager, id, record } = await agent(terminals, "idle")
+    const { manager, id } = await agent(terminals, "idle")
     const inside = manager as unknown as {
       holdInput: (
         id: string,
@@ -344,27 +346,23 @@ describe("terminal interrupts", () => {
     const first = inside.holdInput(id, budget)
     // Another hold is refused while this one holds the input.
     expect(inside.holdInput(id, budget).holding()).toBe(false)
-    ;(record.held as unknown as { size: unknown }).size = {
-      cols: 100,
-      rows: 30,
-      owner: "nobody",
-      attachment: undefined,
-    }
+    // The window's resize waits for the hold.
+    manager.resize({ terminalId: id, cols: 100, rows: 30 }, "creator")
     first.release()
     const second = inside.holdInput(id, budget)
     expect(second.holding()).toBe(true)
-    expect(record.held?.size).toMatchObject({ cols: 100, rows: 30 })
     // The first's late settle changes nothing: the second holds them now.
     first.settle()
-    expect(record.held?.size).toMatchObject({ cols: 100, rows: 30 })
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(manager.get(id)).toMatchObject({ cols: 80, rows: 24 })
     second.settle()
-    expect(record.held).toBeNull()
+    await vi.waitFor(() => expect(manager.get(id)).toMatchObject({ cols: 100, rows: 30 }))
   })
 
   it("keeps the resizes of a hold taken over waiting for the deadline of the hold before, past an early settle", async ({
     terminals,
   }) => {
-    const { manager, id, record } = await agent(terminals, "idle")
+    const { manager, id } = await agent(terminals, "idle")
     const inside = manager as unknown as {
       holdInput: (
         id: string,
@@ -377,21 +375,15 @@ describe("terminal interrupts", () => {
     }
     const budget = { inputMs: 5_000, sizeMs: 10_000 }
     const first = inside.holdInput(id, budget)
-    ;(record.held as unknown as { size: unknown }).size = {
-      cols: 100,
-      rows: 30,
-      owner: "nobody",
-      attachment: undefined,
-    }
+    manager.resize({ terminalId: id, cols: 100, rows: 30 }, "creator")
     // The prompt's Enter is out: its resizes are to wait 200 ms more.
     first.settleAfter(200)
     // The next entry fails at once and settles: the resizes are not let go by it.
     const second = inside.holdInput(id, budget)
     second.settle()
-    expect(record.held?.size).toMatchObject({ cols: 100, rows: 30 })
     await new Promise((resolve) => setTimeout(resolve, 100))
-    expect(record.held).not.toBeNull()
-    await vi.waitFor(() => expect(record.held).toBeNull())
+    expect(manager.get(id)).toMatchObject({ cols: 80, rows: 24 })
+    await vi.waitFor(() => expect(manager.get(id)).toMatchObject({ cols: 100, rows: 30 }))
   })
 
   it("sends nothing while the agent is idle, even asked twice at once", async ({ terminals }) => {

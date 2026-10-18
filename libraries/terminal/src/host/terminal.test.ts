@@ -1,5 +1,5 @@
 import type { Screen } from "@novadeck/emulator/headless"
-import { describe, expect, it, onTestFinished } from "vitest"
+import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import type { TerminalEvent } from "../contract.js"
 import type { NativeSpawn } from "../pty/pty.js"
@@ -212,6 +212,153 @@ describe("a terminal's output", () => {
     program.draw("\u001b[6n")
     await settled()
     expect(writes()).toHaveLength(1)
+  })
+})
+
+describe("a terminal's hold", () => {
+  const budget = { inputMs: 5_000, sizeMs: 10_000 }
+  const live = () => true
+  const writes = (program: Program) =>
+    program.calls.filter((call) => call.startsWith("write")).map((call) => call.slice(6))
+
+  it("holds the person's keys until released, writing the terminal's reports at once", async () => {
+    const { terminal, program } = terminalOf()
+    const keys: string[] = []
+    terminal.on("keys", (typed) => keys.push(typed))
+    const hold = terminal.hold(budget, live)
+    expect(hold.holding()).toBe(true)
+    terminal.input("a\x1b[12;40Rb")
+    terminal.input("c")
+    // The cursor report goes; the keys wait, and count as typed.
+    expect(writes(program)).toEqual(["\x1b[12;40R"])
+    expect(keys).toEqual(["ab", "c"])
+    // The holder's own writes are never held.
+    terminal.type("ring")
+    hold.release()
+    expect(writes(program)).toEqual(["\x1b[12;40R", "ring", "abc"])
+    expect(hold.holding()).toBe(false)
+    terminal.input("d")
+    expect(writes(program).at(-1)).toBe("d")
+    expect(keys).toEqual(["ab", "c", "d"])
+  })
+
+  it("counts a deferred hold's keys only once delivered, dropping the mouse's and what's discarded", async () => {
+    const { terminal, program, settled } = terminalOf()
+    // A TUI that tracks the mouse in SGR.
+    program.draw("\x1b[?1003h\x1b[?1006h")
+    await settled()
+    const keys: string[] = []
+    terminal.on("keys", (typed) => keys.push(typed))
+    const first = terminal.hold({ ...budget, deferred: true }, live)
+    terminal.input("\x1b[<64;5;5Mx")
+    expect(keys).toEqual([])
+    first.discard()
+    first.release()
+    expect(writes(program)).toEqual([])
+    first.settle()
+    const second = terminal.hold({ ...budget, deferred: true }, live)
+    terminal.input("y")
+    second.release()
+    expect(keys).toEqual(["y"])
+    expect(writes(program)).toEqual(["y"])
+  })
+
+  it("tells the keys before writing them", () => {
+    const { terminal, program } = terminalOf()
+    const seen: string[] = []
+    terminal.on("keys", (typed) => seen.push(`keys ${typed}, written ${writes(program).length}`))
+    terminal.input("a")
+    const hold = terminal.hold({ ...budget, deferred: true }, live)
+    terminal.input("b")
+    hold.release()
+    expect(seen).toEqual(["keys a, written 0", "keys b, written 1"])
+  })
+
+  it("writes nothing, and applies no size, once its terminal stops running", () => {
+    const { terminal, program } = terminalOf({ controller: "window" })
+    let running = true
+    const hold = terminal.hold(budget, () => running)
+    terminal.input("k")
+    terminal.resize(30, 5, "window")
+    running = false
+    expect(hold.holding()).toBe(false)
+    hold.settle()
+    expect(writes(program)).toEqual([])
+    expect(program.calls).not.toContain("resize 30x5")
+  })
+
+  it("applies no held size for the same window attached anew, which asks its own", () => {
+    const { terminal, program } = terminalOf({ controller: "window" })
+    terminal.attach("window", { mode: "control" })
+    const hold = terminal.hold(budget, live)
+    terminal.resize(30, 5, "window")
+    terminal.release("window")
+    terminal.attach("window", { mode: "control" })
+    hold.settle()
+    expect(program.calls).not.toContain("resize 30x5")
+  })
+
+  it("refuses a second hold while one holds the input, and holds nothing where the terminal doesn't run", () => {
+    const { terminal } = terminalOf()
+    const first = terminal.hold(budget, live)
+    expect(terminal.hold(budget, live).holding()).toBe(false)
+    first.settle()
+    expect(terminal.hold(budget, () => false).holding()).toBe(false)
+  })
+
+  it("lets the keys go at its input cap, and the sizes at its size cap", async () => {
+    const { terminal, program, settled } = terminalOf({ controller: "window" })
+    const hold = terminal.hold({ inputMs: 20, sizeMs: 1_000 }, live)
+    terminal.input("k")
+    terminal.resize(30, 5, "window")
+    await vi.waitFor(() => expect(writes(program)).toEqual(["k"]))
+    expect(program.calls).not.toContain("resize 30x5")
+    await vi.waitFor(() => expect(program.calls).toContain("resize 30x5"), { timeout: 3_000 })
+    await settled()
+    expect(terminal.screen.cols).toBe(30)
+    expect(hold.holding()).toBe(false)
+  })
+
+  it("hands the sizes a lapsed hold left to the next, which applies them as it settles", async () => {
+    const { terminal, program, settled } = terminalOf({ controller: "window" })
+    const first = terminal.hold(budget, live)
+    terminal.resize(30, 5, "window")
+    first.release()
+    const second = terminal.hold(budget, live)
+    // The first's late settle changes nothing: the second holds them now.
+    first.settle()
+    expect(program.calls).not.toContain("resize 30x5")
+    expect(terminal.resizedAt).toBe(0)
+    second.settle()
+    expect(program.calls).toContain("resize 30x5")
+    expect(terminal.resizedAt).toBeGreaterThan(0)
+    await settled()
+    expect(terminal.screen.cols).toBe(30)
+  })
+
+  it("keeps the sizes waiting for the deadline the hold before set, past an early settle", async () => {
+    const { terminal, program } = terminalOf({ controller: "window" })
+    const first = terminal.hold(budget, live)
+    terminal.resize(30, 5, "window")
+    first.settleAfter(80)
+    const second = terminal.hold(budget, live)
+    second.settle()
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    expect(program.calls).not.toContain("resize 30x5")
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    expect(program.calls).toContain("resize 30x5")
+  })
+
+  it("applies a held size only for the attachment still in control", async () => {
+    const { terminal, program } = terminalOf({ controller: "window" })
+    terminal.attach("window", { mode: "control" })
+    const hold = terminal.hold(budget, live)
+    terminal.resize(30, 5, "window")
+    // Another window takes control meanwhile, and is told the size in force.
+    terminal.release("window")
+    terminal.attach("other", { mode: "control" })
+    hold.settle()
+    expect(program.calls).not.toContain("resize 30x5")
   })
 })
 

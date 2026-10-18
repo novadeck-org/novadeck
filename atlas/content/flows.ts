@@ -144,11 +144,8 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         from: "runner",
         to: "agent",
         label: "write to PTY",
-        text: "Unless a doorbell or answer holds the input, the manager writes the data to the PTY.",
-        anchor: {
-          file: `${runnerSrc}/terminals/manager.ts`,
-          text: "record.terminal.pty.write(input.data)",
-        },
+        text: "Unless a doorbell or answer holds the input, the terminal writes the data to the PTY.",
+        anchor: { file: `${hostSrc}/terminal.ts`, text: "input: (data) => {" },
       },
       {
         from: "agent",

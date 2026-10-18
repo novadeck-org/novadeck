@@ -30,6 +30,12 @@ resolve it.
     then sent in events of at most 4,096 characters. Its title, the directory its prompt
     reports (OSC 7 or 9;9) and a full reset are told too, and its exit, in order: `exit`
     listeners, the `exited` event, every attachment finished, then `exited` listeners.
+  - Its input: `input` writes the controller's keys, `type` the holder's own. `hold(budget, live)`
+    holds the person's keys for one piece of work, as a doorbell's paste or an answer's keys,
+    and the window's resizes until it settles. Throughout, the terminal's own reports
+    (cursor and device answers, the focus and mouse reports its program asked for) go through at once. Keys that count as the person's are told to `keys` listeners
+    just before they are written. A deferred hold counts them only once delivered, and drops
+    the mouse's wheel and motion.
   - It sequences each event and keeps a replay ring bounded in bytes. A viewer attaches from a
     cursor the ring still holds, or else from a snapshot of the screen, with as much
     scrollback as fits its own cap. One attachment controls the terminal and the rest observe.
