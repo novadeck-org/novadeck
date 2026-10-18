@@ -259,6 +259,23 @@ them** (it finds the merge by `MERGE_HEAD`), each from the commit that added it 
   changed the same lines, the markers are left in the file and named.
 - `pnpm-lock.yaml`: main's; the install after the commit makes it whole.
 
+It resolves only what it can prove safe, and names everything else, never settling a file it
+can't account for:
+
+- **Only files both moves wrote are its to merge.** These are the files main's move commit and
+  the branch's added new. Any other add/add, or a conflict with a base, is git's, and is left to
+  you.
+- **A file the branch changed after its move** is left for you, with the diff to put back onto
+  main's: a package's manifest, or a generated file both sides changed.
+- **A generated file one side deleted after its move**, which git would bring back from the
+  other side, is named. Commit the merge as it is to keep it.
+- **A file that isn't text** is left for you to choose a side.
+- **A file you have resolved by hand,** with no markers and neither side's text, is left for you
+  to `git add`. A second run doesn't write over it.
+- **More than one merge base** (criss-cross history) leaves the old manifest's change to you.
+- **A `MERGE_HEAD` already in HEAD's history**, left after the merge was committed, doesn't count
+  as an open merge.
+
 It then lists what is left, and any conflict marker in the tree; fix those, `git add` them, and run
 it again. **It will not run on a tree with a conflict marker in a tracked text file**, merge or not,
 so unresolved lines can't be committed.
