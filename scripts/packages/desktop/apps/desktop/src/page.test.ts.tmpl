@@ -1,0 +1,42 @@
+import { readdirSync, readFileSync } from "node:fs"
+import { createRequire } from "node:module"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
+
+import { describe, expect, it } from "./test"
+
+const app = fileURLToPath(new URL("..", import.meta.url))
+// The UI's themes, read where its package is: their CSS names the filters the page draws.
+const themes = join(
+  dirname(createRequire(join(app, "package.json")).resolve("@novadeck/ui/package.json")),
+  "src",
+  "theme",
+)
+const uncomment = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, "")
+
+describe("the desktop app's pages", () => {
+  // A theme's `url(#id)` that no page carries draws nothing, silently.
+  it("carry every SVG filter the UI's themes apply", () => {
+    for (const page of ["renderer/index.html", "renderer/web/index.html"]) {
+      const carried = new Set(
+        [...readFileSync(join(app, page), "utf8").matchAll(/<filter[^>]*\bid="([^"]+)"/g)].map(
+          (match) => match[1],
+        ),
+      )
+      const used = readdirSync(themes)
+        .filter((file) => file.endsWith(".css"))
+        .flatMap((file) =>
+          [
+            ...uncomment(readFileSync(join(themes, file), "utf8")).matchAll(
+              /url\(\s*["']?#([^"')]+)/g,
+            ),
+          ].map((match) => match[1]!),
+        )
+      expect(used.length, "the themes apply no filter: the scan reads nothing").toBeGreaterThan(0)
+      expect(
+        used.filter((id) => !carried.has(id)),
+        page,
+      ).toEqual([])
+    }
+  })
+})

@@ -1,0 +1,72 @@
+import { resolve } from "node:path"
+
+import { bundleChecks } from "@novadeck/build-kit/bundle-checks"
+import { connectSources } from "@novadeck/build-kit/connect-sources"
+import { contentSecurityPolicy } from "@novadeck/build-kit/content-security-policy"
+import { fontsAsFiles } from "@novadeck/build-kit/fonts"
+import tailwindcss from "@tailwindcss/vite"
+import react from "@vitejs/plugin-react"
+import { defineConfig } from "vite"
+
+// The desktop app's page, which the host packages and loads (renderer/, built to dist/), and
+// in development serves on the port the host waits for. Mode `web` is the browser app's page
+// (renderer/web/, built to dist-web/), which `pnpm dev:web` serves beside a runner. Both
+// connect to a runner. electron.vite.config.ts builds the main process, apart.
+const ui = resolve(import.meta.dirname, "../../frontend/ui")
+const page = (mode: string) =>
+  mode === "web"
+    ? { root: "renderer/web", outDir: "../../dist-web" }
+    : { root: "renderer", outDir: "../dist" }
+
+// What index.html's connect-src holds until a build fills it.
+const connectSourcesPlaceholder = "__NOVADECK_CONNECT_SOURCES__"
+
+export default defineConfig(({ mode }) => ({
+  base: "./",
+  root: resolve(import.meta.dirname, page(mode).root),
+  // What every page shares stays the UI's: its public files and its env files.
+  publicDir: resolve(ui, "public"),
+  envDir: ui,
+  // The demo always previews the welcome dialog; Vitest keeps explicit first-run fixtures.
+  define: {
+    "import.meta.env.VITE_WELCOME_PREVIEW": JSON.stringify(
+      process.env.VITEST === "true" ? "false" : "true",
+    ),
+  },
+  build: {
+    outDir: page(mode).outDir,
+    emptyOutDir: true,
+    manifest: true,
+    // Fonts always ship as files, which the Content Security Policy allows.
+    assetsInlineLimit: fontsAsFiles,
+  },
+  plugins: [
+    tailwindcss(),
+    react(),
+    // Every build reaches what it is configured for.
+    contentSecurityPolicy({
+      placeholder: connectSourcesPlaceholder,
+      connect: (build) =>
+        connectSources({
+          api: { url: build.env.VITE_API_URL, name: "VITE_API_URL" },
+          runner: { url: build.env.VITE_NOVADECK_RUNNER_URL, name: "VITE_NOVADECK_RUNNER_URL" },
+          development: build.command === "serve",
+        }),
+    }),
+    bundleChecks({
+      // One utility from each folder the UI's @source lines scan; each is written in one file
+      // of its folder only.
+      utilities: [{ folder: "frontend/demo-debug/", utility: "h-[min(760px,calc(100vh-80px))]" }],
+    }),
+  ],
+  resolve: {
+    alias: [
+      { find: /^react$/, replacement: resolve(import.meta.dirname, "node_modules/react/index.js") },
+    ],
+    dedupe: ["react", "react-dom"],
+  },
+  server: {
+    port: 5173,
+    strictPort: true,
+  },
+}))
