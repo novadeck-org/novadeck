@@ -146,6 +146,8 @@ export type Terminal = {
   mouse(): MouseEncoding
   /** Whether the current run's exit is queued or handled. */
   readonly exiting: boolean
+  /** The current run's exit, once handled; null while it runs. */
+  readonly exit: Exit | null
   /** The current run's exit, once handled. */
   readonly exited: Promise<void>
   /**
@@ -568,6 +570,9 @@ export const createTerminal = (options: TerminalOptions): Terminal => {
     mouse: () => run.mouse(),
     get exiting() {
       return exiting
+    },
+    get exit() {
+      return exit
     },
     get exited() {
       return run.exited

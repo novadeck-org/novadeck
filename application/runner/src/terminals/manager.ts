@@ -49,12 +49,12 @@ import { murmurGist, murmurHeadline } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 import { TerminalError } from "@novadeck/terminal"
 import {
-  createTerminal,
+  createTerminalHost,
   type Attachment,
   noHold,
   type RunSpec,
   type Terminal,
-  type TerminalOptions as HostOptions,
+  type TerminalHost,
 } from "@novadeck/terminal/host"
 import {
   foregroundProcess,
@@ -67,7 +67,6 @@ import {
   shellInForeground,
   terminalForeground,
   Trees,
-  type EndBudget,
   type Foreground,
   type NativeSpawn,
   type ProcessTrees,
@@ -350,13 +349,9 @@ type Record = {
   summary: TerminalSummary
   /** Its run, its screen, its events and who reads them. */
   terminal: Terminal
-  pendingAttachments: number
   /** Closed by the person or an agent, and forgotten: nothing saves it again. */
   closed: boolean
-  closing: Promise<void> | undefined
   restarting: boolean
-  /** When the shell last exited, in exit order across terminals; eviction goes oldest first. */
-  exitOrder: number
   /** The current shell's last foreground sample; undefined until the first. */
   foreground: Foreground | undefined
   /** Where the terminal was created, for a restart once its last directory is gone. */
@@ -622,30 +617,12 @@ const startFailed = (started: Started, error: unknown): unknown => {
   return new DomainError("SPAWN_FAILED", "Could not start the configured shell.")
 }
 
-/**
- * A terminal running `spec`, its budgets counting each event as the wire sends it, in its
- * envelope.
- */
-const hosted = (o: {
-  limits: HostOptions["limits"]
-  terminalId: string
-  spec: RunSpec
-  started: Started
-  controller: string | undefined
-  pty: NonNullable<HostOptions["pty"]>
-}): Terminal => {
+/** `start()`'s terminal for `started`; a shell that didn't start is `SPAWN_FAILED`, its command never run. */
+const startedIn = (started: Started, start: () => Terminal): Terminal => {
   try {
-    return createTerminal({
-      eventBytes: (event) =>
-        Buffer.byteLength(JSON.stringify({ ...event, terminalId: o.terminalId })),
-      limits: o.limits,
-      spec: o.spec,
-      scrollback: 1000,
-      controller: o.controller,
-      pty: o.pty,
-    })
+    return start()
   } catch (error) {
-    throw startFailed(o.started, error)
+    throw startFailed(started, error)
   }
 }
 
@@ -660,8 +637,6 @@ export class Terminals {
   private readonly records = new Map<string, Record>()
   /** The terminals whose box `settleBox` is looking at. */
   private readonly settling = new Set<string>()
-  /** Closed records already gone from `records` whose viewers still read their last events. */
-  private readonly draining = new Map<string, Record>()
   private readonly pendingOwners = new Map<string, Set<{ released: boolean }>>()
   /** Each `watch` stream and the owner whose release ends it. */
   private readonly watchers = new Map<TerminalWatcher, string>()
@@ -733,6 +708,8 @@ export class Terminals {
   private readonly integration: Promise<Integration | undefined>
   /** Windows' process trees, which a closed terminal's programs are ended by. */
   private readonly trees: ProcessTrees
+  /** The terminals' hosting: their limits, close, eviction and shutdown. */
+  private readonly host: TerminalHost
   /** How terminals' ptys start, and the platform their ending follows. */
   private readonly pty: { readonly native?: NativeSpawn; readonly platform: NodeJS.Platform }
   private transcripts: boolean
@@ -764,13 +741,9 @@ export class Terminals {
   private readonly closingSessions = new Set<string>()
   /** How many times each harness was disconnected, so a report that waited meanwhile is dropped. */
   private readonly disconnections = new Map<AgentName, number>()
-  private creating = 0
-  private exits = 0
   private stopping = false
   /** The runner has stopped: its records may be closed, and nothing reads or forgets them. */
   private stopped = false
-  /** When the runner's shutdown must have ended terminals' trees by, once it has begun. */
-  private shutdownBy: number | undefined
   private shutdownPromise: Promise<void> | undefined
 
   constructor(options: TerminalOptions = {}) {
@@ -819,6 +792,22 @@ export class Terminals {
       ...(options.pty?.native && { native: options.pty.native }),
       platform: options.pty?.platform ?? process.platform,
     }
+    this.host = createTerminalHost({
+      // Each event as the wire sends it, in its envelope.
+      eventBytes: (event, terminalId) =>
+        Buffer.byteLength(JSON.stringify({ ...event, terminalId })),
+      limits: this.options,
+      scrollback: 1000,
+      kill: {
+        graceMs: 1000,
+        treeGraceMs,
+        shutdownTreesMs,
+        shutdownTreeGraceMs,
+      },
+      trees: this.trees,
+      pty: this.pty,
+    })
+    this.host.on("evicted", (id, terminal) => this.evicted(id, terminal))
     // Read once now, so the first terminal doesn't wait for it; see `shellEnvironment`.
     // After the deletes, as the relay, or PowerShell, that reads it gets this environment.
     if (this.options.freshPath) void this.shellEnvironment()
@@ -941,10 +930,7 @@ export class Terminals {
     if (this.closedIds.has(input.id)) throw new DomainError("TERMINAL_NOT_FOUND")
     // Checked before eviction, so a retained exited record keeps its id taken.
     this.available(input.id)
-    this.evict(true)
-    if (this.records.size + this.creating >= this.options.maxTerminals)
-      throw new DomainError("TERMINAL_LIMIT", "Terminal limit reached.")
-    this.creating += 1
+    const place = this.host.reserve(input.id)
     const pending = this.pending(ownerId)
     // An agent's request this answers: read now, as it may stop waiting meanwhile.
     const opener =
@@ -1006,14 +992,9 @@ export class Terminals {
         env,
         startup || undefined,
       )
-      const terminal = hosted({
-        limits: this.options,
-        terminalId: input.id,
-        spec,
-        started,
-        controller: pending.released ? undefined : ownerId,
-        pty: this.pty,
-      })
+      const terminal = startedIn(started, () =>
+        place.open(spec, pending.released ? undefined : ownerId),
+      )
       // Claimed once its shell runs, so a shell that didn't start holds no session.
       if (resume && started.resumes) {
         this.claims.set(resume.key, input.id)
@@ -1044,11 +1025,8 @@ export class Terminals {
         },
         ...started,
         terminal,
-        pendingAttachments: 0,
         closed: false,
-        closing: undefined,
         restarting: false,
-        exitOrder: 0,
         foreground: undefined,
         origin,
         agents: saved?.agents ?? {},
@@ -1100,7 +1078,7 @@ export class Terminals {
       this.saveChanges()
       return { ...record.summary }
     } finally {
-      this.creating -= 1
+      place.done()
       this.complete(ownerId, pending)
     }
   }
@@ -1127,7 +1105,7 @@ export class Terminals {
     const listed = kept.flatMap((terminal) => {
       const running = live.get(terminal.id)
       if (running) return [running]
-      return this.draining.has(terminal.id) ? [] : [this.savedSummary(terminal)]
+      return this.host.draining(terminal.id) ? [] : [this.savedSummary(terminal)]
     })
     const recorded = new Set(kept.map(({ id }) => id))
     // Those the records don't keep, in the order their handles were given.
@@ -1931,6 +1909,8 @@ export class Terminals {
     if (record.terminal.controller !== undefined && record.terminal.controller !== ownerId)
       throw new DomainError("CONTROL_IN_USE")
     record.restarting = true
+    // An exited terminal stays while it restarts.
+    const kept = this.host.keep(input.terminalId)
     const pending = this.pending(ownerId)
     try {
       const environment = this.shellEnvironment()
@@ -2005,7 +1985,6 @@ export class Terminals {
               telemetry: null,
               watching: null,
               transcript: null,
-              closing: undefined,
               submitted: started.resumes,
               startupRuns: started.resumes,
               readyEntered: false,
@@ -2033,6 +2012,7 @@ export class Terminals {
       })
     } finally {
       record.restarting = false
+      kept()
       this.complete(ownerId, pending)
     }
   }
@@ -2340,7 +2320,8 @@ export class Terminals {
   ): AsyncGenerator<TerminalAttached | TerminalEvent> {
     const record = this.record(input.terminalId)
     const pending = this.pending(ownerId)
-    record.pendingAttachments += 1
+    // An exited terminal stays, and a closed one is still read, until this is attached.
+    const kept = this.host.keep(input.terminalId)
     let attachment: Attachment | undefined
     const detach = () => {
       if (!attachment) {
@@ -2367,9 +2348,7 @@ export class Terminals {
             mode: input.mode ?? "control",
           })
         })
-        .finally(() => {
-          record.pendingAttachments -= 1
-        })
+        .finally(kept)
       if (!attachment) return
       // Tells the client that control or observation is established before any event arrives.
       yield { type: "attached", terminalId: input.terminalId, mode: attachment.mode }
@@ -2384,8 +2363,8 @@ export class Terminals {
       attachment?.cancel()
       detach()
       this.complete(ownerId, pending)
-      this.settle(record)
-      this.evict()
+      this.host.settle(input.terminalId)
+      this.host.evict()
     }
   }
 
@@ -2625,7 +2604,7 @@ export class Terminals {
     if (this.stopping || this.records.get(call.terminalId) !== record || !closing)
       return unansweredCalls.close
     // Already on its way out, as another close ended its shell: nothing more to charge.
-    if (closing.closing || closing.closed)
+    if (this.host.closing(closing.summary.id) || closing.closed)
       return refused(`${mention(target.handle)} is already closing.`)
     const now = Date.now()
     const charged = this.openers.get(call.terminalId) ?? call.terminalId
@@ -2899,17 +2878,15 @@ export class Terminals {
 
   ack(input: { terminalId: string; sequence: number }, ownerId: string): void {
     // A closed terminal's viewers still acknowledge the events they drain.
-    const record = this.draining.get(input.terminalId) ?? this.record(input.terminalId)
+    const terminal = this.host.terminal(input.terminalId)
+    if (!terminal) throw new DomainError("TERMINAL_NOT_FOUND")
     // A final ACK can arrive after natural stream completion or cancellation.
-    record.terminal.ack(ownerId, input.sequence)
+    terminal.ack(ownerId, input.sequence)
   }
 
   release(ownerId: string): void {
     for (const pending of this.pendingOwners.get(ownerId) ?? []) pending.released = true
-    for (const record of [...this.records.values(), ...this.draining.values()]) {
-      record.terminal.release(ownerId)
-      this.settle(record)
-    }
+    this.host.release(ownerId)
     for (const [watcher, owner] of this.watchers) if (owner === ownerId) watcher.finish()
     this.opens.release(ownerId)
     this.options.items?.release(ownerId)
@@ -2940,14 +2917,8 @@ export class Terminals {
 
   private async stop(): Promise<void> {
     this.murmur?.stop()
-    this.shutdownBy = Date.now() + shutdownTreesMs
-    await Promise.all([...this.records.values()].map((record) => this.terminate(record)))
-    for (const record of [...this.records.values(), ...this.draining.values()]) {
-      record.terminal.end()
-      this.dispose(record)
-    }
+    await this.host.shutdown()
     this.records.clear()
-    this.draining.clear()
     this.pendingOwners.clear()
     this.stopped = true
     await (await this.integration)?.reports.close()
@@ -2961,7 +2932,7 @@ export class Terminals {
 
   private available(id: string): void {
     // A closed terminal's id stays taken while its record drains to attached viewers.
-    if (this.records.has(id) || this.draining.has(id)) {
+    if (this.records.has(id) || this.host.draining(id)) {
       throw new DomainError("CONFLICT", "Terminal id is already taken.")
     }
   }
@@ -3051,7 +3022,11 @@ export class Terminals {
   }
 
   private running(record: Record): void {
-    if (record.summary.exit !== null || record.terminal.exiting || record.closing)
+    if (
+      record.summary.exit !== null ||
+      record.terminal.exiting ||
+      this.host.closing(record.summary.id)
+    )
       throw new DomainError("TERMINAL_EXITED")
   }
 
@@ -3175,7 +3150,6 @@ export class Terminals {
       record.changed = true
     })
     terminal.on("exit", (exit) => this.exited(record, exit))
-    terminal.on("exited", () => this.evict())
     terminal.on("resized", ({ cols, rows }) => {
       record.summary = { ...record.summary, cols, rows }
       this.announce(record)
@@ -4507,82 +4481,32 @@ export class Terminals {
     }
     this.cancelResume(record)
     this.save(record, true)
-    this.exits += 1
-    record.exitOrder = this.exits
     this.announce(record)
   }
 
+  /** Ends a terminal's shell and what it started (see the host's `terminate`). */
   private terminate(record: Record): Promise<void> {
-    if (record.closing) return record.closing
-    if (record.summary.exit !== null) return record.terminal.exited
-    record.closing = this.kill(record)
-    return record.closing
+    return this.host.terminate(record.summary.id)
   }
 
-  /**
-   * Ends a terminal's shell and what it started (see the pty's `end`), once its exit is
-   * handled. A close already waiting as shutdown begins takes no more than shutdown's own
-   * time: each relay or taskkill run within what is left of it, and what a Windows tree
-   * left running ends by shutdown's shorter grace.
-   */
-  private async kill(record: Record): Promise<void> {
-    const budget: EndBudget = {
-      run: (usual) => this.runMs(usual),
-      graceEnds: (began) =>
-        this.shutdownBy === undefined
-          ? began + treeGraceMs
-          : Math.min(began + treeGraceMs, this.shutdownBy - shutdownTreesMs + shutdownTreeGraceMs),
-    }
-    await Promise.all([
-      record.terminal.pty.end({ graceMs: 1000, treeGraceMs, trees: this.trees, budget }),
-      record.terminal.exited,
-    ])
-  }
-
-  /**
-   * How long a relay or taskkill run may take now: `usual`, or as the runner shuts down,
-   * what is left of its time for terminals' trees, never under a quarter second.
-   */
-  private runMs(usual: number): number {
-    if (this.shutdownBy === undefined) return usual
-    return Math.max(250, Math.min(usual, this.shutdownBy - Date.now()))
-  }
-
-  /**
-   * Drops the oldest exited, unattached records beyond `maxRetained`, and more when a
-   * new terminal needs `room` under `maxTerminals`.
-   */
-  private evict(room = false): void {
-    const idle = [...this.records.values()]
-      .filter(
-        (record) =>
-          record.summary.exit !== null &&
-          record.terminal.attached === 0 &&
-          record.pendingAttachments === 0 &&
-          !record.restarting,
-      )
-      .toSorted((a, b) => a.exitOrder - b.exitOrder)
-    let excess = idle.length - this.options.maxRetained
-    for (const record of idle) {
-      const full = room && this.records.size + this.creating >= this.options.maxTerminals
-      if (excess <= 0 && !full) return
-      excess -= 1
-      this.dispose(record)
-      this.records.delete(record.summary.id)
-      this.messaging.unregister(record.summary.id)
-      this.asks.reconcile(record.summary.id)
-      this.doorbell?.forget(record.summary.id)
-      this.dialogs.forget(record.summary.id)
-      // Its record is let go, but the terminal is kept, saved, until it is closed.
-      const saved = this.saved(record.summary.id)
-      for (const watcher of this.watchers.keys())
-        if (saved) watcher.changed(this.savedSummary(saved))
-        else watcher.removed(record.summary)
-      this.undetail(record.summary.id)
-      // Which chain it belongs to, as `forget` drops it on close; the chain's own times
-      // stay until they pass out of the window.
-      this.openers.delete(record.summary.id)
-    }
+  /** The host let an exited terminal go: its record goes, but it's kept saved until closed. */
+  private evicted(id: string, terminal: Terminal): void {
+    const record = this.records.get(id)
+    if (record?.terminal !== terminal) return
+    this.records.delete(id)
+    this.messaging.unregister(id)
+    this.asks.reconcile(id)
+    this.doorbell?.forget(id)
+    this.dialogs.forget(id)
+    // Its record is let go, but the terminal is kept, saved, until it is closed.
+    const saved = this.saved(id)
+    for (const watcher of this.watchers.keys())
+      if (saved) watcher.changed(this.savedSummary(saved))
+      else watcher.removed(record.summary)
+    this.undetail(id)
+    // Which chain it belongs to, as `forget` drops it on close; the chain's own times stay
+    // until they pass out of the window.
+    this.openers.delete(id)
   }
 
   /** Forgets an exited terminal; its screen lasts until its viewers finish reading. */
@@ -4593,19 +4517,6 @@ export class Terminals {
     this.records.delete(id)
     for (const watcher of this.watchers.keys()) watcher.removed(record.summary)
     this.undetail(id)
-    this.draining.set(id, record)
-    this.settle(record)
-  }
-
-  private settle(record: Record): void {
-    const id = record.summary.id
-    if (this.draining.get(id) !== record) return
-    if (record.terminal.attached > 0 || record.pendingAttachments > 0) return
-    this.draining.delete(id)
-    this.dispose(record)
-  }
-
-  private dispose(record: Record): void {
-    record.terminal.dispose()
+    this.host.remove(id)
   }
 }
