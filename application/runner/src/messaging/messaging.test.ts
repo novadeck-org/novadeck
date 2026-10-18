@@ -1,6 +1,7 @@
 import type { ActivityEvent, HarnessEvent } from "@novadeck/harness-core/events"
 import { doorbellLine } from "@novadeck/harness-core/harness"
 import type { AgentName } from "@novadeck/protocol"
+import { keysOf } from "@novadeck/tui-input"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import {
@@ -15,7 +16,6 @@ import { followRoot, type Root } from "../harnesses/roots.js"
 import { typedPromptStart } from "../harnesses/typed-prompts.js"
 import { handleWords } from "../terminals/handles.js"
 import { bareHandle } from "../terminals/handles.js"
-import { keysOf } from "../terminals/keys.js"
 import { describe, expect, it } from "../test.js"
 import { running, submitWindowMs } from "./delivery.js"
 import { clock, retentionMs, threadMs } from "./mailbox.js"

@@ -573,7 +573,7 @@ terminal escapes, controls, invisible separators and bidi marks before being sho
   calls asked at once count as one request, as nothing tells them apart, so the first
   one's result clears both.
 - **The person's input** is everything a client sends to the terminal except the
-  terminal's own reports (`keysOf` in the runner's `terminals/keys.ts` is the one rule):
+  terminal's own reports (`keysOf` in `@novadeck/tui-input` is the one rule, with `splitReports` in the runner's `terminals/keys.ts`):
   focus reports, and the mouse's scroll and motion reports, while the TUI has turned
   that reporting on, as the runner's own screen of the terminal shows; cursor-position
   and device reports; and OSC answers, such as a colour's. A fullscreen TUI turns mouse
@@ -1705,8 +1705,9 @@ again.
    `messages.list`, `messages.pause` and `messages.release`.
 2. **Doorbell and starting a task:** the Settled path, the ring with its generic
    checks, and `open_terminal(agent, message)`. Touches no UI. Built: the checks in
-   `application/runner/src/terminals/ring.ts`, the ring in `terminals/doorbell.ts`, the
-   person's keys in `terminals/keys.ts`, Antigravity's typed prompts in
+   `@novadeck/tui-input` (`checkPaste` in `./box`, `gate`), the ring in
+   `application/runner/src/terminals/doorbell.ts`, the person's keys in the same library's
+   `keysOf`, Antigravity's typed prompts in
    `application/runner/src/harnesses/typed-prompts.ts`, and the Ringing state and the untouched rule in
    `messaging/delivery.ts`.
 3. **UI:** badges, the Messages view and the pause switch. Built: `messages.watch` in
