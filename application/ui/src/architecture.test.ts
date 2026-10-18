@@ -131,6 +131,9 @@ const adapterSelection = "app/backend.ts"
 // The one other importer of the demo: the spec entry, which specs and the tests that render
 // the whole workspace open the demo through, never another adapter module.
 const demo = "backend/demo/"
+// The demo's debug panel and its visitor build, which build on the demo's core.
+const demoDebug = `${demo}debug/`
+const demoVisitor = `${demo}visitor/`
 const specBackend = "specs/support/backend.ts"
 // The counter run drives the real UI over the runner adapter, scripted: the one spec
 // that may reach core/store.ts, for its instrumentation hook. It and the spec below reach
@@ -401,7 +404,16 @@ describe("UI architecture", () => {
     )
       ? []
       : [`${specBackend} -> ${demo}`]
-    expect([...deadLayers, ...deadVendors, ...deadExceptions, ...deadSpecBackend]).toEqual([])
+    const deadDemoLayers = [demoDebug, demoVisitor].filter(
+      (layer) => !files.some((file) => file.startsWith(layer)),
+    )
+    expect([
+      ...deadLayers,
+      ...deadVendors,
+      ...deadExceptions,
+      ...deadSpecBackend,
+      ...deadDemoLayers,
+    ]).toEqual([])
   })
 
   it("keeps the stores' instrumentation hook to the counter run", () => {
@@ -409,6 +421,23 @@ describe("UI architecture", () => {
     const found = files.filter(
       (file) => named.test(source(file)) && !hookOwners.some((owner) => file.startsWith(owner)),
     )
+    expect(found).toEqual([])
+  })
+
+  it("keeps the demo's debug panel and visitor build above its core", () => {
+    // debug/ and visitor/ build on the demo's core; the core reaches neither, and the visitor
+    // build never carries the debug panel. Tests too, as each folder becomes its own package.
+    const found = files
+      .filter((file) => file.startsWith(demo) && !file.startsWith(demoDebug))
+      .flatMap((file) =>
+        imports(file).flatMap(({ specifier }) => {
+          const target = specifier.startsWith(".") ? resolveFile(file, specifier) : undefined
+          const above = file.startsWith(demoVisitor) ? [demoDebug] : [demoDebug, demoVisitor]
+          return target && above.some((layer) => target.startsWith(layer))
+            ? [`${file} -> ${target}`]
+            : []
+        }),
+      )
     expect(found).toEqual([])
   })
 

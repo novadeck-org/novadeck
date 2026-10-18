@@ -1,5 +1,5 @@
-import type { DemoPortable } from "./debug/portable"
-import type { DemoUpdates } from "./debug/updates"
+import type { DemoPortable } from "./portable"
+import type { DemoUpdates } from "./updates"
 
 // The named update and portable scenarios the demo can play, each defined once: the
 // debug panel lists every one (App › Updates, App › Portable) and a spec asks for one by

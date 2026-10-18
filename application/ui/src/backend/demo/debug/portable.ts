@@ -2,7 +2,7 @@ import type { PortableInstall, PortableState } from "#core/portable"
 import type { UpdateOffer } from "#core/update"
 
 import type { Backend } from "../../port"
-import { portableScenarios } from "../scenarios"
+import { portableScenarios } from "./scenarios"
 import type { DemoActionGroup } from "./types"
 import type { DemoLaunch } from "./with-debug"
 
