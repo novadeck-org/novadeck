@@ -28,6 +28,10 @@ const names = Object.keys(order)
 const app = [
   ...appPackages(root).flatMap((name) => [name, `${name}/sub`]),
   "../../../../application/runner/src/manager.ts",
+  "../../../../backend/runner/src/manager.ts",
+  "../../../../contract/protocol/src/index.ts",
+  "../../../../frontend/ui/src/index.ts",
+  "../../../../apps/desktop/src/main/index.ts",
   "../../../../harnesses/core/src/harness.ts",
   "../../../../libraries/wire/src/index.ts",
   // A sibling's build, which a declaration file lets typecheck, as no rootDir sees it.
@@ -37,6 +41,10 @@ const app = [
   // A folder named alone, its package's entry.
   "../../../../atlas",
   "../../../../application",
+  "../../../../backend",
+  "../../../../contract",
+  "../../../../frontend",
+  "../../../../apps",
   "../../../../harnesses",
   "../../../../libraries",
 ]
@@ -62,6 +70,14 @@ const own = [
   "../index.ts",
   "./atlas",
   "./application",
+  "./backend",
+  "./contract",
+  "./frontend",
+  "./apps",
+  // Step 5's folders are refused only as paths out of the library: its own folders by those
+  // names, and a package's subpath that names one, stay its own.
+  "./contract/index.ts",
+  "@orpc/contract/plugins",
   "node:path",
   "@xterm/xterm",
   // A package's own build, as its stylesheets are imported.

@@ -33,7 +33,7 @@ const sharedFiles = new Set([
   "pnpm-workspace.yaml",
   "turbo.json",
 ])
-const sharedFolders = [
+export const sharedFolders = [
   ".github/actions/e2e-harness-cache/",
   "application/runner/",
   // The terminal library, with node-pty's patch: the suite's pty. The emulator's patches
@@ -64,13 +64,13 @@ const sharedFolders = [
 // package) is not the headless side the suite runs, so it stays off them
 // (`browserOnlyFiles`); the rest of the emulator, new files included, runs every system.
 const allSystemsFiles = new Set([".github/workflows/e2e.yml"])
-const browserOnlyFiles = [
+export const browserOnlyFiles = [
   "libraries/emulator/patches/@xterm__xterm@",
   "libraries/emulator/src/browser.",
   "libraries/emulator/src/renderer.",
   "libraries/emulator/src/view.",
 ]
-const allSystemsFolders = [
+export const allSystemsFolders = [
   ".github/actions/e2e-harness-cache/",
   "application/relay/",
   "application/runner/",
