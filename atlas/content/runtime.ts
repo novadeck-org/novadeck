@@ -164,7 +164,10 @@ export const runtime: {
       channel: "PTY (node-pty)",
       summary:
         "The runner spawns each terminal's shell in a pseudo-terminal; the agent runs inside it. Keys, pasted text, doorbell rings and dialog answers are all written to the PTY, and its output is read back.",
-      anchor: { file: "application/runner/src/terminals/manager.ts", text: "pty.spawn(shell" },
+      anchor: {
+        file: "libraries/terminal/src/host/terminal.ts",
+        text: "pty = spawnPty({ ...spec, ...options.pty })",
+      },
     },
     {
       id: "agent-relay-mcp",
