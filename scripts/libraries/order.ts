@@ -15,13 +15,19 @@ export const order: Readonly<Record<string, readonly string[]>> = {
   wire: [],
 }
 
-/** The app's own packages, by name: everything in application/ and harnesses/, and the atlas. */
+/**
+ * The app's own packages, by name: everything in application/, apps/, backend/, contract/,
+ * frontend/ and harnesses/, and the atlas.
+ */
 export const appPackages = (root: string): readonly string[] =>
   [
-    ...["application", "harnesses"].flatMap((folder) =>
-      readdirSync(join(root, folder)).map((name) => join(root, folder, name, "package.json")),
-    ),
-    join(root, "atlas", "package.json"),
+    ...["application", "apps", "backend", "contract", "frontend", "harnesses"]
+      .filter((folder) => existsSync(join(root, folder)))
+      .flatMap((folder) =>
+        readdirSync(join(root, folder)).map((name) => join(root, folder, name, "package.json")),
+      ),
+    // One path, as step 5's move script rewrites it.
+    join(root, "atlas/package.json"),
   ]
     .filter((file) => existsSync(file))
     .map((file) => (JSON.parse(readFileSync(file, "utf8")) as { name: string }).name)

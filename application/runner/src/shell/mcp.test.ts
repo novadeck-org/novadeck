@@ -960,8 +960,10 @@ describe("Novadeck's MCP server", () => {
   })
 
   describe("with a runner that doesn't take the session", () => {
-    // A runner that reads the relay's first line and answers as `answer` says, or never.
+    // A runner that reads the relay's first line and answers as `answer` says, or never;
+    // `asked` is when that line came, by `Date.now`, once it has.
     const runner = async (answer: string | undefined) => {
+      let asked: number | undefined
       const directory = await mkdtemp(join(tmpdir(), "novadeck-mcp-runner-"))
       const endpoint =
         process.platform === "win32"
@@ -969,12 +971,14 @@ describe("Novadeck's MCP server", () => {
           : join(directory, "reports.sock")
       const server = createServer((socket) => {
         socket.once("data", () => {
+          asked ??= Date.now()
           if (answer !== undefined) socket.write(answer)
         })
         socket.resume()
       })
       await new Promise<void>((resolve) => server.listen(endpoint, resolve))
       return {
+        asked: () => asked,
         env: {
           PATH: process.env.PATH,
           NOVADECK_TERMINAL_ID: "3f1c2b1e-0000-4000-8000-000000000001",
@@ -1002,12 +1006,20 @@ describe("Novadeck's MCP server", () => {
     it("answers by itself, with no tools, when the runner doesn't answer in time", async () => {
       const silent = await runner(undefined)
       try {
-        const began = Date.now()
+        const spawned = Date.now()
         const [, tools] = await session(silent.env, [initialize, list])
+        const answered = Date.now()
         expect(tools?.result?.tools).toEqual([])
-        // It waits for a busy runner, within the ten seconds an agent gives it to start.
-        expect(Date.now() - began).toBeGreaterThan(7_000)
-        expect(Date.now() - began).toBeLessThan(10_000)
+        // It waits eight seconds for a busy runner from when it asked, within the ten an agent
+        // gives it to start. Timed from the runner's side, so how long the relay took to start
+        // on a busy machine counts for neither bound.
+        const asked = silent.asked()
+        expect(asked).toBeDefined()
+        const waited = answered - asked!
+        expect(waited).toBeGreaterThan(7_000)
+        expect(waited).toBeLessThan(10_000)
+        // Its start counts too, loosely: a relay that took seconds to ask would miss the ten.
+        expect(asked! - spawned).toBeLessThan(5_000)
       } finally {
         await silent.close()
       }

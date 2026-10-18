@@ -27,7 +27,15 @@ export type Note = {
 }
 
 // Source under these directories must belong to a package below, or the strict check fails.
-export const covered = ["application/", "harnesses/", "engines/"]
+export const covered = [
+  "application/",
+  "apps/",
+  "backend/",
+  "contract/",
+  "frontend/",
+  "harnesses/",
+  "engines/",
+]
 
 export const roots: Root[] = [
   { token: "runner", dir: "application/runner", src: "src", node: "runner" },

@@ -1,9 +1,11 @@
 import { execFileSync } from "node:child_process"
-import { readdirSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { context, describe, expect, it } from "../../test"
 import {
+  allSystemsFolders,
+  browserOnlyFiles,
   type Facts,
   firstShard,
   parseAffected,
@@ -12,6 +14,7 @@ import {
   select,
   selectSystems,
   setups,
+  sharedFolders,
   systems,
 } from "./plan.ts"
 
@@ -480,5 +483,36 @@ describe("the plan script", () => {
       "Antigravity",
       "Mixed",
     ])
+  })
+})
+
+// A path that names nothing selects nothing, silently: a folder moved without its entry here
+// would stop running the suite for changes to it.
+describe("the paths the plan and the workflow name", () => {
+  const root = join(import.meta.dirname, "..", "..", "..")
+  const named = (prefix: string) =>
+    execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" })
+      .split("\0")
+      .some((file) => file.startsWith(prefix))
+
+  it("are each the start of a tracked file's path", () => {
+    const prefixes = [...sharedFolders, ...allSystemsFolders, ...browserOnlyFiles]
+    expect(prefixes.filter((prefix) => !named(prefix))).toEqual([])
+  })
+
+  it("include, for the workflow's pull requests, only paths that are tracked", () => {
+    // Line by line, as a Windows checkout ends them with CRLF: the list under the pull
+    // request's `paths:`, its comments and blank lines skipped.
+    const lines = readFileSync(join(root, ".github/workflows/e2e.yml"), "utf8").split(/\r?\n/)
+    const start = lines.findIndex((line) => line === "    paths:")
+    const entries: string[] = []
+    for (const line of lines.slice(start + 1)) {
+      if (/^\s*(#.*)?$/.test(line)) continue
+      const entry = /^ {6}- (.+)$/.exec(line)?.[1]
+      if (entry === undefined) break
+      entries.push(entry.trim())
+    }
+    expect(entries.length).toBeGreaterThan(0)
+    expect(entries.filter((entry) => !named(entry.replace(/\*\*$/, "")))).toEqual([])
   })
 })
