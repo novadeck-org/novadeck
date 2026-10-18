@@ -182,8 +182,10 @@ export const createDemoTerminalScreen = ({
     const terminal = engine.terminal(key)
     const { line } = engine.getSnapshot(key)
     const agent = terminal && (chatAgent(terminal) ?? demoAgent(terminal))
-    // A program running in front draws no prompt under its output.
-    if (terminal && runsProgram(terminal))
+    // A program running in front draws no prompt under its output, until the person types
+    // into it, as a terminal shows what is typed there.
+    const typed = line.draft !== "" || engine.getSnapshot(key).entries.length > 0
+    if (terminal && runsProgram(terminal) && !typed)
       return () => ({ lines: [], cursor: { row: 0, column: 0 } })
     if (!terminal || !agent) return shellTail({ project: engine.projectName(key), ...line })
     const status = terminal.state === "running" ? terminal.agent : undefined
@@ -302,9 +304,6 @@ export const createDemoTerminalScreen = ({
       drawnTail = tailSignature(tail())
     },
     input: (data) => {
-      // A program running in front reads nothing the demo would show.
-      const terminal = engine.terminal(key)
-      if (terminal && runsProgram(terminal)) return
       const { line, events } = editLine(engine.getSnapshot(key).line, data)
       // Each event reads the line as it stands, so a submit's cleared draft comes first.
       engine.setLine(key, line)

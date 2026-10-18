@@ -4,9 +4,9 @@ import { page } from "vitest/browser"
 
 import { App } from "../app/App"
 import { scriptedRunner } from "../backend/runner/scripted-server"
+import { pageTheme } from "../theme/source"
 import { pressShortcut, recentSwitcher } from "./support/keyboard"
 import { layoutSettled, press, terminalTab } from "./support/workspace"
-import { pageTheme } from "../theme/source"
 
 // The app's shortcuts from a real terminal: the runner's, whose emulator reads the keys it
 // takes (Ctrl+Tab as a Tab, Ctrl+Shift+Enter as Enter, Escape) and cancels them before they
