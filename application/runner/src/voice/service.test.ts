@@ -1,8 +1,10 @@
 import { chmod, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
+import { setTimeout as timer } from "node:timers/promises"
 
 import type { VoiceState } from "@novadeck/protocol"
 import { maxVoiceSeconds, voiceSampleRate } from "@novadeck/protocol"
+import { vi } from "vitest"
 
 import { engineInterface } from "../engines/unpack.js"
 import { describe, expect, it } from "../test.js"
@@ -12,6 +14,14 @@ import { WorkspaceStore } from "../workspaces/store.js"
 import type { Catalog } from "./catalog.js"
 import type { HintFacts } from "./hint.js"
 import { updateRetryMs, Voice, type VoiceOptions } from "./service.js"
+
+// The service's sleeps, watched: a case can tell which waits it asked for and when they ended,
+// without measuring the time a real engine takes around them.
+vi.mock("node:timers/promises", async (original) => {
+  const timers = await original<typeof import("node:timers/promises")>()
+  return { ...timers, setTimeout: vi.fn<typeof timers.setTimeout>(timers.setTimeout) }
+})
+const actual = await vi.importActual<typeof import("node:timers/promises")>("node:timers/promises")
 
 /** The file in the models folder that holds `name`, named by its checksum too. */
 const modelOf = async (directory: string, name: string): Promise<string> => {
@@ -788,13 +798,21 @@ describe("transcribing a recording", () => {
     for (; hint < hints.length; hint += 1) {
       // eslint-disable-next-line no-await-in-loop -- One clip after another.
       await voice.record("owner", "clip", 0, pcm(3200))
-      const started = performance.now()
+      const events: string[] = []
+      vi.mocked(timer).mockClear()
+      vi.mocked(timer).mockImplementationOnce(async (ms, value, options) => {
+        events.push(`waits ${ms}`)
+        const ended = await actual.setTimeout(ms, value, options)
+        events.push("waited")
+        return ended
+      })
       // eslint-disable-next-line no-await-in-loop -- As above.
       const { text } = await voice.transcribe("owner", "clip", "moth")
+      events.push("transcribed")
       expect(JSON.parse(text)).toMatchObject({ prompt: null })
-      // Facts that never come are waited for half a second, no longer.
-      if (hint === 2) expect(performance.now() - started).toBeGreaterThanOrEqual(450)
-      if (hint === 2) expect(performance.now() - started).toBeLessThan(1500)
+      // Facts that never come are waited for half a second, and no longer: the clip goes
+      // without them once that wait ends, which a wait without end would never let it.
+      if (hint === 2) expect(events).toEqual(["waits 500", "waited", "transcribed"])
     }
   })
 
