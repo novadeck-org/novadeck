@@ -1,9 +1,14 @@
 import type { Backend } from "#core/port"
+import type { PortableInstall } from "#core/portable"
 import type { SandboxState } from "#core/sandbox"
 
 import { createDemoBackend } from "../../backend/demo"
 import { createContentDemo } from "../../backend/demo/content"
-import { createDemoPortable, type DemoPortable } from "../../backend/demo/debug/portable"
+import {
+  createDemoPortable,
+  type DemoPortable,
+  type PortableSchedule,
+} from "../../backend/demo/debug/portable"
 import { createDemoSandbox, sampleFix } from "../../backend/demo/debug/sandbox"
 import {
   portableScenarios,
@@ -62,15 +67,42 @@ const requestedSandbox = (): SandboxState | undefined => {
 
 // Specs open the demo on a portable copy with `?portable=` one of the debug panel's
 // portable scenarios (see backend/demo/debug/scenarios.ts). Installing takes no time there,
-// unless `&installMs=` says how long.
+// unless `&installMs=` says how long, or `&installMs=stepped` holds each step for the spec
+// to take with `portableInstall.advanceTo`, as a slow machine would otherwise pass a step
+// before the spec reads it.
 const requestedPortable = (): DemoPortable | undefined => {
   const query = new URLSearchParams(window.location.hash.split("?")[1] ?? "")
   const key = query.get("portable")
   if (!key || !Object.hasOwn(portableScenarios, key)) return undefined
   const portable = portableScenarios[key as PortableScenarioKey].setup("0.0.80")
   if (!portable) return undefined
-  const installMs = Number(query.get("installMs"))
+  const installMs = query.get("installMs") === "stepped" ? 3000 : Number(query.get("installMs"))
   return { ...portable, installAfterMs: installMs > 0 ? installMs : 0 }
+}
+
+// The steps of a stepped install, in the order their waits would have run them.
+const held: { readonly at: number; readonly next: PortableInstall; readonly apply: () => void }[] =
+  []
+const stepped = (): boolean => {
+  const on =
+    new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("installMs") === "stepped"
+  // Each workspace a spec opens is a new backend, whose install starts with nothing held.
+  if (on) held.length = 0
+  return on
+}
+const hold: PortableSchedule = (apply, next, at) => void held.push({ at, next, apply })
+
+/** A stepped install (`&installMs=stepped`), which moves only when the spec says. */
+export const portableInstall = {
+  /** Takes the held steps in order until one leaves the install in `phase`. */
+  advanceTo: (phase: PortableInstall["phase"]): void => {
+    held.sort((a, b) => a.at - b.at)
+    for (let step = held.shift(); step; step = held.shift()) {
+      step.apply()
+      if (step.next.phase === phase) return
+    }
+    throw new Error(`No step of the install left that reaches ${phase}`)
+  },
 }
 
 // Specs open the demo on a host that offers uninstalling with `?uninstall=` one of the
@@ -133,6 +165,9 @@ export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   const withSandbox = sandbox ? { ...demo, sandbox: createDemoSandbox(sandbox) } : demo
   const withUninstall = uninstall ? { ...withSandbox, uninstall } : withSandbox
   return portable
-    ? { ...withUninstall, portable: createDemoPortable(portable).portable }
+    ? {
+        ...withUninstall,
+        portable: createDemoPortable(portable, stepped() ? { schedule: hold } : {}).portable,
+      }
     : withUninstall
 }

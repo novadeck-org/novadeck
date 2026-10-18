@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process"
-import { mkdirSync, writeFileSync } from "node:fs"
-import { join, resolve } from "node:path"
+import { existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { dirname, join, resolve } from "node:path"
 
 import { flows } from "../content/flows.ts"
 import { runtime } from "../content/runtime.ts"
@@ -16,7 +16,14 @@ import { extractRunnerLens } from "./runner-lens.ts"
 import { extractStacks } from "./stack.ts"
 import { extractUiLens } from "./ui-lens.ts"
 
-const repo = resolve(import.meta.dirname, "../..")
+// The repository's root: the nearest folder above with the workspace's file, wherever the
+// atlas's own folder sits.
+const rootOf = (folder: string): string => {
+  if (existsSync(join(folder, "pnpm-workspace.yaml"))) return folder
+  if (dirname(folder) === folder) throw new Error("The atlas is in no pnpm workspace.")
+  return rootOf(dirname(folder))
+}
+const repo = rootOf(import.meta.dirname)
 const output = resolve(import.meta.dirname, "../src/generated/atlas.json")
 
 const resolveRuntime = (anchors: Anchors, areas: Area[]): Runtime => ({

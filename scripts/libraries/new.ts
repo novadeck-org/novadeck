@@ -13,13 +13,23 @@ const [name, ...words] = process.argv.slice(2)
 const description = words.join(" ")
 
 // The workspace's package names, without their scope: a library may not take one.
-const taken = ["application", "engines", "harnesses", "libraries", "tools"]
+const taken = [
+  "application",
+  "apps",
+  "backend",
+  "contract",
+  "engines",
+  "frontend",
+  "harnesses",
+  "libraries",
+  "tools",
+]
   .flatMap((folder) =>
     existsSync(join(root, folder))
       ? readdirSync(join(root, folder)).map((each) => join(root, folder, each, "package.json"))
       : [],
   )
-  .concat(join(root, "atlas", "package.json"))
+  .concat(join(root, "atlas/package.json"))
   .filter((file) => existsSync(file))
   .map((file) =>
     (JSON.parse(readFileSync(file, "utf8")) as { name: string }).name.split("/").at(-1)!,

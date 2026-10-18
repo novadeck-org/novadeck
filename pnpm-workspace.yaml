@@ -1,5 +1,9 @@
 packages:
   - application/*
+  - backend/*
+  - contract/*
+  - frontend/*
+  - apps/*
   - engines/*
   - harnesses/*
   - libraries/*
