@@ -1,24 +1,16 @@
 /* xterm's own stylesheet sits in the base layer with the other vendor CSS. */
 @import "@novadeck/emulator/browser.css" layer(base);
-@reference "../../styles.css";
 
-/* The runner recipe: the surface a shell draws into, greyed while typing is paused, and
-   where a failed paste says why for a moment at the top. The notice and the ending bar
-   are the terminal-status recipe's (ui-toolkit/terminal-status.css).
+/* The runner recipe: how xterm draws inside the element a mount gives its screen. What lies
+   over it (the lock's grey, the notice, the ending bar) is the UI's (app/mounted-terminal.css).
 
-   Hooks: data-locked on `.runner-terminal`. Parts: `.runner-screen` (where xterm draws,
-   greyed after a moment while locked), `.runner-paste`. */
+   Parts: `.runner-screen` (where xterm draws). */
 
 @layer components {
-  /* The surface's padding, which views override. */
-  :where(.runner-terminal) {
-    @apply p-3;
-  }
-
   /* xterm.css paints its scroll viewport black under the themed screen. At fractional
      display scales the screen's edges land between pixels and that black shows through
      as thin lines, so the viewport takes the surface's own background. */
-  .runner-terminal .xterm .xterm-viewport {
+  .runner-screen .xterm .xterm-viewport {
     background-color: transparent;
   }
 
@@ -26,33 +18,10 @@
      (one spacing unit, control radius) against the right edge. The track keeps its
      width so the slider stays easy to grab. xterm sets the slider's left and width
      inline, which only `!important` overrides. */
-  .runner-terminal .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
+  .runner-screen .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
     left: auto !important;
     right: 2px;
     width: var(--spacing) !important;
     border-radius: var(--radius-control);
-  }
-
-  /* While typing is paused the screen greys, after a moment. It also eases up out of the
-     ending bar's way. */
-  .runner-screen {
-    transition:
-      filter var(--motion-state) var(--ease-interface),
-      margin-bottom var(--motion-state) var(--ease-interface);
-  }
-  .runner-terminal[data-locked] .runner-screen {
-    filter: grayscale(1);
-    transition-delay: 200ms;
-  }
-  .runner-slot {
-    transition: margin-bottom var(--motion-state) var(--ease-interface);
-  }
-  .runner-paste {
-    transition: opacity var(--motion-state) var(--ease-interface);
-  }
-  @starting-style {
-    .runner-paste {
-      opacity: 0;
-    }
   }
 }

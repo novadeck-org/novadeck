@@ -10,7 +10,7 @@ import { render } from "../../test/render"
 import { DemoAgentContext, type DemoAgentLink } from "./agent-link"
 import { answerMs, answeredMs } from "./chat"
 import { createDemoEngine } from "./engine"
-import { demoBackend, withConversations } from "./index"
+import { demoBackend, surfaceOf, withConversations } from "./index"
 import { demoSeed, demoTerminalId } from "./samples"
 import { agentTranscripts } from "./transcripts"
 import { demoTurns, demoTurnMs } from "./turns"
@@ -48,7 +48,7 @@ const open = (wrap?: (conversations: Conversations) => Conversations) => {
     }),
     backend.commit,
   )
-  render(createElement(backend.TerminalSurface, {} as never)).unmount()
+  render(createElement(surfaceOf(backend), {} as never)).unmount()
   backend.commit(store.getSnapshot(), [])
   backend.start!({
     dispatch: (actions) => store.transact(actions as never),

@@ -392,6 +392,21 @@ describe("UI architecture", () => {
     expect(found).toEqual([])
   })
 
+  it("keeps the runner's own code free of React and the UI toolkit", () => {
+    // It draws terminals through the port's mount, into an element it is given; the chrome
+    // around them is the app's. This holds until the adapter rule covers every adapter.
+    const found = files
+      .filter((file) => file.startsWith("backend/runner/") && !isTest(file))
+      .flatMap((file) =>
+        imports(file).flatMap(({ specifier }) => {
+          const target = specifier.startsWith(".") ? resolveFile(file, specifier) : undefined
+          const react = !specifier.startsWith(".") && /^react(-dom)?(\/|$)/.test(specifier)
+          return react || target?.startsWith("ui-toolkit/") ? [`${file} -> ${specifier}`] : []
+        }),
+      )
+    expect(found).toEqual([])
+  })
+
   it("keeps imports statically resolvable", () => {
     expect(files.filter((file) => /\bimport\(\s*[^"'\s]/.test(source(file)))).toEqual([])
   })

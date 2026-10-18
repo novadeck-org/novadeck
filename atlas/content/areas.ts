@@ -241,14 +241,14 @@ export const notes: Record<string, Note> = {
   },
   "ui/backend": {
     purpose: "The port the UI talks to its backend through.",
-    entries: [{ file: `${ui}/backend/port.ts`, text: "export type TerminalSurfaceProps" }],
+    entries: [{ file: `${ui}/backend/port.ts`, text: "export type MountTerminal" }],
   },
   "ui/backend/runner": {
     purpose:
-      "The backend port against the runner: connection and reconnects, seeding, saves, conversations, companions, messages and the xterm terminal surface.",
+      "The backend port against the runner: connection and reconnects, seeding, saves, conversations, companions, messages and the xterm terminal mount.",
     entries: [
       { file: `${ui}/backend/runner/backend.ts`, text: "export type RunnerBackendOptions" },
-      { file: `${ui}/backend/runner/RunnerTerminal.tsx` },
+      { file: `${ui}/backend/runner/mount.ts` },
     ],
     docs: ["docs/backend-api.md"],
   },

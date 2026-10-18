@@ -10,7 +10,7 @@ import { createStore, type MutableStore, type Store } from "#core/store"
 
 import { themeChangeEvent } from "../../theme/apply"
 import { tokenColors } from "../../theme/probe"
-import type { TerminalKey } from "../port"
+import type { TerminalFont, TerminalKey } from "../port"
 import type { SurfaceRuntime } from "./backend"
 import { desktopHost } from "./desktop-host"
 import { followTerminal, type FollowedTerminal, type Screen } from "./follow"
@@ -155,8 +155,6 @@ type Entry = {
   parking?: ReturnType<typeof setTimeout> | undefined
 }
 
-// The terminal font from Preferences, in CSS pixels.
-export type TerminalFont = { readonly size: number }
 // The size screens open in until the app says: Preferences' own default.
 const defaultFontSize = 13
 

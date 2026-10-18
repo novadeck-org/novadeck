@@ -149,12 +149,13 @@ the card shows the dialog's text as the terminal draws it, with **Answer in term
 the draft last until the agent ends; a reload starts in the terminal again. The
 behaviour specs' demo (`?demo=agents`) has a conversation for each of its agents.
 
-The backend port keeps windows out of the backend: a surface renders one content
-element and passes it to `renderWindow`, and `WorkspaceTerminal.tsx` wraps it in the
-shared window and the profile's body. The surface keeps its controller mounted above
-that, so a program change swaps the body without restarting the terminal; the runner
-surface moves its one xterm host into the new body, keeping output, selection and focus.
-Switching between Focus, Grid and Canvas mounts a new surface, which takes the same
+The backend port keeps windows out of the backend: a backend draws one terminal into an
+element the UI gives it (`mountTerminal(element, key, props)`), and `app/MountedTerminal.tsx`
+puts that element in the shared window and the profile's body, and draws what lies over it
+(the lock, a failed paste's notice, the ending bar) from the mount's `state`. The UI keeps
+the element for the terminal's life, so a program change swaps the body without restarting
+the terminal; the UI moves the element into the new body, keeping output, selection and
+focus. Switching between Focus, Grid and Canvas mounts a new one, which takes the same
 xterm and attachment from `backend/runner/screens.ts` instead of opening and attaching
 again. A terminal no view shows keeps them while its session is on screen, and for 30
 minutes after its session leaves the screen, so going back to a session or project finds
@@ -162,7 +163,7 @@ its output in place; they go when that time passes or the terminal closes. Of th
 no view shows, `screens.ts` keeps at most the 16 parked most recently, closing the one
 parked longest first (a closed one resyncs from the runner's snapshot when shown again);
 screens a view shows, Focus's kept windows among them, don't count. A Canvas node out of
-sight keeps its surface mounted but lets its screen go, so the screen parks after 5 s and
+sight keeps its mount but lets its screen go, so the screen parks after 5 s and
 counts toward the cap, and the node's content is hidden until it is back in sight. Focus keeps
 the last four terminals it displayed mounted, parked out of sight with `display:none`,
 so switching back finds a terminal's companion pane as it was: a page still loaded, a
@@ -1032,7 +1033,7 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `backend/`                                         | The UI-owned backend port.                                                              |
 | `backend/demo/`                                    | The demo adapter for tests and specs: sample projects and simulated terminals.          |
 | `backend/demo/showcase/`                           | The content preview's sample agents: plans, artifacts, and their simulated work.        |
-| `backend/runner/`                                  | The runner adapter: connection, seed from the runner, saves, and the xterm surface.     |
+| `backend/runner/`                                  | The runner adapter: connection, seed from the runner, saves, and the xterm mount.       |
 | `core/`                                            | Pure domain: types, reducer, workspace store, seed, and layout rules in `layout/`.      |
 | `core/companion.ts`                                | Companion items, their content, the `companions` port, and the plan note format.        |
 | `core/companion-bar.ts`                            | A bar as the person arranged it: order, hidden plans and Messages, the open tab.        |
@@ -1179,7 +1180,7 @@ Terminal metadata and saved layouts live in the workspace model. Everything
 else about a terminal belongs to a backend behind the port in `backend/port.ts`:
 it supplies the starting workspace seed, allocates new terminals synchronously,
 sees every store commit before listeners run, and renders the content inside
-each terminal frame. A surface marks the element that takes typed input with
+each terminal frame. A terminal's mount marks the element that takes typed input with
 `data-terminal-input`, so shortcuts treat it as terminal input. The demo adapter
 keeps drafts, output, and scroll offsets per terminal with one subscription
 each, so output does not trigger workspace-wide renders. A terminal's
@@ -1219,7 +1220,7 @@ and layout once its session is on screen, or at once when it has an agent to res
 more than three runner restarts in a minute stop that, and each terminal then waits
 for Enter. An exited, killed, or
 failed terminal shows "Press Enter to restart", which starts a fresh shell in the
-same tile. While the runner is away, surfaces dim and refuse input.
+same tile. While the runner is away, terminals dim and refuse input.
 
 XYFlow owns live Canvas gestures; save geometry and camera state when a gesture
 ends or the view unmounts. Grid, Canvas, Preferences, and search load on demand.

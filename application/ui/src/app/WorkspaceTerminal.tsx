@@ -25,6 +25,7 @@ import { DictationStrip } from "../voice/DictationStrip"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { DictationContext, useMicButton } from "./controller/dictation"
 import { useDockTarget } from "./dock-target"
+import { MountedTerminal } from "./MountedTerminal"
 import { plainTitle } from "./murmur-offer"
 import { NameChip } from "./NameChip"
 import {
@@ -333,7 +334,18 @@ export const WorkspaceTerminal = memo(
         </WindowShell>
       )
     }
-    return (
+    return "mountTerminal" in backend ? (
+      <MountedTerminal
+        mountTerminal={backend.mountTerminal}
+        terminalKey={terminalKey}
+        terminal={terminal}
+        view={view}
+        focusInput={wanted && !showChat}
+        onInputFocused={onInputFocused}
+        onScreen={onScreen}
+        renderWindow={renderWindow}
+      />
+    ) : (
       <backend.TerminalSurface
         terminalKey={terminalKey}
         terminal={terminal}

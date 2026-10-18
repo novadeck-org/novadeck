@@ -40,10 +40,10 @@ import { createRunnerConversations } from "./conversations"
 import { createRunnerInbox } from "./inbox"
 import { createRunnerItems } from "./items"
 import { createRunnerMessages } from "./messages"
+import { createRunnerMount } from "./mount"
 import { createRunnerMurmur } from "./murmur"
 import { pause } from "./pause"
 import { resumableProgram } from "./resumable"
-import { createRunnerTerminal } from "./RunnerTerminal"
 import { createSessionSaves } from "./saves"
 import { createScreens } from "./screens"
 import {
@@ -1342,7 +1342,8 @@ export const runnerBackend = (
       return terminal
     },
     commit,
-    TerminalSurface: createRunnerTerminal(runtime, screens),
+    mountTerminal: createRunnerMount(screens),
+    setFont: screens.setFont,
     telemetry,
     voice: voice.voice,
     murmur: murmur.murmur,
