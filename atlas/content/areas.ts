@@ -70,7 +70,7 @@ export const notes: Record<string, Note> = {
     entries: [
       { file: `${runner}/terminals/manager.ts`, text: "export class Terminals" },
       { file: `${runner}/terminals/opens.ts` },
-      { file: `${runner}/terminals/doorbell.ts` },
+      { file: `${runner}/messaging/doorbell.ts` },
     ],
     docs: ["docs/agent-workspace.md"],
   },

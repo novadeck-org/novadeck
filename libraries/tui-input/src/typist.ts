@@ -122,9 +122,6 @@ export type NotBegun = {
 
 export type Delivered = Entered | DeliveryFailed | NotBegun
 
-/** How the box check is done: a profile reading the screen, or the caller's own answer. */
-export type InputBoxCheck = (screen: ScreenText) => boolean | undefined
-
 export type Typist = {
   /**
    * Reads the screen, observes its rows and measures the calm; undefined once the terminal is
@@ -169,8 +166,12 @@ export type Typist = {
 export const createTypist = (
   target: TypingTarget,
   options: {
-    /** How the program draws its input box, or the caller's own reading of it. */
-    readonly profile: BoxProfile | InputBoxCheck
+    /**
+     * How the program draws its input box, asked at each look: it may change over the
+     * terminal's life. Without the option the gate can't tell whether the box shows; a getter
+     * that answers undefined (no program's box to read) says it does not.
+     */
+    readonly profile?: () => BoxProfile | undefined
     /**
      * Whether the program's input box is looked at before and as a delivery begins (default
      * true); false only for a stand-in TUI that draws none.
@@ -194,19 +195,18 @@ export const createTypist = (
   const { now, pollMs, pasteMs, watchMs, tickWindowMs } = timing
   const boxCheck = options.boxCheck ?? true
   const trace = options.trace ?? (() => {})
-  const { profile } = options
-  const check: InputBoxCheck =
-    typeof profile === "function"
-      ? profile
-      : (screen) => {
-          const box = profile.read(screen)
-          return (
-            box !== undefined &&
-            box.mode === "prompt" &&
-            isEmpty(box) &&
-            profile.overlay(screen) === false
-          )
-        }
+  /** Whether the box shows, empty and taking a prompt, as the profile reads it; undefined without the option. */
+  const check = (screen: ScreenText): boolean | undefined => {
+    if (!options.profile) return undefined
+    const profile = options.profile()
+    const box = profile?.read(screen)
+    return (
+      box !== undefined &&
+      box.mode === "prompt" &&
+      isEmpty(box) &&
+      profile?.overlay(screen) === false
+    )
+  }
 
   /** The rows of the screen as last seen, and when each row changed, lately. */
   let seen: { rows: readonly string[]; changes: Map<number, number[]> } | undefined
