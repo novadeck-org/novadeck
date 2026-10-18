@@ -6,6 +6,7 @@ import { App } from "../app/App"
 import { scriptedRunner } from "../backend/runner/scripted-server"
 import { pressShortcut, recentSwitcher } from "./support/keyboard"
 import { layoutSettled, press, terminalTab } from "./support/workspace"
+import { pageTheme } from "../theme/source"
 
 // The app's shortcuts from a real terminal: the runner's, whose emulator reads the keys it
 // takes (Ctrl+Tab as a Tab, Ctrl+Shift+Enter as Enter, Escape) and cancels them before they
@@ -19,7 +20,7 @@ const input = (name: string) => page.getByRole("textbox", { name: `Input for ${n
 
 const openRunner = async () => {
   const runner = scriptedRunner({ terminals: 2 })
-  const connection = await runner.connect(new AbortController().signal)
+  const connection = await runner.connect(new AbortController().signal, pageTheme)
   onTestFinished(async () => {
     await cleanup()
     connection.close()

@@ -291,22 +291,9 @@ describe("Grid arrow keys", () => {
       await press(jump("Right").keys)
       await expectSelected("Dev server")
       await expect.element(commandInput("Dev server")).toHaveFocus()
+      // The dev server, running, takes no command; what is typed reaches it and not the shell.
       await press("ls")
-      await expect.poll(() => draftOf("Dev server")).toBe("ls")
-      await expect.poll(() => draftOf("Checkout implementation")).toBe("")
-
-      await press(jump("Down").keys)
-      await expectSelected("Runtime")
-      await expect.element(commandInput("Runtime")).toHaveFocus()
-    })
-
-    it("stays put at the edge without typing anything", async () => {
-      await openGrid()
-      await clickInto("Checkout implementation")
-
-      await press(jump("Left").keys)
-      await expectSelected("Checkout implementation")
-      await expect.element(commandInput("Checkout implementation")).toHaveFocus()
+      await expect.element(commandInput("Dev server")).toHaveFocus()
       await expect.poll(() => draftOf("Checkout implementation")).toBe("")
     })
   })

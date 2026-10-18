@@ -473,13 +473,14 @@ describe("navigate mode", () => {
     it("types into the selected terminal and stops navigating", async () => {
       await openWorkspace()
       await enterNavigateMode()
-      await press("{ArrowDown}")
-      await expectSelected("Dev server")
+      // Down to the first shell, past the programs running in the two before it.
+      await press("{ArrowDown}{ArrowDown}{ArrowDown}")
+      await expectSelected("Checkout review")
 
       await press("ls")
 
-      await expectTypingIn("Dev server")
-      await expect.poll(() => draftOf("Dev server")).toBe("ls")
+      await expectTypingIn("Checkout review")
+      await expect.poll(() => draftOf("Checkout review")).toBe("ls")
     })
   })
 
@@ -865,8 +866,8 @@ describe("typing in a terminal", () => {
   context("when typing single letters with focus outside a terminal", () => {
     it("does not run workspace actions", async () => {
       await openWorkspace()
-      await terminalTab("Dev server").click()
-      await expectSelected("Dev server")
+      await terminalTab("Checkout review").click()
+      await expectSelected("Checkout review")
 
       await press("tfzb/")
 
@@ -876,9 +877,9 @@ describe("typing in a terminal", () => {
       await expect.element(page.getByRole("button", { name: "Enter Zen mode" })).toBeVisible()
       await expect.element(view("Focus")).toBeChecked()
       await expect.element(sidebar()).toBeVisible()
-      await expectSelected("Dev server")
-      await expect.element(commandInput("Dev server")).toHaveFocus()
-      await expect.poll(() => draftOf("Dev server")).toBe("tfzb/")
+      await expectSelected("Checkout review")
+      await expect.element(commandInput("Checkout review")).toHaveFocus()
+      await expect.poll(() => draftOf("Checkout review")).toBe("tfzb/")
     })
   })
 
@@ -900,7 +901,7 @@ describe("typing in a terminal", () => {
   context("when typing while the Find dialog is open", () => {
     it("types into the search, not the terminal", async () => {
       await openWorkspace()
-      await terminalTab("Dev server").click()
+      await terminalTab("Checkout review").click()
       await pressShortcut("find")
       await expectSearchReady()
 
@@ -909,19 +910,19 @@ describe("typing in a terminal", () => {
       await expect.element(searchField()).toHaveValue("xyz")
       await press("{Escape}")
       await expect.element(findDialog()).not.toBeInTheDocument()
-      await expect.poll(() => draftOf("Dev server")).toBe("")
+      await expect.poll(() => draftOf("Checkout review")).toBe("")
     })
   })
 
   context("when pressing Space with focus on a terminal tab", () => {
     it("does not move focus into the terminal", async () => {
       await openWorkspace()
-      await focusTab("Dev server")
+      await focusTab("Checkout review")
 
       await press(" ")
 
-      await expect.element(commandInput("Dev server")).not.toHaveFocus()
-      await expect.poll(() => draftOf("Dev server")).toBe("")
+      await expect.element(commandInput("Checkout review")).not.toHaveFocus()
+      await expect.poll(() => draftOf("Checkout review")).toBe("")
     })
   })
 
