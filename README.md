@@ -1092,10 +1092,10 @@ features add `ui-toolkit/`; `terminals/` may use `sidebar/`; `layouts/` may use
 `terminals/`; `notifications/` builds on the base layers, `sidebar/` and
 `terminals/unread-state.ts`; `inbox/` builds on the base layers, `sidebar/` and the
 chat's markdown reader and answers; `shell/` may use `layouts/`, `projects/`,
-`notifications/` and `inbox/`. `app/` composes every feature layer, `notifications/`, `inbox/` and `backend/`, and only `entries/` imports a
+`notifications/` and `inbox/`. `app/` composes every feature layer, `notifications/` and `inbox/`, and only `entries/` imports a
 backend adapter, each entry its own (tests and specs may import the demo's spec entry). `app/commands/` has no direct React or package imports, though
 routing still loads React Router at runtime: it builds on `core/`,
-`interaction/keymap.ts`, `backend/port.ts`, the UI store, routing, selectors,
+`interaction/keymap.ts`, the UI store, routing, selectors,
 the Canvas handle type in `layouts/canvas/types.ts`, and the pure state modules
 of `shell/` and `terminals/` (unread finishes among them), the companion panes' store and the chat's modes among them. Vendor
 libraries stay in their adapters: XYFlow in `layouts/canvas/`, React Grid Layout
@@ -1197,10 +1197,10 @@ saving a rename left behind, live in `app/controller/useWorkspaceEffects.ts`.
 Feature components outside `app/` take props.
 
 Terminal metadata and saved layouts live in the workspace model. Everything
-else about a terminal belongs to a backend behind the port in `backend/port.ts`:
+else about a terminal belongs to a backend behind the port in `core/port.ts`:
 it supplies the starting workspace seed, allocates new terminals synchronously,
-sees every store commit before listeners run, and renders the content inside
-each terminal frame. A terminal's mount marks the element that takes typed input with
+sees every store commit before listeners run, and mounts each terminal into the
+element its frame gives it. A terminal's mount marks the element that takes typed input with
 `data-terminal-input`, so shortcuts treat it as terminal input; from there the app's
 shortcuts run in capture, ahead of the terminal's emulator, which takes the keys it reads
 before they bubble. The demo adapter draws its terminals as the runner's are drawn, through

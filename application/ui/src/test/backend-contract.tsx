@@ -58,7 +58,7 @@ const commit = (backend: Backend, workspace: Workspace, actions: WorkspaceAction
   return next
 }
 
-// Checks the port contract in backend/port.ts against one adapter. Call it from the
+// Checks the port contract in core/port.ts against one adapter. Call it from the
 // adapter's colocated contract.test.ts.
 export const describeBackendContract = (name: string, options: BackendContractOptions): void => {
   const settle = options.settle ?? microtask
