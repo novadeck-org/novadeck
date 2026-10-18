@@ -29,6 +29,22 @@ describe("a terminal's theme", () => {
     expect(source.tokens).not.toHaveBeenCalled()
   })
 
+  it("takes the theme's monospace font where the terminal draws, as the theme sets it", () => {
+    const root = document.documentElement
+    const element = document.body.appendChild(document.createElement("div"))
+    const { source } = sourceOf({})
+    // One theme, read again after the page's font changes.
+    const theme = terminalTheme(source)
+    try {
+      root.style.setProperty("--font-mono", "Old Mono")
+      expect(theme.resolve(element).fontFamily).toBe("Old Mono")
+      root.style.setProperty("--font-mono", "New Mono")
+      expect(theme.resolve(element).fontFamily).toBe("New Mono")
+    } finally {
+      root.style.removeProperty("--font-mono")
+    }
+  })
+
   it("reads the colours where the terminal draws, when they're asked for", () => {
     const region = document.body.appendChild(document.createElement("section"))
     const element = region.appendChild(document.createElement("div"))

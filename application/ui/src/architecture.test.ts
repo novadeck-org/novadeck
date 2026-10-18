@@ -131,6 +131,9 @@ const adapterRule = (layer: string): readonly string[] => [
 ]
 // Not an adapter, though in backend/: both adapters draw their terminals with it.
 const terminalViews = "backend/terminal-views/"
+// Browser checks of terminal-views modules, run by the behaviour project (see vitest.config.ts)
+// in a real browser. They are tests, whatever their suffix, so they import the test runner.
+const browserChecks = new Set(["backend/terminal-views/renderers.spec.ts"])
 // The entries are the only files that import a backend adapter, each only its own: the
 // runner for the desktop and web apps, the visitor demo for the try build, and the demo with
 // its debug panel for the content preview.
@@ -259,7 +262,7 @@ const resolveFile = (file: string, specifier: string): string | undefined => {
   )
   return candidates.find(isFile)
 }
-const isTest = (file: string): boolean => /\.test\.tsx?$/.test(file)
+const isTest = (file: string): boolean => /\.test\.tsx?$/.test(file) || browserChecks.has(file)
 const rootTest = (file: string): boolean => isTest(file) && !file.includes("/")
 const adapterOf = (file: string): string | undefined => {
   const folder = /^backend\/[^/]+\//.exec(file)?.[0]

@@ -77,7 +77,7 @@ export default mergeConfig(
             // The specs, and the browser checks of modules that need a real one, as WebGL does.
             include: [
               "src/specs/**/*.spec.tsx",
-              "src/backend/runner/renderer.spec.ts",
+              "src/backend/terminal-views/renderers.spec.ts",
               "src/backend/demo/screen/screen.spec.ts",
             ],
             exclude: ["src/specs/motion.spec.tsx", "src/specs/counters/**"],
