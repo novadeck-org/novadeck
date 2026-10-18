@@ -95,20 +95,20 @@ describe("a terminal host's limits", () => {
     expect(host.terminal("b")).toBeDefined()
   })
 
-  it("keeps an exited terminal that is read or kept, and lets it go once it isn't", async () => {
+  it("keeps an exited terminal while it is read, and lets it go once its viewer leaves", async () => {
     const { host, evicted, open, exit } = hostOf({ maxRetained: 0 })
-    const read = open("a")
-    read.attach("viewer", { mode: "observe" })
-    const kept = open("b")
-    const keep = host.keep("b")
+    open("a")
+    open("b")
+    const viewer = host.attach("a", "viewer", { mode: "observe" })
+    expect(await viewer.next()).toEqual({
+      value: { type: "attached", mode: "observe" },
+      done: false,
+    })
     await exit("a", 0)
     await exit("b", 1)
-    expect(evicted).toEqual([])
-    read.release("viewer")
-    keep()
-    expect(kept.exit).not.toBeNull()
-    host.evict()
-    expect(evicted).toEqual(["a", "b"])
+    expect(evicted).toEqual(["b"])
+    await viewer.return(undefined)
+    expect(evicted).toEqual(["b", "a"])
   })
 })
 
@@ -116,7 +116,8 @@ describe("a terminal host's close", () => {
   it("ends the program, then keeps the closed terminal for its viewers until they're done", async () => {
     const { host, programs, open } = hostOf()
     const terminal = open("a")
-    const viewer = terminal.attach("viewer", { mode: "observe" })
+    const viewer = host.attach("a", "viewer", { mode: "observe" })
+    await viewer.next()
     await viewer.next()
     const closing = host.terminate("a")
     expect(host.closing("a")).toBe(true)
@@ -126,9 +127,9 @@ describe("a terminal host's close", () => {
     host.remove("a")
     expect(host.draining("a")).toBe(true)
     expect(host.terminal("a")).toBe(terminal)
-    expect(await viewer.next()).toMatchObject({ type: "exited" })
-    terminal.release("viewer")
-    host.settle("a")
+    expect(await viewer.next()).toMatchObject({ value: { type: "exited" } })
+    // Its viewer read the exit: the stream ends, and the closed terminal goes.
+    expect(await viewer.next()).toMatchObject({ done: true })
     expect(host.draining("a")).toBe(false)
     expect(host.terminal("a")).toBeUndefined()
   })
@@ -170,10 +171,14 @@ describe("a terminal host's terminals", () => {
     const { host, open, exit } = hostOf()
     open("a")
     await exit("a", 0)
-    const keep = host.keep("a")
+    const viewer = host.attach("a", "viewer", { mode: "observe" })
+    const attached = viewer.next()
+    // Closed while the attach waits its turn: it is kept for it, and goes once it's read.
     host.remove("a")
     expect(host.draining("a")).toBe(true)
-    keep()
+    expect(await attached).toMatchObject({ value: { type: "attached" } })
+    expect(await viewer.next()).toMatchObject({ value: { type: "snapshot" } })
+    expect(await viewer.next()).toMatchObject({ done: true })
     expect(host.draining("a")).toBe(false)
   })
 
@@ -185,6 +190,172 @@ describe("a terminal host's terminals", () => {
     const again = host.reserve("a")
     expect(() => again.open(spec, undefined)).toThrow("already open")
     again.done()
+  })
+})
+
+describe("a terminal host's attach", () => {
+  it("asks the caller's check before the terminal's own refusals, and refuses all once shut down", async () => {
+    const { host, open, programs } = hostOf()
+    open("a")
+    const first = host.attach("a", "viewer", { mode: "control" })
+    await first.next()
+    const refusal = new Error("closed meanwhile")
+    // The check comes first: no ALREADY_ATTACHED for an attach it refuses.
+    await expect(
+      host
+        .attach(
+          "a",
+          "viewer",
+          { mode: "observe" },
+          {
+            check: () => {
+              throw refusal
+            },
+          },
+        )
+        .next(),
+    ).rejects.toBe(refusal)
+    await first.return(undefined)
+    const late = host.attach(
+      "a",
+      "other",
+      { mode: "observe" },
+      {
+        check: () => {
+          throw refusal
+        },
+      },
+    )
+    const done = host.shutdown()
+    for (const program of programs) program.exit(0)
+    await expect(late.next()).rejects.toMatchObject({ code: "CLOSING" })
+    await done
+  })
+
+  it("ends its stream and its control once aborted after attaching", async () => {
+    const { host, open } = hostOf()
+    const terminal = open("a")
+    const controller = new AbortController()
+    const stream = host.attach("a", "viewer", { mode: "control" }, { signal: controller.signal })
+    await stream.next()
+    await stream.next()
+    expect(terminal.controller).toBe("viewer")
+    controller.abort()
+    expect(terminal.controller).toBeUndefined()
+    expect(await stream.next()).toEqual({ value: undefined, done: true })
+  })
+
+  it("refuses in order: the caller's check, then the terminal's own", async () => {
+    const { host, open } = hostOf()
+    open("a")
+    const refusal = new Error("closed meanwhile")
+    await expect(
+      host
+        .attach(
+          "a",
+          "viewer",
+          { mode: "observe" },
+          {
+            check: () => {
+              throw refusal
+            },
+          },
+        )
+        .next(),
+    ).rejects.toBe(refusal)
+    const first = host.attach("a", "viewer", { mode: "control" })
+    await first.next()
+    await expect(host.attach("a", "viewer", { mode: "observe" }).next()).rejects.toMatchObject({
+      code: "ALREADY_ATTACHED",
+    })
+    await expect(host.attach("a", "other", { mode: "control" }).next()).rejects.toMatchObject({
+      code: "CONTROL_IN_USE",
+    })
+    await expect(
+      host.attach("nothing", "viewer", { mode: "observe" }).next(),
+    ).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
+    await first.return(undefined)
+  })
+
+  it("attaches nothing given up before its turn, letting go of control held without one", async () => {
+    const { host, programs } = hostOf()
+    const place = host.reserve("a")
+    const terminal = place.open(spec, "creator")
+    place.done()
+    const controller = new AbortController()
+    const given = host.attach("a", "creator", { mode: "control" }, { signal: controller.signal })
+    const result = given.next()
+    controller.abort()
+    expect(await result).toEqual({ value: undefined, done: true })
+    expect(terminal.controller).toBeUndefined()
+    let released = false
+    const late = host.attach("a", "viewer", { mode: "observe" }, { released: () => released })
+    const pending = late.next()
+    released = true
+    expect(await pending).toEqual({ value: undefined, done: true })
+    expect(terminal.attached).toBe(0)
+    expect(programs).toHaveLength(1)
+  })
+})
+
+describe("a terminal host's restart", () => {
+  const restartOf = async (
+    host: ReturnType<typeof hostOf>["host"],
+    o: { owner?: string; check?: () => void } = {},
+  ) =>
+    host.restart("a", o.owner ?? "owner", {
+      check: o.check ?? (() => {}),
+      prepare: async () => (restart) => {
+        restart(spec, o.owner ?? "owner", () => {})
+        return "restarted"
+      },
+    })
+
+  it("refuses a running terminal, another restart under way, and another's control", async () => {
+    const { host, open, exit } = hostOf()
+    const terminal = open("a")
+    await expect(restartOf(host)).rejects.toMatchObject({ code: "CONFLICT" })
+    terminal.attach("someone", { mode: "control" })
+    await exit("a", 0)
+    await expect(restartOf(host)).rejects.toMatchObject({ code: "CONTROL_IN_USE" })
+    terminal.release("someone")
+    let go!: () => void
+    const waiting = host.restart<void>("a", "owner", {
+      check: () => {},
+      prepare: () =>
+        new Promise((resolve) => {
+          go = () => resolve((restart) => restart(spec, "owner", () => {}))
+        }),
+    })
+    await expect(restartOf(host)).rejects.toMatchObject({ code: "CONFLICT" })
+    go()
+    await waiting
+    expect(terminal.exit).toBeNull()
+  })
+
+  it("asks the caller's check before and in its step, and runs the step's restart", async () => {
+    const { host, open, exit } = hostOf()
+    const terminal = open("a")
+    await exit("a", 0)
+    let closed = false
+    const check = () => {
+      if (closed) throw new Error("closed meanwhile")
+    }
+    let go!: () => void
+    const waiting = host.restart<void>("a", "owner", {
+      check,
+      prepare: () =>
+        new Promise((resolve) => {
+          go = () => resolve((restart) => restart(spec, "owner", () => {}))
+        }),
+    })
+    closed = true
+    go()
+    await expect(waiting).rejects.toThrow("closed meanwhile")
+    expect(terminal.exit).not.toBeNull()
+    closed = false
+    expect(await restartOf(host, { check })).toBe("restarted")
+    expect(terminal.exit).toBeNull()
   })
 })
 

@@ -7,12 +7,10 @@ export {
   type TerminalHostOptions,
 } from "./host/host.js"
 export {
-  createTerminal,
   noHold,
   type Attachment,
   type HoldBudget,
   type InputHold,
   type RunSpec,
   type Terminal,
-  type TerminalOptions,
 } from "./host/terminal.js"
