@@ -548,8 +548,9 @@ pnpm dev:web
 Open <http://127.0.0.1:5173>. `dev:web` starts a runner with a fresh random token
 and hands the same token to the UI dev server. A browser has no desktop host, so it shows
 no notification when an agent finishes; its terminals are still marked done. For UI-only work, use
-`pnpm --filter @novadeck/ui dev` with `VITE_NOVADECK_RUNNER_URL` and
-`VITE_NOVADECK_RUNNER_TOKEN` pointing at a runner you started.
+`pnpm --filter @novadeck/ui dev --mode web` with `VITE_NOVADECK_RUNNER_URL` and
+`VITE_NOVADECK_RUNNER_TOKEN` pointing at a runner you started; the web entry reads
+`.env.web` rather than `.env.development`.
 
 Novadeck has no database migrations before its first release. A runner that opens a
 `workspace.sqlite` an earlier build wrote, whose tables or schema version differ from its
@@ -897,8 +898,8 @@ App:
 
 ### Visitor build
 
-A clickable, public version of the demo, for a website. `pnpm dev:try` serves it in vite
-mode `try` (http://127.0.0.1:5190); `pnpm build:try` writes static files to
+A clickable, public version of the demo, for a website. `pnpm dev:try` serves its entry
+(`application/ui/entries/try/`) in vite mode `try` (http://127.0.0.1:5190); `pnpm build:try` writes static files to
 `application/ui/dist-try` (beside `dist/`, which the desktop app packages), with relative
 paths and a hash router, so any static host serves them from any path, and
 `pnpm preview:try` serves them on http://127.0.0.1:5191. The [Try
@@ -1074,8 +1075,8 @@ features add `ui-toolkit/`; `terminals/` may use `sidebar/`; `layouts/` may use
 `terminals/`; `notifications/` builds on the base layers, `sidebar/` and
 `terminals/unread-state.ts`; `inbox/` builds on the base layers, `sidebar/` and the
 chat's markdown reader and answers; `shell/` may use `layouts/`, `projects/`,
-`notifications/` and `inbox/`. `app/` composes every feature layer, `notifications/`, `inbox/` and `backend/`, and within it only `app/backend.ts` imports a
-backend adapter (tests and specs may import the demo's spec entry). `app/commands/` has no direct React or package imports, though
+`notifications/` and `inbox/`. `app/` composes every feature layer, `notifications/`, `inbox/` and `backend/`, and only `entries/` imports a
+backend adapter, each entry its own (tests and specs may import the demo's spec entry). `app/commands/` has no direct React or package imports, though
 routing still loads React Router at runtime: it builds on `core/`,
 `interaction/keymap.ts`, `backend/port.ts`, the UI store, routing, selectors,
 the Canvas handle type in `layouts/canvas/types.ts`, and the pure state modules
@@ -1083,7 +1084,7 @@ of `shell/` and `terminals/` (unread finishes among them), the companion panes' 
 libraries stay in their adapters: XYFlow in `layouts/canvas/`, React Grid Layout
 in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
 `ui-toolkit/`, React Router in `app/` and `shell/`, and React DOM in
-`layouts/transition.ts`, `main.tsx`, and `test/`, and the runner client and
+`layouts/transition.ts`, `entries/start.tsx`, and `test/`, and the runner client and
 the emulator's view in `backend/runner/`. Other packages are denied
 unless the test lists them: React and Lucide are allowed everywhere, while
 backend adapters and test code may use any package. `test/` may import
@@ -1188,10 +1189,20 @@ state; closing the terminal removes it. `core/registry.ts` provides this
 lifecycle for any adapter. An adapter opts into the port contract suite by
 calling `describeBackendContract` from `test/backend-contract.tsx` in a
 colocated `contract.test.ts`, with a probe of what it holds and the I/O it
-started, and a driver when it has `start`. `App` reads a `createBackend` factory
-once at mount, and `app/backend.ts` chooses a build's default: a runner connection,
-or the demo in the content preview and visitor builds. Tests and specs pass the demo's
-spec backend (`specs/support/backend.ts`) themselves. A backend that must connect first supplies a
+started, and a driver when it has `start`. `App` reads its backend once at mount: each
+app's entry (`src/entries/`) chooses its own, a runner connection for the desktop and web
+apps, or the demo in the content preview and visitor builds. Tests and specs pass the demo's
+spec backend (`specs/support/backend.ts`) themselves.
+
+Each app is an entry of its own, named by its Vite mode, so a deploy carries only its own
+chunks. The desktop app's page is the package's `index.html` (built to `dist/`, which the host
+packages and loads, and the dev server's root page in development), and the others' are
+`entries/web/`, `entries/try/` and `entries/previews/` (mode `web` for `pnpm dev:web`, `try`,
+and `content-preview`), each served at its own server's root and built to `dist-web/`,
+`dist-try/` or `dist-previews/`. Every page is the same document but for the script it starts,
+which `src/deploy.test.ts` checks; a page beside `entries/<name>/` starts
+`src/entries/<name>.tsx` through a one-line `main.tsx`, as a dev server serves only what's under
+its root. A backend that must connect first supplies a
 `ConnectBackend`; `app/BackendGate.tsx` shows a splash until it resolves with the
 seed loaded, or a card saying what failed with a Retry button, and closes it on unmount.
 
@@ -1325,8 +1336,9 @@ cp application/runner/example.env application/runner/.env
 - UI: `VITE_API_URL` sets, at build time, the API origin that the Content Security
   Policy permits; by default only the same origin. The UI does not call the API yet.
 - Browser UI: `VITE_NOVADECK_RUNNER_URL` (a `ws:` or `wss:` URL ending in `/api/rpc`)
-  and `VITE_NOVADECK_RUNNER_TOKEN` name the runner a browser build connects to; the
-  CSP permits that origin. The desktop app ignores them and uses its own runner.
+  and `VITE_NOVADECK_RUNNER_TOKEN` name the runner a browser build (the web entry,
+  `--mode web`) connects to; the CSP permits that origin. The desktop app ignores them and
+  uses its own runner.
 
   > **Warning:** a browser build made with `VITE_NOVADECK_RUNNER_TOKEN` embeds the
   > token in its JavaScript. Anyone who can load that bundle can run shells on the

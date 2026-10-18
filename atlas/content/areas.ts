@@ -220,7 +220,7 @@ export const notes: Record<string, Note> = {
   },
   ui: {
     purpose: "The UI package's entry, global styles, build checks and content security policy.",
-    entries: [{ file: `${ui}/main.tsx` }],
+    entries: [{ file: `${ui}/entries/desktop.tsx` }],
   },
   "ui/app": {
     purpose:
