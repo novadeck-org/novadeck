@@ -1,2 +1,10 @@
-// Hosting terminals: so far, one attached viewer's bounded queue and ack window.
-export { Subscription } from "./host/subscription.js"
+// Hosting terminals: a terminal's events and attachments, each with its bounded queue and
+// ack window.
+export {
+  createTerminal,
+  type Attachment,
+  type Emitted,
+  type Terminal,
+  type TerminalOptions,
+  type TerminalView,
+} from "./host/terminal.js"

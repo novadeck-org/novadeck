@@ -52,7 +52,13 @@ import type {
 } from "@novadeck/protocol"
 import { murmurGist, murmurHeadline } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
-import { Subscription } from "@novadeck/terminal/host"
+import {
+  createTerminal,
+  type Attachment,
+  type Emitted,
+  type Terminal,
+  type TerminalOptions as HostOptions,
+} from "@novadeck/terminal/host"
 import {
   foregroundProcess,
   foregroundRuns,
@@ -206,7 +212,6 @@ import {
 } from "./records.js"
 import { restoredSeparator } from "./restored.js"
 import { freshNonce, leftoverNonce } from "./ring.js"
-import { snapshot } from "./snapshot.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
 import { transcriptChanges } from "./transcripts.js"
 import { TerminalWatcher } from "./watcher.js"
@@ -354,16 +359,12 @@ type Create = {
 }
 type Size = { cols: number; rows: number }
 type Attach = { terminalId: string; afterSequence?: number; mode?: "control" | "observe" }
-type Retained = { event: TerminalEvent; bytes: number }
 type Record = {
   summary: TerminalSummary
   process: Pty
   screen: Screen
-  sequence: number
-  history: Retained[]
-  historyBytes: number
-  subscribers: Map<string, Subscription<TerminalEvent>>
-  controller: string | undefined
+  /** Its events and who reads them. */
+  terminal: Terminal
   chain: Promise<void>
   pendingReads: number
   /** The output read but not yet on its screen, in characters; see `output`. */
@@ -483,7 +484,7 @@ type Record = {
       readonly rows: number
       readonly owner: string
       /** The owner's attachment that asked, as a window showing it anew attaches again. */
-      readonly attachment: Subscription<TerminalEvent> | undefined
+      readonly attachment: Attachment | undefined
     } | null
   } | null
   /** When its window was last resized, in epoch milliseconds; 0 before any resize. */
@@ -674,6 +675,32 @@ const positive = (value: number | undefined, fallback: number): number => {
     throw new RangeError("Terminal limits must be positive integers.")
   return result
 }
+
+/**
+ * A terminal's events and attachments, its budgets counting each event as the wire sends
+ * it, in its envelope; its snapshots are of `record`'s screen.
+ */
+const hosted = (
+  limits: HostOptions["limits"],
+  terminalId: string,
+  record: () => Record,
+  controller: string | undefined,
+): Terminal =>
+  createTerminal({
+    eventBytes: (event) => Buffer.byteLength(JSON.stringify({ ...event, terminalId })),
+    limits,
+    controller,
+    view: () => {
+      const { screen, summary, mouseEncoding } = record()
+      return {
+        screen,
+        cols: summary.cols,
+        rows: summary.rows,
+        exit: summary.exit,
+        mouse: mouseEncoding(),
+      }
+    },
+  })
 
 /** How long `settleBox` looks at a screen for an empty box, in milliseconds. */
 const boxSettleMs = 5_000
@@ -1051,11 +1078,12 @@ export class Terminals {
           telemetry: null,
         },
         ...started,
-        sequence: 0,
-        history: [],
-        historyBytes: 0,
-        subscribers: new Map(),
-        controller: pending.released ? undefined : ownerId,
+        terminal: hosted(
+          this.options,
+          input.id,
+          () => record,
+          pending.released ? undefined : ownerId,
+        ),
         chain: Promise.resolve(),
         pendingReads: 0,
         pendingOutput: 0,
@@ -1636,8 +1664,8 @@ export class Terminals {
       const { size } = held
       if (
         !size ||
-        record.controller !== size.owner ||
-        record.subscribers.get(size.owner) !== size.attachment
+        record.terminal.controller !== size.owner ||
+        record.terminal.attachment(size.owner) !== size.attachment
       )
         return
       try {
@@ -2043,7 +2071,7 @@ export class Terminals {
         cols: input.cols,
         rows: input.rows,
         owner: ownerId,
-        attachment: record.subscribers.get(ownerId),
+        attachment: record.terminal.attachment(ownerId),
       }
       return
     }
@@ -2077,7 +2105,7 @@ export class Terminals {
       throw new DomainError("TERMINAL_NOT_FOUND")
     if (record.summary.exit === null || record.restarting)
       throw new DomainError("CONFLICT", "Only an exited terminal can restart.")
-    if (record.controller !== undefined && record.controller !== ownerId)
+    if (record.terminal.controller !== undefined && record.terminal.controller !== ownerId)
       throw new DomainError("CONTROL_IN_USE")
     record.restarting = true
     const pending = this.pending(ownerId)
@@ -2126,9 +2154,9 @@ export class Terminals {
           this.transcripts && !started.resumes
             ? transcriptOf(record.screen, this.options.transcriptChars)
             : null
-        // Earlier attachments ended at the exit; any still draining are dropped.
-        for (const subscription of record.subscribers.values()) subscription.cancel()
-        record.subscribers.clear()
+        // Earlier attachments ended at the exit; any still draining are dropped, and any
+        // earlier cursor gets a fresh snapshot.
+        record.terminal.restarted(pending.released ? undefined : ownerId)
         this.dispose(record)
         Object.assign(record, started, {
           summary: {
@@ -2155,11 +2183,6 @@ export class Terminals {
           telemetry: null,
           watching: null,
           transcript: null,
-          // Skipping a sequence number sends any earlier cursor to a fresh snapshot.
-          sequence: record.sequence + 1,
-          history: [],
-          historyBytes: 0,
-          controller: pending.released ? undefined : ownerId,
           exitQueued: false,
           closing: undefined,
           submitted: started.resumes,
@@ -2494,23 +2517,16 @@ export class Terminals {
     const record = this.record(input.terminalId)
     const pending = this.pending(ownerId)
     record.pendingAttachments += 1
-    let subscription: Subscription<TerminalEvent> | undefined
+    let attachment: Attachment | undefined
     const detach = () => {
-      if (!subscription) {
-        if (
-          (signal?.aborted || pending.released) &&
-          !record.subscribers.has(ownerId) &&
-          record.controller === ownerId
-        )
-          record.controller = undefined
+      if (!attachment) {
+        if (signal?.aborted || pending.released) record.terminal.forgo(ownerId)
         return
       }
-      if (record.subscribers.get(ownerId) !== subscription) return
-      record.subscribers.delete(ownerId)
-      if (record.controller === ownerId) record.controller = undefined
+      if (record.terminal.attachment(ownerId) === attachment) record.terminal.release(ownerId)
     }
     const abort = () => {
-      subscription?.cancel()
+      attachment?.cancel()
       detach()
     }
     signal?.addEventListener("abort", abort, { once: true })
@@ -2521,57 +2537,25 @@ export class Terminals {
         // Closed, or closing, while this attachment waited its turn.
         if (record.closed || this.records.get(input.terminalId) !== record)
           throw new DomainError("TERMINAL_NOT_FOUND")
-        if (record.subscribers.has(ownerId)) throw new DomainError("ALREADY_ATTACHED")
-        const mode = input.mode ?? "control"
-        if (mode === "control" && record.controller !== undefined && record.controller !== ownerId)
-          throw new DomainError("CONTROL_IN_USE")
-        const cursor = input.afterSequence
-        if (
-          cursor !== undefined &&
-          (!Number.isSafeInteger(cursor) || cursor < 0 || cursor > record.sequence)
-        )
-          throw new DomainError("INVALID_CURSOR")
-        subscription = new Subscription<TerminalEvent>(
-          mode,
-          this.options.subscriberBytes,
-          this.options.ackWindowBytes,
-          detach,
-          this.options.snapshotBytes,
-        )
-        record.subscribers.set(ownerId, subscription)
-        if (mode === "control") record.controller = ownerId
-        else if (record.controller === ownerId) record.controller = undefined
-        const first = record.history[0]?.event.sequence ?? record.sequence + 1
-        if (cursor !== undefined && cursor >= first - 1) {
-          for (const { event } of record.history)
-            if (event.sequence > cursor) subscription.push(event)
-        } else {
-          subscription.push(
-            snapshot(
-              record.screen,
-              record.summary,
-              record.sequence,
-              this.options.snapshotBytes,
-              record.mouseEncoding(),
-            ),
-          )
-        }
-        if (record.summary.exit !== null) subscription.finish()
+        attachment = record.terminal.attach(ownerId, {
+          after: input.afterSequence,
+          mode: input.mode ?? "control",
+        })
       }).finally(() => {
         record.pendingAttachments -= 1
       })
-      if (!subscription) return
+      if (!attachment) return
       // Tells the client that control or observation is established before any event arrives.
-      yield { type: "attached", terminalId: input.terminalId, mode: subscription.mode }
+      yield { type: "attached", terminalId: input.terminalId, mode: attachment.mode }
       while (true) {
         // eslint-disable-next-line no-await-in-loop -- Each delivery waits for consumption ACKs.
-        const event = await subscription.next()
+        const event = await attachment.next()
         if (event === undefined) return
-        yield event
+        yield { ...event, terminalId: input.terminalId }
       }
     } finally {
       signal?.removeEventListener("abort", abort)
-      subscription?.cancel()
+      attachment?.cancel()
       detach()
       this.complete(ownerId, pending)
       this.settle(record)
@@ -3089,18 +3073,14 @@ export class Terminals {
   ack(input: { terminalId: string; sequence: number }, ownerId: string): void {
     // A closed terminal's viewers still acknowledge the events they drain.
     const record = this.draining.get(input.terminalId) ?? this.record(input.terminalId)
-    if (!Number.isSafeInteger(input.sequence) || input.sequence < 0)
-      throw new DomainError("INVALID_CURSOR")
     // A final ACK can arrive after natural stream completion or cancellation.
-    record.subscribers.get(ownerId)?.ack(input.sequence)
+    record.terminal.ack(ownerId, input.sequence)
   }
 
   release(ownerId: string): void {
     for (const pending of this.pendingOwners.get(ownerId) ?? []) pending.released = true
     for (const record of [...this.records.values(), ...this.draining.values()]) {
-      record.subscribers.get(ownerId)?.cancel()
-      record.subscribers.delete(ownerId)
-      if (record.controller === ownerId) record.controller = undefined
+      record.terminal.release(ownerId)
       this.settle(record)
     }
     for (const [watcher, owner] of this.watchers) if (owner === ownerId) watcher.finish()
@@ -3136,9 +3116,7 @@ export class Terminals {
     this.shutdownBy = Date.now() + shutdownTreesMs
     await Promise.all([...this.records.values()].map((record) => this.terminate(record)))
     for (const record of [...this.records.values(), ...this.draining.values()]) {
-      for (const subscription of record.subscribers.values()) subscription.cancel()
-      record.subscribers.clear()
-      record.controller = undefined
+      record.terminal.end()
       this.dispose(record)
     }
     this.records.clear()
@@ -3241,7 +3219,7 @@ export class Terminals {
   private control(id: string, ownerId: string): Record {
     if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(id)
-    if (record.controller !== ownerId) throw new DomainError("CONTROL_REQUIRED")
+    if (record.terminal.controller !== ownerId) throw new DomainError("CONTROL_REQUIRED")
     return record
   }
 
@@ -3368,24 +3346,9 @@ export class Terminals {
     record.unread = batch
   }
 
-  private emit(
-    record: Record,
-    payload:
-      | Omit<Extract<TerminalEvent, { type: "output" }>, "terminalId" | "sequence">
-      | Omit<Extract<TerminalEvent, { type: "resized" }>, "terminalId" | "sequence">
-      | Omit<Extract<TerminalEvent, { type: "exited" }>, "terminalId" | "sequence">,
-  ): void {
-    const event: TerminalEvent = {
-      ...payload,
-      terminalId: record.summary.id,
-      sequence: ++record.sequence,
-    }
-    const bytes = Buffer.byteLength(JSON.stringify(event))
-    record.history.push({ event, bytes })
-    record.historyBytes += bytes
-    while (record.historyBytes > this.options.historyBytes)
-      record.historyBytes -= record.history.shift()!.bytes
-    for (const subscription of record.subscribers.values()) subscription.push(event)
+  // Each event through one place, which a test watches.
+  private emit(record: Record, event: Emitted): void {
+    record.terminal.emit(event)
   }
 
   /**
@@ -4830,7 +4793,7 @@ export class Terminals {
       record.exitOrder = this.exits
       this.announce(record)
       this.emit(record, { type: "exited", exit })
-      for (const subscription of record.subscribers.values()) subscription.finish()
+      record.terminal.finish()
       record.resolveExit()
       this.evict()
     })
@@ -4881,7 +4844,7 @@ export class Terminals {
       .filter(
         (record) =>
           record.summary.exit !== null &&
-          record.subscribers.size === 0 &&
+          record.terminal.attached === 0 &&
           record.pendingAttachments === 0 &&
           !record.restarting,
       )
@@ -4924,7 +4887,7 @@ export class Terminals {
   private settle(record: Record): void {
     const id = record.summary.id
     if (this.draining.get(id) !== record) return
-    if (record.subscribers.size > 0 || record.pendingAttachments > 0) return
+    if (record.terminal.attached > 0 || record.pendingAttachments > 0) return
     this.draining.delete(id)
     this.dispose(record)
   }

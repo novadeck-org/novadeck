@@ -3,10 +3,12 @@ import { TerminalError, type TerminalEvent } from "../contract.js"
 type Delivery<E> = { event: E; bytes: number }
 type Outstanding = { bytes: number; snapshot: boolean }
 
+const jsonBytes = (event: unknown): number => Buffer.byteLength(JSON.stringify(event))
+
 /**
- * Bounds both queued events and events already handed to the transport. `E` is a
- * terminal event in its consumer's envelope; each counts at its JSON's size in it, which is
- * what the transport sends.
+ * Bounds both queued events and events already handed to the transport. Each event counts
+ * at `eventBytes`, by default its JSON's size: what the transport sends, so a host whose
+ * transport wraps events in an envelope counts them in it.
  */
 export class Subscription<E extends TerminalEvent = TerminalEvent> {
   readonly mode: "control" | "observe"
@@ -28,13 +30,14 @@ export class Subscription<E extends TerminalEvent = TerminalEvent> {
     private readonly window: number,
     private readonly detach: () => void,
     private readonly snapshotLimit: number = limit,
+    private readonly eventBytes: (event: E) => number = jsonBytes,
   ) {
     this.mode = mode
   }
 
   push(event: E): void {
     if (this.finished || this.error) return
-    const bytes = Buffer.byteLength(JSON.stringify(event))
+    const bytes = this.eventBytes(event)
     if (event.type === "snapshot") {
       if (bytes > this.snapshotLimit) {
         this.fail(
