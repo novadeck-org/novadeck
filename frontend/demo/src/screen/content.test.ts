@@ -27,6 +27,8 @@ const item = (fields: Partial<ChatItem>): ChatItem => ({
   tool: null,
   call: null,
   author: null,
+  run: null,
+  interrupted: false,
   ...fields,
 })
 
@@ -127,7 +129,12 @@ describe("an agent's opening", () => {
 
 describe("an agent's conversation", () => {
   it("shows a tool call by what it was called on, and its result clipped", () => {
-    const call = item({ kind: "tool-call", tool: "Bash", text: '{"command":"pnpm test"}' })
+    const call = item({
+      kind: "tool-call",
+      tool: "Bash",
+      text: '{"command":"pnpm test"}',
+      run: { kind: "run", title: "Ran", detail: "pnpm test" },
+    })
     const result = item({ kind: "tool-result", role: "tool", text: "a\nb\nc\nd" })
     expect(read(itemBlock(call, "claude")(40))).toBe("\n● Bash pnpm test")
     expect(read(itemBlock(result, "claude")(40))).toBe("  └ a\n    b\n    c…")

@@ -62,6 +62,8 @@ const draftOf = (draft: DemoDraft): Omit<ChatItem, "id" | "at" | "truncated"> =>
   tool: draft.tool ?? null,
   call: draft.call ?? null,
   author: draft.author ?? null,
+  run: draft.run ?? null,
+  interrupted: false,
 })
 
 const text = (role: ChatItem["role"], value: string) => ({
@@ -71,7 +73,46 @@ const text = (role: ChatItem["role"], value: string) => ({
   tool: null,
   call: null,
   author: null,
+  run: null,
+  interrupted: false,
 })
+
+// The line the chat shows for that command, in every harness.
+const gitStatus = { kind: "run", title: "Ran", detail: "git status --short" } as const
+
+// What an item carries of a text, as the runner takes it: cut at 16 KiB and marked.
+const bounded = (full: string): { text: string; truncated: boolean } => ({
+  text: full.slice(0, 16_384),
+  truncated: full.length > 16_384,
+})
+
+// A shell command's call as the decoders' `shellCall` reads it from the item's own, cut input:
+// a command that is itself JSON-quoted loses the quotes, only its first line shows, and a
+// command too long for an item, whose cut input no longer parses, has no detail.
+const shellCall = (command: string) => {
+  const input = bounded(JSON.stringify({ command }))
+  let shown = ""
+  try {
+    const parsed = (JSON.parse(input.text) as { command?: unknown }).command
+    if (typeof parsed === "string") {
+      shown = parsed
+      const unquoted: unknown = (() => {
+        try {
+          return JSON.parse(parsed)
+        } catch {
+          return undefined
+        }
+      })()
+      if (typeof unquoted === "string") shown = unquoted
+    }
+  } catch {
+    // Cut: no detail.
+  }
+  return {
+    ...input,
+    run: { kind: "run", title: "Ran", detail: shown.trim().split("\n", 1)[0]!.trim() } as const,
+  }
+}
 
 // What each demo agent's tool does as its turn runs, by harness.
 const toolRun = (agent: string, terminal: TerminalMetadata, call: string) =>
@@ -85,6 +126,7 @@ const toolRun = (agent: string, terminal: TerminalMetadata, call: string) =>
         }),
         output: "Exit code: 0\nOutput:\n M src/runtime/server.ts\n",
         call,
+        run: gitStatus,
       }
     : agent === "codex"
       ? {
@@ -96,6 +138,7 @@ const toolRun = (agent: string, terminal: TerminalMetadata, call: string) =>
           output:
             "Chunk ID: 3f9c1a\nWall time: 0.0000 seconds\nProcess exited with code 0\nOutput:\n M src/checkout/total.ts\n",
           call,
+          run: gitStatus,
         }
       : {
           tool: "Bash",
@@ -105,6 +148,7 @@ const toolRun = (agent: string, terminal: TerminalMetadata, call: string) =>
           }),
           output: " M src/checkout/total.ts",
           call,
+          run: gitStatus,
         }
 
 // The demo's conversations: each terminal running Claude Code or Codex opens with its
@@ -265,7 +309,10 @@ export const createDemoChat = (
     return entry
   }
   const storeOf = (key: TerminalKey): MutableStore<Conversation> => entryOf(key).store
-  const append = (key: TerminalKey, ...drafts: Omit<ChatItem, "id" | "at" | "truncated">[]) =>
+  const append = (
+    key: TerminalKey,
+    ...drafts: (Omit<ChatItem, "id" | "at" | "truncated"> & { readonly truncated?: boolean })[]
+  ) =>
     storeOf(key).update((conversation) => ({
       ...conversation,
       items: [
@@ -274,7 +321,7 @@ export const createDemoChat = (
           ...draft,
           id: `${terminalKeyId(key)}:${conversation.items.length + index + 1}`,
           at: Date.now(),
-          truncated: false,
+          truncated: draft.truncated ?? false,
         })),
       ],
     }))
@@ -291,14 +338,15 @@ export const createDemoChat = (
     if (chatAgent(found.terminal) !== "agy")
       append(
         found.key,
-        text("user", `!${command}`),
+        { ...text("user", ""), ...bounded(`!${command}`) },
         {
           role: "tool",
           kind: "tool-call",
-          text: JSON.stringify({ command }),
+          ...shellCall(command),
           tool: "Bash",
           call: null,
           author: null,
+          interrupted: false,
         },
         {
           role: "tool",
@@ -307,6 +355,8 @@ export const createDemoChat = (
           tool: null,
           call: null,
           author: null,
+          run: null,
+          interrupted: false,
         },
       )
   }
@@ -361,6 +411,8 @@ export const createDemoChat = (
           tool: run.tool,
           call: run.call,
           author: null,
+          run: run.run,
+          interrupted: false,
         },
         {
           role: "tool",
@@ -369,6 +421,8 @@ export const createDemoChat = (
           tool: null,
           call: run.call,
           author: null,
+          run: null,
+          interrupted: false,
         },
       )
     } else if (event.type === "rest") {
