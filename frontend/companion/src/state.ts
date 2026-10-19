@@ -1,5 +1,6 @@
 import {
   companionKeyOf,
+  kindRules,
   notesIn,
   planVersionOf,
   PlanUnwritableError,
@@ -469,7 +470,7 @@ const reconcile = (session: Session, workspace: Workspace): void => {
       for (const item of each.state.items)
         present.set(item.id, {
           target: { projectId: project.id, workspaceSessionId: each.id },
-          plan: item.kind === "plan",
+          plan: kindRules[item.kind].follow === "always",
         })
   for (const [id, entry] of session.followed) {
     const found = present.get(id)

@@ -1,4 +1,9 @@
-import type { CompanionItem, ItemContent, ItemId } from "@novadeck/core/companion"
+import {
+  kindRules,
+  type CompanionItem,
+  type ItemContent,
+  type ItemId,
+} from "@novadeck/core/companion"
 import type { WorkspaceTarget } from "@novadeck/core/types"
 import { useEffect, useRef, useSyncExternalStore } from "react"
 
@@ -43,7 +48,10 @@ export const useContent = (
   const { projectId, workspaceSessionId } = target
   const { id, kind } = item
   useEffect(
-    () => (kind === "plan" ? undefined : panes.watch({ projectId, workspaceSessionId }, id)),
+    () =>
+      kindRules[kind].follow === "always"
+        ? undefined
+        : panes.watch({ projectId, workspaceSessionId }, id),
     [panes, projectId, workspaceSessionId, id, kind],
   )
   return useSyncExternalStore(panes.store.subscribe, () => panes.store.getSnapshot().content[id])

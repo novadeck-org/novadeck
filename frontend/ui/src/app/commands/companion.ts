@@ -1,4 +1,4 @@
-import { isOnBar, windowOfItem, type ItemId } from "@novadeck/core/companion"
+import { isOnBar, kindRules, windowOfItem, type ItemId } from "@novadeck/core/companion"
 import type { BarKey } from "@novadeck/core/companion-bar"
 import { addCompactGridTerminal } from "@novadeck/core/layout/grid-placement"
 import { canvasNewTerminalSize } from "@novadeck/core/layout/terminal-size"
@@ -148,7 +148,7 @@ export const createCompanionCommands = (
       if (!item) return
       const target = currentTarget(snapshot)
       const home = item.from.terminalId
-      if (item.kind === "plan" && isOnBar(item, home))
+      if (kindRules[item.kind].close === "hide" && isOnBar(item, home))
         return commit([{ type: "bar/hide", target, terminalId: home, key: itemId }])
       const close: WorkspaceAction = { type: "item/close", target, itemId }
       // Closing a window moves the selection on, so the address follows.
