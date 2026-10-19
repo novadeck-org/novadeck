@@ -20,7 +20,12 @@ describe("Codex's rollout, as captured", () => {
   it("gives the tool call and its output, and leaves developer messages out", () => {
     const [call, output, ...rest] = items(records)
     expect(rest).toEqual([])
-    expect(call).toMatchObject({ role: "assistant", kind: "tool-call", tool: "exec" })
+    expect(call).toMatchObject({
+      role: "assistant",
+      kind: "tool-call",
+      tool: "exec",
+      run: { kind: "run", title: "Ran" },
+    })
     expect(output).toMatchObject({ role: "tool", kind: "tool-result", call: call?.call })
     expect(output?.text).toBe("<text>\n<text>\n<text>")
   })
@@ -42,6 +47,7 @@ describe("Codex's shell-mode commands, as captured", () => {
       kind: "tool-call",
       tool: "Bash",
       text: JSON.stringify({ command: "echo first\necho second" }),
+      run: { kind: "run", title: "Ran", detail: "echo first" },
     })
     expect(call?.call).not.toBeNull()
     expect(result).toMatchObject({ role: "tool", kind: "tool-result", text: "first\nsecond" })
@@ -118,7 +124,11 @@ describe("Codex's rollout records", () => {
       item({ type: "function_call", name: "shell", arguments: '{"cmd":"ls"}', call_id: "c1" }),
       item({ type: "function_call_output", call_id: "c1", output: "a\nb" }),
     ])
-    expect(call).toMatchObject({ tool: "shell", text: '{"cmd":"ls"}' })
+    expect(call).toMatchObject({
+      tool: "shell",
+      text: '{"cmd":"ls"}',
+      run: { kind: "run", title: "Ran", detail: "ls" },
+    })
     expect(output).toMatchObject({ text: "a\nb", call: call?.call })
   })
 
@@ -132,7 +142,10 @@ describe("Codex's rollout records", () => {
         call_id: "c1",
       }),
     ])
-    expect(call).toMatchObject({ tool: "mcp__novadeck__send" })
+    expect(call).toMatchObject({
+      tool: "mcp__novadeck__send",
+      run: { kind: "agent", title: "Messaged t2", detail: "hi" },
+    })
   })
 })
 
