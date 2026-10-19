@@ -13,6 +13,12 @@ export const murmurSourceArgumentPrefix = "--novadeck-murmur-source="
 /** Given as `software` when the host saw no graphics hardware, so murmur can't run and voice input goes straight to its small model; absent otherwise. */
 export const graphicsArgumentPrefix = "--novadeck-graphics="
 
+/**
+ * How the runner writes its log: a `LogSetup` as JSON (see ./logging.ts), naming the logs
+ * folder, the launch and which start of the runner this is.
+ */
+export const logArgumentPrefix = "--novadeck-log="
+
 /** Renderer-to-main request for a runner port; the answer arrives on the same channel. */
 export const runnerPortChannel = "novadeck:runner-port"
 
@@ -94,6 +100,15 @@ export const quitAppChannel = "novadeck:quit-app"
 /** Renderer-to-main request for a folder picker; answers the chosen path or null. */
 export const directoryPickerChannel = "novadeck:pick-directory"
 
+/** Renderer-to-main request to open the logs folder in the system's file manager. */
+export const openLogsChannel = "novadeck:open-logs"
+
+/**
+ * Renderer-to-main report of an error the page didn't catch, `{ kind, name, message, stack }`,
+ * which the host logs; see main/ui-errors.ts.
+ */
+export const uiErrorChannel = "novadeck:ui-error"
+
 /**
  * Messages from the main process to the runner's utility process: a client's port,
  * a save of every terminal before the system session ends, or the final close.
@@ -102,3 +117,6 @@ export type RunnerCommand =
   | { readonly type: "connect" }
   | { readonly type: "persist" }
   | { readonly type: "close" }
+
+/** Messages from the runner's utility process to the main process: it is ready to serve. */
+export type RunnerReport = { readonly type: "ready" }

@@ -1,6 +1,7 @@
-import { hashPaths, type PathRule } from "./paths.js"
+import { hashPaths } from "./paths.js"
+import { hashUrls, type UrlRule } from "./urls.js"
 
-export type RedactOptions = PathRule & {
+export type RedactOptions = UrlRule & {
   /**
    * Environment variables whose values are secrets: `NAME=value` and `NAME: value` lose the
    * value wherever they appear.
@@ -88,16 +89,18 @@ const shapes: readonly (readonly [RegExp, string])[] = [
     new RegExp(String.raw`((?:^|[?&;\s"'(,])${secretKey})=(?!<)[^&\s"';,)]+`, "gi"),
     "$1=<redacted>",
   ],
-  // Email addresses.
-  [/[\w.%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b/g, "<email>"],
 ]
+
+// Email addresses; not a Git remote's `git@host:`, which `hashUrls` wrote first.
+const email = /[\w.%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b(?!:[\w#~./<])/g
 
 /**
  * A redactor for this machine: what it returns of any text is what a log may keep, and what
  * a person could send in a bug report. In order: the secrets this process holds, the values of
  * the secret variables, URL credentials, credential headers, tokens by their shapes,
- * `key=value` secrets, and email addresses; then the paths (see `hashPaths`); then the
- * account name, as a word of its own, unless it is short or an ordinary word.
+ * `key=value` secrets; then addresses and Git remotes (see `hashUrls`); then email
+ * addresses; then the paths (see `hashPaths`); then the account name, as a word of its own,
+ * unless it is short or an ordinary word.
  */
 export const createRedactor = (options: RedactOptions): Redactor => {
   const held = (options.secrets ?? [])
@@ -117,6 +120,7 @@ export const createRedactor = (options: RedactOptions): Redactor => {
     for (const pattern of held) result = result.replace(pattern, "<secret>")
     for (const pattern of named) result = result.replace(pattern, "$1$2$3<redacted>")
     for (const [pattern, replacement] of shapes) result = result.replace(pattern, replacement)
+    result = hashUrls(result, options).replace(email, "<email>")
     result = hashPaths(result, options)
     return account ? result.replace(account, "<user>") : result
   }

@@ -53,12 +53,19 @@ One JSON object per line, in one envelope (`Entry`):
   `name.log` → `name.1.log` → … by size, keeping `keep` files. Each rotated-in file starts with a
   `session.resume` line, so it reads on its own.
 - `createRedactor`: held secrets, named secret variables, URL credentials, credential headers,
-  tokens by shape, `key=value` secrets and email addresses; then `hashPaths`; then the account
-  name as a word of its own.
+  tokens by shape (PEM private keys too) and `key=value` secrets; then `hashUrls`; then email
+  addresses; then `hashPaths`; then the account name as a word of its own.
+- `hashUrls`: addresses and Git remotes over SSH. Those the app names readable (`readableUrls`:
+  a host, `*.` a host and its subdomains, or a host and path) stay whole; public forges
+  (`github.com`, `gitlab.com`, `bitbucket.org`) and the loopback keep their host; any other host
+  is hashed but for its top-level domain. Paths are hashed as `hashPaths` hashes names, and a
+  query and fragment are dropped.
 - `hashPaths`: paths in free text, with names hashed by a salted HMAC (`#1f2e3d4c.ts`, keeping
   the extension); the app's folders as placeholders (`<userData>/…`), home as `~`, and the
   system's folders, shared roots' first folder and `node_modules` contents as they are. Linux,
-  macOS and Windows paths, shares, WSL and `file://` addresses.
+  macOS and Windows paths, shares, WSL and `file://` addresses. Names in `readableNames`
+  (well-known programs and tool folders: `node`, `git`, `.nvm`, `AppData`…), those an app adds
+  (`readable`) and version numbers are never hashed, so a log says which program failed.
 - `loadSalt`: the install's salt, made once in a file and never logged.
 - `startSession`: `session.start`, and `session.end` once the launch quits; a launch that left
   its marker behind, killed or crashed, is logged by the next as `session.unclean`.

@@ -14,10 +14,11 @@ import {
   rmdir,
 } from "node:fs/promises"
 import { createRequire } from "node:module"
-import { homedir } from "node:os"
+import { homedir, release } from "node:os"
 import { basename, dirname, join, win32 } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
+import { consoleLogger, logPath, startSession, type Logger, type Session } from "@novadeck/log"
 import type { UpdateChannel } from "@novadeck/protocol/bridge"
 import { pagesPartition } from "@novadeck/protocol/pages"
 import { startHttpServer, type HttpServer } from "@novadeck/runner/http"
@@ -27,6 +28,7 @@ import {
   app,
   autoUpdater as nativeUpdater,
   BrowserWindow,
+  crashReporter,
   dialog,
   ipcMain,
   Menu,
@@ -50,6 +52,7 @@ import {
   runnerPortChannel,
   versionChannel,
 } from "../bridge.js"
+import { openProcessLog, saltFileIn, type LogSetup } from "../logging.js"
 import { keepAppearance, registerAppearanceIpc } from "./appearance.js"
 import {
   bundleVersionOf,
@@ -58,7 +61,7 @@ import {
   recoverBundles,
   relaunchIntoCopy,
 } from "./applications-folder.js"
-import { dataFolderName } from "./data-folder.js"
+import { dataFolderName, logsFolder } from "./data-folder.js"
 import { detectSoftwareGraphics } from "./graphics.js"
 import {
   extractWithProcess,
@@ -86,7 +89,15 @@ import {
   startDetached,
   type InstallRecord,
 } from "./install-windows.js"
-import { linuxMenu } from "./menu.js"
+import {
+  goneBadly,
+  goneData,
+  installKind,
+  logNewDumps,
+  logRunnerOutput,
+  registerLogIpc,
+} from "./logs.js"
+import { linuxMenu, macMenu } from "./menu.js"
 import { notificationText, registerNoticeIpc, showNotices } from "./notices.js"
 import { limitPermissions, ownPage } from "./permissions.js"
 import {
@@ -100,7 +111,7 @@ import {
   startAppImage,
 } from "./portable.js"
 import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
-import { startRunner, type RunnerHost } from "./runner.js"
+import { startRunner, type RunnerEvents, type RunnerHost } from "./runner.js"
 import { registerSandboxIpc, sandboxState } from "./sandbox.js"
 import { registerUninstallIpc, startRemovalAfterExit, uninstaller } from "./uninstall.js"
 import {
@@ -144,6 +155,84 @@ if (!primaryInstance) {
   console.error(`Novadeck is already running on the data folder ${app.getPath("userData")}.`)
   app.exit(0)
 }
+// Where this launch's logs go (see ./data-folder.ts); a bug report attaches them.
+app.setAppLogsPath(
+  logsFolder({
+    platform: process.platform,
+    home: app.getPath("home"),
+    userData: app.getPath("userData"),
+    packaged: app.isPackaged,
+    ownDataFolder: Boolean(app.commandLine.getSwitchValue("user-data-dir")),
+  }),
+)
+// A native crash leaves a minidump in crashDumps, which the next launch logs by name and
+// size; none is ever sent anywhere.
+crashReporter.start({ uploadToServer: false })
+
+// Names this launch in every line of both logs, the host's and the runner's; never kept.
+const launchId = randomUUID()
+// Verbose logging, for a person collecting a bug report: lines that may hold what a
+// terminal's screen showed are written too.
+const verboseLogs = process.env.NOVADECK_LOGS === "verbose"
+// Where the app's own code runs from, which its stack frames name: the app bundle on macOS,
+// the folder of the executable elsewhere (an AppImage's mount changes every launch).
+const installFolder = (): string =>
+  !app.isPackaged
+    ? app.getAppPath()
+    : process.platform === "darwin"
+      ? bundleOf(app.getPath("exe"))
+      : dirname(process.execPath)
+// What a process of this launch needs to write its log; `run` numbers the runner's starts.
+const logSetup = (run?: number): LogSetup => ({
+  folder: app.getPath("logs"),
+  sid: launchId,
+  ...(run !== undefined && { run }),
+  verbose: verboseLogs,
+  places: {
+    userData: app.getPath("userData"),
+    logs: app.getPath("logs"),
+    crashDumps: app.getPath("crashDumps"),
+    install: installFolder(),
+  },
+  saltFile: saltFileIn(app.getPath("userData")),
+  resume: {
+    version: app.getVersion(),
+    os: process.platform,
+    osVersion: release(),
+    arch: process.arch,
+  },
+})
+// The host's log: host.log, written by this, the primary instance, alone.
+const logger: Logger = primaryInstance
+  ? openProcessLog("host", logSetup(), { echo: !app.isPackaged })
+  : consoleLogger()
+const log = logger.for("main")
+// Each module's warnings, as the modules that take a `log` report them.
+const warnings =
+  (src: string) =>
+  (message: string, error?: unknown): void =>
+    logger.for(src).warn(`${src}.warning`, message, error === undefined ? {} : { err: error })
+// The launch's records: started once the build is known, ended as the process exits.
+let records: Session | undefined
+// Logged as they happen; what follows is as it ever was: an uncaught exception shows
+// Electron's dialog, and a promise rejected with nothing to catch it is only a warning.
+process.on("uncaughtExceptionMonitor", (error, origin) =>
+  log.fatal("host.uncaught", "The host hit an error nothing caught.", {
+    data: { origin },
+    err: error,
+  }),
+)
+process.on("unhandledRejection", (reason) => {
+  log.error("host.rejection", "A promise in the host failed with nothing to catch it.", {
+    err: reason,
+  })
+  console.error("Unhandled rejection:", reason)
+})
+process.on("exit", (code) => {
+  records?.end({ code })
+  logger.close()
+})
+
 const developmentOrigin = "http://127.0.0.1:5173"
 // How long quitting waits for the pages' last saves.
 const saveBeforeQuitMs = 1_500
@@ -459,10 +548,10 @@ const startUpdates = async (): Promise<void> => {
       try {
         updateState.recordInstallFailure(version)
       } catch (error) {
-        console.warn("The failed install was not kept.", error)
+        log.warn("update.failure-not-kept", "The failed install was not kept.", { err: error })
       }
     },
-    log: (message, error) => console.warn(message, error),
+    log: warnings("updater"),
   })
 }
 
@@ -573,7 +662,7 @@ const bundleMachine = () => ({
     ),
   rename,
   remove: (path: string) => rm(path, { recursive: true, force: true }),
-  log: (message: string, error: unknown) => console.warn(message, error),
+  log: warnings("install"),
 })
 
 const installMacBundle = async (
@@ -603,7 +692,7 @@ const startBundle = (image: string): Promise<boolean> =>
       exists: existsSync,
       relaunch: (execPath) => app.relaunch({ execPath }),
       exit: () => app.exit(0),
-      log: (message, error) => console.warn(message, error),
+      log: warnings("install"),
     }),
   )
 
@@ -631,7 +720,7 @@ const startInstalled = (image: string): Promise<boolean> =>
     releaseLock: () => app.releaseSingleInstanceLock(),
     reclaimLock: () => app.requestSingleInstanceLock(),
     exit: () => app.exit(0),
-    log: (message, error) => console.warn(message, error),
+    log: warnings("install"),
   })
 
 // Starts the installed Windows copy `image` in place of this process; see `startDetached`.
@@ -644,7 +733,7 @@ const startWindowsCopy = (image: string): Promise<boolean> =>
     releaseLock: () => app.releaseSingleInstanceLock(),
     reclaimLock: () => app.requestSingleInstanceLock(),
     exit: () => app.exit(0),
-    log: (message, error) => console.warn(message, error),
+    log: warnings("install"),
   })
 
 // Starts the installed copy `image` in place of this one, the way this system does.
@@ -808,7 +897,7 @@ const installWindowsSetup = async (
     download: downloadSetup,
     remove: (file) => rm(file, { force: true }),
     progress: (percent) => progress({ phase: "downloading", percent }),
-    log: (message, error) => console.warn(message, error),
+    log: warnings("install"),
   })
   if (outcome.kind === "failed") return outcome
   progress({ phase: "installing" })
@@ -819,7 +908,7 @@ const installWindowsSetup = async (
     spawn,
     exists: existsSync,
     timeoutMs: setupWaitMs,
-    log: (message, error) => console.warn(message, error),
+    log: warnings("install"),
   })
   const installed =
     ran === "failed"
@@ -886,13 +975,82 @@ const redirect = redirectMarker(
     remove: (file) => rmSync(file, { force: true }),
   },
   Date.now,
-  (message, error) => console.warn(message, error),
+  warnings("portable"),
 )
+
+// What the host logs of the runner's starts, ends and output.
+const runnerEvents = (): RunnerEvents => {
+  const runnerLog = logger.for("runner")
+  const output = logRunnerOutput(runnerLog)
+  return {
+    spawned: (start) =>
+      runnerLog.info("runner.spawn", "The runner was started.", { data: { run: start } }),
+    ready: (start, ms) =>
+      runnerLog.info("runner.ready", "The runner answered.", { data: { run: start, ms } }),
+    exited: (start, code, expected) => {
+      if (expected) {
+        runnerLog.info("runner.exit", "The runner exited.", {
+          data: { run: start, code, expected },
+        })
+        return
+      }
+      runnerLog.error("runner.exit", "The runner exited unexpectedly.", {
+        data: { run: start, code, expected },
+      })
+      // Still said where it always was, as the system's journal keeps a desktop app's output.
+      console.error(`Novadeck runner exited unexpectedly (code ${code})`)
+    },
+    output: (start, stream, line) => {
+      output(start, stream, line)
+      if (!app.isPackaged)
+        (stream === "stderr" ? process.stderr : process.stdout).write(`${line}\n`)
+    },
+  }
+}
+
+// Shows the logs folder in the system's file manager, its host.log selected, which a bug
+// report attaches.
+const openLogs = (): void => {
+  const folder = app.getPath("logs")
+  void mkdir(folder, { recursive: true })
+    .then(() => shell.showItemInFolder(logPath(folder, "host")))
+    .catch((error: unknown) =>
+      log.warn("logs.open-failed", "The logs folder did not open.", { err: error }),
+    )
+}
 
 const launch = async (): Promise<void> => {
   // The signature is not asked here: it takes a moment, and a portable copy is told
   // without it.
   const portable = portableOf({ ...(await baseBuild()), signed: false })
+  const known = await baseBuild()
+  // The launch's records begin here, with what the build is, and the crashes of the launches
+  // before it.
+  records = startSession({
+    marker: join(app.getPath("logs"), "session.json"),
+    sid: launchId,
+    log: logger.for("session"),
+    file: logPath(app.getPath("logs"), "host"),
+    data: {
+      version: app.getVersion(),
+      channel: updateState.read().channel,
+      install: installKind({ ...known, appImage: known.env.APPIMAGE !== undefined }),
+      portable,
+      os: process.platform,
+      osVersion: release(),
+      arch: process.arch,
+      electron: process.versions.electron,
+      node: process.versions.node,
+      chrome: process.versions.chrome,
+      locale: app.getLocale(),
+      verbose: verboseLogs,
+    },
+  })
+  logNewDumps(
+    app.getPath("crashDumps"),
+    join(app.getPath("logs"), "crash-dumps.json"),
+    logger.for("crash"),
+  )
   // An installed copy that starts answers a redirect: a later portable launch redirects again.
   if (!portable) redirect.clear()
   // An install interrupted on macOS may have left the only installed copy renamed aside,
@@ -912,7 +1070,7 @@ const launch = async (): Promise<void> => {
       recentRedirect: redirect.recent,
       markRedirect: redirect.mark,
       quit: () => app.exit(0),
-      log: (message, error) => console.warn(message, error),
+      log: warnings("portable"),
     })
   )
     return
@@ -939,6 +1097,8 @@ const launch = async (): Promise<void> => {
     ...voice,
     ...murmur,
     softwareGraphics,
+    log: (start) => JSON.stringify(logSetup(start)),
+    events: runnerEvents(),
   })
   // A port is shell access: only the main frame of this app's own window showing its
   // own UI may ask for one.
@@ -984,7 +1144,9 @@ const launch = async (): Promise<void> => {
         .then((url) => {
           if (url) return shell.openExternal(url)
         })
-        .catch((error: unknown) => console.warn("The release page did not open.", error))
+        .catch((error: unknown) =>
+          log.warn("update.page-failed", "The release page did not open.", { err: error }),
+        )
     },
     channel: () => channel,
     setChannel: (next) => {
@@ -994,7 +1156,7 @@ const launch = async (): Promise<void> => {
       try {
         updateState.setChannel(next)
       } catch (error) {
-        console.warn("The update channel was not kept.", error)
+        log.warn("update.channel-not-kept", "The update channel was not kept.", { err: error })
       }
     },
   })
@@ -1002,7 +1164,7 @@ const launch = async (): Promise<void> => {
   // while this copy keeps running, and is told how the install goes.
   registerPortableIpc(ipcMain, {
     window: (event) => appWindow(event)?.webContents,
-    log: (message, error) => console.warn(message, error),
+    log: warnings("portable"),
     installer: portableInstaller({
       portable,
       version: app.getVersion(),
@@ -1025,12 +1187,14 @@ const launch = async (): Promise<void> => {
           try {
             page.send(portableStateChannel, state)
           } catch (error) {
-            console.warn("The portable state was not sent to a window.", error)
+            log.warn("portable.send-failed", "The portable state was not sent to a window.", {
+              err: error,
+            })
           }
         }
       },
       stopping: () => stopping,
-      log: (message, error) => console.warn(message, error),
+      log: warnings("portable"),
     }),
   })
   // The page learns what removing this copy would do, removes it, and quits afterwards.
@@ -1066,7 +1230,7 @@ const launch = async (): Promise<void> => {
           releaseLock: () => {},
           reclaimLock: () => true,
           exit: () => {},
-          log: (message, error) => console.warn(message, error),
+          log: warnings("uninstall"),
         }),
       removeAfterExit: (folders, uninstallerFile) =>
         startRemovalAfterExit({
@@ -1074,7 +1238,7 @@ const launch = async (): Promise<void> => {
           folders,
           setup: uninstallerFile,
           spawn,
-          log: (message, error) => console.warn(message, error),
+          log: warnings("uninstall"),
         }),
       // Quitting as usual, less the install of a waiting update, which would put the app
       // back.
@@ -1086,7 +1250,7 @@ const launch = async (): Promise<void> => {
       },
       stopping: () => stopping,
       quit: () => app.quit(),
-      log: (message, error) => console.warn(message, error),
+      log: warnings("uninstall"),
     }),
   })
   // The page learns whether Electron's sandbox is on, and how to turn it on if not.
@@ -1108,6 +1272,12 @@ const launch = async (): Promise<void> => {
         realpath: realpathOrUndefined,
       }),
   })
+  // The page opens the logs folder, and reports the errors it didn't catch.
+  registerLogIpc(ipcMain, {
+    window: appWindow,
+    openLogs,
+    log: logger.for("page", "ui"),
+  })
   // Only the app's own pages learn the version it runs.
   ipcMain.handle(versionChannel, (event) => (appWindow(event) ? app.getVersion() : ""))
   ipcMain.handle(directoryPickerChannel, async (event) => {
@@ -1128,10 +1298,45 @@ const launch = async (): Promise<void> => {
   if (!app.isPackaged) await waitFor(developmentOrigin)
 
   createWindow(server.origin)
-  void startUpdates().catch((error: unknown) => console.warn("Updates did not start.", error))
+  void startUpdates().catch((error: unknown) =>
+    log.warn("update.start-failed", "Updates did not start.", { err: error }),
+  )
 }
 
 app.setAppUserModelId(appId)
+
+// Any of the app's processes ending, the runner's utility process included: why, and its
+// exit code, as a crash or the system's OOM killer leaves them.
+app.on("child-process-gone", (_event, details) => {
+  const data = goneData(details)
+  if (goneBadly(details.reason))
+    log.error("process.gone", "A process of the app ended unexpectedly.", { data })
+  else log.info("process.gone", "A process of the app ended.", { data })
+})
+
+// What goes wrong with a window's page, as the page itself can't tell: it crashed, it hangs,
+// it didn't load, or its preload failed.
+const pageLog = logger.for("page", "ui")
+app.on("render-process-gone", (_event, _contents, details) =>
+  pageLog.error("ui.gone", "A window's page ended unexpectedly.", {
+    data: { reason: details.reason, exitCode: details.exitCode },
+  }),
+)
+const watchPage = (contents: WebContents): void => {
+  contents.on("unresponsive", () =>
+    pageLog.warn("ui.unresponsive", "A window's page stopped answering."),
+  )
+  contents.on("responsive", () => pageLog.info("ui.responsive", "A window's page answers again."))
+  contents.on("did-fail-load", (_event, code, description, url, mainFrame) => {
+    if (mainFrame)
+      pageLog.error("ui.load-failed", "A window's page did not load.", {
+        data: { code, description, url },
+      })
+  })
+  contents.on("preload-error", (_event, _path, error) =>
+    pageLog.error("ui.preload-failed", "A window's preload failed.", { err: error }),
+  )
+}
 
 // A window shown again: the one a second launch asked for.
 const bringForward = (window: BrowserWindow): void => {
@@ -1164,6 +1369,9 @@ app.whenReady().then(() => {
         }),
       ),
     )
+  // macOS shows its menu bar: Help opens the logs folder. Elsewhere Preferences does.
+  if (process.platform === "darwin")
+    Menu.setApplicationMenu(Menu.buildFromTemplate(macMenu(openLogs)))
   limitPermissions(
     session.defaultSession,
     isAppPage,
@@ -1175,9 +1383,11 @@ app.whenReady().then(() => {
   lockPagesSession((partition) => session.fromPartition(partition), pagesPartition)
   app.on("web-contents-created", (_event, contents) => {
     if (contents.getType() === "webview") guardPage(contents, (url) => shell.openExternal(url))
+    if (contents.getType() === "window") watchPage(contents)
   })
 
   void launch().catch((error: unknown) => {
+    log.fatal("host.launch-failed", "The app could not start.", { err: error })
     console.error(error)
     app.exit(1)
   })
@@ -1195,6 +1405,7 @@ const declineUnorderlyInstall = installOnlyOnOrderlyQuit(
 )
 
 app.on("before-quit", (event) => {
+  if (!stopping) log.info("app.quit", "The app is quitting.", { data: { orderly: orderlyQuit } })
   // No new download starts on the way out.
   updates?.stop()
   if (process.platform === "linux") declineUnorderlyInstall()

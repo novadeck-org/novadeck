@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto"
 
 import { describe, expect, it } from "vitest"
 
-import { hashPaths } from "./paths.js"
+import { hashPaths, type PathRule } from "./paths.js"
 import { createRedactor } from "./redact.js"
 
 const salt = "f3a9c1e07b2d4e6f8a0b1c2d3e4f5a6b"
@@ -42,12 +42,7 @@ const windows = {
 }
 
 describe("hashPaths", () => {
-  const cases: readonly (readonly [
-    string,
-    typeof linux | typeof mac | typeof windows,
-    string,
-    string,
-  ])[] = [
+  const cases: readonly (readonly [string, PathRule, string, string])[] = [
     // Linux
     ["a project file", linux, "/home/ana/acme/billing.ts", `~/${h("acme")}/${h("billing", ".ts")}`],
     ["home alone", linux, "cwd /home/ana", "cwd ~"],
@@ -71,6 +66,24 @@ describe("hashPaths", () => {
       "<install>/resources/app.asar/out/main/index.js",
     ],
     ["a system file", linux, "spawn /usr/bin/zsh ENOENT", "spawn /usr/bin/zsh ENOENT"],
+    [
+      "a tool under home, by its well-known folders and version",
+      linux,
+      "spawn /home/ana/.nvm/versions/node/v22.3.0/bin/node ENOENT",
+      "spawn ~/.nvm/versions/node/v22.3.0/bin/node ENOENT",
+    ],
+    [
+      "a program the app names readable",
+      { ...linux, readable: ["claude"] },
+      "spawn /home/ana/.local/bin/claude ENOENT",
+      "spawn ~/.local/bin/claude ENOENT",
+    ],
+    [
+      "a company tool under /opt",
+      linux,
+      "/opt/acme-internal-tool/bin/sync",
+      `/opt/${h("acme-internal-tool")}/bin/${h("sync")}`,
+    ],
     ["the proc tree", linux, "/proc/1234/status", "/proc/1234/status"],
     [
       "a temporary file",
@@ -188,6 +201,12 @@ describe("hashPaths", () => {
       "C:\\Users\\ana\\OneDrive - Acme\\Q3 Plan.docx",
       `~\\${h("onedrive - acme")}\\${h("q3 plan", ".docx")}`,
     ],
+    [
+      "the installed app, by its well-known folders and a name the app reads",
+      { ...windows, places: {}, readable: ["novadeck"] },
+      "C:\\Users\\Ana Lopez\\AppData\\Local\\Programs\\novadeck\\Novadeck.exe",
+      "~\\AppData\\Local\\Programs\\novadeck\\Novadeck.exe",
+    ],
     ["the system", windows, "C:\\Windows\\System32\\reg.exe", "C:\\Windows\\System32\\reg.exe"],
     [
       "Program Files",
@@ -229,8 +248,8 @@ describe("hashPaths", () => {
     [
       "a WSL share by its newer name",
       windows,
-      "\\\\wsl.localhost\\Debian\\opt\\tool",
-      "\\\\wsl.localhost\\Debian\\opt\\tool",
+      "\\\\wsl.localhost\\Debian\\usr\\lib\\tool",
+      "\\\\wsl.localhost\\Debian\\usr\\lib\\tool",
     ],
   ]
 
@@ -269,6 +288,7 @@ describe("createRedactor", () => {
   const redact = createRedactor({
     ...linux,
     secretNames: ["NOVADECK_TOKEN"],
+    readableUrls: ["*.novadeck.dev"],
     secrets: ["c0ffee-held-secret-value"],
   })
 
@@ -279,7 +299,7 @@ describe("createRedactor", () => {
     [
       "a URL's credentials",
       "fetch https://ana:hunter2@git.acme.dev/x failed",
-      "fetch https://<redacted>@git.acme.dev/x failed",
+      `fetch https://<redacted>@${h("git.acme.dev")}.dev/${h("x")} failed`,
     ],
     ["a bearer token", "Authorization: Bearer abc.def.ghi", "Authorization: <redacted>"],
     ["a bare bearer token", "sent bearer a1b2c3d4e5", "sent bearer <redacted>"],
@@ -297,8 +317,8 @@ describe("createRedactor", () => {
     ],
     [
       "secrets in a query",
-      "GET https://api.acme.dev/v1?user=7&token=abc123&api_key=zzz&page=2",
-      "GET https://api.acme.dev/v1?user=7&token=<redacted>&api_key=<redacted>&page=2",
+      "GET https://api.novadeck.dev/v1?user=7&token=abc123&api_key=zzz&page=2",
+      "GET https://api.novadeck.dev/v1?user=7&token=<redacted>&api_key=<redacted>&page=2",
     ],
     ["a password setting", "password=hunter2 rejected", "password=<redacted> rejected"],
     ["secrets in JSON", '{"accessToken":"abc","id":3}', '{"accessToken":"<redacted>","id":3}'],
@@ -321,6 +341,21 @@ describe("createRedactor", () => {
       "read <secret> done",
     ],
     ["a private key cut short", "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA", "<secret>"],
+    [
+      "a private repository, quoted as Git does",
+      "fatal: repository 'https://github.com/acme/secret-repo.git/' not found",
+      `fatal: repository 'https://github.com/${h("acme")}/${h("secret-repo", ".git")}/' not found`,
+    ],
+    [
+      "a remote over SSH",
+      "git@github.com:acme/secret.git rejected",
+      `git@github.com:${h("acme")}/${h("secret", ".git")} rejected`,
+    ],
+    [
+      "a remote over ssh://",
+      "ssh://git@github.com/acme/secret.git",
+      `ssh://<redacted>@github.com/${h("acme")}/${h("secret", ".git")}`,
+    ],
     ["an npm package", "react@19.3.1 and @novadeck/log", "react@19.3.1 and @novadeck/log"],
   ]
 

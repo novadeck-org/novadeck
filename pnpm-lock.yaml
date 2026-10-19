@@ -101,6 +101,9 @@ importers:
       '@novadeck/core':
         specifier: workspace:*
         version: link:../../frontend/core
+      '@novadeck/log':
+        specifier: workspace:*
+        version: link:../../libraries/log
       '@novadeck/protocol':
         specifier: workspace:*
         version: link:../../contract/protocol
@@ -289,6 +292,9 @@ importers:
       '@novadeck/harness-core':
         specifier: workspace:*
         version: link:../../harnesses/core
+      '@novadeck/log':
+        specifier: workspace:*
+        version: link:../../libraries/log
       '@novadeck/murmur':
         specifier: workspace:*
         version: link:../../engines/murmur

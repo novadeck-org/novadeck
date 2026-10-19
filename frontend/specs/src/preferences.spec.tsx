@@ -94,7 +94,17 @@ describe("Preferences' version", () => {
     await expect.element(about.getByText("0.0.0")).not.toBeInTheDocument()
   })
 
-  it("leaves About out where the backend gives no version", async () => {
+  it("offers the logs folder, which the backend opens", async () => {
+    await openWorkspace()
+    await openPreferences()
+    const about = preferencesDialog().getByRole("region", { name: "About" })
+    await expect.element(about.getByText("Logs", { exact: true })).toBeVisible()
+    await expect
+      .element(about.getByRole("button", { name: "Open logs folder" }))
+      .toHaveAccessibleDescription(/Attach them to a bug report/)
+  })
+
+  it("leaves About out where the backend gives no version and keeps no logs", async () => {
     await openWorkspace("/?version=none")
     await openPreferences()
     await expect.element(preferencesDialog().getByText("Appearance")).toBeVisible()

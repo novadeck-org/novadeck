@@ -22,6 +22,7 @@ import {
   portableStateChannel,
   noticeChannel,
   noticeClickChannel,
+  openLogsChannel,
   openUpdatePageChannel,
   portableChannel,
   quitAppChannel,
@@ -31,6 +32,7 @@ import {
   setUpdateChannelChannel,
   uninstallAppChannel,
   uninstallPlanChannel,
+  uiErrorChannel,
   updateChannelChannel,
   versionChannel,
   updateOfferChannel,
@@ -123,6 +125,10 @@ const uninstallResultOf = (value: unknown): UninstallResult => {
   if (kind === "failed") return lineOf(reason, uninstallReasonLength) ? { kind, reason } : unknown
   return unknown
 }
+
+// A field of the page's error report, as text cut to `limit`; undefined for anything else.
+const text = (value: unknown, limit: number): string | undefined =>
+  typeof value === "string" ? value.slice(0, limit) : undefined
 
 const bridge = {
   // The page asks for each port to the runner; its answer comes as a window message.
@@ -219,6 +225,18 @@ const bridge = {
     ),
   quitApp: () => {
     ipcRenderer.send(quitAppChannel)
+  },
+  openLogs: () => {
+    ipcRenderer.send(openLogsChannel)
+  },
+  // Only the four fields cross, as text; the main process checks them again.
+  reportError: (error) => {
+    ipcRenderer.send(uiErrorChannel, {
+      kind: error?.kind === "rejection" ? "rejection" : "error",
+      name: text(error?.name, 100) ?? "Error",
+      message: text(error?.message, 2_000) ?? "",
+      stack: text(error?.stack, 8_000),
+    })
   },
   pathForFile: (file) => {
     try {

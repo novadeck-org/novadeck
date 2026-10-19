@@ -133,6 +133,7 @@ import { expectedAgent, promptIn } from "./commands.js"
 import { Companion } from "./companion.js"
 import { forgetPrompts, markPrompt, murmurHost } from "./describing.js"
 import { Dialogs, type DialogsHost, type DialogsOptions } from "./dialogs.js"
+import { failed } from "./failures.js"
 import { mention } from "./handles.js"
 import { Murmur, type MurmurTimes, type Reported } from "./murmur.js"
 import { Names } from "./names.js"
@@ -721,7 +722,7 @@ export class Terminals {
       if (!this.stopping) return { paths, reports }
       await reports.close()
     } catch (error) {
-      console.error("Novadeck shell integration is unavailable:", error)
+      failed.integration(error)
     }
     return undefined
   }
@@ -2443,10 +2444,7 @@ export class Terminals {
   private queue<T>(terminalId: string, work: () => Promise<T>, fallback: T): Promise<T> {
     const result = (this.reports.get(terminalId) ?? Promise.resolve())
       .then(work)
-      .catch((error: unknown) => {
-        console.error("Novadeck could not take an agent report:", error)
-        return fallback
-      })
+      .catch(failed.report(fallback))
     const tail = result.then(() => {})
     this.reports.set(terminalId, tail)
     void tail.then(() => {
@@ -2964,7 +2962,7 @@ export class Terminals {
           },
           undefined,
         )
-      })().catch((error: unknown) => console.error("Novadeck could not read a title:", error))
+      })().catch(failed.title)
     }
   }
 
@@ -3260,7 +3258,7 @@ export class Terminals {
     void watch(run, controller.signal, (fact) => {
       if (record.watching !== controller || fact.type === "session-observed") return
       this.sourceFact(record, fact)
-    }).catch((error: unknown) => console.error("Novadeck stopped following an agent:", error))
+    }).catch(failed.following)
   }
 
   /** Applies what the bound session's own sources said, as its hooks' reports apply. */
@@ -3445,7 +3443,7 @@ export class Terminals {
         if (actorWatches.get(actor)?.controller !== controller) return
         if (fact.type === "session-observed") return
         this.sourceFact(record, fact)
-      }).catch((error: unknown) => console.error("Novadeck stopped following a subagent:", error))
+      }).catch(failed.followingSubagent)
     }
   }
 

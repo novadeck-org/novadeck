@@ -8,6 +8,7 @@ import { DomainError } from "../errors.js"
 import type { Binding } from "../harnesses/bindings.js"
 import { agents as allAgents, harnesses } from "../harnesses/registry.js"
 import { rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
+import { logs } from "../log.js"
 import type { HookAnswer } from "../shell/reports.js"
 import { bareHandle, mention } from "../terminals/handles.js"
 import {
@@ -63,6 +64,8 @@ import {
   type Peer,
 } from "./peers.js"
 import { memoryMailbox, type MailboxRecords } from "./records.js"
+
+const log = logs.for("messaging")
 
 /** Which terminals see each other: those of one project and one Novadeck session. */
 export type Scope = { readonly projectId: string; readonly sessionId: string }
@@ -382,7 +385,7 @@ export class Messaging {
         message.fromLead &&
         (message.state === "queued" || message.state === "held")
       )
-        this.gone(message)
+        this.gone(message, "lead-ended")
   }
 
   /**
@@ -413,7 +416,8 @@ export class Messaging {
     if (!live) return
     this.applyRoot(live, [{ type: "ended" }])
     for (const message of this.messages.values())
-      if (message.to.terminalId === terminalId && undelivered(message)) this.gone(message)
+      if (message.to.terminalId === terminalId && undelivered(message))
+        this.gone(message, "terminal-closed")
     this.live.delete(terminalId)
   }
 
@@ -1444,7 +1448,7 @@ export class Messaging {
       if (live?.root && this.addressed(message, live.root)) continue
       // The session the agent showing its prompt there is about to bind.
       if (live && !live.root && this.awaiting(live, message)) continue
-      this.gone(message)
+      this.gone(message, "session-not-restored")
     }
   }
 
@@ -1533,7 +1537,18 @@ export class Messaging {
     if (state !== message.state) this.put({ ...message, state })
   }
 
-  private gone(message: Message): void {
+  /** The message can't be delivered now, for `reason`; it waits again if its session comes back. */
+  private gone(message: Message, reason: string): void {
+    if (message.state !== "gone")
+      log.info("delivery.gone", "A message could not be delivered.", {
+        data: {
+          message: message.id,
+          terminal: message.to.terminalId,
+          reason,
+          state: message.state,
+          waitedMs: this.now() - message.sentAt,
+        },
+      })
     const response =
       message.response && message.state !== "gone" && message.deliveredAt === null
         ? { ...message.response, goneAt: this.now() }
@@ -1639,7 +1654,7 @@ export class Messaging {
             message.to.sessionId !== null &&
             undelivered(message)
           )
-            this.gone(message)
+            this.gone(message, "session-ended")
       } else if (change.type === "new")
         this.rootAt(live, change.root, change.guess, change.ready, change.startedAt, change.firedAt)
       else this.correct(live, change.from, change.root, change.confirmed)
@@ -1680,10 +1695,10 @@ export class Messaging {
         if (!undelivered(message)) continue
         if (message.to.agent === root.agent)
           this.put({ ...message, to: { ...message.to, sessionId: root.sessionId } })
-        else this.gone(message)
+        else this.gone(message, "other-agent")
       } else if (this.addressed(message, root)) {
         if (message.state === "gone") this.wait(message)
-      } else if (!guess && undelivered(message)) this.gone(message)
+      } else if (!guess && undelivered(message)) this.gone(message, "other-session")
     }
   }
 
@@ -1701,7 +1716,8 @@ export class Messaging {
         if (undelivered(message)) this.put({ ...message, to: { ...to, sessionId: root.sessionId } })
       } else if (this.addressed(message, root)) {
         if (message.state === "gone") this.wait(message)
-      } else if (confirmed && to.sessionId !== null && undelivered(message)) this.gone(message)
+      } else if (confirmed && to.sessionId !== null && undelivered(message))
+        this.gone(message, "other-session")
     }
   }
 
@@ -1820,7 +1836,9 @@ export class Messaging {
         listener(change)
       } catch (error) {
         // One listener failing never stops messaging, nor the others hearing.
-        console.error("Novadeck could not follow its messages:", error)
+        log.error("messaging.listener-failed", "Novadeck could not follow its messages", {
+          err: error,
+        })
       }
   }
 
@@ -1835,7 +1853,7 @@ export class Messaging {
     try {
       return work()
     } catch (error) {
-      console.error("Novadeck could not read its messages:", error)
+      log.error("messaging.read-failed", "Novadeck could not read its messages", { err: error })
       return fallback
     }
   }
@@ -1845,7 +1863,7 @@ export class Messaging {
     try {
       work()
     } catch (error) {
-      console.error("Novadeck could not save its messages:", error)
+      log.error("messaging.save-failed", "Novadeck could not save its messages", { err: error })
     }
   }
 }

@@ -79,6 +79,13 @@ describe("createLogger", () => {
     expect(line?.err?.message).toMatch(/^EACCES: open '~\/#[0-9a-f]{8}\/#[0-9a-f]{8}\.md'$/)
   })
 
+  it("writes a line for another process as that process's", () => {
+    const { logger, lines } = setup()
+    logger.for("page", "ui").error("ui.error", "The page hit an error.")
+    logger.close()
+    expect(lines()).toEqual([expect.objectContaining({ proc: "ui", src: "page", sid: "launch-1" })])
+  })
+
   it("leaves out lines below its level", () => {
     const { logger, lines } = setup({ level: "info" })
     logger.for("doorbell").debug("doorbell.trace", "look")

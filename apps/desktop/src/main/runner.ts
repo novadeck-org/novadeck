@@ -4,12 +4,15 @@ import {
   databaseArgumentPrefix,
   murmurEngineArgumentPrefix,
   graphicsArgumentPrefix,
+  logArgumentPrefix,
   murmurSourceArgumentPrefix,
   relayArgumentPrefix,
   voiceEngineArgumentPrefix,
   voiceSourceArgumentPrefix,
   type RunnerCommand,
+  type RunnerReport,
 } from "../bridge.js"
+import { eachLine } from "./logs.js"
 
 export type RunnerHost = {
   /**
@@ -29,6 +32,21 @@ export type RunnerHost = {
 const send = (worker: UtilityProcess, command: RunnerCommand, ports: MessagePortMain[] = []) =>
   worker.postMessage(command, ports)
 
+/** What the host hears of each start of the runner, numbered from 1 within the launch. */
+export type RunnerEvents = {
+  /** The runner started, its process forked. */
+  readonly spawned?: (run: number) => void
+  /** It can serve, `ms` after it was forked. */
+  readonly ready?: (run: number, ms: number) => void
+  /**
+   * Its process exited with `code`: `expected` when the host was closing it. A crash, a
+   * kill or the system's OOM killer says more through `child-process-gone`.
+   */
+  readonly exited?: (run: number, code: number, expected: boolean) => void
+  /** A line it wrote to its stdout or stderr, as V8 and native code write a fatal error. */
+  readonly output?: (run: number, stream: "stdout" | "stderr", line: string) => void
+}
+
 /** Starts the runner in a utility process and hands out one MessagePort per connection. */
 export const startRunner = (options: {
   entry: string
@@ -42,10 +60,18 @@ export const startRunner = (options: {
   murmurSource: string
   /** The host saw only software rendering, so murmur can't run and voice input installs its small model. */
   softwareGraphics?: boolean
+  /** How start `run` writes its log: the argument after `logArgumentPrefix`, if it keeps one. */
+  log?: (run: number) => string
+  events?: RunnerEvents
 }): RunnerHost => {
+  const { events = {} } = options
   let child: UtilityProcess | undefined
   let closing: Promise<void> | undefined
+  let runs = 0
   const spawn = () => {
+    runs += 1
+    const run = runs
+    const forkedAt = performance.now()
     const worker = utilityProcess.fork(
       options.entry,
       [
@@ -56,13 +82,22 @@ export const startRunner = (options: {
         `${murmurEngineArgumentPrefix}${options.murmurEngine}`,
         `${murmurSourceArgumentPrefix}${options.murmurSource}`,
         ...(options.softwareGraphics ? [`${graphicsArgumentPrefix}software`] : []),
+        ...(options.log ? [`${logArgumentPrefix}${options.log(run)}`] : []),
       ],
-      { serviceName: "Novadeck Runner" },
+      // Its output is piped, so what only reaches stderr, as V8's out-of-memory report,
+      // lands in the host's log.
+      { serviceName: "Novadeck Runner", stdio: "pipe" },
     )
+    events.spawned?.(run)
+    eachLine(worker.stdout, (line) => events.output?.(run, "stdout", line))
+    eachLine(worker.stderr, (line) => events.output?.(run, "stderr", line))
+    worker.on("message", (report: RunnerReport) => {
+      if (report?.type === "ready") events.ready?.(run, Math.round(performance.now() - forkedAt))
+    })
     worker.once("exit", (code) => {
       if (child === worker) child = undefined
       // The next connection request starts a new runner.
-      if (!closing) console.error(`Novadeck runner exited unexpectedly (code ${code})`)
+      events.exited?.(run, code, closing !== undefined)
     })
     child = worker
     return worker

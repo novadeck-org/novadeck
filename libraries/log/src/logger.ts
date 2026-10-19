@@ -30,8 +30,11 @@ export type Log = {
 
 /** A process's log. */
 export type Logger = {
-  /** The log of the module `src`. */
-  for(src: string): Log
+  /**
+   * The log of the module `src`; of another process than the logger's, `proc`, for lines one
+   * process writes for another, as the host writes the page's errors.
+   */
+  for(src: string, proc?: string): Log
   /** Writes what repeats held back. */
   flush(): void
   /** Writes what repeats held back, then lets go of the file. */
@@ -92,7 +95,7 @@ export const createLogger = (options: LoggerOptions): Logger => {
 
   const entry = (
     level: Level,
-    src: string,
+    from: { readonly src: string; readonly proc: string },
     evt: string,
     msg: string | undefined,
     detail: Detail | undefined,
@@ -100,11 +103,11 @@ export const createLogger = (options: LoggerOptions): Logger => {
     v: logSchema,
     t: new Date(now()).toISOString(),
     level,
-    proc,
+    proc: from.proc,
     sid,
     ...(run !== undefined && { run }),
     pid,
-    src,
+    src: from.src,
     evt,
     ...(msg !== undefined && { msg: clip(redact(msg)) }),
     ...(detail?.data && { data: cleanData(detail.data, redact) }),
@@ -118,9 +121,15 @@ export const createLogger = (options: LoggerOptions): Logger => {
       ...options.file,
       header: () =>
         JSON.stringify(
-          entry("info", "log", "session.resume", "Continues the file before this one.", {
-            ...(options.resume && { data: options.resume }),
-          }),
+          entry(
+            "info",
+            { src: "log", proc },
+            "session.resume",
+            "Continues the file before this one.",
+            {
+              ...(options.resume && { data: options.resume }),
+            },
+          ),
         ),
     })
 
@@ -128,12 +137,18 @@ export const createLogger = (options: LoggerOptions): Logger => {
     for (const line of lines) file?.write(JSON.stringify(line))
   }
 
-  const write = (level: Level, src: string, evt: string, msg?: string, detail?: Detail): void => {
+  const write = (
+    level: Level,
+    from: { readonly src: string; readonly proc: string },
+    evt: string,
+    msg?: string,
+    detail?: Detail,
+  ): void => {
     try {
       if (!atLeast(level, threshold)) return
       if (detail?.verbose && !verbose) return
       echo?.(level, msg ?? evt, detail?.err)
-      const result = collapse(repeats, entry(level, src, evt, msg, detail), now(), windowMs)
+      const result = collapse(repeats, entry(level, from, evt, msg, detail), now(), windowMs)
       repeats = result.repeats
       put(result.write)
     } catch {
@@ -158,17 +173,19 @@ export const createLogger = (options: LoggerOptions): Logger => {
 
   const logs = new Map<string, Log>()
   return {
-    for(src) {
-      const known = logs.get(src)
+    for(src, other) {
+      const from = { src, proc: other ?? proc }
+      const key = `${from.proc} ${src}`
+      const known = logs.get(key)
       if (known) return known
       const log: Log = {
-        debug: (evt, msg, detail) => write("debug", src, evt, msg, detail),
-        info: (evt, msg, detail) => write("info", src, evt, msg, detail),
-        warn: (evt, msg, detail) => write("warn", src, evt, msg, detail),
-        error: (evt, msg, detail) => write("error", src, evt, msg, detail),
-        fatal: (evt, msg, detail) => write("fatal", src, evt, msg, detail),
+        debug: (evt, msg, detail) => write("debug", from, evt, msg, detail),
+        info: (evt, msg, detail) => write("info", from, evt, msg, detail),
+        warn: (evt, msg, detail) => write("warn", from, evt, msg, detail),
+        error: (evt, msg, detail) => write("error", from, evt, msg, detail),
+        fatal: (evt, msg, detail) => write("fatal", from, evt, msg, detail),
       }
-      logs.set(src, log)
+      logs.set(key, log)
       return log
     },
     flush() {
@@ -228,17 +245,18 @@ export const switchableLogger = (
       current = next
     },
     current: () => current,
-    for(src) {
-      const known = logs.get(src)
+    for(src, proc) {
+      const key = `${proc ?? ""} ${src}`
+      const known = logs.get(key)
       if (known) return known
       const log: Log = {
-        debug: (...args) => current.for(src).debug(...args),
-        info: (...args) => current.for(src).info(...args),
-        warn: (...args) => current.for(src).warn(...args),
-        error: (...args) => current.for(src).error(...args),
-        fatal: (...args) => current.for(src).fatal(...args),
+        debug: (...args) => current.for(src, proc).debug(...args),
+        info: (...args) => current.for(src, proc).info(...args),
+        warn: (...args) => current.for(src, proc).warn(...args),
+        error: (...args) => current.for(src, proc).error(...args),
+        fatal: (...args) => current.for(src, proc).fatal(...args),
       }
-      logs.set(src, log)
+      logs.set(key, log)
       return log
     },
     flush: () => current.flush(),

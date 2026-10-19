@@ -130,6 +130,9 @@ export const demoBackend = (
     murmur,
     // Older than every update the demo offers (see debug/states.ts).
     version: () => Promise.resolve("0.0.79"),
+    // The demo keeps no logs: Preferences offers the folder as the desktop app does, and
+    // opening it does nothing.
+    openLogs: () => {},
     // Dictation pastes into the command line, which never submits it.
     typeInto: terminals.typeInto,
     transcripts: {

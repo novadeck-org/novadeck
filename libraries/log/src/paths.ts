@@ -13,6 +13,72 @@ export type PathRule = {
   readonly places?: Readonly<Record<string, string>>
   /** Keys the hash, so a name can't be found by hashing likely ones; never logged. */
   readonly salt: string
+  /**
+   * Names never hashed, in any path, besides `readableNames`: the app's own programs and
+   * folders, which carry nothing of the person's. Compared lowercased, without `.exe`.
+   */
+  readonly readable?: readonly string[]
+}
+
+/**
+ * Names that stay readable in any path: well-known programs and the folders tools keep, which
+ * say which program failed and carry nothing of the person's. Code, not configuration, so a
+ * change to it is reviewed as code is.
+ */
+export const readableNames: readonly string[] = [
+  "node",
+  "git",
+  "bash",
+  "zsh",
+  "fish",
+  "sh",
+  "pwsh",
+  "powershell",
+  "cmd",
+  "bin",
+  "lib",
+  "share",
+  "versions",
+  ".local",
+  ".config",
+  ".cache",
+  ".nvm",
+  ".volta",
+  ".bun",
+  ".cargo",
+  ".npm-global",
+  "appdata",
+  "local",
+  "roaming",
+  "programs",
+]
+
+/**
+ * Hashes one name, keeping its extension and a stack frame's `:line:column`, as `hashPaths`
+ * does each name of a path; `lower` hashes it lowercased, as Windows matches names. A name it
+ * wrote, a readable one, a version number and the account's (`<user>`) are written as they are.
+ */
+export const nameHasher = (rule: PathRule): ((named: string, lower: boolean) => string) => {
+  const user = rule.user?.toLowerCase()
+  const readable = new Set(
+    [...readableNames, ...(rule.readable ?? [])].map((each) => each.toLowerCase()),
+  )
+  return (named, lower) => {
+    const position = /(?::\d+)+$/.exec(named)?.[0] ?? ""
+    const segment = position ? named.slice(0, -position.length) : named
+    if (/^#[0-9a-f]{8}(?:\.|$)/.test(segment)) return named
+    const plain = segment.toLowerCase().replace(/\.exe$/, "")
+    if (readable.has(plain) || /^v?\d+(?:\.\d+)*$/.test(segment)) return named
+    if (user && segment.toLowerCase() === user) return `<user>${position}`
+    const dot = segment.lastIndexOf(".")
+    const extension =
+      dot > 0 && /^\.[A-Za-z0-9]{1,10}$/.test(segment.slice(dot)) ? segment.slice(dot) : ""
+    const base = extension ? segment.slice(0, -extension.length) : segment
+    const digest = createHmac("sha256", rule.salt)
+      .update(lower ? base.toLowerCase() : base)
+      .digest("hex")
+    return `#${digest.slice(0, 8)}${extension}${position}`
+  }
 }
 
 // What a folder or file name may hold, as found in free text: no separator, space, quote,
@@ -49,7 +115,6 @@ const quotedPattern = new RegExp(
 // Where everything stays readable: the system's own folders.
 const systemRoots = new Set([
   "usr",
-  "opt",
   "proc",
   "sys",
   "dev",
@@ -69,6 +134,7 @@ const systemRoots = new Set([
 ])
 // Where only the first folder stays readable, as what is under it is anyone's.
 const sharedRoots = new Set([
+  "opt",
   "home",
   "Users",
   "tmp",
@@ -123,24 +189,9 @@ export const hashPaths = (text: string, rule: PathRule): string => {
     result = result.replace(folderPattern(folder), `<${placeholder}>`)
   if (rule.home && rule.home.length > 1) result = result.replace(folderPattern(rule.home), "~")
 
-  const user = rule.user?.toLowerCase()
   // Windows names are hashed lowercased, as Windows matches them, home's included.
   const homeLower = rule.home !== undefined && windowsShaped(rule.home)
-  const hash = (named: string, lower: boolean): string => {
-    // A stack frame's `:line:column` stays as it is.
-    const position = /(?::\d+)+$/.exec(named)?.[0] ?? ""
-    const segment = position ? named.slice(0, -position.length) : named
-    if (/^#[0-9a-f]{8}(?:\.|$)/.test(segment)) return named
-    if (user && segment.toLowerCase() === user) return `<user>${position}`
-    const dot = segment.lastIndexOf(".")
-    const extension =
-      dot > 0 && /^\.[A-Za-z0-9]{1,10}$/.test(segment.slice(dot)) ? segment.slice(dot) : ""
-    const base = extension ? segment.slice(0, -extension.length) : segment
-    const digest = createHmac("sha256", rule.salt)
-      .update(lower ? base.toLowerCase() : base)
-      .digest("hex")
-    return `#${digest.slice(0, 8)}${extension}${position}`
-  }
+  const hash = nameHasher(rule)
   // Each name hashed from `from` on, but what is inside node_modules.
   const hashFrom = (segments: string[], from: number, lower: boolean): string[] => {
     const modules = segments.findIndex(
