@@ -90,6 +90,7 @@ import {
   allowMacUpdates,
   InstallPostponed,
   installMacUpdate,
+  recheckMacUpdate,
   macSwapMode,
   prepareMacUpdate,
   removeMacUpdates,
@@ -599,21 +600,22 @@ const installMacUpdateOnQuit = async (): Promise<void> => {
   const mode = await macSwapMode(bundle)
   if (mode === undefined)
     return updatesLog.warn(`${update.version} was not installed: the app can't be written.`)
-  recordInstalling(update.version)
   macInstalling = true
   try {
-    await installMacUpdate({ prepared: update.prepared, bundle, mode })
-    updatesLog.info(`Installed ${update.version}; it starts at the next launch.`)
-  } catch (error) {
-    if (error instanceof InstallPostponed) {
-      // Nothing changed, so the next launch has no install to settle; a later quit tries again.
-      updatesLog.warn(error.message)
-      try {
-        updateState.clearInstalling()
-      } catch (failure) {
-        updateWarning("The install begun was not cleared.", failure)
-      }
-    } else {
+    try {
+      await recheckMacUpdate({ prepared: update.prepared, bundle })
+    } catch (error) {
+      // Nothing was touched: one that could not be checked waits for a later session,
+      // which prepares it again; one that no longer passes failed.
+      if (error instanceof InstallPostponed) return updatesLog.warn(error.message)
+      updateWarning("Installing the update failed.", error)
+      return installFailed(update.version)
+    }
+    recordInstalling(update.version)
+    try {
+      await installMacUpdate({ prepared: update.prepared, bundle, mode })
+      updatesLog.info(`Installed ${update.version}; it starts at the next launch.`)
+    } catch (error) {
       updateWarning("Installing the update failed.", error)
       installFailed(update.version)
     }

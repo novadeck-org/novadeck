@@ -345,6 +345,27 @@ const installReason = (error: unknown): string => {
 }
 
 /**
+ * Checks the prepared app again just before it is put in place: it waited in the person's
+ * caches, which anything they run can write, and goes where only this app may put it.
+ * Rejects when it no longer passes, or with `InstallPostponed` when the check could not
+ * run at all, as when `codesign` was stopped, for a later session to try again.
+ */
+export const recheckMacUpdate = async (
+  install: { readonly prepared: string; readonly bundle: string },
+  host: MacUpdateHost = macUpdateHost,
+): Promise<void> => {
+  try {
+    await signedBy(install.prepared, await runningTeam(install.bundle, host), host)
+  } catch (error) {
+    if (error instanceof UpdateRejected)
+      throw problem("The prepared update no longer passes its signature check.")
+    throw new InstallPostponed(
+      `The prepared update could not be checked again, so a later session installs it: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+}
+
+/**
  * Puts the prepared app in place of `bundle`. The new one is first staged beside the
  * bundle, renamed there or, across volumes, copied with `ditto`, while the old app is
  * still whole; then the old one is renamed aside and the new one into place, two renames
@@ -354,8 +375,8 @@ const installReason = (error: unknown): string => {
  * the install rejects. The old one then moves into the prepared update's folder, as
  * removing it would hold up the quit, until `removeMacUpdates` clears it at the next
  * launch; where that crosses volumes an old app stays beside the bundle, and old
- * `Contents` are removed at once. The prepared app's signature is checked again first;
- * one that can't be checked rejects with `InstallPostponed`, the old app untouched.
+ * `Contents` are removed at once. The host checks the prepared app again first (see
+ * `recheckMacUpdate`).
  * Meant for the quit, once the app has saved: it neither quits nor restarts anything.
  */
 export const installMacUpdate = async (
@@ -370,17 +391,6 @@ export const installMacUpdate = async (
     await host.remove(staged).catch(() => {})
     throw problem(installReason(error))
   }
-  // The prepared app waited in the person's caches, which anything they run can write, so
-  // it is checked again before it goes where only this app may put it.
-  await signedBy(install.prepared, await runningTeam(install.bundle, host), host).catch(
-    (error: unknown) => {
-      if (error instanceof UpdateRejected)
-        throw problem("The prepared update no longer passes its signature check.")
-      throw new InstallPostponed(
-        `The prepared update could not be checked again, so it waits for a later quit: ${error instanceof Error ? error.message : String(error)}`,
-      )
-    },
-  )
   try {
     await host.remove(staged)
     await host.remove(aside)

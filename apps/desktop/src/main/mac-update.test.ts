@@ -4,7 +4,7 @@ import { copyFileSync, chmodSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { describe, expect, it } from "../test"
+import { context, describe, expect, it } from "../test"
 import {
   allowMacUpdates,
   installMacUpdate,
@@ -12,6 +12,7 @@ import {
   macUpdateHost,
   InstallPostponed,
   prepareMacUpdate,
+  recheckMacUpdate,
   removeMacUpdates,
   updateRequirement,
   UpdateRejected,
@@ -316,21 +317,38 @@ describe("installing a prepared update", () => {
     ])
   })
 
-  it("checks the prepared app again before it goes in, leaving the old app whole if it fails", async () => {
-    const { host, files, requirements } = withPrepared({ verifyFails: true })
-    await expect(
-      installMacUpdate({ prepared, bundle: running, mode: "whole" }, host),
-    ).rejects.toThrow(/no longer passes its signature check/u)
-    expect(requirements).toEqual([updateRequirement("TEAM123456")])
-    expect(files.get(`${running}/Contents/MacOS/novadeck`)).toBe("old")
-  })
+  context("checked again before it goes in", () => {
+    it("passes a prepared app still signed by the app's team", async () => {
+      const { host, requirements } = withPrepared()
+      await recheckMacUpdate({ prepared, bundle: running }, host)
+      expect(requirements).toEqual([updateRequirement("TEAM123456")])
+    })
 
-  it("postpones the install, leaving the old app whole, when the check could not run", async () => {
-    const { host, files } = withPrepared({ verifyFails: "stopped" })
-    await expect(
-      installMacUpdate({ prepared, bundle: running, mode: "whole" }, host),
-    ).rejects.toBeInstanceOf(InstallPostponed)
-    expect(files.get(`${running}/Contents/MacOS/novadeck`)).toBe("old")
+    it("fails one that no longer passes, as an install that failed", async () => {
+      const { host } = withPrepared({ verifyFails: true })
+      const error: unknown = await recheckMacUpdate({ prepared, bundle: running }, host).catch(
+        (e: unknown) => e,
+      )
+      expect(String(error)).toMatch(/no longer passes its signature check/u)
+      expect(error).not.toBeInstanceOf(InstallPostponed)
+    })
+
+    it("postpones one it could not check, whichever codesign run stopped", async () => {
+      const verifying = withPrepared({ verifyFails: "stopped" })
+      await expect(
+        recheckMacUpdate({ prepared, bundle: running }, verifying.host),
+      ).rejects.toBeInstanceOf(InstallPostponed)
+      const reading = withPrepared()
+      const host: MacUpdateHost = {
+        ...reading.host,
+        codesignDetails: async () => {
+          throw Object.assign(new Error("timed out"), { code: null, killed: true })
+        },
+      }
+      await expect(recheckMacUpdate({ prepared, bundle: running }, host)).rejects.toBeInstanceOf(
+        InstallPostponed,
+      )
+    })
   })
 
   it("removes old contents it could not move out of the bundle", async () => {
