@@ -3,9 +3,13 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { mergeHead, resolveMerge } from "./merge-frontend.ts"
+
+// Each test builds throwaway git repositories, and git is slow to start on Windows: these
+// files' tests may take a minute, beside the default 5 s every other test keeps.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 })
 
 // The merge step over throwaway repositories: a base, then the move on main and on a branch,
 // each writing the generated files, and what each side did after.

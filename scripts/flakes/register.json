@@ -213,6 +213,15 @@
         "#295 Quality run, Package / Windows job 117742372717",
         "#296 run 39167023271 job 117797708667 (Package / Windows)"
       ]
+    },
+    {
+      "id": "runner-manager-hangup-spawn-failed",
+      "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/terminals/manager.test.ts > terminal manager > never leaves a program stopped that restores the terminal as it is hung up",
+      "signature": "DomainError: Could not start the configured shell\\.",
+      "status": "known",
+      "cause": "Seen on macOS: one of the 24 shells the test opens at once (Promise.all over manager.create, each then running a TUI) failed to spawn, so the manager reported SPAWN_FAILED. Suspected: a transient spawn failure with that many PTYs opening together beside the suite's other workers. The underlying error isn't in the log, as startFailed (backend/runner/src/terminals/manager.ts) replaces it with \"Could not start the configured shell\".",
+      "seen": ["#290 (macOS)", "#316 run 39180073047 job 117830757032 (macOS)"]
     }
   ]
 }
