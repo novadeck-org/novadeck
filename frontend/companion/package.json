@@ -5,6 +5,7 @@
   "description": "The companion pane: a terminal's taskbar, peek and pane, the plan editor, the messages and the bar drag.",
   "type": "module",
   "exports": {
+    "./actions": "./src/actions.ts",
     "./artifact-icons": "./src/artifact-icons.ts",
     "./artifact.css": "./src/artifact.css",
     "./bar": "./src/bar.ts",

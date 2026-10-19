@@ -12,6 +12,7 @@ import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { usePresence, type Presence } from "@novadeck/toolkit/presence"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
+import type { CompanionActions } from "./actions"
 import { barMembers, composeBar, dropOutcome, shownTab, slotKeys, type BarMember } from "./bar"
 import { CompanionPane } from "./CompanionPane"
 import { useDrag, type BarDrag } from "./drag-session"
@@ -23,22 +24,9 @@ import type { SlotActions } from "./TaskbarSlot"
 import type { Dragged } from "./use-bar-drag"
 import { usePlans } from "./use-panes"
 
-// What the app does with a terminal's bar and the items on it, as its commands do.
-export type ItemCommands = {
-  readonly undock: (itemId: ItemId, place?: WindowPlace) => void
-  readonly place: (itemIds: readonly ItemId[], terminalId: string) => void
-  readonly closeItem: (itemId: ItemId) => void
-  readonly markSeen: (itemIds: readonly ItemId[]) => void
-  readonly openBarTab: (terminalId: string, key: BarKey) => void
-  readonly closeBarPane: (terminalId: string) => void
-  readonly hideOnBar: (terminalId: string, key: BarKey) => void
-  readonly moveBarSlot: (
-    terminalId: string,
-    slots: readonly (readonly BarKey[])[],
-    from: number,
-    to: number,
-  ) => void
-}
+// What the app does with a terminal's bar and the items on it: the actions but docking, which
+// only a window's menu does.
+export type ItemCommands = Omit<CompanionActions, "dock">
 
 // How far the pane reaches into its window, as the window wants to know when it opens.
 type Reveal = (extent: { readonly right: number; readonly height: number }) => void
