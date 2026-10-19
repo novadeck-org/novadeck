@@ -3575,6 +3575,45 @@ describe("a long hold of the doorbell", () => {
       )
     })
 
+    it("counts no hold while the agent works unseen, and starts it again at its Stop", () => {
+      // The person's Escape mid-turn only closed a popup: delivery takes the agent for
+      // Unknown, but its activity says the turn runs on.
+      const working = new Set<string>()
+      const made = create(memoryMailbox(), { now: 1_000_000 }, { busy: (id) => working.has(id) })
+      const { messaging, clock: time, send, prompt, observe, claude, codex } = made
+      const bound = { A: claude, B: codex }
+      prompt(to, bound[to])
+      messaging.keys(to, ["escape"], false)
+      expect(messaging.delivery(to)?.state).toBe("unknown")
+      working.add(to)
+      const id = sent(send(from, handle, "first")).id
+      time.now += 2 * longHoldMs
+      expect(messaging.list(to, handle).waitsSince).toBeNull()
+      expect(sent(send(from, handle, "second")).holds).toBeUndefined()
+      // The turn ends; its Stop, which leases nothing here, starts the hold afresh.
+      working.delete(to)
+      observe(to, bound[to], [stopped(bound[to])])
+      const since = time.now
+      expect(messaging.list(to, handle).waitsSince).toBe(since)
+      time.now += longHoldMs - 1
+      expect((messaging.agents(from) as { text: string }).text).not.toContain("not arrived")
+      time.now += 1
+      expect((messaging.agents(from) as { text: string }).text).toContain(id)
+    })
+
+    it("keeps counting through rings that fail, counted or not", () => {
+      const { messaging, clock: time, send } = held()
+      sent(send(from, handle, "first"))
+      const since = time.now
+      for (let ring = 0; ring < 5; ring += 1) {
+        time.now += 30_000
+        messaging.emptied(to, messaging.delivery(to)!.epoch)
+        expect(messaging.ring(to, `n${ring}`)).toBe(true)
+        messaging.ringFailed(to, `n${ring}`)
+      }
+      expect(messaging.list(to, handle).waitsSince).toBe(since)
+    })
+
     it("names a few messages, and counts the rest", () => {
       expect(holdNotice(["m1", "m2", "m3", "m4", "m5", "m6"], handle, "draft", 0)).toContain(
         "your messages m1, m2, m3 and 3 more to",

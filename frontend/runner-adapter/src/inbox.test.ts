@@ -476,9 +476,18 @@ describe("The Inbox's items", () => {
             agent: "codex",
           }),
           kind: "trouble",
-          trouble: { type: "waits", waits: "draft", count: 2 },
+          // The leased one is on its way: only the queued one is held.
+          trouble: { type: "waits", waits: "draft", count: 1 },
         }),
       ])
+    })
+
+    it("is none while the agent works, as its status says, whatever the listing last said", () => {
+      const busy = workspaceOf(
+        agentTerminal(1, { working: false }),
+        agentTerminal(2, { working: true }, "codex"),
+      )
+      expect(inboxItems(inputs(busy, { mail: heldFor([waiting()]), now: at }))).toEqual([])
     })
 
     it("says why it holds as the hold says, whatever that is", () => {
@@ -513,7 +522,7 @@ describe("The Inbox's items", () => {
       const mail = heldFor([
         waiting(),
         message({ id: "m2" }),
-        waiting({ id: "m3", held: "paused" }),
+        waiting({ id: "m3", state: "held", held: "paused" }),
       ])
       const items = inboxItems(inputs(pair, { mail, now: at }))
       expect(items.find((item) => item.kind === "trouble")).toMatchObject({

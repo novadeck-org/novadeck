@@ -147,7 +147,7 @@ const heldLong = (
   | undefined => {
   const { waits = null, waitsSince } = mail ?? {}
   if (!mail || waitsSince == null || now - waitsSince < longHoldMs) return undefined
-  const count = waitingFor(mail).filter((message) => message.held === null).length
+  const count = waitingFor(mail).filter((message) => message.state === "queued").length
   return count > 0 ? { waits, since: waitsSince, count } : undefined
 }
 
@@ -180,16 +180,19 @@ const candidates = (
   }
 
   // Its messages held long, as only the person can clear what holds them: in the terminal.
-  const held = heldLong(
-    mail.terminals[
-      companionKeyId({
-        projectId: project.id,
-        workspaceSessionId: session.id,
-        terminalId: terminal.id,
-      })
-    ],
-    now,
-  )
+  // Not while it works, as its status says, whatever the listing last said.
+  const held =
+    !status.working &&
+    heldLong(
+      mail.terminals[
+        companionKeyId({
+          projectId: project.id,
+          workspaceSessionId: session.id,
+          terminalId: terminal.id,
+        })
+      ],
+      now,
+    )
   if (held)
     add(`waits:${terminal.id}:${held.since}`, held.since, true, {
       kind: "trouble",

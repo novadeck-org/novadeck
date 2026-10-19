@@ -196,6 +196,12 @@ export type MessagingOptions = {
   /** Whether a terminal exists, running or kept; one running counts when omitted. */
   readonly exists?: (terminalId: string) => boolean
   /**
+   * Whether the agent's activity says a turn or subagents run there, as the doorbell judges
+   * it: no hold counts while one does, though delivery may take the agent for idle (Unknown
+   * after an Escape that only closed a popup). Never, when omitted.
+   */
+  readonly busy?: (terminalId: string) => boolean
+  /**
    * The platform the harnesses' hooks run on, whose shells may hold a hook back (see
    * `hookShellSlackMs`); the runner's own when omitted.
    */
@@ -233,9 +239,12 @@ export const holdNotice = (
   `(${waits ? waitReasons[waits] : "its agent is idle, but Novadeck can't wake it yet"}); ` +
   "the user is shown this in Novadeck's Inbox."
 
-/** Whether the agent is idle by its delivery: what the doorbell rings or looks at. */
+/**
+ * Whether the agent is idle by its delivery, for a hold: what the doorbell rings or looks
+ * at, or rings now, as a ring that fails, counted or not, ends no hold; only a turn does.
+ */
 const idle = (delivery: Delivery): boolean =>
-  ringableSince(delivery) !== undefined || waitsIn(delivery)
+  ringableSince(delivery) !== undefined || waitsIn(delivery) || delivery.state === "ringing"
 
 /** How many of a terminal's latest unconfirmed rings it remembers (`Live.unconfirmed`). */
 const maxUnconfirmed = 8
@@ -331,6 +340,7 @@ export class Messaging {
   /** How much later a hook may come, for the shell it starts in (see `firing`). */
   private readonly slackMs: number
   private readonly exists: (terminalId: string) => boolean
+  private readonly busy: (terminalId: string) => boolean
   /** Everyone following changes: the doorbell, and each `messages.watch`. */
   private readonly listeners = new Set<(change: MessagingChange) => void>()
   private readonly live = new Map<string, Live>()
@@ -360,6 +370,7 @@ export class Messaging {
     this.now = options.now ?? Date.now
     this.slackMs = hookShellSlackMs(options.platform ?? process.platform)
     this.exists = options.exists ?? ((terminalId) => this.live.has(terminalId))
+    this.busy = options.busy ?? (() => false)
     this.leases = new Leases(options.leaseMs ?? 5_000, (lease) => this.lapse(lease))
     this.paused = this.read(() => this.records.messagingPaused(), false)
     for (const thread of this.read(() => this.records.threads(), []))
@@ -927,9 +938,12 @@ export class Messaging {
    * sending, or a pause's or a release's end); undefined unless both hold now.
    */
   private heldSince(live: Live, message: Message): number | undefined {
-    return live.idleSince !== null && message.state === "queued"
-      ? Math.max(live.idleSince, this.queuedSince.get(message.id) ?? message.sentAt)
-      : undefined
+    const { idleSince, root } = live
+    if (idleSince === null || message.state !== "queued" || this.busy(live.terminalId))
+      return undefined
+    // Only what the doorbell rings for: a message for the root session, or the one to bind.
+    if (root ? !this.addressed(message, root) : !this.awaiting(live, message)) return undefined
+    return Math.max(idleSince, this.queuedSince.get(message.id) ?? message.sentAt)
   }
 
   /**
@@ -1919,9 +1933,10 @@ export class Messaging {
     // The doorbell's last word on why it can't ring is about an idle agent only.
     if (state === "working" || state === "ringing" || state === "unbound" || live.viaScreen)
       live.waits = null
-    // A hold is timed from the agent going idle; a turn or a ring ends it.
+    // A hold is timed from the agent going idle; a turn ends it, as does a Stop, which ends
+    // a turn that ran on unseen in Unknown (after an Escape that only closed a popup).
     if (!idle(live.delivery)) live.idleSince = null
-    else if (!idle(before)) live.idleSince = this.now()
+    else if (!idle(before) || event.type === "stop") live.idleSince = this.now()
     // A turn that ended, or a new one, leaves the last one's delivery behind.
     if ((running(before) && !running(live.delivery)) || live.delivery.epoch !== before.epoch)
       this.leases.forget(live.terminalId)

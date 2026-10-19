@@ -1702,8 +1702,12 @@ the box.
   selected agent in each state.
 - **A long hold.** A message waiting for an idle agent (Settled, Ready, Fresh, Drafting or
   Unknown) is held from the later of when the agent last went idle and when the message
-  last came to wait (its sending, or the end of a pause or a release); a turn or a ring ends
-  the hold, and nothing the doorbell says or stops saying does. The listing says since when
+  last came to wait (its sending, or the end of a pause or a release), counting only what
+  the doorbell rings for. A turn ends the hold and a Stop starts it afresh; a ring that
+  fails, counted or not, ends none, nor does anything the doorbell says or stops saying. No
+  hold counts while the agent's activity says a turn or subagents run, as the doorbell
+  judges it (an Escape that only closed a popup leaves delivery Unknown while the turn runs
+  on), and the Inbox shows none while the terminal's status says it works. The listing says since when
   its longest-held message has waited (`waitsSince`). Once that is `longHoldMs` (3 minutes)
   ago with messages still waiting (none held for release or a pause), the Inbox shows the
   terminal's item, "N messages for @kite wait behind text in its box", its words for what
