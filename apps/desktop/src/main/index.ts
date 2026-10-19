@@ -578,6 +578,10 @@ const startUpdates = async (): Promise<void> => {
   })
 }
 
+// Whether the macOS update is going into place, which a second quit, as a logout's, waits
+// for: the app it ends would be left between the old bundle and the new.
+let macInstalling = false
+
 // On macOS, puts the update made ready in place as the app quits, once every page has
 // saved and the shells have ended, so the next launch, however soon, is the new version.
 // Should it fail, the old app is left whole and the release is told of from then on.
@@ -595,12 +599,15 @@ const installMacUpdateOnQuit = async (): Promise<void> => {
   if (mode === undefined)
     return updatesLog.warn(`${update.version} was not installed: the app can't be written.`)
   recordInstalling(update.version)
+  macInstalling = true
   try {
     await installMacUpdate({ prepared: update.prepared, bundle, mode })
     updatesLog.info(`Installed ${update.version}; it starts at the next launch.`)
   } catch (error) {
     updateWarning("Installing the update failed.", error)
     installFailed(update.version)
+  } finally {
+    macInstalling = false
   }
 }
 
@@ -1372,6 +1379,8 @@ const declineUnorderlyInstall = installOnlyOnOrderlyQuit(
 )
 
 app.on("before-quit", (event) => {
+  // The quit already under way ends the app once the update is in place.
+  if (macInstalling) return event.preventDefault()
   // No new download starts on the way out.
   updates?.stop()
   if (process.platform === "linux") declineUnorderlyInstall()

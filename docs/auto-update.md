@@ -90,9 +90,7 @@ said it was ready again. electron-updater still downloads the zip; with
 - **Prepared once downloaded.** The zip is unpacked with `ditto` into a folder of its own
   in `~/Library/Caches/dev.mzpk.novadeck.updates` (`dev.mzpk.novadeck.update-*`), which the
   system does not clear file by file as it does the temporary folder, stripped of any
-  quarantine, and checked: one app, with the running app's bundle identifier and the
-  offered version, `codesign --verify --deep --strict`, and the same `TeamIdentifier` as
-  the running app. Only then is it offered as `ready`; until then it stays `downloading` at
+  quarantine, and checked: one app, with the running app's bundle identifier and the offered version, signed through Apple's certificate chain by the running app's team (`codesign --verify --deep --strict` with the requirement `anchor apple generic and certificate leaf[subject.OU] = "<team>"`, as Squirrel.Mac held it to; the `TeamIdentifier` a signature names is not enough, as any certificate can carry one). Only then is it offered as `ready`; until then it stays `downloading` at
   the last percent. One that fails a check (`UpdateRejected`: a bad signature, not a
   `codesign` that was stopped) counts as a failed install (below); one that fails
   otherwise, as on a full disk, counts as a failed download and is tried again from
@@ -107,10 +105,7 @@ said it was ready again. electron-updater still downloads the zip; with
   (`.novadeck.app.new`, or `.Contents.new` in the bundle), renamed there or, across
   volumes, copied with `ditto` while the old app is still whole; then two renames in that
   one folder put the old one aside and the new one in place, so there is no moment without
-  an app. Any failed step puts the old app back. The old app then moves into the prepared
-  folder, or stays beside where that crosses volumes, as removing it would hold up the
-  quit; the next launch removes it, unless it changed in the last ten minutes, when another
-  copy on its own data folder may be installing from it. A bundle that is no longer the
+  an app. The prepared app is checked again just before, as it waited in a folder anything the person runs can write. Any failed step puts the old app back. A second quit meanwhile, as a logout's, waits for the swap. The old app then moves into the prepared folder, as removing it would hold up the quit, and the next launch removes it; where that crosses volumes an old app stays beside the bundle until then, and old `Contents` are removed at once, as left in the bundle they would break its seal. A prepared folder changed in the last ten minutes is left, as another copy on its own data folder may be installing from it; what a swap leaves beside the bundle is not guarded so. A bundle that is no longer the
   running version, as one install.sh replaced, is left alone. A quit as the session ends,
   and the uninstall, install nothing.
 - **A copy the person can't write** only tells. When it is signed and installed, the offer

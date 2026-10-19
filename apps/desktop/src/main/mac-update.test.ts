@@ -12,6 +12,7 @@ import {
   macUpdateHost,
   prepareMacUpdate,
   removeMacUpdates,
+  updateRequirement,
   UpdateRejected,
   type MacUpdateHost,
 } from "./mac-update"
@@ -60,6 +61,7 @@ const machine = (
     for (const each of Array.from(files.keys()))
       if (each === path || each.startsWith(`${path}/`)) files.delete(each)
   }
+  const requirements: (string | undefined)[] = []
   const step = async (name: string): Promise<void> => {
     steps.push(name)
     const error = options.fail?.(name)
@@ -107,8 +109,9 @@ const machine = (
           files.set(destination + path.slice(source.length), content)
     },
     unquarantine: (path) => step(`xattr ${path}`),
-    codesignVerify: async (bundle) => {
+    codesignVerify: async (bundle, requirement) => {
       await step(`verify ${bundle}`)
+      requirements.push(requirement)
       if (options.verifyFails === "stopped")
         throw Object.assign(new Error("timed out"), { code: null, killed: true })
       if (options.verifyFails)
@@ -120,7 +123,7 @@ const machine = (
     },
     osascript: (script) => step(`osascript ${script}`),
   }
-  return { host, files, steps }
+  return { host, files, steps, requirements }
 }
 
 const running = "/Applications/novadeck.app"
@@ -235,14 +238,25 @@ describe("preparing a downloaded update", () => {
     expect(String(error)).toMatch(/could not be checked/u)
   })
 
+  it("holds the signature to Apple's chain for the running app's team, not its named team", async () => {
+    const { host, requirements } = machine({ files: base })
+    await prepareMacUpdate(update, host)
+    expect(requirements).toEqual([updateRequirement("TEAM123456")])
+    expect(updateRequirement("TEAM123456")).toBe(
+      '=anchor apple generic and certificate leaf[subject.OU] = "TEAM123456"',
+    )
+  })
+
   it("rejects an update without a team, and one from another", async () => {
     const prepared = "/tmp/dev.mzpk.novadeck.update-1/novadeck.app"
-    await rejects({ teams: { [prepared]: undefined } }, /not signed by a developer team/u)
+    await rejects({ teams: { [prepared]: undefined } }, /different team/u)
     await rejects({ teams: { [prepared]: "OTHER00000" } }, /different team/u)
   })
 
-  it("rejects when the running app has no team to compare", () =>
-    rejects({ teams: { [running]: undefined } }, /different team/u))
+  it("rejects any update while the running app has no team to check it against", async () => {
+    await rejects({ teams: { [running]: undefined } }, /not signed by a developer team/u)
+    await rejects({ teams: { [running]: "not a team" } }, /not signed by a developer team/u)
+  })
 
   it("rejects a zip with no app, or with two", async () => {
     await rejects({ zipHolds: [] }, /exactly one app/u)
@@ -296,6 +310,27 @@ describe("installing a prepared update", () => {
       `rename ${running}/.Contents.new ${running}/Contents`,
       `rename ${running}/.Contents.previous ${folder}/previous`,
     ])
+  })
+
+  it("checks the prepared app again before it goes in, leaving the old app whole if it fails", async () => {
+    const { host, files, requirements } = withPrepared({ verifyFails: true })
+    await expect(
+      installMacUpdate({ prepared, bundle: running, mode: "whole" }, host),
+    ).rejects.toThrow(/no longer passes its signature check/u)
+    expect(requirements).toEqual([updateRequirement("TEAM123456")])
+    expect(files.get(`${running}/Contents/MacOS/novadeck`)).toBe("old")
+  })
+
+  it("removes old contents it could not move out of the bundle", async () => {
+    const { host, files } = withPrepared({
+      fail: (step) =>
+        step.startsWith(`rename ${running}/.Contents.previous `)
+          ? Object.assign(new Error("cross"), { code: "EXDEV" })
+          : undefined,
+    })
+    await installMacUpdate({ prepared, bundle: running, mode: "contents" }, host)
+    expect(files.get(`${running}/Contents/MacOS/novadeck`)).toBe("new")
+    expect([...files.keys()].some((path) => path.includes(".Contents.previous"))).toBe(false)
   })
 
   it("leaves the old app whole when moving it aside fails", async () => {
@@ -442,7 +477,9 @@ describe.runIf(process.platform === "darwin")("updating a real bundle", () => {
       const host: MacUpdateHost = {
         ...macUpdateHost,
         folder: () => join(root, "tmp"),
-        // Ad-hoc signatures carry no team, which the check requires: one is put in its place.
+        // Ad-hoc signatures carry no team and no Apple chain, which the checks require: a
+        // team is put in its place, and the signature is checked without the chain.
+        codesignVerify: (bundle) => macUpdateHost.codesignVerify(bundle),
         codesignDetails: async (bundle) => {
           const details = await macUpdateHost.codesignDetails(bundle)
           return /^TeamIdentifier=/mu.test(details)
@@ -473,5 +510,6 @@ describe.runIf(process.platform === "darwin")("updating a real bundle", () => {
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
-  })
+    // About ten codesign and ditto runs, which a busy runner may take a while over.
+  }, 120_000)
 })

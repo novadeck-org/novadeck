@@ -52,10 +52,11 @@ export type MacUpdateHost = {
   /** `xattr -dr com.apple.quarantine <path>`. */
   readonly unquarantine: (path: string) => Promise<void>
   /**
-   * `codesign --verify --deep --strict <bundle>`; rejects when the signature is not sound,
-   * with the exit status as the error's `code`, or when it could not be checked.
+   * `codesign --verify --deep --strict [-R <requirement>] <bundle>`; rejects when the
+   * signature is not sound or does not meet `requirement`, with the exit status as the
+   * error's `code`, or when it could not be checked.
    */
-  readonly codesignVerify: (bundle: string) => Promise<void>
+  readonly codesignVerify: (bundle: string, requirement?: string) => Promise<void>
   /** What `codesign -dv <bundle>` prints. */
   readonly codesignDetails: (bundle: string) => Promise<string>
   /** `osascript -e <script>`; rejects with the error text osascript printed. */
@@ -107,8 +108,14 @@ export const macUpdateHost: MacUpdateHost = {
   copy: async (source, destination) => void (await run("/usr/bin/ditto", [source, destination])),
   unquarantine: async (path) =>
     void (await run("/usr/bin/xattr", ["-dr", "com.apple.quarantine", path])),
-  codesignVerify: async (bundle) =>
-    void (await run("/usr/bin/codesign", ["--verify", "--deep", "--strict", bundle])),
+  codesignVerify: async (bundle, requirement) =>
+    void (await run("/usr/bin/codesign", [
+      "--verify",
+      "--deep",
+      "--strict",
+      ...(requirement === undefined ? [] : ["-R", requirement]),
+      bundle,
+    ])),
   codesignDetails: (bundle) => run("/usr/bin/codesign", ["-dv", bundle]),
   osascript: async (script) => void (await run("/usr/bin/osascript", ["-e", script])),
 }
@@ -162,41 +169,73 @@ const unsound = (error: unknown): boolean => {
 }
 
 // Checks the prepared bundle is the update for this very app and was signed by its maker.
+// What a team identifier looks like: ten capitals and digits.
+const teamPattern = /^[A-Z0-9]{10}$/u
+
+/**
+ * The requirement an update is held to: signed through Apple's certificate chain by the
+ * running app's `team`, as Squirrel.Mac held it to the running app's own. The
+ * `TeamIdentifier` a signature names is not enough, as any certificate can carry one.
+ */
+export const updateRequirement = (team: string): string =>
+  `=anchor apple generic and certificate leaf[subject.OU] = "${team}"`
+
+// The team that signed the running app, which an update must share.
+const runningTeam = async (bundle: string, host: MacUpdateHost): Promise<string> => {
+  let details: string
+  try {
+    details = await host.codesignDetails(bundle)
+  } catch {
+    throw problem("This app's signature could not be read.")
+  }
+  const team = teamOf(details)
+  if (team === undefined || !teamPattern.test(team))
+    throw rejected("This app is not signed by a developer team, so no update can be checked.")
+  return team
+}
+
+// Checks `bundle` is soundly signed through Apple's chain by `team`.
+const signedBy = async (bundle: string, team: string, host: MacUpdateHost): Promise<void> => {
+  try {
+    await host.codesignVerify(bundle, updateRequirement(team))
+  } catch (error) {
+    if (unsound(error))
+      throw rejected("The downloaded update's signature is not valid for this app's team.")
+    throw problem("The downloaded update's signature could not be checked.")
+  }
+}
+
+// Checks the prepared bundle is the update for this very app and was signed by its maker.
 const verify = async (
   prepared: string,
   update: { readonly version: string; readonly bundle: string },
   host: MacUpdateHost,
 ): Promise<void> => {
-  const plistOf = async (bundle: string): Promise<string> => {
-    try {
-      return await host.readFile(posix.join(bundle, "Contents", "Info.plist"))
-    } catch {
-      throw rejected("The downloaded update has no readable Info.plist.")
-    }
-  }
-  const [downloaded, running] = [await plistOf(prepared), await plistOf(update.bundle)]
+  const plistOf = (bundle: string): Promise<string> =>
+    host.readFile(posix.join(bundle, "Contents", "Info.plist"))
+  const downloaded = await plistOf(prepared).catch(() => {
+    throw rejected("The downloaded update has no readable Info.plist.")
+  })
+  // The running app's own, which a move of the app while it runs may hide for a while.
+  const running = await plistOf(update.bundle).catch(() => {
+    throw problem("This app's Info.plist could not be read.")
+  })
   const identifier = plistString(downloaded, "CFBundleIdentifier")
   if (identifier === undefined || identifier !== plistString(running, "CFBundleIdentifier"))
     throw rejected("The downloaded update is not for this app.")
   if (plistString(downloaded, "CFBundleShortVersionString") !== update.version)
     throw rejected("The downloaded update is not the version that was announced.")
-  try {
-    await host.codesignVerify(prepared)
-  } catch (error) {
-    if (unsound(error)) throw rejected("The downloaded update's signature is not valid.")
-    throw problem("The downloaded update's signature could not be checked.")
-  }
-  const team = teamOf(await host.codesignDetails(prepared))
-  if (team === undefined) throw rejected("The downloaded update is not signed by a developer team.")
-  if (team !== teamOf(await host.codesignDetails(update.bundle)))
+  const team = await runningTeam(update.bundle, host)
+  await signedBy(prepared, team, host)
+  if (teamOf(await host.codesignDetails(prepared)) !== team)
     throw rejected("The downloaded update was signed by a different team than this app.")
 }
 
 /**
  * Unpacks the downloaded zip into a fresh folder in the updates folder, strips any
  * quarantine attribute and verifies it: exactly one `.app`, with this app's identifier and
- * the announced `version`, a sound signature, and the same signing team as the running
- * `bundle`, which it must have. Resolves to the prepared `.app`; rejects with an Error
+ * the announced `version`, and signed through Apple's chain by the running `bundle`'s team
+ * (see `updateRequirement`), which it must have. Resolves to the prepared `.app`; rejects with an Error
  * whose message is a plain sentence, an `UpdateRejected` when the update is not one to
  * install. Nothing is left behind by a failure. Earlier prepared folders are left alone:
  * one may be on its way into place as the app quits, so the host removes them (see
@@ -301,10 +340,11 @@ const installReason = (error: unknown): string => {
  * in one folder, so there is no moment without an app to run. In `contents` mode the same
  * is done with the two `Contents` folders inside the bundle, which stays: all that can be
  * done where its parent is not writable. Should a step fail, the old one is put back and
- * the install rejects. The old one then moves into the prepared update's folder, or stays
- * beside where that crosses volumes, as removing it would hold up the quit, until
- * `removeMacUpdates` clears it at the next launch. Meant for the quit, once the app has
- * saved: it neither quits nor restarts anything.
+ * the install rejects. The old one then moves into the prepared update's folder, as
+ * removing it would hold up the quit, until `removeMacUpdates` clears it at the next
+ * launch; where that crosses volumes an old app stays beside the bundle, and old
+ * `Contents` are removed at once. The prepared app's signature is checked again first.
+ * Meant for the quit, once the app has saved: it neither quits nor restarts anything.
  */
 export const installMacUpdate = async (
   install: { readonly prepared: string; readonly bundle: string; readonly mode: MacSwapMode },
@@ -318,6 +358,11 @@ export const installMacUpdate = async (
     await host.remove(staged).catch(() => {})
     throw problem(installReason(error))
   }
+  // The prepared app waited in the person's caches, which anything they run can write, so
+  // it is checked again before it goes where only this app may put it.
+  await signedBy(install.prepared, await runningTeam(install.bundle, host), host).catch(() => {
+    throw problem("The prepared update no longer passes its signature check.")
+  })
   try {
     await host.remove(staged)
     await host.remove(aside)
@@ -342,7 +387,13 @@ export const installMacUpdate = async (
     return fail(error)
   }
   const previous = posix.join(posix.dirname(install.prepared), whole ? "previous.app" : "previous")
-  await host.rename(aside, previous).catch(() => {})
+  try {
+    await host.rename(aside, previous)
+  } catch {
+    // Old `Contents` left inside the bundle would break its signature's seal, so they go
+    // now, whatever the wait; an old app beside the bundle can wait for the next launch.
+    if (!whole) await host.remove(aside).catch(() => {})
+  }
 }
 
 // Puts the old bundle (or its Contents) back from `aside`, beside it. Rejects when it
