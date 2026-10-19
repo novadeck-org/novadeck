@@ -2,9 +2,9 @@ import type { AgentMessage, InboxHistory } from "@novadeck/core/messages"
 import { render } from "@novadeck/test-kit/render"
 import { createElement } from "react"
 
+import { describe, expect, it } from "../../test"
 import type { MailHandle } from "./mail"
 import { MessagesView } from "./MessagesView"
-import { describe, expect, it } from "./test"
 
 const mount = (message: Partial<AgentMessage>, paused = false) => {
   const mail: MailHandle = {

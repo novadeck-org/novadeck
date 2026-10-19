@@ -75,8 +75,10 @@ const rules: Record<string, readonly string[]> = {
     // The chat's store and commands, which the app composes; its pure helpers are theirs.
     "terminals/chat/state.ts",
     "terminals/chat/commands.ts",
-    // The companion panes' store, which commands use by its type.
+    // The companion panes' store, which commands use by its type, and the actions they
+    // implement, which they declare they satisfy.
     "terminals/companion/state.ts",
+    "terminals/companion/actions.ts",
     "layouts/canvas/types.ts",
     // The dictation contract's types, which keys call.
     "voice/dictation-control.ts",
