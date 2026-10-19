@@ -1,0 +1,22 @@
+# shell-tools
+user: Run things.
+tools: [8 tool calls · Ran, Sent input] Ran [run] · npm test | Call: shell: 1 line: ["bash","-lc","npm test"] → 2 lines: Exit code: 0; Ran [run] · ls -la src | Call: shell: 1 line: ["ls","-la","src"] → 2 lines: a; Ran [run] · git status | Call: shell_command: 2 lines: command: git status → 1 line: clean; Ran [run] · echo local | Call: local_shell: 1 line: ["echo","local"] → 1 line: local; Ran [run] · echo hi | Call: container.exec: 1 line: ["bash","-c","echo hi"] → 1 line: hi; Ran [run] · rg -n foo src | Call: exec_command: 2 lines: cmd: rg -n foo src → 2 lines: Chunk ID: 1; Ran [run] · text.ls({ path: '.' }) | Call: exec: 1 line: text.ls({ path: '.' }) → 1 line: a.ts; Sent input [run] · y | Call: write_stdin: 3 lines: session_id: 1 → 1 line: accepted
+
+# patches-and-plans
+user: Change files.
+tools: [4 tool calls · Patched, Updated plan, Read] Patched [write] · …/user/project/a.ts, …/user/project/b.ts +1 | Call: apply_patch: 9 lines: *** Begin Patch → 1 line: Success. Updated 3 files; Patched [write] · …/user/project/only.ts | Call: apply_patch: 4 lines: *** Begin Patch → 1 line: Success; Updated plan [plan] · 3 steps | Call: update_plan: 1 line: [{"step":"read","status":"completed"},{"step":"… → 1 line: Plan updated; Read [read] · …/user/project/shot.png | Call: view_image: 1 line: /home/user/project/shot.png → 1 line: image
+
+# novadeck-tools
+user: Use the other terminals.
+tools: [15 tool calls · Messaged reviewer, Messaged, Listed agents, Opened a terminal] Messaged reviewer [agent] · Please look | Call: mcp__novadeck__send: 2 lines: to: reviewer → 1 line: Sent; Messaged [agent] · Anyone? | Call: mcp__novadeck__send: 1 line: Anyone? → 1 line: Sent; Listed agents [agent] | Call: mcp__novadeck__agents: empty → 1 line: reviewer; Opened a terminal [agent] · codex: Review | Call: mcp__novadeck__open_terminal: 2 lines: agent: codex → 1 line: Opened; Opened a terminal [agent] · npm run dev | Call: mcp__novadeck__open_terminal: 1 line: npm run dev → 1 line: Opened; Closed builder [agent] | Call: mcp__novadeck__close_terminal: 1 line: builder → 1 line: Closed; Closed a terminal [agent] | Call: mcp__novadeck__close_terminal: empty → 1 line: Closed; Showed [web] · http://localhost:5173 | Call: mcp__novadeck__show: 1 line: http://localhost:5173 → 1 line: Showing; Showed [read] · …/user/project/plan.md | Call: mcp__novadeck__show: 1 line: {"path":"/home/user/project/plan.md"} → 1 line: Showing; Closed [read] · …/user/project/plan.md | Call: mcp__novadeck__close: 1 line: {"path":"/home/user/project/plan.md"} → 1 line: Closed; Checked what's shown [read] | Call: mcp__novadeck__showing: empty → 1 line: Nothing; Summarized this terminal [agent] · Pinning the chat. | Call: mcp__novadeck__summarize: 1 line: Pinning the chat. → 1 line: Saved; Messaged reviewer [agent] · dotted spelling | Call: mcp__novadeck.send: 2 lines: to: reviewer → 1 line: Sent; Listed agents [agent] | Call: mcp__novadeck__agents: empty → 1 line: reviewer; mcp__github__create_issue [other] | Call: 1 line: Flaky test → 1 line: Created #12
+
+# limits-and-orphans
+user: Be extreme.
+tools: [4 tool calls · Patched, a_very_long_tool_name_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz, unknown_tool,] Patched [write] · …/user/project/big.ts | Call: apply_patch: 5 lines, shortened: *** Begin Patch → 1 line: Success; a_very_long_tool_name_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz [other] · …/user/project/f.ts | Call: 1 line: /home/user/project/f.ts → 1 line: fine; unknown_tool [other] · something | Call: 1 line: something → 1 line: result; Result [other] → 1 line: Orphaned result
+
+# agent-message-and-interruption
+user: Start.
+assistant: Working.
+agent (/root/reviewer): Found two problems.
+agent (Another agent): From a subagent that gave no name.
+note: Interrupted
