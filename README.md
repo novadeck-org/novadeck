@@ -876,7 +876,7 @@ App:
   (Install when narrow); "Update available" adds a release, so the card reads "Novadeck
   0.0.80 is out" and the chip says Update available with a dot. Install takes four seconds
   here, a download climbing to 100% and then the install, and ends as installed: the card says
-  it takes effect after a restart, fades after a few seconds and leaves Installed on the chip;
+  it takes effect after a restart (after a quit and reopen on macOS), fades after a few seconds and leaves Installed on the chip;
   Novadeck never restarts itself. "Install never finishes" holds the Installing card and the
   chip's Installing…. "Newer install exists" and "Install fails" arm the other ends: a card
   saying a newer Novadeck is already installed, or one giving the reason with Try again.
@@ -904,12 +904,14 @@ App:
   look at. Download failed holds the bar at 40% for a moment, or fails one already running, and
   drops it with nothing in the footer, as the host tries again by itself (`retrying`). Release
   to fetch shows the Update available chip alone, which opens the release page (nothing opens
-  in a browser). Ready at
+  in a browser). Release, needs an administrator shows the Allow updates chip instead
+  (Allow when narrow), which stands in for the administrator's step: pressing it starts the
+  download. Ready at
   launch offers an update downloaded before this run, which shows nothing, as at a launch.
   Finish restart reloads the demo, as the app comes back on the new version. Early builds on
   and off set the channel Preferences' Updates switch shows once Preferences is reopened.
   For specs, `?update=` opens any of these by key (`download`, `held`, `failed`, `available`,
-  `ready`). Both panels and the spec keys come from one record, `frontend/demo-debug/src/scenarios.ts`.
+  `allow`, `ready`). Both panels and the spec keys come from one record, `frontend/demo-debug/src/scenarios.ts`.
 
 ### Visitor build
 

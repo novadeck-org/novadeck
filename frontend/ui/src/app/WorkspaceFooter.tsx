@@ -102,7 +102,11 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
       noticeOpen={sandboxOpen}
       available={
         updates && !portable && !portablePending && offer?.kind === "available"
-          ? { version: offer.version, onOpenPage: updates.openPage }
+          ? {
+              version: offer.version,
+              onOpenPage: updates.openPage,
+              onAllow: offer.allow === true ? updates.allow : undefined,
+            }
           : undefined
       }
       portable={
