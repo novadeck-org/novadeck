@@ -10,7 +10,7 @@ import { pause } from "@novadeck/terminal/view"
 import { WireError } from "@novadeck/wire"
 import type { WireStatus } from "@novadeck/wire/client"
 
-import { runnerBackend, type RunnerApi } from "./backend"
+import { runnerBackend, type RunnerApi, type RunnerBackendOptions } from "./backend"
 import { channel, id as uuid, keptSummary, noCompanions } from "./scripted"
 import type { RunnerListing } from "./seed"
 import { describe, expect, it } from "./test"
@@ -142,6 +142,8 @@ const holdingRunner = (close: (id: string) => Promise<void>) => {
   }
   let changes = channel<TerminalWatchItem>()
   const calls: string[] = []
+  // Whether its listing fails, as when the link drops right after an answer.
+  const listings = { fails: false }
   const api = {
     watch: statuses,
     projects: { list: async () => [], create: async () => ({}), rename: async () => ({}) },
@@ -152,7 +154,10 @@ const holdingRunner = (close: (id: string) => Promise<void>) => {
       save: async () => {},
     },
     terminals: {
-      list: async () => [...held.values()],
+      list: async () => {
+        if (listings.fails) throw new WireError("DISCONNECTED", "lost")
+        return [...held.values()]
+      },
       // A fresh watch for every start, which lists what the runner holds.
       watch: () => {
         changes = channel<TerminalWatchItem>()
@@ -216,16 +221,25 @@ const holdingRunner = (close: (id: string) => Promise<void>) => {
     drop: () => set({ state: "reconnecting", error: new WireError("DISCONNECTED") }),
     // The runner tells its watchers the terminal is gone, as its close does at once.
     removed: (terminalId: string) => changes.push({ type: "removed", terminalId, sessionId: "s" }),
+    // The runner tells its watchers something changed in a terminal it holds.
+    report: (terminalId: string) =>
+      changes.push({ type: "changed", terminal: held.get(terminalId)! }),
+    listings,
   }
 }
 
 // The app over the runner: its store, committing to the backend, and the companion's
 // reader of the messages, which starts a transaction of its own whenever they change.
-const app = (runner: ReturnType<typeof holdingRunner>, notices: Notice[] = []) => {
+const app = (
+  runner: ReturnType<typeof holdingRunner>,
+  notices: Notice[] = [],
+  options: Partial<RunnerBackendOptions> = {},
+) => {
   const { backend } = runnerBackend(runner.api, runner.listing, {
     theme: noTheme,
     saveDelay: 10,
     notices: { show: (notice) => void notices.push(notice), onClick: () => () => {} },
+    ...options,
   })
   const initial = workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 1 })
   const workspace = createWorkspaceStore(initial, backend.commit)
@@ -285,7 +299,7 @@ describe("a close the runner refuses", () => {
       {
         id: runner.ids[0],
         title: "Novadeck couldn't close @moth · “Terminal”",
-        body: "It's still running, so it's back in its session. The runner broke.",
+        body: "It's still running, so it stays in its session. The runner broke.",
       },
     ])
     stop()
@@ -335,7 +349,7 @@ describe("a close the runner doesn't answer", () => {
     again()
   })
 
-  it("is left alone once the runner reports the terminal gone", async () => {
+  it("isn't sent again while the first waits for its answer", async () => {
     const runner = holdingRunner(() => new Promise(() => {}))
     const window = app(runner)
     const stop = window.start()
@@ -349,6 +363,89 @@ describe("a close the runner doesn't answer", () => {
 
     expect(runner.calls).toEqual([runner.ids[0]])
     expect(window.roster()).toEqual([runner.ids[1]])
+    stop()
+  })
+})
+
+describe("a close the runner refuses as its link drops", () => {
+  it("brings the terminal back with the runner's next report, and says why", async () => {
+    const runner = holdingRunner(async () => {
+      runner.listings.fails = true
+      throw new WireError("INTERNAL_ERROR", "The runner broke.")
+    })
+    const notices: Notice[] = []
+    const window = app(runner, notices)
+    const stop = window.start()
+    runner.connect()
+    await pause(50)
+
+    window.close(runner.ids[0]!)
+    await pause(50)
+    runner.listings.fails = false
+    runner.report(runner.ids[0]!)
+    await pause(50)
+
+    expect(window.roster().toSorted()).toEqual(runner.held().toSorted())
+    expect(notices.map((notice) => notice.title)).toEqual([
+      "Novadeck couldn't close @moth · “Terminal”",
+    ])
+    stop()
+  })
+})
+
+describe("a refusal that comes once the window stopped", () => {
+  it("says nothing, and the terminal is back once the window starts again", async () => {
+    let refuse = (): void => {}
+    const runner = holdingRunner(
+      () =>
+        new Promise((_, reject) => {
+          refuse = () => reject(new WireError("INTERNAL_ERROR", "The runner broke."))
+        }),
+    )
+    const notices: Notice[] = []
+    const window = app(runner, notices)
+    const stop = window.start()
+    runner.connect()
+    await pause(50)
+
+    window.close(runner.ids[0]!)
+    await pause(20)
+    stop()
+    refuse()
+    await pause(50)
+    expect(notices).toEqual([])
+
+    const again = window.start()
+    await pause(50)
+
+    expect(window.roster().toSorted()).toEqual(runner.held().toSorted())
+    again()
+  })
+})
+
+describe("a close the runner takes too long to answer", () => {
+  it("brings the terminal back saying so, and lets it go once the runner reports it gone", async () => {
+    let answer = (): void => {}
+    const runner = holdingRunner(() => new Promise<void>((resolve) => (answer = resolve)))
+    const notices: Notice[] = []
+    const window = app(runner, notices, { closeAnswerMs: 100 })
+    const stop = window.start()
+    runner.connect()
+    await pause(50)
+
+    window.close(runner.ids[0]!)
+    await pause(200)
+    expect(window.roster().toSorted()).toEqual(runner.held().toSorted())
+    expect(notices.map((notice) => notice.body)).toEqual([
+      "It's still running, so it stays in its session. The runner didn't answer.",
+    ])
+
+    runner.removed(runner.ids[0]!)
+    answer()
+    await pause(50)
+
+    expect(runner.held()).toEqual([runner.ids[1]])
+    expect(window.roster()).toEqual(runner.held())
     stop()
   })
 })

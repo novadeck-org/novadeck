@@ -3,7 +3,6 @@ import {
   notesIn,
   planVersionOf,
   PlanUnwritableError,
-  type CompanionKey,
   type Companions,
   type ItemContent,
   type ItemId,
@@ -12,7 +11,6 @@ import {
 } from "@novadeck/core/companion"
 import { messagesKey } from "@novadeck/core/companion-bar"
 import { hasMail, type MailState, type Messages, type TerminalMail } from "@novadeck/core/messages"
-import { hasTerminal } from "@novadeck/core/roster"
 import type { WorkspaceAction } from "@novadeck/core/state"
 import {
   createStore,
@@ -517,29 +515,19 @@ const itemsOf = (workspace: Workspace) =>
 const messageCount = (mail: TerminalMail | undefined): number =>
   (mail?.threads ?? []).reduce((count, thread) => count + thread.messages.length, 0)
 
-// Whether the workspace still holds the terminal, as one closed since its mail came doesn't.
-const holds = (workspace: Workspace, { terminalId, ...target }: CompanionKey): boolean => {
-  const session = workspace.projects
-    .find((project) => project.id === target.projectId)
-    ?.history.find((each) => each.id === target.workspaceSessionId)
-  return session !== undefined && hasTerminal(session.state.roster, terminalId)
-}
-
 // The messages join a terminal's bar when it first has them, after what came before, and
 // come back once hidden with the next message, whether or not the terminal is on screen.
 const mailFollower = (session: Session) => {
   const counts = new Map<string, number>()
   return (state: MailState): void => {
     const actions: WorkspaceAction[] = []
-    const workspace = session.workspace.getSnapshot()
     for (const [id, mail] of Object.entries(state.terminals)) {
       const count = messageCount(mail)
       const more = count > (counts.get(id) ?? count)
       counts.set(id, count)
       if (!hasMail(mail)) continue
-      const key = companionKeyOf(id)
-      if (!holds(workspace, key)) continue
-      const { terminalId, ...target } = key
+      // A terminal closed since its mail came takes nothing: the bar's actions pass it by.
+      const { terminalId, ...target } = companionKeyOf(id)
       actions.push({ type: "bar/arrive", target, terminalId, key: messagesKey })
       if (more) actions.push({ type: "bar/reopen", target, terminalId, key: messagesKey })
     }
