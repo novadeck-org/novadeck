@@ -387,10 +387,15 @@ export const runnerBackend = (
   const titles = new Map<string, string>()
   // The agent's request being opened, while the app adds its terminal.
   let opening: string | undefined
-  // Each terminal's title, and who it is from, and its handle, as the runner last reported them.
+  // Each terminal's title, and who it is from, as the runner last reported them.
   const runnerTitles = new Map<string, string>()
   const runnerSources = new Map<string, TitleSource>()
-  const runnerHandles = new Map<string, string>()
+  // Every terminal the runner holds, as it last reported it, until it reports it removed.
+  const runnerSummaries = new Map(
+    listing.flatMap(({ sessions: listed }) =>
+      listed.flatMap(({ terminals }) => terminals.map((each) => [each.id, each] as const)),
+    ),
+  )
   let sink: BackendSink | undefined
   let epoch: string | undefined
   // The latest runner status.
@@ -657,7 +662,11 @@ export const runnerBackend = (
   // or reporting them removed, and whether a close for each is under way. One the runner
   // still reports with none under way, as one a stop cancelled, is closed again; one its
   // listing no longer has needs no close.
-  const closedPending = new Map<string, { readonly entry: RunnerEntry; closing: boolean }>()
+  // `back` once the terminal came back as the runner was slow to answer.
+  const closedPending = new Map<
+    string,
+    { readonly entry: RunnerEntry; closing: boolean; back: boolean }
+  >()
   // Ends the shell, retrying while the runner is unreachable or restarting, whatever
   // window controls it: a closed terminal is gone for good. One already gone is left as it is.
   // A lost terminal is closed too, so the runner forgets what would restore it, at once:
@@ -667,33 +676,46 @@ export const runnerBackend = (
   // that takes a close tells its watchers the terminal is gone at once.
   const endShell = (entry: RunnerEntry): Promise<void> => {
     const { terminalId } = entry.key
-    const close = { entry, closing: true }
+    const close = { entry, closing: true, back: false }
     closedPending.set(terminalId, close)
+    // Whether this is still the terminal's latest close: one the person started since, as
+    // after this one brought it back, decides what happens to it.
+    const current = (): boolean => closedPending.get(terminalId) === close
+    const confirm = (): void => {
+      if (current()) closedPending.delete(terminalId)
+    }
     const closing = (async () => {
       const waits = !entry.lost
       if (waits && !(await entry.ready) && !entry.requested && !entry.lost) {
         // Never created on the runner: there is nothing there to end.
-        closedPending.delete(terminalId)
+        confirm()
         return
       }
       try {
         await untilAnswered(
           () => {
             const late = setTimeout(() => {
-              if (closedPending.get(terminalId) === close)
-                void keepRunning(entry, "The runner didn't answer.")
+              if (!current()) return
+              close.back = true
+              void keepRunning(entry, "The runner didn't answer.", true)
             }, closeAnswerMs)
             return runner.terminals.close(terminalId).finally(() => clearTimeout(late))
           },
           { done: ["TERMINAL_NOT_FOUND", "TERMINAL_EXITED", "NOT_FOUND"], again: ["CLOSING"] },
         )
-        closedPending.delete(terminalId)
+        confirm()
+        // Back here while the runner was slow, and gone there after all, whether or not its
+        // report that it went arrives: it goes here too.
+        const back = close.back ? entries.get(terminalId) : undefined
+        if (back && !back.closed)
+          dispatch([{ type: "terminal/close", target: target(back.key), terminalId }])
       } catch (error) {
         // Cancelled only as the backend stops; the close is tried again once it starts.
         if (error instanceof Cancelled) return
-        closedPending.delete(terminalId)
         console.error("Novadeck could not close the terminal on the runner:", error)
-        await keepRunning(entry, error instanceof Error ? error.message : "")
+        if (!current()) return
+        closedPending.delete(terminalId)
+        await keepRunning(entry, error instanceof Error ? error.message : "", false)
       }
     })().finally(() => {
       close.closing = false
@@ -702,30 +724,32 @@ export const runnerBackend = (
     void closing.finally(() => closes.delete(closing))
     return closing
   }
-  // The runner refused to close the terminal, or hasn't answered, so it still runs there:
-  // it comes back to its session here, where it can be closed again, and the person hears
-  // why. One the runner can't list now comes back with its next report.
-  const keepRunning = async (entry: RunnerEntry, why: string): Promise<void> => {
+  // The runner refused to close the terminal, or hasn't answered (`inFlight`, its close
+  // still waiting), so it still runs there: it comes back to its session here, where it can
+  // be closed again, and the person hears why. One back already says nothing more. A
+  // stopped backend says nothing: the runner's next listing brings the terminal back.
+  const keepRunning = async (entry: RunnerEntry, why: string, inFlight: boolean): Promise<void> => {
     const { terminalId, workspaceSessionId } = entry.key
     if (entries.has(terminalId)) return
+    if (!sink) {
+      if (!inFlight) closedHere.delete(terminalId)
+      return
+    }
     closedHere.delete(terminalId)
-    let summary: TerminalSummary | undefined
-    let known = true
+    // As the runner last reported it, should it be unable to list it now: it said it keeps it.
+    let summary = runnerSummaries.get(terminalId)
     try {
       const listed = await runner.terminals.list({ sessionId: workspaceSessionId })
       summary = listed.find((each) => each.id === terminalId)
+      // Gone after all, as closed meanwhile from another window.
+      if (!summary) return
     } catch {
-      known = false
+      // Brought back from its last report.
     }
-    // Gone after all, as closed meanwhile from another window.
-    if (known && !summary) return
     if (summary && !entries.has(terminalId)) adopt(summary)
-    // Nowhere to come back to now, as while the backend is stopped.
-    if (known && !entries.has(terminalId)) return
-    const handle = summary?.handle ?? runnerHandles.get(terminalId)
-    const title = summary?.title ?? runnerTitles.get(terminalId)
-    const named =
-      title === undefined ? "a terminal" : `${handle ? `${handleText(handle)} · ` : ""}“${title}”`
+    // Nowhere to come back to, as once the backend stopped meanwhile.
+    if (!summary || !entries.has(terminalId)) return
+    const named = `${summary.handle ? `${handleText(summary.handle)} · ` : ""}“${summary.title}”`
     options.notices?.show({
       id: terminalId,
       title: `Novadeck couldn't close ${named}`,
@@ -752,7 +776,6 @@ export const runnerBackend = (
     if (!current) return []
     const { terminalId } = entry.key
     runnerTitles.set(terminalId, summary.title)
-    runnerHandles.set(terminalId, summary.handle)
     runnerSources.set(terminalId, summary.titleSource)
     const unconfirmed = renamed.get(terminalId)
     if (unconfirmed === summary.title) renamed.delete(terminalId)
@@ -1302,6 +1325,7 @@ export const runnerBackend = (
       }
       if (change.type === "removed") {
         closedPending.delete(change.terminalId)
+        runnerSummaries.delete(change.terminalId)
         // Closed, as by another window: it is gone from its session here too.
         const entry = entries.get(change.terminalId)
         if (entry && !entry.closed)
@@ -1314,6 +1338,7 @@ export const runnerBackend = (
         const summary = change.terminal
         const entry = entries.get(summary.id)
         reported.add(summary.id)
+        runnerSummaries.set(summary.id, summary)
         // Closed here, and still running there with no close on its way: closed again.
         const closed = closedPending.get(summary.id)
         if (!entry && closed && !closed.closing) return void track(endShell(closed.entry))

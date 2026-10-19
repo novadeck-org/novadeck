@@ -358,7 +358,8 @@ describe("a close the runner doesn't answer", () => {
 
     window.close(runner.ids[0]!)
     await pause(20)
-    runner.removed(runner.ids[0]!)
+    // The runner still says something of it, as while its close waits on its shell.
+    runner.report(runner.ids[0]!)
     await pause(20)
 
     expect(runner.calls).toEqual([runner.ids[0]])
@@ -446,6 +447,121 @@ describe("a close the runner takes too long to answer", () => {
 
     expect(runner.held()).toEqual([runner.ids[1]])
     expect(window.roster()).toEqual(runner.held())
+    stop()
+  })
+
+  it("lets the terminal go when the late answer comes without the runner's report", async () => {
+    let answer = (): void => {}
+    const runner = holdingRunner(() => new Promise<void>((resolve) => (answer = resolve)))
+    const notices: Notice[] = []
+    const window = app(runner, notices, { closeAnswerMs: 100 })
+    const stop = window.start()
+    runner.connect()
+    await pause(50)
+
+    window.close(runner.ids[0]!)
+    await pause(200)
+    expect(window.roster()).toContain(runner.ids[0])
+    answer()
+    await pause(50)
+    expect(runner.held()).toEqual([runner.ids[1]])
+    expect(window.roster()).toEqual(runner.held())
+
+    // The runner's report that it went, arriving after all, changes nothing more.
+    runner.removed(runner.ids[0]!)
+    await pause(50)
+    expect(window.roster()).toEqual(runner.held())
+    expect(notices).toHaveLength(1)
+    stop()
+  })
+
+  it("says nothing more when the late answer is a refusal", async () => {
+    let refuse = (): void => {}
+    const runner = holdingRunner(
+      () =>
+        new Promise((_, reject) => {
+          refuse = () => reject(new WireError("INTERNAL_ERROR", "The runner broke."))
+        }),
+    )
+    const notices: Notice[] = []
+    const window = app(runner, notices, { closeAnswerMs: 100 })
+    const stop = window.start()
+    runner.connect()
+    await pause(50)
+
+    window.close(runner.ids[0]!)
+    await pause(200)
+    refuse()
+    await pause(50)
+
+    expect(window.roster().toSorted()).toEqual(runner.held().toSorted())
+    expect(notices).toHaveLength(1)
+    stop()
+  })
+
+  it("leaves a terminal closed again to that newer close, whatever the first one hears", async () => {
+    const answers: { resolve: () => void; reject: (error: Error) => void }[] = []
+    const runner = holdingRunner(
+      () => new Promise<void>((resolve, reject) => void answers.push({ resolve, reject })),
+    )
+    const notices: Notice[] = []
+    const window = app(runner, notices, { closeAnswerMs: 100 })
+    const stop = window.start()
+    runner.connect()
+    await pause(50)
+
+    window.close(runner.ids[0]!)
+    await pause(200)
+    // Back, and closed again by the person.
+    window.close(runner.ids[0]!)
+    await pause(20)
+    answers[0]!.reject(new WireError("INTERNAL_ERROR", "The runner broke."))
+    await pause(50)
+    expect(window.roster()).toEqual([runner.ids[1]])
+    expect(notices).toHaveLength(1)
+
+    answers[1]!.resolve()
+    await pause(50)
+    expect(runner.held()).toEqual([runner.ids[1]])
+    expect(window.roster()).toEqual(runner.held())
+    stop()
+  })
+
+  it("says nothing once the window stopped", async () => {
+    const runner = holdingRunner(() => new Promise(() => {}))
+    const notices: Notice[] = []
+    const window = app(runner, notices, { closeAnswerMs: 100 })
+    const stop = window.start()
+    runner.connect()
+    await pause(50)
+
+    window.close(runner.ids[0]!)
+    await pause(20)
+    stop()
+    runner.listings.fails = true
+    await pause(200)
+
+    expect(notices).toEqual([])
+  })
+})
+
+describe("a refused close the runner can't list afterwards", () => {
+  it("brings the terminal back as the runner last reported it, though it reports nothing more", async () => {
+    const runner = holdingRunner(async () => {
+      runner.listings.fails = true
+      throw new WireError("INTERNAL_ERROR", "The runner broke.")
+    })
+    const notices: Notice[] = []
+    const window = app(runner, notices)
+    const stop = window.start()
+    runner.connect()
+    await pause(50)
+
+    window.close(runner.ids[0]!)
+    await pause(50)
+
+    expect(window.roster().toSorted()).toEqual(runner.held().toSorted())
+    expect(notices).toHaveLength(1)
     stop()
   })
 })
