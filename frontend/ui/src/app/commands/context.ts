@@ -1,3 +1,4 @@
+import type { Panes } from "@novadeck/companion/state"
 import type { Rect } from "@novadeck/core/layout/spatial"
 import type { Murmur } from "@novadeck/core/murmur"
 import type { Backend } from "@novadeck/core/port"
@@ -5,7 +6,6 @@ import type { WorkspaceStore } from "@novadeck/core/store"
 import type { SidebarPanel } from "@novadeck/core/types"
 
 import type { CanvasHandle } from "../../layouts/canvas/types"
-import type { Panes } from "../../terminals/companion/state"
 import type { Dictation } from "../../voice/dictation-control"
 import type { WorkspaceNavigator } from "../routing"
 import type { UiStore } from "../ui-store"

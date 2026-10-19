@@ -12,10 +12,9 @@ import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { usePresence, type Presence } from "@novadeck/toolkit/presence"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
-import { useDrag, type BarDrag } from "../drag-session"
-import type { TerminalLayoutControls } from "../WindowShell"
 import { barMembers, composeBar, dropOutcome, shownTab, slotKeys, type BarMember } from "./bar"
 import { CompanionPane } from "./CompanionPane"
+import { useDrag, type BarDrag } from "./drag-session"
 import { useMail } from "./mail"
 import { stuckEdits } from "./plan-doc"
 import { presentationOf, type Panes } from "./state"
@@ -40,6 +39,9 @@ export type ItemCommands = {
     to: number,
   ) => void
 }
+
+// How far the pane reaches into its window, as the window wants to know when it opens.
+type Reveal = (extent: { readonly right: number; readonly height: number }) => void
 
 const unnamed = (): undefined => undefined
 
@@ -115,7 +117,7 @@ const AttachedPane = ({
   presence,
 }: {
   view: PaneView
-  onReveal: TerminalLayoutControls["onReveal"]
+  onReveal: Reveal | undefined
   presence: Presence
 }): React.JSX.Element => {
   // Frame once as the sheet opens, not whenever the canvas hands over a new callback.
@@ -152,7 +154,7 @@ export const TerminalCompanion = ({
   peerName: (handle: string) => string | undefined
   companionKey: CompanionKey
   view: ViewMode
-  onReveal?: TerminalLayoutControls["onReveal"]
+  onReveal?: Reveal | undefined
   children: ReactNode
   // The bar as the person arranged it, the items on it, and which of them are new.
   bar: Bar
