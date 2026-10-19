@@ -1591,7 +1591,9 @@ const createIn = (manager: Terminals) =>
 
 // The message watches the manager still holds for the terminal.
 const readers = (manager: Terminals, terminalId: string) =>
-  (manager as unknown as { mail: Map<string, Set<unknown>> }).mail.get(terminalId)?.size ?? 0
+  (manager as unknown as { streams: { mail: Map<string, Set<unknown>> } }).streams.mail.get(
+    terminalId,
+  )?.size ?? 0
 
 describe.skipIf(process.platform === "win32")("terminal message watches", () => {
   it("lets go of each reader that stops, by return or by its signal", async ({ terminals }) => {
