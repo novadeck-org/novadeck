@@ -278,6 +278,11 @@ export const notes: Record<string, Note> = {
     purpose: "The demo backend with sample data that tests, specs and the web preview run on.",
     entries: [{ file: `${demo}/index.ts`, text: "export const createDemoBackend" }],
   },
+  "frontend/ui/test": {
+    purpose:
+      "The command harness for the UI's tests: the real stores, navigator and commands over a workspace fixture.",
+    entries: [{ file: `${ui}/test/commands.ts` }],
+  },
   "frontend/ui/terminals": {
     purpose: "Terminal frames and tabs, the companion taskbar and panes, and the agent chat.",
     entries: [{ file: `${ui}/terminals/drag-session.ts` }],

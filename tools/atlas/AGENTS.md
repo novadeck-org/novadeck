@@ -19,8 +19,8 @@ pnpm -s atlas:brief state              # how UI state and calls are wired
 ```
 
 `node tools/atlas/brief/main.ts <subject>` is the same without pnpm. A brief is short Markdown,
-read fresh from the source on every call (it builds `@novadeck/wire` and `@novadeck/protocol` first
-if they are missing or stale; the same goes for `extract` and `check`), with `file:line` anchors to open next.
+read fresh from the source on every call (it builds `@novadeck/wire`, `@novadeck/emulator`,
+`@novadeck/terminal` and `@novadeck/protocol` first if they are missing or stale; the same goes for `extract` and `check`), with `file:line` anchors to open next.
 
 - Subjects: an area token, a procedure (`namespace.name`), a UI action (`prefix/name`), a
   table, an MCP tool or a flow. Prefix a kind (`area:`, `procedure:`, `action:`, `table:`,
@@ -31,8 +31,8 @@ if they are missing or stale; the same goes for `extract` and `check`), with `fi
 
 Areas are named by tokens that mirror where the code lives: the package's folder from the
 repository root, then one segment per folder under its `src` (`backend/runner/terminals` is
-`backend/runner/src/terminals`; `frontend/runner-adapter` and `apps/desktop` are whole
-packages). Use the tokens when you report, plan or describe changes, so people and agents name
+`backend/runner/src/terminals`, and `apps/desktop/main` is `apps/desktop/src/main`;
+`frontend/runner-adapter` is a whole package). Use the tokens when you report, plan or describe changes, so people and agents name
 the same thing the same way.
 
 ## Reading a brief

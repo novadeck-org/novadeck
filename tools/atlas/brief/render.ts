@@ -157,8 +157,8 @@ export const renderArea = (atlas: Atlas, area: Area): string => {
       )}`,
     )
   }
-  if (area.id === "frontend/ui" || area.id.startsWith("frontend/ui/"))
-    out.push("", "How UI state and calls are wired: `state`.")
+  // The UI's packages, whose state the `state` overview wires; the apps only start them.
+  if (area.id.startsWith("frontend/")) out.push("", "How UI state and calls are wired: `state`.")
   if (area.procedures.length > 0) out.push("Each procedure's path to the SQL: `procedure:<id>`.")
   return out.join("\n")
 }
