@@ -6,6 +6,7 @@ import type { WorkspaceStore } from "@novadeck/core/store"
 import type { SidebarPanel } from "@novadeck/core/types"
 
 import type { CanvasHandle } from "../../layouts/canvas/types"
+import type { Chat } from "../../terminals/chat/state"
 import type { Dictation } from "../../voice/dictation-control"
 import type { WorkspaceNavigator } from "../routing"
 import type { UiStore } from "../ui-store"
@@ -55,6 +56,8 @@ export type CommandContext = {
   readonly navigation: WorkspaceNavigator
   readonly newTerminal: Backend["newTerminal"]
   // Whether the backend has an Inbox, which the sidebar shows where it would show Notifications.
+  // What the chat keeps: drafts, replies, sends and the terminals answered in.
+  readonly chat: Chat
   readonly inbox?: Backend["inbox"] | undefined
   readonly pickDirectory?: Backend["pickDirectory"] | undefined
   readonly crashLoop?: Backend["crashLoop"] | undefined

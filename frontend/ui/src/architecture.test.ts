@@ -72,7 +72,9 @@ const rules: Record<string, readonly string[]> = {
     // The switcher's arrangement, which commands change by its pure functions.
     "projects/project-arrangement.ts",
     "terminals/recent.ts",
-    "terminals/chat/mode-state.ts",
+    // The chat's store and commands, which the app composes; its pure helpers are theirs.
+    "terminals/chat/state.ts",
+    "terminals/chat/commands.ts",
     // The companion panes' store, which commands use by its type.
     "terminals/companion/state.ts",
     "layouts/canvas/types.ts",
@@ -92,6 +94,8 @@ const rules: Record<string, readonly string[]> = {
     "app/routing.ts",
     "app/ui-store.ts",
     "layouts/canvas/types.ts",
+    // The chat store that the helper puts in the command context.
+    "terminals/chat/state.ts",
   ],
   "test.ts": [],
 }

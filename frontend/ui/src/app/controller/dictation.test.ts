@@ -7,6 +7,7 @@ import type { TerminalMetadata } from "@novadeck/core/types"
 import { vi } from "vitest"
 
 import { chatDraftOf, setChatDraft } from "../../terminals/chat/mode-state"
+import { createChat } from "../../terminals/chat/state"
 import { describe, expect, it } from "../../test"
 import type { VoiceSetup } from "../../voice/dictation"
 import { createUiStore, initialUi, type UiStore } from "../ui-store"
@@ -59,23 +60,25 @@ const chatOn = (store: UiStore): void => {
 describe("dictated words", () => {
   it("are typed into a terminal showing its screen", () => {
     const store = ui()
+    const chat = createChat()
     const typeInto = vi.fn<(key: TerminalKey, text: string) => boolean>(() => true)
-    expect(dictateInto(store, typeInto, terminalOf)(key, "run the tests")).toBe(true)
+    expect(dictateInto(store, chat, typeInto, terminalOf)(key, "run the tests")).toBe(true)
     expect(typeInto).toHaveBeenCalledWith(key, "run the tests")
-    expect(chatDraftOf(store.getSnapshot().chatDrafts, context, "01")).toBe("")
+    expect(chatDraftOf(chat.store.getSnapshot().drafts, context, "01")).toBe("")
   })
 
   it("go into the chat's box after what is there, where the terminal shows its chat", () => {
     const store = ui()
+    const chat = createChat()
     chatOn(store)
-    store.update((state) => ({
+    chat.update((state) => ({
       ...state,
-      chatDrafts: setChatDraft(state.chatDrafts, context, "01", "Please"),
+      drafts: setChatDraft(state.drafts, context, "01", "Please"),
     }))
     const typeInto = vi.fn<(key: TerminalKey, text: string) => boolean>(() => true)
-    expect(dictateInto(store, typeInto, terminalOf)(key, "run the tests")).toBe(true)
+    expect(dictateInto(store, chat, typeInto, terminalOf)(key, "run the tests")).toBe(true)
     expect(typeInto).not.toHaveBeenCalled()
-    expect(chatDraftOf(store.getSnapshot().chatDrafts, context, "01")).toBe("Please run the tests")
+    expect(chatDraftOf(chat.store.getSnapshot().drafts, context, "01")).toBe("Please run the tests")
   })
 })
 

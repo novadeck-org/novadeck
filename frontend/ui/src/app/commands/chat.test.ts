@@ -1,10 +1,15 @@
 import { noConversation, type Conversations } from "@novadeck/core/conversation"
 import type { AgentStatus } from "@novadeck/core/types"
 
-import { chatDraftOf, chatReplyOf, chatSendOf, chatShown } from "../../terminals/chat/mode-state"
+import {
+  chatDraftOf,
+  chatReplyOf,
+  chatSendOf,
+  chatShown,
+  watchChat,
+} from "../../terminals/chat/state"
 import { context, describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"
-import { watchChatModes } from "../ui-store"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
 
@@ -25,7 +30,8 @@ const open = (agent?: AgentStatus, conversations?: Conversations, chatView = tru
     ...app,
     status,
     on: () => {
-      const { preferences, answering } = app.ui.getSnapshot()
+      const { preferences } = app.ui.getSnapshot()
+      const { answering } = app.chat.store.getSnapshot()
       const terminal = app.workspace
         .getSnapshot()
         .projects[0]!.history[0]!.state.roster.terminals.find((each) => each.id === "01")!
@@ -52,7 +58,7 @@ describe("chat commands", () => {
 
     it("shows the chat again once the agent no longer waits on the person", () => {
       const app = open(waiting)
-      const stop = watchChatModes(app.workspace, app.ui)
+      const stop = watchChat(app.chat, app.workspace)
       app.commands.showTerminal("01")
       app.status({ ...waiting })
       expect(app.on()).toBe(false)
@@ -64,7 +70,7 @@ describe("chat commands", () => {
     it("has nothing to answer in a terminal that isn't there", () => {
       const app = open({ working: false })
       app.commands.showTerminal("missing")
-      expect(app.ui.getSnapshot().answering).toEqual({})
+      expect(app.chat.store.getSnapshot().answering).toEqual({})
     })
 
     it("shows every chat afresh once the chat view is turned off and on again", () => {
@@ -78,6 +84,59 @@ describe("chat commands", () => {
     })
   })
 
+  context("when the chat view is turned on or off, across the preference and the answers", () => {
+    // Every state a subscriber of either store could see on the way, as whether the terminal's
+    // chat is shown and whether the terminal is still marked as answered in.
+    const frames = (app: ReturnType<typeof open>, change: () => void) => {
+      const seen: { shown: boolean; answered: boolean }[] = []
+      const look = (): void => {
+        seen.push({
+          shown: app.on(),
+          answered: app.chat.store.getSnapshot().answering["project/initial"]?.["01"] === true,
+        })
+      }
+      const stops = [app.ui.subscribe(look), app.chat.store.subscribe(look)]
+      change()
+      stops.forEach((stop) => stop())
+      return seen
+    }
+
+    it("shows no chat on the way off, whichever store a subscriber reads first", () => {
+      const app = open(waiting)
+      app.commands.showTerminal("01")
+      const { preferences } = app.ui.getSnapshot()
+      const seen = frames(app, () =>
+        app.commands.updatePreferences({ ...preferences, chatView: false }),
+      )
+      expect(seen).toHaveLength(2)
+      expect(seen.every((frame) => !frame.shown)).toBe(true)
+      expect(app.chat.store.getSnapshot().answering).toEqual({})
+    })
+
+    it("shows the chat on the way on only once the answers are gone", () => {
+      const app = open(waiting, undefined, false)
+      app.commands.showTerminal("01")
+      expect(app.chat.store.getSnapshot().answering).not.toEqual({})
+      const { preferences } = app.ui.getSnapshot()
+      const seen = frames(app, () =>
+        app.commands.updatePreferences({ ...preferences, chatView: true }),
+      )
+      expect(seen).toHaveLength(2)
+      // No frame shows the chat of a terminal still answered in; the last shows it afresh.
+      expect(seen.filter((frame) => frame.shown && frame.answered)).toEqual([])
+      expect(seen.map((frame) => frame.shown)).toEqual([false, true])
+    })
+
+    it("leaves the answers be where the preference is saved unchanged", () => {
+      const app = open(waiting)
+      app.commands.showTerminal("01")
+      const { preferences } = app.ui.getSnapshot()
+      app.commands.updatePreferences({ ...preferences, fontSize: 14 })
+      expect(app.on()).toBe(false)
+      expect(app.chat.store.getSnapshot().answering).not.toEqual({})
+    })
+  })
+
   context("with the chat view off", () => {
     it("shows no chat", () => {
       expect(open({ working: false }, undefined, false).on()).toBe(false)
@@ -87,13 +146,13 @@ describe("chat commands", () => {
   context("when typing a draft", () => {
     it("keeps it for the terminal past its agent's end, for the next agent there, until it closes", () => {
       const app = open({ working: false })
-      const stop = watchChatModes(app.workspace, app.ui)
+      const stop = watchChat(app.chat, app.workspace)
       app.commands.setChatDraft("01", "hello")
-      expect(app.ui.getSnapshot().chatDrafts).toEqual({ "project/initial": { "01": "hello" } })
+      expect(app.chat.store.getSnapshot().drafts).toEqual({ "project/initial": { "01": "hello" } })
       app.status(undefined)
-      expect(app.ui.getSnapshot().chatDrafts).toEqual({ "project/initial": { "01": "hello" } })
+      expect(app.chat.store.getSnapshot().drafts).toEqual({ "project/initial": { "01": "hello" } })
       app.workspace.dispatch({ type: "terminal/close", target, terminalId: "01" })
-      expect(app.ui.getSnapshot().chatDrafts).toEqual({})
+      expect(app.chat.store.getSnapshot().drafts).toEqual({})
       stop()
     })
   })
@@ -102,10 +161,12 @@ describe("chat commands", () => {
     it("adds them after what was typed by then, in the session they were sent in", () => {
       const app = open({ working: false })
       app.commands.appendChatDraft("project/initial", "01", "use pnpm")
-      expect(app.ui.getSnapshot().chatDrafts).toEqual({ "project/initial": { "01": "use pnpm" } })
+      expect(app.chat.store.getSnapshot().drafts).toEqual({
+        "project/initial": { "01": "use pnpm" },
+      })
       app.commands.setChatDraft("01", "meanwhile")
       app.commands.appendChatDraft("project/initial", "01", "use pnpm")
-      expect(app.ui.getSnapshot().chatDrafts).toEqual({
+      expect(app.chat.store.getSnapshot().drafts).toEqual({
         "project/initial": { "01": "meanwhile\nuse pnpm" },
       })
     })
@@ -116,7 +177,7 @@ describe("chat commands", () => {
       const app = open({ working: false })
       app.commands.setChatDraft("01", "!npm test")
       app.commands.appendChatDraft("project/initial", "01", "also update the changelog")
-      expect(app.ui.getSnapshot().chatDrafts).toEqual({
+      expect(app.chat.store.getSnapshot().drafts).toEqual({
         "project/initial": { "01": "also update the changelog\n!npm test" },
       })
     })
@@ -125,16 +186,18 @@ describe("chat commands", () => {
   context("when the agent whose question was being replied to ends", () => {
     it("holds the words written for it, or drops the reply where there are none", () => {
       const app = open({ working: false })
-      const stop = watchChatModes(app.workspace, app.ui)
+      const stop = watchChat(app.chat, app.workspace)
       app.commands.setChatDraft("01", "the second one")
       app.commands.setChatReply("project/initial", "01", { request: "r1", dialog: "d1" })
       app.status(undefined)
       app.status({ working: false })
-      expect(chatReplyOf(app.ui.getSnapshot().chatReplies, "project/initial", "01")).toBe("held")
+      expect(chatReplyOf(app.chat.store.getSnapshot().replies, "project/initial", "01")).toBe(
+        "held",
+      )
       app.commands.setChatDraft("01", "")
       app.commands.setChatReply("project/initial", "01", { request: "r2", dialog: "d2" })
       app.status(undefined)
-      expect(chatReplyOf(app.ui.getSnapshot().chatReplies, "project/initial", "01")).toBeNull()
+      expect(chatReplyOf(app.chat.store.getSnapshot().replies, "project/initial", "01")).toBeNull()
       stop()
     })
   })
@@ -142,15 +205,17 @@ describe("chat commands", () => {
   context("when the agent a reply was written for ends", () => {
     it("keeps the reply's hold with its words, for the next agent there, until the terminal closes", () => {
       const app = open({ working: false })
-      const stop = watchChatModes(app.workspace, app.ui)
+      const stop = watchChat(app.chat, app.workspace)
       app.commands.setChatDraft("01", "!important: pick X")
       app.commands.setChatReply("project/initial", "01", "held")
       app.status(undefined)
       app.status({ working: false })
-      expect(chatReplyOf(app.ui.getSnapshot().chatReplies, "project/initial", "01")).toBe("held")
+      expect(chatReplyOf(app.chat.store.getSnapshot().replies, "project/initial", "01")).toBe(
+        "held",
+      )
       app.workspace.dispatch({ type: "terminal/close", target, terminalId: "01" })
-      expect(app.ui.getSnapshot().chatReplies).toEqual({})
-      expect(app.ui.getSnapshot().chatDrafts).toEqual({})
+      expect(app.chat.store.getSnapshot().replies).toEqual({})
+      expect(app.chat.store.getSnapshot().drafts).toEqual({})
       stop()
     })
   })
@@ -172,8 +237,8 @@ describe("chat commands", () => {
           refused: () => false,
         },
       )
-      const draft = () => chatDraftOf(app.ui.getSnapshot().chatDrafts, "project/initial", "01")
-      const inFlight = () => chatSendOf(app.ui.getSnapshot().chatSends, "project/initial", "01")
+      const draft = () => chatDraftOf(app.chat.store.getSnapshot().drafts, "project/initial", "01")
+      const inFlight = () => chatSendOf(app.chat.store.getSnapshot().sends, "project/initial", "01")
       return { app, settle, sent, answers, draft, inFlight }
     }
 
@@ -235,7 +300,7 @@ describe("chat commands", () => {
       app.workspace.dispatch({ type: "terminal/close", target, terminalId: "01" })
       settle[0]!.reject(new Error("no"))
       await expect(going).rejects.toThrow()
-      expect(app.ui.getSnapshot().chatDrafts).toEqual({})
+      expect(app.chat.store.getSnapshot().drafts).toEqual({})
       expect(inFlight()).toBeNull()
     })
 
@@ -254,10 +319,10 @@ describe("chat commands", () => {
       app.commands.setChatReply("project/initial", "01", to)
       const going = app.commands.sendChat(key, "this\none", to)
       expect(answers).toEqual([["r1", { type: "chat", dialog: "q1", text: "this one" }]])
-      expect(chatReplyOf(app.ui.getSnapshot().chatReplies, "project/initial", "01")).toEqual(to)
+      expect(chatReplyOf(app.chat.store.getSnapshot().replies, "project/initial", "01")).toEqual(to)
       settle[0]!.resolve()
       await going
-      expect(chatReplyOf(app.ui.getSnapshot().chatReplies, "project/initial", "01")).toBeNull()
+      expect(chatReplyOf(app.chat.store.getSnapshot().replies, "project/initial", "01")).toBeNull()
     })
   })
 
@@ -267,14 +332,14 @@ describe("chat commands", () => {
       app.commands.setChatDraft("01", "pick X")
       app.commands.setChatReply("project/initial", "01", "held")
       app.commands.setChatDraft("01", "pick X please")
-      expect(chatReplyOf(app.ui.getSnapshot().chatReplies, "project/initial", "01")).toBeNull()
+      expect(chatReplyOf(app.chat.store.getSnapshot().replies, "project/initial", "01")).toBeNull()
     })
   })
 
   context("when the agent ends", () => {
     it("shows the terminal again, and a later agent's chat", () => {
       const app = open({ working: false })
-      const stop = watchChatModes(app.workspace, app.ui)
+      const stop = watchChat(app.chat, app.workspace)
       app.status(undefined)
       expect(app.on()).toBe(false)
       app.status({ working: true })
@@ -284,7 +349,7 @@ describe("chat commands", () => {
 
     it("starts a later agent in its chat though the person answered the last in the terminal", () => {
       const app = open(waiting)
-      const stop = watchChatModes(app.workspace, app.ui)
+      const stop = watchChat(app.chat, app.workspace)
       app.commands.showTerminal("01")
       app.status(undefined)
       app.status({ working: false })
@@ -294,7 +359,7 @@ describe("chat commands", () => {
 
     it("keeps an answer in the terminal through a restart, and the draft past the agent", () => {
       const app = open(waiting)
-      const stop = watchChatModes(app.workspace, app.ui)
+      const stop = watchChat(app.chat, app.workspace)
       app.commands.showTerminal("01")
       app.commands.setChatDraft("01", "draft")
       app.workspace.dispatch({
@@ -303,16 +368,16 @@ describe("chat commands", () => {
         terminalId: "01",
         status: { state: "starting" },
       })
-      expect(app.ui.getSnapshot().answering).not.toEqual({})
+      expect(app.chat.store.getSnapshot().answering).not.toEqual({})
       app.workspace.dispatch({
         type: "terminal/status",
         target,
         terminalId: "01",
         status: { state: "exited", exitCode: 0, signal: null },
       })
-      expect(app.ui.getSnapshot().answering).toEqual({})
+      expect(app.chat.store.getSnapshot().answering).toEqual({})
       // The words typed stay, for whatever runs there next.
-      expect(app.ui.getSnapshot().chatDrafts).toEqual({ "project/initial": { "01": "draft" } })
+      expect(app.chat.store.getSnapshot().drafts).toEqual({ "project/initial": { "01": "draft" } })
       stop()
     })
   })

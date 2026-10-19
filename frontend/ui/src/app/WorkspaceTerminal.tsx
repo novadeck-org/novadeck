@@ -9,6 +9,7 @@ import { memo, useCallback, useContext, useMemo, useSyncExternalStore, type Reac
 import { shortcutBindings } from "../interaction/shortcuts"
 import { ChatView } from "../terminals/chat/ChatView"
 import { chatDraftOf, chatReplyOf, chatSendOf, chatShown } from "../terminals/chat/mode-state"
+import { useChat } from "../terminals/chat/use-chat"
 import { presentedProgram, terminalProfile, windowProfile } from "../terminals/processes/profiles"
 import { renameView } from "../terminals/rename-state"
 import { unreadEnd } from "../terminals/unread-state"
@@ -169,7 +170,7 @@ export const WorkspaceTerminal = memo(
     readonly controls: TerminalLayoutControls
   }): React.JSX.Element => {
     const { onReveal, onScreen = true } = controls
-    const { backend, commands, panes, navigation } = useWorkspaceServices()
+    const { backend, commands, panes, navigation, chat } = useWorkspaceServices()
     const { setKeyboardFocus } = commands
     const dictation = useContext(DictationContext)
     const terminalId = terminal.id
@@ -220,14 +221,13 @@ export const WorkspaceTerminal = memo(
     const conversations = backend.conversations
     // A terminal whose agent has a conversation to show, with the chat view on, on a backend
     // that reads it.
-    const showChat = useUiState(
-      (state) =>
-        conversations !== undefined &&
-        chatShown(state.preferences.chatView, state.answering, chatContext, terminal),
-    )
-    const draft = useUiState((state) => chatDraftOf(state.chatDrafts, chatContext, terminalId))
-    const replyTo = useUiState((state) => chatReplyOf(state.chatReplies, chatContext, terminalId))
-    const sending = useUiState((state) => chatSendOf(state.chatSends, chatContext, terminalId))
+    const chatView = useUiState((state) => state.preferences.chatView)
+    const answering = useChat(chat, (state) => state.answering)
+    const showChat =
+      conversations !== undefined && chatShown(chatView, answering, chatContext, terminal)
+    const draft = useChat(chat, (state) => chatDraftOf(state.drafts, chatContext, terminalId))
+    const replyTo = useChat(chat, (state) => chatReplyOf(state.replies, chatContext, terminalId))
+    const sending = useChat(chat, (state) => chatSendOf(state.sends, chatContext, terminalId))
     const conversation = useMemo(
       () => (showChat ? conversations?.conversation(terminalKey) : undefined),
       [showChat, conversations, terminalKey],
