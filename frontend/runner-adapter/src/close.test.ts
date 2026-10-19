@@ -319,7 +319,7 @@ describe("a close the runner doesn't answer", () => {
     await pause(50)
     expect(runner.held()).toContain(runner.ids[0])
     runner.connect()
-    await pause(700)
+    await pause(1500)
 
     expect(runner.held()).toEqual([runner.ids[1]])
     expect(window.roster()).toEqual(runner.held())
@@ -337,7 +337,7 @@ describe("a close the runner doesn't answer", () => {
     window.close(runner.ids[0]!)
     await pause(50)
     stop()
-    await pause(600)
+    await pause(1500)
     expect(runner.calls).toEqual([])
 
     const again = window.start()
@@ -435,18 +435,21 @@ describe("a close the runner takes too long to answer", () => {
     await pause(50)
 
     window.close(runner.ids[0]!)
-    await pause(200)
+    await pause(400)
     expect(window.roster().toSorted()).toEqual(runner.held().toSorted())
     expect(notices.map((notice) => notice.body)).toEqual([
       "It's still running, so it stays in its session. The runner didn't answer.",
     ])
 
     runner.removed(runner.ids[0]!)
+    await pause(50)
+    expect(window.roster()).toEqual([runner.ids[1]])
     answer()
     await pause(50)
 
     expect(runner.held()).toEqual([runner.ids[1]])
     expect(window.roster()).toEqual(runner.held())
+    expect(notices).toHaveLength(1)
     stop()
   })
 
@@ -460,7 +463,7 @@ describe("a close the runner takes too long to answer", () => {
     await pause(50)
 
     window.close(runner.ids[0]!)
-    await pause(200)
+    await pause(400)
     expect(window.roster()).toContain(runner.ids[0])
     answer()
     await pause(50)
@@ -490,7 +493,7 @@ describe("a close the runner takes too long to answer", () => {
     await pause(50)
 
     window.close(runner.ids[0]!)
-    await pause(200)
+    await pause(400)
     refuse()
     await pause(50)
 
@@ -511,7 +514,7 @@ describe("a close the runner takes too long to answer", () => {
     await pause(50)
 
     window.close(runner.ids[0]!)
-    await pause(200)
+    await pause(400)
     // Back, and closed again by the person.
     window.close(runner.ids[0]!)
     await pause(20)
@@ -539,7 +542,7 @@ describe("a close the runner takes too long to answer", () => {
     await pause(20)
     stop()
     runner.listings.fails = true
-    await pause(200)
+    await pause(400)
 
     expect(notices).toEqual([])
   })
@@ -559,6 +562,48 @@ describe("a refused close the runner can't list afterwards", () => {
 
     window.close(runner.ids[0]!)
     await pause(50)
+
+    expect(window.roster().toSorted()).toEqual(runner.held().toSorted())
+    expect(notices).toHaveLength(1)
+    stop()
+  })
+
+  it("brings the terminal back once the window starts again, when the wait ran out while it was stopped", async () => {
+    let answer = (): void => {}
+    const runner = holdingRunner(() => new Promise<void>((resolve) => (answer = resolve)))
+    const notices: Notice[] = []
+    const window = app(runner, notices, { closeAnswerMs: 100 })
+    const stop = window.start()
+    runner.connect()
+    await pause(50)
+
+    window.close(runner.ids[0]!)
+    await pause(20)
+    stop()
+    await pause(400)
+    const again = window.start()
+    await pause(50)
+    expect(window.roster().toSorted()).toEqual(runner.held().toSorted())
+    expect(notices).toEqual([])
+
+    answer()
+    await pause(50)
+    expect(window.roster()).toEqual(runner.held())
+    again()
+  })
+
+  it("runs out however many times the runner asks it to try again", async () => {
+    const runner = holdingRunner(async () => {
+      throw new WireError("CLOSING", "Restarting.")
+    })
+    const notices: Notice[] = []
+    const window = app(runner, notices, { closeAnswerMs: 100 })
+    const stop = window.start()
+    runner.connect()
+    await pause(50)
+
+    window.close(runner.ids[0]!)
+    await pause(400)
 
     expect(window.roster().toSorted()).toEqual(runner.held().toSorted())
     expect(notices).toHaveLength(1)

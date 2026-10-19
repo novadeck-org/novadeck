@@ -684,6 +684,12 @@ export const runnerBackend = (
     const confirm = (): void => {
       if (current()) closedPending.delete(terminalId)
     }
+    // However long it waits, for the shell's creation, the link or the runner's answer.
+    const late = setTimeout(() => {
+      if (!current()) return
+      close.back = true
+      void keepRunning(entry, "The runner didn't answer.")
+    }, closeAnswerMs)
     const closing = (async () => {
       const waits = !entry.lost
       if (waits && !(await entry.ready) && !entry.requested && !entry.lost) {
@@ -692,17 +698,10 @@ export const runnerBackend = (
         return
       }
       try {
-        await untilAnswered(
-          () => {
-            const late = setTimeout(() => {
-              if (!current()) return
-              close.back = true
-              void keepRunning(entry, "The runner didn't answer.", true)
-            }, closeAnswerMs)
-            return runner.terminals.close(terminalId).finally(() => clearTimeout(late))
-          },
-          { done: ["TERMINAL_NOT_FOUND", "TERMINAL_EXITED", "NOT_FOUND"], again: ["CLOSING"] },
-        )
+        await untilAnswered(() => runner.terminals.close(terminalId), {
+          done: ["TERMINAL_NOT_FOUND", "TERMINAL_EXITED", "NOT_FOUND"],
+          again: ["CLOSING"],
+        })
         confirm()
         // Back here while the runner was slow, and gone there after all, whether or not its
         // report that it went arrives: it goes here too.
@@ -715,27 +714,24 @@ export const runnerBackend = (
         console.error("Novadeck could not close the terminal on the runner:", error)
         if (!current()) return
         closedPending.delete(terminalId)
-        await keepRunning(entry, error instanceof Error ? error.message : "", false)
+        await keepRunning(entry, error instanceof Error ? error.message : "")
       }
     })().finally(() => {
+      clearTimeout(late)
       close.closing = false
     })
     closes.add(closing)
     void closing.finally(() => closes.delete(closing))
     return closing
   }
-  // The runner refused to close the terminal, or hasn't answered (`inFlight`, its close
-  // still waiting), so it still runs there: it comes back to its session here, where it can
-  // be closed again, and the person hears why. One back already says nothing more. A
-  // stopped backend says nothing: the runner's next listing brings the terminal back.
-  const keepRunning = async (entry: RunnerEntry, why: string, inFlight: boolean): Promise<void> => {
+  // The runner refused to close the terminal, or hasn't answered, so it still runs there:
+  // it comes back to its session here, where it can be closed again, and the person hears
+  // why. One back already says nothing more. A stopped backend says nothing, and the
+  // runner's next listing brings the terminal back.
+  const keepRunning = async (entry: RunnerEntry, why: string): Promise<void> => {
     const { terminalId, workspaceSessionId } = entry.key
     if (entries.has(terminalId)) return
-    if (!sink) {
-      if (!inFlight) closedHere.delete(terminalId)
-      return
-    }
-    closedHere.delete(terminalId)
+    if (!sink) return void closedHere.delete(terminalId)
     // As the runner last reported it, should it be unable to list it now: it said it keeps it.
     let summary = runnerSummaries.get(terminalId)
     try {
@@ -746,9 +742,10 @@ export const runnerBackend = (
     } catch {
       // Brought back from its last report.
     }
-    if (summary && !entries.has(terminalId)) adopt(summary)
-    // Nowhere to come back to, as once the backend stopped meanwhile.
-    if (!summary || !entries.has(terminalId)) return
+    if (!summary || entries.has(terminalId)) return
+    closedHere.delete(terminalId)
+    // Stopped meanwhile: the next listing brings it back.
+    if (!adopt(summary)) return
     const named = `${summary.handle ? `${handleText(summary.handle)} · ` : ""}“${summary.title}”`
     options.notices?.show({
       id: terminalId,
@@ -1362,6 +1359,8 @@ export const runnerBackend = (
       )
       for (const [terminalId, close] of closedPending)
         if (!close.closing && !reported.has(terminalId)) closedPending.delete(terminalId)
+      for (const terminalId of runnerSummaries.keys())
+        if (!reported.has(terminalId)) runnerSummaries.delete(terminalId)
       reported.clear()
       round += 1
       for (const entry of ended) markLost(entry)
