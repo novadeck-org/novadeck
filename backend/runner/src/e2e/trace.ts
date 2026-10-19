@@ -16,6 +16,7 @@ import type { DeliveryEvent } from "../messaging/delivery.js"
 import { tracer } from "../messaging/doorbell.js"
 import { Messaging } from "../messaging/messaging.js"
 import { Terminals } from "../terminals/manager.js"
+import { Saves } from "../terminals/saving.js"
 import type { FakeModel } from "./model/server.js"
 
 /**
@@ -84,7 +85,6 @@ type Runner = {
   queue: <T>(terminalId: string, work: () => Promise<T>, fallback: T) => Promise<T>
   report: (report: Report, deadline?: number) => Promise<unknown>
   connected: (agent: string | undefined) => Promise<boolean>
-  persisting: (work: () => void) => boolean
   appliedFact: (record: Traced, fact: { readonly type: string }) => boolean
   messaging: { delivery: (terminalId: string) => { epoch: number; state: string } | undefined }
   screenTitled: (record: Titled, child: object, title: string) => void
@@ -367,7 +367,6 @@ export const startTrace = (name: string, model: FakeModel) => {
     "queue",
     "report",
     "connected",
-    "persisting",
     "appliedFact",
     "screenTitled",
     "harnessIn",
@@ -379,7 +378,6 @@ export const startTrace = (name: string, model: FakeModel) => {
     queue,
     report: handle,
     connected,
-    persisting,
     appliedFact,
     screenTitled,
     harnessIn,
@@ -387,6 +385,9 @@ export const startTrace = (name: string, model: FakeModel) => {
     showPrompt,
     endExited,
   } = runner
+  // Saving a terminal, the one place the runner writes its records.
+  const saving = methods(Saves.prototype, "Saves", ["persisting"])
+  const { persisting } = saving
   runner.endExited = function (record) {
     const before = record.binding
     const ended = endExited.call(this, record)
@@ -452,10 +453,10 @@ export const startTrace = (name: string, model: FakeModel) => {
     return applied
   }
   // Saving a terminal blocks the process until its store has written it.
-  runner.persisting = function (work) {
+  saving.persisting = function (work, until) {
     const began = performance.now()
     try {
-      return persisting.call(this, work)
+      return persisting.call(this, work, until)
     } finally {
       const took = Math.round(performance.now() - began)
       if (took > 50) add(`slow: saving a terminal blocked everything for ${took} ms`)
@@ -745,6 +746,7 @@ export const startTrace = (name: string, model: FakeModel) => {
       clearInterval(calls)
       Object.assign(treeing, { read: readTree, end: endTree })
       Object.assign(closing, { terminate, stop })
+      Object.assign(saving, { persisting })
       Object.assign(interrupting, { once, settled })
       Object.assign(prompting, { emptied, landed })
       for (const [host, original] of seeing) Object.assign(host, original)
@@ -752,7 +754,6 @@ export const startTrace = (name: string, model: FakeModel) => {
         queue,
         report: handle,
         connected,
-        persisting,
         appliedFact,
         screenTitled,
         harnessIn,
