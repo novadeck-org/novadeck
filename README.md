@@ -998,36 +998,42 @@ specs and the test kit); `backend/` the runner and the relay; `contract/` the pr
 the runner client; `engines/` holds the native inference engines Novadeck downloads once
 installed, and the build they share; `harnesses/` holds the agent harness adapters and the
 contract they share; `libraries/` holds the mechanics that never import app code (see
-[libraries/README.md](libraries/README.md), which lists each one); `tools/` holds the apps'
-build helpers and the atlas.
+[libraries/README.md](libraries/README.md)); `tools/` holds the apps' build helpers and the
+atlas.
 
-| Package                   | Responsibility                                                                       |
-| ------------------------- | ------------------------------------------------------------------------------------ |
-| `frontend/ui`             | React frontend built with Vite, Tailwind CSS, and Lucide icons.                      |
-| `frontend/core`           | The UI's model: types, reducer, stores, and the port to a backend.                   |
-| `frontend/runner-adapter` | The UI's backend for a runner, over a WebSocket or the desktop host.                 |
-| `frontend/terminal-views` | The xterm mount both backends draw terminals with.                                   |
-| `frontend/demo`           | The demo backend: a scripted workspace and simulated terminals.                      |
-| `frontend/demo-debug`     | The demo's debug panel and rehearsals.                                               |
-| `frontend/test-kit`       | What the UI's tests render and drive the app with.                                   |
-| `frontend/specs`          | Behaviour specs: the whole app in a real browser, over the demo.                     |
-| `apps/desktop`            | Electron host that starts the runner and loads the packaged UI.                      |
-| `apps/try`                | The visitor build of the demo, which the website embeds.                             |
-| `apps/previews`           | The content preview: the demo with its debug panel.                                  |
-| `backend/runner`          | The runner: shells and metadata, served over WebSocket or port.                      |
-| `backend/relay`           | Rust relay for agents' Novadeck MCP server and hooks.                                |
-| `contract/protocol`       | Shared Zod contracts the runner and its clients agree on.                            |
-| `contract/runner-client`  | The `connectRunner` client UIs reach a runner with.                                  |
-| `engines/whisper`         | Voice engine: whisper.cpp built for download (`build:engine`).                       |
-| `engines/murmur`          | Murmur engine: llama.cpp built for download (`build:engine`).                        |
-| `engines/ggml-build`      | The engine build both of those share.                                                |
-| `harnesses/core`          | The harness adapters' contract and the helpers they share.                           |
-| `harnesses/claude`        | The Claude Code adapter: hooks, transcripts, dialogs, input box.                     |
-| `harnesses/codex`         | The Codex adapter, same shape.                                                       |
-| `harnesses/agy`           | The Antigravity adapter, same shape.                                                 |
-| `tools/build-kit`         | The apps' Vite helpers: CSP sources, hosting headers, noindex, fonts, bundle checks. |
-| `tools/atlas`             | Dev-only code map: `pnpm atlas`; agent briefs: `pnpm -s atlas:brief`.                |
-| `scripts`                 | Repository checks and automation.                                                    |
+| Package                   | Responsibility                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------------- |
+| `frontend/ui`             | React frontend built with Vite, Tailwind CSS, and Lucide icons.                        |
+| `frontend/core`           | The UI's model: types, reducer, stores, and the port to a backend.                     |
+| `frontend/runner-adapter` | The UI's backend for a runner, over a WebSocket or the desktop host.                   |
+| `frontend/terminal-views` | The xterm mount both backends draw terminals with.                                     |
+| `frontend/demo`           | The demo backend: a scripted workspace and simulated terminals.                        |
+| `frontend/demo-debug`     | The demo's debug panel and rehearsals.                                                 |
+| `frontend/test-kit`       | What the UI's tests render and drive the app with.                                     |
+| `frontend/specs`          | Behaviour specs: the whole app in a real browser, over the demo.                       |
+| `apps/desktop`            | Electron host that starts the runner and loads the packaged UI.                        |
+| `apps/try`                | The visitor build of the demo, which the website embeds.                               |
+| `apps/previews`           | The content preview: the demo with its debug panel.                                    |
+| `backend/runner`          | The runner: shells and metadata, served over WebSocket or port.                        |
+| `backend/relay`           | Rust relay for agents' Novadeck MCP server and hooks.                                  |
+| `contract/protocol`       | Shared Zod contracts the runner and its clients agree on.                              |
+| `contract/runner-client`  | The `connectRunner` client UIs reach a runner with.                                    |
+| `engines/whisper`         | Voice engine: whisper.cpp built for download (`build:engine`).                         |
+| `engines/murmur`          | Murmur engine: llama.cpp built for download (`build:engine`).                          |
+| `engines/ggml-build`      | The engine build both of those share.                                                  |
+| `harnesses/core`          | The harness adapters' contract and the helpers they share.                             |
+| `harnesses/claude`        | The Claude Code adapter: hooks, transcripts, dialogs, input box.                       |
+| `harnesses/codex`         | The Codex adapter, same shape.                                                         |
+| `harnesses/agy`           | The Antigravity adapter, same shape.                                                   |
+| `libraries/emulator`      | The terminal emulator: xterm.js pinned and patched, the character-width rule, helpers. |
+| `libraries/terminal`      | Hosting terminals: a pty, a headless screen, a resumable stream, the browser view.     |
+| `libraries/tui-input`     | Typing into a full-screen program and checking that the text landed.                   |
+| `libraries/viewers`       | Content viewers behind one contract: code, image, markdown and web pages.              |
+| `libraries/wire`          | RPC calls and streams between processes over a WebSocket or a MessagePort.             |
+| `libraries/sandbox`       | An isolated environment for tests and benchmarks that run real shells and programs.    |
+| `tools/build-kit`         | The apps' Vite helpers: CSP sources, hosting headers, noindex, fonts, bundle checks.   |
+| `tools/atlas`             | Dev-only code map: `pnpm atlas`; agent briefs: `pnpm -s atlas:brief`.                  |
+| `scripts`                 | Repository checks and automation.                                                      |
 
 Build an engine locally with `pnpm --filter @novadeck/whisper build:engine` or
 `pnpm --filter @novadeck/murmur build:engine`; the archive and `engine.json` land in
@@ -1057,46 +1063,46 @@ holds the page's layers, each a folder of its `src/`; the rest are packages of t
 the table a path that starts with `frontend/` or `apps/` is a package, and any other is a
 folder of `frontend/ui/src/`:
 
-| Location                                           | What belongs here                                                                           |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `app/`                                             | Composition root: router, provider, backend selection, and the page sections.               |
-| `app/ui-store.ts`                                  | The UI store: route, preferences, shell, rename, switcher, and its store subscriptions.     |
-| `app/selectors.ts`                                 | Pure reads over the stores that sections, commands, and keys share.                         |
-| `app/commands/`                                    | Commands, key commands, and the navigator: plain functions over both stores.                |
-| `app/controller/`                                  | React glue: context, selector hook, route sync, keyboard dispatcher, effects.               |
-| `frontend/demo/src/`                               | The demo adapter for the website, tests and specs: sample projects and simulated terminals. |
-| `frontend/demo/src/showcase/`                      | The content preview's sample agents: plans, artifacts, and their simulated work.            |
-| `frontend/runner-adapter/src/`                     | The runner adapter: connection, seed from the runner, saves, and its terminals.             |
-| `frontend/terminal-views/src/`                     | The xterm mount both adapters draw terminals with: theme, renderers, links, styles.         |
-| `frontend/core/src/`                               | Pure domain: types, reducer, store, seed, layout rules in `layout/`, the backend port.      |
-| `frontend/core/src/companion.ts`                   | Companion items, their content, the `companions` port, and the plan note format.            |
-| `frontend/core/src/companion-bar.ts`               | A bar as the person arranged it: order, hidden plans and Messages, the open tab.            |
-| `frontend/core/src/messages.ts`                    | The contract for agents' messages: threads, states, the pause, and a tab's count.           |
-| `frontend/core/src/conversation.ts`                | The contract for an agent's conversation: transcript items, requests, the port.             |
-| `frontend/core/src/inbox.ts`                       | The contract for the Inbox: items by source, their type and urgency, answers, the port.     |
-| `frontend/core/src/conversation-turns.ts`          | A conversation grouped into blocks, tool calls summed up in a line, the turn's status.      |
-| `frontend/core/src/roster.ts`                      | A session's terminals and undocked windows, laid out as tiles, their order and status.      |
-| `frontend/core/src/layout/workspace-layout.ts`     | Where each terminal sits and how big it is in each view.                                    |
-| `terminals/`                                       | Terminal frame, tabs, rename state, and the recent-terminal switcher.                       |
-| `terminals/companion/`                             | Taskbar and pane: the panes' store, `bar.ts` rules, viewers, `plan-editor/` (notes).        |
-| `terminals/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.            |
-| `terminals/chat/`                                  | The agent's chat: its blocks, markdown reader, tool rows, requests and the composer.        |
-| `layouts/canvas/`, `grid/`, `focus/`               | View adapters and colocated library styles.                                                 |
-| `layouts/` (top level)                             | Helpers shared by views: view transitions, background gestures, visibility.                 |
-| `notifications/`                                   | The notification center: what asks for the person across the workspace, and its panel.      |
-| `inbox/`                                           | The Inbox: what agents ask of the person, its sidebar rows and the sheet that answers.      |
-| `shell/`                                           | Header, rail, panels, zen dock, sidebar, and shell state transitions.                       |
-| `sidebar/`, `projects/`, `preferences/`, `search/` | Feature components.                                                                         |
-| `interaction/`                                     | Shortcut records, the keymap, and shared DOM focus/overlay contracts.                       |
-| `ui-toolkit/`                                      | Reusable controls, direct Ark UI imports, and the shared recipes they draw with.            |
-| `test/`                                            | The command harness: the real stores, navigator and commands, for tests.                    |
-| `frontend/test-kit/src/`                           | A jsdom render helper, the port contract suite, and test phase timing.                      |
-| `assets/`                                          | Static files referenced from CSS.                                                           |
-| `theme/`                                           | Tailwind's layout-only theme, token defaults, Graphite and Phosphor, `apply.ts`.            |
-| `styles.css`                                       | The cascade order, every recipe, theme and vendor sheet in its layer, Tailwind sources.     |
-| `frontend/specs/src/`                              | Behaviour specs for the whole UI, and the spec backend over the demo.                       |
-| `entries/start.tsx`                                | How every app starts: applies the theme, renders the app it is given.                       |
-| `apps/*/src/`, `apps/desktop/renderer/`            | Each app's pages and entry: it picks its backend and renders `App` with `start`.            |
+| Location                                                        | What belongs here                                                                                                              |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `app/`                                                          | Composition root: router, provider, backend selection, and the page sections.                                                  |
+| `app/ui-store.ts`                                               | The UI store: route, preferences, shell, rename, switcher, and its store subscriptions.                                        |
+| `app/selectors.ts`                                              | Pure reads over the stores that sections, commands, and keys share.                                                            |
+| `app/commands/`                                                 | Commands, key commands, and the navigator: plain functions over both stores.                                                   |
+| `app/controller/`                                               | React glue: context, selector hook, route sync, keyboard dispatcher, effects.                                                  |
+| `frontend/demo/src/`                                            | The demo adapter for the website, tests and specs: sample projects and simulated terminals.                                    |
+| `frontend/demo/src/showcase/`                                   | The content preview's sample agents: plans, artifacts, and their simulated work.                                               |
+| `frontend/runner-adapter/src/`                                  | The runner adapter: connection, seed from the runner, saves, and its terminals.                                                |
+| `frontend/terminal-views/src/`                                  | The xterm mount both adapters draw terminals with: theme, renderers, links, styles.                                            |
+| `frontend/core/src/`                                            | Pure domain: types, reducer, store, seed, layout rules in `layout/`, the backend port.                                         |
+| `frontend/core/src/companion.ts`                                | Companion items, their content, the `companions` port, and the plan note format.                                               |
+| `frontend/core/src/companion-bar.ts`                            | A bar as the person arranged it: order, hidden plans and Messages, the open tab.                                               |
+| `frontend/core/src/messages.ts`                                 | The contract for agents' messages: threads, states, the pause, and a tab's count.                                              |
+| `frontend/core/src/conversation.ts`                             | The contract for an agent's conversation: transcript items, requests, the port.                                                |
+| `frontend/core/src/inbox.ts`                                    | The contract for the Inbox: items by source, their type and urgency, answers, the port.                                        |
+| `frontend/core/src/conversation-turns.ts`                       | A conversation grouped into blocks, tool calls summed up in a line, the turn's status.                                         |
+| `frontend/core/src/roster.ts`                                   | A session's terminals and undocked windows, laid out as tiles, their order and status.                                         |
+| `frontend/core/src/layout/workspace-layout.ts`                  | Where each terminal sits and how big it is in each view.                                                                       |
+| `terminals/`                                                    | Terminal frame, tabs, rename state, and the recent-terminal switcher.                                                          |
+| `terminals/companion/`                                          | Taskbar and pane: the panes' store, `bar.ts` rules, viewers, `plan-editor/` (notes).                                           |
+| `terminals/drag-session.ts`                                     | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
+| `terminals/chat/`                                               | The agent's chat: its blocks, markdown reader, tool rows, requests and the composer.                                           |
+| `layouts/canvas/`, `grid/`, `focus/`                            | View adapters and colocated library styles.                                                                                    |
+| `layouts/` (top level)                                          | Helpers shared by views: view transitions, background gestures, visibility.                                                    |
+| `notifications/`                                                | The notification center: what asks for the person across the workspace, and its panel.                                         |
+| `inbox/`                                                        | The Inbox: what agents ask of the person, its sidebar rows and the sheet that answers.                                         |
+| `shell/`                                                        | Header, rail, panels, zen dock, sidebar, and shell state transitions.                                                          |
+| `sidebar/`, `projects/`, `preferences/`, `search/`              | Feature components.                                                                                                            |
+| `interaction/`                                                  | Shortcut records, the keymap, and shared DOM focus/overlay contracts.                                                          |
+| `ui-toolkit/`                                                   | Reusable controls, direct Ark UI imports, and the shared recipes they draw with.                                               |
+| `test/`                                                         | The command harness: the real stores, navigator and commands, for tests.                                                       |
+| `frontend/test-kit/src/`                                        | A jsdom render helper, the port contract suite, and test phase timing.                                                         |
+| `assets/`                                                       | Static files referenced from CSS.                                                                                              |
+| `theme/`                                                        | Tailwind's layout-only theme, token defaults, Graphite and Phosphor, `apply.ts`.                                               |
+| `styles.css`                                                    | The cascade order, every recipe, theme and vendor sheet in its layer, Tailwind sources.                                        |
+| `frontend/specs/src/`                                           | Behaviour specs for the whole UI, and the spec backend over the demo.                                                          |
+| `entries/start.tsx`                                             | How every app starts: applies the theme, renders the app it is given.                                                          |
+| `apps/try/src/`, `apps/previews/src/`, `apps/desktop/renderer/` | Each app's pages and entry: it picks its backend and renders `App` with `start`. The desktop app's `src/` is its main process. |
 
 Imports point down the layers. The core, `frontend/core`, imports nothing else: no UI layer,
 no React, and among packages only the protocol's data-only entries (`/harnesses`, `/pages`,

@@ -34,7 +34,8 @@ policy, so it needs no library fences.
   gzipped and every woff2 font they declare, and `demo`, the module `demoModule` names with
   what it loads and the first chunk does not. The visitor build sets them in
   `apps/try/vite.config.ts`; the others have none.
-- `unit()` (`/vitest`), the jsdom `unit` project every frontend package's tests run in.
+- `unit()` (`/vitest`), the jsdom `unit` project of the UI's packages' tests and the try
+  app's (`frontend/specs` runs projects of its own, and `frontend/test-kit` has no tests).
 
 Each is a subpath of its own (`@novadeck/build-kit/content-security-policy`, `/connect-sources`,
 `/hosting-headers`, `/search-visibility`, `/fonts`, `/bundle-checks`, `/vitest`). It ships as TypeScript source, with no build: Vite loads a
