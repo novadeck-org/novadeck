@@ -184,6 +184,24 @@ export const endsText = (shown: string, sent: string): boolean => {
   return x !== "" && y.endsWith(x)
 }
 
+/** The fewest rows a profile's viewport can be and say a box is full by its height. */
+const minViewport = 2
+
+/**
+ * Whether the box shows the tail of `text`, as a box shows a text taller than its viewport:
+ * it is as tall as the viewport lets it be on a screen of `rows` rows, and what it shows ends
+ * the text. A viewport of one row is every box's: on a screen too small to know it, none is.
+ */
+export const showsTail = (
+  profile: BoxProfile,
+  box: InputBox,
+  rows: number,
+  text: string,
+): boolean => {
+  const viewport = profile.viewport?.(rows) ?? Infinity
+  return viewport >= minViewport && box.last - box.first + 1 >= viewport && endsText(box.text, text)
+}
+
 /** Whether the box holds nothing. */
 export const isEmpty = (box: InputBox): boolean => compact(box.text) === ""
 
