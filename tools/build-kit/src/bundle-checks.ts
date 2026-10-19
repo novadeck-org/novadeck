@@ -212,6 +212,7 @@ export const budgetViolations = (
 export const frontendUtilities: readonly ScannedUtility[] = [
   { folder: "frontend/demo-debug/", utility: ["h-[min(760px,", "calc(100vh-80px))]"].join("") },
   { folder: "frontend/demo/", utility: ["under", "line"].join("") },
+  { folder: "frontend/toolkit/", utility: ["cursor-[", "inherit]"].join("") },
 ]
 
 /**

@@ -2,6 +2,9 @@ import { handleText, terminalLabel } from "@novadeck/core/handle"
 import { isWindow } from "@novadeck/core/roster"
 import { attentionText, doneText, terminalPhase, unheardText } from "@novadeck/core/terminal-ending"
 import type { Tile, WindowedView } from "@novadeck/core/types"
+import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
+import { HandleChip } from "@novadeck/toolkit/HandleChip"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import {
   Minimize2,
   Scaling,
@@ -15,9 +18,6 @@ import {
 import { useRef, type ReactNode } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
-import { ContextMenu, type ContextMenuItem } from "../ui-toolkit/ContextMenu"
-import { HandleChip } from "../ui-toolkit/HandleChip"
-import { Tooltip } from "../ui-toolkit/Tooltip"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 
 // What a layout contributes to each terminal it places.

@@ -1,8 +1,8 @@
+import { sidebarListClasses, SidebarItem } from "@novadeck/toolkit/SidebarItem"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { Layers2, Plus } from "lucide-react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
-import { Tooltip } from "../ui-toolkit/Tooltip"
-import { sidebarListClasses, SidebarItem } from "./SidebarItem"
 import { sidebarCreateClasses } from "./SidebarPanel"
 
 export type WorkspaceSessionSummary = {

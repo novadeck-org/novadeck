@@ -1,7 +1,7 @@
+import { Popover } from "@novadeck/toolkit/Popover"
 import { Sparkles } from "lucide-react"
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 
-import { Popover } from "../ui-toolkit/Popover"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { offerable, offerText } from "./murmur-offer"
 import { currentState } from "./selectors"

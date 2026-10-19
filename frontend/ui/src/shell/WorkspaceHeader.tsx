@@ -1,4 +1,7 @@
 import type { Project, ViewMode } from "@novadeck/core/types"
+import { NovaMark } from "@novadeck/toolkit/NovaLogo"
+import { SegmentGroup } from "@novadeck/toolkit/SegmentGroup"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import {
   LayoutGrid,
   Scan,
@@ -14,9 +17,6 @@ import { shortcutBindings } from "../interaction/shortcuts"
 import type { ProjectArrangement } from "../projects/project-arrangement"
 import type { ProjectStatus } from "../projects/project-status"
 import { WorkspaceSwitcher } from "../projects/WorkspaceSwitcher"
-import { NovaMark } from "../ui-toolkit/NovaLogo"
-import { SegmentGroup } from "../ui-toolkit/SegmentGroup"
-import { Tooltip } from "../ui-toolkit/Tooltip"
 
 const iconOnlyQuery = "(max-width: 701px)"
 const subscribe = (notify: () => void): (() => void) => {

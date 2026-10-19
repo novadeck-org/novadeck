@@ -1,3 +1,6 @@
+import { HandleChip } from "@novadeck/toolkit/HandleChip"
+import { NovaMark } from "@novadeck/toolkit/NovaLogo"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 /* oxlint-disable react/no-array-index-key -- Parts are read from text that has no ids; they never reorder. */
 import { Check, ChevronDown, Copy, Send } from "lucide-react"
 import {
@@ -10,9 +13,6 @@ import {
   type ReactNode,
 } from "react"
 
-import { HandleChip } from "../ui-toolkit/HandleChip"
-import { NovaMark } from "../ui-toolkit/NovaLogo"
-import { Tooltip } from "../ui-toolkit/Tooltip"
 import { commandView, markText } from "./command-view"
 import { codeParts } from "./inbox-text"
 

@@ -1,11 +1,11 @@
 import type { Store } from "@novadeck/core/store"
 import type { TerminalKey } from "@novadeck/core/types"
 import { maxClipSeconds } from "@novadeck/core/voice"
+import { Chord } from "@novadeck/toolkit/Chord"
+import { useShown } from "@novadeck/toolkit/shown"
 import { Check, Loader, Mic, MicOff, TriangleAlert } from "lucide-react"
 import { useEffect, useState, useSyncExternalStore } from "react"
 
-import { Chord } from "../ui-toolkit/Chord"
-import { useShown } from "../ui-toolkit/shown"
 import { dictationKey, type DictationController } from "./dictation"
 import { VoiceSetupContent } from "./VoiceSetup"
 

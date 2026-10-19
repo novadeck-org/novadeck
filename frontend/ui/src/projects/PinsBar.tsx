@@ -9,10 +9,10 @@ import {
 import { RestrictToWindow } from "@dnd-kit/dom/modifiers"
 import { DragDropProvider, useDragDropManager } from "@dnd-kit/react"
 import { isSortable, useSortable } from "@dnd-kit/react/sortable"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { pinnedProjectShortcut } from "../interaction/shortcuts"
-import { Tooltip } from "../ui-toolkit/Tooltip"
 import { usePinDrop, type Point } from "./pin-drop"
 import { usePinHandoff } from "./pin-handoff"
 import { ease, slide } from "./pin-motion"
