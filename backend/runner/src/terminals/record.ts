@@ -33,7 +33,13 @@ export type Record = {
   origin: string
   /** The latest session each agent reported in this terminal, across its shells. */
   agents: { [agent in AgentName]?: AgentReport }
-  /** The harness session holding the current shell's foreground; `summary.agent` shows it. */
+  /**
+   * The harness session holding the current shell's foreground; `summary.agent` shows it.
+   * It, `activity` and `telemetry` are null together: every end of a binding takes all three
+   * (`Bindings.unbind`). The one exception is a report binding a session (`Reports.report`),
+   * which sets this first and the new activity after, so whatever runs in between, as a
+   * lead ended there, sees the new binding with the old activity, or none.
+   */
   binding: Binding | null
   /**
    * The last binding ended as its process was found gone or its pid reused: a late report of

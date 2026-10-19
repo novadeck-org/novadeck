@@ -90,14 +90,26 @@ export class Bindings {
   }
 
   /**
-   * Ends the terminal's binding, with its activity and the sources that follow it; with
-   * `only`, only while that session is still the one bound. Whether it ended one.
+   * Lets go of the bound session's half of the record, all at once: `binding`,
+   * `activity` and `telemetry` are null together, outside the moment a report binds a
+   * session (see `Record`). Each way a binding ends below takes all three through here,
+   * and differs from the others only where it says so.
    */
-  endBinding(record: Record, only?: string): boolean {
-    if (only !== undefined && record.binding?.sessionId !== only) return false
+  private unbind(record: Record): void {
     record.binding = null
     record.activity = null
     record.telemetry = null
+  }
+
+  /**
+   * Ends the terminal's binding, with its activity and the sources that follow it; with
+   * `only`, only while that session is still the one bound. Whether it ended one. The
+   * root is followed anew (`rebound`); the summary shows no agent, and the prompt still
+   * shown as ready, announced only where it showed an agent.
+   */
+  endBinding(record: Record, only?: string): boolean {
+    if (only !== undefined && record.binding?.sessionId !== only) return false
+    this.unbind(record)
     this.unwatch(record)
     this.host.rebound(record)
     if (record.summary.agent !== null) {
@@ -111,6 +123,64 @@ export class Bindings {
       this.host.announce(record)
     }
     return true
+  }
+
+  /**
+   * Ends the binding of a harness that was disconnected, as `endBinding` does, but the
+   * summary also says again whether an agent ran there (`agentRan`, from the sessions it
+   * still has), and it is announced whatever it showed before.
+   */
+  forgotten(record: Record, agentRan: boolean): void {
+    this.unbind(record)
+    this.unwatch(record)
+    this.host.rebound(record)
+    record.summary = {
+      ...record.summary,
+      agentRan,
+      agent: null,
+      ready: this.readyOf(record),
+      activity: null,
+      telemetry: null,
+    }
+    this.host.announce(record)
+  }
+
+  /**
+   * The shell exited: the binding goes, and the root with it, without following the root
+   * anew (no `rebound`) and before its sources are let go; the caller unwatches, shows
+   * neither agent nor ready prompt, and announces.
+   */
+  exited(record: Record): void {
+    this.unbind(record)
+    record.root = null
+  }
+
+  /**
+   * What a restarted shell starts from, as the record's fields: no binding (its sources
+   * were let go as the shell exited), no root, nothing suspended and no entry seen in a
+   * transcript. The binding a session found gone (`left`) stays.
+   */
+  restarted(): Pick<
+    Record,
+    | "binding"
+    | "activity"
+    | "telemetry"
+    | "suspended"
+    | "root"
+    | "seenEntry"
+    | "watching"
+    | "transcript"
+  > {
+    return {
+      binding: null,
+      activity: null,
+      telemetry: null,
+      suspended: null,
+      root: null,
+      seenEntry: undefined,
+      watching: null,
+      transcript: null,
+    }
   }
 
   /**
