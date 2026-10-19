@@ -24,6 +24,9 @@ export const harnesses = [
       "CLAUDE_PROJECT_DIR",
     ],
     secretPaths: [],
+    // Whether its conversation records a `!` shell command and its output, so a chat can
+    // show them.
+    recordsShell: true,
   },
   {
     id: "codex",
@@ -34,6 +37,7 @@ export const harnesses = [
     // Case-insensitive regex sources, matched against a resolved path: where the
     // harness keeps a login under a name too plain to hold everywhere.
     secretPaths: ["[\\\\/]\\.codex[\\\\/]auth\\.json$"],
+    recordsShell: true,
   },
   {
     id: "agy",
@@ -42,6 +46,8 @@ export const harnesses = [
     nodeScript: undefined,
     inheritedEnv: ["ANTIGRAVITY_CONVERSATION_ID"],
     secretPaths: [],
+    // It runs the command, but keeps no record of it: the output shows only in the terminal.
+    recordsShell: false,
   },
 ] as const satisfies readonly {
   readonly id: string
@@ -50,6 +56,7 @@ export const harnesses = [
   readonly nodeScript: string | undefined
   readonly inheritedEnv: readonly string[]
   readonly secretPaths: readonly string[]
+  readonly recordsShell: boolean
 }[]
 
 /** A harness's id: the agent names the protocol speaks. */
