@@ -1,4 +1,5 @@
 import "./canvas.css"
+import { useDrag, useDragSession } from "@novadeck/companion/drag-session"
 import { canvasPointPosition, viewportCanvasPosition } from "@novadeck/core/layout/canvas-placement"
 import { canvasNewTerminalSize, canvasPresetSize } from "@novadeck/core/layout/terminal-size"
 import { isWindow } from "@novadeck/core/roster"
@@ -29,7 +30,6 @@ import {
 } from "react"
 
 import { workspaceOverlayOpen, workspaceShortcutTarget } from "../../interaction/shortcuts"
-import { useDrag, useDragSession } from "../../terminals/drag-session"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
 import { fitOptions, canvasStep, terminalHeaderHeight, chromeScaleAt, centerOf } from "./geometry"

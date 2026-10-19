@@ -208,7 +208,9 @@ export const budgetViolations = (
 // that no other scanned file does), and each is written here in halves: Tailwind scans no file
 // of this package, but a whole copy anywhere it does scan would make the class itself, and the
 // check would pass however much the scan lost. Do not quote one whole in a comment either.
-// terminal-views and the runner adapter write no utility of their own, so they have no guard.
+// terminal-views, the runner adapter and the companion write no utility of their own (the
+// companion's TSX uses utilities such as `sr-only` that other folders write too, and its other
+// classes are recipes), so they have no guard.
 export const frontendUtilities: readonly ScannedUtility[] = [
   { folder: "frontend/demo-debug/", utility: ["h-[min(760px,", "calc(100vh-80px))]"].join("") },
   { folder: "frontend/demo/", utility: ["under", "line"].join("") },
