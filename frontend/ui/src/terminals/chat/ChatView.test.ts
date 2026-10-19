@@ -357,7 +357,7 @@ describe("a shell command sent to an agent that keeps no record of it", () => {
     const quiet = async (
       conversation: Conversation,
       draft: string,
-      program?: string,
+      program = "claude",
     ): Promise<void> => {
       const { container } = host(createStore<Conversation>(conversation), { draft, program })
       await send(container)
