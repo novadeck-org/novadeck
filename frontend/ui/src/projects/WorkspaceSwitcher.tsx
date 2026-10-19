@@ -1,10 +1,10 @@
 import type { Project } from "@novadeck/core/types"
+import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
+import { Popover } from "@novadeck/toolkit/Popover"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { ChevronDown, Folder, FolderOpen } from "lucide-react"
 import { useRef, useState } from "react"
 
-import { ConfirmDialog } from "../ui-toolkit/ConfirmDialog"
-import { Popover } from "../ui-toolkit/Popover"
-import { Tooltip } from "../ui-toolkit/Tooltip"
 import type { ProjectArrangement } from "./project-arrangement"
 import { elsewhereStatus, statusText, type ProjectStatus } from "./project-status"
 import { ProjectList } from "./ProjectList"

@@ -5,11 +5,11 @@ import {
   type InboxHistory,
   type MessageThread,
 } from "@novadeck/core/messages"
+import { Switch } from "@novadeck/toolkit/Switch"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react"
 import { useEffect, useId, useRef, type ReactNode } from "react"
 
-import { Switch } from "../../ui-toolkit/Switch"
-import { Tooltip } from "../../ui-toolkit/Tooltip"
 import type { MailHandle } from "./mail"
 
 // When a message was sent or delivered: the time, with the date when it wasn't today.

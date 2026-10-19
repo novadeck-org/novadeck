@@ -1,11 +1,10 @@
 import { isWindow } from "@novadeck/core/roster"
 import type { Tile } from "@novadeck/core/types"
+import { Dialog } from "@novadeck/toolkit/Dialog"
+import { HandleChip } from "@novadeck/toolkit/HandleChip"
+import { SearchCombobox } from "@novadeck/toolkit/SearchCombobox"
 import { ArrowUpRight, Search, Terminal as TerminalIcon, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
-
-import { Dialog } from "../ui-toolkit/Dialog"
-import { HandleChip } from "../ui-toolkit/HandleChip"
-import { SearchCombobox } from "../ui-toolkit/SearchCombobox"
 
 // What a result says of where it runs. A window runs nothing, so only its name finds it.
 const detail = (tile: Tile): { readonly command: string; readonly directory: string } =>

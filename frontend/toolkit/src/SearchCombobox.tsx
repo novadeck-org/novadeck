@@ -1,7 +1,7 @@
 import { Combobox, createListCollection } from "@ark-ui/react/combobox"
 import { useMemo, type ReactNode, type RefObject } from "react"
 
-import { cn } from "../class-name"
+import { cn } from "./class-name"
 
 // A search result: an item (the item recipe), whatever list it is in.
 export const searchResultClasses =

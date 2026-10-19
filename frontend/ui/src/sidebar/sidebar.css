@@ -47,24 +47,6 @@
   --_bg: var(--button-hover-bg, var(--color-soft));
 }
 
-.sidebar-item:focus-within {
-  --_bg: var(--item-hover-bg, var(--color-soft));
-}
-.sidebar-item.dragging {
-  --_bg: var(--item-selected-bg, var(--color-paper));
-  --_border-color: var(--item-selected-border-color, var(--color-line));
-  --_shadow: var(--item-selected-shadow, var(--shadow-control));
-}
-.sidebar-item-select {
-  border-radius: inherit;
-  color: inherit;
-}
-.sidebar-item-select:focus-visible {
-  outline-offset: -2px;
-}
-.sidebar-item-icon {
-  color: var(--item-icon-fg, var(--color-muted));
-}
 .session-running::before {
   content: "·";
   margin-right: calc(var(--spacing) * 1.5);
