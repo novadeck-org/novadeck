@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./conversations": "./src/conversations.ts",
     "./scripted": "./src/scripted.ts",
     "./scripted-server": "./src/scripted-server.ts",
     "./testing": {
