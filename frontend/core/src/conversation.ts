@@ -7,6 +7,18 @@ import type { Store } from "./store"
 // renders it in place of the terminal's screen; the agent's TUI keeps running beneath,
 // and what the person sends from the chat is typed into it.
 
+// What a tool call was, as its harness's decoder said: the chat's one line for it. The same
+// shape as the protocol's `toolRun`, declared here since the core reads no more of the
+// protocol than its data entries (a test holds the two to each other).
+export type ToolKind = "run" | "read" | "write" | "search" | "web" | "agent" | "plan" | "other"
+export type ToolRun = {
+  readonly kind: ToolKind
+  // What the tool is called to a person: "Ran", "Read", "Edited".
+  readonly title: string
+  // What it was called on: the command, the file, the pattern. Empty where there is none.
+  readonly detail: string
+}
+
 // One record of the conversation, in the order its harness wrote it: the person's or the
 // agent's text, another agent's message to it (`author` names that agent, in its
 // harness's words), a tool call with its input as text (often JSON), or a tool's result,
@@ -26,6 +38,10 @@ export type ChatItem = {
   // What pairs a result with its call: the same on both, null where the harness says none.
   readonly call: string | null
   readonly author: string | null
+  // On a call, what it was; null on every other item.
+  readonly run: ToolRun | null
+  // A user item that records the person stopping the agent.
+  readonly interrupted: boolean
 }
 
 // What a request's dialog in the agent's TUI offers, as the backend read it, so the chat

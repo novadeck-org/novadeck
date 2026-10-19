@@ -1,9 +1,5 @@
-import {
-  inputText,
-  toolSummary,
-  type ToolEntry,
-  type ToolKind,
-} from "@novadeck/core/conversation-turns"
+import type { ToolKind, ToolRun as Run } from "@novadeck/core/conversation"
+import type { ToolEntry } from "@novadeck/core/conversation-turns"
 import {
   Bot,
   ChevronRight,
@@ -16,7 +12,9 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react"
-import { useId, useMemo, useState } from "react"
+import { useId, useState } from "react"
+
+import { inputText } from "./input-text"
 
 const icons: Readonly<Record<ToolKind, LucideIcon>> = {
   run: SquareTerminal,
@@ -28,6 +26,11 @@ const icons: Readonly<Record<ToolKind, LucideIcon>> = {
   plan: ListChecks,
   other: Wrench,
 }
+
+// What a call was, as its decoder said; a call with none shows its tool's name. Nothing for
+// a result whose call is outside the window.
+const callRun = (entry: ToolEntry): Run | null =>
+  entry.tool === null ? null : (entry.run ?? { kind: "other", title: entry.tool, detail: "" })
 
 // A run of this many calls or more folds into one line until opened.
 const foldAt = 4
@@ -61,13 +64,8 @@ const ToolRow = ({
 }): React.JSX.Element => {
   const [open, setOpen] = useState(false)
   const body = useId()
-  const summary = useMemo(
-    () =>
-      entry.tool === null
-        ? { kind: "other" as const, title: "Result", detail: "" }
-        : toolSummary(entry.tool, entry.input),
-    [entry.tool, entry.input],
-  )
+  // A result whose call is outside the window is "Result".
+  const summary: Run = callRun(entry) ?? { kind: "other", title: "Result", detail: "" }
   const Icon = icons[summary.kind]
   return (
     <li className="chat-tool" data-kind={summary.kind} data-running={running || undefined}>
@@ -141,9 +139,7 @@ export const ToolRun = ({
         <ChevronRight size={12} className="chat-tool-chevron" aria-hidden />
         <span className="chat-tool-title">{entries.length} tool calls</span>
         <span className="chat-tool-detail">
-          {[...new Set(entries.map((entry) => toolSummary(entry.tool ?? "", entry.input).title))]
-            .slice(0, 4)
-            .join(", ")}
+          {[...new Set(entries.map((entry) => callRun(entry)?.title ?? ""))].slice(0, 4).join(", ")}
         </span>
       </button>
       {open && rows}

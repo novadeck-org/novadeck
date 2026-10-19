@@ -43,7 +43,7 @@ The recorded fixtures are thin: mostly redacted, naming a handful of tools. So
 `src/vocabulary/` holds one set of conversations per harness, written by hand in that
 harness's native record shape and read by its real decoder. They are synthetic records that
 pin today's rendering, not recordings; see `src/vocabulary/README.md` for what they name. They
-are what protects a move of the chat's vocabulary (`toolSummary`, `inputText`, the tool kinds,
+are what protects a move of the chat's vocabulary (each harness's `describe`, `inputText`, the tool kinds,
 the fold).
 
 ## Changing a golden
@@ -59,7 +59,7 @@ git diff frontend/chat-contract/src/goldens
 With `CI=true` a missing or changed golden fails the test instead of being written. The test
 also fails on a golden no fixture owns.
 
-A change to a decoder, to `groupItems`, to `toolSummary` or to the components should change a
+A change to a decoder, to `groupItems`, to a harness's `describe` or to the components should change a
 golden only when the chat is meant to show something else. A move of code (a package split,
 a rename) must leave every golden as it is.
 
