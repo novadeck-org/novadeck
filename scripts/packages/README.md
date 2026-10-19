@@ -380,7 +380,7 @@ doesn't track, it installs on every run, and a second run says there is nothing 
 7. **It installs, formats, carries and scans for leftovers,** as the backend's move does.
    This includes `--filter @novadeck/ui dev|build|preview` and the UI's old page paths. Then
    `application/` goes, once nothing is left in it. Its `pnpm-workspace.yaml` glob, the fence's
-   `application/` patterns and the libraries scripts' folder lists go in 5.4.
+   `application/` patterns and the libraries scripts' folder lists went in 5.4.
 
 ## Catching up a branch after the move
 
@@ -388,9 +388,11 @@ For a branch made before 5.3c, the backend's recipe above, with `move-desktop.ts
 
 - **Merge main first, then run the script.** The branch's changes to the host merge at its new
   place by rename detection, as do its changes to either page.
-- **`frontend/ui/vite.config.ts`** is deleted on main, so a branch that changed it has a
-  modify/delete conflict: make the change in `apps/desktop/vite.config.ts`, then
-  `git rm frontend/ui/vite.config.ts`.
+- **`frontend/ui/vite.config.ts` and `frontend/ui/entries/web/main.tsx`** are deleted on main,
+  so a branch that changed one has a modify/delete conflict: make the change in
+  `apps/desktop/vite.config.ts` or `apps/desktop/renderer/web/main.tsx`, then `git rm` the old
+  file. One kept from the branch's side (`git add -u`) stops the script on that merge, naming
+  both.
 - **A rename or a deletion of the branch's that main's move brought back** stops the script,
   naming both files: `git rm` the one that doesn't stand, and commit, or commit anything to keep
   main's.

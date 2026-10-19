@@ -15,7 +15,7 @@ const HEAD = 26
 // A rect smaller than this on a side is not a target anyone can hit.
 const MIN = 6
 
-// The whole codebase: a window per top-level token (`runner`, `ui`, `harness`…), a rect per
+// The whole codebase: a window per top-level token (`backend`, `frontend`, `harnesses`…), a rect per
 // area inside it, area = lines.
 // Hatching along the bottom of an area is its share of test files.
 const HiddenAreas = ({ hidden }: { hidden: Area[] }) => {

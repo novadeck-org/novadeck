@@ -12,7 +12,6 @@ const manifests = (): readonly (readonly [string, Manifest])[] =>
   [
     ".",
     ...[
-      "application",
       "apps",
       "backend",
       "contract",

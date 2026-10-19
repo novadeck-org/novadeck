@@ -21,13 +21,16 @@ Keep TypeScript, Node.js, and Hono. Add oRPC with Zod contracts over WebSockets,
 terminal rendering. Use headless xterm and serialization to restore screen state
 after reconnecting.
 
-| Part                     | Responsibility                                                                               |
-| ------------------------ | -------------------------------------------------------------------------------------------- |
-| `frontend/ui`            | Workspace views, xterm rendering, and a typed runner client.                                 |
-| `backend/runner`         | Authentication, oRPC procedures, PTY ownership, output retention, and persistence.           |
-| `apps/desktop`           | Electron windows, desktop integration, and starting or connecting to a local runner process. |
-| `contract/protocol`      | Shared Zod schemas, procedure contracts, stream events, and typed errors.                    |
-| `contract/runner-client` | The typed client: `connectRunner`, its transports, and the error codes it reports.           |
+| Part                      | Responsibility                                                                               |
+| ------------------------- | -------------------------------------------------------------------------------------------- |
+| `frontend/ui`             | Workspace views and chrome.                                                                  |
+| `frontend/core`           | The model: workspace state and stores, and the port a backend fills.                         |
+| `frontend/runner-adapter` | The UI's backend for a runner: the typed client, the seed, saves and terminals over it.      |
+| `frontend/terminal-views` | xterm rendering: the mount every backend draws its terminals with.                           |
+| `backend/runner`          | Authentication, oRPC procedures, PTY ownership, output retention, and persistence.           |
+| `apps/desktop`            | Electron windows, desktop integration, and starting or connecting to a local runner process. |
+| `contract/protocol`       | Shared Zod schemas, procedure contracts, stream events, and typed errors.                    |
+| `contract/runner-client`  | The typed client: `connectRunner`, its transports, and the error codes it reports.           |
 
 Keep the protocol package independent of Electron, React, and server implementation
 code. Define input and output schemas explicitly, including streamed events.

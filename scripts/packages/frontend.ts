@@ -1453,19 +1453,6 @@ const read = (file: string): string => {
     why: "the specs own Playwright",
   },
   {
-    file: "scripts/core/README.md",
-    before: "`pnpm --filter @novadeck/ui exec vitest run --project counters`, then",
-    after: "`pnpm --filter @novadeck/specs exec vitest run --project counters`, then",
-    why: "the counters project is the specs'",
-  },
-  {
-    file: "scripts/core/README.md",
-    before:
-      "`pnpm --filter @novadeck/ui exec vite build --mode content-preview --outDir <scratch>`",
-    after: "`pnpm --filter @novadeck/previews build`",
-    why: "the preview is an app of its own",
-  },
-  {
     file: "scripts/bench/profile/patches.ts",
     before: 'id.endsWith("/src/core/store.ts")',
     after: 'id.endsWith("/frontend/core/src/store.ts")',

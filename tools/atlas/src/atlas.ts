@@ -43,7 +43,7 @@ export type Atlas = {
 // A package's dependencies, as its manifest declares them, with a role where the atlas
 // knows what the library is for.
 export type PackageStack = {
-  // The area token of the package, as `ui` or `harness/claude`.
+  // The area token of the package, as `frontend/ui` or `harnesses/claude`.
   token: string
   // The manifest's package name, as `@novadeck/ui`.
   name: string
@@ -90,7 +90,7 @@ export type RuntimeEdge = {
 }
 
 // A slice of the code named by a token that mirrors where it lives, as
-// `runner/terminals` or `ui/backend/runner`: its package, then a segment per folder.
+// `backend/runner/terminals` or `frontend/ui/app`: its package, then a segment per folder.
 export type Area = {
   // The token.
   id: string

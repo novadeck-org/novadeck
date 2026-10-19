@@ -37,6 +37,10 @@ const uncertain =
 // ---------------------------------------------------------------------------------------
 // The index: every subject an agent can ask about.
 
+// Whether an area is the one a token names or one below it.
+const under = (prefix: string) => (area: Area) =>
+  area.id === prefix || area.id.startsWith(`${prefix}/`)
+
 export const renderIndex = (atlas: Atlas): string => {
   const byTop = new Map<string, Area[]>()
   for (const area of atlas.areas) {
@@ -47,7 +51,7 @@ export const renderIndex = (atlas: Atlas): string => {
     `# Novadeck atlas (${atlas.commit.slice(0, 7)})`,
     "",
     "Areas are named by tokens that mirror where the code lives: a package, then a segment per",
-    "folder (`runner/terminals` is backend/runner/src/terminals). Use them when you talk",
+    "folder (`backend/runner/terminals` is backend/runner/src/terminals). Use them when you talk",
     "about the code.",
     "",
     "Ask for a brief: `pnpm -s atlas:brief <subject>`. A subject is an area token, a procedure",
@@ -70,15 +74,18 @@ export const renderIndex = (atlas: Atlas): string => {
     ...atlas.runtime.nodes.flatMap((node) => {
       const own = atlas.areas.filter((area) => area.node === node.id)
       if (own.length === 0) return []
-      // A whole package in one process reads as `ui/*`.
+      // A whole tree in one process reads as `frontend/*`, and a whole package as
+      // `backend/runner/*`.
+      const collapse = (prefix: string, depth: number): string[] => {
+        const all = atlas.areas.filter(under(prefix))
+        const here = own.filter(under(prefix))
+        if (here.length === all.length && all.length > 1) return [`\`${prefix}/*\``]
+        if (depth === 2) return here.map((area) => `\`${area.id}\``)
+        const packages = [...new Set(here.map((area) => area.id.split("/").slice(0, 2).join("/")))]
+        return packages.flatMap((each) => collapse(each, 2))
+      }
       const tops = [...new Set(own.map((area) => area.id.split("/")[0]!))]
-      const named = tops.flatMap((top) => {
-        const all = atlas.areas.filter((area) => area.id.split("/")[0] === top)
-        const here = own.filter((area) => area.id.split("/")[0] === top)
-        return here.length === all.length && all.length > 1
-          ? [`\`${top}/*\``]
-          : here.map((area) => `\`${area.id}\``)
-      })
+      const named = tops.flatMap((top) => collapse(top, 1))
       return [`- ${node.title}: ${named.join(", ")}`]
     }),
     "",
@@ -150,8 +157,8 @@ export const renderArea = (atlas: Atlas, area: Area): string => {
       )}`,
     )
   }
-  if (area.id === "ui" || area.id.startsWith("ui/"))
-    out.push("", "How UI state and calls are wired: `state`.")
+  // The UI's packages, whose state the `state` overview wires; the apps only start them.
+  if (area.id.startsWith("frontend/")) out.push("", "How UI state and calls are wired: `state`.")
   if (area.procedures.length > 0) out.push("Each procedure's path to the SQL: `procedure:<id>`.")
   return out.join("\n")
 }

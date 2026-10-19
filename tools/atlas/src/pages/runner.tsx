@@ -39,7 +39,7 @@ export const RunnerPage = () => {
             <Stat n={lens.statements}>statements</Stat>
             <Stat n={lens.tables.length}>tables</Stat>
           </div>
-          <StackStrip token="runner" />
+          <StackStrip token="backend/runner" />
         </>
       }
     >

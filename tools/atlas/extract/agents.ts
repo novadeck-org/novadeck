@@ -25,6 +25,9 @@ const handlers: Record<string, string> = {
   send: "send",
   agents: "agents",
   summarize: "summarize",
+  // The Inbox's, which the manager's call hands to its asks.
+  ask: "call",
+  tell: "call",
 }
 
 const lineOf = (source: string | null, pattern: RegExp): number | null => {
@@ -48,7 +51,12 @@ const extractTools = (anchors: Anchors, adapters: Adapter[]): McpTool[] => {
     .split(",")
     .map((name) => name.trim())
     .filter(Boolean)
-  const preamble = [...source.matchAll(/^const (rules|agentChoices)\b[^=]*=\s*([\s\S]*?)\n\n/gm)]
+  // The constants the literals spread or name, each ending at a blank line or a comment.
+  const preamble = [
+    ...source.matchAll(
+      /^const (rules|agentChoices|letterFields)\b[^=]*=\s*([\s\S]*?)\n(?=\n|\/\/)/gm,
+    ),
+  ]
     .map(([, name, value]) => `const ${name} = ${value}`)
     .join("\n")
   const manager = anchors.read(managerFile)
