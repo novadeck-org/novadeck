@@ -23,6 +23,26 @@ export const othersOf = (workspace: Workspace | undefined, key: TerminalKey): Te
         terminal.state !== "failed",
     ) ?? []
 
+// `key`'s terminal leads every other live terminal of its session, as if its agent had
+// opened each with a brief, so its team holds them all; nothing while it has no handle to
+// lead by.
+export const leadsOthers = (
+  workspace: Workspace | undefined,
+  key: TerminalKey,
+): BackendAction[] => {
+  const lead = workspace?.projects
+    .find((project) => project.id === key.projectId)
+    ?.history.find((session) => session.id === key.workspaceSessionId)
+    ?.state.roster.terminals.find((terminal) => terminal.id === key.terminalId)
+  if (!lead?.handle) return []
+  return othersOf(workspace, key).map((terminal) => ({
+    type: "terminal/update",
+    target: target(key),
+    terminalId: terminal.id,
+    ledBy: lead.handle!,
+  }))
+}
+
 const setStatus = (
   key: TerminalKey,
   status: Extract<BackendAction, { type: "terminal/status" }>["status"],
