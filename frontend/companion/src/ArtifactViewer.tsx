@@ -1,236 +1,38 @@
 import {
   pathOf,
+  type ArtifactKind,
   type CompanionItem,
-  type FileContent,
-  type ImageContent,
-  type ItemContent,
-  type PageContent,
+  type ShownContent,
   type UnavailableReason,
 } from "@novadeck/core/companion"
-import { pagesPartition } from "@novadeck/core/pages"
-import { useShown } from "@novadeck/toolkit/shown"
-import { createKept, type ViewerState } from "@novadeck/viewers"
-import { mountBrowser, type Load, type Place } from "@novadeck/viewers/browser"
-import { mountCode, type CodeContent } from "@novadeck/viewers/code"
-import { mountImage, type ImageContent as Image } from "@novadeck/viewers/image"
-import { useViewer } from "@novadeck/viewers/react"
-import { outline } from "@novadeck/viewers/text"
-import { ArrowLeft, ArrowRight, ExternalLink, RotateCw } from "lucide-react"
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useState, type ComponentType, type ReactNode } from "react"
 
-import { isMarkdown } from "./artifact-icons"
-import { DocumentViewer } from "./DocumentViewer"
-import { titleOf } from "./plan-text"
+import type { ItemMember } from "./bar"
+import type { ThumbProps, ViewProps } from "./registration"
+import { useContent } from "./use-panes"
 
-// Viewers for what an agent shows beside its terminal, as it loads from the file or page
-// it points at now, or why it can't show. Files show as plain text at
-// once, then highlighted when their language is one Novadeck knows, in the code viewer;
-// a markdown file reads as a document instead, formatted as a plan is.
-// A page loads live where the backend's host allows, in Electron's <webview>, which the
-// desktop app locks down (no Node, its own session, http(s) only; see the browser viewer);
-// elsewhere it's a link to open in the browser, with a snapshot when the backend has
-// one.
+// What the artifact kinds share: the chrome around what an agent showed beside its terminal
+// (the states of what hasn't loaded or can't show, and why), and the two components that
+// give each kind its pane and its peek miniature from a body of its own. The viewers
+// themselves are the kinds' (`panes/image`, `panes/file`, `panes/page`): each loads from the
+// file or page it points at now, or says why it can't show.
 
 // What the place showing an artifact offers for it, at the end of its viewer's header.
 type Actions = { actions?: ReactNode }
 
-// Where each image's viewer was, by item: its zoom and where it was scrolled.
-const imageStates = createKept<ViewerState>(24)
-
-const ImageViewer = ({
-  artifact,
-  content: image,
-  actions,
-}: Actions & {
-  artifact: CompanionItem
-  content: ImageContent
-}): React.JSX.Element => {
-  const [actual, setActual] = useState(false)
-  const content = useMemo((): Image => ({ src: image.src, alt: artifact.name }), [image, artifact])
-  const { ref, viewer } = useViewer(mountImage, {
-    id: artifact.id,
-    content,
-    label: artifact.name,
-    kept: imageStates,
-    onZoom: setActual,
-  })
-  return (
-    <>
-      <div className="artifact-meta">
-        <code>{artifact.name}</code>
-        <span>{artifact.detail}</span>
-        <span className="artifact-meta-push" />
-        <div className="artifact-zoom segmented" role="group" aria-label="Zoom">
-          <button
-            className="segment"
-            data-state={actual ? "off" : "on"}
-            aria-pressed={!actual}
-            onClick={() => viewer?.zoom(false)}
-          >
-            Fit
-          </button>
-          <button
-            className="segment"
-            data-state={actual ? "on" : "off"}
-            aria-pressed={actual}
-            onClick={() => viewer?.zoom(true)}
-          >
-            100%
-          </button>
-        </div>
-        {actions}
-      </div>
-      <div ref={ref} className="artifact-image" />
-    </>
-  )
+// What an artifact kind's body is given once its content is ready.
+export type ArtifactBodyProps<K extends ArtifactKind> = {
+  readonly item: CompanionItem
+  readonly content: Extract<ShownContent, { readonly kind: K }>
+  readonly actions: ReactNode
 }
 
-// The lines the agent pointed at, from the first one on.
-const pointedLines = (file: FileContent): readonly string[] =>
-  file.lines.slice(file.from - file.firstLine, file.to - file.firstLine + 1)
-
-// Where each file's viewer was, by item, so a file shown again, as a view switch or a tab
-// Focus no longer keeps builds its viewer again, opens where it was.
-const codeStates = createKept<ViewerState>(24)
-
-const FileViewer = ({
-  id,
-  content: artifact,
-  actions,
-}: Actions & { id: string; content: FileContent }): React.JSX.Element => {
-  const content = useMemo(
-    (): CodeContent => ({
-      lines: artifact.lines,
-      firstLine: artifact.firstLine,
-      path: artifact.path,
-      // The lines the agent pointed at.
-      emphasis: { from: artifact.from, to: artifact.to },
-    }),
-    [artifact],
-  )
-  const { ref: code } = useViewer(mountCode, {
-    id,
-    content,
-    label: artifact.path,
-    kept: codeStates,
-  })
-  return (
-    <>
-      <div className="artifact-meta">
-        <code>{artifact.path}</code>
-        <span>
-          lines {artifact.from}–{artifact.to} · read-only
-        </span>
-        {artifact.clamped && <span>The file ends at line {artifact.to}.</span>}
-        {artifact.truncated && <span>It's long, so only its start is shown.</span>}
-        {actions && <span className="artifact-meta-push" />}
-        {actions}
-      </div>
-      <div ref={code} className="artifact-code" />
-    </>
-  )
-}
-
-const OpenInBrowser = ({ url }: { url: string }): React.JSX.Element => (
-  // The desktop app opens a new window's http(s) address in the person's browser.
-  <a className="artifact-open" href={url} target="_blank" rel="noreferrer">
-    <ExternalLink size={14} aria-hidden="true" />
-    Open in browser
-  </a>
-)
-
-// Where each page's viewer was, by item: where the person had taken it.
-const pageStates = createKept<ViewerState>(24)
-
-// A page in the browser viewer: live where the backend's host allows, else its snapshot.
-const ShownPage = ({
-  id,
-  content: page,
-  actions,
-}: Actions & { id: string; content: PageContent }): React.JSX.Element => {
-  const [place, setPlace] = useState<Place>({ url: page.url, back: false, forward: false })
-  const [load, setLoad] = useState<Load>("loading")
-  const content = useMemo(() => ({ url: page.url }), [page.url])
-  const { ref, viewer } = useViewer(mountBrowser, {
-    id,
-    content,
-    label: page.url,
-    kept: pageStates,
-    live: page.live,
-    ...(page.snapshot ? { snapshot: { src: page.snapshot, alt: `${page.url} as shown` } } : {}),
-    partition: pagesPartition,
-    on: { navigate: setPlace, load: setLoad },
-  })
-  // Kept out of sight, the page goes quiet: it stops drawing on its own, but not playing.
-  const shown = useShown()
-  useEffect(() => viewer?.muted(!shown), [viewer, shown])
-  return (
-    <div
-      className="artifact-browser"
-      data-live={page.live || undefined}
-      aria-busy={load === "loading"}
-    >
-      <div className="artifact-browser-bar">
-        {page.live && (
-          <>
-            <button
-              className="icon-button"
-              aria-label="Back"
-              disabled={!place.back}
-              onClick={() => viewer?.back()}
-            >
-              <ArrowLeft size={14} />
-            </button>
-            <button
-              className="icon-button"
-              aria-label="Forward"
-              disabled={!place.forward}
-              onClick={() => viewer?.forward()}
-            >
-              <ArrowRight size={14} />
-            </button>
-            <button className="icon-button" aria-label="Reload" onClick={() => viewer?.reload()}>
-              <RotateCw size={14} />
-            </button>
-          </>
-        )}
-        <span className="artifact-url">{place.url}</span>
-        <OpenInBrowser url={place.url} />
-        {actions}
-      </div>
-      <div className="artifact-page-frame">
-        <div ref={ref} className="artifact-page-view" />
-        {load === "failed" && (
-          <div className="artifact-page-failed" role="alert">
-            <p>This page didn't load.</p>
-            <button type="button" className="artifact-open" onClick={() => viewer?.reload()}>
-              Try again
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-const PageViewer = ({
-  id,
-  content: page,
-  actions,
-}: Actions & { id: string; content: PageContent }): React.JSX.Element =>
-  page.live || page.snapshot ? (
-    // Its own for each address: a new page starts at its own address, not the last one's.
-    <ShownPage key={page.url} id={id} content={page} actions={actions} />
-  ) : (
-    <div className="artifact-browser">
-      <div className="artifact-browser-bar">
-        <span className="artifact-url">{page.url}</span>
-        <OpenInBrowser url={page.url} />
-        {actions}
-      </div>
-      <div className="artifact-status">This page opens in your browser.</div>
-    </div>
-  )
+// An artifact's name as the peek and menu say it, and its button reads.
+export const artifactLook = ({
+  item,
+}: {
+  readonly item: Pick<CompanionItem, "name">
+}): { readonly name: string; readonly label: string } => ({ name: item.name, label: item.name })
 
 // A size in bytes as a person reads it.
 const sizeText = (bytes: number): string =>
@@ -325,88 +127,86 @@ export const Unavailable = ({
   </div>
 )
 
-// A small picture of an artifact, for a peek: the image itself, the lines the agent
-// pointed at, or the page in a browser frame, or why it can't show. Blank until it loads.
-export const ArtifactThumb = ({
-  load,
-}: {
-  load: ItemContent | undefined
-}): React.JSX.Element | null => {
+// The pane's body for an artifact kind, once the kind's `Body` has its content: loads and
+// follows what the item holds while it shows, and draws what hasn't loaded or can't show.
+// `document` marks the content a place shows as a document, which the stylesheet reads.
+export const artifactView = <K extends ArtifactKind>(
+  kind: K,
+  Body: ComponentType<ArtifactBodyProps<K>>,
+  document?: (content: Extract<ShownContent, { readonly kind: K }>) => boolean,
+): ComponentType<ViewProps<ItemMember>> => {
+  const View = ({ member, panes, target, actions }: ViewProps<ItemMember>): React.JSX.Element => {
+    const { item } = member
+    const load = useContent(panes, target, item)
+    const ready = load?.state === "ready" ? load.content : undefined
+    const content =
+      ready?.kind === kind ? (ready as Extract<ShownContent, { readonly kind: K }>) : undefined
+    return (
+      <div
+        className="artifact-viewer"
+        aria-busy={!content && load?.state !== "unavailable"}
+        data-document={(content && document?.(content)) || undefined}
+      >
+        {load?.state === "unavailable" ? (
+          <Unavailable
+            item={item}
+            reason={load.reason}
+            size={load.size}
+            onReveal={() => panes.reveal(item.id)}
+            actions={actions}
+          />
+        ) : content ? (
+          <Body item={item} content={content} actions={actions} />
+        ) : (
+          // Nothing yet, or content of another kind than the item's, as while the runner
+          // reclassifies a persisted item: busy until what fits it arrives.
+          <div className="artifact-status" />
+        )}
+      </div>
+    )
+  }
+  return View
+}
+
+type ThumbBody<K extends ArtifactKind> = ComponentType<{
+  readonly content: Extract<ShownContent, { readonly kind: K }>
+}>
+
+const LoadedThumb = <K extends ArtifactKind>({
+  kind,
+  Body,
+  member,
+  panes,
+  target,
+}: ThumbProps<ItemMember> & { kind: K; Body: ThumbBody<K> }): React.JSX.Element | null => {
+  const load = useContent(panes, target, member.item)
   if (!load) return null
   if (load.state === "unavailable")
     return <span className="peek-held">{shortReasons[load.reason]}</span>
   const { content } = load
-  if (content.kind === "plan") return null
-  return content.kind === "image" ? (
-    <img src={content.src} alt="" />
-  ) : content.kind === "file" && isMarkdown(content.path) ? (
-    // A document in miniature, as a plan is: its title over its sections.
-    <span className="peek-plan">
-      <b>{titleOf(content.path, content.lines.join("\n"))}</b>
-      {outline(content.lines.join("\n"))
-        .slice(0, 4)
-        .map((heading) => (
-          <span key={heading.at}>{heading.text}</span>
-        ))}
-    </span>
-  ) : content.kind === "file" ? (
-    <code className="peek-code">{pointedLines(content).join("\n")}</code>
-  ) : (
-    <span className="peek-page">
-      <span className="peek-page-bar">
-        <i />
-        <i />
-        <i />
-      </span>
-      {content.snapshot ? (
-        <img src={content.snapshot} alt="" />
-      ) : (
-        <span className="peek-page-url">{content.url}</span>
-      )}
-    </span>
-  )
+  return content.kind === kind ? (
+    <Body content={content as Extract<ShownContent, { readonly kind: K }>} />
+  ) : null
 }
 
-export const ArtifactViewer = ({
-  artifact,
-  load,
-  actions,
-  onReveal,
-}: Actions & {
-  artifact: CompanionItem
-  // Undefined until it first loads.
-  load: ItemContent | undefined
-  // Shows something that may hold secrets, once the person asks.
-  onReveal?: (() => void) | undefined
-}): React.JSX.Element => {
-  const ready = load?.state === "ready" ? load.content : undefined
-  return (
-    <div
-      className="artifact-viewer"
-      aria-busy={load === undefined}
-      data-document={(ready?.kind === "file" && isMarkdown(ready.path)) || undefined}
-    >
-      {load === undefined ? (
-        <div className="artifact-status" />
-      ) : load.state === "unavailable" ? (
-        <Unavailable
-          item={artifact}
-          reason={load.reason}
-          size={load.size}
-          onReveal={onReveal}
-          actions={actions}
-        />
-      ) : ready?.kind === "image" ? (
-        <ImageViewer artifact={artifact} content={ready} actions={actions} />
-      ) : ready?.kind === "file" && isMarkdown(ready.path) ? (
-        <DocumentViewer id={artifact.id} content={ready} actions={actions} />
-      ) : ready?.kind === "file" ? (
-        <FileViewer id={artifact.id} content={ready} actions={actions} />
-      ) : ready?.kind === "page" ? (
-        <PageViewer id={artifact.id} content={ready} actions={actions} />
-      ) : (
-        <div className="artifact-status">Couldn't load {artifact.name}.</div>
-      )}
-    </div>
+const ArtifactThumb = <K extends ArtifactKind>(
+  props: ThumbProps<ItemMember> & { kind: K; Body: ThumbBody<K> },
+): React.JSX.Element | null =>
+  // A held one is never loaded for a peek, which a passing pointer opens.
+  props.member.item.held ? (
+    <span className="peek-held">May hold secrets. Click to open.</span>
+  ) : (
+    <LoadedThumb {...props} />
   )
+
+// A small picture of an artifact, for a peek, from the kind's `Body`: or why it can't show.
+// Blank until it loads.
+export const artifactThumb = <K extends ArtifactKind>(
+  kind: K,
+  Body: ThumbBody<K>,
+): ComponentType<ThumbProps<ItemMember>> => {
+  const Thumb = (props: ThumbProps<ItemMember>): React.JSX.Element | null => (
+    <ArtifactThumb {...props} kind={kind} Body={Body} />
+  )
+  return Thumb
 }
