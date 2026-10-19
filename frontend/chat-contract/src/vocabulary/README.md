@@ -5,8 +5,8 @@ record shape (Claude's JSONL with `tool_use` and `tool_result`, a Codex rollout,
 steps), so they go through that harness's real decoder like any fixture.
 
 They exist because the recorded fixtures are thin: they name a handful of tools, mostly
-redacted, while the chat's vocabulary (`toolSummary`, `inputText`, the tool kinds, the fold)
-knows many more. Between them they name every tool each harness's branch of `knownTool`
+redacted, while the chat's vocabulary (each harness's `describe`, `inputText`, the tool kinds, the fold)
+knows many more. Between them they name every tool each harness's `describe`
 knows, every Novadeck tool in each harness's spelling, a non-Novadeck MCP call, an input and a
 result over 16 KiB, a tool name over 256 characters, a result with no call, a run long enough
 to fold, the plain interruption and another agent's message (Codex).
