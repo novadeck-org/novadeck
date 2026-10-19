@@ -6,7 +6,7 @@
   },
   "codex": {
     "package": "@openai/codex",
-    "version": "0.159.3",
+    "version": "0.163.0",
     "bin": "codex"
   },
   "agy": {

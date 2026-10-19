@@ -8,13 +8,21 @@ import { box as claude, shellFooter as claudeFooter } from "@novadeck/harness-cl
 import { box as codex, shellFooter as codexFooter } from "@novadeck/harness-codex/box"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { screen as screenWith } from "@novadeck/harness-core/testing/screens"
-import { compact, isEmpty, sameText, wrappedRows, type BoxProfile } from "@novadeck/tui-input/box"
+import {
+  compact,
+  isEmpty,
+  sameText,
+  showsTail,
+  wrappedRows,
+  type BoxProfile,
+} from "@novadeck/tui-input/box"
 
 import { describe, expect, it } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
 
 // Each harness's input box, read off the screens real runs drew (fixtures/input-box.probe.json,
-// from e2e/probes/input-box.e2e.ts): the pinned version and the latest of 2026-10-07.
+// from e2e/probes/input-box.e2e.ts): the pinned version and the latest of 2026-10-07, and
+// Codex 0.163.0 of 2026-10-18.
 type Fixture = {
   readonly versions: { readonly [version: string]: { readonly [name: string]: ScreenText } }
 }
@@ -32,8 +40,11 @@ const emoji =
   "Thanks \u2764\ufe0f heart \u{1f468}\u200d\u{1f469}\u200d\u{1f467} family \u65e5\u672c\u8a9e"
 const words = (count: number) => Array.from({ length: count }, (_, i) => `w${i % 10}`).join(" ")
 
-/** What a state's box holds: nothing, exactly some text, or a collapsed paste. */
-type Expect = "empty" | "collapsed" | { readonly text: string }
+/**
+ * What a state's box holds: nothing, exactly some text, a collapsed paste, or (`tail`) only
+ * the end of a text, the box as tall as its viewport.
+ */
+type Expect = "empty" | "collapsed" | { readonly text: string } | { readonly tail: string }
 
 // The states every harness shows alike.
 const alike: { readonly [name: string]: Expect } = {
@@ -92,6 +103,19 @@ const harnesses: readonly {
     },
   },
   {
+    // From 0.163.0 a text taller than its box shows only its tail; no current probe records
+    // its queued lists.
+    name: "Codex",
+    profile: codex,
+    versions: ["0.163.0"],
+    states: {
+      ...alike,
+      "text indented": { text: indented },
+      "size 10 lines": { text: ten },
+      "size 25 lines": { tail: twentyFive },
+    },
+  },
+  {
     name: "Antigravity",
     profile: agy,
     versions: ["1.2.14", "1.3.1"],
@@ -126,7 +150,10 @@ describe.each(harnesses)("the input box of $name", ({ name, profile, versions, s
       else {
         expect(isEmpty(read!)).toBe(false)
         expect(profile.collapsed(read!)).toBe(false)
-        expect(sameText(read!.text, expected.text)).toBe(true)
+        if ("tail" in expected) {
+          expect(sameText(read!.text, expected.tail)).toBe(false)
+          expect(showsTail(profile, read!, shown[state]!.rows.length, expected.tail)).toBe(true)
+        } else expect(sameText(read!.text, expected.text)).toBe(true)
       }
     })
 
@@ -158,6 +185,37 @@ describe.each(harnesses)("the input box of $name", ({ name, profile, versions, s
       const noCursor = { ...text, cursor: { row: 2, column: 4 } }
       expect(profile.read(noCursor)).toBe(undefined)
     })
+  })
+})
+
+describe("Codex 0.163.0's box for a text taller than it", () => {
+  const shown = fixture("codex").versions["0.163.0"]!
+  const tall = Array.from({ length: 40 }, (_, index) => `Tall line ${index + 1}`).join("\n")
+
+  it.each([24, 30, 40, 50])(
+    "is its viewport's height on a screen of %i rows, and shows the tail",
+    (rows) => {
+      const screen = shown[`tall 40 lines at ${rows} rows`]!
+      expect(screen.rows.length).toBe(rows)
+      const read = codex.read(screen)!
+      expect(read.last - read.first + 1).toBe(codex.viewport!(rows))
+      // Its first row's `↑`, drawn dim, is not taken for text.
+      expect(read.text.split("\n")[0]!.trim()).toMatch(/^Tall line \d+$/)
+      expect(showsTail(codex, read, rows, tall)).toBe(true)
+      expect(sameText(read.text, tall)).toBe(false)
+    },
+  )
+
+  it("never shows the tail of a text that ends otherwise", () => {
+    const read = codex.read(shown["tall 40 lines at 40 rows"]!)!
+    expect(showsTail(codex, read, 40, `${tall}\nOne more line`)).toBe(false)
+  })
+
+  // The head is off the screen, so a text that ends alike but starts otherwise reads as
+  // shown too: the paste check relies on the box being empty before the paste.
+  it("can't tell a text by its head, which the box doesn't show", () => {
+    const read = codex.read(shown["tall 40 lines at 40 rows"]!)!
+    expect(showsTail(codex, read, 40, tall.replace("Tall line 1\n", "Another head\n"))).toBe(true)
   })
 })
 
@@ -508,7 +566,7 @@ describe("a view drawn beside an empty box", () => {
       codex.overlay(shown("› Ask Codex to do anything", "  fake-model default", "  ? / esc close")),
     ).toBe(true)
     // A /side conversation's box is no root's, whichever way the keys are spelled.
-    for (const keys of ["ctrl+", "^"])
+    for (const keys of ["ctrl+", "^", "⌃"])
       expect(
         codex.overlay(
           shown(

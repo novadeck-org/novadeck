@@ -345,7 +345,14 @@ for (const setup of setups) {
         own(async (call) => {
           if (!asked(call, "Start the long job")) return undefined
           await held.opened
-          return { text: "Long job done." }
+          // A harness that steers can give the running turn's call the prompt given mid-turn
+          // too, as Codex 0.163 does at once: its one reply answers both.
+          return {
+            text:
+              setup.steers && asked(call, "Then sum it up")
+                ? "Long job done. Summed up."
+                : "Long job done.",
+          }
         }),
         replies("Then sum it up", "Summed up."),
       )

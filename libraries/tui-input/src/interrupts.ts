@@ -2,7 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 
-import { endsText, isEmpty, sameText, type BoxProfile, type InputBox } from "./box.js"
+import { isEmpty, sameText, showsTail, type BoxProfile, type InputBox } from "./box.js"
 import { BoxNotCleared } from "./errors.js"
 
 /** The waits of an interrupt, in milliseconds. */
@@ -59,9 +59,6 @@ export type InterruptHost = {
  * clearing the box returned to the caller; undefined where there were none.
  */
 export type InterruptOutcome = { readonly returned: string | undefined }
-
-/** The fewest rows a profile's viewport can be and say a box is full by its height. */
-const minViewport = 2
 
 /**
  * Stops programs' turns as a user's Escape does, and leaves their boxes as they were. The
@@ -152,13 +149,10 @@ export class Interrupts {
     // long (probed 2026-10-07); a prompt taller than its box shows only its tail, the box
     // then as tall as it gets.
     const rows = first?.rows.length ?? 0
-    const viewport = profile.viewport?.(rows) ?? Infinity
-    // A viewport of one row is every box's: on a screen too small to know it, none is full.
-    const full = viewport >= minViewport && box.last - box.first + 1 >= viewport
     const restored =
       !queued &&
       prompt !== undefined &&
-      (sameText(box.text, prompt) || (full && endsText(box.text, prompt)))
+      (sameText(box.text, prompt) || showsTail(profile, box, rows, prompt))
     // Words given back in the box's shell mode are a shell command, `!` and all.
     const words = box.mode === "shell" ? `!${box.text.trim()}` : box.text.trim()
     // A placeholder stands for words that clearing would lose: they are left, and said.
