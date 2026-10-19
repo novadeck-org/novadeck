@@ -1,0 +1,9 @@
+# interrupt
+user: <text>
+tools: tool [other] | Call: empty → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# deny
+user: <text>
+tools: tool [other] | Call: empty → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
