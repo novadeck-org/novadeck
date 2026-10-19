@@ -1,9 +1,9 @@
 import type { Refusal } from "@novadeck/core/addon"
 import { MURMUR_NAME, type Murmur, type MurmurState } from "@novadeck/core/murmur"
+import { Progress } from "@novadeck/toolkit/Progress"
+import { ProgressRing } from "@novadeck/toolkit/ProgressRing"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
-import { Progress } from "../ui-toolkit/Progress"
-import { ProgressRing } from "../ui-toolkit/ProgressRing"
 import {
   doneForMs,
   footerPhase,

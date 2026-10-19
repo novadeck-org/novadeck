@@ -115,7 +115,7 @@
 :where(.terminal-actions) {
   @apply gap-1;
 }
-/* A terminal's handle (ui-toolkit/HandleChip.tsx), in the quiet metadata voice on a soft
+/* A terminal's handle (frontend/toolkit/src/HandleChip.tsx), in the quiet metadata voice on a soft
    chip tinted from its own ink, so it follows every skin and window ground. It never wraps
    or shrinks: names truncate before it does. */
 .handle-chip {

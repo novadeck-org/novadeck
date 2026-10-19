@@ -1,6 +1,6 @@
 import { useId, type CSSProperties } from "react"
 
-import { cn } from "../class-name"
+import { cn } from "./class-name"
 
 // The Nova mark: four chevrons, < > ^ v, firing outward from a block cursor. It is a
 // shape, not a style: the chevrons take the mark colour and the cursor the core colour,

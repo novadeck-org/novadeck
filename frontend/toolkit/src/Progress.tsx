@@ -1,6 +1,6 @@
 import { Progress as ArkProgress } from "@ark-ui/react/progress"
 
-import { cn } from "../class-name"
+import { cn } from "./class-name"
 
 // A bar for work of a known size: `value` of `max`, or, with a `null` value, for work that
 // has no size to tell, a short segment sliding along it. The label names it for assistive

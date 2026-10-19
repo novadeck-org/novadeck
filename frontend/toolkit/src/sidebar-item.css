@@ -1,0 +1,29 @@
+/* The sidebar item's own looks (SidebarItem.tsx; the item recipe draws the rest): a row is a
+   `.sidebar-item` holding a `.sidebar-item-select` button with a `.sidebar-item-icon`.
+   Imported just before sidebar.css, whose rules it was part of, so the cascade holds. What a
+   context adds to an item (the terminal tabs, the team wire) stays with that context.
+
+   Hooks: the item recipe's, and the `.dragging` class while a row is dragged;
+   `:focus-within` tints a row as hovering does.
+
+   Tokens, each optional (its fallback in brackets): --item-hover-bg (soft), the
+   --item-selected-* tokens (paper, line, the control shadow; also while dragged) and
+   --item-icon-fg (muted). */
+.sidebar-item:focus-within {
+  --_bg: var(--item-hover-bg, var(--color-soft));
+}
+.sidebar-item.dragging {
+  --_bg: var(--item-selected-bg, var(--color-paper));
+  --_border-color: var(--item-selected-border-color, var(--color-line));
+  --_shadow: var(--item-selected-shadow, var(--shadow-control));
+}
+.sidebar-item-select {
+  border-radius: inherit;
+  color: inherit;
+}
+.sidebar-item-select:focus-visible {
+  outline-offset: -2px;
+}
+.sidebar-item-icon {
+  color: var(--item-icon-fg, var(--color-muted));
+}

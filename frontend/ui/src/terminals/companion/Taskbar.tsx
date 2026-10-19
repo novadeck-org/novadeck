@@ -1,9 +1,9 @@
 import { DragDropProvider } from "@dnd-kit/react"
 import { useSortable } from "@dnd-kit/react/sortable"
+import { Portal } from "@novadeck/toolkit/Portal"
+import type { Presence } from "@novadeck/toolkit/presence"
 import { useRef, useState, type ReactNode } from "react"
 
-import { Portal } from "../../ui-toolkit/Portal"
-import type { Presence } from "../../ui-toolkit/presence"
 import type { BarDrag } from "../drag-session"
 import type { BarSlot } from "./bar"
 import { TaskbarSlot, type SlotActions } from "./TaskbarSlot"
