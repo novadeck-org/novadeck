@@ -1,6 +1,11 @@
 import type { ActivityEvent, Background, HarnessEvent } from "@novadeck/harness-core/events"
 import { hookShellSlackMs, silentFor, type MessagingProfile } from "@novadeck/harness-core/harness"
-import type { AgentName, MessageThread, TerminalMessages } from "@novadeck/protocol"
+import {
+  longHoldMs,
+  type AgentName,
+  type MessageThread,
+  type TerminalMessages,
+} from "@novadeck/protocol"
 import type { KeyKind } from "@novadeck/tui-input"
 import { z } from "zod"
 
@@ -25,6 +30,7 @@ import {
   type DeliveryEvent,
   queueBarLeft,
   type Waits,
+  waitReasons,
   waitsIn,
 } from "./delivery.js"
 import { Leases, type Lease } from "./leases.js"
@@ -32,6 +38,7 @@ import {
   allowSend,
   byteLength,
   cleanText,
+  clock,
   deliveryOf,
   duplicateOf,
   freshId,
@@ -109,6 +116,14 @@ type Live = Scope & {
   keyedAt: number
   /** Why the doorbell last found the idle agent unringable, from its screen; null if not. */
   waits: Waits | null
+  /** Since when `waits` has said why, without a break, whatever it said; null with none. */
+  waitsSince: number | null
+  /**
+   * The nonces of its latest rings that no doorbell prompt confirmed, oldest first: a line
+   * of one left alone in its box is Novadeck's to submit. A confirmed one's line in the box
+   * is the person's: put back by their Escape, or recalled from the prompt's history.
+   */
+  unconfirmed: readonly string[]
   /** Whether it is Ready because its screen showed the box empty, not a session's start. */
   viaScreen: boolean
 }
@@ -131,6 +146,8 @@ export type SendAnswer =
         /** The person stopped the thread it was in. */
         readonly stopped?: true
       }[]
+      /** Its messages held long behind what keeps their recipient from them, told once each hold. */
+      readonly holds?: readonly string[]
       /** This terminal's own session never bound, so replies can't reach it. */
       readonly unbound?: true
     }
@@ -194,6 +211,27 @@ export type MessagingChange =
 export const stillWaiting =
   "Novadeck: agent messages are still waiting for this session; they will come on a later turn, and this automatic notice can be ignored."
 
+/** Message ids as a notice names them: the first few, then how many more. */
+const named = (ids: readonly string[]): string =>
+  ids.length <= 4 ? ids.join(", ") : `${ids.slice(0, 3).join(", ")} and ${ids.length - 3} more`
+
+/**
+ * What a sender is told of its messages held long behind what keeps their recipient's
+ * doorbell from it (`waits`, since `since`), in its next answer or hook.
+ */
+export const holdNotice = (
+  ids: readonly string[],
+  to: string,
+  waits: Waits,
+  since: number,
+): string =>
+  `Novadeck: your ${ids.length === 1 ? "message" : "messages"} ${named(ids)} to ${mention(to)} ` +
+  `${ids.length === 1 ? "has" : "have"} not arrived since ${clock(since)} ` +
+  `(${waitReasons[waits]}); the user is shown this in Novadeck's Inbox.`
+
+/** How many of a terminal's latest unconfirmed rings it remembers (`Live.unconfirmed`). */
+const maxUnconfirmed = 8
+
 /** What a doorbell prompt's hook adds when nothing waits for it any more. */
 export const nothingWaiting =
   "Novadeck: no agent messages are waiting any more; this automatic notice can be ignored."
@@ -249,6 +287,10 @@ const isFromLead = (message: Message): boolean => message.fromLead
 const joined = (kept: string | undefined, text: string): string =>
   kept ? `${kept}\n${text}` : text
 
+/** A hook's delivery with the sender's hold notices after it, if any; empty with neither. */
+const noted = (text: string | undefined, holds: readonly string[]): string =>
+  [...(text ? [text] : []), ...holds].join("\n")
+
 /** When a thread's latest message was sent. */
 const latest = (thread: MessageThread): number => thread.messages.at(-1)?.sentAt ?? 0
 
@@ -285,6 +327,8 @@ export class Messaging {
   private readonly listeners = new Set<(change: MessagingChange) => void>()
   private readonly live = new Map<string, Live>()
   private readonly messages = new Map<string, Message>()
+  /** Each queued message whose sender was told of its hold, by when that hold began. */
+  private readonly holdsTold = new Map<string, number>()
   private readonly responses = new Map<string, string>()
   private readonly threads = new Map<string, Thread>()
   private readonly leases: Leases
@@ -361,6 +405,8 @@ export class Messaging {
       prompt: null,
       keyedAt: 0,
       waits: null,
+      waitsSince: null,
+      unconfirmed: [],
       viaScreen: false,
     })
   }
@@ -503,6 +549,7 @@ export class Messaging {
     this.records.removeMessages(messages.map((message) => message.id))
     for (const message of messages) {
       this.messages.delete(message.id)
+      this.holdsTold.delete(message.id)
       this.responses.delete(message.response!.askId)
       this.changed(message.to.terminalId)
     }
@@ -713,9 +760,11 @@ export class Messaging {
     const kept = profile.reinjectPerCall
       ? this.leases.recall(live.terminalId, live.delivery.epoch)
       : undefined
-    const again = kept === undefined ? undefined : profile.prompt(kept)
+    // What this terminal sent that waits long goes with whatever the hook prints, once.
+    const holds = time ? this.heldFrom(live.terminalId) : []
+    const again = kept === undefined ? undefined : profile.prompt(noted(kept, holds))
     if (start.cause === "call") {
-      const print = (text: string) => profile.prompt(joined(kept, text))
+      const print = (text: string) => profile.prompt(noted(joined(kept, text), holds))
       const added =
         time && running(live.delivery)
           ? this.lease(live, root, {
@@ -726,18 +775,21 @@ export class Messaging {
             })
           : undefined
       if (added) return { leaseId: added.id, stdout: print(added.text) }
-      return again ? { leaseId: null, stdout: again } : silent
+      const rest = noted(kept, holds)
+      return rest ? { leaseId: null, stdout: profile.prompt(rest) } : silent
     }
+    const print = (text: string) => profile.prompt(noted(text, holds))
     const lease =
       time &&
       this.lease(live, root, {
         kind: "prompt",
-        print: profile.prompt,
+        print,
         ...(profile.reinjectPerCall && { keeps: (text: string) => text }),
       })
-    if (lease) return { leaseId: lease.id, stdout: profile.prompt(lease.text) }
+    if (lease) return { leaseId: lease.id, stdout: print(lease.text) }
     if (again) return { leaseId: null, stdout: again }
-    if (start.cause !== "doorbell") return silent
+    if (start.cause !== "doorbell")
+      return holds.length > 0 ? { leaseId: null, stdout: print("") } : silent
     // A doorbell whose messages couldn't be leased now, as too late or while paused, says
     // they still wait; one with none left, as when they went another way, that none do.
     const waits = [...this.messages.values()].some(
@@ -746,7 +798,7 @@ export class Messaging {
         undelivered(message) &&
         this.addressed(message, root),
     )
-    return { leaseId: null, stdout: profile.prompt(waits ? stillWaiting : nothingWaiting) }
+    return { leaseId: null, stdout: print(waits ? stillWaiting : nothingWaiting) }
   }
 
   /**
@@ -765,9 +817,12 @@ export class Messaging {
         rootedIn(root, each),
     )
     if (!call || !called || !time || !running(live.delivery)) return silent
-    const print = (text: string) => call(text, event)
+    // What this terminal sent that waits long goes beside the result too, once.
+    const holds = this.heldFrom(live.terminalId)
+    const print = (text: string) => call(noted(text, holds), event)
     const lease = this.lease(live, root, { kind: "midturn", print, only: isFromLead })
-    return lease ? { leaseId: lease.id, stdout: print(lease.text) } : silent
+    if (lease) return { leaseId: lease.id, stdout: print(lease.text) }
+    return holds.length > 0 ? { leaseId: null, stdout: print("") } : silent
   }
 
   /**
@@ -835,8 +890,65 @@ export class Messaging {
   blocked(terminalId: string, waits: Waits | null): void {
     const live = this.live.get(terminalId)
     if (!live || live.waits === waits) return
-    live.waits = waits
+    this.waits(live, waits)
     this.changed(terminalId)
+  }
+
+  /** Says why the doorbell can't ring, keeping since when it can't through a change of why. */
+  private waits(live: Live, waits: Waits | null): void {
+    live.waits = waits
+    live.waitsSince = waits === null ? null : (live.waitsSince ?? this.now())
+  }
+
+  /** Since when the messages for the terminal have been held, the longest; null if none is. */
+  private oldestHeld(live: Live): number | null {
+    let oldest: number | null = null
+    for (const message of this.messages.values()) {
+      if (message.to.terminalId !== live.terminalId) continue
+      const since = this.heldSince(live, message)
+      if (since !== undefined && (oldest === null || since < oldest)) oldest = since
+    }
+    return oldest
+  }
+
+  /** Why the doorbell can't ring the terminal's idle agent, as its listing says; null if not. */
+  private waitsOf(live: Live): Waits | null {
+    return waitsIn(live.delivery) || ringableSince(live.delivery) !== undefined ? live.waits : null
+  }
+
+  /**
+   * Since when a message for the terminal has been held behind what keeps its doorbell from
+   * it: the later of its sending and the hold's start; undefined while nothing holds it.
+   */
+  private heldSince(live: Live, message: Message): number | undefined {
+    return this.waitsOf(live) && live.waitsSince !== null && message.state === "queued"
+      ? Math.max(live.waitsSince, message.sentAt)
+      : undefined
+  }
+
+  /**
+   * The caller's messages held at least `longHoldMs` behind what keeps their recipient's
+   * doorbell from it, as words: told now, once for each hold.
+   */
+  heldFrom(terminalId: string): readonly string[] {
+    const now = this.now()
+    const held = new Map<string, { live: Live; waits: Waits; since: number; ids: string[] }>()
+    for (const message of this.messages.values()) {
+      if (message.from.terminalId !== terminalId) continue
+      const to = this.live.get(message.to.terminalId)
+      const since = to && this.heldSince(to, message)
+      const waits = to && this.waitsOf(to)
+      if (!to || !waits || since === undefined || now - since < longHoldMs) continue
+      if (this.holdsTold.get(message.id) === since) continue
+      this.holdsTold.set(message.id, since)
+      const each = held.get(to.terminalId) ?? { live: to, waits, since, ids: [] }
+      each.since = Math.min(each.since, since)
+      each.ids.push(message.id)
+      held.set(to.terminalId, each)
+    }
+    return [...held.values()].map(({ live, waits, since, ids }) =>
+      holdNotice(ids, live.handle, waits, since),
+    )
   }
 
   /** No request waits on the person any more: what they typed meanwhile counts now. */
@@ -937,24 +1049,26 @@ export class Messaging {
     const live = this.live.get(terminalId)
     if (!live || !this.ringable(terminalId)) return false
     this.step(live, { type: "ring", nonce, opening: !live.root })
-    return live.delivery.state === "ringing"
+    if (live.delivery.state !== "ringing") return false
+    live.unconfirmed = [...live.unconfirmed.filter((each) => each !== nonce), nonce].slice(
+      -maxUnconfirmed,
+    )
+    return true
+  }
+
+  /** Whether `nonce` is one of the terminal's rings that no doorbell prompt confirmed. */
+  unconfirmed(terminalId: string, nonce: string): boolean {
+    return this.live.get(terminalId)?.unconfirmed.includes(nonce) === true
   }
 
   /**
-   * Whether the doorbell's own line, left in the box by a ring that failed, is all the
-   * terminal's box may hold: the person typed nothing since (`Box.ours`).
-   */
-  ours(terminalId: string): boolean {
-    return this.live.get(terminalId)?.delivery.box.ours === true
-  }
-
-  /**
-   * The doorbell submits the line a failed ring left in the box, rung again under that
-   * line's own `nonce`: the terminal is Ringing; false when it may not now.
+   * The doorbell submits the doorbell line its screen shows alone in the box, as a ring that
+   * failed or was abandoned left it, rung again under that line's own `nonce`: the terminal
+   * is Ringing; false when it may not now.
    */
   ringLeftover(terminalId: string, nonce: string): boolean {
     const live = this.live.get(terminalId)
-    if (!live || !this.stalled(terminalId)) return false
+    if (!live || !this.stalled(terminalId) || !live.unconfirmed.includes(nonce)) return false
     this.step(live, { type: "ring", nonce, opening: !live.root, leftover: true })
     return live.delivery.state === "ringing"
   }
@@ -966,9 +1080,9 @@ export class Messaging {
   }
 
   /** The ring with that nonce failed: the terminal is Unknown, and its messages wait. */
-  ringFailed(terminalId: string, nonce: string, ours = false): void {
+  ringFailed(terminalId: string, nonce: string): void {
     const live = this.live.get(terminalId)
-    if (live) this.step(live, { type: "ring-failed", nonce, ...(ours && { ours: true as const }) })
+    if (live) this.step(live, { type: "ring-failed", nonce })
   }
 
   /**
@@ -1263,7 +1377,9 @@ export class Messaging {
       unbound: live.root === null,
       now: this.now(),
     })
-    return { ok: true, text }
+    // As every answer to the caller does, it tells of its messages held long, once.
+    const holds = this.heldFrom(terminalId)
+    return { ok: true, text: [text, ...holds].join("\n") }
   }
 
   /**
@@ -1316,10 +1432,8 @@ export class Messaging {
       terminalId,
       handle,
       delivery: live?.delivery.state ?? "unbound",
-      waits:
-        live && (waitsIn(live.delivery) || ringableSince(live.delivery) !== undefined)
-          ? live.waits
-          : null,
+      waits: live ? this.waitsOf(live) : null,
+      waitsSince: live ? this.oldestHeld(live) : null,
       paused: this.paused,
       threads: threads.toSorted((a, b) => latest(b) - latest(a)).slice(0, 1000),
     }
@@ -1401,6 +1515,7 @@ export class Messaging {
     for (const [id, message] of this.messages)
       if (message.projectId === projectId) {
         this.messages.delete(id)
+        this.holdsTold.delete(id)
         if (message.response) this.responses.delete(message.response.askId)
       }
     for (const [id, thread] of this.threads)
@@ -1422,6 +1537,7 @@ export class Messaging {
     )
     for (const { id, response } of old) {
       this.messages.delete(id)
+      this.holdsTold.delete(id)
       if (response) this.responses.delete(response.askId)
     }
     if (old.length > 0) this.write(() => this.records.removeMessages(old.map(({ id }) => id)))
@@ -1502,11 +1618,16 @@ export class Messaging {
     }
   }
 
-  /** What every answer to the sender adds: its messages newly gone, and whether replies reach it. */
+  /**
+   * What every answer to the sender adds: its messages newly gone, or held long, and whether
+   * replies reach it.
+   */
   private extras(live: Live) {
     const gone = this.goneFrom(live.terminalId)
+    const holds = this.heldFrom(live.terminalId)
     return {
       ...(gone.length > 0 && { gone }),
+      ...(holds.length > 0 && { holds }),
       ...(this.unbound(live) && { unbound: true as const }),
     }
   }
@@ -1772,6 +1893,10 @@ export class Messaging {
 
   private step(live: Live, event: DeliveryEvent): void {
     const before = live.delivery
+    // A doorbell prompt submitted its line: one in the box again is the person's.
+    const confirmed = event.type === "prompt" && event.by === "doorbell" ? event.nonce : undefined
+    if (confirmed !== undefined)
+      live.unconfirmed = live.unconfirmed.filter((each) => each !== confirmed)
     live.delivery = transition(before, event, this.slackMs)
     if (live.delivery === before) return
     const { state } = live.delivery
@@ -1782,7 +1907,7 @@ export class Messaging {
         live.delivery.epoch === before.epoch)
     // The doorbell's last word on why it can't ring is about an idle agent only.
     if (state === "working" || state === "ringing" || state === "unbound" || live.viaScreen)
-      live.waits = null
+      this.waits(live, null)
     // A turn that ended, or a new one, leaves the last one's delivery behind.
     if ((running(before) && !running(live.delivery)) || live.delivery.epoch !== before.epoch)
       this.leases.forget(live.terminalId)
@@ -1804,6 +1929,7 @@ export class Messaging {
   private put(message: Message): void {
     if (this.closed) return
     this.messages.set(message.id, message)
+    if (message.state !== "queued") this.holdsTold.delete(message.id)
     if (message.response) this.responses.set(message.response.askId, message.id)
     this.write(() => this.records.saveMessage(message))
     this.changed(message.to.terminalId)

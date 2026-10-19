@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import type { ScreenText } from "@novadeck/emulator/headless"
 import { screen } from "@novadeck/harness-core/testing/screens"
+import type { AgentName } from "@novadeck/protocol"
 import { createTypist } from "@novadeck/tui-input"
 
 import type { Binding } from "../harnesses/bindings.js"
@@ -9,7 +12,7 @@ import type { Messaging } from "../messaging/messaging.js"
 import { describe, expect, it } from "../test.js"
 import { doorbellHost, profileOf, typingTarget, type RingRecord } from "./ringing.js"
 
-const bound = (agent: "claude" | "codex", instance?: string) =>
+const bound = (agent: AgentName, instance?: string) =>
   ({ agent, ...(instance && { instance }) }) as unknown as Binding
 
 /** A running terminal as the manager keeps it, as far as the doorbell reads it. */
@@ -195,5 +198,80 @@ describe("the doorbell's host", () => {
     expect(await typist.ready(look)).toBe("no-input-box")
     state.shown = "claude"
     expect(rings.profile("t")).toBe(harnesses.claude.box)
+  })
+})
+
+// Each harness's screen after the doorbell's line was pasted into its box, as probed in a
+// PTY (the paste check's fixtures in @novadeck/tui-input): `a` Claude Code 2.1.286, `b`
+// Codex 0.159.3, `c` Antigravity 1.2.14. A recording keeps the rows' text only; the cursor
+// is put at the end of the line, where the paste left it.
+type Recorded = { readonly height: number; readonly rows: { readonly [row: string]: string } }
+type Pair = {
+  readonly name: string
+  readonly expected: "accept" | "reject" | "draft"
+  readonly after: Recorded & { readonly columns: number }
+}
+const pasted = (recording: string): readonly Pair[] =>
+  (
+    JSON.parse(
+      readFileSync(
+        new URL(
+          `../../../../libraries/tui-input/src/fixtures/paste-${recording}.json`,
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as { readonly pairs: readonly Pair[] }
+  ).pairs
+
+const drawn = ({ height, columns, rows }: Pair["after"]): ScreenText => {
+  const all = Array.from({ length: height }, (_, row) => rows[row] ?? "")
+  const last = all.findLastIndex((row) => row.includes("n7Q2"))
+  const row = last === -1 ? all.findLastIndex((each) => each.trim() !== "") : last
+  return screen({ rows: all, columns, cursor: { row, column: all[row]!.trimEnd().length } })
+}
+
+describe.each([
+  { agent: "claude", recording: "a" },
+  { agent: "codex", recording: "b" },
+  { agent: "agy", recording: "c" },
+] as const)("Novadeck's own line left in $agent's box", ({ agent, recording }) => {
+  // The ring that pasted n7Q2 never confirmed, unless a test says it did.
+  let confirmed = false
+  const { host } = world(record(bound(agent, "10")).running)
+  const rings = doorbellHost({
+    ...host,
+    messaging: {
+      ...host.messaging,
+      unconfirmed: (_: string, nonce: string) => nonce === "n7Q2" && !confirmed,
+    } as unknown as Messaging,
+  })
+  const pairs = pasted(recording)
+  const alone = pairs.find((pair) => pair.expected === "accept")!
+
+  it.each(pairs.filter((pair) => pair.expected === "accept").map((pair) => [pair.name, pair]))(
+    "is told by its nonce, however the ring left it: %s",
+    (_, pair) => {
+      const shown = drawn(pair.after)
+      // The box reads as text, which held messages behind it as the person's draft.
+      expect(rings.reading("t", shown)).toBe("draft")
+      expect(rings.leftover("t", shown)).toBe("n7Q2")
+    },
+  )
+
+  it.each(pairs.filter((pair) => pair.expected !== "accept").map((pair) => [pair.name, pair]))(
+    "is not taken from a draft, a menu or a picker: %s",
+    (_, pair) => {
+      expect(rings.leftover("t", drawn(pair.after))).toBeUndefined()
+    },
+  )
+
+  it("is the person's once its ring was confirmed: put back by Escape, or recalled", () => {
+    confirmed = true
+    try {
+      expect(rings.leftover("t", drawn(alone.after))).toBeUndefined()
+    } finally {
+      confirmed = false
+    }
   })
 })

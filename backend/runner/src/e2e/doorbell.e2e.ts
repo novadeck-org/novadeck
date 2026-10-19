@@ -60,7 +60,7 @@ const states = (terminal: DeckTerminal, after = 0) =>
 type Internals = {
   readonly messaging: {
     ring(terminalId: string, nonce: string): boolean
-    ringFailed(terminalId: string, nonce: string, ours?: boolean): void
+    ringFailed(terminalId: string, nonce: string): void
   }
   live(terminalId: string): {
     readonly terminal: {
@@ -84,8 +84,9 @@ const tick = (run: E2E, terminal: DeckTerminal): (() => void) => {
 }
 
 /**
- * Leaves the terminal as a ring whose Enter was lost leaves it: Novadeck's doorbell line
- * in the agent's box, the ring failed, the terminal Unknown. Called with a message
+ * Leaves the terminal as a ring whose Enter was lost, or whose paste check rejected the
+ * line, leaves it: Novadeck's doorbell line in the agent's box, the ring failed, the
+ * terminal Unknown. Called with a message
  * waiting and the terminal still inside its settle window, so the doorbell hasn't rung.
  */
 const lost = (run: E2E, terminal: DeckTerminal, nonce: string): void => {
@@ -94,8 +95,8 @@ const lost = (run: E2E, terminal: DeckTerminal, nonce: string): void => {
   internals(run)
     .live(terminal.id)
     .terminal.pty.write(`\x1b[200~${doorbellLine(nonce)}\x1b[201~`)
-  // The paste check had accepted the line: it is alone in the box, Novadeck's own.
-  messaging.ringFailed(terminal.id, nonce, true)
+  // Whatever the paste check said, the screen shows the line alone: Novadeck's own.
+  messaging.ringFailed(terminal.id, nonce)
 }
 
 /** t2 sends t1 one message and waits until t1 holds it queued. */

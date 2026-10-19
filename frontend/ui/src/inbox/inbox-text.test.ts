@@ -122,6 +122,20 @@ describe("An item's subject", () => {
     }
     expect(subjectOf(item)).toBe("Hit Claude's 5-hour limit")
   })
+
+  it("counts the messages a hold keeps from the agent, and says what holds them", () => {
+    const held = (count: number, waits: "draft" | "dialog"): InboxItem => ({
+      ...base,
+      kind: "trouble",
+      trouble: { type: "waits", waits, count },
+    })
+    expect(subjectOf(held(3, "draft"))).toBe(
+      `3 messages for @${base.source.handle} wait behind text in its box`,
+    )
+    expect(subjectOf(held(1, "dialog"))).toBe(
+      `1 message for @${base.source.handle} waits behind a dialog or picker in its terminal`,
+    )
+  })
 })
 
 describe("A sheet's label", () => {

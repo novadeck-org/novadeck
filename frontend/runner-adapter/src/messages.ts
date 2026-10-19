@@ -29,6 +29,7 @@ export const mailOf = (listing: TerminalMessages): TerminalMail => ({
   handle: listing.handle,
   agent: listing.delivery !== "unbound",
   waits: listing.waits,
+  waitsSince: listing.waitsSince,
   threads: listing.threads.map((thread) => ({
     id: thread.id,
     peer: thread.peer,

@@ -882,14 +882,25 @@ session's start earns. The paste check lets the history above the box lose one l
 way Codex's Tip goes, only when at most one line of text is under it and the rows below
 moved up (a list that lost an item has more of its items below).
 
-**The line a failed ring left.** The ring's own line, left in the box by a ring whose
-Enter was lost or whose confirmation never came, with its paste check having accepted the line (a ring it rejected leaves a line nobody submits, as it may be in a widget), is Novadeck's, not the person's draft:
-when the box shows exactly one doorbell line and nothing else, and the person pressed no
-key since that ring failed (`Box.ours`; any key of theirs, and any turn, ends it), the
-doorbell submits it with Enter alone under the same gate as a ring, pasting nothing
-(the terminal is Ringing under that line's own nonce, which its doorbell prompt
-confirms). A line with anything beside it, or after a key of the person's, stays their
-draft and is never touched.
+**The line a ring left.** A doorbell line that is all the agent's own box holds, as its
+harness's box reader reads it (the prompt, no overlay over it, no prompt queued, wrapped
+anywhere), whose nonce is one of the terminal's last rings that no doorbell prompt
+confirmed, is Novadeck's, never the person's draft, however that ring ended: its Enter lost,
+its confirmation never come, its paste check rejecting it (the line landed but the screen
+changed elsewhere), or the ring abandoned mid-way (a turn the harness started took over,
+and its Stop left the box Drafting). A confirmed ring's line back in the box is the
+person's: their Escape put it back (Claude Code returns an interrupted prompt to its box),
+or they recalled it from the prompt's history. No person types an unconfirmed ring's line,
+so no key of theirs makes it theirs: from Fresh, Drafting or Unknown, idle with messages
+waiting, the doorbell submits
+it with Enter alone under the same gate as a ring, after the same wait a failed ring earns,
+pasting nothing (the terminal is Ringing under that line's own nonce, which its doorbell
+prompt confirms; three that fail stop it as rings do). A line with anything beside it (the
+person's text, a picker's `@` or `/`) is their draft and is never touched; a menu or an
+approval that swallowed the paste shows no box holding it. Before 2026-10-19 only a ring
+whose paste check had accepted the line, with no key of the person's since, left it
+Novadeck's (`Box.ours`): a rejected or abandoned ring's line held messages for hours
+behind it (#287).
 
 Transitions:
 
@@ -1195,12 +1206,14 @@ text in `record.terminal.screen` (`@xterm/headless`), with its paste mode. The r
    request asked after the Enter, before the confirmation, fails the ring too: the Enter
    may have answered its dialog.
 
-A ring that fails presses no further key, ever, and leaves the terminal Unknown; the
+A ring that fails presses no further key, but for the Enter that submits its own line
+found alone in the box later ("The line a ring left"), and leaves the terminal Unknown; the
 messages wait, the person sees them as undelivered, and the terminal is rung again once
 its screen is calm with the box empty (above), after a longer wait each time.
 A ring that fails or is abandoned, as when a turn starts mid-ring, may have left its
-line in the box, so the prompt counts as a draft until the person next submits or, if the line is all the
-box holds and they typed nothing since, Novadeck submits it itself (below). A
+line in the box, so the prompt counts as a draft until the person next submits or, if the
+screen shows the line is all the box holds, Novadeck submits it itself ("The line a ring
+left", above). A
 doorbell prompt whose messages can't be leased now (the hook's deadline is too near, or
 messaging is paused) is told they still wait and will come on a later turn; only one
 with nothing left waiting is told so.
@@ -1687,6 +1700,19 @@ the box.
   question, so they wait. They arrive once you answer." The demo shows the third on its
   Codex waiting for permission, and its debug panel's Doorbell group (Agents) puts the
   selected agent in each state.
+- **A long hold.** A message is held from the later of its sending and the start of an
+  unbroken hold of the doorbell, whatever `waits` said meanwhile; the listing says since
+  when its longest-held message has been (`waitsSince`). Once that is `longHoldMs` (3
+  minutes) ago with messages still waiting for it (none held for release or a pause), the
+  Inbox shows the terminal's trouble item, "N messages for @kite wait
+  behind text in its box", its words for what holds them taken from `waits`, with the
+  Messages pane's sentence and **Show terminal**; a request or an `ask` of that agent's
+  comes first, a finished turn after. Each sender learns of each of its messages held that
+  long, once per hold, in whatever Novadeck answers it next, without
+  asking: its next `send` or `agents` answer, or the context its next prompt-time or
+  tool-call hook prints ("your message m-1 to @kite has not arrived since 11:41 (waits:
+  there's text in its box, rung once it is empty); the user is shown this in Novadeck's
+  Inbox."). A Stop hook never carries it alone, as printing would continue the turn.
 
 Naming adds to it: every terminal summary says who its title is from
 (`titleSource`), `terminals.resetTitle` hands a title back to Novadeck, and

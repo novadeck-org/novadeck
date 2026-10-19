@@ -86,6 +86,8 @@ type Sent = {
   readonly route?: string
   readonly held?: string
   readonly gone?: readonly Gone[]
+  // The runner's words on the caller's messages held long behind their recipient's hold.
+  readonly holds?: readonly string[]
   readonly unbound?: boolean
 }
 
@@ -472,6 +474,7 @@ const send: Tool<Sent> = {
     ]
     for (const gone of answer.gone ?? [])
       lines.push("Your earlier message " + gone.id + " to " + mention(gone.to) + wontArrive(gone))
+    lines.push(...(answer.holds ?? []))
     if (answer.unbound) lines.push(unboundNote)
     lines.push("End your turn rather than wait for a reply; replies arrive by themselves.")
     return lines.join("\n")

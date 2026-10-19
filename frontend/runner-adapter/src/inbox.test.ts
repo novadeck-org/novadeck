@@ -5,11 +5,12 @@ import {
   type AgentMessage,
   type MailState,
   type MessageThread,
+  type TerminalMail,
 } from "@novadeck/core/messages"
 import { createTerminalState } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import type { AgentStatus, AgentTurnEnd, TerminalMetadata, Workspace } from "@novadeck/core/types"
-import type { AgentDetail, InboxLetter } from "@novadeck/protocol"
+import { longHoldMs, type AgentDetail, type InboxLetter } from "@novadeck/protocol"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import {
@@ -437,6 +438,114 @@ describe("The Inbox's items", () => {
     })
   })
 
+  describe("messages held long behind what keeps the doorbell from an idle agent", () => {
+    // Codex in fox is idle with moth's messages for it, its box holding text since 1 000.
+    const pair = workspaceOf(
+      agentTerminal(1, { working: false }),
+      agentTerminal(2, { working: false }, "codex"),
+    )
+    const waiting = (change: Partial<AgentMessage> = {}) =>
+      message({ state: "queued", held: null, ...change })
+    const heldFor = (
+      messages: readonly AgentMessage[],
+      waits: TerminalMail["waits"] = "draft",
+    ): MailState => ({
+      ...noMail,
+      terminals: {
+        "p/s/02": {
+          handle: "fox",
+          agent: true,
+          waits,
+          waitsSince: 1_000,
+          threads: [thread({ peer: "moth", held: false, messages })],
+        },
+      },
+    })
+    const at = 1_000 + longHoldMs
+
+    it("is a trouble item of the recipient's terminal, from when the hold began", () => {
+      const mail = heldFor([waiting({ id: "m1" }), waiting({ id: "m2", state: "leased" })])
+      expect(inboxItems(inputs(pair, { mail, now: at }))).toEqual([
+        expect.objectContaining({
+          id: "waits:02:1000",
+          at: 1_000,
+          stopped: true,
+          source: expect.objectContaining({
+            terminalId: "02",
+            handle: "fox",
+            agent: "codex",
+          }),
+          kind: "trouble",
+          trouble: { type: "waits", waits: "draft", count: 2 },
+        }),
+      ])
+    })
+
+    it("says why it holds as the hold says, whatever that is", () => {
+      const [item] = inboxItems(inputs(pair, { mail: heldFor([waiting()], "dialog"), now: at }))
+      expect(item).toMatchObject({
+        trouble: { type: "waits", waits: "dialog", count: 1 },
+      })
+    })
+
+    it("is none until the hold has lasted, nor once no message waits or the hold ends", () => {
+      expect(inboxItems(inputs(pair, { mail: heldFor([waiting()]), now: at - 1 }))).toEqual([])
+      const delivered = waiting({ state: "delivered", deliveredAt: 2_000 })
+      expect(inboxItems(inputs(pair, { mail: heldFor([delivered]), now: at }))).toEqual([])
+      expect(inboxItems(inputs(pair, { mail: heldFor([waiting()], null), now: at }))).toEqual([])
+      // Moth's own messages to fox wait in its listing, not for it.
+      const sent = heldFor([waiting({ from: "fox", to: "moth" })])
+      expect(inboxItems(inputs(pair, { mail: sent, now: at }))).toEqual([])
+    })
+
+    it("counts no message held for the person's release, or a pause, which have their own", () => {
+      const mail = heldFor([
+        waiting(),
+        message({ id: "m2" }),
+        waiting({ id: "m3", held: "paused" }),
+      ])
+      const items = inboxItems(inputs(pair, { mail, now: at }))
+      expect(items.find((item) => item.kind === "trouble")).toMatchObject({
+        trouble: { count: 1 },
+      })
+    })
+
+    it("gives way to the agent's own ask, and comes before a finished turn", () => {
+      const ask = letter({ terminalId: "02", agent: "codex", handle: "fox" })
+      const [shown] = inboxItems(
+        inputs(pair, { mail: heldFor([waiting()]), letters: [ask], now: at }),
+      )
+      expect(shown).toMatchObject({ id: "letter-1", kind: "ask" })
+      const finished = workspaceOf(
+        agentTerminal(1, { working: false }),
+        agentTerminal(2, { working: false, lastTurn: turn() }, "codex"),
+      )
+      const [first] = inboxItems(
+        inputs(finished, {
+          mail: heldFor([waiting()]),
+          unread: { "p/s": { "02": "done" } },
+          now: at,
+        }),
+      )
+      expect(first).toMatchObject({ kind: "trouble", trouble: { type: "waits" } })
+    })
+
+    it("gives way to a request waiting on the person in that terminal", () => {
+      const asking = workspaceOf(
+        agentTerminal(1, { working: false }),
+        agentTerminal(2, { working: false, attention: { kind: "permission", count: 1 } }, "codex"),
+      )
+      const [item] = inboxItems(
+        inputs(asking, {
+          mail: heldFor([waiting()], "asking"),
+          requests: { "02": [asked("r1", 0)] },
+          now: at,
+        }),
+      )
+      expect(item).toMatchObject({ kind: "request" })
+    })
+  })
+
   describe("a terminal with several", () => {
     it("shows the most urgent: a request over a finished turn", () => {
       const both = workspaceOf(
@@ -726,6 +835,38 @@ describe("The runner's Inbox", () => {
 
       expect(ids()).toEqual(["request:r1"])
       expect(inbox.state.getSnapshot().items[0]).toMatchObject({ request: { dialog: null } })
+    })
+
+    it("shows messages held behind an idle agent's box once the hold has lasted", async () => {
+      const pair = workspaceOf(
+        agentTerminal(1, { working: false }),
+        agentTerminal(2, { working: false }, "agy"),
+      )
+      const mail: MailState = {
+        ...noMail,
+        terminals: {
+          "p/s/02": {
+            handle: "fox",
+            agent: true,
+            waits: "draft",
+            waitsSince: 10_000,
+            threads: [
+              thread({
+                peer: "moth",
+                held: false,
+                messages: [message({ state: "queued", held: null })],
+              }),
+            ],
+          },
+        },
+      }
+      const { ids } = setup(pair, {}, mail)
+      await settle()
+      expect(ids()).toEqual([])
+
+      await vi.advanceTimersByTimeAsync(longHoldMs)
+
+      expect(ids()).toEqual(["waits:02:10000"])
     })
 
     it("closes the detail a while after nothing waits, and not before", async () => {
