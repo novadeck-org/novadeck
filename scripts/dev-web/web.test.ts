@@ -14,7 +14,9 @@ describe("dev:web", () => {
 
   it("serves the UI's web entry, which reaches the runner over a WebSocket", () => {
     const [, ui] = devWebCommands("a".repeat(64))
-    expect(ui?.command).toBe("pnpm --filter @novadeck/host exec vite --host 127.0.0.1 --mode web")
+    expect(ui?.command).toBe(
+      "pnpm --filter @novadeck/desktop exec vite --host 127.0.0.1 --mode web",
+    )
   })
 
   it("keeps the token out of the runner's other variables", () => {

@@ -549,7 +549,7 @@ pnpm dev:web
 Open <http://127.0.0.1:5173>. `dev:web` starts a runner with a fresh random token
 and hands the same token to the UI dev server. A browser has no desktop host, so it shows
 no notification when an agent finishes; its terminals are still marked done. For UI-only work, use
-`pnpm --filter @novadeck/host exec vite --host 127.0.0.1 --mode web` with `VITE_NOVADECK_RUNNER_URL` and
+`pnpm --filter @novadeck/desktop exec vite --host 127.0.0.1 --mode web` with `VITE_NOVADECK_RUNNER_URL` and
 `VITE_NOVADECK_RUNNER_TOKEN` pointing at a runner you started; the web entry reads
 `.env.web` (in `frontend/ui/`) rather than `.env.development`.
 

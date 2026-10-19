@@ -33,7 +33,7 @@ although node-pty reported no error. node-pty marks this option experimental, an
 console-host fixes now arrive with node-pty upgrades rather than Windows Update.
 Packaged builds use node-pty's N-API prebuilds as they are (`npmRebuild: false`): a
 source rebuild would take precedence over them without the bundled ConPTY files. The
-release workflow runs `pnpm --filter @novadeck/host smoke` against each unpacked
+release workflow runs `pnpm --filter @novadeck/desktop smoke` against each unpacked
 package. It checks that the Windows package ships `conpty.dll` and `OpenConsole.exe`
 and has no source-built node-pty, runs a real shell through the packaged runner, and on
 Windows confirms that `OpenConsole.exe` hosts it.

@@ -113,7 +113,7 @@ describe("turbo's package list", () => {
         JSON.stringify({
           packages: {
             items: [
-              { name: "@novadeck/host", path: "apps/desktop" },
+              { name: "@novadeck/desktop", path: "apps/desktop" },
               { name: "@novadeck/wire", path: "libraries\\wire\\" },
             ],
           },
