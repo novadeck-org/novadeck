@@ -34,7 +34,7 @@ export const importedKeys = (texts: Iterable<string>): string[] => {
   for (const text of texts)
     for (const [, key] of text.matchAll(/@novadeck\/companion\/([\w./-]+?)(?=["'?])/g))
       keys.add(`./${key}`)
-  return [...keys].sort()
+  return [...keys].toSorted()
 }
 
 /** The imported keys the manifest has no export for. */

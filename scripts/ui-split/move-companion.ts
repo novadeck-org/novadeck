@@ -5,7 +5,6 @@ import { applyEdit, type Edit } from "../packages/move.ts"
 import { finish, isText, preflight, repository } from "../packages/move.ts"
 import {
   companionDir,
-  companionName,
   destinationOf,
   importedKeys,
   insertAfter,
