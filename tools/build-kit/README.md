@@ -24,9 +24,20 @@ policy, so it needs no library fences.
   crawlers from reading it.
 - `fontsAsFiles`, a `build.assetsInlineLimit` that always ships fonts as files: a policy that
   loads fonts only from the app itself would block one inlined as a data: URL.
+- `bundleChecks({ utilities, budgets })` (`/bundle-checks`) fails a build that loads the
+  terminal emulator with its first chunk, draws terminals without their styles
+  (`terminal-xterm.css`), or whose CSS lost a folder the UI's stylesheet scans for Tailwind
+  (`utilities` lists one utility from each: `frontendUtilities` for the visitor build and
+  the preview, `desktopUtilities` for the desktop app, which adds the UI's own). It fails
+  too when the build holds nothing for these checks to read. With `budgets` it also fails a
+  build that weighs too much: `first`, what the page loads first, its scripts and styles
+  gzipped and every woff2 font they declare, and `demo`, the module `demoModule` names with
+  what it loads and the first chunk does not. The visitor build sets them in
+  `apps/try/vite.config.ts`; the others have none.
+- `unit()` (`/vitest`), the jsdom `unit` project every frontend package's tests run in.
 
 Each is a subpath of its own (`@novadeck/build-kit/content-security-policy`, `/connect-sources`,
-`/hosting-headers`, `/search-visibility`, `/fonts`). It ships as TypeScript source, with no build: Vite loads a
+`/hosting-headers`, `/search-visibility`, `/fonts`, `/bundle-checks`, `/vitest`). It ships as TypeScript source, with no build: Vite loads a
 config's workspace packages in Node, which runs the source as it is, so no module imports
 another, and its syntax is erasable (`erasableSyntaxOnly`): no enums, namespaces or
 parameter properties, which Node can't strip.

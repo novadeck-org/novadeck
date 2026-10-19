@@ -24,7 +24,7 @@ node scripts/flaky-capture/grid.ts --output /path/to/grid-capture --attempts 5
 Each attempt starts a fresh Vitest process and runs the complete, unchanged
 `companions.spec.tsx`: all 32 cases, including the predecessors of the ordinary
 12-move and separate one-move Grid undocking cases. The existing 30-second case
-deadlines and assertions are inherited from the UI config. There is no added delay,
+deadlines and assertions are inherited from the specs package's Vitest config. There is no added delay,
 repeated gesture within a case, app mock or forced scheduling condition.
 
 `--attempts` accepts 1–5 and defaults to 5. A child-process watchdog stops infrastructure

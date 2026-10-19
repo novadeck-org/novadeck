@@ -86,7 +86,7 @@ otherwise. Otherwise:
   than an adapter is affected (`@novadeck/harness-core`, `protocol`, `relay`, the engines,
   `libraries/terminal`, `wire` and `sandbox`, or one added later, so a new dependency of the
   runner runs everything until a rule says otherwise; an adapter not yet pinned counts as
-  one; a package outside the paths that trigger this workflow, a new `application/<name>`
+  one; a package outside the paths that trigger this workflow, a new `tools/<name>`
   say, needs its path added there for its changes to run anything), or a changed file is in
   `backend/runner/` (the suite and the pins), node-pty's patch, `scripts/e2e/`,
   `.github/actions/e2e-harness-cache/`, or is `.github/workflows/e2e.yml`, the root
