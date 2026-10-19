@@ -239,12 +239,12 @@ describe("the package graph", () => {
   })
 
   it("keeps CodeMirror in the companion's plan editor, where it loads lazily", () => {
-    // `CompanionPane` and `DocumentViewer` reach the editor through `lazy()`; a static import
-    // of CodeMirror anywhere else would pull it into the first chunk.
+    // The plan's and the markdown document's views reach the editor through `lazy()`; a
+    // static import of CodeMirror anywhere else would pull it into the first chunk.
     const src = join(root, "frontend", "companion", "src")
     const files = (readdirSync(src, { recursive: true }) as string[])
       .map((file) => file.split("\\").join("/"))
-      .filter((file) => /\.tsx?$/.test(file) && !file.startsWith("plan-editor/"))
+      .filter((file) => /\.tsx?$/.test(file) && !file.startsWith("panes/plan/plan-editor/"))
     expect(files.length).toBeGreaterThan(10)
     expect(
       files.filter((file) => /["']@codemirror\//.test(readFileSync(join(src, file), "utf8"))),
