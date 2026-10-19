@@ -1,0 +1,52 @@
+{
+  "name": "@novadeck/companion",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The companion pane: a terminal's taskbar, peek and pane, the plan editor, the messages and the bar drag.",
+  "type": "module",
+  "exports": {
+    "./artifact-icons": "./src/artifact-icons.ts",
+    "./artifact.css": "./src/artifact.css",
+    "./bar": "./src/bar.ts",
+    "./drag-session": "./src/drag-session.ts",
+    "./mail": "./src/mail.ts",
+    "./mail.css": "./src/mail.css",
+    "./pane.css": "./src/pane.css",
+    "./peek.css": "./src/peek.css",
+    "./prose.css": "./src/prose.css",
+    "./state": "./src/state.ts",
+    "./syntax.css": "./src/syntax.css",
+    "./TabKinds": "./src/TabKinds.tsx",
+    "./taskbar.css": "./src/taskbar.css",
+    "./TerminalCompanion": "./src/TerminalCompanion.tsx",
+    "./UndockedWindow": "./src/UndockedWindow.tsx"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.14",
+    "@dnd-kit/dom": "^0.5.1",
+    "@dnd-kit/react": "^0.5.1",
+    "@novadeck/core": "workspace:*",
+    "@novadeck/toolkit": "workspace:*",
+    "@novadeck/viewers": "workspace:*",
+    "lucide-react": "^1.57.0",
+    "react": "^19.3.1"
+  },
+  "devDependencies": {
+    "@novadeck/build-kit": "workspace:*",
+    "@novadeck/test-kit": "workspace:*",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "jsdom": "^30.1.3",
+    "react-dom": "^19.3.1",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.7",
+    "vitest": "^5.0.5"
+  }
+}
