@@ -41,23 +41,40 @@ export const joined = (parts: unknown, types: readonly string[]): string =>
     .map((part) => part!.text as string)
     .join("\n")
 
+type Describe = (tool: string, input: string) => ToolRun
+
+type Fields = {
+  readonly at: number | null
+  readonly tool?: unknown
+  readonly call?: unknown
+  readonly author?: unknown
+}
+
 /**
  * An item, bounded as the protocol takes it; a tool call's native id becomes a ref. A
  * call's `run` comes from the harness's `describe`, which reads the call as the item carries
  * it: its input cut to 16 KiB and its name to 256 characters, a call with no name being "tool".
+ * A tool call can't be made without one: the overload for it requires `describe`, so a
+ * decoder path that forgets it doesn't compile.
  */
-export const entry = (
+export function entry(
+  role: TranscriptItem["role"],
+  kind: "text" | "tool-result",
+  text: string,
+  fields: Fields,
+): TranscriptEntry
+export function entry(
+  role: TranscriptItem["role"],
+  kind: "tool-call",
+  text: string,
+  fields: Fields & { readonly describe: Describe },
+): TranscriptEntry
+export function entry(
   role: TranscriptItem["role"],
   kind: TranscriptItem["kind"],
   text: string,
-  fields: {
-    readonly at: number | null
-    readonly tool?: unknown
-    readonly call?: unknown
-    readonly author?: unknown
-    readonly describe?: (tool: string, input: string) => ToolRun
-  },
-): TranscriptEntry => {
+  fields: Fields & { readonly describe?: Describe },
+): TranscriptEntry {
   const cut = text.slice(0, maxText)
   const tool = typeof fields.tool === "string" ? fields.tool.slice(0, maxTool) : null
   return {

@@ -80,6 +80,19 @@ const text = (role: ChatItem["role"], value: string) => ({
 // The line the chat shows for that command, in every harness.
 const gitStatus = { kind: "run", title: "Ran", detail: "git status --short" } as const
 
+// A shell command's line in the chat, as the decoders' `shellCall` reads it: a command that is
+// itself JSON-quoted loses the quotes, and only its first line shows.
+const shownCommand = (command: string): string => {
+  let shown = command
+  try {
+    const parsed: unknown = JSON.parse(command)
+    if (typeof parsed === "string") shown = parsed
+  } catch {
+    // Not quoted: shown as it is.
+  }
+  return shown.trim().split("\n", 1)[0]!.trim()
+}
+
 // What each demo agent's tool does as its turn runs, by harness.
 const toolRun = (agent: string, terminal: TerminalMetadata, call: string) =>
   agent === "agy"
@@ -309,7 +322,7 @@ export const createDemoChat = (
           tool: "Bash",
           call: null,
           author: null,
-          run: { kind: "run", title: "Ran", detail: command.split("\n", 1)[0]!.trim() },
+          run: { kind: "run", title: "Ran", detail: shownCommand(command) },
           interrupted: false,
         },
         {

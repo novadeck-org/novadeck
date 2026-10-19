@@ -27,6 +27,11 @@ const icons: Readonly<Record<ToolKind, LucideIcon>> = {
   other: Wrench,
 }
 
+// What a call was, as its decoder said; a call with none shows its tool's name. Nothing for
+// a result whose call is outside the window.
+const callRun = (entry: ToolEntry): Run | null =>
+  entry.tool === null ? null : (entry.run ?? { kind: "other", title: entry.tool, detail: "" })
+
 // A run of this many calls or more folds into one line until opened.
 const foldAt = 4
 
@@ -59,11 +64,8 @@ const ToolRow = ({
 }): React.JSX.Element => {
   const [open, setOpen] = useState(false)
   const body = useId()
-  // A result whose call is outside the window is "Result"; a call is what its decoder said.
-  const summary: Run =
-    entry.tool === null
-      ? { kind: "other", title: "Result", detail: "" }
-      : (entry.run ?? { kind: "other", title: entry.tool, detail: "" })
+  // A result whose call is outside the window is "Result".
+  const summary: Run = callRun(entry) ?? { kind: "other", title: "Result", detail: "" }
   const Icon = icons[summary.kind]
   return (
     <li className="chat-tool" data-kind={summary.kind} data-running={running || undefined}>
@@ -137,7 +139,7 @@ export const ToolRun = ({
         <ChevronRight size={12} className="chat-tool-chevron" aria-hidden />
         <span className="chat-tool-title">{entries.length} tool calls</span>
         <span className="chat-tool-detail">
-          {[...new Set(entries.map((entry) => entry.run?.title ?? ""))].slice(0, 4).join(", ")}
+          {[...new Set(entries.map((entry) => callRun(entry)?.title ?? ""))].slice(0, 4).join(", ")}
         </span>
       </button>
       {open && rows}

@@ -13,8 +13,9 @@ import { describe, expect, it } from "./test"
 // and text, which is what the chat read.
 //
 // A difference is allowed only where the harness's decoder never emits the name or spelling:
-// `emits` says which each harness does. The test fails on any other difference, and on an
-// allowance no case needs.
+// `emits` and `spellings` say which each harness does. The test fails on any other difference,
+// and on an allowance no case needs: a name or spelling a harness is said not to emit, where
+// every case of it still reads the same.
 
 // ---- The old function, as it was in core's conversation-turns.ts.
 
@@ -409,6 +410,58 @@ const records: Readonly<
   ],
 }
 
+// Codex writes a call as a function call (arguments as JSON text) or a custom tool call (raw
+// input); a function call's arguments may be an object, and an MCP tool's server goes in a
+// namespace of its own, which the decoder joins to the name.
+type Variant = {
+  readonly label: string
+  readonly harness: Harness
+  readonly records: (tool: string | undefined, input: string) => readonly object[] | null
+}
+
+const asObject = (input: string): object | null => {
+  try {
+    const value: unknown = JSON.parse(input)
+    return typeof value === "object" && value !== null && !Array.isArray(value) ? value : null
+  } catch {
+    return null
+  }
+}
+
+const codexFunction = (name: string | undefined, input: string, namespace?: string) => ({
+  type: "response_item",
+  payload: { type: "function_call", name, namespace, arguments: input, call_id: "call_1" },
+})
+
+const variants: readonly Variant[] = [
+  ...(["claude", "codex", "agy"] as const).map((harness) => ({
+    label: harness,
+    harness,
+    records: records[harness],
+  })),
+  {
+    label: "codex function_call",
+    harness: "codex",
+    records: (name, input) => [codexFunction(name, input)],
+  },
+  {
+    label: "codex function_call, arguments as an object",
+    harness: "codex",
+    records: (name, input) => {
+      const object = asObject(input)
+      return object ? [codexFunction(name, object as unknown as string)] : null
+    },
+  },
+  {
+    label: "codex function_call, namespace joined",
+    harness: "codex",
+    records: (name, input) => {
+      const joined = /^mcp__novadeck__(.+)$/.exec(name ?? "")
+      return joined ? [codexFunction(joined[1], input, "mcp__novadeck")] : null
+    },
+  },
+]
+
 // The call a harness's decoder makes of a record, with the run it gave it.
 const callOf = (
   harness: Harness,
@@ -477,8 +530,11 @@ const emits: Readonly<Record<Harness, ReadonlySet<string>>> = {
 
 // The Novadeck MCP spellings: Claude Code's plugin, Codex's namespace (joined by its
 // decoder, or written whole), and Antigravity's eager prefix and lazy call.
-const spellings: readonly [Harness, RegExp][] = [
+// `mcp__novadeck_novadeck__` is the old table's reading of the Antigravity server name in the
+// generic form; no harness spells it so, so every harness may differ there.
+const spellings: readonly [Harness | null, RegExp][] = [
   ["claude", /^mcp__plugin_novadeck_novadeck__/],
+  [null, /^mcp__novadeck_novadeck__/],
   ["codex", /^mcp__novadeck__/],
   ["codex", /^mcp__novadeck\./],
   ["agy", /^mcp_novadeck_novadeck_/],
@@ -648,6 +704,7 @@ for (const tool of novadeck)
       "mcp__novadeck__",
       "mcp__novadeck.",
       "mcp_novadeck_novadeck_",
+      "mcp__novadeck_novadeck__",
       "MCP__NOVADECK__",
     ])
       add(`${prefix}${tool}`, json({ ...given, toolSummary: "send call" }))
@@ -704,29 +761,57 @@ add("Write", json({ file_path: `/${"a/".repeat(6000)}x.ts` }))
 add("mcp__novadeck__send", json({ to: "fox", text: big }))
 
 describe("the tool vocabulary split by harness", () => {
-  for (const harness of ["claude", "codex", "agy"] as const)
+  for (const harness of ["claude", "codex", "agy"] as const) {
+    const mine = variants.filter((variant) => variant.harness === harness)
     describe(harness, () => {
       it("describes every call as the old flat table did, except names its decoder never emits", () => {
         const wrong: string[] = []
-        for (const { label, tool, input } of rows) {
-          const call = callOf(harness, records[harness](tool, input))
-          const same = JSON.stringify(call.run) === JSON.stringify(oldOf(call))
-          // The decoder cuts the name; the cut name is what the old chat read.
-          const cutTool = call.tool ?? "tool"
-          if (same) continue
-          if (emitted(harness, tool) && emitted(harness, cutTool)) wrong.push(label)
-        }
+        // The tools that differ from the old table's reading, by name.
+        const differed = new Set<string>()
+        let compared = 0
+        for (const variant of mine)
+          for (const { label, tool, input } of rows) {
+            const lines = variant.records(tool, input)
+            if (!lines) continue
+            compared += 1
+            const call = callOf(harness, lines)
+            if (JSON.stringify(call.run) === JSON.stringify(oldOf(call))) continue
+            differed.add(tool ?? "")
+            // The decoder cuts the name; the cut name is what the old chat read.
+            if (emitted(harness, tool) && emitted(harness, call.tool ?? "tool"))
+              wrong.push(`${variant.label}: ${label}`)
+          }
         expect(wrong).toEqual([])
+        expect(compared).toBeGreaterThanOrEqual(rows.length)
+        // No allowance without a case that needs it: each name or spelling this harness is said
+        // not to emit differs somewhere.
+        const names = [...differed].map((name) => name.toLowerCase())
+        const unneeded = [...Object.values(emits).flatMap((all) => [...all]), "call_mcp_tool"]
+          .filter(
+            (name) => !emits[harness].has(name) && !(name === "call_mcp_tool" && harness === "agy"),
+          )
+          .filter((name) => !names.includes(name))
+        const unusedSpellings = spellings
+          .filter(([owner]) => owner !== harness)
+          .filter(
+            ([, pattern]) => !names.some((name) => pattern.test(name.replace(/^mcp__/i, "mcp__"))),
+          )
+        expect([...new Set(unneeded)]).toEqual([])
+        expect(unusedSpellings.map(([, pattern]) => String(pattern))).toEqual([])
       })
 
       it("describes each name it emits by its own table, never by the fallback for a tool it doesn't know", () => {
         // Every name it emits is described by its own table, never by the fallback.
-        for (const name of emits[harness]) {
-          const call = callOf(harness, records[harness](name, "{}"))
-          expect(call.run).toMatchObject({ kind: expect.not.stringMatching(/^other$/) })
-        }
+        for (const name of emits[harness])
+          for (const variant of mine) {
+            const lines = variant.records(name, "{}")
+            if (!lines) continue
+            const call = callOf(harness, lines)
+            expect(call.run).toMatchObject({ kind: expect.not.stringMatching(/^other$/) })
+          }
       })
     })
+  }
 })
 
 describe("a command typed in shell mode", () => {

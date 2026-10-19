@@ -37,7 +37,7 @@ export const parseFields = (input: string): Fields | null => {
 }
 
 /** An object argument, as given or as the JSON text Antigravity may wrap it in. */
-export const nested = (value: unknown): Fields | null => {
+const nested = (value: unknown): Fields | null => {
   if (typeof value === "string") {
     try {
       return nested(JSON.parse(value))
@@ -74,14 +74,14 @@ export const fileList = (files: readonly string[]): string =>
 export const count = (value: unknown, one: string, many = `${one}s`): string =>
   Array.isArray(value) ? `${value.length} ${value.length === 1 ? one : many}` : ""
 
-export const shortenIf = (detail: string): string =>
+const shortenIf = (detail: string): string =>
   detail.startsWith("/") || /^[A-Za-z]:[\\/]/.test(detail) ? shortPath(detail) : oneLine(detail)
 
 /**
  * The run of a shell command a decoder makes up itself, for the command the person typed in
  * shell mode (`!`).
  */
-export const shellRun = (command: string): ToolRun => ({
+const shellRun = (command: string): ToolRun => ({
   kind: "run",
   title: "Ran",
   detail: oneLine(textField({ command }, "command")),

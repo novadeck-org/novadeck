@@ -1,3 +1,4 @@
+import { transcriptItem } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 import { entry } from "./items.js"
@@ -27,8 +28,16 @@ describe("an item's run", () => {
   })
 
   it("is null on every item that is not a call", () => {
-    expect(entry("tool", "tool-result", "x", { at: null, describe: seen }).run).toBeNull()
-    expect(entry("assistant", "text", "x", { at: null, describe: seen }).run).toBeNull()
+    expect(entry("tool", "tool-result", "x", { at: null }).run).toBeNull()
+    expect(entry("assistant", "text", "x", { at: null }).run).toBeNull()
+  })
+})
+
+describe("a tool call without a describe", () => {
+  it("does not compile, and has no run if it gets past the types", () => {
+    // @ts-expect-error A tool call must say how it is described.
+    const call = entry("assistant", "tool-call", "{}", { at: null, tool: "Bash" })
+    expect(call.run).toBeNull()
   })
 })
 
@@ -46,5 +55,21 @@ describe("an interrupted item", () => {
     expect(entry("assistant", "text", marker, { at: null }).interrupted).toBe(false)
     expect(entry("user", "text", `${marker} and more`, { at: null }).interrupted).toBe(false)
     expect(entry("tool", "tool-result", marker, { at: null }).interrupted).toBe(false)
+  })
+})
+
+describe("the protocol's item", () => {
+  const run: ToolRun = { kind: "run", title: "Ran", detail: "ls" }
+  const call = {
+    ...entry("assistant", "tool-call", "{}", { at: null, tool: "Bash", describe: seen }),
+    index: 0,
+  }
+
+  it("has a run exactly on a tool call", () => {
+    expect(transcriptItem.safeParse(call).success).toBe(true)
+    expect(transcriptItem.safeParse({ ...call, run: null }).success).toBe(false)
+    const text = { ...entry("user", "text", "hi", { at: null }), index: 1 }
+    expect(transcriptItem.safeParse(text).success).toBe(true)
+    expect(transcriptItem.safeParse({ ...text, run }).success).toBe(false)
   })
 })

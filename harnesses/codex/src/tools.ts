@@ -28,7 +28,7 @@ const commandOf = (fields: Fields | null): string => {
 }
 
 // The files a patch touches, from its `*** Add File: path` lines.
-export const patchFiles = (patch: string): readonly string[] => [
+const patchFiles = (patch: string): readonly string[] => [
   ...new Set(
     [...patch.matchAll(/^\*\*\* (?:Add|Update|Delete) File: (.+?)\s*$/gm)].map(
       (match) => match[1]!,
