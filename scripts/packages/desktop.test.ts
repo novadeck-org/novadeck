@@ -75,6 +75,11 @@ describe("the handwritten edits", () => {
 })
 
 describe("the files the move writes whole", () => {
+  it("hash a file the same whichever line ends its checkout has", () => {
+    expect(hashOf("a\r\nb\r\n")).toBe(hashOf("a\nb\n"))
+    expect(hashOf("a\nb\n")).not.toBe(hashOf("a\nc\n"))
+  })
+
   // Until the move runs, a change to a file it replaces is a change to its template too.
   it("replace only the text they were written for, as it stands at the old place", () => {
     const root = join(import.meta.dirname, "..", "..")
@@ -85,6 +90,11 @@ describe("the files the move writes whole", () => {
     expect(
       replaced.filter(({ was, old }) => hashOf(readFileSync(old, "utf8")) !== was),
       "redo the template and its hash",
+    ).toEqual([])
+    // As a checkout with the other line ends has it.
+    const crlf = (text: string) => text.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n")
+    expect(
+      replaced.filter(({ was, old }) => hashOf(crlf(readFileSync(old, "utf8"))) !== was),
     ).toEqual([])
   })
 })

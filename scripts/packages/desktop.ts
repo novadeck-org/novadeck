@@ -47,8 +47,9 @@ export const templates: readonly { readonly place: string; readonly was?: string
   },
 ]
 
-/** The hash a `was` holds. */
-export const hashOf = (text: string): string => createHash("sha256").update(text).digest("hex")
+/** The hash a `was` holds, of the text with LF line ends, as a Windows checkout has CRLF. */
+export const hashOf = (text: string): string =>
+  createHash("sha256").update(text.replace(/\r\n/g, "\n")).digest("hex")
 
 /** Where a tracked file goes, `null` when it goes away, or undefined when it stays. */
 export const destinationOf = (file: string): string | null | undefined => {
