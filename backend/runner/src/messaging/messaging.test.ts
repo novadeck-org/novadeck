@@ -3034,6 +3034,25 @@ describe("keys while a request waits on the person", () => {
     expect(messaging.delivery("B")?.state).toBe("drafting")
   })
 
+  it("end the turn on an answer's Escape as the person's would, telling the activity once", () => {
+    const { messaging, prompt, stop, codex, clock: time } = create()
+    messaging.keys("B", ["enter"], false)
+    prompt("B", codex)
+    time.now += 1_000
+    // Codex's no is its Escape.
+    messaging.pressing("B", () => messaging.keys("B", ["escape"], true))
+    expect(messaging.delivery("B")).toMatchObject({ state: "unknown", escapedAt: time.now })
+    expect(messaging.escaped("B", codex)).toMatchObject({
+      type: "turn-escaped",
+      startedAt: time.now,
+    })
+    expect(messaging.escaped("B", codex)).toBeUndefined()
+    // The box is as it was: a Stop after it settles.
+    messaging.askedCleared("B")
+    stop("B", codex)
+    expect(messaging.delivery("B")?.state).toBe("settled")
+  })
+
   it("take keys pressed with no request waiting as the person's, as they may land in the box", () => {
     const { messaging, prompt, stop, codex } = create()
     messaging.keys("B", ["enter"], false)

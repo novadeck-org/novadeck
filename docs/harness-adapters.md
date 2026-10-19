@@ -663,7 +663,8 @@ harness.
   followed by one that checks the words showed in the adapter's field; an adapter whose
   steps would type without one is an internal error, and nothing is pressed. Each key goes through the person's key
   bookkeeping, as `agents.prompt`'s do, inside `Messaging.pressing`, so messaging takes the
-  keys as Novadeck's and they leave no draft (docs/agent-messaging.md, "What counts").
+  keys as Novadeck's and they leave no draft, unless the answer then fails
+  (docs/agent-messaging.md, "What counts").
 - **Confirming.** It waits up to 5 s, on a screen that held still on two reads, for the
   adapter to see the dialog go as the answer should have it go, or for the request to be
   gone (its hook said it was answered). An answer also counts as taken where the screen no

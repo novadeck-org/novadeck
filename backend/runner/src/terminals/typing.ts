@@ -293,6 +293,18 @@ export class Typing {
     return true
   }
 
+  /**
+   * An answer's keys that didn't go as it should have may have landed in the agent's box,
+   * as Antigravity's artifact review types into it: a possible draft, as the person's keys
+   * would leave, until a submission or the screen says otherwise.
+   */
+  private astray(terminalId: string): void {
+    const record = this.host.live(terminalId)
+    if (!record) return
+    const asked = (record.activity?.pending.length ?? 0) > 0
+    this.host.messaging().keys(terminalId, ["content"], asked)
+  }
+
   /** What prompts ask of the terminals and messaging. */
   private promptHost(): ConstructorParameters<typeof Prompts>[0] {
     return {
@@ -399,6 +411,7 @@ export class Typing {
       raw: (terminalId, ref) => this.dialogs.shown(terminalId, ref)?.type === "raw",
       lock: (terminalId, ref, reason, rows) => {
         this.dialogs.lock(terminalId, ref, reason, rows)
+        if (reason === "failed") this.astray(terminalId)
       },
       done: (terminalId, ref) => {
         this.dialogs.done(terminalId, ref)

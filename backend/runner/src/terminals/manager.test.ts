@@ -219,7 +219,12 @@ describe("an answer's own keys", () => {
       records: Map<string, { binding: unknown; activity: Activity | null }>
       messaging: Messaging
       typing: {
-        answers: { host: { press: (id: string, data: string) => boolean } }
+        answers: {
+          host: {
+            press: (id: string, data: string) => boolean
+            lock: (id: string, ref: string, reason: "failed", rows: string[]) => void
+          }
+        }
         holdInput: (id: string, budget: HoldBudget) => { release: () => void; settle: () => void }
       }
     }
@@ -249,6 +254,45 @@ describe("an answer's own keys", () => {
     hold.release()
     hold.settle()
     expect(draft()).toBe(true)
+  })
+
+  it("leave a possible draft where the answer failed after pressing them, as they may be in the box", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as {
+      records: Map<string, { binding: unknown; activity: Activity | null }>
+      messaging: Messaging
+      typing: {
+        answers: {
+          host: {
+            press: (id: string, data: string) => boolean
+            lock: (id: string, ref: string, reason: "failed", rows: string[]) => void
+          }
+        }
+      }
+    }
+    // Antigravity's artifact review types the person's words into its prompt box.
+    const binding = { agent: "agy", sessionId: "s", instance: null } as const
+    const record = inside.records.get(terminal.id)!
+    record.binding = binding
+    record.activity = { ...fresh(0), pending: [{} as Activity["pending"][number]] }
+    const { changes } = followRoot(null, binding, [], {
+      mode: harnesses.agy.messaging.root,
+      statusLine: false,
+      awaited: () => false,
+    })
+    inside.messaging.rooted(terminal.id, changes)
+    const { host } = inside.typing.answers
+    expect(host.press(terminal.id, "change the title")).toBe(true)
+    expect(inside.messaging.delivery(terminal.id)?.box.draftWhileAsked).toBe(false)
+    // The words never showed: the answer failed, the request locked.
+    host.lock(terminal.id, "r", "failed", [])
+    expect(inside.messaging.delivery(terminal.id)?.box.draftWhileAsked).toBe(true)
   })
 })
 

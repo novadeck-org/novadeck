@@ -629,15 +629,21 @@ terminal escapes, controls, invisible separators and bidi marks before being sho
   A request answered from the chat (`agents.answer`) leaves the box as it was, whatever
   keys it pressed: those are Novadeck's own, not the person's, so a permission approved
   from the chat ends its turn Settled and the next message rings at once, in all three
-  harnesses. The answer presses them only in the dialog it read on screen, holding the
-  person's keys meanwhile (see [Answer driver](harness-adapters.md#answer-driver)), and
-  tells messaging which writes are its own (`Messaging.pressing`, the delivery event
+  harnesses. The answer presses them only once it read the request's dialog on screen,
+  holding the person's keys meanwhile (see [Answer driver](harness-adapters.md#answer-driver)),
+  and tells messaging which writes are its own (`Messaging.pressing`, the delivery event
   `pressed`): only the keys the answer itself writes, while the request waits, never
   the person's. Their keys during the request still count as above: typed before the
   answer took hold, from another client, or held by the answer and let go because it
-  pressed nothing. An answer's Escape (Codex's no, and its questions set aside to talk)
-  ends a running turn as the person's would (Unknown, below), with the box as it was: the
-  dialog took the key, so no prompt of the turn's comes back into the box.
+  pressed nothing. An answer that pressed keys and then failed (`ANSWER_FAILED`) leaves a
+  possible draft, as the person's keys would: they may have landed in the box, as
+  Antigravity's artifact review types `/artifact` and the person's feedback there. An
+  answer's Escape (Codex's no, and its questions set aside to talk) ends a running turn as
+  the person's would (Unknown, below), with the box as it was: the dialog took the key, so
+  no prompt of the turn's comes back into the box. One gap remains: an answer that
+  succeeds is not checked between keys it presses back to back (a digit after arrows),
+  so a dialog that the agent closed by itself within those milliseconds, with no report,
+  would take the rest into its box unseen.
 
 - **A bare Enter** is a carriage return of its own: not Alt or Shift+Enter (`\x1b\r`,
   a newline in the box), nor one inside a bracketed paste. Nothing else submits, but
