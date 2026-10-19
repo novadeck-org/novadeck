@@ -27,6 +27,9 @@ import { tabInstructionsId } from "./TerminalTabs"
 import { useRenderAt } from "./use-render-at"
 import { windowMenu, type DockTarget } from "./window-menu"
 
+// A sentence of the description, its first letter a capital.
+const capital = (text: string) => `${text[0]!.toUpperCase()}${text.slice(1)}`
+
 const actionClasses = "terminal-tab-action icon-button small dim quiet"
 // Hide and Rename wait for the pointer or keyboard focus; Close stays.
 const revealedActionClasses = `${actionClasses} terminal-tab-revealed`
@@ -37,6 +40,7 @@ export const TerminalTab = ({
   index,
   selected,
   team,
+  teamWords,
   hidden,
   unread,
   rename,
@@ -60,6 +64,8 @@ export const TerminalTab = ({
   selected: boolean
   // Its place in the selected terminal's team: the lead or one of its workers (tabs.css).
   team?: "lead" | "worker" | undefined
+  // Who leads it and whom it leads, in words, for its description: the wire only draws it.
+  teamWords?: string | undefined
   hidden: boolean
   // Its agent finished while the person looked elsewhere, on its own or on an error: the
   // tab says so until they look.
@@ -112,7 +118,11 @@ export const TerminalTab = ({
         ? `${subagents}: ${subagentsDetail(shell)}`
         : subagents
       : undefined
-  const description = [note, messages, kinds].filter(Boolean).join(", ")
+  // Its team is a sentence of its own, so it isn't heard as one more of a list before it.
+  const description = [[note, messages, kinds].filter(Boolean).join(", "), teamWords]
+    .filter(Boolean)
+    .map((part) => capital(part!))
+    .join(". ")
   const menu = windowMenu({
     terminal,
     onRename: onBeginRename,

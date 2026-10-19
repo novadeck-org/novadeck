@@ -1,6 +1,6 @@
 import { basename, win32 } from "node:path"
 
-import type { TitleSource } from "@novadeck/protocol"
+import type { TerminalSummary, TitleSource } from "@novadeck/protocol"
 
 import { commandWords } from "./commands.js"
 
@@ -86,6 +86,15 @@ export const titleOf = (
       source: { kind: "agent", by: naming.agent.by },
     }
   return { title: defaultTitle(terminal.command), source: { kind: "default" } }
+}
+
+/** A terminal's title, and who it is from, as its summary shows them (see `titleOf`). */
+export const summaryTitle = (
+  naming: Naming,
+  terminal: { readonly command: string | null },
+): Pick<TerminalSummary, "title" | "titleSource"> => {
+  const { title, source } = titleOf(naming, terminal)
+  return { title, titleSource: source }
 }
 
 /** The person's title given, or with null taken away, so the title is automatic again. */
