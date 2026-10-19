@@ -1,4 +1,5 @@
 import "./grid.css"
+import { useDrag, useDragSession } from "@novadeck/companion/drag-session"
 import { canvasPresetSize, gridPresetWidth } from "@novadeck/core/layout/terminal-size"
 import { dropOnGrid, type WindowPlace } from "@novadeck/core/layout/window-place"
 import type {
@@ -26,7 +27,6 @@ import {
   verticalCompactor,
 } from "react-grid-layout"
 
-import { useDrag, useDragSession } from "../../terminals/drag-session"
 import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
