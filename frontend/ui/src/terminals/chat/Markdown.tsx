@@ -1,9 +1,9 @@
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 /* oxlint-disable react/no-array-index-key -- The nodes are read from text that has no ids; they never reorder. */
 import { highlightLines, languageOf, type HighlightedLine } from "@novadeck/viewers/code"
 import { Check, Copy } from "lucide-react"
 import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 
-import { Tooltip } from "../../ui-toolkit/Tooltip"
 import { fenceFile } from "./languages"
 import { parseMarkdown, type Inline, type MarkdownBlock } from "./markdown-parse"
 

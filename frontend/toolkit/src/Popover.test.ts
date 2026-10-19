@@ -4,8 +4,8 @@ import { join } from "node:path"
 import { nextFrame, render } from "@novadeck/test-kit/render"
 import { createElement, type ComponentProps } from "react"
 
-import { describe, expect, it } from "../test"
 import { Popover } from "./Popover"
+import { describe, expect, it } from "./test"
 
 // jsdom has no layout: an open popover's positioning observes no resizes.
 Object.assign(globalThis, {
@@ -20,10 +20,7 @@ Object.assign(globalThis, {
 // that's open, whatever else wraps it.
 const openTrigger = '.icon-button[aria-haspopup][aria-expanded="true"]'
 
-const iconButtonCss = readFileSync(
-  join(process.cwd(), "src", "ui-toolkit", "icon-button.css"),
-  "utf8",
-)
+const iconButtonCss = readFileSync(join(process.cwd(), "src", "icon-button.css"), "utf8")
 
 describe("the icon button's open look", () => {
   it("keys on what every open select, menu or popover trigger says, not on Ark's state", () => {

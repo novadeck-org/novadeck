@@ -2,11 +2,11 @@ import type { ItemContent, PageContent } from "@novadeck/core/companion"
 import { pagesPartition } from "@novadeck/core/pages"
 import { itemFixture } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
+import { Shown } from "@novadeck/toolkit/shown"
 import { act, createElement } from "react"
 import { afterEach } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
-import { Shown } from "../../ui-toolkit/shown"
 import { ArtifactViewer } from "./ArtifactViewer"
 
 const unmounts: (() => void)[] = []

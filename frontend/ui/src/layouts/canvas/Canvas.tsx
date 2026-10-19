@@ -3,6 +3,7 @@ import { canvasPointPosition, viewportCanvasPosition } from "@novadeck/core/layo
 import { canvasNewTerminalSize, canvasPresetSize } from "@novadeck/core/layout/terminal-size"
 import { isWindow } from "@novadeck/core/roster"
 import type { Tile, CanvasLayout } from "@novadeck/core/types"
+import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
 import {
   Background,
   getViewportForBounds,
@@ -29,7 +30,6 @@ import {
 
 import { workspaceOverlayOpen, workspaceShortcutTarget } from "../../interaction/shortcuts"
 import { useDrag, useDragSession } from "../../terminals/drag-session"
-import { ContextMenu } from "../../ui-toolkit/ContextMenu"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
 import { fitOptions, canvasStep, terminalHeaderHeight, chromeScaleAt, centerOf } from "./geometry"
