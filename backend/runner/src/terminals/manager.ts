@@ -516,8 +516,6 @@ export class Terminals {
       pty: this.pty,
     })
     this.host.on("evicted", (id, terminal) => this.evicted(id, terminal))
-    // Read once now, so the first terminal doesn't wait for it; see `shellEnvironment`.
-    // After the deletes, as the relay, or PowerShell, that reads it gets this environment.
     this.launcher = new Launcher(this.options, {
       stopping: () => this.stopping,
       handlers: {
@@ -536,6 +534,8 @@ export class Terminals {
             other.binding.sessionId === session,
         ),
     })
+    // Read once now, so the first terminal doesn't wait for it; see `Launcher.environment`.
+    // After the deletes, as the relay, or PowerShell, that reads it gets this environment.
     if (this.options.freshPath) void this.launcher.environment()
     this.saves = new Saves(
       {
@@ -709,7 +709,7 @@ export class Terminals {
       // terminals asked for together are named, and listed, in the order they were.
       const drawn = input.restore ? undefined : this.names.next(input.sessionId)
       const saved = input.restore ? this.saves.saved(input.id, input.sessionId) : undefined
-      // Read beside the waits below, which it outlasts on Windows; see `shellEnvironment`.
+      // Read beside the waits below, which it outlasts on Windows; see `Launcher.environment`.
       const environment = this.launcher.environment()
       const origin = await this.launcher.directory(input.cwd)
       // A saved directory that is gone falls back to the one asked for.
@@ -2087,7 +2087,7 @@ export class Terminals {
     this.records.clear()
     this.pendingOwners.clear()
     this.stopped = true
-    await this.launcher.close()
+    await (await this.launcher.integrated())?.reports.close()
   }
 
   private record(id: string): Record {

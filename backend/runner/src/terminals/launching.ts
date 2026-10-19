@@ -94,9 +94,9 @@ export class Launcher {
     return undefined
   }
 
-  /** Stops hearing reports, as the runner has stopped. */
-  async close(): Promise<void> {
-    await (await this.integration)?.reports.close()
+  /** The runner's shell integration, once listening; undefined without it. */
+  integrated(): Promise<Integration | undefined> {
+    return this.integration
   }
 
   /** Whether `agent` is connected; false without one, or when that cannot be told. */
@@ -111,7 +111,7 @@ export class Launcher {
     return { ...integration, shims: await this.options.shims().catch(() => []) }
   }
 
-  /** Whether a terminal created now could start a command; see `spawn`. */
+  /** Whether a terminal created now could start a command; see `launch`. */
   async startsCommands(): Promise<boolean> {
     const integration = await this.integration
     return (
