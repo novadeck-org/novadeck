@@ -82,6 +82,11 @@ export const killedBy = (key: TerminalKey, signal: string): BackendAction[] => [
   setStatus(key, { state: "exited", exitCode: null, signal }),
 ]
 
+// Killed for memory, as a Linux runner tells of a shell in its own systemd scope.
+export const killedForMemory = (key: TerminalKey): BackendAction[] => [
+  setStatus(key, { state: "exited", exitCode: null, signal: "SIGKILL", cause: "out-of-memory" }),
+]
+
 export const failedToStart = (key: TerminalKey, message: string): BackendAction[] => [
   setStatus(key, { state: "failed", message }),
 ]
