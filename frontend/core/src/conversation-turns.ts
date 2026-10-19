@@ -591,3 +591,8 @@ export const turnStatus = (agent: AgentStatus | undefined): TurnStatus | null =>
 // An agent as its harness names it, as a person does.
 export const agentName = (agent: string | null): string =>
   harnesses.find(({ id }) => id === agent)?.shortName ?? "The agent"
+
+// Whether the agent's conversation records a shell command the person sends it, with its
+// output. An agent no harness names is taken to, so the chat says nothing of it.
+export const recordsShell = (agent: string | null): boolean =>
+  harnesses.find(({ id }) => id === agent)?.recordsShell ?? true

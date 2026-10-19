@@ -4,6 +4,7 @@ import {
   groupItems,
   inputText,
   patchFiles,
+  recordsShell,
   sameBlock,
   toolSummary,
   turnStatus,
@@ -358,5 +359,15 @@ describe("the agent's turn status", () => {
       "Antigravity",
       "The agent",
     ])
+  })
+
+  it("says which harness' agents record the shell commands sent to them", () => {
+    expect([
+      recordsShell("claude"),
+      recordsShell("codex"),
+      recordsShell("agy"),
+      recordsShell(null),
+    ]).toEqual([true, true, false, true])
+    expect(recordsShell("unknown")).toBe(true)
   })
 })

@@ -361,6 +361,7 @@ describe("a shell command sent to an agent that keeps no record of it", () => {
     }
     await quiet({ ...questioning, requests: [] }, "hello")
     await quiet({ ...questioning, agent: "claude", requests: [] }, "!ls")
+    await quiet({ ...questioning, agent: null, requests: [] }, "!ls")
   })
 })
 
