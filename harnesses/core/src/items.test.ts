@@ -28,8 +28,10 @@ describe("an item's run", () => {
   })
 
   it("is null on every item that is not a call", () => {
-    expect(entry("tool", "tool-result", "x", { at: null }).run).toBeNull()
-    expect(entry("assistant", "text", "x", { at: null }).run).toBeNull()
+    // Not a literal, so the types let a describe through where it isn't wanted.
+    const fields = { at: null, describe: seen }
+    expect(entry("tool", "tool-result", "x", fields).run).toBeNull()
+    expect(entry("assistant", "text", "x", fields).run).toBeNull()
   })
 })
 

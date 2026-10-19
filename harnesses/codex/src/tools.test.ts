@@ -39,6 +39,21 @@ suite("what a Codex tool call was", () => {
     expect(run("apply_patch", { input: patch }).detail).toBe("src/a.ts, src/b.ts +2")
   })
 
+  it("lists a patch's files in order, once each", () => {
+    const patch = [
+      "*** Begin Patch",
+      "*** Update File: z.ts",
+      "*** Add File: a.ts",
+      "*** Update File: z.ts",
+      "*** Delete File: m.ts",
+      "*** End Patch",
+    ].join("\n")
+    expect(run("apply_patch", patch).detail).toBe("z.ts, a.ts +1")
+    expect(run("apply_patch", patch.replace("*** Delete File: m.ts\n", "")).detail).toBe(
+      "z.ts, a.ts",
+    )
+  })
+
   it("counts an updated plan's steps", () => {
     expect(run("update_plan", { plan: [{}, {}] }).detail).toBe("2 steps")
   })

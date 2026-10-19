@@ -497,6 +497,9 @@ describe("the tool calls the demo's agents make as they work", () => {
     await vi.advanceTimersByTimeAsync(demoTurnMs)
     await chat.send(key("06"), '!"ls"')
     await vi.advanceTimersByTimeAsync(demoTurnMs)
+    // A command too long for an item is cut as the runner cuts it, and has no detail.
+    await chat.send(key("06"), `!${"x".repeat(20_000)}`)
+    await vi.advanceTimersByTimeAsync(demoTurnMs)
     const started = new Map<string, number>()
     const found: ChatItem[] = []
     for (const slot of ["06", "05", "04"]) {
@@ -509,7 +512,9 @@ describe("the tool calls the demo's agents make as they work", () => {
     // A turn's tool in each harness, and Claude Code's made-up Bash call.
     expect([...started.values()].every((calls) => calls > 0)).toBe(true)
     const shell = callsOf(chat, "06").filter((item) => item.call === null)
-    expect(shell.map((item) => item.run?.detail)).toEqual(["git status", "ls"])
+    expect(shell.map((item) => item.run?.detail)).toEqual(["git status", "ls", ""])
+    expect(shell.map((item) => item.truncated)).toEqual([false, false, true])
+    expect(shell[2]!.text).toHaveLength(16_384)
     for (const item of [...found, ...shell])
       expect(item.run).toEqual(toolSummary(item.tool ?? "tool", item.text))
   })

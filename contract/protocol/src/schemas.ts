@@ -366,6 +366,7 @@ export const toolRun = z.strictObject({
 // harness's words), a tool call, with its input as text, or a tool's result; `call`
 // pairs a result with its call, and `run` says what a call was. Text past 16 KiB is cut
 // short and marked `truncated`. Private reasoning is never included.
+// The refinement on an item makes `.pick`, `.omit` and `.partial` of it throw; `.extend` works.
 export const transcriptItem = z
   .strictObject({
     index: z.number().int().nonnegative(),
