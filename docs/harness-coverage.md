@@ -351,7 +351,12 @@ running, or with any later turn, as the person's. Antigravity's idle status line
 listing no subagent running ends it too, leaving any command it backgrounded shown but
 not waited on. Codex's parity gap is the harness's own: nothing there wakes, so nothing
 is waited on. Delivery waits the same way, so the doorbell may ring an agent with only a
-command left running, and `agents` calls it busy only while it works.
+command left running, and `agents` calls it busy only while it works. Each harness's box
+takes a typed prompt while that work runs, its model called with a background subagent's
+call still held (probed 2026-10-19, Claude Code 2.1.287, Codex 0.163.0, Antigravity 1.2.14:
+`fixtures/background-prompt.probe.json`), so the doorbell also rings an agent waiting on
+it once its box reads empty. Antigravity draws its running subagents in a ruled panel
+under the box, which its box reader sets aside.
 
 A Stop Novadeck continues with messages keeps the turn running until the continuation's
 own Stop, as Claude Code and Codex start the continuation with no prompt hook. Should its

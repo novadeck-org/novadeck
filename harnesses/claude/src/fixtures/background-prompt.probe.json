@@ -1,0 +1,106 @@
+{
+  "harness": "claude",
+  "version": "2.1.287",
+  "source": "src/e2e/probes/background-prompt.e2e.ts, run with NOVADECK_E2E_PROBES=1 (2026-10-19)",
+  "how": "Driven in a PTY (120x40) by the end-to-end deck against the fake model: the root started a background subagent (Agent, run_in_background) and a background shell (Bash `sleep 600`, run_in_background), the subagent's model call held, and its turn ended while that ran. Each screen read with `screenText`: 1 three seconds after the root's turn ended, 2 with a key (P) typed, 3 after the key was erased and `Ping now` submitted. `took` says the root's model was called for that prompt while the work's call was still held: the box takes a prompt then.",
+  "took": true,
+  "screens": {
+    "1 stopped, work running": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 33,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.287",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-w8riPV/project",
+        "6": "❯ Start the work                                                                                                        ",
+        "8": "● Agent(Background work)",
+        "9": "  ⎿  Backgrounded agent (↓ to manage · ctrl+o to expand)",
+        "11": "  Ran 1 shell command ",
+        "13": "● Started the work.",
+        "15": "✻ Waiting for 1 background agent to finish",
+        "31": "                                                                                                    ◐ medium · /effort",
+        "32": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "33": "❯  ",
+        "34": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "  ⏸ manual mode on · 1 shell · ← for agents",
+        "38": "  ● main",
+        "39": "  ◯ general-purpose  Background work                                                                                3s"
+      },
+      "bright": {
+        "6": "❯ Start the work",
+        "11": "  Ran 1 shell command",
+        "33": "❯"
+      }
+    },
+    "2 a key typed": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 33,
+        "column": 3
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.287",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-w8riPV/project",
+        "6": "❯ Start the work                                                                                                        ",
+        "8": "● Agent(Background work)",
+        "9": "  ⎿  Backgrounded agent (↓ to manage · ctrl+o to expand)",
+        "11": "  Ran 1 shell command ",
+        "13": "● Started the work.",
+        "15": "✻ Waiting for 1 background agent to finish",
+        "31": "                                                                                                    ◐ medium · /effort",
+        "32": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "33": "❯ P ",
+        "34": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "  ⏸ manual mode on · 1 shell",
+        "38": "  ● main",
+        "39": "  ◯ general-purpose  Background work                                                                                4s"
+      },
+      "bright": {
+        "6": "❯ Start the work",
+        "11": "  Ran 1 shell command",
+        "33": "❯ P"
+      }
+    },
+    "3 after the prompt": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 33,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.287",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-w8riPV/project",
+        "6": "❯ Start the work                                                                                                        ",
+        "8": "● Agent(Background work)",
+        "9": "  ⎿  Backgrounded agent (↓ to manage · ctrl+o to expand)",
+        "11": "  Ran 1 shell command ",
+        "13": "● Started the work.",
+        "15": "✻ Waiting for 1 background agent to finish",
+        "17": "❯ Ping now                                                                                                              ",
+        "19": "● Pong.",
+        "21": "✻ Waiting for 1 background agent to finish",
+        "31": "                                                                                                    ◐ medium · /effort",
+        "32": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "33": "❯  ",
+        "34": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "  ⏸ manual mode on · 1 shell · ← for agents",
+        "38": "  ● main",
+        "39": "  ◯ general-purpose  Background work                                                                                7s"
+      },
+      "bright": {
+        "6": "❯ Start the work",
+        "11": "  Ran 1 shell command",
+        "17": "❯ Ping now",
+        "33": "❯"
+      }
+    }
+  }
+}

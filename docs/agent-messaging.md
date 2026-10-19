@@ -311,10 +311,14 @@ like them, only inside Novadeck's terminals.
 
 - **`send(to, text)`** answers with the recipient's handle, the message id and one of:
   - `queued`, with the route it will take: "when its current turn ends", "when its next
-    turn starts" (only background work runs after its Stop), "ringing it now" (Settled or
-    Ready, and the doorbell isn't blocked), "ringing it once its box reads empty" (Fresh, Drafting or Unknown: the
+    turn starts" (only background work runs after its Stop, in a harness whose box takes
+    no prompt meanwhile: none today), "ringing it now" (Settled or
+    Ready, and the doorbell isn't blocked), "ringing it once its box reads empty" (Fresh, Drafting or Unknown, or
+    Working on background work only: the
     doorbell is looking at its screen), one of the `waits:` reasons when it looked and
-    can't ring, Settled or Ready included ("waits: there's text in its box, rung once it is empty", "waits: a
+    can't ring, Settled or Ready included ("waits: it is working, rung once its turn
+    ends", "waits: a prompt is queued in it, rung once that prompt has run", "waits: its
+    box is in shell mode, rung once it is back to a prompt", "waits: there's text in its box, rung once it is empty", "waits: a
     dialog or picker is open in its terminal, rung once it closes", "waits: it is
     asking the user a question, rung once answered"), or "when its agent starts: rung
     once Novadeck sees it at its prompt, else at its first turn"
@@ -756,7 +760,11 @@ facts above, so the prompt's emptiness is known before any message arrives:
 - **Working**: a root turn is running (its `turn` phase); Novadeck continued its Stop and
   waits for the continuation (`continuing`); or after its Stop only work it started
   still runs (`background`: subagents, which wake it once done, never a command alone),
-  when a message waits for its next turn. At a root Stop, if the person didn't submit during the turn,
+  when a message waits for its next turn, or for the doorbell: every harness's box takes
+  a prompt while that work runs (`MessagingProfile.promptsInBackground`; probed
+  2026-10-19, Claude Code 2.1.287, Codex 0.163.0, Antigravity 1.2.14, in
+  `e2e/probes/background-prompt.e2e.ts`), so the doorbell looks at its screen as at an
+  idle Drafting one's, and an empty box makes it Ready (#325). At a root Stop, if the person didn't submit during the turn,
   the Stop hook's ask gets a lease (below) and the turn continues, still Working.
   Novadeck continues a root turn at most twice, by its own count, then lets it end. A
   prompt right after a Stop Novadeck continued is that continuation, keeping the count,
@@ -837,8 +845,9 @@ use: Claude Code's ruled box, Codex's `›` box, Antigravity's `>` box). A box t
 as taking a prompt and holding nothing, with no queued prompt shown, makes the terminal
 Ready (the `emptied` event), unless the person pressed a key since the read; the ring's
 own gate then runs as for any Ready terminal, its settle window counted from there. Any
-other reading rings nothing, ever types nothing, and says why (`Waits`): `draft`, there
-is text in its box (or it is in shell mode, or a paste placeholder); `dialog`, no input
+other reading rings nothing, ever types nothing, and says why (`Waits`): `working`, its
+activity says a turn runs; `queued`, the harness shows a prompt queued in it; `shell`, its
+box is in shell mode; `draft`, there is text in its box (or a paste placeholder); `dialog`, no input
 box reads, as under a menu, picker, trust or approval screen, or a view of the harness
 draws a field like its box (`BoxProfile.overlay`: Claude Code's agents view, which Left
 opens, prompt history search and transcript; Codex's history search, shortcuts panel and `/side` conversation;
@@ -851,8 +860,10 @@ line. A ring that
 fails waits the same doubling, from 2 s, before the terminal is rung again; a ring that
 confirms ends the count. The look has bounds: it is made at most once a calm window and never while output streams (each
 change pushes it back; a screen that redraws the same text does not shorten the doubling
-wait, only a key of the person's or a turn event ends it); never while the agent's activity says a turn or subagents run,
-whatever its status line or spinner draws; and the box counts only from the start of the
+wait, only a key of the person's or a turn event ends it); never while the agent's activity says a turn runs
+(`working`), whatever its status line or spinner draws, though work a stopped turn left
+running (background agents and shells, a subagent running on) doesn't count, as the box
+takes a prompt meanwhile; and the box counts only from the start of the
 calm it rests on, so a key typed while the screen was read, or not yet drawn, makes the
 look stale. A row starting with the box's marker that is a numbered choice (`❯ 1. Yes`)
 is a picker, `dialog`; a new session before its prompt draws says nothing (`starting`).
@@ -870,7 +881,7 @@ for a first screen's logo vanishing (below) is not given to it.
 **Refusals and looks.** Every refusal of the gate says why and is looked at again with
 growing waits (1 s doubling to 15 s, the same for a screen that keeps changing): a
 terminal whose agent doesn't hold it, or takes no paste, says `away`; one with no box
-reading says what the screen shows (`draft`, `dialog`, `asking`). A new session before its
+reading says what the screen shows (`working`, `queued`, `shell`, `draft`, `dialog`, `asking`). A new session before its
 prompt draws says nothing (`starting`) until it has shown none for 5 s, then `dialog`
 (a trust, update or login screen waits for the person). The agent's activity is checked
 in the gate and again right before the paste. An overlay is read from the rows from the
@@ -905,6 +916,7 @@ Transitions:
 | Any bound state                          | A session replaces it at its prompt, box not known empty, no Enter just before   | Drafting              |
 | Drafting (by doubt only)                 | The screen shows the agent's box empty, on two reads running within 5 s          | Ready or Settled      |
 | Fresh, Drafting, Unknown, idle           | Messages waiting and the calm screen shows the agent's own box empty             | Ready or Settled      |
+| Working, only background work            | Messages waiting and the calm screen shows the agent's own box empty             | Ready                 |
 | Fresh, Ready, Settled, Drafting, Unknown | A root prompt                                                                    | Working               |
 | Working                                  | A normal root Stop, not continued, prompt known empty                            | Settled               |
 | Working                                  | A normal root Stop, not continued, prompt not known empty                        | Drafting              |
@@ -1681,10 +1693,13 @@ holds the person's keys and the window's resizes as a ring does, so the two neve
 the box.
 
 - **Why messages wait.** An idle agent the doorbell cannot ring says why in the
-  Messages pane, from the listing's `waits` (`draft`, `dialog`, `asking`): "There's text
+  Messages pane, from the listing's `waits` (`working`, `queued`, `shell`, `draft`,
+  `dialog`, `asking`): "It is working, so they wait. They arrive once its turn ends.", "A
+  prompt is queued in it, so they wait. They arrive once that prompt has run.", "Its box
+  is in shell mode, so they wait. They arrive once it's back to a prompt.", "There's text
   in its box, so they wait. They arrive once the box is empty.", "A dialog or picker is
   open in its terminal, so they wait. They arrive once it closes.", "It is asking you a
-  question, so they wait. They arrive once you answer." The demo shows the third on its
+  question, so they wait. They arrive once you answer." The demo shows the question on its
   Codex waiting for permission, and its debug panel's Doorbell group (Agents) puts the
   selected agent in each state.
 

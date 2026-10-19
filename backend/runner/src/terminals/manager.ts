@@ -117,7 +117,6 @@ import {
 } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
 import { Answers, type AnswerHost, type AnswerOptions } from "./answers.js"
-import { busy } from "./busy.js"
 import { callerOf, sameToken } from "./callers.js"
 import {
   allowClose,
@@ -163,7 +162,7 @@ import { Interrupts, Prompts } from "./prompting.js"
 import type { Record, Started } from "./record.js"
 import { hasRun, type TerminalRecords } from "./records.js"
 import { restoredSeparator } from "./restored.js"
-import { doorbellHost, profileOf } from "./ringing.js"
+import { agentWorking, doorbellHost, profileOf } from "./ringing.js"
 import { Sampler, shellProcess } from "./sampling.js"
 import { Saves } from "./saving.js"
 import { Streams } from "./streams.js"
@@ -1317,17 +1316,6 @@ export class Terminals {
     if (this.applyFact(record, fact)) this.publishAgent(record, false)
   }
 
-  /**
-   * Whether the activity says a turn or subagents run, where that outweighs what messaging
-   * knows: a Settled or Ready terminal made so by a Stop or a session's start stands against
-   * an activity that lingers; every other, and any made so by the screen alone, does not.
-   */
-  private working(terminalId: string, activity: Parameters<typeof busy>[0]): boolean {
-    const state = this.messaging.delivery(terminalId)?.state
-    const known = (state === "settled" || state === "ready") && !this.messaging.byScreen(terminalId)
-    return !known && busy(activity)
-  }
-
   /** What the doorbell asks of the terminals and messaging. */
   private ringHost(): DoorbellHost {
     return doorbellHost({
@@ -1339,7 +1327,8 @@ export class Terminals {
         void this.queue(terminalId, () => Promise.resolve(work()), undefined),
       endExited: (record) => this.endExited(record),
       messaging: this.messaging,
-      working: (terminalId, activity) => this.working(terminalId, activity),
+      working: (terminalId, activity) =>
+        agentWorking(this.messaging, terminalId, this.live(terminalId)?.binding ?? null, activity),
       stopping: () => this.stopping,
     })
   }

@@ -568,6 +568,11 @@ type MessagingProfile = {
   readonly queueKey?: string
   /** Whether a failed turn fires nothing, so its turn may only end with its next prompt. */
   readonly silentOnFailure: boolean
+  /**
+   * Whether its box takes a prompt while only work a stopped turn left running runs: the
+   * doorbell may ring it then, once its screen shows the box empty.
+   */
+  readonly promptsInBackground: boolean
   /** How it starts with `line` as its first prompt; undefined where it may not here. */
   readonly initialPrompt: (
     line: string,
@@ -584,11 +589,11 @@ type MessagingProfile = {
 }
 ```
 
-| Harness     | `asks`                                                                                    | `call` | `reinjectPerCall` | `root`        | `queueKey` | `silentOnFailure` | `typedEntry`             | `initialPrompt`                        |
-| ----------- | ----------------------------------------------------------------------------------------- | ------ | ----------------- | ------------- | ---------- | ----------------- | ------------------------ | -------------------------------------- |
-| Claude Code | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` and `PostToolUseFailure` (tool) | yes    | no                | `binding`     | none       | no                | none: hooks name prompts | `claude "<line>"`                      |
-| Codex       | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` (tool)                          | yes    | no                | `binding`     | Tab        | yes               | none: hooks name prompts | `codex "<line>"`                       |
-| Antigravity | `Stop` (stop), `PreInvocation` (prompt)                                                   | none   | yes               | `status-line` | none       | no                | `USER_INPUT` steps       | `agy -i "<line>"`, in a trusted folder |
+| Harness     | `asks`                                                                                    | `call` | `reinjectPerCall` | `root`        | `queueKey` | `silentOnFailure` | `promptsInBackground` | `typedEntry`             | `initialPrompt`                        |
+| ----------- | ----------------------------------------------------------------------------------------- | ------ | ----------------- | ------------- | ---------- | ----------------- | --------------------- | ------------------------ | -------------------------------------- |
+| Claude Code | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` and `PostToolUseFailure` (tool) | yes    | no                | `binding`     | none       | no                | yes                   | none: hooks name prompts | `claude "<line>"`                      |
+| Codex       | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` (tool)                          | yes    | no                | `binding`     | Tab        | yes               | yes                   | none: hooks name prompts | `codex "<line>"`                       |
+| Antigravity | `Stop` (stop), `PreInvocation` (prompt)                                                   | none   | yes               | `status-line` | none       | no                | yes                   | `USER_INPUT` steps       | `agy -i "<line>"`, in a trusted folder |
 
 `call` exists exactly when `asks` has a `tool` entry. A `tool` event fires as a root tool
 call finishes, and delivers only the lead's messages, beside the tool's result (see

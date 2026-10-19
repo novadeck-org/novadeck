@@ -777,10 +777,12 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
       // Nothing was left in it. Not for a box the person typed in since, or a
       // session since (`epoch`). A turn that completed (a Drafting delivery's
       // `completedAt`) is Settled again, since it completed, so its settle window has
-      // passed; any other is Ready.
+      // passed; any other is Ready. Working while only background work runs is Ready too,
+      // where messaging lets the doorbell look (`waitsIn`): its work runs on all the same.
       return (delivery.state === "drafting" ||
         delivery.state === "unknown" ||
-        delivery.state === "fresh") &&
+        delivery.state === "fresh" ||
+        phaseOf(delivery) === "background") &&
         event.epoch === delivery.epoch &&
         queueBarLeft(delivery, event.at, slackMs) === 0
         ? delivery.state === "drafting" && delivery.completedAt !== undefined
@@ -874,20 +876,40 @@ export const midTurnCall = (
 ): MidTurnCall | undefined =>
   hasToolHook ? "tool call" : reinjectPerCall ? "model call" : undefined
 
-/** Whether the state is one the doorbell looks at the screen of, for an empty box. */
-export const waitsIn = (delivery: Delivery): boolean =>
-  delivery.state === "fresh" || delivery.state === "drafting" || delivery.state === "unknown"
+/**
+ * Whether the state is one the doorbell looks at the screen of, for an empty box: Working
+ * too while only background work runs, where its harness takes a prompt then
+ * (`MessagingProfile.promptsInBackground`).
+ */
+export const waitsIn = (delivery: Delivery, inBackground = false): boolean =>
+  delivery.state === "fresh" ||
+  delivery.state === "drafting" ||
+  delivery.state === "unknown" ||
+  (inBackground && phaseOf(delivery) === "background")
 
 /**
- * Why the doorbell can't ring a terminal whose agent is idle, from what its screen shows
- * (see docs/agent-messaging.md, "The doorbell"): text in the agent's box (`draft`), a
- * dialog, picker or screen that isn't the agent's prompt (`dialog`), or a question it
- * waits on the person for (`asking`).
+ * Why the doorbell can't ring a terminal whose agent is idle, from what it saw (see
+ * docs/agent-messaging.md, "The doorbell"): its activity saying a turn runs (`working`),
+ * a prompt the harness shows queued (`queued`), its box in shell mode (`shell`), text in
+ * the agent's box (`draft`), a dialog, picker or screen that isn't the agent's prompt
+ * (`dialog`), a question it waits on the person for (`asking`), rings that failed
+ * (`failed`), or a terminal not at the agent's prompt (`away`).
  */
-export type Waits = "draft" | "dialog" | "asking" | "failed" | "away"
+export type Waits =
+  | "working"
+  | "queued"
+  | "shell"
+  | "draft"
+  | "dialog"
+  | "asking"
+  | "failed"
+  | "away"
 
 /** What `send` and the Messages pane say of each, plainly. */
 export const waitReasons: Readonly<Record<Waits, string>> = {
+  working: "waits: it is working, rung once its turn ends",
+  queued: "waits: a prompt is queued in it, rung once that prompt has run",
+  shell: "waits: its box is in shell mode, rung once it is back to a prompt",
   draft: "waits: there's text in its box, rung once it is empty",
   dialog: "waits: a dialog or picker is open in its terminal, rung once it closes",
   asking: "waits: it is asking the user a question, rung once answered",
@@ -900,13 +922,15 @@ export const waitReasons: Readonly<Record<Waits, string>> = {
  * agent the doorbell can't ring (`waits`, as the Messages pane shows) says why and when. A
  * harness that sends nothing when a turn fails, as Codex, may only end its turn with its
  * next prompt. The lead's message (`midTurn`, the call its harness delivers it at, where
- * it does) reaches a running turn at the agent's next such call instead.
+ * it does) reaches a running turn at the agent's next such call instead. One whose
+ * harness takes a prompt while only background work runs (`inBackground`) is rung then.
  */
 export const route = (
   delivery: Delivery,
   silentOnFailure: boolean,
   midTurn: MidTurnCall | undefined,
   waits: Waits | undefined = undefined,
+  inBackground = false,
 ): string => {
   switch (delivery.state) {
     case "fresh":
@@ -919,7 +943,12 @@ export const route = (
     case "ringing":
       return "ringing it now"
     case "working":
-      if (delivery.phase === "background") return "when its next turn starts"
+      if (delivery.phase === "background")
+        return inBackground
+          ? waits
+            ? waitReasons[waits]
+            : "ringing it once its box reads empty"
+          : "when its next turn starts"
       if (midTurn) return `at its next ${midTurn}`
       return silentOnFailure ? "at its turn's end or its next prompt" : "when its current turn ends"
     default:

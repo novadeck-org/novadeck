@@ -258,6 +258,12 @@ export type MessagingProfile = {
   /** Whether a failed turn fires nothing, so its turn may only end with its next prompt. */
   readonly silentOnFailure: boolean
   /**
+   * Whether its box takes a prompt at once while only work a stopped turn left running
+   * runs (background subagents and shells): the doorbell may ring it then, once its screen
+   * shows the box empty. Otherwise that work holds its messages until it ends.
+   */
+  readonly promptsInBackground: boolean
+  /**
    * How it starts with `line` as its first prompt, which it submits only once past its
    * startup screens; undefined where it may not here, as Antigravity in a folder it
    * doesn't trust yet, whose trust dialog its prompt doesn't wait for.

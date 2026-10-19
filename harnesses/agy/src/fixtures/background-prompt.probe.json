@@ -1,0 +1,102 @@
+{
+  "harness": "agy",
+  "version": "1.2.14",
+  "source": "src/e2e/probes/background-prompt.e2e.ts, run with NOVADECK_E2E_PROBES=1 (2026-10-19)",
+  "how": "Driven in a PTY (120x40) by the end-to-end deck against the fake model: the root started a subagent (invoke_subagent, type self), its model call held, and its turn ended while that ran. Each screen read with `screenText`: 1 three seconds after the root's turn ended, 2 with a key (P) typed, 3 after the key was erased and `Ping now` submitted. `took` says the root's model was called for that prompt while the work's call was still held: the box takes a prompt then.",
+  "took": true,
+  "screens": {
+    "1 stopped, work running": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 18,
+        "column": 1
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.2.14",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-3eU0iB/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────",
+        "11": "> Start the work",
+        "13": "● Agent(self: Background helper)(Work in the background.) (ctrl+o to expand)",
+        "15": "  Started the work.",
+        "17": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "18": ">",
+        "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "20": "  ● Agent(self: Background helper)  Working · 1s",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "22": "? for shortcuts                                                                     Gemini 3.1 Pro · low · 1 subagent(s)"
+      },
+      "bright": {
+        "22": "? for shortcuts"
+      }
+    },
+    "2 a key typed": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 18,
+        "column": 2
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.2.14",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-3eU0iB/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────",
+        "11": "> Start the work",
+        "13": "● Agent(self: Background helper)(Work in the background.) (ctrl+o to expand)",
+        "15": "  Started the work.",
+        "17": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "18": "> P",
+        "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "20": "  ● Agent(self: Background helper)  Working · 3s",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "22": "                                                                                    Gemini 3.1 Pro · low · 1 subagent(s)"
+      },
+      "bright": {
+        "22": ""
+      }
+    },
+    "3 after the prompt": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 23,
+        "column": 1
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.2.14",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-3eU0iB/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────",
+        "11": "> Start the work",
+        "13": "● Agent(self: Background helper)(Work in the background.) (ctrl+o to expand)",
+        "15": "  Started the work.",
+        "17": "────────────────────────────────────────────────────────────",
+        "18": "> Ping now",
+        "20": "  Pong.",
+        "22": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "23": ">",
+        "24": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "25": "  ● Agent(self: Background helper)  Working · 7s",
+        "26": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "27": "? for shortcuts                                                                     Gemini 3.1 Pro · low · 1 subagent(s)"
+      },
+      "bright": {
+        "27": "? for shortcuts"
+      }
+    }
+  }
+}

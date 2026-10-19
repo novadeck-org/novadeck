@@ -662,3 +662,57 @@ describe("a view's hint under a box with a long status line", () => {
     expect(claude.overlay(view)).toBe(true)
   })
 })
+
+// Each harness's box while only work its stopped turn left running runs, read off the
+// screens real runs drew (fixtures/background-prompt.probe.json, from
+// e2e/probes/background-prompt.e2e.ts, 2026-10-19): Claude Code with a background agent and
+// shell, its footer counting them and a spinner's row above the box; Antigravity with a
+// subagent, its panel drawn between rules under the box; Codex with a spawned agent, the
+// root idle. Each took a typed prompt then, so its box reads as any other.
+describe.each([
+  { name: "Claude Code", harness: "claude", profile: claude },
+  { name: "Codex", harness: "codex", profile: codex },
+  { name: "Antigravity", harness: "agy", profile: agy },
+])("the input box of $name while its background work runs", ({ harness, profile }) => {
+  const { screens } = loadProbe<{ screens: { readonly [name: string]: ScreenText } }>(
+    adapterFolder(harness),
+    "background-prompt.probe.json",
+  )
+
+  it("reads empty, at its prompt, with no view over it and nothing queued", () => {
+    for (const label of ["1 stopped, work running", "3 after the prompt"]) {
+      const shown = screens[label]!
+      expect(profile.read(shown)).toMatchObject({ mode: "prompt" })
+      expect(isEmpty(profile.read(shown)!)).toBe(true)
+      expect(profile.overlay(shown)).toBe(false)
+      expect(profile.queued(shown)).toBe(false)
+    }
+  })
+
+  it("reads the key typed in it", () => {
+    expect(profile.read(screens["2 a key typed"]!)).toMatchObject({ mode: "prompt", text: "P" })
+  })
+})
+
+describe("Antigravity's panel of running subagents under its box", () => {
+  const rule120 = "─".repeat(120)
+  const panel = (cursor: number, ...inside: string[]) =>
+    screenWith({
+      rows: ["> Start the work", "", rule120, "> ", rule120, ...inside, rule120, "? for shortcuts"],
+      cursor: { row: cursor, column: 2 },
+    })
+
+  it("is set aside, one row or several", () => {
+    expect(agy.read(panel(3, "  ● Agent(self: One)  Working · 1s"))).toMatchObject({ text: "" })
+    expect(
+      agy.read(
+        panel(3, "  ● Agent(self: One)  Working · 1s", "  ● Agent(self: Two)  Working · 2s"),
+      ),
+    ).toMatchObject({ text: "" })
+  })
+
+  it("is no panel when it holds anything else, or the cursor is not above it", () => {
+    expect(agy.read(panel(3, "  Something else"))).toBeUndefined()
+    expect(agy.read(panel(5, "  ● Agent(self: One)  Working · 1s"))).toBeUndefined()
+  })
+})

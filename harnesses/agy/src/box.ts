@@ -58,6 +58,24 @@ export const shellCommandOf = (
   return unjoinable ? undefined : lines.map((line) => line.trim()).join(" & ")
 }
 
+/**
+ * The screen as its box is read off it, without the panel of subagents it draws between
+ * rules under its box while they run, a row each ("  ● Agent(self: Helper)  Working · 1s";
+ * probed 2026-10-19, 1.2.14, fixtures/background-prompt.probe.json): there, the lowest pair
+ * of rules is the panel's. Only a ruled region below the cursor that holds such rows and
+ * nothing else is set aside.
+ */
+const withoutPanel = (screen: ScreenText): ScreenText => {
+  const bottom = screen.rows.findLastIndex(rule)
+  const top = screen.rows.slice(0, bottom).findLastIndex(rule)
+  if (top < 0 || screen.cursor.row >= top) return screen
+  const panel = screen.rows.slice(top + 1, bottom).filter((row) => row.trim() !== "")
+  if (panel.length === 0 || !panel.every((row) => /^\s*● Agent\(/.test(row))) return screen
+  const unruled = (rows: readonly string[]) =>
+    rows.map((row, at) => (at > top && at <= bottom ? "" : row))
+  return { ...screen, rows: unruled(screen.rows), bright: unruled(screen.bright) }
+}
+
 // Its word under a turn the person's Escape stopped (probed 2026-10-02, 1.2.14), white
 // space aside, as a narrow screen wraps it.
 const interruption = "⎿Interrupted·WhatshouldAntigravityCLIdoinstead?"
@@ -71,7 +89,7 @@ const interruption = "⎿Interrupted·WhatshouldAntigravityCLIdoinstead?"
  * no box is found to read above, as mid-redraw or under a dialog: no telling then.
  */
 export const interruptedShown = (screen: ScreenText): boolean | undefined => {
-  const box = ruledBox(screen, markers)
+  const box = ruledBox(withoutPanel(screen), markers)
   if (!box) return undefined
   const top = screen.rows.slice(0, box.first).findLastIndex(rule)
   if (top < 0) return undefined
@@ -97,12 +115,12 @@ export const overlay = (screen: ScreenText): boolean =>
  * Antigravity's input box: between two `─` rules, `> ` leading its first row and the rest
  * indented (probed 1.2.14 and 1.3.1, fixtures/input-box.probe.json). Its history above
  * echoes the person's turns the same way, rules and all, so only the lowest pair is the
- * box. A paste of more than 15 lines shows as `[Pasted text #1 +40 lines]`, a long line as
+ * box, once a panel of running subagents under it is set aside. A paste of more than 15 lines shows as `[Pasted text #1 +40 lines]`, a long line as
  * `[Pasted text #4 1499 chars]`. It leaves a ZWJ family sequence blank (probed), so the
  * library compares text without such emoji.
  */
 export const box: BoxProfile = {
-  read: (screen) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows)),
+  read: (screen) => agreeing(ruledBox(withoutPanel(screen), markers), shellFooter(screen.rows)),
   // Enter would run a command shown as a placeholder as the placeholder's own text (probed
   // 2026-10-07). A `!` command creates the conversation and binds the session (`starts`;
   // probed 2026-10-08).

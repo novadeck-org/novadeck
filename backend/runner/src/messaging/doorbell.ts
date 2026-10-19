@@ -34,7 +34,7 @@ export type DoorbellHost = {
   readonly ready: (terminalId: string) => boolean
   /**
    * Starts the ring with its nonce: the terminal is Ringing; false when it may not now, as
-   * the agent's activity says a turn or subagents run (checked here, just before the paste).
+   * the agent's activity says it works (checked here, just before the paste).
    */
   readonly ring: (terminalId: string, nonce: string) => boolean
   /** The nonce of the ring under way there, if any. */

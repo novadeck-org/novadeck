@@ -284,8 +284,9 @@ describe("sending", () => {
     messaging.acknowledge("A", stop("A", claude).leaseId!)
     prompt("A", claude, "harness")
     stop("A", claude, true)
+    // Its box takes a prompt while that runs: the doorbell looks at it.
     expect(sent(send("B", "moth", "four"))).toMatchObject({
-      route: "when its next turn starts",
+      route: "ringing it once its box reads empty",
     })
   })
 
@@ -928,12 +929,17 @@ describe("delivery through hooks", () => {
     expect(messaging.delivery("B")?.state).toBe("fresh")
   })
 
-  it("keeps a Claude Code turn working while its background tasks run", () => {
-    const { messaging, prompt, stop, claude } = create()
+  it("keeps a Claude Code turn working while its background tasks run, its screen looked at", () => {
+    const { messaging, prompt, stop, send, claude } = create()
     prompt("A", claude)
     stop("A", claude, true)
     expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "background" })
+    // Its box takes a prompt meanwhile: a message is rung once the box reads empty (#325).
+    expect(sent(send("B", "moth", "Any news?")).route).toBe("ringing it once its box reads empty")
+    expect(messaging.stalled("A")).toBe(true)
+    expect(messaging.ringable("A")).toBe(false)
     prompt("A", claude, "harness")
+    expect(messaging.stalled("A")).toBe(false)
     stop("A", claude)
     expect(messaging.delivery("A")?.state).toBe("settled")
   })
@@ -948,6 +954,81 @@ describe("delivery through hooks", () => {
     prompt("A", claude)
     sent(send("B", "moth", "Review it"))
     expect(stop("A", claude).leaseId).toEqual(expect.any(String))
+  })
+
+  describe("rung while only its background work runs", () => {
+    // Stopped with a background agent running, a message waiting, and the doorbell's look
+    // at its calm screen reading the box empty: Ready, its settle window passed.
+    const emptiedInBackground = () => {
+      const setup = create()
+      const { messaging, prompt, stop, send, claude, clock: time } = setup
+      prompt("A", claude)
+      stop("A", claude, true)
+      sent(send("B", "moth", "Any news?"))
+      time.now += 1_000
+      messaging.emptied("A", messaging.delivery("A")!.epoch, time.now - 500)
+      expect(messaging.delivery("A")?.state).toBe("ready")
+      time.now += 6_000
+      expect(messaging.ringable("A")).toBe(true)
+      return setup
+    }
+    const delivered = (messaging: Messaging) =>
+      messages(messaging, "A").filter((message) => message.state === "delivered")
+
+    it("is confirmed by its doorbell prompt, whose hook delivers, and waits on its work again", () => {
+      const { messaging, ask, stop, claude } = emptiedInBackground()
+      expect(messaging.ring("A", "n1")).toBe(true)
+      const answer = ask("A", claude, "UserPromptSubmit", [doorbellStarted(claude, "n1")])
+      expect(answer.stdout).toContain(">Any news?</message>")
+      messaging.acknowledge("A", answer.leaseId!)
+      expect(messaging.ringing("A")).toBeUndefined()
+      expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "turn" })
+      // The agent still waits on its background agent once that turn ends.
+      stop("A", claude, true)
+      expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "background" })
+      expect(delivered(messaging)).toHaveLength(1)
+    })
+
+    it("delivers once when its background agent's own turn starts mid-ring, never taking that turn for the ring's", () => {
+      const { messaging, ask, prompt, stop, claude } = emptiedInBackground()
+      expect(messaging.ring("A", "n1")).toBe(true)
+      // The agent finishes and Claude Code starts a turn with its task notification, before
+      // the doorbell's line is submitted: that turn's hook delivers, and the ring is over.
+      const woken = prompt("A", claude, "harness")
+      expect(woken.stdout).toContain(">Any news?</message>")
+      messaging.acknowledge("A", woken.leaseId!)
+      expect(messaging.ringing("A")).toBeUndefined()
+      expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "turn" })
+      stop("A", claude)
+      // The line Claude Code queued behind that turn is submitted after it: nothing waits.
+      const late = ask("A", claude, "UserPromptSubmit", [doorbellStarted(claude, "n1")])
+      expect(late.leaseId).toBeNull()
+      expect(late.stdout).toContain("no agent messages are waiting")
+      expect(delivered(messaging)).toHaveLength(1)
+    })
+
+    it("delivers once when its background agent's own turn follows the ring's", () => {
+      const { messaging, ask, prompt, stop, claude } = emptiedInBackground()
+      messaging.ring("A", "n1")
+      const answer = ask("A", claude, "UserPromptSubmit", [doorbellStarted(claude, "n1")])
+      messaging.acknowledge("A", answer.leaseId!)
+      // The agent finished during the ring's turn: its notification is a turn after it.
+      expect(stop("A", claude).leaseId).toBeNull()
+      const woken = prompt("A", claude, "harness")
+      expect(woken.leaseId).toBeNull()
+      expect(woken.stdout).not.toContain("Any news?")
+      stop("A", claude)
+      expect(messaging.delivery("A")?.state).toBe("settled")
+      expect(delivered(messaging)).toHaveLength(1)
+    })
+
+    it("is not rung once its background agent's own turn starts before the ring", () => {
+      const { messaging, prompt, claude } = emptiedInBackground()
+      const woken = prompt("A", claude, "harness")
+      expect(woken.stdout).toContain(">Any news?</message>")
+      expect(messaging.ringable("A")).toBe(false)
+      expect(messaging.ring("A", "n1")).toBe(false)
+    })
   })
 
   it("leaves a turn that began since alone when an older Stop's lease lapses", () => {
