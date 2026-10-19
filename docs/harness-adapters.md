@@ -37,7 +37,7 @@ transcripts and telemetry are fixed only after per-harness coverage probes
 | `backend/runner/src/shell/scripts.ts`                                         | Provider manifests, hook configuration, Codex launch shim                     | `files` and `shims`; shared artifact writer                              |
 | `backend/runner/src/shell/hook.ts`                                            | Native payload interpretation, nested-session filtering, hook response format | Per-harness `decode.ts` in its package; one shared hook script           |
 | `backend/runner/src/shell/reports.ts`                                         | Authenticate and accept session reports                                       | Shared ingress and binding policy                                        |
-| `backend/runner/src/terminals/manager.ts`                                     | PTY lifetime, resume claims, persistence, foreground ownership                | Terminal manager, using the harness service                              |
+| `backend/runner/src/terminals/manager.ts`, `resumes.ts`, `saving.ts`          | PTY lifetime, resume claims, persistence, foreground ownership                | Terminal manager, using the harness service                              |
 | `frontend/core/src/process.ts` and `frontend/runner-adapter/src/resumable.ts` | Provider recognition and resume eligibility                                   | `programs` and shared recognition; UI keeps generic program presentation |
 
 `shell/agents.ts` and `shell/resume.ts` are named as this proposal found them: their work

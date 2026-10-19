@@ -1,8 +1,13 @@
-import type { CompanionItem, ItemContent, ItemId } from "@novadeck/core/companion"
+import {
+  kindRules,
+  type CompanionItem,
+  type ItemContent,
+  type ItemId,
+} from "@novadeck/core/companion"
 import type { WorkspaceTarget } from "@novadeck/core/types"
 import { useEffect, useRef, useSyncExternalStore } from "react"
 
-import type { PlanDoc } from "./plan-doc"
+import type { PlanDoc } from "./panes/plan/plan-doc"
 import type { Panes } from "./state"
 
 // The panes' state as components use it: one part each, so a keystroke in one plan
@@ -43,7 +48,10 @@ export const useContent = (
   const { projectId, workspaceSessionId } = target
   const { id, kind } = item
   useEffect(
-    () => (kind === "plan" ? undefined : panes.watch({ projectId, workspaceSessionId }, id)),
+    () =>
+      kindRules[kind].follow === "always"
+        ? undefined
+        : panes.watch({ projectId, workspaceSessionId }, id),
     [panes, projectId, workspaceSessionId, id, kind],
   )
   return useSyncExternalStore(panes.store.subscribe, () => panes.store.getSnapshot().content[id])
