@@ -48,15 +48,19 @@ const savesPerTick = 4
  * runner's stop and a failure is logged rather than thrown.
  */
 export class Saves {
-  /** Whether terminals' transcripts are kept, until `keep` changes it. */
-  transcripts: boolean
+  private kept: boolean
   private saver: ReturnType<typeof setInterval> | undefined
 
   constructor(
     private readonly options: SavesOptions,
     readonly host: SavesHost,
   ) {
-    this.transcripts = options.transcripts
+    this.kept = options.transcripts
+  }
+
+  /** Whether terminals' transcripts are kept, until `keep` changes it. */
+  get transcripts(): boolean {
+    return this.kept
   }
 
   /** Saves every terminal's changes now, as before the system shuts down. */
@@ -66,7 +70,7 @@ export class Saves {
 
   /** Turning transcripts off forgets every saved one; turning them on saves each anew. */
   keep(enabled: boolean): void {
-    this.transcripts = enabled
+    this.kept = enabled
     if (enabled) for (const record of this.host.records()) record.changed = true
     if (!enabled) this.persisting(() => this.options.records?.clearTranscripts())
   }

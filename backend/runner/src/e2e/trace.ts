@@ -385,7 +385,7 @@ export const startTrace = (name: string, model: FakeModel) => {
     showPrompt,
     endExited,
   } = runner
-  // Saving a terminal, the one place the runner writes its records.
+  // Saving and reading terminals' records.
   const saving = methods(Saves.prototype, "Saves", ["persisting"])
   const { persisting } = saving
   runner.endExited = function (record) {
