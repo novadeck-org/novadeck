@@ -21,6 +21,7 @@
     "./shell/WorkspacePanels": "./src/shell/WorkspacePanels.tsx",
     "./shell/WorkspaceSidebar": "./src/shell/WorkspaceSidebar.tsx",
     "./styles.css": "./src/styles.css",
+    "./terminals/chat/Transcript": "./src/terminals/chat/Transcript.tsx",
     "./terminals/TerminalTab": "./src/terminals/TerminalTab.tsx",
     "./terminals/WindowShell": "./src/terminals/WindowShell.tsx",
     "./terminals/WindowStats": "./src/terminals/WindowStats.tsx",
