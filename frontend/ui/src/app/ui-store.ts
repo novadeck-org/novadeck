@@ -25,21 +25,6 @@ import { noArrangement, type ProjectArrangement } from "../projects/project-arra
 import { writeProjectArrangement } from "../projects/project-arrangement-storage"
 import { initialShell, resetPresentation, type ShellState } from "../shell/shell-state"
 import { writeSidebarCollapsed, writeWindowedView } from "../shell/shell-storage"
-import {
-  chatKept,
-  keepChatDrafts,
-  keepChatReplies,
-  settleChatReplies,
-  keepTerminalAnswers,
-  noChatDrafts,
-  noChatReplies,
-  noChatSends,
-  noTerminalAnswers,
-  type ChatDrafts,
-  type ChatReplies,
-  type ChatSends,
-  type TerminalAnswers,
-} from "../terminals/chat/mode-state"
 import { nextRecent, visibleSwitcher, type RecentSwitcher } from "../terminals/recent"
 import type { RenameSession } from "../terminals/rename-state"
 import {
@@ -97,15 +82,6 @@ export type UiState = {
   readonly pageFocused: boolean
   // The terminals whose agent finished while the person looked elsewhere.
   readonly unread: Unread
-  // The terminals showing their screen though the chat view is on, as the person went to
-  // answer their agent there.
-  readonly answering: TerminalAnswers
-  // What the person typed in a terminal's chat and has not sent.
-  readonly chatDrafts: ChatDrafts
-  // The question each draft replies to, or that it is held once that question went.
-  readonly chatReplies: ChatReplies
-  // The words on their way from there to the agent, out of the draft until they arrive.
-  readonly chatSends: ChatSends
   // How the person arranged the switcher's projects: their order and the pinned ones.
   readonly projectArrangement: ProjectArrangement
 }
@@ -151,10 +127,6 @@ export const initialUi = ({
   portable: null,
   pageFocused: true,
   unread: noUnread,
-  answering: noTerminalAnswers,
-  chatDrafts: noChatDrafts,
-  chatReplies: noChatReplies,
-  chatSends: noChatSends,
   projectArrangement,
 })
 
@@ -383,65 +355,6 @@ const terminalsOf = (workspace: Workspace): Map<string, TerminalMetadata> =>
 // The session context of a terminal's key in `terminalsOf`.
 const contextOf = (key: string, terminal: TerminalMetadata): string =>
   key.slice(0, key.length - terminal.id.length - 1)
-
-// A terminal shows its chat only while an agent runs in it: once the agent ends, or the
-// terminal goes, the screen comes back. A terminal the person went to answer in shows its
-// chat again once its agent no longer waits on them, or a later agent starts. What was
-// typed in the chat and not sent stays until the terminal goes, for the next agent there.
-export const watchChatModes = (workspace: Store<Workspace>, ui: UiStore): (() => void) => {
-  let previous = workspace.getSnapshot()
-  return workspace.subscribe(() => {
-    const snapshot = workspace.getSnapshot()
-    if (snapshot.projects === previous.projects) return
-    const before = previous
-    previous = snapshot
-    const held = ui.getSnapshot()
-    if (
-      held.answering === noTerminalAnswers &&
-      held.chatDrafts === noChatDrafts &&
-      held.chatReplies === noChatReplies
-    )
-      return
-    const terminals = terminalsOf(snapshot)
-    const keep = (context: string, id: string): boolean => {
-      const terminal = terminals.get(`${context}/${id}`)
-      return terminal !== undefined && chatKept(terminal)
-    }
-    const open = (context: string, id: string): boolean => terminals.has(`${context}/${id}`)
-    const earlier = held.answering === noTerminalAnswers ? undefined : terminalsOf(before)
-    // Answered: its agent waited on the person a moment ago, and no longer does.
-    const answered = (context: string, id: string): boolean => {
-      const was = earlier?.get(`${context}/${id}`)
-      const now = terminals.get(`${context}/${id}`)
-      return (
-        was?.state === "running" &&
-        was.agent?.attention !== undefined &&
-        now?.state === "running" &&
-        now.agent?.attention === undefined
-      )
-    }
-    ui.update((state) => {
-      const answering = keepTerminalAnswers(
-        state.answering,
-        (context, id) => keep(context, id) && !answered(context, id),
-      )
-      const chatDrafts = keepChatDrafts(state.chatDrafts, open)
-      // What a draft replies to, or that it is held, stays as long as the draft: a reply
-      // whose question went with its agent comes back held, never as a message, and never
-      // replies to a later agent's question.
-      const chatReplies = settleChatReplies(
-        keepChatReplies(state.chatReplies, open),
-        chatDrafts,
-        (context, id) => open(context, id) && !keep(context, id),
-      )
-      return answering === state.answering &&
-        chatDrafts === state.chatDrafts &&
-        chatReplies === state.chatReplies
-        ? state
-        : { ...state, answering, chatDrafts, chatReplies }
-    })
-  })
-}
 
 // A desktop notification about one terminal, as a backend shows it.
 export type FinishNotify = (notice: {

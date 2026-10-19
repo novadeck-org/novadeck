@@ -81,11 +81,11 @@ for (const setup of setups) {
       const dir = process.env.PROBE_OUT ?? join(run.sandbox.root, "probe-out")
       mkdirSync(dir, { recursive: true })
       // Every fact the activity is told of, with when, so a run shows which signals followed
-      // its Escape. The manager's one entry for them is wrapped for the probe only.
+      // its Escape. The bindings' one entry for them is wrapped for the probe only.
       const told: { at: number; fact: Record<string, unknown>; applied: boolean }[] = []
-      const manager = run.deck.terminals as unknown as Facts
-      const applyFact = manager.applyFact.bind(manager)
-      manager.applyFact = (record, fact) => {
+      const { bindings } = run.deck.terminals as unknown as { bindings: Facts }
+      const applyFact = bindings.applyFact.bind(bindings)
+      bindings.applyFact = (record, fact) => {
         const applied = applyFact(record, fact)
         told.push({ at: Date.now(), fact: { ...fact, input: undefined }, applied })
         return applied

@@ -15,6 +15,7 @@ import { agents, harnesses } from "../harnesses/registry.js"
 import type { DeliveryEvent } from "../messaging/delivery.js"
 import { tracer } from "../messaging/doorbell.js"
 import { Messaging } from "../messaging/messaging.js"
+import { Bindings } from "../terminals/binding/facts.js"
 import { Launcher } from "../terminals/launching.js"
 import { Terminals } from "../terminals/manager.js"
 import { Saves } from "../terminals/saving.js"
@@ -85,7 +86,6 @@ type Runner = {
   readonly disconnections: ReadonlyMap<string, number>
   queue: <T>(terminalId: string, work: () => Promise<T>, fallback: T) => Promise<T>
   report: (report: Report, deadline?: number) => Promise<unknown>
-  appliedFact: (record: Traced, fact: { readonly type: string }) => boolean
   messaging: { delivery: (terminalId: string) => { epoch: number; state: string } | undefined }
   screenTitled: (record: Titled, child: object, title: string) => void
   harnessIn: (
@@ -95,6 +95,10 @@ type Runner = {
   ) => Promise<{ where: Install; group: readonly number[] } | null>
   promptTrust: (record: Titled, agent: string, where?: Install) => Promise<string>
   showPrompt: (record: Titled, shown: PromptShown, replaced?: string) => void
+}
+// What the trace wraps of the agents' bindings.
+type Binder = {
+  appliedFact: (record: Traced, fact: { readonly type: string }) => boolean
   endExited: (record: Titled) => boolean
 }
 type Titled = Traced & {
@@ -366,30 +370,25 @@ export const startTrace = (name: string, model: FakeModel) => {
   const runner = methods(Terminals.prototype as unknown as Runner, "Terminals", [
     "queue",
     "report",
-    "appliedFact",
     "screenTitled",
     "harnessIn",
     "promptTrust",
     "showPrompt",
+  ])
+  const { queue, report: handle, screenTitled, harnessIn, promptTrust, showPrompt } = runner
+  // The facts applied to each agent's activity, and the bindings found gone.
+  const binding = methods(Bindings.prototype as unknown as Binder, "Bindings", [
+    "appliedFact",
     "endExited",
   ])
-  const {
-    queue,
-    report: handle,
-    appliedFact,
-    screenTitled,
-    harnessIn,
-    promptTrust,
-    showPrompt,
-    endExited,
-  } = runner
+  const { appliedFact, endExited } = binding
   // Saving and reading terminals' records.
   const saving = methods(Saves.prototype, "Saves", ["persisting"])
   const { persisting } = saving
   // Whether a harness is connected, as a report's admission or a shown prompt asks.
   const launching = methods(Launcher.prototype, "Launcher", ["connected"])
   const { connected } = launching
-  runner.endExited = function (record) {
+  binding.endExited = function (record) {
     const before = record.binding
     const ended = endExited.call(this, record)
     if (reports.getStore())
@@ -439,7 +438,7 @@ export const startTrace = (name: string, model: FakeModel) => {
   }
   // Each fact told the agent's activity, and what it made of it: a turn's end, an Escape,
   // an idle, as clients read the activity. A change between two of them is a new binding's.
-  runner.appliedFact = function (record, fact) {
+  binding.appliedFact = function (record, fact) {
     const before = activityOf(record.activity)
     const applied = appliedFact.call(this, record, fact)
     // One that changed nothing names the binding it was weighed against, and its own.
@@ -755,13 +754,12 @@ export const startTrace = (name: string, model: FakeModel) => {
       Object.assign(runner, {
         queue,
         report: handle,
-        appliedFact,
         screenTitled,
         harnessIn,
         promptTrust,
         showPrompt,
-        endExited,
       })
+      Object.assign(binding, { appliedFact, endExited })
       for (const restore of restoreTitles) restore()
       for (const [agent, decode] of decoders)
         (

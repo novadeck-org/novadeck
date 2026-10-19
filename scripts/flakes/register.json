@@ -124,6 +124,15 @@
       "seen": ["#219 run 39022577489 job 117368580212"]
     },
     {
+      "id": "e2e-antigravity-macos-second-approval-unreported",
+      "jobs": ["^Antigravity \\(macOS\\)$"],
+      "test": "src/e2e/answers.e2e.ts > Antigravity > approves two identical queued commands from the chat in turn, each running once",
+      "signature": "Timed out after \\d+ ms waiting for \\w+: the second request to show its dialog",
+      "status": "known",
+      "cause": "Suspected Antigravity's: its status line, which reports a waiting request (\"tool_use\"), ran last 0.3 s after the second call's PreToolUse, still \"working\" with the first request's \"allowed\", and not again in the 60 s the second request's dialog was on screen, so the runner had no request to show (the run's trace). Not the runner's tool calls (calls.ts): the test makes none.",
+      "seen": ["#348 run 39292306824 attempt 1 job 118199940029"]
+    },
+    {
       "id": "e2e-claude-windows-interrupted-draft",
       "jobs": ["^Claude Code \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/e2e/chat.e2e.ts > Claude Code > leaves the box as it was before the interrupted prompt",

@@ -20,7 +20,7 @@ import {
   togglePin,
   type ProjectArrangement,
 } from "../../projects/project-arrangement"
-import { noTerminalAnswers } from "../../terminals/chat/mode-state"
+import { resetAnswering } from "../../terminals/chat/state"
 import {
   currentContext,
   currentState,
@@ -126,7 +126,7 @@ const holding = (
 }
 
 export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands => {
-  const { workspace, ui, navigation, newTerminal, pickDirectory, crashLoop, effects } = ctx
+  const { workspace, ui, chat, navigation, newTerminal, pickDirectory, crashLoop, effects } = ctx
   const { murmur } = ctx
   const { go, navigateWorkspace } = navigation
   const { set, pulse } = shellEdits(ctx)
@@ -305,12 +305,15 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       const snapshot = workspace.getSnapshot()
       const { view } = currentState(snapshot)
       effects.cancelTransition()
-      // Turning the chat view on or off starts every terminal afresh on it.
-      ui.update((state) => ({
-        ...state,
-        preferences: next,
-        ...(next.chatView !== state.preferences.chatView && { answering: noTerminalAnswers }),
-      }))
+      // Turning the chat view on or off starts every terminal afresh on it. The preference
+      // and the terminals answered in are two stores, and no one may see a terminal's chat
+      // shown with the old answers: turned off, the preference goes first, so nothing is
+      // shown; turned on, the answers go first, so nothing is shown meanwhile.
+      const turningOn = next.chatView && !ui.getSnapshot().preferences.chatView
+      const turningOff = !next.chatView && ui.getSnapshot().preferences.chatView
+      if (turningOn) resetAnswering(chat)
+      ui.update((state) => ({ ...state, preferences: next }))
+      if (turningOff) resetAnswering(chat)
       workspace.dispatch({
         type: "preferences/reconcile",
         target: currentTarget(snapshot),
