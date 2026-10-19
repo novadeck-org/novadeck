@@ -9,7 +9,7 @@ state; nothing here knows about a terminal, a project or an agent.
 
 - **It depends on no other frontend package.** Its manifest holds Ark UI, `clsx`,
   `tailwind-merge`, Lucide and React. The one workspace package it names is `test-kit`, as a
-  dev dependency of its tests; `scripts/workspace/graph.test.ts` holds the rest.
+  dev dependency of its tests; `scripts/workspace/graph.test.ts` holds the rest, and that no relative import leaves the package.
 - **Ark UI is imported here and nowhere else.** The UI's architecture test reads this package
   as its old `ui-toolkit/` layer, which every feature may use and which may use nothing of
   theirs.
