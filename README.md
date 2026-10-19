@@ -118,7 +118,7 @@ shells, and terminals starting or ended use Lucide's Terminal icon and no body. 
 terminal keeps the same `frontend/ui/src/terminals/WindowShell.tsx` window, so a
 program starting or ending never replaces the header: a rename in progress, focus,
 and the terminal switcher carry on. Claude and Codex have their own icons in
-`frontend/ui/src/ui-toolkit/icons/` and their own bodies beside the profiles, where
+`frontend/toolkit/src/icons/` and their own bodies beside the profiles, where
 their presentation can grow. To give another program its own look, add a profile
 entry, with its own body if needed, and a launcher entry in `frontend/core/src/process.ts` if it
 runs as a Node script. Profiles are presentation only: per-program behaviour goes beside
@@ -168,7 +168,7 @@ counts toward the cap, and the node's content is hidden until it is back in sigh
 the last four terminals it displayed mounted, parked out of sight with `display:none`,
 so switching back finds a terminal's companion pane as it was: a page still loaded, a
 plan's editor, where each was scrolled. A component that docks status, opens over the
-page or plays sound reads `useShown()` (`ui-toolkit/shown.ts`), which Focus sets false
+page or plays sound reads `useShown()` (`frontend/toolkit/src/shown.ts`), which Focus sets false
 for a terminal it parks, and leaves that to what is on screen.
 
 The runner owns every terminal: which terminals a session has, their names (the ones
@@ -1012,39 +1012,40 @@ contract they share; `libraries/` holds the mechanics that never import app code
 [libraries/README.md](libraries/README.md)); `tools/` holds the apps' build helpers and the
 atlas.
 
-| Package                   | Responsibility                                                                         |
-| ------------------------- | -------------------------------------------------------------------------------------- |
-| `frontend/ui`             | React frontend built with Vite, Tailwind CSS, and Lucide icons.                        |
-| `frontend/core`           | The UI's model: types, reducer, stores, and the port to a backend.                     |
-| `frontend/runner-adapter` | The UI's backend for a runner, over a WebSocket or the desktop host.                   |
-| `frontend/terminal-views` | The xterm mount both backends draw terminals with.                                     |
-| `frontend/demo`           | The demo backend: a scripted workspace and simulated terminals.                        |
-| `frontend/demo-debug`     | The demo's debug panel and rehearsals.                                                 |
-| `frontend/test-kit`       | What the UI's tests render and drive the app with.                                     |
-| `frontend/specs`          | Behaviour specs: the whole app in a real browser, over the demo.                       |
-| `apps/desktop`            | Electron host that starts the runner and loads the packaged UI.                        |
-| `apps/try`                | The visitor build of the demo, which the website embeds.                               |
-| `apps/previews`           | The content preview: the demo with its debug panel.                                    |
-| `backend/runner`          | The runner: shells and metadata, served over WebSocket or port.                        |
-| `backend/relay`           | Rust relay for agents' Novadeck MCP server and hooks.                                  |
-| `contract/protocol`       | Shared Zod contracts the runner and its clients agree on.                              |
-| `contract/runner-client`  | The `connectRunner` client UIs reach a runner with.                                    |
-| `engines/whisper`         | Voice engine: whisper.cpp built for download (`build:engine`).                         |
-| `engines/murmur`          | Murmur engine: llama.cpp built for download (`build:engine`).                          |
-| `engines/ggml-build`      | The engine build both of those share.                                                  |
-| `harnesses/core`          | The harness adapters' contract and the helpers they share.                             |
-| `harnesses/claude`        | The Claude Code adapter: hooks, transcripts, dialogs, input box.                       |
-| `harnesses/codex`         | The Codex adapter, same shape.                                                         |
-| `harnesses/agy`           | The Antigravity adapter, same shape.                                                   |
-| `libraries/emulator`      | The terminal emulator: xterm.js pinned and patched, the character-width rule, helpers. |
-| `libraries/terminal`      | Hosting terminals: a pty, a headless screen, a resumable stream, the browser view.     |
-| `libraries/tui-input`     | Typing into a full-screen program and checking that the text landed.                   |
-| `libraries/viewers`       | Content viewers behind one contract: code, image, markdown and web pages.              |
-| `libraries/wire`          | RPC calls and streams between processes over a WebSocket or a MessagePort.             |
-| `libraries/sandbox`       | An isolated environment for tests and benchmarks that run real shells and programs.    |
-| `tools/build-kit`         | The apps' Vite helpers: CSP sources, hosting headers, noindex, fonts, bundle checks.   |
-| `tools/atlas`             | Dev-only code map: `pnpm atlas`; agent briefs: `pnpm -s atlas:brief`.                  |
-| `scripts`                 | Repository checks and automation.                                                      |
+| Package                   | Responsibility                                                                            |
+| ------------------------- | ----------------------------------------------------------------------------------------- |
+| `frontend/ui`             | React frontend built with Vite, Tailwind CSS, and Lucide icons.                           |
+| `frontend/core`           | The UI's model: types, reducer, stores, and the port to a backend.                        |
+| `frontend/toolkit`        | The controls every feature draws with: Ark UI wrappers, shared recipes, the sidebar item. |
+| `frontend/runner-adapter` | The UI's backend for a runner, over a WebSocket or the desktop host.                      |
+| `frontend/terminal-views` | The xterm mount both backends draw terminals with.                                        |
+| `frontend/demo`           | The demo backend: a scripted workspace and simulated terminals.                           |
+| `frontend/demo-debug`     | The demo's debug panel and rehearsals.                                                    |
+| `frontend/test-kit`       | What the UI's tests render and drive the app with.                                        |
+| `frontend/specs`          | Behaviour specs: the whole app in a real browser, over the demo.                          |
+| `apps/desktop`            | Electron host that starts the runner and loads the packaged UI.                           |
+| `apps/try`                | The visitor build of the demo, which the website embeds.                                  |
+| `apps/previews`           | The content preview: the demo with its debug panel.                                       |
+| `backend/runner`          | The runner: shells and metadata, served over WebSocket or port.                           |
+| `backend/relay`           | Rust relay for agents' Novadeck MCP server and hooks.                                     |
+| `contract/protocol`       | Shared Zod contracts the runner and its clients agree on.                                 |
+| `contract/runner-client`  | The `connectRunner` client UIs reach a runner with.                                       |
+| `engines/whisper`         | Voice engine: whisper.cpp built for download (`build:engine`).                            |
+| `engines/murmur`          | Murmur engine: llama.cpp built for download (`build:engine`).                             |
+| `engines/ggml-build`      | The engine build both of those share.                                                     |
+| `harnesses/core`          | The harness adapters' contract and the helpers they share.                                |
+| `harnesses/claude`        | The Claude Code adapter: hooks, transcripts, dialogs, input box.                          |
+| `harnesses/codex`         | The Codex adapter, same shape.                                                            |
+| `harnesses/agy`           | The Antigravity adapter, same shape.                                                      |
+| `libraries/emulator`      | The terminal emulator: xterm.js pinned and patched, the character-width rule, helpers.    |
+| `libraries/terminal`      | Hosting terminals: a pty, a headless screen, a resumable stream, the browser view.        |
+| `libraries/tui-input`     | Typing into a full-screen program and checking that the text landed.                      |
+| `libraries/viewers`       | Content viewers behind one contract: code, image, markdown and web pages.                 |
+| `libraries/wire`          | RPC calls and streams between processes over a WebSocket or a MessagePort.                |
+| `libraries/sandbox`       | An isolated environment for tests and benchmarks that run real shells and programs.       |
+| `tools/build-kit`         | The apps' Vite helpers: CSP sources, hosting headers, noindex, fonts, bundle checks.      |
+| `tools/atlas`             | Dev-only code map: `pnpm atlas`; agent briefs: `pnpm -s atlas:brief`.                     |
+| `scripts`                 | Repository checks and automation.                                                         |
 
 Build an engine locally with `pnpm --filter @novadeck/whisper build:engine` or
 `pnpm --filter @novadeck/murmur build:engine`; the archive and `engine.json` land in
@@ -1067,8 +1068,8 @@ backend-only tests.
 
 ### Working on the UI
 
-The UI is split into packages: `frontend/core`, `frontend/ui`, `frontend/runner-adapter`,
-`frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit` and
+The UI is split into packages: `frontend/core`, `frontend/ui`, `frontend/toolkit`,
+`frontend/runner-adapter`, `frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit` and
 `frontend/specs`, and the apps `apps/desktop`, `apps/try` and `apps/previews`. `frontend/ui`
 holds the page's layers, each a folder of its `src/`; the rest are packages of their own. In
 the table a path that starts with `frontend/` or `apps/` is a package, and any other is a
@@ -1105,7 +1106,7 @@ folder of `frontend/ui/src/`:
 | `shell/`                                                        | Header, rail, panels, zen dock, sidebar, and shell state transitions.                                                          |
 | `sidebar/`, `projects/`, `preferences/`, `search/`              | Feature components.                                                                                                            |
 | `interaction/`                                                  | Shortcut records, the keymap, and shared DOM focus/overlay contracts.                                                          |
-| `ui-toolkit/`                                                   | Reusable controls, direct Ark UI imports, and the shared recipes they draw with.                                               |
+| `frontend/toolkit/src/`                                         | Reusable controls, direct Ark UI imports, the shared recipes they draw with, and the sidebar item.                             |
 | `test/`                                                         | The command harness: the real stores, navigator and commands, for tests.                                                       |
 | `frontend/test-kit/src/`                                        | A jsdom render helper, the port contract suite, and test phase timing.                                                         |
 | `assets/`                                                       | Static files referenced from CSS.                                                                                              |
@@ -1127,9 +1128,9 @@ and `frontend/terminal-views`, never on the app's chrome; the package graph hold
 package imports only what its `package.json` declares. The demo's debug panel is a package
 of its own, `frontend/demo-debug`, the one with React and Lucide. `interaction/` builds on
 the core and imports no packages;
-features add `ui-toolkit/`; `terminals/` may use `sidebar/`; `layouts/` may use
-`terminals/`; `notifications/` builds on the base layers, `sidebar/` and
-`terminals/unread-state.ts`; `inbox/` builds on the base layers, `sidebar/` and the
+features add `frontend/toolkit`; `layouts/` may use
+`terminals/`; `notifications/` builds on the base layers and
+`terminals/unread-state.ts`; `inbox/` builds on the base layers and the
 chat's markdown reader and answers; `shell/` may use `layouts/`, `projects/`,
 `notifications/` and `inbox/`. `app/` composes every feature layer, `notifications/` and `inbox/`.
 Only an app imports a backend adapter, each its own: `apps/desktop` takes the runner adapter,
@@ -1142,7 +1143,7 @@ the Canvas handle type in `layouts/canvas/types.ts`, and the pure state modules
 of `shell/` and `terminals/` (unread finishes among them), the companion panes' store and the chat's modes among them. Vendor
 libraries stay in their adapters: XYFlow in `layouts/canvas/`, React Grid Layout
 in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
-`ui-toolkit/`, React Router in `app/` and `shell/`, and React DOM in
+`frontend/toolkit`, React Router in `app/` and `shell/`, and React DOM in
 `layouts/transition.ts` and `entries/start.tsx`; and the runner client and
 the emulator's view in `frontend/runner-adapter/`, the demo's terminals
 (`frontend/demo/src/views.ts`, `frontend/demo/src/screen/`) and `frontend/terminal-views/`,
@@ -1311,7 +1312,7 @@ ends or the view unmounts. Grid, Canvas, Preferences, and search load on demand.
 Keep vendor-specific types and CSS inside their adapters, and use
 application-owned types for saved layouts.
 
-Keep direct Ark UI imports in `ui-toolkit/`; features own their content and state.
+Keep direct Ark UI imports in `frontend/toolkit`; features own their content and state.
 Use Tailwind utilities in TSX only to arrange elements: layout, spacing, sizes, and
 the size and flow of type. How a component looks comes from its recipe, a stylesheet
 beside it that reads theme tokens; see [docs/theming.md](docs/theming.md), which

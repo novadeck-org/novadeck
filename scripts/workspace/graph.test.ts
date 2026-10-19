@@ -101,6 +101,7 @@ describe("the package graph", () => {
       "apps/desktop",
       "apps/try",
       "frontend/ui",
+      "frontend/toolkit",
       "frontend/demo",
       "frontend/demo-debug",
       "frontend/runner-adapter",
@@ -157,6 +158,28 @@ describe("the package graph", () => {
         .filter((folder) => reaches(folder).has("frontend/ui"))
         .map((folder) => `${folder} -> frontend/ui`),
     ).toEqual([])
+  })
+
+  it("keeps the toolkit off every other frontend package, its tests' render helpers aside", () => {
+    // The toolkit is what every feature draws with, so nothing of the app may sit under it.
+    // The test kit is the one exception, as a dev dependency of its tests: what it ships (the
+    // model, for its fixtures) is the tests' reach, not the toolkit's.
+    const own = named("frontend/toolkit", "any").filter((folder) => folder !== "frontend/test-kit")
+    const shipped = new Set<string>()
+    const visit = (next: string): void => {
+      if (shipped.has(next)) return
+      shipped.add(next)
+      for (const further of named(next, "shipped")) visit(further)
+    }
+    for (const folder of own) visit(folder)
+    expect(
+      [...shipped]
+        .filter((folder) => folder.startsWith("frontend/"))
+        .map((f) => `frontend/toolkit -> ${f}`),
+    ).toEqual([])
+    expect(named("frontend/toolkit", "shipped").filter((f) => f.startsWith("frontend/"))).toEqual(
+      [],
+    )
   })
 
   it("keeps each harness, and what it reaches, off the runner and the other adapters", () => {

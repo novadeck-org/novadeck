@@ -48,6 +48,7 @@ export const roots: Root[] = [
   { token: "frontend/ui", dir: "frontend/ui", src: "src", node: "renderer" },
   { token: "frontend/core", dir: "frontend/core", node: "renderer" },
   { token: "frontend/test-kit", dir: "frontend/test-kit", node: "renderer" },
+  { token: "frontend/toolkit", dir: "frontend/toolkit", node: "renderer" },
   { token: "frontend/runner-adapter", dir: "frontend/runner-adapter", node: "renderer" },
   { token: "frontend/terminal-views", dir: "frontend/terminal-views", node: "renderer" },
   { token: "frontend/demo", dir: "frontend/demo", node: "renderer" },
@@ -315,7 +316,6 @@ export const notes: Record<string, Note> = {
     purpose: "Dictation: audio capture, resampling and the dictation overlay.",
     entries: [{ file: `${ui}/voice/dictation.ts` }],
   },
-  "frontend/ui/ui-toolkit": { purpose: "Reusable controls and their recipes." },
   "frontend/ui/theme": {
     purpose: "Themes (Graphite, Phosphor), their tokens and contract.",
     entries: [{ file: `${ui}/theme/apply.ts` }],
@@ -327,6 +327,10 @@ export const notes: Record<string, Note> = {
   },
   "frontend/specs": { purpose: "Behaviour specs that exercise the whole UI on the demo backend." },
   "frontend/test-kit": { purpose: "Fixtures and render helpers the UI's tests share." },
+  "frontend/toolkit": {
+    purpose:
+      "Reusable controls, their recipes, class-name composition and the sidebar item every feature draws with.",
+  },
   "frontend/demo-debug": {
     purpose: "The demo's debug panel and rehearsals, for the content preview and the specs.",
   },
