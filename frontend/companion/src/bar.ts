@@ -2,7 +2,7 @@ import { isOnBar, type CompanionItem, type ItemId, type ItemKind } from "@novade
 import { messagesKey, type Bar, type BarKey } from "@novadeck/core/companion-bar"
 import type { WindowPlace } from "@novadeck/core/layout/window-place"
 
-import type { BarDrag } from "../drag-session"
+import type { BarDrag } from "./drag-session"
 
 // A terminal's taskbar, drawn from the items it holds, less what the person hid, and its
 // messages. Items of a kind stack under one icon once there are several, as a taskbar
