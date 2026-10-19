@@ -5,8 +5,8 @@ import { dirname, join } from "node:path"
 import { isLibraryName, template, type Versions } from "./template.ts"
 
 // `pnpm new:library <name> <description>`: writes a new library into libraries/<name> from
-// the template. The import fence doesn't know it yet: add it to the order in
-// scripts/libraries/order.ts and give it its override in .oxlintrc.json.
+// the template. The package graph doesn't know it yet: add it to the order in
+// scripts/libraries/order.ts. The import fence in .oxlintrc.json covers every library alike.
 
 const root = join(import.meta.dirname, "..", "..")
 const [name, ...words] = process.argv.slice(2)
@@ -14,7 +14,6 @@ const description = words.join(" ")
 
 // The workspace's package names, without their scope: a library may not take one.
 const taken = [
-  "application",
   "apps",
   "backend",
   "contract",
