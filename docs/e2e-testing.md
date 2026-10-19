@@ -852,6 +852,27 @@ harness's. Those probes' fixtures are read with `loadProbe` too, but hold no scr
 convert. The model fixtures under `src/e2e/model/fixtures` are recorded HTTP requests, not
 probe output, and keep their own loader.
 
+### Probes and CI
+
+CI's E2E jobs leave the probes out (`vitest.e2e.config.ts` runs them only with
+`NOVADECK_E2E_PROBES=1`), and running them there as they are would cost more than it finds:
+
+- They record; they don't check. Their asserts check only setup (the pinned version, a
+  tool list that isn't empty); what they find goes to the file a person reads
+  (`PROBE_OUT` and its siblings), so a run passes whatever the harness showed.
+- Every case starts a real harness, and the ask probes run dozens of cases each (Antigravity's
+  has 40 `probeIt`s), in jobs whose macOS and Windows runners already queue longest.
+- At the pinned version they'd repeat what the fixtures hold; with
+  `NOVADECK_E2E_HARNESS=latest` they follow each harness's newest release, whose findings
+  change on their own, which belongs in a person's run, not a required check.
+
+What does rot is how two of them reach into the runner. `interrupt-held-reply` wraps
+`bindings.applyFact` and `agy-stop-boundary` wraps `reporting.report`, through casts
+typecheck can't see past; the manager split moved both. A unit test that those members are
+still functions on a `Terminals` would guard that in milliseconds, with no harness.
+`agy-stop-boundary` itself already runs in the Flaky capture workflow, when it or that
+workflow changes.
+
 ## Adding a harness
 
 1. Pin it in `harnesses.json` (an npm package, or an archive with its SHA-512) and make
