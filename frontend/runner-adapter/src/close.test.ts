@@ -182,6 +182,7 @@ const holdingRunner = (close: (id: string) => Promise<void>) => {
           handle: handles[index]!,
           delivery: "ready",
           waits: null,
+          waitsSince: null,
           paused: false,
           threads: [
             {
