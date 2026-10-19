@@ -1,0 +1,253 @@
+# ask-long
+user: Ask now
+tools: Asked [plan] · Which of these four lengthy approaches should I take for the migration of the legacy billing system? | Call: AskUserQuestion: 1 line: [{"question":"Which of these four lengthy appro… → 1 line: Your questions have been answered: "Which of th…
+assistant: Done.
+
+# ask-multi-finish
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → no result recorded.
+
+# ask-multi
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → no result recorded.
+
+# ask-other
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → no result recorded.
+
+# ask-preview
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → no result recorded.
+
+# ask-single
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# bash-long
+user: Ask now
+tools: Ran [run] · touch approved.txt && echo 'a very long command that keeps going and going so that the dialog has to wrap or truncate it somewhere on a small terminal' && ls -la /tmp | Call: Bash: 2 lines: command: touch approved.txt && echo 'a very lon… → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# h-ask-allow-answers
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# h-ask-allow-bogus-answer-multi
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# h-ask-allow-partial-answers
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# h-ask-allow-plain
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → no result recorded.
+
+# h-ask-deny
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → 1 line: The person said: skip questions.
+assistant: Done.
+
+# h-ask-other-answer
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → 1 line: The user answered: "Which database should we us…
+assistant: Done.
+
+# h-ask-pre-allow-answers
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# h-ask-wait-nodecision
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → no result recorded.
+
+# h-ask-wait-tui-first
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# h-bash-allow-then-ask-again
+tools: Ran [run] · touch second.txt | Call: Bash: 2 lines: command: touch second.txt → 1 line: (Bash completed with no output)
+assistant: Done.
+
+# h-bash-allow
+user: Ask now
+tools: Ran [run] · touch hooked.txt | Call: Bash: 2 lines: command: touch hooked.txt → 1 line: (Bash completed with no output)
+assistant: Done.
+
+# h-bash-deny-interrupt
+user: Ask now
+tools: Ran [run] · touch hooked.txt | Call: Bash: 2 lines: command: touch hooked.txt → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# h-bash-deny
+user: Ask now
+tools: Ran [run] · touch hooked.txt | Call: Bash: 2 lines: command: touch hooked.txt → 1 line: Use ls instead, please.
+assistant: Done.
+
+# h-bash-updatedInput
+user: Ask now
+tools: Ran [run] · touch original.txt | Call: Bash: 2 lines: command: touch original.txt → 1 line: (Bash completed with no output)
+assistant: Done.
+
+# h-bash-updatedPermissions
+tools: Ran [run] · touch second.txt | Call: Bash: 2 lines: command: touch second.txt → 1 line: (Bash completed with no output)
+assistant: Done.
+
+# h-plan-allow-setMode
+tools: Proposed a plan [plan] | Call: ExitPlanMode: 7 lines: plan: → 1 line: File created successfully at: <sandbox>/home/.c…
+assistant: Done.
+
+# h-plan-allow-updatedInput
+tools: Proposed a plan [plan] | Call: ExitPlanMode: 7 lines: plan: → 1 line: File created successfully at: <sandbox>/home/.c…
+assistant: Done.
+
+# h-plan-allow
+user: Ask now
+tools: Wrote [write] · …/.claude/plans/<name>.md | Call: Write: 6 lines: file_path: <sandbox>/home/.claude/plans/<name>.… → 1 line: File created successfully at: <sandbox>/home/.c…; Proposed a plan [plan] | Call: ExitPlanMode: 7 lines: plan: → 1 line: File created successfully at: <sandbox>/home/.c…
+
+# h-plan-deny
+tools: Proposed a plan [plan] | Call: ExitPlanMode: 7 lines: plan: → 1 line: File created successfully at: <sandbox>/home/.c…
+assistant: Done.
+
+# h-plan-pre-allow-updatedInput
+tools: Proposed a plan [plan] | Call: ExitPlanMode: empty → 3 lines: PreToolUse hook for Write returned updatedInput…
+assistant: Done.
+
+# h-plan-pre-allow
+user: Ask now
+tools: Wrote [write] · …/.claude/plans/<name>.md | Call: Write: 6 lines: file_path: <sandbox>/home/.claude/plans/<name>.… → 1 line: File created successfully at: <sandbox>/home/.c…; Proposed a plan [plan] | Call: ExitPlanMode: 7 lines: plan: → 1 line: File created successfully at: <sandbox>/home/.c…
+
+# h-plan-setMode
+user: Ask now
+tools: Wrote [write] · …/.claude/plans/<name>.md | Call: Write: 6 lines: file_path: <sandbox>/home/.claude/plans/<name>.… → 1 line: File created successfully at: <sandbox>/home/.c…; Proposed a plan [plan] | Call: ExitPlanMode: 7 lines: plan: → 1 line: File created successfully at: <sandbox>/home/.c…
+
+# h-wait-nodecision
+user: Ask now
+tools: Ran [run] · touch waited.txt | Call: Bash: 2 lines: command: touch waited.txt → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# h-wait-reply-then-tui
+user: Ask now
+tools: Ran [run] · touch waited.txt | Call: Bash: 2 lines: command: touch waited.txt → 1 line: (Bash completed with no output)
+assistant: Done.
+
+# h-wait-timeout
+user: Ask now
+tools: Ran [run] · touch waited.txt | Call: Bash: 2 lines: command: touch waited.txt → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# h-wait-tui-first
+user: Ask now
+tools: Ran [run] · touch waited.txt | Call: Bash: 2 lines: command: touch waited.txt → 1 line: (Bash completed with no output)
+assistant: Done.
+
+# k-ask-chat-by-arrows
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → 9 lines: The user doesn't want to proceed with this tool…
+assistant: Done.
+
+# k-ask-chat
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → 9 lines: The user doesn't want to proceed with this tool…
+assistant: Done.
+
+# k-ask-esc
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# k-ask-multi-back
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → no result recorded.
+
+# k-ask-multi-cancel-at-review
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# k-ask-multi-full
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# k-ask-other-enter
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → 1 line: The user answered: "Which database should we us…
+assistant: Done.
+
+# k-ask-other-then-digit
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# k-ask-preview-enter
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → 2 lines: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# k-ask-single-moved-highlight
+user: Ask now
+tools: Asked [plan] · Which database should we use? | Call: AskUserQuestion: 1 line: [{"question":"Which database should we use?","h… → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# k-bash-arrows-enter
+user: Ask now
+tools: Ran [run] · touch keyed.txt | Call: Bash: 2 lines: command: touch keyed.txt → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# k-bash-esc
+user: Ask now
+tools: Ran [run] · touch keyed.txt | Call: Bash: 2 lines: command: touch keyed.txt → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# k-bash-moved-highlight-digit1
+user: Ask now
+tools: Ran [run] · touch keyed.txt | Call: Bash: 2 lines: command: touch keyed.txt → 1 line: (Bash completed with no output)
+assistant: Done.
+
+# k-bash-small-digits
+user: Ask now
+tools: Listed agents [agent] | Call: mcp__plugin_novadeck_novadeck__agents: empty → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# k-plan-1
+tools: Proposed a plan [plan] | Call: ExitPlanMode: 7 lines: plan: → 1 line: File created successfully at: <sandbox>/home/.c…
+assistant: Done.
+
+# k-plan-3-feedback
+tools: Proposed a plan [plan] | Call: ExitPlanMode: 7 lines: plan: → 1 line: File created successfully at: <sandbox>/home/.c…
+assistant: Done.
+
+# k-plan-esc
+tools: Proposed a plan [plan] | Call: ExitPlanMode: 7 lines: plan: → 1 line: File created successfully at: <sandbox>/home/.c…
+note: Interrupted
+
+# mcp
+user: Ask now
+tools: Listed agents [agent] | Call: mcp__plugin_novadeck_novadeck__agents: empty → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# plan-file
+tools: Proposed a plan [plan] | Call: ExitPlanMode: 7 lines: plan: → 1 line: File created successfully at: <sandbox>/home/.c…
+assistant: Done.
+
+# plan
+user: Ask now
+tools: Proposed a plan [plan] | Call: ExitPlanMode: 4 lines: # Plan → no result recorded.
+
+# webfetch
+user: Ask now
+tools: Fetched [web] · https://example.com/page | Call: WebFetch: 2 lines: url: https://example.com/page → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# write
+user: Ask now
+tools: Wrote [write] · NEWFILE.txt | Call: Write: 4 lines: file_path: NEWFILE.txt → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
