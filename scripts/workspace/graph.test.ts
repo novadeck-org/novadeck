@@ -103,6 +103,7 @@ describe("the package graph", () => {
       "frontend/ui",
       "frontend/toolkit",
       "frontend/companion",
+      "frontend/chat",
       "frontend/demo",
       "frontend/demo-debug",
       "frontend/runner-adapter",
@@ -185,12 +186,26 @@ describe("the package graph", () => {
 
   it("keeps the companion off the app's chrome and every backend", () => {
     // The companion pane is a part the UI composes: it reaches the core, the toolkit and the
-    // viewers, and nothing that composes it or that a backend is.
+    // viewers, and nothing that composes it, nor the chat beside it, nor a backend.
     const reached = reaches("frontend/companion")
     expect(
-      ["frontend/ui", ...backends]
+      ["frontend/ui", "frontend/chat", ...backends]
         .filter((folder) => reached.has(folder))
         .map((f) => `frontend/companion -> ${f}`),
+    ).toEqual([])
+  })
+
+  it("keeps the chat off the app's chrome, the companion, every backend and every harness", () => {
+    // The chat view is a part the UI composes: it reaches the core and the toolkit, and nothing
+    // that composes it, nor the companion beside it, nor a backend, nor a harness (the contract
+    // test is the one that renders it over them).
+    const reached = reaches("frontend/chat")
+    const harnesses = [...packages.keys()].filter((folder) => folder.startsWith("harnesses/"))
+    expect(harnesses.length).toBeGreaterThan(0)
+    expect(
+      ["frontend/ui", "frontend/companion", ...backends, ...harnesses]
+        .filter((folder) => reached.has(folder))
+        .map((f) => `frontend/chat -> ${f}`),
     ).toEqual([])
   })
 
