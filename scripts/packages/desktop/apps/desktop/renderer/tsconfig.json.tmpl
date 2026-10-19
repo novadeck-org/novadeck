@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    // The pages' code: the browser's, with JSX, apart from the main process's (../tsconfig.json).
+    // Workspace packages' source, as Vitest reads it: no build first (see docs/build-graph.md).
+    "customConditions": ["node", "development"],
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["vite/client", "node"]
+  },
+  "include": ["**/*.ts", "**/*.tsx", "../vite.config.ts"]
+}
