@@ -92,6 +92,11 @@ export type Edit = {
   readonly all?: boolean
   /** Forms main gave the line after the move, which count as the edit there, not a change. */
   readonly settled?: readonly string[]
+  /**
+   * Where a later step's move took the file: once it is gone from `file`, the edit reads it
+   * there, where `settled` holds the form that move gave the line.
+   */
+  readonly later?: string
 }
 
 /**

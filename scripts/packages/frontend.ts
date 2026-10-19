@@ -837,11 +837,13 @@ export default defineConfig({
  * moved with their imports pointed elsewhere. `was` is the hash of the text it replaces: the
  * file is replaced while its text is that one, so a branch that changed it stops the run for
  * the template to be redone. Without `was` the file is new, and made only if it isn't there.
+ * `until` is a later step's file that took its place: once that is there, it isn't made.
  */
 export type Made = {
   readonly file: string
   readonly why: string
   readonly was?: string
+  readonly until?: string
 }
 
 export const made: readonly Made[] = [
@@ -849,6 +851,8 @@ export const made: readonly Made[] = [
     file: "frontend/ui/vite.config.ts",
     why: "the desktop and browser builds only: the visitor build and the preview are the apps'",
     was: "6916ada77eff3e38bf274bc41bf6336cc4e79d8f8e8f96d6ff625ed914751b31",
+    // 5.3c moved those builds to the desktop app, and deleted this file.
+    until: "apps/desktop/vite.config.ts",
   },
   {
     file: "frontend/ui/src/architecture.test.ts",
@@ -945,6 +949,9 @@ export const edits: readonly Edit[] = [
     before: "  - from: ../ui/dist\n",
     after: "  - from: ../../frontend/ui/dist\n",
     why: "a path from the host, one folder deeper",
+    // 5.3c moved the host into apps/desktop, which copies its own build.
+    later: "apps/desktop/electron-builder.yml",
+    settled: ["  - from: dist\n"],
   },
   {
     file: "package.json",
@@ -1777,7 +1784,8 @@ export const plan = (input: PlanInput): Planned => {
         )
     } else if (!present.has(file)) fresh.set(file, content)
   }
-  for (const { file, why, was } of made) make(file, input.template(file), was, why)
+  for (const { file, why, was, until } of made)
+    if (until === undefined || !present.has(until)) make(file, input.template(file), was, why)
 
   for (const dir of copied) {
     const file = `${dir}/src/test.ts`
@@ -1883,15 +1891,20 @@ export const plan = (input: PlanInput): Planned => {
   const final = view()
   const skipped: string[] = []
   for (const edit of input.edits ?? edits) {
-    const text = final.get(edit.file)
+    // A file a later step moved is read where that move took it.
+    const file =
+      !final.has(edit.file) && edit.later !== undefined && final.has(edit.later)
+        ? edit.later
+        : edit.file
+    const text = final.get(file)
     if (text === undefined) {
       problems.push(`${edit.file} is gone (${edit.why}): the edit needs a new place`)
       continue
     }
     const result = applyEdit(text, edit)
     if ("problem" in result) problems.push(result.problem)
-    else if (result.state === "made") final.set(edit.file, result.text)
-    else if (result.state === "gone") skipped.push(`${edit.file}, whose line changed: ${edit.why}`)
+    else if (result.state === "made") final.set(file, result.text)
+    else if (result.state === "gone") skipped.push(`${file}, whose line changed: ${edit.why}`)
   }
 
   // The packages' edges make no circle.
