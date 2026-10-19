@@ -24,7 +24,7 @@ jobs:
   promote:
     name: Promote
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 25
     permissions:
       contents: write
     env:
@@ -111,6 +111,66 @@ jobs:
             echo "Replacing stable release $current."
           else
             echo "There is no stable release yet."
+          fi
+
+      # The notes are written before the release turns stable, so no install that updates to
+      # it finds them missing. None of the steps for them can hold the promotion: each may
+      # fail, and the notes are then left out.
+      - name: Check Out Source
+        id: checkout
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Set Up Toolchain
+        id: toolchain
+        if: steps.checkout.outcome == 'success'
+        continue-on-error: true
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      # An immediate retry hit the same registry outage in the flake audit.
+      - name: Wait Before Retrying Toolchain
+        if: steps.toolchain.outcome == 'failure'
+        shell: bash
+        run: sleep 180
+
+      - name: Set Up Toolchain Again
+        id: toolchain-again
+        if: steps.toolchain.outcome == 'failure'
+        continue-on-error: true
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      # Highlights for the app's what's-new card, and every change since the last stable
+      # release grouped by area (scripts/release-notes). It never holds a promotion: without
+      # the key, or when anything fails, the script writes no notes, the release is promoted
+      # with the notes it has, and the app shows no card for it.
+      - name: Write Release Notes
+        if: >-
+          steps.toolchain.outcome == 'success' || steps.toolchain-again.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 12
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TAG: ${{ steps.choose.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$ANTHROPIC_API_KEY" ]]; then
+            echo "No ANTHROPIC_API_KEY; the release keeps the notes it has."
+            exit 0
+          fi
+          node scripts/release-notes/main.ts promote "$TAG" "$RUNNER_TEMP/notes.md"
+          if [[ -s "$RUNNER_TEMP/notes.md" ]]; then
+            gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
           fi
 
       - name: Promote Release

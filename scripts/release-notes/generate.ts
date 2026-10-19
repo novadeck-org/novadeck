@@ -1,0 +1,164 @@
+import { readNotesBlock, type ReleaseNotes } from "../../contract/protocol/src/release-notes.ts"
+import { checkOutput } from "./check.ts"
+import { parseCommits } from "./commits.ts"
+import { commitItem, noteItems, type Item } from "./items.ts"
+import { parseOutput } from "./model.ts"
+import { originalOf } from "./render.ts"
+import { Skip, viaGh } from "./skip.ts"
+import { type Sources } from "./sources.ts"
+
+/** Asks the model about the items and returns its answer's text, or throws `Skip`. */
+export type Ask = (
+  kind: "release" | "promote",
+  version: string,
+  items: readonly Item[],
+) => Promise<{ text: string; outputTokens: number }>
+
+export type Generated = {
+  readonly notes: ReleaseNotes
+  /** The changelog to keep under the notes. */
+  readonly original: string
+  /** A link to everything the notes cover, for a promotion. */
+  readonly compare: string | undefined
+  /** The model's answer as it came. */
+  readonly raw: string
+  readonly outputTokens: number
+  /** The lines the checks dropped, and why. */
+  readonly dropped: readonly string[]
+  /** How many items the model was asked about. */
+  readonly considered: number
+}
+
+/** `[major, minor, patch]` of a `vX.Y.Z` tag, or `undefined` for any other tag. */
+const versionOf = (tag: string): [number, number, number] | undefined => {
+  const found = /^v(\d+)\.(\d+)\.(\d+)$/.exec(tag)
+  return found ? [Number(found[1]), Number(found[2]), Number(found[3])] : undefined
+}
+
+const compare = (a: string, b: string): number => {
+  const x = versionOf(a)!
+  const y = versionOf(b)!
+  return x[0] - y[0] || x[1] - y[1] || x[2] - y[2]
+}
+
+/** Release tags among `tags`, oldest version first. */
+const sorted = (tags: readonly string[]): string[] =>
+  tags.filter((tag) => versionOf(tag)).toSorted(compare)
+
+/**
+ * The notes for these items, as the model wrote them and the checks left them. `carried` is
+ * the count of smaller fixes releases already tallied. Throws `Skip` when there is no answer
+ * to use; an answer of empty lists is an answer, of a release with nothing to see.
+ */
+const compose = async (
+  kind: "release" | "promote",
+  tag: string,
+  items: readonly Item[],
+  carried: number,
+  ask: Ask,
+): Promise<Pick<Generated, "notes" | "raw" | "outputTokens" | "dropped" | "considered">> => {
+  const version = tag.slice(1)
+  // Only a change with a pull request can be cited, so only those are put to the model.
+  const given = items.filter((item) => item.prs.length > 0)
+  if (given.length === 0)
+    return {
+      notes: { version, kind, highlights: [], changes: [], fixes: carried },
+      raw: "(nothing was asked)",
+      outputTokens: 0,
+      dropped: [],
+      considered: items.length,
+    }
+  const { text, outputTokens } = await ask(kind, version, given)
+  const output = parseOutput(text)
+  const checked = checkOutput(output, new Set(given.flatMap((item) => item.prs)))
+  if (!checked.ok) throw new Skip(checked.reason, text)
+  const highlights = kind === "promote" ? checked.output.highlights : []
+  // A change a highlight already tells is not told twice.
+  const told = new Set(highlights.flatMap((highlight) => highlight.prs))
+  const changes = checked.output.changes.filter((change) => !change.prs.every((pr) => told.has(pr)))
+  const cited = new Set([...told, ...changes.flatMap((change) => change.prs)])
+  const unnamed = given.filter((item) => item.fix && !item.prs.some((pr) => cited.has(pr))).length
+  return {
+    notes: { version, kind, highlights, changes, fixes: carried + unnamed },
+    raw: text,
+    outputTokens,
+    dropped: checked.dropped,
+    considered: items.length,
+  }
+}
+
+/**
+ * A prerelease's notes: the commits since the release before it. Throws `Skip` when the
+ * release should keep the body it has: it is no longer a prerelease, a promotion has already
+ * written it, or the model gave nothing to use.
+ */
+export const generateRelease = async (
+  tag: string,
+  sources: Sources,
+  ask: Ask,
+): Promise<Generated> => {
+  if (!versionOf(tag)) throw new Error(`${tag} is not a vX.Y.Z tag`)
+  const tags = sorted(await sources.tags(tag))
+  const at = tags.indexOf(tag)
+  if (at < 0) throw new Error(`${tag} is not among the release tags merged into it`)
+  const items = parseCommits(await sources.commits(tags[at - 1], tag)).map(commitItem)
+  const release = await viaGh(`read ${tag}'s release`, sources.release(tag))
+  if (!release) throw new Skip(`${tag} has no release to write notes on`)
+  if (!release.prerelease) throw new Skip(`${tag} is no longer a prerelease`)
+  if (readNotesBlock(release.body)?.kind === "promote")
+    throw new Skip(`${tag}'s body is a promotion's notes, which a build's don't replace`)
+  return {
+    ...(await compose("release", tag, items, 0, ask)),
+    original: originalOf(release.body),
+    compare: undefined,
+  }
+}
+
+/**
+ * A promotion's notes: every release since the latest stable one, up to `tag`. The details
+ * keep only the promoted release's own changelog and a link to the whole range.
+ */
+export const generatePromote = async (
+  tag: string,
+  sources: Sources,
+  ask: Ask,
+  repo: string,
+): Promise<Generated> => {
+  if (!versionOf(tag)) throw new Error(`${tag} is not a vX.Y.Z tag`)
+  const tags = sorted(await sources.tags(tag))
+  if (!tags.includes(tag)) throw new Error(`${tag} is not among the release tags merged into it`)
+  const stable = await viaGh("look up the latest stable release", sources.stable())
+  if (stable && versionOf(stable) && compare(stable, tag) >= 0)
+    throw new Skip(`${tag} is not newer than the stable release ${stable}`)
+  const known = stable && versionOf(stable) ? stable : undefined
+  const range = tags.filter((candidate) => !known || compare(candidate, known) > 0)
+  const items: Item[] = []
+  let carried = 0
+  let own = ""
+  for (const release of range) {
+    // eslint-disable-next-line no-await-in-loop -- One `gh` call at a time, for the API's rate limit.
+    const found = await viaGh(`read ${release}'s release`, sources.release(release))
+    if (release === tag) {
+      if (!found) throw new Skip(`${tag} has no release to write notes on`)
+      own = originalOf(found.body)
+    }
+    // Only a prerelease's own notes are reused; a promotion's cover a range, not this release.
+    const notes = found ? readNotesBlock(found.body) : undefined
+    if (notes?.kind === "release") {
+      items.push(...noteItems(notes))
+      carried += notes.fixes
+      continue
+    }
+    const previous = tags[tags.indexOf(release) - 1]
+    // eslint-disable-next-line no-await-in-loop -- One git process at a time.
+    items.push(...parseCommits(await sources.commits(previous, release)).map(commitItem))
+  }
+  return {
+    ...(await compose("promote", tag, items, carried, ask)),
+    original: own,
+    // Without a stable release there is no start to compare from, so the link is the history.
+    compare: known
+      ? `https://github.com/${repo}/compare/${known}...${tag}`
+      : `https://github.com/${repo}/commits/${tag}`,
+  }
+}

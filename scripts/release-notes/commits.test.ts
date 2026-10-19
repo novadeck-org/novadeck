@@ -1,0 +1,68 @@
+import { describe, expect, it } from "vitest"
+
+import { parseCommit, parseCommits, whatOf } from "./commits.ts"
+import { commit, commits } from "./fixtures.ts"
+
+describe("the commits a release is written from", () => {
+  it("keeps the features, fixes and speedups that are the app's, each with its pull request", () => {
+    expect(parseCommits(commits).map((each) => each.pr)).toEqual([
+      181, 188, 195, 330, 328, 203, 198, 261, 282, 126,
+    ])
+  })
+
+  it("drops other types and the scopes of the demo, wire, atlas, release, scripts, harnesses, chat and CI", () => {
+    const dropped = commits.filter((raw) => !parseCommit(raw))
+    expect(dropped.map((raw) => raw.subject.replace(/:.*/, ""))).toEqual([
+      "refactor(runner)",
+      "fix(scripts)",
+      "fix(harnesses)",
+      "feat(demo)",
+      "feat(wire)",
+      "feat(chat)",
+      "fix(ci)",
+      "feat(release)",
+    ])
+  })
+
+  it("takes the type, scope and pull request number off the subject", () => {
+    expect(parseCommit(commit(330))).toMatchObject({
+      type: "feat",
+      scope: "ui",
+      pr: 330,
+      subject: "assistive technology hears who leads whom in a team's tab descriptions",
+    })
+    expect(parseCommit(commit(181))).toMatchObject({
+      scope: undefined,
+      subject: "word handles for terminals, shown as @moth",
+    })
+  })
+
+  it("drops a commit that merely names the chat view among several scopes", () => {
+    const raw = { sha: "a", subject: "feat(ui,chat): a thing (#1)", body: "" }
+    expect(parseCommit(raw)).toBeUndefined()
+  })
+
+  it("keeps a subject without a pull request number, and drops one that is not conventional", () => {
+    expect(
+      parseCommit({ sha: "a", subject: "fix(ui): refine workspace header", body: "" }),
+    ).toMatchObject({
+      pr: undefined,
+    })
+    expect(parseCommit({ sha: "a", subject: "Merge branch 'main'", body: "" })).toBeUndefined()
+  })
+
+  it("reads only the What of the body", () => {
+    const what = parseCommit(commit(330))!.what
+    expect(what).toMatch(/^Each team member's sidebar tab now names its team/)
+    expect(what).not.toMatch(/Follow-up to #328/)
+    expect(what).not.toMatch(/## /)
+  })
+
+  it("has no What for a body without one, and cuts a long one", () => {
+    expect(whatOf("Just a note.\n\n## Why\n\nBecause.")).toBe("")
+    expect(whatOf("## What\n\nShort.\n")).toBe("Short.")
+    const long = whatOf(`## What\n\n${"word ".repeat(400)}\n\n## Why\n\nno`)
+    expect(long.length).toBeLessThan(710)
+    expect(long.endsWith("...")).toBe(true)
+  })
+})
