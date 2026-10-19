@@ -98,6 +98,7 @@ describe("desktop notices", () => {
 const updater = (channel: unknown = "stable") => {
   let report: ((offer: unknown) => void) | undefined
   let pages = 0
+  let allowed = 0
   const set: unknown[] = []
   const bridge = {
     onUpdate: (listener: (offer: unknown) => void) => {
@@ -107,6 +108,7 @@ const updater = (channel: unknown = "stable") => {
       }
     },
     openUpdatePage: () => void (pages += 1),
+    allowUpdates: () => void (allowed += 1),
     updateChannel: () => Promise.resolve(channel),
     setUpdateChannel: (next: unknown) => void set.push(next),
   } as unknown as DesktopHost
@@ -114,6 +116,7 @@ const updater = (channel: unknown = "stable") => {
     bridge,
     report: (offer: unknown) => report?.(offer),
     pages: () => pages,
+    allowed: () => allowed,
     set,
   }
 }
@@ -188,6 +191,30 @@ describe("desktop updates", () => {
       const updates = desktopUpdates(bridge)!
       updates.openPage()
       expect(pages()).toBe(1)
+    })
+
+    it("keeps allow only when it is exactly true on an available offer", () => {
+      const { bridge, report } = updater()
+      const heard: unknown[] = []
+      desktopUpdates(bridge)!.onOffer((offer) => heard.push(offer))
+      report({ kind: "available", version: "0.0.80", allow: true })
+      report({ kind: "available", version: "0.0.81", allow: "yes" })
+      report({ kind: "available", version: "0.0.82", allow: false })
+      report({ kind: "ready", version: "0.0.83", allow: true })
+      expect(heard).toEqual([
+        { kind: "available", version: "0.0.80", allow: true },
+        { kind: "available", version: "0.0.81" },
+        { kind: "available", version: "0.0.82" },
+        { kind: "ready", version: "0.0.83" },
+      ])
+    })
+
+    it("asks the host to allow updates, where it can", () => {
+      const { bridge, allowed } = updater()
+      desktopUpdates(bridge)!.allow!()
+      expect(allowed()).toBe(1)
+      delete (bridge as { allowUpdates?: unknown }).allowUpdates
+      expect(desktopUpdates(bridge)!.allow).toBeUndefined()
     })
 
     it("reads the channel and switches it, accepting only a channel it knows", async () => {

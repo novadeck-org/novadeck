@@ -33,6 +33,11 @@ export const updateScenarios = {
     hint: "Footer chip, Update available; opens the release page",
     play: ({ offer }, version) => offer({ kind: "available", version }),
   },
+  allow: {
+    label: "Release, needs an administrator",
+    hint: "Footer chip, Allow updates; pressing it starts the download",
+    play: ({ offer }, version) => offer({ kind: "available", version, allow: true }),
+  },
   ready: {
     label: "Ready at launch",
     hint: "No bar: downloaded before this run",
