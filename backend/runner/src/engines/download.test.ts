@@ -15,7 +15,7 @@ const server = setupServer(
   http.get("https://models.test/missing.bin", () => new HttpResponse(null, { status: 404 })),
   http.get("https://models.test/down.bin", () => HttpResponse.error()),
 )
-beforeAll(() => server.listen({ onUnhandledRequest: "error" }))
+beforeAll(() => server.listen({ onUnhandledFrame: "error" }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
