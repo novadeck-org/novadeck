@@ -76,6 +76,14 @@ const outputStyle = (property: "fontVariantLigatures" | "fontFamily"): string =>
     outputTextElement("Checkout implementation", "Nothing to commit, working tree clean."),
   )[property]
 
+/**
+ * Waits for the checkout terminal to draw its output: an opened workspace may not have yet,
+ * on a busy machine, and a read of its text's style before then finds no row.
+ */
+const outputDrawn = async (): Promise<void> => {
+  await expect.poll(() => outputStyle("fontFamily")).toBeTruthy()
+}
+
 describe("Preferences' version", () => {
   it("shows the version the backend gives, to copy", async () => {
     await openWorkspace()
@@ -122,6 +130,7 @@ describe("Preferences", () => {
   context("when choosing whether to join ligatures", () => {
     it("draws terminals in the bundled mono without them, then joins them once turned on", async () => {
       await openWorkspace()
+      await outputDrawn()
       expect(outputStyle("fontFamily")).toMatch(/^"JetBrains Mono Variable"/)
       expect(outputStyle("fontVariantLigatures")).toBe("none")
       await openPreferences()
@@ -522,6 +531,7 @@ describe("terminal text size preference", () => {
   context("when a larger size is chosen", () => {
     it("enlarges terminal text and keeps it after reopening", async () => {
       await openWorkspace()
+      await outputDrawn()
       const initial = outputTextSize()
       await openPreferences()
 
