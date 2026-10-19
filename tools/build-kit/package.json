@@ -5,11 +5,13 @@
   "description": "The apps' Vite helpers: the Content Security Policy's sources, hosting headers, noindex and the font rule.",
   "type": "module",
   "exports": {
+    "./bundle-checks": "./src/bundle-checks.ts",
     "./connect-sources": "./src/connect-sources.ts",
     "./content-security-policy": "./src/content-security-policy.ts",
     "./fonts": "./src/fonts.ts",
     "./hosting-headers": "./src/hosting-headers.ts",
-    "./search-visibility": "./src/search-visibility.ts"
+    "./search-visibility": "./src/search-visibility.ts",
+    "./vitest": "./src/vitest.ts"
   },
   "scripts": {
     "test": "vitest run",

@@ -1,0 +1,27 @@
+{
+  "name": "@novadeck/test-kit",
+  "version": "0.0.0",
+  "private": true,
+  "description": "What the UI's tests render and drive the app with.",
+  "type": "module",
+  "exports": {
+    "./backend-contract": "./src/backend-contract.tsx",
+    "./phases": "./src/phases.ts",
+    "./render": "./src/render.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@novadeck/core": "workspace:*",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

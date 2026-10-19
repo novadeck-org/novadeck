@@ -1,0 +1,41 @@
+{
+  "name": "@novadeck/specs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The UI's behaviour specs: the whole app in a real browser, over the demo backend.",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@ark-ui/react": "^5.39.3",
+    "@novadeck/core": "workspace:*",
+    "@novadeck/demo": "workspace:*",
+    "@novadeck/demo-debug": "workspace:*",
+    "@novadeck/emulator": "workspace:*",
+    "@novadeck/protocol": "workspace:*",
+    "@novadeck/runner-adapter": "workspace:*",
+    "@novadeck/test-kit": "workspace:*",
+    "@novadeck/ui": "workspace:*",
+    "@novadeck/wire": "workspace:*",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "@vitest/browser-playwright": "5.0.3",
+    "@xyflow/react": "^12.12.0",
+    "jsdom": "^30.1.2",
+    "playwright": "^1.64.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-grid-layout": "^2.3.0",
+    "react-router": "^8.4.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6",
+    "vitest": "^5.0.3",
+    "vitest-browser-react": "^2.3.0"
+  }
+}

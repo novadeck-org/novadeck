@@ -55,7 +55,7 @@ at most 64 long, a title of at most 256 characters and a body of at most 120, ne
 holding a control character or a bidirectional mark, override or isolate; nothing else of it,
 such as an icon or a sound, crosses, and any other value is dropped. The preload sends
 only those three fields, and the page cuts and cleans its text the same way before it
-asks (`desktopNotices` in `application/ui/src/backend/runner/desktop-host.ts`). On Linux,
+asks (`desktopNotices` in `frontend/runner-adapter/src/desktop-host.ts`). On Linux,
 Electron hands the body to the desktop's notification server as it is, and that server
 may read it as markup (it advertised `body-markup` and `body-hyperlinks` when probed with
 Electron 44), so the host escapes `&`, `<` and `>` in the body there

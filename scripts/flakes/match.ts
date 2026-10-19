@@ -164,7 +164,9 @@ export const judgeJob = (register: Register, job: string, log: string): JobVerdi
     const flake = register.flakes.find(
       (each) =>
         each.test !== undefined &&
-        failure.test.startsWith(each.test) &&
+        failure.test
+          .replace(/^src\/specs\//, "src/")
+          .startsWith(each.test.replace(/^src\/specs\//, "src/")) &&
         named(job, each) &&
         failure.reports.length > 0 &&
         failure.reports.every((report) => new RegExp(each.signature).test(report)),

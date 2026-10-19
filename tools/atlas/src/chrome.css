@@ -1,6 +1,6 @@
 /* Novadeck's chrome, replicated rather than imported, as the theme is: the header, the
    footer, the sidebar, windows, and the segmented, icon-button, badge, label, item and
-   Nova mark recipes, copied from application/ui/src/shell/region.css,
+   Nova mark recipes, copied from frontend/ui/src/shell/region.css,
    terminals/window.css and ui-toolkit/*.css with only what the atlas uses. Copy again when
    those change. Imported into the components layer, so utilities still win. */
 

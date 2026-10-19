@@ -4,7 +4,7 @@
 @import "./chrome.css" layer(components);
 
 /* Novadeck's Graphite theme, replicated rather than imported: the values are copied from
-   application/ui/src/theme/graphite.css and base.css, so the atlas looks like the app
+   frontend/ui/src/theme/graphite.css and base.css, so the atlas looks like the app
    without depending on the UI package. Copy again when Graphite changes. Light is warm
    paper and a deep teal; dark is slate and an electric cyan. */
 

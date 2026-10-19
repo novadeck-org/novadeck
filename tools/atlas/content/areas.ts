@@ -53,14 +53,27 @@ export const roots: Root[] = [
     node: "electron-main",
     nodes: { "host/preload": "preload", "host/runner": "runner" },
   },
-  { token: "ui", dir: "application/ui", src: "src", node: "renderer", split: ["backend"] },
+  { token: "ui", dir: "frontend/ui", src: "src", node: "renderer" },
+  { token: "ui/core", dir: "frontend/core", node: "renderer" },
+  { token: "ui/test", dir: "frontend/test-kit", node: "renderer" },
+  { token: "ui/backend/runner", dir: "frontend/runner-adapter", node: "renderer" },
+  { token: "ui/backend/terminal-views", dir: "frontend/terminal-views", node: "renderer" },
+  { token: "ui/backend/demo", dir: "frontend/demo", node: "renderer" },
+  { token: "ui/backend/demo/debug", dir: "frontend/demo-debug", node: "renderer" },
+  { token: "ui/specs", dir: "frontend/specs", node: "renderer" },
+  { token: "app/try", dir: "apps/try", node: "renderer" },
+  { token: "app/previews", dir: "apps/previews", node: "renderer" },
   { token: "engine/whisper", dir: "engines/whisper", node: "whisper" },
   { token: "engine/ggml-build", dir: "engines/ggml-build", node: "whisper" },
   { token: "engine/murmur", dir: "engines/murmur", node: "murmur" },
 ]
 
 const runner = "backend/runner/src"
-const ui = "application/ui/src"
+const ui = "frontend/ui/src"
+const core = "frontend/core/src"
+const adapter = "frontend/runner-adapter/src"
+const views = "frontend/terminal-views/src"
+const demo = "frontend/demo/src"
 
 export const notes: Record<string, Note> = {
   runner: {
@@ -249,31 +262,29 @@ export const notes: Record<string, Note> = {
     purpose:
       "The pure domain of the workspace: state, reducer and store, seed data, layout rules, roster, conversations, messages, companions and usage, the terminal lifecycle registry the backends share, and the port the UI talks to its backend through, with no React.",
     entries: [
-      { file: `${ui}/core/store.ts`, text: "export const createStore" },
-      { file: `${ui}/core/types.ts` },
-      { file: `${ui}/core/registry.ts` },
-      { file: `${ui}/core/port.ts`, text: "export type MountTerminal" },
+      { file: `${core}/store.ts`, text: "export const createStore" },
+      { file: `${core}/types.ts` },
+      { file: `${core}/registry.ts` },
+      { file: `${core}/port.ts`, text: "export type MountTerminal" },
     ],
   },
   "ui/backend/runner": {
     purpose:
       "The backend port against the runner: connection and reconnects, seeding, saves, conversations, companions, messages and its terminals' streams.",
     entries: [
-      { file: `${ui}/backend/runner/backend.ts`, text: "export type RunnerBackendOptions" },
-      { file: `${ui}/backend/runner/view-options.ts`, text: "export const viewOptions" },
+      { file: `${adapter}/backend.ts`, text: "export type RunnerBackendOptions" },
+      { file: `${adapter}/view-options.ts`, text: "export const viewOptions" },
     ],
     docs: ["docs/backend-api.md"],
   },
   "ui/backend/terminal-views": {
     purpose:
       "The xterm mount every backend draws its terminals with: the page's theme, the WebGL pool, links and the screens' styles.",
-    entries: [
-      { file: `${ui}/backend/terminal-views/mount.ts`, text: "export const createTerminalMount" },
-    ],
+    entries: [{ file: `${views}/mount.ts`, text: "export const createTerminalMount" }],
   },
   "ui/backend/demo": {
     purpose: "The demo backend with sample data that tests, specs and the web preview run on.",
-    entries: [{ file: `${ui}/backend/demo/index.ts`, text: "export const createDemoBackend" }],
+    entries: [{ file: `${demo}/index.ts`, text: "export const createDemoBackend" }],
   },
   "ui/terminals": {
     purpose: "Terminal frames and tabs, the companion taskbar and panes, and the agent chat.",
@@ -319,6 +330,11 @@ export const notes: Record<string, Note> = {
   },
   "ui/specs": { purpose: "Behaviour specs that exercise the whole UI on the demo backend." },
   "ui/test": { purpose: "Fixtures and render helpers the UI's tests share." },
+  "ui/backend/demo/debug": {
+    purpose: "The demo's debug panel and rehearsals, for the content preview and the specs.",
+  },
+  "app/try": { purpose: "The visitor build of the demo, which the website embeds." },
+  "app/previews": { purpose: "The content preview: the demo with its debug panel." },
   "engine/whisper": {
     purpose:
       "Builds whisper.cpp into the downloadable voice engine and its engine.json, with the patches Novadeck applies.",

@@ -1,0 +1,37 @@
+{
+  "name": "@novadeck/demo-debug",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The demo's debug panel and rehearsals, for the content preview and the specs.",
+  "type": "module",
+  "exports": {
+    "./boot-rehearsal": "./src/boot-rehearsal.ts",
+    "./connect": "./src/connect.ts",
+    "./portable": "./src/portable.ts",
+    "./sandbox": "./src/sandbox.ts",
+    "./scenarios": "./src/scenarios.ts",
+    "./uninstall": "./src/uninstall.ts",
+    "./updates": "./src/updates.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@novadeck/core": "workspace:*",
+    "@novadeck/demo": "workspace:*",
+    "lucide-react": "^1.55.0",
+    "react": "^19.3.0"
+  },
+  "devDependencies": {
+    "@novadeck/build-kit": "workspace:*",
+    "@novadeck/terminal-views": "workspace:*",
+    "@novadeck/test-kit": "workspace:*",
+    "@types/react": "^19.3.0",
+    "jsdom": "^30.1.2",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6",
+    "vitest": "^5.0.3"
+  }
+}

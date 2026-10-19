@@ -4,7 +4,7 @@
     {
       "id": "ui-companions-plan-reopen-place",
       "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
-      "test": "src/specs/companions.spec.tsx > Switching views > opens a plan's editor as it was left",
+      "test": "src/companions.spec.tsx > Switching views > opens a plan's editor as it was left",
       "signature": "AssertionError: expected .+ to be ",
       "status": "fixed",
       "cause": "Two causes, both fixed. First (#232), the spec: it scrolled the pane to line 200 right after typing at the top of a restored one, and typing scrolls the caret into view in the editor's next measure, which on a slow frame came after the spec's scroll and put the pane back at the top, so its saved place was the first line; the spec now waits two frames after typing. Second, the app: a plan restored in Canvas, which scales the pane in, aimed at its saved line from the live zoom while CodeMirror's line heights were still at its last measured scale, as a transform alone doesn't make it measure; on a busy page the restore settled on a wrong line (the Steps heading) before the editor measured again. The restore now asks for a measure and waits while the editor's scale lags the pane's (libraries/viewers markdown/scroll.ts).",
@@ -16,7 +16,7 @@
     {
       "id": "ui-companions-plan-restore-layout",
       "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
-      "test": "src/specs/companions.spec.tsx > Switching views > keeps a restored plan at its saved line when its layout changes later",
+      "test": "src/companions.spec.tsx > Switching views > keeps a restored plan at its saved line when its layout changes later",
       "signature": "AssertionError: expected \\d+ to be less than 1",
       "status": "known",
       "cause": "Unknown, not reproduced under CPU throttling: the restored plan sat 10 px off its saved line after a later padding change, perhaps CodeMirror's cached padding, on macOS.",
@@ -25,7 +25,7 @@
     {
       "id": "ui-agents-pinned-drag-top",
       "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
-      "test": "src/specs/agents.spec.tsx > A pinned project > dragged from the switcher menu > still reorders the list when dragged to its top",
+      "test": "src/agents.spec.tsx > A pinned project > dragged from the switcher menu > still reorders the list when dragged to its top",
       "signature": "AssertionError: expected undefined to be 'docs-site'",
       "status": "known",
       "cause": "Suspected, not reproduced: the spec aimed its drop 6 px inside the list's top row, read before the menu settled; above the list's top edge less 4 px the drag goes to the pins bar and the menu closes, leaving the list empty. The spec now reads the row once settled.",
@@ -34,7 +34,7 @@
     {
       "id": "ui-preferences-murmur-cancel",
       "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
-      "test": "src/specs/preferences.spec.tsx > Preferences Addons > when murmur is not installed > stops an install on Cancel",
+      "test": "src/preferences.spec.tsx > Preferences Addons > when murmur is not installed > stops an install on Cancel",
       "signature": "Cannot find element with locator: getByRole\\('dialog', \\{ name: 'Preferences' \\}\\).*getByRole\\('button', \\{ name: 'Install' \\}\\)|locator\\.click: Timeout \\d+ms exceeded[\\s\\S]*name: 'Cancel'",
       "status": "fixed",
       "cause": "The demo's install ran on its wall clock (1.2 s a step) while the test clicked Install, then Cancel: on a loaded runner Cancel came during the install's check, which keeps what it installed, so Install never came back (Linux), or after the install had finished, so there was no Cancel to click (macOS). Reproduced with a pause before Cancel. The specs now open the install held at its first step (`&install=held`), so Cancel lands mid-download however slow the machine.",
@@ -48,7 +48,7 @@
     {
       "id": "ui-preferences-voice-cancel",
       "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
-      "test": "src/specs/preferences.spec.tsx > Preferences Addons > when voice input is not installed > stops an install on Cancel",
+      "test": "src/preferences.spec.tsx > Preferences Addons > when voice input is not installed > stops an install on Cancel",
       "signature": "Cannot find element with locator: getByRole\\('dialog', \\{ name: 'Preferences' \\}\\).*getByRole\\('button', \\{ name: 'Install' \\}\\)|locator\\.click: Timeout \\d+ms exceeded[\\s\\S]*name: 'Cancel'",
       "status": "fixed",
       "cause": "The demo's install ran on its wall clock (1.2 s a step) while the test clicked Install, then Cancel: on a loaded runner Cancel came during the install's check, which keeps what it installed, so Install never came back (Linux), or after the install had finished, so there was no Cancel to click (macOS). Reproduced with a pause before Cancel. The specs now open the install held at its first step (`&install=held`), so Cancel lands mid-download however slow the machine.",
@@ -57,7 +57,7 @@
     {
       "id": "ui-companions-grid-undock",
       "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
-      "test": "src/specs/companions.spec.tsx > Undocking an item into a window of its own > when dragged onto the Grid's free space > opens a window there",
+      "test": "src/companions.spec.tsx > Undocking an item into a window of its own > when dragged onto the Grid's free space > opens a window there",
       "signature": "(AssertionError|VitestBrowserElementError)",
       "status": "known",
       "cause": "Unresolved (FLAKY_RAPORT_POST_FIX.md P2): the 12-move drag reordered the taskbar instead of undocking. Failure-only diagnostics now record the gesture. It passed in every failed or cancelled Windows and macOS Test job of the 79 Quality runs after #184, to 2026-10-17.",
@@ -143,7 +143,7 @@
     {
       "id": "ui-murmur-offer-expect-element",
       "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
-      "test": "src/specs/murmur-offer.spec.tsx > ",
+      "test": "src/murmur-offer.spec.tsx > ",
       "signature": "TypeError: expect\\.element is not a function",
       "status": "known",
       "cause": "Unknown, not reproduced: every test of the file failed at its first expect.element (openWorkspace's), and its rerun passed. Browser mode adds expect.element through a module script of its own (@vitest/browser's expect-element.js) in each file's page, before the tester; a page where that script didn't load or ran against another copy of vitest runs without it. Vite optimizing a dependency mid-run would do it, but a cold-cache run of the behaviour project optimized everything up front. Its test is the whole file, as the whole file fails.",
@@ -179,7 +179,7 @@
     {
       "id": "ui-workspace-overlays-windows-timeout",
       "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
-      "test": "src/specs/WorkspaceOverlays.test.ts > workspace dialogs that load on demand > opens the dialog requested last when an earlier one never finished loading",
+      "test": "src/WorkspaceOverlays.test.ts > workspace dialogs that load on demand > opens the dialog requested last when an earlier one never finished loading",
       "signature": "Test timed out in \\d+ms",
       "status": "known",
       "cause": "Windows only: the App rendered over the spec backend in jsdom (the integration project) runs past its timeout. Since 3.2d (#285) mounted the demo's terminals through the terminal views these tests are slower locally too (WorkspaceTerminal 0.35 to 1.0 s, render-scope 1.8 to 3.1 s, WorkspaceOverlays 0.52 to 0.70 s), and Windows runners stretch them roughly tenfold, with 2.5x between runs (render-scope 12.6 s on #278, 34 s after #285). Not opening xterm (36 opens, 150 ms in all) nor writing to it (no change with attach held); where the rest goes is not yet found.",
@@ -188,7 +188,7 @@
     {
       "id": "ui-render-scope-windows-timeout",
       "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
-      "test": "src/specs/render-scope.test.ts > workspace render scope > when the page first renders > renders every section",
+      "test": "src/render-scope.test.ts > workspace render scope > when the page first renders > renders every section",
       "signature": "Test timed out in \\d+ms",
       "status": "known",
       "cause": "Windows only: the App rendered over the spec backend in jsdom (the integration project) runs past its timeout. Since 3.2d (#285) mounted the demo's terminals through the terminal views these tests are slower locally too (WorkspaceTerminal 0.35 to 1.0 s, render-scope 1.8 to 3.1 s, WorkspaceOverlays 0.52 to 0.70 s), and Windows runners stretch them roughly tenfold, with 2.5x between runs (render-scope 12.6 s on #278, 34 s after #285). Not opening xterm (36 opens, 150 ms in all) nor writing to it (no change with attach held); where the rest goes is not yet found.",
@@ -217,7 +217,7 @@
     {
       "id": "ui-process-windows-layout-settled",
       "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
-      "test": "src/specs/process-windows.spec.tsx > process windows > presents claude in its window with input and controls in every layout",
+      "test": "src/process-windows.spec.tsx > process windows > presents claude in its window with input and controls in every layout",
       "signature": "AssertionError: expected false to be true|the view never settled in \\d+ looks",
       "status": "fixed",
       "cause": "The spec helper's wait for the view to settle (layoutSettled, which every openWorkspace ends with) polled with a 5 s timeout, and a file's first spec, mounting the demo's terminals cold on a loaded Windows runner, drew no second frame within it, though the view had already stopped moving. Reproduced locally with Chromium's CPU throttled 30x: 5 of 11 runs failed, each after one frame drawn, and a 10 s timeout still failed 3 of 8. The wait now counts its looks and checks the time only once a frame is drawn, leaving a page that never draws again to the test's timeout (0 of 10 failed at 30x).",

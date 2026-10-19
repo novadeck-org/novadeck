@@ -2,7 +2,7 @@ import { z } from "zod"
 
 import type { Api, ApiError, Anchor, JsonSchema, Procedure } from "../src/atlas.ts"
 import type { Anchors } from "./anchors.ts"
-import { sourceFiles } from "./files.ts"
+import { frontendSources, sourceFiles } from "./files.ts"
 import { findDefinition, routerFile, servicesOf, type Service } from "./runner-services.ts"
 
 const contractFile = "contract/protocol/src/contract.ts"
@@ -195,10 +195,7 @@ export const extractApi = async (repo: string, anchors: Anchors): Promise<Api> =
   const routed = servicesOf(anchors, router)
   const runnerFiles = sourceFiles(repo, "backend/runner/src")
   // The runner client calls some procedures (write, resize, ack) for the UI.
-  const callerFiles = [
-    ...sourceFiles(repo, "application/ui/src"),
-    ...sourceFiles(repo, "contract/runner-client/src"),
-  ]
+  const callerFiles = [...frontendSources(repo), ...sourceFiles(repo, "contract/runner-client/src")]
 
   const apiErrors = extractErrors(anchors, source)
   if (apiErrors.length === 0 && source !== "")
