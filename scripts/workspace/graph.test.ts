@@ -211,7 +211,7 @@ describe("the package graph", () => {
   })
 
   it("keeps every frontend package's relative imports inside its own folder", () => {
-    // A relative path into a sibling package (`../../ui/src/...`) would reach it without a
+    // A relative path into a sibling package (a path into the UI, say) would reach it without a
     // dependency, which the manifests above can't see. Only a package name may cross.
     const specifier = /(?:\bfrom\s*|\bimport\s*\(?\s*)(["'])(\.\.?\/[^"']*)\1/g
     const leaving: string[] = []

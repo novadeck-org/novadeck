@@ -11,7 +11,7 @@ a terminal, a view or out into a window.
 - **It depends on `core`, `toolkit` and `viewers`, and on no other frontend package.** Not
   `frontend/ui`, `frontend/runner-adapter` or any backend. Two checks in `scripts/workspace/graph.test.ts` hold this: the
   manifest edges (what it declares, and what those reach), and a source check that no relative
-  import in a frontend package's `src` leaves that package's folder, so `../../ui/src/...`
+  import in a frontend package's `src` leaves that package's folder, so a path into the UI
   can't bypass the manifest. The host (`frontend/ui`) composes it and passes in what it needs: the workspace's
   items and each terminal's bar (`TerminalCompanion`'s props), the commands that act on them,
   and the `Panes` store it creates once.
