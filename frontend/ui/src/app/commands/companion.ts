@@ -1,6 +1,5 @@
 import type { CompanionActions } from "@novadeck/companion/actions"
 import { isOnBar, kindRules, windowOfItem, type ItemId } from "@novadeck/core/companion"
-import type { BarKey } from "@novadeck/core/companion-bar"
 import { addCompactGridTerminal } from "@novadeck/core/layout/grid-placement"
 import { canvasNewTerminalSize } from "@novadeck/core/layout/terminal-size"
 import {

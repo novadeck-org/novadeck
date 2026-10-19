@@ -1,33 +1,61 @@
-import type { ItemContent, PageContent } from "@novadeck/core/companion"
+import type { Companions, ItemContent, PageContent } from "@novadeck/core/companion"
 import { pagesPartition } from "@novadeck/core/pages"
-import { itemFixture } from "@novadeck/core/testing"
+import { workspaceReducer } from "@novadeck/core/state"
+import { createWorkspaceStore } from "@novadeck/core/store"
+import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
 import { Shown } from "@novadeck/toolkit/shown"
 import { act, createElement } from "react"
 import { afterEach } from "vitest"
 
-import { ArtifactViewer } from "./ArtifactViewer"
-import { context, describe, expect, it } from "./test"
+import { createPanes } from "../../state"
+import { context, describe, expect, it } from "../../test"
+import { page as registration } from "./index"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 
 const url = "http://localhost:5173/"
+const target = { projectId: "project", workspaceSessionId: "initial" }
 const item = itemFixture("preview", "01", { kind: "page", name: "localhost:5173", path: null, url })
 
+// The page's body in the pane, as the page registration draws it, loading what `content`
+// holds; `show` reports new content for the same item, as the backend does.
 const show = (content: PageContent, shown = true) => {
-  const element = (next: PageContent) =>
+  let stamp = 0
+  const ready = (next: PageContent): ItemContent => ({
+    state: "ready",
+    stamp: String(++stamp),
+    content: next,
+  })
+  let emit: (content: ItemContent) => void = () => {}
+  const companions: Companions = {
+    follow: (_target, _id, _options, on) => {
+      emit = on
+      on(ready(content))
+      return () => {}
+    },
+    save: () => new Promise(() => {}),
+  }
+  const workspace = createWorkspaceStore(
+    workspaceReducer(workspaceFixture(), { type: "item/upsert", target, item }),
+  )
+  const panes = createPanes({ companions, workspace })
+  unmounts.push(panes.connect())
+  const rendered = render(
     createElement(
       Shown.Provider,
       { value: shown },
-      createElement(ArtifactViewer, {
-        artifact: item,
-        load: { state: "ready", stamp: "1", content: next } satisfies ItemContent,
+      createElement(registration.View, {
+        member: { kind: "item", key: item.id, item, placed: false, fresh: false },
+        panes,
+        target,
+        actions: undefined,
       }),
-    )
-  const rendered = render(element(content))
+    ),
+  )
   unmounts.push(rendered.unmount)
-  return { ...rendered, show: (next: PageContent) => rendered.rerender(element(next)) }
+  return { ...rendered, show: (next: PageContent) => act(() => emit(ready(next))) }
 }
 
 const pageOf = (container: HTMLElement): HTMLElement => container.querySelector("webview")!

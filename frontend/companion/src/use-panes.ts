@@ -7,7 +7,7 @@ import {
 import type { WorkspaceTarget } from "@novadeck/core/types"
 import { useEffect, useRef, useSyncExternalStore } from "react"
 
-import type { PlanDoc } from "./plan-doc"
+import type { PlanDoc } from "./panes/plan/plan-doc"
 import type { Panes } from "./state"
 
 // The panes' state as components use it: one part each, so a keystroke in one plan
