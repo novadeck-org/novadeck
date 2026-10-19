@@ -633,9 +633,9 @@ terminal escapes, controls, invisible separators and bidi marks before being sho
   holding the person's keys meanwhile (see [Answer driver](harness-adapters.md#answer-driver)),
   and tells messaging which writes are its own (`Messaging.pressing`, the delivery event
   `pressed`): only the keys the answer itself writes, while the request waits, never
-  the person's. Their keys during the request still count as above: typed before the
-  answer took hold, from another client, or held by the answer and let go because it
-  pressed nothing. An answer that pressed keys and then failed (`ANSWER_FAILED`) leaves a
+  the person's. Their keys during the request still count as above, from whichever
+  client: typed before the answer took hold of them, or held by the answer and let go
+  because it pressed nothing (held while it pressed, they are dropped, never typed). An answer that pressed keys and then failed (`ANSWER_FAILED`) leaves a
   possible draft, as the person's keys would: they may have landed in the box, as
   Antigravity's artifact review types `/artifact` and the person's feedback there. An
   answer's Escape (Codex's no, and its questions set aside to talk) ends a running turn as

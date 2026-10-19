@@ -206,7 +206,7 @@ for (const setup of setups) {
         // The answer's own keys left no draft: its turn ends Settled, not Drafting.
         const done = await through(t1, ["working", "settled"], { after: from1 })
 
-        // So a message is rung at once, with no look at the screen for an empty box first.
+        // So a message is rung from Settled, as any after a turn the person's prompt ran.
         await t2.submit("Tell moth the news")
         await through(t1, ["ringing", "working"], { after: done!.index })
         const rung = await run.model.waitFor((call) => delivered(call, "fox"), { after: calls })
