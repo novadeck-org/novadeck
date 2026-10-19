@@ -1,5 +1,4 @@
 import { writeFile } from "node:fs/promises"
-import { createServer, type Server as Listener } from "node:net"
 import { join } from "node:path"
 
 import { describe, expect, it } from "../test.js"
@@ -67,11 +66,19 @@ const launchWith = async (
   return { directory, launch }
 }
 
-// Holds a port as another process could, and never reports an error of its own.
-const squat = (port: number): Listener =>
-  createServer()
-    .on("error", () => {})
-    .listen(port, "127.0.0.1")
+// An engine whose port another process took first: it says so in Node's own words, as the
+// demo program would, and exits. The server reads only that, so a test needs no real socket
+// to hold, which another test worker choosing its own free port could race for.
+const losesPort = (args: readonly string[]): ReturnType<Launch> => {
+  const port = args[args.indexOf("--port") + 1] ?? ""
+  return {
+    command: process.execPath,
+    args: [
+      "-e",
+      `console.error("Error: listen EADDRINUSE: address already in use 127.0.0.1:${port}"); process.exit(1)`,
+    ],
+  }
+}
 
 describe("a server", () => {
   it("runs the program under a path of its own, with the environment its spec and the launch give", async ({
@@ -110,15 +117,11 @@ describe("a server", () => {
     resources,
   }) => {
     const { directory, launch } = await launchWith(resources)
-    const squatters: Listener[] = []
-    resources.defer(() => squatters.forEach((squatter) => squatter.close()))
     const ports: string[] = []
-    // Takes the port of the first two starts, as another process could between choosing it and the engine binding it.
+    // The first two starts lose their port, as to another process between choosing it and the engine binding it.
     const taken: Launch = (program, args) => {
-      const port = args[args.indexOf("--port") + 1] ?? ""
-      ports.push(port)
-      if (ports.length <= 2) squatters.push(squat(Number(port)))
-      return launch(program, args)
+      ports.push(args[args.indexOf("--port") + 1] ?? "")
+      return ports.length <= 2 ? losesPort(args) : launch(program, args)
     }
     const server = new Server(spec, { launch: taken })
     resources.defer(() => server.close())
@@ -131,14 +134,11 @@ describe("a server", () => {
   })
 
   it("gives up when the port stays taken", async ({ resources }) => {
-    const { directory, launch } = await launchWith(resources)
-    const squatters: Listener[] = []
-    resources.defer(() => squatters.forEach((squatter) => squatter.close()))
+    const { directory } = await launchWith(resources)
     let starts = 0
-    const taken: Launch = (program, args) => {
+    const taken: Launch = (_program, args) => {
       starts += 1
-      squatters.push(squat(Number(args[args.indexOf("--port") + 1])))
-      return launch(program, args)
+      return losesPort(args)
     }
     const server = new Server(spec, { launch: taken })
     resources.defer(() => server.close())
@@ -174,19 +174,16 @@ describe("a server", () => {
   })
 
   it("does not start again once it was stopped between two attempts", async ({ resources }) => {
-    const { directory, launch } = await launchWith(resources)
-    const squatters: Listener[] = []
-    resources.defer(() => squatters.forEach((squatter) => squatter.close()))
+    const { directory } = await launchWith(resources)
     const launched: ReturnType<Launch>[] = []
     let stopping: Promise<void> | undefined
     // The first start loses its port. The second is launched as a stop arrives, and is an
     // engine that never serves, so only the stop can end the start.
-    const taken: Launch = (program, args) => {
+    const taken: Launch = (_program, args) => {
       const first = launched.length === 0
-      if (first) squatters.push(squat(Number(args[args.indexOf("--port") + 1])))
-      else stopping = server.stop()
+      if (!first) stopping = server.stop()
       const result = first
-        ? launch(program, args)
+        ? losesPort(args)
         : { command: process.execPath, args: ["-e", "setInterval(() => {}, 1000)"] }
       launched.push(result)
       return result
