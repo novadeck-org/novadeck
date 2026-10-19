@@ -138,6 +138,7 @@ describe("without systemd", () => {
       // systemd 255's words for a name an earlier program's scope still holds, and older ones'.
       "Call failed: Unit app-novadeck-term42.scope was already loaded or has a fragment file.",
       "Call failed: Unit app-novadeck-term42.scope already exists.",
+      "Call failed: Connection timed out",
     ]
     for (const failure of failures) {
       let first = true
@@ -155,6 +156,23 @@ describe("without systemd", () => {
       // eslint-disable-next-line no-await-in-loop -- As above.
       await vi.waitFor(() => expect(runs).toHaveLength(2))
     }
+    expect(error).not.toHaveBeenCalled()
+  })
+
+  it("keeps moving shells after a first move that ran out of time", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {})
+    let first = true
+    const { runs, run } = tools({
+      busctl: () => {
+        if (!first) return reachable()
+        first = false
+        return Promise.reject(Object.assign(new Error("Command failed: busctl"), { killed: true }))
+      },
+    })
+    const scopes = new UserScopes("app-novadeck", run, 0)
+    expect(await scopes.contain(42).cause("SIGKILL")).toBeUndefined()
+    scopes.contain(43)
+    await vi.waitFor(() => expect(runs).toHaveLength(2))
     expect(error).not.toHaveBeenCalled()
   })
 

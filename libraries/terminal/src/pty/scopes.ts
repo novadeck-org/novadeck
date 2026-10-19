@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
-import { join } from "node:path"
+import { posix } from "node:path"
 import { promisify } from "node:util"
 
 /** Why a pty's program ended, where its platform says: it was killed for memory. */
@@ -37,12 +37,14 @@ const causeWindowMs = 5_000
 const causeMs = 2_000
 
 /**
- * Whether the move failed for this program alone, which says nothing of systemd: it had
- * already exited ("No such process"), or its pid's name was taken by a scope an earlier
- * program with that pid left running.
+ * Whether the move failed for this program alone, or for now, which says nothing of
+ * systemd: it had already exited ("No such process"), its pid's name was taken by a scope
+ * an earlier program with that pid left running, or systemd was too slow to answer, as
+ * while memory runs short.
  */
 export const failedForProgram = (error: unknown): boolean =>
-  /No such process|already exists|already loaded/i.test(String(error))
+  (error as { killed?: boolean }).killed === true ||
+  /No such process|already exists|already loaded|timed? ?out/i.test(String(error))
 
 /**
  * Whether the move failed for want of systemd, which needs no word: its tools aren't
@@ -182,7 +184,7 @@ export const userBus = (env: NodeJS.ProcessEnv): { path?: string } | undefined =
     const path = /^unix:path=([^,;]+)/.exec(address)?.[1]
     return path ? { path } : {}
   }
-  return env.XDG_RUNTIME_DIR ? { path: join(env.XDG_RUNTIME_DIR, "bus") } : undefined
+  return env.XDG_RUNTIME_DIR ? { path: posix.join(env.XDG_RUNTIME_DIR, "bus") } : undefined
 }
 
 /**
