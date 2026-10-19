@@ -284,6 +284,12 @@ can't account for:
 - **A `MERGE_HEAD` already in HEAD's history**, left after the merge was committed, doesn't count
   as an open merge.
 
+**The root `package.json` conflicts on the `test` line** even on a branch that never edited it.
+The branch's run wrote the serial list as the move first had it, and main has changed it since
+(#315 runs every package of `frontend/` and `apps/` one at a time). This conflict is git's, so
+the script leaves it to you. Where the branch didn't edit the line, take main's side of that
+hunk. Where it did, put its change onto main's line.
+
 It then lists what is left, and any conflict marker in the tree; fix those, `git add` them, and run
 it again. **It will not run on a tree with a conflict marker in a tracked text file**, merge or not,
 so unresolved lines can't be committed.
