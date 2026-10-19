@@ -4,7 +4,7 @@ import { join, posix } from "node:path"
 import { describe, expect, it } from "./test"
 
 // Every source file belongs to a layer: a folder ("shell/") or a single file
-// ("class-name.ts"). Each layer lists what it may import from src. What the package graph
+// ("test.ts"). Each layer lists what it may import from src. What the package graph
 // holds (which package may import which: the core, the runner adapter, the demo and the
 // rest are packages of their own) is not repeated here. The model is `@novadeck/core`, and
 // its files are named below as `core/<file>.ts`, so the layers that may reach only some of it
@@ -13,29 +13,24 @@ import { describe, expect, it } from "./test"
 // composes the page; it imports nothing but itself and the core's types, for the scheme
 // preference they hold. Backends never read it: what they paint outside CSS, such as the
 // terminal emulator, takes the page's theme from the entry, as the port's `ThemeSource`.
+// ui-toolkit/ is the package `@novadeck/toolkit` (see `modules`): the controls, `class-name` and
+// the sidebar item. Its own rules are its package.json's.
 const base = ["core/", "interaction/", "ui-toolkit/", "theme/"]
 const features = ["sidebar/", "projects/", "preferences/", "search/"]
 const rules: Record<string, readonly string[]> = {
   "theme/": ["theme/", "core/types.ts"],
-  "ui-toolkit/": ["ui-toolkit/", "class-name.ts"],
   "interaction/": ["interaction/", "core/"],
   ...Object.fromEntries(features.map((layer) => [layer, [...base, layer]])),
   // Voice input: capture and the dictation state machine over the model's `Voice`, and the
   // one terminal contract it types into.
   "voice/": ["voice/", "core/", "ui-toolkit/"],
-  "terminals/": [...base, "terminals/", "sidebar/"],
-  "layouts/": [...base, "layouts/", "sidebar/", "terminals/"],
+  "terminals/": [...base, "terminals/"],
+  "layouts/": [...base, "layouts/", "terminals/"],
   // What asks for the person across the workspace: terminals' requests and unread finishes.
-  "notifications/": [...base, "notifications/", "sidebar/", "terminals/unread-state.ts"],
-  // The Inbox: what asks for the person, answered in place, beside the sidebar's rows, with
+  "notifications/": [...base, "notifications/", "terminals/unread-state.ts"],
+  // The Inbox: what asks for the person, answered in place, in the sidebar item's rows, with
   // the chat's markdown reader and its answers' rules.
-  "inbox/": [
-    ...base,
-    "inbox/",
-    "sidebar/",
-    "terminals/chat/Markdown.tsx",
-    "terminals/chat/answers.ts",
-  ],
+  "inbox/": [...base, "inbox/", "terminals/chat/Markdown.tsx", "terminals/chat/answers.ts"],
   "shell/": [
     ...base,
     "shell/",
@@ -97,7 +92,6 @@ const rules: Record<string, readonly string[]> = {
     "layouts/canvas/types.ts",
   ],
   "test.ts": [],
-  "class-name.ts": [],
 }
 // Packages are denied unless listed here or owned through `vendors`; test code (the test
 // layers and every layer's tests) may use any other package too. theme/, interaction/ and
@@ -110,9 +104,6 @@ const typeOnlyPackages: Record<string, readonly string[]> = {
 }
 const testLayers = new Set(["test/", "test.ts"])
 const vendors: Record<string, readonly string[]> = {
-  clsx: ["class-name.ts"],
-  "tailwind-merge": ["class-name.ts"],
-  "@ark-ui": ["ui-toolkit/"],
   "@xyflow/react": ["layouts/canvas/"],
   "@codemirror": ["terminals/companion/plan-editor/"],
   "react-grid-layout": ["layouts/grid/"],
@@ -137,6 +128,7 @@ const vendors: Record<string, readonly string[]> = {
 
 // The packages that hold what used to be folders of src, named as the layers above know them.
 const modules: Record<string, string> = {
+  "@novadeck/toolkit/": "ui-toolkit/",
   "@novadeck/core/testing": "test/fixtures.ts",
   "@novadeck/test-kit/": "test/",
 }
@@ -233,7 +225,6 @@ describe("UI architecture", () => {
         "entries/start.tsx",
         "theme/apply.ts",
         "terminals/TerminalTabs.tsx",
-        "class-name.ts",
       ]),
     )
   })

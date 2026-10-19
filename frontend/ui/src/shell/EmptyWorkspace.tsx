@@ -1,8 +1,8 @@
 import type { ViewMode } from "@novadeck/core/types"
+import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { Plus } from "lucide-react"
 
 import { backgroundPointerHandlers } from "../layouts/background"
-import { NovaMark } from "../ui-toolkit/NovaLogo"
 
 export const EmptyWorkspace = ({
   view,

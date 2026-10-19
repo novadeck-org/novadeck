@@ -1,4 +1,7 @@
 import { terminalLabel } from "@novadeck/core/handle"
+import { HandleChip } from "@novadeck/toolkit/HandleChip"
+import { SidebarItem, sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import {
   CheckCheck,
   Check,
@@ -11,10 +14,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import { SidebarItem, sidebarListClasses } from "../sidebar/SidebarItem"
 import type { Viewing } from "../terminals/unread-state"
-import { HandleChip } from "../ui-toolkit/HandleChip"
-import { Tooltip } from "../ui-toolkit/Tooltip"
 import {
   dismissable,
   notificationDescription,

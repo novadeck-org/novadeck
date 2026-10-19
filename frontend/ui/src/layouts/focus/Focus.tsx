@@ -1,8 +1,8 @@
 import type { Tile } from "@novadeck/core/types"
+import { Shown, useShown } from "@novadeck/toolkit/shown"
 import { useMemo, useState, type ReactNode } from "react"
 
 import type { TerminalLayoutControls } from "../../terminals/WindowShell"
-import { Shown, useShown } from "../../ui-toolkit/shown"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
 import { keptTerminals } from "./kept"

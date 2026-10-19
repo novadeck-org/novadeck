@@ -1,4 +1,5 @@
 import type { ViewMode } from "@novadeck/core/types"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import {
   Bell,
   ChevronLeft,
@@ -11,7 +12,6 @@ import {
 import { useEffect, useId, useRef, useState } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
-import { Tooltip } from "../ui-toolkit/Tooltip"
 import type { BellBadge } from "./notification-badge"
 import { NotificationBadge } from "./NotificationBadge"
 

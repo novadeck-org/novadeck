@@ -8,6 +8,7 @@ import {
   type UnavailableReason,
 } from "@novadeck/core/companion"
 import { pagesPartition } from "@novadeck/core/pages"
+import { useShown } from "@novadeck/toolkit/shown"
 import { createKept, type ViewerState } from "@novadeck/viewers"
 import { mountBrowser, type Load, type Place } from "@novadeck/viewers/browser"
 import { mountCode, type CodeContent } from "@novadeck/viewers/code"
@@ -17,7 +18,6 @@ import { outline } from "@novadeck/viewers/text"
 import { ArrowLeft, ArrowRight, ExternalLink, RotateCw } from "lucide-react"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 
-import { useShown } from "../../ui-toolkit/shown"
 import { isMarkdown } from "./artifact-icons"
 import { DocumentViewer } from "./DocumentViewer"
 import { titleOf } from "./plan-text"
