@@ -514,7 +514,7 @@ export class Terminals {
       platform: this.options.platform,
       // A message is kept while either of its terminals is, running or saved.
       exists: (id) => this.records.has(id) || this.saves.identity(id) !== undefined,
-      busy: (id) => this.typing.working(id, this.records.get(id)?.activity ?? null),
+      busy: (id) => this.typing.working(id),
     })
     this.asks = new Asks(
       {

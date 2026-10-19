@@ -10,6 +10,7 @@ import type { Binding } from "../harnesses/bindings.js"
 import { harnesses } from "../harnesses/registry.js"
 import { tracer, type DoorbellHost } from "../messaging/doorbell.js"
 import type { Messaging } from "../messaging/messaging.js"
+import { busy } from "./busy.js"
 import { leftoverNonce } from "./leftover.js"
 
 /** What the doorbell reads of a running terminal's record. */
@@ -17,6 +18,26 @@ export type RingRecord = {
   readonly terminal: Terminal
   readonly binding: Binding | null
   readonly activity: Activity | null
+}
+
+/**
+ * Whether the activity says the agent bound there works (`busy`, for its harness), where
+ * that outweighs what messaging knows: a Settled or Ready terminal made so by a Stop or a
+ * session's start stands against an activity that lingers; every other, and any made so
+ * by the screen alone, does not.
+ */
+export const agentWorking = (
+  messaging: Pick<Messaging, "delivery" | "byScreen">,
+  terminalId: string,
+  binding: Binding | null,
+  activity: Activity | null,
+): boolean => {
+  const state = messaging.delivery(terminalId)?.state
+  const known = (state === "settled" || state === "ready") && !messaging.byScreen(terminalId)
+  return (
+    !known &&
+    busy(activity, binding !== null && harnesses[binding.agent].messaging.promptsInBackground)
+  )
 }
 
 /** The harness box of the agent bound to a terminal, or shown at its prompt before one binds. */
@@ -83,7 +104,7 @@ export type RingHost<R extends RingRecord> = TargetHost<R> & {
   /** Ends the binding of an agent known to have exited. */
   readonly endExited: (record: R) => void
   readonly messaging: Messaging
-  /** Whether the activity says a turn or subagents run, where that outweighs what messaging knows. */
+  /** Whether the activity says the agent works, where that outweighs what messaging knows. */
   readonly working: (terminalId: string, activity: Activity | null) => boolean
   readonly stopping: () => boolean
 }
@@ -133,17 +154,20 @@ export const doorbellHost = <R extends RingRecord>(
     },
     ready: (terminalId) => messaging.ready(terminalId),
     // Idle but not Ready by its state, with messages waiting: its screen is looked at.
-    // Never while its activity says a turn or subagents run (a spinner is no calm), and
+    // Never while its activity says the agent works (a spinner is no calm), and
     // for a Settled or Ready one only to say a request waits on the person.
     stalled: (terminalId) => {
       const record = live(terminalId)
       if (!record) return false
       if (working(terminalId, record.activity)) {
-        if (messaging.stalled(terminalId) || messaging.idleWaiting(terminalId))
+        if (messaging.stalled(terminalId) || messaging.idleWaiting(terminalId)) {
           tracer.sink?.(
             terminalId,
             `not looked at: activity ${record.activity?.state}, ${record.activity?.subagents.length ?? 0} subagents, background ${JSON.stringify(record.activity?.background)}`,
           )
+          // Its hold says so, not what an older look saw.
+          messaging.blocked(terminalId, "working")
+        }
         return false
       }
       return (
@@ -154,22 +178,24 @@ export const doorbellHost = <R extends RingRecord>(
     stamp: (terminalId) => messaging.stamp(terminalId),
     barred: (terminalId) => messaging.queueBar(terminalId),
     // The agent's own box, read by its harness off the calm screen: empty and taking a
-    // prompt makes an idle Fresh, Drafting or Unknown terminal Ready (see
+    // prompt makes an idle Fresh, Drafting or Unknown terminal, or one Working on background
+    // work only, Ready (see
     // docs/agent-messaging.md, "The doorbell"); anything else says why it is not.
     reading: (terminalId, screen) => {
       const record = live(terminalId)
       if (!record) return "dialog"
       if ((record.activity?.pending.length ?? 0) > 0) return "asking"
-      if (working(terminalId, record.activity)) return "draft"
+      if (working(terminalId, record.activity)) return "working"
       const box = profile(terminalId)
       const text = box?.read(screen)
       if (!box || box.overlay(screen)) return "dialog"
       // Before its prompt draws, a new session shows no box yet: nothing to say.
       if (!text) return messaging.delivery(terminalId)?.state === "fresh" ? "starting" : "dialog"
-      if (text.mode !== "prompt") return "draft"
+      if (text.mode !== "prompt") return "shell"
       // A picker's row starts with the box's marker too (`❯ 1. Yes`): not a box.
       if (/^\d+[.)]\s/.test(text.text.trimStart())) return "dialog"
-      return isEmpty(text) && !box.queued(screen) ? "empty" : "draft"
+      if (!isEmpty(text)) return "draft"
+      return box.queued(screen) ? "queued" : "empty"
     },
     // A doorbell line all the agent's own box holds, of a ring no doorbell prompt confirmed:
     // Novadeck's, however that ring ended (its paste check rejected, abandoned mid-way, its

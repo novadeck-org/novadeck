@@ -241,10 +241,13 @@ export const holdNotice = (
 
 /**
  * Whether the agent is idle by its delivery, for a hold: what the doorbell rings or looks
- * at, or rings now, as a ring that fails, counted or not, ends no hold; only a turn does.
+ * at (Working on background work too, `inBackground`, where its box takes a prompt then),
+ * or rings now, as a ring that fails, counted or not, ends no hold; only a turn does.
  */
-const idle = (delivery: Delivery): boolean =>
-  ringableSince(delivery) !== undefined || waitsIn(delivery) || delivery.state === "ringing"
+const idle = (delivery: Delivery, inBackground: boolean): boolean =>
+  ringableSince(delivery) !== undefined ||
+  waitsIn(delivery, inBackground) ||
+  delivery.state === "ringing"
 
 /** How many of a terminal's latest unconfirmed rings it remembers (`Live.unconfirmed`). */
 const maxUnconfirmed = 8
@@ -263,6 +266,13 @@ const refusalOfText = (text: string): string | undefined => {
     )
   return undefined
 }
+
+/**
+ * Whether the terminal's bound agent takes a prompt while only work its stopped turn left
+ * running runs (`MessagingProfile.promptsInBackground`): the doorbell may ring it then.
+ */
+const promptsInBackground = (live: Live): boolean =>
+  live.root !== null && harnesses[live.root.agent].messaging.promptsInBackground === true
 
 /** A lease is given only with this long left before its hook's deadline, in milliseconds. */
 export const leaseMargin = 300
@@ -883,19 +893,26 @@ export class Messaging {
   emptied(terminalId: string, epoch: number, readAt = this.now()): void {
     const live = this.live.get(terminalId)
     if (!live || live.keyedAt >= readAt) return
+    // Working on background work only where its box takes a prompt meanwhile.
+    if (phaseOf(live.delivery) === "background" && !promptsInBackground(live)) return
     this.step(live, { type: "emptied", at: this.now(), epoch })
   }
 
   /**
    * Whether the terminal's agent is idle but not ringable by its state alone (Fresh,
-   * Drafting or Unknown), with messages waiting for it: the doorbell looks at its screen
-   * for an empty box, and for a prompt the harness shows queued.
+   * Drafting or Unknown, or Working on background work only where its box takes a prompt
+   * meanwhile), with messages waiting for it: the doorbell looks at its screen for an
+   * empty box, and for a prompt the harness shows queued.
    */
   stalled(terminalId: string): boolean {
     const live = this.live.get(terminalId)
     if (!live) return false
     const { delivery } = live
-    if (!waitsIn(delivery) || queueBarLeft(delivery, this.now(), this.slackMs) > 0) return false
+    if (
+      !waitsIn(delivery, promptsInBackground(live)) ||
+      queueBarLeft(delivery, this.now(), this.slackMs) > 0
+    )
+      return false
     return this.waiting(live)
   }
 
@@ -929,7 +946,10 @@ export class Messaging {
 
   /** Why the doorbell can't ring the terminal's idle agent, as its listing says; null if not. */
   private waitsOf(live: Live): Waits | null {
-    return waitsIn(live.delivery) || ringableSince(live.delivery) !== undefined ? live.waits : null
+    return waitsIn(live.delivery, promptsInBackground(live)) ||
+      ringableSince(live.delivery) !== undefined
+      ? live.waits
+      : null
   }
 
   /**
@@ -1638,6 +1658,7 @@ export class Messaging {
               ? midTurnCall(profile.call !== undefined, profile.reinjectPerCall)
               : undefined,
             recipient.waits ?? undefined,
+            promptsInBackground(recipient),
           )
         : "when its agent starts: rung once Novadeck sees it at its prompt, else at its first turn",
     }
@@ -1930,13 +1951,21 @@ export class Messaging {
       (live.viaScreen &&
         (state === "ready" || state === "settled") &&
         live.delivery.epoch === before.epoch)
-    // The doorbell's last word on why it can't ring is about an idle agent only.
-    if (state === "working" || state === "ringing" || state === "unbound" || live.viaScreen)
+    // The doorbell's last word on why it can't ring is about an idle agent only, or one
+    // waiting on its background work, which it looks at too: not once that work is over.
+    if (
+      running(live.delivery) ||
+      state === "ringing" ||
+      state === "unbound" ||
+      live.viaScreen ||
+      (phaseOf(before) === "background" && phaseOf(live.delivery) !== "background")
+    )
       live.waits = null
     // A hold is timed from the agent going idle; a turn ends it, as does a Stop, which ends
     // a turn that ran on unseen in Unknown (after an Escape that only closed a popup).
-    if (!idle(live.delivery)) live.idleSince = null
-    else if (!idle(before) || event.type === "stop") live.idleSince = this.now()
+    const inBackground = promptsInBackground(live)
+    if (!idle(live.delivery, inBackground)) live.idleSince = null
+    else if (!idle(before, inBackground) || event.type === "stop") live.idleSince = this.now()
     // A turn that ended, or a new one, leaves the last one's delivery behind.
     if ((running(before) && !running(live.delivery)) || live.delivery.epoch !== before.epoch)
       this.leases.forget(live.terminalId)

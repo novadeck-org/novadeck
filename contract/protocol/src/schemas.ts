@@ -905,10 +905,21 @@ export const messageThread = z.strictObject({
   messages: z.array(agentMessage).max(1000),
 })
 
-// Why the doorbell can't ring an idle agent whose messages wait, as its screen shows: text
-// in its input box (`draft`), a dialog, picker or other screen that isn't its prompt
-// (`dialog`), a question it waits on the person for (`asking`), rings that failed (`failed`), or a terminal not at the agent's prompt (`away`).
-export const deliveryWaits = z.enum(["draft", "dialog", "asking", "failed", "away"])
+// Why the doorbell can't ring an idle agent whose messages wait, as it saw: its activity
+// saying a turn runs (`working`), a prompt the harness shows queued (`queued`), its box in
+// shell mode (`shell`), text in its input box (`draft`), a dialog, picker or other screen
+// that isn't its prompt (`dialog`), a question it waits on the person for (`asking`), rings
+// that failed (`failed`), or a terminal not at the agent's prompt (`away`).
+export const deliveryWaits = z.enum([
+  "working",
+  "queued",
+  "shell",
+  "draft",
+  "dialog",
+  "asking",
+  "failed",
+  "away",
+])
 
 // How long a message may wait for an idle agent, the agent idle all along, before the hold is
 // raised: an Inbox item for the person, and a word to its sender, in milliseconds.

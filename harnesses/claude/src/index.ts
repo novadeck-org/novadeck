@@ -72,6 +72,9 @@ const messaging: MessagingProfile = {
   reinjectPerCall: false,
   root: "binding",
   silentOnFailure: false,
+  // A background agent and shell running, it took a typed prompt (fixture
+  // `background-prompt.probe.json`, probed 2026-10-19, 2.1.287).
+  promptsInBackground: true,
   // It holds a command-line prompt behind its trust and startup screens.
   initialPrompt: (line) => Promise.resolve(["claude", line]),
   start: ["claude"],
