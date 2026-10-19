@@ -277,21 +277,20 @@ describe("UI architecture", () => {
   it("keeps each feature to the base and itself", () => {
     // No feature imports another: what two share is the base's. The chat and the companion
     // are packages, which no feature's allow-list names.
-    const frame = ["terminals/", "layouts/"]
-    for (const feature of features) {
-      expect(Object.keys(rules), feature).toContain(feature)
-      const reaching = rules[feature]!.filter(
-        (entry) => entry !== feature && features.some((other) => entry.startsWith(other)),
-      )
-      expect(reaching, `${feature} allows another feature`).toEqual([])
-      const framed = rules[feature]!.filter(
-        (entry) =>
-          frame.some((layer) => entry.startsWith(layer)) &&
-          // A single plain-state file of the frame, not a layer of it.
-          !(feature === "notifications/" && entry === "terminals/unread-state.ts"),
-      )
-      expect(framed, `${feature} allows the frame`).toEqual([])
+    const exceptions: Record<string, readonly string[]> = {
+      // A plain-state file of the frame, not a layer of it.
+      "notifications/": ["terminals/unread-state.ts"],
     }
+    for (const feature of features) {
+      expect(rules[feature], feature).toEqual([...base, feature, ...(exceptions[feature] ?? [])])
+    }
+    // No nested key gives a feature's file more than the feature has.
+    expect(
+      Object.keys(rules).filter(
+        (layer) =>
+          !features.includes(layer) && features.some((feature) => layer.startsWith(feature)),
+      ),
+    ).toEqual([])
     expect(
       Object.keys(rules).filter(
         (layer) => layer.startsWith("terminals/chat") || layer.startsWith("terminals/companion"),
