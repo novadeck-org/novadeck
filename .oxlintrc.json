@@ -164,6 +164,224 @@
                 "group": ["@novadeck/sandbox", "@novadeck/sandbox/**"],
                 "message": "The root's own dependency resolves from any package, so a package reaches it only by declaring it: the sandbox runs in Node, for the runner and the repository's scripts."
               }
+            ],
+            "paths": [
+              {
+                "name": "assert",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "assert/strict",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "async_hooks",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "buffer",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "child_process",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "cluster",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "console",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "constants",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "crypto",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "dgram",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "diagnostics_channel",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "dns",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "dns/promises",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "domain",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "events",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "fs",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "fs/promises",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "http",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "http2",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "https",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "inspector",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "inspector/promises",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "module",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "net",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "os",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "path",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "path/posix",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "path/win32",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "perf_hooks",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "process",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "punycode",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "querystring",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "readline",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "readline/promises",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "repl",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "stream",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "stream/consumers",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "stream/promises",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "stream/web",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "string_decoder",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "sys",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "timers",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "timers/promises",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "tls",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "trace_events",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "tty",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "url",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "util",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "util/types",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "v8",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "vm",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "wasi",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "worker_threads",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "zlib",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              }
             ]
           }
         ]

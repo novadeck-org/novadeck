@@ -37,7 +37,9 @@ the build rules and the test sandbox. The app keeps the product.
   library, refuses relative paths out of the library into the other trees: `atlas`,
   `tools/atlas`, `backend`, `contract`, `frontend`, `apps`, `harnesses` or `libraries` (a
   sibling's folder included), and a sibling's `dist/` (`../../wire/dist`). A module of the
-  library's own that shares a name with one (`./contract/index.ts`) stays its own. The fence
+  library's own in a folder named `backend`, `contract`, `frontend` or `apps`
+  (`./contract/index.ts`) stays its own; one named `atlas`, `harnesses` or `libraries` is refused
+  too. The fence
   holds paths, and one kind of name: which package a library may import is held by the package
   graph below, as pnpm resolves only the dependencies a package declares, so an import of an app
   package, or of a library outside the order, by name fails to resolve. The root's own workspace
@@ -46,8 +48,9 @@ the build rules and the test sandbox. The app keeps the product.
   `frontend/*/src`, `apps/*/src` and `apps/desktop/renderer` (not the desktop app's `src`, its
   main process, which has no fence), is the browser code's. It refuses the Node subpaths of any
   `@novadeck` package (`/pty`, `/host`, `/server`, `/electron`, `/browser/host`, `/shell`,
-  `/headless`), paths into `libraries/` (a library is imported by its package name) and the
-  `node:*` built-ins. Test files (`*.test.ts(x)`, `*.spec.ts(x)`, `*.e2e.ts`), `frontend/runner-adapter/src/testing.ts`
+  `/headless`), paths into `libraries/` (a library is imported by its package name) and Node's
+  built-ins, with `node:` (`node:*`) or without it (each of `module.builtinModules` by name, which
+  the fence test keeps to Node's list). Test files (`*.test.ts(x)`, `*.spec.ts(x)`, `*.e2e.ts`), `frontend/runner-adapter/src/testing.ts`
   and `frontend/test-kit/src/phases.ts` run in Node: they get the first two bans but may import
   built-ins. oxlint takes `no-restricted-imports` from the last matching override alone, so
   that override repeats the browser code's other bans, and `scripts/libraries/fence.test.ts` lints
@@ -59,8 +62,9 @@ the build rules and the test sandbox. The app keeps the product.
   workspace package but the libraries its design depends on, in any kind of dependency, under its
   own name or an alias, and nothing from a path (`link:`, `file:`, `portal:`, `workspace:` with a
   path, or a bare path as pnpm reads one, a drive letter, a backslash or a tarball's name included).
-  pnpm links no workspace package at the root, so a library imports only the workspace packages it
-  declares. What the root installs (its dev tools, and the hoisted `electron`) still resolves from a
+  pnpm links at the root only the root's own workspace dependencies (`@novadeck/sandbox`), which
+  the fence refuses by name, so a library imports only the workspace packages it declares. What
+  the root installs (its dev tools, and the hoisted `electron`) still resolves from a
   library without being declared: nothing checks that a library declares those.
 - **The typecheck's `rootDir`**: a relative import that leaves the library's `src`, as
   `../../wire/src` into a sibling's sources, names no folder the lint knows, and fails `tsc`
@@ -90,6 +94,6 @@ pnpm install
 It writes `libraries/<name>` from `scripts/libraries/template.ts`: a `package.json` with its own
 dev tools, `tsconfig.json` on the shared `tsconfig.base.json`, a build config, a `turbo.json`, a
 Vitest config and a README. Then add it to `order` in `scripts/libraries/order.ts`; the `libraries/**`
-override in `.oxlintrc.json` fences it already. The fence and graph tests fail until a folder here
-is in the order. The new library's `pnpm test` fails too until it has its
+override in `.oxlintrc.json` fences it already. The fence test fails until a folder here is in the
+order. The new library's `pnpm test` fails too until it has its
 first test.

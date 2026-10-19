@@ -8,6 +8,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs"
+import { builtinModules } from "node:module"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
@@ -28,6 +29,17 @@ const root = join(import.meta.dirname, "..", "..")
 // config and reads back which of their imports oxlint refuses.
 
 const names = Object.keys(order)
+const config = JSON.parse(readFileSync(join(root, ".oxlintrc.json"), "utf8")) as {
+  readonly overrides: readonly {
+    readonly files: readonly string[]
+    readonly rules?: {
+      readonly "no-restricted-imports"?: readonly [
+        string,
+        { readonly paths?: readonly { readonly name: string }[] }?,
+      ]
+    }
+  }[]
+}
 
 // Relative paths out of a library, which no package.json sees.
 const app = [
@@ -71,8 +83,8 @@ const node = [
   ),
   "@novadeck/emulator/headless",
 ]
-// Node's built-ins, in each form they are written.
-const builtins = ["node:fs", "node:fs/promises", "node:worker_threads"]
+// Node's built-ins, in each form they are written: with node: and without.
+const builtins = ["node:fs", "node:fs/promises", "node:worker_threads", "fs", "path/posix"]
 const browser = [
   "@novadeck/emulator/browser",
   "@novadeck/emulator/browser.css",
@@ -262,6 +274,19 @@ describe("the libraries' lint fence", () => {
 })
 
 describe("the browser code's lint fence", () => {
+  // A bare built-in is an exact name, as `path` in a pattern would match `@scope/path` too:
+  // the override lists each, which this keeps to Node's own list.
+  it("names every Node built-in its prefix may be left off", () => {
+    const fence = config.overrides.find((each) => each.files.includes("frontend/*/src/**"))
+    const [, rule] = fence?.rules?.["no-restricted-imports"] ?? []
+    const listed = new Set((rule?.paths ?? []).map(({ name }) => name))
+    expect(
+      builtinModules.filter(
+        (name) => !name.startsWith("_") && !name.startsWith("node:") && !listed.has(name),
+      ),
+    ).toEqual([])
+  })
+
   it.each(probes.filter(({ file }) => !file.startsWith("libraries/")))(
     "refuses $file exactly the libraries' Node subpaths, paths into libraries/, the root's packages and, but for test support, Node built-ins",
     ({ file, refused }) => {
