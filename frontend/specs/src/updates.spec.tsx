@@ -7,6 +7,7 @@ import {
   draftOf,
   expectStaysAbsent,
   expectTypingIn,
+  isMac,
   openWorkspace,
   press,
   terminalTab,
@@ -22,6 +23,9 @@ const announcer = () => page.getByRole("status").filter({ hasText: /Novadeck upd
 // A demo download takes 3 seconds to finish, then the bar stays 4 more before it fades.
 const slow = { timeout: 10_000 }
 const typing = () => commandInput("Checkout review")
+
+// Closing the window doesn't quit the app on macOS, so there an update installs on a quit.
+const installsWhen = isMac() ? "when you quit Novadeck" : "on the next restart"
 
 const availableChip = (): Locator =>
   page.getByRole("button", { name: "Update available: Novadeck 0.0.80" })
@@ -49,10 +53,10 @@ describe("the update progress bar", () => {
       await openWorkspace("/?update=download")
       await expect.element(finished(), slow).toBeVisible()
       await expect.element(title("100%")).toBeVisible()
-      await expect.element(title("0.0.80 installs on the next restart")).toBeVisible()
+      await expect.element(title(`0.0.80 installs ${installsWhen}`)).toBeVisible()
       await expect
         .element(announcer())
-        .toHaveTextContent("Novadeck update downloaded, installs on the next restart")
+        .toHaveTextContent(`Novadeck update downloaded, installs ${installsWhen}`)
       await expect.element(finished(), slow).not.toBeInTheDocument()
       expect(bar()).toBeNull()
     })
@@ -98,6 +102,16 @@ describe("the update progress bar", () => {
       await expect.element(availableChip()).toBeVisible()
       expect(page.getByRole("dialog").query()).toBeNull()
       expect(page.getByRole("region", { name: /Novadeck 0\.0\.80/ }).query()).toBeNull()
+    })
+
+    it("asks for an administrator as Allow updates when the host offers it, then downloads", async () => {
+      await openWorkspace("/?update=allow")
+      const allow = page.getByRole("button", { name: "Allow updates: Novadeck 0.0.80" })
+      await expect.element(allow).toBeVisible()
+      expect(allow.element().getAttribute("title")).toContain("administrator's password")
+      await allow.click()
+      await expect.element(updating()).toBeVisible()
+      await expect.element(allow).not.toBeInTheDocument()
     })
 
     it("shortens to Update on a narrow bar", async () => {

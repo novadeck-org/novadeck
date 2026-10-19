@@ -7,14 +7,12 @@ import { HoverCard } from "@novadeck/toolkit/HoverCard"
 import { Pause, type LucideIcon } from "lucide-react"
 import type { ReactNode, Ref } from "react"
 
-import { memberIcon, slotIcon } from "./artifact-icons"
-import { isNew, pick, type BarMember, type BarSlot, type StackKind } from "./bar"
-import type { MailHandle } from "./mail"
+import { isNew, pick, type BarMember, type BarSlot } from "./bar"
+import type { MailHandle } from "./panes/messages/mail"
+import type { PlanDoc } from "./panes/plan/plan-doc"
 import { Peek, type Indicator, type PeekEntry } from "./Peek"
-import type { PlanDoc } from "./plan-doc"
-import { titleOf } from "./plan-text"
+import { registrationOf, slotIcon, stackNames } from "./registry"
 import type { Panes } from "./state"
-import { ArtifactPreview, MailThumb, PlanThumb } from "./thumbs"
 
 // One icon on a terminal's taskbar: its button, the peek above it with a card for each
 // thing behind it, and its menu. One thing's menu offers all that can be done with it; a
@@ -55,43 +53,23 @@ export type SlotActions = {
 // button reads to assistive technology, and its preview.
 type Look = { readonly icon: LucideIcon; readonly name: string; readonly label: string }
 
-const lookOf = (member: BarMember, actions: SlotActions): Look => {
-  if (member.kind === "messages")
-    return { icon: memberIcon(member), name: "Messages", label: "Messages" }
-  const { item } = member
-  const title = titleOf(item.name, actions.plans[item.id]?.text ?? "")
-  const look: Look =
-    item.kind === "plan"
-      ? {
-          icon: memberIcon(member),
-          name: title,
-          label: `${item.plan?.role === "subagent" ? "Subagent plan" : "Plan"}: ${title}`,
-        }
-      : { icon: memberIcon(member), name: item.name, label: item.name }
-  if (!member.placed) return look
+export const lookOf = (member: BarMember, actions: SlotActions): Look => {
+  const registration = registrationOf(member)
+  const { name, label } = registration.look(member, { plans: actions.plans })
+  const look: Look = { icon: registration.icon(member), name, label }
+  if (member.kind === "messages" || !member.placed) return look
   const origin = actions.originOf(member) ?? "another terminal"
   return { ...look, name: `${look.name} · from ${origin}`, label: `${look.label}, from ${origin}` }
 }
 
-const preview = (member: BarMember, actions: SlotActions): ReactNode =>
-  member.kind === "messages" ? (
-    <MailThumb mail={actions.mail} peerName={actions.peerName} />
-  ) : member.item.kind === "plan" ? (
-    <PlanThumb panes={actions.panes} item={member.item} />
-  ) : (
-    <ArtifactPreview panes={actions.panes} target={actions.target} item={member.item} />
-  )
+const preview = (member: BarMember, actions: SlotActions): ReactNode => {
+  const { Thumb } = registrationOf(member)
+  const { panes, target, mail, peerName } = actions
+  return <Thumb member={member} panes={panes} target={target} mail={mail} peerName={peerName} />
+}
 
 const indicator = (member: BarMember, showing: BarKey | null): Indicator =>
   isNew(member) ? "new" : member.key === showing ? "open" : "seen"
-
-// A stack's name, as its menu and its count say it.
-const stackNames: Record<StackKind, { readonly one: string; readonly many: string }> = {
-  plan: { one: "plan", many: "Plans" },
-  image: { one: "image", many: "Images" },
-  file: { one: "file", many: "Files" },
-  page: { one: "page", many: "Pages" },
-}
 
 // What can be done with one item, from its menu.
 const memberMenu = (member: BarMember, actions: SlotActions): ContextMenuItem[] => {
@@ -210,7 +188,7 @@ export const TaskbarSlot = ({
   const Icon = look.icon
   const fresh = slot.members.some(isNew)
   const shown = slot.members.find((member) => member.key === showing)
-  const names = slot.stack && stackNames[slot.stack]
+  const names = slot.stack && stackNames(slot.stack)
   const stack = stackMenu(slot.members, names ? names.one : "item", actions)
   const messages = single?.kind === "messages"
   const mailLabel = actions.mail.badge
