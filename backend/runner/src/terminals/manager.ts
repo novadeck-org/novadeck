@@ -1309,15 +1309,7 @@ export class Terminals {
     yield* this.streams.watchDetail(record, signal)
   }
 
-  /**
-   * Closes another terminal of the caller's project and session, as an agent asked
-   * through Novadeck's MCP server by the terminal's exact handle: as the person's close
-   * does, it ends the shell, then forgets the terminal, whatever window controls it, and
-   * messages still waiting for it are gone. Never the caller's own terminal; a handle
-   * not there is refused with every terminal there described. A chain of terminals'
-   * agents close a few at most each minute, and all agents a few more. A call without
-   * the shell's own token learns nothing more.
-   */
+  /** Closes another terminal of the caller's project and session (see `Calls.closePeer`). */
   closePeer(call: Call): Promise<CloseAnswer> {
     return this.calls.closePeer(call)
   }

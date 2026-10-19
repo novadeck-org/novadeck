@@ -228,7 +228,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         from: "runner",
         to: "runner",
         label: "route call by type",
-        text: "The terminal manager's calls route the call by type.",
+        text: "Calls routes the call by type.",
         anchor: {
           file: `${runnerSrc}/terminals/calls.ts`,
           text: "call(call: Call): Promise<unknown>",
