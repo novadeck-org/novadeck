@@ -61,6 +61,11 @@
       "development": "./src/testing/screens.ts",
       "types": "./dist/testing/screens.d.ts",
       "default": "./dist/testing/screens.js"
+    },
+    "./tools": {
+      "development": "./src/tools.ts",
+      "types": "./dist/tools.d.ts",
+      "default": "./dist/tools.js"
     }
   },
   "scripts": {

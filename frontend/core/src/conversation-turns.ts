@@ -1,4 +1,4 @@
-import type { ChatItem } from "./conversation"
+import type { ChatItem, ToolRun } from "./conversation"
 import { harnesses } from "./harnesses"
 import type { AgentStatus } from "./types"
 
@@ -13,12 +13,13 @@ export type ToolResult = {
   readonly truncated: boolean
 }
 
-// One tool call. `tool` is null for a result whose call isn't among the items (a call
-// left out of the window the backend carries), which still shows, as "Result".
+// One tool call. `tool` and `run` are null for a result whose call isn't among the items (a
+// call left out of the window the backend carries), which still shows, as "Result".
 export type ToolEntry = {
   readonly id: string
   readonly call: string | null
   readonly tool: string | null
+  readonly run: ToolRun | null
   readonly input: string
   readonly truncated: boolean
   readonly result: ToolResult | null
@@ -50,9 +51,6 @@ export type ChatBlock =
       readonly id: string
       readonly entries: readonly ToolEntry[]
     }
-
-// Claude Code records a stopped turn as a user message in brackets.
-const interruption = /^\s*\[Request interrupted by user[^\]]*\]\s*$/
 
 const asResult = (item: ChatItem): ToolResult => ({
   id: item.id,
@@ -88,6 +86,7 @@ export const groupItems = (items: readonly ChatItem[]): readonly ChatBlock[] => 
         id: item.id,
         call: item.call,
         tool: item.tool ?? "tool",
+        run: item.run,
         input: item.text,
         truncated: item.truncated,
         result: result ? asResult(result) : null,
@@ -106,6 +105,7 @@ export const groupItems = (items: readonly ChatItem[]): readonly ChatBlock[] => 
         id: item.id,
         call: item.call,
         tool: null,
+        run: null,
         input: "",
         truncated: false,
         result: asResult(item),
@@ -115,7 +115,7 @@ export const groupItems = (items: readonly ChatItem[]): readonly ChatBlock[] => 
     open.run = null
     if (item.role === "user") {
       blocks.push(
-        interruption.test(item.text)
+        item.interrupted
           ? { kind: "note", id: item.id, text: "Interrupted" }
           : {
               kind: "user",
@@ -149,6 +149,9 @@ export const groupItems = (items: readonly ChatItem[]): readonly ChatBlock[] => 
 const sameEntry = (a: ToolEntry, b: ToolEntry): boolean =>
   a.id === b.id &&
   a.tool === b.tool &&
+  a.run?.kind === b.run?.kind &&
+  a.run?.title === b.run?.title &&
+  a.run?.detail === b.run?.detail &&
   a.input === b.input &&
   a.truncated === b.truncated &&
   a.result?.id === b.result?.id &&
@@ -176,383 +179,6 @@ export const sameBlock = (a: ChatBlock, b: ChatBlock): boolean => {
     a.truncated === b.truncated &&
     (a.kind === "agent" ? a.author === (b as typeof a).author : true)
   )
-}
-
-// ---- Tool calls, in one line.
-
-export type ToolKind = "run" | "read" | "write" | "search" | "web" | "agent" | "plan" | "other"
-
-export type ToolSummary = {
-  readonly kind: ToolKind
-  // What the tool is called to a person: "Ran", "Read", "Edited".
-  readonly title: string
-  // What it was called on: the command, the file, the pattern. Empty where there is none.
-  readonly detail: string
-}
-
-type Fields = Readonly<Record<string, unknown>>
-
-// A string value, with the JSON quoting Antigravity wraps its arguments' strings in
-// undone.
-const unquote = (value: string): string => {
-  if (value.length < 2 || !value.startsWith('"') || !value.endsWith('"')) return value
-  try {
-    const parsed: unknown = JSON.parse(value)
-    return typeof parsed === "string" ? parsed : value
-  } catch {
-    return value
-  }
-}
-
-const parseFields = (input: string): Fields | null => {
-  try {
-    const value: unknown = JSON.parse(input)
-    return typeof value === "object" && value !== null && !Array.isArray(value)
-      ? (value as Fields)
-      : null
-  } catch {
-    return null
-  }
-}
-
-// An object argument, as given or as the JSON text Antigravity may wrap it in.
-const nested = (value: unknown): Fields | null => {
-  if (typeof value === "string") {
-    try {
-      return nested(JSON.parse(value))
-    } catch {
-      return null
-    }
-  }
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Fields)
-    : null
-}
-
-// The first of `keys` the input holds as text.
-const textField = (fields: Fields | null, ...keys: string[]): string => {
-  if (!fields) return ""
-  for (const key of keys) {
-    const value = fields[key]
-    if (typeof value === "string" && value.trim()) return unquote(value).trim()
-  }
-  return ""
-}
-
-const oneLine = (text: string): string => text.trim().split("\n", 1)[0]!.trim()
-
-// A path's last segments, as long as it is.
-export const shortPath = (path: string): string => {
-  const parts = path.split(/[\\/]+/).filter(Boolean)
-  return parts.length > 3 ? `…/${parts.slice(-3).join("/")}` : path
-}
-
-// Codex's shell tools take the command as a list, often wrapped as `bash -lc <script>`.
-const commandOf = (fields: Fields | null): string => {
-  const text = textField(fields, "cmd", "command", "CommandLine")
-  if (text) return text
-  const list = fields?.command
-  if (!Array.isArray(list)) return ""
-  const words = list.filter((word): word is string => typeof word === "string")
-  const wrapped = words.length === 3 && /^-\w*c$/.test(words[1]!)
-  return oneLine(wrapped ? words[2]! : words.join(" "))
-}
-
-// The files a patch touches, from its `*** Add File: path` lines.
-export const patchFiles = (patch: string): readonly string[] => [
-  ...new Set(
-    [...patch.matchAll(/^\*\*\* (?:Add|Update|Delete) File: (.+?)\s*$/gm)].map(
-      (match) => match[1]!,
-    ),
-  ),
-]
-
-const fileList = (files: readonly string[]): string =>
-  files.length <= 2
-    ? files.map(shortPath).join(", ")
-    : `${files.slice(0, 2).map(shortPath).join(", ")} +${files.length - 2}`
-
-const count = (value: unknown, one: string, many = `${one}s`): string =>
-  Array.isArray(value) ? `${value.length} ${value.length === 1 ? one : many}` : ""
-
-// A tool call's one-line summary, from its name and its input as the harness wrote it
-// (JSON, or raw text for a patch). Tools it doesn't know show their name and the first
-// thing their input says.
-export const toolSummary = (tool: string, input: string): ToolSummary => {
-  const fields = parseFields(input)
-  const mcp = mcpCall(tool, fields)
-  const mcpKnown = mcp && mcpSummary(mcp)
-  if (mcpKnown) return mcpKnown
-  const known = knownTool(tool.toLowerCase(), fields, input)
-  if (known) return known
-  const detail =
-    textField(
-      fields,
-      "command",
-      "cmd",
-      "file_path",
-      "path",
-      "url",
-      "query",
-      "pattern",
-      "description",
-      "toolSummary",
-    ) || (fields ? "" : oneLine(input))
-  return {
-    kind: "other",
-    title: tool,
-    detail: detail ? shortenIf(detail) : "",
-  }
-}
-
-// An MCP tool call, with the server it went to where the name says it.
-type McpCall = {
-  // Antigravity's lazy call, which hides the server and the tool in its arguments.
-  readonly lazy: boolean
-  readonly server: string
-  readonly tool: string
-  readonly fields: Fields | null
-}
-
-// Antigravity encodes a lazily loaded MCP tool as `call_mcp_tool` with the server, the
-// tool and its arguments (an object, or JSON text) as arguments of its own.
-const lazyMcp = "call_mcp_tool"
-
-// The server and tool a name says, as each harness spells it: Claude Code's
-// `mcp__plugin_novadeck_novadeck__send`, Codex's `mcp__novadeck__send` (its rollout
-// gives the namespace `mcp__novadeck` and the tool `send` apart) or `mcp__novadeck.send`,
-// and Antigravity's eagerly loaded `mcp_novadeck_novadeck_send`.
-const mcpCall = (tool: string, fields: Fields | null): McpCall | undefined => {
-  if (tool === lazyMcp) {
-    const server = textField(fields, "ServerName")
-    const name = textField(fields, "ToolName")
-    if (!server || !name) return undefined
-    const args = fields?.Arguments
-    return {
-      lazy: true,
-      server,
-      tool: name,
-      fields: typeof args === "string" ? parseFields(unquote(args)) : isFields(args) ? args : null,
-    }
-  }
-  const named =
-    /^mcp__(.+?)__(.+)$/.exec(tool) ??
-    /^mcp__([^.]+)\.(.+)$/.exec(tool) ??
-    /^mcp_(novadeck_novadeck)_(.+)$/.exec(tool)
-  return named ? { lazy: false, server: named[1]!, tool: named[2]!, fields } : undefined
-}
-
-const isFields = (value: unknown): value is Fields =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-
-// The names Novadeck's server goes by: Claude Code's plugin, Codex's namespace and
-// Antigravity's (lazy `ServerName` and eager prefix alike).
-const novadeckServers: ReadonlySet<string> = new Set([
-  "plugin_novadeck_novadeck",
-  "novadeck",
-  "novadeck_novadeck",
-])
-
-const isNovadeck = (server: string): boolean => novadeckServers.has(server)
-
-const mcpSummary = ({ lazy, server, tool, fields }: McpCall): ToolSummary | undefined => {
-  const known = isNovadeck(server) ? novadeckTool(tool, fields) : undefined
-  // Another server's lazy tool shows its name and server; an eager one's name says both.
-  return known ?? (lazy ? { kind: "other", title: tool, detail: server } : undefined)
-}
-
-// Novadeck's own MCP tools: the agent works with the person's other terminals.
-const novadeckTool = (tool: string, fields: Fields | null): ToolSummary | undefined => {
-  const text = (...keys: string[]): string => oneLine(textField(fields, ...keys))
-  switch (tool) {
-    case "send":
-      return {
-        kind: "agent",
-        title: `Messaged${text("to") ? ` ${text("to")}` : ""}`,
-        detail: text("text"),
-      }
-    case "agents":
-      return { kind: "agent", title: "Listed agents", detail: "" }
-    case "open_terminal": {
-      const agent = text("agent")
-      const task = text("message")
-      return {
-        kind: "agent",
-        title: "Opened a terminal",
-        detail: agent ? (task ? `${agent}: ${task}` : agent) : text("command", "title", "cwd"),
-      }
-    }
-    case "close_terminal":
-      return {
-        kind: "agent",
-        title: `Closed${text("to") ? ` ${text("to")}` : " a terminal"}`,
-        detail: "",
-      }
-    case "show":
-    case "close": {
-      const url = text("url")
-      const file = nested(fields?.file)
-      const path = file ? oneLine(textField(file, "path")) : ""
-      return {
-        kind: url ? "web" : "read",
-        title: tool === "show" ? "Showed" : "Closed",
-        detail: url || shortPath(path),
-      }
-    }
-    case "showing":
-      return { kind: "read", title: "Checked what's shown", detail: "" }
-    case "summarize":
-      return { kind: "agent", title: "Summarized this terminal", detail: text("summary") }
-    default:
-      return undefined
-  }
-}
-
-const shortenIf = (detail: string): string =>
-  detail.startsWith("/") || /^[A-Za-z]:[\\/]/.test(detail) ? shortPath(detail) : oneLine(detail)
-
-const knownTool = (name: string, fields: Fields | null, input: string): ToolSummary | undefined => {
-  const path = (...keys: string[]): string => shortPath(textField(fields, ...keys))
-  switch (name) {
-    // Claude Code
-    case "bash":
-    // Codex
-    case "exec_command":
-    case "shell":
-    case "shell_command":
-    case "local_shell":
-    case "container.exec":
-    // Antigravity
-    case "run_command":
-      return { kind: "run", title: "Ran", detail: oneLine(commandOf(fields)) }
-    case "exec":
-      // Codex's code tool takes its program as raw text.
-      return {
-        kind: "run",
-        title: "Ran",
-        detail: fields ? oneLine(commandOf(fields)) : oneLine(input),
-      }
-    case "write_stdin":
-      return {
-        kind: "run",
-        title: "Sent input",
-        detail: oneLine(textField(fields, "chars")),
-      }
-    case "read":
-    case "view_file":
-    case "view_image":
-    case "read_file":
-      return {
-        kind: "read",
-        title: "Read",
-        detail: path("file_path", "AbsolutePath", "path", "notebook_path"),
-      }
-    case "list_dir":
-    case "ls":
-      return {
-        kind: "read",
-        title: "Listed",
-        detail: path("DirectoryPath", "path"),
-      }
-    case "write":
-    case "write_to_file":
-      return {
-        kind: "write",
-        title: "Wrote",
-        detail: path("file_path", "TargetFile"),
-      }
-    case "edit":
-    case "multiedit":
-    case "notebookedit":
-    case "replace_file_content":
-    case "multi_replace_file_content":
-      return {
-        kind: "write",
-        title: "Edited",
-        detail: path("file_path", "TargetFile", "notebook_path"),
-      }
-    case "apply_patch": {
-      // Raw patch text, or a JSON wrapper around it.
-      const patch = textField(fields, "input", "patch") || input
-      const files = patchFiles(patch)
-      return { kind: "write", title: "Patched", detail: fileList(files) }
-    }
-    case "grep":
-    case "grep_search":
-      return {
-        kind: "search",
-        title: "Searched",
-        detail: oneLine(textField(fields, "pattern", "Query", "query")),
-      }
-    case "glob":
-    case "find_by_name":
-      return {
-        kind: "search",
-        title: "Found files",
-        detail: oneLine(textField(fields, "pattern", "Pattern")),
-      }
-    case "webfetch":
-    case "read_url_content":
-      return {
-        kind: "web",
-        title: "Fetched",
-        detail: textField(fields, "url", "Url"),
-      }
-    case "websearch":
-    case "search_web":
-      return {
-        kind: "web",
-        title: "Searched the web",
-        detail: textField(fields, "query"),
-      }
-    case "task":
-    case "agent":
-      return {
-        kind: "agent",
-        title: "Subagent",
-        detail: oneLine(textField(fields, "description", "subagent_type", "prompt")),
-      }
-    case "todowrite":
-      return {
-        kind: "plan",
-        title: "Updated todos",
-        detail: count(fields?.todos, "item"),
-      }
-    case "update_plan":
-      return {
-        kind: "plan",
-        title: "Updated plan",
-        detail: count(fields?.plan, "step"),
-      }
-    case "exitplanmode":
-      return { kind: "plan", title: "Proposed a plan", detail: "" }
-    case "askuserquestion": {
-      const first = Array.isArray(fields?.questions) ? (fields!.questions[0] as Fields) : null
-      return {
-        kind: "plan",
-        title: "Asked",
-        detail: oneLine(textField(first, "question")),
-      }
-    }
-    default:
-      return undefined
-  }
-}
-
-// A tool call's input as a person reads it when the row opens: the one value a call holds,
-// as it is; several, one `name: value` to a line, strings without their JSON quotes.
-// Input that isn't JSON, such as a patch, is shown as written.
-export const inputText = (input: string): string => {
-  const fields = parseFields(input)
-  if (!fields) return input
-  const entries = Object.entries(fields).map(
-    ([name, value]) =>
-      [name, typeof value === "string" ? unquote(value) : JSON.stringify(value)] as const,
-  )
-  if (entries.length === 1) return entries[0]![1]
-  return entries
-    .map(([name, value]) => (value.includes("\n") ? `${name}:\n${value}` : `${name}: ${value}`))
-    .join("\n")
 }
 
 // ---- What the agent is doing, in a line.

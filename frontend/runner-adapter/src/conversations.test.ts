@@ -39,6 +39,8 @@ const item = (index: number, text = `text ${index}`): TranscriptItem => ({
   tool: null,
   call: null,
   author: null,
+  run: null,
+  interrupted: false,
 })
 
 const batch = (...items: TranscriptItem[]): TranscriptChange => ({ type: "items", items })
@@ -194,7 +196,29 @@ describe("the runner's conversations", () => {
         tool: null,
         call: null,
         author: null,
+        run: null,
+        interrupted: false,
       })
+    })
+
+    it("carries a call's run and an interrupted item as they came", async () => {
+      const { details, transcripts, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      const run = { kind: "run", title: "Ran", detail: "pnpm test" } as const
+      transcripts[root]!.push(
+        batch(
+          { ...item(0), kind: "tool-call", tool: "Bash", run },
+          { ...item(1), role: "user", interrupted: true },
+        ),
+      )
+      await settle()
+      const { items } = store.getSnapshot()
+      expect(items.map((each) => [each.run, each.interrupted])).toEqual([
+        [run, false],
+        [null, true],
+      ])
     })
 
     it("maps requests, marking those of a subagent", async () => {

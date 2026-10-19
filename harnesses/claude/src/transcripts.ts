@@ -2,6 +2,9 @@ import { dirname, join } from "node:path"
 
 import type { Harness } from "@novadeck/harness-core/harness"
 import { at, entry, joined, record, textOf } from "@novadeck/harness-core/items"
+import { shellCall } from "@novadeck/harness-core/tools"
+
+import { describe } from "./tools.js"
 
 // A subagent id Claude Code names its transcript by, as it writes them.
 const safeId = /^[\w-]{1,128}$/
@@ -52,6 +55,7 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
             at: time,
             tool: "Bash",
             call: fields.uuid,
+            describe: shellCall,
           }),
         ]
       const output = role === "user" ? shellOutput.exec(content) : null
@@ -83,7 +87,14 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
       if (type === "text" && typeof text === "string" && text)
         return [entry(role, "text", text, { at: time })]
       if (type === "tool_use")
-        return [entry("assistant", "tool-call", textOf(input), { at: time, tool: name, call: id })]
+        return [
+          entry("assistant", "tool-call", textOf(input), {
+            at: time,
+            tool: name,
+            call: id,
+            describe,
+          }),
+        ]
       if (type === "tool_result")
         return [
           entry(
