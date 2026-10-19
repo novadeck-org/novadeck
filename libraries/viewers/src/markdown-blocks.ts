@@ -2,7 +2,10 @@
 // lists, quotes, fenced code, tables, emphasis, inline code and links. It returns a tree
 // the view draws element by element, so nothing the agent writes is ever read as HTML.
 // It is forgiving rather than exact: text it doesn't understand stays text, and an
-// unclosed fence (a reply still arriving) runs to the end.
+// unclosed fence (a reply still arriving) runs to the end. `fenceFile` names the file whose
+// language a fence's info string asks for, for the code viewer's highlighter.
+
+export { fenceFile } from "./fence-file.js"
 
 export type Inline =
   | { readonly t: "text"; readonly text: string }
