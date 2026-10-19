@@ -14,6 +14,7 @@ import {
   exitedWithCode,
   failedToStart,
   killedBy,
+  leadsOthers,
   dealKinds,
   noisyAgents,
   othersOf,
@@ -203,5 +204,39 @@ describe("notification states", () => {
     expect(promptTerminals(running)).not.toContainEqual(key("04"))
     const ended = apply(exitedWithCode(key("04"), 1), prompt)
     expect(promptTerminals(ended)).not.toContainEqual(key("04"))
+  })
+})
+
+describe("leading the others", () => {
+  it("makes every other live terminal of the session name the selected one as its lead", () => {
+    const lead = terminalOf(initial, key("01"))!
+    const led = leadsOthers(initial, key("01")).reduce(workspaceReducer, initial)
+    const others = othersOf(initial, key("01"))
+    expect(others.length).toBeGreaterThan(0)
+    for (const other of others)
+      expect(terminalOf(led, { ...key("01"), terminalId: other.id })?.ledBy).toBe(lead.handle)
+  })
+
+  it("does nothing for a terminal without a handle to lead by", () => {
+    const id = key("01").terminalId
+    const nameless: Workspace = {
+      ...initial,
+      projects: initial.projects.map((each) => ({
+        ...each,
+        history: each.history.map((entry) => ({
+          ...entry,
+          state: {
+            ...entry.state,
+            roster: {
+              ...entry.state.roster,
+              terminals: entry.state.roster.terminals.map(({ handle, ...rest }) =>
+                rest.id === id ? rest : { ...rest, ...(handle ? { handle } : {}) },
+              ),
+            },
+          },
+        })),
+      })),
+    }
+    expect(leadsOthers(nameless, key("01"))).toEqual([])
   })
 })
