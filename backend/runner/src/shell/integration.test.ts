@@ -2167,6 +2167,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await shell.until(manager, ids.worker, "Stopped")
     manager.write({ terminalId: ids.worker, data: "echo back\r" }, "owner")
     await shell.until(manager, ids.worker, /\nback\r?\n/)
+    expect(manager.get(ids.worker).ledBy).toBe("moth")
     // What the record holds each time its detail is told of a change, read as it is told.
     type Seen = { ledBy: string | null; bound: boolean; activity: boolean }
     const seen: Seen[] = []

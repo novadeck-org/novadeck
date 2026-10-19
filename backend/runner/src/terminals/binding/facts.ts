@@ -90,10 +90,11 @@ export class Bindings {
   }
 
   /**
-   * Lets go of the bound session's half of the record, all at once: `binding`,
-   * `activity` and `telemetry` are null together, outside the moment a report binds a
-   * session (see `Record`). Each way a binding ends below takes all three through here,
-   * and differs from the others only where it says so.
+   * Lets go of the bound session's half of the record, all at once: without a binding,
+   * `activity` and `telemetry` are null too, outside the moment a report binds a session
+   * (see `Record.binding`). `endBinding`, `forgotten` and `exited` take all three through
+   * here, `restarted` gives the same nulls as fields, and each differs from the others only
+   * where it says so.
    */
   private unbind(record: Record): void {
     record.binding = null

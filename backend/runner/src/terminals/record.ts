@@ -35,10 +35,11 @@ export type Record = {
   agents: { [agent in AgentName]?: AgentReport }
   /**
    * The harness session holding the current shell's foreground; `summary.agent` shows it.
-   * It, `activity` and `telemetry` are null together: every end of a binding takes all three
-   * (`Bindings.unbind`). The one exception is a report binding a session (`Reports.report`),
-   * which sets this first and the new activity after, so whatever runs in between, as a
-   * lead ended there, sees the new binding with the old activity, or none.
+   * Without one, `activity` and `telemetry` are null too: every end of a binding takes all
+   * three (`Bindings.unbind`, or `Bindings.restarted`'s fields). The one exception is a report
+   * binding a session (`Reports.report`), which sets this first and the new activity and
+   * telemetry after, so whatever runs in between, as a lead ended there (saved, told to
+   * messaging, announced), sees the new binding with the old activity and telemetry, or none.
    */
   binding: Binding | null
   /**
