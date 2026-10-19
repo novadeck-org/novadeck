@@ -11,17 +11,36 @@ import type {
 export const defaultQuickExitMs = 2000
 
 // How a shell ended: "clean" (code 0, no signal) closes its terminal; anything else
-// keeps it with a label: killed by a signal, whenever it came; a non-zero code, or
+// keeps it with a label: killed by a signal, whenever it came, and for memory where the
+// runner says so; a non-zero code, or
 // failing to start when that code came within `quickExitMs` of starting.
 export const exitStatus = (
   exit: TerminalExit,
   quickExitMs = defaultQuickExitMs,
 ): TerminalStatus | "clean" => {
   if (exit.code === 0 && !exit.signal) return "clean"
-  if (exit.signal) return { state: "exited", exitCode: exit.code, signal: exit.signal }
+  if (exit.signal)
+    return {
+      state: "exited",
+      exitCode: exit.code,
+      signal: exit.signal,
+      ...(exit.cause && { cause: exit.cause }),
+    }
   if (exit.ranMs < quickExitMs) return { state: "failed", message: "Exited right after starting" }
   return { state: "exited", exitCode: exit.code, signal: null }
 }
+
+const statusKey = (status: TerminalStatus): string => {
+  if (status.state === "exited")
+    return `exited:${status.exitCode}:${status.signal}:${status.cause ?? ""}`
+  if (status.state === "failed") return `failed:${status.message}`
+  if (status.state === "running") return `running:${JSON.stringify(status.agent ?? null)}`
+  return status.state
+}
+
+// Statuses that read the same; a terminal's metadata carries its status among its fields.
+export const sameStatus = (a: TerminalStatus, b: TerminalStatus): boolean =>
+  statusKey(a) === statusKey(b)
 
 export type TerminalActivity = {
   readonly status: TerminalStatus | "clean"

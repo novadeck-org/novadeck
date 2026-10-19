@@ -11,9 +11,12 @@ export const sequence = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEG
 
 // How a shell ended: its exit code, or the signal that killed it (null on Windows),
 // and how long it ran, so a client can tell a quick startup failure from a later exit.
+// Its cause, where the platform says: killed for memory, as Linux tells of a terminal
+// kept in a systemd scope of its own.
 export const exit = z.strictObject({
   code: z.number().int().nullable(),
   signal: z.string().max(32).nullable(),
+  cause: z.literal("out-of-memory").optional(),
   ranMs: z.number().int().nonnegative(),
 })
 
