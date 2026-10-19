@@ -9,8 +9,10 @@ a terminal, a view or out into a window.
 ## Contract
 
 - **It depends on `core`, `toolkit` and `viewers`, and on no other frontend package.** Not
-  `frontend/ui`, `frontend/runner-adapter` or any backend. `scripts/workspace/graph.test.ts`
-  holds this. The host (`frontend/ui`) composes it and passes in what it needs: the workspace's
+  `frontend/ui`, `frontend/runner-adapter` or any backend. Two checks in `scripts/workspace/graph.test.ts` hold this: the
+  manifest edges (what it declares, and what those reach), and a source check that no relative
+  import in a frontend package's `src` leaves that package's folder, so `../../ui/src/...`
+  can't bypass the manifest. The host (`frontend/ui`) composes it and passes in what it needs: the workspace's
   items and each terminal's bar (`TerminalCompanion`'s props), the commands that act on them,
   and the `Panes` store it creates once.
 - **A pane reads state and never writes it.** `Panes` (`state.ts`) is the one place that loads
@@ -21,7 +23,8 @@ a terminal, a view or out into a window.
   (`CompanionPane.tsx`, `DocumentViewer.tsx`), and `state.ts` loads `@novadeck/viewers/sync` and
   `./plan-editor/notes` with `import()`. A change that imports them statically pulls the editor
   into every window and can break the try build's first-load budget; compare the builds' chunk
-  lists when touching either.
+  lists when touching either. The graph test keeps `@codemirror/*` imports inside
+  `src/plan-editor/`.
 - **The window's controls are the host's.** `TerminalCompanion` declares the one callback it
   gets from a window (`onReveal`) as its own type, so the package never imports `WindowShell`.
 

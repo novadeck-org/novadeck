@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs"
-import { join } from "node:path"
+import { join, posix } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
@@ -208,6 +208,47 @@ describe("the package graph", () => {
         folder,
       ).toEqual([])
     }
+  })
+
+  it("keeps every frontend package's relative imports inside its own folder", () => {
+    // A relative path into a sibling package (`../../ui/src/...`) would reach it without a
+    // dependency, which the manifests above can't see. Only a package name may cross.
+    const specifier = /(?:\bfrom\s*|\bimport\s*\(?\s*)(["'])(\.\.?\/[^"']*)\1/g
+    const leaving: string[] = []
+    const folders = [...packages.keys()].filter((folder) => folder.startsWith("frontend/"))
+    for (const folder of folders) {
+      const base = join(root, folder)
+      const files = (
+        existsSync(join(base, "src"))
+          ? (readdirSync(join(base, "src"), { recursive: true }) as string[])
+          : []
+      )
+        .map((file) => `src/${file.split("\\").join("/")}`)
+        .filter((file) => /\.[cm]?[jt]sx?$/.test(file))
+      for (const file of files) {
+        const text = readFileSync(join(base, file), "utf8")
+        for (const [, , target] of text.matchAll(specifier)) {
+          const resolved = posix.normalize(posix.join(posix.dirname(file), target!))
+          if (resolved === ".." || resolved.startsWith("../"))
+            leaving.push(`${folder}/${file} -> ${target}`)
+        }
+      }
+    }
+    expect(folders.length).toBeGreaterThan(5)
+    expect(leaving).toEqual([])
+  })
+
+  it("keeps CodeMirror in the companion's plan editor, where it loads lazily", () => {
+    // `CompanionPane` and `DocumentViewer` reach the editor through `lazy()`; a static import
+    // of CodeMirror anywhere else would pull it into the first chunk.
+    const src = join(root, "frontend", "companion", "src")
+    const files = (readdirSync(src, { recursive: true }) as string[])
+      .map((file) => file.split("\\").join("/"))
+      .filter((file) => /\.tsx?$/.test(file) && !file.startsWith("plan-editor/"))
+    expect(files.length).toBeGreaterThan(10)
+    expect(
+      files.filter((file) => /["']@codemirror\//.test(readFileSync(join(src, file), "utf8"))),
+    ).toEqual([])
   })
 
   it("keeps each harness, and what it reaches, off the runner and the other adapters", () => {
