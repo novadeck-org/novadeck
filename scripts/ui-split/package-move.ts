@@ -15,6 +15,13 @@ export const uiTest = `${ui}/test.ts`
 
 export type Rule = { readonly from: string; readonly to: string }
 
+/** What another move of the split says about its files, so this one can name them. */
+export type Other = {
+  readonly destinationOf: (file: string) => string | undefined
+  readonly originOf: (file: string) => string | undefined
+  readonly crossSpecifier: (target: string) => string
+}
+
 export type MoveConfig = {
   /** The package's folder, `frontend/<name>`. */
   readonly dir: string
@@ -24,6 +31,12 @@ export type MoveConfig = {
   readonly rules: readonly Rule[]
   /** What a specifier that resolves to nothing must look like to be the move's to place. */
   readonly names: RegExp
+  /**
+   * The moves that landed before this one. A file of this package that names a file they
+   * moved (an old branch's `../../ui-toolkit/Portal`) imports it from their package, whether
+   * the file is still at its old place or already at the new.
+   */
+  readonly others?: readonly Other[]
 }
 
 const matches = (rule: Rule, path: string, side: "from" | "to"): boolean =>
@@ -36,7 +49,7 @@ const relativeTo = (file: string, target: string): string => {
 
 export type Rewritten = { readonly text: string; readonly problems: string[] }
 
-export const createMove = ({ dir, name, rules, names }: MoveConfig) => {
+export const createMove = ({ dir, name, rules, names, others = [] }: MoveConfig) => {
   const src = `${dir}/src`
   const ownTest = `${src}/test.ts`
 
@@ -85,6 +98,10 @@ export const createMove = ({ dir, name, rules, names }: MoveConfig) => {
     for (const each of tracked) {
       const origin = originOf(each)
       if (origin) known.add(origin)
+      for (const other of others) {
+        const before = other.originOf(each)
+        if (before) known.add(before)
+      }
     }
     const newFile = destinationOf(file) ?? file
     const inside = newFile.startsWith(`${src}/`)
@@ -104,6 +121,13 @@ export const createMove = ({ dir, name, rules, names }: MoveConfig) => {
         return specifier
       }
       const { target, suffix } = resolved
+      if (inside) {
+        // A file another move took (or is about to take) is that package's to name.
+        for (const other of others) {
+          const there = other.destinationOf(target) ?? (other.originOf(target) ? target : undefined)
+          if (there) return other.crossSpecifier(there) + query
+        }
+      }
       // The Vitest re-export is each package's own.
       const newTarget = inside && target === uiTest ? ownTest : (destinationOf(target) ?? target)
       const packageTarget = newTarget.startsWith(`${src}/`)

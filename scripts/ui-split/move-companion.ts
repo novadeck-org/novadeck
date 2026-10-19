@@ -18,8 +18,11 @@ import {
 // `@novadeck/companion/<module>`, and adds the package to the UI's styles.css. It makes the tree
 // so rather than doing a move: run again, it moves what a branch added at an old place and
 // rewrites what it added that names one, and on a tree with nothing to do it changes nothing.
-// The package's own files (manifest, configs, README, the one-line test.ts) and the checks that
-// follow the move (architecture test, graph test, docs) are committed by hand, not written here.
+// The package's own files (manifest, configs, README, the one-line test.ts), the UI's manifest
+// (adding `@novadeck/companion`, dropping `@codemirror/*`) and the checks that follow the move
+// (architecture test, graph test, docs) are committed by hand, not written here. A branch that
+// predates the toolkit move too is handled: a companion file naming `ui-toolkit/` is pointed at
+// `@novadeck/toolkit/<module>`, so the toolkit script may run before or after this one.
 
 const root = join(import.meta.dirname, "..", "..")
 const { git, read, tracked } = repository(root)

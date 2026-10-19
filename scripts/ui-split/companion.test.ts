@@ -136,6 +136,29 @@ describe("the specifiers that name a moved file", () => {
   })
 })
 
+describe("a branch that predates the toolkit move too", () => {
+  const old = new Set([
+    `${ui}/test.ts`,
+    `${ui}/ui-toolkit/Portal.tsx`,
+    `${ui}/ui-toolkit/button.css`,
+    `${ui}/terminals/companion/Peek.tsx`,
+  ])
+  const text = `import { Portal } from "../../ui-toolkit/Portal"\n`
+
+  it("names the toolkit's file from the toolkit's package, still at its old place", () => {
+    const done = rewriteSpecifiers(`${ui}/terminals/companion/Peek.tsx`, text, old)
+    expect(done.problems).toEqual([])
+    expect(done.text).toBe(`import { Portal } from "@novadeck/toolkit/Portal"\n`)
+  })
+
+  it("and once the toolkit moved, from the old specifier of a file the merge took in", () => {
+    const moved = new Set([`${ui}/test.ts`, `frontend/toolkit/src/Portal.tsx`, `${cp}/Peek.tsx`])
+    const done = rewriteSpecifiers(`${cp}/Peek.tsx`, text, moved)
+    expect(done.problems).toEqual([])
+    expect(done.text).toBe(`import { Portal } from "@novadeck/toolkit/Portal"\n`)
+  })
+})
+
 describe("a branch that merged main before the script ran", () => {
   // Git's directory rename took the branch's new file into the package, specifiers as written.
   const merged = new Set([

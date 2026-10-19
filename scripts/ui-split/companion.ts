@@ -3,6 +3,7 @@
 // the tree and its tests run it over text.
 
 import { createMove, insertAfter, insertBefore, ui } from "./package-move.ts"
+import * as toolkit from "./toolkit.ts"
 
 export { insertAfter, insertBefore }
 
@@ -20,6 +21,8 @@ const move = createMove({
     { from: `${ui}/terminals/companion/`, to: `${companionSrc}/` },
   ],
   names: /terminals\/companion|drag-session/,
+  // The toolkit moved first: an old branch's companion file still names `ui-toolkit/`.
+  others: [toolkit],
 })
 
 export const { destinationOf, originOf, crossSpecifier, rewriteSpecifiers, exportKeyOf } = move
