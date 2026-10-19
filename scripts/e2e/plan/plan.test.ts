@@ -161,7 +161,7 @@ describe("E2E selection", () => {
 
     it("runs nothing for the host and the UI it bundles", () => {
       const affected = ["@novadeck/ui", "@novadeck/host"]
-      expect(select(pullRequest(affected, ["application/host/src/main/index.ts"]), ids)).toEqual([])
+      expect(select(pullRequest(affected, ["apps/desktop/src/main/index.ts"]), ids)).toEqual([])
     })
 
     it("runs nothing for other scripts or workflows", () => {

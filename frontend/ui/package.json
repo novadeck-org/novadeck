@@ -29,9 +29,6 @@
     "./theme/themes": "./src/theme/themes.ts"
   },
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
-    "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.json"
@@ -46,7 +43,6 @@
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@fontsource/share-tech-mono": "5.3.0",
     "@novadeck/core": "workspace:*",
-    "@novadeck/runner-adapter": "workspace:*",
     "@novadeck/viewers": "workspace:*",
     "@xyflow/react": "^12.12.0",
     "allotment": "^1.20.6",

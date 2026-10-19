@@ -131,10 +131,8 @@ const vendors: Record<string, readonly string[]> = {
   "react-router": ["app/", "shell/"],
   "react-dom": ["layouts/transition.ts", "entries/start.tsx"],
   // One entry per workspace package, with the folders that own it. The content viewers serve
-  // the companion pane and chat; the runner adapter the entries that connect to a runner,
-  // which leave for apps/desktop.
+  // the companion pane and chat.
   "@novadeck/viewers": ["terminals/companion/", "terminals/chat/"],
-  "@novadeck/runner-adapter": ["entries/desktop.tsx", "entries/web.tsx"],
 }
 
 // The packages that hold what used to be folders of src, named as the layers above know them.
@@ -312,23 +310,7 @@ describe("UI architecture", () => {
           ],
     )
     expect(exported).toEqual(["entries/start.tsx start"])
-    expect(files).toEqual(
-      expect.arrayContaining(["entries/desktop.tsx", "entries/web.tsx", "entries/start.tsx"]),
-    )
-  })
-
-  it("lets each page's script do nothing but start its entry", () => {
-    // Outside src/, beside each page for its dev server: no rule above reaches them. The
-    // visitor build's and the preview's are their apps' own main.tsx.
-    const pages = join(src, "..", "entries")
-    const scripts = readdirSync(pages).map((name) => [
-      name,
-      // Lines, whatever a checkout's line endings are (CRLF on Windows).
-      readFileSync(join(pages, name, "main.tsx"), "utf8")
-        .split(/\r?\n/)
-        .filter((line) => line !== "" && !line.startsWith("//")),
-    ])
-    expect(scripts).toEqual([["web", [`import "../../src/entries/web"`]]])
+    expect(files).toEqual(expect.arrayContaining(["entries/start.tsx"]))
   })
 
   it("names hook contracts instead of inferring them from the hook", () => {

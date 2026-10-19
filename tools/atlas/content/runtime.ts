@@ -14,7 +14,7 @@ export const runtime: {
       kind: "process",
       summary:
         "The desktop host: owns windows, the menu, notifications and updates, and starts the runner in a utility process. It never touches a terminal itself.",
-      anchor: { file: "application/host/src/main/index.ts", text: "runner = startRunner({" },
+      anchor: { file: "apps/desktop/src/main/index.ts", text: "runner = startRunner({" },
       position: { x: 40, y: 300 },
     },
     {
@@ -24,7 +24,7 @@ export const runtime: {
       summary:
         "The sandboxed preload script of each window. It exposes `window.novadeck` through the context bridge and relays the runner's MessagePort to the page, which cannot cross the bridge.",
       anchor: {
-        file: "application/host/src/preload/index.ts",
+        file: "apps/desktop/src/preload/index.ts",
         text: 'contextBridge.exposeInMainWorld("novadeck"',
       },
       position: { x: 40, y: 60 },
@@ -48,7 +48,7 @@ export const runtime: {
       summary:
         "An Electron utility process that owns the shells, the SQLite workspace, the harness adapters, agent messaging and the companion items, and serves the oRPC router to the UI.",
       anchor: {
-        file: "application/host/src/runner/index.ts",
+        file: "apps/desktop/src/runner/index.ts",
         text: "const runner = createRunner({",
       },
       position: { x: 560, y: 300 },
@@ -99,7 +99,7 @@ export const runtime: {
       summary:
         "Where updates and the engine archives come from: electron-updater checks the repository's releases, and the runner downloads the engines from the release of the running version.",
       anchor: {
-        file: "application/host/src/main/update-release.ts",
+        file: "apps/desktop/src/main/update-release.ts",
         text: "export const releaseDownloadsUrl",
       },
       position: { x: 40, y: 640 },
@@ -113,7 +113,7 @@ export const runtime: {
       channel: "Utility process + MessagePort",
       summary:
         "The host forks the runner as a utility process with its database, relay and engine paths as arguments, then sends it commands (connect, persist, close) and one MessagePort per renderer connection.",
-      anchor: { file: "application/host/src/main/runner.ts", text: "utilityProcess.fork(" },
+      anchor: { file: "apps/desktop/src/main/runner.ts", text: "utilityProcess.fork(" },
     },
     {
       id: "main-renderer",
@@ -122,7 +122,7 @@ export const runtime: {
       channel: "BrowserWindow load",
       summary:
         "The host opens the window, loading the packaged UI from disk or the Vite dev server, and hands the page a loopback API URL for the status endpoint.",
-      anchor: { file: "application/host/src/main/index.ts", text: "void window.loadFile(" },
+      anchor: { file: "apps/desktop/src/main/index.ts", text: "void window.loadFile(" },
     },
     {
       id: "preload-main",
@@ -131,7 +131,7 @@ export const runtime: {
       channel: "Electron IPC",
       summary:
         "The bridge's calls (runner port, directory picker, notices, appearance, update offers) travel as ipcRenderer messages that the main process checks against its own window.",
-      anchor: { file: "application/host/src/main/index.ts", text: "brokerPorts({" },
+      anchor: { file: "apps/desktop/src/main/index.ts", text: "brokerPorts({" },
     },
     {
       id: "preload-renderer",
@@ -141,7 +141,7 @@ export const runtime: {
       summary:
         "The page sees `window.novadeck`; the runner's MessagePort cannot cross the context bridge, so the preload re-posts it as a window message tagged with the request id.",
       anchor: {
-        file: "application/host/src/preload/index.ts",
+        file: "apps/desktop/src/preload/index.ts",
         text: "requestRunner: relayPorts(",
       },
     },
@@ -231,7 +231,7 @@ export const runtime: {
       summary:
         "A packaged build loads the electron-updater class for its kind (NSIS, Mac, AppImage) and checks the releases on a schedule.",
       anchor: {
-        file: "application/host/src/main/index.ts",
+        file: "apps/desktop/src/main/index.ts",
         text: 'await import("electron-updater")',
       },
     },

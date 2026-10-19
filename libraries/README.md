@@ -38,7 +38,8 @@ the build rules and the test sandbox. The app keeps the product.
   `libraries/`, `atlas/` or a sibling's `dist/` (`../../wire/dist`), or up to one of the first
   eight by name (`../harnesses`, so a library's own module one folder up takes another
   name), and the libraries outside its order; one on
-  `frontend/*/src` and `apps/*/src` refuse the Node subpaths of any `@novadeck` package (`/pty`, `/host`,
+  `frontend/*/src`, `apps/*/src` and `apps/desktop/renderer` (but not the desktop app's `src`, its
+  main process) refuses the Node subpaths of any `@novadeck` package (`/pty`, `/host`,
   `/server`, `/electron`, `/browser/host`, `/shell`, `/headless`). oxlint takes
   `no-restricted-imports` from the last matching override alone, and a `!` pattern in one group
   allows the name in every group, so each library's override repeats the bans they all share as

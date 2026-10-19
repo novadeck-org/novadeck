@@ -8,11 +8,11 @@ import { connect, headerRules, hidden } from "./deploy"
 
 const env = (values: Record<string, string> = {}) => values
 
-// Each entry's page, whichever package holds it: the UI's two (the desktop app's and the
-// browser app's), and the visitor build's and the content preview's, each its app's own.
+// Each entry's page, whichever app holds it: the desktop app's two (its own and the browser
+// app's), and the visitor build's and the content preview's.
 const pages = [
-  "frontend/ui/index.html",
-  "frontend/ui/entries/web/index.html",
+  "apps/desktop/renderer/index.html",
+  "apps/desktop/renderer/web/index.html",
   "apps/try/index.html",
   "apps/previews/index.html",
 ].map((path) => ({
@@ -24,8 +24,8 @@ describe("frontend Content Security Policy", () => {
   it("checks the page of every entry", () => {
     expect(pages.map(({ path }) => path.split("\\").join("/"))).toEqual(
       expect.arrayContaining([
-        "frontend/ui/index.html",
-        "frontend/ui/entries/web/index.html",
+        "apps/desktop/renderer/index.html",
+        "apps/desktop/renderer/web/index.html",
         "apps/try/index.html",
         "apps/previews/index.html",
       ]),
