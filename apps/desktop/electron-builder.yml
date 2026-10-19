@@ -98,8 +98,8 @@ mac:
   entitlementsInherit: resources/entitlements.mac.plist
   notarize: true
   category: public.app-category.utilities
-  # The disk image people drag to Applications, and the ZIP that Squirrel.Mac installs
-  # updates from. The app inside both is the one signed, notarized and stapled.
+  # The disk image people drag to Applications, and the ZIP the app installs its
+  # updates from (see docs/auto-update.md). The app inside both is the one signed, notarized and stapled.
   target:
     - target: zip
       arch:
