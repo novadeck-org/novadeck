@@ -163,6 +163,7 @@ export const TeamWire = ({
       className="team-wire"
       aria-hidden
       data-settled={played === selected || undefined}
+      style={{ "--team-wire-blink": `${blinkMs}ms` } as React.CSSProperties}
     >
       {drawn && (
         <div key={selected} className="team-wire-shape">

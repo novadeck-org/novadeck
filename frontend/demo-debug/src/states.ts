@@ -366,6 +366,10 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
             const actions = leadsOthers(workspace(), key)
             if (!actions.length) return note("It needs a handle and other terminals to lead.")
             dispatch(actions)
+            if (
+              !["idle", "running", "finished"].includes(terminalOf(workspace(), key)?.state ?? "")
+            )
+              note("They name it as their lead, but a lead leads only while it runs.")
           },
         ),
         onSelected("Paste fails", "The next pasted file, with a notice", (key) => {

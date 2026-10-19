@@ -337,12 +337,13 @@
 /* The selected terminal's team, while it has one: its other tabs share a faint wash of the
    strong colour, and every member's handle lights, the lead's in a chip, so the lead reads
    apart without a word in the tab. The selected tab keeps its own look; the tint marks who
-   is with it. The wire on the rail joins them (team-wire.css). */
-.terminal-tab[data-team]:not(.selected) {
+   is with it, and a tab being dragged or holding focus keeps the ground those give it. The
+   wire on the rail joins them (team-wire.css). */
+.terminal-tab[data-team]:not(.selected, .dragging, :focus-within) {
   --_bg: var(--tab-team-bg, color-mix(in srgb, var(--color-strong) 6%, transparent));
 }
 @media (hover: hover) {
-  .terminal-tab[data-team]:not(.selected):hover {
+  .terminal-tab[data-team]:not(.selected, .dragging, :focus-within):hover {
     --_bg: var(
       --tab-team-hover-bg,
       color-mix(in srgb, var(--color-strong) 10%, var(--item-hover-bg, var(--color-soft)))

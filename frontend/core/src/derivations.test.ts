@@ -102,7 +102,7 @@ const select = (workspace: ReturnType<typeof led>, terminalId: string) =>
 
 describe("a terminal's team", () => {
   context("when it leads", () => {
-    it("is the team it leads, its workers in the list's order", () => {
+    it("is the team it leads, its workers in the order they were opened", () => {
       expect(teamOf(teams(), "01")).toEqual({ lead: "01", workers: ["02", "04"] })
     })
   })
@@ -122,6 +122,21 @@ describe("a terminal's team", () => {
   context("when it is in no team", () => {
     it("is none", () => {
       expect(teamOf(teams(), "03")).toBeUndefined()
+    })
+  })
+
+  context("when two live terminals share its lead's handle", () => {
+    it("is led by the first of them", () => {
+      const shared = [
+        { type: "terminal/add", target, terminal: terminalFixture(6, "~/project") },
+        { type: "terminal/update", target, terminalId: "06", handle: "moth" },
+      ].reduce(
+        (state, action) =>
+          workspaceReducer(state, action as Parameters<typeof workspaceReducer>[1]),
+        teams(),
+      )
+      expect(teamOf(shared, "02")?.lead).toBe("01")
+      expect(teamOf(shared, "06")).toBeUndefined()
     })
   })
 
@@ -173,6 +188,17 @@ describe("a terminal's role in the selected team", () => {
       undefined,
       "worker",
       undefined,
+    ])
+  })
+
+  it("is lead or worker for the team the selected terminal leads, when it also works for a lead", () => {
+    const selected = select(teams(), "04")
+    expect(["01", "02", "03", "04", "05"].map((id) => teamRole(selected, id))).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      "lead",
+      "worker",
     ])
   })
 

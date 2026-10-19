@@ -4,7 +4,8 @@
    line of the strong colour, glowing like a neon tube where the theme gives its lines a
    glow (Graphite's dark).
 
-   Hooks on `.team-wire`: data-settled (the pulse has played; what's drawn after, as rows
+   Hooks on `.team-wire`: --team-wire-blink (how long the cursor blinks before the pulse
+   leaves it, set from team-wire.ts so the ticks keep time with it), data-settled (the pulse has played; what's drawn after, as rows
    scroll into view, appears without playing again). Parts: `.team-wire-segment`,
    `.team-wire-cursor`, `.team-wire-tap`, `.team-wire-pulse`.
 
@@ -42,7 +43,7 @@
   border-radius: 1px;
   background-color: var(--_fg);
   box-shadow: var(--_glow);
-  animation: team-wire-blink 520ms steps(1) both;
+  animation: team-wire-blink var(--team-wire-blink, 520ms) steps(1) both;
 }
 .team-wire-tap {
   height: 1px;
@@ -63,7 +64,8 @@
     transparent
   );
   opacity: 0;
-  animation: team-wire-pulse var(--_duration, 500ms) cubic-bezier(0.4, 0, 0.2, 1) 520ms both;
+  animation: team-wire-pulse var(--_duration, 500ms) cubic-bezier(0.4, 0, 0.2, 1)
+    var(--team-wire-blink, 520ms) both;
 }
 .team-wire[data-settled] .team-wire-shape > i {
   animation: none;
