@@ -77,6 +77,9 @@ export type Failure = { readonly test: string; readonly reports: readonly string
 const timestamp = /^\d{4}-\d\d-\d\dT[\d:.]+Z ?/
 // oxlint-disable-next-line no-control-regex -- Colour codes are what this removes.
 const colour = /\u001b\[[\d;]*m/g
+// Turbo's name of the package and task each of its lines comes from, as the runner's tests
+// print in the Test jobs: "@novadeck/runner:test: ".
+const task = /^@[\w.-]+\/[\w.-]+:[\w:-]+: ?/
 // Vitest's failed test or file: "FAIL  [project [(browser)]]  path > a > b", or a file
 // that failed whole as "path [ path ]". The browser projects print a test once, the end
 // to end runner once per error.
@@ -92,7 +95,9 @@ const blockEnd = /^(?:FAIL\s|⎯{3,}|Test Files\s)/
 const blockLines = 40
 
 export const cleanLog = (log: string): string[] =>
-  log.split(/\r?\n/).map((line) => line.replace(colour, "").replace(timestamp, ""))
+  log
+    .split(/\r?\n/)
+    .map((line) => line.replace(colour, "").replace(timestamp, "").replace(task, ""))
 
 // A job's log read for failures: each failed test once, with every report of it, and what
 // says something failed that names no test this can read. A test is a known flake only if

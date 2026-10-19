@@ -21,6 +21,7 @@ const fixtures: Record<string, string> = {
   "e2e-claude-windows-interrupt-draft": "Claude Code (Windows)",
   "e2e-claude-macos-continuation-stop": "Claude Code (macOS)",
   "release-quality-wait-window": "macOS",
+  "runner-engines-server-port-picked-again": "Test (Linux, 3/3)",
 }
 
 describe("the known-flake register", () => {
