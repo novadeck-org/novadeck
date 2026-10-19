@@ -1,4 +1,4 @@
-import { iconOf } from "@novadeck/companion/artifact-icons"
+import { iconOf } from "@novadeck/companion/registry"
 import type { CompanionItem } from "@novadeck/core/companion"
 import type { TerminalMetadata } from "@novadeck/core/types"
 import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"

@@ -1,5 +1,5 @@
-import { slotIcon } from "./artifact-icons"
 import { isNew, type BarSlot } from "./bar"
+import { slotIcon } from "./registry"
 
 // What a terminal's companion bar holds, on its sidebar tab's name line: an icon for each
 // icon on the bar, in the bar's order. What's been seen is faint; something not yet
