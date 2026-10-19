@@ -1840,6 +1840,79 @@ describe("a turn the person's Escape ended", () => {
   }, 60_000)
 })
 
+describe("terminal naming", () => {
+  // Sampling never announces a terminal while these read their watchers.
+  const quiet = { ...ptyOptions, processPollMs: 3_600_000 }
+  const create = (manager: Terminals, sessionId = "session") =>
+    manager.create({ id: randomUUID(), sessionId, cwd, cols: 80, rows: 24 }, "owner")
+
+  it("tells watchers of a rename even to the title the terminal already has", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(quiet)
+    const { id } = await create(manager)
+    const watch = terminals.watch(manager, "watcher")
+    await watch.until((change) => change.type === "synced")
+    manager.rename({ terminalId: id, title: "Build" })
+    await watch.until((change) => changed(id)(change) && change.terminal.title === "Build")
+    // Read until a terminal created after it shows, so nothing earlier is still on its way.
+    const settled = await create(manager)
+    await watch.until(changed(settled.id))
+    const before = watch.seen.length
+
+    manager.rename({ terminalId: id, title: "Build" })
+    // A terminal created after it, so the watch has a change to read either way.
+    const after = await create(manager)
+    await watch.until(changed(after.id))
+    expect(watch.seen.slice(before).filter(changed(id))).toEqual([
+      { type: "changed", terminal: expect.objectContaining({ id, title: "Build" }) },
+    ])
+  })
+
+  it("tells watchers when a terminal kept only as saved is renamed", async ({ terminals }) => {
+    const store = new WorkspaceStore()
+    try {
+      const project = await store.createProject({ id: randomUUID(), name: "P", cwd })
+      const { id: sessionId } = store.createSession({
+        id: randomUUID(),
+        projectId: project.id,
+        name: "S",
+      })
+      const earlier = terminals.manager({ ...quiet, records: store })
+      const { id } = await create(earlier, sessionId)
+      await earlier.shutdown()
+      // A later runner keeps the terminal only as saved: no shell runs it.
+      const manager = terminals.manager({ ...quiet, records: store })
+      const watch = terminals.watch(manager, "watcher")
+      await watch.until((change) => change.type === "synced")
+
+      manager.rename({ terminalId: id, title: "Kept" })
+      // A terminal created after it, so the watch has a change to read either way.
+      const after = await create(manager, sessionId)
+      await watch.until(changed(after.id))
+      expect(watch.seen.findLast(changed(id))?.terminal).toMatchObject({
+        id,
+        title: "Kept",
+        started: false,
+      })
+      // Shut down while its store is open: its last save writes there.
+      await manager.shutdown()
+    } finally {
+      store.close()
+    }
+  })
+
+  it("never gives a closed terminal's handle again in its session, without records", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(quiet)
+    const first = await create(manager)
+    await manager.close({ terminalId: first.id })
+    const second = await create(manager)
+    expect(second.handle).not.toBe(first.handle)
+  })
+})
+
 describe("saving a terminal that was closed", () => {
   type Inside = {
     records: Map<string, unknown>
