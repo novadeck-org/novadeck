@@ -72,6 +72,7 @@ export const desktopUpdates = (host: DesktopHost | undefined): Backend["updates"
   if (!listen || !openPage) return undefined
   const get = host.updateChannel
   const set = host.setUpdateChannel
+  const allow = host.allowUpdates
   return {
     onOffer: (listener) =>
       listen((offer) => {
@@ -79,6 +80,7 @@ export const desktopUpdates = (host: DesktopHost | undefined): Backend["updates"
         if (checked) listener(checked)
       }),
     openPage: () => openPage(),
+    ...(allow ? { allow: () => allow() } : {}),
     ...(get && set
       ? {
           channel: {
