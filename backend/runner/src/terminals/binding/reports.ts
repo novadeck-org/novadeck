@@ -63,6 +63,11 @@ export class Reports {
 
   constructor(readonly host: ReportsHost) {}
 
+  /** The harness was disconnected: a report of it that waited meanwhile is dropped. */
+  disconnected(agent: AgentName): void {
+    this.disconnections.set(agent, (this.disconnections.get(agent) ?? 0) + 1)
+  }
+
   /**
    * Runs a terminal's report or ask once its earlier ones are done, in the order they
    * came, as a report may wait for the platform to tell who holds the foreground; other

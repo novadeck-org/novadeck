@@ -1206,7 +1206,7 @@ export class Terminals {
 
   /** Forgets every session `agent` reported, as once it is disconnected. */
   forgetAgent(agent: AgentName): void {
-    this.reporting.disconnections.set(agent, (this.reporting.disconnections.get(agent) ?? 0) + 1)
+    this.reporting.disconnected(agent)
     for (const record of this.records.values()) {
       const { [agent]: _forgotten, ...rest } = record.agents
       record.agents = rest
