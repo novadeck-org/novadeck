@@ -11,8 +11,8 @@ import { isSortable } from "@dnd-kit/react/sortable"
 import type { LucideIcon } from "lucide-react"
 import { useRef, useState, type ComponentProps, type RefObject } from "react"
 
-import { useDragSession, type BarDrag } from "../drag-session"
 import { undocks, type BarMember, type BarSlot } from "./bar"
+import { useDragSession, type BarDrag } from "./drag-session"
 import { beyond, refuseDrop } from "./tether"
 
 // Dragging a taskbar's icons: within the bar, which reorders it, and off it, onto another
