@@ -569,10 +569,8 @@ export class Terminals {
       ...(options.mailbox && { records: options.mailbox }),
       platform: this.options.platform,
       // A message is kept while either of its terminals is, running or saved.
-      exists: (terminalId) =>
-        this.records.has(terminalId) || this.saves.identity(terminalId) !== undefined,
-      busy: (terminalId) =>
-        this.typing.working(terminalId, this.records.get(terminalId)?.activity ?? null),
+      exists: (id) => this.records.has(id) || this.saves.identity(id) !== undefined,
+      busy: (id) => this.typing.working(id, this.records.get(id)?.activity ?? null),
     })
     this.asks = new Asks(
       {
