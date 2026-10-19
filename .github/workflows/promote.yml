@@ -160,12 +160,13 @@ jobs:
         continue-on-error: true
         timeout-minutes: 12
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          RELEASE_NOTES_MODEL: ${{ vars.RELEASE_NOTES_MODEL }}
           TAG: ${{ steps.choose.outputs.tag }}
         run: |
           set -euo pipefail
-          if [[ -z "$ANTHROPIC_API_KEY" ]]; then
-            echo "No ANTHROPIC_API_KEY; the release keeps the notes it has."
+          if [[ -z "$OPENROUTER_API_KEY" ]]; then
+            echo "No OPENROUTER_API_KEY; the release keeps the notes it has."
             exit 0
           fi
           node scripts/release-notes/main.ts promote "$TAG" "$RUNNER_TEMP/notes.md"

@@ -1,67 +1,123 @@
 /* eslint-disable no-await-in-loop -- Each case runs on its own, one after another. */
-import { APIConnectionTimeoutError, RateLimitError } from "@anthropic-ai/sdk"
 import { describe, expect, it } from "vitest"
 
 import { parseCommit } from "./commits.ts"
 import { commit } from "./fixtures.ts"
 import { commitItem } from "./items.ts"
-import { ask, parseOutput, systemPrompt, timeouts, userMessage, type Client } from "./model.ts"
+import {
+  ask,
+  clientFor,
+  defaultModel,
+  parseOutput,
+  responseSchema,
+  withoutBounds,
+  systemPrompt,
+  timeouts,
+  userMessage,
+  type Client,
+} from "./model.ts"
 import { Skip } from "./skip.ts"
 
 const items = [commit(330), commit(181)].map((raw) => commitItem(parseCommit(raw)!))
 
-type Params = Parameters<Client["beta"]["messages"]["stream"]>[0]
-type Message = Awaited<ReturnType<ReturnType<Client["beta"]["messages"]["stream"]>["finalMessage"]>>
-const reply = (fields: object = {}) =>
-  ({
-    stop_reason: "end_turn",
-    content: [{ type: "text", text: "{}" }],
-    usage: { output_tokens: 321 },
-    ...fields,
-  }) as Message
-const client = (finish: (params: Params) => Promise<Message>): Client => ({
-  beta: { messages: { stream: (params) => ({ finalMessage: () => finish(params) }) } },
+type Sent = { url: string; init: RequestInit; body: Record<string, any> }
+const ok = (message: object = {}, extra: object = {}) => ({
+  id: "gen-1",
+  model: "anthropic/claude-opus-5.5-20261001",
+  choices: [{ finish_reason: "stop", message: { role: "assistant", content: "{}", ...message } }],
+  usage: { prompt_tokens: 10, completion_tokens: 321 },
+  ...extra,
+})
+/** A client whose fetch answers with `reply` (a body and a status), recording what it was sent. */
+const client = (reply: () => Promise<Response> | Response, over: Partial<Client> = {}) => {
+  const sent: Sent[] = []
+  const fake: Client = {
+    fetch: async (url, init) => {
+      sent.push({ url: String(url), init: init!, body: JSON.parse(String(init!.body)) })
+      return reply()
+    },
+    apiKey: "sk-or-test",
+    model: "test/model",
+    timeout: 5_000,
+    ...over,
+  }
+  return { fake, sent }
+}
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
+/** A streamed answer as OpenRouter sends it: keep-alive comments, data chunks, then [DONE]. */
+const sse = (...chunks: (object | string)[]) =>
+  new Response(
+    chunks
+      .map((chunk) => (typeof chunk === "string" ? chunk : `data: ${JSON.stringify(chunk)}`))
+      .join("\n\n") + "\n\n",
+    { status: 200, headers: { "Content-Type": "text/event-stream" } },
+  )
+const delta = (content: string, extra: object = {}) => ({
+  model: "m/streamed",
+  choices: [{ delta: { role: "assistant", content }, finish_reason: null }],
+  ...extra,
 })
 
 describe("the model call", () => {
-  it("streams the prompt and items with the options the model is run with", async () => {
-    let sent: Params | undefined
-    const answer = await ask(
-      client(async (params) => {
-        sent = params
-        return reply({ content: [{ type: "text", text: '{"highlights":[],"changes":[]}' }] })
-      }),
-      "release",
-      "0.0.152",
-      items,
-    )
-    expect(answer).toEqual({ text: '{"highlights":[],"changes":[]}', outputTokens: 321 })
-    expect(sent).toMatchObject({
-      model: "claude-opus-5-5",
-      max_tokens: 64_000,
-      output_config: { effort: "medium", format: { type: "json_schema" } },
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
+  it("posts the prompt, the items and the options to OpenRouter and reads the answer", async () => {
+    const { fake, sent } = client(() => json(ok({ content: '{"highlights":[],"changes":[]}' })))
+    const answer = await ask(fake, "release", "0.0.152", items)
+    expect(answer).toEqual({
+      text: '{"highlights":[],"changes":[]}',
+      outputTokens: 321,
+      model: "anthropic/claude-opus-5.5-20261001",
     })
-    expect(sent).not.toHaveProperty("thinking")
-    expect(sent?.system).toContain("Look & feel")
+    expect(sent).toHaveLength(1)
+    expect(sent[0]!.url).toBe("https://openrouter.ai/api/v1/chat/completions")
+    expect(sent[0]!.init.method).toBe("POST")
+    expect(sent[0]!.init.headers).toMatchObject({
+      Authorization: "Bearer sk-or-test",
+      "X-Title": "Novadeck release notes",
+      "HTTP-Referer": "https://github.com/novadeck-org/novadeck",
+    })
+    const body = sent[0]!.body
+    expect(body).toMatchObject({
+      model: "test/model",
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: "release_notes", strict: true },
+      },
+      provider: { require_parameters: true },
+      reasoning: { effort: "medium" },
+    })
+    expect(body.stream).toBe(true)
+    expect(body.messages.map((message: { role: string }) => message.role)).toEqual([
+      "system",
+      "user",
+    ])
+    expect(body.messages[0].content).toContain("Look & feel")
+    expect(body.messages[1].content).toContain("#330 [feat(ui)]")
+    expect(sent[0]!.init.signal).toBeInstanceOf(AbortSignal)
   })
 
-  it("gives the schema the areas, which the SDK's helper writes into a description", async () => {
-    let sent: Params | undefined
-    await ask(
-      client(async (params) => ((sent = params), reply())),
-      "release",
-      "1",
-      items,
-    )
-    const schema = JSON.stringify(sent?.output_config?.format)
-    expect(schema).toContain("Inbox & notifications")
-    expect(schema).toContain('"additionalProperties":false')
+  it("holds the area to a real enum in the schema it sends, with no bounds the providers refuse", async () => {
+    const { fake, sent } = client(() => json(ok()))
+    await ask(fake, "release", "1", items)
+    const schema = sent[0]!.body.response_format.json_schema.schema
+    expect(schema.properties.changes.items.properties.area.enum).toContain("Inbox & notifications")
+    expect(schema.additionalProperties).toBe(false)
+    expect(JSON.stringify(responseSchema)).not.toMatch(/\$schema|minimum|maximum/)
   })
 
-  it("waits longer for a promotion than for a build", () => {
+  it("takes the model from RELEASE_NOTES_MODEL, and the key from OPENROUTER_API_KEY", () => {
+    expect(clientFor("release", {})).toMatchObject({ model: defaultModel, apiKey: undefined })
+    expect(defaultModel).toBe("anthropic/claude-opus-5.5")
+    expect(
+      clientFor("promote", { RELEASE_NOTES_MODEL: "x/y", OPENROUTER_API_KEY: "k" }),
+    ).toMatchObject({ model: "x/y", apiKey: "k", timeout: 480_000 })
     expect(timeouts).toEqual({ release: 180_000, promote: 480_000 })
+  })
+
+  it("sends the chosen model", async () => {
+    const chosen = clientFor("release", { RELEASE_NOTES_MODEL: "x/y", OPENROUTER_API_KEY: "k" })
+    const { fake, sent } = client(() => json(ok()), { model: chosen.model, apiKey: chosen.apiKey })
+    await ask(fake, "release", "1", items)
+    expect(sent[0]!.body.model).toBe("x/y")
   })
 
   it("gives the model each change's pull request, kind, subject and What", () => {
@@ -87,40 +143,193 @@ describe("the model call", () => {
       expect(prompt).toContain(rule)
   })
 
-  it("skips on a refusal, a cut-off answer and an answer without text", async () => {
-    for (const [fields, message] of [
-      [{ stop_reason: "refusal" }, /refused/],
-      [{ stop_reason: "max_tokens" }, /cut off/],
-      [{ content: [] }, /no text/],
-    ] as const)
-      await expect(
-        ask(
-          client(async () => reply(fields)),
-          "release",
-          "1",
-          items,
-        ),
-      ).rejects.toThrow(message)
+  it("skips without a key and without calling", async () => {
+    const { fake, sent } = client(() => json(ok()), { apiKey: undefined })
+    await expect(ask(fake, "release", "1", items)).rejects.toThrow("No OPENROUTER_API_KEY")
+    expect(sent).toEqual([])
   })
 
-  it("skips on an API error or a timeout, by their types, and on any other error", async () => {
-    const limited = new RateLimitError(429, { error: { message: "slow" } }, "slow", new Headers())
-    for (const [error, message] of [
-      [limited, "429"],
-      [new APIConnectionTimeoutError(), "timed out"],
-      [new Error("socket hang up"), "socket hang up"],
+  it("skips on an HTTP error, with the status and OpenRouter's message", async () => {
+    for (const [status, message] of [
+      [401, "No auth credentials found"],
+      [402, "Insufficient credits"],
+      [429, "Rate limited"],
+      [503, "No available providers"],
     ] as const) {
-      const failure = await ask(
-        client(async () => {
-          throw error
-        }),
-        "release",
-        "1",
-        items,
-      ).catch((caught: unknown) => caught)
+      const { fake } = client(() => json({ error: { code: status, message } }, status))
+      const failure = await ask(fake, "release", "1", items).catch((caught: unknown) => caught)
       expect(failure).toBeInstanceOf(Skip)
+      expect((failure as Error).message).toContain(`HTTP ${status}`)
       expect((failure as Error).message).toContain(message)
     }
+    const { fake } = client(() => new Response("<html>bad gateway</html>", { status: 502 }))
+    await expect(ask(fake, "release", "1", items)).rejects.toThrow("HTTP 502")
+  })
+
+  it("skips on an error inside a 200 body, with or without choices", async () => {
+    const bare = client(() =>
+      json({ id: "gen-1", error: { code: 429, message: "Provider rate limit" } }),
+    )
+    await expect(ask(bare.fake, "release", "1", items)).rejects.toThrow(/429: Provider rate limit/)
+    const inChoice = client(() =>
+      json(
+        ok(
+          {},
+          {
+            choices: [
+              {
+                finish_reason: "error",
+                error: { code: 500, message: "boom" },
+                message: { content: "" },
+              },
+            ],
+          },
+        ),
+      ),
+    )
+    await expect(ask(inChoice.fake, "release", "1", items)).rejects.toThrow(/500: boom/)
+  })
+
+  it("skips on any finish_reason but stop, and on an empty answer or no choices", async () => {
+    for (const reason of ["length", "content_filter", "error", "tool_calls", null]) {
+      const { fake } = client(() =>
+        json(ok({}, { choices: [{ finish_reason: reason, message: { content: "{}" } }] })),
+      )
+      await expect(ask(fake, "release", "1", items), String(reason)).rejects.toThrow(
+        /finish_reason/,
+      )
+    }
+    for (const content of ["", "  ", null]) {
+      const { fake } = client(() => json(ok({ content })))
+      await expect(ask(fake, "release", "1", items)).rejects.toThrow(/no text/)
+    }
+    const none = client(() => json({ id: "x", choices: [] }))
+    await expect(ask(none.fake, "release", "1", items)).rejects.toThrow(/no choices/)
+  })
+
+  it("assembles a streamed answer, ignoring comments, and takes the model, finish and usage from it", async () => {
+    const { fake } = client(() =>
+      sse(
+        ": OPENROUTER PROCESSING",
+        delta('{"highlights":'),
+        ": OPENROUTER PROCESSING",
+        delta('[],"changes":[]}'),
+        {
+          model: "m/streamed-final",
+          choices: [{ delta: { content: "" }, finish_reason: "stop" }],
+          usage: { prompt_tokens: 9, completion_tokens: 77 },
+        },
+        "data: [DONE]",
+      ),
+    )
+    expect(await ask(fake, "release", "1", items)).toEqual({
+      text: '{"highlights":[],"changes":[]}',
+      outputTokens: 77,
+      model: "m/streamed-final",
+    })
+  })
+
+  it("skips on an error in the middle of a stream, or a stream that ends in anything but stop", async () => {
+    const mid = client(() =>
+      sse(delta("{"), {
+        error: {
+          code: 429,
+          message: "Rate limit exceeded",
+          metadata: { error_type: "rate_limit_exceeded" },
+        },
+        choices: [{ delta: { content: "" }, finish_reason: "error" }],
+      }),
+    )
+    await expect(ask(mid.fake, "release", "1", items)).rejects.toThrow(/429: Rate limit exceeded/)
+    const cut = client(() =>
+      sse(delta("{"), { choices: [{ delta: { content: "" }, finish_reason: "length" }] }),
+    )
+    await expect(ask(cut.fake, "release", "1", items)).rejects.toThrow(/finish_reason length/)
+    const unfinished = client(() => sse(delta("{}"), "data: [DONE]"))
+    await expect(ask(unfinished.fake, "release", "1", items)).rejects.toThrow(/finish_reason null/)
+    const garbled = client(() => sse(delta("{"), "data: {not json"))
+    await expect(ask(garbled.fake, "release", "1", items)).rejects.toThrow(/not JSON/)
+  })
+
+  it("reports a timeout while the stream is being read as a timeout, not as bad JSON", async () => {
+    const { fake } = client(
+      () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(
+                new TextEncoder().encode(`data: ${JSON.stringify(delta("{"))}\n\n`),
+              )
+            },
+          }),
+          { status: 200 },
+        ),
+      { timeout: 30 },
+    )
+    // The real fetch ends the body with the signal's reason; a fake body has to be told to.
+    const signalled: Client["fetch"] = async (url, init) => {
+      const response = await fake.fetch(url, init)
+      return new Response(
+        new ReadableStream({
+          async start(controller) {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(delta("{"))}\n\n`))
+            await new Promise<void>((resolve) =>
+              init!.signal!.addEventListener("abort", () => resolve()),
+            )
+            controller.error(init!.signal!.reason)
+          },
+        }),
+        { status: response.status },
+      )
+    }
+    await expect(ask({ ...fake, fetch: signalled }, "release", "1", items)).rejects.toThrow(
+      /did not answer within 0\.03 s/,
+    )
+  })
+
+  it("skips when the body isn't JSON", async () => {
+    const { fake } = client(() => new Response("oops", { status: 200 }))
+    await expect(ask(fake, "release", "1", items)).rejects.toThrow(/not JSON/)
+  })
+
+  it("skips when the call is aborted at its timeout, and when the network fails", async () => {
+    const hanging = client(() => new Promise<Response>(() => {}), { timeout: 20 })
+    // A fake fetch that honours the signal, as the real one does.
+    hanging.fake = {
+      ...hanging.fake,
+      fetch: (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init!.signal!.addEventListener("abort", () => reject(init!.signal!.reason))
+        }),
+    }
+    await expect(ask(hanging.fake, "release", "1", items)).rejects.toThrow(/did not answer within/)
+    const down = client(() => Promise.reject(new TypeError("fetch failed")))
+    await expect(ask(down.fake, "release", "1", items)).rejects.toThrow(/fetch failed/)
+  })
+
+  it("keeps a bound-named property but strips the bounds of the schema", () => {
+    const schema = {
+      $schema: "x",
+      type: "object",
+      properties: {
+        maximum: { type: "integer", minimum: 0, maximum: 5 },
+        minimum: { type: "string" },
+      },
+    }
+    expect(withoutBounds(schema)).toEqual({
+      type: "object",
+      properties: { maximum: { type: "integer" }, minimum: { type: "string" } },
+    })
+  })
+
+  it("reads an answer wrapped in a code fence", () => {
+    const answer = '{"highlights":[],"changes":[]}'
+    for (const text of [
+      `\`\`\`json\n${answer}\n\`\`\``,
+      `\`\`\`\n${answer}\n\`\`\`\n`,
+      ` ${answer} `,
+    ])
+      expect(parseOutput(text)).toEqual({ highlights: [], changes: [] })
   })
 
   it("reads an answer as JSON of the right shape and nothing else", () => {

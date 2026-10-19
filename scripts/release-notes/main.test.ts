@@ -3,7 +3,6 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { APIConnectionTimeoutError } from "@anthropic-ai/sdk"
 import { afterEach, describe, expect, it } from "vitest"
 
 import { readNotesBlock } from "../../contract/protocol/src/release-notes.ts"
@@ -16,19 +15,16 @@ const sources = fakeSources({
   commits: { "v0.0.151..v0.0.152": [commit(330)] },
   bodies: { "v0.0.152": releaseBody },
 })
-type Message = Awaited<ReturnType<ReturnType<Client["beta"]["messages"]["stream"]>["finalMessage"]>>
-const claude = (finish: () => Promise<Message>): ((mode: "release" | "promote") => Client) => {
-  return () => ({ beta: { messages: { stream: () => ({ finalMessage: finish }) } } })
+const withReply = (reply: () => Promise<Response>): ((mode: "release" | "promote") => Client) => {
+  return () => ({ fetch: reply as typeof fetch, apiKey: "k", model: "test/model", timeout: 5_000 })
 }
-const saying = (text: string, fields: object = {}) =>
-  claude(
-    async () =>
-      ({
-        stop_reason: "end_turn",
-        content: [{ type: "text", text }],
-        usage: { output_tokens: 42 },
-        ...fields,
-      }) as Message,
+const saying = (text: string, fields: { finish_reason?: string } = {}) =>
+  withReply(async () =>
+    Response.json({
+      model: "test/model-2026",
+      choices: [{ finish_reason: "stop", ...fields, message: { content: text } }],
+      usage: { completion_tokens: 42 },
+    }),
   )
 const answer = JSON.stringify({
   highlights: [],
@@ -53,17 +49,23 @@ describe("the command", () => {
     const body = readFileSync(out, "utf8")
     expect(body).toContain("- Tab descriptions say who leads whom.")
     expect(readNotesBlock(body)?.kind).toBe("release")
-    expect(printed.join("\n")).toMatch(/1 line from 1 change.*42 output tokens/)
+    expect(printed.join("\n")).toMatch(
+      /1 line from 1 change.*Model test\/model-2026, 42 output tokens/,
+    )
   })
 
   it("writes no file, exits normally and says why, whatever goes wrong", async () => {
-    const throwing = (error: Error) => claude(async () => Promise.reject(error))
+    const throwing = (error: Error) => withReply(async () => Promise.reject(error))
+    const keyless = (mode: "release" | "promote") => ({
+      ...saying(answer)(mode),
+      apiKey: undefined,
+    })
     for (const [clientFor, reason] of [
       [saying("sorry"), "The answer was not JSON"],
-      [saying(answer, { stop_reason: "refusal" }), "The model refused"],
-      [saying(answer, { stop_reason: "max_tokens" }), "The answer was cut off"],
-      [throwing(new APIConnectionTimeoutError()), "timed out"],
-      [throwing(new Error("Could not resolve authentication method")), "authentication"],
+      [saying(answer, { finish_reason: "length" }), "finish_reason length"],
+      [saying(answer, { finish_reason: "content_filter" }), "content_filter"],
+      [throwing(new TypeError("fetch failed")), "fetch failed"],
+      [keyless, "No OPENROUTER_API_KEY"],
     ] as const) {
       const out = scratch()
       // A file left by an earlier run is removed, so the workflow can't take it for this run's.

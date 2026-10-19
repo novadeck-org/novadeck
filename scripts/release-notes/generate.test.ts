@@ -10,7 +10,7 @@ import { Skip } from "./skip.ts"
 const tags = ["v0.0.152", "v0.0.150", "v0.0.151", "v0.0.149", "latest", "v0.0.148"]
 const answer =
   (output: object): Ask =>
-  async () => ({ text: JSON.stringify(output), outputTokens: 7 })
+  async () => ({ text: JSON.stringify(output), outputTokens: 7, model: "m/test" })
 const never: Ask = async () => {
   throw new Error("asked")
 }
@@ -39,7 +39,7 @@ describe("the notes of a prerelease", () => {
     const seen: string[] = []
     const generated = await generateRelease("v0.0.152", sources, async (kind, version, items) => {
       seen.push(`${kind} ${version}: ${items.map((item) => item.prs).join(" ")}`)
-      return { text: JSON.stringify(released), outputTokens: 99 }
+      return { text: JSON.stringify(released), outputTokens: 99, model: "m/test" }
     })
     expect(sources.ranges).toEqual(["v0.0.151..v0.0.152"])
     expect(seen).toEqual(["release 0.0.152: 330 328 261"])
@@ -51,6 +51,7 @@ describe("the notes of a prerelease", () => {
       fixes: 1,
     })
     expect(generated.outputTokens).toBe(99)
+    expect(generated.model).toBe("m/test")
     expect(generated.original).toBe(releaseBody)
     expect(generated.compare).toBeUndefined()
   })
@@ -69,7 +70,7 @@ describe("the notes of a prerelease", () => {
 
   it("skips, with the model's answer to show, when the answer is broken or fails its checks", async () => {
     for (const [ask, reason] of [
-      [async () => ({ text: "not json", outputTokens: 1 }), /not JSON/],
+      [async () => ({ text: "not json", outputTokens: 1, model: "m/test" }), /not JSON/],
       [answer({ highlights: [] }), /wrong shape/],
       [answer({ highlights: [], changes: [{ area: "Voice", line: "x", prs: [999] }] }), /#999/],
       [
@@ -238,7 +239,7 @@ describe("the notes of a promotion", () => {
       source,
       async (kind, version, items) => {
         asked.push(items.map((item) => `${item.label}:${item.prs}`).join(" "))
-        return { text: JSON.stringify(picked), outputTokens: 5 }
+        return { text: JSON.stringify(picked), outputTokens: 5, model: "m/test" }
       },
       repo,
     )

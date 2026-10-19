@@ -2,7 +2,7 @@ import { readNotesBlock, type ReleaseNotes } from "../../contract/protocol/src/r
 import { checkOutput } from "./check.ts"
 import { parseCommits } from "./commits.ts"
 import { commitItem, noteItems, type Item } from "./items.ts"
-import { parseOutput } from "./model.ts"
+import { parseOutput, type Answer } from "./model.ts"
 import { originalOf } from "./render.ts"
 import { Skip, viaGh } from "./skip.ts"
 import { type Sources } from "./sources.ts"
@@ -12,7 +12,7 @@ export type Ask = (
   kind: "release" | "promote",
   version: string,
   items: readonly Item[],
-) => Promise<{ text: string; outputTokens: number }>
+) => Promise<Answer>
 
 export type Generated = {
   readonly notes: ReleaseNotes
@@ -23,6 +23,8 @@ export type Generated = {
   /** The model's answer as it came. */
   readonly raw: string
   readonly outputTokens: number
+  /** The model that answered, as OpenRouter names it. */
+  readonly model: string
   /** The lines the checks dropped, and why. */
   readonly dropped: readonly string[]
   /** How many items the model was asked about. */
@@ -56,7 +58,9 @@ const compose = async (
   items: readonly Item[],
   carried: number,
   ask: Ask,
-): Promise<Pick<Generated, "notes" | "raw" | "outputTokens" | "dropped" | "considered">> => {
+): Promise<
+  Pick<Generated, "notes" | "raw" | "outputTokens" | "model" | "dropped" | "considered">
+> => {
   const version = tag.slice(1)
   // Only a change with a pull request can be cited, so only those are put to the model.
   const given = items.filter((item) => item.prs.length > 0)
@@ -65,10 +69,11 @@ const compose = async (
       notes: { version, kind, highlights: [], changes: [], fixes: carried },
       raw: "(nothing was asked)",
       outputTokens: 0,
+      model: "(none asked)",
       dropped: [],
       considered: items.length,
     }
-  const { text, outputTokens } = await ask(kind, version, given)
+  const { text, outputTokens, model } = await ask(kind, version, given)
   const output = parseOutput(text)
   const checked = checkOutput(output, new Set(given.flatMap((item) => item.prs)))
   if (!checked.ok) throw new Skip(checked.reason, text)
@@ -82,6 +87,7 @@ const compose = async (
     notes: { version, kind, highlights, changes, fixes: carried + unnamed },
     raw: text,
     outputTokens,
+    model,
     dropped: checked.dropped,
     considered: items.length,
   }

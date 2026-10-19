@@ -1,16 +1,11 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
-import type Anthropic from "@anthropic-ai/sdk"
-import { APIError } from "@anthropic-ai/sdk"
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod"
 import { z } from "zod"
 
 import { noteArea, noteAreas } from "../../contract/protocol/src/release-notes.ts"
 import { type Item } from "./items.ts"
 import { Skip } from "./skip.ts"
-
-export const model = "claude-opus-5-5"
 
 /** What the model is asked to return: lines and the pull requests they come from. */
 export const modelOutput = z.object({
@@ -30,23 +25,64 @@ const answer = z.object({
 })
 export type ModelOutput = z.infer<typeof answer>
 
-/** The one streaming call of the beta messages API this uses, so a test can hand in a fake. */
+/**
+ * Everything the call needs from outside, so a test hands in a fake `fetch`: the key (none
+ * means no call), the model to ask and how long to wait.
+ */
 export type Client = {
-  readonly beta: {
-    readonly messages: {
-      readonly stream: (params: Anthropic.Beta.Messages.MessageCreateParamsNonStreaming) => {
-        readonly finalMessage: () => Promise<Anthropic.Beta.Messages.BetaMessage>
-      }
-    }
-  }
+  readonly fetch: typeof fetch
+  readonly apiKey: string | undefined
+  readonly model: string
+  /** Milliseconds for the whole call, answer included. */
+  readonly timeout: number
 }
 
+/** The model a run asks unless RELEASE_NOTES_MODEL says another. */
+export const defaultModel = "anthropic/claude-opus-5.5"
+
 /**
- * How long a mode waits for the model, a promotion having far more to read. For a stream the
- * SDK's timeout bounds only the wait for the first byte, so the workflow step's own
- * `timeout-minutes` is what bounds the wall clock.
+ * How long a mode waits for the model, a promotion having far more to read. The call is not
+ * streamed, so this is a bound on the whole of it.
  */
 export const timeouts = { release: 180_000, promote: 480_000 } as const
+
+export const endpoint = "https://openrouter.ai/api/v1/chat/completions"
+const referer = "https://github.com/novadeck-org/novadeck"
+
+export const clientFor = (
+  mode: "release" | "promote",
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): Client => ({
+  fetch,
+  apiKey: env.OPENROUTER_API_KEY || undefined,
+  model: env.RELEASE_NOTES_MODEL || defaultModel,
+  timeout: timeouts[mode],
+})
+
+// The schema the answer is held to, from the same zod that reads it back. OpenRouter passes it
+// to the provider, whose strict mode takes no `$schema` and no bounds on numbers.
+export const withoutBounds = (schema: unknown): unknown =>
+  Array.isArray(schema)
+    ? schema.map(withoutBounds)
+    : schema && typeof schema === "object"
+      ? Object.fromEntries(
+          Object.entries(schema)
+            .filter(([key]) => !["$schema", "minimum", "maximum"].includes(key))
+            .map(([key, value]) => [
+              key,
+              // The names under `properties` are the answer's own, whatever they are called.
+              key === "properties" && value && typeof value === "object"
+                ? Object.fromEntries(
+                    Object.entries(value).map(([name, property]) => [
+                      name,
+                      withoutBounds(property),
+                    ]),
+                  )
+                : withoutBounds(value),
+            ]),
+        )
+      : schema
+export const responseSchema = withoutBounds(z.toJSONSchema(modelOutput))
 
 const prompt = readFileSync(join(import.meta.dirname, "prompt.md"), "utf8")
 
@@ -66,49 +102,157 @@ export const userMessage = (kind: "release" | "promote", version: string, items:
     ]),
   ].join("\n")
 
+export type Answer = { text: string; outputTokens: number; model: string }
+
+const textOf = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+
+/** The message of an OpenRouter error object, `{ code, message }`, when that is what this is. */
+const messageOf = (error: unknown): string | undefined => {
+  if (!error || typeof error !== "object") return undefined
+  const { code, message } = error as { code?: unknown; message?: unknown }
+  return `${typeof code === "number" ? `${code}: ` : ""}${typeof message === "string" ? message : "an error"}`
+}
+
+// A piece of the answer: a stream's chunk, or the whole of a body that wasn't streamed.
+type Chunk = {
+  error?: unknown
+  model?: unknown
+  choices?: {
+    finish_reason?: unknown
+    error?: unknown
+    delta?: { content?: unknown }
+    message?: { content?: unknown }
+  }[]
+  usage?: { completion_tokens?: unknown }
+}
+
+const parseChunk = (raw: string): Chunk => {
+  try {
+    return JSON.parse(raw) as Chunk
+  } catch (error) {
+    throw new Skip(`The answer was not JSON: ${textOf(error)}`)
+  }
+}
+
 /**
- * Asks the model, and returns the text of its answer, which the caller parses and checks,
- * and the tokens it wrote. Streams, as a long answer would outlast a plain request. Throws
- * `Skip` for any error or answer that should end in no notes; the rest is in the message.
+ * The text of the answer from what the body held: the `data:` lines of a stream, where
+ * lines that start with `:` are comments (OpenRouter's keep-alives) and `[DONE]` ends it, or
+ * a plain JSON body. Throws `Skip` for an error anywhere in it.
+ */
+const read = (text: string, fallbackModel: string): Answer => {
+  const data = text
+    .split("\n")
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice("data:".length).trim())
+    .filter((line) => line && line !== "[DONE]")
+  const chunks = (data.length > 0 ? data : [text]).map(parseChunk)
+  let content = ""
+  let finish: unknown
+  let model = fallbackModel
+  let outputTokens = 0
+  let sawChoice = false
+  for (const chunk of chunks) {
+    // An error can come in a 200 once the status was sent, or in the middle of a stream.
+    const failure = messageOf(chunk?.error)
+    if (failure) throw new Skip(`OpenRouter returned an error: ${failure}`)
+    if (typeof chunk?.model === "string") model = chunk.model
+    if (typeof chunk?.usage?.completion_tokens === "number")
+      outputTokens = chunk.usage.completion_tokens
+    const choice = chunk?.choices?.[0]
+    if (!choice) continue
+    sawChoice = true
+    const choiceFailure = messageOf(choice.error)
+    if (choiceFailure) throw new Skip(`The model failed: ${choiceFailure}`)
+    const piece = choice.delta?.content ?? choice.message?.content
+    if (typeof piece === "string") content += piece
+    if (choice.finish_reason !== null && choice.finish_reason !== undefined)
+      finish = choice.finish_reason
+  }
+  if (!sawChoice) throw new Skip("The answer had no choices")
+  // `stop` is the one normal end; `length`, `content_filter`, `error` and the rest are not.
+  if (finish !== "stop")
+    throw new Skip(`The model stopped with finish_reason ${String(finish ?? null)}`)
+  if (!content.trim()) throw new Skip("The answer had no text")
+  return { text: content, outputTokens, model }
+}
+
+/**
+ * Asks the model through OpenRouter, once, and returns the text of its answer, which the
+ * caller parses and checks. The answer is streamed, because a long one would outlast the
+ * body timeout of Node's `fetch` (5 minutes between chunks, and OpenRouter's keep-alive
+ * comments are chunks); the timeout stays the wall-clock bound of the whole call. There is no
+ * retry: a failed run keeps the release's body and the job can be run again, while a retry
+ * would add a second timeout to the wait. Throws `Skip` for any error or answer that should
+ * end in no notes; the rest is in the message.
  */
 export const ask = async (
   client: Client,
   kind: "release" | "promote",
   version: string,
   items: readonly Item[],
-): Promise<{ text: string; outputTokens: number }> => {
-  let response: Anthropic.Beta.Messages.BetaMessage
+): Promise<Answer> => {
+  if (!client.apiKey) throw new Skip("No OPENROUTER_API_KEY")
+  const signal = AbortSignal.timeout(client.timeout)
+  const failed = (error: unknown): Skip =>
+    signal.aborted
+      ? new Skip(`The model did not answer within ${client.timeout / 1000} s`)
+      : new Skip(`The request failed: ${textOf(error)}`)
+  let response: Response
   try {
-    response = await client.beta.messages
-      .stream({
-        model,
+    response = await client.fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${client.apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": referer,
+        "X-Title": "Novadeck release notes",
+      },
+      body: JSON.stringify({
+        model: client.model,
         max_tokens: 64_000,
-        system: systemPrompt(),
-        messages: [{ role: "user", content: userMessage(kind, version, items) }],
-        // Thinking is adaptive and always on for this model, so it is left out.
-        output_config: { effort: "medium", format: betaZodOutputFormat(modelOutput) },
-        // A refusal re-runs on the server's default fallback model inside the same call.
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
-      })
-      .finalMessage()
+        // Usage arrives once, in the stream's last chunk, with nothing to ask for.
+        stream: true,
+        messages: [
+          { role: "system", content: systemPrompt() },
+          { role: "user", content: userMessage(kind, version, items) },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: "release_notes", strict: true, schema: responseSchema },
+        },
+        // Only a provider that honours `response_format` may take the request.
+        provider: { require_parameters: true },
+        reasoning: { effort: "medium" },
+      }),
+      signal,
+    })
   } catch (error) {
-    if (error instanceof APIError)
-      throw new Skip(`The API answered ${error.status ?? "no status"}: ${error.message}`)
-    throw new Skip(error instanceof Error ? error.message : String(error))
+    throw failed(error)
   }
-  if (response.stop_reason === "refusal") throw new Skip("The model refused")
-  if (response.stop_reason === "max_tokens") throw new Skip("The answer was cut off")
-  const text = response.content.find((block) => block.type === "text")
-  if (!text || text.type !== "text") throw new Skip("The answer had no text")
-  return { text: text.text, outputTokens: response.usage.output_tokens }
+  let text: string
+  try {
+    text = await response.text()
+  } catch (error) {
+    throw failed(error)
+  }
+  if (!response.ok) {
+    let failure: string | undefined
+    try {
+      failure = messageOf((JSON.parse(text) as Chunk).error)
+    } catch {
+      // Not JSON: the status says what there is to say.
+    }
+    throw new Skip(`OpenRouter answered HTTP ${response.status}${failure ? ` (${failure})` : ""}`)
+  }
+  return read(text, client.model)
 }
 
 /** The text of an answer as `ModelOutput`, or a `Skip` saying where it broke. */
 export const parseOutput = (text: string): ModelOutput => {
   let json: unknown
   try {
-    json = JSON.parse(text)
+    // Some models wrap JSON in a code fence whatever they are told.
+    json = JSON.parse(text.trim().replace(/^```(?:json)?[ \t]*\n([\s\S]*?)\n?```$/, "$1"))
   } catch {
     throw new Skip("The answer was not JSON", text)
   }

@@ -1,9 +1,7 @@
 import { appendFileSync, rmSync, writeFileSync } from "node:fs"
 
-import Anthropic from "@anthropic-ai/sdk"
-
 import { generatePromote, generateRelease, type Ask, type Generated } from "./generate.ts"
-import { ask as askModel, timeouts, type Client } from "./model.ts"
+import { ask as askModel, clientFor as defaultClientFor, type Client } from "./model.ts"
 import { renderBody } from "./render.ts"
 import { Skip } from "./skip.ts"
 import { gitSources, type Sources } from "./sources.ts"
@@ -15,10 +13,10 @@ const plural = (count: number, one: string, many: string): string =>
 
 /** The short account of a run that wrote notes, for the log and the job's summary. */
 export const summaryOf = (mode: string, tag: string, generated: Generated): string => {
-  const { notes, considered, outputTokens, dropped } = generated
+  const { notes, considered, outputTokens, model, dropped } = generated
   const lines = notes.highlights.length + notes.changes.length
   return [
-    `Release notes for ${tag} (${mode}): ${plural(lines, "line", "lines")} from ${plural(considered, "change", "changes")}, ${plural(notes.fixes, "smaller fix", "smaller fixes")} counted. The model wrote ${outputTokens} output tokens.`,
+    `Release notes for ${tag} (${mode}): ${plural(lines, "line", "lines")} from ${plural(considered, "change", "changes")}, ${plural(notes.fixes, "smaller fix", "smaller fixes")} counted. Model ${model}, ${outputTokens} output tokens.`,
     ...dropped.map((line) => `Dropped: ${line}.`),
     "",
   ].join("\n")
@@ -27,9 +25,6 @@ export const summaryOf = (mode: string, tag: string, generated: Generated): stri
 /** The account of a run that wrote nothing: the release keeps the body it has. */
 export const skippedSummary = (mode: string, tag: string, skip: Skip): string =>
   `No release notes written for ${tag} (${mode}), so the release keeps its body: ${skip.message}.\n`
-
-const makeClient = (mode: "release" | "promote"): Client =>
-  new Anthropic({ maxRetries: 1, timeout: timeouts[mode] })
 
 /**
  * `node scripts/release-notes/main.ts release <tag> <out file>`: the body for one prerelease,
@@ -40,14 +35,14 @@ const makeClient = (mode: "release" | "promote"): Client =>
  * Whatever goes wrong with the model, its answer or `gh` writes no file and still exits 0,
  * saying why: the workflows edit a release only when the file exists, so it keeps its body.
  * A usage error or a failure of git exits non-zero. `--dry-run` prints the body and the
- * model's answer, or the reason there is no body, and writes no file. ANTHROPIC_API_KEY is
- * the model's key; GH_REPO and GH_TOKEN are `gh`'s, and GH_REPO also names the repository
+ * model's answer, or the reason there is no body, and writes no file. OPENROUTER_API_KEY is
+ * the model's key and RELEASE_NOTES_MODEL names the model; GH_REPO and GH_TOKEN are `gh`'s, and GH_REPO also names the repository
  * the pull request links point at.
  */
 export const main = async (
   args = process.argv.slice(2),
   sources: Sources = gitSources,
-  clientFor: (mode: "release" | "promote") => Client = makeClient,
+  clientFor: (mode: "release" | "promote") => Client = defaultClientFor,
   log: (message: string) => void = console.log,
 ): Promise<void> => {
   const dryRun = args.includes("--dry-run")

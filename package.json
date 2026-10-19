@@ -39,7 +39,6 @@
     "format:check": "oxfmt --check && pnpm --filter @novadeck/relay format:check"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "0.135.0",
     "@jridgewell/trace-mapping": "0.3.31",
     "@novadeck/sandbox": "workspace:*",
     "@release-it/conventional-changelog": "12.0.2",
