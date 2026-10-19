@@ -245,6 +245,24 @@
       ]
     },
     {
+      "id": "runner-engines-server-port-picked-again",
+      "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/engines/server.test.ts > a server > starts again on another port when something takes the one it was given",
+      "signature": "AssertionError: expected 2 to be 3",
+      "status": "known",
+      "cause": "The test's own: of the three ports it expects to be different, two were the same. Its first two starts only say their port is taken and exit (losesPort), holding no socket, on purpose, so as not to race other test workers for free ports. The server's next pick (freePort in backend/runner/src/engines/server.ts: bind port 0, then close) can then get the same port back from the OS. The server promises no more: a port another process really holds can't be picked again while it's held. A fix would hold each lost port in the test, bringing back the race its comment avoids, or let the test choose the ports.",
+      "seen": ["#354 run 39312938426 attempt 1 job 118266964268 (Linux, 3/3)"]
+    },
+    {
+      "id": "runner-messaging-several-together-id",
+      "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/messaging/messaging.test.ts > delivery through hooks > delivers several messages together, up to 8 KB as printed, the rest at the next hook",
+      "signature": "not to contain 'bbb'",
+      "status": "fixed",
+      "cause": "The test's own: it checked that the second message (4,000 b's) wasn't in the first delivery with not.toContain(\"bbb\"), and the delivery's random thread id was t-d8bbb0nnxt. Ids are ten characters of a-z0-9 (freshId in backend/runner/src/messaging/mailbox.ts), so the check now looks for 64 b's in a row, which no id can hold. Reproduced by giving thread ids a \"bbb\": the old check failed, the new one passed.",
+      "seen": ["#355 run 39316798879 attempt 1 job 118280263701 (macOS)"]
+    },
+    {
       "id": "runner-manager-hangup-spawn-failed",
       "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/terminals/manager.test.ts > terminal manager > never leaves a program stopped that restores the terminal as it is hung up",
