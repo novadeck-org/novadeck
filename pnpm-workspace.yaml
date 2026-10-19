@@ -1,5 +1,4 @@
 packages:
-  - application/*
   - backend/*
   - contract/*
   - frontend/*
