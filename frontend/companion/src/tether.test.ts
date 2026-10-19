@@ -1,6 +1,6 @@
 import { vi } from "vitest"
 
-import { describe, expect, it } from "../../test"
+import { describe, expect, it } from "./test"
 import { beyond, give, refuseDrop, tetherPoint } from "./tether"
 
 // jsdom has no resizes; dnd-kit, which the tether extends, asks for them as it loads.
