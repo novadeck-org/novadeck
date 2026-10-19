@@ -1,3 +1,4 @@
+import { chatDraftOf, createChat, setChatDraft } from "@novadeck/chat/state"
 import type { TerminalKey } from "@novadeck/core/port"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { createStore } from "@novadeck/core/store"
@@ -6,7 +7,6 @@ import { appearance } from "@novadeck/core/testing"
 import type { TerminalMetadata } from "@novadeck/core/types"
 import { vi } from "vitest"
 
-import { chatDraftOf, createChat, setChatDraft } from "../../terminals/chat/state"
 import { describe, expect, it } from "../../test"
 import type { VoiceSetup } from "../../voice/dictation"
 import { createUiStore, initialUi, type UiStore } from "../ui-store"
