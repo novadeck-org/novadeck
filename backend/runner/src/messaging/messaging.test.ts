@@ -3657,6 +3657,23 @@ describe("a long hold of the doorbell", () => {
       expect(answer.holds).toEqual([holdNotice([third], handle, "draft", since + longHoldMs - 1)])
     })
 
+    it("is timed while only background work runs, as the doorbell looks at its box then", () => {
+      const { messaging, clock: time, send, prompt, stop, claude, codex } = create()
+      const bound = { A: claude, B: codex }
+      prompt(to, bound[to])
+      stop(to, bound[to], true)
+      expect(messaging.delivery(to)).toMatchObject({ state: "working", phase: "background" })
+      time.now += 60_000
+      const id = sent(send(from, handle, "first")).id
+      const since = time.now
+      messaging.blocked(to, "draft")
+      time.now += longHoldMs
+      expect(messaging.list(to, handle)).toMatchObject({ waits: "draft", waitsSince: since })
+      expect(sent(send(from, handle, "second")).holds).toEqual([
+        holdNotice([id], handle, "draft", since),
+      ])
+    })
+
     it("tells a hold the doorbell gave no reason for, as when the screen never calms", () => {
       const { messaging, clock: time, send } = held()
       const id = sent(send(from, handle, "first")).id
