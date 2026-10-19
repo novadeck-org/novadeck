@@ -265,3 +265,55 @@ describe("A terminal an agent opened", () => {
     await expectStaysAbsent(page.getByText(/^led by @moth/))
   })
 })
+
+// What a tab is in the selected terminal's team, as its tab marks it.
+const teamMark = (name: string) =>
+  terminalTab(name).element().closest("[data-terminal-tab-id]")?.getAttribute("data-team") ?? null
+
+describe("A team in the sidebar", () => {
+  it("marks the lead and its worker while the lead is selected, and wires them on the rail", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout implementation").click()
+    await expect.poll(() => teamMark("Checkout review")).toBe("worker")
+    expect(teamMark("Checkout implementation")).toBe("lead")
+    expect(teamMark("Dev server")).toBeNull()
+    await expect.poll(() => document.querySelectorAll(".team-wire-tap").length).toBe(1)
+    expect(document.querySelectorAll(".team-wire-cursor")).toHaveLength(1)
+  })
+
+  it("marks the same team while its worker is selected", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout review").click()
+    await expect.poll(() => teamMark("Checkout implementation")).toBe("lead")
+    expect(teamMark("Checkout review")).toBe("worker")
+  })
+
+  it("marks nothing while a terminal in no team is selected", async () => {
+    await openMessagesDemo()
+    await terminalTab("Dev server").click()
+    await expect.poll(() => document.querySelectorAll(".team-wire-segment").length).toBe(0)
+    expect(teamMark("Checkout implementation")).toBeNull()
+    expect(teamMark("Checkout review")).toBeNull()
+  })
+
+  it("is gone, and stays gone, once a terminal in no team is clicked from it", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout implementation").click()
+    await expect.poll(() => document.querySelectorAll(".team-wire-segment").length).toBe(1)
+    await terminalTab("Dev server").click()
+    await expect.poll(() => document.querySelectorAll(".team-wire-segment").length).toBe(0)
+    // Past any measuring a press on the list set going.
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    expect(document.querySelectorAll(".team-wire-segment")).toHaveLength(0)
+  })
+
+  it("ends once the lead's terminal is closed", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout implementation").click()
+    await tabAction("Close Checkout implementation").click()
+    await confirmClose()
+    await terminalTab("Checkout review").click()
+    await expect.poll(() => teamMark("Checkout review")).toBeNull()
+    expect(document.querySelectorAll(".team-wire-segment")).toHaveLength(0)
+  })
+})

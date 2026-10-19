@@ -354,6 +354,15 @@ agent.
   terminal's when you rename it. A sidebar tab shows it beside Close where an agent runs
   or has run, or where an agent opened or leads the terminal; a window's header shows it
   in its switcher, under the pointer.
+  An agent that opens terminals with a brief leads them, and a worker's window header says
+  `led by @moth` while its lead runs. The sidebar shows the team only while one of it is
+  selected, and the tabs never say it in words: the border between the icon rail and the
+  sidebar lights from the team's topmost tab to its bottommost, running on into the list's
+  edge where one is scrolled out of view, a block cursor on it marks the lead, and a tick
+  reaches each worker's tab. The team's other tabs take a faint tint of the accent and
+  their handles light up, the lead's in a chip; the selected tab keeps its own look.
+  Selecting a member sends one pulse out from the lead along the wire. A terminal that both
+  works for a lead and leads shows the team it leads.
   Without a connected agent
   there is no resume, even for sessions it reported before: disconnecting forgets them,
   and the terminal comes back as a plain shell with its transcript.
@@ -720,7 +729,9 @@ Terminals:
   output, back at the prompt, running a long program, Claude Code or Codex, a failed
   paste, and each way to end (clean exit, exit code, killed, failed to start). Each one
   that changes the state calls off what the terminal's agent had pending, so a finish
-  due later doesn't bring the agent back.
+  due later doesn't bring the agent back. "Leads the others" makes the selected terminal
+  lead every other live terminal of the session, for the rail's team wire with many
+  workers; with "Burst of" first, part of the team scrolls out of view.
 - **New terminals:** "Every state at once" adds one terminal per state, named after it, so
   the tabs and the windows in Grid and Canvas show attention, done, error, ended and the
   rest side by side; you stay on one that needs permission, and the done marks land on
