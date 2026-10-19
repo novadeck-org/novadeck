@@ -21,6 +21,7 @@ import {
   exitedWithCode,
   failedToStart,
   killedBy,
+  leadsOthers,
   murmurGists,
   murmurHeadlines,
   noisyAgents,
@@ -357,6 +358,15 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
         ),
         setting("Codex", "Window switches to Codex", (key, { dispatch }) =>
           dispatch(runAgent(key, "codex")),
+        ),
+        onSelected(
+          "Leads the others",
+          "Every other terminal joins its team; the rail's wire joins them",
+          (key, { dispatch, workspace, note }) => {
+            const actions = leadsOthers(workspace(), key)
+            if (!actions.length) return note("It needs a handle and other terminals to lead.")
+            dispatch(actions)
+          },
         ),
         onSelected("Paste fails", "The next pasted file, with a notice", (key) => {
           pasteFails.add(terminalKeyId(key))

@@ -1,6 +1,13 @@
-import { handleNames, runningLeads, terminalOrigins } from "./derivations"
+import {
+  handleNames,
+  runningLeads,
+  sameTeam,
+  teamOf,
+  teamRole,
+  terminalOrigins,
+} from "./derivations"
 import { workspaceReducer } from "./state"
-import { describe, expect, it } from "./test"
+import { context, describe, expect, it } from "./test"
 import { terminalFixture, workspaceFixture } from "./testing"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
@@ -71,6 +78,113 @@ describe("the leads that run", () => {
       ledBy: null,
     })
     expect(runningLeads(ended)).toEqual({})
+  })
+})
+
+// moth (01) leads fox (02) and owl (04); wren (03) works alone; owl leads newt (05) in turn.
+const teams = () =>
+  [
+    ...[3, 4, 5].map((slot) => ({
+      type: "terminal/add",
+      target,
+      terminal: terminalFixture(slot, "~/project"),
+    })),
+    { type: "terminal/update", target, terminalId: "03", handle: "wren" },
+    { type: "terminal/update", target, terminalId: "04", handle: "owl", ledBy: "moth" },
+    { type: "terminal/update", target, terminalId: "05", handle: "newt", ledBy: "owl" },
+  ].reduce(
+    (state, action) => workspaceReducer(state, action as Parameters<typeof workspaceReducer>[1]),
+    led(),
+  )
+
+const select = (workspace: ReturnType<typeof led>, terminalId: string) =>
+  workspaceReducer(workspace, { type: "terminal/select", target, terminalId })
+
+describe("a terminal's team", () => {
+  context("when it leads", () => {
+    it("is the team it leads, its workers in the list's order", () => {
+      expect(teamOf(teams(), "01")).toEqual({ lead: "01", workers: ["02", "04"] })
+    })
+  })
+
+  context("when it works for a lead", () => {
+    it("is its lead's team", () => {
+      expect(teamOf(teams(), "02")).toEqual({ lead: "01", workers: ["02", "04"] })
+    })
+  })
+
+  context("when it both works for a lead and leads", () => {
+    it("is the team it leads", () => {
+      expect(teamOf(teams(), "04")).toEqual({ lead: "04", workers: ["05"] })
+    })
+  })
+
+  context("when it is in no team", () => {
+    it("is none", () => {
+      expect(teamOf(teams(), "03")).toBeUndefined()
+    })
+  })
+
+  context("when its lead exits", () => {
+    it("is none for its workers", () => {
+      const exited = workspaceReducer(led(), {
+        type: "terminal/status",
+        target,
+        terminalId: "01",
+        status: { state: "exited", exitCode: 0, signal: null },
+      })
+      expect(teamOf(exited, "01")).toBeUndefined()
+      expect(teamOf(exited, "02")).toBeUndefined()
+    })
+  })
+})
+
+describe("two teams", () => {
+  it("are the same while the lead and its workers are, though a terminal elsewhere changed", () => {
+    const before = teams()
+    const renamed = workspaceReducer(before, {
+      type: "terminal/rename",
+      target,
+      terminalId: "03",
+      name: "Elsewhere",
+    })
+    const [a, b] = [teamOf(before, "01"), teamOf(renamed, "01")]
+    expect(a).not.toBe(b)
+    expect(sameTeam(a, b)).toBe(true)
+  })
+
+  it("differ once a worker joins", () => {
+    const joined = workspaceReducer(teams(), {
+      type: "terminal/update",
+      target,
+      terminalId: "03",
+      ledBy: "moth",
+    })
+    expect(sameTeam(teamOf(teams(), "01"), teamOf(joined, "01"))).toBe(false)
+  })
+})
+
+describe("a terminal's role in the selected team", () => {
+  it("is lead or worker for the selected worker's team, and nothing outside it", () => {
+    const selected = select(teams(), "02")
+    expect(["01", "02", "03", "04", "05"].map((id) => teamRole(selected, id))).toEqual([
+      "lead",
+      "worker",
+      undefined,
+      "worker",
+      undefined,
+    ])
+  })
+
+  it("is nothing anywhere while the selected terminal is in no team", () => {
+    const selected = select(teams(), "03")
+    expect(["01", "02", "03", "04", "05"].map((id) => teamRole(selected, id))).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ])
   })
 })
 
