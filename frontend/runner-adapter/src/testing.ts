@@ -1,0 +1,239 @@
+import { MessageChannel } from "node:worker_threads"
+
+import { createRunner, type RunnerOptions } from "@novadeck/runner"
+import { connectRunner, type AttachedTerminal, type Runner } from "@novadeck/runner-client"
+import { type MessagePortLike } from "@novadeck/wire"
+import { messagePort } from "@novadeck/wire/client"
+// Tests run here in Node, serving a real runner in process; the app never imports this file.
+// eslint-disable-next-line no-restricted-imports -- the wire's server, for the test runner
+import { servePort } from "@novadeck/wire/server"
+
+import type { RunnerApi } from "./backend"
+import { loadListing } from "./index"
+import type { RunnerListing } from "./seed"
+
+// Test support: a real runner in this process, reached over a MessageChannel like the
+// desktop app's, whose shells are a small program in a real PTY. Typing
+// "exit <code>" ends it with that code; "kill <signal>" kills it with that signal;
+// "title <name>" renames it, which Linux then
+// reports as the terminal's foreground process.
+const shell = [
+  "process.stdin.setRawMode?.(true)",
+  "let input = ''",
+  "process.stdin.on('data', (data) => {",
+  "  input += data",
+  "  const title = /title (\\S+)[\\r\\n]/.exec(input)",
+  "  if (title) { process.title = title[1]; input = '' }",
+  "  const exit = /exit (\\d+)[\\r\\n]/.exec(input)",
+  "  if (exit) process.exit(Number(exit[1]))",
+  "  const kill = /kill (SIG[A-Z]+)[\\r\\n]/.exec(input)",
+  "  if (kill) process.kill(process.pid, kill[1])",
+  "})",
+].join("\n")
+
+export type TestRunner = {
+  readonly client: Runner
+  readonly listing: RunnerListing
+  // Lists again, as a reload would.
+  readonly reload: () => Promise<RunnerListing>
+  // Cuts the current link and resolves once the client noticed; it reconnects over a
+  // fresh port shortly after.
+  readonly drop: () => Promise<void>
+  // Connects a client of its own, as another window.
+  readonly another: () => Promise<Runner>
+  readonly close: () => Promise<void>
+}
+
+export const startTestRunner = async (options: RunnerOptions = {}): Promise<TestRunner> => {
+  const service = createRunner({
+    ...options,
+    terminals: {
+      maxTerminals: 256,
+      ...options.terminals,
+      shell: process.execPath,
+      shellArgs: ["-e", shell],
+    },
+  })
+  const links = new Set<() => void>()
+  let current: (() => void) | undefined
+  // A fresh port for every connection, as the desktop host hands out.
+  const connect = (): Promise<MessagePortLike> => {
+    const { port1, port2 } = new MessageChannel()
+    const dispose = servePort(service.sessions, port1)
+    links.add(dispose)
+    current = dispose
+    return Promise.resolve(port2)
+  }
+  const client = await connectRunner(messagePort(connect), { retryDelay: () => 200 })
+  const others: Runner[] = []
+  const reload = () => loadListing(client, () => crypto.randomUUID(), Date.now)
+  return {
+    client,
+    listing: await reload(),
+    reload,
+    drop: async () => {
+      current?.()
+      for await (const status of client.watch()) if (status.state === "reconnecting") return
+    },
+    another: async () => {
+      const other = await connectRunner(
+        messagePort(() => {
+          const { port1, port2 } = new MessageChannel()
+          links.add(servePort(service.sessions, port1))
+          return Promise.resolve(port2)
+        }),
+      )
+      others.push(other)
+      return other
+    },
+    close: async () => {
+      await Promise.all(others.map((other) => other.close()))
+      await client.close()
+      for (const dispose of links) dispose()
+      await service.close()
+    },
+  }
+}
+
+// What xterm answers on its own to the shell's output: focus reports and colours. On
+// Windows, ConPTY turns focus reports on as the shell starts, sometimes only after the
+// terminal is shown, and xterm reports its focus at once; that is the shell's doing,
+// not the surface's.
+// oxlint-disable-next-line no-control-regex
+const replies = /^\u001b(\[[IO]|\]1[0-2];rgb:[^\u0007\u001b]*(\u0007|\u001b\\))$/
+
+// The runner client, noting each call that reaches the runner in `io`, apart from
+// xterm's own replies.
+export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
+  const note = <T>(entry: string, call: () => Promise<T>): Promise<T> => {
+    io.push(entry)
+    return call()
+  }
+  const attachment = (attached: AttachedTerminal): AttachedTerminal => {
+    const wrapped: AttachedTerminal = {
+      id: attached.id,
+      mode: attached.mode,
+      [Symbol.asyncIterator]: () => wrapped,
+      next: () => attached.next(),
+      return: async () => {
+        await attached.detach()
+        return { done: true, value: undefined }
+      },
+      write: (data) =>
+        replies.test(data)
+          ? attached.write(data)
+          : note(`write ${attached.id}`, () => attached.write(data)),
+      resize: (size) => note(`resize ${attached.id}`, () => attached.resize(size)),
+      detach: () => attached.detach(),
+    }
+    return wrapped
+  }
+  return {
+    watch: () => runner.watch(),
+    projects: {
+      list: () => runner.projects.list(),
+      create: (input) => note(`create project ${input.id}`, () => runner.projects.create(input)),
+      rename: (input) => runner.projects.rename(input),
+      remove: (input) =>
+        note(`remove project ${input.projectId}`, () => runner.projects.remove(input)),
+    },
+    sessions: {
+      list: (input) => runner.sessions.list(input),
+      create: (input) => note(`create session ${input.id}`, () => runner.sessions.create(input)),
+      rename: (input) => runner.sessions.rename(input),
+      save: (input) => note(`save ${input.sessionId}`, () => runner.sessions.save(input)),
+    },
+    terminals: {
+      list: (input) => runner.terminals.list(input),
+      watch: () => runner.terminals.watch(),
+      requests: () => runner.terminals.requests(),
+      answerRequest: (answer) =>
+        note(`answer ${answer.requestId}`, () => runner.terminals.answerRequest(answer)),
+      create: (input) => note(`create terminal ${input.id}`, () => runner.terminals.create(input)),
+      close: (id) => note(`close ${id}`, () => runner.terminals.close(id)),
+      rename: (id, title) => note(`rename ${id}`, () => runner.terminals.rename(id, title)),
+      resetTitle: (id) => note(`reset title ${id}`, () => runner.terminals.resetTitle(id)),
+      upload: (id, file) => note(`upload ${id}`, () => runner.terminals.upload(id, file)),
+      restart: (id, size) => note(`restart ${id}`, () => runner.terminals.restart(id, size)),
+      attach: async (id, options) =>
+        attachment(await note(`attach ${id}`, () => runner.terminals.attach(id, options))),
+    },
+    agents: {
+      list: () => runner.agents.list(),
+      detail: (terminalId) => runner.agents.detail(terminalId),
+      transcript: (terminalId, actor) => runner.agents.transcript(terminalId, actor),
+      prompt: (terminalId, text) =>
+        note(`prompt ${terminalId}`, () => runner.agents.prompt(terminalId, text)),
+      interrupt: (terminalId) =>
+        note(`interrupt ${terminalId}`, () => runner.agents.interrupt(terminalId)),
+      answer: (terminalId, request, answer) =>
+        note(`answer ${terminalId} ${request}`, () =>
+          runner.agents.answer(terminalId, request, answer),
+        ),
+      set: (agent, connected) =>
+        note(`agent ${agent} ${connected}`, () => runner.agents.set(agent, connected)),
+    },
+    asks: runner.asks,
+    messages: {
+      list: (terminalId) => runner.messages.list(terminalId),
+      watch: (terminalId) => runner.messages.watch(terminalId),
+      pause: (paused) => note(`pause messages ${paused}`, () => runner.messages.pause(paused)),
+      release: (thread) => note(`release ${thread}`, () => runner.messages.release(thread)),
+      stop: (thread) => note(`stop ${thread}`, () => runner.messages.stop(thread)),
+    },
+    voice: {
+      watch: () => runner.voice.watch(),
+      install: () => note("voice install", () => runner.voice.install()),
+      cancel: () => note("voice cancel", () => runner.voice.cancel()),
+      uninstall: () => note("voice uninstall", () => runner.voice.uninstall()),
+      set: (settings) =>
+        note(`voice set ${JSON.stringify(settings)}`, () => runner.voice.set(settings)),
+      record: (clipId, offset, audio) =>
+        note(`voice record ${offset}`, () => runner.voice.record(clipId, offset, audio)),
+      transcribe: (clipId, options) =>
+        note("voice transcribe", () => runner.voice.transcribe(clipId, options)),
+      discard: (clipId) => note("voice discard", () => runner.voice.discard(clipId)),
+    },
+    murmur: {
+      watch: () => runner.murmur.watch(),
+      install: () => note("murmur install", () => runner.murmur.install()),
+      cancel: () => note("murmur cancel", () => runner.murmur.cancel()),
+      uninstall: () => note("murmur uninstall", () => runner.murmur.uninstall()),
+      set: (settings) =>
+        note(`murmur set ${JSON.stringify(settings)}`, () => runner.murmur.set(settings)),
+      gist: (terminalId, at) => note(`murmur gist ${at}`, () => runner.murmur.gist(terminalId, at)),
+      noteOffered: () => note("murmur noteOffered", () => runner.murmur.noteOffered()),
+    },
+    companions: {
+      list: (input) => runner.companions.list(input),
+      watch: () => runner.companions.watch(),
+      content: (itemId, options) => runner.companions.content(itemId, options),
+      save: (input) => note(`save plan ${input.itemId}`, () => runner.companions.save(input)),
+      attach: (input) => note(`attach ${input.path}`, () => runner.companions.attach(input)),
+      move: (itemId, terminalId) =>
+        note(`move ${itemId} ${terminalId}`, () => runner.companions.move(itemId, terminalId)),
+      undock: (itemId, windowId) =>
+        note(`undock ${itemId} ${windowId}`, () => runner.companions.undock(itemId, windowId)),
+      close: (itemId) => note(`close item ${itemId}`, () => runner.companions.close(itemId)),
+      renameWindow: (windowId, title) =>
+        note(`rename window ${windowId}`, () => runner.companions.renameWindow(windowId, title)),
+      resetWindowTitle: (windowId) =>
+        note(`reset window ${windowId}`, () => runner.companions.resetWindowTitle(windowId)),
+    },
+    settings: {
+      get: () => runner.settings.get(),
+      set: (settings) =>
+        note(`settings ${JSON.stringify(settings)}`, () => runner.settings.set(settings)),
+    },
+  }
+}
+
+// Types into a terminal from `client`, which must be allowed to control it.
+export const typeInto = async (client: Runner, terminalId: string, text: string): Promise<void> => {
+  const attached = await client.terminals.attach(terminalId)
+  try {
+    await attached.write(text)
+  } finally {
+    await attached.detach()
+  }
+}

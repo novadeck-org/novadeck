@@ -1,0 +1,149 @@
+import type { ViewMode } from "@novadeck/core/types"
+import {
+  Bell,
+  ChevronLeft,
+  LayoutGrid,
+  PanelLeft,
+  Plus,
+  SquareDashedMousePointer,
+  X,
+} from "lucide-react"
+import { useEffect, useId, useRef, useState } from "react"
+
+import { shortcutBindings } from "../interaction/shortcuts"
+import { Tooltip } from "../ui-toolkit/Tooltip"
+import type { BellBadge } from "./notification-badge"
+import { NotificationBadge } from "./NotificationBadge"
+
+const views = [
+  { id: "focus", label: "Focus", icon: PanelLeft },
+  { id: "grid", label: "Grid", icon: LayoutGrid },
+  { id: "canvas", label: "Canvas", icon: SquareDashedMousePointer },
+] as const
+
+export const ZenDock = ({
+  view,
+  enabledViews,
+  badge,
+  inbox = false,
+  onCreate,
+  onViewChange,
+  onNotifications,
+  onExit,
+}: {
+  view: ViewMode
+  enabledViews: ViewMode[]
+  badge: BellBadge | undefined
+  // Whether the bell opens the Inbox, as where the backend has one, and not Notifications.
+  inbox?: boolean
+  onCreate: () => void
+  onViewChange: (view: ViewMode) => void
+  onNotifications: () => void
+  onExit: () => void
+}): React.JSX.Element => {
+  const [open, setOpen] = useState(false)
+  // With one view left there's nothing to switch to.
+  const switchable = enabledViews.length > 1
+  const dock = useRef<HTMLDivElement>(null)
+  const create = useRef<HTMLButtonElement>(null)
+  const controls = useId()
+  useEffect(() => {
+    if (!open) return
+    const dismiss = (event: PointerEvent): void => {
+      if (event.target instanceof Node && !dock.current?.contains(event.target)) setOpen(false)
+    }
+    document.addEventListener("pointerdown", dismiss)
+    return () => document.removeEventListener("pointerdown", dismiss)
+  }, [open])
+  return (
+    <div
+      className="zen-dock absolute right-5 bottom-5 z-40 flex flex-row-reverse items-center gap-0.5 p-1 max-[701px]:right-3 max-[701px]:bottom-3"
+      ref={dock}
+      data-open={open}
+      data-workspace-zen-dock
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || !open) return
+        event.preventDefault()
+        event.stopPropagation()
+        create.current?.focus({ preventScroll: true })
+        setOpen(false)
+      }}
+      role="group"
+      aria-label="Zen controls"
+    >
+      <Tooltip content={`New terminal · ${shortcutBindings().newTerminal.display.join(" ")}`}>
+        <button
+          ref={create}
+          data-workspace-zen-create
+          className="zen-create icon-button"
+          aria-label="New terminal"
+          onClick={onCreate}
+        >
+          <Plus size={16} />
+        </button>
+      </Tooltip>
+      {badge && (
+        <Tooltip content={inbox ? "Inbox" : "Notifications"}>
+          <button
+            className="icon-button zen-notifications relative"
+            aria-label={badge.label}
+            data-project-status={badge.status}
+            onClick={onNotifications}
+          >
+            <Bell size={16} />
+            <NotificationBadge text={badge.text} />
+          </button>
+        </Tooltip>
+      )}
+      <button
+        className="icon-button zen-reveal w-5 p-0"
+        aria-label={open ? "Hide Zen controls" : "Show Zen controls"}
+        aria-expanded={open}
+        aria-controls={controls}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <ChevronLeft size={12} className={open ? "rotate-180" : ""} />
+      </button>
+      <div className="zen-dock-reveal" inert={!open} aria-hidden={!open} id={controls}>
+        <div className="zen-dock-actions flex min-w-0 items-center gap-0.5 overflow-hidden whitespace-nowrap">
+          {switchable && (
+            <>
+              <div
+                data-workspace-view-switch
+                className="view-switch flex gap-0.5"
+                role="group"
+                aria-label="Workspace layout"
+              >
+                {views
+                  .filter(({ id }) => enabledViews.includes(id))
+                  .map(({ id, label, icon: Icon }) => (
+                    <Tooltip key={id} content={label}>
+                      <button
+                        className="icon-button"
+                        aria-label={`${label} view`}
+                        aria-pressed={view === id}
+                        onClick={() => onViewChange(id)}
+                      >
+                        <Icon size={16} strokeWidth={1.6} />
+                      </button>
+                    </Tooltip>
+                  ))}
+              </div>
+
+              <div className="separator mx-0.5 h-3 w-px" aria-hidden="true" />
+            </>
+          )}
+          <button
+            className="icon-button zen-exit w-auto gap-1.5 px-2 py-0 text-control"
+            onClick={onExit}
+          >
+            <X size={14} /> Exit Zen
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

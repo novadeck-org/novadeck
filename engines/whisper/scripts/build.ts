@@ -32,7 +32,7 @@ export const main = (): Promise<void> =>
     // The interface the runner launches the server through: the flags it passes and the
     // HTTP surface the patches give it. Bump it with any change to either, so an app that
     // is still fetching this engine does not dictate with an older one that would not
-    // understand the runner (see olderEngine in application/runner/src/engines/unpack.ts).
+    // understand the runner (see olderEngine in backend/runner/src/engines/unpack.ts).
     engineInterface: 1,
     target: "whisper-server",
     executable: "whisper-server",

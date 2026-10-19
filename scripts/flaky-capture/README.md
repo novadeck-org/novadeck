@@ -17,7 +17,7 @@ from the repository root. Use a new output directory outside the checkout:
 
 ```sh
 pnpm --filter @novadeck/protocol... build
-pnpm --filter @novadeck/ui exec playwright install --with-deps chromium
+pnpm --filter @novadeck/specs exec playwright install --with-deps chromium
 node scripts/flaky-capture/grid.ts --output /path/to/grid-capture --attempts 5
 ```
 

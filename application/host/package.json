@@ -27,6 +27,7 @@
     "@novadeck/protocol": "workspace:*",
     "@novadeck/relay": "workspace:*",
     "@novadeck/runner": "workspace:*",
+    "@novadeck/runner-client": "workspace:*",
     "@novadeck/ui": "workspace:*",
     "@novadeck/viewers": "workspace:*",
     "@novadeck/wire": "workspace:*",
@@ -36,10 +37,10 @@
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "esbuild": "0.28.2",
-    "playwright": "^1.64.0",
+    "playwright": "^1.64.1",
     "typescript": "^7.0.2",
-    "vite": "^7.3.6",
-    "vitest": "^5.0.3"
+    "vite": "^7.3.7",
+    "vitest": "^5.0.5"
   },
   "desktopName": "dev.mzpk.novadeck",
   "productName": "Novadeck"

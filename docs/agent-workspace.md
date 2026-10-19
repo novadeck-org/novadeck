@@ -32,7 +32,7 @@ handler bypasses shared authorization by calling the terminal manager directly.
 An application operation is named and typed, not `invoke(name, arbitraryArgs)`.
 
 The current code has only broad authenticated runner access and terminal APIs.
-UI overlays live in `application/ui/src/app/WorkspaceOverlays.tsx`; routes live
+UI overlays live in `frontend/ui/src/app/WorkspaceOverlays.tsx`; routes live
 in `app/routing.ts`. The desktop bridge provides a runner port and platform
 functions, not a general UI command channel. Extend the typed runner protocol
 for presentation so Electron and remote browser clients share the same behavior.
@@ -284,7 +284,7 @@ there, which the UI keeps as presentation. There is no cap and no eviction: an i
 that can't be shown stays and says why. Items and windows reach the workspace store
 through the backend's seed and actions, as terminals do; the person's moves are
 workspace actions the backend makes so. The pane loads content through the backend
-port's optional `companions` capability (`application/ui/src/core/companion.ts`):
+port's optional `companions` capability (`frontend/core/src/companion.ts`):
 
 | `companions`                             | What it carries                                                                   |
 | ---------------------------------------- | --------------------------------------------------------------------------------- |
@@ -354,7 +354,7 @@ with every safety check again at that time:
   from `NOVADECK_TERMINAL_ID`, `NOVADECK_REPORT` and `NOVADECK_REPORT_TOKEN`. Like
   the hooks, it is installed for every session, but outside Novadeck's terminals it
   lists no tools, so the agent never sees `show`, and a call anyway does nothing.
-  The plugin starts Novadeck's relay (`application/relay`), a small native program
+  The plugin starts Novadeck's relay (`backend/relay`), a small native program
   Novadeck copies into its own data folder, so it stays when a packaged Novadeck's
   runtime folder goes as it quits. On Linux and macOS a launcher starts it; on Windows agents
   start it directly, as a launcher there would keep `cmd.exe` running beside it.

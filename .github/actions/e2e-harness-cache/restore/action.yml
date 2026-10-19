@@ -28,7 +28,7 @@ runs:
       env:
         HARNESS: ${{ inputs.harness }}
       run: |
-        node -e 'const { createHash } = require("node:crypto"); const pins = require("./application/runner/src/e2e/harnesses.json"); const pin = pins[process.env.HARNESS]; if (!pin) throw new Error("No pin for " + process.env.HARNESS); console.log("hash=" + createHash("sha256").update(JSON.stringify(pin)).digest("hex"))' >> "$GITHUB_OUTPUT"
+        node -e 'const { createHash } = require("node:crypto"); const pins = require("./backend/runner/src/e2e/harnesses.json"); const pin = pins[process.env.HARNESS]; if (!pin) throw new Error("No pin for " + process.env.HARNESS); console.log("hash=" + createHash("sha256").update(JSON.stringify(pin)).digest("hex"))' >> "$GITHUB_OUTPUT"
 
     # Only the harness's own folders go in, never npm's cache (home) or unfinished staging.
     - name: Restore Cache
@@ -38,4 +38,4 @@ runs:
         path: |
           ${{ inputs.cache }}/${{ inputs.harness }}-*
           !${{ inputs.cache }}/*.tmp
-        key: e2e-harnesses-${{ runner.os }}-${{ inputs.harness }}-${{ steps.pin.outputs.hash }}-${{ hashFiles('application/runner/src/e2e/install.ts') }}
+        key: e2e-harnesses-${{ runner.os }}-${{ inputs.harness }}-${{ steps.pin.outputs.hash }}-${{ hashFiles('backend/runner/src/e2e/install.ts') }}

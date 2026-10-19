@@ -41,7 +41,7 @@ jobs:
           # Of scripts/benchmark/ it watches the counter checker's files, not the timing
           # report's: a new file the checker imports joins the list.
           git diff --name-only --no-renames HEAD^1 HEAD > "$RUNNER_TEMP/changed"
-          if grep -qE '^(application/(ui|runner|protocol)/|libraries/|tools/build-kit/|pnpm-lock\.yaml$|scripts/benchmark/(counters|main)|\.github/workflows/benchmark\.yml$)' "$RUNNER_TEMP/changed"; then
+          if grep -qE '^(frontend/|apps/|backend/runner/|contract/(protocol|runner-client)/|libraries/|tools/build-kit/|pnpm-lock\.yaml$|scripts/benchmark/(counters|main)|\.github/workflows/benchmark\.yml$)' "$RUNNER_TEMP/changed"; then
             echo "counts=true" >> "$GITHUB_OUTPUT"
           else
             echo "Nothing here can move a count: the counter run is skipped." >> "$GITHUB_STEP_SUMMARY"
@@ -78,7 +78,7 @@ jobs:
         shell: bash
         run: |
           echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/ms-playwright" >> "$GITHUB_ENV"
-          echo "version=$(pnpm --filter @novadeck/ui exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
+          echo "version=$(pnpm --filter @novadeck/specs exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
 
       - name: Cache Test Browser
         if: steps.changes.outputs.counts == 'true'
@@ -90,12 +90,12 @@ jobs:
 
       - name: Install Test Browser
         if: steps.changes.outputs.counts == 'true' && (steps.browser-cache.outputs.cache-hit != 'true')
-        run: pnpm --filter @novadeck/ui exec playwright install --with-deps chromium
+        run: pnpm --filter @novadeck/specs exec playwright install --with-deps chromium
 
       # A cached browser still needs its system libraries.
       - name: Install Test Browser Dependencies
         if: steps.changes.outputs.counts == 'true' && (steps.browser-cache.outputs.cache-hit == 'true')
-        run: pnpm --filter @novadeck/ui exec playwright install-deps chromium
+        run: pnpm --filter @novadeck/specs exec playwright install-deps chromium
 
       # The run boots the UI over a scripted runner: of the workspace it needs only the
       # contract's build.
@@ -105,7 +105,7 @@ jobs:
 
       - name: Play Counter Run
         if: steps.changes.outputs.counts == 'true'
-        run: pnpm --filter @novadeck/ui exec vitest run --project counters
+        run: pnpm --filter @novadeck/specs exec vitest run --project counters
 
       # Against the base branch's budgets too, so every budget this changes shows, old to
       # new, and a raise must say why. A base without the file has nothing to compare; one
@@ -117,7 +117,7 @@ jobs:
           # A raise in a pull request must name it.
           PULL_REQUEST: ${{ github.event.pull_request.number }}
         run: |
-          budgets=application/ui/src/specs/counters/budgets.json
+          budgets=frontend/specs/src/counters/budgets.json
           git rev-parse --verify --quiet HEAD^1 > /dev/null
           if git cat-file -e "HEAD^1:$budgets" 2>/dev/null; then
             git show "HEAD^1:$budgets" > "$RUNNER_TEMP/base-budgets.json"
@@ -132,7 +132,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: counter-run
-          path: application/ui/test-results/counters.json
+          path: frontend/specs/test-results/counters.json
           if-no-files-found: ignore
           retention-days: 90
           overwrite: true

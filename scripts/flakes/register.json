@@ -3,8 +3,8 @@
   "flakes": [
     {
       "id": "ui-companions-plan-reopen-place",
-      "jobs": ["^Test \\((Linux|macOS|Windows)(, [12][/-]2)?\\)$"],
-      "test": "src/specs/companions.spec.tsx > Switching views > opens a plan's editor as it was left",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/companions.spec.tsx > Switching views > opens a plan's editor as it was left",
       "signature": "AssertionError: expected .+ to be ",
       "status": "fixed",
       "cause": "Two causes, both fixed. First (#232), the spec: it scrolled the pane to line 200 right after typing at the top of a restored one, and typing scrolls the caret into view in the editor's next measure, which on a slow frame came after the spec's scroll and put the pane back at the top, so its saved place was the first line; the spec now waits two frames after typing. Second, the app: a plan restored in Canvas, which scales the pane in, aimed at its saved line from the live zoom while CodeMirror's line heights were still at its last measured scale, as a transform alone doesn't make it measure; on a busy page the restore settled on a wrong line (the Steps heading) before the editor measured again. The restore now asks for a measure and waits while the editor's scale lags the pane's (libraries/viewers markdown/scroll.ts).",
@@ -15,8 +15,8 @@
     },
     {
       "id": "ui-companions-plan-restore-layout",
-      "jobs": ["^Test \\((Linux|macOS|Windows)(, [12][/-]2)?\\)$"],
-      "test": "src/specs/companions.spec.tsx > Switching views > keeps a restored plan at its saved line when its layout changes later",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/companions.spec.tsx > Switching views > keeps a restored plan at its saved line when its layout changes later",
       "signature": "AssertionError: expected \\d+ to be less than 1",
       "status": "known",
       "cause": "Unknown, not reproduced under CPU throttling: the restored plan sat 10 px off its saved line after a later padding change, perhaps CodeMirror's cached padding, on macOS.",
@@ -24,8 +24,8 @@
     },
     {
       "id": "ui-agents-pinned-drag-top",
-      "jobs": ["^Test \\((Linux|macOS|Windows)(, [12][/-]2)?\\)$"],
-      "test": "src/specs/agents.spec.tsx > A pinned project > dragged from the switcher menu > still reorders the list when dragged to its top",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/agents.spec.tsx > A pinned project > dragged from the switcher menu > still reorders the list when dragged to its top",
       "signature": "AssertionError: expected undefined to be 'docs-site'",
       "status": "known",
       "cause": "Suspected, not reproduced: the spec aimed its drop 6 px inside the list's top row, read before the menu settled; above the list's top edge less 4 px the drag goes to the pins bar and the menu closes, leaving the list empty. The spec now reads the row once settled.",
@@ -33,8 +33,8 @@
     },
     {
       "id": "ui-preferences-murmur-cancel",
-      "jobs": ["^Test \\((Linux|macOS|Windows)(, [12][/-]2)?\\)$"],
-      "test": "src/specs/preferences.spec.tsx > Preferences Addons > when murmur is not installed > stops an install on Cancel",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/preferences.spec.tsx > Preferences Addons > when murmur is not installed > stops an install on Cancel",
       "signature": "Cannot find element with locator: getByRole\\('dialog', \\{ name: 'Preferences' \\}\\).*getByRole\\('button', \\{ name: 'Install' \\}\\)|locator\\.click: Timeout \\d+ms exceeded[\\s\\S]*name: 'Cancel'",
       "status": "fixed",
       "cause": "The demo's install ran on its wall clock (1.2 s a step) while the test clicked Install, then Cancel: on a loaded runner Cancel came during the install's check, which keeps what it installed, so Install never came back (Linux), or after the install had finished, so there was no Cancel to click (macOS). Reproduced with a pause before Cancel. The specs now open the install held at its first step (`&install=held`), so Cancel lands mid-download however slow the machine.",
@@ -47,8 +47,8 @@
     },
     {
       "id": "ui-preferences-voice-cancel",
-      "jobs": ["^Test \\((Linux|macOS|Windows)(, [12][/-]2)?\\)$"],
-      "test": "src/specs/preferences.spec.tsx > Preferences Addons > when voice input is not installed > stops an install on Cancel",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/preferences.spec.tsx > Preferences Addons > when voice input is not installed > stops an install on Cancel",
       "signature": "Cannot find element with locator: getByRole\\('dialog', \\{ name: 'Preferences' \\}\\).*getByRole\\('button', \\{ name: 'Install' \\}\\)|locator\\.click: Timeout \\d+ms exceeded[\\s\\S]*name: 'Cancel'",
       "status": "fixed",
       "cause": "The demo's install ran on its wall clock (1.2 s a step) while the test clicked Install, then Cancel: on a loaded runner Cancel came during the install's check, which keeps what it installed, so Install never came back (Linux), or after the install had finished, so there was no Cancel to click (macOS). Reproduced with a pause before Cancel. The specs now open the install held at its first step (`&install=held`), so Cancel lands mid-download however slow the machine.",
@@ -56,8 +56,8 @@
     },
     {
       "id": "ui-companions-grid-undock",
-      "jobs": ["^Test \\((Linux|macOS|Windows)(, [12][/-]2)?\\)$"],
-      "test": "src/specs/companions.spec.tsx > Undocking an item into a window of its own > when dragged onto the Grid's free space > opens a window there",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/companions.spec.tsx > Undocking an item into a window of its own > when dragged onto the Grid's free space > opens a window there",
       "signature": "(AssertionError|VitestBrowserElementError)",
       "status": "known",
       "cause": "Unresolved (FLAKY_RAPORT_POST_FIX.md P2): the 12-move drag reordered the taskbar instead of undocking. Failure-only diagnostics now record the gesture. It passed in every failed or cancelled Windows and macOS Test job of the 79 Quality runs after #184, to 2026-10-17.",
@@ -68,7 +68,7 @@
     },
     {
       "id": "e2e-codex-windows-folder-trust",
-      "jobs": ["^Codex \\(Windows(, [12][/-]2)?\\)$"],
+      "jobs": ["^Codex \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/e2e/controls.e2e.ts > Codex, its folder untrusted > never rings an agent at its folder-trust question",
       "signature": "Timed out after \\d+ ms",
       "status": "fixed",
@@ -104,7 +104,7 @@
     },
     {
       "id": "e2e-claude-windows-interrupted-draft",
-      "jobs": ["^Claude Code \\(Windows(, [12][/-]2)?\\)$"],
+      "jobs": ["^Claude Code \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/e2e/chat.e2e.ts > Claude Code > leaves the box as it was before the interrupted prompt",
       "signature": "The agent's input box holds text already: a draft",
       "status": "known",
@@ -116,7 +116,7 @@
     },
     {
       "id": "e2e-claude-windows-interrupt-draft",
-      "jobs": ["^Claude Code \\(Windows(, [12][/-]2)?\\)$"],
+      "jobs": ["^Claude Code \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/e2e/interrupt.e2e.ts > Claude Code > presses one Escape for a double Stop",
       "signature": "The agent's input box holds text already: a draft",
       "status": "known",
@@ -142,8 +142,8 @@
     },
     {
       "id": "ui-murmur-offer-expect-element",
-      "jobs": ["^Test \\(Windows(, [12][/-]2)?\\)$"],
-      "test": "src/specs/murmur-offer.spec.tsx > ",
+      "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/murmur-offer.spec.tsx > ",
       "signature": "TypeError: expect\\.element is not a function",
       "status": "known",
       "cause": "Unknown, not reproduced: every test of the file failed at its first expect.element (openWorkspace's), and its rerun passed. Browser mode adds expect.element through a module script of its own (@vitest/browser's expect-element.js) in each file's page, before the tester; a page where that script didn't load or ran against another copy of vitest runs without it. Vite optimizing a dependency mid-run would do it, but a cold-cache run of the behaviour project optimized everything up front. Its test is the whole file, as the whole file fails.",
@@ -175,6 +175,53 @@
       "status": "known",
       "cause": "Suspected, not reproduced on Linux (40 spawns each with the event loop stalled 0, 100 and 400 ms all delivered): node-pty reported the child's exit (code 0) without its output on macOS. Either node-pty's unixTerminal.js destroyed the pty socket 200 ms (DESTROY_SOCKET_TIMEOUT_MS) after the native exit callback, before the master was read, or macOS dropped the pending output when the last slave fd closed. Both are inside node-pty or the kernel; the repo's node-pty patch touches only Windows files.",
       "seen": ["#288 run 39128108243 job 117677654572 (macOS)"]
+    },
+    {
+      "id": "ui-workspace-overlays-windows-timeout",
+      "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/WorkspaceOverlays.test.ts > workspace dialogs that load on demand > opens the dialog requested last when an earlier one never finished loading",
+      "signature": "Test timed out in \\d+ms",
+      "status": "known",
+      "cause": "Windows only: the App rendered over the spec backend in jsdom (the integration project) runs past its timeout. Since 3.2d (#285) mounted the demo's terminals through the terminal views these tests are slower locally too (WorkspaceTerminal 0.35 to 1.0 s, render-scope 1.8 to 3.1 s, WorkspaceOverlays 0.52 to 0.70 s), and Windows runners stretch them roughly tenfold, with 2.5x between runs (render-scope 12.6 s on #278, 34 s after #285). Not opening xterm (36 opens, 150 ms in all) nor writing to it (no change with attach held); where the rest goes is not yet found.",
+      "seen": ["#296 run 39157554970 job 117764023052 (Windows, 1/2)"]
+    },
+    {
+      "id": "ui-render-scope-windows-timeout",
+      "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/render-scope.test.ts > workspace render scope > when the page first renders > renders every section",
+      "signature": "Test timed out in \\d+ms",
+      "status": "known",
+      "cause": "Windows only: the App rendered over the spec backend in jsdom (the integration project) runs past its timeout. Since 3.2d (#285) mounted the demo's terminals through the terminal views these tests are slower locally too (WorkspaceTerminal 0.35 to 1.0 s, render-scope 1.8 to 3.1 s, WorkspaceOverlays 0.52 to 0.70 s), and Windows runners stretch them roughly tenfold, with 2.5x between runs (render-scope 12.6 s on #278, 34 s after #285). Not opening xterm (36 opens, 150 ms in all) nor writing to it (no change with attach held); where the rest goes is not yet found.",
+      "seen": ["click-into run 39148797754 job 117738016740 (Windows)"]
+    },
+    {
+      "id": "e2e-antigravity-macos-raw-mode",
+      "jobs": ["^Antigravity \\(macOS\\)$"],
+      "test": "src/e2e/chat.e2e.ts > Antigravity > runs a ! command from the chat, the same command again, and a multi-line one",
+      "signature": "can't reach ready: timed out after \\d+ ms\\. \\w+: unbound[\\s\\S]*error entering raw mode: input/output error",
+      "status": "known",
+      "cause": "Antigravity's CLI exited at startup with \"CLI error: error entering raw mode: input/output error\", right after the macOS shell (bash 3.2) reported \"child setpgid (N to N): Operation not permitted\", so the terminal never bound an agent. Suspected: a race in which the CLI leaves bash's process group (as by setsid) before bash puts it in its own, so it isn't in the terminal's foreground group and its tcsetattr fails with EIO. Seen once, on macOS; not reproduced on Linux.",
+      "seen": ["#296 E2E run 39157554949 job 117763910444 (macOS)"]
+    },
+    {
+      "id": "package-windows-smoke-connect",
+      "jobs": ["^(?:Package [/-] )?Windows$"],
+      "signature": "page\\.evaluate: WireError: Could not connect\\.|could not reach the packaged runner after \\d+ ms",
+      "status": "known",
+      "cause": "Not a test: the packaged smoke check's first connection to the runner fails on Windows now and then. Both times it gave up 14 to 16 s after the app's launch, the launch plus the first connection's 10 s handshake limit, where a passing run reaches the shell in under 3 s; so the packaged runner sometimes takes over 10 s to start answering on a fresh Windows runner (suspected: a cold start, as Defender scanning the new package). The same limit applies to the app's own first connection. The smoke check now reports the failure's cause and how long it took, which the next occurrence will settle.",
+      "seen": [
+        "#295 Quality run, Package / Windows job 117742372717",
+        "#296 run 39167023271 job 117797708667 (Package / Windows)"
+      ]
+    },
+    {
+      "id": "runner-manager-hangup-spawn-failed",
+      "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/terminals/manager.test.ts > terminal manager > never leaves a program stopped that restores the terminal as it is hung up",
+      "signature": "DomainError: Could not start the configured shell\\.",
+      "status": "known",
+      "cause": "Seen on macOS: one of the 24 shells the test opens at once (Promise.all over manager.create, each then running a TUI) failed to spawn, so the manager reported SPAWN_FAILED. Suspected: a transient spawn failure with that many PTYs opening together beside the suite's other workers. The underlying error isn't in the log, as startFailed (backend/runner/src/terminals/manager.ts) replaces it with \"Could not start the configured shell\".",
+      "seen": ["#290 (macOS)", "#316 run 39180073047 job 117830757032 (macOS)"]
     }
   ]
 }

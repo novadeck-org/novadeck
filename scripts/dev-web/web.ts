@@ -19,7 +19,7 @@ export const devWebCommands = (token: string, port = 8787): readonly DevCommand[
   },
   {
     name: "ui",
-    // The web app's entry (application/ui/entries/web), which reaches its runner over a WebSocket.
+    // The web app's entry (frontend/ui/entries/web), which reaches its runner over a WebSocket.
     command: "pnpm --filter @novadeck/ui dev --mode web",
     env: {
       VITE_NOVADECK_RUNNER_URL: `ws://127.0.0.1:${port}/api/rpc`,

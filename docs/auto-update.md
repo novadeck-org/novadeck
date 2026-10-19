@@ -449,7 +449,7 @@ kill the process tree and wait.
 
 ## The page's view
 
-`DesktopBridge` in `application/protocol/src/bridge.ts` carries `onUpdate` (an
+`DesktopBridge` in `contract/protocol/src/bridge.ts` carries `onUpdate` (an
 `UpdateOffer` with `kind` (`downloading`, `ready`, `retrying` or `available`), `version` and, for `downloading`, a whole `percent`), `openUpdatePage`,
 `updateChannel` and `setUpdateChannel`. The app shows no release notes. `onPortableState`
 pushes the `PortableState` to every window when it changes, each step of an install included.

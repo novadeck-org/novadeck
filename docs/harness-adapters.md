@@ -30,15 +30,15 @@ transcripts and telemetry are fixed only after per-harness coverage probes
 
 ## Existing seams
 
-| Current code                             | Responsibility to preserve                                                    | Destination                                                              |
-| ---------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `runner/src/shell/agents.ts`             | Detect config, inspect plugin connection, plan install/remove commands        | `home`, `connected`, `connect`/`disconnect`; shared inspection and setup |
-| `runner/src/shell/resume.ts`             | Build the exact resume command for an identified session                      | `resume` field                                                           |
-| `runner/src/shell/scripts.ts`            | Provider manifests, hook configuration, Codex launch shim                     | `files` and `shims`; shared artifact writer                              |
-| `runner/src/shell/hook.ts`               | Native payload interpretation, nested-session filtering, hook response format | Per-harness `decode.ts` in its package; one shared hook script           |
-| `runner/src/shell/reports.ts`            | Authenticate and accept session reports                                       | Shared ingress and binding policy                                        |
-| `runner/src/terminals/manager.ts`        | PTY lifetime, resume claims, persistence, foreground ownership                | Terminal manager, using the harness service                              |
-| `ui/src/core/process.ts` and `resume.ts` | Provider recognition and resume eligibility                                   | `programs` and shared recognition; UI keeps generic program presentation |
+| Current code                                   | Responsibility to preserve                                                    | Destination                                                              |
+| ---------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `runner/src/shell/agents.ts`                   | Detect config, inspect plugin connection, plan install/remove commands        | `home`, `connected`, `connect`/`disconnect`; shared inspection and setup |
+| `runner/src/shell/resume.ts`                   | Build the exact resume command for an identified session                      | `resume` field                                                           |
+| `runner/src/shell/scripts.ts`                  | Provider manifests, hook configuration, Codex launch shim                     | `files` and `shims`; shared artifact writer                              |
+| `runner/src/shell/hook.ts`                     | Native payload interpretation, nested-session filtering, hook response format | Per-harness `decode.ts` in its package; one shared hook script           |
+| `runner/src/shell/reports.ts`                  | Authenticate and accept session reports                                       | Shared ingress and binding policy                                        |
+| `runner/src/terminals/manager.ts`              | PTY lifetime, resume claims, persistence, foreground ownership                | Terminal manager, using the harness service                              |
+| `frontend/core/src/process.ts` and `resume.ts` | Provider recognition and resume eligibility                                   | `programs` and shared recognition; UI keeps generic program presentation |
 
 Paths above are relative to `application/`. In particular, `acceptReport` currently
 interprets native `source` values and treats a missing source specially for AGY.
@@ -88,7 +88,7 @@ its feature. Shared code does not inspect Claude/Codex/AGY names to decide behav
 The contract and the helpers every adapter shares live in their own package,
 `@novadeck/harness-core` (`harnesses/core/`), and each adapter is a package of its own
 beside it; the registry and the services that use them live in
-`application/runner/src/harnesses/`:
+`backend/runner/src/harnesses/`:
 
 ```text
 harnesses/core/src/          # @novadeck/harness-core
@@ -106,7 +106,7 @@ harnesses/claude/src/        # @novadeck/harness-claude
   fixtures/        # Its probes, read by the tests beside them
 harnesses/codex/src/         # @novadeck/harness-codex: same shape; its shim is in its `shims`
 harnesses/agy/src/           # @novadeck/harness-agy
-application/runner/src/harnesses/
+backend/runner/src/harnesses/
   registry.ts      # harnesses: Record<AgentName, Harness>
   eligibility.ts   # Availability of features such as resume, with typed reasons
   service.ts       # createHarnesses: inspection, setup and lifecycle
@@ -127,7 +127,7 @@ own `development` condition in electron-vite's dev build) resolve, so an edit to
 reaches them without a build. `tsc` and the editor still read the built types: rebuild
 a package (`pnpm --filter @novadeck/harness-core build`) after changing its contract.
 
-What every harness is, as data, is one row of `application/protocol/src/harnesses.ts`:
+What every harness is, as data, is one row of `contract/protocol/src/harnesses.ts`:
 its id (also its program's name), its names, the script a Node CLI runs, the variables
 its sessions set on their children and the paths of its secrets. The protocol's
 `agentName` comes from it, and so do the lists and labels the UI and the runner show, so
@@ -135,10 +135,10 @@ the UI reads it without loading any adapter.
 
 Adding a harness:
 
-1. Its row in `application/protocol/src/harnesses.ts`.
+1. Its row in `contract/protocol/src/harnesses.ts`.
 2. Its package, `harnesses/<id>` (`@novadeck/harness-<id>`), shaped like the others, with
    its probes in `src/fixtures/`.
-3. Its line in `application/runner/src/harnesses/registry.ts` (a compile error until
+3. Its line in `backend/runner/src/harnesses/registry.ts` (a compile error until
    then) and the runner's dependency on its package.
 4. Its lint fence: an override for its folder in `.oxlintrc.json`, and its name in the
    other adapters' and harness-core's (`scripts/harnesses/fence.test.ts` fails until
@@ -146,19 +146,19 @@ Adding a harness:
 5. Its end-to-end setup, its pin, and its cache steps in the E2E workflow (see
    `docs/e2e-testing.md`, "Adding a harness").
 6. What stays by hand: its icon in the UI's welcome dialog (a type error until then) and
-   its process profile (`application/ui/src/terminals/processes/profiles.ts`), its coverage in
+   its process profile (`frontend/ui/src/terminals/processes/profiles.ts`), its coverage in
    `docs/harness-coverage.md`, and any variable of its hooks' environment the runner's
    `shell/hook.ts` tells nested agents apart by.
 
 Split a harness into more files (a transcript reader, say) only when its
 `index.ts` gets hard to read. `shell/` keeps shell-specific
 startup/quoting; it no longer assembles harness manifests. Public data types live in
-`application/protocol`, with no imports back into provider implementations.
+`contract/protocol`, with no imports back into provider implementations.
 
 ## Agent model
 
 This is the one interface Novadeck's clients see. It lives in
-`application/protocol` as Zod schemas and derived types. It contains no provider
+`contract/protocol` as Zod schemas and derived types. It contains no provider
 names beyond the finite `AgentName`, and no native identifiers other than the
 opaque resumable session ID.
 
@@ -598,7 +598,7 @@ Antigravity has none: its `PreInvocation` asks before every model call, so its
 `tool` event keeps the short one.
 
 The terminal manager follows each terminal's root session as its profile's `root`
-says (`application/runner/src/harnesses/roots.ts`): the bound session; or, for `status-line`, a guess (the
+says (`backend/runner/src/harnesses/roots.ts`): the bound session; or, for `status-line`, a guess (the
 session that bound, then that of the first model call after it bound, or of one
 messages wait for) until the status line names the root conversation, which alone
 names another. Messaging reads the root from there. The doorbell knows nothing of how a
@@ -1145,7 +1145,7 @@ outstanding operations before their late results can change state.
 
 ## Hook distribution
 
-The hook runs in a short-lived process, Novadeck's relay (`application/relay`), through
+The hook runs in a short-lived process, Novadeck's relay (`backend/relay`), through
 a launcher in Novadeck's integration directory, so it needs no install inside the
 person's project. It is one program for every harness, copied in on each start.
 Each plugin's hook command passes the harness and the event. Every harness writes it

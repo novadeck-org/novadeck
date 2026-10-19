@@ -2,13 +2,14 @@ import { describe, expect, it } from "vitest"
 
 import { packages, parseFolders, plan } from "./plan.ts"
 
-// The host and what it's built from, as turbo lists them on 2026-10-17.
+// The host and what it's built from, as turbo lists them on 2026-10-18.
 const packaged = [
   "application/host",
-  "application/protocol",
-  "application/relay",
-  "application/runner",
-  "application/ui",
+  "contract/protocol",
+  "backend/relay",
+  "backend/runner",
+  "contract/runner-client",
+  "frontend/ui",
   "engines/ggml-build",
   "engines/murmur",
   "engines/whisper",
@@ -28,13 +29,13 @@ describe("packaging a pull request", () => {
     for (const file of [
       "application/host/src/main/index.ts",
       "application/host/electron-builder.yml",
-      "application/ui/src/app/App.tsx",
-      "application/ui/vite.config.ts",
-      "application/runner/src/terminals/manager.ts",
+      "frontend/ui/src/app/App.tsx",
+      "frontend/ui/vite.config.ts",
+      "backend/runner/src/terminals/manager.ts",
       "libraries/wire/src/client.ts",
       "harnesses/claude/src/index.ts",
       "engines/whisper/scripts/build.ts",
-      "application/relay/src/main.rs",
+      "backend/relay/src/main.rs",
     ])
       expect(pullRequest([file]), file).toBe(true)
   })
@@ -58,11 +59,11 @@ describe("packaging a pull request", () => {
   it("doesn't package a change to tests, specs, scenarios or prose alone", () => {
     expect(
       pullRequest([
-        "application/runner/src/terminals/manager.test.ts",
-        "application/ui/src/specs/agents.spec.tsx",
-        "application/ui/src/backend/runner/switches.test.ts",
-        "application/runner/src/e2e/chat.e2e.ts",
-        "application/runner/src/e2e/trace.ts",
+        "backend/runner/src/terminals/manager.test.ts",
+        "frontend/specs/src/agents.spec.tsx",
+        "frontend/runner-adapter/src/switches.test.ts",
+        "backend/runner/src/e2e/chat.e2e.ts",
+        "backend/runner/src/e2e/trace.ts",
         "libraries/wire/README.md",
         "application/host/src/main/menu.test.ts",
       ]),
@@ -73,7 +74,7 @@ describe("packaging a pull request", () => {
     expect(
       pullRequest([
         "docs/e2e-testing.md",
-        "atlas/content/flows.ts",
+        "tools/atlas/content/flows.ts",
         "libraries/viewers/src/code.ts",
         "scripts/e2e/plan/plan.ts",
         "scripts/flakes/register.json",
@@ -84,7 +85,7 @@ describe("packaging a pull request", () => {
   })
 
   it("packages when any one changed file can change the app", () => {
-    expect(pullRequest(["docs/e2e-testing.md", "application/ui/src/app/App.tsx"])).toBe(true)
+    expect(pullRequest(["docs/e2e-testing.md", "frontend/ui/src/app/App.tsx"])).toBe(true)
   })
 
   it("matches a package's folder whole, not a sibling that begins alike", () => {

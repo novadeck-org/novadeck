@@ -31,10 +31,10 @@ export const main = (): Promise<void> =>
     sourceUrl: `https://github.com/ggml-org/llama.cpp/archive/${commit}.tar.gz`,
     sourceSha256: "8958c760e0772e8305c24d2ce7df740811ce61b3371b43875c0a031781e2e0a1",
     // The interface the runner launches the server through: the flags it passes (see
-    // application/runner/src/murmur/service.ts), the HTTP surface it requests, the patches'
+    // backend/runner/src/murmur/service.ts), the HTTP surface it requests, the patches'
     // flags and the output of `--list-devices`. Bump it with any change to them, so an app
     // that is still fetching this engine does not run an older one that would not understand
-    // the runner (see olderEngine in application/runner/src/engines/unpack.ts).
+    // the runner (see olderEngine in backend/runner/src/engines/unpack.ts).
     engineInterface: 1,
     target: "llama-server",
     executable: "llama-server",

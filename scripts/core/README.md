@@ -60,9 +60,9 @@ The branch keeps its commits in this order so a redo is "re-apply the hand edits
 - `grep -rn "model/" application/ui/src` for new mentions of the old folder in comments (the
   script rewrites specifiers and full paths, not prose).
 - `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test`, then `pnpm build`,
-  `pnpm build:try` and `pnpm --filter @novadeck/ui exec vite build --mode content-preview --outDir <scratch>`.
+  `pnpm build:try` and `pnpm --filter @novadeck/previews build`.
 - The counter run's reading is unchanged:
-  `pnpm --filter @novadeck/ui exec vitest run --project counters`, then `node scripts/benchmark/main.ts`.
+  `pnpm --filter @novadeck/specs exec vitest run --project counters`, then `node scripts/benchmark/main.ts`.
 - If a new file in `model/` imports React, the toolkit or another UI layer, it can't move into
   `core/`: move it out to the UI first (the architecture rule fails otherwise).
 

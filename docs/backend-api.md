@@ -3,7 +3,7 @@
 This describes the runner behind the [terminal plan](backend-plan.md) and how the UI
 uses it. The Electron host runs the runner and hands its window a port to it; the UI
 connects through that port, or in a browser over a WebSocket, with the runner adapter
-in `application/ui/src/backend/runner/`.
+in `frontend/runner-adapter/src/`.
 
 ## Run and test
 
@@ -43,7 +43,7 @@ From the repository root:
 ```sh
 pnpm install
 pnpm exec turbo run build --filter=@novadeck/runner
-cp application/runner/example.env application/runner/.env
+cp backend/runner/example.env backend/runner/.env
 ```
 
 Generate a credential with the command in `example.env`, then set `NOVADECK_TOKEN`
@@ -102,7 +102,7 @@ The runner owns shells and workspace metadata. The UI talks to it through one
 separately; only the transport differs.
 
 ```ts
-import { connectRunner, desktop } from "@novadeck/protocol/client"
+import { connectRunner, desktop } from "@novadeck/runner-client"
 import { messagePort, websocket } from "@novadeck/wire/client"
 
 // Deployed separately: a token-authenticated WebSocket (use wss:// remotely).
@@ -529,7 +529,7 @@ changed. Only connecting an agent (below) installs anything elsewhere:
   runs outside Novadeck's shells unchanged. The integration puts `NOVADECK_BIN` back in
   front after the user's startup files.
 - `hook` (`hook.cmd`), a launcher that starts Novadeck's relay (`novadeck-relay`, a
-  small native program copied in beside it; see `application/relay`), so the hook needs
+  small native program copied in beside it; see `backend/relay`), so the hook needs
   no bash, python3 or JavaScript runtime and starts in about a millisecond. The relay
   sends the agent's payload, unread, with when it started and the processes it runs
   under, and prints what the runner answers. The runner reads the payload (`session_id`, or Antigravity's
@@ -557,7 +557,7 @@ without a source (Antigravity).
 
 ### Relay protocol
 
-The relay (`application/relay`) and the runner's endpoint (`shell/reports.ts`) speak
+The relay (`backend/relay`) and the runner's endpoint (`shell/reports.ts`) speak
 JSON, one message per line, over `NOVADECK_REPORT`. The endpoint speaks only this
 protocol. A relay's first line starts `{"relay":<version>,`, currently 2, and names what
 the connection carries; the endpoint ends a connection whose first line is anything else,
@@ -1066,5 +1066,5 @@ other conflicts carrying none. `pending` (a request waits on the person), `ringi
 in the terminal) are for the person to settle in the terminal. Other conflicts carry no
 data, and a client takes a reason it doesn't know as none, so it words each one itself,
 by what the person did (send, stop, answer), rather than showing the runner's message. The schemas and contract in
-`application/protocol/src/` are the authoritative API definition, with the wire's own error
+`contract/protocol/src/` are the authoritative API definition, with the wire's own error
 codes (`wireErrors`) in `libraries/wire/src/errors.ts`.

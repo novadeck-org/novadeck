@@ -97,9 +97,9 @@ describe("E2E selection", () => {
     })
 
     it.each([
-      "application/runner/src/e2e/harnesses.json",
-      "application/runner/src/e2e/fixture.ts",
-      "application/runner/src/harnesses/service.ts",
+      "backend/runner/src/e2e/harnesses.json",
+      "backend/runner/src/e2e/fixture.ts",
+      "backend/runner/src/harnesses/service.ts",
     ])("runs everything for the runner's %s", (file) => {
       const affected = ["@novadeck/runner", "@novadeck/host"]
       expect(select(pullRequest(affected, [file]), ids)).toEqual(ids)
@@ -107,7 +107,7 @@ describe("E2E selection", () => {
 
     it("runs everything for the runner beside one adapter", () => {
       const affected = ["@novadeck/harness-codex", "@novadeck/runner"]
-      const files = ["harnesses/codex/src/index.ts", "application/runner/src/index.ts"]
+      const files = ["harnesses/codex/src/index.ts", "backend/runner/src/index.ts"]
       expect(select(pullRequest(affected, files), ids)).toEqual(ids)
     })
 
@@ -156,7 +156,7 @@ describe("E2E selection", () => {
     })
 
     it("runs nothing for the UI alone", () => {
-      expect(select(pullRequest(["@novadeck/ui"], ["application/ui/src/app.tsx"]), ids)).toEqual([])
+      expect(select(pullRequest(["@novadeck/ui"], ["frontend/ui/src/app.tsx"]), ids)).toEqual([])
     })
 
     it("runs nothing for the host and the UI it bundles", () => {
@@ -210,7 +210,7 @@ describe("E2E systems", () => {
   })
 
   it.each([
-    "application/runner/src/terminals/manager.ts",
+    "backend/runner/src/terminals/manager.ts",
     "libraries/terminal/src/pty/index.ts",
     "libraries/wire/src/index.ts",
     "libraries/emulator/src/headless.ts",
@@ -220,7 +220,7 @@ describe("E2E systems", () => {
     "libraries/emulator/patches/@xterm__addon-unicode-graphemes@0.4.0.patch",
     "harnesses/claude/src/index.ts",
     "harnesses/core/src/index.ts",
-    "application/relay/src/main.rs",
+    "backend/relay/src/main.rs",
     "scripts/e2e/plan/plan.ts",
     ".github/workflows/e2e.yml",
     ".github/actions/e2e-harness-cache/save/action.yml",
@@ -232,13 +232,13 @@ describe("E2E systems", () => {
   })
 
   it.each([
-    "application/protocol/src/harnesses.ts",
+    "contract/protocol/src/harnesses.ts",
     "engines/whisper/src/index.ts",
     "pnpm-lock.yaml",
     "package.json",
     "pnpm-workspace.yaml",
     "turbo.json",
-    "application/ui/src/app.tsx",
+    "frontend/ui/src/app.tsx",
     "libraries/viewers/src/index.ts",
     "libraries/emulator/patches/@xterm__xterm@6.0.0.patch",
     "libraries/emulator/src/browser.ts",
@@ -274,7 +274,7 @@ describe("E2E jobs by change", () => {
   // Each row's jobs and macOS jobs: the `e2e` rows (a harness each, and Mixed) on each
   // system the plan chose, and a quirks row per harness when it chose Windows.
   it.each([
-    ["the UI alone", ["@novadeck/ui", "@novadeck/host"], ["application/ui/src/app.tsx"], 0, 0],
+    ["the UI alone", ["@novadeck/ui", "@novadeck/host"], ["frontend/ui/src/app.tsx"], 0, 0],
     [
       "the viewers alone",
       ["@novadeck/viewers", "@novadeck/ui", "@novadeck/host"],
@@ -296,7 +296,7 @@ describe("E2E jobs by change", () => {
       15,
       4,
     ],
-    ["the runner alone", ["@novadeck/runner"], ["application/runner/src/index.ts"], 15, 4],
+    ["the runner alone", ["@novadeck/runner"], ["backend/runner/src/index.ts"], 15, 4],
     ["the lockfile alone", [], ["pnpm-lock.yaml"], 4, 0],
     [
       "harnesses/claude",
@@ -317,7 +317,7 @@ describe("E2E jobs by change", () => {
     const files = [
       "libraries/terminal/src/pty/index.ts",
       "libraries/terminal/package.json",
-      "application/runner/src/terminals/manager.ts",
+      "backend/runner/src/terminals/manager.ts",
     ]
     const planned = plan(pullRequest(affected, files), ids)
     expect(planned.run).toBe(true)
@@ -449,13 +449,13 @@ describe("E2E jobs", () => {
   })
 
   it("names only files the suite has, so a renamed one can't drop out of both halves", () => {
-    const suite = readdirSync(join(import.meta.dirname, "../../../application/runner/src/e2e"))
+    const suite = readdirSync(join(import.meta.dirname, "../../../backend/runner/src/e2e"))
     for (const file of firstShard) expect(suite).toContain(file)
   })
 
   it("splits only the systems the plan chose", () => {
     const linux = plan(
-      pullRequest(["@novadeck/protocol"], ["application/protocol/src/schemas.ts"]),
+      pullRequest(["@novadeck/protocol"], ["contract/protocol/src/schemas.ts"]),
       ids,
     )
     expect(linux.rows.map((row) => row.job)).toEqual([

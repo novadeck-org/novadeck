@@ -60,7 +60,7 @@ updates:
 
   # The relay's crates, built into every package Novadeck ships.
   - package-ecosystem: "cargo"
-    directory: "/application/relay"
+    directory: "/backend/relay"
     schedule:
       interval: "monthly"
       time: "09:00"

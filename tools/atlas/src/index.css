@@ -1,0 +1,381 @@
+@import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+@import "@fontsource-variable/jetbrains-mono";
+@import "./chrome.css" layer(components);
+
+/* Novadeck's Graphite theme, replicated rather than imported: the values are copied from
+   frontend/ui/src/theme/graphite.css and base.css, so the atlas looks like the app
+   without depending on the UI package. Copy again when Graphite changes. Light is warm
+   paper and a deep teal; dark is slate and an electric cyan. */
+
+@font-face {
+  font-family: "InterVariable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./assets/fonts/InterVariable.woff2") format("woff2");
+}
+
+:root {
+  color-scheme: light;
+
+  /* Grounds */
+  --color-paper: #f5f3ee;
+  --color-shell: oklch(from var(--color-paper) calc(l - 0.03) c h);
+  --color-soft: oklch(from var(--color-paper) calc(l - 0.057) c h);
+  --color-fill: oklch(from var(--color-paper) calc(l - 0.018) c h);
+  /* Text */
+  --color-ink: #181816;
+  --color-muted: #5c5a55;
+  /* Lines */
+  --color-line: oklch(from var(--color-paper) calc(l - 0.072) c h);
+  --color-line-strong: #837e76;
+  --color-outline: var(--window-border-color);
+  /* Emphasis */
+  --color-strong: #007a72;
+  --color-strong-hover: #00665f;
+  --color-on-strong: #ffffff;
+  /* Overlays */
+  --color-scrim: rgb(24 24 22 / 0.2);
+  --color-selection: #ccd6d0;
+  --color-shadow: rgb(24 24 22);
+  /* Tones */
+  --color-warning: #f0e2b4;
+  --color-warning-fg: #6b4e0a;
+  --color-danger: #fcdbd7;
+  --color-danger-fg: #8a2a22;
+  /* Syntax */
+  --color-syntax-keyword: #8b3a8f;
+  --color-syntax-string: #2f6b3a;
+  --color-syntax-number: #a1460f;
+  --color-syntax-property: #1d5c94;
+  --color-syntax-definition: #4a4fb0;
+  --color-syntax-type: #8a5300;
+  /* Depth */
+  --shadow-control: 0 1px 2px color-mix(in srgb, var(--color-shadow) 7%, transparent);
+  --shadow-floating:
+    0 2px 4px -1px color-mix(in srgb, var(--color-shadow) 8%, transparent),
+    0 10px 22px -6px color-mix(in srgb, var(--color-shadow) 14%, transparent),
+    0 28px 52px -22px color-mix(in srgb, var(--color-shadow) 18%, transparent);
+  --shadow-panel:
+    0 1px 2px color-mix(in srgb, var(--color-shadow) 5%, transparent),
+    0 3px 8px -2px color-mix(in srgb, var(--color-shadow) 7%, transparent),
+    0 14px 28px -14px color-mix(in srgb, var(--color-shadow) 14%, transparent);
+  /* Chrome: header and footer a step below the paper, the sidebar further, each under a
+     faint grain of dark specks. */
+  --region-header-bg: #faf8f3;
+  --region-sidebar-bg: #f4f2ec;
+  --region-header-border-color: #d5d2cb;
+  --region-sidebar-border-color: #d0cdc6;
+  --region-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='192' height='192'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.07 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  /* Workspace: the map's canvas, recessed, with a vignette and a dot grid in the accent. */
+  --workspace-bg: #e2dfd9;
+  --workspace-glow-bg: #eae8e3;
+  --workspace-edge-bg: #d1cec7;
+  --workspace-inset-shadow:
+    inset 0 6px 10px -8px color-mix(in srgb, var(--color-shadow) 16%, transparent),
+    inset 6px 0 10px -8px color-mix(in srgb, var(--color-shadow) 12%, transparent);
+  --canvas-dots-opacity: 0.12;
+  --canvas-grain-opacity: 0.045;
+  --workspace-spotlight-opacity: 0.36;
+  /* Windows, sidebar rows and controls */
+  --window-border-color: oklch(from var(--color-paper) calc(l - 0.091) c h);
+  --window-selected-border-color: #bbb6ad;
+  --field-bg: oklch(from var(--color-paper) calc(l - 0.018) c h);
+  --field-shadow: inset 0 1px 2px color-mix(in srgb, var(--color-shadow) 8%, transparent);
+  --segmented-shadow:
+    inset 0 1px 1px color-mix(in srgb, var(--color-shadow) 7%, transparent),
+    0 1px 0 rgb(255 255 255 / 0.5);
+  --item-selected-indicator-shadow: none;
+  /* Shape and type */
+  --radius-control: 2px;
+  --radius-panel: 3px;
+  --radius-popover: 4px;
+  --border-width: 1px;
+  --motion-feedback: 120ms;
+  --motion-state: 180ms;
+  --ease-interface: cubic-bezier(0.2, 0, 0, 1);
+  --font-sans: "InterVariable", "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --color-paper: #1d1f23;
+    --color-soft: oklch(from var(--color-paper) calc(l + 0.038) c h);
+    --color-fill: oklch(from var(--color-paper) calc(l + 0.018) c h);
+    --color-ink: #e8e9ed;
+    --color-muted: #a2a6af;
+    --color-line: oklch(from var(--color-paper) calc(l + 0.074) c h);
+    --color-line-strong: #6e7179;
+    --color-strong: #00e5d6;
+    --color-strong-hover: #5cefe4;
+    --color-on-strong: #04161a;
+    --color-scrim: rgb(6 7 9 / 0.55);
+    --color-selection: #323641;
+    --color-shadow: rgb(3 4 6);
+    --color-warning: #342a10;
+    --color-warning-fg: #ecd592;
+    --color-danger: #3f2422;
+    --color-danger-fg: #f1b8b1;
+    --color-syntax-keyword: #d7a5e8;
+    --color-syntax-string: #a6d4ac;
+    --color-syntax-number: #efb27f;
+    --color-syntax-property: #8fc3f0;
+    --color-syntax-definition: #adb3f5;
+    --color-syntax-type: #e4c07a;
+    --shadow-control:
+      0 1px 2px color-mix(in srgb, var(--color-shadow) 45%, transparent),
+      inset 0 1px 0 rgb(255 255 255 / 0.04);
+    --shadow-panel:
+      0 1px 2px color-mix(in srgb, var(--color-shadow) 40%, transparent),
+      0 4px 12px -4px color-mix(in srgb, var(--color-shadow) 50%, transparent),
+      0 16px 32px -16px color-mix(in srgb, var(--color-shadow) 65%, transparent),
+      inset 0 1px 0 rgb(255 255 255 / 0.04);
+    --shadow-floating:
+      0 2px 6px -2px color-mix(in srgb, var(--color-shadow) 50%, transparent),
+      0 12px 28px -8px color-mix(in srgb, var(--color-shadow) 65%, transparent),
+      0 32px 56px -24px color-mix(in srgb, var(--color-shadow) 70%, transparent),
+      inset 0 1px 0 rgb(255 255 255 / 0.06);
+    --region-header-bg: #16181c;
+    --region-sidebar-bg: #111418;
+    --region-header-border-color: #25282e;
+    --region-sidebar-border-color: #23262c;
+    --region-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='192' height='192'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.035 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+    --workspace-bg: #0f1112;
+    --workspace-glow-bg: #191b1f;
+    --workspace-edge-bg: #0b0c0e;
+    --workspace-inset-shadow:
+      inset 0 8px 12px -8px color-mix(in srgb, var(--color-shadow) 70%, transparent),
+      inset 8px 0 12px -8px color-mix(in srgb, var(--color-shadow) 55%, transparent);
+    --canvas-dots-opacity: 0.07;
+    --workspace-spotlight-opacity: 0.48;
+    --window-border-color: oklch(from var(--color-paper) calc(l + 0.053) c h);
+    --window-selected-border-color: #3d4047;
+    --field-shadow: inset 0 1px 2px color-mix(in srgb, var(--color-shadow) 40%, transparent);
+    --segmented-shadow:
+      inset 0 1px 2px color-mix(in srgb, var(--color-shadow) 35%, transparent),
+      0 1px 0 rgb(255 255 255 / 0.04);
+    --item-selected-indicator-shadow: 0 0 2px rgb(0 229 214 / 0.7), 0 0 8px rgb(0 229 214 / 0.35);
+  }
+}
+
+/* The atlas's own small vocabulary, drawn from Graphite's tokens: pages sit on the shell,
+   cards and panels are paper with the window outline, fills step off the paper. */
+:root {
+  --bg: var(--color-shell);
+  --panel: var(--color-paper);
+  --raised: var(--color-fill);
+  --line: var(--color-line);
+  --fg: var(--color-ink);
+  --muted: var(--color-muted);
+  --accent: var(--color-strong);
+  --warn: var(--color-warning-fg);
+  --bad: var(--color-danger-fg);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --radius-sm: var(--radius-panel);
+  --shadow-lg: var(--shadow-floating);
+  /* Novadeck's type scale, one size per role. */
+  --text-label: 10px;
+  --text-caption: 11px;
+  --text-control: 12px;
+  --text-code: 12.5px;
+  --text-body: 13px;
+  --text-lead: 14px;
+  --text-title: 16px;
+}
+
+/* Element defaults sit in the base layer, so Tailwind's utilities still win over them. */
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  /* Inter's I, l and 0 told apart, and figures that hold still, as in the app. */
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv05", "cv08", "zero";
+    font-variant-numeric: tabular-nums;
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+  }
+
+  a {
+    color: var(--accent);
+  }
+
+  a:hover {
+    color: var(--color-strong-hover);
+  }
+
+  ::selection {
+    background: var(--color-selection);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-strong);
+    outline-offset: 2px;
+  }
+}
+
+/* Cards and panels on the shell take the window's outline, so their edge reads in both
+   schemes; dividers inside them keep the line. */
+.bg-panel.border,
+.bg-panel.border-r,
+.bg-panel.border-l {
+  border-color: var(--color-outline);
+}
+
+/* The app's workspace, behind Focus, Grid and Canvas: recessed, lit off-centre toward the
+   top left, under a faint grain (layouts/workspace.css). */
+.workspace {
+  background-color: var(--workspace-bg);
+  background-image: radial-gradient(
+    ellipse at 45% 32%,
+    var(--workspace-glow-bg) 0%,
+    var(--workspace-bg) 65%,
+    var(--workspace-edge-bg) 100%
+  );
+  box-shadow: var(--workspace-inset-shadow);
+}
+.workspace::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("./assets/canvas-grain.svg");
+  background-size: 192px 192px;
+  opacity: var(--canvas-grain-opacity);
+}
+
+.react-flow {
+  --xy-background-color: transparent;
+  --xy-edge-stroke: var(--color-line-strong);
+  --xy-controls-button-background-color: var(--color-paper);
+  --xy-controls-button-background-color-hover: var(--color-fill);
+  --xy-controls-button-color: var(--fg);
+  --xy-controls-button-border-color: var(--color-outline);
+}
+
+.react-flow__background {
+  opacity: var(--canvas-dots-opacity);
+}
+
+/* The Canvas view's dot grid, in the accent, and the brighter dots that follow the
+   pointer (components/canvas-background.tsx). */
+.canvas-grid,
+.canvas-grid-spotlight {
+  --xy-background-pattern-color: var(--color-strong);
+  pointer-events: none;
+}
+.ground-dots {
+  background-image: radial-gradient(circle, var(--color-strong) 0.8px, transparent 0.8px);
+  background-size: 24px 24px;
+}
+.ground-dots.canvas-grid {
+  opacity: var(--canvas-dots-opacity);
+}
+.canvas-grid-spotlight {
+  opacity: 0;
+  mask-image: radial-gradient(
+    circle 210px at var(--canvas-pointer-x, -1000px) var(--canvas-pointer-y, -1000px),
+    var(--color-ink) 0%,
+    color-mix(in srgb, var(--color-ink) 75%, transparent) 30%,
+    color-mix(in srgb, var(--color-ink) 25%, transparent) 65%,
+    transparent 100%
+  );
+  transition: opacity 220ms ease-out;
+}
+@media (hover: hover) and (pointer: fine) {
+  .workspace[data-pointer-inside="true"] .canvas-grid-spotlight {
+    opacity: var(--workspace-spotlight-opacity);
+  }
+}
+
+:target,
+[data-focused="true"] {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* --- Atlas categories: muted hues for runtime nodes, as fill (soft) and ink (solid). --- */
+:root {
+  --hue-renderer: oklch(0.86 0.045 235);
+  --hue-renderer-ink: oklch(0.6 0.09 235);
+  --hue-electron-main: oklch(0.86 0.045 300);
+  --hue-electron-main-ink: oklch(0.6 0.09 300);
+  --hue-preload: oklch(0.86 0.045 340);
+  --hue-preload-ink: oklch(0.6 0.09 340);
+  --hue-runner: oklch(0.86 0.045 165);
+  --hue-runner-ink: oklch(0.58 0.09 165);
+  --hue-relay: oklch(0.87 0.05 80);
+  --hue-relay-ink: oklch(0.62 0.1 80);
+  --hue-agent: oklch(0.87 0.045 40);
+  --hue-agent-ink: oklch(0.62 0.09 40);
+  --hue-whisper: oklch(0.86 0.04 110);
+  --hue-whisper-ink: oklch(0.6 0.08 110);
+  --hue-murmur: oklch(0.86 0.04 195);
+  --hue-murmur-ink: oklch(0.6 0.08 195);
+  --hue-github: oklch(0.86 0.01 260);
+  --hue-github-ink: oklch(0.6 0.01 260);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hue-renderer: oklch(0.36 0.05 235);
+    --hue-renderer-ink: oklch(0.68 0.09 235);
+    --hue-electron-main: oklch(0.36 0.05 300);
+    --hue-electron-main-ink: oklch(0.68 0.09 300);
+    --hue-preload: oklch(0.36 0.05 340);
+    --hue-preload-ink: oklch(0.68 0.09 340);
+    --hue-runner: oklch(0.36 0.05 165);
+    --hue-runner-ink: oklch(0.68 0.09 165);
+    --hue-relay: oklch(0.38 0.05 80);
+    --hue-relay-ink: oklch(0.7 0.1 80);
+    --hue-agent: oklch(0.38 0.05 40);
+    --hue-agent-ink: oklch(0.7 0.09 40);
+    --hue-whisper: oklch(0.36 0.04 110);
+    --hue-whisper-ink: oklch(0.68 0.08 110);
+    --hue-murmur: oklch(0.36 0.04 195);
+    --hue-murmur-ink: oklch(0.68 0.08 195);
+    --hue-github: oklch(0.36 0.01 260);
+    --hue-github-ink: oklch(0.65 0.01 260);
+  }
+}
+
+.hatch {
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--fg) 38%, transparent) 0 1px,
+    transparent 1px 5px
+  );
+}
+/* --- end atlas categories --- */

@@ -388,7 +388,7 @@ jobs:
             server="$engine/whisper-server"
           fi
           "$server" --help > /dev/null
-          # The flags the runner starts the server with (application/runner/src/voice/engine.ts):
+          # The flags the runner starts the server with (backend/runner/src/voice/engine.ts):
           # with a model that is not there, the server must complain of the model and exit with
           # a failure within moments, even though its stdin stays open, as the runner holds it.
           # The sleep holds stdin open; a server that is still there when it ends has not exited
@@ -442,7 +442,7 @@ jobs:
             echo "::error::A device line has no type."
             exit 1
           fi
-          # The flags the runner starts the server with (application/runner/src/murmur/service.ts):
+          # The flags the runner starts the server with (backend/runner/src/murmur/service.ts):
           # with a model that is not there, the server must get as far as complaining of the
           # model, not of an argument it does not know or cannot read, and exit with a failure
           # at once even though its stdin stays open, as the runner holds it. The sleep holds

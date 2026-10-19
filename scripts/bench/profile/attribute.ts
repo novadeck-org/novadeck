@@ -43,12 +43,12 @@ const reactStore = new Set(["checkIfSnapshotChanged", "subscribeToStore", "force
 
 // The UI's stores: their dispatch with the reducers it runs, their updates, and the
 // listeners they wake.
-const store = /\/application\/ui\/src\/core\/store\.ts$/
+const store = /\/frontend\/core\/src\/store\.ts$/
 
-// The transport: oRPC, the wire library, the protocol's client side of it, and the UI's
-// handling of a terminal's events as they arrive.
+// The transport: oRPC, the wire library, the runner client and the protocol's part of it, and
+// the UI's handling of a terminal's events as they arrive.
 const transport =
-  /\/@orpc\/|\/libraries\/wire\/(?:src|dist)\/|\/application\/protocol\/(?:src|dist)\/(?:client|runner|desktop|bridge|schemas|errors|contract)\.[jt]s$|\/libraries\/terminal\/(?:src|dist)\/view\/follow\.[jt]s$/
+  /\/@orpc\/|\/libraries\/wire\/(?:src|dist)\/|\/contract\/runner-client\/(?:src|dist)\/|\/contract\/protocol\/(?:src|dist)\/(?:bridge|schemas|contract)\.[jt]s$|\/libraries\/terminal\/(?:src|dist)\/view\/follow\.[jt]s$/
 
 /**
  * Where a frame's function is: `file`, the source the UI's build bundled (a package's own
@@ -103,7 +103,9 @@ export const groupOf = (original: Original | undefined): Group => {
   if (original === undefined) return "unmapped"
   const found = packageOf(original.file)
   if (found === undefined)
-    return /\/application\/protocol\/|\/libraries\/wire\//.test(original.file) ? "protocol" : "app"
+    return /\/contract\/(?:protocol|runner-client)\/|\/libraries\/wire\//.test(original.file)
+      ? "protocol"
+      : "app"
   if (["react", "react-dom", "scheduler"].includes(found)) return "react"
   if (found.startsWith("@xterm/")) {
     const part = xtermPart(original)

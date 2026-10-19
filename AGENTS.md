@@ -23,7 +23,7 @@ or the demo's debug panel (`pnpm dev:previews`, the Debug handle in the footer's
 When the demo can't produce a new state yet — a dialog, an error, a badge, a tab or
 window phase, a backend field it never sets — add it in the same change:
 
-- Terminal, notification and picker states go in `application/ui/src/backend/demo/debug/states.ts`,
+- Terminal, notification and picker states go in `frontend/demo-debug/src/states.ts`,
   with pure action builders in `debug/terminals.ts`. A new tab or window phase also
   joins the "Every state at once" gallery there.
 - An agent's state is one of `demoTurns`' verbs (`work`, `ask`, `finish`, `rest`, `usage`), never a
@@ -33,7 +33,7 @@ window phase, a backend field it never sets — add it in the same change:
   the selected terminal. Only a display-only fixture, as an unheard agent,
   patches the terminal's metadata, and any action that sets a terminal's state other than
   through a verb calls `verbs.release(key)` first, so no timer of its agent undoes it.
-- Startup, boot-failure, runner (connection, crash loop) and sandbox states go in `application/ui/src/backend/demo/debug/shell-groups.ts`.
+- Startup, boot-failure, runner (connection, crash loop) and sandbox states go in `frontend/demo-debug/src/shell-groups.ts`.
 - Every group names its `section` (Terminals, Agents or App), and an action that boots
   the demo again sets `reboots: true` instead of saying so in its hint.
 - Give each action a hint that names what appears, and keep README "Debug panel"
@@ -44,7 +44,7 @@ window phase, a backend field it never sets — add it in the same change:
 Before changing, reviewing or explaining a part of the code, run
 `pnpm -s atlas:brief <subject>` for a short brief of it: an area token such as
 `runner/terminals`, a procedure, a UI action or a table (no subject: the index). Name
-areas by those tokens when you report or plan. See [atlas/AGENTS.md](atlas/AGENTS.md).
+areas by those tokens when you report or plan. See [tools/atlas/AGENTS.md](tools/atlas/AGENTS.md).
 
 <!-- BEGIN:turborepo-agent-rules -->
 

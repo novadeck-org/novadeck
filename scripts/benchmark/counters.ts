@@ -18,7 +18,7 @@ const ticked = ["notifications", "mutations", "commits", "renders"] as const
 type Phase = (typeof phases)[number]
 type Gated = (typeof gated)[number]
 
-// What application/ui/src/specs/counters/ leaves in test-results/counters.json.
+// What frontend/specs/src/counters/ leaves in test-results/counters.json.
 export type PhaseReading = {
   readonly ticks: number
   readonly tickTotals: Readonly<Record<(typeof ticked)[number], number>>
@@ -319,7 +319,7 @@ export const countersSummary = (
   const fails = rows.filter((row) => row.verdict === "fails")
   const over = rows.filter((row) => row.verdict === "over")
   const under = rows.filter((row) => row.verdict === "under")
-  const raise = `raise the budget in application/ui/src/specs/counters/budgets.json, written ${raiseForm}`
+  const raise = `raise the budget in frontend/specs/src/counters/budgets.json, written ${raiseForm}`
   return [
     "## Counter run",
     "",
@@ -358,7 +358,7 @@ export const countersSummary = (
       : []),
     ...(under.length
       ? [
-          `${under.length} counter(s) under their budget: lower the budget in application/ui/src/specs/counters/budgets.json to lock the gain in.`,
+          `${under.length} counter(s) under their budget: lower the budget in frontend/specs/src/counters/budgets.json to lock the gain in.`,
           "",
         ]
       : []),

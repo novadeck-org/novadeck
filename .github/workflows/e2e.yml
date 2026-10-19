@@ -6,9 +6,10 @@ on:
     paths:
       - .github/workflows/e2e.yml
       - .github/actions/e2e-harness-cache/**
-      - application/protocol/**
-      - application/relay/**
-      - application/runner/**
+      - contract/protocol/**
+      - backend/relay/**
+      - backend/runner/**
+      - contract/runner-client/**
       - engines/**
       - harnesses/**
       - libraries/**

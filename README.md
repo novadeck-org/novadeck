@@ -105,20 +105,20 @@ name, updating as programs start and finish; the line stays empty when it is unk
 The runner reports each terminal's foreground process as its name and, on Linux, the
 process group leader's command line (`argv`); macOS reports only the name (the one the
 program was run by, not a versioned file a link points at, as Claude Code's `claude` is), and Windows
-reports none. `application/ui/src/core/process.ts` turns that into a program name,
+reports none. `frontend/core/src/process.ts` turns that into a program name,
 resolving known Node CLIs from the script Node runs, so the Codex and Claude packages
 show as `codex` and `claude` while other Node programs stay `node`. Where the process
 cannot tell, as on Windows or for a Node CLI on macOS, a connected agent that reported
 its session since the shell's last prompt names the program.
 
 While a program holds the foreground, its profile decides how the terminal looks.
-`application/ui/src/terminals/processes/profiles.ts` maps program names to a tab and
+`frontend/ui/src/terminals/processes/profiles.ts` maps program names to a tab and
 header icon and a body around the terminal's content; programs it does not list,
 shells, and terminals starting or ended use Lucide's Terminal icon and no body. Every
-terminal keeps the same `application/ui/src/terminals/WindowShell.tsx` window, so a
+terminal keeps the same `frontend/ui/src/terminals/WindowShell.tsx` window, so a
 program starting or ending never replaces the header: a rename in progress, focus,
 and the terminal switcher carry on. Claude and Codex have their own icons in
-`application/ui/src/ui-toolkit/icons/` and their own bodies beside the profiles, where
+`frontend/ui/src/ui-toolkit/icons/` and their own bodies beside the profiles, where
 their presentation can grow. To give another program its own look, add a profile
 entry, with its own body if needed, and a launcher entry in `core/process.ts` if it
 runs as a Node script. Profiles are presentation only: per-program behaviour goes beside
@@ -527,7 +527,7 @@ background, `+`/`−` zoom and `0` fits all terminals.
 ## Development
 
 Requires Node.js 26, pnpm 11.22.0 and Rust ([rustup](https://rustup.rs)), which builds
-the relay in `application/relay`; its `rust-toolchain.toml` names the version, which
+the relay in `backend/relay`; its `rust-toolchain.toml` names the version, which
 rustup installs. Run commands from the repository root.
 
 ```sh
@@ -900,8 +900,8 @@ App:
 ### Visitor build
 
 A clickable, public version of the demo, for a website. `pnpm dev:try` serves its entry
-(`application/ui/entries/try/`) in vite mode `try` (http://127.0.0.1:5190); `pnpm build:try` writes static files to
-`application/ui/dist-try` (beside `dist/`, which the desktop app packages), with relative
+(`apps/try/`) in vite mode `try` (http://127.0.0.1:5190); `pnpm build:try` writes static files to
+`apps/try/dist` (the desktop app's `frontend/ui/dist/` is what the host packages), with relative
 paths and a hash router, so any static host serves them from any path, and
 `pnpm preview:try` serves them on http://127.0.0.1:5191. The [Try
 workflow](.github/workflows/try.yml) deploys a release's build to Cloudflare Pages at
@@ -918,8 +918,8 @@ The Try workflow also writes four posters into the build before it deploys it, a
 `poster-light-2560.webp`, `poster-dark-1280.webp` and `poster-dark-2560.webp`. Each is a
 screenshot of `?embed&still` (the desk held at its first frames, Claude Code just begun reading, so the live app picks up where the poster is and the plan arriving is the first thing to move), once the app has booted, in a 1280 × 640 window, captured
 at its own pixel density (1280 × 640 and 2560 × 1280 pixels) rather than scaled down, from
-`application/ui/scripts/poster.ts`. It needs Playwright's Chromium (`pnpm --filter
-@novadeck/ui exec playwright install chromium`). novadeck.dev's hero shows the one that
+`apps/try/scripts/poster.ts`. It needs Playwright's Chromium (`pnpm --filter
+@novadeck/try exec playwright install chromium`). novadeck.dev's hero shows the one that
 matches the visitor's color scheme and screen until the live demo is ready, so it always
 pictures the deployed demo; the posters exist only in `dist-try`. Quality's "Build (try)"
 captures them too. Run workflow can deploy only releases made since the posters. The
@@ -992,29 +992,31 @@ holds the desk at its first frames: nothing moves on its own and the plan never 
 ## Repository map
 
 This is a TypeScript monorepo using pnpm workspaces and Turborepo. `application/` holds
-what makes up the app; `engines/` holds the native inference engines Novadeck downloads
+the UI and the desktop host; `backend/` the runner and the relay; `contract/` the protocol
+and the runner client; `engines/` holds the native inference engines Novadeck downloads
 once installed, and the build they share; `harnesses/` holds what the agent harness
 adapters and the contract they share; `libraries/` holds the mechanics that never import
 app code (see [libraries/README.md](libraries/README.md)); `tools/` holds the apps' build
-helpers.
+helpers and the atlas.
 
-| Package                | Responsibility                                                        |
-| ---------------------- | --------------------------------------------------------------------- |
-| `application/ui`       | React frontend built with Vite, Tailwind CSS, and Lucide icons.       |
-| `application/runner`   | The runner: shells and metadata, served over WebSocket or port.       |
-| `application/protocol` | Shared Zod contracts and the `connectRunner` client for UIs.          |
-| `application/host`     | Electron host that starts the runner and loads the packaged UI.       |
-| `application/relay`    | Rust relay for agents' Novadeck MCP server and hooks.                 |
-| `engines/whisper`      | Voice engine: whisper.cpp built for download (`build:engine`).        |
-| `engines/murmur`       | Murmur engine: llama.cpp built for download (`build:engine`).         |
-| `engines/ggml-build`   | The engine build both of those share.                                 |
-| `harnesses/core`       | The harness adapters' contract and the helpers they share.            |
-| `harnesses/claude`     | The Claude Code adapter: hooks, transcripts, dialogs, input box.      |
-| `harnesses/codex`      | The Codex adapter, same shape.                                        |
-| `harnesses/agy`        | The Antigravity adapter, same shape.                                  |
-| `tools/build-kit`      | The apps' Vite helpers: CSP sources, hosting headers, noindex, fonts. |
-| `scripts`              | Repository checks and automation.                                     |
-| `atlas`                | Dev-only code map: `pnpm atlas`; agent briefs: `pnpm -s atlas:brief`. |
+| Package                  | Responsibility                                                        |
+| ------------------------ | --------------------------------------------------------------------- |
+| `frontend/ui`            | React frontend built with Vite, Tailwind CSS, and Lucide icons.       |
+| `backend/runner`         | The runner: shells and metadata, served over WebSocket or port.       |
+| `contract/protocol`      | Shared Zod contracts the runner and its clients agree on.             |
+| `contract/runner-client` | The `connectRunner` client UIs reach a runner with.                   |
+| `application/host`       | Electron host that starts the runner and loads the packaged UI.       |
+| `backend/relay`          | Rust relay for agents' Novadeck MCP server and hooks.                 |
+| `engines/whisper`        | Voice engine: whisper.cpp built for download (`build:engine`).        |
+| `engines/murmur`         | Murmur engine: llama.cpp built for download (`build:engine`).         |
+| `engines/ggml-build`     | The engine build both of those share.                                 |
+| `harnesses/core`         | The harness adapters' contract and the helpers they share.            |
+| `harnesses/claude`       | The Claude Code adapter: hooks, transcripts, dialogs, input box.      |
+| `harnesses/codex`        | The Codex adapter, same shape.                                        |
+| `harnesses/agy`          | The Antigravity adapter, same shape.                                  |
+| `tools/build-kit`        | The apps' Vite helpers: CSP sources, hosting headers, noindex, fonts. |
+| `scripts`                | Repository checks and automation.                                     |
+| `tools/atlas`            | Dev-only code map: `pnpm atlas`; agent briefs: `pnpm -s atlas:brief`. |
 
 Build an engine locally with `pnpm --filter @novadeck/whisper build:engine` or
 `pnpm --filter @novadeck/murmur build:engine`; the archive and `engine.json` land in
@@ -1037,7 +1039,11 @@ backend-only tests.
 
 ### Working on the UI
 
-Source lives in `application/ui/src/`, grouped in layers:
+The UI is split into packages: `frontend/core`, `frontend/ui`, `frontend/runner-adapter`,
+`frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit` and
+`frontend/specs`, and the apps `apps/try` and `apps/previews`. Their source is grouped in layers,
+each a folder of a package's `src/` (`backend/runner/` is `frontend/runner-adapter/src/`, and so
+on):
 
 | Location                                           | What belongs here                                                                       |
 | -------------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -1081,8 +1087,8 @@ Imports point down the layers. `core/` (what `model/` was, with the backends'
 shared registry and the workspace-only derivations) imports nothing else: no UI layer, no
 React, and among packages only the protocol's data-only entries (`/harnesses`, `/pages`,
 `/text`) and the library entries `architecture.test.ts` lists as data only (none yet).
-Everything outside it reaches it as `#core/*`, the UI package's
-own `imports`; inside it files import one another by relative path. `theme/` imports
+Everything outside it reaches it as `@novadeck/core/*`, the core package's
+exports; inside it files import one another by relative path. `theme/` imports
 nothing but itself and the core's types; every layer that composes the page may use it, though no backend does (the entries hand them the page's theme), and
 [docs/theming.md](docs/theming.md) is its contract with components.
 Each backend adapter in `backend/` builds only on `core/`, where the port is, and
@@ -1226,14 +1232,15 @@ apps, or the demo in the content preview and visitor builds. Tests and specs pas
 spec backend (`specs/support/backend.ts`) themselves.
 
 Each app is an entry of its own, named by its Vite mode, so a deploy carries only its own
-chunks. The desktop app's page is the package's `index.html` (built to `dist/`, which the host
-packages and loads, and the dev server's root page in development), and the others' are
-`entries/web/`, `entries/try/` and `entries/previews/` (mode `web` for `pnpm dev:web`, `try`,
-and `content-preview`), each served at its own server's root and built to `dist-web/`,
-`dist-try/` or `dist-previews/`. Every page is the same document but for the script it starts,
-which `src/deploy.test.ts` checks; a page beside `entries/<name>/` starts
-`src/entries/<name>.tsx` through a one-line `main.tsx`, as a dev server serves only what's under
-its root. A backend that must connect first supplies a
+chunks. The desktop and browser apps are in `frontend/ui`: the desktop page is the package's
+`index.html` (built to `dist/`, which the host packages and loads, and the dev server's root
+page in development), and the browser page is `entries/web/` (mode `web` for `pnpm dev:web`,
+built to `dist-web/`). The visitor build and the content preview are apps of their own,
+`apps/try` and `apps/previews` (modes `try` and `content-preview`), each with its page at the
+package's root and built to its `dist/`. Every page is the same document but for the script it
+starts, which `apps/try/src/deploy.test.ts` checks; an app's page starts its entry through
+`src/main.tsx` (the browser app's through a one-line `main.tsx` beside its page), as a dev
+server serves only what's under its root. A backend that must connect first supplies a
 `ConnectBackend`; `app/BackendGate.tsx` shows a splash until it resolves with the
 seed loaded, or a card saying what failed with a Retry button, and closes it on unmount.
 
@@ -1289,8 +1296,8 @@ the shared vocabulary (for example `openWorkspace`, `terminal`, `chooseView`);
 when markup changes on purpose, update it there. If a behaviour can't be reached
 through accessible markup, improve the markup rather than adding test IDs.
 
-Install the browser once with `pnpm --filter @novadeck/ui exec playwright install chromium`.
-Run a single spec with `pnpm --filter @novadeck/ui exec vitest run --project behaviour src/specs/canvas.spec.tsx`,
+Install the browser once with `pnpm --filter @novadeck/specs exec playwright install chromium`.
+Run a single spec with `pnpm --filter @novadeck/specs exec vitest run --project behaviour src/canvas.spec.tsx`,
 or `--project unit` for reducer invariants, terminal lifecycle, layout rules,
 stores, commands, keymap routing, architecture rules, and build
 checks in colocated `*.test.ts` files. Files in `src/specs/` keep
@@ -1319,14 +1326,14 @@ otherwise) and DOM mutation records per tick, output bytes the runner sends the 
 terminals streaming at once. React commits and component renders per tick are counted
 beside them, through a stand-in for React DevTools' hook. Every run gives the same counts,
 and a probe that hears nothing in a phase fails the run. Run it with `pnpm --filter
-@novadeck/ui exec vitest run --project counters`; it leaves its reading in
-`application/ui/test-results/counters.json`. It runs in `pnpm test` on every platform:
+@novadeck/specs exec vitest run --project counters`; it leaves its reading in
+`frontend/specs/test-results/counters.json`. It runs in `pnpm test` on every platform:
 its own checks hold on each.
 
 The Benchmark workflow runs it on Linux for every pull request whose change can move a
 count (the UI, the runner, their contract, `libraries/`, the lockfile or the checker), and
 on main for the trend. It warns when a count goes past its budget in
-`application/ui/src/specs/counters/budgets.json` and fails when one goes past twice it
+`frontend/specs/src/counters/budgets.json` and fails when one goes past twice it
 (`failsAt` in `scripts/benchmark/counters.ts`: loose by choice while the product is early),
 or when a phase's script plays another number of ticks than its budgets record. Commits and component renders are reported in the
 job summary, never gated, and each run's reading is kept as an artifact. Locally, after
@@ -1360,8 +1367,8 @@ when the sandbox leaked or couldn't be made, which the report then leads with.
 For standalone UI/runner configuration, copy the environment templates:
 
 ```sh
-cp application/ui/example.env application/ui/.env
-cp application/runner/example.env application/runner/.env
+cp frontend/ui/example.env frontend/ui/.env
+cp backend/runner/example.env backend/runner/.env
 ```
 
 - UI: `VITE_API_URL` sets, at build time, the API origin that the Content Security
