@@ -30,7 +30,6 @@ import type { AskAnswer, InboxLetter } from "@novadeck/protocol"
 import type {
   AgentDetail,
   AgentName,
-  ForegroundProcess,
   InterruptResult,
   TerminalAttached,
   TerminalChange,
@@ -57,7 +56,6 @@ import {
   openFiles,
   processSetting,
   relayMs,
-  sampleForeground,
   shellInForeground,
   Trees,
   type NativeSpawn,
@@ -77,7 +75,6 @@ import { freshNonce, InputQueue, keysOf } from "@novadeck/tui-input"
 import type { HoldBudget, InputHold, PromptHost, PromptOptions } from "@novadeck/tui-input"
 import type { InterruptHost, InterruptOptions } from "@novadeck/tui-input"
 import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
-import { Latest } from "@novadeck/wire/server"
 
 import { readPlanFile, type PlanText } from "../companions/content.js"
 import type { CompanionItems, TerminalPlace } from "../companions/items.js"
@@ -185,11 +182,12 @@ import type { Record, Started } from "./record.js"
 import { hasRun, type TerminalRecords } from "./records.js"
 import { restoredSeparator } from "./restored.js"
 import { doorbellHost, profileOf } from "./ringing.js"
+import { Sampler, shellAtPrompt, shellProcess } from "./sampling.js"
 import { Saves } from "./saving.js"
+import { Streams } from "./streams.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
 import { savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
 import { transcriptChanges } from "./transcripts.js"
-import { TerminalWatcher } from "./watcher.js"
 import { judgedFirst, workAfter } from "./work.js"
 
 /** How long after the person's last key an untrusted agent's hooks are asked about again. */
@@ -388,37 +386,12 @@ const commandRowOf = (record: Record): number | undefined => {
   return line && line.translateToString(true).trim() !== "" ? row : undefined
 }
 
-// Whether the shell holds its terminal's foreground, as at its prompt: by the foreground
-// process group where the platform tells it, so a script its own interpreter runs (`bash
-// deploy.sh`) is a program; else by the foreground program's name, and, with none told (as
-// on Windows), it does.
-const shellAtPrompt = (record: Record): boolean => {
-  const group = record.foreground?.group
-  if (group !== undefined && group !== null) return group === record.terminal.pty.pid
-  const name = record.summary.process?.name
-  return name === undefined || record.shellName === undefined || name === record.shellName
-}
-
 // How much time a prompt's hook must have left for drift to be read, in milliseconds:
 // a git branch and a plan's file, each with its own short timeout.
 const driftReadMs = 1_500
 
 const sameToken = (a: string, b: string): boolean =>
   a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b))
-
-/** The shell until the first sample, which may add its command line; Windows reports none. */
-const shellProcess = (shell: string): ForegroundProcess | null => {
-  const name = basename(shell).slice(0, 256)
-  return process.platform === "win32" || !name ? null : { name, argv: null }
-}
-
-const sameProcess = (a: ForegroundProcess | null, b: ForegroundProcess | null): boolean =>
-  a === b ||
-  (a !== null &&
-    b !== null &&
-    a.name === b.name &&
-    a.argv?.length === b.argv?.length &&
-    (a.argv ?? []).every((arg, index) => arg === b.argv?.[index]))
 
 // How long a closed Windows terminal's programs have to end by themselves once its
 // console closes, as they do on its CTRL_CLOSE_EVENT, saving what they were writing, in
@@ -472,12 +445,6 @@ export class Terminals {
   /** The terminals whose box `settleBox` is looking at. */
   private readonly settling = new Set<string>()
   private readonly pendingOwners = new Map<string, Set<{ released: boolean }>>()
-  /** Each `watch` stream and the owner whose release ends it. */
-  private readonly watchers = new Map<TerminalWatcher, string>()
-  /** Each terminal's `agents.detail` readers. */
-  private readonly details = new Map<string, Set<Latest<AgentDetail>>>()
-  /** Each terminal's `messages.watch` readers. */
-  private readonly mail = new Map<string, Set<Latest<TerminalMessages>>>()
   /** Agents' requests for a new terminal, on their way to the client. */
   private readonly opens = new OpenRequests()
   /**
@@ -499,7 +466,10 @@ export class Terminals {
   private readonly closed = new Map<string, readonly number[]>()
   // Every close's time, for the runner's own limit across all chains.
   private allClosed: readonly number[] = []
-  private sampler: ReturnType<typeof setInterval> | undefined
+  /** Samples running terminals' foreground processes. */
+  private readonly sampler: Sampler<Record>
+  /** Who reads the terminals: their watchers, and each one's detail and messages readers. */
+  private readonly streams: Streams<Record>
   private readonly options: Required<
     Omit<
       TerminalOptions,
@@ -658,6 +628,28 @@ export class Terminals {
         records: () => this.records.values(),
       },
     )
+    this.sampler = new Sampler<Record>(this.options.processPollMs, {
+      stopping: () => this.stopping,
+      records: () => this.records.values(),
+      sampled: (record) => {
+        this.announce(record)
+        this.murmur?.sampled(record.summary.id)
+      },
+    })
+    this.streams = new Streams<Record>({
+      stopping: () => this.stopping,
+      holds: (terminalId) => this.records.has(terminalId),
+      detail: (record) =>
+        agentDetail(
+          record.summary.id,
+          record.binding,
+          record.activity,
+          record.telemetry,
+          this.dialogs.view(record.summary.id),
+          this.dialogs.answered(record.summary.id),
+        ),
+      messages: (terminalId) => this.messages(terminalId),
+    })
     this.messaging = new Messaging({
       ...(options.mailbox && { records: options.mailbox }),
       platform: this.options.platform,
@@ -672,7 +664,7 @@ export class Terminals {
           this.messaging.personReply(id, ask, subject, text, commit, choice),
         replyState: (id) => this.messaging.inboxReply(id),
         forgetReplies: (ids) => this.messaging.forgetResponses(ids),
-        changed: (id) => this.mailChanged(id),
+        changed: (id) => this.streams.mailChanged(id),
         exists: (id) =>
           !this.closedIds.has(id) &&
           (this.records.has(id) || this.saves.identity(id) !== undefined),
@@ -714,12 +706,12 @@ export class Terminals {
     // The pause shows in every terminal's listing; anything else only in the terminal's.
     // A burst of changes makes one listing, once this tick.
     const mailChanged = coalesced(
-      (terminalId) => this.mailChanged(terminalId),
+      (terminalId) => this.streams.mailChanged(terminalId),
       "Novadeck could not tell its message watches:",
     )
     this.messaging.subscribe((change) => {
       if (change.kind === "terminal") mailChanged(change.terminalId)
-      else for (const terminalId of this.mail.keys()) mailChanged(terminalId)
+      else for (const terminalId of this.streams.mailWatched()) mailChanged(terminalId)
     })
     this.peers = new TerminalPeers({
       messaging: this.messaging,
@@ -914,7 +906,7 @@ export class Terminals {
       if (shown) this.show(record, saved.transcript!, new Date(saved.savedAt))
       this.listen(record)
       this.announce(record)
-      this.sampleProcesses()
+      this.sampler.start()
       // A restored transcript stays saved until this shell's own screen replaces it.
       this.saves.save(record, !saved)
       this.saves.start()
@@ -1042,7 +1034,7 @@ export class Terminals {
     const renamed = this.saves.rename(terminalId, title)
     const saved = renamed ? this.saves.saved(terminalId) : undefined
     if (!saved) throw new DomainError("TERMINAL_NOT_FOUND")
-    for (const watcher of this.watchers.keys()) watcher.changed(savedSummaryOf(saved))
+    this.streams.changed(() => savedSummaryOf(saved))
   }
 
   get(terminalId: string): TerminalSummary {
@@ -1245,8 +1237,7 @@ export class Terminals {
         // Kept terminals no longer running still show to clients as saved summaries.
         for (const id of this.saves.clearMurmurTitles()) {
           const saved = this.records.has(id) ? undefined : this.saves.saved(id)
-          if (saved)
-            for (const watcher of this.watchers.keys()) watcher.changed(savedSummaryOf(saved))
+          if (saved) this.streams.changed(() => savedSummaryOf(saved))
         }
       },
     }
@@ -1499,7 +1490,7 @@ export class Terminals {
       },
       changed: (terminalId) => {
         const record = this.records.get(terminalId)
-        if (record) this.detailed(record)
+        if (record) this.streams.detailed(record)
       },
     }
   }
@@ -1663,7 +1654,7 @@ export class Terminals {
               throw startFailed(started, error)
             }
             this.announce(record)
-            this.sampleProcesses()
+            this.sampler.start()
             return summaryOf(record)
           }
         },
@@ -1687,7 +1678,7 @@ export class Terminals {
       const saved = this.saves.saved(input.terminalId)
       this.forget(input.terminalId)
       if (!saved) throw new DomainError("TERMINAL_NOT_FOUND")
-      for (const watcher of this.watchers.keys()) watcher.removed(saved)
+      this.streams.removed(saved)
       return
     }
     this.closeForGood(record)
@@ -1713,7 +1704,7 @@ export class Terminals {
     if (record.closed) return
     record.closed = true
     this.closedIds.add(record.summary.id)
-    for (const watcher of this.watchers.keys()) watcher.removed(record.summary)
+    this.streams.removed(record.summary)
     // The agent sessions it claimed stay its own until its shell has ended, so none
     // resumes elsewhere while it still runs there.
     this.forget(record.summary.id, { claims: false })
@@ -1765,7 +1756,7 @@ export class Terminals {
       for (const terminal of this.saves.terminals(sessionId)) {
         this.closedIds.add(terminal.id)
         this.forget(terminal.id)
-        for (const watcher of this.watchers.keys()) watcher.removed(terminal)
+        this.streams.removed(terminal)
       }
       this.handles.delete(sessionId)
     }
@@ -1988,23 +1979,7 @@ export class Terminals {
    */
   async *watch(ownerId: string, signal?: AbortSignal): AsyncGenerator<TerminalChange> {
     if (this.stopping) throw new DomainError("CLOSING")
-    const watcher = new TerminalWatcher(this.list())
-    this.watchers.set(watcher, ownerId)
-    const abort = () => watcher.finish()
-    signal?.addEventListener("abort", abort, { once: true })
-    if (signal?.aborted) watcher.finish()
-    try {
-      while (true) {
-        // eslint-disable-next-line no-await-in-loop -- Changes are delivered in order.
-        const change = await watcher.next()
-        if (change === undefined) return
-        yield change
-      }
-    } finally {
-      signal?.removeEventListener("abort", abort)
-      watcher.finish()
-      this.watchers.delete(watcher)
-    }
+    yield* this.streams.watch(ownerId, () => this.list(), signal)
   }
 
   /**
@@ -2014,7 +1989,7 @@ export class Terminals {
   async *detail(terminalId: string, signal?: AbortSignal): AsyncGenerator<AgentDetail> {
     if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(terminalId)
-    yield* this.snapshots(this.details, terminalId, this.detailOf(record), signal)
+    yield* this.streams.watchDetail(record, signal)
   }
 
   /**
@@ -2355,16 +2330,7 @@ export class Terminals {
     if (this.stopping) throw new DomainError("CLOSING")
     // Only for a terminal the runner holds: closing or evicting it ends the stream.
     this.record(terminalId)
-    yield* this.snapshots(this.mail, terminalId, this.messages(terminalId), signal)
-  }
-
-  /** Tells the terminal's message watchers what its listing says now. */
-  private mailChanged(terminalId: string): void {
-    const readers = this.mail.get(terminalId)
-    if (!readers?.size || this.stopping || !this.records.has(terminalId)) return
-    const listing = this.messages(terminalId)
-    const key = JSON.stringify(listing)
-    for (const reader of readers) reader.push(listing, key)
+    yield* this.streams.watchMessages(terminalId, signal)
   }
 
   /** Pauses messaging across the whole runner, or resumes it. */
@@ -2426,38 +2392,6 @@ export class Terminals {
   }
 
   /**
-   * A terminal's snapshots, from `first`, as they are pushed to `streams`' readers,
-   * until they are finished or `signal` aborts.
-   */
-  private async *snapshots<T>(
-    streams: Map<string, Set<Latest<T>>>,
-    terminalId: string,
-    first: T,
-    signal: AbortSignal | undefined,
-  ): AsyncGenerator<T> {
-    const reader = new Latest<T>()
-    reader.push(first)
-    const readers = streams.get(terminalId) ?? new Set()
-    streams.set(terminalId, readers.add(reader))
-    const abort = () => reader.finish()
-    signal?.addEventListener("abort", abort, { once: true })
-    if (signal?.aborted) reader.finish()
-    try {
-      while (true) {
-        // eslint-disable-next-line no-await-in-loop -- Snapshots are delivered in order.
-        const next = await reader.next()
-        if (next === undefined) return
-        yield next
-      }
-    } finally {
-      signal?.removeEventListener("abort", abort)
-      reader.finish()
-      readers.delete(reader)
-      if (readers.size === 0 && streams.get(terminalId) === readers) streams.delete(terminalId)
-    }
-  }
-
-  /**
    * An actor's conversation, as its harness recorded it: every item so far, then each
    * later one, until the terminal's agent leaves the session it belongs to or `signal`
    * aborts. An actor the bound session does not have, or whose harness keeps no
@@ -2501,7 +2435,7 @@ export class Terminals {
   release(ownerId: string): void {
     for (const pending of this.pendingOwners.get(ownerId) ?? []) pending.released = true
     this.host.release(ownerId)
-    for (const [watcher, owner] of this.watchers) if (owner === ownerId) watcher.finish()
+    this.streams.release(ownerId)
     this.opens.release(ownerId)
     this.options.items?.release(ownerId)
   }
@@ -2512,14 +2446,12 @@ export class Terminals {
     // what they print on the way out cannot replace it.
     this.persist()
     this.stopping = true
-    clearInterval(this.sampler)
-    this.sampler = undefined
+    this.sampler.stop()
     this.saves.stop()
-    for (const watcher of this.watchers.keys()) watcher.finish()
+    this.streams.finishWatchers()
     this.opens.finish()
     this.options.items?.shutdown()
-    for (const streams of [this.details, this.mail])
-      for (const readers of streams.values()) for (const reader of readers) reader.finish()
+    this.streams.finishReaders()
     for (const record of this.records.values()) this.unwatch(record)
     this.doorbell?.close()
     this.asks.close()
@@ -2553,64 +2485,8 @@ export class Terminals {
   /** Reports the record's current summary to every watcher. */
   private announce(record: Record): void {
     // A closed terminal's watchers already heard it is gone; its exit must not add it back.
-    if (!record.closed)
-      for (const watcher of this.watchers.keys()) watcher.changed(summaryOf(record))
-    this.detailed(record)
-  }
-
-  private detailOf(record: Record): AgentDetail {
-    return agentDetail(
-      record.summary.id,
-      record.binding,
-      record.activity,
-      record.telemetry,
-      this.dialogs.view(record.summary.id),
-      this.dialogs.answered(record.summary.id),
-    )
-  }
-
-  /** Tells the terminal's detail readers of a change; each drops one it already has. */
-  private detailed(record: Record): void {
-    const readers = this.details.get(record.summary.id)
-    if (!readers) return
-    const detail = this.detailOf(record)
-    for (const reader of readers) reader.push(detail)
-  }
-
-  /** Ends the terminal's detail and messages streams, as it is closed. */
-  private undetail(id: string): void {
-    for (const streams of [this.details, this.mail]) {
-      for (const reader of streams.get(id) ?? []) reader.finish()
-      streams.delete(id)
-    }
-  }
-
-  /** Starts sampling foreground processes, which continues while some terminal runs. */
-  private sampleProcesses(): void {
-    if (this.sampler || this.stopping || process.platform === "win32") return
-    this.sampler = setInterval(() => this.sample(), this.options.processPollMs)
-    this.sampler.unref()
-  }
-
-  /** Each sample asks node-pty, and on Linux reads a small /proc file, per running terminal. */
-  private sample(): void {
-    let running = false
-    for (const record of this.records.values()) {
-      if (record.terminal.exit !== null || record.terminal.exiting) continue
-      running = true
-      record.foreground = sampleForeground(record.terminal.pty, record.foreground)
-      const current = record.foreground.process
-      if (sameProcess(current, record.summary.process)) continue
-      // The program a fresh shell resumes, should this one be lost.
-      const lastProgram = current?.name ?? record.summary.lastProgram
-      record.summary = { ...record.summary, process: current, lastProgram }
-      record.changed = true
-      this.announce(record)
-      this.murmur?.sampled(record.summary.id)
-    }
-    if (running) return
-    clearInterval(this.sampler)
-    this.sampler = undefined
+    if (!record.closed) this.streams.changed(() => summaryOf(record))
+    this.streams.detailed(record)
   }
 
   private pending(ownerId: string): { released: boolean } {
@@ -3934,7 +3810,7 @@ export class Terminals {
    */
   private publishAgent(record: Record, moved: boolean): void {
     // Detail changes where the summary may not: a revised request, a subject.
-    this.detailed(record)
+    this.streams.detailed(record)
     this.dialogs.changed(record.summary.id)
     // Murmur writes a headline or gist for what the activity now holds.
     this.murmur?.changed(record.summary.id)
@@ -4032,10 +3908,9 @@ export class Terminals {
     this.dialogs.forget(id)
     // Its record is let go, but the terminal is kept, saved, until it is closed.
     const saved = this.saves.saved(id)
-    for (const watcher of this.watchers.keys())
-      if (saved) watcher.changed(savedSummaryOf(saved))
-      else watcher.removed(record.summary)
-    this.undetail(id)
+    if (saved) this.streams.changed(() => savedSummaryOf(saved))
+    else this.streams.removed(record.summary)
+    this.streams.end(id)
     // Which chain it belongs to, as `forget` drops it on close; the chain's own times stay
     // until they pass out of the window.
     this.openers.delete(id)
@@ -4047,8 +3922,8 @@ export class Terminals {
     if (this.records.get(id) !== record) return
     record.closed = true
     this.records.delete(id)
-    for (const watcher of this.watchers.keys()) watcher.removed(record.summary)
-    this.undetail(id)
+    this.streams.removed(record.summary)
+    this.streams.end(id)
     this.host.remove(id)
   }
 }
