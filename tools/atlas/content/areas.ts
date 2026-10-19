@@ -55,6 +55,7 @@ export const roots: Root[] = [
   { token: "frontend/demo", dir: "frontend/demo", node: "renderer" },
   { token: "frontend/demo-debug", dir: "frontend/demo-debug", node: "renderer" },
   { token: "frontend/specs", dir: "frontend/specs", node: "renderer" },
+  { token: "frontend/chat-contract", dir: "frontend/chat-contract", node: "renderer" },
   { token: "apps/try", dir: "apps/try", node: "renderer" },
   { token: "apps/previews", dir: "apps/previews", node: "renderer" },
   { token: "engines/whisper", dir: "engines/whisper", node: "whisper" },
@@ -327,6 +328,10 @@ export const notes: Record<string, Note> = {
     entries: [{ file: `${ui}/interaction/keymap.ts` }],
   },
   "frontend/specs": { purpose: "Behaviour specs that exercise the whole UI on the demo backend." },
+  "frontend/chat-contract": {
+    purpose:
+      "The chat's contract test: recorded harness transcripts run through every stage to the rendered chat, against goldens.",
+  },
   "frontend/test-kit": { purpose: "Fixtures and render helpers the UI's tests share." },
   "frontend/toolkit": {
     purpose:

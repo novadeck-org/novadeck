@@ -1,0 +1,27 @@
+# files-and-shell
+user: Look at the project.
+assistant: On it.
+tools: [7 tool calls · Ran, Read, Listed, Wrote] Ran [run] · npm test | Call: run_command: 2 lines: CommandLine: npm test → 1 line: ok; Read [read] · …/project/src/index.ts | Call: view_file: 1 line: /home/user/project/src/index.ts → 1 line: export {}; Read [read] · …/project/src/a.ts | Call: read_file: 1 line: /home/user/project/src/a.ts → 1 line: a; Listed [read] · …/user/project/src | Call: list_dir: 1 line: /home/user/project/src → 1 line: a.ts; Wrote [write] · …/user/project/n.md | Call: write_to_file: 2 lines: TargetFile: /home/user/project/n.md → 1 line: Created file; Edited [write] · …/user/project/a.ts | Call: replace_file_content: 2 lines: TargetFile: /home/user/project/a.ts → 1 line: Edited; Edited [write] · …/user/project/b.ts | Call: multi_replace_file_content: 2 lines: TargetFile: /home/user/project/b.ts → 1 line: Edited many
+
+# unfolded-run
+user: Two quick ones.
+tools: Ran [run] · ls | Call: run_command: 1 line: ls → 2 lines: a; Read [read] · /tmp/a.txt | Call: view_file: 1 line: /tmp/a.txt → no result recorded.
+
+# search-and-web
+user: Find it.
+assistant: Searching.
+tools: [4 tool calls · Searched, Found files, Fetched, Searched the web] Searched [search] · TODO | Call: grep_search: 2 lines: Query: TODO → 1 line: a.ts:1; Found files [search] · *.test.ts | Call: find_by_name: 2 lines: Pattern: *.test.ts → 1 line: a.test; Fetched [web] · https://vitest.dev/guide | Call: read_url_content: 1 line: https://vitest.dev/guide → 1 line: A page; Searched the web [web] · vitest snapshots | Call: search_web: 1 line: vitest snapshots → 1 line: Results
+
+# novadeck-eager
+user: Use the other terminals.
+assistant: Messaging.
+tools: [13 tool calls · Messaged reviewer, Messaged, Listed agents, Opened a terminal] Messaged reviewer [agent] · Please look | Call: mcp_novadeck_novadeck_send: 2 lines: to: reviewer → 1 line: Sent; Messaged [agent] · Anyone? | Call: mcp_novadeck_novadeck_send: 1 line: Anyone? → 1 line: Sent; Listed agents [agent] | Call: mcp_novadeck_novadeck_agents: empty → 1 line: reviewer; Opened a terminal [agent] · agy: Review | Call: mcp_novadeck_novadeck_open_terminal: 2 lines: agent: agy → 1 line: Opened; Opened a terminal [agent] · npm run dev | Call: mcp_novadeck_novadeck_open_terminal: 1 line: npm run dev → 1 line: Opened; Closed builder [agent] | Call: mcp_novadeck_novadeck_close_terminal: 1 line: builder → 1 line: Closed; Closed a terminal [agent] | Call: mcp_novadeck_novadeck_close_terminal: empty → 1 line: Closed; Showed [web] · http://localhost:5173 | Call: mcp_novadeck_novadeck_show: 1 line: http://localhost:5173 → 1 line: Showing; Showed [read] · …/user/project/plan.md | Call: mcp_novadeck_novadeck_show: 1 line: {"path":"/home/user/project/plan.md"} → 1 line: Showing; Closed [read] · …/user/project/plan.md | Call: mcp_novadeck_novadeck_close: 1 line: {"path":"/home/user/project/plan.md"} → 1 line: Closed; Checked what's shown [read] | Call: mcp_novadeck_novadeck_showing: empty → 1 line: Nothing; Summarized this terminal [agent] · Pinning the chat. | Call: mcp_novadeck_novadeck_summarize: 1 line: Pinning the chat. → 1 line: Saved; mcp_github_create_issue [other] | Call: 1 line: Flaky test → 1 line: Created #12
+
+# novadeck-lazy
+user: Use the lazy tool.
+assistant: Calling.
+tools: [6 tool calls · Messaged reviewer, Listed agents, Opened a terminal, Summarized this terminal] Messaged reviewer [agent] · Lazily | Call: call_mcp_tool: 3 lines: ServerName: novadeck → 1 line: Sent; Listed agents [agent] | Call: call_mcp_tool: 3 lines: ServerName: novadeck → 1 line: reviewer; Opened a terminal [agent] · agy: Review | Call: call_mcp_tool: 3 lines: ServerName: novadeck_novadeck → 1 line: Opened; Summarized this terminal [agent] · Done. | Call: call_mcp_tool: 3 lines: ServerName: novadeck → 1 line: Saved; create_issue [other] · github | Call: call_mcp_tool: 3 lines: ServerName: github → 1 line: Created #12; call_mcp_tool [other] | Call: 1 line: github → 1 line: No tool named
+
+# limits
+user: Be extreme.
+tools: Ran [run] | Call: run_command: 1 line, shortened: {"CommandLine":"echo xxxxxxxxxxxxxxxxxxxxxxxxxx… → 1 line, shortened: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…; a_very_long_tool_name_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz [other] · …/user/project/f.ts | Call: 1 line: /home/user/project/f.ts → 1 line: fine; unknown_tool [other] · something | Call: 1 line: something → 1 line: result

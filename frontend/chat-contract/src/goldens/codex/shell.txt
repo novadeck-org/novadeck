@@ -1,0 +1,23 @@
+# stderr
+user: !echo out-line; echo err-line >&2
+tools: Ran [run] · echo out-line; echo err-line >&2 | Call: Bash: 1 line: echo out-line; echo err-line >&2 → 2 lines: out-line
+
+# failed
+user: !echo before; exit 3
+tools: Ran [run] · echo before; exit 3 | Call: Bash: 1 line: echo before; exit 3 → 2 lines: before
+
+# missing
+user: !no-such-command-here
+tools: Ran [run] · no-such-command-here | Call: Bash: 1 line: no-such-command-here → 2 lines: /bin/bash: line 1: no-such-command-here: comman…
+
+# multiline
+user: !echo first ⏎ echo second
+tools: Ran [run] · echo first | Call: Bash: 2 lines: echo first → 2 lines: first
+
+# aborted
+user: !echo started; sleep 30
+tools: Ran [run] · echo started; sleep 30 | Call: Bash: 1 line: echo started; sleep 30 → 2 lines: command aborted by user
+
+# empty
+user: !echo bang-one > one.txt
+tools: Ran [run] · echo bang-one > one.txt | Call: Bash: 1 line: echo bang-one > one.txt → 1 line: (no output)
