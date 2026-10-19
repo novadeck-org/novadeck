@@ -30,7 +30,7 @@ const facts = (event: string, base: string | undefined, head: string | undefined
     "exec",
     "turbo",
     "ls",
-    "--filter=@novadeck/host...",
+    "--filter=@novadeck/desktop...",
     "--output",
     "json",
   ])

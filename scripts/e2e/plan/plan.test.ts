@@ -66,7 +66,7 @@ describe("E2E selection", () => {
     })
 
     it("runs only that harness when the runner is affected through its dependency", () => {
-      const affected = ["@novadeck/harness-codex", "@novadeck/runner", "@novadeck/host"]
+      const affected = ["@novadeck/harness-codex", "@novadeck/runner", "@novadeck/desktop"]
       expect(select(pullRequest(affected, ["harnesses/codex/src/index.ts"]), ids)).toEqual([
         "codex",
       ])
@@ -101,7 +101,7 @@ describe("E2E selection", () => {
       "backend/runner/src/e2e/fixture.ts",
       "backend/runner/src/harnesses/service.ts",
     ])("runs everything for the runner's %s", (file) => {
-      const affected = ["@novadeck/runner", "@novadeck/host"]
+      const affected = ["@novadeck/runner", "@novadeck/desktop"]
       expect(select(pullRequest(affected, [file]), ids)).toEqual(ids)
     })
 
@@ -145,7 +145,7 @@ describe("E2E selection", () => {
     })
 
     it("runs nothing when the runner doesn't build on it, as for the viewers", () => {
-      const affected = ["@novadeck/viewers", "@novadeck/ui", "@novadeck/host"]
+      const affected = ["@novadeck/viewers", "@novadeck/ui", "@novadeck/desktop"]
       expect(select(pullRequest(affected, ["libraries/viewers/src/index.ts"]), ids)).toEqual([])
     })
   })
@@ -160,7 +160,7 @@ describe("E2E selection", () => {
     })
 
     it("runs nothing for the host and the UI it bundles", () => {
-      const affected = ["@novadeck/ui", "@novadeck/host"]
+      const affected = ["@novadeck/ui", "@novadeck/desktop"]
       expect(select(pullRequest(affected, ["apps/desktop/src/main/index.ts"]), ids)).toEqual([])
     })
 
@@ -274,10 +274,10 @@ describe("E2E jobs by change", () => {
   // Each row's jobs and macOS jobs: the `e2e` rows (a harness each, and Mixed) on each
   // system the plan chose, and a quirks row per harness when it chose Windows.
   it.each([
-    ["the UI alone", ["@novadeck/ui", "@novadeck/host"], ["frontend/ui/src/app.tsx"], 0, 0],
+    ["the UI alone", ["@novadeck/ui", "@novadeck/desktop"], ["frontend/ui/src/app.tsx"], 0, 0],
     [
       "the viewers alone",
-      ["@novadeck/viewers", "@novadeck/ui", "@novadeck/host"],
+      ["@novadeck/viewers", "@novadeck/ui", "@novadeck/desktop"],
       ["libraries/viewers/src/index.ts"],
       0,
       0,
@@ -313,7 +313,7 @@ describe("E2E jobs by change", () => {
   // Step 2 moves the pty (T2) and the host (T4) into libraries/terminal and edits the
   // runner's terminals/manager.ts: both must run every row on every system.
   it("runs all three systems for a change to the pty and the runner's terminal manager", () => {
-    const affected = ["@novadeck/terminal", "@novadeck/runner", "@novadeck/host"]
+    const affected = ["@novadeck/terminal", "@novadeck/runner", "@novadeck/desktop"]
     const files = [
       "libraries/terminal/src/pty/index.ts",
       "libraries/terminal/package.json",

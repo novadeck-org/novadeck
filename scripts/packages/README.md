@@ -401,7 +401,7 @@ For a branch made before 5.3c, the backend's recipe above, with `move-desktop.ts
 ## What to check after
 
 - `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test`.
-- `pnpm --filter @novadeck/host build`, which builds `dist/` (the page) and `out/` (the main
+- `pnpm --filter @novadeck/desktop build`, which builds `dist/` (the page) and `out/` (the main
   process).
 - On the pull request: the packaging run on all three systems with signing, the smoke test, the
   try deploy and previews.

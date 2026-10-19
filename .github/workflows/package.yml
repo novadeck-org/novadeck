@@ -501,7 +501,7 @@ jobs:
             pnpm run package:${{ matrix.target }} "${feed[@]}"
             exit 0
           fi
-          pnpm --workspace-root exec turbo run build --filter=@novadeck/host
+          pnpm --workspace-root exec turbo run build --filter=@novadeck/desktop
           pnpm --dir apps/desktop exec electron-builder --win --x64 --publish never "${feed[@]}" \
             "-c.win.azureSignOptions.publisherName=$AZURE_SIGNING_PUBLISHER" \
             "-c.win.azureSignOptions.endpoint=$AZURE_SIGNING_ENDPOINT" \

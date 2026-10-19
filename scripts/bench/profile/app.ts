@@ -5,7 +5,7 @@ import { _electron, type ElectronApplication, type Page } from "playwright"
 
 import { openSandbox } from "../timing/sandbox.ts"
 
-// The desktop app the profile runs: the unpacked package `pnpm --filter @novadeck/host
+// The desktop app the profile runs: the unpacked package `pnpm --filter @novadeck/desktop
 // package` builds, launched by Playwright's Electron driver inside the timing run's sandbox
 // (see ../timing/sandbox.ts) with the GPU on. The app, the runner it starts and every shell
 // get the sandbox's environment alone, plus what finds the X display (DISPLAY, XAUTHORITY):
