@@ -213,6 +213,18 @@
         "#295 Quality run, Package / Windows job 117742372717",
         "#296 run 39167023271 job 117797708667 (Package / Windows)"
       ]
+    },
+    {
+      "id": "ui-process-windows-layout-settled",
+      "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/specs/process-windows.spec.tsx > process windows > presents claude in its window with input and controls in every layout",
+      "signature": "AssertionError: expected false to be true|the view never settled in \\d+ looks",
+      "status": "fixed",
+      "cause": "The spec helper's wait for the view to settle (layoutSettled, which every openWorkspace ends with) polled with a 5 s timeout, and a file's first spec, mounting the demo's terminals cold on a loaded Windows runner, drew no second frame within it, though the view had already stopped moving. Reproduced locally with Chromium's CPU throttled 30x: 5 of 11 runs failed, each after one frame drawn, and a 10 s timeout still failed 3 of 8. The wait now counts its looks and checks the time only once a frame is drawn, leaving a page that never draws again to the test's timeout (0 of 10 failed at 30x).",
+      "seen": [
+        "#309 run 39171131259 attempt 1 job 117804235859 (Windows, 1/3)",
+        "#311 run 39174798889 attempt 1 job 117815153903 (Windows, 1/3)"
+      ]
     }
   ]
 }
