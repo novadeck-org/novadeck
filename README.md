@@ -1023,6 +1023,7 @@ atlas.
 | `frontend/core`           | The UI's model: types, reducer, stores, and the port to a backend.                        |
 | `frontend/toolkit`        | The controls every feature draws with: Ark UI wrappers, shared recipes, the sidebar item. |
 | `frontend/companion`      | The companion pane: taskbar, peek, pane, plan editor, messages, and the bar drag.         |
+| `frontend/chat`           | The chat view: transcript, requests and composer, with the chat's own store and commands. |
 | `frontend/runner-adapter` | The UI's backend for a runner, over a WebSocket or the desktop host.                      |
 | `frontend/terminal-views` | The xterm mount both backends draw terminals with.                                        |
 | `frontend/demo`           | The demo backend: a scripted workspace and simulated terminals.                           |
@@ -1076,7 +1077,7 @@ backend-only tests.
 ### Working on the UI
 
 The UI is split into packages: `frontend/core`, `frontend/ui`, `frontend/toolkit`,
-`frontend/companion`, `frontend/runner-adapter`, `frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit`,
+`frontend/companion`, `frontend/chat`, `frontend/runner-adapter`, `frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit`,
 `frontend/specs` and `frontend/chat-contract`, and the apps `apps/desktop`, `apps/try` and `apps/previews`. `frontend/ui`
 holds the page's layers, each a folder of its `src/`; the rest are packages of their own. In
 the table a path that starts with `frontend/` or `apps/` is a package, and any other is a
@@ -1106,7 +1107,7 @@ folder of `frontend/ui/src/`:
 | `terminals/`                                                    | Terminal frame, tabs, rename state, and the recent-terminal switcher.                                                          |
 | `frontend/companion/src/`                                       | Taskbar and pane: the panes' store, `bar.ts` rules, `registry.ts` and `panes/<kind>/` (one folder per kind).                   |
 | `frontend/companion/src/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
-| `terminals/chat/`                                               | The agent's chat: its blocks, tool rows, requests and the composer.                                                            |
+| `frontend/chat/src/`                                            | The agent's chat: its blocks, tool rows, requests and the composer, and the chat's own store (`state.ts`) and commands.        |
 | `layouts/canvas/`, `grid/`, `focus/`                            | View adapters and colocated library styles.                                                                                    |
 | `layouts/` (top level)                                          | Helpers shared by views: view transitions, background gestures, visibility.                                                    |
 | `notifications/`                                                | The notification center: what asks for the person across the workspace, and its panel.                                         |
@@ -1138,7 +1139,7 @@ of its own, `frontend/demo-debug`, the one with React and Lucide. `interaction/`
 the core and imports no packages;
 features add `frontend/toolkit`; `layouts/` may use
 `terminals/`; the companion pane is a package of its own, `frontend/companion`, built on the
-core, the toolkit and the viewers and never on the UI, which composes it; `notifications/` builds on the base layers and
+core, the toolkit and the viewers and never on the UI, which composes it, as it does the chat, another package, `frontend/chat`, built on the core and the toolkit and never on the UI or the companion; `notifications/` builds on the base layers and
 `terminals/unread-state.ts`; no feature (`inbox/`, `notifications/`, `preferences/`, `projects/`,
 `search/`, `sidebar/` or `voice/`) imports another, only the base and itself, and none reaches the
 chat or the companion; `shell/` may use `layouts/`, `projects/`,
@@ -1150,7 +1151,7 @@ has no direct React or package imports, though
 routing still loads React Router at runtime: it builds on the core,
 `interaction/keymap.ts`, the UI store, routing, selectors,
 the Canvas handle type in `layouts/canvas/types.ts`, and the pure state modules
-of `shell/` and `terminals/` (unread finishes among them), the companion panes' store and the chat's modes among them. Vendor
+of `shell/` and `terminals/` (unread finishes among them), the companion panes' store and the chat's store among them. Vendor
 libraries stay in their adapters: XYFlow in `layouts/canvas/`, React Grid Layout
 in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
 `frontend/toolkit`, React Router in `app/` and `shell/`, and React DOM in
