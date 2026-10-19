@@ -3,9 +3,9 @@ import { render } from "@novadeck/test-kit/render"
 import { createElement } from "react"
 import { afterEach } from "vitest"
 
-import { describe, expect, it } from "../../test"
 import type { MailHandle } from "./mail"
 import { MessagesView } from "./MessagesView"
+import { describe, expect, it } from "./test"
 
 const message = {
   id: "m1",
