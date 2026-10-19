@@ -6,7 +6,7 @@ import { join } from "node:path"
 import { afterEach, beforeEach } from "vitest"
 
 import { context, describe, expect, it } from "../test"
-import { keepUpdateState, updateStateOf } from "./update-state"
+import { installOutcome, keepUpdateState, updateStateOf } from "./update-state"
 
 let folder: string
 let file: string
@@ -22,6 +22,7 @@ describe("what the host remembers about updating", () => {
     expect(keepUpdateState(file).read()).toEqual({
       channel: "stable",
       installFailedOn: undefined,
+      installing: undefined,
     })
   })
 
@@ -41,9 +42,10 @@ describe("what the host remembers about updating", () => {
     it("falls back to the defaults for a damaged file, each field apart", () => {
       for (const text of ["", "{", "null", "[]", '"early"'])
         expect(updateStateOf(text).channel).toBe("stable")
-      expect(updateStateOf('{"channel":"early","installFailedOn":7}')).toEqual({
+      expect(updateStateOf('{"channel":"early","installFailedOn":7,"installing":[]}')).toEqual({
         channel: "early",
         installFailedOn: undefined,
+        installing: undefined,
       })
     })
   })
@@ -69,7 +71,11 @@ describe("what the host remembers about updating", () => {
       // Something else changed the file between two changes.
       writeFileSync(file, JSON.stringify({ channel: "stable" }))
       state.recordInstallFailure("0.4.2")
-      expect(state.read()).toEqual({ channel: "stable", installFailedOn: "0.4.2" })
+      expect(state.read()).toEqual({
+        channel: "stable",
+        installFailedOn: "0.4.2",
+        installing: undefined,
+      })
     })
 
     it("leaves the file whole and no temporary file when a write fails", async () => {
@@ -97,6 +103,7 @@ describe("what the host remembers about updating", () => {
       expect(state.read()).toEqual({
         channel: "early",
         installFailedOn: "0.5.0",
+        installing: undefined,
       })
     })
 
@@ -112,6 +119,39 @@ describe("what the host remembers about updating", () => {
       state.recordInstallFailure("0.4.2")
       state.setChannel("early")
       expect(state.read().installFailedOn).toBe("0.4.2")
+    })
+  })
+
+  context("an install begun on quitting", () => {
+    // Whether `a` is a newer version than `b`, for these tests' plain versions.
+    const newer = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true }) > 0
+
+    it("is kept for the next launch, and cleared once it has looked", () => {
+      const state = keepUpdateState(file)
+      state.recordInstalling("0.5.0")
+      expect(keepUpdateState(file).read().installing).toBe("0.5.0")
+      state.clearInstalling()
+      expect(state.read().installing).toBeUndefined()
+    })
+
+    it("is settled by a failure recorded for it", () => {
+      const state = keepUpdateState(file)
+      state.recordInstalling("0.5.0")
+      state.recordInstallFailure("0.5.0")
+      expect(state.read()).toMatchObject({ installFailedOn: "0.5.0", installing: undefined })
+    })
+
+    it("failed when the launch is still older than the version it put in place", () => {
+      expect(installOutcome({ installing: "0.5.0" }, "0.4.2", newer)).toBe("failed")
+    })
+
+    it("is done when the launch is that version or newer", () => {
+      expect(installOutcome({ installing: "0.5.0" }, "0.5.0", newer)).toBe("done")
+      expect(installOutcome({ installing: "0.5.0" }, "0.5.1", newer)).toBe("done")
+    })
+
+    it("tells nothing when no install was begun", () => {
+      expect(installOutcome({ installing: undefined }, "0.4.2", newer)).toBeUndefined()
     })
   })
 })
