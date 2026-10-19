@@ -9,7 +9,7 @@ const { dirname, join, normalize } = posix
 
 type Kind = AreaLink["kind"]
 type Exports = { prefix: string; target: string }[]
-// A package's own `imports` ("#core/*"), which only files inside its folder may use.
+// A package's own `imports` ("#name/*"), which only files inside its folder may use.
 type Imports = { base: string; prefix: string; target: string }[]
 
 const roots = ["application", "apps", "backend", "contract", "frontend", "harnesses", "engines"]

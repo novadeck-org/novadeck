@@ -114,19 +114,24 @@ git merge origin/main
 # Conflicts: a file the branch changed and main moved usually merges at its new place, by
 # rename detection. For a modify/delete conflict, or a file left in a folder main renamed,
 # keep the branch's content at the new place.
-# If it stopped on conflicts:
+# A clean merge commits itself: skip the next two lines. If it stopped on conflicts:
 git checkout --theirs pnpm-lock.yaml   # the script's install gives the branch's packages back
 git add -u && git commit --no-edit     # tracked files only: what git now sees as new at an old
                                        # place stays out, for the script to carry over; a file
                                        # you placed at a new place by hand needs its own git add
 node scripts/packages/move-backend.ts
-git add -A && git commit -m "chore: catch up with 5.3a's move"
+git add -A && (git diff --cached --quiet || git commit -m "chore: catch up with 5.3a's move")
 ```
+
+The last line commits only if the script changed what git tracks: a run that carried ignored
+files alone (a `.env`, the atlas's generated JSON) leaves nothing to commit.
 
 The script:
 
 - moves what the branch added at an old place;
-- carries what git doesn't track (a `.env`, the atlas's generated files) to the new place;
+- carries what git doesn't track (a `.env`, the atlas's generated files) to the new place. A
+  carried text file that names an old path is rewritten too, so "rewriting 1" can be the
+  atlas's ignored JSON;
 - rewrites the paths the branch's new lines name;
 - installs, so the lockfile is the branch's again, and says so when that is all it did.
 
@@ -238,8 +243,8 @@ git fetch origin
 git checkout origin/main -- scripts/packages    # the script and its templates, if the branch lacks them
 git add scripts/packages && git commit -m "chore: the move scripts, from main"
 node scripts/packages/move-frontend.ts
-git add -A && git commit -m "chore: 5.3b's move, on the branch"
-git merge origin/main
+git add -A && (git diff --cached --quiet || git commit -m "chore: 5.3b's move, on the branch")
+git merge origin/main                           # a clean merge commits itself: skip the next two lines
 node scripts/packages/move-frontend.ts          # while the merge is open: see below
 git add -u && git commit --no-edit
 node scripts/packages/move-frontend.ts          # nothing to do, or what main added at an old place

@@ -1,0 +1,28 @@
+{
+  "name": "@novadeck/previews",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The content preview: the demo with its debug panel.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --mode content-preview",
+    "build": "vite build --mode content-preview",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@novadeck/core": "workspace:*",
+    "@novadeck/demo-debug": "workspace:*",
+    "@novadeck/ui": "workspace:*",
+    "react": "^19.3.1"
+  },
+  "devDependencies": {
+    "@novadeck/build-kit": "workspace:*",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.7"
+  }
+}

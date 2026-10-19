@@ -23,7 +23,7 @@ after reconnecting.
 
 | Part                     | Responsibility                                                                               |
 | ------------------------ | -------------------------------------------------------------------------------------------- |
-| `application/ui`         | Workspace views, xterm rendering, and a typed runner client.                                 |
+| `frontend/ui`            | Workspace views, xterm rendering, and a typed runner client.                                 |
 | `backend/runner`         | Authentication, oRPC procedures, PTY ownership, output retention, and persistence.           |
 | `application/host`       | Electron windows, desktop integration, and starting or connecting to a local runner process. |
 | `contract/protocol`      | Shared Zod schemas, procedure contracts, stream events, and typed errors.                    |

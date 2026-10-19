@@ -112,9 +112,11 @@ jobs:
       # TRY_DIST, never the folder itself.
       - name: Locate Build
         run: |
-          for dist in application/ui/dist-try; do
+          for layout in apps/try/dist:@novadeck/try application/ui/dist-try:@novadeck/ui; do
+            dist="${layout%%:*}"
             if [[ -f "$dist/index.html" ]]; then
               echo "TRY_DIST=$dist" >> "$GITHUB_ENV"
+              echo "TRY_PACKAGE=${layout#*:}" >> "$GITHUB_ENV"
               exit 0
             fi
           done
@@ -145,7 +147,7 @@ jobs:
         id: playwright
         run: |
           echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/ms-playwright" >> "$GITHUB_ENV"
-          echo "version=$(pnpm --filter @novadeck/ui exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
+          echo "version=$(pnpm --filter "$TRY_PACKAGE" exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
 
       - name: Cache Poster Browser
         id: browser-cache
@@ -156,12 +158,12 @@ jobs:
 
       - name: Install Poster Browser
         if: steps.browser-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @novadeck/ui exec playwright install --with-deps chromium
+        run: pnpm --filter "$TRY_PACKAGE" exec playwright install --with-deps chromium
 
       # A cached browser still needs its system libraries.
       - name: Install Poster Browser Dependencies
         if: steps.browser-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @novadeck/ui exec playwright install-deps chromium
+        run: pnpm --filter "$TRY_PACKAGE" exec playwright install-deps chromium
 
       - name: Capture Posters
         run: pnpm poster:try

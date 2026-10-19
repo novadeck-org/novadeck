@@ -126,11 +126,11 @@ const probes = [
   },
   ...(
     [
-      ["application/ui/src/probe.ts", "import"],
-      ["application/ui/src/types.ts", "type"],
-      ["application/ui/src/deep/probe.test.tsx", "export"],
-      ["application/ui/src/deep/named.ts", "named"],
-      ["application/ui/src/deep/dynamic.ts", "dynamic"],
+      ["frontend/ui/src/probe.ts", "import"],
+      ["frontend/ui/src/types.ts", "type"],
+      ["frontend/ui/src/deep/probe.test.tsx", "export"],
+      ["frontend/ui/src/deep/named.ts", "named"],
+      ["frontend/ui/src/deep/dynamic.ts", "dynamic"],
     ] as const
   ).map(([file, form]) => ({
     file,
@@ -228,7 +228,7 @@ describe("the libraries' lint fence", () => {
 })
 
 describe("the browser code's lint fence", () => {
-  it.each(probes.filter(({ file }) => file.startsWith("application/")))(
+  it.each(probes.filter(({ file }) => file.startsWith("frontend/")))(
     "refuses $file exactly the libraries' Node subpaths and paths into libraries/",
     ({ file, refused }) => {
       expect([...new Set(refusals.get(file))].toSorted()).toEqual(refused.toSorted())

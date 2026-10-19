@@ -1,0 +1,57 @@
+import { describe, expect, it } from "vitest"
+
+import { judgeJob, parseRegister } from "./match.ts"
+
+// The specs moved into their own package, so Vitest reports `src/x.spec.tsx` where it reported
+// `src/specs/x.spec.tsx`: a flake registered by either form is known in a log of either.
+const register = parseRegister({
+  aggregates: [],
+  flakes: [
+    {
+      id: "moved",
+      jobs: ["^Test \\(Linux\\)$"],
+      test: "src/companions.spec.tsx > Switching views > opens a plan",
+      signature: "AssertionError",
+      status: "known",
+      cause: "Unknown.",
+      seen: ["#1"],
+    },
+    {
+      id: "old",
+      jobs: ["^Test \\(Linux\\)$"],
+      test: "src/specs/agents.spec.tsx > A pinned project > reorders",
+      signature: "AssertionError",
+      status: "known",
+      cause: "Unknown.",
+      seen: ["#2"],
+    },
+  ],
+})
+
+const log = (file: string, test: string): string =>
+  [` FAIL  behaviour (chromium)  ${file} > ${test}`, "AssertionError: expected 1 to be 2"].join(
+    "\n",
+  )
+
+describe("a flake registered before the specs had a package", () => {
+  it("is known by the id the specs' package reports, and by the older one", () => {
+    for (const [file, id] of [
+      ["src/companions.spec.tsx", "moved"],
+      ["src/specs/companions.spec.tsx", "moved"],
+      ["src/agents.spec.tsx", "old"],
+      ["src/specs/agents.spec.tsx", "old"],
+    ] as const) {
+      const test = id === "moved" ? "Switching views > opens a plan" : "A pinned project > reorders"
+      expect(judgeJob(register, "Test (Linux)", log(file, test))).toMatchObject({ flakes: [id] })
+    }
+  })
+
+  it("leaves another spec's failure to be triaged", () => {
+    const verdict = judgeJob(
+      register,
+      "Test (Linux)",
+      log("src/other.spec.tsx", "Switching views > opens a plan"),
+    )
+    expect(verdict).toMatchObject({ flakes: [] })
+  })
+})
