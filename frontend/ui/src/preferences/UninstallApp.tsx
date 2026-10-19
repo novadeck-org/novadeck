@@ -1,9 +1,9 @@
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { OfferedUninstall, UninstallResult } from "@novadeck/core/uninstall"
+import { Checkbox } from "@novadeck/toolkit/Checkbox"
+import { Dialog, DialogDescription, DialogTitle } from "@novadeck/toolkit/Dialog"
 import { useState } from "react"
 
-import { Checkbox } from "../ui-toolkit/Checkbox"
-import { Dialog, DialogDescription, DialogTitle } from "../ui-toolkit/Dialog"
 import { AddonFailure, AddonRow, addonNoteClasses, addonRowClasses } from "./addon-parts"
 import { CopyCommand } from "./CopyCommand"
 import { settingsCardClasses } from "./settings"

@@ -1,4 +1,5 @@
-import { Progress } from "../ui-toolkit/Progress"
+import { Progress } from "@novadeck/toolkit/Progress"
+
 import { settingRowClasses } from "./settings"
 
 // What the addon cards in Preferences' Addons tab share: their rows, an install under way,

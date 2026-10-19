@@ -215,7 +215,7 @@ The app ships its fonts: Inter for the interface, the official build in
 variants below), and JetBrains Mono from `@fontsource-variable/jetbrains-mono` for
 terminals and code, both imported in `styles.css` into `layer(base)`. Archivo, from
 `@fontsource-variable/archivo`, is imported there too, for the wordmark alone:
-`ui-toolkit/nova-logo.css` sets it bold and expanded in every theme, which only recolours
+`frontend/toolkit/src/nova-logo.css` sets it bold and expanded in every theme, which only recolours
 it, as the website does. A theme with its
 own face imports it at the top of its own file, `@import "<package>" layer(base);`, as
 `theme/phosphor.css` does for Share Tech Mono; inside `layer(themes)` it nests as
@@ -322,7 +322,7 @@ and reason; none is listed today.
 - **One recipe per look.** When a second component needs a look that exists, it uses
   that recipe or adds a variant to it. Copying a look into another recipe forks the
   theme surface.
-- **Recipes live beside their components** (`ui-toolkit/button.css`,
+- **Recipes live beside their components** (`frontend/toolkit/src/button.css`,
   `terminals/window.css`); `styles.css` imports each into `layer(components)`.
 - **Draw absence, don't remove it.** A recipe with no visible border draws a
   transparent one, and an elevated surface keeps a transparent outline, so forced

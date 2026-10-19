@@ -1,7 +1,7 @@
 import type { Trouble } from "@novadeck/core/inbox"
+import { Switch } from "@novadeck/toolkit/Switch"
 import { useId, useState } from "react"
 
-import { Switch } from "../ui-toolkit/Switch"
 import { agentName, clock, limitWindow } from "./inbox-text"
 import { useInboxContext } from "./InboxProvider"
 import { Lead, Page, type SheetContentProps } from "./Page"

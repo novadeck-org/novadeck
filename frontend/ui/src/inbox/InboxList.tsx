@@ -1,9 +1,9 @@
 import { inboxType, type InboxItem } from "@novadeck/core/inbox"
+import { NovaMark } from "@novadeck/toolkit/NovaLogo"
+import { sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { CheckCheck, CircleCheck, LoaderCircle } from "lucide-react"
 
-import { sidebarListClasses } from "../sidebar/SidebarItem"
-import { NovaMark } from "../ui-toolkit/NovaLogo"
-import { Tooltip } from "../ui-toolkit/Tooltip"
 import { focusSheet, focusSheetSoon } from "./inbox-dom"
 import { icons, typeWords } from "./inbox-icons"
 import { hasUpdates } from "./inbox-state"

@@ -8,6 +8,7 @@ import type {
 } from "@novadeck/core/port"
 import { endingText, terminalEnding } from "@novadeck/core/terminal-ending"
 import type { TerminalMetadata, ViewMode } from "@novadeck/core/types"
+import { TerminalEndingBar, TerminalLock, TerminalNotice } from "@novadeck/toolkit/TerminalStatus"
 import {
   useCallback,
   useEffect,
@@ -18,8 +19,6 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react"
-
-import { TerminalEndingBar, TerminalLock, TerminalNotice } from "../ui-toolkit/TerminalStatus"
 
 // Why typing is paused. A failed paste says why in the same notice.
 const lockNotices: Record<Lock, string> = {

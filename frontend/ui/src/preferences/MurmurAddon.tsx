@@ -7,10 +7,10 @@ import {
   type Murmur,
   type MurmurState,
 } from "@novadeck/core/murmur"
+import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
+import { Switch } from "@novadeck/toolkit/Switch"
 import { useState } from "react"
 
-import { ConfirmDialog } from "../ui-toolkit/ConfirmDialog"
-import { Switch } from "../ui-toolkit/Switch"
 import {
   AddonDetails,
   AddonFailure,
