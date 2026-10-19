@@ -1,3 +1,4 @@
+import { handleText } from "@novadeck/core/handle"
 import type {
   AgentConnection,
   Backend,
@@ -644,23 +645,65 @@ export const runnerBackend = (
     }
   }
 
+  // Terminals closed here that the runner has yet to confirm gone, by answering the close
+  // or reporting them removed, and whether a close for each is under way. One the runner
+  // still reports with none under way, as one a stop cancelled, is closed again.
+  const closedPending = new Map<string, { readonly entry: RunnerEntry; closing: boolean }>()
   // Ends the shell, retrying while the runner is unreachable or restarting, whatever
   // window controls it: a closed terminal is gone for good. One already gone is left as it is.
   // A lost terminal is closed too, so the runner forgets what would restore it, at once:
   // a restore still queued is cancelled, one under way the runner refuses, and waiting
-  // behind the queue could let a quit come first.
+  // behind the queue could let a quit come first. One the runner refuses comes back.
   const endShell = (entry: RunnerEntry): Promise<void> => {
+    const { terminalId } = entry.key
+    const close = { entry, closing: true }
+    closedPending.set(terminalId, close)
     const closing = (async () => {
       const waits = !entry.lost
-      if (waits && !(await entry.ready) && !entry.requested && !entry.lost) return
-      await untilAnswered(() => runner.terminals.close(entry.key.terminalId), {
-        done: ["TERMINAL_NOT_FOUND", "TERMINAL_EXITED", "NOT_FOUND"],
-        again: ["CLOSING"],
-      }).catch(() => {})
-    })()
+      if (waits && !(await entry.ready) && !entry.requested && !entry.lost) {
+        // Never created on the runner: there is nothing there to end.
+        closedPending.delete(terminalId)
+        return
+      }
+      try {
+        await untilAnswered(() => runner.terminals.close(terminalId), {
+          done: ["TERMINAL_NOT_FOUND", "TERMINAL_EXITED", "NOT_FOUND"],
+          again: ["CLOSING"],
+        })
+        closedPending.delete(terminalId)
+      } catch (error) {
+        // Cancelled only as the backend stops; the close is tried again once it starts.
+        if (error instanceof Cancelled) return
+        closedPending.delete(terminalId)
+        await keepRefused(entry, error)
+      }
+    })().finally(() => {
+      close.closing = false
+    })
     closes.add(closing)
     void closing.finally(() => closes.delete(closing))
     return closing
+  }
+  // The runner refused to close the terminal, so it still runs there: it comes back to its
+  // session here, where it can be closed again, and the person hears why it stayed.
+  const keepRefused = async (entry: RunnerEntry, error: unknown): Promise<void> => {
+    console.error("Novadeck could not close the terminal on the runner:", error)
+    const { terminalId, workspaceSessionId } = entry.key
+    const listed = await runner.terminals
+      .list({ sessionId: workspaceSessionId })
+      .catch((): TerminalSummary[] => [])
+    const summary = listed.find((each) => each.id === terminalId)
+    // Gone after all, as closed meanwhile from another window.
+    if (!summary) return
+    closedHere.delete(terminalId)
+    adopt(summary)
+    const named = `${summary.handle ? `${handleText(summary.handle)} · ` : ""}“${summary.title}”`
+    const why = error instanceof Error && error.message ? ` ${error.message}` : ""
+    options.notices?.show({
+      id: terminalId,
+      title: `Novadeck couldn't close ${named}`,
+      body: `It's still running, so it's back in its session.${why}`,
+    })
   }
 
   // The terminal as the workspace last committed it.
@@ -1090,10 +1133,15 @@ export const runnerBackend = (
       entry.closed = true
       closedHere.add(key.terminalId)
       entries.delete(key.terminalId)
-      noteUsage(entry, undefined)
-      messages.unfollow(key)
       // A removed project's terminals are closed by the runner, as it removes the project.
       if (!removedProjects.has(key.projectId)) void track(endShell(entry))
+      // After the shell's end is under way, and once this commit is done: what it tells
+      // its stores' readers, who may start a transaction of their own, as the companion's
+      // messages do, must never stand between a close and the runner.
+      queueMicrotask(() => {
+        noteUsage(entry, undefined)
+        messages.unfollow(key)
+      })
       checkBoot()
     },
   })
@@ -1222,6 +1270,7 @@ export const runnerBackend = (
         return
       }
       if (change.type === "removed") {
+        closedPending.delete(change.terminalId)
         // Closed, as by another window: it is gone from its session here too.
         const entry = entries.get(change.terminalId)
         if (entry && !entry.closed)
@@ -1234,6 +1283,9 @@ export const runnerBackend = (
         const summary = change.terminal
         const entry = entries.get(summary.id)
         reported.add(summary.id)
+        // Closed here, and still running there with no close on its way: closed again.
+        const closed = closedPending.get(summary.id)
+        if (!entry && closed && !closed.closing) return void track(endShell(closed.entry))
         if (!entry) return adopt(summary)
         if (entry.closed) return
         if (!entry.confirmed) entry.confirmedIn = round
