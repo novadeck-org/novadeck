@@ -36,7 +36,7 @@ export const runtime: {
       summary:
         "The React app in the window. It connects to the runner with the runner client, loads the workspace before rendering, and draws terminals with xterm.js.",
       anchor: {
-        file: "application/ui/src/backend/runner/index.ts",
+        file: "frontend/runner-adapter/src/index.ts",
         text: "export const connectRunnerBackend",
       },
       position: { x: 420, y: 60 },

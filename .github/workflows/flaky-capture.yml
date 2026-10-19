@@ -79,7 +79,7 @@ jobs:
         id: playwright
         run: |
           echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/ms-playwright" >> "$GITHUB_ENV"
-          echo "version=$(pnpm --filter @novadeck/ui exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
+          echo "version=$(pnpm --filter @novadeck/specs exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
 
       - name: Cache Test Browser
         id: browser-cache
@@ -90,7 +90,7 @@ jobs:
 
       - name: Install Test Browser
         if: steps.browser-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @novadeck/ui exec playwright install --with-deps chromium
+        run: pnpm --filter @novadeck/specs exec playwright install --with-deps chromium
 
       - name: Capture Up To Five Companion Processes
         timeout-minutes: 17

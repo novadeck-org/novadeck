@@ -1712,7 +1712,7 @@ again.
    `messaging/delivery.ts`.
 3. **UI:** badges, the Messages view and the pause switch. Built: `messages.watch` in
    `backend/runner/src/terminals/manager.ts` over `Messaging.subscribe`, the
-   contract in `core/messages.ts` of `application/ui`, the runner's side in
+   contract in `core/messages.ts` of `frontend/ui`, the runner's side in
    `backend/runner/messages.ts`, the tab's mark in `terminals/companion/TabKinds.tsx`, the view in
    `terminals/companion/MessagesView.tsx`, and the title's source and reset on the tab in
    `terminals/TerminalTab.tsx`.

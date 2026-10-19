@@ -3,7 +3,7 @@
 This describes the runner behind the [terminal plan](backend-plan.md) and how the UI
 uses it. The Electron host runs the runner and hands its window a port to it; the UI
 connects through that port, or in a browser over a WebSocket, with the runner adapter
-in `application/ui/src/backend/runner/`.
+in `frontend/runner-adapter/src/`.
 
 ## Run and test
 

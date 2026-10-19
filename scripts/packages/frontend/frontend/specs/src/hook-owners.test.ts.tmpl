@@ -1,0 +1,33 @@
+import { readdirSync, readFileSync } from "node:fs"
+import { join } from "node:path"
+
+import { describe, expect, it } from "./test"
+
+// The stores' instrumentation hook, which only the counter run installs: it spans two
+// packages (the core defines it, the counter run uses it), so this repository-wide check
+// lives with the specs, and names the hook once, so this file is the one other place it appears.
+const hook = "countListenersWoken"
+const owners = ["frontend/core/src/store.ts", "frontend/specs/src/counters/", "frontend/specs/src/hook-owners.test.ts"]
+
+const root = join(import.meta.dirname, "..", "..", "..")
+const sourcesOf = (dir: string): string[] =>
+  (readdirSync(join(root, dir, "src"), { recursive: true }) as string[])
+    .map((file) => `${dir}/src/${file.split("\\").join("/")}`)
+    .filter((file) => /\.tsx?$/.test(file))
+const packages = ["frontend", "apps"].flatMap((folder) =>
+  readdirSync(join(root, folder)).map((name) => `${folder}/${name}`),
+)
+
+describe("the stores' instrumentation hook", () => {
+  it("is named by the counter run and the store alone", () => {
+    const files = packages.flatMap(sourcesOf)
+    expect(files).toContain("frontend/core/src/store.ts")
+    const named = new RegExp(`\\b${hook}\\b`)
+    const found = files.filter(
+      (file) =>
+        named.test(readFileSync(join(root, file), "utf8")) &&
+        !owners.some((owner) => file.startsWith(owner)),
+    )
+    expect(found).toEqual([])
+  })
+})

@@ -2,7 +2,7 @@ import { z } from "zod"
 
 import type { Anchor, Column, Data, LocalKey, Setting, Table } from "../src/atlas.ts"
 import type { Anchors } from "./anchors.ts"
-import { sourceFiles } from "./files.ts"
+import { frontendSources, sourceFiles } from "./files.ts"
 
 const lineAt = (source: string, index: number): number => source.slice(0, index).split("\n").length
 
@@ -166,6 +166,6 @@ export const extractData = async (repo: string, anchors: Anchors): Promise<Data>
   return {
     tables,
     settings: await settingsIn(anchors),
-    local: localIn(anchors, sourceFiles(repo, "application/ui/src")),
+    local: localIn(anchors, frontendSources(repo)),
   }
 }

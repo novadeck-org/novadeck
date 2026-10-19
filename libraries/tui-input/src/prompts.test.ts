@@ -86,6 +86,10 @@ const terminal = (
     ringEnds?: number
     /** How long a hold lasts before it lapses by itself, in milliseconds. */
     holdMs?: number
+    /** The box's viewport (the profile's `viewport`): a taller text shows only its last rows. */
+    viewport?: number
+    /** How many of a taller text's rows the box shows, where not its viewport. */
+    shows?: number
   } = {},
 ) => {
   let box: string[] = options.draft === undefined ? [] : options.draft.split("\n")
@@ -93,11 +97,15 @@ const terminal = (
   let bash = options.drafted !== undefined
   if (options.drafted !== undefined) box = [options.drafted]
   let admits = 0
-  const profile = profileOf(
-    options.expands ?? true,
-    options.startsOnShell ?? false,
-    options.command,
-  )
+  const profile: BoxProfile = {
+    ...profileOf(options.expands ?? true, options.startsOnShell ?? false, options.command),
+    ...(options.viewport !== undefined && { viewport: () => options.viewport! }),
+  }
+  // A box taller than its viewport shows only the text's tail.
+  const tail = (lines: string[]): string[] => {
+    const shows = options.shows ?? options.viewport
+    return shows === undefined ? lines : lines.slice(-shows)
+  }
   const marker = (first: boolean, line: string): string =>
     first ? `${bash ? "!" : ">"} ${line}` : `  ${line}`
   const written: string[] = []
@@ -123,7 +131,7 @@ const terminal = (
         ? sent.map((line, index) => marker(index === 0, line))
         : box.length === 0
           ? [bash ? "!" : "> "]
-          : box.map((line, index) => marker(index === 0, line))
+          : tail(box).map((line, index) => marker(index === 0, line))
     const top = [options.spinner ? `spinner ${looks}` : "header", "", ...history]
     return [
       ...top,
@@ -460,6 +468,20 @@ describe("prompts", () => {
       const { host, written } = terminal()
       await new Prompts(host, host.queue, fast).prompt("t", lines(11))
       expect(enters(written)).toBe(1)
+    })
+
+    it("is sent where the box shows only its tail, as tall as the box's viewport lets it be", async () => {
+      const { host, written } = terminal({ viewport: 4 })
+      await new Prompts(host, host.queue, fast).prompt("t", lines(8))
+      expect(enters(written)).toBe(1)
+    })
+
+    it("is never sent where the box shows its tail but is shorter than its viewport", async () => {
+      const { host, written } = terminal({ viewport: 5, shows: 4 })
+      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", lines(8)))).toBe(
+        "not-shown",
+      )
+      expect(enters(written)).toBe(0)
     })
 
     it("is sent where the TUI collapses it to a placeholder", async () => {

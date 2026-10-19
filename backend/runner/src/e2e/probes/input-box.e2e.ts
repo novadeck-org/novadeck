@@ -160,6 +160,18 @@ for (const setup of setups) {
         await clear()
       }
 
+      // How much of a text taller than its box it shows, at a few screen heights: Codex 0.163
+      // shows only the tail of one in a box of a set height. The screen ends at 40 rows again.
+      const tall = Array.from({ length: 40 }, (_, i) => `Tall line ${i + 1}`).join("\n")
+      for (const rows of [24, 30, 50, 40]) {
+        t.resize(120, rows)
+        await sleep(800)
+        raw(paste(tall))
+        await sleep(1500)
+        await look(`tall 40 lines at ${rows} rows`)
+        await clear()
+      }
+
       // Text a person's own: indented lines, a tab, trailing spaces, blank lines; and wide
       // characters (a VS16 emoji, a ZWJ family, CJK), which TUIs and terminals count alike
       // only with the right width tables.

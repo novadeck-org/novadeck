@@ -23,11 +23,11 @@ export const shellFooter = (rows: readonly string[]): boolean => {
  * Whether it shows its history search (Ctrl-R: "reverse-i-search:" under its box, which
  * then takes the line as its query), its shortcuts panel (`?`: "? / esc close"), or a
  * `/side` conversation ("Side from main thread · ctrl+/ to switch · ctrl+c to close", `^`
- * for ctrl in 0.161.0), whose turns are no root's: all drawn with its empty box on screen (probed 0.159.3 in the e2e sandbox, 2026-10-16).
+ * for ctrl in 0.161.0, and `⌃` on macOS in 0.163.0, seen in CI 2026-10-18), whose turns are no root's: all drawn with its empty box on screen (probed 0.159.3 in the e2e sandbox, 2026-10-16).
  */
 export const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) =>
-    /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:ctrl\+|\^)\/ to switch/.test(
+    /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch/.test(
       row,
     ),
   )
@@ -49,11 +49,12 @@ const queued = (screen: ScreenText): boolean =>
 
 /**
  * Codex's input box: no frame, `› ` leading its first row, the rest indented, and the
- * cursor on its last row (probed 0.159.3 and 0.160.1, fixtures/input-box.probe.json).
+ * cursor on its last row (probed 0.159.3, 0.160.1 and 0.163.0, fixtures/input-box.probe.json).
  * Empty, it shows "Ask Codex to do anything" or another suggestion drawn dim. Its first
  * key changes the welcome screen wholesale, so the box is read from where the cursor is,
  * never against an earlier screen. Pastes of about a thousand characters show as
- * `[Pasted Content 1030 chars]`, however many lines (25 short lines show whole). It leaves a
+ * `[Pasted Content 1030 chars]`, however many lines (25 short lines show whole up to 0.160.1,
+ * and only their tail in a box of `viewport` rows from 0.163.0). It leaves a
  * ZWJ family sequence blank (probed), so the library compares text without such emoji.
  */
 export const box: BoxProfile = {
@@ -73,4 +74,9 @@ export const box: BoxProfile = {
   collapses: (text) => text.length > 1024,
   // The cursor's row is the box's last, a blank row, its status line and its hints below.
   room: (rows) => rows - 3,
+  // From 0.163.0 a text taller than this shows only its tail, an `↑` drawn dim at the end of
+  // the box's first row: 12, 16, 22 and 29 rows on screens of 24, 30, 40 and 50 rows (probed
+  // 2026-10-18, the `tall` states of fixtures/input-box.probe.json). Earlier versions grow
+  // the box to `room` instead, so a box this tall shows the whole text there.
+  viewport: (rows) => Math.floor((2 * (rows - 6)) / 3),
 }

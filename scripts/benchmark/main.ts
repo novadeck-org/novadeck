@@ -14,8 +14,8 @@ import {
   tickChanges,
 } from "./counters.ts"
 
-const readingPath = "application/ui/test-results/counters.json"
-const budgetsPath = "application/ui/src/specs/counters/budgets.json"
+const readingPath = "frontend/specs/test-results/counters.json"
+const budgetsPath = "frontend/specs/src/counters/budgets.json"
 
 const readJson = (path: string): unknown => JSON.parse(readFileSync(path, "utf8"))
 

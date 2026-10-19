@@ -156,7 +156,7 @@ describe("E2E selection", () => {
     })
 
     it("runs nothing for the UI alone", () => {
-      expect(select(pullRequest(["@novadeck/ui"], ["application/ui/src/app.tsx"]), ids)).toEqual([])
+      expect(select(pullRequest(["@novadeck/ui"], ["frontend/ui/src/app.tsx"]), ids)).toEqual([])
     })
 
     it("runs nothing for the host and the UI it bundles", () => {
@@ -238,7 +238,7 @@ describe("E2E systems", () => {
     "package.json",
     "pnpm-workspace.yaml",
     "turbo.json",
-    "application/ui/src/app.tsx",
+    "frontend/ui/src/app.tsx",
     "libraries/viewers/src/index.ts",
     "libraries/emulator/patches/@xterm__xterm@6.0.0.patch",
     "libraries/emulator/src/browser.ts",
@@ -274,7 +274,7 @@ describe("E2E jobs by change", () => {
   // Each row's jobs and macOS jobs: the `e2e` rows (a harness each, and Mixed) on each
   // system the plan chose, and a quirks row per harness when it chose Windows.
   it.each([
-    ["the UI alone", ["@novadeck/ui", "@novadeck/host"], ["application/ui/src/app.tsx"], 0, 0],
+    ["the UI alone", ["@novadeck/ui", "@novadeck/host"], ["frontend/ui/src/app.tsx"], 0, 0],
     [
       "the viewers alone",
       ["@novadeck/viewers", "@novadeck/ui", "@novadeck/host"],

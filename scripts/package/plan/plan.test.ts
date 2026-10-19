@@ -9,7 +9,7 @@ const packaged = [
   "backend/relay",
   "backend/runner",
   "contract/runner-client",
-  "application/ui",
+  "frontend/ui",
   "engines/ggml-build",
   "engines/murmur",
   "engines/whisper",
@@ -29,8 +29,8 @@ describe("packaging a pull request", () => {
     for (const file of [
       "application/host/src/main/index.ts",
       "application/host/electron-builder.yml",
-      "application/ui/src/app/App.tsx",
-      "application/ui/vite.config.ts",
+      "frontend/ui/src/app/App.tsx",
+      "frontend/ui/vite.config.ts",
       "backend/runner/src/terminals/manager.ts",
       "libraries/wire/src/client.ts",
       "harnesses/claude/src/index.ts",
@@ -60,8 +60,8 @@ describe("packaging a pull request", () => {
     expect(
       pullRequest([
         "backend/runner/src/terminals/manager.test.ts",
-        "application/ui/src/specs/agents.spec.tsx",
-        "application/ui/src/backend/runner/switches.test.ts",
+        "frontend/specs/src/agents.spec.tsx",
+        "frontend/runner-adapter/src/switches.test.ts",
         "backend/runner/src/e2e/chat.e2e.ts",
         "backend/runner/src/e2e/trace.ts",
         "libraries/wire/README.md",
@@ -85,7 +85,7 @@ describe("packaging a pull request", () => {
   })
 
   it("packages when any one changed file can change the app", () => {
-    expect(pullRequest(["docs/e2e-testing.md", "application/ui/src/app/App.tsx"])).toBe(true)
+    expect(pullRequest(["docs/e2e-testing.md", "frontend/ui/src/app/App.tsx"])).toBe(true)
   })
 
   it("matches a package's folder whole, not a sibling that begins alike", () => {
