@@ -73,6 +73,8 @@ const itemOf = (session: string, item: TranscriptItem): ChatItem => ({
   tool: item.tool,
   call: item.call,
   author: item.author,
+  run: item.run,
+  interrupted: item.interrupted,
 })
 
 // The items once a batch arrived: each item at an index replaces everything from there on.

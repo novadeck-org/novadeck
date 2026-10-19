@@ -1100,7 +1100,7 @@ folder of `frontend/ui/src/`:
 | `frontend/core/src/conversation.ts`                             | The contract for an agent's conversation: transcript items, requests, the port.                                                |
 | `frontend/core/src/inbox.ts`                                    | The contract for the Inbox: items by source, their type and urgency, answers, the port.                                        |
 | `frontend/core/src/answers.ts`                                  | What the person has picked and written for a dialog's questions, and the answer it makes.                                      |
-| `frontend/core/src/conversation-turns.ts`                       | A conversation grouped into blocks, tool calls summed up in a line, the turn's status.                                         |
+| `frontend/core/src/conversation-turns.ts`                       | A conversation grouped into blocks, the turn's status.                                                                         |
 | `frontend/core/src/roster.ts`                                   | A session's terminals and undocked windows, laid out as tiles, their order and status.                                         |
 | `frontend/core/src/layout/workspace-layout.ts`                  | Where each terminal sits and how big it is in each view.                                                                       |
 | `terminals/`                                                    | Terminal frame, tabs, rename state, and the recent-terminal switcher.                                                          |

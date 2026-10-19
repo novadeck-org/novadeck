@@ -28,6 +28,9 @@ describe("Claude Code's transcript, as captured", () => {
       tool: null,
       call: null,
       author: null,
+      run: null,
+      // Claude Code's marker for a stopped turn.
+      interrupted: true,
     })
   })
 })
@@ -48,6 +51,7 @@ describe("Claude Code's shell-mode commands, as captured", () => {
       kind: "tool-call",
       tool: "Bash",
       text: JSON.stringify({ command: "echo first\necho second" }),
+      run: { kind: "run", title: "Ran", detail: "echo first" },
     })
     expect(call?.call).not.toBeNull()
     expect(result).toMatchObject({ role: "tool", kind: "tool-result", text: "first\nsecond" })
@@ -108,7 +112,13 @@ describe("Claude Code's transcript records", () => {
         },
       },
     ])
-    expect(call).toMatchObject({ kind: "tool-call", tool: "Bash", text: '{"command":"ls"}' })
+    expect(call).toMatchObject({
+      kind: "tool-call",
+      tool: "Bash",
+      text: '{"command":"ls"}',
+      run: { kind: "run", title: "Ran", detail: "ls" },
+    })
+    expect(result).toMatchObject({ run: null, interrupted: false })
     expect(result).toMatchObject({ kind: "tool-result", text: "a", call: call?.call })
     expect(call?.call).toMatch(/^[\w-]{16}$/)
   })
