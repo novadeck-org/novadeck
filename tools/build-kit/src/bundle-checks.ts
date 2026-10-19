@@ -214,6 +214,18 @@ export const frontendUtilities: readonly ScannedUtility[] = [
   { folder: "frontend/demo/", utility: ["under", "line"].join("") },
 ]
 
+/**
+ * The desktop app's pages, whose config is outside the UI's folder: the UI's own utility as
+ * well, the workspace header's.
+ */
+export const desktopUtilities: readonly ScannedUtility[] = [
+  ...frontendUtilities,
+  {
+    folder: "frontend/ui/",
+    utility: ["grid-cols-[minmax(0,1fr)_auto", "_minmax(0,1fr)]"].join(""),
+  },
+]
+
 export type BundleChecks = {
   /** A utility from each folder Tailwind scans, which the build's CSS must hold. */
   readonly utilities: readonly ScannedUtility[]

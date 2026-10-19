@@ -790,7 +790,7 @@
       }
     },
     {
-      "files": ["frontend/*/src/**", "apps/*/src/**"],
+      "files": ["frontend/*/src/**", "apps/*/src/**", "apps/desktop/renderer/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -822,6 +822,12 @@
             ]
           }
         ]
+      }
+    },
+    {
+      "files": ["apps/desktop/src/**"],
+      "rules": {
+        "no-restricted-imports": "off"
       }
     }
   ],

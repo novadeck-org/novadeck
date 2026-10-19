@@ -12,7 +12,7 @@ import { openSandbox } from "../timing/sandbox.ts"
 // it draws through X11, under a Wayland session through XWayland, as the sandbox's runtime
 // folder holds no Wayland socket.
 
-const host = join(import.meta.dirname, "..", "..", "..", "application", "host")
+const host = join(import.meta.dirname, "..", "..", "..", "apps", "desktop")
 
 /**
  * Where the unpacked package is (`bundle`: its folder, or on macOS its app bundle), and

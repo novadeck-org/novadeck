@@ -48,7 +48,7 @@ export const roots: Root[] = [
   { token: "harness/agy", dir: "harnesses/agy", node: "runner" },
   {
     token: "host",
-    dir: "application/host",
+    dir: "apps/desktop",
     src: "src",
     node: "electron-main",
     nodes: { "host/preload": "preload", "host/runner": "runner" },
@@ -232,23 +232,23 @@ export const notes: Record<string, Note> = {
     purpose:
       "The desktop app's main process: windows and menus, starting the runner in a utility process, permissions and sandbox choices, installation, auto-update and quitting.",
     entries: [
-      { file: "application/host/src/main/index.ts", text: "const createWindow" },
-      { file: "application/host/src/main/updater.ts" },
+      { file: "apps/desktop/src/main/index.ts", text: "const createWindow" },
+      { file: "apps/desktop/src/main/updater.ts" },
     ],
     docs: ["docs/auto-update.md", "docs/release-signing.md"],
   },
   "host/preload": {
     purpose:
       "The narrow, validated API the window gets from the host: the runner's port and the desktop actions it may request.",
-    entries: [{ file: "application/host/src/preload/index.ts" }],
+    entries: [{ file: "apps/desktop/src/preload/index.ts" }],
   },
   "host/runner": {
     purpose: "The utility process entry that creates the runner inside the desktop app.",
-    entries: [{ file: "application/host/src/runner/index.ts" }],
+    entries: [{ file: "apps/desktop/src/runner/index.ts" }],
   },
   ui: {
     purpose: "The UI package's entry, global styles, build checks and content security policy.",
-    entries: [{ file: `${ui}/entries/desktop.tsx` }],
+    entries: [{ file: `${ui}/entries/start.tsx` }],
   },
   "ui/app": {
     purpose:

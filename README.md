@@ -549,7 +549,7 @@ pnpm dev:web
 Open <http://127.0.0.1:5173>. `dev:web` starts a runner with a fresh random token
 and hands the same token to the UI dev server. A browser has no desktop host, so it shows
 no notification when an agent finishes; its terminals are still marked done. For UI-only work, use
-`pnpm --filter @novadeck/ui dev --mode web` with `VITE_NOVADECK_RUNNER_URL` and
+`pnpm --filter @novadeck/host exec vite --host 127.0.0.1 --mode web` with `VITE_NOVADECK_RUNNER_URL` and
 `VITE_NOVADECK_RUNNER_TOKEN` pointing at a runner you started; the web entry reads
 `.env.web` rather than `.env.development`.
 
@@ -901,7 +901,7 @@ App:
 
 A clickable, public version of the demo, for a website. `pnpm dev:try` serves its entry
 (`apps/try/`) in vite mode `try` (http://127.0.0.1:5190); `pnpm build:try` writes static files to
-`apps/try/dist` (the desktop app's `frontend/ui/dist/` is what the host packages), with relative
+`apps/try/dist` (the desktop app's own `apps/desktop/dist/` is what it packages), with relative
 paths and a hash router, so any static host serves them from any path, and
 `pnpm preview:try` serves them on http://127.0.0.1:5191. The [Try
 workflow](.github/workflows/try.yml) deploys a release's build to Cloudflare Pages at
@@ -1005,7 +1005,7 @@ helpers and the atlas.
 | `backend/runner`         | The runner: shells and metadata, served over WebSocket or port.       |
 | `contract/protocol`      | Shared Zod contracts the runner and its clients agree on.             |
 | `contract/runner-client` | The `connectRunner` client UIs reach a runner with.                   |
-| `application/host`       | Electron host that starts the runner and loads the packaged UI.       |
+| `apps/desktop`           | Electron host that starts the runner and loads the packaged UI.       |
 | `backend/relay`          | Rust relay for agents' Novadeck MCP server and hooks.                 |
 | `engines/whisper`        | Voice engine: whisper.cpp built for download (`build:engine`).        |
 | `engines/murmur`         | Murmur engine: llama.cpp built for download (`build:engine`).         |
@@ -1227,20 +1227,20 @@ lifecycle for any adapter. An adapter opts into the port contract suite by
 calling `describeBackendContract` from `test/backend-contract.tsx` in a
 colocated `contract.test.ts`, with a probe of what it holds and the I/O it
 started, and a driver when it has `start`. `App` reads its backend once at mount: each
-app's entry (`src/entries/`) chooses its own, a runner connection for the desktop and web
+app's entry chooses its own, a runner connection for the desktop and web
 apps, or the demo in the content preview and visitor builds. Tests and specs pass the demo's
 spec backend (`specs/support/backend.ts`) themselves.
 
 Each app is an entry of its own, named by its Vite mode, so a deploy carries only its own
-chunks. The desktop and browser apps are in `frontend/ui`: the desktop page is the package's
-`index.html` (built to `dist/`, which the host packages and loads, and the dev server's root
-page in development), and the browser page is `entries/web/` (mode `web` for `pnpm dev:web`,
-built to `dist-web/`). The visitor build and the content preview are apps of their own,
+chunks. The desktop and browser apps are in `apps/desktop`: the desktop page is
+`renderer/index.html` (built to `dist/`, which the app packages and loads, and the dev server's
+root page in development), and the browser page is `renderer/web/` (mode `web` for
+`pnpm dev:web`, built to `dist-web/`). The visitor build and the content preview are apps of their own,
 `apps/try` and `apps/previews` (modes `try` and `content-preview`), each with its page at the
 package's root and built to its `dist/`. Every page is the same document but for the script it
 starts, which `apps/try/src/deploy.test.ts` checks; an app's page starts its entry through
-`src/main.tsx` (the browser app's through a one-line `main.tsx` beside its page), as a dev
-server serves only what's under its root. A backend that must connect first supplies a
+`src/main.tsx` (the desktop app's pages through the `main.tsx` beside each), as a dev server
+serves only what's under its root. A backend that must connect first supplies a
 `ConnectBackend`; `app/BackendGate.tsx` shows a splash until it resolves with the
 seed loaded, or a card saying what failed with a Retry button, and closes it on unmount.
 
@@ -1456,7 +1456,7 @@ pnpm package:mac
 pnpm package:win
 ```
 
-Artifacts go to `application/host/release/`:
+Artifacts go to `apps/desktop/release/`:
 
 - Linux x64: `novadeck-linux-x86_64.AppImage`, built on the static type2 runtime so it
   mounts with FUSE 3. Releases also carry `install.sh`, the installer in

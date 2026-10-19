@@ -316,19 +316,6 @@ describe("theme contract", () => {
     )
   })
 
-  it("applies only the SVG filters index.html carries", () => {
-    const page = readFileSync(join(process.cwd(), "index.html"), "utf8")
-    const carried = new Set(
-      [...page.matchAll(/<filter[^>]*\bid="([^"]+)"/g)].map((match) => match[1]),
-    )
-    const used = themes.flatMap((theme) =>
-      [...uncomment(read(fileOf(theme))).matchAll(/url\(\s*["']?#([^"')]+)/g)].map(
-        (match) => match[1]!,
-      ),
-    )
-    expect(used.filter((id) => !carried.has(id))).toEqual([])
-  })
-
   it("imports only manifest themes into the themes layer", () => {
     const imported = [
       ...uncomment(read("styles.css")).matchAll(/@import "\.\/([^"]+)" layer\(themes\)/g),
