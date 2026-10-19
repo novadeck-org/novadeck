@@ -12,9 +12,13 @@ import {
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { carry, dirt, ignoredPlaces, outsideWorkspace, undoneByMerge } from "./move.ts"
+
+// Each test builds throwaway git repositories, and git is slow to start on Windows: these
+// files' tests may take a minute, beside the default 5 s every other test keeps.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 })
 
 // A move's parts that read a repository, each over a throwaway one.
 
