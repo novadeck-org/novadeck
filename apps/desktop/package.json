@@ -1,5 +1,5 @@
 {
-  "name": "@novadeck/host",
+  "name": "@novadeck/desktop",
   "version": "0.0.0",
   "private": true,
   "description": "A workspace for parallel terminals.",
@@ -10,10 +10,10 @@
   "scripts": {
     "dev": "concurrently --kill-others-on-fail --names ui,host \"vite --host 127.0.0.1\" \"electron-vite dev\"",
     "build": "vite build && electron-vite build",
-    "package": "pnpm --workspace-root exec turbo run build --filter=@novadeck/host && electron-builder --dir --publish never",
-    "package:linux": "pnpm --workspace-root exec turbo run build --filter=@novadeck/host && electron-builder --linux --x64 --publish never",
-    "package:mac": "pnpm --workspace-root exec turbo run build --filter=@novadeck/host && electron-builder --mac --universal --publish never",
-    "package:win": "pnpm --workspace-root exec turbo run build --filter=@novadeck/host && electron-builder --win --x64 --publish never",
+    "package": "pnpm --workspace-root exec turbo run build --filter=@novadeck/desktop && electron-builder --dir --publish never",
+    "package:linux": "pnpm --workspace-root exec turbo run build --filter=@novadeck/desktop && electron-builder --linux --x64 --publish never",
+    "package:mac": "pnpm --workspace-root exec turbo run build --filter=@novadeck/desktop && electron-builder --mac --universal --publish never",
+    "package:win": "pnpm --workspace-root exec turbo run build --filter=@novadeck/desktop && electron-builder --win --x64 --publish never",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p renderer/tsconfig.json",

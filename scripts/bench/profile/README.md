@@ -11,7 +11,7 @@ pnpm bench:profile [--machine <name>] [--runs <n>] [--scenario timing|heavy]… 
   [--switch <chromium switch>]… [--note <text>]
 ```
 
-It packages the app unpacked (`pnpm --filter @novadeck/host package`), then:
+It packages the app unpacked (`pnpm --filter @novadeck/desktop package`), then:
 
 1. builds the UI again with hidden source maps (`build.ts`) and checks that every script it built
    is byte for byte the packaged one, which the maps then describe; should any differ, scripting

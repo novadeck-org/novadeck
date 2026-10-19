@@ -54,7 +54,7 @@ publish:
 # and universal for macOS.
 artifactName: novadeck-${os}-${arch}.${ext}
 # The installers name the install folder after the package's name, which for the
-# workspace's @novadeck/host would be "@novadeckhost". Electron names the app by
+# workspace's @novadeck/desktop would be "@novadeckdesktop". Electron names the app by
 # productName first, so this changes nothing at run time.
 extraMetadata:
   name: novadeck
