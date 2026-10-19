@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process"
 import { mkdirSync, readdirSync, readFileSync, rmdirSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
@@ -77,6 +78,23 @@ const moves = files.flatMap((file) => {
   }
   return [{ from: file, to }]
 })
+
+// On the merge that brought main's move in: a file the move deletes that the branch changed,
+// kept from its side of a modify/delete conflict, where nothing reads it now.
+const inGit = (spec: string): boolean =>
+  spawnSync("git", ["cat-file", "-e", spec], { cwd: root, stdio: "ignore" }).status === 0
+const parents = git("rev-list", "--parents", "-n", "1", "HEAD").trim().split(" ").slice(1)
+if (
+  !moving &&
+  parents.length === 2 &&
+  inGit(`HEAD^2:${host.to}/package.json`) &&
+  !inGit(`HEAD^1:${host.to}/package.json`)
+)
+  for (const { from, into } of singles)
+    if (into && present.has(from) && !inGit(`HEAD^2:${from}`))
+      problems.push(
+        `${from} came from the branch's side of the merge, though main's move deleted it, and nothing reads it: make the branch's change in ${into}, then git rm ${from}, and commit`,
+      )
 const placeOf = new Map(moves.map(({ from, to }) => [from, to]))
 const sourceOf = new Map(moves.flatMap(({ from, to }) => (to ? [[to, from] as const] : [])))
 for (const place of ignoredPlaces(root, [

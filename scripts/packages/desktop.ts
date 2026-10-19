@@ -16,17 +16,21 @@ const renderer = `${host.to}/renderer`
  * The files that move on their own: the desktop app's page and the browser app's, with their
  * entries, from the UI into the desktop app, and the test of the desktop page's build. A
  * page's script is its entry itself, as in apps/try; `null` deletes a script that only
- * imported it.
+ * imported it, and `into` is where its work went.
  */
-export const singles: readonly { readonly from: string; readonly to: string | null }[] = [
+export const singles: readonly {
+  readonly from: string
+  readonly to: string | null
+  readonly into?: string
+}[] = [
   { from: `${ui}/index.html`, to: `${renderer}/index.html` },
   { from: `${ui}/src/entries/desktop.tsx`, to: `${renderer}/main.tsx` },
   { from: `${ui}/entries/web/index.html`, to: `${renderer}/web/index.html` },
   { from: `${ui}/src/entries/web.tsx`, to: `${renderer}/web/main.tsx` },
-  { from: `${ui}/entries/web/main.tsx`, to: null },
+  { from: `${ui}/entries/web/main.tsx`, to: null, into: `${renderer}/web/main.tsx` },
   { from: `${ui}/src/build.test.ts`, to: `${host.to}/src/build.test.ts` },
   // What built the pages there, which the app's own config does now.
-  { from: `${ui}/vite.config.ts`, to: null },
+  { from: `${ui}/vite.config.ts`, to: null, into: `${host.to}/vite.config.ts` },
 ]
 
 /**
