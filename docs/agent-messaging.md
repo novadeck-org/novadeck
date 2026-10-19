@@ -835,7 +835,8 @@ facts above, so the prompt's emptiness is known before any message arrives:
 - **Unbound**: no agent session bound.
 
 **Idle but not Ready.** Fresh, Drafting and Unknown are states Novadeck derives from keys
-and hooks, so each can outlast what is true of the screen: Codex 0.159.3 idle after a
+and hooks, so each can outlast what is true of the screen (and Working on background work
+only, where the agent's box takes a prompt meanwhile, is looked at the same way): Codex 0.159.3 idle after a
 normal turn is Drafting if the person answered its question in its terminal; any stray
 key, a ring that failed, an Escape that ended nothing, or a runner restart leave the
 others. While messages wait for such an agent, with no turn running, no prompt queued
@@ -1094,8 +1095,9 @@ text in `record.terminal.screen` (`@xterm/headless`), with its paste mode. The r
 
 1. **Idle.** The terminal is Settled: its last root turn ended normally, nothing runs in
    the background, no request is pending; or Ready: a new session at its own prompt, with
-   no turn yet; or Fresh, Drafting or Unknown with its box read empty off the screen,
-   which makes it Ready first. Messages wait for its root session.
+   no turn yet; or Fresh, Drafting or Unknown, or Working on background work only (its
+   harness's box takes a prompt then), with its box read empty off the screen, which
+   makes it Ready first, that work running on. Messages wait for its root session.
 2. **Untouched.** The prompt is known empty (see [What counts](#what-counts)): the
    person sent no input since their last submission, a confirmed ring, the command-line
    prompt or the session binding, where Left, Home and End count as input as well

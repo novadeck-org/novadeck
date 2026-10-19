@@ -11,7 +11,8 @@ import type { KeyKind } from "@novadeck/tui-input"
  * prompt with that nonce confirms it or the ring fails; a Fresh (bound, but nothing
  * shows its prompt is up), Drafting (person busy) or Unknown one is rung too once its
  * screen shows the agent's own box empty and calm (the `emptied` event, from the
- * doorbell's look), and otherwise waits for its next root prompt.
+ * doorbell's look), and otherwise waits for its next root prompt; so is a Working one
+ * waiting only on its background work, where its harness's box takes a prompt then.
  *
  * Working has three phases: a root `turn` running; `continuing`, after a Stop Novadeck
  * continued, until the continuation's first prompt; and `background`, when only work a
@@ -230,7 +231,8 @@ export const firing = (
  * - `key`: the person's key, while a request waits on them (`asked`) or not;
  * - `asked-cleared`: no request waits on the person any more;
  * - `emptied`: the screen shows the agent's own box empty, with no turn running: Drafting,
- *   Unknown or Fresh becomes Ready;
+ *   Unknown or Fresh becomes Ready, as does Working on background work only, where
+ *   messaging let the doorbell look;
  * - `ring`: the doorbell starts ringing a Settled terminal, with its nonce;
  * - `ring-failed`: that ring's test paste failed, or no doorbell prompt confirmed it.
  * A hook's `bound`, `shown` and `prompt` also tell `firedAt`, when its shell started,
