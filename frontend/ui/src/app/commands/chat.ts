@@ -1,11 +1,11 @@
-import type { TerminalKey } from "@novadeck/core/port"
-import type { Workspace } from "@novadeck/core/types"
-
 import {
   createChatCommands as createChatWrites,
   type ChatCommands as ChatWrites,
-} from "../../terminals/chat/commands"
-import { answerInTerminal } from "../../terminals/chat/state"
+} from "@novadeck/chat/commands"
+import { answerInTerminal } from "@novadeck/chat/state"
+import type { TerminalKey } from "@novadeck/core/port"
+import type { Workspace } from "@novadeck/core/types"
+
 import { currentContext, currentState } from "../selectors"
 import type { CommandContext } from "./context"
 import { shellEdits } from "./shell"
