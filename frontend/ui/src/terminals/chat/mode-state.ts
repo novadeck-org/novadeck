@@ -1,9 +1,8 @@
+import { chatAnswer, oneLine } from "@novadeck/core/answers"
 import type { ChatAnswer, ChatRequest } from "@novadeck/core/conversation"
 import { isAgentProgram } from "@novadeck/core/process"
 import { shellCommand } from "@novadeck/core/prompt-refusal"
 import type { TerminalMetadata } from "@novadeck/core/types"
-
-import { chatAnswer, oneLine } from "@novadeck/core/answers"
 
 // A value kept for some terminals, by session context and terminal id; a terminal without
 // one has no entry, and a context without terminals none either.

@@ -1,4 +1,3 @@
-import type { ChatQuestion } from "./conversation"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -16,6 +15,7 @@ import {
   write,
   type Picks,
 } from "./answers"
+import type { ChatQuestion } from "./conversation"
 
 const question = (overrides: Partial<ChatQuestion> = {}): ChatQuestion => ({
   id: "q1",

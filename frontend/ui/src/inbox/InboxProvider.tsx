@@ -1,3 +1,4 @@
+import type { Picks } from "@novadeck/core/answers"
 import type { Inbox, InboxAnswer, InboxItem, InboxState } from "@novadeck/core/inbox"
 import {
   createContext,
@@ -12,7 +13,6 @@ import {
   type ReactNode,
 } from "react"
 
-import type { Picks } from "@novadeck/core/answers"
 import { rowOf } from "./inbox-dom"
 import {
   clearArrived,

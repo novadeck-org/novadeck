@@ -1,7 +1,7 @@
 import { sameBlock, type ChatBlock } from "@novadeck/core/conversation-turns"
+import { Markdown } from "@novadeck/toolkit/Markdown"
 import { memo } from "react"
 
-import { Markdown } from "./Markdown"
 import { ToolRun } from "./ToolRun"
 
 const Shortened = (): React.JSX.Element => (

@@ -22,6 +22,8 @@
     "./icons/CodexIcon": "./src/icons/CodexIcon.ts",
     "./item.css": "./src/item.css",
     "./label.css": "./src/label.css",
+    "./Markdown": "./src/Markdown.tsx",
+    "./markdown.css": "./src/markdown.css",
     "./nova-logo.css": "./src/nova-logo.css",
     "./NovaLogo": "./src/NovaLogo.tsx",
     "./overlay.css": "./src/overlay.css",
@@ -59,6 +61,7 @@
   },
   "dependencies": {
     "@ark-ui/react": "^5.39.3",
+    "@novadeck/viewers": "workspace:*",
     "clsx": "^2.1.1",
     "lucide-react": "^1.57.0",
     "react": "^19.3.1",

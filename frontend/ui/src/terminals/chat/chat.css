@@ -1,7 +1,8 @@
 /* The chat recipe: a terminal's agent as a conversation, drawn over its screen
    (`.chat`, which fills the window's body). The transcript (`.chat-scroll`, a log) holds
    the person's messages as bubbles (`.chat-message[data-role="user"]`), the agent's text
-   as plain formatted prose (`.chat-prose`, with `.chat-code` blocks and `.chat-table`),
+   as plain formatted prose (`.chat-prose`, drawn by the toolkit's Markdown, whose recipe is
+   its `markdown.css`),
    other agents' messages (`data-role="agent"`), runs of tool calls (`.chat-tools`, a row
    `.chat-tool` each, opening to `.chat-tool-body`), notes (`.chat-note`) and the agent's
    state (`.chat-status`). Under it sit what waits on the person (`.chat-requests`) and the
@@ -26,12 +27,9 @@
    (radius-panel), --chat-tool-hover-bg (soft): a run of tool calls and its rows.
    --chat-tool-icon-fg (muted), --chat-tool-running-fg (ink): a row's icon, and the
    spinner of a call still running.
-   --chat-code-bg (shell), --chat-code-border-color (line), --chat-code-fg (the text's),
-   --chat-inline-code-bg (soft): code, fenced and inline. Its colours are the syntax
-   tokens'.
-   --chat-quote-border-color (line-strong), --chat-table-border-color (line),
-   --chat-table-head-bg (shell): quotes and tables.
-   --chat-link-fg (ink): links.
+   --chat-code-bg (paper here; the Markdown's shell), --chat-code-border-color (line): a
+   tool call's text. The Markdown's own tokens (code, quotes, tables, links) are listed in
+   `markdown.css`.
    --chat-request-bg (warning), --chat-request-fg (warning-fg),
    --chat-request-border-color (the fg at 35%): a request that waits on the person.
    --chat-request-field-bg (paper), --chat-request-field-border-color (line-strong),
@@ -162,130 +160,10 @@
   color: var(--_muted);
 }
 
-/* The agent's formatted text */
-.chat-prose {
-  overflow-wrap: anywhere;
-}
-.chat-prose > :first-child {
-  margin-top: 0;
-}
-.chat-prose > :last-child {
-  margin-bottom: 0;
-}
-.chat-prose :is(p, ul, ol, blockquote, .chat-code, .chat-table, hr, h3, h4, h5, h6) {
-  margin: 0 0 10px;
-}
-.chat-prose ul {
-  list-style: disc;
-}
-.chat-prose ol {
-  list-style: decimal;
-}
-.chat-prose :is(ul, ol) {
-  padding-left: 22px;
-}
-.chat-prose li :is(p, ul, ol) {
-  margin: 0 0 4px;
-}
-.chat-prose li {
-  margin: 2px 0;
-}
-.chat-prose li::marker {
-  color: var(--_muted);
-}
-.chat-prose :is(h3, h4, h5, h6) {
-  margin-top: 16px;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-.chat-prose h3[data-level="1"] {
-  font-size: 16px;
-  letter-spacing: -0.2px;
-}
-.chat-prose h4[data-level="2"] {
-  font-size: 14.5px;
-}
+/* The agent's formatted text, in a Grid or Canvas window (the rest of it is the toolkit's
+   `markdown.css`) */
 .chat[data-compact] .chat-prose :is(h3, h4) {
   font-size: 12.5px;
-}
-.chat-prose a {
-  color: var(--chat-link-fg, var(--color-ink));
-  text-decoration: underline;
-  text-decoration-color: var(--color-line-strong);
-  text-underline-offset: 2px;
-}
-.chat-prose a:hover {
-  text-decoration-color: currentColor;
-}
-.chat-prose blockquote {
-  padding-left: 12px;
-  border-left: 2px solid var(--chat-quote-border-color, var(--color-line-strong));
-  color: var(--_muted);
-}
-.chat-prose hr {
-  border: 0;
-  border-top: var(--border-width) solid var(--color-line);
-}
-.chat-prose :not(pre) > code {
-  padding: 1px 4px;
-  border-radius: var(--radius-control);
-  background-color: var(--chat-inline-code-bg, var(--color-soft));
-  font-size: 0.92em;
-}
-
-/* Code */
-.chat-code {
-  border: var(--border-width) solid var(--chat-code-border-color, var(--color-line));
-  border-radius: var(--radius-control);
-  background-color: var(--chat-code-bg, var(--color-shell));
-  color: var(--chat-code-fg, currentColor);
-}
-.chat-code-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 4px 0 10px;
-  min-height: 26px;
-  border-bottom: var(--border-width) solid var(--chat-code-border-color, var(--color-line));
-  font-size: 11px;
-  color: var(--_muted);
-}
-.chat-code pre {
-  margin: 0;
-  padding: 8px 10px;
-  overflow-x: auto;
-  font-size: 12px;
-  line-height: 1.55;
-  tab-size: 2;
-}
-.chat-code pre:focus-visible {
-  outline-offset: -2px;
-}
-.chat-code code {
-  font-family: var(--font-mono);
-  background: none;
-  padding: 0;
-  font-size: inherit;
-}
-
-/* Tables */
-.chat-table {
-  overflow-x: auto;
-}
-.chat-table table {
-  border-collapse: collapse;
-  font-size: 12px;
-}
-.chat-table :is(th, td) {
-  padding: 4px 10px;
-  border: var(--border-width) solid var(--chat-table-border-color, var(--color-line));
-  text-align: left;
-  vertical-align: top;
-}
-.chat-table th {
-  background-color: var(--chat-table-head-bg, var(--color-shell));
-  font-weight: 600;
 }
 
 /* Tool calls */
