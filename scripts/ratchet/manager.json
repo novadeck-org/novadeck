@@ -5,7 +5,7 @@
     "lines counts the file's lines. methods counts every function the Terminals class defines in its body: methods, accessors, the constructor and properties set to a function or arrow expression, read from its syntax tree, so formatting never moves it.",
     "New behaviour goes in a sibling module under backend/runner/src/terminals/, as closes.ts, opens.ts and naming.ts do, with the class calling it. Work that can't is raised in the same pull request, written { \"budget\": n, \"reason\": \"why\", \"from\": \"#PR or commit\" }."
   ],
-  "lines": 1650,
+  "lines": 1647,
   "methods": 68,
   "slack": { "lines": 100, "methods": 5 }
 }

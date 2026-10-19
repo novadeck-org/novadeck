@@ -31,6 +31,12 @@ hand back as `saved` to the next viewer of the same thing.
   `@codemirror/state` and `@codemirror/view` are peer dependencies, since a host's extensions
   cross the boundary and two copies would break them. `findTables` finds tables by offset.
 - `./markdown.css`: the markdown viewer's looks, themed through `--md-*`; its header lists them.
+- `./markdown-blocks`: `parseMarkdown`, a small forgiving reader of the Markdown an agent
+  writes (paragraphs, headings, lists, quotes, fenced code, tables, emphasis, inline code,
+  links), returning a tree for a host to draw element by element, so nothing in the text is
+  ever read as HTML; `parseInline`, `safeHref` (only web links leave) and `fenceFile`, the
+  file name whose language a fence's info string asks for, to give `languageOf`. It imports
+  nothing and doesn't edit: `./markdown` is the editor.
 - `./text`: `outline`, the headings of a Markdown text, with no editor behind it.
 - `./sync`: `lineChanges`, `distance` and `merge`, how Markdown texts differ and merge.
   Built on CodeMirror's state, so kept apart from `./text`.
