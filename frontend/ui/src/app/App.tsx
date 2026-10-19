@@ -1,5 +1,13 @@
+import { sameTeam, teamOf } from "@novadeck/core/derivations"
 import type { Backend, BackendSelection, CreateBackend, TerminalKey } from "@novadeck/core/port"
-import { useEffect, useRef, type ComponentProps, type ComponentType } from "react"
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ComponentProps,
+  type ComponentType,
+} from "react"
 import { HashRouter, MemoryRouter } from "react-router"
 
 import { sidebarToggle } from "../interaction/dom"
@@ -11,6 +19,8 @@ import { sidebarVisible } from "../shell/shell-state"
 import { SidebarRail } from "../shell/SidebarRail"
 import { WorkspacePanels } from "../shell/WorkspacePanels"
 import { ZenDock } from "../shell/ZenDock"
+import { createTabListStore, TabListContext, type TabListStore } from "../terminals/tab-list"
+import { TeamWire } from "../terminals/TeamWire"
 import { DictationOverlay } from "../voice/DictationOverlay"
 import { BackendGate } from "./BackendGate"
 import { BootReporter } from "./BootReporter"
@@ -123,6 +133,21 @@ const WorkspaceEffects = (): null => {
   return null
 }
 
+// The selected terminal's team on the rail's border, while the Terminals list shows. It reads
+// the selection and its team itself, so a change to either re-renders only the wire.
+const TeamWireSection = ({
+  shown,
+  tabList,
+}: {
+  shown: boolean
+  tabList: TabListStore
+}): React.JSX.Element => {
+  const selected = useWorkspaceState((workspace) => currentState(workspace).selected)
+  const team = useWorkspaceState((workspace) => teamOf(workspace, selected), sameTeam)
+  const list = useSyncExternalStore(tabList.subscribe, tabList.getSnapshot)
+  return <TeamWire team={team} selected={selected} shown={shown} list={list} />
+}
+
 // The rail and the Zen dock read the bell's badge themselves, so an unread change that leaves
 // the badge as it was re-renders neither them nor the app around them.
 const RailWithBadge = (
@@ -152,6 +177,8 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
   }, shallowEqual)
   const { zen, sidebar, sidebarCollapsed, sidebarPanel, fontSize, enabledViews } = shell
   const view = useWorkspaceState((workspace) => currentState(workspace).view)
+  // The Terminals list on screen, which the team wire draws beside.
+  const [tabList] = useState(createTabListStore)
   const voice = useDictationController(services)
   useKeyboard(voice?.dictation)
   const { backend } = services
@@ -187,38 +214,46 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
           <WorkspaceEffects />
           <VisitorBar />
           <HeaderSection />
-          <div className="workspace-body relative flex min-h-0 flex-1">
-            {sidebarRail()}
-            <WorkspacePanels
-              collapsed={zen || sidebarCollapsed}
-              mobileOpen={!zen && sidebar}
-              onMobileOpenChange={(open) => {
-                if (!open) hideSidebar()
-              }}
-              mobileRail={sidebarRail(true)}
-              mobileLabel={panelLabels[sidebarPanel]}
-              mobileWide={sidebarPanel === "inbox"}
-              mobileFinalFocusEl={() => sidebarToggle(sidebarPanel)}
-              sidebar={<SidebarSection />}
-            >
-              <WorkspaceStage canvas={canvas} />
-            </WorkspacePanels>
-            {zen && (
-              <ZenDockWithBadge
-                view={view}
-                enabledViews={enabledViews}
-                inbox={services.backend.inbox !== undefined}
-                onCreate={() => add()}
-                onViewChange={(next) => {
-                  if (next !== view) changeView(next)
-                }}
-                onNotifications={() =>
-                  toggleSidebar(services.backend.inbox ? "inbox" : "notifications")
+          <TabListContext.Provider value={tabList}>
+            <div className="workspace-body relative flex min-h-0 flex-1">
+              {sidebarRail()}
+              <TeamWireSection
+                shown={
+                  !zen && !sidebarCollapsed && shell.sidebarVisible && sidebarPanel === "terminals"
                 }
-                onExit={exitZen}
+                tabList={tabList}
               />
-            )}
-          </div>
+              <WorkspacePanels
+                collapsed={zen || sidebarCollapsed}
+                mobileOpen={!zen && sidebar}
+                onMobileOpenChange={(open) => {
+                  if (!open) hideSidebar()
+                }}
+                mobileRail={sidebarRail(true)}
+                mobileLabel={panelLabels[sidebarPanel]}
+                mobileWide={sidebarPanel === "inbox"}
+                mobileFinalFocusEl={() => sidebarToggle(sidebarPanel)}
+                sidebar={<SidebarSection />}
+              >
+                <WorkspaceStage canvas={canvas} />
+              </WorkspacePanels>
+              {zen && (
+                <ZenDockWithBadge
+                  view={view}
+                  enabledViews={enabledViews}
+                  inbox={services.backend.inbox !== undefined}
+                  onCreate={() => add()}
+                  onViewChange={(next) => {
+                    if (next !== view) changeView(next)
+                  }}
+                  onNotifications={() =>
+                    toggleSidebar(services.backend.inbox ? "inbox" : "notifications")
+                  }
+                  onExit={exitZen}
+                />
+              )}
+            </div>
+          </TabListContext.Provider>
           <WorkspaceFooter />
           <WorkspaceOverlays />
           {voice && <DictationOverlay controller={voice} keys={dictationKeys()} />}
