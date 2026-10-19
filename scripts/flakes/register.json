@@ -55,6 +55,27 @@
       "seen": ["#232 run 39046102126 job 117435018702 (macOS)"]
     },
     {
+      "id": "ui-preferences-text-size-first-read",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/preferences.spec.tsx > terminal text size preference > when a larger size is chosen > enlarges terminal text and keeps it after reopening",
+      "signature": "Checkout implementation draws no row with \"Nothing to commit, working tree clean\\.\"",
+      "status": "fixed",
+      "cause": "The spec read the checkout terminal's output row the moment the workspace opened, and on a busy machine the terminal had not drawn it yet, so the read found no row. Reproduced locally: with Chromium's CPU throttled 60x or 120x from the start, 8 of 8 runs failed this way; with the demo's shell output held back 600 ms, 3 of 3. The specs now wait for the row to draw before their first read (`outputDrawn`), and passed 3 of 3 with the output held back.",
+      "seen": [
+        "local full run (fulltest.sh), task/manager-split@launching f09957b5 (2026-10-19)",
+        "local full run (fulltest.sh), task/manager-split@resets b9696474 (2026-10-19)"
+      ]
+    },
+    {
+      "id": "ui-preferences-ligatures-first-read",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/preferences.spec.tsx > Preferences > when choosing whether to join ligatures > draws terminals in the bundled mono without them, then joins them once turned on",
+      "signature": "Checkout implementation draws no row with \"Nothing to commit, working tree clean\\.\"",
+      "status": "fixed",
+      "cause": "The spec read the checkout terminal's output row the moment the workspace opened, and on a busy machine the terminal had not drawn it yet, so the read found no row. Reproduced locally: with Chromium's CPU throttled 60x or 120x from the start, 8 of 8 runs failed this way; with the demo's shell output held back 600 ms, 3 of 3. The specs now wait for the row to draw before their first read (`outputDrawn`), and passed 3 of 3 with the output held back.",
+      "seen": ["local full run (fulltest.sh), task/manager-split@shown 4d9fb733 (2026-10-19)"]
+    },
+    {
       "id": "ui-companions-grid-undock",
       "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/companions.spec.tsx > Undocking an item into a window of its own > when dragged onto the Grid's free space > opens a window there",

@@ -15,6 +15,7 @@ import { agents, harnesses } from "../harnesses/registry.js"
 import type { DeliveryEvent } from "../messaging/delivery.js"
 import { tracer } from "../messaging/doorbell.js"
 import { Messaging } from "../messaging/messaging.js"
+import { Launcher } from "../terminals/launching.js"
 import { Terminals } from "../terminals/manager.js"
 import { Saves } from "../terminals/saving.js"
 import type { FakeModel } from "./model/server.js"
@@ -84,7 +85,6 @@ type Runner = {
   readonly disconnections: ReadonlyMap<string, number>
   queue: <T>(terminalId: string, work: () => Promise<T>, fallback: T) => Promise<T>
   report: (report: Report, deadline?: number) => Promise<unknown>
-  connected: (agent: string | undefined) => Promise<boolean>
   appliedFact: (record: Traced, fact: { readonly type: string }) => boolean
   messaging: { delivery: (terminalId: string) => { epoch: number; state: string } | undefined }
   screenTitled: (record: Titled, child: object, title: string) => void
@@ -366,7 +366,6 @@ export const startTrace = (name: string, model: FakeModel) => {
   const runner = methods(Terminals.prototype as unknown as Runner, "Terminals", [
     "queue",
     "report",
-    "connected",
     "appliedFact",
     "screenTitled",
     "harnessIn",
@@ -377,7 +376,6 @@ export const startTrace = (name: string, model: FakeModel) => {
   const {
     queue,
     report: handle,
-    connected,
     appliedFact,
     screenTitled,
     harnessIn,
@@ -388,6 +386,9 @@ export const startTrace = (name: string, model: FakeModel) => {
   // Saving and reading terminals' records.
   const saving = methods(Saves.prototype, "Saves", ["persisting"])
   const { persisting } = saving
+  // Whether a harness is connected, as a report's admission or a shown prompt asks.
+  const launching = methods(Launcher.prototype, "Launcher", ["connected"])
+  const { connected } = launching
   runner.endExited = function (record) {
     const before = record.binding
     const ended = endExited.call(this, record)
@@ -462,7 +463,7 @@ export const startTrace = (name: string, model: FakeModel) => {
       if (took > 50) add(`slow: saving a terminal blocked everything for ${took} ms`)
     }
   }
-  runner.connected = async function (agent) {
+  launching.connected = async function (agent) {
     const began = Date.now()
     try {
       const result = await connected.call(this, agent)
@@ -747,13 +748,13 @@ export const startTrace = (name: string, model: FakeModel) => {
       Object.assign(treeing, { read: readTree, end: endTree })
       Object.assign(closing, { terminate, stop })
       Object.assign(saving, { persisting })
+      Object.assign(launching, { connected })
       Object.assign(interrupting, { once, settled })
       Object.assign(prompting, { emptied, landed })
       for (const [host, original] of seeing) Object.assign(host, original)
       Object.assign(runner, {
         queue,
         report: handle,
-        connected,
         appliedFact,
         screenTitled,
         harnessIn,
