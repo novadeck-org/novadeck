@@ -1,6 +1,6 @@
 import { EditorState, Text } from "@codemirror/state"
 
-import { context, describe, expect, it } from "../../../test"
+import { context, describe, expect, it } from "../test"
 import {
   caretInNote,
   emptyNoteRemovals,

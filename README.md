@@ -1020,6 +1020,7 @@ atlas.
 | `frontend/ui`             | React frontend built with Vite, Tailwind CSS, and Lucide icons.                           |
 | `frontend/core`           | The UI's model: types, reducer, stores, and the port to a backend.                        |
 | `frontend/toolkit`        | The controls every feature draws with: Ark UI wrappers, shared recipes, the sidebar item. |
+| `frontend/companion`      | The companion pane: taskbar, peek, pane, plan editor, messages, and the bar drag.         |
 | `frontend/runner-adapter` | The UI's backend for a runner, over a WebSocket or the desktop host.                      |
 | `frontend/terminal-views` | The xterm mount both backends draw terminals with.                                        |
 | `frontend/demo`           | The demo backend: a scripted workspace and simulated terminals.                           |
@@ -1072,7 +1073,7 @@ backend-only tests.
 ### Working on the UI
 
 The UI is split into packages: `frontend/core`, `frontend/ui`, `frontend/toolkit`,
-`frontend/runner-adapter`, `frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit` and
+`frontend/companion`, `frontend/runner-adapter`, `frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit` and
 `frontend/specs`, and the apps `apps/desktop`, `apps/try` and `apps/previews`. `frontend/ui`
 holds the page's layers, each a folder of its `src/`; the rest are packages of their own. In
 the table a path that starts with `frontend/` or `apps/` is a package, and any other is a
@@ -1099,8 +1100,8 @@ folder of `frontend/ui/src/`:
 | `frontend/core/src/roster.ts`                                   | A session's terminals and undocked windows, laid out as tiles, their order and status.                                         |
 | `frontend/core/src/layout/workspace-layout.ts`                  | Where each terminal sits and how big it is in each view.                                                                       |
 | `terminals/`                                                    | Terminal frame, tabs, rename state, and the recent-terminal switcher.                                                          |
-| `terminals/companion/`                                          | Taskbar and pane: the panes' store, `bar.ts` rules, viewers, `plan-editor/` (notes).                                           |
-| `terminals/drag-session.ts`                                     | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
+| `frontend/companion/src/`                                       | Taskbar and pane: the panes' store, `bar.ts` rules, viewers, `plan-editor/` (notes).                                           |
+| `frontend/companion/src/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
 | `terminals/chat/`                                               | The agent's chat: its blocks, markdown reader, tool rows, requests and the composer.                                           |
 | `layouts/canvas/`, `grid/`, `focus/`                            | View adapters and colocated library styles.                                                                                    |
 | `layouts/` (top level)                                          | Helpers shared by views: view transitions, background gestures, visibility.                                                    |
@@ -1132,7 +1133,8 @@ package imports only what its `package.json` declares. The demo's debug panel is
 of its own, `frontend/demo-debug`, the one with React and Lucide. `interaction/` builds on
 the core and imports no packages;
 features add `frontend/toolkit`; `layouts/` may use
-`terminals/`; `notifications/` builds on the base layers and
+`terminals/`; the companion pane is a package of its own, `frontend/companion`, built on the
+core, the toolkit and the viewers and never on the UI, which composes it; `notifications/` builds on the base layers and
 `terminals/unread-state.ts`; `inbox/` builds on the base layers and the
 chat's markdown reader and answers; `shell/` may use `layouts/`, `projects/`,
 `notifications/` and `inbox/`. `app/` composes every feature layer, `notifications/` and `inbox/`.
@@ -1194,14 +1196,14 @@ It starts over on reload apart from preferences, the collapsed sidebar and the
 project arrangement (the switcher's order and pins, `novadeck.project-arrangement`),
 which store subscriptions persist. Another subscription saves the active session's
 windowed view from the workspace store, and a new App seeds sessions with it. The
-companion panes' store in `terminals/companion/state.ts` holds what the panes load,
+companion panes' store in `frontend/companion/src/state.ts` holds what the panes load,
 by item: each plan as the person edits it, what each item last loaded, and the secret
 files the person chose to see; it follows the backend's companions and messages from an
 effect. What an item loaded stays 30 seconds after nothing shows it, then goes, so a
 large image doesn't stay in memory. What a taskbar shows is derived from it and the workspace in
-`terminals/companion/bar.ts`, never stored.
+`frontend/companion/src/bar.ts`, never stored.
 `WorkspaceProvider` creates the backend, the stores, the drag session
-(`terminals/drag-session.ts`), the navigator, and the commands once per App, in a pure
+(`frontend/companion/src/drag-session.ts`), the navigator, and the commands once per App, in a pure
 initializer, and shares them through context; it receives the page as children, so a URL
 change re-renders only the provider.
 
