@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
 import { applyEdit, type Edit } from "../packages/move.ts"
@@ -7,6 +7,7 @@ import {
   destinationOf,
   insertAfter,
   insertBefore,
+  missingExports,
   rewriteSpecifiers,
   toolkitDir,
   toolkitName,
@@ -150,6 +151,17 @@ if (files.has(styles)) {
   if (text !== read(styles) || writes.has(styles)) writes.set(styles, text)
 }
 
+// Every module the toolkit holds after the move needs its export, or its importers (now
+// `@novadeck/toolkit/<module>`) can't resolve it.
+const manifestPath = join(root, toolkitDir, "package.json")
+if (existsSync(manifestPath)) {
+  const { exports: exported = {} } = JSON.parse(read(`${toolkitDir}/package.json`)) as {
+    exports?: Record<string, unknown>
+  }
+  const after = [...files].map((file) => destinationOf(file) ?? file)
+  problems.push(...missingExports(after, new Set(Object.keys(exported))))
+}
+
 if (problems.length > 0) {
   console.error(`Stopped, nothing changed. Decide these first:\n${problems.join("\n")}`)
   process.exit(1)
@@ -168,7 +180,8 @@ try {
     writeFileSync(join(root, place), text)
     written.push(place)
   }
-  finish(root, oxfmt, written)
+  // The install and the format are for a run that changed something.
+  if (moves.length + writes.size > 0) finish(root, oxfmt, written)
   const staged = new Set([...written, ...moves.map(({ to }) => to)])
   if (staged.size > 0) git("add", "--", ...staged)
 } catch (error) {

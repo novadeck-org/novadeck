@@ -297,7 +297,7 @@ export const notes: Record<string, Note> = {
       "The chrome around the workspace: header, footer, rail and panels, empty states and crash notices.",
     entries: [{ file: `${ui}/shell/shell-state.ts` }],
   },
-  "frontend/ui/sidebar": { purpose: "The sidebar's panels and rows." },
+  "frontend/ui/sidebar": { purpose: "The sidebar's panels and the sessions list." },
   "frontend/ui/projects": { purpose: "The project list, its pins bar, arrangement and statuses." },
   "frontend/ui/preferences": {
     purpose: "Preferences, the welcome dialog and the voice and murmur add-ons.",

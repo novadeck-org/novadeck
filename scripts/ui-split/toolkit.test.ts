@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest"
 
-import { destinationOf, insertAfter, insertBefore, originOf, rewriteSpecifiers } from "./toolkit.ts"
+import {
+  destinationOf,
+  exportKeyOf,
+  insertAfter,
+  insertBefore,
+  missingExports,
+  originOf,
+  rewriteSpecifiers,
+} from "./toolkit.ts"
 
 const ui = "frontend/ui/src"
 const tk = "frontend/toolkit/src"
@@ -119,5 +127,55 @@ describe("the lines it adds to a stylesheet", () => {
     expect(insertBefore(before!, `@import "./b.css"`, "@new;")).toBe(before)
     expect(insertAfter(css, "@a;", "@new;")).toBe(`@a;\n@new;\n@import "./b.css";\n@c;\n`)
     expect(insertAfter(css, "@missing", "@new;")).toBeUndefined()
+  })
+})
+
+describe("a branch that merged main before the script ran", () => {
+  // Git's directory rename took the branch's new file into the toolkit, specifiers as written.
+  const merged = new Set([
+    `${ui}/test.ts`,
+    `${ui}/core-free.ts`,
+    `${tk}/class-name.ts`,
+    `${tk}/Tooltip.tsx`,
+    `${tk}/NewThing.tsx`,
+  ])
+
+  it("resolves a moved file's old-place specifiers, though test.ts isn't written yet", () => {
+    const done = rewriteSpecifiers(
+      `${tk}/NewThing.tsx`,
+      `import { cn } from "../class-name"\nimport { Tooltip } from "./Tooltip"\nimport { it } from "../test"\n`,
+      merged,
+    )
+    expect(done.problems).toEqual([])
+    expect(done.text).toBe(
+      `import { cn } from "./class-name"\nimport { Tooltip } from "./Tooltip"\nimport { it } from "./test"\n`,
+    )
+  })
+
+  it("still stops on what the toolkit can't reach", () => {
+    expect(
+      rewriteSpecifiers(`${tk}/NewThing.tsx`, `import { x } from "../core-free"\n`, merged)
+        .problems,
+    ).toHaveLength(1)
+  })
+})
+
+describe("the exports a moved module needs", () => {
+  it("names each exported file's key, and none for tests", () => {
+    expect(exportKeyOf(`${tk}/Tooltip.tsx`)).toBe("./Tooltip")
+    expect(exportKeyOf(`${tk}/icons/ClaudeIcon.ts`)).toBe("./icons/ClaudeIcon")
+    expect(exportKeyOf(`${tk}/button.css`)).toBe("./button.css")
+    expect(exportKeyOf(`${tk}/test.ts`)).toBeUndefined()
+    expect(exportKeyOf(`${tk}/Switch.test.ts`)).toBeUndefined()
+    expect(exportKeyOf(`${ui}/styles.css`)).toBeUndefined()
+  })
+
+  it("reports a module the manifest lacks", () => {
+    expect(
+      missingExports(
+        [`${tk}/Tooltip.tsx`, `${tk}/NewThing.tsx`, `${ui}/app/App.tsx`],
+        new Set(["./Tooltip"]),
+      ),
+    ).toEqual([`${tk}/NewThing.tsx has no "./NewThing" export`])
   })
 })

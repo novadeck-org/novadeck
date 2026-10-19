@@ -77,7 +77,8 @@ export const rewriteSpecifiers = (
   tracked: ReadonlySet<string>,
 ): Rewritten => {
   const problems: string[] = []
-  const known = new Set(tracked)
+  // The package's own test.ts counts as there whether or not it is written yet.
+  const known = new Set([...tracked, ownTest])
   for (const each of tracked) {
     const origin = originOf(each)
     if (origin) known.add(origin)
@@ -87,7 +88,12 @@ export const rewriteSpecifiers = (
   const next = (specifier: string, line: number): string => {
     if (!/^\.\.?(?:\/|$)/.test(specifier)) return specifier
     const query = /\?.*$/.exec(specifier)?.[0] ?? ""
-    const resolved = resolveRelative(file, specifier, known)
+    // A file a merge's directory rename took into the toolkit still names its siblings and the
+    // UI's files as it did at its old place: resolve from there.
+    const origin = inside ? originOf(file) : undefined
+    const resolved =
+      resolveRelative(file, specifier, known) ??
+      (origin ? resolveRelative(origin, specifier, known) : undefined)
     if (!resolved) {
       // Only what a moved file reads, or what names a moved module, is the move's to place.
       if (inside || /ui-toolkit|class-name|SidebarItem/.test(specifier))
@@ -131,3 +137,18 @@ export const insertBefore = (text: string, anchor: string, line: string): string
   const start = text.lastIndexOf("\n", at) + 1
   return `${text.slice(0, start)}${line}\n${text.slice(start)}`
 }
+
+/** The `package.json` export key of a toolkit file, or undefined for one that isn't exported. */
+export const exportKeyOf = (file: string): string | undefined => {
+  if (!file.startsWith(`${toolkitSrc}/`)) return undefined
+  const inside = file.slice(`${toolkitSrc}/`.length)
+  if (inside === "test.ts" || /\.test\.tsx?$/.test(inside)) return undefined
+  return `./${inside.replace(/\.tsx?$/, "")}`
+}
+
+/** The exports the manifest lacks for `files` (toolkit files, at their new places). */
+export const missingExports = (files: Iterable<string>, exported: ReadonlySet<string>): string[] =>
+  [...new Set(files)].flatMap((file) => {
+    const key = exportKeyOf(file)
+    return key !== undefined && !exported.has(key) ? [`${file} has no "${key}" export`] : []
+  })

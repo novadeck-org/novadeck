@@ -182,6 +182,19 @@ describe("the package graph", () => {
     )
   })
 
+  it("keeps the toolkit's shipped code off the test kit, which only its tests may import", () => {
+    const src = join(root, "frontend", "toolkit", "src")
+    const shipped = (readdirSync(src, { recursive: true }) as string[])
+      .map((file) => file.split("\\").join("/"))
+      .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))
+    expect(shipped.length).toBeGreaterThan(10)
+    expect(
+      shipped.filter((file) =>
+        readFileSync(join(src, file), "utf8").includes("@novadeck/test-kit"),
+      ),
+    ).toEqual([])
+  })
+
   it("keeps each harness, and what it reaches, off the runner and the other adapters", () => {
     const harnesses = [...packages.keys()].filter((folder) => folder.startsWith("harnesses/"))
     const offending = harnesses.flatMap((folder) =>
