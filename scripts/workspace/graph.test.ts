@@ -7,8 +7,9 @@ import { fromPath, installed } from "../libraries/graph.ts"
 
 // The boundaries the package graph holds now that each part is a package of its own (step 5):
 // what an app or a frontend package may depend on, which the import rules used to say. pnpm
-// resolves only what a package declares (the root's own dependencies aside, which the import
-// fence refuses by name), so these edges are the whole of what it can reach;
+// resolves only what a package declares (the root's own dependencies aside, which resolve from
+// anywhere and which the import fence refuses by name in libraries and browser code alone), so
+// these edges are the whole of what it can reach;
 // scripts/libraries/graph.test.ts holds the libraries' side (no app package, only their order).
 
 type Manifest = {
@@ -148,6 +149,14 @@ describe("the package graph", () => {
   it("keeps the UI and what it reaches off every backend", () => {
     const reached = reaches("frontend/ui")
     expect([...backends].filter((folder) => reached.has(folder))).toEqual([])
+  })
+
+  it("keeps the adapters and the terminal views, and what they reach, off the app's chrome", () => {
+    expect(
+      ["frontend/runner-adapter", "frontend/demo", "frontend/demo-debug", "frontend/terminal-views"]
+        .filter((folder) => reaches(folder).has("frontend/ui"))
+        .map((folder) => `${folder} -> frontend/ui`),
+    ).toEqual([])
   })
 
   it("keeps each harness, and what it reaches, off the runner and the other adapters", () => {
