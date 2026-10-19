@@ -6,11 +6,11 @@ import {
   type PlanUnwritableReason,
 } from "@novadeck/core/companion"
 import type { WorkspaceTarget } from "@novadeck/core/types"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { outline } from "@novadeck/viewers/text"
 import { AppWindow, PanelRightClose } from "lucide-react"
 import { lazy, Suspense, useRef, type ReactNode } from "react"
 
-import { Tooltip } from "../../ui-toolkit/Tooltip"
 import { ArtifactViewer, CopyText, Unavailable } from "./ArtifactViewer"
 import type { BarMember } from "./bar"
 import type { MailHandle } from "./mail"

@@ -1,7 +1,7 @@
 import { Tabs as ArkTabs } from "@ark-ui/react/tabs"
 import type { ReactNode } from "react"
 
-import { cn } from "../class-name"
+import { cn } from "./class-name"
 
 type PartProps = { children: ReactNode; className?: string }
 

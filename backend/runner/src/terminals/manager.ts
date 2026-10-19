@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto"
+import { randomBytes, randomUUID } from "node:crypto"
 import { constants, rmSync, writeFileSync } from "node:fs"
 import { access, realpath, stat } from "node:fs/promises"
 import { homedir } from "node:os"
@@ -74,12 +74,6 @@ import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
 import type { PlanText } from "../companions/content.js"
 import type { CompanionItems, TerminalPlace } from "../companions/items.js"
 import type { ItemRecord } from "../companions/records.js"
-import {
-  readRequest,
-  readDismissRequest,
-  type PresentAnswer,
-  type DismissAnswer,
-} from "../companions/request.js"
 import { DomainError } from "../errors.js"
 import {
   apply,
@@ -115,7 +109,6 @@ import type { InstalledShell } from "../shell/install.js"
 import { shellLaunch } from "../shell/integration.js"
 import {
   listenForReports,
-  unanswered,
   unansweredCalls,
   type Ack,
   type Call,
@@ -125,6 +118,7 @@ import {
 import type { HintFacts } from "../voice/hint.js"
 import { Answers, type AnswerHost, type AnswerOptions } from "./answers.js"
 import { busy } from "./busy.js"
+import { callerOf, sameToken } from "./callers.js"
 import {
   allowClose,
   closeLimit,
@@ -136,6 +130,7 @@ import {
 } from "./closes.js"
 import { coalesced } from "./coalesce.js"
 import { expectedAgent, promptIn } from "./commands.js"
+import { Companion } from "./companion.js"
 import { forgetPrompts, markPrompt, murmurHost } from "./describing.js"
 import { Dialogs, type DialogsHost, type DialogsOptions } from "./dialogs.js"
 import { mention } from "./handles.js"
@@ -339,9 +334,6 @@ const unopened = {
 // a git branch and a plan's file, each with its own short timeout.
 const driftReadMs = 1_500
 
-const sameToken = (a: string, b: string): boolean =>
-  a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b))
-
 // How long a closed Windows terminal's programs have to end by themselves once its
 // console closes, as they do on its CTRL_CLOSE_EVENT, saving what they were writing, in
 // milliseconds: within the five seconds Windows gives them. What is left of the terminal's
@@ -421,6 +413,8 @@ export class Terminals {
   private readonly streams: Streams<Record>
   /** Names terminals: their handles, and the titles people give them. */
   private readonly names: Names<Record>
+  /** What agents show beside their terminals, and the plans they keep there. */
+  private readonly companion: Companion
   private readonly options: Required<
     Omit<
       TerminalOptions,
@@ -604,6 +598,13 @@ export class Terminals {
       records: () => this.records.values(),
       record: (terminalId) => this.records.get(terminalId),
       announce: (record) => this.announce(record),
+    })
+    this.companion = new Companion(this.options.items, {
+      records: () => this.records,
+      saved: (terminalId) => this.saves.saved(terminalId),
+      projectFolder: (sessionId) => this.projectFolder(sessionId),
+      peers: () => this.peers,
+      stopping: () => this.stopping,
     })
     this.messaging = new Messaging({
       ...(options.mailbox && { records: options.mailbox }),
@@ -1566,7 +1567,7 @@ export class Terminals {
   /** Forgets what restores the terminal, and unless told not to, the sessions it claimed. */
   private forget(terminalId: string, { claims = true } = {}): void {
     // Its items go first, so watchers hear of each before its record cascades them away.
-    this.options.items?.terminalClosed(terminalId)
+    this.companion.closed(terminalId)
     this.messaging.unregister(terminalId)
     this.asks.reconcile(terminalId)
     this.doorbell?.forget(terminalId)
@@ -1585,16 +1586,7 @@ export class Terminals {
    * placed on it need: its session, handle, directory and project folder.
    */
   place(terminalId: string): TerminalPlace | undefined {
-    const live = this.records.get(terminalId)
-    const terminal = live?.summary ?? this.saves.saved(terminalId)
-    if (!terminal) return undefined
-    return {
-      terminalId,
-      sessionId: terminal.sessionId,
-      handle: terminal.handle,
-      cwd: terminal.cwd,
-      project: this.projectFolder(terminal.sessionId),
-    }
+    return this.companion.place(terminalId)
   }
 
   /**
@@ -1602,16 +1594,8 @@ export class Terminals {
    * project's name, with the files shown in its bar. Undefined for a terminal not running
    * here.
    */
-  async hintFacts(terminalId: string): Promise<Omit<HintFacts, "project"> | undefined> {
-    const record = this.records.get(terminalId)
-    if (!record) return undefined
-    const facts = await this.peers.hint(record, this.options.items?.bar(terminalId) ?? [])
-    // The session's open terminals' handles, in the order they were given, so dictation
-    // spells them.
-    const handles = [...this.records.values()]
-      .filter(({ closed, summary }) => !closed && summary.sessionId === record.summary.sessionId)
-      .map(({ summary }) => summary.handle)
-    return { ...facts, handles }
+  hintFacts(terminalId: string): Promise<Omit<HintFacts, "project"> | undefined> {
+    return this.companion.hintFacts(terminalId)
   }
 
   /**
@@ -1619,14 +1603,7 @@ export class Terminals {
    * runs the plan's session: the latest its actor presented, and when.
    */
   livePlan(item: ItemRecord): PlanText | undefined {
-    const { plan } = item
-    const record = this.records.get(item.from.terminalId)
-    const { binding } = record ?? {}
-    if (!plan || !binding || binding.agent !== plan.agent || binding.sessionId !== plan.session)
-      return undefined
-    const live = record?.activity?.plans.find(({ actor }) => actor === plan.actor)
-    if (live?.source.kind !== "text") return undefined
-    return { text: live.source.text, truncated: live.source.truncated, changedAt: live.at }
+    return this.companion.livePlan(item)
   }
 
   /** The session `agent` last reported in the terminal, live or saved; null when none. */
@@ -1794,47 +1771,6 @@ export class Terminals {
   }
 
   /**
-   * Shows the person what an agent asked to, through Novadeck's MCP server in one of
-   * the terminal's shells, on the terminal's own bar (see `CompanionItems.show`). A call
-   * without the shell's own token learns nothing more.
-   */
-  async present(call: Call): Promise<PresentAnswer> {
-    const record = this.records.get(call.terminalId)
-    if (!record || record.terminal.exiting || !sameToken(record.token, call.token))
-      return unanswered
-    const read = readRequest(call.request)
-    if (!read.ok) return read
-    const place = this.place(call.terminalId)
-    if (!place || !this.options.items) return unanswered
-    return this.options.items.show(place, read.request)
-  }
-
-  /**
-   * Closes what the caller's agent showed on its own terminal's bar, through Novadeck's
-   * MCP server (see `CompanionItems.dismiss`). A call without the shell's own token
-   * learns nothing more.
-   */
-  async dismiss(call: Call): Promise<DismissAnswer> {
-    const record = this.records.get(call.terminalId)
-    if (!record || record.terminal.exiting || !sameToken(record.token, call.token))
-      return unansweredCalls.dismiss
-    const read = readDismissRequest(call.request)
-    if (!read.ok) return read
-    const place = this.place(call.terminalId)
-    if (!place || !this.options.items) return unansweredCalls.dismiss
-    return this.options.items.dismiss(place, read.request)
-  }
-
-  /** What the caller's own terminal's bar holds, as its agent asked through Novadeck's MCP server. */
-  private showing(call: Call): { ok: true; text: string } | typeof unansweredCalls.showing {
-    const record = this.records.get(call.terminalId)
-    if (!record || record.terminal.exiting || !sameToken(record.token, call.token))
-      return unansweredCalls.showing
-    if (!this.options.items) return unansweredCalls.showing
-    return { ok: true, text: this.options.items.listing(call.terminalId) }
-  }
-
-  /**
    * Opens a new terminal beside the caller's, as an agent asked through Novadeck's MCP
    * server in one of the terminal's shells: in a folder, from the terminal's directory,
    * optionally starting a command at its first prompt. The client that lays terminals
@@ -1843,9 +1779,8 @@ export class Terminals {
    * more.
    */
   async open(call: Call): Promise<OpenAnswer> {
-    const record = this.records.get(call.terminalId)
-    if (!record || record.terminal.exiting || !sameToken(record.token, call.token))
-      return unansweredCalls.open
+    const record = callerOf(this.records, call)
+    if (!record) return unansweredCalls.open
     const read = readOpenRequest(call.request)
     if (!read.ok) return read
     const { request } = read
@@ -1977,9 +1912,8 @@ export class Terminals {
    * the shell's own token learns nothing more.
    */
   async closePeer(call: Call): Promise<CloseAnswer> {
-    const record = this.records.get(call.terminalId)
-    if (!record || record.terminal.exiting || !sameToken(record.token, call.token))
-      return unansweredCalls.close
+    const record = callerOf(this.records, call)
+    if (!record) return unansweredCalls.close
     const read = readCloseRequest(call.request)
     if (!read.ok) return read
     const { to } = read.request
@@ -2028,20 +1962,18 @@ export class Terminals {
   private call(call: Call): Promise<unknown> {
     switch (call.type) {
       case "present":
-        return this.present(call)
+        return this.companion.present(call)
       case "showing":
-        return Promise.resolve(this.showing(call))
+        return Promise.resolve(this.companion.showing(call))
       case "dismiss":
-        return this.dismiss(call)
+        return this.companion.dismiss(call)
       case "open":
         return this.open(call)
       case "close":
         return this.closePeer(call)
       case "ask":
       case "tell": {
-        const record = this.records.get(call.terminalId)
-        if (!record || record.terminal.exiting || !sameToken(record.token, call.token))
-          return Promise.resolve(unansweredCalls[call.type])
+        if (!callerOf(this.records, call)) return Promise.resolve(unansweredCalls[call.type])
         return Promise.resolve(this.asks.call(call.terminalId, call.type, call.request))
       }
       case "send":
@@ -2061,9 +1993,8 @@ export class Terminals {
    * A call without the shell's own token learns nothing more.
    */
   async summarize(call: Call): Promise<SummarizeAnswer> {
-    const record = this.records.get(call.terminalId)
-    if (!record || record.terminal.exiting || !sameToken(record.token, call.token))
-      return unansweredCalls.summarize
+    const record = callerOf(this.records, call)
+    if (!record) return unansweredCalls.summarize
     const read = readSummarizeRequest(call.request)
     if (!read.ok) return read
     const summary = cleanSummary(read.request.summary)
@@ -2238,7 +2169,7 @@ export class Terminals {
     this.host.release(ownerId)
     this.streams.release(ownerId)
     this.opens.release(ownerId)
-    this.options.items?.release(ownerId)
+    this.companion.release(ownerId)
   }
 
   shutdown(): Promise<void> {
@@ -2251,7 +2182,7 @@ export class Terminals {
     this.saves.stop()
     this.streams.finishWatchers()
     this.opens.finish()
-    this.options.items?.shutdown()
+    this.companion.shutdown()
     this.streams.finishReaders()
     for (const record of this.records.values()) this.unwatch(record)
     this.doorbell?.close()
@@ -2667,8 +2598,7 @@ export class Terminals {
         record.telemetry = null
         this.follow(record, event)
         // The plans its bar mirrored of another session go; unbinding alone keeps them.
-        if (next.binding)
-          this.options.items?.sessionBound(record.summary.id, next.binding.sessionId)
+        if (next.binding) this.companion.bound(record.summary.id, next.binding.sessionId)
       }
       record.summary = { ...record.summary, cwd: next.cwd }
     }
@@ -3529,7 +3459,8 @@ export class Terminals {
     }
     const next = record.activity && apply(record.activity, record.binding, fact)
     if (next) record.activity = next
-    if (next && fact.type === "plan-observed") void this.planned(record, record.binding, fact)
+    if (next && fact.type === "plan-observed")
+      void this.companion.planned(record, record.binding, fact)
     if (next && fact.type === "turn-ended") this.latchLimit(record)
     return Boolean(next)
   }
@@ -3544,38 +3475,6 @@ export class Terminals {
     const limit = limitOf(activity.lastTurn, telemetry.limits, telemetry.at)
     const next = limit && withLimit(activity, limit)
     if (next) record.activity = next
-  }
-
-  /**
-   * Mirrors a plan the bound session observed on the terminal's bar: its file, or for one
-   * presented as text, the transcript or rollout recording it, which reads it back once
-   * the terminal is gone. A text plan with no record to point at is not kept.
-   */
-  private async planned(
-    record: Record,
-    binding: Binding,
-    fact: Extract<ActivityEvent, { type: "plan-observed" }>,
-  ): Promise<void> {
-    const { items } = this.options
-    const place = this.place(record.summary.id)
-    if (!items || !place) return
-    const { plan, actor } = fact
-    const transcripts = harnesses[binding.agent].transcripts
-    const path =
-      plan.kind === "file"
-        ? plan.path
-        : record.transcript && transcripts
-          ? await transcripts
-              .locate(record.transcript, binding.sessionId, actor)
-              .catch(() => undefined)
-          : undefined
-    if (!path || this.stopping) return
-    await items.planObserved(
-      place,
-      { agent: binding.agent, agentSession: binding.sessionId, actor },
-      { source: plan, path },
-      fact.startedAt,
-    )
   }
 
   private unwatch(record: Record): void {

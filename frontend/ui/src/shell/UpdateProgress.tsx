@@ -1,7 +1,7 @@
 import type { UpdateOffer } from "@novadeck/core/update"
+import { Progress } from "@novadeck/toolkit/Progress"
 import { useState } from "react"
 
-import { Progress } from "../ui-toolkit/Progress"
 import { useLinger } from "./linger"
 
 // Where the bar stands for the offer heard last. A download this page saw finish keeps the
