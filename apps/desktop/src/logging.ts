@@ -120,6 +120,10 @@ export const appRedactor = (setup: Pick<LogSetup, "places" | "saltFile">): Redac
     home: homedir(),
     ...(user !== undefined && { user }),
     places: setup.places,
+    // Pasted files are kept there under the names they came with.
+    ...(setup.places.userData !== undefined && {
+      privatePlaces: { uploads: join(setup.places.userData, "uploads") },
+    }),
     salt: loadSalt(setup.saltFile),
     readable: appReadableNames,
     readableUrls: appReadableUrls,

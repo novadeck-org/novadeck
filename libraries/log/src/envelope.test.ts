@@ -48,6 +48,18 @@ describe("loggedError", () => {
     expect(loggedError(thrown, same).message).toBe("Unexpected token (input withheld)")
   })
 
+  it("keeps where in its input a JSON syntax error failed", () => {
+    let thrown: unknown
+    try {
+      JSON.parse('{"a": 1 "b"}')
+    } catch (error) {
+      thrown = error
+    }
+    expect(loggedError(thrown, same).message).toBe(
+      "Expected (input withheld; in JSON at position 8 (line 1 column 9))",
+    )
+  })
+
   it("cuts a long message to size", () => {
     const logged = loggedError(new Error("x".repeat(2_000)), same)
     expect(logged.message).toHaveLength(textLimit)

@@ -22,6 +22,8 @@ import type { Waits } from "./delivery.js"
  */
 export const tracer: {
   sink?: (terminalId: string, line: string, screen?: ScreenText) => void
+  /** Told when a terminal stops running, so what was kept of it goes. */
+  forgotten?: (terminalId: string) => void
 } = {}
 
 /** What the doorbell needs of the terminal manager and messaging, by terminal. */
@@ -241,6 +243,7 @@ export class Doorbell {
 
   /** Forgets a terminal that stopped running. */
   forget(terminalId: string): void {
+    tracer.forgotten?.(terminalId)
     this.settle(terminalId)
     clearTimeout(this.timers.get(terminalId))
     this.timers.delete(terminalId)

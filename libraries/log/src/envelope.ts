@@ -67,11 +67,13 @@ export const clip = (text: string, limit = textLimit): string =>
  * quotes the text it was given (`Unexpected token 'h', "hello" is not valid JSON`), which may
  * be anything, such as a message's body. Everything from the first quote on is dropped.
  */
-const withoutQuote = (message: string): string => {
+export const withoutQuote = (message: string): string => {
   const quote = message.search(/["'`]/)
   if (quote === -1) return message
   const before = message.slice(0, quote).replace(/[\s,:]+$/, "")
-  return `${before || "Not valid"} (input withheld)`
+  // Where in the input it failed says nothing of the input.
+  const position = /\s(in JSON at position \d+(?: \(line \d+ column \d+\))?)\s*$/.exec(message)?.[1]
+  return `${before || "Not valid"} (input withheld${position ? `; ${position}` : ""})`
 }
 
 const codeOf = (error: object): string | undefined => {

@@ -60,8 +60,9 @@ One JSON object per line, in one envelope (`Entry`):
   (`github.com`, `gitlab.com`, `bitbucket.org`) and the loopback keep their host; any other host
   is hashed but for its top-level domain. Paths are hashed as `hashPaths` hashes names, and a
   query and fragment are dropped.
-- `hashPaths`: paths in free text, with names hashed by a salted HMAC (`#1f2e3d4c.ts`, keeping
-  the extension); the app's folders as placeholders (`<userData>/…`), home as `~`, and the
+- `hashPaths`: paths in free text (Windows' `\\?\` long paths too), with names hashed by a salted HMAC (`#1f2e3d4c.ts`, keeping
+  the extension); the app's folders as placeholders (`<userData>/…`), what is under a private
+  place hashed (`<uploads>/#…`), home as `~`, and the
   system's folders, shared roots' first folder and `node_modules` contents as they are. Linux,
   macOS and Windows paths, shares, WSL and `file://` addresses. Names in `readableNames`
   (well-known programs and tool folders: `node`, `git`, `.nvm`, `AppData`…), those an app adds
@@ -76,7 +77,9 @@ The redactor finds paths by their shape: a drive, a share, `~`, a placeholder, a
 or a quoted path, which it takes whole. It can't tell a bare name from any other word, so a
 relative path (`src/billing.ts`), a folder's name, a project's or terminal's title can't be
 found by it. **A line's `msg` and `data` must never interpolate those: only ids, enums, counts,
-times and absolute paths.** What a screen showed, typed text, prompts and message bodies are
+times and absolute paths.** An unquoted path whose last name has spaces in it, with no extension and at
+the end of the text (`/home/ana/My Project`), keeps the words after the first space, and a
+bare host is hashed only where a network error names it (`getaddrinfo ENOTFOUND host`). What a screen showed, typed text, prompts and message bodies are
 never logged, but for lines marked `verbose`.
 
 `startSession`'s marker belongs to one process per launch, the one whose end is the launch's

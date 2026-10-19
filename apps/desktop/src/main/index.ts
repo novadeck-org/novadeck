@@ -1000,8 +1000,9 @@ const runnerEvents = (): RunnerEvents => {
       // Still said where it always was, as the system's journal keeps a desktop app's output.
       console.error(`Novadeck runner exited unexpectedly (code ${code})`)
     },
+    outputEnded: (start, stream) => output.end(start, stream),
     output: (start, stream, line) => {
-      output(start, stream, line)
+      output.line(start, stream, line)
       if (!app.isPackaged)
         (stream === "stderr" ? process.stderr : process.stdout).write(`${line}\n`)
     },

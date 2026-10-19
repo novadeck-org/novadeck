@@ -25,6 +25,8 @@ export type DoorbellLog = {
   ring(terminalId: string): void
   /** A ring failed. */
   ringFailed(terminalId: string, ours: boolean): void
+  /** The terminal stopped running: what was kept of it goes, its timer with it. */
+  forget(terminalId: string): void
   /** Stops its timers. */
   close(): void
 }
@@ -164,6 +166,10 @@ export const createDoorbellLog = (log: Log, options: DoorbellLogOptions = {}): D
       })
       dump(terminalId, held)
     },
+    forget(terminalId) {
+      clearTimeout(states.get(terminalId)?.timer)
+      states.delete(terminalId)
+    },
     close() {
       for (const held of states.values()) clearTimeout(held.timer)
       states.clear()
@@ -183,5 +189,6 @@ export const logDoorbell = (log: Log, options: DoorbellLogOptions = {}): Doorbel
   const created = createDoorbellLog(log, options)
   doorbellLog.current = created
   tracer.sink = (terminalId, line, screen) => created.trace(terminalId, line, screen)
+  tracer.forgotten = (terminalId) => created.forget(terminalId)
   return created
 }

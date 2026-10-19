@@ -279,6 +279,28 @@ describe("hashPaths", () => {
     ).toBe("at f (<install>/resources/app.asar/out/main/index.js:12:3)")
   })
 
+  it("hashes what is under a private place, as pasted files keep their names", () => {
+    const rule = {
+      ...linux,
+      privatePlaces: { uploads: "/home/ana/.config/novadeck/uploads" },
+    }
+    expect(
+      hashPaths(
+        "ENOSPC: open '/home/ana/.config/novadeck/uploads/1f2e/Acme merger term sheet.pdf'",
+        rule,
+      ),
+    ).toBe(`ENOSPC: open '<uploads>/${h("1f2e")}/${h("Acme merger term sheet", ".pdf")}'`)
+  })
+
+  it("reads Windows' long-path prefix as the path it names", () => {
+    expect(hashPaths("\\\\?\\C:\\Users\\Ana Lopez\\acme\\x.ts", windows)).toBe(
+      `~\\${h("acme")}\\${h("x", ".ts")}`,
+    )
+    expect(hashPaths("\\\\?\\UNC\\fileserver\\finance\\q3.xlsx", windows)).toBe(
+      `\\\\${h("fileserver")}\\${h("finance")}\\${h("q3", ".xlsx")}`,
+    )
+  })
+
   it("writes a folder named as the account as <user>", () => {
     expect(hashPaths("/mnt/c/Users/ana/x", linux)).toBe(`/mnt/c/Users/<user>/${h("x")}`)
   })
@@ -355,6 +377,42 @@ describe("createRedactor", () => {
       "a remote over ssh://",
       "ssh://git@github.com/acme/secret.git",
       `ssh://<redacted>@github.com/${h("acme")}/${h("secret", ".git")}`,
+    ],
+    [
+      "a URL's password with no user",
+      "redis://:hunter2@127.0.0.1:6379/0",
+      "redis://<redacted>@127.0.0.1:6379/0",
+    ],
+    [
+      "a password as YAML writes it",
+      "password: hunter2 was refused",
+      "password: <redacted> was refused",
+    ],
+    ["a token as a dump writes it", "auth_token: abcdef1234567890", "auth_token: <redacted>"],
+    [
+      "a password on a command line",
+      "mysql --password hunter2 -h db",
+      "mysql --password <redacted> -h db",
+    ],
+    [
+      "a host Node's errors name bare",
+      "getaddrinfo ENOTFOUND git.acme.corp",
+      `getaddrinfo ENOTFOUND ${h("git.acme.corp")}.corp`,
+    ],
+    [
+      "an address Node's errors name bare",
+      "connect ECONNREFUSED 10.20.30.40:5432",
+      `connect ECONNREFUSED ${h("10.20.30.40")}:5432`,
+    ],
+    [
+      "the loopback Node's errors name",
+      "connect ECONNREFUSED 127.0.0.1:5173",
+      "connect ECONNREFUSED 127.0.0.1:5173",
+    ],
+    [
+      "what a syntax error printed elsewhere quotes",
+      "Uncaught SyntaxError: Unexpected token 'm', \"meet at Acme\" is not valid JSON",
+      "Uncaught SyntaxError: Unexpected token (input withheld)",
     ],
     ["an npm package", "react@19.3.1 and @novadeck/log", "react@19.3.1 and @novadeck/log"],
   ]

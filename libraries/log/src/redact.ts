@@ -59,7 +59,7 @@ const secretKey = String.raw`[\w.-]*?(?:token|secret|passw(?:or)?d|pwd|key|auth|
 /** The shapes of secrets, each with what it becomes. */
 const shapes: readonly (readonly [RegExp, string])[] = [
   // A URL's user and password: `https://ana:hunter2@host`.
-  [/\b([a-z][\w+.-]*:\/\/)[^\s/@:]+(?::[^\s/@]*)?@/gi, "$1<redacted>@"],
+  [/\b([a-z][\w+.-]*:\/\/)[^\s/@:]*(?::[^\s/@]*)?@/gi, "$1<redacted>@"],
   // Headers that carry credentials, as written in a request or its dump.
   [
     /\b((?:proxy-)?authorization|x-api-key|api-key|cookie|set-cookie)(["']?\s*[:=]\s*["']?)(?:(?:bearer|basic|token|digest)\s+)?[^\s"',;]+/gi,
@@ -89,6 +89,18 @@ const shapes: readonly (readonly [RegExp, string])[] = [
     new RegExp(String.raw`((?:^|[?&;\s"'(,])${secretKey})=(?!<)[^&\s"';,)]+`, "gi"),
     "$1=<redacted>",
   ],
+  // `password: hunter2`, as YAML or a dump writes it, and `--password hunter2` on a command line.
+  [
+    /\b((?:passw(?:or)?d|pwd|secret|api[_-]?key|access[_-]?key|(?:auth|access|refresh|api)[_-]?token|token)\s*:\s*)(?!<)[^\s"',;]+/gi,
+    "$1<redacted>",
+  ],
+  [
+    /(--(?:passw(?:or)?d|secret|token|api-key|access-token|auth-token)[ =])(?!<)[^\s"']+/gi,
+    "$1<redacted>",
+  ],
+  // What a syntax error quotes of its input, wherever its message is written (a stack, an
+  // error printed to stderr).
+  [/(\bSyntaxError: [^"'`\n]*?)[\s,:]*["'`][^\n]*/g, "$1 (input withheld)"],
 ]
 
 // Email addresses; not a Git remote's `git@host:`, which `hashUrls` wrote first.

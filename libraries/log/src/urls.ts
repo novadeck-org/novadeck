@@ -29,12 +29,18 @@ const remotePattern =
 
 const loopback = /^(?:localhost|127(?:\.\d+){3}|\[::1\])$/i
 
+// A host or address Node's network errors name bare: `getaddrinfo ENOTFOUND git.acme.corp`,
+// `connect ECONNREFUSED 10.20.30.40:5432`.
+const errorHostPattern =
+  /\b(getaddrinfo (?:ENOTFOUND|EAI_AGAIN|EAI_FAIL)|(?:ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|ECONNRESET|EADDRINUSE|EADDRNOTAVAIL)) (\[[0-9a-f:]+\]|[\w-]+(?:\.[\w-]+)*)(:\d+)?/gi
+
 /**
  * Hashes what an address could say of the person: on hosts the app doesn't name, the host
  * (keeping its top-level domain: `git.acme.corp` becomes `#1a2b3c4d.corp`), the path's
  * names, and the query and fragment, which are dropped. Readable addresses (`readableUrls`)
  * stay whole; public forges and the loopback keep their host, their paths hashed. A
- * remote's user is kept only when it is `git`.
+ * remote's user is kept only when it is `git`. A host Node's network errors name bare is
+ * hashed as an address's is.
  */
 export const hashUrls = (text: string, rule: UrlRule): string => {
   const hash = nameHasher(rule)
@@ -75,7 +81,11 @@ export const hashUrls = (text: string, rule: UrlRule): string => {
     return `${who}@${writeHost(host)}:${writePath(path)}`
   })
 
-  return remotes.replace(urlPattern, (match, ...args: unknown[]) => {
+  const hosts = remotes.replace(errorHostPattern, (match, code: string, host: string, port = "") =>
+    isReadable(host.toLowerCase(), "") ? match : `${code} ${writeHost(host)}${port}`,
+  )
+
+  return hosts.replace(urlPattern, (match, ...args: unknown[]) => {
     const groups = args.at(-1) as Record<string, string | undefined>
     const { scheme = "", user = "", host = "", port = "" } = groups
     // Punctuation that ends a sentence ends the address.

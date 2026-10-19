@@ -15,6 +15,7 @@ afterEach(() => {
   doorbellLog.current?.close()
   delete doorbellLog.current
   delete tracer.sink
+  delete tracer.forgotten
   for (const made of folders.splice(0)) rmSync(made, { recursive: true, force: true })
 })
 
@@ -47,7 +48,14 @@ const setup = (options: { verbose?: boolean } = {}) => {
   return { logger, clock, lines }
 }
 
-const screen = (rows: string[]): ScreenText => ({ rows, bracketedPaste: true, alternate: false })
+const screen = (rows: string[]): ScreenText => ({
+  rows,
+  bracketedPaste: true,
+  alternate: false,
+  columns: 80,
+  bright: [],
+  cursor: { row: 0, column: 0 },
+})
 
 describe("createDoorbellLog", () => {
   it("logs a hold with its reason, whatever it is named, and how long it held", () => {
@@ -131,6 +139,17 @@ describe("createDoorbellLog", () => {
       "doorbell.held-long",
       "doorbell.trace",
     ])
+  })
+
+  it("forgets a terminal that stopped running, raising no alarm for it", () => {
+    vi.useFakeTimers()
+    const { logger, lines } = setup()
+    const log = createDoorbellLog(logger.for("doorbell"), { now: Date.now, escalateMs: 60_000 })
+    log.hold("t1", "draft")
+    log.forget("t1")
+    vi.advanceTimersByTime(120_000)
+    log.close()
+    expect(lines().map((line) => line.evt)).toEqual(["doorbell.hold"])
   })
 
   it("starts a new wait after the doorbell was quiet", () => {

@@ -106,8 +106,12 @@ export const startSession = (options: {
       if (ended) return
       ended = true
       log.info("session.end", "The app quit.", { ...(data && { data }) })
-      const current = readMarker(marker)
-      if (current?.sid === sid) rmSync(marker, { force: true })
+      try {
+        if (readMarker(marker)?.sid === sid) rmSync(marker, { force: true })
+      } catch {
+        // Held by another program a moment: the next launch reads this one as unclean, its
+        // end logged all the same.
+      }
     },
   }
 }

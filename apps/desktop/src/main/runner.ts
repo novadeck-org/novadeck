@@ -45,6 +45,8 @@ export type RunnerEvents = {
   readonly exited?: (run: number, code: number, expected: boolean) => void
   /** A line it wrote to its stdout or stderr, as V8 and native code write a fatal error. */
   readonly output?: (run: number, stream: "stdout" | "stderr", line: string) => void
+  /** Its stdout or stderr ended, as it does once the process is gone. */
+  readonly outputEnded?: (run: number, stream: "stdout" | "stderr") => void
 }
 
 /** Starts the runner in a utility process and hands out one MessagePort per connection. */
@@ -89,8 +91,12 @@ export const startRunner = (options: {
       { serviceName: "Novadeck Runner", stdio: "pipe" },
     )
     events.spawned?.(run)
-    eachLine(worker.stdout, (line) => events.output?.(run, "stdout", line))
-    eachLine(worker.stderr, (line) => events.output?.(run, "stderr", line))
+    for (const stream of ["stdout", "stderr"] as const)
+      eachLine(
+        worker[stream],
+        (line) => events.output?.(run, stream, line),
+        () => events.outputEnded?.(run, stream),
+      )
     worker.on("message", (report: RunnerReport) => {
       if (report?.type === "ready") events.ready?.(run, Math.round(performance.now() - forkedAt))
     })

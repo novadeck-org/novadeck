@@ -11,6 +11,11 @@ export type PathRule = {
    * what is under them stays readable.
    */
   readonly places?: Readonly<Record<string, string>>
+  /**
+   * The app's folders that hold the person's own files, as pasted files are kept under
+   * their names: written as their placeholders (`<uploads>`), but what is under them hashed.
+   */
+  readonly privatePlaces?: Readonly<Record<string, string>>
   /** Keys the hash, so a name can't be found by hashing likely ones; never logged. */
   readonly salt: string
   /**
@@ -181,10 +186,12 @@ const folderPattern = (folder: string): RegExp => {
  * as the person's account `<user>`.
  */
 export const hashPaths = (text: string, rule: PathRule): string => {
-  const places = Object.entries(rule.places ?? {})
+  const hidden = new Set(Object.keys(rule.privatePlaces ?? {}))
+  const places = Object.entries({ ...rule.places, ...rule.privatePlaces })
     .filter(([, folder]) => folder.length > 1)
     .toSorted(([, a], [, b]) => b.length - a.length)
-  let result = text
+  // Windows' long-path prefix names the same path: `\\?\C:\x` is `C:\x`, `\\?\UNC\s\x` is `\\s\x`.
+  let result = text.replace(/\\\\\?\\UNC\\/gi, "\\\\").replace(/\\\\\?\\(?=[A-Za-z]:[\\/])/g, "")
   for (const [placeholder, folder] of places)
     result = result.replace(folderPattern(folder), `<${placeholder}>`)
   if (rule.home && rule.home.length > 1) result = result.replace(folderPattern(rule.home), "~")
@@ -226,7 +233,9 @@ export const hashPaths = (text: string, rule: PathRule): string => {
     const separators = parts.filter((_, index) => index % 2 === 1)
     const leading = segments[0] === "" ? 1 : 0
     const named = root.startsWith("<")
-      ? segments
+      ? hidden.has(root.slice(1, -1))
+        ? hashFrom(segments, leading, false)
+        : segments
       : root === "~"
         ? hashFrom(segments, leading, homeLower)
         : root === "\\\\"

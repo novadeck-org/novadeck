@@ -258,13 +258,14 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
 
 /**
  * Logs a failure a client was answered with: one the contract names, by its code alone, as
- * the client is told; any other, which the client sees as an internal error, with its stack.
+ * the client is told, at info, as a page asking for what just went is routine; any other,
+ * which the client sees as an internal error, as an error with its stack.
  */
 const logFailure = (path: readonly string[], error: unknown): void => {
   const code: unknown = (error as { code?: unknown } | undefined)?.code
   const procedure = path.join(".")
   if (error instanceof DomainError || error instanceof TerminalError || error instanceof ORPCError)
-    log.warn("rpc.failed", "A call failed as the contract says.", {
+    log.info("rpc.failed", "A call failed as the contract says.", {
       data: { path: procedure, code: typeof code === "string" ? code : null },
     })
   else
