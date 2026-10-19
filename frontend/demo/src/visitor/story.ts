@@ -105,6 +105,7 @@ export const visitorStory = (
                 role: "assistant",
                 kind: "tool-call",
                 tool: "Ran",
+                run: { kind: "other", title: "Ran", detail: "pnpm test --filter checkout" },
                 call: "call_04d",
                 text: JSON.stringify({ command: "pnpm test --filter checkout" }),
               },

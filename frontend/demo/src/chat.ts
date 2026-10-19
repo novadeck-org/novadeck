@@ -62,6 +62,8 @@ const draftOf = (draft: DemoDraft): Omit<ChatItem, "id" | "at" | "truncated"> =>
   tool: draft.tool ?? null,
   call: draft.call ?? null,
   author: draft.author ?? null,
+  run: draft.run ?? null,
+  interrupted: false,
 })
 
 const text = (role: ChatItem["role"], value: string) => ({
@@ -71,7 +73,12 @@ const text = (role: ChatItem["role"], value: string) => ({
   tool: null,
   call: null,
   author: null,
+  run: null,
+  interrupted: false,
 })
+
+// The line the chat shows for that command, in every harness.
+const gitStatus = { kind: "run", title: "Ran", detail: "git status --short" } as const
 
 // What each demo agent's tool does as its turn runs, by harness.
 const toolRun = (agent: string, terminal: TerminalMetadata, call: string) =>
@@ -85,6 +92,7 @@ const toolRun = (agent: string, terminal: TerminalMetadata, call: string) =>
         }),
         output: "Exit code: 0\nOutput:\n M src/runtime/server.ts\n",
         call,
+        run: gitStatus,
       }
     : agent === "codex"
       ? {
@@ -96,6 +104,7 @@ const toolRun = (agent: string, terminal: TerminalMetadata, call: string) =>
           output:
             "Chunk ID: 3f9c1a\nWall time: 0.0000 seconds\nProcess exited with code 0\nOutput:\n M src/checkout/total.ts\n",
           call,
+          run: gitStatus,
         }
       : {
           tool: "Bash",
@@ -105,6 +114,7 @@ const toolRun = (agent: string, terminal: TerminalMetadata, call: string) =>
           }),
           output: " M src/checkout/total.ts",
           call,
+          run: gitStatus,
         }
 
 // The demo's conversations: each terminal running Claude Code or Codex opens with its
@@ -299,6 +309,8 @@ export const createDemoChat = (
           tool: "Bash",
           call: null,
           author: null,
+          run: { kind: "run", title: "Ran", detail: command.split("\n", 1)[0]!.trim() },
+          interrupted: false,
         },
         {
           role: "tool",
@@ -307,6 +319,8 @@ export const createDemoChat = (
           tool: null,
           call: null,
           author: null,
+          run: null,
+          interrupted: false,
         },
       )
   }
@@ -361,6 +375,8 @@ export const createDemoChat = (
           tool: run.tool,
           call: run.call,
           author: null,
+          run: run.run,
+          interrupted: false,
         },
         {
           role: "tool",
@@ -369,6 +385,8 @@ export const createDemoChat = (
           tool: null,
           call: run.call,
           author: null,
+          run: null,
+          interrupted: false,
         },
       )
     } else if (event.type === "rest") {

@@ -1,6 +1,8 @@
 import type { Harness, UserEntry } from "@novadeck/harness-core/harness"
 import { at, entry, record, textOf } from "@novadeck/harness-core/items"
 
+import { describe } from "./tools.js"
+
 // The person's words within the context Antigravity wraps a prompt in.
 const request = /<USER_REQUEST>\n?([\s\S]*?)\n?<\/USER_REQUEST>/
 
@@ -37,6 +39,7 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
         at: time,
         tool: name,
         call: step === undefined ? undefined : `step:${step + 1 + index}`,
+        describe,
       })
     })
     return [...(content ? [entry("assistant", "text", content, { at: time })] : []), ...calls]
