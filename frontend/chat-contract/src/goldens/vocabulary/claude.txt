@@ -1,0 +1,30 @@
+# files-and-shell
+user: Look at the project.
+tools: [6 tool calls · Ran, Read, Wrote, Edited] Ran [run] · npm test | Call: Bash: 1 line: npm test → 2 lines: ok; Read [read] · …/project/src/index.ts | Call: 1 line: /home/user/project/src/index.ts → 1 line: export {}; Wrote [write] · …/user/project/notes.md | Call: Write: 4 lines: file_path: /home/user/project/notes.md → 1 line: Done; Edited [write] · …/project/src/a.ts | Call: Edit: 3 lines: file_path: /home/user/project/src/a.ts → 1 line: Edited; Edited [write] · …/project/src/b.ts | Call: MultiEdit: 2 lines: file_path: /home/user/project/src/b.ts → 1 line: Edited twice; Edited [write] · …/user/project/nb.ipynb | Call: NotebookEdit: 2 lines: notebook_path: /home/user/project/nb.ipynb → 1 line: Cell 1 replaced
+assistant: Done.
+
+# unfolded-run
+user: Two quick ones.
+tools: Ran [run] · ls | Call: Bash: 1 line: ls → 2 lines: a; Read [read] · /tmp/a.txt | Call: 1 line: /tmp/a.txt → 1 line: hello; Ran [run] · pwd | Call: Bash: 1 line: pwd → no result recorded.
+
+# search-and-web
+user: Find it.
+tools: [5 tool calls · Searched, Found files, Listed, Searched the web] Searched [search] · TODO | Call: Grep: 2 lines: pattern: TODO → 1 line: src/a.ts:1: TODO; Found files [search] · **/*.test.ts | Call: Glob: 1 line: **/*.test.ts → 1 line: src/a.test.ts; Listed [read] · …/user/project/src | Call: LS: 1 line: /home/user/project/src → 2 lines: a.ts; Searched the web [web] · vitest snapshots | Call: WebSearch: 1 line: vitest snapshots → 1 line: Results; Fetched [web] · https://vitest.dev/guide | Call: WebFetch: 2 lines: url: https://vitest.dev/guide → 1 line: A page
+
+# agents-and-plans
+user: Plan it.
+tools: [5 tool calls · Subagent, Updated todos, Proposed a plan, Asked] Subagent [agent] · Review the diff | Call: Task: 3 lines: description: Review the diff → 1 line: Reviewed; Subagent [agent] · explorer | Call: Agent: 2 lines: subagent_type: explorer → 1 line: Mapped; Updated todos [plan] · 3 items | Call: TodoWrite: 1 line: [{"content":"one","status":"pending"},{"content… → 1 line: Todos updated; Proposed a plan [plan] | Call: ExitPlanMode: 1 line: Do the thing → 1 line: Plan shown; Asked [plan] · Which database? | Call: AskUserQuestion: 1 line: [{"question":"Which database?","header":"DB","o… → 1 line: Answered
+
+# novadeck-tools
+user: Use the other terminals.
+tools: [13 tool calls · Messaged reviewer, Messaged, Listed agents, Opened a terminal] Messaged reviewer [agent] · Please look at the diff | Call: mcp__plugin_novadeck_novadeck__send: 2 lines: to: reviewer → 1 line: Sent; Messaged [agent] · Anyone there? | Call: mcp__plugin_novadeck_novadeck__send: 1 line: Anyone there? → 1 line: Sent; Listed agents [agent] | Call: mcp__plugin_novadeck_novadeck__agents: empty → 1 line: reviewer, builder; Opened a terminal [agent] · claude: Review the PR | Call: mcp__plugin_novadeck_novadeck__open_terminal: 2 lines: agent: claude → 1 line: Opened terminal 02; Opened a terminal [agent] · npm run dev | Call: mcp__plugin_novadeck_novadeck__open_terminal: 2 lines: command: npm run dev → 1 line: Opened 03; Closed builder [agent] | Call: mcp__plugin_novadeck_novadeck__close_terminal: 1 line: builder → 1 line: Closed; Closed a terminal [agent] | Call: mcp__plugin_novadeck_novadeck__close_terminal: empty → 1 line: Closed; Showed [web] · http://localhost:5173 | Call: mcp__plugin_novadeck_novadeck__show: 1 line: http://localhost:5173 → 1 line: Showing; Showed [read] · …/project/docs/plan.md | Call: mcp__plugin_novadeck_novadeck__show: 1 line: {"path":"/home/user/project/docs/plan.md"} → 1 line: Showing; Closed [read] · …/project/docs/plan.md | Call: mcp__plugin_novadeck_novadeck__close: 1 line: {"path":"/home/user/project/docs/plan.md"} → 1 line: Closed; Checked what's shown [read] | Call: mcp__plugin_novadeck_novadeck__showing: empty → 1 line: Nothing; Summarized this terminal [agent] · Fixing the chat contract. | Call: mcp__plugin_novadeck_novadeck__summarize: 1 line: Fixing the chat contract. → 1 line: Saved; mcp__github__create_issue [other] | Call: 2 lines: title: Flaky test → 1 line: Created #12
+
+# limits-and-orphans
+user: Be extreme.
+tools: [4 tool calls · Ran, a_very_long_tool_name_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz, CustomThing,] Ran [run] | Call: Bash: 1 line, shortened: {"command":"echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx… → 1 line, shortened: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…; a_very_long_tool_name_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz [other] · …/deep/er/file.ts | Call: 1 line: /home/user/project/src/deep/er/file.ts → 1 line: fine; CustomThing [other] · something unknown | Call: 1 line: something unknown → 1 line: result of a tool nobody knows; Result [other] → 1 line: A result whose call fell outside the window.
+
+# interrupted
+user: Start.
+assistant: Working on it.
+note: Interrupted
+assistant: Stopped.

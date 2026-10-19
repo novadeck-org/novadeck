@@ -15,6 +15,8 @@ import { describe, expect, it } from "./test"
 // terminal emulator, takes the page's theme from the entry, as the port's `ThemeSource`.
 // ui-toolkit/ is the package `@novadeck/toolkit` (see `modules`): the controls, `class-name` and
 // the sidebar item. Its own rules are its package.json's.
+// terminals/companion/ is the package `@novadeck/companion` (see `modules`): the companion pane
+// and the bar drag, which `layouts/` and `app/` reach as part of `terminals/`.
 const base = ["core/", "interaction/", "ui-toolkit/", "theme/"]
 const features = ["sidebar/", "projects/", "preferences/", "search/"]
 const rules: Record<string, readonly string[]> = {
@@ -105,7 +107,6 @@ const typeOnlyPackages: Record<string, readonly string[]> = {
 const testLayers = new Set(["test/", "test.ts"])
 const vendors: Record<string, readonly string[]> = {
   "@xyflow/react": ["layouts/canvas/"],
-  "@codemirror": ["terminals/companion/plan-editor/"],
   "react-grid-layout": ["layouts/grid/"],
   allotment: ["shell/"],
   // Terminals' tabs, windows and taskbars, the footer's subscriptions and the project
@@ -122,13 +123,14 @@ const vendors: Record<string, readonly string[]> = {
   "react-router": ["app/", "shell/"],
   "react-dom": ["layouts/transition.ts", "entries/start.tsx"],
   // One entry per workspace package, with the folders that own it. The content viewers serve
-  // the companion pane and chat.
-  "@novadeck/viewers": ["terminals/companion/", "terminals/chat/"],
+  // chat (the companion pane, which they served too, is a package of its own).
+  "@novadeck/viewers": ["terminals/chat/"],
 }
 
 // The packages that hold what used to be folders of src, named as the layers above know them.
 const modules: Record<string, string> = {
   "@novadeck/toolkit/": "ui-toolkit/",
+  "@novadeck/companion/": "terminals/companion/",
   "@novadeck/core/testing": "test/fixtures.ts",
   "@novadeck/test-kit/": "test/",
 }
@@ -297,7 +299,7 @@ describe("UI architecture", () => {
 
 // What the UI package exports: the few modules the apps start from, and for the specs those
 // they drive the whole UI through. Anything else is internal, and only the specs may reach a
-// module that isn't public.
+// module that isn't public, besides the one the chat contract renders.
 describe("the UI's exports", () => {
   const publicSubpaths = [
     "./app/App",
@@ -341,9 +343,18 @@ describe("the UI's exports", () => {
   })
 
   it("lets only the specs import what isn't public", () => {
+    // The chat contract renders the chat's transcript from recorded harness records, and
+    // reaches nothing else.
+    const contractSubpaths = new Set(["./terminals/chat/Transcript"])
+    expect(reach.some(({ dir }) => dir === "frontend/chat-contract")).toBe(true)
     expect(
       reach
-        .filter(({ dir, subpath }) => dir !== "frontend/specs" && !publicSubpaths.includes(subpath))
+        .filter(
+          ({ dir, subpath }) =>
+            dir !== "frontend/specs" &&
+            !publicSubpaths.includes(subpath) &&
+            !(dir === "frontend/chat-contract" && contractSubpaths.has(subpath)),
+        )
         .map(({ file, subpath }) => `${file} -> ${subpath}`),
     ).toEqual([])
   })

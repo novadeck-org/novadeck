@@ -42,8 +42,10 @@ const root = (sessionId: string) => ({
 describe("settling a draft kept only by doubt", () => {
   type Inside = {
     records: Map<string, { binding: unknown }>
-    screenOf: (id: string) => Promise<unknown>
-    settleBox: (record: unknown) => void
+    typing: {
+      screenOf: (id: string) => Promise<unknown>
+      settleBox: (record: unknown) => void
+    }
     messaging: {
       rooted: (id: string, changes: readonly unknown[]) => void
       observe: (id: string, events: readonly unknown[]) => void
@@ -80,7 +82,7 @@ describe("settling a draft kept only by doubt", () => {
     messaging.rooted(terminal.id, [root("a")])
     messaging.keys(terminal.id, ["content", "enter"], false)
     let looked = 0
-    inside.screenOf = () => Promise.resolve(reads[Math.min(looked++, reads.length - 1)])
+    inside.typing.screenOf = () => Promise.resolve(reads[Math.min(looked++, reads.length - 1)])
     return {
       manager,
       inside,
@@ -196,7 +198,7 @@ describe("settling a draft kept only by doubt", () => {
       )
       await until(stream, async (event) => {
         if (event.type !== "output") return false
-        const screen = (await inside.screenOf(terminal.id)) as ScreenText | undefined
+        const screen = (await inside.typing.screenOf(terminal.id)) as ScreenText | undefined
         return (
           screen?.rows[0] === rule &&
           screen.rows[2] === rule &&
@@ -255,7 +257,7 @@ describe("settling a draft kept only by doubt", () => {
       const identity = { agent: "codex", sessionId: "a", instance: null }
       record.binding = identity
       let reads = 0
-      inside.screenOf = () => {
+      inside.typing.screenOf = () => {
         reads += 1
         return Promise.resolve(
           screenWith({
@@ -335,7 +337,7 @@ describe("settling a draft kept only by doubt", () => {
       expect(drafted.looks()).toBe(looked)
       expect(drafted.state()).toBe("drafting")
       // Another terminal change must not restart the same doubt's five-second budget.
-      drafted.inside.settleBox(drafted.record)
+      drafted.inside.typing.settleBox(drafted.record)
       await vi.advanceTimersByTimeAsync(1_000)
       expect(drafted.looks()).toBe(looked)
       // A later doubt has a new epoch and gets its own budget automatically.
@@ -395,7 +397,7 @@ describe("settling a draft kept only by doubt", () => {
       // The second read is the one the next doubt begins during.
       const screens = [empty, empty]
       let release: (() => void) | undefined
-      reading.inside.screenOf = async () => {
+      reading.inside.typing.screenOf = async () => {
         const screen = screens.shift() ?? empty
         if (screens.length === 0 && release === undefined)
           await new Promise<void>((resolve) => (release = resolve))

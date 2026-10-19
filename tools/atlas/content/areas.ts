@@ -49,11 +49,13 @@ export const roots: Root[] = [
   { token: "frontend/core", dir: "frontend/core", node: "renderer" },
   { token: "frontend/test-kit", dir: "frontend/test-kit", node: "renderer" },
   { token: "frontend/toolkit", dir: "frontend/toolkit", node: "renderer" },
+  { token: "frontend/companion", dir: "frontend/companion", node: "renderer" },
   { token: "frontend/runner-adapter", dir: "frontend/runner-adapter", node: "renderer" },
   { token: "frontend/terminal-views", dir: "frontend/terminal-views", node: "renderer" },
   { token: "frontend/demo", dir: "frontend/demo", node: "renderer" },
   { token: "frontend/demo-debug", dir: "frontend/demo-debug", node: "renderer" },
   { token: "frontend/specs", dir: "frontend/specs", node: "renderer" },
+  { token: "frontend/chat-contract", dir: "frontend/chat-contract", node: "renderer" },
   { token: "apps/try", dir: "apps/try", node: "renderer" },
   { token: "apps/previews", dir: "apps/previews", node: "renderer" },
   { token: "engines/whisper", dir: "engines/whisper", node: "whisper" },
@@ -285,8 +287,8 @@ export const notes: Record<string, Note> = {
     entries: [{ file: `${ui}/test/commands.ts` }],
   },
   "frontend/ui/terminals": {
-    purpose: "Terminal frames and tabs, the companion taskbar and panes, and the agent chat.",
-    entries: [{ file: `${ui}/terminals/drag-session.ts` }],
+    purpose: "Terminal frames and tabs, and the agent chat.",
+    entries: [{ file: `${ui}/terminals/TerminalTabs.tsx` }],
   },
   "frontend/ui/layouts": {
     purpose: "The Focus, Grid and Canvas views that arrange terminals, and the workspace ground.",
@@ -326,10 +328,25 @@ export const notes: Record<string, Note> = {
     entries: [{ file: `${ui}/interaction/keymap.ts` }],
   },
   "frontend/specs": { purpose: "Behaviour specs that exercise the whole UI on the demo backend." },
+  "frontend/chat-contract": {
+    purpose:
+      "The chat's contract test: recorded harness transcripts run through every stage to the rendered chat, against goldens.",
+  },
   "frontend/test-kit": { purpose: "Fixtures and render helpers the UI's tests share." },
   "frontend/toolkit": {
     purpose:
       "Reusable controls, their recipes, class-name composition and the sidebar item every feature draws with.",
+  },
+  "frontend/companion": {
+    purpose:
+      "The companion pane: a terminal's taskbar, peek and pane for its items and messages, the plan editor, the undocked window and the bar drag.",
+    entries: [
+      {
+        file: "frontend/companion/src/TerminalCompanion.tsx",
+        text: "export const TerminalCompanion",
+      },
+      { file: "frontend/companion/src/drag-session.ts" },
+    ],
   },
   "frontend/demo-debug": {
     purpose: "The demo's debug panel and rehearsals, for the content preview and the specs.",
