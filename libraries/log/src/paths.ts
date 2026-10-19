@@ -18,8 +18,11 @@ export type PathRule = {
 // What a folder or file name may hold, as found in free text: no separator, space, quote,
 // bracket, or `:`, which starts a stack frame's `:line:column`.
 const name = String.raw`[^\s\\/"'\x60()<>\[\]{}|,;:*?]+`
-// A name with spaces counts as one only where a separator follows it, as `My Project/` does.
-const pathSegment = String.raw`(?:Program Files \(x86\)|${name}(?: (?!~)${name})+(?=[\\/])|${name})`
+// A name with spaces counts as one where a separator follows it (`My Project/`), or where
+// its last word ends in an extension (`Client Acme Plan.md`).
+const pathSegment =
+  String.raw`(?:Program Files \(x86\)|${name}(?: (?!~)${name})+(?=[\\/])|` +
+  String.raw`(?:${name} (?!~))+[^\s\\/"'\x60()<>\[\]{}|,;:*?]*\.[A-Za-z0-9]{1,10}(?![\w.])|${name})`
 const separator = String.raw`[\\/]+`
 
 /**
@@ -27,10 +30,19 @@ const separator = String.raw`[\\/]+`
  * placeholder already written (`<userData>/`) or the root (`/`), or a `file://` address of
  * one; never in the middle of a word, nor an address of another kind (`https://host/a`).
  */
+const roots = String.raw`(?<root>(?<=file://)/[A-Za-z]:(?=/)|[A-Za-z]:(?=[\\/])|\\\\(?=[^\\\s])|~(?=[\\/])|<[A-Za-z][\w-]*>(?=[\\/])|(?=/))`
 const pathPattern = new RegExp(
-  String.raw`(?<![\w.~\-\\/<>#])(?!(?<=[A-Za-z][\w+.-]*:)//)(?<file>file://)?` +
-    String.raw`(?<root>(?<=file://)/[A-Za-z]:(?=/)|[A-Za-z]:(?=[\\/])|\\\\(?=[^\\\s])|~(?=[\\/])|<[A-Za-z][\w-]*>(?=[\\/])|(?=/))` +
+  String.raw`(?<![\w.~\-\\/<>#])(?!(?<=[A-Za-z][\w+.-]*:)//)(?<file>file://)?${roots}` +
     String.raw`(?<rest>[\\/]*${pathSegment}(?:${separator}${pathSegment})*)`,
+  "g",
+)
+
+/**
+ * A path in quotes, as Node's errors write one (`open '/x/My File.md'`): taken whole, up to
+ * its closing quote, so a name with spaces is hashed whole.
+ */
+const quotedPattern = new RegExp(
+  String.raw`(?<=(?<quote>['"\x60]))(?<file>file://)?${roots}(?<rest>[^'"\x60\n]+?)(?=\k<quote>)`,
   "g",
 )
 
@@ -112,9 +124,14 @@ export const hashPaths = (text: string, rule: PathRule): string => {
   if (rule.home && rule.home.length > 1) result = result.replace(folderPattern(rule.home), "~")
 
   const user = rule.user?.toLowerCase()
-  const hash = (segment: string, lower: boolean): string => {
-    if (/^#[0-9a-f]{8}(?:\.|$)/.test(segment)) return segment
-    if (user && segment.toLowerCase() === user) return "<user>"
+  // Windows names are hashed lowercased, as Windows matches them, home's included.
+  const homeLower = rule.home !== undefined && windowsShaped(rule.home)
+  const hash = (named: string, lower: boolean): string => {
+    // A stack frame's `:line:column` stays as it is.
+    const position = /(?::\d+)+$/.exec(named)?.[0] ?? ""
+    const segment = position ? named.slice(0, -position.length) : named
+    if (/^#[0-9a-f]{8}(?:\.|$)/.test(segment)) return named
+    if (user && segment.toLowerCase() === user) return `<user>${position}`
     const dot = segment.lastIndexOf(".")
     const extension =
       dot > 0 && /^\.[A-Za-z0-9]{1,10}$/.test(segment.slice(dot)) ? segment.slice(dot) : ""
@@ -122,7 +139,7 @@ export const hashPaths = (text: string, rule: PathRule): string => {
     const digest = createHmac("sha256", rule.salt)
       .update(lower ? base.toLowerCase() : base)
       .digest("hex")
-    return `#${digest.slice(0, 8)}${extension}`
+    return `#${digest.slice(0, 8)}${extension}${position}`
   }
   // Each name hashed from `from` on, but what is inside node_modules.
   const hashFrom = (segments: string[], from: number, lower: boolean): string[] => {
@@ -136,6 +153,8 @@ export const hashPaths = (text: string, rule: PathRule): string => {
   const posix = (segments: string[], from: number): string[] => {
     const first = segments[from]
     if (first === undefined) return segments
+    // An AppImage's mount: the app's own files, under a name that changes every launch.
+    if (first === "tmp" && segments[from + 1]?.startsWith(".mount_")) return segments
     if (first === "mnt" && /^[a-z]$/i.test(segments[from + 1] ?? ""))
       return windows(segments, from + 2)
     if (systemRoots.has(first)) return segments
@@ -148,7 +167,7 @@ export const hashPaths = (text: string, rule: PathRule): string => {
     return hashFrom(segments, windowsSharedRoots.has(first) ? from + 1 : from, true)
   }
 
-  return result.replace(pathPattern, (match, ...args: unknown[]) => {
+  const rewrite = (match: string, ...args: unknown[]): string => {
     const { file = "", root, rest } = args.at(-1) as { file?: string; root: string; rest: string }
     // Separators are kept as they were: the names sit between them.
     const parts = rest.split(/([\\/]+)/)
@@ -158,7 +177,7 @@ export const hashPaths = (text: string, rule: PathRule): string => {
     const named = root.startsWith("<")
       ? segments
       : root === "~"
-        ? hashFrom(segments, leading, false)
+        ? hashFrom(segments, leading, homeLower)
         : root === "\\\\"
           ? wslShares.has(segments[0]?.toLowerCase() ?? "")
             ? posix(segments, 2)
@@ -170,5 +189,6 @@ export const hashPaths = (text: string, rule: PathRule): string => {
     return (
       file + root + named.flatMap((segment, index) => [segment, separators[index] ?? ""]).join("")
     )
-  })
+  }
+  return result.replace(quotedPattern, rewrite).replace(pathPattern, rewrite)
 }

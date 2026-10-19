@@ -65,8 +65,13 @@ const shapes: readonly (readonly [RegExp, string])[] = [
     "$1$2<redacted>",
   ],
   [/\b(bearer)\s+[\w\-.~+/]+=*/gi, "$1 <redacted>"],
+  // Private keys, whole.
+  [
+    /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|$)/g,
+    "<secret>",
+  ],
   // Keys and tokens by their prefixes: Anthropic and OpenAI, GitHub, AWS, Slack, npm,
-  // GitLab, and JSON web tokens.
+  // GitLab, Google, Stripe, Hugging Face, and JSON web tokens.
   [/\bsk-(?:ant-|proj-)?[\w-]{16,}/g, "<secret>"],
   [/\bgh[pousr]_[A-Za-z0-9]{20,}/g, "<secret>"],
   [/\bgithub_pat_\w{20,}/g, "<secret>"],
@@ -74,6 +79,9 @@ const shapes: readonly (readonly [RegExp, string])[] = [
   [/\bxox[abposr]-[\w-]{10,}/g, "<secret>"],
   [/\bnpm_[A-Za-z0-9]{36}\b/g, "<secret>"],
   [/\bglpat-[\w-]{20,}/g, "<secret>"],
+  [/\bAIza[\w-]{35}/g, "<secret>"],
+  [/\b[sr]k_(?:live|test)_\w{16,}/g, "<secret>"],
+  [/\bhf_[A-Za-z]{30,}/g, "<secret>"],
   [/\beyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,}/g, "<secret>"],
   [new RegExp(String.raw`("${secretKey}"\s*:\s*)"[^"]*"`, "gi"), '$1"<redacted>"'],
   [

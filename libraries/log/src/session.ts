@@ -1,5 +1,6 @@
 import {
   closeSync,
+  mkdirSync,
   openSync,
   readFileSync,
   readSync,
@@ -7,15 +8,13 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs"
-import { join } from "node:path"
+import { dirname } from "node:path"
 
 import type { Data } from "./envelope.js"
 import type { Log } from "./logger.js"
 
 /** What the marker of a running launch holds. */
 type Marker = { readonly sid: string; readonly startedAt: string }
-
-const markerName = "session.json"
 
 const readMarker = (file: string): Marker | undefined => {
   try {
@@ -64,22 +63,25 @@ export type Session = {
 
 /**
  * Starts a launch's records: `session.unclean` for the launch before it, when that one left
- * its marker (`session.json` in `folder`), as a launch that never ended does, killed or
- * crashed; then `session.start`, with `data`. The marker is written at once, so even a launch
- * killed straight after is found by the next. `log` is the log's file, read for when the
- * unclean launch last wrote.
+ * its `marker` behind, as a launch that never ended does, killed or crashed; then
+ * `session.start`, with `data`. The marker is written at once, its folder made first, so even
+ * a launch killed straight after its first start is found by the next. `file` is the log's,
+ * read for when the unclean launch last wrote.
+ *
+ * One process owns a launch's marker, the one whose end is the launch's: a process started
+ * within the launch, and again, never touches it, or its own end would hide the launch's.
  */
 export const startSession = (options: {
-  readonly folder: string
+  /** The file that marks a launch as running, such as `logs/session.json`. */
+  readonly marker: string
   readonly sid: string
   readonly log: Log
   readonly file?: string
   readonly data?: Data
   readonly now?: () => number
 }): Session => {
-  const { folder, sid, log } = options
+  const { marker, sid, log } = options
   const now = options.now ?? Date.now
-  const marker = join(folder, markerName)
   const previous = readMarker(marker)
   if (previous && previous.sid !== sid) {
     const last = options.file && lastSeen(options.file, previous.sid)
@@ -92,6 +94,7 @@ export const startSession = (options: {
     })
   }
   try {
+    mkdirSync(dirname(marker), { recursive: true })
     writeFileSync(marker, JSON.stringify({ sid, startedAt: new Date(now()).toISOString() }))
   } catch {
     // Without a marker the next launch can't tell how this one ended.

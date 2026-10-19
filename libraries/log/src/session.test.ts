@@ -31,7 +31,7 @@ const launch = (folder: string, sid: string, at: number) => {
     collapseMs: 0,
   })
   const session = startSession({
-    folder,
+    marker: join(folder, "session.json"),
     sid,
     log: logger.for("session"),
     file: logPath(folder, "host"),
@@ -105,5 +105,29 @@ describe("startSession", () => {
     next.logger.close()
     const unclean = lines(folder).find((line) => line.evt === "session.unclean")
     expect(unclean?.data).toEqual({ sid: "one", startedAt: "1970-01-01T00:00:00.000Z" })
+  })
+
+  it("writes its marker where the logs folder does not exist yet, as on a first launch", () => {
+    const folder = join(logsFolder(), "logs")
+    const marker = join(folder, "session.json")
+    const logger = createLogger({ proc: "host", sid: "one", redact: (text) => text })
+    startSession({ marker, sid: "one", log: logger.for("session") })
+    logger.close()
+    expect(JSON.parse(readFileSync(marker, "utf8"))).toEqual(
+      expect.objectContaining({ sid: "one" }),
+    )
+  })
+
+  it("leaves a marker another launch wrote since", () => {
+    const folder = logsFolder()
+    const marker = join(folder, "session.json")
+    const logger = createLogger({ proc: "host", sid: "one", redact: (text) => text })
+    const first = startSession({ marker, sid: "one", log: logger.for("session") })
+    startSession({ marker, sid: "two", log: logger.for("session") })
+    first.end()
+    logger.close()
+    expect(JSON.parse(readFileSync(marker, "utf8"))).toEqual(
+      expect.objectContaining({ sid: "two" }),
+    )
   })
 })

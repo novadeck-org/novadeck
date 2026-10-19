@@ -111,8 +111,32 @@ describe("hashPaths", () => {
       "GET https://github.com/acme/billing/releases",
     ],
     ["a ratio, and a word with a slash", linux, "3/4 done and/or failed", "3/4 done and/or failed"],
+    [
+      "a quoted path with spaces, as Node's errors write one",
+      linux,
+      "ENOENT: no such file or directory, open '/home/ana/Client Docs/Acme Plan.md'",
+      `ENOENT: no such file or directory, open '~/${h("Client Docs")}/${h("Acme Plan", ".md")}'`,
+    ],
+    [
+      "a quoted stack frame",
+      linux,
+      'at "/home/ana/acme/a b.ts:4:2"',
+      `at "~/${h("acme")}/${h("a b", ".ts")}:4:2"`,
+    ],
+    [
+      "an AppImage's mount from another launch",
+      linux,
+      "    at load (/tmp/.mount_novadePBCjme/resources/app.asar/out/main/index.js:12:3)",
+      "    at load (/tmp/.mount_novadePBCjme/resources/app.asar/out/main/index.js:12:3)",
+    ],
     ["a WSL drive", linux, "/mnt/c/Users/Bob/acme", `/mnt/c/Users/${h("bob")}/${h("acme")}`],
     // macOS
+    [
+      "a trailing name with spaces",
+      mac,
+      "/Users/ana.lopez/Documents/Client Acme Plan.md",
+      `~/${h("Documents")}/${h("Client Acme Plan", ".md")}`,
+    ],
     ["a project file", mac, "/Users/ana.lopez/acme/a.swift", `~/${h("acme")}/${h("a", ".swift")}`],
     [
       "the app's data, with a space",
@@ -157,6 +181,12 @@ describe("hashPaths", () => {
       windows,
       "C:\\Users\\Ana Lopez\\AppData\\Roaming\\novadeck\\workspace.sqlite",
       "<userData>\\workspace.sqlite",
+    ],
+    [
+      "a synced folder and a document with spaces",
+      { ...windows, home: "C:\\Users\\ana", user: "ana" },
+      "C:\\Users\\ana\\OneDrive - Acme\\Q3 Plan.docx",
+      `~\\${h("onedrive - acme")}\\${h("q3 plan", ".docx")}`,
     ],
     ["the system", windows, "C:\\Windows\\System32\\reg.exe", "C:\\Windows\\System32\\reg.exe"],
     [
@@ -223,6 +253,13 @@ describe("hashPaths", () => {
     expect(hashPaths(once, linux)).toBe(once)
   })
 
+  it("writes the app's frames, where its install is told, as <install>", () => {
+    const rule = { ...linux, places: { install: "/tmp/.mount_novadePBCjme" } }
+    expect(
+      hashPaths("at f (/tmp/.mount_novadePBCjme/resources/app.asar/out/main/index.js:12:3)", rule),
+    ).toBe("at f (<install>/resources/app.asar/out/main/index.js:12:3)")
+  })
+
   it("writes a folder named as the account as <user>", () => {
     expect(hashPaths("/mnt/c/Users/ana/x", linux)).toBe(`/mnt/c/Users/<user>/${h("x")}`)
   })
@@ -273,6 +310,17 @@ describe("createRedactor", () => {
       "Error: no\n    at read (/home/ana/acme/src/a.ts:1:2)\n    at node:internal/fs:3:4",
       `Error: no\n    at read (~/${h("acme")}/${h("src")}/${h("a", ".ts")}:1:2)\n    at node:internal/fs:3:4`,
     ],
+    ["a Google key", "key=AIzaSyA1234567890abcdefghijklmnopqrstuv", "key=<secret>"],
+    ["a bare Google key", "AIzaSyA1234567890abcdefghijklmnopqrstuv", "<secret>"],
+    ["a Stripe key", "sk_live_abcdefghijklmnop1234", "<secret>"],
+    ["a Stripe restricted key", "rk_test_abcdefghijklmnop1234", "<secret>"],
+    ["a Hugging Face token", "hf_abcdefghijklmnopqrstuvwxyzABCDEF", "<secret>"],
+    [
+      "a private key",
+      "read -----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\nAAAABG5vbmU=\n-----END OPENSSH PRIVATE KEY----- done",
+      "read <secret> done",
+    ],
+    ["a private key cut short", "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA", "<secret>"],
     ["an npm package", "react@19.3.1 and @novadeck/log", "react@19.3.1 and @novadeck/log"],
   ]
 

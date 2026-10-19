@@ -62,3 +62,15 @@ One JSON object per line, in one envelope (`Entry`):
 - `loadSalt`: the install's salt, made once in a file and never logged.
 - `startSession`: `session.start`, and `session.end` once the launch quits; a launch that left
   its marker behind, killed or crashed, is logged by the next as `session.unclean`.
+
+## Privacy, and its limits
+
+The redactor finds paths by their shape: a drive, a share, `~`, a placeholder, a leading `/`,
+or a quoted path, which it takes whole. It can't tell a bare name from any other word, so a
+relative path (`src/billing.ts`), a folder's name, a project's or terminal's title can't be
+found by it. **A line's `msg` and `data` must never interpolate those: only ids, enums, counts,
+times and absolute paths.** What a screen showed, typed text, prompts and message bodies are
+never logged, but for lines marked `verbose`.
+
+`startSession`'s marker belongs to one process per launch, the one whose end is the launch's
+(the app's host): a process started within the launch, and perhaps again, never touches it.
