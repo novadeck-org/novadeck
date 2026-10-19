@@ -6,8 +6,8 @@ import { Shown } from "@novadeck/toolkit/shown"
 import { act, createElement } from "react"
 import { afterEach } from "vitest"
 
-import { context, describe, expect, it } from "../../test"
 import { ArtifactViewer } from "./ArtifactViewer"
+import { context, describe, expect, it } from "./test"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
