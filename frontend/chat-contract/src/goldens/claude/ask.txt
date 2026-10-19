@@ -1,0 +1,253 @@
+# ask-long
+user: Ask now
+tools: Asked · Which of these four lengthy approaches should I take for the migration of the legacy billing system? → 1 line: Your questions have been answered: "Which of th…
+assistant: Done.
+
+# ask-multi-finish
+user: Ask now
+tools: Asked · Which database should we use? → no result
+
+# ask-multi
+user: Ask now
+tools: Asked · Which database should we use? → no result
+
+# ask-other
+user: Ask now
+tools: Asked · Which database should we use? → no result
+
+# ask-preview
+user: Ask now
+tools: Asked · Which database should we use? → no result
+
+# ask-single
+user: Ask now
+tools: Asked · Which database should we use? → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# bash-long
+user: Ask now
+tools: Ran · touch approved.txt && echo 'a very long command that keeps going and going so that the dialog has to wrap or truncate it somewhere on a small terminal' && ls -la /tmp → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# h-ask-allow-answers
+user: Ask now
+tools: Asked · Which database should we use? → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# h-ask-allow-bogus-answer-multi
+user: Ask now
+tools: Asked · Which database should we use? → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# h-ask-allow-partial-answers
+user: Ask now
+tools: Asked · Which database should we use? → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# h-ask-allow-plain
+user: Ask now
+tools: Asked · Which database should we use? → no result
+
+# h-ask-deny
+user: Ask now
+tools: Asked · Which database should we use? → 1 line: The person said: skip questions.
+assistant: Done.
+
+# h-ask-other-answer
+user: Ask now
+tools: Asked · Which database should we use? → 1 line: The user answered: "Which database should we us…
+assistant: Done.
+
+# h-ask-pre-allow-answers
+user: Ask now
+tools: Asked · Which database should we use? → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# h-ask-wait-nodecision
+user: Ask now
+tools: Asked · Which database should we use? → no result
+
+# h-ask-wait-tui-first
+user: Ask now
+tools: Asked · Which database should we use? → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# h-bash-allow-then-ask-again
+tools: Ran · touch second.txt → 1 line: (Bash completed with no output)
+assistant: Done.
+
+# h-bash-allow
+user: Ask now
+tools: Ran · touch hooked.txt → 1 line: (Bash completed with no output)
+assistant: Done.
+
+# h-bash-deny-interrupt
+user: Ask now
+tools: Ran · touch hooked.txt → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# h-bash-deny
+user: Ask now
+tools: Ran · touch hooked.txt → 1 line: Use ls instead, please.
+assistant: Done.
+
+# h-bash-updatedInput
+user: Ask now
+tools: Ran · touch original.txt → 1 line: (Bash completed with no output)
+assistant: Done.
+
+# h-bash-updatedPermissions
+tools: Ran · touch second.txt → 1 line: (Bash completed with no output)
+assistant: Done.
+
+# h-plan-allow-setMode
+tools: Proposed a plan → 1 line: File created successfully at: <sandbox>/home/.c…
+assistant: Done.
+
+# h-plan-allow-updatedInput
+tools: Proposed a plan → 1 line: File created successfully at: <sandbox>/home/.c…
+assistant: Done.
+
+# h-plan-allow
+user: Ask now
+tools: Wrote · …/.claude/plans/<name>.md → 1 line: File created successfully at: <sandbox>/home/.c…; Proposed a plan → 1 line: File created successfully at: <sandbox>/home/.c…
+
+# h-plan-deny
+tools: Proposed a plan → 1 line: File created successfully at: <sandbox>/home/.c…
+assistant: Done.
+
+# h-plan-pre-allow-updatedInput
+tools: Proposed a plan → 3 lines: PreToolUse hook for Write returned updatedInput…
+assistant: Done.
+
+# h-plan-pre-allow
+user: Ask now
+tools: Wrote · …/.claude/plans/<name>.md → 1 line: File created successfully at: <sandbox>/home/.c…; Proposed a plan → 1 line: File created successfully at: <sandbox>/home/.c…
+
+# h-plan-setMode
+user: Ask now
+tools: Wrote · …/.claude/plans/<name>.md → 1 line: File created successfully at: <sandbox>/home/.c…; Proposed a plan → 1 line: File created successfully at: <sandbox>/home/.c…
+
+# h-wait-nodecision
+user: Ask now
+tools: Ran · touch waited.txt → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# h-wait-reply-then-tui
+user: Ask now
+tools: Ran · touch waited.txt → 1 line: (Bash completed with no output)
+assistant: Done.
+
+# h-wait-timeout
+user: Ask now
+tools: Ran · touch waited.txt → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# h-wait-tui-first
+user: Ask now
+tools: Ran · touch waited.txt → 1 line: (Bash completed with no output)
+assistant: Done.
+
+# k-ask-chat-by-arrows
+user: Ask now
+tools: Asked · Which database should we use? → 9 lines: The user doesn't want to proceed with this tool…
+assistant: Done.
+
+# k-ask-chat
+user: Ask now
+tools: Asked · Which database should we use? → 9 lines: The user doesn't want to proceed with this tool…
+assistant: Done.
+
+# k-ask-esc
+user: Ask now
+tools: Asked · Which database should we use? → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# k-ask-multi-back
+user: Ask now
+tools: Asked · Which database should we use? → no result
+
+# k-ask-multi-cancel-at-review
+user: Ask now
+tools: Asked · Which database should we use? → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# k-ask-multi-full
+user: Ask now
+tools: Asked · Which database should we use? → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# k-ask-other-enter
+user: Ask now
+tools: Asked · Which database should we use? → 1 line: The user answered: "Which database should we us…
+assistant: Done.
+
+# k-ask-other-then-digit
+user: Ask now
+tools: Asked · Which database should we use? → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# k-ask-preview-enter
+user: Ask now
+tools: Asked · Which database should we use? → 2 lines: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# k-ask-single-moved-highlight
+user: Ask now
+tools: Asked · Which database should we use? → 1 line: Your questions have been answered: "Which datab…
+assistant: Done.
+
+# k-bash-arrows-enter
+user: Ask now
+tools: Ran · touch keyed.txt → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# k-bash-esc
+user: Ask now
+tools: Ran · touch keyed.txt → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# k-bash-moved-highlight-digit1
+user: Ask now
+tools: Ran · touch keyed.txt → 1 line: (Bash completed with no output)
+assistant: Done.
+
+# k-bash-small-digits
+user: Ask now
+tools: Listed agents → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# k-plan-1
+tools: Proposed a plan → 1 line: File created successfully at: <sandbox>/home/.c…
+assistant: Done.
+
+# k-plan-3-feedback
+tools: Proposed a plan → 1 line: File created successfully at: <sandbox>/home/.c…
+assistant: Done.
+
+# k-plan-esc
+tools: Proposed a plan → 1 line: File created successfully at: <sandbox>/home/.c…
+note: Interrupted
+
+# mcp
+user: Ask now
+tools: Listed agents → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# plan-file
+tools: Proposed a plan → 1 line: File created successfully at: <sandbox>/home/.c…
+assistant: Done.
+
+# plan
+user: Ask now
+tools: Proposed a plan → no result
+
+# webfetch
+user: Ask now
+tools: Fetched · https://example.com/page → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted
+
+# write
+user: Ask now
+tools: Wrote · NEWFILE.txt → 1 line: The user doesn't want to proceed with this tool…
+note: Interrupted

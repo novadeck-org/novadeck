@@ -1,0 +1,101 @@
+# rui-esc-then-prompt
+tools: request_user_input → 1 line: aborted by user after 4.7s
+
+# rui-none-of-the-above-notes
+tools: request_user_input → 1 line: {"answers":{"color":{"answers":["None of the ab…
+
+# hook-rui-pretooluse-block
+tools: request_user_input → 1 line: Tool call blocked by PreToolUse hook: The perso…
+
+# exec-approve
+tools: Ran · echo approved > probe-out.txt → 5 lines: Chunk ID: 22c481
+
+# exec-approve-prefix
+tools: Ran · echo approved > probe-out.txt → 5 lines: Chunk ID: fa365c
+
+# exec-approve-session-key-not-offered
+tools: Ran · echo approved > probe-out.txt → no result
+
+# exec-decline-key-not-offered
+tools: Ran · echo approved > probe-out.txt → no result
+
+# exec-cancel
+tools: Ran · echo approved > probe-out.txt → 2 lines: Wall time: 4.3 seconds
+
+# patch-approve
+tools: Ran · apply_patch <<'EOF' → 7 lines: Wall time: 0.0000 seconds
+
+# patch-approve-session
+tools: Ran · apply_patch <<'EOF' → 7 lines: Wall time: 0.0000 seconds
+
+# patch-cancel
+tools: Ran · apply_patch <<'EOF' → 2 lines: Wall time: 4.3 seconds
+
+# rui-plan-digit-1
+tools: request_user_input → 1 line: {"answers":{"color":{"answers":["Blue (Recommen…
+
+# rui-plan-digit-2
+tools: request_user_input → 1 line: {"answers":{"color":{"answers":["Green"]}}}
+
+# rui-plan-esc
+tools: request_user_input → 1 line: aborted by user after 3.6s
+
+# rui-plan-wrong-key-y
+tools: request_user_input → no result
+
+# rui-default-on
+tools: request_user_input → 1 line: {"answers":{"color":{"answers":["Green"]}}}
+
+# hook-allow
+tools: Ran · echo approved > probe-out.txt → 5 lines: Chunk ID: 8f90d5
+
+# hook-deny
+tools: Ran · echo approved > probe-out.txt → 1 line: exec_command failed: CreateProcess { message: "…
+
+# hook-exit2
+tools: Ran · echo approved > probe-out.txt → 1 line: exec_command failed: CreateProcess { message: "…
+
+# hook-no-decision
+tools: Ran · echo approved > probe-out.txt → no result
+
+# hook-allow-with-updatedPermissions
+tools: Ran · echo approved > probe-out.txt → no result
+
+# hook-timeout
+tools: Ran · echo approved > probe-out.txt → no result
+
+# hook-person-presses-y
+tools: Ran · echo approved > probe-out.txt → 5 lines: Chunk ID: b80a03
+
+# hook-person-presses-esc
+tools: Ran · echo approved > probe-out.txt → 2 lines: Wall time: 3.2 seconds
+
+# hook-novadeck-view
+tools: Ran · echo approved > probe-out.txt → 5 lines: Chunk ID: 1323b6
+
+# exec-long-command
+tools: Ran · echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx && echo yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\ → 2 lines: Wall time: 4.3 seconds
+
+# exec-two-queued
+tools: Ran · echo first > probe-first.txt → 5 lines: Chunk ID: 9a41e3; Ran · echo second > probe-second.txt → 5 lines: Chunk ID: 9a41e3
+
+# request-permissions
+tools: request_permissions → 1 line: {"permissions":{"network":{"enabled":true},"fil…
+
+# plan-prompt
+
+
+# plan-prompt-digit-3
+
+
+# mcp-tool-approval
+tools: mcp__probe__touch → 3 lines: Wall time: 13.3381 seconds
+
+# mcp-tool-approval-esc
+tools: mcp__probe__touch → 3 lines: Wall time: 13.2391 seconds
+
+# mcp-elicitation
+tools: mcp__probe__ask_color → 3 lines: Wall time: 13.2145 seconds
+
+# hook-mcp-allow
+tools: mcp__probe__touch → 3 lines: Wall time: 3.1658 seconds

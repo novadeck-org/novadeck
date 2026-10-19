@@ -416,6 +416,60 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
+  frontend/chat-contract:
+    devDependencies:
+      '@novadeck/build-kit':
+        specifier: workspace:*
+        version: link:../../tools/build-kit
+      '@novadeck/core':
+        specifier: workspace:*
+        version: link:../core
+      '@novadeck/harness-agy':
+        specifier: workspace:*
+        version: link:../../harnesses/agy
+      '@novadeck/harness-claude':
+        specifier: workspace:*
+        version: link:../../harnesses/claude
+      '@novadeck/harness-codex':
+        specifier: workspace:*
+        version: link:../../harnesses/codex
+      '@novadeck/harness-core':
+        specifier: workspace:*
+        version: link:../../harnesses/core
+      '@novadeck/protocol':
+        specifier: workspace:*
+        version: link:../../contract/protocol
+      '@novadeck/runner-adapter':
+        specifier: workspace:*
+        version: link:../runner-adapter
+      '@novadeck/test-kit':
+        specifier: workspace:*
+        version: link:../test-kit
+      '@novadeck/ui':
+        specifier: workspace:*
+        version: link:../ui
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      jsdom:
+        specifier: ^30.1.3
+        version: 30.1.3(@noble/hashes@2.4.0)
+      react:
+        specifier: ^19.3.1
+        version: 19.3.1
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vite:
+        specifier: ^7.3.7
+        version: 7.3.7(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@types/node@26.6.5)(@vitest/browser-playwright@5.0.5)(@vitest/ui@5.0.5)(jsdom@30.1.3(@noble/hashes@2.4.0))(msw@3.0.3(@types/node@26.6.5)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.7(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(vite@7.3.7(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+
   frontend/core:
     dependencies:
       '@novadeck/protocol':

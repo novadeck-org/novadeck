@@ -1025,6 +1025,7 @@ atlas.
 | `frontend/demo-debug`     | The demo's debug panel and rehearsals.                                                 |
 | `frontend/test-kit`       | What the UI's tests render and drive the app with.                                     |
 | `frontend/specs`          | Behaviour specs: the whole app in a real browser, over the demo.                       |
+| `frontend/chat-contract`  | The chat's contract test: recorded harness transcripts through to the rendered chat.   |
 | `apps/desktop`            | Electron host that starts the runner and loads the packaged UI.                        |
 | `apps/try`                | The visitor build of the demo, which the website embeds.                               |
 | `apps/previews`           | The content preview: the demo with its debug panel.                                    |
@@ -1071,8 +1072,8 @@ backend-only tests.
 ### Working on the UI
 
 The UI is split into packages: `frontend/core`, `frontend/ui`, `frontend/runner-adapter`,
-`frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit` and
-`frontend/specs`, and the apps `apps/desktop`, `apps/try` and `apps/previews`. `frontend/ui`
+`frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit`,
+`frontend/specs` and `frontend/chat-contract`, and the apps `apps/desktop`, `apps/try` and `apps/previews`. `frontend/ui`
 holds the page's layers, each a folder of its `src/`; the rest are packages of their own. In
 the table a path that starts with `frontend/` or `apps/` is a package, and any other is a
 folder of `frontend/ui/src/`:

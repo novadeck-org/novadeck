@@ -306,7 +306,7 @@ describe("UI architecture", () => {
 
 // What the UI package exports: the few modules the apps start from, and for the specs those
 // they drive the whole UI through. Anything else is internal, and only the specs may reach a
-// module that isn't public.
+// module that isn't public, besides the one the chat contract renders.
 describe("the UI's exports", () => {
   const publicSubpaths = [
     "./app/App",
@@ -350,9 +350,18 @@ describe("the UI's exports", () => {
   })
 
   it("lets only the specs import what isn't public", () => {
+    // The chat contract renders the chat's transcript from recorded harness records, and
+    // reaches nothing else.
+    const contractSubpaths = new Set(["./terminals/chat/Transcript"])
+    expect(reach.some(({ dir }) => dir === "frontend/chat-contract")).toBe(true)
     expect(
       reach
-        .filter(({ dir, subpath }) => dir !== "frontend/specs" && !publicSubpaths.includes(subpath))
+        .filter(
+          ({ dir, subpath }) =>
+            dir !== "frontend/specs" &&
+            !publicSubpaths.includes(subpath) &&
+            !(dir === "frontend/chat-contract" && contractSubpaths.has(subpath)),
+        )
         .map(({ file, subpath }) => `${file} -> ${subpath}`),
     ).toEqual([])
   })

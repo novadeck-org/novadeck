@@ -1,0 +1,125 @@
+import type { ChatItem } from "@novadeck/core/conversation"
+import { groupItems } from "@novadeck/core/conversation-turns"
+import type { Harness } from "@novadeck/harness-core/harness"
+import { transcriptItem } from "@novadeck/protocol"
+import { withBatch } from "@novadeck/runner-adapter/conversations"
+import { render } from "@novadeck/test-kit/render"
+import { Transcript } from "@novadeck/ui/terminals/chat/Transcript"
+import { act, createElement } from "react"
+
+// The stages between a harness's record and the rendered chat, run as the app runs them.
+
+export type Transcripts = NonNullable<Harness["transcripts"]>
+
+const session = "contract"
+
+// The chat items of a conversation: each record line through the harness's decoder, the
+// entries given the index the runner gives them and parsed by the protocol's strict schema,
+// and mapped by the runner adapter.
+export const chatItemsOf = (
+  transcripts: Transcripts,
+  lines: readonly string[],
+): readonly ChatItem[] => {
+  const entries = lines.flatMap((line) => transcripts.items(line))
+  const batch = entries.map((entry, index) => transcriptItem.parse({ ...entry, index }))
+  return withBatch([], session, batch)
+}
+
+const blockTags = new Set(["P", "LI", "UL", "OL", "PRE", "BLOCKQUOTE", "TABLE", "TR", "DIV"])
+const heading = /^H[1-6]$/
+
+// An element's text as a reader sees it: line breaks where blocks and breaks are, each line
+// trimmed, and the lines joined with a marker, so one block stays one line of a golden.
+const textOf = (element: Element): string => {
+  let text = ""
+  const walk = (node: Node): void => {
+    if (node.nodeType === Node.TEXT_NODE) text += node.textContent ?? ""
+    else if (node instanceof Element) {
+      const block = blockTags.has(node.tagName) || heading.test(node.tagName)
+      if (block || node.tagName === "BR") text += "\n"
+      node.childNodes.forEach(walk)
+      if (block) text += "\n"
+    }
+  }
+  walk(element)
+  return text
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join(" ⏎ ")
+}
+
+const clip = (text: string, to: number): string =>
+  text.length > to ? `${text.slice(0, to - 1)}…` : text
+
+const click = (element: Element): void => {
+  act(() => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+  })
+}
+
+// What a tool row shows once open: its result, in short.
+const resultOf = (row: Element): string => {
+  const result = row.querySelector('section[aria-label="Result"]')
+  if (!result) return "no result"
+  const body = result.querySelector("pre")?.textContent ?? ""
+  const shortened = result.querySelector(".chat-tool-note") ? ", shortened" : ""
+  if (body === "(empty)") return `empty${shortened}`
+  const lines = body.replace(/\n$/, "").split("\n")
+  // The first line that says anything: some results begin with a blank one.
+  const first = lines.find((line) => line.trim() !== "") ?? ""
+  return `${lines.length} ${lines.length === 1 ? "line" : "lines"}${shortened}: ${clip(first.trim(), 48)}`
+}
+
+const rowOf = (row: Element): string => {
+  const title = row.querySelector(".chat-tool-title")?.textContent ?? ""
+  const detail = row.querySelector(".chat-tool-detail")?.textContent
+  const summary = row.querySelector("button.chat-tool-summary")
+  if (summary?.getAttribute("aria-expanded") === "false") click(summary)
+  return `${detail ? `${title} · ${detail}` : title} → ${resultOf(row)}`
+}
+
+// One line of a golden per block, from what the DOM shows. A folded run is opened, each of
+// its rows too, so what they hold is read.
+const lineOf = (block: Element): { line: string; rows: number } => {
+  if (block.matches(".chat-tools")) {
+    const fold = block.querySelector("button.chat-tools-fold")
+    const folded = fold ? `[${textOf(fold)}] ` : ""
+    if (fold?.getAttribute("aria-expanded") === "false") click(fold)
+    const rows = [...block.querySelectorAll("li.chat-tool")].map(rowOf)
+    return { line: `tools: ${folded}${rows.join("; ")}`, rows: rows.length }
+  }
+  if (block.matches(".chat-note")) return { line: `note: ${textOf(block)}`, rows: 0 }
+  const role = block.getAttribute("data-role")
+  if (role === "agent") {
+    const from = block.getAttribute("aria-label")?.replace(/^Message from /, "") ?? ""
+    const bubble = block.querySelector(".chat-bubble")!.cloneNode(true) as Element
+    bubble.querySelector(".chat-author")?.remove()
+    return { line: `agent (${from}): ${textOf(bubble)}`, rows: 0 }
+  }
+  if (role === "user" || role === "assistant") return { line: `${role}: ${textOf(block)}`, rows: 0 }
+  throw new Error(`The chat rendered a block this contract does not know: ${block.outerHTML}`)
+}
+
+export type Rendered = {
+  // One line per block.
+  readonly lines: readonly string[]
+  // How many tool rows the chat drew.
+  readonly toolRows: number
+}
+
+// The conversation as the UI draws it: core's blocks through the real Transcript in jsdom.
+export const renderChat = (items: readonly ChatItem[], agent: string): Rendered => {
+  const view = render(
+    createElement(Transcript, { blocks: groupItems(items), agent, working: false }),
+  )
+  try {
+    const drawn = [...view.container.children].map(lineOf)
+    return {
+      lines: drawn.map(({ line }) => line),
+      toolRows: drawn.reduce((sum, { rows }) => sum + rows, 0),
+    }
+  } finally {
+    view.unmount()
+  }
+}
