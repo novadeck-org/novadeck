@@ -1,11 +1,9 @@
-import { randomUUID } from "node:crypto"
 import { realpath } from "node:fs/promises"
 import { homedir } from "node:os"
 import { basename, resolve as resolvePath } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
-import { transcript as transcriptOf, type ScreenText } from "@novadeck/emulator/headless"
-import type { RequestFacts } from "@novadeck/harness-core/dialogs"
+import { transcript as transcriptOf } from "@novadeck/emulator/headless"
 import type {
   ActivityEvent,
   HarnessEvent,
@@ -37,12 +35,7 @@ import type {
   TranscriptChange,
 } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
-import {
-  createTerminalHost,
-  noHold,
-  type Terminal,
-  type TerminalHost,
-} from "@novadeck/terminal/host"
+import { createTerminalHost, type Terminal, type TerminalHost } from "@novadeck/terminal/host"
 import {
   foregroundProcess,
   openFiles,
@@ -55,10 +48,9 @@ import {
   type Pty,
 } from "@novadeck/terminal/pty"
 import { afterKeys, emptyLine, withLocale } from "@novadeck/terminal/shell"
-import { freshNonce, InputQueue, keysOf } from "@novadeck/tui-input"
-import type { HoldBudget, InputHold, PromptHost, PromptOptions } from "@novadeck/tui-input"
-import type { InterruptHost, InterruptOptions } from "@novadeck/tui-input"
-import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
+import { freshNonce, keysOf } from "@novadeck/tui-input"
+import type { PromptOptions } from "@novadeck/tui-input"
+import type { InterruptOptions } from "@novadeck/tui-input"
 
 import type { PlanText } from "../companions/content.js"
 import type { CompanionItems, TerminalPlace } from "../companions/items.js"
@@ -72,17 +64,16 @@ import {
   started as fresh,
   summary as activitySummary,
   withLimit,
-  type Activity,
 } from "../harnesses/activity.js"
 import { observe, type Binding } from "../harnesses/bindings.js"
-import { actorOf, agentDetail, requestRef } from "../harnesses/detail.js"
+import { actorOf, agentDetail } from "../harnesses/detail.js"
 import { agents, harnesses } from "../harnesses/registry.js"
 import { lastReply, unreplied, withReplies } from "../harnesses/replies.js"
 import { followRoot, rootedIn, type RootChange } from "../harnesses/roots.js"
 import { limitOf, observeTelemetry, telemetrySummary } from "../harnesses/telemetry.js"
 import { transcriptWaitMs, typedPromptStart } from "../harnesses/typed-prompts.js"
 import { Asks, type AskRecords } from "../messaging/asks.js"
-import { Doorbell, type DoorbellHost, type DoorbellOptions } from "../messaging/doorbell.js"
+import { type DoorbellOptions } from "../messaging/doorbell.js"
 import { agentLabel } from "../messaging/mailbox.js"
 import {
   leaseMargin,
@@ -96,7 +87,7 @@ import { inherited } from "../shell/inherited.js"
 import type { InstalledShell } from "../shell/install.js"
 import { unansweredCalls, type Ack, type Call, type HookAnswer } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
-import { Answers, type AnswerHost, type AnswerOptions } from "./answers.js"
+import { type AnswerOptions } from "./answers.js"
 import { callerOf, sameToken } from "./callers.js"
 import {
   allowClose,
@@ -111,7 +102,7 @@ import { coalesced } from "./coalesce.js"
 import { expectedAgent, promptIn } from "./commands.js"
 import { Companion } from "./companion.js"
 import { forgetPrompts, markPrompt, murmurHost } from "./describing.js"
-import { Dialogs, type DialogsHost, type DialogsOptions } from "./dialogs.js"
+import { type DialogsOptions } from "./dialogs.js"
 import { mention } from "./handles.js"
 import { Launcher, startedIn, startFailed } from "./launching.js"
 import { Murmur, type MurmurTimes, type Reported } from "./murmur.js"
@@ -139,18 +130,17 @@ import {
   type OpenAnswer,
 } from "./opens.js"
 import { TerminalPeers } from "./peers.js"
-import { Interrupts, Prompts } from "./prompting.js"
 import type { Record } from "./record.js"
 import { hasRun, type TerminalRecords } from "./records.js"
 import { restoredSeparator } from "./restored.js"
 import { cancelResume, Claims } from "./resumes.js"
-import { agentWorking, doorbellHost, profileOf } from "./ringing.js"
 import { Sampler, shellProcess } from "./sampling.js"
 import { Saves } from "./saving.js"
 import { Streams } from "./streams.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
 import { savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
 import { transcriptChanges } from "./transcripts.js"
+import { Typing } from "./typing.js"
 import { judgedFirst, workAfter } from "./work.js"
 
 /** How long after the person's last key an untrusted agent's hooks are asked about again. */
@@ -333,17 +323,12 @@ const positive = (value: number | undefined, fallback: number): number => {
   return result
 }
 
-/** How long `settleBox` looks at a screen for an empty box, in milliseconds. */
-const boxSettleMs = 5_000
-
 /**
  * Owns PTYs for one runner lifetime. Exited, unattached records are retained up to a
  * bound, and evicted oldest first beyond it or when a capped runner needs room.
  */
 export class Terminals {
   private readonly records = new Map<string, Record>()
-  /** The terminals whose box `settleBox` is looking at. */
-  private readonly settling = new Set<string>()
   private readonly pendingOwners = new Map<string, Set<{ released: boolean }>>()
   /** Agents' requests for a new terminal, on their way to the client. */
   private readonly opens = new OpenRequests()
@@ -374,6 +359,11 @@ export class Terminals {
   private readonly names: Names<Record>
   /** What agents show beside their terminals, and the plans they keep there. */
   private readonly companion: Companion
+  /**
+   * Everything that types into terminals' agents, through one input queue per terminal:
+   * the doorbell, prompts, interrupts and answers, with the dialogs it reads.
+   */
+  private readonly typing: Typing
   /** How terminals' shells start, and the runner's shell integration. */
   private readonly launcher: Launcher
   /** Sessions given out to resume, and the terminal each went to. */
@@ -431,17 +421,8 @@ export class Terminals {
   private readonly asks: Asks
   /** What agents messaging each other, and the runner API about their messages, are answered. */
   private readonly peers: TerminalPeers
-  /** Wakes idle agents for their messages; none when switched off. */
-  private readonly doorbell: Doorbell | undefined
   /** Describes terminals with murmur; undefined without a describer. */
   private readonly murmur: Murmur | undefined
-  private readonly prompts: Prompts
-  /** Each terminal's input queue: every piece of work that puts keys in its agent's box. */
-  private readonly inputs: InputQueue
-  private readonly interrupts: Interrupts
-  /** Answers requests through their dialogs, and the dialogs it reads for `agents.detail`. */
-  private readonly answers: Answers
-  private readonly dialogs: Dialogs
   /** Terminals closed in this runner's lifetime, which no create brings back. */
   private readonly closedIds = new Set<string>()
   /** Sessions whose project is going or gone, in which no terminal starts again. */
@@ -566,8 +547,8 @@ export class Terminals {
           record.binding,
           record.activity,
           record.telemetry,
-          this.dialogs.view(record.summary.id),
-          this.dialogs.answered(record.summary.id),
+          this.typing.dialogs.view(record.summary.id),
+          this.typing.dialogs.answered(record.summary.id),
         ),
       messages: (terminalId) => this.messages(terminalId),
     })
@@ -605,38 +586,45 @@ export class Terminals {
       },
       options.asks,
     )
-    this.inputs = new InputQueue({
-      hold: (terminalId, budget) => this.holdInput(terminalId, budget),
-    })
-    this.doorbell =
-      options.doorbell === false
-        ? undefined
-        : new Doorbell(this.ringHost(), this.inputs, {
-            platform: this.options.platform,
-            ...options.doorbell,
-          })
     // A lapsed continuation ends its turn; a late prompt may leave only box doubt to settle.
+    // Subscribed before typing's doorbell, which subscribes as it is made.
     this.messaging.subscribe((change) => {
       if (change.kind !== "terminal") return
       const record = this.records.get(change.terminalId)
       if (record) {
         this.lapsed(record)
-        this.settleBox(record)
+        this.typing.settleBox(record)
       }
     })
-    this.prompts = new Prompts(this.promptHost(), this.inputs, options.prompts)
-    this.interrupts = new Interrupts(this.interruptHost(), {
-      // The queued turn shows working only once its hook comes, which its shell holds back.
-      queuedTurnMs: 3_000 + hookShellSlackMs(this.options.platform) / 4,
-      ...options.interrupts,
-    })
-    this.dialogs = new Dialogs(this.dialogsHost(), options.answers)
-    this.answers = new Answers(this.answerHost(), this.inputs, options.answers)
-    const doorbell = this.doorbell
-    if (doorbell)
-      this.messaging.subscribe((change) => {
-        if (change.kind === "terminal") doorbell.changed(change.terminalId)
-      })
+    this.typing = new Typing(
+      {
+        platform: this.options.platform,
+        doorbell: options.doorbell,
+        prompts: options.prompts,
+        interrupts: {
+          // The queued turn shows working only once its hook comes, which its shell holds back.
+          queuedTurnMs: 3_000 + hookShellSlackMs(this.options.platform) / 4,
+          ...options.interrupts,
+        },
+        answers: options.answers,
+      },
+      {
+        stopping: () => this.stopping,
+        record: (terminalId) => this.record(terminalId),
+        held: (terminalId) => this.records.get(terminalId),
+        live: (terminalId) => this.live(terminalId),
+        running: (record) => this.running(record),
+        keyed: (record, data) => this.keyed(record, data),
+        applyFact: (record, fact) => this.applyFact(record, fact),
+        publishAgent: (record, moved) => this.publishAgent(record, moved),
+        detailed: (record) => this.streams.detailed(record),
+        endExited: (record) => this.endExited(record),
+        queued: (terminalId, work) =>
+          void this.queue(terminalId, () => Promise.resolve(work()), undefined),
+        alive,
+        messaging: () => this.messaging,
+      },
+    )
     // The pause shows in every terminal's listing; anything else only in the terminal's.
     // A burst of changes makes one listing, once this tick.
     const mailChanged = coalesced(
@@ -931,8 +919,8 @@ export class Terminals {
    * Gives the terminal's agent a prompt as the person would paste and submit it (see
    * `Prompts`), once those before it in the terminal's input queue are done.
    */
-  async prompt(input: { terminalId: string; text: string }): Promise<void> {
-    return await this.prompts.prompt(input.terminalId, input.text)
+  prompt(input: { terminalId: string; text: string }): Promise<void> {
+    return this.typing.prompt(input.terminalId, input.text)
   }
 
   /**
@@ -941,7 +929,7 @@ export class Terminals {
    * ring, comes between the answer and the words that follow it.
    */
   answer(input: { terminalId: string; request: string; answer: RequestAnswer }): Promise<void> {
-    return this.answers.answer(input.terminalId, input.request, input.answer)
+    return this.typing.answer(input.terminalId, input.request, input.answer)
   }
 
   /**
@@ -964,41 +952,8 @@ export class Terminals {
    * their settle wait (`InterruptOptions`) after the last to show its turn ended before
    * the next looks.
    */
-  async interrupt(input: { terminalId: string }): Promise<InterruptResult> {
-    const { terminalId } = input
-    this.promptable(terminalId)
-    return await this.inputs.run(terminalId, () => this.interrupts.interrupt(terminalId))
-  }
-
-  /** The harness of the agent bound to the terminal, or shown at its prompt, as its box reads. */
-  private boxOf(record: Record): BoxProfile | undefined {
-    return profileOf(record.binding, () => this.messaging.shownAgent(record.summary.id))
-  }
-
-  /**
-   * The record of a terminal whose agent takes the person's keys, or the error saying why
-   * not: no agent bound, nor its own prompt shown before its first session binds, or one
-   * that waits on the person's answer to a request, whose dialog would take them.
-   */
-  private promptable(terminalId: string): Record {
-    if (this.stopping) throw new DomainError("CLOSING")
-    const record = this.record(terminalId)
-    this.running(record)
-    if (!record.binding && this.messaging.shownAgent(terminalId) === undefined)
-      throw new DomainError(
-        "CONFLICT",
-        "No agent is running in this terminal.",
-        undefined,
-        "no-agent",
-      )
-    if ((record.activity?.pending.length ?? 0) > 0)
-      throw new DomainError(
-        "CONFLICT",
-        "The agent waits on the person's answer to a request.",
-        undefined,
-        "pending",
-      )
-    return record
+  interrupt(input: { terminalId: string }): Promise<InterruptResult> {
+    return this.typing.interrupt(input.terminalId)
   }
 
   /**
@@ -1041,259 +996,6 @@ export class Terminals {
   private live(terminalId: string): Record | undefined {
     const record = this.records.get(terminalId)
     return record && !record.terminal.exiting && record.terminal.exit === null ? record : undefined
-  }
-
-  /** The screen of a running terminal once it has drawn what its shell already sent. */
-  private async screenOf(terminalId: string): Promise<ScreenText | undefined> {
-    const record = this.live(terminalId)
-    if (!record) return undefined
-    const child = record.terminal.pty
-    const text = await record.terminal.readScreen()
-    return record.terminal.pty === child && this.live(terminalId) ? text : undefined
-  }
-
-  /**
-   * Holds the person's input to a running terminal for at most `budget.inputMs`, and the app's
-   * resizes until the hold settles (see `InputQueueHost.hold`). The queue gives one piece of
-   * work the terminal at a time, so none holds it in force: only the resizes of the one
-   * before may be, which this hold takes over.
-   */
-  private holdInput(terminalId: string, budget: HoldBudget): InputHold {
-    const record = this.live(terminalId)
-    if (!record) return noHold
-    return record.terminal.hold(budget)
-  }
-
-  /** What prompts ask of the terminals and messaging. */
-  private promptHost(): PromptHost {
-    return {
-      admit: (terminalId) => {
-        const profile = this.boxOf(this.promptable(terminalId))
-        // No harness to read its box, no prompt: nothing tells where the text would land.
-        if (!profile)
-          throw new DomainError(
-            "CONFLICT",
-            "No agent is running in this terminal.",
-            undefined,
-            "no-agent",
-          )
-        return profile
-      },
-      bound: (terminalId) => {
-        const record = this.live(terminalId)
-        return record === undefined || record.binding !== null
-      },
-      ringing: (terminalId) => this.messaging.ringing(terminalId),
-      screen: (terminalId) => this.screenOf(terminalId),
-      type: (terminalId, data) => {
-        const record = this.live(terminalId)
-        if (!record) return false
-        this.keyed(record, data)
-        record.terminal.type(data)
-        return true
-      },
-    }
-  }
-
-  private interruptHost(): InterruptHost {
-    return {
-      admit: (terminalId) => void this.promptable(terminalId),
-      working: (terminalId) => this.live(terminalId)?.activity?.state === "working",
-      alive: (terminalId) => this.live(terminalId) !== undefined,
-      profile: (terminalId) => {
-        const record = this.live(terminalId)
-        return record && this.boxOf(record)
-      },
-      prompt: (terminalId) => this.messaging.personPrompt(terminalId),
-      screen: (terminalId) => this.screenOf(terminalId),
-      type: (terminalId, data) => {
-        const record = this.live(terminalId)
-        if (!record) return false
-        this.keyed(record, data)
-        record.terminal.type(data)
-        return true
-      },
-      write: (terminalId, data) => {
-        const record = this.live(terminalId)
-        if (!record) return false
-        record.terminal.type(data)
-        return true
-      },
-    }
-  }
-
-  /** What the dialog adapters need of a pending request: what it asks, and where. */
-  private factsOf(record: Record, request: Activity["pending"][number]): RequestFacts {
-    return {
-      kind: request.kind,
-      tool: request.toolName,
-      input: request.input,
-      cwd: request.cwd ?? record.summary.cwd,
-    }
-  }
-
-  /** The request of a terminal's bound agent that a ref names, with its facts. */
-  private waiting(record: Record, ref: string) {
-    const { binding, activity } = record
-    if (!binding || !activity) return undefined
-    const request = activity.pending.find((each) => requestRef(binding, each) === ref)
-    return request && { binding, request }
-  }
-
-  /** What answering requests asks of the terminals and the dialogs read. */
-  private answerHost(): AnswerHost {
-    return {
-      request: (terminalId, ref) => {
-        if (this.stopping) throw new DomainError("CLOSING")
-        const record = this.record(terminalId)
-        this.running(record)
-        const found = this.waiting(record, ref)
-        if (!found) return undefined
-        const { binding, request } = found
-        return {
-          actor: request.actor,
-          facts: this.factsOf(record, request),
-          adapter: harnesses[binding.agent].dialogs,
-          others: (record.activity?.pending ?? [])
-            .filter((each) => each !== request)
-            .map((each) => ({
-              ref: requestRef(binding, each),
-              actor: each.actor,
-              facts: this.factsOf(record, each),
-              askedAt: each.askedAt,
-            })),
-        }
-      },
-      ringing: (terminalId) => this.messaging.ringing(terminalId),
-      screen: (terminalId) => this.screenOf(terminalId),
-      type: (terminalId, data) => {
-        const record = this.live(terminalId)
-        if (!record) return false
-        this.keyed(record, data)
-        record.terminal.type(data)
-        return true
-      },
-      prompt: (entry, terminalId, text) => this.prompts.promptIn(entry, terminalId, text),
-      working: (terminalId) => this.records.get(terminalId)?.activity?.state === "working",
-      turnStartedAt: (terminalId) => {
-        const activity = this.records.get(terminalId)?.activity
-        return activity?.state === "working" ? activity.turnAt : undefined
-      },
-      closed: (terminalId, ref) => this.dialogs.closed(terminalId, ref),
-      shown: (terminalId, ref) => {
-        const dialog = this.dialogs.shown(terminalId, ref)
-        return dialog !== null && dialog.type !== "raw"
-      },
-      answered: (terminalId, ref) => this.dialogs.answered(terminalId).has(ref),
-      raw: (terminalId, ref) => this.dialogs.shown(terminalId, ref)?.type === "raw",
-      lock: (terminalId, ref, reason, rows) => {
-        this.dialogs.lock(terminalId, ref, reason, rows)
-      },
-      done: (terminalId, ref) => {
-        this.dialogs.done(terminalId, ref)
-        // A request only the screen told has no hook to say it was answered.
-        const record = this.records.get(terminalId)
-        const found = record && this.waiting(record, ref)
-        if (record && found?.request.screen) this.clearScreenRequest(record, found.request)
-      },
-      busy: (terminalId, on) => {
-        if (on) this.dialogs.begin(terminalId)
-        else this.dialogs.end(terminalId)
-      },
-    }
-  }
-
-  /** What the dialogs tracker asks of the terminals. */
-  private dialogsHost(): DialogsHost {
-    return {
-      pending: (terminalId) => {
-        const record = this.live(terminalId)
-        const { binding, activity } = record ?? {}
-        if (!record || !binding || !activity) return undefined
-        return {
-          agent: binding.agent,
-          requests: activity.pending.map((request) => ({
-            ref: requestRef(binding, request),
-            actor: request.actor,
-            facts: this.factsOf(record, request),
-            subject: request.subject,
-            screen: request.screen === true,
-            askedAt: request.askedAt,
-          })),
-        }
-      },
-      adapter: (agent) => harnesses[agent].dialogs,
-      screen: (terminalId) => this.screenOf(terminalId),
-      ask: (terminalId, request) => {
-        const record = this.live(terminalId)
-        const { binding } = record ?? {}
-        if (!record || !binding) return
-        const { agent, sessionId, instance } = binding
-        const fact: ActivityEvent = {
-          type: "attention-requested",
-          agent,
-          sessionId,
-          instance,
-          startedAt: Date.now(),
-          // One per time it shows: the same while it does.
-          requestId: `screen:${request.tool}:${randomUUID()}`,
-          actor: null,
-          toolName: request.tool,
-          kind: request.kind,
-          subject: request.subject,
-          choices: [],
-          input: request.input,
-          screen: true,
-        }
-        if (this.applyFact(record, fact)) this.publishAgent(record, false)
-      },
-      clear: (terminalId, ref) => {
-        const record = this.live(terminalId)
-        const found = record && this.waiting(record, ref)
-        if (record && found) this.clearScreenRequest(record, found.request)
-      },
-      changed: (terminalId) => {
-        const record = this.records.get(terminalId)
-        if (record) this.streams.detailed(record)
-      },
-    }
-  }
-
-  /** A request only the screen told no longer waits: its screen is gone, or it was answered. */
-  private clearScreenRequest(record: Record, request: Activity["pending"][number]): void {
-    const { binding } = record
-    if (!binding) return
-    const { agent, sessionId, instance } = binding
-    const fact: ActivityEvent = {
-      type: "attention-resolved",
-      agent,
-      sessionId,
-      instance,
-      startedAt: Date.now(),
-      requestId: request.requestId,
-      actor: null,
-      toolName: request.toolName,
-      loose: false,
-      outcome: "allowed",
-    }
-    if (this.applyFact(record, fact)) this.publishAgent(record, false)
-  }
-
-  /** What the doorbell asks of the terminals and messaging. */
-  private ringHost(): DoorbellHost {
-    return doorbellHost({
-      live: (terminalId) => this.live(terminalId),
-      screen: (terminalId) => this.screenOf(terminalId),
-      shownAgent: (terminalId) => this.messaging.shownAgent(terminalId),
-      alive,
-      queued: (terminalId, work) =>
-        void this.queue(terminalId, () => Promise.resolve(work()), undefined),
-      endExited: (record) => this.endExited(record),
-      messaging: this.messaging,
-      working: (terminalId, activity) =>
-        agentWorking(this.messaging, terminalId, this.live(terminalId)?.binding ?? null, activity),
-      stopping: () => this.stopping,
-    })
   }
 
   resize(input: { terminalId: string; cols: number; rows: number }, ownerId: string): void {
@@ -1522,8 +1224,7 @@ export class Terminals {
     this.companion.closed(terminalId)
     this.messaging.unregister(terminalId)
     this.asks.reconcile(terminalId)
-    this.doorbell?.forget(terminalId)
-    this.dialogs.forget(terminalId)
+    this.typing.forget(terminalId)
     this.murmur?.gone(terminalId)
     if (claims) this.claims.release(terminalId)
     this.openers.delete(terminalId)
@@ -2063,7 +1764,7 @@ export class Terminals {
     this.companion.shutdown()
     this.streams.finishReaders()
     for (const record of this.records.values()) this.unwatch(record)
-    this.doorbell?.close()
+    this.typing.close()
     this.asks.close()
     this.messaging.close()
     this.shutdownPromise = this.stop()
@@ -2133,8 +1834,8 @@ export class Terminals {
   private listen(record: Record): void {
     const { terminal } = record
     terminal.on("drawn", () => {
-      this.doorbell?.changed(record.summary.id)
-      this.dialogs.changed(record.summary.id)
+      this.typing.doorbellChanged(record.summary.id)
+      this.typing.dialogsChanged(record.summary.id)
       // Once on the screen: a save while it was drawing may have taken the screen before.
       record.changed = true
     })
@@ -2552,7 +2253,7 @@ export class Terminals {
     if (changes.length > 0) {
       this.messaging.rooted(id, changes)
       this.asks.rooted(id, changes)
-      this.settleBox(record)
+      this.typing.settleBox(record)
     }
     // A new root session has yet to hear of the bar beside its terminal.
     if (changes.some((change) => change.type === "new"))
@@ -2805,65 +2506,6 @@ export class Terminals {
     return trusted === true ? "counts" : trusted === false ? "untrusted" : "unknown"
   }
 
-  /**
-   * Looks at the screen while delivery is Drafting only by doubt after a late hook: once
-   * the agent's box reads empty on two reads running, nothing was left in it, and delivery
-   * is Ready before its first turn or Settled after one completed. Gives up when doubt
-   * ends or after `boxSettleMs`, leaving the draft; a later doubt has its own window.
-   */
-  private settleBox(record: Record): void {
-    const id = record.summary.id
-    const current = this.messaging.delivery(id)
-    if (
-      this.settling.has(id) ||
-      current?.state !== "drafting" ||
-      !current.box.doubted ||
-      record.boxDoubtEpoch === current.epoch
-    )
-      return
-    this.settling.add(id)
-    void (async () => {
-      let until = 0
-      let epoch: number | undefined
-      let seen = false
-      try {
-        for (;;) {
-          const delivery = this.messaging.delivery(id)
-          // The cases where `emptied` does nothing in the current epoch: keep the two in step,
-          // or the `continue` below spins without waiting.
-          if (!delivery?.box.doubted || delivery.state !== "drafting") return
-          // A new doubt starts anew: its own window, its own two reads.
-          if (delivery.epoch !== epoch) {
-            epoch = delivery.epoch
-            record.boxDoubtEpoch = epoch
-            until = Date.now() + boxSettleMs
-            seen = false
-          }
-          if (Date.now() >= until) return
-          // The read counts from before it began: a key typed meanwhile is not forgotten.
-          const readAt = Date.now()
-          // eslint-disable-next-line no-await-in-loop -- Each read waits for the one before.
-          const screen = await this.screenOf(id)
-          const profile = this.live(id) && this.boxOf(record)
-          if (!screen || !profile) return
-          const box = profile.read(screen)
-          const empty =
-            box !== undefined && box.mode === "prompt" && isEmpty(box) && !profile.queued(screen)
-          if (empty && seen) {
-            this.messaging.emptied(id, delivery.epoch, readAt)
-            // Stale if the epoch changed during the read: a later doubt is polled anew.
-            continue
-          }
-          seen = empty
-          // eslint-disable-next-line no-await-in-loop -- Each read waits for the one before.
-          await sleep(100, undefined, { ref: false })
-        }
-      } finally {
-        this.settling.delete(id)
-      }
-    })().catch(() => undefined)
-  }
-
   /** Whether Novadeck's hooks run for the agent in the terminal's folder; undefined unknown. */
   private hooksTrustedIn(
     record: Record,
@@ -2904,7 +2546,7 @@ export class Terminals {
     // Judged as the title came, not after what was asked since.
     this.messaging.shown(id, agent, sessionPrefix ?? null, true, shown.startedAt, shown.firedAt)
     this.endBinding(record, replaced)
-    this.settleBox(record)
+    this.typing.settleBox(record)
   }
 
   /**
@@ -3151,7 +2793,7 @@ export class Terminals {
         const until = Date.now() + escapeScreenMs
         for (;;) {
           // eslint-disable-next-line no-await-in-loop -- Each read waits for the one before.
-          const screen = await this.screenOf(record.summary.id)
+          const screen = await this.typing.screenOf(record.summary.id)
           if (!screen) return undefined
           const shown = interrupted(screen)
           if (shown === true) return undefined
@@ -3173,7 +2815,7 @@ export class Terminals {
     const waits = (record.activity?.pending.length ?? 0) > 0
     if (waited && !waits) {
       this.messaging.askedCleared(record.summary.id)
-      this.doorbell?.changed(record.summary.id)
+      this.typing.doorbellChanged(record.summary.id)
     }
     // A request asked while a ring is under way (none waited as it began) may show its
     // dialog where the ring's Enter would land: the ring fails, pressing nothing more, as
@@ -3262,7 +2904,7 @@ export class Terminals {
   private publishAgent(record: Record, moved: boolean): void {
     // Detail changes where the summary may not: a revised request, a subject.
     this.streams.detailed(record)
-    this.dialogs.changed(record.summary.id)
+    this.typing.dialogsChanged(record.summary.id)
     // Murmur writes a headline or gist for what the activity now holds.
     this.murmur?.changed(record.summary.id)
     const agent = record.binding?.agent ?? null
@@ -3328,8 +2970,7 @@ export class Terminals {
     // An exited terminal takes no messages; its agent's are gone until it runs again.
     this.messaging.unregister(record.summary.id)
     this.asks.reconcile(record.summary.id)
-    this.doorbell?.forget(record.summary.id)
-    this.dialogs.forget(record.summary.id)
+    this.typing.forget(record.summary.id)
     record.summary = {
       ...record.summary,
       process: null,
@@ -3355,8 +2996,7 @@ export class Terminals {
     this.records.delete(id)
     this.messaging.unregister(id)
     this.asks.reconcile(id)
-    this.doorbell?.forget(id)
-    this.dialogs.forget(id)
+    this.typing.forget(id)
     // Its record is let go, but the terminal is kept, saved, until it is closed.
     const saved = this.saves.saved(id)
     if (saved) this.streams.changed(() => savedSummaryOf(saved))
