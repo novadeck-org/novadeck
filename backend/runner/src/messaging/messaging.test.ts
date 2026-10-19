@@ -1022,6 +1022,38 @@ describe("delivery through hooks", () => {
       expect(delivered(messaging)).toHaveLength(1)
     })
 
+    it("keeps why it can't ring it through a key, as for an idle one", () => {
+      const { messaging, prompt, stop, send, claude } = create()
+      prompt("A", claude)
+      stop("A", claude, true)
+      sent(send("B", "moth", "Any news?"))
+      messaging.blocked("A", "draft")
+      messaging.keys("A", ["content"], false)
+      expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "background" })
+      expect(messaging.list("A", "fox").waits).toBe("draft")
+    })
+
+    it("forgets why it couldn't ring it once that work is over", () => {
+      const { messaging, observe, prompt, stop, send, claude } = create()
+      prompt("A", claude)
+      stop("A", claude, true)
+      sent(send("B", "moth", "Any news?"))
+      messaging.blocked("A", "draft")
+      // Its status line says the work is done, with no turn: Settled.
+      observe("A", claude, [
+        {
+          type: "turn-idle",
+          agent: claude.agent,
+          sessionId: claude.sessionId,
+          instance: claude.instance,
+          startedAt: asHeard,
+          background: { agents: 0, tasks: 0 },
+        },
+      ])
+      expect(messaging.delivery("A")?.state).toBe("settled")
+      expect(messaging.list("A", "fox").waits).toBeNull()
+    })
+
     it("is not rung once its background agent's own turn starts before the ring", () => {
       const { messaging, prompt, claude } = emptiedInBackground()
       const woken = prompt("A", claude, "harness")

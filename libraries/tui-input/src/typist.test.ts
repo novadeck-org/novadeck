@@ -352,6 +352,24 @@ describe("a delivery", () => {
       expect(enters(fake.written)).toBe(1)
     })
 
+    it("still presses Enter where the profile reads the screen without some rows above it", async () => {
+      // The profile sets the first row aside, so every row below moves up one: the ticking
+      // row, seen by its index on the screen, is still the one let be as the line lands
+      // after a tick, not the one that takes its index.
+      const fake = terminal({ tickMs: 60, landMs: 100 })
+      const profile = { ...fake.inputBox()!, still: (rows: readonly string[]) => rows.slice(1) }
+      const typist = createTypist(fake.target, {
+        profile: () => profile,
+        timing: { ...fast, ...ticking },
+      })
+      const delivered = await run(
+        typist.deliver(fake.entry, line, { calmSince: 0, start: () => true, still: () => true }),
+      )
+      fake.stop()
+      expect(delivered).toMatchObject({ entered: true })
+      expect(enters(fake.written)).toBe(1)
+    })
+
     it("still fails a paste that changed another row far from the box", async () => {
       const fake = terminal({ tickMs: 60, takes: "elsewhere" })
       const delivered = await typing(fake, ticking).deliver()

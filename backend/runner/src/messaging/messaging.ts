@@ -1797,8 +1797,15 @@ export class Messaging {
       (live.viaScreen &&
         (state === "ready" || state === "settled") &&
         live.delivery.epoch === before.epoch)
-    // The doorbell's last word on why it can't ring is about an idle agent only.
-    if (state === "working" || state === "ringing" || state === "unbound" || live.viaScreen)
+    // The doorbell's last word on why it can't ring is about an idle agent only, or one
+    // waiting on its background work, which it looks at too: not once that work is over.
+    if (
+      running(live.delivery) ||
+      state === "ringing" ||
+      state === "unbound" ||
+      live.viaScreen ||
+      (phaseOf(before) === "background" && phaseOf(live.delivery) !== "background")
+    )
       live.waits = null
     // A turn that ended, or a new one, leaves the last one's delivery behind.
     if ((running(before) && !running(live.delivery)) || live.delivery.epoch !== before.epoch)

@@ -744,6 +744,15 @@ describe("what ticks by itself while background work runs", () => {
       "  ● main",
       "✻ Thinking… (3s · esc to interrupt)",
     ])
+    // Other shapes its time and what follows may take, and a selected row, read alike.
+    for (const row of [
+      "  ◯ fixer   Checking  1m 2s · ↓ 1,234 tokens",
+      "  ◯ fixer   Checking  1m 2s · ↑ 1.2k tokens",
+      "  ◯ fixer   Checking  12.3s",
+      "  ◯ fixer   Checking  1d 2h 3m 4s · 1.2k tokens · more",
+      "❯ ◯ fixer   Checking  4s",
+    ])
+      expect(claude.still!([row])[0]).toMatch(/◯ fixer {3}Checking$/)
   })
 
   it("is Antigravity's panel, set aside, so a paste's check accepts the line it lands", () => {

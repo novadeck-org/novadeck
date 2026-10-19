@@ -38,24 +38,26 @@ export const overlay = (screen: ScreenText): boolean =>
   )
 
 /**
- * Claude Code's input box: between two `─` rules, `❯ ` leading its first row and the rest
- * indented (probed 2.1.287 and 2.1.292, fixtures/input-box.probe.json). It sits at the
- * bottom whatever the turn does above it, a long or multi-line paste grows it upwards, and
- * a paste of more than three lines shows as `[Pasted text #1 +39 lines]`, and one of more
- * than about 800 characters (800 showed, 900 did not) as `[Pasted text #5]`. Below the
- * box it keeps two rules' worth and a footer row or two.
+ * A row of its agents list under the footer, of a background agent (`◯`, selected or not):
+ * its elapsed time and whatever follows it, as tokens, count up each second while it runs
+ * (probed 2026-10-19, 2.1.287, fixtures/background-prompt.probe.json `changing`; #325
+ * showed `3h 40m 8s · ↓ 708.9k tokens`).
  */
-/**
- * A row of its agents list under the footer, of a background agent (`◯`): its elapsed time
- * and tokens at its end count up each second while it runs (probed 2026-10-19, 2.1.287,
- * fixtures/background-prompt.probe.json `changing`; #325 showed `3h 40m 8s · ↓ 708.9k tokens`).
- */
-const agentRow = /^(\s+◯ .*?)\s+(?:\d+h )?(?:\d+m )?\d+s(?: · ↓ [\d.]+[kKmM]? tokens)?\s*$/
+const agentRow = /^(\s*(?:❯ )?◯ .*?)\s+(?:\d+d )?(?:\d+h )?(?:\d+m )?\d+(?:\.\d+)?s(?: · .*)?$/
 
 /** The rows without what counts up by itself while it idles: a background agent's elapsed time. */
 export const still = (rows: readonly string[]): readonly string[] =>
   rows.map((row) => row.replace(agentRow, "$1"))
 
+/**
+ * Claude Code's input box: between two `─` rules, `❯ ` leading its first row and the rest
+ * indented (probed 2.1.287 and 2.1.292, fixtures/input-box.probe.json). It sits at the
+ * bottom whatever the turn does above it, a long or multi-line paste grows it upwards, and
+ * a paste of more than three lines shows as `[Pasted text #1 +39 lines]`, and one of more
+ * than about 800 characters (800 showed, 900 did not) as `[Pasted text #5]`. Below the
+ * box it keeps two rules' worth and a footer row or two, and its agents list while
+ * background agents run.
+ */
 export const box: BoxProfile = {
   read: (screen) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows)),
   // Enter runs a command shown as a placeholder as the text it stands for. It binds its session

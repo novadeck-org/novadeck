@@ -724,9 +724,11 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
         ? turn(delivery, delivery.idledAt)
         : delivery
     case "ring":
-      // Its line goes into the box: a draft, until its own prompt confirms it.
+      // Its line goes into the box: a draft, until its own prompt confirms it. A leftover line
+      // is submitted where the doorbell looks (`waitsIn`), Working on background work only
+      // included, where messaging lets it look (`stalled`).
       return ringableSince(delivery) !== undefined ||
-        (event.leftover && box.ours && waitsIn(delivery))
+        (event.leftover && box.ours && waitsIn(delivery, true))
         ? {
             ...counts(delivery),
             box: { ...box, empty: false, ours: false },

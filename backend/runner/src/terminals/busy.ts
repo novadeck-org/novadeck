@@ -1,8 +1,8 @@
 /**
  * Whether the agent's activity says it works, for the doorbell: no look at its screen then
  * can call its box idle (a spinner draws and a status line says working). A turn running
- * always counts. Work a stopped turn left running (background subagents and shells, and
- * subagents that run on) counts only where its harness's box takes no prompt meanwhile
+ * always counts. Background agents a stopped turn left running, and subagents that run on,
+ * count only where its harness's box takes no prompt meanwhile
  * (`inBackground` false): where it does, the screen says whether the box is empty. The
  * agents list counts that work as busy either way (activity's `summary`).
  */

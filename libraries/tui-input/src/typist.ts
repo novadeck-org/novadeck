@@ -212,6 +212,24 @@ export const createTypist = (
   const unticked = (rows: readonly string[]): readonly string[] =>
     options.profile?.()?.still?.(rows) ?? rows
 
+  /**
+   * `checkPaste` on the rows as `unticked` reads them, which may leave some out: rows seen
+   * ticking (by their index on the screen) are blanked on the screen's own rows first, where
+   * a row first changed elsewhere.
+   */
+  const pasteChecked = (
+    before: readonly string[],
+    after: readonly string[],
+    text: string,
+    vanish: boolean,
+    ticking: ReadonlySet<number>,
+  ) => {
+    const checked = checkPaste(unticked(before), unticked(after), text, { vanish })
+    if (checked.accepted || checked.reason !== "elsewhere" || ticking.size === 0) return checked
+    const blanked = (rows: readonly string[]) => rows.map((row, at) => (ticking.has(at) ? "" : row))
+    return checkPaste(unticked(blanked(before)), unticked(blanked(after)), text, { vanish })
+  }
+
   /** The rows of the screen as last seen, and when each row changed, lately. */
   let seen: { rows: readonly string[]; changes: Map<number, number[]> } | undefined
   /** The screen's text as last seen, and since when. */
@@ -344,10 +362,7 @@ export const createTypist = (
           // What the program counts up by itself, redrawn as the paste lands, is no change.
           const settled = unticked(after.rows)
           const shown = settled.join("\n")
-          const checked = checkPaste(unticked(before.rows), settled, text, {
-            vanish,
-            ticking: rows,
-          })
+          const checked = pasteChecked(before.rows, after.rows, text, vanish, rows)
           const accepted = checked.accepted
           if (!accepted && now() >= until)
             trace(`ring ${nonce}: paste not accepted: ${checked.reason}`)

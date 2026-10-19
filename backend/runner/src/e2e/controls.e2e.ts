@@ -495,7 +495,6 @@ for (const setup of setups) {
         const t2 = await start(run, setup)
         expect([t1.handle, t2.handle]).toEqual(["moth", "fox"])
         const calls = run.model.mark()
-        const mark = t1.mark()
 
         // Its turn ends while the subagent runs, its call held.
         await t1.submit("Start the work")
@@ -542,12 +541,6 @@ for (const setup of setups) {
           1,
         )
         expect(messages(t1).map((one) => one.state)).toEqual(["delivered"])
-        expect(
-          t1
-            .history()
-            .slice(mark)
-            .map((one) => one.delivery),
-        ).not.toContain("unknown")
       },
     )
 

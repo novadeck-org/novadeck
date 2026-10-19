@@ -1353,6 +1353,13 @@ describe("the line a failed ring left in the box", () => {
     ).toBe("working")
   })
 
+  it("is submitted while only background work runs too, where messaging lets the doorbell look", () => {
+    // Its turn's end, still listing the work, keeps the line Novadeck's own.
+    const waiting = transition(failed, background)
+    expect(waiting).toMatchObject({ state: "working", phase: "background", box: { ours: true } })
+    expect(transition(waiting, resume)).toMatchObject({ state: "ringing", nonce: "k3f9" })
+  })
+
   it("is the person's draft once they press any key, or a turn starts", () => {
     for (const kind of ["content", "enter", "neutral", "accept"] as const) {
       const after = transition(failed, key(kind, at + 10))

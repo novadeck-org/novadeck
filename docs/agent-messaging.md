@@ -862,7 +862,7 @@ confirms ends the count. The look has bounds: it is made at most once a calm win
 change pushes it back; a screen that redraws the same text does not shorten the doubling
 wait, only a key of the person's or a turn event ends it); never while the agent's activity says a turn runs
 (`working`), whatever its status line or spinner draws, though work a stopped turn left
-running (background agents and shells, a subagent running on) doesn't count, as the box
+running (background agents, a subagent running on) doesn't count, as the box
 takes a prompt meanwhile; and the box counts only from the start of the
 calm it rests on, so a key typed while the screen was read, or not yet drawn, makes the
 look stale. A row starting with the box's marker that is a numbered choice (`❯ 1. Yes`)
