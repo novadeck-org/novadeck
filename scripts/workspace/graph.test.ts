@@ -102,6 +102,7 @@ describe("the package graph", () => {
       "apps/try",
       "frontend/ui",
       "frontend/toolkit",
+      "frontend/companion",
       "frontend/demo",
       "frontend/demo-debug",
       "frontend/runner-adapter",
@@ -182,17 +183,31 @@ describe("the package graph", () => {
     )
   })
 
-  it("keeps the toolkit's shipped code off the test kit, which only its tests may import", () => {
-    const src = join(root, "frontend", "toolkit", "src")
-    const shipped = (readdirSync(src, { recursive: true }) as string[])
-      .map((file) => file.split("\\").join("/"))
-      .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))
-    expect(shipped.length).toBeGreaterThan(10)
+  it("keeps the companion off the app's chrome and every backend", () => {
+    // The companion pane is a part the UI composes: it reaches the core, the toolkit and the
+    // viewers, and nothing that composes it or that a backend is.
+    const reached = reaches("frontend/companion")
     expect(
-      shipped.filter((file) =>
-        readFileSync(join(src, file), "utf8").includes("@novadeck/test-kit"),
-      ),
+      ["frontend/ui", ...backends]
+        .filter((folder) => reached.has(folder))
+        .map((f) => `frontend/companion -> ${f}`),
     ).toEqual([])
+  })
+
+  it("keeps shipped code of the toolkit and the companion off the test kit, which only their tests may import", () => {
+    for (const folder of ["frontend/toolkit", "frontend/companion"]) {
+      const src = join(root, folder, "src")
+      const shipped = (readdirSync(src, { recursive: true }) as string[])
+        .map((file) => file.split("\\").join("/"))
+        .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))
+      expect(shipped.length, folder).toBeGreaterThan(10)
+      expect(
+        shipped.filter((file) =>
+          readFileSync(join(src, file), "utf8").includes("@novadeck/test-kit"),
+        ),
+        folder,
+      ).toEqual([])
+    }
   })
 
   it("keeps each harness, and what it reaches, off the runner and the other adapters", () => {

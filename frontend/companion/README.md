@@ -35,8 +35,7 @@ actions), `./bar` (`barMembers`, `composeBar`), `./mail` (`useHasMail`, `useMail
 their types: the views' drop spaces read it too) and the recipe stylesheets (`./taskbar.css`,
 `./peek.css`, `./pane.css`, `./artifact.css`, `./mail.css`, `./prose.css`, `./syntax.css`).
 `src/test.ts` is Vitest's re-export for the package's own tests and is not exported. A module is
-exported when something outside imports it, and the UI's architecture test fails an export
-nothing imports.
+exported when something outside imports it; the rest of `src` is internal.
 
 ## Tailwind
 
