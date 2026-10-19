@@ -13,21 +13,22 @@ import type { Anchors } from "./anchors.ts"
 
 const mcpFile = "backend/runner/src/shell/mcp.ts"
 const managerFile = "backend/runner/src/terminals/manager.ts"
+const companionFile = "backend/runner/src/terminals/companion.ts"
 const contractFile = "harnesses/core/src/harness.ts"
 
-// The manager method that performs each tool's call.
-const handlers: Record<string, string> = {
-  show: "present",
-  showing: "showing",
-  close: "dismiss",
-  open_terminal: "open",
-  close_terminal: "closePeer",
-  send: "send",
-  agents: "agents",
-  summarize: "summarize",
+// The method that performs each tool's call, and the runner file it is in.
+const handlers: Record<string, { readonly file: string; readonly method: string }> = {
+  show: { file: companionFile, method: "present" },
+  showing: { file: companionFile, method: "showing" },
+  close: { file: companionFile, method: "dismiss" },
+  open_terminal: { file: managerFile, method: "open" },
+  close_terminal: { file: managerFile, method: "closePeer" },
+  send: { file: managerFile, method: "send" },
+  agents: { file: managerFile, method: "agents" },
+  summarize: { file: managerFile, method: "summarize" },
   // The Inbox's, which the manager's call hands to its asks.
-  ask: "call",
-  tell: "call",
+  ask: { file: managerFile, method: "call" },
+  tell: { file: managerFile, method: "call" },
 }
 
 const lineOf = (source: string | null, pattern: RegExp): number | null => {
@@ -59,7 +60,6 @@ const extractTools = (anchors: Anchors, adapters: Adapter[]): McpTool[] => {
   ]
     .map(([, name, value]) => `const ${name} = ${value}`)
     .join("\n")
-  const manager = anchors.read(managerFile)
   return variables.flatMap((variable) => {
     const start = source.indexOf(`const ${variable}: Tool<`)
     if (start === -1) {
@@ -85,20 +85,24 @@ const extractTools = (anchors: Anchors, adapters: Adapter[]): McpTool[] => {
         adapters.map((each) => each.id),
         adapters.map((each) => ({ id: each.id, name: each.title })),
       )
-      const method = handlers[tool.name]
+      const mapped = handlers[tool.name]
       const line =
-        method === undefined
+        mapped === undefined
           ? null
-          : lineOf(manager, new RegExp(`^  (?:private |async )*${method}\\(`, "m"))
-      if (method === undefined)
-        anchors.report("mcp tools", mcpFile, `no manager method is mapped to tool ${tool.name}`)
+          : lineOf(
+              anchors.read(mapped.file),
+              new RegExp(`^  (?:private |async )*${mapped.method}\\(`, "m"),
+            )
+      if (mapped === undefined)
+        anchors.report("mcp tools", mcpFile, `no runner method is mapped to tool ${tool.name}`)
       else if (line === null)
         anchors.report(
           "mcp tools",
-          managerFile,
-          `expected a method \`${method}(\` for tool ${tool.name}`,
+          mapped.file,
+          `expected a method \`${mapped.method}(\` for tool ${tool.name}`,
         )
-      const handler: Anchor | null = line === null ? null : { file: managerFile, line }
+      const handler: Anchor | null =
+        mapped === undefined || line === null ? null : { file: mapped.file, line }
       return [
         {
           name: tool.name,
