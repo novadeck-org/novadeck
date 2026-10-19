@@ -1,10 +1,10 @@
 import type { PortableInstall as InstallState } from "@novadeck/core/portable"
 import type { UpdateOffer } from "@novadeck/core/update"
+import { Progress } from "@novadeck/toolkit/Progress"
 import { X } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
 import { currentPlatform, type Platform } from "../interaction/shortcuts"
-import { Progress } from "../ui-toolkit/Progress"
 import { useLinger } from "./linger"
 import { KeepFocus, useOverlayOpen, useRecoverFocus } from "./notice-focus"
 

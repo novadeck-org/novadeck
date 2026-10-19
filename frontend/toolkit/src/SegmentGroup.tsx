@@ -1,7 +1,7 @@
 import { SegmentGroup as ArkSegmentGroup } from "@ark-ui/react/segment-group"
 import { useId, type ReactNode } from "react"
 
-import { cn } from "../class-name"
+import { cn } from "./class-name"
 import { Tooltip } from "./Tooltip"
 
 export type SegmentOption = {

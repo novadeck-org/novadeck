@@ -1,5 +1,5 @@
 import { WordsLost, type ChatAnswer, type Conversation } from "@novadeck/core/conversation"
-import { agentName, groupItems, turnStatus } from "@novadeck/core/conversation-turns"
+import { agentName, groupItems, recordsShell, turnStatus } from "@novadeck/core/conversation-turns"
 import { shellCommand, type Refused } from "@novadeck/core/prompt-refusal"
 import type { Store } from "@novadeck/core/store"
 import type { AgentStatus } from "@novadeck/core/types"
@@ -137,8 +137,8 @@ export const ChatView = ({
   // The person's words that were to follow an answer and didn't reach the agent, handed
   // back to the draft whether or not the card they were typed in is still on screen.
   const [lost, setLost] = useState(false)
-  // A shell command went to an agent that keeps no record of it in its conversation
-  // (Antigravity): its output shows only in the terminal.
+  // A shell command went to an agent that keeps no record of it in its conversation, as its
+  // harness says: its output shows only in the terminal.
   const [unrecorded, setUnrecorded] = useState(false)
   const answer = useCallback(
     (request: string, reply: ChatAnswer): Promise<void> =>
@@ -315,7 +315,7 @@ export const ChatView = ({
           // The words in the box went: the note that they're there goes with them.
           setLost(false)
           await onSend(text, reply)
-          if (!reply) setUnrecorded(harness === "agy" && shellCommand(text) !== undefined)
+          if (!reply) setUnrecorded(!recordsShell(harness) && shellCommand(text) !== undefined)
         }}
         onStop={onInterrupt}
         focusInput={focusInput}
