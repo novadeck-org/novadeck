@@ -66,10 +66,11 @@ const blurInput: KeyInput = {
 export const useKeyboard = (dictation?: Dictation): void => {
   const services = useWorkspaceServices()
   useEffect(() => {
-    const { ui, workspace, navigation, commands, canvas, backend } = services
+    const { ui, chat, workspace, navigation, commands, canvas, backend } = services
     const keys = createKeyCommands(commands, {
       workspace,
       ui,
+      chat,
       navigation,
       newTerminal: backend.newTerminal,
       canvas,

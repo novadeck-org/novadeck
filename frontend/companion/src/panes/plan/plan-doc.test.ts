@@ -1,7 +1,7 @@
 import type { ItemContent } from "@novadeck/core/companion"
 
+import { describe, expect, it } from "../../test"
 import { docOf, stuckEdits } from "./plan-doc"
-import { describe, expect, it } from "./test"
 
 const doc = docOf({
   stamp: "1",

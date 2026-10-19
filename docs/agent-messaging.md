@@ -1419,7 +1419,7 @@ and plain shells. Each agent writes the summary of its own terminal, through its
 `summarize` tool. No agent has a way to set a title: no tool takes one, nothing grants a
 rename, and the only title an agent gives is the one it opens another terminal with.
 Built: the layers in `terminals/naming.ts`, the summary tool in `terminals/summarize.ts`
-and `Terminals.summarize` (`terminals/manager.ts`), the tool in `shell/mcp.ts`, its nudges
+and `Calls.summarize` (`terminals/calls.ts`), the tool in `shell/mcp.ts`, its nudges
 in `terminals/nudges.ts`, murmur's triggers and digests in `terminals/murmur.ts`, and the
 model behind a `Describer` (`murmur/`).
 
@@ -1728,16 +1728,17 @@ again.
    `backend/runner/src/harnesses/typed-prompts.ts`, and the Ringing state and the untouched rule in
    `messaging/delivery.ts`.
 3. **UI:** badges, the Messages view and the pause switch. Built: `messages.watch` in
-   `backend/runner/src/terminals/manager.ts` over `Messaging.subscribe`, the
+   `backend/runner/src/terminals/manager.ts` and its readers in `terminals/streams.ts`, over
+   `Messaging.subscribe`, the
    contract in `core/messages.ts` of `frontend/ui`, the runner's side in
    `backend/runner/messages.ts`, the tab's mark in `frontend/companion/src/TabKinds.tsx`, the view in
-   `frontend/companion/src/MessagesView.tsx`, and the title's source and reset on the tab in
+   `frontend/companion/src/panes/messages/MessagesView.tsx`, and the title's source and reset on the tab in
    `terminals/TerminalTab.tsx`.
 4. **Naming:** the title's layers (the person, murmur, the opener, the default) and
    agents' own `summarize`, which replaced `describe` and the first-prompt title. Built:
    the layers in `backend/runner/src/terminals/naming.ts`, the summary tool in
    `terminals/summarize.ts`, its nudges in `terminals/nudges.ts`, murmur's triggers and
-   digests in `terminals/murmur.ts`, their wiring in `terminals/manager.ts`, the person's turn
+   digests in `terminals/murmur.ts`, their wiring in `terminals/describing.ts`, the person's turn
    (`byPerson`) in `messaging/delivery.ts` and their prompt in `messaging/messaging.ts`,
    and the runner API as `titleSource`, `terminals.resetTitle` and `create`'s
    `requestId`.

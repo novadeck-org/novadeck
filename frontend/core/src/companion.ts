@@ -83,17 +83,41 @@ export const pathOf = (item: Pick<CompanionItem, "path" | "plan">): string | nul
 export const windowOfItem = (item: CompanionItem): string | undefined =>
   "windowId" in item.holder ? item.holder.windowId : undefined
 
+// What each kind of item means as data, apart from how it looks. A new kind adds its line.
+export type KindRule = {
+  // What the kind points at, so showing the same thing again finds it: a file by its path, a
+  // page by the runner's own key for its address. A plan has none here: which agent's plan
+  // slot it fills is the backend's to know.
+  readonly pointer: "none" | "file" | "page"
+  // How long the pane follows its content: a plan is followed whether shown or not, anything
+  // else only while something shows it.
+  readonly follow: "always" | "shown"
+  // What closing one does on its own terminal's bar: a plan hides until it's rewritten,
+  // anything else is gone.
+  readonly close: "hide" | "remove"
+}
+
+export const kindRules: Record<ItemKind, KindRule> = {
+  image: { pointer: "file", follow: "shown", close: "remove" },
+  file: { pointer: "file", follow: "shown", close: "remove" },
+  page: { pointer: "page", follow: "shown", close: "remove" },
+  plan: { pointer: "none", follow: "always", close: "hide" },
+}
+
 type Pointer = Pick<CompanionItem, "kind" | "path" | "url">
 
 // What a file or page item points at, so showing the same thing again finds it: a page
-// by the runner's own key for it. A plan has none here: which agent's plan slot it fills
-// is the backend's to know.
-const pointerOf = (item: Pointer): string | null =>
-  item.kind === "plan"
-    ? null
-    : item.kind === "page"
-      ? `page:${pageKey(item.url ?? "")}`
-      : `file:${item.path}`
+// by the runner's own key for it.
+export const pointerOf = (item: Pointer): string | null => {
+  switch (kindRules[item.kind].pointer) {
+    case "none":
+      return null
+    case "page":
+      return `page:${pageKey(item.url ?? "")}`
+    case "file":
+      return `file:${item.path}`
+  }
+}
 
 export const samePointer = (a: Pointer, b: Pointer): boolean => {
   const pointer = pointerOf(a)

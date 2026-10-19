@@ -2,12 +2,12 @@ import type { FileContent } from "@novadeck/core/companion"
 import { outline } from "@novadeck/viewers/text"
 import { lazy, Suspense, useRef, type ReactNode } from "react"
 
-import type { PlanEditorHandle } from "./plan-editor/PlanEditor"
+import type { PlanEditorHandle } from "../plan/plan-editor/PlanEditor"
 
 // The plan's editor, read-only: a markdown document the agent showed reads as a plan does,
 // formatted, with its outline, but it's the agent's file, not something to edit or note.
 const PlanEditor = lazy(() =>
-  import("./plan-editor/PlanEditor").then((module) => ({ default: module.PlanEditor })),
+  import("../plan/plan-editor/PlanEditor").then((module) => ({ default: module.PlanEditor })),
 )
 
 const noMarks: readonly never[] = []

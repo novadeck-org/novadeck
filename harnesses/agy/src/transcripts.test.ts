@@ -36,6 +36,22 @@ describe("Antigravity's transcript, as captured", () => {
     ])
   })
 
+  it("says what each call was, and no other item", () => {
+    expect(items.map(({ kind, run }) => (kind === "tool-call" ? run?.title : run))).toEqual([
+      null,
+      "Wrote",
+      null,
+      null,
+      "Wrote",
+      null,
+      "Read",
+      null,
+      "Wrote",
+      null,
+      null,
+    ])
+  })
+
   it("pairs each result with its call, by the step it came in", () => {
     const calls = items.filter(({ kind }) => kind === "tool-call")
     const results = items.filter(({ kind }) => kind === "tool-result")

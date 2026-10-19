@@ -19,6 +19,7 @@ import {
   watchSwitcher,
 } from "../app/ui-store"
 import type { CanvasHandle } from "../layouts/canvas/types"
+import { createChat } from "../terminals/chat/state"
 
 export type CommandsOptions = {
   readonly workspace?: Workspace
@@ -73,6 +74,7 @@ export const openCommands = ({
       preferences,
     }),
   )
+  const chat = createChat()
   const effects: string[] = []
   const queued: (() => void)[] = []
   const screen: { desktop: boolean; tiles: { id: string; rect: Rect }[] } = {
@@ -126,6 +128,7 @@ export const openCommands = ({
   const context: CommandContext = {
     workspace: store,
     ui,
+    chat,
     navigation,
     newTerminal: (input) => {
       allocated.push(input)
@@ -166,6 +169,7 @@ export const openCommands = ({
     context,
     workspace: store,
     ui,
+    chat,
     commands,
     navigation,
     // Effects in the order they ran, and the URLs the router was asked for.

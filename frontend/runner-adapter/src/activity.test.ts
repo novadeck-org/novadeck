@@ -1,6 +1,6 @@
 import type { TerminalSummary } from "@novadeck/protocol"
 
-import { exitStatus, terminalActivity } from "./activity"
+import { exitStatus, sameStatus, terminalActivity } from "./activity"
 import { context, describe, expect, it } from "./test"
 
 const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
@@ -379,6 +379,22 @@ describe("terminal activity", () => {
       expect(exited(null, "SIGKILL", 100)).toEqual({
         status: { state: "exited", exitCode: null, signal: "SIGKILL" },
       })
+    })
+
+    it("says the shell was killed for memory where the runner says so", () => {
+      const exit = { code: null, signal: "SIGKILL", cause: "out-of-memory" as const, ranMs: 100 }
+      expect(exitStatus(exit)).toEqual({
+        state: "exited",
+        exitCode: null,
+        signal: "SIGKILL",
+        cause: "out-of-memory",
+      })
+    })
+
+    it("tells a kill for memory from a plain kill, so the app hears of the change", () => {
+      const killed = { state: "exited", exitCode: null, signal: "SIGKILL" } as const
+      expect(sameStatus(killed, { ...killed })).toBe(true)
+      expect(sameStatus(killed, { ...killed, cause: "out-of-memory" })).toBe(false)
     })
 
     it("counts a non-zero exit as failing to start within the threshold it is given", () => {
