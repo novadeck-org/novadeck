@@ -8,10 +8,10 @@ import { messagesKey, type Bar, type BarKey } from "@novadeck/core/companion-bar
 import type { WindowPlace } from "@novadeck/core/layout/window-place"
 import type { Messages } from "@novadeck/core/messages"
 import type { ViewMode } from "@novadeck/core/types"
+import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
+import { usePresence, type Presence } from "@novadeck/toolkit/presence"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
-import { ConfirmDialog } from "../../ui-toolkit/ConfirmDialog"
-import { usePresence, type Presence } from "../../ui-toolkit/presence"
 import { useDrag, type BarDrag } from "../drag-session"
 import type { TerminalLayoutControls } from "../WindowShell"
 import { barMembers, composeBar, dropOutcome, shownTab, slotKeys, type BarMember } from "./bar"

@@ -1,3 +1,4 @@
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { NodeResizeControl, type NodeProps } from "@xyflow/react"
 import {
   createContext,
@@ -9,7 +10,6 @@ import {
   type ReactNode,
 } from "react"
 
-import { Tooltip } from "../../ui-toolkit/Tooltip"
 import type { NodeVisibility } from "./nodeVisibility"
 import type { TerminalNode } from "./types"
 

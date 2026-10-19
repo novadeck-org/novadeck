@@ -1,4 +1,4 @@
-import { ConfirmDialog } from "../ui-toolkit/ConfirmDialog"
+import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 
 // Tells the person the backend stopped restarting their terminals after repeated crashes,
 // and offers to try again. "Try again" is focused first, as retrying is the safe choice;
