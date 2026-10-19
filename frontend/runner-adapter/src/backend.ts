@@ -36,7 +36,13 @@ import { pause } from "@novadeck/terminal/view"
 import { createTerminalViews } from "@novadeck/terminal/view"
 import type { WireStatus } from "@novadeck/wire/client"
 
-import { defaultQuickExitMs, exitStatus, restartable, terminalActivity } from "./activity"
+import {
+  defaultQuickExitMs,
+  exitStatus,
+  restartable,
+  sameStatus,
+  terminalActivity,
+} from "./activity"
 import { createBootProgress } from "./boot-progress"
 import { createRunnerCompanions } from "./companions"
 import { createRunnerConversations } from "./conversations"
@@ -210,15 +216,6 @@ export type RunnerBackend = {
   readonly idle: () => Promise<void>
   // What Enter does in an exited or failed terminal.
   readonly restart: (key: TerminalKey) => void
-}
-
-// Statuses that read the same; a terminal's metadata carries its status among its fields.
-const sameStatus = (a: TerminalStatus, b: TerminalStatus): boolean => statusKey(a) === statusKey(b)
-const statusKey = (status: TerminalStatus): string => {
-  if (status.state === "exited") return `exited:${status.exitCode}:${status.signal}`
-  if (status.state === "failed") return `failed:${status.message}`
-  if (status.state === "running") return `running:${JSON.stringify(status.agent ?? null)}`
-  return status.state
 }
 
 const connectionState = (status: WireStatus): BackendConnectionState => {

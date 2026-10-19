@@ -3,13 +3,17 @@ import { constants as system } from "node:os"
 import { spawn as nodePtySpawn } from "node-pty"
 
 import { terminalForeground } from "./foreground.js"
+import type { ExitCause, Scopes } from "./scopes.js"
 import { anyRunning, relayMs, taskkillTree, type Member } from "./trees.js"
 
 /** Something to stop listening with: node-pty's and xterm's shape. */
 export type Disposable = { dispose(): void }
 
-/** How a pty's program ended: its exit code, or the signal that ended it (null on Windows). */
-export type PtyExit = { code: number | null; signal: string | null }
+/**
+ * How a pty's program ended: its exit code, or the signal that ended it (null on Windows),
+ * and why, where its platform says.
+ */
+export type PtyExit = { code: number | null; signal: string | null; cause?: ExitCause }
 
 /** node-pty's `IPty`, as far as a `Pty` uses it: what a test's stand-in plays. */
 export type NativePty = {
@@ -37,6 +41,16 @@ export type NativeSpawn = (
     useConptyDll: boolean
   },
 ) => NativePty
+
+/**
+ * How ptys start: node-pty's `spawn` unless a test plays one, the platform their ending
+ * follows, and where each program is kept apart from the app's, as Linux's `UserScopes`.
+ */
+export type PtyOptions = {
+  readonly native?: NativeSpawn
+  readonly platform?: NodeJS.Platform
+  readonly scopes?: Scopes
+}
 
 /** A process's tree on Windows, read and ended as `Trees` does. */
 export type ProcessTrees = {
@@ -195,18 +209,19 @@ const usualBudget = (treeGraceMs: number): EndBudget => ({
  * Starts `file` in a pty of `cols` by `rows`, as an `xterm-256color` terminal. `args` is
  * its arguments, or on Windows its whole command line as one string, as cmd needs one.
  * `platform` decides how it ends (by default the one it runs on); `native` is node-pty's
- * `spawn` unless a test plays one.
+ * `spawn` unless a test plays one; `scopes` takes the program in as it starts. A program
+ * that may have been killed for memory has its exit reported once its scope says why.
  */
-export const spawnPty = (options: {
-  file: string
-  args: readonly string[] | string
-  cwd: string
-  env: NodeJS.ProcessEnv
-  cols: number
-  rows: number
-  platform?: NodeJS.Platform
-  native?: NativeSpawn
-}): Pty => {
+export const spawnPty = (
+  options: {
+    file: string
+    args: readonly string[] | string
+    cwd: string
+    env: NodeJS.ProcessEnv
+    cols: number
+    rows: number
+  } & PtyOptions,
+): Pty => {
   const platform = options.platform ?? process.platform
   const native: NativeSpawn = options.native ?? nodePtySpawn
   const { args } = options
@@ -222,8 +237,12 @@ export const spawnPty = (options: {
     // everything on the console at once.
     useConptyDll: platform === "win32",
   })
+  const scope = child.pid > 0 ? options.scopes?.contain(child.pid) : undefined
   let drawn = false
   let exited = false
+  let ending = false
+  // node-pty's exit came, its fd closed, while the report may wait for its cause.
+  let gone = false
   const exitListeners = new Set<(exit: PtyExit) => void>()
   const report = (exit: PtyExit) => {
     if (exited) return
@@ -240,9 +259,14 @@ export const spawnPty = (options: {
   })
   // node-pty can report an exit before it learns the code, e.g. after ending a Windows
   // terminal whose input failed.
-  child.onExit(({ exitCode, signal }) =>
-    report({ code: signal ? null : (exitCode ?? null), signal: signalName(signal, platform) }),
-  )
+  child.onExit(({ exitCode, signal }) => {
+    gone = true
+    const ended = { code: signal ? null : (exitCode ?? null), signal: signalName(signal, platform) }
+    // Why it ended is looked up only where nothing here ended it.
+    const cause = ending ? undefined : scope?.cause(ended.signal)
+    if (!cause) return report(ended)
+    void cause.then((found) => report(found ? { ...ended, cause: found } : ended))
+  })
   exitListeners.add(() => resolveExit?.())
   // An exit taken as one, where the program's own may never be reported.
   const takenAsEnded = () => report({ code: null, signal: null })
@@ -266,11 +290,23 @@ export const spawnPty = (options: {
       exitListeners.add(listener)
       return { dispose: () => exitListeners.delete(listener) }
     },
-    write: (data) => child.write(data),
-    resize: (cols, rows) => child.resize(cols, rows),
-    pause: () => child.pause(),
-    resume: () => child.resume(),
+    // Nothing reaches a program that is gone: its fd may name another's by now.
+    write: (data) => {
+      if (!gone) child.write(data)
+    },
+    resize: (cols, rows) => {
+      if (!gone) child.resize(cols, rows)
+    },
+    pause: () => {
+      if (!gone) child.pause()
+    },
+    resume: () => {
+      if (!gone) child.resume()
+    },
     end: async ({ graceMs, treeGraceMs, trees, budget = usualBudget(treeGraceMs) }) => {
+      ending = true
+      // Gone, its exit waiting for its cause: no signal for its pid, which may be another's.
+      if (gone) return exit
       // The second signal bounds ending even for programs that ignore SIGHUP.
       let timer: ReturnType<typeof setTimeout> | undefined
       try {

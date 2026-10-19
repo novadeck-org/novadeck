@@ -36,9 +36,9 @@ import {
   relayMs,
   shellInForeground,
   Trees,
-  type NativeSpawn,
   type ProcessTrees,
   type Pty,
+  type PtyOptions,
 } from "@novadeck/terminal/pty"
 import { afterKeys, emptyLine, withLocale } from "@novadeck/terminal/shell"
 import { keysOf } from "@novadeck/tui-input"
@@ -200,15 +200,11 @@ export type TerminalOptions = {
    */
   relay?: string
   /**
-   * The pty as a test plays it: node-pty's `spawn`, the platform its ending follows (this
-   * system's when omitted, whatever `platform` says, as real shells run here), and the
-   * process trees a Windows terminal's programs are ended by.
+   * The pty: where its program is kept, and as a test plays it, node-pty's `spawn`, the
+   * platform its ending follows (this system's when omitted, whatever `platform` says, as
+   * real shells run here), and the process trees a Windows terminal's programs end by.
    */
-  pty?: {
-    readonly native?: NativeSpawn
-    readonly platform?: NodeJS.Platform
-    readonly trees?: ProcessTrees
-  }
+  pty?: PtyOptions & { readonly trees?: ProcessTrees }
 }
 
 type Create = {
@@ -337,8 +333,8 @@ export class Terminals {
   private readonly trees: ProcessTrees
   /** The terminals' hosting: their limits, close, eviction and shutdown. */
   private readonly host: TerminalHost
-  /** How terminals' ptys start, and the platform their ending follows. */
-  private readonly pty: { readonly native?: NativeSpawn; readonly platform: NodeJS.Platform }
+  /** How terminals' ptys start, the platform their ending follows, and their scopes. */
+  private readonly pty: PtyOptions
   /** Saves terminals for restoring, and reads them back. */
   private readonly saves: Saves
   /** Each terminal's agent reports and asks waiting their turn, in the order they came. */
@@ -405,6 +401,7 @@ export class Terminals {
     this.trees = options.pty?.trees ?? new Trees(async () => this.options.relay)
     this.pty = {
       ...(options.pty?.native && { native: options.pty.native }),
+      ...(options.pty?.scopes && { scopes: options.pty.scopes }),
       platform: options.pty?.platform ?? process.platform,
     }
     this.host = createTerminalHost({

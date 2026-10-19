@@ -12,7 +12,7 @@ import {
 } from "@novadeck/emulator/headless"
 
 import { TerminalError, type Exit, type TerminalEvent } from "../contract.js"
-import { spawnPty, type Disposable, type NativeSpawn, type Pty, type PtyExit } from "../pty/pty.js"
+import { spawnPty, type Disposable, type Pty, type PtyExit, type PtyOptions } from "../pty/pty.js"
 import { osc7Directory, osc9Directory } from "../shell/osc.js"
 import { splitReports } from "./reports.js"
 import { Subscription } from "./subscription.js"
@@ -110,8 +110,8 @@ export type TerminalOptions = {
   readonly scrollback: number
   /** Who controls it at first: the creator, unless its connection was let go meanwhile. */
   readonly controller?: string | undefined
-  /** The pty as a test plays it (see `spawnPty`). */
-  readonly pty?: { readonly native?: NativeSpawn; readonly platform?: NodeJS.Platform }
+  /** How its ptys start: as a test plays them, and where their programs are kept (see `spawnPty`). */
+  readonly pty?: PtyOptions
 }
 
 type Listeners = {

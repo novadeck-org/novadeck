@@ -4,6 +4,7 @@ import { dirname, join } from "node:path"
 
 import { errors, protocolVersion } from "@novadeck/protocol"
 import { TerminalError } from "@novadeck/terminal"
+import { userScopes } from "@novadeck/terminal/pty"
 import { createSessions, type Sessions } from "@novadeck/wire/server"
 import { ORPCError } from "@orpc/server"
 
@@ -194,6 +195,9 @@ export const wire = (options: RunnerOptions) => {
     voice: voice.activity,
   })
   murmur.start()
+  // On Linux each shell runs in a systemd scope of its own, so one killed for memory
+  // takes down its terminal, not the app.
+  const scopes = userScopes()
   const terminals = new Terminals({
     records: store,
     shellFiles,
@@ -212,6 +216,7 @@ export const wire = (options: RunnerOptions) => {
     items,
     // Without an engine nothing is described, so terminals have nothing to wait for.
     ...(options.murmur?.engine !== undefined && { describer: murmur }),
+    ...(scopes && { pty: { scopes } }),
     ...options.terminals,
   })
   const projects = new Projects(store, terminals, items)
