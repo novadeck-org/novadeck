@@ -9,7 +9,8 @@ import type { DemoLaunch } from "./with-debug"
 // for the app coming back on the new version, a reload that forgets the offer, while one
 // waits. `download` offers a version as downloading, its percent climbing until it is
 // offered ready; any later offer, or a failed download, calls a running one off.
-// `openPage` does nothing, since a browser has no release page to open.
+// `openPage` does nothing, since a browser has no release page to open. `allow`, on an
+// offer that has it, stands for the administrator's step succeeding: the update downloads.
 // The channel is remembered until the page reloads.
 export const createDemoUpdates = (
   restart: () => void = () => window.location.reload(),
@@ -35,6 +36,17 @@ export const createDemoUpdates = (
     waiting = offer
     listeners.forEach((listener) => listener(offer))
   }
+  const download = (version: string): void => {
+    stop()
+    let percent = 0
+    tell({ kind: "downloading", version, percent })
+    downloading = setInterval(() => {
+      percent = Math.min(percent + downloadStep, 100)
+      if (percent < 100) return tell({ kind: "downloading", version, percent })
+      stop()
+      tell({ kind: "ready", version })
+    }, downloadMs)
+  }
   return {
     updates: {
       onOffer: (listener) => {
@@ -43,6 +55,9 @@ export const createDemoUpdates = (
         return () => void listeners.delete(listener)
       },
       openPage: () => {},
+      allow: () => {
+        if (waiting?.kind === "available" && waiting.allow === true) download(waiting.version)
+      },
       channel: {
         get: () => Promise.resolve(channel),
         set: (next) => void (channel = next),
@@ -52,17 +67,7 @@ export const createDemoUpdates = (
       stop()
       tell(offer)
     },
-    download: (version) => {
-      stop()
-      let percent = 0
-      tell({ kind: "downloading", version, percent })
-      downloading = setInterval(() => {
-        percent = Math.min(percent + downloadStep, 100)
-        if (percent < 100) return tell({ kind: "downloading", version, percent })
-        stop()
-        tell({ kind: "ready", version })
-      }, downloadMs)
-    },
+    download,
     finish: () => {
       if (waiting !== undefined) restart()
     },

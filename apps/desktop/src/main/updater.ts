@@ -10,6 +10,7 @@ import {
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 
 import {
+  allowUpdatesChannel,
   openUpdatePageChannel,
   setUpdateChannelChannel,
   updateChannelChannel,
@@ -19,8 +20,8 @@ import {
 
 /** How long after launch the first check waits, so it never competes with startup. */
 export const firstCheckMs = 10_000
-/** How long between checks after that: a few hours, as people keep the app open for days. */
-export const checkIntervalMs = 4 * 60 * 60 * 1000
+/** How long between checks after that: a couple of hours, as people keep the app open for days. */
+export const checkIntervalMs = 2 * 60 * 60 * 1000
 /** How long after switching channels the check on the new one waits, so a few clicks make one. */
 export const switchCheckMs = 2_000
 /** How long after a download failed the check that tries it again, once, waits. */
@@ -38,6 +39,12 @@ export type UpdateBuild = {
   readonly signed: boolean
   /** Whether the macOS app runs from an Applications folder; Electron's `isInApplicationsFolder`. */
   readonly inApplications: boolean
+  /**
+   * How the macOS app bundle can be replaced: whole, when it and the folder holding it can
+   * be written, or its `Contents`, when only it can; undefined when neither. See
+   * ./mac-update.ts.
+   */
+  readonly bundleSwap: "whole" | "contents" | undefined
   /** Whether the folder holding the AppImage file can be written to. */
   readonly appImageWritable: boolean
   /** Whether the AppImage file is at an installed place; see `isInstalledImage`. */
@@ -57,11 +64,13 @@ export type UpdateMode = "install" | "tell"
 
 /**
  * How a build updates: which updater, and whether it installs or only tells. A portable
- * build only tells; see `portableOf`.
+ * build only tells; see `portableOf`. `allow` marks a macOS copy that only tells because
+ * the person can't write its bundle, which an administrator can hand to them once.
  */
 export type UpdatePlan = {
   readonly kind: UpdaterKind
   readonly mode: UpdateMode
+  readonly allow: boolean
 }
 
 // Whether `file` lies inside the folder `directory`, both absolute POSIX paths.
@@ -123,9 +132,11 @@ export const portableOf = (build: UpdateBuild): boolean => {
  *
  * - The Windows installer installs. A portable one, the unpacked ZIP, only tells: an NSIS
  *   updater would install a separate copy on quit.
- * - macOS installs when the app bundle is Developer ID signed, as Squirrel.Mac refuses
- *   to install into any other, and tells otherwise. A portable one, outside Applications,
- *   only tells.
+ * - macOS installs when the app bundle is Developer ID signed, as an update is installed
+ *   only when it is signed by the same team, and the bundle can be replaced (see
+ *   `bundleSwap`); it tells otherwise. A signed copy that tells only because the person
+ *   can't write its bundle may be handed to them by an administrator (`allow`). A
+ *   portable one, outside Applications, only tells.
  * - An installed AppImage, one at a place the installer puts it, installs by replacing
  *   its own file, which takes write access to the folder it sits in, and tells otherwise.
  * - A portable AppImage, one anywhere else, only tells; see `portableOf`.
@@ -139,10 +150,15 @@ export const updatePlan = (build: UpdateBuild): UpdatePlan | undefined => {
   if (kind === undefined) return undefined
   const portable = portableOf(build)
   const installable =
-    kind === "mac" ? build.signed : kind === "appimage" ? build.appImageWritable : true
+    kind === "mac"
+      ? build.signed && build.bundleSwap !== undefined
+      : kind === "appimage"
+        ? build.appImageWritable
+        : true
   return {
     kind,
     mode: installable && !portable ? "install" : "tell",
+    allow: kind === "mac" && build.signed && !portable && build.bundleSwap === undefined,
   }
 }
 
@@ -151,7 +167,7 @@ export const bundleOf = (executable: string): string => dirname(dirname(dirname(
 
 /**
  * Whether `codesign --display --verbose=2` output names a Developer ID signature. An
- * unsigned or ad-hoc signed bundle names none, and Squirrel.Mac would refuse its update
+ * unsigned or ad-hoc signed bundle names none, and no update could be checked against it
  * after the whole archive was downloaded.
  */
 export const developerIdSigned = (output: string): boolean =>
@@ -160,11 +176,13 @@ export const developerIdSigned = (output: string): boolean =>
 // The part of a window that telling it of an update uses.
 type Page = { send(channel: string, offer: UpdateOffer): void }
 
-// Whether two offers say the same to a page: the kind, the version and a download's percent.
+// Whether two offers say the same to a page: the kind, the version, a download's percent,
+// and whether an administrator can let the copy install the release itself.
 const sameOffer = (a: UpdateOffer, b: UpdateOffer): boolean =>
   a.kind === b.kind &&
   a.version === b.version &&
-  (a.kind !== "downloading" || (b.kind === "downloading" && a.percent === b.percent))
+  (a.kind !== "downloading" || (b.kind === "downloading" && a.percent === b.percent)) &&
+  (a.kind !== "available" || (b.kind === "available" && a.allow === b.allow))
 
 /**
  * Remembers the last offer and tells every page of it: `offer` those open now, `request`
@@ -203,8 +221,9 @@ type UpdateIpc = {
 }
 
 /**
- * Answers the app's own pages: a request for the last offer, the requests to install it
- * or open its release page, and those about the update channel. `window` names the
+ * Answers the app's own pages: a request for the last offer, the request to open its
+ * release page or, on macOS, to let this copy install updates itself (`allow`; see
+ * `UpdatePlan`), and those about the update channel. `window` names the
  * window of a request from the main frame of the app's own page, or undefined for any
  * other sender, which is ignored; the page is then told the default channel, which is
  * all it may learn. The page names no version or address, and a channel it names counts
@@ -216,12 +235,14 @@ export const registerUpdateIpc = <Window>(
     window,
     request,
     openPage,
+    allow,
     channel,
     setChannel,
   }: {
     readonly window: (event: IpcMainEvent | IpcMainInvokeEvent) => Window | undefined
     readonly request: (window: Window) => void
     readonly openPage: () => void
+    readonly allow: () => void
     readonly channel: () => UpdateChannel
     readonly setChannel: (channel: UpdateChannel) => void
   },
@@ -232,6 +253,9 @@ export const registerUpdateIpc = <Window>(
   })
   ipc.on(openUpdatePageChannel, (event) => {
     if (window(event) !== undefined) openPage()
+  })
+  ipc.on(allowUpdatesChannel, (event) => {
+    if (window(event) !== undefined) allow()
   })
   ipc.handle(updateChannelChannel, (event) =>
     window(event) === undefined ? defaultChannel : channel(),
@@ -244,9 +268,8 @@ export const registerUpdateIpc = <Window>(
 
 /**
  * A quit that leaves an update waiting uninstalled: for the system ending the session,
- * which may kill a silent installer or an AppImage swap halfway. Ordinary quits install.
- * On macOS Squirrel.Mac installs a staged update on any exit, which this cannot stop; it
- * swaps the bundle whole, so an interrupted install leaves the old app.
+ * which may kill a silent installer or a swap halfway. Ordinary quits install. On macOS,
+ * where the host swaps the bundle itself, `updater` names the switch that swap reads.
  */
 export const quitWithoutInstalling =
   (updater: () => Pick<Updater, "autoInstallOnAppQuit"> | undefined, quit: () => void) =>
@@ -282,9 +305,10 @@ export type Updater = {
     warn(message?: unknown): void
     error(message?: unknown): void
   } | null
+  on(event: "update-available", listener: (info: { readonly version: string }) => void): unknown
   on(
-    event: "update-available" | "update-downloaded",
-    listener: (info: { readonly version: string }) => void,
+    event: "update-downloaded",
+    listener: (info: { readonly version: string; readonly downloadedFile?: string }) => void,
   ): unknown
   on(
     event: "download-progress",
@@ -298,20 +322,16 @@ export type Updater = {
   install?: (isSilent?: boolean, isForceRunAfter?: boolean) => boolean
 }
 
-/** The part of Electron's native `autoUpdater` that learning of a staged update uses. */
-export type NativeUpdater = {
-  once(event: "update-downloaded", listener: () => void): unknown
-}
-
 /**
- * Checks for updates shortly after launch and every few hours; a check that fails,
+ * Checks for updates shortly after launch and every couple of hours; a check that fails,
  * offline, rate limited, or on a channel with no release yet, is logged and the next one
  * tries again. `channel` decides which releases count: `stable` is GitHub's latest
  * release that is not a prerelease, `early` every release. Updating never downgrades.
  *
  * In `install` mode it downloads what it finds and installs it when the app next quits.
  * `offer` is told the update is `downloading` at each whole percent electron-updater
- * reports, from the first, then `ready` once downloaded. A download already on disk from
+ * reports, from the first, then `ready` once downloaded and, where the host gives
+ * `prepare`, once that has made the download ready to put in place. A download already on disk from
  * an earlier launch reports none, and is `ready` at once. A release whose download fails
  * is tried again, once in a run, by a check `retryCheckMs` later; after that the schedule
  * tries it. Meanwhile it is offered as `retrying`, which the page shows nothing for, once
@@ -333,25 +353,29 @@ export type NativeUpdater = {
  * from `ready` to `downloading` the newer release as its progress comes in, so the page
  * shows it again. Should it fail, the waiting file is likely gone
  * with it, as electron-updater clears its download folder then: the newer release is
- * offered as `retrying` until the retry downloads it. On macOS the schedule ends once an
- * update has downloaded instead, as whether Squirrel.Mac stages an update over one it has
- * staged is untried; the next launch checks again.
+ * offered as `retrying` until the retry downloads it.
+ *
+ * On macOS the host installs the update itself as the app quits (see ./mac-update.ts), so
+ * electron-updater only downloads it: `prepare` hears of each download, its version and
+ * file, and the update stays `downloading`, at the last percent reported, until that is
+ * done, and is `ready` then. Should `prepare` reject the download, as one not signed by
+ * the same team (`rejected` tells), the release counts as one whose install failed:
+ * `installFailed` hears of it, it is offered as `available`, and it is not downloaded
+ * again. Any other failure, as a full disk, is a failed download: it is offered as
+ * `retrying` and tried again like one. A newer release prepared meanwhile replaces it.
  *
  * An error raised while installing fails the install: installing on quit is switched
  * off, so the same failing install is not tried at every quit, `installFailed` hears of
  * the version, and `offer` is told the update is only `available`. Installing is when
- * the updater's `install` (quitting) has been called, which this wraps to know, and on
- * macOS also while Squirrel stages the download; any other error, such as a check still
- * in flight failing offline, is only logged.
+ * the updater's `install` (quitting) has been called, which this wraps to know and to
+ * tell `installing` of the version first; any other error, such as a check still in
+ * flight failing offline, is only logged.
  *
  * In `tell` mode it downloads and installs nothing, and tells `offer` each release newer
- * than this build is `available`; the schedule goes on, so a newer
- * release replaces the offer.
+ * than this build is `available`, saying so (`allow`) when an administrator can let the
+ * copy install updates itself; the schedule goes on, so a newer release replaces the offer.
  *
- * On macOS, pass Electron's `native` updater: electron-updater reports a download before
- * Squirrel.Mac has staged it, and quitting before then leaves nothing to install.
- * The update stays `downloading`, at the last percent reported, until Squirrel has it,
- * and is `ready` then.
+ * `logger` hears electron-updater's own messages; without one they are dropped.
  *
  * `setChannel` follows another channel from the next check, and makes one soon, unless the
  * schedule has ended. `stop` ends the schedule, after which no new download starts; one
@@ -363,19 +387,33 @@ export const checkForUpdates = (
     mode,
     channel,
     failedVersion,
-    native,
+    allow = false,
+    prepare,
+    rejected = () => true,
     offer,
+    installStarted,
     installFailed,
     log,
+    logger,
   }: {
     readonly mode: UpdateMode
     readonly channel: UpdateChannel
     /** The version installing failed on in an earlier launch, if it did. */
     readonly failedVersion?: string | undefined
-    readonly native?: NativeUpdater | undefined
+    /** Whether an administrator can let a copy in `tell` mode install updates itself. */
+    readonly allow?: boolean | undefined
+    /** On macOS, makes a download ready for the host to put in place on quitting. */
+    readonly prepare?:
+      | ((update: { readonly version: string; readonly file: string }) => Promise<void>)
+      | undefined
+    /** Whether a failure of `prepare` rejects the release for good, rather than once. */
+    readonly rejected?: ((error: unknown) => boolean) | undefined
     readonly offer: (offer: UpdateOffer) => void
+    /** Hears the version an install on quitting is about to put in place. */
+    readonly installStarted?: ((version: string) => void) | undefined
     readonly installFailed: (version: string) => void
     readonly log: (message: string, error: unknown) => void
+    readonly logger?: Updater["logger"] | undefined
   },
 ): {
   readonly setChannel: (channel: UpdateChannel) => void
@@ -383,10 +421,11 @@ export const checkForUpdates = (
 } => {
   // Downloads are asked for, to leave out the release that failed to install.
   updater.autoDownload = false
-  updater.autoInstallOnAppQuit = mode === "install"
+  // electron-updater installs on quitting, but on macOS, where the host does: there its
+  // updater hands a download to Squirrel.Mac only while this is on.
+  updater.autoInstallOnAppQuit = mode === "install" && prepare === undefined
   updater.allowPrerelease = channel === "early"
-  // Quiet: failures are reported through `log`, and routine progress is not worth a line.
-  updater.logger = { info: () => {}, warn: () => {}, error: () => {} }
+  updater.logger = logger ?? { info: () => {}, warn: () => {}, error: () => {} }
 
   let downloaded: { readonly version: string } | undefined
   // The download under way, the first or a newer release's in place of `downloaded`, with
@@ -398,36 +437,45 @@ export const checkForUpdates = (
         readonly done: Promise<boolean>
       }
     | undefined
+  // The download `prepare` is making ready, before it is `downloaded`.
+  let preparing: string | undefined
+  // The release not to download again: the one an install failed on, here or earlier.
+  let failedOn = failedVersion
   // Once an install has begun the app is on its way out, so the mark never goes back.
   let installing = false
-  let staging = false
   let failed = false
   const original: unknown = updater.install
   if (typeof original === "function")
     Object.assign(updater, {
       install: (...args: unknown[]): unknown => {
         installing = true
+        if (downloaded !== undefined) installStarted?.(downloaded.version)
         return Reflect.apply(original, updater, args)
       },
     })
   updater.on("error", (error) => {
-    // MacUpdater reports a native error twice; the first is the failure, and the second
-    // adds nothing to log or mark.
+    // An install fails once; an error reported after it adds nothing to log or mark.
     if (failed) return
-    if (downloaded === undefined || !(installing || staging))
-      return log("The update check failed.", error)
+    if (downloaded === undefined || !installing) return log("The update check failed.", error)
     log("Installing the update failed.", error)
     failed = true
-    staging = false
+    failedOn = downloaded.version
     updater.autoInstallOnAppQuit = false
     installFailed(downloaded.version)
     offer({ kind: "available", version: downloaded.version })
   })
   updater.on("update-available", (info) => {
-    if (mode === "tell") return offer({ kind: "available", version: info.version })
+    if (mode === "tell")
+      return offer({ kind: "available", version: info.version, ...(allow ? { allow } : {}) })
     // A release found while a download is under way waits for the next check.
-    if (ended || loading !== undefined || info.version === downloaded?.version) return
-    if (info.version === failedVersion) {
+    if (
+      ended ||
+      loading !== undefined ||
+      info.version === downloaded?.version ||
+      info.version === preparing
+    )
+      return
+    if (info.version === failedOn) {
       // A ready update stays ready rather than give way to the release that failed.
       if (downloaded === undefined) offer({ kind: "available", version: info.version })
       return
@@ -441,8 +489,8 @@ export const checkForUpdates = (
         () => true,
         () => {
           // Failing after it was reported in, as when copying its blockmap fails, leaves
-          // the download where it is; a failed staging on macOS has been told of already.
-          if (downloaded?.version === version) return !failed
+          // the download where it is, ready or being prepared.
+          if (downloaded?.version === version || preparing === version) return !failed
           // The waiting file, if any, is likely gone with the failed download, so the
           // page is told it is being retried, unless it has heard of neither. Once the
           // early retry failed too, the person is told to fetch it themselves, so a copy
@@ -474,20 +522,43 @@ export const checkForUpdates = (
     loading.percent = whole
     offer({ kind: "downloading", version: loading.version, percent: whole })
   })
-  updater.on("update-downloaded", (info) => {
-    // Squirrel.Mac has the download staged, or soon will, and keeps it.
-    if (native) stop()
-    downloaded = { version: info.version }
-    const ready = (): void => {
-      staging = false
-      offer({ kind: "ready", version: info.version })
+  updater.on("update-downloaded", ({ version, downloadedFile }) => {
+    if (prepare === undefined) {
+      downloaded = { version }
+      return offer({ kind: "ready", version })
     }
-    // electron-updater reports the download just before it hands the file to Squirrel,
-    // so listening now is in time for the native event that follows.
-    if (native) {
-      staging = true
-      native.once("update-downloaded", ready)
-    } else ready()
+    // Only the latest download counts: one prepared after it was replaced is let go.
+    preparing = version
+    const prepared =
+      downloadedFile === undefined
+        ? Promise.reject(new Error("The download names no file."))
+        : prepare({ version, file: downloadedFile })
+    void prepared.then(
+      () => {
+        if (preparing !== version) return
+        preparing = undefined
+        downloaded = { version }
+        offer({ kind: "ready", version })
+      },
+      (error: unknown) => {
+        if (preparing !== version) return
+        preparing = undefined
+        log("Preparing the update failed.", error)
+        if (rejected(error)) {
+          failedOn = version
+          installFailed(version)
+          return offer({ kind: "available", version })
+        }
+        // Tried again as a failed download is, from the copy electron-updater keeps; once
+        // the early retry failed too, the person is told to fetch it themselves.
+        offer({ kind: retried.has(version) ? "available" : "retrying", version })
+        if (!ended && !retried.has(version)) {
+          retried.add(version)
+          clearTimeout(retry)
+          retry = setTimeout(check, retryCheckMs)
+        }
+      },
+    )
   })
 
   const check = (): void => {

@@ -26,7 +26,6 @@ import { attachPage, guardPage, lockPagesSession, webAddress } from "@novadeck/v
 import { brokerPorts } from "@novadeck/wire/electron"
 import {
   app,
-  autoUpdater as nativeUpdater,
   BrowserWindow,
   crashReporter,
   dialog,
@@ -58,6 +57,7 @@ import {
   bundleVersionOf,
   findInstalledApps,
   installBundle,
+  isNewerVersion,
   recoverBundles,
   relaunchIntoCopy,
 } from "./applications-folder.js"
@@ -97,6 +97,16 @@ import {
   logRunnerOutput,
   registerLogIpc,
 } from "./logs.js"
+import {
+  allowMacUpdates,
+  InstallPostponed,
+  installMacUpdate,
+  recheckMacUpdate,
+  macSwapMode,
+  prepareMacUpdate,
+  removeMacUpdates,
+  UpdateRejected,
+} from "./mac-update.js"
 import { linuxMenu, macMenu } from "./menu.js"
 import { notificationText, registerNoticeIpc, showNotices } from "./notices.js"
 import { limitPermissions, ownPage } from "./permissions.js"
@@ -114,13 +124,14 @@ import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./
 import { startRunner, type RunnerEvents, type RunnerHost } from "./runner.js"
 import { registerSandboxIpc, sandboxState } from "./sandbox.js"
 import { registerUninstallIpc, startRemovalAfterExit, uninstaller } from "./uninstall.js"
+import { updateLog } from "./update-log.js"
 import {
   releaseDownloadsUrl,
   releaseLatestUrl,
   releasePageUrl,
   releaseRepositoryOf,
 } from "./update-release.js"
-import { keepUpdateState } from "./update-state.js"
+import { installOutcome, keepUpdateState } from "./update-state.js"
 import {
   bundleOf,
   checkForUpdates,
@@ -244,6 +255,12 @@ const appearance = keepAppearance(join(app.getPath("userData"), "appearance.json
 
 // What the host remembers about updating: the channel, a failed install, how long this copy is behind.
 const updateState = keepUpdateState(join(app.getPath("userData"), "update.json"))
+// The log of updating, beside Electron's own logs; see ./update-log.ts.
+const updatesLog = updateLog(() => join(app.getPath("logs"), "updates.log"))
+// The macOS update made ready to put in place on quitting, and whether quitting puts it
+// there: a quit as the session ends, or the uninstall, switches that off. See ./mac-update.ts.
+let macUpdate: { readonly version: string; readonly prepared: string } | undefined
+const macQuitInstall = { autoInstallOnAppQuit: true }
 
 let server: HttpServer | undefined
 let runner: RunnerHost | undefined
@@ -507,6 +524,10 @@ const baseBuild = (): Promise<Omit<UpdateBuild, "signed">> =>
       // executable's path is the real one.
       env: { ...process.env, APPDIR: appDir && (await realpath(appDir).catch(() => appDir)) },
       inApplications: process.platform === "darwin" && app.isInApplicationsFolder(),
+      bundleSwap:
+        process.platform === "darwin" && app.isInApplicationsFolder()
+          ? await macSwapMode(bundleOf(app.getPath("exe")))
+          : undefined,
       appImageWritable: linux && (await appImageWritable()),
       windowsInstalled: process.platform === "win32" && (await windowsInstalled()),
       appImageInstalled:
@@ -530,29 +551,203 @@ const updateBuild = (): Promise<UpdateBuild> =>
     return { ...rest, signed: checksSignature() && rest.inApplications && (await bundleSigned()) }
   })())
 
+// A failure of updating, told on the console and kept in the log.
+const updateWarning = (message: string, error: unknown): void => {
+  console.warn(message, error)
+  updatesLog.warn(message, error)
+}
+
+// Marks a failed install, so its release is told of rather than installed again.
+// Synchronous: a failed install on quit is reported as the app exits.
+const installFailed = (version: string): void => {
+  try {
+    updateState.recordInstallFailure(version)
+  } catch (error) {
+    updateWarning("The failed install was not kept.", error)
+  }
+}
+
+// Marks the version an install on quitting begins to put in place, for the next launch
+// to check; see `settleLastInstall`. Synchronous, as the app is exiting.
+const recordInstalling = (version: string): void => {
+  updatesLog.info(`Installing ${version} on quitting.`)
+  try {
+    updateState.recordInstalling(version)
+  } catch (error) {
+    updateWarning("The install begun was not kept.", error)
+  }
+}
+
+// What the install the last quit began came to: one that left this launch older than the
+// version it put in place failed, as when the Windows installer failed after the app
+// exited, so it is marked like any failed install and told of rather than tried again
+// at every launch. See `installOutcome`.
+const settleLastInstall = (): void => {
+  const { installing } = updateState.read()
+  const outcome = installOutcome({ installing }, app.getVersion(), isNewerVersion)
+  if (outcome === undefined || installing === undefined) return
+  try {
+    if (outcome === "failed") {
+      updatesLog.warn(`Installing ${installing} did not take: this is still ${app.getVersion()}.`)
+      updateState.recordInstallFailure(installing)
+    } else {
+      updatesLog.info(`Installed ${app.getVersion()}.`)
+      updateState.clearInstalling()
+    }
+  } catch (error) {
+    updateWarning("The last install was not settled.", error)
+  }
+}
+
+// The macOS download being made ready, so one finished after a newer one began is let go.
+let preparing = 0
+// How long what an update left must sit unchanged before it is removed, as another copy
+// on its own data folder may be installing from it.
+const preparedForMs = 10 * 60 * 1000
+// Whether the person turned down letting this copy install updates, which then offers the
+// release page for the rest of the run; see `allowUpdates`.
+let allowDeclined = false
+
 // Starts checking for updates in a build that looks for them; see ./updater.ts.
 const startUpdates = async (): Promise<void> => {
-  const state = updateState.read()
   const plan = updatePlan(await updateBuild())
   if (!plan) return
-  updater = await loadUpdater(plan.kind)
-  updates = checkForUpdates(updater, {
+  // A copy that only tells, such as a portable one sharing this data folder, leaves the
+  // installed copy's install for it to settle.
+  if (plan.mode === "install") settleLastInstall()
+  const state = updateState.read()
+  updatesLog.info(
+    `Novadeck ${app.getVersion()} ${plan.mode === "install" ? "installs" : "tells of"} updates on the ${channel} channel.`,
+  )
+  // What earlier launches prepared, and the app an install replaced, go before anything
+  // new is prepared.
+  if (plan.kind === "mac")
+    await removeMacUpdates({ bundle: bundleOf(app.getPath("exe")), olderThanMs: preparedForMs })
+  const current = await loadUpdater(plan.kind)
+  updater = current
+  updates = checkForUpdates(current, {
     mode: plan.mode,
     channel,
     failedVersion: state.installFailedOn,
-    // Squirrel.Mac stages macOS updates; the others install from electron-updater's file.
-    native: process.platform === "darwin" ? nativeUpdater : undefined,
-    offer: (offer) => offers.offer(offer),
-    // Synchronous: a failed install on quit is reported as the app exits.
-    installFailed: (version) => {
-      try {
-        updateState.recordInstallFailure(version)
-      } catch (error) {
-        log.warn("update.failure-not-kept", "The failed install was not kept.", { err: error })
-      }
+    allow: plan.allow,
+    // macOS updates are put in place by the host as the app quits; the others install
+    // from electron-updater's file.
+    prepare:
+      plan.kind === "mac"
+        ? async ({ version, file }) => {
+            // Once quitting, the update being put in place is left alone.
+            if (stopping) return
+            const turn = (preparing += 1)
+            const prepared = await prepareMacUpdate({
+              zip: file,
+              version,
+              bundle: bundleOf(app.getPath("exe")),
+            })
+            if (turn !== preparing || stopping) {
+              await rm(dirname(prepared), { recursive: true, force: true }).catch(() => {})
+              return
+            }
+            macUpdate = { version, prepared }
+            updatesLog.info(`${version} is ready to install on quitting.`)
+            await removeMacUpdates({ keep: prepared, olderThanMs: preparedForMs })
+          }
+        : undefined,
+    rejected: (error) => error instanceof UpdateRejected,
+    // An updater replaced, as by allowing updates, says nothing more.
+    offer: (offer) => {
+      if (updater !== current) return
+      offers.offer(
+        allowDeclined && offer.kind === "available"
+          ? { kind: offer.kind, version: offer.version }
+          : offer,
+      )
     },
-    log: warnings("updater"),
+    installStarted: recordInstalling,
+    installFailed,
+    log: updateWarning,
+    logger: updatesLog.logger,
   })
+}
+
+// Whether the macOS update is going into place, which a second quit, as a logout's, waits
+// for: the app it ends would be left between the old bundle and the new.
+let macInstalling = false
+
+// On macOS, puts the update made ready in place as the app quits, once every page has
+// saved and the shells have ended, so the next launch, however soon, is the new version.
+// Should it fail, the old app is left whole and the release is told of from then on.
+const installMacUpdateOnQuit = async (): Promise<void> => {
+  const update = macUpdate
+  if (process.platform !== "darwin" || !update || !macQuitInstall.autoInstallOnAppQuit) return
+  if (!existsSync(update.prepared))
+    return updatesLog.warn(`${update.version} was no longer ready to install; it downloads again.`)
+  const bundle = bundleOf(app.getPath("exe"))
+  // A bundle replaced while the app ran, as by install.sh, is not this build to replace.
+  const plist = await readFile(join(bundle, "Contents", "Info.plist"), "utf8").catch(() => "")
+  if (bundleVersionOf(plist) !== app.getVersion())
+    return updatesLog.warn(`${update.version} was not installed: the app changed while it ran.`)
+  const mode = await macSwapMode(bundle)
+  if (mode === undefined)
+    return updatesLog.warn(`${update.version} was not installed: the app can't be written.`)
+  macInstalling = true
+  try {
+    try {
+      await recheckMacUpdate({ prepared: update.prepared, bundle })
+    } catch (error) {
+      // Nothing was touched: one that could not be checked waits for a later session,
+      // which prepares it again; one that no longer passes failed.
+      if (error instanceof InstallPostponed) return updatesLog.warn(error.message)
+      updateWarning("Installing the update failed.", error)
+      return installFailed(update.version)
+    }
+    recordInstalling(update.version)
+    try {
+      await installMacUpdate({ prepared: update.prepared, bundle, mode })
+      updatesLog.info(`Installed ${update.version}; it starts at the next launch.`)
+    } catch (error) {
+      updateWarning("Installing the update failed.", error)
+      installFailed(update.version)
+    }
+  } finally {
+    macInstalling = false
+  }
+}
+
+// Lets this macOS copy install updates itself once an administrator hands its bundle to
+// the person (see `allowMacUpdates`), then checks for updates afresh as a copy that
+// installs. Only the copy whose offer says so asks, and one request at a time.
+let allowing = false
+const allowUpdates = async (): Promise<void> => {
+  const offer = offers.current()
+  if (process.platform !== "darwin" || allowing || offer?.kind !== "available" || !offer.allow)
+    return
+  allowing = true
+  try {
+    const allowed = await allowMacUpdates({
+      bundle: bundleOf(app.getPath("exe")),
+      uid: process.getuid?.() ?? -1,
+      gid: process.getgid?.() ?? -1,
+    })
+    if (!allowed) {
+      // Turned down, as by a person who has no administrator to ask: the chip leads to the
+      // release page instead, for the rest of this run.
+      allowDeclined = true
+      offers.offer({ kind: "available", version: offer.version })
+      return
+    }
+    updatesLog.info("An administrator let this copy install updates.")
+    // The chip goes, as there is nothing left to press, until the download shows.
+    offers.offer({ kind: "retrying", version: offer.version })
+    updates?.stop()
+    base = undefined
+    build = undefined
+    await startUpdates()
+  } catch (error) {
+    updateWarning("Letting this copy install updates failed.", error)
+    offers.offer({ kind: "available", version: offer.version })
+  } finally {
+    allowing = false
+  }
 }
 
 /** The page of the last offer's release, from the repository the build updates from. */
@@ -566,7 +761,7 @@ const updatePage = async (): Promise<string | undefined> => {
 // The quit of the system ending the session: no update installs on the way out, as the
 // system may kill the installer halfway.
 const quitOnSessionEnd = quitWithoutInstalling(
-  () => updater,
+  () => (process.platform === "darwin" ? macQuitInstall : updater),
   () => app.quit(),
 )
 
@@ -1149,6 +1344,7 @@ const launch = async (): Promise<void> => {
           log.warn("update.page-failed", "The release page did not open.", { err: error }),
         )
     },
+    allow: () => void allowUpdates(),
     channel: () => channel,
     setChannel: (next) => {
       if (next === channel) return
@@ -1247,6 +1443,7 @@ const launch = async (): Promise<void> => {
         stopping = true
         updates?.stop()
         if (updater) updater.autoInstallOnAppQuit = false
+        macQuitInstall.autoInstallOnAppQuit = false
         return shutDown()
       },
       stopping: () => stopping,
@@ -1407,6 +1604,8 @@ const declineUnorderlyInstall = installOnlyOnOrderlyQuit(
 )
 
 app.on("before-quit", (event) => {
+  // The quit already under way ends the app once the update is in place.
+  if (macInstalling) return event.preventDefault()
   if (!stopping) log.info("app.quit", "The app is quitting.", { data: { orderly: orderlyQuit } })
   // No new download starts on the way out.
   updates?.stop()
@@ -1415,7 +1614,9 @@ app.on("before-quit", (event) => {
 
   event.preventDefault()
   stopping = true
-  void shutDown().finally(() => app.quit())
+  void shutDown()
+    .then(installMacUpdateOnQuit)
+    .finally(() => app.quit())
 })
 
 app.on("window-all-closed", () => {

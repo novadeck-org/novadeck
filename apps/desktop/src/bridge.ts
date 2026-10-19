@@ -56,6 +56,9 @@ export const updateRequestChannel = "novadeck:update-request"
 /** Renderer-to-main request to open the release page of the last offer in the browser. */
 export const openUpdatePageChannel = "novadeck:open-update-page"
 
+/** Renderer-to-main request to let this copy install updates itself, by an administrator's password. */
+export const allowUpdatesChannel = "novadeck:allow-updates"
+
 /** Renderer-to-main request for the update channel the build follows; answers it. */
 export const updateChannelChannel = "novadeck:update-channel"
 

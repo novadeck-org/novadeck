@@ -59,6 +59,13 @@ export type DesktopBridge = {
    * nothing before an offer.
    */
   openUpdatePage?(): void
+  /**
+   * Asks the host to let this copy install updates itself, which takes an administrator's
+   * password. macOS only; absent elsewhere and from hosts that came before it. Does
+   * nothing unless the last offer has `allow`. Once it succeeds the host downloads the
+   * update as usual, offering `downloading` and then `ready`.
+   */
+  allowUpdates?(): void
   /** Which releases this build follows; see `UpdateChannel`. */
   updateChannel?(): Promise<UpdateChannel>
   /**
@@ -245,11 +252,13 @@ export const updateChannels: readonly UpdateChannel[] = ["stable", "early"]
  * person has nothing to do and the page shows nothing for it. `available`: a newer release
  * the person must fetch themselves, because this build cannot install it: an unsigned
  * macOS app, an AppImage in a folder it cannot write, a portable copy, or an install that
- * failed.
+ * failed. `allow`, only on `available`: an administrator can let this copy install updates
+ * itself (a macOS copy its person cannot write to), and `allowUpdates` asks.
  */
 export type UpdateOffer =
   | { readonly kind: "downloading"; readonly version: string; readonly percent: number }
-  | { readonly kind: "ready" | "retrying" | "available"; readonly version: string }
+  | { readonly kind: "ready" | "retrying"; readonly version: string }
+  | { readonly kind: "available"; readonly version: string; readonly allow?: true }
 
 /** Whether `value` is how far along a download is: a whole percent from 0 to 100. */
 export const isUpdatePercent = (value: unknown): value is number =>
@@ -275,11 +284,12 @@ const isVersion = (value: unknown): value is string =>
  */
 export const parseUpdateOffer = (value: unknown): UpdateOffer | undefined => {
   if (!isRecord(value)) return undefined
-  const { kind, version, percent } = value
+  const { kind, version, percent, allow } = value
   if (!isVersion(version)) return undefined
   if (kind === "downloading")
     return isUpdatePercent(percent) ? { kind, version, percent } : undefined
-  if (kind === "ready" || kind === "retrying" || kind === "available") return { kind, version }
+  if (kind === "available") return allow === true ? { kind, version, allow } : { kind, version }
+  if (kind === "ready" || kind === "retrying") return { kind, version }
   return undefined
 }
 
