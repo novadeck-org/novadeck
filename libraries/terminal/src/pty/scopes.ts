@@ -42,12 +42,21 @@ const causeMs = 2_000
  * program with that pid left running.
  */
 export const failedForProgram = (error: unknown): boolean =>
-  /No such process|already exists/i.test(String(error))
+  /No such process|already exists|already loaded/i.test(String(error))
+
+/**
+ * Whether the move failed for want of systemd, which needs no word: its tools aren't
+ * there, or the session bus has no service manager on it, as with elogind.
+ */
+const noSystemd = (error: unknown): boolean =>
+  (error as NodeJS.ErrnoException).code === "ENOENT" ||
+  /org\.freedesktop\.systemd1 was not provided|ServiceUnknown/i.test(String(error))
 
 /**
  * The name's start for a program's scope: the app's own, from the runner's cgroup, as
- * `app-dev.mzpk.novadeck-1234.scope` gives `app-dev.mzpk.novadeck-term`, so each shows
- * under the app; `app-novadeck-term` where the runner runs in no app scope. A runner
+ * `app-dev.mzpk.novadeck-1234.scope` gives `app-dev.mzpk.novadeck`; `app-novadeck` where
+ * the runner runs in no app scope. Each scope is then `<start>-term<pid>.scope`, the XDG
+ * shape `app[-<launcher>]-<id>-<random>.scope`, so desktops count it the app's. A runner
  * started from a Novadeck terminal names its terminals after the same app.
  */
 export const scopePrefix = (cgroup: string): string => {
@@ -56,8 +65,7 @@ export const scopePrefix = (cgroup: string): string => {
     .find((line) => line.startsWith("0::"))
     ?.split("/")
     .at(-1)
-  const app = /^(app-.+?)(?:-term)?-[^-]+\.scope$/.exec(leaf ?? "")?.[1]
-  return `${app ?? "app-novadeck"}-term`
+  return /^(app-.+)-[^-]+\.scope$/.exec(leaf ?? "")?.[1] ?? "app-novadeck"
 }
 
 /**
@@ -110,7 +118,7 @@ const unscoped: Scope = { cause: () => undefined }
 /**
  * Linux's scopes: each pty's program goes into a transient systemd scope of its own as it
  * starts, through the user's service manager, so the kernel or systemd-oomd killing one
- * for memory takes only that terminal, never the app and the others. An app scope's
+ * for memory takes only that terminal, not the app and the others. An app scope's
  * default `OOMPolicy=stop` otherwise ends all of it on one kill. Programs it starts
  * meanwhile stay behind, as the move follows the start by some milliseconds. Where the
  * first move fails, as without systemd, the rest stay in the app's scope too, as before;
@@ -127,7 +135,7 @@ export class UserScopes implements Scopes {
 
   contain(pid: number): Scope {
     if (this.state === "off") return unscoped
-    const unit = `${this.prefix}-${pid}.scope`
+    const unit = `${this.prefix}-term${pid}.scope`
     const started = this.run("busctl", startScope(unit, pid)).then(
       () => {
         this.state = "works"
@@ -137,7 +145,7 @@ export class UserScopes implements Scopes {
         if (this.state !== "unknown" || failedForProgram(error)) return false
         this.state = "off"
         // Said once, unless there's no systemd to ask.
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+        if (!noSystemd(error))
           console.error("Novadeck terminals stay in the app's scope:", String(error).trim())
         return false
       },

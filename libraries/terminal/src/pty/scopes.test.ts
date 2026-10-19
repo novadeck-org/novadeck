@@ -42,31 +42,31 @@ describe("a scope's name", () => {
   it("follows the app's own scope, so each terminal shows under the app", () => {
     const cgroup =
       "0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-dev.mzpk.novadeck-3463912.scope\n"
-    expect(scopePrefix(cgroup)).toBe("app-dev.mzpk.novadeck-term")
+    expect(scopePrefix(cgroup)).toBe("app-dev.mzpk.novadeck")
   })
 
   it("keeps a launcher's part of the name", () => {
     expect(scopePrefix("0::/user.slice/app.slice/app-gnome-dev.mzpk.novadeck-77.scope")).toBe(
-      "app-gnome-dev.mzpk.novadeck-term",
+      "app-gnome-dev.mzpk.novadeck",
     )
   })
 
   it("is the app's again for a runner started from a Novadeck terminal", () => {
-    expect(scopePrefix("0::/user.slice/app.slice/app-dev.mzpk.novadeck-term-4242.scope")).toBe(
-      "app-dev.mzpk.novadeck-term",
+    expect(scopePrefix("0::/user.slice/app.slice/app-dev.mzpk.novadeck-term4242.scope")).toBe(
+      "app-dev.mzpk.novadeck",
     )
   })
 
   it("is Novadeck's own where the runner runs in no app scope", () => {
-    expect(scopePrefix("0::/user.slice/user-1000.slice/session-2.scope")).toBe("app-novadeck-term")
-    expect(scopePrefix("0::/system.slice/novadeck.service")).toBe("app-novadeck-term")
-    expect(scopePrefix("")).toBe("app-novadeck-term")
+    expect(scopePrefix("0::/user.slice/user-1000.slice/session-2.scope")).toBe("app-novadeck")
+    expect(scopePrefix("0::/system.slice/novadeck.service")).toBe("app-novadeck")
+    expect(scopePrefix("")).toBe("app-novadeck")
   })
 })
 
 describe("starting a terminal's scope", () => {
   it("moves the shell's process into a transient scope that keeps it on a program's OOM kill", () => {
-    expect(startScope("app-novadeck-term-42.scope", 42)).toEqual([
+    expect(startScope("app-novadeck-term42.scope", 42)).toEqual([
       "--user",
       "--quiet",
       "--timeout=5",
@@ -76,7 +76,7 @@ describe("starting a terminal's scope", () => {
       "org.freedesktop.systemd1.Manager",
       "StartTransientUnit",
       "ssa(sv)a(sa(sv))",
-      "app-novadeck-term-42.scope",
+      "app-novadeck-term42.scope",
       "fail",
       "4",
       "PIDs",
@@ -98,13 +98,13 @@ describe("starting a terminal's scope", () => {
 
   it("asks the user's service manager for each shell's own scope", async () => {
     const { runs, run } = tools({ busctl: reachable })
-    const scopes = new UserScopes("app-novadeck-term", run)
+    const scopes = new UserScopes("app-novadeck", run)
     scopes.contain(42)
     scopes.contain(43)
     await vi.waitFor(() => expect(runs).toHaveLength(2))
     expect(runs.map(({ file, args }) => [file, args[9], args[15]])).toEqual([
-      ["busctl", "app-novadeck-term-42.scope", "42"],
-      ["busctl", "app-novadeck-term-43.scope", "43"],
+      ["busctl", "app-novadeck-term42.scope", "42"],
+      ["busctl", "app-novadeck-term43.scope", "43"],
     ])
   })
 })
@@ -113,7 +113,7 @@ describe("without systemd", () => {
   it("leaves every later shell in the app's scope once the first can't be moved", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {})
     const { runs, run } = tools({ busctl: unreachable })
-    const scopes = new UserScopes("app-novadeck-term", run, 0)
+    const scopes = new UserScopes("app-novadeck", run, 0)
     const first = scopes.contain(42)
     await vi.waitFor(() => expect(error).toHaveBeenCalledOnce())
     expect(await first.cause("SIGKILL")).toBeUndefined()
@@ -126,7 +126,7 @@ describe("without systemd", () => {
   it("says nothing where systemd's tools aren't there", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {})
     const { run } = tools({})
-    const scopes = new UserScopes("app-novadeck-term", run, 0)
+    const scopes = new UserScopes("app-novadeck", run, 0)
     expect(await scopes.contain(42).cause("SIGKILL")).toBeUndefined()
     expect(error).not.toHaveBeenCalled()
   })
@@ -135,7 +135,9 @@ describe("without systemd", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {})
     const failures = [
       "Call failed: Failed to set unit properties: No such process",
-      "Call failed: Unit app-novadeck-term-42.scope already exists.",
+      // systemd 255's words for a name an earlier program's scope still holds, and older ones'.
+      "Call failed: Unit app-novadeck-term42.scope was already loaded or has a fragment file.",
+      "Call failed: Unit app-novadeck-term42.scope already exists.",
     ]
     for (const failure of failures) {
       let first = true
@@ -146,7 +148,7 @@ describe("without systemd", () => {
           return Promise.reject(new Error(`Command failed: busctl\n${failure}`))
         },
       })
-      const scopes = new UserScopes("app-novadeck-term", run, 0)
+      const scopes = new UserScopes("app-novadeck", run, 0)
       // eslint-disable-next-line no-await-in-loop -- Each failure is checked in turn.
       expect(await scopes.contain(42).cause("SIGKILL")).toBeUndefined()
       scopes.contain(43)
@@ -156,11 +158,27 @@ describe("without systemd", () => {
     expect(error).not.toHaveBeenCalled()
   })
 
+  it("says nothing where the session bus has no systemd on it, as with elogind", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {})
+    const { run } = tools({
+      busctl: () =>
+        Promise.reject(
+          new Error(
+            "Command failed: busctl\nCall failed: The name org.freedesktop.systemd1 was not provided by any .service files",
+          ),
+        ),
+    })
+    const scopes = new UserScopes("app-novadeck", run, 0)
+    expect(await scopes.contain(42).cause("SIGKILL")).toBeUndefined()
+    expect(scopes.contain(43).cause("SIGKILL")).toBeUndefined()
+    expect(error).not.toHaveBeenCalled()
+  })
+
   it("keeps moving shells after one fails, once others were moved", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {})
     let fail = false
     const { runs, run } = tools({ busctl: () => (fail ? unreachable() : reachable()) })
-    const scopes = new UserScopes("app-novadeck-term", run, 0)
+    const scopes = new UserScopes("app-novadeck", run, 0)
     scopes.contain(42)
     await vi.waitFor(() => expect(runs).toHaveLength(1))
     fail = true
@@ -210,10 +228,10 @@ describe("why a scoped shell ended", () => {
       busctl: reachable,
       journalctl: () =>
         Promise.resolve(
-          "app-novadeck-term-42.scope: A process of this unit has been killed by the OOM killer.\n",
+          "app-novadeck-term42.scope: A process of this unit has been killed by the OOM killer.\n",
         ),
     })
-    const scopes = new UserScopes("app-novadeck-term", run, 0)
+    const scopes = new UserScopes("app-novadeck", run, 0)
     const now = Date.now()
     expect(await scopes.contain(42).cause("SIGKILL")).toBe("out-of-memory")
     const [, journal] = runs
@@ -262,11 +280,11 @@ describe("why a scoped shell ended", () => {
   })
 
   it("is searched for both the kernel's OOM kills and systemd-oomd's", () => {
-    expect(killsSince("app-novadeck-term-42.scope", 1_700_000_000_999)).toEqual([
+    expect(killsSince("app-novadeck-term42.scope", 1_700_000_000_999)).toEqual([
       "--user",
       "--quiet",
       "--output=cat",
-      "--unit=app-novadeck-term-42.scope",
+      "--unit=app-novadeck-term42.scope",
       "--since=@1700000000",
       "MESSAGE_ID=fe6faa94e7774663a0da52717891d8ef",
       "MESSAGE_ID=d989611b15e44c9dbf31e3c81256e4ed",

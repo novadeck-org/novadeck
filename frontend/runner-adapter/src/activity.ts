@@ -30,6 +30,18 @@ export const exitStatus = (
   return { state: "exited", exitCode: exit.code, signal: null }
 }
 
+const statusKey = (status: TerminalStatus): string => {
+  if (status.state === "exited")
+    return `exited:${status.exitCode}:${status.signal}:${status.cause ?? ""}`
+  if (status.state === "failed") return `failed:${status.message}`
+  if (status.state === "running") return `running:${JSON.stringify(status.agent ?? null)}`
+  return status.state
+}
+
+// Statuses that read the same; a terminal's metadata carries its status among its fields.
+export const sameStatus = (a: TerminalStatus, b: TerminalStatus): boolean =>
+  statusKey(a) === statusKey(b)
+
 export type TerminalActivity = {
   readonly status: TerminalStatus | "clean"
   // The foreground program's name; absent once the process exited, so the last

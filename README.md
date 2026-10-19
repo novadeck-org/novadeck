@@ -112,15 +112,17 @@ cannot tell, as on Windows or for a Node CLI on macOS, a connected agent that re
 its session since the shell's last prompt names the program.
 
 On Linux with systemd, each terminal's shell runs in a transient scope of its own (such
-as `app-dev.mzpk.novadeck-term-<pid>.scope`, named after the app's scope), which the
+as `app-dev.mzpk.novadeck-term<pid>.scope`, named after the app's scope), which the
 runner asks the user's service manager for right after the shell starts
-(`libraries/terminal/src/pty/scopes.ts`). Then a program that runs out of memory takes
-down only what the kernel or systemd-oomd kills, never the app: the app's own scope
-stops everything in it on one OOM kill. The scope's `OOMPolicy=continue` keeps the shell
-when the kernel kills only the program, as outside a scope; a terminal whose shell was
-killed for memory, as systemd-oomd kills the whole scope, ends as "Killed · out of
-memory". Without a user bus (no systemd, a container, WSL without systemd), shells run
-in the app's scope as before. macOS and Windows are unchanged.
+(`libraries/terminal/src/pty/scopes.ts`). The app's own scope stops everything in it on
+one OOM kill, so before this a program in any terminal that ran out of memory took the
+whole app down. Now a kill inside a terminal's scope stays there. The scope's
+`OOMPolicy=continue` keeps the shell when the kernel kills only the program, as outside
+a scope; a terminal whose shell was killed for memory, as systemd-oomd kills the whole
+scope, ends as "Killed · out of memory". What stays in the app's scope can still take it
+down: the app's own processes, and anything a shell started in the few milliseconds
+before its move. Without a user bus (no systemd, a container, WSL without systemd),
+shells run in the app's scope as before. macOS and Windows are unchanged.
 
 While a program holds the foreground, its profile decides how the terminal looks.
 `frontend/ui/src/terminals/processes/profiles.ts` maps program names to a tab and
