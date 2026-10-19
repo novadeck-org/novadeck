@@ -6,14 +6,21 @@ import { createWorkspaceStore } from "@novadeck/core/store"
 import type { TerminalMessages } from "@novadeck/protocol"
 import type { TerminalWatchItem } from "@novadeck/runner-client"
 import { noTheme } from "@novadeck/terminal-views/theme"
-import { pause } from "@novadeck/terminal/view"
 import { WireError } from "@novadeck/wire"
 import type { WireStatus } from "@novadeck/wire/client"
+import { afterEach, beforeEach, vi } from "vitest"
 
 import { runnerBackend, type RunnerApi, type RunnerBackendOptions } from "./backend"
 import { channel, id as uuid, keptSummary, noCompanions } from "./scripted"
 import type { RunnerListing } from "./seed"
 import { describe, expect, it } from "./test"
+
+// Every wait here runs on a fake clock, so a slow machine can't push a step past a
+// deadline it should beat, or a deadline past a step that should see it run out.
+beforeEach(() => vi.useFakeTimers())
+afterEach(() => vi.useRealTimers())
+// Lets `ms` pass, running the timers due by then and all the work each one wakes.
+const elapse = async (ms: number): Promise<void> => void (await vi.advanceTimersByTimeAsync(ms))
 
 // A terminal watch that never reports anything.
 const nothing = (): AsyncIterableIterator<never, undefined> => {
@@ -100,14 +107,14 @@ describe("closing a terminal while its create is unanswered", () => {
     }
     const terminal = backend.newTerminal({ target, directory: "/tmp" })
     commit([{ type: "terminal/add", target, terminal }])
-    await pause(50)
+    await elapse(50)
     commit([{ type: "terminal/close", target, terminalId: terminal.id }])
-    await pause(700)
+    await elapse(700)
     runner.reconnect()
-    await pause(1_500)
+    await elapse(1_500)
     expect([...runner.shells]).toEqual([])
     stop()
-  }, 10_000)
+  })
 })
 
 // A runner holding two running terminals whose agents have a thread together, whose
@@ -268,10 +275,10 @@ describe("closing a terminal whose agent has messages", () => {
     const window = app(runner)
     const stop = window.start()
     runner.connect()
-    await pause(50)
+    await elapse(50)
 
     expect(() => window.close(runner.ids[0]!)).not.toThrow()
-    await pause(50)
+    await elapse(50)
 
     expect(runner.calls).toEqual([runner.ids[0]])
     expect(window.roster()).toEqual(runner.held())
@@ -288,10 +295,10 @@ describe("a close the runner refuses", () => {
     const window = app(runner, notices)
     const stop = window.start()
     runner.connect()
-    await pause(50)
+    await elapse(50)
 
     window.close(runner.ids[0]!)
-    await pause(50)
+    await elapse(50)
 
     expect(runner.held()).toContain(runner.ids[0])
     expect(window.roster().toSorted()).toEqual(runner.held().toSorted())
@@ -312,14 +319,14 @@ describe("a close the runner doesn't answer", () => {
     const window = app(runner)
     const stop = window.start()
     runner.connect()
-    await pause(50)
+    await elapse(50)
     runner.drop()
 
     window.close(runner.ids[0]!)
-    await pause(50)
+    await elapse(50)
     expect(runner.held()).toContain(runner.ids[0])
     runner.connect()
-    await pause(1500)
+    await elapse(1500)
 
     expect(runner.held()).toEqual([runner.ids[1]])
     expect(window.roster()).toEqual(runner.held())
@@ -331,18 +338,18 @@ describe("a close the runner doesn't answer", () => {
     const window = app(runner)
     const stop = window.start()
     runner.drop()
-    await pause(50)
+    await elapse(50)
 
     // Waiting for the runner as the window stops, as before a reload or a quit.
     window.close(runner.ids[0]!)
-    await pause(50)
+    await elapse(50)
     stop()
-    await pause(1500)
+    await elapse(1500)
     expect(runner.calls).toEqual([])
 
     const again = window.start()
     runner.connect()
-    await pause(100)
+    await elapse(100)
 
     expect(runner.held()).toEqual([runner.ids[1]])
     expect(window.roster()).toEqual(runner.held())
@@ -354,13 +361,13 @@ describe("a close the runner doesn't answer", () => {
     const window = app(runner)
     const stop = window.start()
     runner.connect()
-    await pause(50)
+    await elapse(50)
 
     window.close(runner.ids[0]!)
-    await pause(20)
+    await elapse(20)
     // The runner still says something of it, as while its close waits on its shell.
     runner.report(runner.ids[0]!)
-    await pause(20)
+    await elapse(20)
 
     expect(runner.calls).toEqual([runner.ids[0]])
     expect(window.roster()).toEqual([runner.ids[1]])
@@ -378,13 +385,13 @@ describe("a close the runner refuses as its link drops", () => {
     const window = app(runner, notices)
     const stop = window.start()
     runner.connect()
-    await pause(50)
+    await elapse(50)
 
     window.close(runner.ids[0]!)
-    await pause(50)
+    await elapse(50)
     runner.listings.fails = false
     runner.report(runner.ids[0]!)
-    await pause(50)
+    await elapse(50)
 
     expect(window.roster().toSorted()).toEqual(runner.held().toSorted())
     expect(notices.map((notice) => notice.title)).toEqual([
@@ -407,17 +414,17 @@ describe("a refusal that comes once the window stopped", () => {
     const window = app(runner, notices)
     const stop = window.start()
     runner.connect()
-    await pause(50)
+    await elapse(50)
 
     window.close(runner.ids[0]!)
-    await pause(20)
+    await elapse(20)
     stop()
     refuse()
-    await pause(50)
+    await elapse(50)
     expect(notices).toEqual([])
 
     const again = window.start()
-    await pause(50)
+    await elapse(50)
 
     expect(window.roster().toSorted()).toEqual(runner.held().toSorted())
     again()
@@ -432,20 +439,20 @@ describe("a close the runner takes too long to answer", () => {
     const window = app(runner, notices, { closeAnswerMs: 100 })
     const stop = window.start()
     runner.connect()
-    await pause(50)
+    await elapse(50)
 
     window.close(runner.ids[0]!)
-    await pause(400)
+    await elapse(400)
     expect(window.roster().toSorted()).toEqual(runner.held().toSorted())
     expect(notices.map((notice) => notice.body)).toEqual([
       "It's still running, so it stays in its session. The runner didn't answer.",
     ])
 
     runner.removed(runner.ids[0]!)
-    await pause(50)
+    await elapse(50)
     expect(window.roster()).toEqual([runner.ids[1]])
     answer()
-    await pause(50)
+    await elapse(50)
 
     expect(runner.held()).toEqual([runner.ids[1]])
     expect(window.roster()).toEqual(runner.held())
@@ -460,19 +467,19 @@ describe("a close the runner takes too long to answer", () => {
     const window = app(runner, notices, { closeAnswerMs: 100 })
     const stop = window.start()
     runner.connect()
-    await pause(50)
+    await elapse(50)
 
     window.close(runner.ids[0]!)
-    await pause(400)
+    await elapse(400)
     expect(window.roster()).toContain(runner.ids[0])
     answer()
-    await pause(50)
+    await elapse(50)
     expect(runner.held()).toEqual([runner.ids[1]])
     expect(window.roster()).toEqual(runner.held())
 
     // The runner's report that it went, arriving after all, changes nothing more.
     runner.removed(runner.ids[0]!)
-    await pause(50)
+    await elapse(50)
     expect(window.roster()).toEqual(runner.held())
     expect(notices).toHaveLength(1)
     stop()
@@ -490,12 +497,12 @@ describe("a close the runner takes too long to answer", () => {
     const window = app(runner, notices, { closeAnswerMs: 100 })
     const stop = window.start()
     runner.connect()
-    await pause(50)
+    await elapse(50)
 
     window.close(runner.ids[0]!)
-    await pause(400)
+    await elapse(400)
     refuse()
-    await pause(50)
+    await elapse(50)
 
     expect(window.roster().toSorted()).toEqual(runner.held().toSorted())
     expect(notices).toHaveLength(1)
@@ -511,20 +518,20 @@ describe("a close the runner takes too long to answer", () => {
     const window = app(runner, notices, { closeAnswerMs: 100 })
     const stop = window.start()
     runner.connect()
-    await pause(50)
+    await elapse(50)
 
     window.close(runner.ids[0]!)
-    await pause(400)
+    await elapse(400)
     // Back, and closed again by the person.
     window.close(runner.ids[0]!)
-    await pause(20)
+    await elapse(20)
     answers[0]!.reject(new WireError("INTERNAL_ERROR", "The runner broke."))
-    await pause(50)
+    await elapse(50)
     expect(window.roster()).toEqual([runner.ids[1]])
     expect(notices).toHaveLength(1)
 
     answers[1]!.resolve()
-    await pause(50)
+    await elapse(50)
     expect(runner.held()).toEqual([runner.ids[1]])
     expect(window.roster()).toEqual(runner.held())
     stop()
@@ -536,13 +543,13 @@ describe("a close the runner takes too long to answer", () => {
     const window = app(runner, notices, { closeAnswerMs: 100 })
     const stop = window.start()
     runner.connect()
-    await pause(50)
+    await elapse(50)
 
     window.close(runner.ids[0]!)
-    await pause(20)
+    await elapse(20)
     stop()
     runner.listings.fails = true
-    await pause(400)
+    await elapse(400)
 
     expect(notices).toEqual([])
   })
@@ -558,10 +565,10 @@ describe("a refused close the runner can't list afterwards", () => {
     const window = app(runner, notices)
     const stop = window.start()
     runner.connect()
-    await pause(50)
+    await elapse(50)
 
     window.close(runner.ids[0]!)
-    await pause(50)
+    await elapse(50)
 
     expect(window.roster().toSorted()).toEqual(runner.held().toSorted())
     expect(notices).toHaveLength(1)
@@ -575,19 +582,19 @@ describe("a refused close the runner can't list afterwards", () => {
     const window = app(runner, notices, { closeAnswerMs: 100 })
     const stop = window.start()
     runner.connect()
-    await pause(50)
+    await elapse(50)
 
     window.close(runner.ids[0]!)
-    await pause(20)
+    await elapse(20)
     stop()
-    await pause(400)
+    await elapse(400)
     const again = window.start()
-    await pause(50)
+    await elapse(50)
     expect(window.roster().toSorted()).toEqual(runner.held().toSorted())
     expect(notices).toEqual([])
 
     answer()
-    await pause(50)
+    await elapse(50)
     expect(window.roster()).toEqual(runner.held())
     again()
   })
@@ -600,10 +607,10 @@ describe("a refused close the runner can't list afterwards", () => {
     const window = app(runner, notices, { closeAnswerMs: 100 })
     const stop = window.start()
     runner.connect()
-    await pause(50)
+    await elapse(50)
 
     window.close(runner.ids[0]!)
-    await pause(400)
+    await elapse(400)
 
     expect(window.roster().toSorted()).toEqual(runner.held().toSorted())
     expect(notices).toHaveLength(1)
