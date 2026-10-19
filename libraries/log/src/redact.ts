@@ -54,7 +54,7 @@ const commonNames = new Set([
 const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)
 
 // Names whose value is a secret, in a query (`?token=…`), a setting (`password=…`) or JSON.
-const secretKey = String.raw`[\w.-]*?(?:token|secret|passw(?:or)?d|pwd|key|auth|credentials?|signature|sig)`
+const secretKey = String.raw`[\w.-]*?(?:token|secret|passw(?:or)?d|pass|pwd|key|auth|credentials?|signature|sig|session)`
 
 /** The shapes of secrets, each with what it becomes. */
 const shapes: readonly (readonly [RegExp, string])[] = [
@@ -81,13 +81,14 @@ const shapes: readonly (readonly [RegExp, string])[] = [
   [/\bnpm_[A-Za-z0-9]{36}\b/g, "<secret>"],
   [/\bglpat-[\w-]{20,}/g, "<secret>"],
   [/\bAIza[\w-]{35}/g, "<secret>"],
+  [/\bya29\.[\w-]{20,}/g, "<secret>"],
   [/\b[sr]k_(?:live|test)_\w{16,}/g, "<secret>"],
   [/\bhf_[A-Za-z]{30,}/g, "<secret>"],
   [/\beyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,}/g, "<secret>"],
   [new RegExp(String.raw`("${secretKey}"\s*:\s*)"[^"]*"`, "gi"), '$1"<redacted>"'],
   [
-    new RegExp(String.raw`((?:^|[?&;\s"'(,])${secretKey})=(?!<)[^&\s"';,)]+`, "gi"),
-    "$1=<redacted>",
+    new RegExp(String.raw`((?:^|[?&;\s"'(,])${secretKey})(\s*=\s*)(?!<)[^&\s"';,)]+`, "gi"),
+    "$1$2<redacted>",
   ],
   // `password: hunter2`, as YAML or a dump writes it, and `--password hunter2` on a command line.
   [

@@ -94,9 +94,9 @@ export const loggedError = (error: unknown, redact: (text: string) => string): L
   const stack = error.stack && (message === raw ? error.stack : error.stack.replace(raw, message))
   const code = codeOf(error)
   return {
-    name: clip(error.name),
+    name: clip(redact(error.name)),
     message: clip(redact(message)),
     ...(stack && { stack: clip(redact(stack), stackLimit) }),
-    ...(code !== undefined && { code: clip(code, 80) }),
+    ...(code !== undefined && { code: clip(redact(code), 80) }),
   }
 }

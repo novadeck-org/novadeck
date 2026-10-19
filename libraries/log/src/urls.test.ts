@@ -22,7 +22,11 @@ describe("hashUrls", () => {
       "GET https://github.com/novadeck-org/novadeck/releases/download/v1.2.3/latest.yml",
       "GET https://github.com/novadeck-org/novadeck/releases/download/v1.2.3/latest.yml",
     ],
-    ["the app's site", "https://novadeck.dev/docs?x=1#top", "https://novadeck.dev/docs?x=1#top"],
+    [
+      "the app's site, without what it asked",
+      "https://novadeck.dev/docs?x=1#top",
+      "https://novadeck.dev/docs?…#…",
+    ],
     [
       "a subdomain of it",
       "https://api.novadeck.dev/v1/report",

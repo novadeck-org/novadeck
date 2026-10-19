@@ -1318,9 +1318,10 @@ app.on("child-process-gone", (_event, details) => {
 // What goes wrong with a window's page, as the page itself can't tell: it crashed, it hangs,
 // it didn't load, or its preload failed.
 const pageLog = logger.for("page", "ui")
-app.on("render-process-gone", (_event, _contents, details) =>
-  pageLog.error("ui.gone", "A window's page ended unexpectedly.", {
-    data: { reason: details.reason, exitCode: details.exitCode },
+// A webview's page is a browser pane's, not the app's: `contents` tells them apart.
+app.on("render-process-gone", (_event, contents, details) =>
+  pageLog.error("ui.gone", "A page ended unexpectedly.", {
+    data: { reason: details.reason, exitCode: details.exitCode, contents: contents.getType() },
   }),
 )
 const watchPage = (contents: WebContents): void => {

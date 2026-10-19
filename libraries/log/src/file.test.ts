@@ -1,4 +1,12 @@
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
+import {
+  chmodSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -64,6 +72,34 @@ describe("openLogFile", () => {
     expect(readFileSync(logPath(logs, "host"), "utf8").split("\n")[0]).toBe("HEADER")
     expect(readFileSync(logPath(logs, "host", 1), "utf8").split("\n")[0]).toBe("HEADER")
   })
+
+  // As on Windows, where a program holding the file open keeps it from being renamed.
+  it.skipIf(process.getuid?.() === 0)(
+    "writes on where it can't rotate, without a header before each line, and keeps every line",
+    () => {
+      const logs = folder()
+      let now = 0
+      const file = openLogFile({
+        folder: logs,
+        name: "host",
+        maxBytes: 300,
+        header: () => "HEADER",
+        retryMs: 1_000,
+        now: () => now,
+      })
+      file.write(line(0))
+      file.write(line(1))
+      chmodSync(logs, 0o555)
+      try {
+        for (let index = 2; index < 8; index += 1) file.write(line(index))
+      } finally {
+        chmodSync(logs, 0o755)
+      }
+      file.close()
+      const written = readFileSync(logPath(logs, "host"), "utf8").trim().split("\n")
+      expect(written).toEqual(Array.from({ length: 8 }, (_, index) => line(index)))
+    },
+  )
 
   it("drops lines it can't write, without throwing", () => {
     const blocked = join(folder(), "file")

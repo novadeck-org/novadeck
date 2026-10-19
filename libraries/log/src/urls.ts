@@ -20,7 +20,7 @@ export const publicForges: readonly string[] = ["github.com", "gitlab.com", "bit
 // An address of any kind but `file://`, which `hashPaths` takes: scheme, user, host, port,
 // path, query and fragment.
 const urlPattern =
-  /\b(?<scheme>(?!file:)[a-z][a-z0-9+.-]*):\/\/(?<user>[^\s/@'"]*@)?(?<host>\[[0-9a-f:]+\]|[^\s/:?#'"<>()[\]\\]+)(?<port>:\d+)?(?<path>\/[^\s?#'"<>()[\]\\]*)?(?<query>\?[^\s#'"<>()[\]\\]*)?(?<fragment>#[^\s'"<>()[\]\\]*)?/gi
+  /\b(?<scheme>(?!file:)[a-z][a-z0-9+.-]*):\/\/(?<user>[^\s/@'"]*@)?(?<host>\[[0-9a-f:]+\]|[^\s/:?#'"<>()[\]\\]+)(?<port>:\d+)?(?<path>\/[^\s?#'"<>()[\]\\]*)?(?<query>\?[^\s#'"()[\]\\]*)?(?<fragment>#[^\s'"()[\]\\]*)?/gi
 
 // A Git remote over SSH, `git@github.com:acme/repo.git`: a path after the colon with a slash
 // in it or a `.git` at its end.
@@ -32,7 +32,14 @@ const loopback = /^(?:localhost|127(?:\.\d+){3}|\[::1\])$/i
 // A host or address Node's network errors name bare: `getaddrinfo ENOTFOUND git.acme.corp`,
 // `connect ECONNREFUSED 10.20.30.40:5432`.
 const errorHostPattern =
-  /\b(getaddrinfo (?:ENOTFOUND|EAI_AGAIN|EAI_FAIL)|(?:ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|ECONNRESET|EADDRINUSE|EADDRNOTAVAIL)) (\[[0-9a-f:]+\]|[\w-]+(?:\.[\w-]+)*)(:\d+)?/gi
+  /\b(getaddrinfo (?:ENOTFOUND|EAI_AGAIN|EAI_FAIL)|(?:ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|ECONNRESET|EADDRINUSE|EADDRNOTAVAIL)|Could not resolve host(?:name)?:?|connect to host) (\[[0-9a-f:]+\]|[\w-]+(?:\.[\w-]+)*)(:\d+)?/gi
+
+// A repository on a public forge written without its scheme: `github.com/acme/repo`.
+const forgePathPattern =
+  /(?<![\w./:@-])(github\.com|gitlab\.com|bitbucket\.org)(\/[\w.-]+(?:\/[\w.-]+)?)/gi
+
+// A file address with a host, as a share is written: `file://server/share/x`.
+const fileHostPattern = /\bfile:\/\/(?!\/)([^\s/'"<>()]+)(\/[^\s'"<>()]*)?/gi
 
 /**
  * Hashes what an address could say of the person: on hosts the app doesn't name, the host
@@ -85,7 +92,16 @@ export const hashUrls = (text: string, rule: UrlRule): string => {
     isReadable(host.toLowerCase(), "") ? match : `${code} ${writeHost(host)}${port}`,
   )
 
-  return hosts.replace(urlPattern, (match, ...args: unknown[]) => {
+  const bare = hosts
+    .replace(forgePathPattern, (match, host: string, path: string) =>
+      isReadable(host.toLowerCase(), path) ? match : `${host}${writePath(path)}`,
+    )
+    .replace(
+      fileHostPattern,
+      (match, host: string, path = "") => `file://${writeHost(host)}${writePath(path)}`,
+    )
+
+  return bare.replace(urlPattern, (match, ...args: unknown[]) => {
     const groups = args.at(-1) as Record<string, string | undefined>
     const { scheme = "", user = "", host = "", port = "" } = groups
     // Punctuation that ends a sentence ends the address.
@@ -95,7 +111,9 @@ export const hashUrls = (text: string, rule: UrlRule): string => {
     const path = strip(groups.path)
     const query = strip(groups.query)
     const fragment = strip(groups.fragment)
-    if (isReadable(host.toLowerCase(), path)) return match
+    // A readable address keeps its path, not what it asked or pointed at.
+    if (isReadable(host.toLowerCase(), path))
+      return `${scheme}://${user}${host}${port}${path}${query ? "?…" : ""}${fragment ? "#…" : ""}${tail}`
     return (
       `${scheme}://${user}${writeHost(host)}${port}${writePath(path)}` +
       `${query ? "?…" : ""}${fragment ? "#…" : ""}${tail}`

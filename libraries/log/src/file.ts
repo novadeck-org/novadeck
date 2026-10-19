@@ -45,6 +45,9 @@ export const openLogFile = (options: LogFileOptions): LogFile => {
   let fd: number | undefined
   let size = 0
   let failedAt: number | undefined
+  // When a rotation last failed, as when another program holds the file open on Windows:
+  // the file is written on, and rotation tried again only after `retryMs`.
+  let stuckAt: number | undefined
 
   const open = (): number | undefined => {
     if (fd !== undefined) return fd
@@ -71,16 +74,24 @@ export const openLogFile = (options: LogFileOptions): LogFile => {
     fd = undefined
   }
 
-  const rotate = (): void => {
+  // Moves each file one along, the oldest out; false where the file written couldn't move.
+  const rotate = (): boolean => {
     close()
-    rmSync(logPath(folder, name, keep - 1), { force: true })
+    try {
+      rmSync(logPath(folder, name, keep - 1), { force: true })
+    } catch {
+      // Held: renamed over below, or left.
+    }
+    let moved = true
     for (let index = keep - 2; index >= 0; index -= 1) {
       try {
         renameSync(logPath(folder, name, index), logPath(folder, name, index + 1))
-      } catch {
-        // Not there yet.
+      } catch (error) {
+        const missing = (error as NodeJS.ErrnoException).code === "ENOENT"
+        if (index === 0 && !missing) moved = false
       }
     }
+    return moved
   }
 
   const append = (handle: number, text: string): void => {
@@ -96,11 +107,13 @@ export const openLogFile = (options: LogFileOptions): LogFile => {
         const text = `${line}\n`
         let handle = open()
         if (handle === undefined) return
-        if (size > 0 && size + Buffer.byteLength(text) > maxBytes && keep > 1) {
-          rotate()
+        const due = size > 0 && size + Buffer.byteLength(text) > maxBytes && keep > 1
+        if (due && (stuckAt === undefined || now() - stuckAt >= retryMs)) {
+          const moved = rotate()
+          stuckAt = moved ? undefined : now()
           handle = open()
           if (handle === undefined) return
-          if (options.header) append(handle, `${options.header()}\n`)
+          if (moved && options.header) append(handle, `${options.header()}\n`)
         }
         append(handle, text)
       } catch {

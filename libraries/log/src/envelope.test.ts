@@ -60,6 +60,14 @@ describe("loggedError", () => {
     )
   })
 
+  it("redacts the name and code an error gives itself", () => {
+    const error = Object.assign(new Error("x"), { code: "/home/ana/acme" })
+    error.name = "AcmeError /home/ana/acme"
+    const logged = loggedError(error, (text) => text.replaceAll("/home/ana", "~"))
+    expect(logged.name).toBe("AcmeError ~/acme")
+    expect(logged.code).toBe("~/acme")
+  })
+
   it("cuts a long message to size", () => {
     const logged = loggedError(new Error("x".repeat(2_000)), same)
     expect(logged.message).toHaveLength(textLimit)

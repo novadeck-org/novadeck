@@ -87,13 +87,15 @@ export const nameHasher = (rule: PathRule): ((named: string, lower: boolean) => 
 }
 
 // What a folder or file name may hold, as found in free text: no separator, space, quote,
-// bracket, or `:`, which starts a stack frame's `:line:column`.
-const name = String.raw`[^\s\\/"'\x60()<>\[\]{}|,;:*?]+`
-// A name with spaces counts as one where a separator follows it (`My Project/`), or where
-// its last word ends in an extension (`Client Acme Plan.md`).
+// bracket, or `:`, which starts a stack frame's `:line:column`; but brackets that close
+// within it (`Copy (2)`, `[2024]`) and an apostrophe between letters (`Ana's`).
+const plain = String.raw`[^\s\\/"'\x60()<>\[\]{}|,;:*?]`
+const name = String.raw`(?:${plain}|\((?:${plain}| )*\)|\[(?:${plain}| )*\]|(?<=\w)'(?=\w))+`
+// A name with spaces, or a comma and a space (`Acme, Inc`), counts as one where a separator
+// follows it (`My Project/`), or where its last word ends in an extension (`Client Plan.md`).
 const pathSegment =
-  String.raw`(?:Program Files \(x86\)|${name}(?: (?!~)${name})+(?=[\\/])|` +
-  String.raw`(?:${name} (?!~))+[^\s\\/"'\x60()<>\[\]{}|,;:*?]*\.[A-Za-z0-9]{1,10}(?![\w.])|${name})`
+  String.raw`(?:${name}(?:,? (?!~)${name})+(?=[\\/])|` +
+  String.raw`(?:${name},? (?!~))+${name}\.[A-Za-z0-9]{1,10}(?![\w.])|${name})`
 const separator = String.raw`[\\/]+`
 
 /**
@@ -103,7 +105,7 @@ const separator = String.raw`[\\/]+`
  */
 const roots = String.raw`(?<root>(?<=file://)/[A-Za-z]:(?=/)|[A-Za-z]:(?=[\\/])|\\\\(?=[^\\\s])|~(?=[\\/])|<[A-Za-z][\w-]*>(?=[\\/])|(?=/))`
 const pathPattern = new RegExp(
-  String.raw`(?<![\w.~\-\\/<>#])(?!(?<=[A-Za-z][\w+.-]*:)//)(?<file>file://)?${roots}` +
+  String.raw`(?<![\w.~\-\\/#])(?<!<[A-Za-z][\w-]*>)(?!(?<=[A-Za-z][\w+.-]*:)//)(?<file>file://)?${roots}` +
     String.raw`(?<rest>[\\/]*${pathSegment}(?:${separator}${pathSegment})*)`,
   "g",
 )
@@ -132,7 +134,6 @@ const systemRoots = new Set([
   "etc",
   "nix",
   "snap",
-  "run",
   "System",
   "Library",
   "Applications",
@@ -140,6 +141,8 @@ const systemRoots = new Set([
 // Where only the first folder stays readable, as what is under it is anyone's.
 const sharedRoots = new Set([
   "opt",
+  // Where drives and network shares are mounted (/run/media, /run/user/1000/gvfs).
+  "run",
   "home",
   "Users",
   "tmp",
@@ -151,13 +154,8 @@ const sharedRoots = new Set([
   "root",
   "srv",
 ])
-const windowsSystemRoots = new Set([
-  "windows",
-  "program files",
-  "program files (x86)",
-  "programdata",
-])
-const windowsSharedRoots = new Set(["users"])
+const windowsSystemRoots = new Set(["windows", "program files", "program files (x86)"])
+const windowsSharedRoots = new Set(["users", "programdata"])
 const wslShares = new Set(["wsl$", "wsl.localhost"])
 
 const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)
@@ -213,6 +211,11 @@ export const hashPaths = (text: string, rule: PathRule): string => {
     if (first === undefined) return segments
     // An AppImage's mount: the app's own files, under a name that changes every launch.
     if (first === "tmp" && segments[from + 1]?.startsWith(".mount_")) return segments
+    // Where people keep their own builds and the apps' data: readable to the folder.
+    if (first === "usr" && segments[from + 1] === "local")
+      return hashFrom(segments, from + 2, false)
+    if (first === "Library" && segments[from + 1] === "Application Support")
+      return hashFrom(segments, from + 2, false)
     if (first === "mnt" && /^[a-z]$/i.test(segments[from + 1] ?? ""))
       return windows(segments, from + 2)
     if (systemRoots.has(first)) return segments

@@ -123,6 +123,36 @@ describe("hashPaths", () => {
       "GET https://github.com/acme/billing/releases",
       "GET https://github.com/acme/billing/releases",
     ],
+    [
+      "names with brackets, an apostrophe and a comma",
+      linux,
+      "/home/ana/Acme (Client)/Ana's Notes/Acme, Inc/[2024] Taxes/return.pdf",
+      `~/${h("Acme (Client)")}/${h("Ana's Notes")}/${h("Acme, Inc")}/${h("[2024] Taxes")}/${h("return", ".pdf")}`,
+    ],
+    [
+      "a frame's brackets around a path",
+      linux,
+      "at f (/home/ana/acme/x.js)",
+      `at f (~/${h("acme")}/${h("x", ".js")})`,
+    ],
+    [
+      "a path after a shell's redirect, and in angle brackets",
+      linux,
+      ">/home/ana/acme/out.txt </home/ana/acme/x.ts>",
+      `>~/${h("acme")}/${h("out", ".txt")} <~/${h("acme")}/${h("x", ".ts")}>`,
+    ],
+    [
+      "a drive mounted under /run",
+      linux,
+      "/run/media/ana/WorkDisk/Clients/plan.md",
+      `/run/${h("media")}/<user>/${h("WorkDisk")}/${h("Clients")}/${h("plan", ".md")}`,
+    ],
+    [
+      "a build under /usr/local, by its readable folders",
+      linux,
+      "/usr/local/bin/node and /usr/local/src/acme-secret/main.c",
+      `/usr/local/bin/node and /usr/local/${h("src")}/${h("acme-secret")}/${h("main", ".c")}`,
+    ],
     ["a ratio, and a word with a slash", linux, "3/4 done and/or failed", "3/4 done and/or failed"],
     [
       "a quoted path with spaces, as Node's errors write one",
@@ -162,6 +192,12 @@ describe("hashPaths", () => {
       mac,
       "/Applications/Novadeck.app/Contents/Resources/app.asar/out/main/index.js:12:3",
       "<install>/Contents/Resources/app.asar/out/main/index.js:12:3",
+    ],
+    [
+      "an app's support folder",
+      mac,
+      "/Library/Application Support/AcmeCorp VPN/config.plist",
+      `/Library/Application Support/${h("AcmeCorp VPN")}/${h("config", ".plist")}`,
     ],
     [
       "a system framework",
@@ -206,6 +242,12 @@ describe("hashPaths", () => {
       { ...windows, places: {}, readable: ["novadeck"] },
       "C:\\Users\\Ana Lopez\\AppData\\Local\\Programs\\novadeck\\Novadeck.exe",
       "~\\AppData\\Local\\Programs\\novadeck\\Novadeck.exe",
+    ],
+    [
+      "an agent's data in ProgramData",
+      windows,
+      "C:\\ProgramData\\AcmeCorpAgent\\x.log",
+      `C:\\ProgramData\\${h("acmecorpagent")}\\${h("x", ".log")}`,
     ],
     ["the system", windows, "C:\\Windows\\System32\\reg.exe", "C:\\Windows\\System32\\reg.exe"],
     [
@@ -310,7 +352,7 @@ describe("createRedactor", () => {
   const redact = createRedactor({
     ...linux,
     secretNames: ["NOVADECK_TOKEN"],
-    readableUrls: ["*.novadeck.dev"],
+    readableUrls: ["*.novadeck.dev", "github.com/novadeck-org"],
     secrets: ["c0ffee-held-secret-value"],
   })
 
@@ -340,7 +382,7 @@ describe("createRedactor", () => {
     [
       "secrets in a query",
       "GET https://api.novadeck.dev/v1?user=7&token=abc123&api_key=zzz&page=2",
-      "GET https://api.novadeck.dev/v1?user=7&token=<redacted>&api_key=<redacted>&page=2",
+      "GET https://api.novadeck.dev/v1?…",
     ],
     ["a password setting", "password=hunter2 rejected", "password=<redacted> rejected"],
     ["secrets in JSON", '{"accessToken":"abc","id":3}', '{"accessToken":"<redacted>","id":3}'],
@@ -413,6 +455,33 @@ describe("createRedactor", () => {
       "what a syntax error printed elsewhere quotes",
       "Uncaught SyntaxError: Unexpected token 'm', \"meet at Acme\" is not valid JSON",
       "Uncaught SyntaxError: Unexpected token (input withheld)",
+    ],
+    [
+      "an INI secret",
+      "aws_secret_access_key = wJalrXUtnFEMI",
+      "aws_secret_access_key = <redacted>",
+    ],
+    ["a password variable", "DB_PASS=hunter2 npm start", "DB_PASS=<redacted> npm start"],
+    [
+      "a session in JSON",
+      '{"session":"abc","pass":"def"}',
+      '{"session":"<redacted>","pass":"<redacted>"}',
+    ],
+    ["a Google OAuth token", "Bearer-less ya29.a0AfH6SMBabcdefghijklmnop", "Bearer-less <secret>"],
+    [
+      "a host ssh and curl name bare",
+      "ssh: Could not resolve hostname git.acme.corp: Name or service not known",
+      `ssh: Could not resolve hostname ${h("git.acme.corp")}.corp: Name or service not known`,
+    ],
+    [
+      "a repository on a forge without its scheme",
+      "see github.com/acmecorp/secret-repo and github.com/novadeck-org/novadeck",
+      `see github.com/${h("acmecorp")}/${h("secret-repo")} and github.com/novadeck-org/novadeck`,
+    ],
+    [
+      "a file address of a share",
+      "file://fileserver.acme.corp/clients/plan.md",
+      `file://${h("fileserver.acme.corp")}.corp/${h("clients")}/${h("plan", ".md")}`,
     ],
     ["an npm package", "react@19.3.1 and @novadeck/log", "react@19.3.1 and @novadeck/log"],
   ]
