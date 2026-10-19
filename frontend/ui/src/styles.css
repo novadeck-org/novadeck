@@ -10,10 +10,12 @@
 @source "../../demo/src";
 @source "../../demo-debug/src";
 @source "../../toolkit/src";
+@source "../../companion/src";
 @source not "../../terminal-views/src/**/*.test.ts";
 @source not "../../demo/src/**/*.test.ts";
 @source not "../../demo-debug/src/**/*.test.ts";
 @source not "../../toolkit/src/**/*.test.ts";
+@source not "../../companion/src/**/*.test.ts";
 @import "./theme/contract.css";
 @import "allotment/dist/style.css" layer(base);
 @import "./theme/base.css" layer(base);
@@ -44,11 +46,11 @@
 @import "@novadeck/toolkit/terminal-status.css" layer(components);
 /* The companion's recipes, before those split from the old styles.css, which win a tie
    with them. */
-@import "./terminals/companion/taskbar.css" layer(components);
-@import "./terminals/companion/peek.css" layer(components);
-@import "./terminals/companion/pane.css" layer(components);
-@import "./terminals/companion/artifact.css" layer(components);
-@import "./terminals/companion/mail.css" layer(components);
+@import "@novadeck/companion/taskbar.css" layer(components);
+@import "@novadeck/companion/peek.css" layer(components);
+@import "@novadeck/companion/pane.css" layer(components);
+@import "@novadeck/companion/artifact.css" layer(components);
+@import "@novadeck/companion/mail.css" layer(components);
 @import "./app/visitor.css" layer(components);
 @import "./shell/region.css" layer(components);
 @import "./shell/footer-murmur.css" layer(components);
@@ -75,8 +77,8 @@
 @import "@novadeck/viewers/image.css" layer(components);
 @import "@novadeck/viewers/browser.css" layer(components);
 @import "@novadeck/viewers/markdown.css" layer(components);
-@import "./terminals/companion/prose.css" layer(components);
-@import "./terminals/companion/syntax.css" layer(components);
+@import "@novadeck/companion/prose.css" layer(components);
+@import "@novadeck/companion/syntax.css" layer(components);
 @import "./preferences/settings.css" layer(components);
 @import "./preferences/welcome.css" layer(components);
 @import "./preferences/welcome-preview.css" layer(components);
