@@ -1,5 +1,5 @@
-import type { ChatAnswer, ChatQuestion } from "@novadeck/core/conversation"
-import { hasControlCharacters } from "@novadeck/core/prompt-refusal"
+import type { ChatAnswer, ChatQuestion } from "./conversation"
+import { hasControlCharacters } from "./prompt-refusal"
 
 // What the person has picked and written for a dialog's questions, by question id, and the
 // answer it makes. Pure, so the form's rules read apart from its markup.
