@@ -8,13 +8,15 @@ import {
 import { createStore, type Store } from "@novadeck/core/store"
 import { refusing } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
-import { act, createElement, useSyncExternalStore } from "react"
+import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
 import { describe, expect, it } from "../../test"
-import { openCommands } from "../../test/commands"
 import { ChatView } from "./ChatView"
+import { createChatCommands } from "./commands"
 import { chatDraftOf, chatReplyOf, chatSendOf } from "./mode-state"
+import { createChat } from "./state"
+import { useChat } from "./use-chat"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
@@ -23,8 +25,8 @@ const key = { projectId: "project", workspaceSessionId: "initial", terminalId: "
 const context = "project/initial"
 
 // The chat as the app holds it: its draft, what the draft replies to and the words on their
-// way kept in the UI store by the real commands, which send to `send` and `answer` as the
-// backend would, so they outlive the chat leaving the screen (`show(false)`).
+// way kept in the chat's own store by its real commands, which send to `send` and `answer` as
+// the backend would, so they outlive the chat leaving the screen (`show(false)`).
 const host = (
   conversation: Store<Conversation>,
   {
@@ -48,10 +50,16 @@ const host = (
     answer: (_key, request, reply) => answered(request, reply),
     refused: refusing(),
   }
-  const app = openCommands({ conversations })
-  app.commands.setChatDraft("01", draft)
+  const chat = createChat()
+  const commands = createChatCommands({
+    chat,
+    conversations,
+    terminalOpen: () => true,
+    context: () => context,
+  })
+  commands.setChatDraft("01", draft)
   const Hosted = ({ mounted }: { readonly mounted: boolean }): React.JSX.Element | null => {
-    const ui = useSyncExternalStore(app.ui.subscribe, app.ui.getSnapshot)
+    const state = useChat(chat, (each) => each)
     return mounted
       ? createElement(ChatView, {
           conversation,
@@ -59,15 +67,15 @@ const host = (
           program,
           agent: undefined,
           compact: false,
-          draft: chatDraftOf(ui.chatDrafts, context, "01"),
-          onDraft: (text) => app.commands.setChatDraft("01", text),
-          replyTo: chatReplyOf(ui.chatReplies, context, "01"),
-          onReplyTo: (to) => app.commands.setChatReply(context, "01", to),
-          sending: chatSendOf(ui.chatSends, context, "01"),
-          onSend: (text, to) => app.commands.sendChat(key, text, to),
+          draft: chatDraftOf(state.drafts, context, "01"),
+          onDraft: (text) => commands.setChatDraft("01", text),
+          replyTo: chatReplyOf(state.replies, context, "01"),
+          onReplyTo: (to) => commands.setChatReply(context, "01", to),
+          sending: chatSendOf(state.sends, context, "01"),
+          onSend: (text, to) => commands.sendChat(key, text, to),
           onInterrupt: async () => {},
           onAnswer: (request, reply) => conversations.answer(key, request, reply),
-          onWordsLost: (words) => app.commands.appendChatDraft(context, "01", words),
+          onWordsLost: (words) => commands.appendChatDraft(context, "01", words),
           onAnswerInTerminal: () => {},
           focusInput: false,
           onInputFocused: () => {},
@@ -82,8 +90,8 @@ const host = (
     sent,
     answered,
     show: (mounted: boolean) => rerender(createElement(Hosted, { mounted })),
-    draft: () => chatDraftOf(app.ui.getSnapshot().chatDrafts, context, "01"),
-    replyTo: () => chatReplyOf(app.ui.getSnapshot().chatReplies, context, "01"),
+    draft: () => chatDraftOf(chat.store.getSnapshot().drafts, context, "01"),
+    replyTo: () => chatReplyOf(chat.store.getSnapshot().replies, context, "01"),
   }
 }
 

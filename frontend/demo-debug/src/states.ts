@@ -21,6 +21,7 @@ import {
   exitedWithCode,
   failedToStart,
   killedBy,
+  killedForMemory,
   leadsOthers,
   murmurGists,
   murmurHeadlines,
@@ -384,6 +385,9 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
         ),
         setting("Killed (SIGKILL)", "Ending bar, danger tone", (key, { dispatch }) =>
           dispatch(killedBy(key, "SIGKILL")),
+        ),
+        setting("Killed for memory", "Ending bar: Killed · out of memory", (key, { dispatch }) =>
+          dispatch(killedForMemory(key)),
         ),
         setting("Failed to start", "Folder not found; tab marked failed", (key, { dispatch }) =>
           dispatch(failedToStart(key, "Folder not found")),

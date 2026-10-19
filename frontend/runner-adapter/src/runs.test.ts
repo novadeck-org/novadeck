@@ -330,6 +330,8 @@ describe("an agent's telemetry", () => {
       now: 1,
     })
     app.backend.commit(workspaceReducer(seeded, close), [close])
+    // Once the close's commit is done, as its readers may start a transaction.
+    await Promise.resolve()
     expect(usageOf(app)).toBeUndefined()
     app.stop()
   })
