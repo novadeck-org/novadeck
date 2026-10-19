@@ -288,7 +288,9 @@ can't account for:
 The branch's run wrote the serial list as the move first had it, and main has changed it since
 (#315 runs every package of `frontend/` and `apps/` one at a time). This conflict is git's, so
 the script leaves it to you. Where the branch didn't edit the line, take main's side of that
-hunk. Where it did, put its change onto main's line.
+hunk. Where it did, put its change onto main's line. If main changes these root test lines
+again, the script lists them under "Handwritten edits with nothing to do" until their
+`settled` forms in `frontend.ts` are updated.
 
 It then lists what is left, and any conflict marker in the tree; fix those, `git add` them, and run
 it again. **It will not run on a tree with a conflict marker in a tracked text file**, merge or not,
