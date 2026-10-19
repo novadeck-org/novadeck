@@ -9,8 +9,8 @@ import { page } from "./panes/page"
 import { plan } from "./panes/plan"
 import type { Drawing, PaneKind, Registry } from "./registration"
 
-// Every kind of thing on a terminal's bar, by its registration. A new pane or artifact
-// type is one folder in `panes/` and one line here; a kind that core adds without one
+// Every kind of thing on a terminal's bar, by its registration. A new artifact
+// type is one folder in `panes/` and one line here, with its data parts in core; a kind that core adds without one
 // fails to compile, since `Registry` maps every `PaneKind`.
 export const registry = { image, file, page, plan, messages } satisfies Registry
 

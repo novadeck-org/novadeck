@@ -66,7 +66,8 @@ places they always had, so the cascade holds.
 
 ## Adding a pane
 
-A new pane or artifact type is one folder and one line.
+A new artifact type is one folder and one line in the registry, plus its data parts. A new pane
+that is not an item (as the messages are) touches more, listed at the end.
 
 1. **The folder**, `src/panes/<kind>/`: its components, and `index.ts` exporting the
    registration. Everything it needs of the pane is on the `PaneRegistration` type
@@ -78,11 +79,13 @@ A new pane or artifact type is one folder and one line.
    CodeMirror statically.
 2. **The line**, in `registry.ts`: add it to `registry`. `Registry` maps every `PaneKind`, so a
    kind that has no registration fails to compile.
-3. **For a new item kind**, the data parts that stay closed, in this order: its content schema in
-   `contract/protocol`, its type and its line in `kindRules` in `frontend/core/src/companion.ts`
-   (what it points at, whether it is followed always, whether closing hides it), and its loader in
-   the runner (`backend/runner/src/companions/`). The pane kind is `ItemKind | "messages"`, so
-   adding the kind to core's `ItemKind` makes the registry's missing line a compile error.
+3. **For a new item kind**, the data parts that stay closed: the `companionItem.kind` enum and
+   its content schema in `contract/protocol/src/schemas.ts`, its type in core's `ItemKind` and its
+   line in `kindRules` in `frontend/core/src/companion.ts` (what it points at, whether it is
+   followed always, whether closing hides it), the SQLite `CHECK` on the kind in
+   `backend/runner/src/workspaces/store.ts`, and its loaders in the runner
+   (`backend/runner/src/companions/`). The pane kind is `ItemKind | "messages"`, so adding the
+   kind to core's `ItemKind` makes the registry's missing line a compile error.
 
 A skeleton for an artifact kind (an `audio` item, say):
 
@@ -109,5 +112,10 @@ export const audio = {
 export const registry = { image, file, page, plan, messages, audio } satisfies Registry
 ```
 
-A pane that is not an item (as the messages are) takes `MessagesMember`'s place: its registration
-is `PaneRegistration<TheMember, "kind">` and its `View` draws the whole body itself.
+A pane that is not an item (as the messages are) has no data parts, but it is not one line
+either: add the kind to `PaneKind` in `registration.ts`, give it a member shape in `bar.ts`
+(`BarMember`, and `composeBar` and the key logic with it, plus `BarKey` in core's
+`companion-bar`), widen the `M` constraint on `PaneRegistration`, `ThumbProps` and `ViewProps` and
+the conditional in `ThumbProps` and `Registry`, and teach `kindOf` in `registry.ts` to name it.
+Its registration is `PaneRegistration<TheMember, "kind">`, and its `View` draws the whole body
+itself.

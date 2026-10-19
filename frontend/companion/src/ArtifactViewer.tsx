@@ -144,12 +144,10 @@ export const artifactView = <K extends ArtifactKind>(
     return (
       <div
         className="artifact-viewer"
-        aria-busy={load === undefined}
+        aria-busy={!content && load?.state !== "unavailable"}
         data-document={(content && document?.(content)) || undefined}
       >
-        {load === undefined ? (
-          <div className="artifact-status" />
-        ) : load.state === "unavailable" ? (
+        {load?.state === "unavailable" ? (
           <Unavailable
             item={item}
             reason={load.reason}
@@ -160,7 +158,9 @@ export const artifactView = <K extends ArtifactKind>(
         ) : content ? (
           <Body item={item} content={content} actions={actions} />
         ) : (
-          <div className="artifact-status">Couldn't load {item.name}.</div>
+          // Nothing yet, or content of another kind than the item's, as while the runner
+          // reclassifies a persisted item: busy until what fits it arrives.
+          <div className="artifact-status" />
         )}
       </div>
     )
