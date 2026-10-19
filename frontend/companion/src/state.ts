@@ -527,6 +527,7 @@ const mailFollower = (session: Session) => {
       const more = count > (counts.get(id) ?? count)
       counts.set(id, count)
       if (!hasMail(mail)) continue
+      // A terminal closed since its mail came takes nothing: the bar's actions pass it by.
       const { terminalId, ...target } = companionKeyOf(id)
       actions.push({ type: "bar/arrive", target, terminalId, key: messagesKey })
       if (more) actions.push({ type: "bar/reopen", target, terminalId, key: messagesKey })
@@ -642,9 +643,22 @@ export const createPanes = ({
       if (before.length !== after.length || after.some((items, index) => items !== before[index]))
         reconcile(session, next)
     })
+    // Heard once the turn is over, as mail may change inside a workspace commit, which
+    // can't take this transaction: a closed terminal's mail goes as the backend commits
+    // its close. What changed meanwhile is read then, once.
+    let heard = false
+    let connected = true
     const stopMail =
-      messages?.state.subscribe(() => noteMail(messages.state.getSnapshot())) ?? (() => {})
+      messages?.state.subscribe(() => {
+        if (heard) return
+        heard = true
+        queueMicrotask(() => {
+          heard = false
+          if (connected) noteMail(messages.state.getSnapshot())
+        })
+      }) ?? (() => {})
     return () => {
+      connected = false
       stopWorkspace()
       stopMail()
       for (const id of session.followed.keys()) unfollow(session, id)

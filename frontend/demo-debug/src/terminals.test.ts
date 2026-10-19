@@ -14,6 +14,7 @@ import {
   exitedWithCode,
   failedToStart,
   killedBy,
+  killedForMemory,
   leadsOthers,
   dealKinds,
   noisyAgents,
@@ -94,6 +95,13 @@ describe("terminal states", () => {
       expect(terminalEnding(shell(apply(killedBy(key("04"), "SIGKILL"))))).toMatchObject({
         status: "Killed",
         reason: "SIGKILL",
+      })
+    })
+
+    it("says it was killed for memory, where the runner said so", () => {
+      expect(terminalEnding(shell(apply(killedForMemory(key("04")))))).toMatchObject({
+        status: "Killed",
+        reason: "out of memory",
       })
     })
 
