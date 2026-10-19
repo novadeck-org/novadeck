@@ -187,6 +187,28 @@ describe("a terminal's team in words", () => {
     )
     expect(teamText(big, "01")).toBe("leads @fox, @owl, Terminal and 2 more")
   })
+
+  it("names a fourth worker rather than counting one more", () => {
+    const four = [6, 7].reduce(
+      (state, slot) =>
+        [
+          { type: "terminal/add", target, terminal: terminalFixture(slot, "~/project") },
+          {
+            type: "terminal/update",
+            target,
+            terminalId: `0${slot}`,
+            handle: `w${slot}`,
+            ledBy: "moth",
+          },
+        ].reduce(
+          (inner, action) =>
+            workspaceReducer(inner, action as Parameters<typeof workspaceReducer>[1]),
+          state,
+        ),
+      teams(),
+    )
+    expect(teamText(four, "01")).toBe("leads @fox, @owl, @w6 and @w7")
+  })
 })
 
 describe("two teams", () => {

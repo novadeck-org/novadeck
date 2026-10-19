@@ -122,11 +122,11 @@ export const teamRole = (
   return team.workers.includes(terminalId) ? "worker" : undefined
 }
 
-// Words as a sentence lists them, the first `shown` and how many more: "@a, @b and @c",
-// "@a, @b, @c and 4 more".
+// Words as a sentence lists them, and past `shown`, how many more (counted from two, as
+// naming one more is as short): "@a, @b and @c", "@a, @b, @c and 4 more".
 const listed = (words: readonly string[], shown = 3): string => {
   const named =
-    words.length > shown ? [...words.slice(0, shown), `${words.length - shown} more`] : words
+    words.length > shown + 1 ? [...words.slice(0, shown), `${words.length - shown} more`] : words
   return named.length < 2
     ? (named[0] ?? "")
     : `${named.slice(0, -1).join(", ")} and ${named.at(-1)}`
@@ -146,7 +146,8 @@ export const teamText = (workspace: Workspace, terminalId: string): string | und
   const led = workers.get(terminalId) ?? []
   const parts = [
     ...(lead === undefined ? [] : [`led by ${named(lead)}`]),
-    ...(led.length ? [`leads ${listed(led.map(named))}`] : []),
+    // Only those it can say are named; the rest are counted.
+    ...(led.length ? [`leads ${listed([...led.slice(0, 4).map(named), ...led.slice(4)])}`] : []),
   ]
   return parts.length ? parts.join(", ") : undefined
 }

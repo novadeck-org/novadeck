@@ -364,7 +364,8 @@ agent.
   Selecting a member sends one pulse out from the lead along the wire. A terminal that both
   works for a lead and leads shows the team it leads. The wire is only drawn: assistive
   technology hears the team in each member's tab description, whatever is selected, as
-  "led by @moth" and "leads @fox and @owl" (the first three by handle, then a count).
+  a sentence after what else it says: "Led by @moth", "Leads @fox and @owl" (by handle,
+  or by name where one has none; past four, the first three and how many more).
   Without a connected agent
   there is no resume, even for sessions it reported before: disconnecting forgets them,
   and the terminal comes back as a plain shell with its transcript.

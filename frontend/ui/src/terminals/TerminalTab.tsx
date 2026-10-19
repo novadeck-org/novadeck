@@ -27,6 +27,9 @@ import { tabInstructionsId } from "./TerminalTabs"
 import { useRenderAt } from "./use-render-at"
 import { windowMenu, type DockTarget } from "./window-menu"
 
+// A sentence of the description, its first letter a capital.
+const capital = (text: string) => `${text[0]!.toUpperCase()}${text.slice(1)}`
+
 const actionClasses = "terminal-tab-action icon-button small dim quiet"
 // Hide and Rename wait for the pointer or keyboard focus; Close stays.
 const revealedActionClasses = `${actionClasses} terminal-tab-revealed`
@@ -115,9 +118,11 @@ export const TerminalTab = ({
         ? `${subagents}: ${subagentsDetail(shell)}`
         : subagents
       : undefined
-  const said = [note, messages, kinds, teamWords].filter(Boolean).join(", ")
-  // Its team's words start lower case, as they follow the others, so lead with a capital.
-  const description = said && `${said[0]!.toUpperCase()}${said.slice(1)}`
+  // Its team is a sentence of its own, so it isn't heard as one more of a list before it.
+  const description = [[note, messages, kinds].filter(Boolean).join(", "), teamWords]
+    .filter(Boolean)
+    .map((part) => capital(part!))
+    .join(". ")
   const menu = windowMenu({
     terminal,
     onRename: onBeginRename,

@@ -30,7 +30,7 @@ describe("Messages waiting for an agent", () => {
     // Codex has one message being delivered and one queued; what it sent doesn't count.
     await expect
       .poll(() => description("Checkout review"))
-      .toBe("Needs permission, 2 messages waiting, 2 subagents: 2 explorer, led by @moth")
+      .toBe("Needs permission, 2 messages waiting, 2 subagents: 2 explorer. Led by @moth")
     // The dev server's message is gone, never waiting.
     expect(description("Dev server")).toBeNull()
   })
@@ -39,7 +39,7 @@ describe("Messages waiting for an agent", () => {
     await openMessagesDemo()
     await expect
       .poll(() => description("Checkout implementation"))
-      .toBe("Plan ready for review, 1 message waiting, held until you release it, leads @crow")
+      .toBe("Plan ready for review, 1 message waiting, held until you release it. Leads @crow")
   })
 })
 
@@ -121,7 +121,7 @@ describe("A terminal's messages", () => {
       await expect.element(tests.getByRole("button", { name: /^Release/ })).not.toBeInTheDocument()
       await expect
         .poll(() => description("Checkout implementation"))
-        .toBe("Plan ready for review, 1 message waiting, leads @crow")
+        .toBe("Plan ready for review, 1 message waiting. Leads @crow")
     })
   })
 })
@@ -151,14 +151,14 @@ describe("Pausing messaging", () => {
     await expect
       .poll(() => description("Checkout review"))
       .toBe(
-        "Needs permission, 2 messages waiting, held while messaging is paused, 2 subagents: 2 explorer, led by @moth",
+        "Needs permission, 2 messages waiting, held while messaging is paused, 2 subagents: 2 explorer. Led by @moth",
       )
     await pause.click()
     await expect.poll(() => textOf(items.nth(3))).toMatch(/Waiting/)
     await expect.element(pane.getByText(/Messaging is paused/)).not.toBeInTheDocument()
     await expect
       .poll(() => description("Checkout review"))
-      .toBe("Needs permission, 2 messages waiting, 2 subagents: 2 explorer, led by @moth")
+      .toBe("Needs permission, 2 messages waiting, 2 subagents: 2 explorer. Led by @moth")
   })
 })
 
@@ -311,8 +311,8 @@ describe("A team in the sidebar", () => {
     await openMessagesDemo()
     await terminalTab("Dev server").click()
     const worker = textOf(terminalTab("Checkout review").getByText(/^@[a-z]+$/))
-    await expect.poll(() => description("Checkout review")).toMatch(/, led by @moth$/)
-    expect(description("Checkout implementation")).toMatch(new RegExp(`leads ${worker}$`))
+    await expect.poll(() => description("Checkout review")).toMatch(/\. Led by @moth$/)
+    expect(description("Checkout implementation")).toMatch(new RegExp(`Leads ${worker}$`))
     expect(description("Dev server")).toBeNull()
   })
 
