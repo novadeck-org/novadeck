@@ -23,11 +23,11 @@ jobs:
           - name: Format
             os: ubuntu-latest
             command: npm run format:check
-          # With atlas's anchors: a change that moves the code a flow or an area points at
-          # fails here, not in the next person's brief.
+          # With atlas's anchors (in `lint`): a change that moves the code a flow or an area
+          # points at fails here, not in the next person's brief.
           - name: Lint
             os: ubuntu-latest
-            command: npm run lint && pnpm --filter @novadeck/atlas check
+            command: npm run lint
           - name: Typecheck
             os: ubuntu-latest
             command: npm run typecheck
