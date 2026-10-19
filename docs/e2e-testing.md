@@ -140,7 +140,7 @@ again without it. These tests skip anywhere else. Its traces upload as
 | Harness     | Published as                                          | Version |
 | ----------- | ----------------------------------------------------- | ------- |
 | Claude Code | npm, `@anthropic-ai/claude-code`                      | 2.1.287 |
-| Codex       | npm, `@openai/codex`                                  | 0.159.3 |
+| Codex       | npm, `@openai/codex`                                  | 0.163.0 |
 | Antigravity | an archive, by its address and SHA-512 (Linux x86-64) | 1.2.14  |
 
 `install.ts` installs each harness into `<cache>/<harness>-<version>`, staging it first

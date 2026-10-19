@@ -14,7 +14,7 @@
     "@novadeck/core": "workspace:*",
     "@novadeck/demo-debug": "workspace:*",
     "@novadeck/ui": "workspace:*",
-    "react": "^19.3.0"
+    "react": "^19.3.1"
   },
   "devDependencies": {
     "@novadeck/build-kit": "workspace:*",
@@ -23,6 +23,6 @@
     "@types/react": "^19.3.0",
     "@vitejs/plugin-react": "^5.2.0",
     "typescript": "^7.0.2",
-    "vite": "^7.3.6"
+    "vite": "^7.3.7"
   }
 }

@@ -2,7 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 
-import { isEmpty, sameText, wrappedRows, type BoxProfile } from "./box.js"
+import { isEmpty, sameText, showsTail, wrappedRows, type BoxProfile } from "./box.js"
 import { PromptRefusal } from "./errors.js"
 import { type HoldBudget, type InputEntry, type InputQueue } from "./queue.js"
 import { bracketedPaste } from "./typing.js"
@@ -135,8 +135,8 @@ export class Prompts {
    * rule judges, before the queue; in its turn, for what `admit` throws, which passes as it
    * is, and for a screen that takes no bracketed paste, shows no input box, holds a draft
    * already or has no room for the text, or where the paste never showed as exactly the
-   * text (or the box never switched to its shell mode at a typed `!`), leaving what landed
-   * of it as a draft. All but the last write nothing.
+   * text, or as its tail in a full box (or the box never switched to its shell mode at a
+   * typed `!`), leaving what landed of it as a draft. All but the last write nothing.
    */
   async prompt(terminalId: string, text: string): Promise<void> {
     this.refuse(text)
@@ -384,7 +384,8 @@ export class Prompts {
 
   /**
    * Whether the pasted text showed in time, steady on two reads running: the box, in the
-   * mode asked, holds exactly the text, or only the placeholder its TUI shows for a
+   * mode asked, holds exactly the text, or only its tail where the box is as tall as its
+   * viewport (see `showsTail`), or only the placeholder its TUI shows for a
    * long paste (for a command, only where its shell runs the text the placeholder stands
    * for: `unexpanded` where it showed only a placeholder it would run as text). A box that
    * went into its shell mode as a message landed never counts.
@@ -407,7 +408,9 @@ export class Prompts {
       if (!after) return false
       const box = profile.read(after)
       const right = box !== undefined && box.mode === mode
-      const holds = right && sameText(box.text, text)
+      // A text taller than the box's viewport shows only its tail, the box then full.
+      const holds =
+        right && (sameText(box.text, text) || showsTail(profile, box, after.rows.length, text))
       const placeholder = right && collapsible(text) && profile.collapsed(box)
       unexpanded = placeholder && mode === "shell" && !profile.shell.expands
       const fits = holds || (placeholder && (mode === "prompt" || profile.shell.expands))

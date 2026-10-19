@@ -121,7 +121,8 @@ const keyOf = (hint: string): string | undefined => {
   if (hint === "enter") return "\r"
   if (hint === "space") return " "
   if (hint === "tab") return "\t"
-  const control = /^ctrl\+([a-z])$/.exec(hint)
+  // Ctrl as Codex has drawn it: `ctrl+`, `^` (0.161.0) and `⌃` (macOS, 0.163.0).
+  const control = /^(?:ctrl\+|\^|⌃)([a-z])$/.exec(hint)
   if (control) return String.fromCharCode(control[1]!.charCodeAt(0) - 96)
   return hint.length === 1 && hint >= "!" && hint <= "~" ? hint : undefined
 }

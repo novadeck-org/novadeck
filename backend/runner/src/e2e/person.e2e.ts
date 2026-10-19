@@ -123,7 +123,14 @@ for (const setup of setups) {
         own(async (call) => {
           if (!asked(call, "Start the long job")) return undefined
           await held.opened
-          return { text: "Long job done." }
+          // A harness that steers can give the running turn's call the prompt queued mid-turn
+          // too, as Codex 0.163 may when it lands while the call runs: its one reply answers both.
+          return {
+            text:
+              setup.steers && asked(call, "Then sum it up")
+                ? "Long job done. Summed up."
+                : "Long job done.",
+          }
         }),
         sends("Tell moth the plan", "moth", "The plan is ready."),
         own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),

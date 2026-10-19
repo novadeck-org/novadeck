@@ -20,10 +20,10 @@
   "devDependencies": {
     "@types/node": "^26.6.5",
     "typescript": "^7.0.2",
-    "vite": "^7.3.6",
-    "vitest": "^5.0.3"
+    "vite": "^7.3.7",
+    "vitest": "^5.0.5"
   },
   "peerDependencies": {
-    "vite": "^7.3.6"
+    "vite": "^7.3.7"
   }
 }
