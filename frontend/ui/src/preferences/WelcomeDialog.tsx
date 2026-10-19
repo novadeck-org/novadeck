@@ -1,12 +1,12 @@
 import { harnesses } from "@novadeck/core/harnesses"
+import { Checkbox } from "@novadeck/toolkit/Checkbox"
+import { Dialog, DialogDescription, DialogTitle } from "@novadeck/toolkit/Dialog"
+import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
+import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
+import { brandName, NovaMark, NovaPattern, Wordmark } from "@novadeck/toolkit/NovaLogo"
 import { ArrowRight, ScrollText, Sparkles, type LucideIcon } from "lucide-react"
 import { useRef, useState, type ComponentType, type CSSProperties, type RefObject } from "react"
 
-import { Checkbox } from "../ui-toolkit/Checkbox"
-import { Dialog, DialogDescription, DialogTitle } from "../ui-toolkit/Dialog"
-import { ClaudeIcon } from "../ui-toolkit/icons/ClaudeIcon"
-import { CodexIcon } from "../ui-toolkit/icons/CodexIcon"
-import { brandName, NovaMark, NovaPattern, Wordmark } from "../ui-toolkit/NovaLogo"
 import { agentLabels, agentNote, type AgentSwitch } from "./AgentSwitches"
 import { WelcomePreview } from "./WelcomePreview"
 

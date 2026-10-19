@@ -1,10 +1,10 @@
 import { formatSize, stepLabel } from "@novadeck/core/addon-format"
 import { installFailure, installSize } from "@novadeck/core/voice"
+import { Chord } from "@novadeck/toolkit/Chord"
+import { Progress } from "@novadeck/toolkit/Progress"
 import { Check, Mic, TriangleAlert } from "lucide-react"
 import { useState, useSyncExternalStore } from "react"
 
-import { Chord } from "../ui-toolkit/Chord"
-import { Progress } from "../ui-toolkit/Progress"
 import type { DictationController, VoiceSetup } from "./dictation"
 
 const failurePrefix = "Voice input didn't install:"

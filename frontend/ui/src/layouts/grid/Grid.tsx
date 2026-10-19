@@ -8,6 +8,7 @@ import type {
   GridLayouts,
   GridRestoreWidths,
 } from "@novadeck/core/types"
+import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
 import { Plus } from "lucide-react"
 import {
   useCallback,
@@ -27,7 +28,6 @@ import {
 
 import { useDrag, useDragSession } from "../../terminals/drag-session"
 import type { TerminalLayoutControls } from "../../terminals/WindowShell"
-import { ContextMenu } from "../../ui-toolkit/ContextMenu"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
 import {

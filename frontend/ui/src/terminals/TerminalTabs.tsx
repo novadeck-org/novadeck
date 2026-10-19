@@ -10,9 +10,9 @@ import { RestrictToElement } from "@dnd-kit/dom/modifiers"
 import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable } from "@dnd-kit/react/sortable"
 import type { Tile } from "@novadeck/core/types"
+import { sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import { useCallback, useContext, useMemo, useState, type ReactNode } from "react"
 
-import { sidebarListClasses } from "../sidebar/SidebarItem"
 import { TabListContext } from "./tab-list"
 
 const sensors = [

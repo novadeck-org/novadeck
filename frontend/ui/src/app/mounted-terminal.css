@@ -2,7 +2,7 @@
 
 /* The mounted terminal recipe: the content a mounted terminal draws into, greyed while typing
    is paused, and where a failed paste says why for a moment at the top. The notice and the
-   ending bar are the terminal-status recipe's (ui-toolkit/terminal-status.css).
+   ending bar are the terminal-status recipe's (frontend/toolkit/src/terminal-status.css).
 
    Hooks: data-locked on `.terminal-mounted`. Parts: `.terminal-screen` (the element a mount
    draws in, greyed after a moment while locked), `.terminal-paste`. */

@@ -8,11 +8,11 @@ import {
 import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable, useSortable } from "@dnd-kit/react/sortable"
 import { resetText, type AgentAccount, type UsageWindow } from "@novadeck/core/account-usage"
+import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
+import { Popover } from "@novadeck/toolkit/Popover"
 import { createElement, useEffect, useState, type ComponentProps } from "react"
 
 import { programIcon } from "../terminals/processes/profiles"
-import { ContextMenu, type ContextMenuItem } from "../ui-toolkit/ContextMenu"
-import { Popover } from "../ui-toolkit/Popover"
 
 const percent = (fraction: number): string => `${Math.round(fraction * 100)}%`
 

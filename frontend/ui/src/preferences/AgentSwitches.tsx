@@ -1,6 +1,6 @@
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
+import { Switch } from "@novadeck/toolkit/Switch"
 
-import { Switch } from "../ui-toolkit/Switch"
 import { settingRowClasses, settingsCardClasses } from "./settings"
 
 // An agent the person can connect, as its switch shows it.

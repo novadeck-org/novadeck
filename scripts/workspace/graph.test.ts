@@ -101,6 +101,7 @@ describe("the package graph", () => {
       "apps/desktop",
       "apps/try",
       "frontend/ui",
+      "frontend/toolkit",
       "frontend/demo",
       "frontend/demo-debug",
       "frontend/runner-adapter",
@@ -156,6 +157,41 @@ describe("the package graph", () => {
       ["frontend/runner-adapter", "frontend/demo", "frontend/demo-debug", "frontend/terminal-views"]
         .filter((folder) => reaches(folder).has("frontend/ui"))
         .map((folder) => `${folder} -> frontend/ui`),
+    ).toEqual([])
+  })
+
+  it("keeps the toolkit off every other frontend package, its tests' render helpers aside", () => {
+    // The toolkit is what every feature draws with, so nothing of the app may sit under it.
+    // The test kit is the one exception, as a dev dependency of its tests: what it ships (the
+    // model, for its fixtures) is the tests' reach, not the toolkit's.
+    const own = named("frontend/toolkit", "any").filter((folder) => folder !== "frontend/test-kit")
+    const shipped = new Set<string>()
+    const visit = (next: string): void => {
+      if (shipped.has(next)) return
+      shipped.add(next)
+      for (const further of named(next, "shipped")) visit(further)
+    }
+    for (const folder of own) visit(folder)
+    expect(
+      [...shipped]
+        .filter((folder) => folder.startsWith("frontend/"))
+        .map((f) => `frontend/toolkit -> ${f}`),
+    ).toEqual([])
+    expect(named("frontend/toolkit", "shipped").filter((f) => f.startsWith("frontend/"))).toEqual(
+      [],
+    )
+  })
+
+  it("keeps the toolkit's shipped code off the test kit, which only its tests may import", () => {
+    const src = join(root, "frontend", "toolkit", "src")
+    const shipped = (readdirSync(src, { recursive: true }) as string[])
+      .map((file) => file.split("\\").join("/"))
+      .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))
+    expect(shipped.length).toBeGreaterThan(10)
+    expect(
+      shipped.filter((file) =>
+        readFileSync(join(src, file), "utf8").includes("@novadeck/test-kit"),
+      ),
     ).toEqual([])
   })
 

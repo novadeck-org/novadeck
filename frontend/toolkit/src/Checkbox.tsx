@@ -1,7 +1,7 @@
 import { Check } from "lucide-react"
 import type { ComponentPropsWithoutRef } from "react"
 
-import { cn } from "../class-name"
+import { cn } from "./class-name"
 
 // A checkbox drawn to match the switches: the strong fill with a check once checked
 // (the toggle recipe). It sits in a label that names it (or takes `aria-label`) and

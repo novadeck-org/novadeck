@@ -1,10 +1,10 @@
 import { inboxType, type InboxItem } from "@novadeck/core/inbox"
+import { HandleChip } from "@novadeck/toolkit/HandleChip"
+import { Sheet } from "@novadeck/toolkit/Sheet"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { ArrowLeft, CircleCheck, Terminal, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
-import { HandleChip } from "../ui-toolkit/HandleChip"
-import { Sheet } from "../ui-toolkit/Sheet"
-import { Tooltip } from "../ui-toolkit/Tooltip"
 import { ApproveSheet } from "./ApproveSheet"
 import { AskSheet } from "./AskSheet"
 import { nextRowButton, rowOf, sheetControls } from "./inbox-dom"
