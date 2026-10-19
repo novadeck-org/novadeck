@@ -17,8 +17,10 @@ import {
 // styles.css. It makes the tree so rather than doing a move: run again, it moves what a branch
 // added at the old place and rewrites what it added that names one, and on a tree with nothing
 // to do it changes nothing. The package's own files (manifest, configs, README, the one-line
-// test.ts), the UI's manifest and the checks that follow the move (architecture test, graph
-// test, theme tests, docs) are committed by hand, not written here. A branch that predates the
+// test.ts), the UI's and chat-contract's manifests, chat-contract's one import of
+// `@novadeck/ui/terminals/chat/Transcript` (now `@novadeck/chat/Transcript`) and the checks that
+// follow the move (architecture test, graph test, theme tests, docs) are committed by hand, not
+// written here. A branch that predates the
 // toolkit or companion moves is handled: a chat file naming `ui-toolkit/` or `../companion/` is
 // pointed at that package, so those scripts may run before or after this one.
 

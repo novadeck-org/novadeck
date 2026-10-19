@@ -209,8 +209,8 @@ describe("the package graph", () => {
     ).toEqual([])
   })
 
-  it("keeps shipped code of the toolkit and the companion off the test kit, which only their tests may import", () => {
-    for (const folder of ["frontend/toolkit", "frontend/companion"]) {
+  it("keeps shipped code of the toolkit, the companion and the chat off the test kit, which only their tests may import", () => {
+    for (const folder of ["frontend/toolkit", "frontend/companion", "frontend/chat"]) {
       const src = join(root, folder, "src")
       const shipped = (readdirSync(src, { recursive: true }) as string[])
         .map((file) => file.split("\\").join("/"))
