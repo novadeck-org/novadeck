@@ -1651,8 +1651,10 @@ describe.skipIf(process.platform === "win32")("terminal message watches", () => 
 describe("a turn the person's Escape ended", () => {
   type Inside = {
     records: Map<string, { binding: unknown; activity: Activity | null }>
-    applyFact: (record: unknown, fact: ActivityEvent) => boolean
-    escaped: (record: unknown) => void
+    bindings: {
+      applyFact: (record: unknown, fact: ActivityEvent) => boolean
+      escaped: (record: unknown) => void
+    }
     messaging: { escaped: (id: string, binding: unknown) => ActivityEvent | undefined }
   }
 
@@ -1670,7 +1672,7 @@ describe("a turn the person's Escape ended", () => {
     record.binding = binding
     const tell = (fact: object) => {
       const event = { ...binding, ...fact } as ActivityEvent
-      inside.applyFact(record, event)
+      inside.bindings.applyFact(record, event)
       return event
     }
     const lastTurn = () => record.activity && record.activity.lastTurn
@@ -1682,7 +1684,7 @@ describe("a turn the person's Escape ended", () => {
         // Delivery tells the Escape once, as the manager asks after the person's key.
         const escaped = { ...binding, type: "turn-escaped", startedAt: 20 } as ActivityEvent
         inside.messaging.escaped = () => escaped
-        inside.escaped(record)
+        inside.bindings.escaped(record)
         if (stop) tell({ type: "turn-ended", outcome: "completed", startedAt: 25, reply: "Done." })
         vi.advanceTimersByTime(escapeVerdictMs - 1)
         expect(lastTurn()).toMatchObject({ outcome: "interrupted" })
@@ -1822,14 +1824,14 @@ describe("a turn the person's Escape ended", () => {
         inside.typing.screenOf = () =>
           Promise.resolve(reads[record.verdict ? 0 : Math.min(reading++, reads.length - 1)])
         record.activity = fresh(0, true, false)
-        inside.applyFact(record, {
+        inside.bindings.applyFact(record, {
           ...binding,
           type: "turn-started",
           cause: "prompt",
           startedAt: 10,
         })
         inside.messaging.escaped = () => ({ ...binding, type: "turn-escaped", startedAt: 20 })
-        inside.escaped(record)
+        inside.bindings.escaped(record)
         // eslint-disable-next-line no-await-in-loop -- Each case waits for its own verdict.
         await vi.waitFor(
           () => expect(record.activity?.lastTurn?.escaped?.settled ?? true).toBe(true),
@@ -2103,7 +2105,7 @@ describe("a usage limit a turn ran into", () => {
       string,
       { binding: unknown; activity: Activity | null; summary: { activity: unknown } }
     >
-    applyFact: (record: unknown, fact: ActivityEvent) => boolean
+    bindings: { applyFact: (record: unknown, fact: ActivityEvent) => boolean }
   }
 
   it("latches the window its records show used up, as the turn ends or once it is idle, and keeps it", async ({
@@ -2119,7 +2121,7 @@ describe("a usage limit a turn ran into", () => {
     const binding = { agent: "claude", sessionId: "s", instance: null } as const
     record.binding = binding
     const tell = (fact: object) =>
-      inside.applyFact(record, { ...binding, ...fact } as ActivityEvent)
+      inside.bindings.applyFact(record, { ...binding, ...fact } as ActivityEvent)
     const lastTurn = () => record.activity?.lastTurn
     const usage = (used: number, startedAt: number) =>
       tell({
