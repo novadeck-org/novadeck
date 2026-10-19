@@ -1,8 +1,7 @@
-import { randomBytes, randomUUID } from "node:crypto"
-import { constants, rmSync, writeFileSync } from "node:fs"
-import { access, realpath, stat } from "node:fs/promises"
+import { randomUUID } from "node:crypto"
+import { realpath } from "node:fs/promises"
 import { homedir } from "node:os"
-import { basename, delimiter, isAbsolute, join, resolve as resolvePath } from "node:path"
+import { basename, resolve as resolvePath } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import { transcript as transcriptOf, type ScreenText } from "@novadeck/emulator/headless"
@@ -38,11 +37,9 @@ import type {
   TranscriptChange,
 } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
-import { TerminalError } from "@novadeck/terminal"
 import {
   createTerminalHost,
   noHold,
-  type RunSpec,
   type Terminal,
   type TerminalHost,
 } from "@novadeck/terminal/host"
@@ -57,15 +54,7 @@ import {
   type ProcessTrees,
   type Pty,
 } from "@novadeck/terminal/pty"
-import {
-  afterKeys,
-  emptyLine,
-  pathKey,
-  refreshPath,
-  startsCommands,
-  withLocale,
-  type ShellLaunch,
-} from "@novadeck/terminal/shell"
+import { afterKeys, emptyLine, withLocale } from "@novadeck/terminal/shell"
 import { freshNonce, InputQueue, keysOf } from "@novadeck/tui-input"
 import type { HoldBudget, InputHold, PromptHost, PromptOptions } from "@novadeck/tui-input"
 import type { InterruptHost, InterruptOptions } from "@novadeck/tui-input"
@@ -87,7 +76,6 @@ import {
 } from "../harnesses/activity.js"
 import { observe, type Binding } from "../harnesses/bindings.js"
 import { actorOf, agentDetail, requestRef } from "../harnesses/detail.js"
-import { resumeAvailability } from "../harnesses/eligibility.js"
 import { agents, harnesses } from "../harnesses/registry.js"
 import { lastReply, unreplied, withReplies } from "../harnesses/replies.js"
 import { followRoot, rootedIn, type RootChange } from "../harnesses/roots.js"
@@ -106,15 +94,7 @@ import type { MailboxRecords } from "../messaging/records.js"
 import type { Describer } from "../murmur/describer.js"
 import { inherited } from "../shell/inherited.js"
 import type { InstalledShell } from "../shell/install.js"
-import { shellLaunch } from "../shell/integration.js"
-import {
-  listenForReports,
-  unansweredCalls,
-  type Ack,
-  type Call,
-  type HookAnswer,
-  type Reports,
-} from "../shell/reports.js"
+import { unansweredCalls, type Ack, type Call, type HookAnswer } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
 import { Answers, type AnswerHost, type AnswerOptions } from "./answers.js"
 import { busy } from "./busy.js"
@@ -134,6 +114,7 @@ import { Companion } from "./companion.js"
 import { forgetPrompts, markPrompt, murmurHost } from "./describing.js"
 import { Dialogs, type DialogsHost, type DialogsOptions } from "./dialogs.js"
 import { mention } from "./handles.js"
+import { Launcher, startedIn, startFailed } from "./launching.js"
 import { Murmur, type MurmurTimes, type Reported } from "./murmur.js"
 import { Names } from "./names.js"
 import {
@@ -160,9 +141,10 @@ import {
 } from "./opens.js"
 import { TerminalPeers } from "./peers.js"
 import { Interrupts, Prompts } from "./prompting.js"
-import type { Record, Started } from "./record.js"
+import type { Record } from "./record.js"
 import { hasRun, type TerminalRecords } from "./records.js"
 import { restoredSeparator } from "./restored.js"
+import { cancelResume, Claims } from "./resumes.js"
 import { doorbellHost, profileOf } from "./ringing.js"
 import { Sampler, shellProcess } from "./sampling.js"
 import { Saves } from "./saving.js"
@@ -308,9 +290,6 @@ type Create = {
 type Size = { cols: number; rows: number }
 type Attach = { terminalId: string; afterSequence?: number; mode?: "control" | "observe" }
 
-/** The runner's shell integration, once its files are written and reports are heard. */
-type Integration = { readonly paths: InstalledShell; readonly reports: Reports }
-
 // Whether process `pid` still runs; one the platform refuses to signal belongs to someone
 // else, and runs.
 const alive = (pid: string): boolean => {
@@ -355,25 +334,6 @@ const positive = (value: number | undefined, fallback: number): number => {
   return result
 }
 
-/**
- * `error` as the caller sees it: a shell that didn't start is `SPAWN_FAILED`, and the
- * command it was to take never runs.
- */
-const startFailed = (started: Started, error: unknown): unknown => {
-  if (!(error instanceof TerminalError && error.code === "SPAWN_FAILED")) return error
-  if (started.resumeFile) rmSync(started.resumeFile, { force: true })
-  return new DomainError("SPAWN_FAILED", "Could not start the configured shell.")
-}
-
-/** `start()`'s terminal for `started`; a shell that didn't start is `SPAWN_FAILED`, its command never run. */
-const startedIn = (started: Started, start: () => Terminal): Terminal => {
-  try {
-    return start()
-  } catch (error) {
-    throw startFailed(started, error)
-  }
-}
-
 /** How long `settleBox` looks at a screen for an empty box, in milliseconds. */
 const boxSettleMs = 5_000
 
@@ -415,6 +375,10 @@ export class Terminals {
   private readonly names: Names<Record>
   /** What agents show beside their terminals, and the plans they keep there. */
   private readonly companion: Companion
+  /** How terminals' shells start, and the runner's shell integration. */
+  private readonly launcher: Launcher
+  /** Sessions given out to resume, and the terminal each went to. */
+  private readonly claims: Claims
   private readonly options: Required<
     Omit<
       TerminalOptions,
@@ -453,7 +417,6 @@ export class Terminals {
     hooksTrusted: ((agent: AgentName, cwd: string) => Promise<boolean | undefined>) | undefined
     items: CompanionItems | undefined
   }
-  private readonly integration: Promise<Integration | undefined>
   /** Windows' process trees, which a closed terminal's programs are ended by. */
   private readonly trees: ProcessTrees
   /** The terminals' hosting: their limits, close, eviction and shutdown. */
@@ -480,8 +443,6 @@ export class Terminals {
   /** Answers requests through their dialogs, and the dialogs it reads for `agents.detail`. */
   private readonly answers: Answers
   private readonly dialogs: Dialogs
-  /** Sessions given out to resume, as agent:session, and the terminal each went to. */
-  private readonly claims = new Map<string, string>()
   /** Terminals closed in this runner's lifetime, which no create brings back. */
   private readonly closedIds = new Set<string>()
   /** Sessions whose project is going or gone, in which no terminal starts again. */
@@ -557,7 +518,25 @@ export class Terminals {
     this.host.on("evicted", (id, terminal) => this.evicted(id, terminal))
     // Read once now, so the first terminal doesn't wait for it; see `shellEnvironment`.
     // After the deletes, as the relay, or PowerShell, that reads it gets this environment.
-    if (this.options.freshPath) void this.shellEnvironment()
+    this.launcher = new Launcher(this.options, {
+      stopping: () => this.stopping,
+      handlers: {
+        report: (report) => this.queueReport(report),
+        ask: (report, deadline) => this.queueAsk(report, deadline),
+        ack: (ack) => this.acknowledge(ack),
+        call: (call) => this.call(call),
+      },
+    })
+    this.claims = new Claims({
+      boundElsewhere: (terminalId, agent, session) =>
+        [...this.records.values()].some(
+          (other) =>
+            other.summary.id !== terminalId &&
+            other.binding?.agent === agent &&
+            other.binding.sessionId === session,
+        ),
+    })
+    if (this.options.freshPath) void this.launcher.environment()
     this.saves = new Saves(
       {
         records: this.options.records,
@@ -702,28 +681,7 @@ export class Terminals {
           options.murmurTimes,
         )
       : undefined
-    this.integration = this.integrate(options.shellFiles)
-  }
-
-  /** Listens for agent reports once the shell files are written; shells start plainly without. */
-  private async integrate(
-    shellFiles: TerminalOptions["shellFiles"],
-  ): Promise<Integration | undefined> {
-    try {
-      const paths = await shellFiles
-      if (!paths) return undefined
-      const reports = await listenForReports({
-        report: (report) => this.queueReport(report),
-        ask: (report, deadline) => this.queueAsk(report, deadline),
-        ack: (ack) => this.acknowledge(ack),
-        call: (call) => this.call(call),
-      })
-      if (!this.stopping) return { paths, reports }
-      await reports.close()
-    } catch (error) {
-      console.error("Novadeck shell integration is unavailable:", error)
-    }
-    return undefined
+    this.launcher.integrate(options.shellFiles)
   }
 
   /**
@@ -752,13 +710,13 @@ export class Terminals {
       const drawn = input.restore ? undefined : this.names.next(input.sessionId)
       const saved = input.restore ? this.saves.saved(input.id, input.sessionId) : undefined
       // Read beside the waits below, which it outlasts on Windows; see `shellEnvironment`.
-      const environment = this.shellEnvironment()
-      const origin = await this.directory(input.cwd)
+      const environment = this.launcher.environment()
+      const origin = await this.launcher.directory(input.cwd)
       // A saved directory that is gone falls back to the one asked for.
-      const cwd = saved ? await this.directory(saved.cwd).catch(() => origin) : origin
-      const shell = await this.executable(cwd, environment)
-      const integration = await this.shellIntegration()
-      const connected = await this.connected(input.resume)
+      const cwd = saved ? await this.launcher.directory(saved.cwd).catch(() => origin) : origin
+      const shell = await this.launcher.executable(cwd, environment)
+      const integration = await this.launcher.shellIntegration()
+      const connected = await this.launcher.connected(input.resume)
       const env = await environment
       if (this.stopping) throw new DomainError("CLOSING")
       // Closed, even while it was being restored, as from another window, or its project is
@@ -788,12 +746,17 @@ export class Terminals {
       const resume =
         input.command === undefined &&
         input.resume &&
-        this.resumable(input.id, input.resume, saved?.agents[input.resume]?.sessionId, connected)
+        this.claims.resumable(
+          input.id,
+          input.resume,
+          saved?.agents[input.resume]?.sessionId,
+          connected,
+        )
       const startup =
         input.command !== undefined
           ? { command: input.command, required: true }
           : resume && { command: resume.argv.join(" ") }
-      const { spec, started } = this.launch(
+      const { spec, started } = this.launcher.launch(
         shell,
         cwd,
         input,
@@ -806,7 +769,7 @@ export class Terminals {
       )
       // Claimed once its shell runs, so a shell that didn't start holds no session.
       if (resume && started.resumes) {
-        this.claims.set(resume.key, input.id)
+        this.claims.claim(resume.key, input.id)
         started.resumeClaim = resume.key
       }
       const record: Record = {
@@ -1054,11 +1017,11 @@ export class Terminals {
     // Typing before the shell resumes its agent cancels the resume, so the shell gets
     // what was typed. A cancelled resume leaves its session free for another terminal.
     const claim = record.resumeClaim
-    if (this.cancelResume(record)) {
+    if (cancelResume(record)) {
       record.startupRuns = false
       // The person took the terminal over before its agent ever ran: nothing to lead.
       this.endLead(record)
-      if (claim && this.claims.get(claim) === record.summary.id) this.claims.delete(claim)
+      this.claims.cancel(claim, record.summary.id)
     }
     if (/[\r\n]/.test(data)) record.submitted = true
     // A line with something on it is a command; Enter on an empty prompt is not.
@@ -1375,25 +1338,25 @@ export class Terminals {
       return await this.host.restart(input.terminalId, ownerId, {
         check,
         prepare: async () => {
-          const environment = this.shellEnvironment()
+          const environment = this.launcher.environment()
           // The last directory, or where the terminal started once that is gone.
-          const cwd = await this.directory(record.summary.cwd).catch(() =>
-            this.directory(record.origin),
-          )
-          const shell = await this.executable(cwd, environment)
-          const integration = await this.shellIntegration()
-          const connected = await this.connected(input.resume)
+          const cwd = await this.launcher
+            .directory(record.summary.cwd)
+            .catch(() => this.launcher.directory(record.origin))
+          const shell = await this.launcher.executable(cwd, environment)
+          const integration = await this.launcher.shellIntegration()
+          const connected = await this.launcher.connected(input.resume)
           const env = await environment
           return (restart) => {
             const resume =
               input.resume &&
-              this.resumable(
+              this.claims.resumable(
                 record.summary.id,
                 input.resume,
                 record.agents[input.resume]?.sessionId,
                 connected,
               )
-            const { spec, started } = this.launch(
+            const { spec, started } = this.launcher.launch(
               shell,
               cwd,
               input,
@@ -1410,7 +1373,7 @@ export class Terminals {
               // earlier cursor gets a fresh snapshot.
               restart(spec, pending.released ? undefined : ownerId, () => {
                 if (resume && started.resumes) {
-                  this.claims.set(resume.key, record.summary.id)
+                  this.claims.claim(resume.key, record.summary.id)
                   started.resumeClaim = resume.key
                 }
                 forgetPrompts(record)
@@ -1573,9 +1536,7 @@ export class Terminals {
     this.doorbell?.forget(terminalId)
     this.dialogs.forget(terminalId)
     this.murmur?.gone(terminalId)
-    if (claims)
-      for (const [key, claimant] of this.claims)
-        if (claimant === terminalId) this.claims.delete(key)
+    if (claims) this.claims.release(terminalId)
     this.openers.delete(terminalId)
     // Forgotten while the runner stops too, as a close then still stands.
     this.saves.remove(terminalId)
@@ -1612,61 +1573,6 @@ export class Terminals {
     return (live ?? this.saves.saved(terminalId))?.agents[agent]?.sessionId ?? null
   }
 
-  /** Whether `agent` is connected; false without one, or when that cannot be told. */
-  private async connected(agent: AgentName | undefined): Promise<boolean> {
-    return agent !== undefined && (await this.options.connected(agent).catch(() => false))
-  }
-
-  /**
-   * The command that resumes `agent`'s `session` in the terminal, and the claim to
-   * record once a shell runs it; undefined when it may not (see `resumeAvailability`).
-   * One session resumes in one terminal: not while another terminal has it bound, nor
-   * once another terminal claimed it, until that terminal closes.
-   */
-  private resumable(
-    terminalId: string,
-    agent: AgentName,
-    session: string | undefined,
-    connected: boolean,
-  ): { argv: readonly string[]; key: string } | undefined {
-    const { resume } = harnesses[agent]
-    const key = `${agent}:${session}`
-    const claimant = this.claims.get(key)
-    const bound = [...this.records.values()].some(
-      (other) =>
-        other.summary.id !== terminalId &&
-        other.binding?.agent === agent &&
-        other.binding.sessionId === session,
-    )
-    const inUse = (claimant !== undefined && claimant !== terminalId) || bound
-    const availability = resumeAvailability({
-      agent,
-      resumes: resume !== undefined,
-      connected,
-      session,
-      inUse,
-    })
-    if (availability.state !== "ready" || !resume || session === undefined) return undefined
-    return { argv: resume(session), key }
-  }
-
-  /**
-   * Removes a resume command the shell has not taken yet, so it never runs; true when
-   * one was still waiting.
-   */
-  private cancelResume(record: Record): boolean {
-    const file = record.resumeFile
-    if (!file) return false
-    record.resumeFile = undefined
-    try {
-      rmSync(file)
-      return true
-    } catch {
-      // Taken meanwhile, or unremovable; the shell removes it as it reads it.
-      return false
-    }
-  }
-
   /** Forgets every session `agent` reported, as once it is disconnected. */
   forgetAgent(agent: AgentName): void {
     this.disconnections.set(agent, (this.disconnections.get(agent) ?? 0) + 1)
@@ -1695,17 +1601,8 @@ export class Terminals {
         this.announce(record)
       }
     }
-    for (const key of this.claims.keys()) if (key.startsWith(`${agent}:`)) this.claims.delete(key)
+    this.claims.forgetAgent(agent)
     this.saves.forgetAgent(agent)
-  }
-
-  /** The integration for a new shell, with the connected harnesses whose shims it gets. */
-  private async shellIntegration(): Promise<
-    (Integration & { shims: readonly AgentName[] }) | undefined
-  > {
-    const integration = await this.integration
-    if (!integration) return undefined
-    return { ...integration, shims: await this.options.shims().catch(() => []) }
   }
 
   /** Turning transcripts off forgets every saved one; turning them on saves each anew. */
@@ -1790,18 +1687,20 @@ export class Terminals {
       const refusal = this.messaging.refusal(call.terminalId, request.message, request.agent)
       if (refusal) return refused(refusal)
     }
-    if (request.agent !== undefined && !(await this.connected(request.agent)))
+    if (request.agent !== undefined && !(await this.launcher.connected(request.agent)))
       return refused(
         `Novadeck isn't connected to ${agentLabel(request.agent)}, so its hooks couldn't take ` +
           "the task; the user can connect it in Novadeck's preferences.",
       )
-    if (starts && !(await this.startsCommands()))
+    if (starts && !(await this.launcher.startsCommands()))
       return refused(
         "Novadeck's shells can't start a command as they open here, as its shell integration " +
           "isn't loaded, so no terminal opened.",
       )
     const folder = request.cwd ?? "."
-    const cwd = await this.directory(resolvePath(record.summary.cwd, folder)).catch(() => undefined)
+    const cwd = await this.launcher
+      .directory(resolvePath(record.summary.cwd, folder))
+      .catch(() => undefined)
     if (cwd === undefined) return refused(`${folder} isn't a folder a terminal can open in.`)
     const started: { command?: string | undefined; prompted: boolean; nonce?: string } =
       request.agent === undefined
@@ -2089,16 +1988,6 @@ export class Terminals {
     }
   }
 
-  /** Whether a terminal created now could start a command; see `spawn`. */
-  private async startsCommands(): Promise<boolean> {
-    const integration = await this.integration
-    return (
-      integration !== undefined &&
-      this.options.shellArgs === undefined &&
-      startsCommands(this.options.shell)
-    )
-  }
-
   /**
    * Agents' requests for a new terminal, for the client to open where it lays terminals
    * out: each request goes to the newest of these streams, until `signal` aborts, the
@@ -2198,7 +2087,7 @@ export class Terminals {
     this.records.clear()
     this.pendingOwners.clear()
     this.stopped = true
-    await (await this.integration)?.reports.close()
+    await this.launcher.close()
   }
 
   private record(id: string): Record {
@@ -2251,116 +2140,6 @@ export class Terminals {
       throw new DomainError("TERMINAL_EXITED")
   }
 
-  private async directory(cwd: string): Promise<string> {
-    try {
-      if (!isAbsolute(cwd)) throw new Error("Relative directory")
-      const path = await realpath(cwd)
-      if (!(await stat(path)).isDirectory()) throw new Error("Not a directory")
-      await access(path, constants.R_OK | (process.platform === "win32" ? 0 : constants.X_OK))
-      return path
-    } catch {
-      throw new DomainError(
-        "INVALID_DIRECTORY",
-        "Terminal working directory must be an accessible absolute directory.",
-      )
-    }
-  }
-
-  /**
-   * The environment a new shell starts from: the runner's, with PATH read anew where
-   * `freshPath` asks for it, as a Windows app keeps the PATH it was started with.
-   */
-  private async shellEnvironment(): Promise<NodeJS.ProcessEnv> {
-    if (!this.options.freshPath) return this.options.env
-    return refreshPath(this.options.env, { relay: this.options.relay })
-  }
-
-  /** The shell's program, a name found on the PATH the new shell gets, as `environment`. */
-  private async executable(cwd: string, environment: Promise<NodeJS.ProcessEnv>): Promise<string> {
-    const shell = this.options.shell
-    const named = !(isAbsolute(shell) || shell.includes("/") || shell.includes("\\"))
-    const env = named ? await environment : this.options.env
-    const paths = named
-      ? (env[pathKey(env)] ?? "").split(delimiter).map((path) => resolvePath(cwd, path, shell))
-      : [resolvePath(cwd, shell)]
-    const suffixes =
-      process.platform === "win32"
-        ? ["", ...(this.options.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";")]
-        : [""]
-    const candidates = paths.flatMap((path) => suffixes.map((suffix) => `${path}${suffix}`))
-    const available = await Promise.all(
-      candidates.map(async (candidate) => {
-        try {
-          if (!(await stat(candidate)).isFile()) return undefined
-          await access(candidate, process.platform === "win32" ? constants.F_OK : constants.X_OK)
-          return candidate
-        } catch {
-          return undefined
-        }
-      }),
-    )
-    const executable = available.find((candidate) => candidate !== undefined)
-    if (executable) return executable
-    throw new DomainError("SPAWN_FAILED", "Configured shell must be an executable file.")
-  }
-
-  /**
-   * A shell's run, for a terminal to start; the caller attaches it to a record. Every shell
-   * knows its terminal's id; with the integration it also loads it, and gets the hook's
-   * launcher and the endpoint and token its connected agents report with. A `startup`
-   * command runs as the integration starts; configured shell arguments leave it out,
-   * unless it is `required`, when the shell does not start without it.
-   */
-  private launch(
-    shell: string,
-    cwd: string,
-    input: Size & { id?: string; terminalId?: string },
-    integration: (Integration & { shims: readonly AgentName[] }) | undefined,
-    base: NodeJS.ProcessEnv,
-    startup?: { readonly command: string; readonly required?: boolean },
-  ): { spec: RunSpec; started: Started } {
-    const { cols, rows } = input
-    const id = input.id ?? input.terminalId ?? ""
-    const token = randomBytes(24).toString("hex")
-    const launch = (withStartup: boolean): ShellLaunch =>
-      integration
-        ? shellLaunch(shell, integration.paths, base, {
-            shims: integration.shims,
-            ...(withStartup &&
-              startup &&
-              this.options.shellArgs === undefined && {
-                startup: {
-                  command: startup.command,
-                  file: join(integration.paths.resume, randomUUID()),
-                },
-              }),
-          })
-        : { args: [], env: base, integrated: false, resumes: false }
-    let launched = launch(true)
-    // The shell reads the command from a file only it and the runner can read.
-    if (launched.resumeFile)
-      try {
-        writeFileSync(launched.resumeFile, startup!.command, { mode: 0o600, flag: "wx" })
-      } catch {
-        launched = launch(false)
-      }
-    if (startup?.required && !launched.resumes)
-      throw new DomainError("SPAWN_FAILED", "This terminal's shell can't start a command.")
-    const { resumeFile } = launched
-    const env: NodeJS.ProcessEnv = {
-      ...launched.env,
-      NOVADECK_TERMINAL_ID: id,
-      ...(integration && {
-        NOVADECK_REPORT: integration.reports.endpoint,
-        NOVADECK_REPORT_TOKEN: token,
-      }),
-    }
-    return {
-      spec: { file: shell, args: this.options.shellArgs ?? launched.args, cwd, env, cols, rows },
-      started: { token, resumes: launched.resumes, resumeFile, resumeClaim: undefined },
-    }
-  }
-
   /** Reacts to the terminal: what it draws, its exit, its size, title and prompts. */
   private listen(record: Record): void {
     const { terminal } = record
@@ -2404,7 +2183,7 @@ export class Terminals {
     record.readyEntered = false
     // Whether the startup command (an agent opened or resumed there) ran, so this prompt
     // is the first after it ended.
-    const ran = record.startupRuns && !this.cancelResume(record)
+    const ran = record.startupRuns && !cancelResume(record)
     record.startupRuns = false
     record.changed = true
     const moved = cwd !== record.summary.cwd
@@ -2505,7 +2284,7 @@ export class Terminals {
     const [foreground, connected, reused] = observes
       ? await Promise.all([
           shellInForeground(child.pid),
-          this.connected(report.agent),
+          this.launcher.connected(report.agent),
           this.reusedBinding(record, events, deadline),
         ])
       : [undefined, true, undefined]
@@ -3032,7 +2811,7 @@ export class Terminals {
     agent: AgentName,
     where?: Install & { readonly program?: string },
   ): Promise<"counts" | "untrusted" | "unknown"> {
-    if (!(await this.connected(agent))) return "unknown"
+    if (!(await this.launcher.connected(agent))) return "unknown"
     const trusted = await this.hooksTrustedIn(record, agent, where).catch(() => undefined)
     return trusted === true ? "counts" : trusted === false ? "untrusted" : "unknown"
   }
@@ -3570,7 +3349,7 @@ export class Terminals {
       activity: null,
       telemetry: null,
     }
-    this.cancelResume(record)
+    cancelResume(record)
     this.saves.save(record, true)
     this.announce(record)
   }
