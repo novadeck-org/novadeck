@@ -1,10 +1,10 @@
+import { chatShown, dictateIntoDraft, type Chat } from "@novadeck/chat/state"
 import type { TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceStore } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from "react"
 
 import { currentPlatform, matchesShortcut, shortcutBindings } from "../../interaction/shortcuts"
-import { chatShown, dictateIntoDraft, type Chat } from "../../terminals/chat/state"
 import type { DictationControls } from "../../terminals/WindowShell"
 import { isAgentTerminal } from "../../voice/agent-terminal"
 import { startCapture } from "../../voice/capture"

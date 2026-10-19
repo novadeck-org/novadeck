@@ -1,3 +1,4 @@
+import type { Chat } from "@novadeck/chat/state"
 import type { DragSession } from "@novadeck/companion/drag-session"
 import type { Panes } from "@novadeck/companion/state"
 import type { Backend } from "@novadeck/core/port"
@@ -6,7 +7,6 @@ import type { Workspace } from "@novadeck/core/types"
 import { createContext, useContext, type RefObject } from "react"
 
 import type { CanvasHandle } from "../../layouts/canvas/types"
-import type { Chat } from "../../terminals/chat/state"
 import type { WorkspaceCommands } from "../commands/workspace"
 import type { WorkspaceNavigator } from "../routing"
 import type { UiState, UiStore } from "../ui-store"
