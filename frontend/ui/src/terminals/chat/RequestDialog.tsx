@@ -1,3 +1,16 @@
+import {
+  answeredCount,
+  chatAnswer,
+  holdsControls,
+  oneLine,
+  choiceAnswer,
+  choose,
+  complete,
+  questionsAnswer,
+  reconcile,
+  write,
+  type Picks,
+} from "@novadeck/core/answers"
 import type {
   ChatAnswer,
   ChatDialog,
@@ -13,19 +26,6 @@ import {
 import { Loader } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
-import {
-  answeredCount,
-  chatAnswer,
-  holdsControls,
-  oneLine,
-  choiceAnswer,
-  choose,
-  complete,
-  questionsAnswer,
-  reconcile,
-  write,
-  type Picks,
-} from "./answers"
 import {
   complete as completeForm,
   enter,

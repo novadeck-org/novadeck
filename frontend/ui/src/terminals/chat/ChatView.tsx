@@ -1,3 +1,4 @@
+import { wordsOf } from "@novadeck/core/answers"
 import { WordsLost, type ChatAnswer, type Conversation } from "@novadeck/core/conversation"
 import { agentName, groupItems, recordsShell, turnStatus } from "@novadeck/core/conversation-turns"
 import { shellCommand, type Refused } from "@novadeck/core/prompt-refusal"
@@ -14,7 +15,6 @@ import {
   useSyncExternalStore,
 } from "react"
 
-import { wordsOf } from "./answers"
 import { Composer } from "./Composer"
 import {
   composerState,
