@@ -9,10 +9,10 @@ import { render } from "@novadeck/test-kit/render"
 import { act, createElement, useSyncExternalStore, type ComponentProps } from "react"
 import { afterEach, vi } from "vitest"
 
-import { context, describe, expect, it } from "../../test"
-import { createDragSession, DragSessionContext } from "../drag-session"
+import { createDragSession, DragSessionContext } from "./drag-session"
 import { createPanes, type Panes } from "./state"
 import { TerminalCompanion, type ItemCommands } from "./TerminalCompanion"
+import { context, describe, expect, it } from "./test"
 
 // jsdom has no layout and no resizes; the taskbar's drag-to-reorder asks for them.
 vi.hoisted(() => {

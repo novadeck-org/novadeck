@@ -6,9 +6,9 @@ import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
-import { context, describe, expect, it } from "../../test"
 import { PlanTab } from "./CompanionPane"
 import { createPanes } from "./state"
+import { context, describe, expect, it } from "./test"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
