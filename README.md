@@ -1103,7 +1103,7 @@ folder of `frontend/ui/src/`:
 | `frontend/core/src/roster.ts`                                   | A session's terminals and undocked windows, laid out as tiles, their order and status.                                         |
 | `frontend/core/src/layout/workspace-layout.ts`                  | Where each terminal sits and how big it is in each view.                                                                       |
 | `terminals/`                                                    | Terminal frame, tabs, rename state, and the recent-terminal switcher.                                                          |
-| `frontend/companion/src/`                                       | Taskbar and pane: the panes' store, `bar.ts` rules, viewers, `plan-editor/` (notes).                                           |
+| `frontend/companion/src/`                                       | Taskbar and pane: the panes' store, `bar.ts` rules, `registry.ts` and `panes/<kind>/` (one folder per kind).                   |
 | `frontend/companion/src/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
 | `terminals/chat/`                                               | The agent's chat: its blocks, markdown reader, tool rows, requests and the composer.                                           |
 | `layouts/canvas/`, `grid/`, `focus/`                            | View adapters and colocated library styles.                                                                                    |

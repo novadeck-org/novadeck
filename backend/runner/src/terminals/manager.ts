@@ -1,6 +1,6 @@
 import { realpath } from "node:fs/promises"
 import { homedir } from "node:os"
-import { basename, resolve as resolvePath } from "node:path"
+import { basename } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import { transcript as transcriptOf } from "@novadeck/emulator/headless"
@@ -11,10 +11,8 @@ import type {
   SessionObserved,
 } from "@novadeck/harness-core/events"
 import {
-  doorbellLine,
   firedFacts,
   hookShellSlackMs,
-  quotedLine,
   silentFor,
   type Install,
 } from "@novadeck/harness-core/harness"
@@ -48,7 +46,7 @@ import {
   type Pty,
 } from "@novadeck/terminal/pty"
 import { afterKeys, emptyLine, withLocale } from "@novadeck/terminal/shell"
-import { freshNonce, keysOf } from "@novadeck/tui-input"
+import { keysOf } from "@novadeck/tui-input"
 import type { PromptOptions } from "@novadeck/tui-input"
 import type { InterruptOptions } from "@novadeck/tui-input"
 
@@ -74,7 +72,6 @@ import { limitOf, observeTelemetry, telemetrySummary } from "../harnesses/teleme
 import { transcriptWaitMs, typedPromptStart } from "../harnesses/typed-prompts.js"
 import { Asks, type AskRecords } from "../messaging/asks.js"
 import { type DoorbellOptions } from "../messaging/doorbell.js"
-import { agentLabel } from "../messaging/mailbox.js"
 import {
   leaseMargin,
   Messaging,
@@ -85,51 +82,24 @@ import type { MailboxRecords } from "../messaging/records.js"
 import type { Describer } from "../murmur/describer.js"
 import { inherited } from "../shell/inherited.js"
 import type { InstalledShell } from "../shell/install.js"
-import { unansweredCalls, type Ack, type Call, type HookAnswer } from "../shell/reports.js"
+import { type Ack, type Call, type HookAnswer } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
 import { type AnswerOptions } from "./answers.js"
-import { callerOf, sameToken } from "./callers.js"
-import {
-  allowClose,
-  closeLimit,
-  readCloseRequest,
-  runnerCloseLimit,
-  selfRefusal,
-  spentRefusal,
-  type CloseAnswer,
-} from "./closes.js"
+import { sameToken } from "./callers.js"
+import { Calls } from "./calls.js"
+import { type CloseAnswer } from "./closes.js"
 import { coalesced } from "./coalesce.js"
 import { expectedAgent, promptIn } from "./commands.js"
 import { Companion } from "./companion.js"
 import { forgetPrompts, markPrompt, murmurHost } from "./describing.js"
 import { type DialogsOptions } from "./dialogs.js"
 import { failed } from "./failures.js"
-import { mention } from "./handles.js"
 import { Launcher, startedIn, startFailed } from "./launching.js"
 import { Murmur, type MurmurTimes, type Reported } from "./murmur.js"
 import { Names } from "./names.js"
-import {
-  cleanSummary,
-  openedWith,
-  renamed as renamedTo,
-  summarized,
-  summaryRefusal,
-  summaryTitle,
-  unnamed,
-  type Naming,
-} from "./naming.js"
-import { afterSummary, atPrompt, fired, noNudges, noticesAt } from "./nudges.js"
-import {
-  allowOpen,
-  openLimit,
-  prune,
-  runnerOpenLimit,
-  OpenRequests,
-  readOpenRequest,
-  refused,
-  type Asked,
-  type OpenAnswer,
-} from "./opens.js"
+import { openedWith, renamed as renamedTo, summaryTitle, unnamed, type Naming } from "./naming.js"
+import { atPrompt, fired, noNudges, noticesAt } from "./nudges.js"
+import { OpenRequests } from "./opens.js"
 import { TerminalPeers } from "./peers.js"
 import type { Record } from "./record.js"
 import { hasRun, type TerminalRecords } from "./records.js"
@@ -138,7 +108,6 @@ import { cancelResume, Claims } from "./resumes.js"
 import { Sampler, shellProcess } from "./sampling.js"
 import { Saves } from "./saving.js"
 import { Streams } from "./streams.js"
-import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
 import { savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
 import { transcriptChanges } from "./transcripts.js"
 import { Typing } from "./typing.js"
@@ -291,14 +260,6 @@ const alive = (pid: string): boolean => {
   }
 }
 
-// Why a request for a new terminal went unanswered.
-const unopened = {
-  nobody: "Novadeck isn't open to show a new terminal.",
-  // Its window may still open it, so the agent should look before asking again.
-  gone: "Novadeck's window went away while opening the terminal; it may still open, so check before asking again.",
-  late: "Novadeck didn't confirm the new terminal in time; it may still open, so check before asking again.",
-}
-
 // How much time a prompt's hook must have left for drift to be read, in milliseconds:
 // a git branch and a plan's file, each with its own short timeout.
 const driftReadMs = 1_500
@@ -333,25 +294,6 @@ export class Terminals {
   private readonly pendingOwners = new Map<string, Set<{ released: boolean }>>()
   /** Agents' requests for a new terminal, on their way to the client. */
   private readonly opens = new OpenRequests()
-  /**
-   * When each chain's agents opened terminals lately, for `openLimit`. A chain's times
-   * outlive the terminal that began it, until they pass out of the window, so the
-   * terminals it opened can't start afresh by closing it; `prune` lets them go then.
-   */
-  private readonly opened = new Map<string, readonly number[]>()
-  // Which terminal a terminal opened on request is charged to: the one that began the
-  // chain, so terminals opening terminals share one budget rather than each get theirs.
-  private readonly openers = new Map<string, string>()
-  // Every request's time, for the runner's own limit across all chains.
-  private allOpened: readonly number[] = []
-  /**
-   * When each chain's agents closed terminals lately, for `closeLimit`: charged as opens
-   * are, to the terminal that began the chain, from a budget apart from theirs, and kept
-   * as theirs are.
-   */
-  private readonly closed = new Map<string, readonly number[]>()
-  // Every close's time, for the runner's own limit across all chains.
-  private allClosed: readonly number[] = []
   /** Samples running terminals' foreground processes. */
   private readonly sampler: Sampler<Record>
   /** Who reads the terminals: their watchers, and each one's detail and messages readers. */
@@ -365,6 +307,8 @@ export class Terminals {
    * the doorbell, prompts, interrupts and answers, with the dialogs it reads.
    */
   private readonly typing: Typing
+  /** The tool calls agents make through Novadeck's MCP server. */
+  private readonly calls: Calls
   /** How terminals' shells start, and the runner's shell integration. */
   private readonly launcher: Launcher
   /** Sessions given out to resume, and the terminal each went to. */
@@ -503,7 +447,7 @@ export class Terminals {
         report: (report) => this.queueReport(report),
         ask: (report, deadline) => this.queueAsk(report, deadline),
         ack: (ack) => this.acknowledge(ack),
-        call: (call) => this.call(call),
+        call: (call) => this.calls.call(call),
       },
     })
     this.claims = new Claims({
@@ -670,6 +614,26 @@ export class Terminals {
           options.murmurTimes,
         )
       : undefined
+    this.calls = new Calls(this.options.openMs, {
+      records: () => this.records,
+      stopping: () => this.stopping,
+      messaging: () => this.messaging,
+      asks: () => this.asks,
+      peers: () => this.peers,
+      opens: () => this.opens,
+      companion: () => this.companion,
+      launcher: () => this.launcher,
+      install: (agent) => this.options.install(agent),
+      closingNow: (terminalId) => this.host.closing(terminalId),
+      closeForGood: (record) => this.closeForGood(record),
+      terminate: (record) => this.terminate(record),
+      remove: (record) => this.remove(record),
+      forget: (terminalId) => this.forget(terminalId),
+      save: (record) => this.saves.save(record, false),
+      summarized: (terminalId) => this.murmur?.summarized(terminalId),
+      send: (call) => this.send(call),
+      agents: (call) => this.agents(call),
+    })
     this.launcher.integrate(options.shellFiles)
   }
 
@@ -1146,14 +1110,6 @@ export class Terminals {
     this.forget(input.terminalId)
   }
 
-  /** Whether the session's terminal with this handle is closing, its shell not yet ended. */
-  private closingHere(sessionId: string, handle: string): boolean {
-    return [...this.records.values()].some(
-      ({ closed, summary }) =>
-        closed && summary.sessionId === sessionId && summary.handle === handle,
-    )
-  }
-
   /**
    * Starts closing a running terminal for good: watchers hear it is gone, nothing
    * announces or saves it again, and what restores it is forgotten before its shell ends.
@@ -1229,7 +1185,7 @@ export class Terminals {
     this.typing.forget(terminalId)
     this.murmur?.gone(terminalId)
     if (claims) this.claims.release(terminalId)
-    this.openers.delete(terminalId)
+    this.calls.forgetOpener(terminalId)
     // Forgotten while the runner stops too, as a close then still stands.
     this.saves.remove(terminalId)
   }
@@ -1359,247 +1315,9 @@ export class Terminals {
     yield* this.streams.watchDetail(record, signal)
   }
 
-  /**
-   * Opens a new terminal beside the caller's, as an agent asked through Novadeck's MCP
-   * server in one of the terminal's shells: in a folder, from the terminal's directory,
-   * optionally starting a command at its first prompt. The client that lays terminals
-   * out opens it (see `requests`), so without one nothing opens. A terminal's agents
-   * open a few at most each minute. A call without the shell's own token learns nothing
-   * more.
-   */
-  async open(call: Call): Promise<OpenAnswer> {
-    const record = callerOf(this.records, call)
-    if (!record) return unansweredCalls.open
-    const read = readOpenRequest(call.request)
-    if (!read.ok) return read
-    const { request } = read
-    const starts = request.command !== undefined || request.agent !== undefined
-    // Every check `send` would refuse the task for, before anything starts.
-    if (request.agent !== undefined && request.message !== undefined) {
-      const refusal = this.messaging.refusal(call.terminalId, request.message, request.agent)
-      if (refusal) return refused(refusal)
-    }
-    if (request.agent !== undefined && !(await this.launcher.connected(request.agent)))
-      return refused(
-        `Novadeck isn't connected to ${agentLabel(request.agent)}, so its hooks couldn't take ` +
-          "the task; the user can connect it in Novadeck's preferences.",
-      )
-    if (starts && !(await this.launcher.startsCommands()))
-      return refused(
-        "Novadeck's shells can't start a command as they open here, as its shell integration " +
-          "isn't loaded, so no terminal opened.",
-      )
-    const folder = request.cwd ?? "."
-    const cwd = await this.launcher
-      .directory(resolvePath(record.summary.cwd, folder))
-      .catch(() => undefined)
-    if (cwd === undefined) return refused(`${folder} isn't a folder a terminal can open in.`)
-    const started: { command?: string | undefined; prompted: boolean; nonce?: string } =
-      request.agent === undefined
-        ? { command: request.command, prompted: true }
-        : await this.taskCommand(request.agent, cwd)
-    const { command } = started
-    // Closed, or the runner stopped, while the folder was looked at.
-    if (this.stopping || this.records.get(call.terminalId) !== record) return unansweredCalls.open
-    const now = Date.now()
-    const charged = this.openers.get(call.terminalId) ?? call.terminalId
-    prune(this.opened, now, openLimit.windowMs)
-    const times = allowOpen(this.opened.get(charged) ?? [], now)
-    const all = allowOpen(this.allOpened, now, runnerOpenLimit)
-    if (!times || !all)
-      return refused(
-        "Agents opened as many terminals as they may in the last minute; try again shortly.",
-      )
-    this.opened.set(charged, times)
-    this.allOpened = all
-    const asked = await this.opens.ask(
-      {
-        from: call.terminalId,
-        sessionId: record.summary.sessionId,
-        cwd,
-        ...(command !== undefined && { command }),
-        focus: request.focus === true,
-      },
-      this.options.openMs,
-      // The title it asked for is its own, never the person's: the terminal takes it as
-      // the client creates it for this request.
-      {
-        by: record.summary.handle,
-        ...(request.title !== undefined && { title: request.title }),
-        ...(command !== undefined && { command }),
-        // Only an agent opened with a brief is led by the one that opened it.
-        withBrief: request.agent !== undefined,
-      },
-    )
-    let task: SendAnswer | undefined
-    if (asked.type === "answered" && "terminalId" in asked.answer) {
-      this.openers.set(asked.answer.terminalId, charged)
-      const opened = this.records.get(asked.answer.terminalId)
-      // The task goes to the first session of the agent it starts there, from the opener,
-      // which leads that terminal: it is the lead's first message.
-      if (opened && request.message !== undefined) {
-        // Its first typed entry is this line, where a transcript tells its prompts.
-        if (started.prompted && started.nonce) opened.startedWith = started.nonce
-        this.saves.save(opened, false)
-        task = this.messaging.send(call.terminalId, {
-          to: opened.summary.handle,
-          text: request.message,
-        })
-      }
-    }
-    const answer = this.opening(asked, cwd, command)
-    if (!answer.ok || !task) return answer
-    return { ...answer, task, ...(!started.prompted && { taskWaits: true as const }) }
-  }
-
-  /**
-   * The command that starts `agent` with a task: the doorbell's line, with its `nonce`, as
-   * its command-line prompt, which it submits once past its startup screens; plain where
-   * it may not take one (Antigravity in a folder it doesn't trust), when the task arrives
-   * once the person trusts the folder and its prompt shows, rung as any message is.
-   */
-  private async taskCommand(
-    agent: AgentName,
-    cwd: string,
-  ): Promise<{ readonly command: string; readonly prompted: boolean; readonly nonce: string }> {
-    const { messaging } = harnesses[agent]
-    const install = await this.options.install(agent).catch(() => undefined)
-    const nonce = freshNonce()
-    const prompted = await messaging
-      .initialPrompt(doorbellLine(nonce), { install, cwd })
-      .catch(() => undefined)
-    const argv = prompted ?? messaging.start
-    // Every word but the line is a plain word; the line holds nothing a shell expands.
-    const command = argv
-      .map((word) => (/^[\w./-]+$/.test(word) ? word : quotedLine(word)))
-      .join(" ")
-    return { command, prompted: prompted !== undefined, nonce }
-  }
-
-  /** What the agent learns of the client's answer. */
-  private opening(asked: Asked, cwd: string, command: string | undefined): OpenAnswer {
-    if (asked.type !== "answered") return refused(unopened[asked.type])
-    const { answer } = asked
-    if ("reason" in answer) return refused(answer.reason)
-    const opened = this.records.get(answer.terminalId)
-    if (!opened) return unansweredCalls.open
-    return {
-      ok: true,
-      terminalId: answer.terminalId,
-      handle: opened.summary.handle,
-      title: opened.summary.title,
-      cwd,
-      ...(command !== undefined && { command }),
-    }
-  }
-
-  /**
-   * Closes another terminal of the caller's project and session, as an agent asked
-   * through Novadeck's MCP server by the terminal's exact handle: as the person's close
-   * does, it ends the shell, then forgets the terminal, whatever window controls it, and
-   * messages still waiting for it are gone. Never the caller's own terminal; a handle
-   * not there is refused with every terminal there described. A chain of terminals'
-   * agents close a few at most each minute, and all agents a few more. A call without
-   * the shell's own token learns nothing more.
-   */
-  async closePeer(call: Call): Promise<CloseAnswer> {
-    const record = callerOf(this.records, call)
-    if (!record) return unansweredCalls.close
-    const read = readCloseRequest(call.request)
-    if (!read.ok) return read
-    const { to } = read.request
-    if (to === record.summary.handle) return refused(selfRefusal(to))
-    // Already on its way out, and forgotten, as another close ended its shell.
-    if (this.closingHere(record.summary.sessionId, to))
-      return refused(`${mention(to)} is already closing.`)
-    const target = await this.peers.target(record, to)
-    if (!target.ok) return target
-    // Closed, or the runner stopped, while the terminals were described.
-    const closing = this.records.get(target.terminalId)
-    if (this.stopping || this.records.get(call.terminalId) !== record || !closing)
-      return unansweredCalls.close
-    // Already on its way out, as another close ended its shell: nothing more to charge.
-    if (this.host.closing(closing.summary.id) || closing.closed)
-      return refused(`${mention(target.handle)} is already closing.`)
-    const now = Date.now()
-    const charged = this.openers.get(call.terminalId) ?? call.terminalId
-    prune(this.closed, now, closeLimit.windowMs)
-    const times = allowClose(this.closed.get(charged) ?? [], now)
-    const all = allowClose(this.allClosed, now, runnerCloseLimit)
-    if (!times || !all) return refused(spentRefusal)
-    this.closed.set(charged, times)
-    this.allClosed = all
-    const { agent } = target
-    const others = this.messaging.waitingFor(target.terminalId, call.terminalId)
-    this.closeForGood(closing)
-    await this.terminate(closing)
-    // The runner began to stop meanwhile: the terminal is closed all the same, but the
-    // caller is going too.
-    if (this.stopping) return unansweredCalls.close
-    this.remove(closing)
-    this.forget(target.terminalId)
-    const gone = this.messaging.goneFrom(call.terminalId)
-    return {
-      ok: true,
-      handle: target.handle,
-      title: closing.summary.title,
-      ...(agent !== null && { ran: agentLabel(agent) }),
-      ...(gone.length > 0 && { gone }),
-      ...(others > 0 && { others }),
-    }
-  }
-
-  /** A tool call from Novadeck's MCP server, to the operation it names. */
-  private call(call: Call): Promise<unknown> {
-    switch (call.type) {
-      case "present":
-        return this.companion.present(call)
-      case "showing":
-        return Promise.resolve(this.companion.showing(call))
-      case "dismiss":
-        return this.companion.dismiss(call)
-      case "open":
-        return this.open(call)
-      case "close":
-        return this.closePeer(call)
-      case "ask":
-      case "tell": {
-        if (!callerOf(this.records, call)) return Promise.resolve(unansweredCalls[call.type])
-        return Promise.resolve(this.asks.call(call.terminalId, call.type, call.request))
-      }
-      case "send":
-        return this.send(call)
-      case "agents":
-        return this.agents(call)
-      case "summarize":
-        return this.summarize(call)
-    }
-  }
-
-  /**
-   * Summarizes the caller's own terminal, as its agent asked through Novadeck's MCP
-   * server: the summary of its work `agents()` lists. It names nothing: titles are the
-   * person's, murmur's and the opener's, so an agent has no way to set one. The call
-   * tells murmur to look at the terminal again, now that its agent said what it works on.
-   * A call without the shell's own token learns nothing more.
-   */
-  async summarize(call: Call): Promise<SummarizeAnswer> {
-    const record = callerOf(this.records, call)
-    if (!record) return unansweredCalls.summarize
-    const read = readSummarizeRequest(call.request)
-    if (!read.ok) return read
-    const summary = cleanSummary(read.request.summary)
-    const refusal = summaryRefusal(summary)
-    if (refusal) return refused(refusal)
-    // Drift is measured from where its work is now.
-    const facts = await this.peers.facts(record)
-    if (this.stopping || this.records.get(call.terminalId) !== record)
-      return unansweredCalls.summarize
-    record.naming = summarized(record.naming, summary)
-    record.nudges = afterSummary(record.nudges, facts)
-    this.saves.save(record, false)
-    this.murmur?.summarized(record.summary.id)
-    return { ok: true }
+  /** Closes another terminal of the caller's project and session (see `Calls.closePeer`). */
+  closePeer(call: Call): Promise<CloseAnswer> {
+    return this.calls.closePeer(call)
   }
 
   /**
@@ -3003,7 +2721,7 @@ export class Terminals {
     this.streams.end(id)
     // Which chain it belongs to, as `forget` drops it on close; the chain's own times stay
     // until they pass out of the window.
-    this.openers.delete(id)
+    this.calls.forgetOpener(id)
   }
 
   /** Forgets an exited terminal; its screen lasts until its viewers finish reading. */

@@ -2,7 +2,7 @@ import { EditorView } from "@codemirror/view"
 import { findTables, mountMarkdown, rowAnnotations } from "@novadeck/viewers/markdown"
 import { afterEach } from "vitest"
 
-import { context, describe, expect, it } from "../test"
+import { context, describe, expect, it } from "../../../test"
 import { planNotes, rowNotes } from "./plan-notes"
 
 const unmounts: (() => void)[] = []

@@ -1,5 +1,5 @@
-import { isOnBar, windowOfItem, type ItemId } from "@novadeck/core/companion"
-import type { BarKey } from "@novadeck/core/companion-bar"
+import type { CompanionActions } from "@novadeck/companion/actions"
+import { isOnBar, kindRules, windowOfItem, type ItemId } from "@novadeck/core/companion"
 import { addCompactGridTerminal } from "@novadeck/core/layout/grid-placement"
 import { canvasNewTerminalSize } from "@novadeck/core/layout/terminal-size"
 import {
@@ -15,36 +15,9 @@ import type { CompanionWindowMeta } from "@novadeck/core/types"
 import { currentContext, currentState, currentTarget } from "../selectors"
 import type { CommandContext } from "./context"
 
-// What the person does with companion items and the bars that hold them: undocking an
-// item into a window of its own and docking it back, moving items onto another
-// terminal's bar, closing one, and arranging a bar. Each is one change to the workspace,
-// which the backend makes so; items are named by id, terminals by id in the current
-// session.
-export type CompanionCommands = {
-  // Undocks the item into a window of its own beside its terminal, where it was dropped
-  // when `place` says, or brings the window it's in forward, moving it there.
-  readonly undock: (itemId: ItemId, place?: WindowPlace) => void
-  // Docks a window's item back on the bar of the terminal it was shown from, open there.
-  readonly dock: (windowId: string) => void
-  // Moves the items onto terminal `terminalId`'s bar, each last.
-  readonly place: (itemIds: readonly ItemId[], terminalId: string) => void
-  // Closes the item: a plan on its own terminal's bar hides until it's rewritten; anything
-  // else is gone, with the window it was in.
-  readonly closeItem: (itemId: ItemId) => void
-  // The person looked at items without opening them, in a peek: no longer new.
-  readonly markSeen: (itemIds: readonly ItemId[]) => void
-  // Opens a bar's pane to what it holds, closes it, hides what's on it, or moves an icon,
-  // which `slots` gives each by the keys it stands for.
-  readonly openBarTab: (terminalId: string, key: BarKey) => void
-  readonly closeBarPane: (terminalId: string) => void
-  readonly hideOnBar: (terminalId: string, key: BarKey) => void
-  readonly moveBarSlot: (
-    terminalId: string,
-    slots: readonly (readonly BarKey[])[],
-    from: number,
-    to: number,
-  ) => void
-}
+// What the person does with companion items and the bars that hold them: the companion
+// package declares the actions, and these commands implement them.
+export type CompanionCommands = CompanionActions
 
 export type CompanionDependencies = {
   readonly select: (id: string) => void
@@ -81,7 +54,7 @@ export const createCompanionCommands = (
     setSelected(id)
   }
 
-  return {
+  const commands = {
     undock: (itemId, place) => {
       const snapshot = workspace.getSnapshot()
       const { roster, layout } = currentState(snapshot)
@@ -148,7 +121,7 @@ export const createCompanionCommands = (
       if (!item) return
       const target = currentTarget(snapshot)
       const home = item.from.terminalId
-      if (item.kind === "plan" && isOnBar(item, home))
+      if (kindRules[item.kind].close === "hide" && isOnBar(item, home))
         return commit([{ type: "bar/hide", target, terminalId: home, key: itemId }])
       const close: WorkspaceAction = { type: "item/close", target, itemId }
       // Closing a window moves the selection on, so the address follows.
@@ -178,5 +151,6 @@ export const createCompanionCommands = (
           to,
         },
       ]),
-  }
+  } satisfies CompanionActions
+  return commands
 }
