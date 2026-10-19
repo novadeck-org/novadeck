@@ -5,7 +5,7 @@ type CuratedStep = Omit<FlowStep, "anchor" | "label"> & { label?: string; anchor
 const host = "application/host/src"
 const runnerSrc = "backend/runner/src"
 const hostSrc = "libraries/terminal/src/host"
-const ui = "application/ui/src"
+const adapter = "frontend/runner-adapter/src"
 const relay = "backend/relay/src"
 
 // Paths written by hand from the code. `pnpm --filter @novadeck/atlas check` fails when an anchor stops resolving; the steps
@@ -91,7 +91,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "connect + handshake",
         text: "The UI connects the runner client and completes the handshake before anything renders.",
         anchor: {
-          file: `${ui}/backend/runner/index.ts`,
+          file: `${adapter}/index.ts`,
           text: "runner = await connectRunner(transport(), { signal })",
         },
       },
@@ -101,7 +101,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "list / seed projects",
         text: "It lists projects, sessions and terminals, and a first run gets a Home project and a session created for it.",
         anchor: {
-          file: `${ui}/backend/runner/index.ts`,
+          file: `${adapter}/index.ts`,
           text: 'runner.projects.create({ id: newId(), name: "Home" })',
         },
       },
@@ -266,7 +266,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         to: "renderer",
         label: "item → companion bar",
         text: "The UI applies the change, and the item appears in the terminal's bar.",
-        anchor: { file: `${ui}/backend/runner/items.ts`, text: "const changes = runner.watch()" },
+        anchor: { file: `${adapter}/items.ts`, text: "const changes = runner.watch()" },
       },
       {
         from: "runner",
@@ -350,7 +350,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "requests → chat cards",
         text: "The conversation turns the pending requests into cards in the chat view, where the person picks an answer.",
         anchor: {
-          file: `${ui}/backend/runner/conversations.ts`,
+          file: `${adapter}/conversations.ts`,
           text: "const requestsOf = (detail: AgentDetail, root: string | null)",
         },
       },
@@ -360,7 +360,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "agents.answer call",
         text: "The chosen answer goes to the runner as an agents.answer call.",
         anchor: {
-          file: `${ui}/backend/runner/conversations.ts`,
+          file: `${adapter}/conversations.ts`,
           text: "streams.answer(terminalId, request, requestAnswerOf(answer))",
         },
       },

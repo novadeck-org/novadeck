@@ -59,7 +59,7 @@ export const storeSpansPatch = {
   name: "profile-store-spans",
   enforce: "pre",
   transform: (code: string, id: string): { code: string; map: null } | null => {
-    if (!id.endsWith("/src/core/store.ts")) return null
+    if (!id.endsWith("/frontend/core/src/store.ts")) return null
     if (!/\bexport const countListenersWoken\b/.test(code)) return null
     if (!hook.test(code))
       throw new Error("core/store.ts's countListenersWoken isn't the hook the spans expect")
