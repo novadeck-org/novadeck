@@ -361,7 +361,7 @@ describe("the agent's turn status", () => {
     ])
   })
 
-  it("says which harness' agents record the shell commands sent to them", () => {
+  it("says which agents record a shell command sent to them", () => {
     expect([
       recordsShell("claude"),
       recordsShell("codex"),

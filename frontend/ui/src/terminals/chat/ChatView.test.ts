@@ -354,14 +354,19 @@ describe("a shell command sent to an agent that keeps no record of it", () => {
   })
 
   it("says nothing of a message, or where the agent records the command", async () => {
-    const quiet = async (conversation: Conversation, draft: string): Promise<void> => {
-      const { container } = host(createStore<Conversation>(conversation), { draft })
+    const quiet = async (
+      conversation: Conversation,
+      draft: string,
+      program?: string,
+    ): Promise<void> => {
+      const { container } = host(createStore<Conversation>(conversation), { draft, program })
       await send(container)
       expect(container.querySelector(".chat-unrecorded")).toBeNull()
     }
     await quiet({ ...questioning, requests: [] }, "hello")
     await quiet({ ...questioning, agent: "claude", requests: [] }, "!ls")
-    await quiet({ ...questioning, agent: null, requests: [] }, "!ls")
+    // The conversation's harness says, not the program the terminal runs.
+    await quiet({ ...questioning, agent: null, requests: [] }, "!ls", "agy")
   })
 })
 
