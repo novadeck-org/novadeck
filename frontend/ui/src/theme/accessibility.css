@@ -27,4 +27,22 @@
     background: Highlight;
     color: HighlightText;
   }
+  /* The selected terminal's team (tabs.css, team-wire.css): the wire, its cursor and ticks
+     in the highlight, and an outline in place of the tint its other tabs take. */
+  .team-wire-shape > i {
+    forced-color-adjust: none;
+    box-shadow: none;
+  }
+  .team-wire-segment,
+  .team-wire-cursor,
+  .team-wire-tap {
+    background: Highlight;
+  }
+  .team-wire-pulse {
+    display: none;
+  }
+  .terminal-tab[data-team]:not(.selected) {
+    outline: 1px solid Highlight;
+    outline-offset: -1px;
+  }
 }

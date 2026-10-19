@@ -36,6 +36,7 @@ export const TerminalTab = ({
   icon: Icon,
   index,
   selected,
+  team,
   hidden,
   unread,
   rename,
@@ -57,6 +58,8 @@ export const TerminalTab = ({
   icon: LucideIcon
   index: number
   selected: boolean
+  // Its place in the selected terminal's team: the lead or one of its workers (tabs.css).
+  team?: "lead" | "worker" | undefined
   hidden: boolean
   // Its agent finished while the person looked elsewhere, on its own or on an error: the
   // tab says so until they look.
@@ -184,6 +187,7 @@ export const TerminalTab = ({
           : {})}
         {...(marks ? { "data-terminal-subagents": marks.working ? "working" : "background" } : {})}
         data-terminal-hidden={hidden}
+        {...(team ? { "data-team": team } : {})}
 
         className={`terminal-tab [--_sidebar-actions-space:76px] ${selected ? "selected" : ""} ${editing ? "editing" : ""} ${isDragSource ? "dragging" : ""}`}
         editing={editing}

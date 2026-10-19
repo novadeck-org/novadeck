@@ -10,9 +10,10 @@ import { RestrictToElement } from "@dnd-kit/dom/modifiers"
 import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable } from "@dnd-kit/react/sortable"
 import type { Tile } from "@novadeck/core/types"
-import { useMemo, useState, type ReactNode } from "react"
+import { useCallback, useContext, useMemo, useState, type ReactNode } from "react"
 
 import { sidebarListClasses } from "../sidebar/SidebarItem"
+import { TabListContext } from "./tab-list"
 
 const sensors = [
   PointerSensor.configure({
@@ -52,6 +53,19 @@ export const TerminalTabs = ({
   onReorder: (ids: string[]) => void
 }): React.JSX.Element => {
   const [list, setList] = useState<HTMLDivElement | null>(null)
+  // The list, for the drag bounds and for the workspace's store of the list on screen.
+  const tabList = useContext(TabListContext)
+  const attach = useCallback(
+    (node: HTMLDivElement) => {
+      setList(node)
+      tabList?.update(() => node)
+      return () => {
+        setList(null)
+        tabList?.update((current) => (current === node ? null : current))
+      }
+    },
+    [tabList],
+  )
   const modifiers = useMemo(() => [RestrictToElement.configure({ element: list })], [list])
   return (
     <DragDropProvider
@@ -70,7 +84,7 @@ export const TerminalTabs = ({
         onReorder(order)
       }}
     >
-      <div className={`terminal-tab-list ${sidebarListClasses}`} ref={setList}>
+      <div className={`terminal-tab-list ${sidebarListClasses}`} ref={attach}>
         {terminals.map((terminal, index) => renderTab(terminal, index))}
         {!terminals.length && (
           <p className="terminal-tab-empty px-3 py-3 text-control">No open sessions</p>

@@ -1,3 +1,4 @@
+import { teamRole } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import type { Tile } from "@novadeck/core/types"
 import { memo, useMemo } from "react"
@@ -29,6 +30,8 @@ export const WorkspaceTab = memo(
       }
     }, shallowEqual)
     const target = useWorkspaceState(currentTarget, sameTarget)
+    // Its place in the selected terminal's team, which the tab and the rail's wire show.
+    const team = useWorkspaceState((workspace) => teamRole(workspace, id))
     const rename = useUiState(
       (state) =>
         state.rename?.context === context && state.rename.id === id
@@ -60,6 +63,7 @@ export const WorkspaceTab = memo(
         icon={(isWindow(terminal) ? windowProfile(item) : terminalProfile(terminal)).icon}
         index={index}
         selected={selected}
+        team={team}
         hidden={hidden}
         unread={unread}
         rename={rename}
