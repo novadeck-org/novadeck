@@ -1,0 +1,45 @@
+2026-10-18T22:16:39.8790375Z  [31m❯[39m [30m[43m behaviour (chromium) [49m[39m src/specs/process-windows.spec.tsx [2m([22m[2m2 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 10658[2mms[22m[39m
+2026-10-18T22:16:39.8790936Z    [31m❯[39m process windows [2m(2)[22m
+2026-10-18T22:16:39.8791401Z [31m     [31m×[31m presents claude in its window with input and controls in every layout[39m[33m 7252[2mms[22m[39m
+2026-10-18T22:16:39.8791949Z      [33m[2m✓[22m[39m presents codex in its window with input and controls in every layout[33m 3406[2mms[22m[39m
+2026-10-18T22:16:39.8792579Z  [32m✓[39m [30m[43m behaviour (chromium) [49m[39m src/specs/commands.spec.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 1189[2mms[22m[39m
+2026-10-18T22:16:39.8793034Z    [32m✓[39m workspace commands [2m(1)[22m
+2026-10-18T22:16:39.8793435Z      [32m✓[39m when creating a terminal while another name is being edited [2m(1)[22m
+2026-10-18T22:16:39.8793957Z        [33m[2m✓[22m[39m saves the existing name and creates the new terminal in the same interaction[33m 1188[2mms[22m[39m
+2026-10-18T22:16:39.8794280Z 
+2026-10-18T22:16:39.8794476Z [31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-18T22:16:39.8794757Z 
+2026-10-18T22:16:39.8795265Z [41m[1m FAIL [22m[49m [30m[43m behaviour (chromium) [49m[39m src/specs/process-windows.spec.tsx[2m > [22mprocess windows[2m > [22mpresents claude in its window with input and controls in every layout
+2026-10-18T22:16:39.8795944Z [31m[1mAssertionError[22m: expected false to be true // Object.is equality[39m
+2026-10-18T22:16:39.8796186Z 
+2026-10-18T22:16:39.8796288Z Failure screenshot:
+2026-10-18T22:16:39.8796913Z   - [2m.vitest/attachments/failure-screenshots/process-windows.spec.tsx/process-windows---presents-claude-in-its-window-with-input-and-controls-in-every-layout.png[22m
+2026-10-18T22:16:39.8797415Z 
+2026-10-18T22:16:39.8797535Z [32m- Expected[39m
+2026-10-18T22:16:39.8797751Z [31m+ Received[39m
+2026-10-18T22:16:39.8797878Z 
+2026-10-18T22:16:39.8797989Z [32m- true[39m
+2026-10-18T22:16:39.8798194Z [31m+ false[39m
+2026-10-18T22:16:39.8798321Z 
+2026-10-18T22:16:39.8798554Z [36m [2m❯[22m layoutSettled src/specs/support/workspace.tsx:[2m75:6[22m[39m
+2026-10-18T22:16:39.8798922Z     [90m 73|[39m       return stable
+2026-10-18T22:16:39.8799171Z     [90m 74|[39m     })
+2026-10-18T22:16:39.8799431Z     [90m 75|[39m     .toBe(true)
+2026-10-18T22:16:39.8799680Z     [90m   |[39m      [31m^[39m
+2026-10-18T22:16:39.8799942Z     [90m 76|[39m }
+2026-10-18T22:16:39.8800156Z     [90m 77|[39m
+2026-10-18T22:16:39.8800501Z [90m [2m❯[22m openWorkspace src/specs/support/workspace.tsx:[2m38:3[22m[39m
+2026-10-18T22:16:39.8800903Z [90m [2m❯[22m src/specs/process-windows.spec.tsx:[2m23:7[22m[39m
+2026-10-18T22:16:39.8801118Z 
+2026-10-18T22:16:39.8801310Z [31m[1mCaused by: Error[22m: Matcher did not succeed in time.[39m
+2026-10-18T22:16:39.8801700Z [36m [2m❯[22m layoutSettled src/specs/support/workspace.tsx:[2m67:3[22m[39m
+2026-10-18T22:16:39.8802133Z [90m [2m❯[22m openWorkspace src/specs/support/workspace.tsx:[2m38:3[22m[39m
+2026-10-18T22:16:39.8802514Z [90m [2m❯[22m src/specs/process-windows.spec.tsx:[2m23:7[22m[39m
+2026-10-18T22:16:39.8802728Z 
+2026-10-18T22:16:39.8802879Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-10-18T22:16:39.8803095Z 
+2026-10-18T22:16:39.8803098Z 
+2026-10-18T22:16:39.8803357Z [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m122 passed[39m[22m[90m (123)[39m
+2026-10-18T22:16:39.8803982Z [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m1382 passed[39m[22m[2m | [22m[33m7 skipped[39m[90m (1390)[39m
+2026-10-18T22:16:39.8804415Z [2m   Start at [22m 22:13:33
+2026-10-18T22:16:39.8804785Z [2m   Duration [22m 185.56s[2m (worker 71%, tests 19%, environment 6%, import 2%, transform 2%)[22m

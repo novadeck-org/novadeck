@@ -60,19 +60,38 @@ export const layoutSettled = async (): Promise<void> => {
     includeHidden: true,
   })
   const measure = (): string => {
-    const box = current.element().getBoundingClientRect()
+    const found = current.elements()
+    if (found.length !== 1) return "missing"
+    const box = found[0]!.getBoundingClientRect()
     return box.width < 100 ? "unsized" : `${box.left},${box.top},${box.width},${box.height}`
   }
+  // Counted in looks, and timed only once a frame is drawn: a file's first spec mounts the
+  // demo's terminals cold, which on a loaded runner held back frames for longer than a
+  // poll's 5 s timeout (reproduced at 30x CPU throttling), and that timeout failed a view
+  // which settled on the next frame. Each look waits for a frame, 50 ms apart as the
+  // poll's were, which specs that read a terminal's rows right after opening count on.
+  const lookLimit = 75
+  const timeLimit = 20_000
+  const start = performance.now()
   let previous = ""
-  await expect
-    .poll(async () => {
-      await nextFrame()
-      const next = measure()
-      const stable = next !== "unsized" && next === previous
-      previous = next
-      return stable
-    })
-    .toBe(true)
+  let changes = 0
+  let slowest = 0
+  for (let looks = 1; ; looks += 1) {
+    const asked = performance.now()
+    // eslint-disable-next-line no-await-in-loop -- One look after another.
+    await nextFrame()
+    slowest = Math.max(slowest, performance.now() - asked)
+    const next = measure()
+    if (next !== "unsized" && next !== "missing" && next === previous) return
+    if (previous !== "" && next !== previous) changes += 1
+    previous = next
+    if (looks >= lookLimit || performance.now() - start >= timeLimit)
+      throw new Error(
+        `the view never settled in ${looks} looks: it moved ${changes} times, the slowest frame took ${Math.round(slowest)} ms, and it was last ${next}`,
+      )
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
 }
 
 /**

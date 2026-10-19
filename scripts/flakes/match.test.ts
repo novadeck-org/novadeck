@@ -14,6 +14,7 @@ const fixtures: Record<string, string> = {
   "ui-preferences-murmur-cancel": "Test (Linux)",
   "ui-preferences-voice-cancel": "Test (macOS)",
   "ui-murmur-offer-expect-element": "Test (Windows)",
+  "ui-process-windows-layout-settled": "Test (Windows, 1/3)",
   "e2e-codex-quirks-stopped-thread": "Codex (Windows quirks)",
   "e2e-antigravity-macos-lead-tool-call": "Antigravity (macOS)",
   "e2e-claude-windows-interrupted-draft": "Claude Code (Windows)",
