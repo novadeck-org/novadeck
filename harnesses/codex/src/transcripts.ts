@@ -3,6 +3,9 @@ import { dirname, join } from "node:path"
 
 import type { Harness } from "@novadeck/harness-core/harness"
 import { at, entry, joined, record, textOf } from "@novadeck/harness-core/items"
+import { shellCall } from "@novadeck/harness-core/tools"
+
+import { describe } from "./tools.js"
 
 // Context Codex writes into the conversation as the person's message.
 const context =
@@ -91,6 +94,7 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
               at: time,
               tool: "Bash",
               call: payload.id,
+              describe: shellCall,
             }),
             entry("tool", "tool-result", output || "(no output)", { at: time, call: payload.id }),
           ]
@@ -104,7 +108,7 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
             "assistant",
             "tool-call",
             textOf(payload.type === "function_call" ? payload.arguments : payload.input),
-            { at: time, tool: toolName(payload), call: payload.call_id },
+            { at: time, tool: toolName(payload), call: payload.call_id, describe },
           ),
         ]
       case "function_call_output":

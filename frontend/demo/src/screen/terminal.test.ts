@@ -111,6 +111,8 @@ const item = (id: string, fields: Partial<ChatItem>): ChatItem => ({
   tool: null,
   call: null,
   author: null,
+  run: null,
+  interrupted: false,
   ...fields,
 })
 
@@ -281,7 +283,12 @@ describe("a demo terminal's screen", () => {
         ...was,
         items: [
           item("u1", { role: "user", text: "Fix the tests" }),
-          item("c1", { kind: "tool-call", tool: "Bash", text: '{"command":"pnpm test"}' }),
+          item("c1", {
+            kind: "tool-call",
+            tool: "Bash",
+            text: '{"command":"pnpm test"}',
+            run: { kind: "run", title: "Ran", detail: "pnpm test" },
+          }),
         ],
       }))
       const shown = await settle()

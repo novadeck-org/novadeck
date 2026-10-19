@@ -1,0 +1,86 @@
+import { describe as suite, expect, it } from "vitest"
+
+import { describe } from "./tools.js"
+
+const run = (tool: string, input: unknown) =>
+  describe(tool, typeof input === "string" ? input : JSON.stringify(input))
+
+suite("what a Claude Code tool call was", () => {
+  it.each([
+    ["Bash", { command: "pnpm test\nmore" }, "run", "Ran", "pnpm test"],
+    ["Read", { file_path: "/a/b/c/d/e.ts" }, "read", "Read", "…/c/d/e.ts"],
+    ["Write", { file_path: "/a/b.ts" }, "write", "Wrote", "/a/b.ts"],
+    ["Edit", { file_path: "src/x.ts" }, "write", "Edited", "src/x.ts"],
+    ["Grep", { pattern: "foo", path: "src" }, "search", "Searched", "foo"],
+    ["Glob", { pattern: "**/*.ts" }, "search", "Found files", "**/*.ts"],
+    ["Task", { description: "Explore the repo" }, "agent", "Subagent", "Explore the repo"],
+    ["Agent", { description: "Review" }, "agent", "Subagent", "Review"],
+    ["WebFetch", { url: "https://example.com" }, "web", "Fetched", "https://example.com"],
+    ["TodoWrite", { todos: [{}, {}, {}] }, "plan", "Updated todos", "3 items"],
+  ])("reads %s", (tool, input, kind, title, detail) => {
+    expect(run(tool, input)).toEqual({ kind, title, detail })
+  })
+
+  const send = { to: "fox", text: "Tests are green.\nShip it." }
+
+  it("reads Novadeck's plugin tools", () => {
+    expect(run("mcp__plugin_novadeck_novadeck__send", send)).toEqual({
+      kind: "agent",
+      title: "Messaged fox",
+      detail: "Tests are green.",
+    })
+  })
+
+  it.each([
+    ["agents", {}, "agent", "Listed agents", ""],
+    [
+      "open_terminal",
+      { agent: "codex", message: "Fix the lint\nerrors" },
+      "agent",
+      "Opened a terminal",
+      "codex: Fix the lint",
+    ],
+    ["open_terminal", { command: "pnpm dev" }, "agent", "Opened a terminal", "pnpm dev"],
+    ["close_terminal", { to: "owl" }, "agent", "Closed owl", ""],
+    ["show", { url: "http://localhost:5173/" }, "web", "Showed", "http://localhost:5173/"],
+    ["show", { file: { path: "/a/b/c/d/mock.png" } }, "read", "Showed", "…/c/d/mock.png"],
+    ["show", { file: '{"path":"/a/b/c/d/mock.png"}' }, "read", "Showed", "…/c/d/mock.png"],
+    ["close", { file: { path: "/a/b/c/d/mock.png" } }, "read", "Closed", "…/c/d/mock.png"],
+    ["close", { url: "http://localhost:5173/" }, "web", "Closed", "http://localhost:5173/"],
+    ["showing", {}, "read", "Checked what's shown", ""],
+    [
+      "summarize",
+      { summary: "Fixing the cart rounding" },
+      "agent",
+      "Summarized this terminal",
+      "Fixing the cart rounding",
+    ],
+  ])("labels Novadeck's %s", (tool, input, kind, title, detail) => {
+    expect(run(`mcp__plugin_novadeck_novadeck__${tool}`, input)).toEqual({ kind, title, detail })
+  })
+
+  it("leaves a server only named like Novadeck's alone", () => {
+    for (const name of [
+      "mcp__plugin_acme_novadeck__send",
+      "mcp__my_novadeck__send",
+      "mcp__novadeck_extra__send",
+    ])
+      expect(run(name, send)).toMatchObject({ title: name })
+  })
+
+  it("leaves another server's tool, and a Novadeck tool it doesn't know, as they are", () => {
+    expect(run("mcp__db__send", { to: "fox" })).toMatchObject({ title: "mcp__db__send" })
+    expect(run("mcp__plugin_novadeck_novadeck__new", "{}")).toMatchObject({
+      title: "mcp__plugin_novadeck_novadeck__new",
+    })
+  })
+
+  it("shows a tool it doesn't know by its name and the first thing its input says", () => {
+    expect(run("mcp__db__query", { query: "select 1" })).toEqual({
+      kind: "other",
+      title: "mcp__db__query",
+      detail: "select 1",
+    })
+    expect(run("mystery", "first line\nsecond")).toMatchObject({ detail: "first line" })
+  })
+})
