@@ -1,12 +1,11 @@
-import type { ItemId } from "@novadeck/core/companion"
+import { pointerOf, type ItemId } from "@novadeck/core/companion"
 import type { BackendAction } from "@novadeck/core/port"
 import { hasWindow } from "@novadeck/core/roster"
 import type { WorkspaceAction } from "@novadeck/core/state"
 import type { Workspace, WorkspaceTarget } from "@novadeck/core/types"
-import {
-  pageKey,
-  type CompanionItem as RunnerItem,
-  type CompanionWindow as RunnerWindow,
+import type {
+  CompanionItem as RunnerItem,
+  CompanionWindow as RunnerWindow,
 } from "@novadeck/protocol"
 import { hasCode, type CompanionWatchItem, type Runner } from "@novadeck/runner-client"
 
@@ -50,15 +49,6 @@ const same = (a: unknown, b: unknown): boolean =>
 
 const onBarOf = (item: RunnerItem, terminalId: string): boolean =>
   "terminalId" in item.holder && item.holder.terminalId === terminalId
-
-// What a file or page item points at, a page by the runner's own key for it; a plan's
-// slot is the runner's to know.
-const pointerOf = (item: RunnerItem): string | null =>
-  item.kind === "plan"
-    ? null
-    : item.kind === "page"
-      ? `page:${pageKey(item.url ?? "")}`
-      : `file:${item.path}`
 
 export const createRunnerItems = ({
   runner,
