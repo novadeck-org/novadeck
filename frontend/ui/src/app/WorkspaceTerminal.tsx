@@ -8,7 +8,7 @@ import { memo, useCallback, useContext, useMemo, useSyncExternalStore, type Reac
 
 import { shortcutBindings } from "../interaction/shortcuts"
 import { ChatView } from "../terminals/chat/ChatView"
-import { chatDraftOf, chatReplyOf, chatSendOf, chatShown } from "../terminals/chat/mode-state"
+import { chatDraftOf, chatReplyOf, chatSendOf, chatShown } from "../terminals/chat/state"
 import { useChat } from "../terminals/chat/use-chat"
 import { presentedProgram, terminalProfile, windowProfile } from "../terminals/processes/profiles"
 import { renameView } from "../terminals/rename-state"
@@ -222,9 +222,11 @@ export const WorkspaceTerminal = memo(
     // A terminal whose agent has a conversation to show, with the chat view on, on a backend
     // that reads it.
     const chatView = useUiState((state) => state.preferences.chatView)
-    const answering = useChat(chat, (state) => state.answering)
-    const showChat =
-      conversations !== undefined && chatShown(chatView, answering, chatContext, terminal)
+    const showChat = useChat(
+      chat,
+      (state) =>
+        conversations !== undefined && chatShown(chatView, state.answering, chatContext, terminal),
+    )
     const draft = useChat(chat, (state) => chatDraftOf(state.drafts, chatContext, terminalId))
     const replyTo = useChat(chat, (state) => chatReplyOf(state.replies, chatContext, terminalId))
     const sending = useChat(chat, (state) => chatSendOf(state.sends, chatContext, terminalId))

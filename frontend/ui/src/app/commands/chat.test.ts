@@ -123,8 +123,11 @@ describe("chat commands", () => {
       )
       expect(seen).toHaveLength(2)
       // No frame shows the chat of a terminal still answered in; the last shows it afresh.
-      expect(seen.filter((frame) => frame.shown && frame.answered)).toEqual([])
-      expect(seen.map((frame) => frame.shown)).toEqual([false, true])
+      // The answers are gone before the preference flips, so the first frame has none.
+      expect(seen).toEqual([
+        { shown: false, answered: false },
+        { shown: true, answered: false },
+      ])
     })
 
     it("leaves the answers be where the preference is saved unchanged", () => {

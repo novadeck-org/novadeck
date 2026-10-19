@@ -26,6 +26,7 @@ export {
   chatReplyOf,
   chatSendOf,
   chatShown,
+  setChatDraft,
   type ChatDrafts,
   type ChatReplies,
   type ChatReply,
