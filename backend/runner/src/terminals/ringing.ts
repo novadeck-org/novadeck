@@ -118,7 +118,7 @@ export const doorbellHost = <R extends RingRecord>(
         record !== undefined &&
         !working(terminalId, record.activity) &&
         messaging.ring(terminalId, nonce)
-      if (rung) doorbellLog.current?.ring(terminalId)
+      if (rung) doorbellLog.current?.ring(terminalId, messaging.waitedMs(terminalId))
       return rung
     },
     ringing: (terminalId) => messaging.ringing(terminalId),
@@ -183,7 +183,7 @@ export const doorbellHost = <R extends RingRecord>(
     },
     ringLeftover: (terminalId, nonce) => {
       const rung = messaging.ringLeftover(terminalId, nonce)
-      if (rung) doorbellLog.current?.ring(terminalId)
+      if (rung) doorbellLog.current?.ring(terminalId, messaging.waitedMs(terminalId))
       return rung
     },
     emptied: (terminalId, readAt) => {

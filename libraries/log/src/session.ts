@@ -57,27 +57,28 @@ export const lastSeen = (file: string, sid: string): string | undefined => {
 }
 
 export type Session = {
+  /** Logs `session.start` with what the launch is, once it is known. Once. */
+  start(data?: Data): void
   /** Logs `session.end` with the exit's facts, and marks the launch as having ended. Once. */
   end(data?: Data): void
 }
 
 /**
- * Starts a launch's records: `session.unclean` for the launch before it, when that one left
- * its `marker` behind, as a launch that never ended does, killed or crashed; then
- * `session.start`, with `data`. The marker is written at once, its folder made first, so even
- * a launch killed straight after its first start is found by the next. `file` is the log's,
- * read for when the unclean launch last wrote.
+ * Opens a launch's records, synchronously, as early as the process can: `session.unclean`
+ * for the launch before it, when that one left its `marker` behind, as a launch that never
+ * ended does, killed or crashed; then this launch's marker, its folder made first. A launch
+ * that crashes before it says what it is (`start`), or straight after, is found by the next
+ * all the same. `file` is the log's, read for when the unclean launch last wrote.
  *
  * One process owns a launch's marker, the one whose end is the launch's: a process started
  * within the launch, and again, never touches it, or its own end would hide the launch's.
  */
-export const startSession = (options: {
+export const openSession = (options: {
   /** The file that marks a launch as running, such as `logs/session.json`. */
   readonly marker: string
   readonly sid: string
   readonly log: Log
   readonly file?: string
-  readonly data?: Data
   readonly now?: () => number
 }): Session => {
   const { marker, sid, log } = options
@@ -99,9 +100,14 @@ export const startSession = (options: {
   } catch {
     // Without a marker the next launch can't tell how this one ended.
   }
-  log.info("session.start", "The app started.", { ...(options.data && { data: options.data }) })
+  let started = false
   let ended = false
   return {
+    start(data) {
+      if (started) return
+      started = true
+      log.info("session.start", "The app started.", { ...(data && { data }) })
+    },
     end(data) {
       if (ended) return
       ended = true

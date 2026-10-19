@@ -196,6 +196,7 @@ export class Doorbell {
   private readonly schedule = coalesced(
     (terminalId) => this.check(terminalId),
     "Novadeck's doorbell failed:",
+    "doorbell.check-failed",
   )
   private readonly checking = new Set<string>()
   /** Each terminal's ring pressed and awaiting its prompt: its nonce, and its hold to settle. */

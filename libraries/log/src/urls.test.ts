@@ -58,9 +58,9 @@ describe("hashUrls", () => {
       `http://${h("10.0.0.5")}:8080/${h("admin")}`,
     ],
     [
-      "the loopback, keeping its port",
-      "http://127.0.0.1:5173/customers/acme",
-      `http://127.0.0.1:5173/${h("customers")}/${h("acme")}`,
+      "the loopback, as the app's own page's frames name it, without its query",
+      "at Hx (http://127.0.0.1:41235/assets/index-BX12abcd.js:1:2345) http://localhost:5173/?x=1",
+      "at Hx (http://127.0.0.1:41235/assets/index-BX12abcd.js:1:2345) http://localhost:5173/?…",
     ],
     [
       "a query and a fragment, dropped, and the sentence's end kept",

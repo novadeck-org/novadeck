@@ -17,6 +17,7 @@ import {
   logRunnerOutput,
   registerLogIpc,
   uiErrorOf,
+  updateLogOn,
 } from "./logs"
 
 const folders: string[] = []
@@ -197,6 +198,25 @@ describe("the runner's output", () => {
       ["runner.stderr", "FATAL ERROR: Reached heap limit", 1],
       ["runner.stderr", "starting again", 2],
     ])
+  })
+})
+
+describe("the log of updating", () => {
+  it("writes what updating says to the host's log, redacted, electron-updater's errors as errors", () => {
+    const { logger, lines } = hostLog()
+    const updates = updateLogOn(logger.for("updates"))
+    updates.info("1.2.3 is ready to install on quitting.")
+    updates.warn("Installing the update failed.", new Error("EACCES /home/ana/apps/x"))
+    updates.logger.info({ files: 2 })
+    updates.logger.error(new Error("net::ERR_TIMED_OUT"))
+    logger.close()
+    expect(lines().map((line) => [line.src, line.evt, line.level, line.msg])).toEqual([
+      ["updates", "update.progress", "info", "1.2.3 is ready to install on quitting."],
+      ["updates", "update.warning", "warn", "Installing the update failed."],
+      ["updates", "updater.info", "info", "{ files: 2 }"],
+      ["updates", "updater.error", "error", "electron-updater reported an error."],
+    ])
+    expect(lines()[1]?.err?.message).toMatch(/^EACCES ~\/#[0-9a-f]{8}\/#[0-9a-f]{8}$/)
   })
 })
 

@@ -1,5 +1,10 @@
+import { mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
 import type { ActivityEvent, HarnessEvent } from "@novadeck/harness-core/events"
 import { doorbellLine } from "@novadeck/harness-core/harness"
+import { consoleLogger, createLogger, logPath, type Entry } from "@novadeck/log"
 import type { AgentName } from "@novadeck/protocol"
 import { keysOf } from "@novadeck/tui-input"
 import { afterEach, beforeEach, vi } from "vitest"
@@ -14,6 +19,7 @@ import type { Binding } from "../harnesses/bindings.js"
 import { harnesses } from "../harnesses/registry.js"
 import { followRoot, type Root } from "../harnesses/roots.js"
 import { typedPromptStart } from "../harnesses/typed-prompts.js"
+import { useLogger } from "../log.js"
 import { handleWords } from "../terminals/handles.js"
 import { bareHandle } from "../terminals/handles.js"
 import { describe, expect, it } from "../test.js"
@@ -3501,5 +3507,83 @@ describe("the listing's lead lines", () => {
     messaging.unregister("A")
     expect(listed("W")).not.toContain("led by")
     expect(listed("W")).not.toContain("your lead")
+  })
+})
+
+/** The runner's log, written to a fresh folder for the test, and its lines' events and data. */
+const captureLog = () => {
+  const folder = mkdtempSync(join(tmpdir(), "novadeck-messaging-log-"))
+  const logger = createLogger({
+    proc: "runner",
+    sid: "test",
+    file: { folder, name: "runner" },
+    redact: (line) => line,
+    collapseMs: 0,
+  })
+  useLogger(logger)
+  return {
+    lines: (): Entry[] => {
+      try {
+        return readFileSync(logPath(folder, "runner"), "utf8")
+          .trim()
+          .split("\n")
+          .filter(Boolean)
+          .map((line) => JSON.parse(line) as Entry)
+      } catch {
+        return []
+      }
+    },
+    stop: () => {
+      useLogger(consoleLogger())
+      logger.close()
+      rmSync(folder, { recursive: true, force: true })
+    },
+  }
+}
+
+describe("the log of waiting messages", () => {
+  it("tells a terminal's messages waiting past five minutes, whatever keeps them, once an hour", () => {
+    const log = captureLog()
+    try {
+      const { messaging, send, clock: time } = create()
+      sent(send("A", "fox", "first"))
+      time.now += 4 * 60_000
+      messaging.tellWaits()
+      expect(log.lines()).toEqual([])
+      time.now += 2 * 60_000
+      messaging.tellWaits()
+      messaging.tellWaits()
+      time.now += 61 * 60_000
+      messaging.tellWaits()
+      const waits = log.lines().filter((line) => line.evt === "delivery.waiting")
+      expect(waits.map((line) => [line.data?.count, line.data?.waitedMs])).toEqual([
+        [1, 6 * 60_000],
+        [1, 67 * 60_000],
+      ])
+      expect(waits[0]?.data).toEqual(
+        expect.objectContaining({ terminal: expect.any(String), state: expect.any(String) }),
+      )
+      expect(messaging.waitedMs(waits[0]!.data!.terminal as string)).toBe(67 * 60_000)
+    } finally {
+      log.stop()
+    }
+  })
+
+  it("tells each message a stopped thread drops", () => {
+    const log = captureLog()
+    try {
+      const { messaging, send } = create()
+      sent(send("A", "fox", "first"))
+      const [thread] = messaging.list("A", "fox").threads
+      messaging.stop(thread!.id)
+      expect(
+        log
+          .lines()
+          .filter((line) => line.evt === "delivery.gone")
+          .map((line) => line.data?.reason),
+      ).toEqual(["thread-stopped"])
+    } finally {
+      log.stop()
+    }
   })
 })

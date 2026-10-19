@@ -111,8 +111,9 @@ export const hashUrls = (text: string, rule: UrlRule): string => {
     const path = strip(groups.path)
     const query = strip(groups.query)
     const fragment = strip(groups.fragment)
-    // A readable address keeps its path, not what it asked or pointed at.
-    if (isReadable(host.toLowerCase(), path))
+    // A readable address keeps its path, not what it asked or pointed at; so does the
+    // loopback's, which serves the app's own page and its scripts, as its stack frames name.
+    if (isReadable(host.toLowerCase(), path) || loopback.test(host))
       return `${scheme}://${user}${host}${port}${path}${query ? "?…" : ""}${fragment ? "#…" : ""}${tail}`
     return (
       `${scheme}://${user}${writeHost(host)}${port}${writePath(path)}` +

@@ -21,8 +21,8 @@ export type DoorbellLog = {
   trace(terminalId: string, line: string, screen?: ScreenText): void
   /** Why the doorbell can't ring the terminal now, whatever the reason's name; null once it can. */
   hold(terminalId: string, reason: string | null): void
-  /** A ring began. */
-  ring(terminalId: string): void
+  /** A ring began, for messages the oldest of which has waited `messageWaitedMs`, if known. */
+  ring(terminalId: string, messageWaitedMs?: number | null): void
   /** A ring failed. */
   ringFailed(terminalId: string, ours: boolean): void
   /** The terminal stopped running: what was kept of it goes, its timer with it. */
@@ -147,13 +147,14 @@ export const createDoorbellLog = (log: Log, options: DoorbellLogOptions = {}): D
         held.timer.unref?.()
       }
     },
-    ring(terminalId) {
+    ring(terminalId, messageWaitedMs) {
       const held = state(terminalId)
       release(terminalId, held)
       log.info("doorbell.ring", "The doorbell rang a terminal.", {
         data: {
           terminal: terminalId,
           waitedMs: held.waitingSince === undefined ? 0 : now() - held.waitingSince,
+          ...(messageWaitedMs != null && { messageWaitedMs }),
         },
       })
       held.waitingSince = undefined

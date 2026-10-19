@@ -18,7 +18,7 @@ import { homedir, release } from "node:os"
 import { basename, dirname, join, win32 } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
-import { consoleLogger, logPath, startSession, type Logger, type Session } from "@novadeck/log"
+import { consoleLogger, logPath, openSession, type Logger, type Session } from "@novadeck/log"
 import type { UpdateChannel } from "@novadeck/protocol/bridge"
 import { pagesPartition } from "@novadeck/protocol/pages"
 import { startHttpServer, type HttpServer } from "@novadeck/runner/http"
@@ -96,6 +96,7 @@ import {
   logNewDumps,
   logRunnerOutput,
   registerLogIpc,
+  updateLogOn,
 } from "./logs.js"
 import {
   allowMacUpdates,
@@ -124,7 +125,6 @@ import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./
 import { startRunner, type RunnerEvents, type RunnerHost } from "./runner.js"
 import { registerSandboxIpc, sandboxState } from "./sandbox.js"
 import { registerUninstallIpc, startRemovalAfterExit, uninstaller } from "./uninstall.js"
-import { updateLog } from "./update-log.js"
 import {
   releaseDownloadsUrl,
   releaseLatestUrl,
@@ -223,8 +223,25 @@ const warnings =
   (src: string) =>
   (message: string, error?: unknown): void =>
     logger.for(src).warn(`${src}.warning`, message, error === undefined ? {} : { err: error })
-// The launch's records: started once the build is known, ended as the process exits.
-let records: Session | undefined
+// The launch's records, opened at once, before anything can wait: a launch that crashes on its
+// way up, as one right after an update may, is found by the next. The primary instance's
+// alone: a second launch quits without touching the marker. Said what it is once the build is
+// known, and ended as the process exits.
+const records: Session | undefined = primaryInstance
+  ? openSession({
+      marker: join(app.getPath("logs"), "session.json"),
+      sid: launchId,
+      log: logger.for("session"),
+      file: logPath(app.getPath("logs"), "host"),
+    })
+  : undefined
+// Electron's app.exit ends the process without Node's `exit` event, which app.quit emits:
+// every exit of the app goes through here, so its end is logged.
+const exitApp = (code: number): void => {
+  records?.end({ code })
+  logger.close()
+  app.exit(code)
+}
 // Logged as they happen; what follows is as it ever was: an uncaught exception shows
 // Electron's dialog, and a promise rejected with nothing to catch it is only a warning.
 process.on("uncaughtExceptionMonitor", (error, origin) =>
@@ -255,8 +272,8 @@ const appearance = keepAppearance(join(app.getPath("userData"), "appearance.json
 
 // What the host remembers about updating: the channel, a failed install, how long this copy is behind.
 const updateState = keepUpdateState(join(app.getPath("userData"), "update.json"))
-// The log of updating, beside Electron's own logs; see ./update-log.ts.
-const updatesLog = updateLog(() => join(app.getPath("logs"), "updates.log"))
+// The log of updating, in the host's log; see `updateLogOn` in ./logs.ts.
+const updatesLog = updateLogOn(logger.for("updates"))
 // The macOS update made ready to put in place on quitting, and whether quitting puts it
 // there: a quit as the session ends, or the uninstall, switches that off. See ./mac-update.ts.
 let macUpdate: { readonly version: string; readonly prepared: string } | undefined
@@ -551,11 +568,8 @@ const updateBuild = (): Promise<UpdateBuild> =>
     return { ...rest, signed: checksSignature() && rest.inApplications && (await bundleSigned()) }
   })())
 
-// A failure of updating, told on the console and kept in the log.
-const updateWarning = (message: string, error: unknown): void => {
-  console.warn(message, error)
-  updatesLog.warn(message, error)
-}
+// A failure of updating, kept in the log, which a development run also shows on the console.
+const updateWarning = (message: string, error: unknown): void => updatesLog.warn(message, error)
 
 // Marks a failed install, so its release is told of rather than installed again.
 // Synchronous: a failed install on quit is reported as the app exits.
@@ -886,7 +900,7 @@ const startBundle = (image: string): Promise<boolean> =>
       executable: join(image, "Contents", "MacOS", basename(app.getPath("exe"))),
       exists: existsSync,
       relaunch: (execPath) => app.relaunch({ execPath }),
-      exit: () => app.exit(0),
+      exit: () => exitApp(0),
       log: warnings("install"),
     }),
   )
@@ -914,7 +928,7 @@ const startInstalled = (image: string): Promise<boolean> =>
     },
     releaseLock: () => app.releaseSingleInstanceLock(),
     reclaimLock: () => app.requestSingleInstanceLock(),
-    exit: () => app.exit(0),
+    exit: () => exitApp(0),
     log: warnings("install"),
   })
 
@@ -927,7 +941,7 @@ const startWindowsCopy = (image: string): Promise<boolean> =>
     exists: existsSync,
     releaseLock: () => app.releaseSingleInstanceLock(),
     reclaimLock: () => app.requestSingleInstanceLock(),
-    exit: () => app.exit(0),
+    exit: () => exitApp(0),
     log: warnings("install"),
   })
 
@@ -1220,27 +1234,20 @@ const launch = async (): Promise<void> => {
   // without it.
   const portable = portableOf({ ...(await baseBuild()), signed: false })
   const known = await baseBuild()
-  // The launch's records begin here, with what the build is, and the crashes of the launches
-  // before it.
-  records = startSession({
-    marker: join(app.getPath("logs"), "session.json"),
-    sid: launchId,
-    log: logger.for("session"),
-    file: logPath(app.getPath("logs"), "host"),
-    data: {
-      version: app.getVersion(),
-      channel: updateState.read().channel,
-      install: installKind({ ...known, appImage: known.env.APPIMAGE !== undefined }),
-      portable,
-      os: process.platform,
-      osVersion: release(),
-      arch: process.arch,
-      electron: process.versions.electron,
-      node: process.versions.node,
-      chrome: process.versions.chrome,
-      locale: app.getLocale(),
-      verbose: verboseLogs,
-    },
+  // The launch says what it is, and the crashes of the launches before it.
+  records?.start({
+    version: app.getVersion(),
+    channel: updateState.read().channel,
+    install: installKind({ ...known, appImage: known.env.APPIMAGE !== undefined }),
+    portable,
+    os: process.platform,
+    osVersion: release(),
+    arch: process.arch,
+    electron: process.versions.electron,
+    node: process.versions.node,
+    chrome: process.versions.chrome,
+    locale: app.getLocale(),
+    verbose: verboseLogs,
   })
   logNewDumps(
     app.getPath("crashDumps"),
@@ -1265,7 +1272,7 @@ const launch = async (): Promise<void> => {
       alert: alertNotStarted,
       recentRedirect: redirect.recent,
       markRedirect: redirect.mark,
-      quit: () => app.exit(0),
+      quit: () => exitApp(0),
       log: warnings("portable"),
     })
   )
@@ -1588,7 +1595,7 @@ app.whenReady().then(() => {
   void launch().catch((error: unknown) => {
     log.fatal("host.launch-failed", "The app could not start.", { err: error })
     console.error(error)
-    app.exit(1)
+    exitApp(1)
   })
 
   app.on("activate", () => {
