@@ -4,7 +4,7 @@ import { packages, parseFolders, plan } from "./plan.ts"
 
 // The host and what it's built from, as turbo lists them on 2026-10-18.
 const packaged = [
-  "application/host",
+  "apps/desktop",
   "contract/protocol",
   "backend/relay",
   "backend/runner",
@@ -27,8 +27,8 @@ const pullRequest = (files: readonly string[]) => plan({ event: "pull_request", 
 describe("packaging a pull request", () => {
   it("packages a change to the host, the UI, the runner or what they're built from", () => {
     for (const file of [
-      "application/host/src/main/index.ts",
-      "application/host/electron-builder.yml",
+      "apps/desktop/src/main/index.ts",
+      "apps/desktop/electron-builder.yml",
       "frontend/ui/src/app/App.tsx",
       "frontend/ui/vite.config.ts",
       "backend/runner/src/terminals/manager.ts",
@@ -65,7 +65,7 @@ describe("packaging a pull request", () => {
         "backend/runner/src/e2e/chat.e2e.ts",
         "backend/runner/src/e2e/trace.ts",
         "libraries/wire/README.md",
-        "application/host/src/main/menu.test.ts",
+        "apps/desktop/src/main/menu.test.ts",
       ]),
     ).toBe(false)
   })
@@ -113,13 +113,13 @@ describe("turbo's package list", () => {
         JSON.stringify({
           packages: {
             items: [
-              { name: "@novadeck/host", path: "application/host" },
+              { name: "@novadeck/host", path: "apps/desktop" },
               { name: "@novadeck/wire", path: "libraries\\wire\\" },
             ],
           },
         }),
       ),
-    ).toEqual(["application/host", "libraries/wire"])
+    ).toEqual(["apps/desktop", "libraries/wire"])
   })
 
   it("is unknown when it isn't one, or lists nothing", () => {

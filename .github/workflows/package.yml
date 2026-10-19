@@ -99,32 +99,32 @@ jobs:
             target: linux
             expected: novadeck-linux-x86_64.AppImage latest-linux.yml
             files: |
-              application/host/release/*.AppImage
-              application/host/release/latest-linux.yml
-              application/host/release/novadeck-whisper-linux-x64.tar.gz
-              application/host/release/novadeck-murmur-linux-x64.tar.gz
+              apps/desktop/release/*.AppImage
+              apps/desktop/release/latest-linux.yml
+              apps/desktop/release/novadeck-whisper-linux-x64.tar.gz
+              apps/desktop/release/novadeck-murmur-linux-x64.tar.gz
           - name: macOS
             os: macos-latest
             target: mac
             expected: novadeck-mac-universal.dmg novadeck-mac-universal.zip latest-mac.yml
             files: |
-              application/host/release/*.zip
-              application/host/release/*.dmg
-              application/host/release/latest-mac.yml
-              application/host/release/*.blockmap
-              application/host/release/novadeck-whisper-darwin-universal.tar.gz
-              application/host/release/novadeck-murmur-darwin-universal.tar.gz
+              apps/desktop/release/*.zip
+              apps/desktop/release/*.dmg
+              apps/desktop/release/latest-mac.yml
+              apps/desktop/release/*.blockmap
+              apps/desktop/release/novadeck-whisper-darwin-universal.tar.gz
+              apps/desktop/release/novadeck-murmur-darwin-universal.tar.gz
           - name: Windows
             os: windows-latest
             target: win
             expected: novadeck-win-x64-setup.exe novadeck-win-x64.zip latest.yml
             files: |
-              application/host/release/*.exe
-              application/host/release/*.zip
-              application/host/release/latest.yml
-              application/host/release/*.blockmap
-              application/host/release/novadeck-whisper-win32-x64.tar.gz
-              application/host/release/novadeck-murmur-win32-x64.tar.gz
+              apps/desktop/release/*.exe
+              apps/desktop/release/*.zip
+              apps/desktop/release/latest.yml
+              apps/desktop/release/*.blockmap
+              apps/desktop/release/novadeck-whisper-win32-x64.tar.gz
+              apps/desktop/release/novadeck-murmur-win32-x64.tar.gz
     steps:
       # Only a draft marked ready gets here before its Quality checks are known; Quality
       # calls this workflow itself once they pass. It waits for Quality's Test check of the
@@ -202,7 +202,7 @@ jobs:
           require-lockfile: true
 
       - name: Set Package Version
-        run: npm --prefix application/host pkg set "version=${{ inputs.version || '0.0.0' }}"
+        run: npm --prefix apps/desktop pkg set "version=${{ inputs.version || '0.0.0' }}"
 
       # Releases from main are signed once the signing credentials are in the repository's
       # secrets and variables; pull requests, and releases before then, are left unsigned.
@@ -502,7 +502,7 @@ jobs:
             exit 0
           fi
           pnpm --workspace-root exec turbo run build --filter=@novadeck/host
-          pnpm --dir application/host exec electron-builder --win --x64 --publish never "${feed[@]}" \
+          pnpm --dir apps/desktop exec electron-builder --win --x64 --publish never "${feed[@]}" \
             "-c.win.azureSignOptions.publisherName=$AZURE_SIGNING_PUBLISHER" \
             "-c.win.azureSignOptions.endpoint=$AZURE_SIGNING_ENDPOINT" \
             "-c.win.azureSignOptions.codeSigningAccountName=$AZURE_SIGNING_ACCOUNT" \
@@ -517,12 +517,12 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           for name in $EXPECTED; do
-            if [[ ! -f "application/host/release/$name" ]]; then
+            if [[ ! -f "apps/desktop/release/$name" ]]; then
               echo "::error::The build produced no $name."
               exit 1
             fi
           done
-          update="$(find application/host/release -name app-update.yml -print -quit)"
+          update="$(find apps/desktop/release -name app-update.yml -print -quit)"
           if [[ -z "$update" ]] || ! grep -qx "owner: ${REPOSITORY%%/*}" "$update" || ! grep -qx "repo: ${REPOSITORY#*/}" "$update"; then
             echo "::error::The packaged app's update feed does not name $REPOSITORY."
             exit 1
@@ -532,7 +532,7 @@ jobs:
       - name: Check Linux Update Metadata
         if: matrix.target == 'linux'
         run: |
-          if ! grep -q 'url: novadeck-linux-x86_64.AppImage$' application/host/release/latest-linux.yml; then
+          if ! grep -q 'url: novadeck-linux-x86_64.AppImage$' apps/desktop/release/latest-linux.yml; then
             echo "::error::latest-linux.yml does not list novadeck-linux-x86_64.AppImage."
             exit 1
           fi
@@ -552,7 +552,7 @@ jobs:
           set -euo pipefail
           verify="$RUNNER_TEMP/novadeck-verify"
           mkdir -p "$verify/engine"
-          ditto -x -k "$(find application/host/release -maxdepth 1 -name '*.zip' -print -quit)" "$verify"
+          ditto -x -k "$(find apps/desktop/release -maxdepth 1 -name '*.zip' -print -quit)" "$verify"
           bundle="$(find "$verify" -maxdepth 1 -name '*.app' -print -quit)"
           codesign --verify --deep --strict --verbose=2 "$bundle"
           spctl --assess --type execute --verbose=2 "$bundle"
@@ -560,7 +560,7 @@ jobs:
 
           # The disk image holds its own copy of the bundle, which people drag out of it.
           image="$RUNNER_TEMP/novadeck-verify-image"
-          hdiutil attach -nobrowse -readonly -mountpoint "$image" "$(find application/host/release -maxdepth 1 -name '*.dmg' -print -quit)" > /dev/null
+          hdiutil attach -nobrowse -readonly -mountpoint "$image" "$(find apps/desktop/release -maxdepth 1 -name '*.dmg' -print -quit)" > /dev/null
           bundle="$(find "$image" -maxdepth 1 -name '*.app' -print -quit)"
           codesign --verify --deep --strict --verbose=2 "$bundle"
           spctl --assess --type execute --verbose=2 "$bundle"
@@ -599,12 +599,12 @@ jobs:
           # The ZIP is made from win-unpacked, but its own contents are what people run.
           $portable = Join-Path $env:RUNNER_TEMP "novadeck-verify-portable"
           New-Item -ItemType Directory -Force -Path $portable | Out-Null
-          & "$env:SystemRoot\System32\tar.exe" -xf application/host/release/novadeck-win-x64.zip -C $portable
+          & "$env:SystemRoot\System32\tar.exe" -xf apps/desktop/release/novadeck-win-x64.zip -C $portable
           if ($LASTEXITCODE -ne 0) {
             throw "The portable ZIP did not extract."
           }
-          $files = @(Get-ChildItem application/host/release -Filter *.exe) +
-            @(Get-ChildItem application/host/release/win-unpacked -Recurse -Include *.exe, *.dll, *.node) +
+          $files = @(Get-ChildItem apps/desktop/release -Filter *.exe) +
+            @(Get-ChildItem apps/desktop/release/win-unpacked -Recurse -Include *.exe, *.dll, *.node) +
             @(Get-ChildItem $portable -Recurse -Include *.exe, *.dll, *.node) +
             @(Get-ChildItem $engine -Include *.exe, *.dll -Recurse) +
             @(Get-ChildItem $murmur -Include *.exe, *.dll -Recurse)
@@ -625,7 +625,7 @@ jobs:
         env:
           REPOSITORY: ${{ github.repository }}
         run: |
-          release=application/host/release
+          release=apps/desktop/release
           # The app stops a moment after timeout stops xvfb-run. A launch started before it is
           # gone would hand off to it through the single-instance lock, which Chromium keeps
           # as a link to host-pid in the data folder, and exit at once.
@@ -768,7 +768,7 @@ jobs:
         env:
           REPOSITORY: ${{ github.repository }}
         run: |
-          release=application/host/release
+          release=apps/desktop/release
           # The one app bundle at the top of a folder.
           bundle_in() {
             local bundles
@@ -883,7 +883,7 @@ jobs:
             }
           }
 
-          $setup = Get-ChildItem application/host/release -Filter *-setup.exe | Select-Object -First 1
+          $setup = Get-ChildItem apps/desktop/release -Filter *-setup.exe | Select-Object -First 1
           if ($null -eq $setup) {
             throw "The installer was not found."
           }
@@ -918,7 +918,7 @@ jobs:
           # its folder is gone, so nothing holds the single-instance lock.
           $portable = Join-Path $env:RUNNER_TEMP "novadeck-smoke-portable"
           New-Item -ItemType Directory -Force -Path $portable | Out-Null
-          & "$env:SystemRoot\System32\tar.exe" -xf application/host/release/novadeck-win-x64.zip -C $portable
+          & "$env:SystemRoot\System32\tar.exe" -xf apps/desktop/release/novadeck-win-x64.zip -C $portable
           if ($LASTEXITCODE -ne 0) {
             throw "The portable ZIP did not extract."
           }
@@ -937,7 +937,7 @@ jobs:
       - name: Smoke Test Packaged Runner
         timeout-minutes: 5
         shell: bash
-        working-directory: application/host
+        working-directory: apps/desktop
         run: |
           if [[ "$RUNNER_OS" == Linux ]]; then
             xvfb-run -a pnpm run smoke
@@ -948,7 +948,7 @@ jobs:
       # Beside the packages, so the artifact keeps one flat folder for the release job.
       - name: Collect Engines
         shell: bash
-        run: cp engines/whisper/dist/novadeck-whisper-*.tar.gz engines/murmur/dist/novadeck-murmur-*.tar.gz application/host/release/
+        run: cp engines/whisper/dist/novadeck-whisper-*.tar.gz engines/murmur/dist/novadeck-murmur-*.tar.gz apps/desktop/release/
 
       - name: Upload Packages
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

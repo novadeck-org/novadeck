@@ -4,8 +4,8 @@ import { parseArgs } from "node:util"
 
 import { storeSpansPatch, webglPatch } from "./patches.ts"
 
-// `node scripts/bench/profile/build.ts --out <folder> [--profiling] [--webgl]`: builds the UI
-// as its own build does, with hidden source maps, into `--out`. With `--profiling`, React
+// `node scripts/bench/profile/build.ts --out <folder> [--profiling] [--webgl]`: builds the
+// desktop app's page as its own build does, with hidden source maps, into `--out`. With `--profiling`, React
 // DOM's profiling build stands in for its production one: the same code but for the timings
 // React logs as its performance tracks (console.timeStamp), which the profile reads from the
 // trace; and, where core/store.ts has its instrumentation hook (`countListenersWoken`, which
@@ -13,7 +13,7 @@ import { storeSpansPatch, webglPatch } from "./patches.ts"
 // `--webgl`, every screen loads xterm's WebGL renderer once it opens, in place of its DOM one,
 // the addon the emulator library's own. The patches are in patches.ts.
 
-const ui = join(import.meta.dirname, "../../..", "frontend/ui")
+const app = join(import.meta.dirname, "../../..", "apps/desktop")
 const { values } = parseArgs({
   options: {
     out: { type: "string" },
@@ -23,13 +23,13 @@ const { values } = parseArgs({
 })
 if (!values.out) throw new Error("--out names the folder to build into")
 
-// The UI's own Vite, as the root has none: only its build is used.
+// The app's own Vite, as the root has none: only its build is used.
 const vite = (await import(
-  pathToFileURL(join(ui, "node_modules", "vite", "dist", "node", "index.js")).href
+  pathToFileURL(join(app, "node_modules", "vite", "dist", "node", "index.js")).href
 )) as { readonly build: (config: Record<string, unknown>) => Promise<unknown> }
-process.chdir(ui)
+process.chdir(app)
 await vite.build({
-  configFile: join(ui, "vite.config.ts"),
+  configFile: join(app, "vite.config.ts"),
   logLevel: "error",
   build: { outDir: values.out, emptyOutDir: true, sourcemap: "hidden" },
   ...(values.profiling && {

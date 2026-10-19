@@ -1,10 +1,9 @@
 // First, so its `@layer` order statement leads the bundle.
-import "../styles.css"
+import "@novadeck/ui/styles.css"
 import type { BackendSelection } from "@novadeck/core/port"
-
-import { App } from "../app/App"
-import { pageTheme } from "../theme/source"
-import { start } from "./start"
+import { App } from "@novadeck/ui/app/App"
+import { start } from "@novadeck/ui/entries/start"
+import { pageTheme } from "@novadeck/ui/theme/source"
 
 // The desktop app: the runner the host starts, whose client and terminal emulator load with
 // the connection instead of the entry point.

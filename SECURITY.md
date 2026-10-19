@@ -50,7 +50,7 @@ person clicked on `novadeck:notice-click` (`onNoticeClick`). The host acts only 
 notice from the main frame of one of its own windows showing the app's own UI, as for
 appearance reports; it drops notices from any other sender, such as a page in the
 companion pane, which has no preload. A notice passes (`desktopNoticeOf` in
-`application/host/src/main/notices.ts`) as a terminal id of letters, digits, `_` and `-`,
+`apps/desktop/src/main/notices.ts`) as a terminal id of letters, digits, `_` and `-`,
 at most 64 long, a title of at most 256 characters and a body of at most 120, neither
 holding a control character or a bidirectional mark, override or isolate; nothing else of it,
 such as an icon or a sound, crosses, and any other value is dropped. The preload sends
@@ -81,13 +81,13 @@ channel than notifications with text of its choosing, under the app's name.
 The page asks the desktop host what uninstalling would do (`uninstallPlan`) and to do it
 (`uninstallApp`), and to quit once it has (`quitApp`), on three `novadeck:` channels
 (`uninstallPlanChannel`, `uninstallAppChannel`, `quitAppChannel` in
-`application/host/src/bridge.ts`). The host acts only on a request from the main frame of one
+`apps/desktop/src/bridge.ts`). The host acts only on a request from the main frame of one
 of its own windows showing the app's own UI, as for appearance reports; any other sender, such
 as a page in the companion pane, is told uninstalling is unavailable and nothing is touched.
 
 The only value a request carries is `keepData`, and the host deletes the person's data only
 when it is exactly `false`; anything else keeps it. The host works out the rest itself
-(`application/host/src/main/uninstall.ts`): the plan from where the running app is installed,
+(`apps/desktop/src/main/uninstall.ts`): the plan from where the running app is installed,
 and every path to delete from the platform's own locations, never from the page. It
 refuses a path that is not absolute and normalized, holds `..` or a control character, or is a
 root, the home folder or a folder that holds it, before the shutdown, so a refusal ends no
@@ -105,7 +105,7 @@ runner; it can remove no other path through this channel.
 
 The desktop preload's `pathForFile` hands the page the path of a `File` it already
 holds, which only a paste gives it; it names no other file and reads nothing. The
-companion pane's pages get no preload (see `application/host/src/main/pages.ts`), so
+companion pane's pages get no preload (see `apps/desktop/src/main/pages.ts`), so
 they have no bridge to ask through.
 
 A file copied in a file manager pastes its own path, so names chosen outside Novadeck,

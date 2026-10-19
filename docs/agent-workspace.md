@@ -440,7 +440,7 @@ with every safety check again at that time:
   person's browser only right after they clicked or typed in it, one each, so a page
   can't open tabs on its own; a frame from another site in the page can take that one
   window, as Electron doesn't say which frame opened it
-  (`application/host/src/main/pages.ts`). Where the host can't, as the web version, a
+  (`apps/desktop/src/main/pages.ts`). Where the host can't, as the web version, a
   page is a link to open in the browser.
 - **Saving** would be a new authorized plan-write operation with the stamp check above,
   scoped like `present`: the caller may write only the plan the terminal's agent keeps.

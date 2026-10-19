@@ -3,7 +3,7 @@ import { join, posix, relative } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { frontendUtilities } from "./bundle-checks.ts"
+import { desktopUtilities } from "./bundle-checks.ts"
 
 // The guards say a build's CSS lost a folder Tailwind scans only if no other file Tailwind
 // scans can make the guard's class: a copy of it in the UI's own files, a config or a comment
@@ -60,13 +60,13 @@ describe("the Tailwind guards", () => {
 
   it("read the folders the stylesheet scans, and the guarded ones are among them", () => {
     expect(scanned.length).toBeGreaterThan(2)
-    for (const { folder } of frontendUtilities)
+    for (const { folder } of desktopUtilities)
       expect(scanned.some((path) => folder.startsWith(`${path.replace(/\/src$/, "")}/`))).toBe(true)
     expect(files.length).toBeGreaterThan(100)
     for (const path of scanned) expect(statSync(join(root, path)).isDirectory()).toBe(true)
   })
 
-  it.each(frontendUtilities)(
+  it.each(desktopUtilities)(
     "keep $folder's utility out of every scanned file outside it",
     ({ folder, utility }) => {
       const outside = files.filter((file) => !file.startsWith(folder) && holds(file, utility))
@@ -74,7 +74,7 @@ describe("the Tailwind guards", () => {
     },
   )
 
-  it.each(frontendUtilities)(
+  it.each(desktopUtilities)(
     "find $folder's utility in a file of the folder",
     ({ folder, utility }) => {
       expect(files.some((file) => file.startsWith(folder) && holds(file, utility))).toBe(true)

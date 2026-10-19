@@ -25,7 +25,7 @@ after reconnecting.
 | ------------------------ | -------------------------------------------------------------------------------------------- |
 | `frontend/ui`            | Workspace views, xterm rendering, and a typed runner client.                                 |
 | `backend/runner`         | Authentication, oRPC procedures, PTY ownership, output retention, and persistence.           |
-| `application/host`       | Electron windows, desktop integration, and starting or connecting to a local runner process. |
+| `apps/desktop`           | Electron windows, desktop integration, and starting or connecting to a local runner process. |
 | `contract/protocol`      | Shared Zod schemas, procedure contracts, stream events, and typed errors.                    |
 | `contract/runner-client` | The typed client: `connectRunner`, its transports, and the error codes it reports.           |
 

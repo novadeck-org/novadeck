@@ -367,7 +367,7 @@ keeps the workspace.
   install section and in `un.checkAppRunning` of the uninstaller) normally stops every
   `novadeck.exe` of the user by name where PowerShell is unusable, which would include this
   portable copy. It calls `customCheckAppRunning` instead when a build defines it, and
-  `application/host/resources/installer.nsh` does (builder includes that file by name).
+  `apps/desktop/resources/installer.nsh` does (builder includes that file by name).
   One rule, in terms of the install folder alone. Novadeck runs from it when any process but
   the setup has a path inside `<install folder>\` (found with PowerShell, which also sees
   helpers such as ConPTY's `OpenConsole.exe` that outlive `novadeck.exe`); where PowerShell

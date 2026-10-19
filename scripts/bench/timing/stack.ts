@@ -12,7 +12,7 @@ import { openSandbox } from "./sandbox.ts"
 // runner and every shell it starts get the sandbox's environment alone.
 
 const root = join(import.meta.dirname, "..", "..", "..")
-const ui = join(root, "frontend/ui")
+const ui = join(root, "apps/desktop")
 
 /** The runner's environment: the sandbox's alone, with what the runner itself is told. */
 export const runnerEnv = (

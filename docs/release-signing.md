@@ -45,7 +45,7 @@ the Gatekeeper prompt show the owner's name.
 | `APPLE_API_KEY_ID`           | The key ID                                               |
 | `APPLE_API_ISSUER`           | The issuer ID                                            |
 
-The app's entitlements are in `application/host/resources/entitlements.mac.plist`. The
+The app's entitlements are in `apps/desktop/resources/entitlements.mac.plist`. The
 hardened runtime denies, without asking, any protected resource the app has no
 entitlement for, and macOS counts the programs run in Novadeck's terminals as the app.
 So the app holds the entitlements a terminal needs (microphone, camera, Apple Events,
