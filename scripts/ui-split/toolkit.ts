@@ -1,8 +1,8 @@
 // What PR 0 of the UI split moves into `frontend/toolkit`, and how each import that names it is
 // rewritten: pure, so move-toolkit.ts runs it over the tree and its tests run it over text. It
 // reuses the specifier reader and resolver of step 5's move (scripts/packages/frontend.ts), but
-// not its `rewriteImports`: that one places files by the `packages` table of the old
-// application/ui, which has no toolkit and must not gain one (its tree test re-runs that move).
+// not its `rewriteImports`: that one places files by the `packages` table of the
+// UI before its split, which has no toolkit and must not gain one (its tree test re-runs that move).
 
 import { posix } from "node:path"
 
