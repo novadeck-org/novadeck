@@ -121,3 +121,33 @@ export const teamRole = (
   if (team.lead === terminalId) return "lead"
   return team.workers.includes(terminalId) ? "worker" : undefined
 }
+
+// Words as a sentence lists them, and past `shown`, how many more (counted from two, as
+// naming one more is as short): "@a, @b and @c", "@a, @b, @c and 4 more".
+const listed = (words: readonly string[], shown = 3): string => {
+  const named =
+    words.length > shown + 1 ? [...words.slice(0, shown), `${words.length - shown} more`] : words
+  return named.length < 2
+    ? (named[0] ?? "")
+    : `${named.slice(0, -1).join(", ")} and ${named.at(-1)}`
+}
+
+// A terminal's team in words, for its tab's description, as the rail's wire only draws it:
+// who leads it and whom it leads, by handle (by name where one has none). Nothing for a
+// terminal in no team. Unlike the wire, it holds whatever is selected.
+export const teamText = (workspace: Workspace, terminalId: string): string | undefined => {
+  const roster = rosterOf(workspace)
+  const { workers, leads } = teamsOf(roster)
+  const named = (id: string) => {
+    const each = roster.terminals.find((terminal) => terminal.id === id)
+    return each?.handle ? handleText(each.handle) : (each?.name ?? id)
+  }
+  const lead = leads.get(terminalId)
+  const led = workers.get(terminalId) ?? []
+  const parts = [
+    ...(lead === undefined ? [] : [`led by ${named(lead)}`]),
+    // Only those it can say are named; the rest are counted.
+    ...(led.length ? [`leads ${listed([...led.slice(0, 4).map(named), ...led.slice(4)])}`] : []),
+  ]
+  return parts.length ? parts.join(", ") : undefined
+}
