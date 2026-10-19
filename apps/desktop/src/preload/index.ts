@@ -15,6 +15,7 @@ import { relayPorts } from "@novadeck/wire/electron"
 import { contextBridge, ipcRenderer, webUtils } from "electron"
 
 import {
+  allowUpdatesChannel,
   apiUrlArgumentPrefix,
   appearanceChannel,
   directoryPickerChannel,
@@ -178,6 +179,14 @@ const bridge = {
   openUpdatePage: () => {
     ipcRenderer.send(openUpdatePageChannel)
   },
+  // Only macOS installs updates by its own swap, so only it has an administrator step.
+  ...(process.platform === "darwin"
+    ? {
+        allowUpdates: () => {
+          ipcRenderer.send(allowUpdatesChannel)
+        },
+      }
+    : {}),
   updateChannel: async () => {
     const channel: unknown = await ipcRenderer.invoke(updateChannelChannel)
     return updateChannels.find((known) => known === channel) ?? "stable"
