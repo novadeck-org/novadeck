@@ -1,6 +1,16 @@
 import { execFile } from "node:child_process"
-import { access, constants, mkdtemp, readdir, readFile, rename, rm, stat } from "node:fs/promises"
-import { tmpdir } from "node:os"
+import {
+  access,
+  constants,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+} from "node:fs/promises"
+import { homedir } from "node:os"
 import { posix } from "node:path"
 
 import { reasonText } from "./install-reason.js"
@@ -13,12 +23,19 @@ export type MacSwapMode = "whole" | "contents"
 
 /** What updating the app bundle asks of the machine. */
 export type MacUpdateHost = {
-  /** The temporary folder, which holds the prepared update and the old bundle aside. */
-  readonly tmpdir: () => string
+  /**
+   * The folder that holds prepared updates, and an old bundle once replaced: in the
+   * person's caches, which the system does not clear file by file as it does the
+   * temporary folder, so a prepared app is never left half there.
+   */
+  readonly folder: () => string
   /** The names in a folder. */
   readonly readdir: (folder: string) => Promise<string[]>
   readonly readFile: (path: string) => Promise<string>
-  /** Makes a new folder named `prefix` and a random suffix, and returns its path. */
+  /**
+   * Makes a new folder named `prefix` and a random suffix, and the folders above it,
+   * and returns its path.
+   */
   readonly mkdtemp: (prefix: string) => Promise<string>
   readonly exists: (path: string) => Promise<boolean>
   /** When `path` last changed, in milliseconds since the epoch; 0 when that can't be had. */
@@ -34,7 +51,10 @@ export type MacUpdateHost = {
   readonly copy: (source: string, destination: string) => Promise<void>
   /** `xattr -dr com.apple.quarantine <path>`. */
   readonly unquarantine: (path: string) => Promise<void>
-  /** `codesign --verify --deep --strict <bundle>`; rejects when the signature is not sound. */
+  /**
+   * `codesign --verify --deep --strict <bundle>`; rejects when the signature is not sound,
+   * with the exit status as the error's `code`, or when it could not be checked.
+   */
   readonly codesignVerify: (bundle: string) => Promise<void>
   /** What `codesign -dv <bundle>` prints. */
   readonly codesignDetails: (bundle: string) => Promise<string>
@@ -42,20 +62,30 @@ export type MacUpdateHost = {
   readonly osascript: (script: string) => Promise<void>
 }
 
+// Runs a tool; a failure keeps its exit status (`code`) and whether it was stopped.
 const run = (file: string, args: readonly string[]): Promise<string> =>
   new Promise((resolve, reject) => {
     execFile(file, [...args], { timeout: 300_000 }, (error, stdout, stderr) => {
-      if (error) reject(new Error(stderr.trim() || error.message))
+      if (error)
+        reject(
+          Object.assign(new Error(stderr.trim() || error.message), {
+            code: error.code,
+            killed: error.killed,
+          }),
+        )
       else resolve(`${stdout}${stderr}`)
     })
   })
 
-/** Real host: `node:fs/promises`, `/usr/bin/ditto`, `codesign`, `xattr` and `osascript`, `os.tmpdir()`. */
+/** Real host: `node:fs/promises`, and `/usr/bin/ditto`, `codesign`, `xattr` and `osascript`. */
 export const macUpdateHost: MacUpdateHost = {
-  tmpdir,
+  folder: () => posix.join(homedir(), "Library", "Caches", "dev.mzpk.novadeck.updates"),
   readdir: (folder) => readdir(folder),
   readFile: (path) => readFile(path, "utf8"),
-  mkdtemp: (prefix) => mkdtemp(prefix),
+  mkdtemp: async (prefix) => {
+    await mkdir(posix.dirname(prefix), { recursive: true })
+    return mkdtemp(prefix)
+  },
   exists: (path) =>
     access(path).then(
       () => true,
@@ -83,7 +113,7 @@ export const macUpdateHost: MacUpdateHost = {
   osascript: async (script) => void (await run("/usr/bin/osascript", ["-e", script])),
 }
 
-// A prepared update lives in a folder of this name under the temporary folder, which is how
+// A prepared update lives in a folder of this name in the updates folder, which is how
 // the next one finds it. The app's own identifier keeps it from other apps' folders.
 const preparedPrefix = "dev.mzpk.novadeck.update-"
 
@@ -117,11 +147,19 @@ const problem = (sentence: string): Error => new Error(sentence)
 /**
  * A downloaded update that is not one to install: not for this app, not the version
  * announced, or not signed by this app's team. Trying again would find the same, unlike a
- * failure to unpack it, which a full disk or a cleared temporary folder may cause.
+ * failure to unpack or check it, which a full disk or a stopped `codesign` may cause.
  */
 export class UpdateRejected extends Error {}
 
 const rejected = (sentence: string): Error => new UpdateRejected(sentence)
+
+// Whether `codesign --verify` ran and found the signature unsound: it exits 1 for a bad
+// signature and 3 for one that fails its requirement; any other failure, as a timeout,
+// leaves it unchecked.
+const unsound = (error: unknown): boolean => {
+  const { code, killed } = (error ?? {}) as { code?: unknown; killed?: unknown }
+  return killed !== true && (code === 1 || code === 3)
+}
 
 // Checks the prepared bundle is the update for this very app and was signed by its maker.
 const verify = async (
@@ -144,8 +182,9 @@ const verify = async (
     throw rejected("The downloaded update is not the version that was announced.")
   try {
     await host.codesignVerify(prepared)
-  } catch {
-    throw rejected("The downloaded update's signature is not valid.")
+  } catch (error) {
+    if (unsound(error)) throw rejected("The downloaded update's signature is not valid.")
+    throw problem("The downloaded update's signature could not be checked.")
   }
   const team = teamOf(await host.codesignDetails(prepared))
   if (team === undefined) throw rejected("The downloaded update is not signed by a developer team.")
@@ -154,7 +193,7 @@ const verify = async (
 }
 
 /**
- * Unpacks the downloaded zip into a fresh folder under the temporary folder, strips its
+ * Unpacks the downloaded zip into a fresh folder in the updates folder, strips any
  * quarantine attribute and verifies it: exactly one `.app`, with this app's identifier and
  * the announced `version`, a sound signature, and the same signing team as the running
  * `bundle`, which it must have. Resolves to the prepared `.app`; rejects with an Error
@@ -167,16 +206,16 @@ export const prepareMacUpdate = async (
   update: { readonly zip: string; readonly version: string; readonly bundle: string },
   host: MacUpdateHost = macUpdateHost,
 ): Promise<string> => {
-  const temporary = host.tmpdir()
   let folder: string | undefined
   try {
-    folder = await host.mkdtemp(posix.join(temporary, preparedPrefix))
+    folder = await host.mkdtemp(posix.join(host.folder(), preparedPrefix))
     try {
       await host.unzip(update.zip, folder)
     } catch {
       throw problem("The downloaded update could not be unpacked.")
     }
-    await host.unquarantine(folder)
+    // A download electron-updater made carries none, so a failure here changes nothing.
+    await host.unquarantine(folder).catch(() => {})
     const apps = (await host.readdir(folder)).filter((name) => name.endsWith(".app"))
     if (apps.length !== 1 || apps[0] === undefined)
       throw rejected("The downloaded update does not hold exactly one app.")
@@ -191,29 +230,51 @@ export const prepareMacUpdate = async (
   }
 }
 
+// What a swap leaves beside `target`, the bundle or its `Contents`, while it runs: the new
+// one, staged in the same folder so the swap is two renames there, and the old one aside.
+const sidesOf = (target: string): { readonly staged: string; readonly aside: string } => {
+  const folder = posix.dirname(target)
+  const name = posix.basename(target)
+  return {
+    staged: posix.join(folder, `.${name}.new`),
+    aside: posix.join(folder, `.${name}.previous`),
+  }
+}
+
 /**
  * Removes the folders `prepareMacUpdate` made, but the one holding `keep`, if given: those
  * of updates a newer one replaced, and of an update installed, which holds the app it
- * replaced. With `olderThanMs`, a folder changed more recently than that is left too: at
- * a launch, another copy running on its own data folder may be putting its update in
- * place from one, which moves the old app into it. A folder that can't be removed is left
- * for the system to clear.
+ * replaced. Given the `bundle`, it also removes what an install left beside it or its
+ * `Contents` (see `installMacUpdate`). With `olderThanMs`, anything changed more recently
+ * than that is left: another copy running on its own data folder may be installing from
+ * it. Anything that can't be removed is left for a later launch.
  */
 export const removeMacUpdates = async (
-  { keep, olderThanMs }: { readonly keep?: string; readonly olderThanMs?: number } = {},
+  {
+    keep,
+    bundle,
+    olderThanMs,
+  }: { readonly keep?: string; readonly bundle?: string; readonly olderThanMs?: number } = {},
   host: MacUpdateHost = macUpdateHost,
 ): Promise<void> => {
-  const temporary = host.tmpdir()
+  const folder = host.folder()
   const kept = keep === undefined ? undefined : posix.dirname(keep)
-  const folders = (await host.readdir(temporary).catch(() => []))
+  const prepared = (await host.readdir(folder).catch(() => []))
     .filter((name) => name.startsWith(preparedPrefix))
-    .map((name) => posix.join(temporary, name))
-    .filter((folder) => folder !== kept)
-  const old = async (folder: string): Promise<boolean> =>
-    olderThanMs === undefined || Date.now() - (await host.modified(folder)) >= olderThanMs
+    .map((name) => posix.join(folder, name))
+    .filter((path) => path !== kept)
+  const beside =
+    bundle === undefined
+      ? []
+      : [bundle, posix.join(bundle, "Contents")].flatMap((target) => {
+          const { staged, aside } = sidesOf(target)
+          return [staged, aside]
+        })
+  const old = async (path: string): Promise<boolean> =>
+    olderThanMs === undefined || Date.now() - (await host.modified(path)) >= olderThanMs
   await Promise.all(
-    folders.map(async (folder) => {
-      if (await old(folder)) await host.remove(folder).catch(() => {})
+    [...prepared, ...beside].map(async (path) => {
+      if ((await host.exists(path)) && (await old(path))) await host.remove(path).catch(() => {})
     }),
   )
 }
@@ -221,26 +282,6 @@ export const removeMacUpdates = async (
 // Whether a rename failed only because the two paths are on different volumes.
 const crossesVolumes = (error: unknown): boolean =>
   (error as NodeJS.ErrnoException | undefined)?.code === "EXDEV"
-
-// Renames `from` to `to`; across volumes, copies into a hidden sibling of `to` and renames
-// that, so `to` never holds a half-made copy, and then removes `from`.
-const move = async (from: string, to: string, host: MacUpdateHost): Promise<void> => {
-  try {
-    await host.rename(from, to)
-  } catch (error) {
-    if (!crossesVolumes(error)) throw error
-    const sibling = posix.join(posix.dirname(to), `.${posix.basename(to)}.new`)
-    try {
-      await host.remove(sibling)
-      await host.copy(from, sibling)
-      await host.rename(sibling, to)
-    } catch (failure) {
-      await host.remove(sibling).catch(() => {})
-      throw failure
-    }
-    await host.remove(from)
-  }
-}
 
 // A reason from an error, which the person can read.
 const installReason = (error: unknown): string => {
@@ -254,12 +295,14 @@ const installReason = (error: unknown): string => {
 }
 
 /**
- * Puts the prepared app in place of `bundle`: the bundle is renamed aside (into the
- * prepared update's folder) and the prepared one renamed into place. In `contents` mode
- * the same is done with the two `Contents` folders and the bundle folder stays, which is
- * all that can be done where its parent is not writable. Should a step fail, the old one
- * is put back and the install rejects. A rename between volumes copies instead. The old
- * one stays in the prepared folder, as removing it would hold up the quit, until
+ * Puts the prepared app in place of `bundle`. The new one is first staged beside the
+ * bundle, renamed there or, across volumes, copied with `ditto`, while the old app is
+ * still whole; then the old one is renamed aside and the new one into place, two renames
+ * in one folder, so there is no moment without an app to run. In `contents` mode the same
+ * is done with the two `Contents` folders inside the bundle, which stays: all that can be
+ * done where its parent is not writable. Should a step fail, the old one is put back and
+ * the install rejects. The old one then moves into the prepared update's folder, or stays
+ * beside where that crosses volumes, as removing it would hold up the quit, until
  * `removeMacUpdates` clears it at the next launch. Meant for the quit, once the app has
  * saved: it neither quits nor restarts anything.
  */
@@ -270,29 +313,44 @@ export const installMacUpdate = async (
   const whole = install.mode === "whole"
   const target = whole ? install.bundle : posix.join(install.bundle, "Contents")
   const source = whole ? install.prepared : posix.join(install.prepared, "Contents")
-  const aside = posix.join(posix.dirname(install.prepared), whole ? "previous.app" : "previous")
+  const { staged, aside } = sidesOf(target)
+  const fail = async (error: unknown): Promise<never> => {
+    await host.remove(staged).catch(() => {})
+    throw problem(installReason(error))
+  }
   try {
+    await host.remove(staged)
     await host.remove(aside)
-    await move(target, aside, host)
+    try {
+      await host.rename(source, staged)
+    } catch (error) {
+      if (!crossesVolumes(error)) throw error
+      await host.copy(source, staged)
+    }
   } catch (error) {
-    await restore(target, aside, host)
-    throw problem(installReason(error))
+    return fail(error)
   }
   try {
-    await move(source, target, host)
+    await host.rename(target, aside)
+  } catch (error) {
+    return fail(error)
+  }
+  try {
+    await host.rename(staged, target)
   } catch (error) {
     await restore(target, aside, host)
-    throw problem(installReason(error))
+    return fail(error)
   }
+  const previous = posix.join(posix.dirname(install.prepared), whole ? "previous.app" : "previous")
+  await host.rename(aside, previous).catch(() => {})
 }
 
-// Puts the old bundle (or its Contents) back from `aside`, removing what is at `target`
-// in its way. Rejects when it cannot, as then there is no app to run.
+// Puts the old bundle (or its Contents) back from `aside`, beside it. Rejects when it
+// cannot, as then there is no app to run.
 const restore = async (target: string, aside: string, host: MacUpdateHost): Promise<void> => {
   try {
-    if (!(await host.exists(aside))) return
     await host.remove(target)
-    await move(aside, target, host)
+    await host.rename(aside, target)
   } catch {
     throw problem(
       "The update failed and the previous Novadeck could not be put back. Install Novadeck again.",

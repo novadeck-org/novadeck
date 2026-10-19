@@ -88,25 +88,31 @@ said it was ready again. electron-updater still downloads the zip; with
 (`mac-update.ts`):
 
 - **Prepared once downloaded.** The zip is unpacked with `ditto` into a folder of its own
-  under the temporary folder (`dev.mzpk.novadeck.update-*`), stripped of quarantine, and
-  checked: one app, with the running app's bundle identifier and the offered version,
-  `codesign --verify --deep --strict`, and the same `TeamIdentifier` as the running app.
-  Only then is it offered as `ready`; until then it stays `downloading` at the last
-  percent. One that fails a check (`UpdateRejected`) counts as a failed install (below);
-  one that fails otherwise, as on a full disk, counts as a failed download and is tried
-  again from electron-updater's copy. The folders of earlier updates go only once a newer
-  one is ready, never once quitting has begun, so the one being put in place is never
-  removed under it.
+  in `~/Library/Caches/dev.mzpk.novadeck.updates` (`dev.mzpk.novadeck.update-*`), which the
+  system does not clear file by file as it does the temporary folder, stripped of any
+  quarantine, and checked: one app, with the running app's bundle identifier and the
+  offered version, `codesign --verify --deep --strict`, and the same `TeamIdentifier` as
+  the running app. Only then is it offered as `ready`; until then it stays `downloading` at
+  the last percent. One that fails a check (`UpdateRejected`: a bad signature, not a
+  `codesign` that was stopped) counts as a failed install (below); one that fails
+  otherwise, as on a full disk, counts as a failed download and is tried again from
+  electron-updater's copy. The folders of earlier updates go only once a newer one is
+  ready, never once quitting has begun, so the one being put in place is never removed
+  under it.
 - **Put in place on quitting**, once every page has saved and the shells have ended, and
   before the process exits. When the person can write both the app and the folder holding
-  it, the whole bundle is swapped: the old one is moved aside into the prepared folder and
-  the new one moved in. When only the app can be written, as for a standard account whose
-  app is its own in an Applications folder it can't write, its `Contents` is swapped
-  instead, inside the bundle. Any failed step puts the old app back. A rename across
-  volumes falls back to a `ditto` copy beside the app. The old app stays in the prepared
-  folder, as removing it would hold up the quit, and the next launch removes it, unless it changed in the last ten minutes, when another copy on its own data folder may be installing from it. A bundle
-  that is no longer the running version, as one install.sh replaced, is left alone. A quit
-  as the session ends, and the uninstall, install nothing.
+  it, the whole bundle is swapped; when only the app can be written, as for a standard
+  account whose app is its own in an Applications folder it can't write, its `Contents`
+  are, inside the bundle. Either way the new one is first staged beside the old
+  (`.novadeck.app.new`, or `.Contents.new` in the bundle), renamed there or, across
+  volumes, copied with `ditto` while the old app is still whole; then two renames in that
+  one folder put the old one aside and the new one in place, so there is no moment without
+  an app. Any failed step puts the old app back. The old app then moves into the prepared
+  folder, or stays beside where that crosses volumes, as removing it would hold up the
+  quit; the next launch removes it, unless it changed in the last ten minutes, when another
+  copy on its own data folder may be installing from it. A bundle that is no longer the
+  running version, as one install.sh replaced, is left alone. A quit as the session ends,
+  and the uninstall, install nothing.
 - **A copy the person can't write** only tells. When it is signed and installed, the offer
   says an administrator can allow it (`allow`), and the footer chip reads "Allow updates":
   it asks for an administrator's password once (`osascript … with administrator
@@ -114,8 +120,8 @@ said it was ready again. electron-updater still downloads the zip; with
   installs. Turned down, as by a person with no administrator to ask, the chip becomes
   "Update available" for the rest of the run and opens the release page.
 - The schedule goes on once an update is ready, and a newer release replaces it, as on the
-  other systems. A prepared folder the system cleared, as at a restart, is noticed on
-  quitting, and the update downloads again at the next launch.
+  other systems. The waiting update stays ready until the newer one is, so a quit
+  meanwhile installs the waiting one.
 
 Squirrel.Mac stays in the bundle, as electron-builder puts it there, unused. A copy from
 before this installs its next update through Squirrel, once.
@@ -158,9 +164,7 @@ before this installs its next update through Squirrel, once.
   lands installs the newer release. On Windows the newer one costs its changed ranges and
   then the whole file, and its percent starts over once: electron-updater's differential
   download pairs the waiting update's blockmap with the installed build's installer, the
-  result fails its checksum, and it falls back to a full download. On macOS the newer one
-  is prepared in place of the waiting one, which a quit meanwhile no longer finds, so the
-  update downloads again at the next launch. `updater.test.ts` pins the file names and electron-updater's handling of the
+  result fails its checksum, and it falls back to a full download. On macOS the waiting update stays in place until the newer one is prepared, so a quit meanwhile installs the waiting one. `updater.test.ts` pins the file names and electron-updater's handling of the
   waiting file: were the folder emptied while the updater still names the file, quitting
   would delete the running AppImage and install nothing.
 - **Telling** builds download nothing and keep checking, so a newer release replaces the
@@ -561,7 +565,9 @@ full one.
 - **A Windows copy reopened while its installer runs** may mark that update failed in
   `update.json` before the installer closes it and finishes; the release then installed
   is the running one, so nothing more comes of it than a line in the log.
-
+- **macOS App Management** may refuse the swap (`EPERM`) where the person has not let
+  Novadeck manage apps. The install then fails as any other: the log says where to allow
+  it in System Settings, and the page offers the release as "Update available".
 - **A channel switch does not cancel work in progress.** An `early` build that is already
   downloading a prerelease when the person switches to `stable` finishes the download and
   installs it on quit. The same switch made during an in-flight check can use the old

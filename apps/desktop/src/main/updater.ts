@@ -176,11 +176,13 @@ export const developerIdSigned = (output: string): boolean =>
 // The part of a window that telling it of an update uses.
 type Page = { send(channel: string, offer: UpdateOffer): void }
 
-// Whether two offers say the same to a page: the kind, the version and a download's percent.
+// Whether two offers say the same to a page: the kind, the version, a download's percent,
+// and whether an administrator can let the copy install the release itself.
 const sameOffer = (a: UpdateOffer, b: UpdateOffer): boolean =>
   a.kind === b.kind &&
   a.version === b.version &&
-  (a.kind !== "downloading" || (b.kind === "downloading" && a.percent === b.percent))
+  (a.kind !== "downloading" || (b.kind === "downloading" && a.percent === b.percent)) &&
+  (a.kind !== "available" || (b.kind === "available" && a.allow === b.allow))
 
 /**
  * Remembers the last offer and tells every page of it: `offer` those open now, `request`

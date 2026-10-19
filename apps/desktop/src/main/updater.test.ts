@@ -331,6 +331,20 @@ describe("telling pages of an update", () => {
     ])
   })
 
+  it("tells pages when the release is no longer one an administrator can allow, and back", () => {
+    const open = page()
+    const offers = trackOffer(() => [open])
+    offers.offer({ kind: "available", version: "1.2.3", allow: true })
+    offers.offer({ kind: "available", version: "1.2.3" })
+    offers.offer({ kind: "available", version: "1.2.3" })
+    offers.offer({ kind: "available", version: "1.2.3", allow: true })
+    expect(open.sent.map(([, offer]) => offer)).toEqual([
+      { kind: "available", version: "1.2.3", allow: true },
+      { kind: "available", version: "1.2.3" },
+      { kind: "available", version: "1.2.3", allow: true },
+    ])
+  })
+
   it("tells pages when a ready update could not be installed after all", () => {
     const open = page()
     const offers = trackOffer(() => [open])

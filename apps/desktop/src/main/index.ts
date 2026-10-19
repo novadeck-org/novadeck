@@ -510,6 +510,9 @@ const settleLastInstall = (): void => {
 
 // The macOS download being made ready, so one finished after a newer one began is let go.
 let preparing = 0
+// How long what an update left must sit unchanged before it is removed, as another copy
+// on its own data folder may be installing from it.
+const preparedForMs = 10 * 60 * 1000
 // Whether the person turned down letting this copy install updates, which then offers the
 // release page for the rest of the run; see `allowUpdates`.
 let allowDeclined = false
@@ -527,9 +530,11 @@ const startUpdates = async (): Promise<void> => {
   )
   // What earlier launches prepared, and the app an install replaced, go before anything
   // new is prepared.
-  if (plan.kind === "mac") await removeMacUpdates({ olderThanMs: 10 * 60 * 1000 })
-  updater = await loadUpdater(plan.kind)
-  updates = checkForUpdates(updater, {
+  if (plan.kind === "mac")
+    await removeMacUpdates({ bundle: bundleOf(app.getPath("exe")), olderThanMs: preparedForMs })
+  const current = await loadUpdater(plan.kind)
+  updater = current
+  updates = checkForUpdates(current, {
     mode: plan.mode,
     channel,
     failedVersion: state.installFailedOn,
@@ -553,16 +558,19 @@ const startUpdates = async (): Promise<void> => {
             }
             macUpdate = { version, prepared }
             updatesLog.info(`${version} is ready to install on quitting.`)
-            await removeMacUpdates({ keep: prepared })
+            await removeMacUpdates({ keep: prepared, olderThanMs: preparedForMs })
           }
         : undefined,
     rejected: (error) => error instanceof UpdateRejected,
-    offer: (offer) =>
+    // An updater replaced, as by allowing updates, says nothing more.
+    offer: (offer) => {
+      if (updater !== current) return
       offers.offer(
         allowDeclined && offer.kind === "available"
           ? { kind: offer.kind, version: offer.version }
           : offer,
-      ),
+      )
+    },
     installStarted: recordInstalling,
     installFailed,
     log: updateWarning,

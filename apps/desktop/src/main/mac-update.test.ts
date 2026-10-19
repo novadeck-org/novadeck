@@ -33,7 +33,7 @@ const machine = (
     modified?: Record<string, number>
     versionOf?: string
     teams?: Record<string, string | undefined>
-    verifyFails?: boolean
+    verifyFails?: boolean | "stopped"
   } = {},
 ) => {
   const files = new Map(Object.entries(options.files ?? {}))
@@ -66,7 +66,7 @@ const machine = (
     if (error) throw error
   }
   const host: MacUpdateHost = {
-    tmpdir: () => "/tmp",
+    folder: () => "/tmp",
     readdir: async (folder) => names(folder),
     readFile: async (path) => {
       const content = files.get(path)
@@ -109,7 +109,10 @@ const machine = (
     unquarantine: (path) => step(`xattr ${path}`),
     codesignVerify: async (bundle) => {
       await step(`verify ${bundle}`)
-      if (options.verifyFails) throw new Error("a sealed resource is missing")
+      if (options.verifyFails === "stopped")
+        throw Object.assign(new Error("timed out"), { code: null, killed: true })
+      if (options.verifyFails)
+        throw Object.assign(new Error("a sealed resource is missing"), { code: 1 })
     },
     codesignDetails: async (bundle) => {
       const teams = options.teams ?? {}
@@ -225,6 +228,13 @@ describe("preparing a downloaded update", () => {
   it("rejects a signature that does not verify", () =>
     rejects({ verifyFails: true }, /signature is not valid/u))
 
+  it("does not reject an update whose signature could not be checked, as when codesign stopped", async () => {
+    const { host } = machine({ files: base, verifyFails: "stopped" })
+    const error: unknown = await prepareMacUpdate(update, host).catch((e: unknown) => e)
+    expect(error).not.toBeInstanceOf(UpdateRejected)
+    expect(String(error)).toMatch(/could not be checked/u)
+  })
+
   it("rejects an update without a team, and one from another", async () => {
     const prepared = "/tmp/dev.mzpk.novadeck.update-1/novadeck.app"
     await rejects({ teams: { [prepared]: undefined } }, /not signed by a developer team/u)
@@ -256,49 +266,60 @@ describe("installing a prepared update", () => {
       },
     })
 
-  it("swaps the whole bundle, leaving the old one aside to remove later", async () => {
+  const folder = "/tmp/dev.mzpk.novadeck.update-1"
+  const staged = "/Applications/.novadeck.app.new"
+  const aside = "/Applications/.novadeck.app.previous"
+  const renames = (steps: string[]) => steps.filter((step) => step.startsWith("rename"))
+
+  it("stages the new app beside the old, then swaps them in two renames there", async () => {
     const { host, files, steps } = withPrepared()
     await installMacUpdate({ prepared, bundle: running, mode: "whole" }, host)
     expect(files.get(`${running}/Contents/MacOS/novadeck`)).toBe("new")
-    expect(files.get("/tmp/dev.mzpk.novadeck.update-1/previous.app/Contents/MacOS/novadeck")).toBe(
-      "old",
-    )
-    expect(steps.filter((step) => step.startsWith("rename"))).toEqual([
-      `rename ${running} /tmp/dev.mzpk.novadeck.update-1/previous.app`,
-      `rename ${prepared} ${running}`,
+    expect(renames(steps)).toEqual([
+      `rename ${prepared} ${staged}`,
+      `rename ${running} ${aside}`,
+      `rename ${staged} ${running}`,
+      `rename ${aside} ${folder}/previous.app`,
     ])
+    // The old app waits in the prepared folder for the next launch to remove it.
+    expect(files.get(`${folder}/previous.app/Contents/MacOS/novadeck`)).toBe("old")
   })
 
-  it("swaps only the contents, leaving the bundle folder", async () => {
+  it("swaps only the contents, inside the bundle, leaving the bundle folder", async () => {
     const { host, files, steps } = withPrepared({ files: { [`${running}/Keep`]: "me" } })
     await installMacUpdate({ prepared, bundle: running, mode: "contents" }, host)
     expect(files.get(`${running}/Contents/MacOS/novadeck`)).toBe("new")
     expect(files.get(`${running}/Keep`)).toBe("me")
-    expect(steps.filter((step) => step.startsWith("rename"))).toEqual([
-      `rename ${running}/Contents /tmp/dev.mzpk.novadeck.update-1/previous`,
-      `rename ${prepared}/Contents ${running}/Contents`,
+    expect(renames(steps)).toEqual([
+      `rename ${prepared}/Contents ${running}/.Contents.new`,
+      `rename ${running}/Contents ${running}/.Contents.previous`,
+      `rename ${running}/.Contents.new ${running}/Contents`,
+      `rename ${running}/.Contents.previous ${folder}/previous`,
     ])
   })
 
-  it("puts the old app back when moving it aside fails", async () => {
+  it("leaves the old app whole when moving it aside fails", async () => {
     const { host, files } = withPrepared({ fail: failing("EIO", `rename ${running} `) })
     await expect(
       installMacUpdate({ prepared, bundle: running, mode: "whole" }, host),
     ).rejects.toThrow(/could not be installed/u)
     expect(files.get(`${running}/Contents/MacOS/novadeck`)).toBe("old")
+    expect([...files.keys()].some((path) => path.startsWith(staged))).toBe(false)
   })
 
   it("puts the old app back when moving the new one in fails", async () => {
-    const { host, files } = withPrepared({ fail: failing("EIO", `rename ${prepared} `) })
+    const { host, files } = withPrepared({ fail: failing("EIO", `rename ${staged} `) })
     await expect(
       installMacUpdate({ prepared, bundle: running, mode: "whole" }, host),
     ).rejects.toThrow(/could not be installed/u)
     expect(files.get(`${running}/Contents/MacOS/novadeck`)).toBe("old")
-    expect(files.get(`${prepared}/Contents/MacOS/novadeck`)).toBe("new")
+    expect([...files.keys()].some((path) => path.startsWith(staged))).toBe(false)
   })
 
   it("puts the old contents back when the new ones fail to go in", async () => {
-    const { host, files } = withPrepared({ fail: failing("EIO", `rename ${prepared}/Contents `) })
+    const { host, files } = withPrepared({
+      fail: failing("EIO", `rename ${running}/.Contents.new `),
+    })
     await expect(
       installMacUpdate({ prepared, bundle: running, mode: "contents" }, host),
     ).rejects.toThrow(/could not be installed/u)
@@ -312,52 +333,62 @@ describe("installing a prepared update", () => {
     ).rejects.toThrow(/App Management/u)
   })
 
-  it("copies when the temporary folder is on another volume", async () => {
-    let first = true
+  it("copies the new app beside the old one from another volume before touching it", async () => {
     const { host, files, steps } = withPrepared({
-      fail: (step) => {
-        if (!step.startsWith("rename /tmp") && !step.startsWith(`rename ${running} `))
-          return undefined
-        if (!first) return undefined
-        first = false
-        return Object.assign(new Error("cross"), { code: "EXDEV" })
-      },
+      fail: (step) =>
+        step.startsWith(`rename ${prepared} `) || step.startsWith(`rename ${aside} `)
+          ? Object.assign(new Error("cross"), { code: "EXDEV" })
+          : undefined,
     })
     await installMacUpdate({ prepared, bundle: running, mode: "whole" }, host)
     expect(files.get(`${running}/Contents/MacOS/novadeck`)).toBe("new")
-    expect(steps.some((step) => step.startsWith("copy"))).toBe(true)
-    expect([...files.keys()].some((path) => path.includes("/.previous.app.new"))).toBe(false)
+    const copied = steps.indexOf(`copy ${prepared} ${staged}`)
+    expect(copied).toBeGreaterThanOrEqual(0)
+    expect(copied).toBeLessThan(steps.indexOf(`rename ${running} ${aside}`))
+    // The old app could not cross either, so it stays beside, for the next launch.
+    expect(files.get(`${aside}/Contents/MacOS/novadeck`)).toBe("old")
   })
 
-  it("copies the new app in from another volume, keeping the old one on a failure", async () => {
-    const failures = new Set([`rename ${prepared} ${running}`])
-    const { host, files, steps } = withPrepared({
-      fail: (step) => {
-        if (failures.delete(step)) return Object.assign(new Error("cross"), { code: "EXDEV" })
-        if (step === `rename /Applications/.novadeck.app.new ${running}`)
-          return Object.assign(new Error("it broke"), { code: "EIO" })
-        return undefined
-      },
+  it("leaves the old app whole when copying the new one across fails", async () => {
+    const { host, files } = withPrepared({
+      fail: (step) =>
+        step.startsWith(`rename ${prepared} `)
+          ? Object.assign(new Error("cross"), { code: "EXDEV" })
+          : step.startsWith("copy")
+            ? Object.assign(new Error("full"), { code: "ENOSPC" })
+            : undefined,
     })
     await expect(
       installMacUpdate({ prepared, bundle: running, mode: "whole" }, host),
-    ).rejects.toThrow(/could not be installed/u)
-    expect(steps).toContain(`copy ${prepared} /Applications/.novadeck.app.new`)
+    ).rejects.toThrow(/no space left/u)
     expect(files.get(`${running}/Contents/MacOS/novadeck`)).toBe("old")
-    expect([...files.keys()].some((path) => path.includes(".novadeck.app.new"))).toBe(false)
+    expect([...files.keys()].some((path) => path.startsWith(staged))).toBe(false)
   })
 
   it("says so when the old app cannot be put back either", async () => {
     const { host } = withPrepared({
       fail: (step) =>
-        step === `rename ${prepared} ${running}` ||
-        step.startsWith("rename /tmp/dev.mzpk.novadeck.update-1/previous.app")
-          ? Object.assign(new Error("it broke"), { code: "EIO" })
+        step.startsWith(`rename ${staged} `) || step.startsWith(`rename ${aside} ${running}`)
+          ? new Error("it broke")
           : undefined,
     })
     await expect(
       installMacUpdate({ prepared, bundle: running, mode: "whole" }, host),
     ).rejects.toThrow(/could not be put back/u)
+  })
+})
+
+describe("clearing what updates left", () => {
+  it("removes what an install left beside the bundle and its contents", async () => {
+    const { host, files } = machine({
+      files: {
+        ...base,
+        "/Applications/.novadeck.app.previous/x": "x",
+        [`${running}/.Contents.previous/x`]: "x",
+      },
+    })
+    await removeMacUpdates({ bundle: running }, host)
+    expect([...files.keys()].toSorted()).toEqual(Object.keys(base).toSorted())
   })
 })
 
@@ -410,9 +441,14 @@ describe.runIf(process.platform === "darwin")("updating a real bundle", () => {
     try {
       const host: MacUpdateHost = {
         ...macUpdateHost,
-        tmpdir: () => join(root, "tmp"),
-        codesignDetails: async (bundle) =>
-          `${await macUpdateHost.codesignDetails(bundle)}\nTeamIdentifier=TESTTEAM00\n`,
+        folder: () => join(root, "tmp"),
+        // Ad-hoc signatures carry no team, which the check requires: one is put in its place.
+        codesignDetails: async (bundle) => {
+          const details = await macUpdateHost.codesignDetails(bundle)
+          return /^TeamIdentifier=/mu.test(details)
+            ? details.replace(/^TeamIdentifier=.*$/mu, "TeamIdentifier=TESTTEAM00")
+            : `${details}\nTeamIdentifier=TESTTEAM00\n`
+        },
       }
       mkdirSync(join(root, "tmp"))
       const downloaded = makeApp(join(root, "new"), "2.0.0", "new")
