@@ -1855,15 +1855,18 @@ describe("terminal naming", () => {
     await watch.until((change) => change.type === "synced")
     manager.rename({ terminalId: id, title: "Build" })
     await watch.until((change) => changed(id)(change) && change.terminal.title === "Build")
+    // Read until a terminal created after it shows, so nothing earlier is still on its way.
+    const settled = await create(manager)
+    await watch.until(changed(settled.id))
+    const before = watch.seen.length
 
     manager.rename({ terminalId: id, title: "Build" })
     // A terminal created after it, so the watch has a change to read either way.
     const after = await create(manager)
     await watch.until(changed(after.id))
-    const renamed = watch.seen
-      .filter(changed(id))
-      .filter(({ terminal }) => terminal.title === "Build")
-    expect(renamed).toHaveLength(2)
+    expect(watch.seen.slice(before).filter(changed(id))).toEqual([
+      { type: "changed", terminal: expect.objectContaining({ id, title: "Build" }) },
+    ])
   })
 
   it("tells watchers when a terminal kept only as saved is renamed", async ({ terminals }) => {
@@ -1892,12 +1895,14 @@ describe("terminal naming", () => {
         title: "Kept",
         started: false,
       })
+      // Shut down while its store is open: its last save writes there.
+      await manager.shutdown()
     } finally {
       store.close()
     }
   })
 
-  it("never gives a session's handle again without records, once its terminal closed", async ({
+  it("never gives a closed terminal's handle again in its session, without records", async ({
     terminals,
   }) => {
     const manager = terminals.manager(quiet)
