@@ -4,12 +4,7 @@ import { basename } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import { transcript as transcriptOf } from "@novadeck/emulator/headless"
-import type {
-  ActivityEvent,
-  HarnessEvent,
-  PromptShown,
-  SessionObserved,
-} from "@novadeck/harness-core/events"
+import type { HarnessEvent, PromptShown, SessionObserved } from "@novadeck/harness-core/events"
 import {
   firedFacts,
   hookShellSlackMs,
@@ -54,21 +49,12 @@ import type { PlanText } from "../companions/content.js"
 import type { CompanionItems, TerminalPlace } from "../companions/items.js"
 import type { ItemRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
-import {
-  apply,
-  escapeScreenMs,
-  escapeVerdictMs,
-  boundSince,
-  started as fresh,
-  summary as activitySummary,
-  withLimit,
-} from "../harnesses/activity.js"
+import { boundSince, started as fresh } from "../harnesses/activity.js"
 import { observe, type Binding } from "../harnesses/bindings.js"
 import { actorOf, agentDetail } from "../harnesses/detail.js"
 import { agents, harnesses } from "../harnesses/registry.js"
-import { lastReply, unreplied, withReplies } from "../harnesses/replies.js"
+import { unreplied, withReplies } from "../harnesses/replies.js"
 import { followRoot, rootedIn, type RootChange } from "../harnesses/roots.js"
-import { limitOf, observeTelemetry, telemetrySummary } from "../harnesses/telemetry.js"
 import { transcriptWaitMs, typedPromptStart } from "../harnesses/typed-prompts.js"
 import { Asks, type AskRecords } from "../messaging/asks.js"
 import { type DoorbellOptions } from "../messaging/doorbell.js"
@@ -85,6 +71,7 @@ import type { InstalledShell } from "../shell/install.js"
 import { type Ack, type Call, type HookAnswer } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
 import { type AnswerOptions } from "./answers.js"
+import { Bindings } from "./binding/facts.js"
 import { sameToken } from "./callers.js"
 import { Calls } from "./calls.js"
 import { type CloseAnswer } from "./closes.js"
@@ -114,13 +101,6 @@ import { judgedFirst, workAfter } from "./work.js"
 
 /** How long after the person's last key an untrusted agent's hooks are asked about again. */
 export const trustRecheckMs = 1000
-
-/**
- * How long after the person's Enter at an agent's own prompt, before its first, a session
- * must bind or a turn show, or that Enter submitted no prompt (a command such as Codex's
- * `/status`, or nothing): a prompt binds in about a second (probed 2026-10-04, 0.159.3).
- */
-export const readyReturnMs = 5000
 
 export type TerminalOptions = {
   shell?: string
@@ -301,6 +281,8 @@ export class Terminals {
   private readonly names: Names<Record>
   /** What agents show beside their terminals, and the plans they keep there. */
   private readonly companion: Companion
+  /** The agent bound to each terminal: its facts, its sources, and the ends of its binding. */
+  private readonly bindings: Bindings
   /**
    * Everything that types into terminals' agents, through one input queue per terminal:
    * the doorbell, prompts, interrupts and answers, with the dialogs it reads.
@@ -502,6 +484,19 @@ export class Terminals {
       record: (terminalId) => this.records.get(terminalId),
       announce: (record) => this.announce(record),
     })
+    this.bindings = new Bindings({
+      stopping: () => this.stopping,
+      messaging: () => this.messaging,
+      typing: () => this.typing,
+      companion: () => this.companion,
+      announce: (record) => this.announce(record),
+      save: (record) => this.saves.save(record, false),
+      detailed: (record) => this.streams.detailed(record),
+      murmurChanged: (terminalId) => this.murmur?.changed(terminalId),
+      trackRoot: (record, events, statusLine) => this.trackRoot(record, events, statusLine),
+      rebound: (record) => this.rebound(record),
+      alive,
+    })
     this.companion = new Companion(this.options.items, {
       records: () => this.records,
       saved: (terminalId) => this.saves.saved(terminalId),
@@ -559,10 +554,10 @@ export class Terminals {
         live: (terminalId) => this.live(terminalId),
         running: (record) => this.running(record),
         keyed: (record, data) => this.keyed(record, data),
-        applyFact: (record, fact) => this.applyFact(record, fact),
-        publishAgent: (record, moved) => this.publishAgent(record, moved),
+        applyFact: (record, fact) => this.bindings.applyFact(record, fact),
+        publishAgent: (record, moved) => this.bindings.publishAgent(record, moved),
         detailed: (record) => this.streams.detailed(record),
-        endExited: (record) => this.endExited(record),
+        endExited: (record) => this.bindings.endExited(record),
         queued: (terminalId, work) =>
           void this.queue(terminalId, () => Promise.resolve(work()), undefined),
         alive,
@@ -604,7 +599,7 @@ export class Terminals {
             holds: (terminalId) => this.records.has(terminalId),
             facts: (terminal) => this.peers.facts(terminal),
             projectFolder: (sessionId) => this.projectFolder(sessionId),
-            publishAgent: (record) => this.publishAgent(record, false),
+            publishAgent: (record) => this.bindings.publishAgent(record, false),
             names: () => this.names,
             saves: () => this.saves,
             streams: () => this.streams,
@@ -938,7 +933,7 @@ export class Terminals {
     if (cancelResume(record)) {
       record.startupRuns = false
       // The person took the terminal over before its agent ever ran: nothing to lead.
-      this.endLead(record)
+      this.bindings.endLead(record)
       this.claims.cancel(claim, record.summary.id)
     }
     if (/[\r\n]/.test(data)) record.submitted = true
@@ -946,13 +941,14 @@ export class Terminals {
     const line = afterKeys(record.line, data)
     record.line = line.line
     if (line.entered) record.lineEntered = true
-    if (keys.some(({ kind }) => kind === "enter") && this.readyOf(record)) this.readyEnter(record)
+    if (keys.some(({ kind }) => kind === "enter") && this.bindings.readyOf(record))
+      this.bindings.readyEnter(record)
     this.messaging.keys(
       record.summary.id,
       keys.map(({ kind }) => kind),
       (record.activity?.pending.length ?? 0) > 0,
     )
-    this.escaped(record)
+    this.bindings.escaped(record)
     if (this.messaging.untrustedAgent(record.summary.id)) this.recheckTrust(record)
   }
 
@@ -1065,7 +1061,7 @@ export class Terminals {
                 if (earlier) this.show(record, earlier, null)
                 // Restarted to resume the worker's agent session, it stays led; restarted as a plain
                 // shell, there is no agent left to lead.
-                if (!started.resumes) this.endLead(record)
+                if (!started.resumes) this.bindings.endLead(record)
                 // The earlier shell's job and what murmur kept of it are not the new one's.
                 this.murmur?.gone(record.summary.id)
                 this.register(record, input.resume ?? null)
@@ -1231,13 +1227,13 @@ export class Terminals {
         record.binding = null
         record.activity = null
         record.telemetry = null
-        this.unwatch(record)
+        this.bindings.unwatch(record)
         this.rebound(record)
         record.summary = {
           ...record.summary,
           agentRan,
           agent: null,
-          ready: this.readyOf(record),
+          ready: this.bindings.readyOf(record),
           activity: null,
           telemetry: null,
         }
@@ -1489,7 +1485,7 @@ export class Terminals {
     this.opens.finish()
     this.companion.shutdown()
     this.streams.finishReaders()
-    for (const record of this.records.values()) this.unwatch(record)
+    for (const record of this.records.values()) this.bindings.unwatch(record)
     this.typing.close()
     this.asks.close()
     this.messaging.close()
@@ -1610,16 +1606,17 @@ export class Terminals {
     // and comes back with `fg`. A process Novadeck can't name can't be told suspended.
     if (binding === null) {
       // Or the agent a Ctrl+Z left suspended, found gone with no session bound since.
-      if (ran || (record.suspended !== null && !alive(record.suspended))) this.endLead(record)
+      if (ran || (record.suspended !== null && !alive(record.suspended)))
+        this.bindings.endLead(record)
     } else if (binding.instance && alive(binding.instance)) {
       record.suspended = binding.instance
-    } else this.endLead(record)
+    } else this.bindings.endLead(record)
     // Nothing came of the agent the shell was opened to run: it is a plain shell now.
     if (binding === null && ran) record.expecting = null
-    this.endBinding(record)
+    this.bindings.endBinding(record)
     // An agent whose prompt showed, with no session bound, left with it.
     this.messaging.unshown(record.summary.id)
-    this.publishAgent(record, false)
+    this.bindings.publishAgent(record, false)
     if (moved) {
       record.summary = { ...record.summary, cwd }
       this.announce(record)
@@ -1712,9 +1709,9 @@ export class Terminals {
     let changed = false
     if (reused !== undefined && record.binding === reused) {
       record.left = reused
-      this.endLead(record)
-      this.endBinding(record)
-    } else this.endExited(record)
+      this.bindings.endLead(record)
+      this.bindings.endBinding(record)
+    } else this.bindings.endExited(record)
     const facts = {
       promptedAt: record.promptedAt,
       shellInForeground: foreground,
@@ -1743,7 +1740,7 @@ export class Terminals {
     // typed while asked before the prompt that clears the request").
     for (const event of events) {
       if (event.type !== "session-observed") {
-        this.applyFact(record, event)
+        this.bindings.applyFact(record, event)
         continue
       }
       if (this.late(record, event)) continue
@@ -1770,7 +1767,7 @@ export class Terminals {
         // After a suspended agent, a binding is that agent back from `fg`, or another the
         // person started at the prompt, which its lead never directed.
         if (record.suspended !== null && next.binding.instance !== record.suspended)
-          this.endLead(record)
+          this.bindings.endLead(record)
         record.suspended = null
       }
       changed = true
@@ -1791,7 +1788,7 @@ export class Terminals {
             )
           : null
         record.telemetry = null
-        this.follow(record, event)
+        this.bindings.follow(record, event)
         // The plans its bar mirrored of another session go; unbinding alone keeps them.
         if (next.binding) this.companion.bound(record.summary.id, next.binding.sessionId)
       }
@@ -1802,7 +1799,7 @@ export class Terminals {
     const stopAsk =
       deadline !== undefined && harnesses[report.agent].messaging.asks[report.event] === "stop"
     const moved = record.summary.cwd !== cwd
-    if (!stopAsk) this.publishAgent(record, moved)
+    if (!stopAsk) this.bindings.publishAgent(record, moved)
     const changes = this.followRootOf(record, events, report.event === "StatusLine")
     const told = await this.attributed(record, events)
     // What the root worked on, from its prompts as told, as Antigravity's from its
@@ -1819,7 +1816,7 @@ export class Terminals {
     this.murmur?.reported(report.terminalId, this.reported(record, changes))
     if (deadline === undefined) {
       this.messaging.observe(report.terminalId, told)
-      this.escaped(record)
+      this.bindings.escaped(record)
       this.judgeFirst(record)
       return silent
     }
@@ -1831,9 +1828,9 @@ export class Terminals {
     })
     if (stopAsk) {
       this.continued(record, told, answer)
-      this.publishAgent(record, moved)
+      this.bindings.publishAgent(record, moved)
     }
-    this.escaped(record)
+    this.bindings.escaped(record)
     this.judgeFirst(record)
     return this.nudged(record, report, told, answer, deadline)
   }
@@ -1868,7 +1865,7 @@ export class Terminals {
     const { binding, activity } = record
     const event =
       binding && activity && this.messaging.lapsed(record.summary.id, binding, activity.turnAt)
-    if (event && this.applyFact(record, event)) this.publishAgent(record, false)
+    if (event && this.bindings.applyFact(record, event)) this.bindings.publishAgent(record, false)
   }
 
   /**
@@ -1885,7 +1882,13 @@ export class Terminals {
     )
     if (!stop || stop.type !== "turn-ended") return
     const { agent, sessionId, instance, startedAt } = stop
-    this.applyFact(record, { type: "turn-continued", agent, sessionId, instance, startedAt })
+    this.bindings.applyFact(record, {
+      type: "turn-continued",
+      agent,
+      sessionId,
+      instance,
+      startedAt,
+    })
   }
 
   /**
@@ -2154,7 +2157,7 @@ export class Terminals {
           async () => {
             if (!(await inForeground())) return
             // Ended in turn with the reports, so a session bound since is never touched.
-            if (exited && record.binding === binding) this.endExited(record)
+            if (exited && record.binding === binding) this.bindings.endExited(record)
             this.showPrompt(record, shown, exited ? undefined : replaced)
           },
           undefined,
@@ -2262,7 +2265,7 @@ export class Terminals {
     if (!binding) {
       this.messaging.shown(id, agent, sessionPrefix ?? null)
       record.readyEntered = false
-      this.publishAgent(record, false)
+      this.bindings.publishAgent(record, false)
       return
     }
     // Only the session it was shown to replace, still bound: one bound since, as the new
@@ -2271,7 +2274,7 @@ export class Terminals {
     if (sessionPrefix !== undefined && binding.sessionId.startsWith(sessionPrefix)) return
     // Judged as the title came, not after what was asked since.
     this.messaging.shown(id, agent, sessionPrefix ?? null, true, shown.startedAt, shown.firedAt)
-    this.endBinding(record, replaced)
+    this.bindings.endBinding(record, replaced)
     this.typing.settleBox(record)
   }
 
@@ -2313,21 +2316,6 @@ export class Terminals {
     return root !== undefined && root.startedAt > observed + 50 ? binding : undefined
   }
 
-  /**
-   * Ends the binding of an agent process known to have exited without the shell showing
-   * its prompt, as in tmux, a nested shell or `claude ; codex`: whatever shows or binds
-   * there next is another agent's. Whether it ended one. Where its reports name no
-   * process, nothing tells, and the binding stays until the shell's prompt.
-   */
-  private endExited(record: Record): boolean {
-    const { binding } = record
-    if (!binding?.instance || alive(binding.instance)) return false
-    record.left = binding
-    // The agent's process is gone: the lead it had ends with it.
-    this.endLead(record)
-    return this.endBinding(record)
-  }
-
   /** Whether an observation is a late one of the session whose process was found gone. */
   private late(record: Record, event: SessionObserved): boolean {
     const { left } = record
@@ -2337,87 +2325,6 @@ export class Terminals {
       left.sessionId === event.sessionId &&
       (event.instance === null || event.instance === left.instance)
     )
-  }
-
-  /**
-   * Ends the terminal's lead, as the agent it led exited: kept, shown to watchers, and
-   * told to messaging, so what the former lead sends reads as a peer's from then on.
-   */
-  private endLead(record: Record): void {
-    if (record.summary.ledBy === null) return
-    record.summary = { ...record.summary, ledBy: null }
-    record.suspended = null
-    this.messaging.endLead(record.summary.id)
-    this.saves.save(record, false)
-    this.announce(record)
-  }
-
-  /**
-   * Ends the terminal's binding, with its activity and the sources that follow it; with
-   * `only`, only while that session is still the one bound. Whether it ended one.
-   */
-  private endBinding(record: Record, only?: string): boolean {
-    if (only !== undefined && record.binding?.sessionId !== only) return false
-    record.binding = null
-    record.activity = null
-    record.telemetry = null
-    this.unwatch(record)
-    this.rebound(record)
-    if (record.summary.agent !== null) {
-      record.summary = {
-        ...record.summary,
-        agent: null,
-        ready: this.readyOf(record),
-        activity: null,
-        telemetry: null,
-      }
-      this.announce(record)
-    }
-    return true
-  }
-
-  /**
-   * Follows the newly bound session's own sources, as its transcript, until its binding
-   * ends; what they say applies like its hooks' reports.
-   */
-  private follow(record: Record, event: SessionObserved): void {
-    this.unwatch(record)
-    record.transcript = event.transcript ?? null
-    const { binding } = record
-    const watch = binding && harnesses[binding.agent].watch
-    if (!binding || !watch || event.transcript === undefined) return
-    const controller = new AbortController()
-    record.watching = controller
-    const run = {
-      sessionId: binding.sessionId,
-      instance: binding.instance,
-      transcript: event.transcript,
-    }
-    void watch(run, controller.signal, (fact) => {
-      if (record.watching !== controller || fact.type === "session-observed") return
-      this.sourceFact(record, fact)
-    }).catch((error: unknown) => console.error("Novadeck stopped following an agent:", error))
-  }
-
-  /** Applies what the bound session's own sources said, as its hooks' reports apply. */
-  private sourceFact(record: Record, fact: Exclude<HarnessEvent, SessionObserved>): void {
-    const running = record.activity?.state === "working"
-    const applied = this.applyFact(record, fact)
-    if (applied) this.publishAgent(record, false)
-    // What only its records say, as an interrupted turn, reaches messaging too. A turn's
-    // end its records told does only where it ended the turn, never a record used up as a
-    // continued Stop's, with what the activity holds the turn left running, so the two
-    // tell the same.
-    const ended = applied && running && record.activity?.state === "idle"
-    const facts =
-      fact.type !== "turn-ended" || !fact.recorded
-        ? [fact]
-        : ended
-          ? [{ ...fact, background: record.activity?.background ?? { agents: 0, tasks: 0 } }]
-          : []
-    if (this.trackRoot(record, facts, false)) this.saves.save(record, false)
-    this.messaging.observe(record.summary.id, facts)
-    this.escaped(record)
   }
 
   /**
@@ -2443,243 +2350,6 @@ export class Terminals {
     record.recheck.unref()
   }
 
-  /**
-   * The person's Escape that may have cancelled the root turn, as delivery took it, ends
-   * the turn for the agent's activity too, so the two tell the same.
-   */
-  private escaped(record: Record): void {
-    const { binding } = record
-    const event = binding && this.messaging.escaped(record.summary.id, binding)
-    if (!event) return
-    if (this.applyFact(record, event)) this.publishAgent(record, false)
-    this.awaitVerdict(record, event)
-  }
-
-  /**
-   * The harness has `escapeVerdictMs` to say how the turn the Escape ended ended, as its
-   * reply may have reached it first. Once that passes, a Stop it reported meanwhile is the
-   * turn's end, else a reply the transcript of a harness without records holds since the
-   * person's prompt, else the Escape stands.
-   */
-  private awaitVerdict(record: Record, { agent, sessionId, instance, startedAt }: ActivityEvent) {
-    if (record.verdict) clearTimeout(record.verdict)
-    const lapse = (reply: string | undefined) => {
-      const { binding } = record
-      if (!binding || binding.sessionId !== sessionId || this.stopping) return
-      const lapsed: ActivityEvent = {
-        type: "turn-escape-lapsed",
-        agent,
-        sessionId,
-        instance,
-        startedAt,
-        ...(reply !== undefined && { reply }),
-      }
-      if (this.applyFact(record, lapsed)) this.publishAgent(record, false)
-    }
-    record.verdict = setTimeout(() => {
-      record.verdict = undefined
-      const reading = this.unstoppedReply(record, agent)
-      if (reading) void reading.then(lapse)
-      else lapse(undefined)
-    }, escapeVerdictMs)
-    record.verdict.unref()
-  }
-
-  /**
-   * The read of the reply the transcript holds since the person's prompt of the turn their
-   * Escape ended, where no Stop came for it and the harness keeps no records that would
-   * say how it ended: undefined where there is nothing to read, and the read's undefined
-   * where it holds none, can't be read, or the screen doesn't show the turn went on
-   * uninterrupted, as Antigravity may say it stopped under a reply it kept. The screen is
-   * what tells: an Escape between a response's words and the tool call after them leaves
-   * the words recorded alone as the response, just as a reply that won is recorded, and
-   * Antigravity drew its interruption under them every time (probed 2026-10-11, 1.2.14,
-   * the call streamed 1.5 s after the words); a step's time is no help, as the cut-off
-   * one came 56 to 94 ms after the key, where a reply that just won lands too. Only on
-   * Windows, the one place a reply that won the race was seen to fire no Stop (Antigravity
-   * 1.2.14): elsewhere its Stop tells.
-   */
-  private unstoppedReply(
-    record: Record,
-    agent: AgentName,
-  ): Promise<string | undefined> | undefined {
-    if (process.platform !== "win32") return undefined
-    const escaped = record.activity?.lastTurn?.escaped
-    const items = harnesses[agent].transcripts?.items
-    if (harnesses[agent].records || !escaped || escaped.held || escaped.settled) return undefined
-    if (!record.transcript || !items) return undefined
-    const { interrupted } = harnesses[agent].box
-    return lastReply(record.transcript, items)
-      .then(async (reply) => {
-        if (reply === undefined || !interrupted) return reply
-        // The word may be drawn after the reply, so the screen is read again until the
-        // window ends: the Escape stands where a read shows the word, or where the last
-        // read can't tell (mid-redraw, under a dialog), and the reply won only where the
-        // last shows it alone.
-        const until = Date.now() + escapeScreenMs
-        for (;;) {
-          // eslint-disable-next-line no-await-in-loop -- Each read waits for the one before.
-          const screen = await this.typing.screenOf(record.summary.id)
-          if (!screen) return undefined
-          const shown = interrupted(screen)
-          if (shown === true) return undefined
-          if (Date.now() >= until) return shown === false ? reply : undefined
-          // eslint-disable-next-line no-await-in-loop -- Each read waits for the one before.
-          await sleep(250, undefined, { ref: false })
-        }
-      })
-      .catch(() => undefined)
-  }
-
-  /** Applies what the bound session's hooks or records said; true when it changed. */
-  private applyFact(record: Record, fact: Exclude<HarnessEvent, SessionObserved>): boolean {
-    const waited = (record.activity?.pending.length ?? 0) > 0
-    const applied = this.appliedFact(record, fact)
-    // A request no longer waits on the person: what they typed meanwhile counts now, at
-    // once, before the report's prompt reaches messaging. The doorbell looks again too, as
-    // the request kept it from ringing and its screen may not change.
-    const waits = (record.activity?.pending.length ?? 0) > 0
-    if (waited && !waits) {
-      this.messaging.askedCleared(record.summary.id)
-      this.typing.doorbellChanged(record.summary.id)
-    }
-    // A request asked while a ring is under way (none waited as it began) may show its
-    // dialog where the ring's Enter would land: the ring fails, pressing nothing more, as
-    // its line may already be in that dialog.
-    const nonce = waits ? this.messaging.ringing(record.summary.id) : undefined
-    if (nonce !== undefined) this.messaging.ringFailed(record.summary.id, nonce)
-    if (applied) this.watchActors(record)
-    return applied
-  }
-
-  /**
-   * Follows each running subagent with a request waiting in its own sources, where its
-   * harness reads them, for what ends its turn that no hook reports (Codex's rollout
-   * recording Esc on its request): from its oldest request's ask, until it has none
-   * waiting or the binding ends. What they say applies like its hooks' reports.
-   */
-  private watchActors(record: Record): void {
-    const { binding, activity, transcript, actorWatches } = record
-    const watchActor = binding && harnesses[binding.agent].watchActor
-    const waiting = new Map<string, number>()
-    if (binding && activity && transcript !== null && watchActor)
-      for (const { actor, askedAt } of activity.pending)
-        if (actor !== null && activity.subagents.some(({ id }) => id === actor))
-          waiting.set(actor, Math.min(askedAt, waiting.get(actor) ?? Number.POSITIVE_INFINITY))
-    for (const [actor, { controller, since }] of actorWatches)
-      if (waiting.get(actor) !== since) {
-        controller.abort()
-        actorWatches.delete(actor)
-      }
-    if (!binding || !watchActor || transcript === null) return
-    const run = { sessionId: binding.sessionId, instance: binding.instance, transcript }
-    for (const [actor, since] of waiting) {
-      if (actorWatches.has(actor)) continue
-      const controller = new AbortController()
-      actorWatches.set(actor, { controller, since })
-      void watchActor(run, actor, since, controller.signal, (fact) => {
-        if (actorWatches.get(actor)?.controller !== controller) return
-        if (fact.type === "session-observed") return
-        this.sourceFact(record, fact)
-      }).catch((error: unknown) => console.error("Novadeck stopped following a subagent:", error))
-    }
-  }
-
-  private appliedFact(record: Record, fact: Exclude<HarnessEvent, SessionObserved>): boolean {
-    if (!record.binding) return false
-    if (fact.type === "telemetry-observed") {
-      const next = observeTelemetry(record.telemetry, record.binding, fact)
-      if (next) record.telemetry = next
-      if (next) this.latchLimit(record)
-      return next !== undefined
-    }
-    const next = record.activity && apply(record.activity, record.binding, fact)
-    if (next) record.activity = next
-    if (next && fact.type === "plan-observed")
-      void this.companion.planned(record, record.binding, fact)
-    if (next && fact.type === "turn-ended") this.latchLimit(record)
-    return Boolean(next)
-  }
-
-  /**
-   * Latches the usage-limit window a turn that just ended, or one idle since, ran into on
-   * its last turn, from the limits the session's records showed (`limitOf`).
-   */
-  private latchLimit(record: Record): void {
-    const { activity, telemetry } = record
-    if (!activity || !telemetry || activity.state !== "idle") return
-    const limit = limitOf(activity.lastTurn, telemetry.limits, telemetry.at)
-    const next = limit && withLimit(activity, limit)
-    if (next) record.activity = next
-  }
-
-  private unwatch(record: Record): void {
-    record.watching?.abort()
-    record.watching = null
-    for (const { controller } of record.actorWatches.values()) controller.abort()
-    record.actorWatches.clear()
-    record.transcript = null
-    for (const reader of record.sourceReaders) reader.abort()
-    record.sourceReaders.clear()
-  }
-
-  /**
-   * Shows the bound agent and its activity in the summary, announcing a change, or the
-   * summary's own change when `moved`.
-   */
-  private publishAgent(record: Record, moved: boolean): void {
-    // Detail changes where the summary may not: a revised request, a subject.
-    this.streams.detailed(record)
-    this.typing.dialogsChanged(record.summary.id)
-    // Murmur writes a headline or gist for what the activity now holds.
-    this.murmur?.changed(record.summary.id)
-    const agent = record.binding?.agent ?? null
-    const ready = this.readyOf(record)
-    const activity = record.binding && record.activity ? activitySummary(record.activity) : null
-    const telemetry = record.binding && record.telemetry ? telemetrySummary(record.telemetry) : null
-    const agentRan = hasRun(record.agents)
-    const { summary } = record
-    if (
-      !moved &&
-      summary.agentRan === agentRan &&
-      summary.agent === agent &&
-      summary.ready === ready &&
-      JSON.stringify(summary.activity) === JSON.stringify(activity) &&
-      JSON.stringify(summary.telemetry) === JSON.stringify(telemetry)
-    )
-      return
-    record.summary = { ...summary, agentRan, agent, ready, activity, telemetry }
-    this.announce(record)
-  }
-
-  /**
-   * The person pressed Enter at the agent's own prompt, before its first: until its
-   * session binds, nothing says it is idle. Should neither a session bind nor its title say
-   * a turn runs within `readyReturnMs`, the Enter submitted no prompt, and the prompt
-   * still shows.
-   */
-  private readyEnter(record: Record): void {
-    record.readyEntered = true
-    record.readyTurned = false
-    this.publishAgent(record, false)
-    if (record.readyReturn) clearTimeout(record.readyReturn)
-    const child = record.terminal.pty
-    record.readyReturn = setTimeout(() => {
-      record.readyReturn = undefined
-      if (record.terminal.pty !== child || record.terminal.exiting || record.binding) return
-      if (!record.readyEntered || record.readyTurned) return
-      record.readyEntered = false
-      this.publishAgent(record, false)
-    }, readyReturnMs)
-    record.readyReturn.unref()
-  }
-
-  /** The agent whose own prompt shows there, with Novadeck's hooks, before any session bound. */
-  private readyOf(record: Record): AgentName | null {
-    if (record.binding || record.readyEntered) return null
-    return this.messaging.shownAgent(record.summary.id) ?? null
-  }
-
   /** Shows a transcript on the record's fresh screen, ahead of its shell's output. */
   private show(record: Record, transcript: string, savedAt: Date | null): void {
     void record.terminal.replay(transcript, restoredSeparator(savedAt))
@@ -2692,7 +2362,7 @@ export class Terminals {
     record.activity = null
     record.telemetry = null
     forgetPrompts(record)
-    this.unwatch(record)
+    this.bindings.unwatch(record)
     // An exited terminal takes no messages; its agent's are gone until it runs again.
     this.messaging.unregister(record.summary.id)
     this.asks.reconcile(record.summary.id)
