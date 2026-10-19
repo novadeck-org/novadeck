@@ -6,6 +6,7 @@ import type { Workspace } from "@novadeck/core/types"
 import { createContext, useContext, type RefObject } from "react"
 
 import type { CanvasHandle } from "../../layouts/canvas/types"
+import type { Chat } from "../../terminals/chat/state"
 import type { WorkspaceCommands } from "../commands/workspace"
 import type { WorkspaceNavigator } from "../routing"
 import type { UiState, UiStore } from "../ui-store"
@@ -17,6 +18,8 @@ export type WorkspaceServices = {
   readonly backend: Backend
   readonly workspace: WorkspaceStore
   readonly ui: UiStore
+  // What the chat keeps: drafts, replies, sends and the terminals answered in.
+  readonly chat: Chat
   readonly navigation: WorkspaceNavigator
   readonly commands: WorkspaceCommands
   // The mounted Canvas, for commands that move its camera.
