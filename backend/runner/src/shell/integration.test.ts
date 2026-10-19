@@ -846,7 +846,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
     })
     const terminal = await create(manager, shell)
-    const inside = manager as unknown as { trees: Trees; reports: Map<string, Promise<void>> }
+    const inside = manager as unknown as {
+      trees: Trees
+      reporting: { queues: Map<string, Promise<void>> }
+    }
     let reads = 0
     inside.trees = new Trees(
       async () => "relay.exe",
@@ -857,7 +860,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     )
     manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
     await shell.until(manager, terminal.id, "reports sent")
-    await inside.reports.get(terminal.id)
+    await inside.reporting.queues.get(terminal.id)
     expect(manager.reportedSession(terminal.id, "claude")).toBe("root")
     expect(manager.get(terminal.id).agent).toBe("claude")
     expect(reads).toBe(0)
@@ -957,8 +960,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
           }
         >
         trees: Trees
-        reports: Map<string, Promise<void>>
-        disconnections: Map<string, number>
+        reporting: {
+          queues: Map<string, Promise<void>>
+          disconnections: Map<string, number>
+        }
       }
       let started!: () => void
       let release!: () => void
@@ -993,10 +998,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         })
       if (change === "exit")
         record.terminal = Object.create(original.terminal, { exiting: { value: true } })
-      if (change === "disconnection") inside.disconnections.set("claude", 1)
+      if (change === "disconnection") inside.reporting.disconnections.set("claude", 1)
       release()
       try {
-        await inside.reports.get(terminal.id)
+        await inside.reporting.queues.get(terminal.id)
         expect(record.binding).toBe(change === "binding" ? switched : original.binding)
         expect(manager.reportedSession(terminal.id, "claude")).toBeNull()
       } finally {
