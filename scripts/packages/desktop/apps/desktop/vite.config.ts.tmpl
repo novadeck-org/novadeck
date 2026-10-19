@@ -1,6 +1,6 @@
 import { resolve } from "node:path"
 
-import { bundleChecks } from "@novadeck/build-kit/bundle-checks"
+import { bundleChecks, desktopUtilities } from "@novadeck/build-kit/bundle-checks"
 import { connectSources } from "@novadeck/build-kit/connect-sources"
 import { contentSecurityPolicy } from "@novadeck/build-kit/content-security-policy"
 import { fontsAsFiles } from "@novadeck/build-kit/fonts"
@@ -53,16 +53,9 @@ export default defineConfig(({ mode }) => ({
           development: build.command === "serve",
         }),
     }),
-    bundleChecks({
-      // A utility from each folder the UI's styles.css scans that every desktop page carries:
-      // the workspace header's, and the debug panel's, which the UI's sources keep in every
-      // build. Each is written in one file of its folder, and these words are in no scanned
-      // folder, so the check reads the page's build and not this file.
-      utilities: [
-        { folder: "frontend/ui/", utility: "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" },
-        { folder: "frontend/demo-debug/", utility: "h-[min(760px,calc(100vh-80px))]" },
-      ],
-    }),
+    // The demo's and the debug panel's utilities, as every frontend build guards them, and the
+    // UI's own folder's, since this config is outside it.
+    bundleChecks({ utilities: desktopUtilities }),
   ],
   resolve: {
     alias: [

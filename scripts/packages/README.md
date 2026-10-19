@@ -339,36 +339,60 @@ doesn't track, it installs on every run, and a second run says there is nothing 
 
 ## What it does
 
-1. **It moves the files.** A deleted one goes with `git rm`.
-2. **It rewrites the host's folder and each page's old path as text,** with the same bounds as
+1. **It refuses a tree with a conflict marker in a tracked file, and plans everything before
+   writing.** It stops with "Stopped, nothing changed" on any problem below.
+2. **It moves the files.** A deleted one goes with `git rm`.
+3. **It rewrites the host's folder and each page's old path as text,** with the same bounds as
    the backend's move.
-3. **It makes the handwritten edits** in `edits`, each guarded and done once its old text is
+4. **It makes the handwritten edits** in `edits`, each guarded and done once its old text is
    gone:
    - the entries import the UI by its package's subpaths, as `apps/try`'s do;
-   - the desktop page's script is `./main.tsx`;
+   - the desktop page's script is `/main.tsx`, from its folder, so the two pages differ and git
+     pairs each with its own old page;
    - `electron-builder.yml` copies the app's own `dist`;
    - the app's `dev`, `build` and `typecheck` cover its pages;
-   - `dev:web` and the timing bench serve and build the web page from the app;
-   - the profile bench names the app's folder;
-   - the README's web command and the dev-web test follow;
-   - the UI's tsconfig, its architecture test (the runner adapter's entries) and the
-     browser fence's globs, which name `apps/desktop/renderer`, as the app's `src/` is Node's.
-4. **It cuts two of the UI's tests that leave with the pages:** the pages' scripts, and the SVG
-   filters the page carries. The app has its own `page.test.ts`.
-5. **It changes the manifests.** The app takes the pages' packages, at the UI's versions. The
-   UI drops the runner adapter and its `dev`, `build` and `preview` scripts.
-6. **It writes the app's new files from `desktop/`:**
-   - `vite.config.ts`, the pages' build: `renderer/` to `dist/`, and mode `web` to `dist-web/`,
-     on port 5173;
-   - `vitest.config.ts`, so Vitest doesn't take the pages' build;
-   - `renderer/tsconfig.json`;
-   - `src/page.test.ts`;
-   - `src/packaging.test.ts`.
+   - `dev:web` and the timing bench serve and build the web page from the app, and the profile
+     bench builds the desktop page from it;
+   - the README, the theming doc, the atlas's UI entry and the dev-web test follow;
+   - the UI's architecture test (the runner adapter's entries) and the browser fence, which
+     takes `apps/desktop/renderer` and leaves the app's `src/`, Node's;
+   - the build kit's `desktopUtilities`: the renderer's build guards the UI's own folder too, as
+     its config is outside it, and the guards' test keeps that utility unique.
+5. **On the run that moves the host alone** (while its `package.json` is at the old place), it
+   makes what the move makes once. A later run, on a branch catching up, undoes nothing main
+   changed since:
+   - it deletes `frontend/ui/vite.config.ts` and `entries/web/main.tsx`;
+   - it removes the pages' lines from the UI's tsconfig (`onTheMove`);
+   - it cuts two of the UI's tests that leave with the pages: the pages' scripts, and the SVG
+     filters the page carries. The app's `page.test.ts` checks both;
+   - it changes the manifests. The app takes the pages' packages, at the UI's versions, and the
+     UI drops the runner adapter and its `dev`, `build` and `preview` scripts;
+   - it writes the app's files from `desktop/` (`templates`): `vite.config.ts`, the pages' build
+     (`renderer/` to `dist/`, mode `web` to `dist-web/`, on port 5173), `vitest.config.ts`,
+     `renderer/tsconfig.json` and `src/page.test.ts`, each only where nothing is; and
+     `src/packaging.test.ts`, over the host's only while it is the text the template was written
+     for (its hash in `was`, which `desktop.test.ts` checks against the host's file until the
+     move). A file the branch changed stops the run, naming it, for the template to be redone.
+6. **On a branch whose last commit merged main's move,** it names what the branch renamed or
+   deleted that came back at the new place, as the backend's move does, and stops.
 7. **It installs, formats, carries and scans for leftovers,** as the backend's move does.
-   This includes `--filter @novadeck/ui dev|build|preview` and the UI's old page paths.
+   This includes `--filter @novadeck/ui dev|build|preview` and the UI's old page paths. Then
+   `application/` goes, once nothing is left in it. Its `pnpm-workspace.yaml` glob, the fence's
+   `application/` patterns and the libraries scripts' folder lists go in 5.4.
 
-The catch-up for a branch made before 5.3c is the backend's recipe above, with
-`move-desktop.ts`, and `git clean -fd apps/desktop` in the recovery.
+## Catching up a branch after the move
+
+For a branch made before 5.3c, the backend's recipe above, with `move-desktop.ts`:
+
+- **Merge main first, then run the script.** The branch's changes to the host merge at its new
+  place by rename detection, as do its changes to either page.
+- **`frontend/ui/vite.config.ts`** is deleted on main, so a branch that changed it has a
+  modify/delete conflict: make the change in `apps/desktop/vite.config.ts`, then
+  `git rm frontend/ui/vite.config.ts`.
+- **A rename or a deletion of the branch's that main's move brought back** stops the script,
+  naming both files: `git rm` the one that doesn't stand, and commit, or commit anything to keep
+  main's.
+- **The recovery** adds `git clean -fd apps/desktop`.
 
 ## What to check after
 

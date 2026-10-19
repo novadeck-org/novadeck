@@ -1,17 +1,31 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { mkdirSync, readdirSync, readFileSync, rmdirSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
 import {
   destinationOf,
   edits,
+  hashOf,
   host,
   leftovers,
+  onTheMove,
   pagesTest,
   rewritable,
   rewrite,
+  singles,
   svgTest,
+  templates,
 } from "./desktop.ts"
-import { applyEdit, carry, finish, ignoredPlaces, preflight, repository } from "./move.ts"
+import { markersIn } from "./merge-frontend.ts"
+import {
+  applyEdit,
+  carry,
+  finish,
+  ignoredPlaces,
+  outsideWorkspace,
+  preflight,
+  repository,
+  undoneByMerge,
+} from "./move.ts"
 
 // `node scripts/packages/move-desktop.ts`: step 5's 5.3c. Moves the host into apps/desktop with
 // the desktop app's page and the browser app's, which leave the UI for a build of the app's
@@ -22,18 +36,13 @@ import { applyEdit, carry, finish, ignoredPlaces, preflight, repository } from "
 const root = join(import.meta.dirname, "..", "..")
 const { git, read, tracked } = repository(root)
 const oxfmt = preflight(root, [host.from])
-
-// The files the move writes whole, from the templates beside this script.
-const templates = [
-  "apps/desktop/vite.config.ts",
-  "apps/desktop/vitest.config.ts",
-  "apps/desktop/renderer/tsconfig.json",
-  "apps/desktop/src/page.test.ts",
-  "apps/desktop/src/packaging.test.ts",
-].map((place) => ({
-  place,
-  text: readFileSync(join(import.meta.dirname, "desktop", `${place}.tmpl`), "utf8"),
-}))
+const markers = markersIn(root)
+if (markers.length > 0) {
+  console.error(
+    `Stopped, nothing changed. Conflict markers are in tracked files (a merge committed unresolved?):\n${markers.slice(0, 20).join("\n")}`,
+  )
+  process.exit(1)
+}
 
 // The packages the pages bring to the app: the UI's, as the UI depends on them, and the build's.
 const pageDependencies = [
@@ -54,9 +63,14 @@ const pageDependencies = [
 const files = tracked()
 const present = new Set(files)
 const problems: string[] = []
+// The run that moves the host, while its manifest is at the old place: what the move makes
+// once (the templates, the manifests, the removals) is made on it alone. A later run, on a
+// branch catching up, moves and rewrites what the branch added, and undoes nothing main
+// changed since.
+const moving = present.has(`${host.from}/package.json`)
 const moves = files.flatMap((file) => {
   const to = destinationOf(file)
-  if (to === undefined) return []
+  if (to === undefined || (to === null && !moving)) return []
   if (to !== null && present.has(to)) {
     problems.push(`${file} and ${to} are both tracked: keep one, at ${to}`)
     return []
@@ -74,6 +88,23 @@ for (const place of ignoredPlaces(root, [
     `${file} is tracked, but its package ignores it as build output: git rm --cached ${file}`,
   )
 }
+
+for (const place of outsideWorkspace(root, [host.to]))
+  problems.push(`pnpm-workspace.yaml takes in no ${place}: add its folder's glob first`)
+
+// On a branch whose last commit merged main's move: what the branch renamed or deleted that
+// came back at the new place.
+for (const { back, file, renamed } of undoneByMerge({
+  root,
+  marker: { from: `${host.from}/package.json`, to: `${host.to}/package.json` },
+  olds: [host.from, ...singles.map(({ from }) => from)],
+  destinationOf: (file) => destinationOf(file) ?? undefined,
+}))
+  problems.push(
+    renamed
+      ? `${back} came back with main's move beside ${renamed}, the branch's rename of ${file}: git rm the one that doesn't stand, and commit`
+      : `${back} came back with main's move, though the branch deleted ${file}: git rm it if the deletion stands, or commit anything (an empty commit says so) to keep it`,
+  )
 
 // Every text at its place after the move, rewritten, edited and made whole.
 const placed = new Map<string, string>()
@@ -95,7 +126,7 @@ for (const [place, file] of placed) {
   if (next !== text) texts.set(place, next)
 }
 const skipped: string[] = []
-for (const edit of edits) {
+for (const edit of moving ? [...edits, ...onTheMove] : edits) {
   const text = textOf(edit.file)
   if (text === undefined) {
     skipped.push(`${edit.file} is gone: ${edit.why}`)
@@ -107,7 +138,7 @@ for (const edit of edits) {
   else if (made.state === "gone") skipped.push(`${edit.file}, whose line changed: ${edit.why}`)
 }
 // The two tests of the pages that leave the UI, cut from its files: the desktop app has its own.
-for (const { file, start, end } of [pagesTest, svgTest]) {
+for (const { file, start, end } of moving ? [pagesTest, svgTest] : []) {
   const text = textOf(file)
   if (text === undefined || !text.includes(start)) continue
   const from = text.indexOf(start)
@@ -121,7 +152,7 @@ for (const { file, start, end } of [pagesTest, svgTest]) {
 // The manifests: the app takes the pages' packages, and the UI lets go of the page's.
 const json = (text: string) => JSON.parse(text) as Record<string, Record<string, string>>
 const uiManifest = json(textOf("frontend/ui/package.json") ?? "{}")
-const appText = textOf(`${host.to}/package.json`)
+const appText = moving ? textOf(`${host.to}/package.json`) : undefined
 if (appText !== undefined) {
   const app = json(appText)
   const has = { ...app.dependencies, ...app.devDependencies }
@@ -142,7 +173,7 @@ if (appText !== undefined) {
     texts.set(`${host.to}/package.json`, `${JSON.stringify(app, null, 2)}\n`)
   }
 }
-const uiText = textOf("frontend/ui/package.json")
+const uiText = moving ? textOf("frontend/ui/package.json") : undefined
 if (uiText !== undefined) {
   const manifest = json(uiText)
   let changed = false
@@ -157,7 +188,26 @@ if (uiText !== undefined) {
     }
   if (changed) texts.set("frontend/ui/package.json", `${JSON.stringify(manifest, null, 2)}\n`)
 }
-for (const { place, text } of templates) if (textOf(place) !== text) texts.set(place, text)
+// The files written whole: new where nothing is, or over the text the template was written for.
+const written: string[] = []
+for (const { place, was } of moving ? templates : []) {
+  const text = readFileSync(join(import.meta.dirname, "desktop", `${place}.tmpl`), "utf8")
+  const source = sourceOf.get(place)
+  const problem =
+    was === undefined
+      ? placed.has(place) &&
+        `${placed.get(place)} is tracked where the move writes ${place} new: fold it into the template in scripts/packages/desktop/, or move it aside`
+      : source === undefined
+        ? `${place} isn't at the old place, where the move replaces it: put it back, or redo the template`
+        : hashOf(read(source)) !== was &&
+          `${source} isn't the text ${place} was written for: redo its template in scripts/packages/desktop/ and its hash`
+  if (problem) {
+    problems.push(problem)
+    continue
+  }
+  texts.set(place, text)
+  written.push(place)
+}
 
 if (problems.length > 0) {
   console.error(`Stopped, nothing changed. Decide these first:\n${problems.join("\n")}`)
@@ -177,7 +227,7 @@ try {
     mkdirSync(join(root, dirname(place)), { recursive: true })
     writeFileSync(join(root, place), text)
   }
-  git("add", "--", ...templates.map(({ place }) => place))
+  if (written.length > 0) git("add", "--", ...written)
   finish(root, oxfmt, [...texts.keys()])
 } catch (error) {
   console.error(
@@ -197,6 +247,22 @@ for (const { to } of carried.carried)
     const text = read(to)
     if (rewrite(text) !== text) writeFileSync(join(root, to), rewrite(text))
   }
+
+// The host was the last package in application/: the folder goes once nothing is left in it.
+const prune = (folder: string): boolean => {
+  const entries = readdirSync(join(root, folder), { withFileTypes: true })
+  const empty = entries
+    .map((entry) => entry.isDirectory() && prune(`${folder}/${entry.name}`))
+    .every(Boolean)
+  if (empty) rmdirSync(join(root, folder))
+  return empty
+}
+const application = host.from.split("/")[0]!
+try {
+  prune(application)
+} catch {
+  // Already gone.
+}
 
 const left = tracked().flatMap((file) => (rewritable(file) ? leftovers(file, read(file)) : []))
 const lockfile = git("status", "--porcelain", "--", "pnpm-lock.yaml").trim() !== ""

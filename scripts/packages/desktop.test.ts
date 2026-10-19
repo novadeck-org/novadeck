@@ -1,6 +1,18 @@
+import { existsSync, readFileSync } from "node:fs"
+import { join } from "node:path"
+
 import { describe, expect, it } from "vitest"
 
-import { destinationOf, edits, leftovers, rewrite } from "./desktop.ts"
+import {
+  destinationOf,
+  edits,
+  hashOf,
+  host,
+  leftovers,
+  onTheMove,
+  rewrite,
+  templates,
+} from "./desktop.ts"
 import { applyEdit } from "./move.ts"
 
 describe("where 5.3c moves a file", () => {
@@ -52,12 +64,24 @@ describe("the rewrite", () => {
 
 describe("the handwritten edits", () => {
   it("each leave nothing of their old text behind, and a second run finds them there", () => {
-    for (const edit of edits) {
+    for (const edit of [...edits, ...onTheMove]) {
       const made = applyEdit(edit.before, edit)
       expect("text" in made && made.text.includes(edit.before), edit.why).toBe(false)
       expect("text" in made && applyEdit(made.text, edit), edit.why).toMatchObject({
         state: "there",
       })
+    }
+  })
+})
+
+describe("the files the move writes whole", () => {
+  // Until the move runs, a change to a file it replaces is a change to its template too.
+  it("replace only the text they were written for, as it stands at the old place", () => {
+    const root = join(import.meta.dirname, "..", "..")
+    for (const { place, was } of templates) {
+      if (was === undefined) continue
+      const old = join(root, host.from, place.slice(host.to.length))
+      if (existsSync(old)) expect(hashOf(readFileSync(old, "utf8")), place).toBe(was)
     }
   })
 })

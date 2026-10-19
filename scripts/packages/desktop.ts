@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { posix } from "node:path"
 
 import { isText, keeps, type Edit, type Kept } from "./move.ts"
@@ -27,6 +28,27 @@ export const singles: readonly { readonly from: string; readonly to: string | nu
   // What built the pages there, which the app's own config does now.
   { from: `${ui}/vite.config.ts`, to: null },
 ]
+
+/**
+ * The files the move writes whole, from the templates in desktop/ (the path, plus `.tmpl`).
+ * They are written on the run that moves the host alone, so a later change to one, on main or
+ * on a branch, is never undone by a catch-up. A new one is made only where nothing is; `was` is
+ * the hash of the text one replaces, which it replaces only while it is that text: a branch that
+ * changed it stops the run, naming it, for the template to be redone.
+ */
+export const templates: readonly { readonly place: string; readonly was?: string }[] = [
+  { place: `${host.to}/vite.config.ts` },
+  { place: `${host.to}/vitest.config.ts` },
+  { place: `${renderer}/tsconfig.json` },
+  { place: `${host.to}/src/page.test.ts` },
+  {
+    place: `${host.to}/src/packaging.test.ts`,
+    was: "164776d6ac7aa1db8aa4362e5835625375bb5a9623fbcf05f3677f0ba3eac78a",
+  },
+]
+
+/** The hash a `was` holds. */
+export const hashOf = (text: string): string => createHash("sha256").update(text).digest("hex")
 
 /** Where a tracked file goes, `null` when it goes away, or undefined when it stays. */
 export const destinationOf = (file: string): string | null | undefined => {
@@ -103,7 +125,9 @@ export const edits: readonly Edit[] = [
   {
     file: `${renderer}/index.html`,
     before: '<script type="module" src="/src/entries/desktop.tsx"></script>',
-    after: '<script type="module" src="./main.tsx"></script>',
+    // From the root, which is the page's folder: the browser page's `./main.tsx` is the same
+    // file, but the two pages differ, so git pairs each with its own old page.
+    after: '<script type="module" src="/main.tsx"></script>',
     why: "the page's script is its entry, beside it",
   },
   {
@@ -173,24 +197,131 @@ export const edits: readonly Edit[] = [
     why: "the bench builds the browser app from the desktop app's dependencies",
   },
   {
-    file: `${ui}/tsconfig.json`,
-    before: '    "entries/**/*.tsx",\n',
-    after: "",
-    why: "the pages' scripts leave with the pages",
-  },
-  {
-    file: `${ui}/tsconfig.json`,
-    before: '    "vite.config.ts",\n',
-    after: "",
-    why: "the pages' build leaves with the pages",
+    file: ".oxlintrc.json",
+    before: '"files": ["frontend/*/src/**", "apps/*/src/**"],',
+    after: '"files": ["frontend/*/src/**", "apps/*/src/**", "apps/desktop/renderer/**"],',
+    why: "the browser's code, the desktop app's pages too",
   },
   {
     file: ".oxlintrc.json",
-    before: '"files": ["frontend/*/src/**", "apps/*/src/**"],',
-    // As oxfmt lays it out, so a second run finds it there.
+    before:
+      '"message": "Import a library by its package name."\n              }\n            ]\n          }\n        ]\n      }\n    }\n  ],',
     after:
-      '"files": [\n        "frontend/*/src/**",\n        "apps/try/src/**",\n        "apps/previews/src/**",\n        "apps/desktop/renderer/**"\n      ],',
-    why: "the browser's code: the desktop app's src/ is its main process, which Node runs",
+      '"message": "Import a library by its package name."\n              }\n            ]\n          }\n        ]\n      }\n    },\n    {\n      "files": ["apps/desktop/src/**"],\n      "rules": {\n        "no-restricted-imports": "off"\n      }\n    }\n  ],',
+    why: "the desktop app's src/ is its main process, which Node runs, as the host's was: every other app's src/ is the browser's",
+  },
+  {
+    file: "libraries/README.md",
+    before:
+      "one on\n  `frontend/*/src` and `apps/*/src` refuse the Node subpaths of any `@novadeck` package",
+    after:
+      "one on\n  `frontend/*/src`, `apps/*/src` and `apps/desktop/renderer` (but not the desktop app's `src`, its\n  main process) refuses the Node subpaths of any `@novadeck` package",
+    why: "the browser fence takes the desktop app's pages, and not its main process",
+  },
+  // The profile bench builds the desktop app's page, as the app's own build does.
+  {
+    file: "scripts/bench/profile/build.ts",
+    before: "builds the UI\n// as its own build does",
+    after: "builds the\n// desktop app's page as its own build does",
+    why: "the desktop app's page is its own build now",
+  },
+  {
+    file: "scripts/bench/profile/build.ts",
+    before: 'const ui = join(import.meta.dirname, "../../..", "frontend/ui")',
+    after: 'const app = join(import.meta.dirname, "../../..", "apps/desktop")',
+    why: "the page's build is the desktop app's",
+  },
+  {
+    file: "scripts/bench/profile/build.ts",
+    before: "// The UI's own Vite",
+    after: "// The app's own Vite",
+    why: "as above",
+  },
+  {
+    file: "scripts/bench/profile/build.ts",
+    before: "join(ui, ",
+    after: "join(app, ",
+    why: "as above",
+    all: true,
+  },
+  {
+    file: "scripts/bench/profile/build.ts",
+    before: "process.chdir(ui)",
+    after: "process.chdir(app)",
+    why: "as above",
+  },
+  {
+    file: "tools/atlas/content/areas.ts",
+    before: "entries: [{ file: `${ui}/entries/desktop.tsx` }],",
+    after: "entries: [{ file: `${ui}/entries/start.tsx` }],",
+    why: "the UI's last entry, as the desktop app's page left it",
+  },
+  // The text that put the desktop and browser apps' pages in the UI.
+  {
+    file: "README.md",
+    before: "(the desktop app's `frontend/ui/dist/` is what the host packages)",
+    after: "(the desktop app's own `apps/desktop/dist/` is what it packages)",
+    why: "the desktop page is the app's own build now",
+  },
+  {
+    file: "README.md",
+    before: "each\napp's entry (`src/entries/`) chooses its own,",
+    after: "each\napp's entry chooses its own,",
+    why: "the entries are each app's",
+  },
+  {
+    file: "README.md",
+    before:
+      "The desktop and browser apps are in `frontend/ui`: the desktop page is the package's\n`index.html` (built to `dist/`, which the host packages and loads, and the dev server's root\npage in development), and the browser page is `entries/web/` (mode `web` for `pnpm dev:web`,\nbuilt to `dist-web/`).",
+    after:
+      "The desktop and browser apps are in `apps/desktop`: the desktop page is\n`renderer/index.html` (built to `dist/`, which the app packages and loads, and the dev server's\nroot page in development), and the browser page is `renderer/web/` (mode `web` for\n`pnpm dev:web`, built to `dist-web/`).",
+    why: "the pages are the desktop app's",
+  },
+  {
+    file: "README.md",
+    before:
+      "an app's page starts its entry through\n`src/main.tsx` (the browser app's through a one-line `main.tsx` beside its page), as a dev\nserver serves only what's under its root.",
+    after:
+      "an app's page starts its entry through\n`src/main.tsx` (the desktop app's pages through the `main.tsx` beside each), as a dev server\nserves only what's under its root.",
+    why: "as above",
+  },
+  {
+    file: "docs/theming.md",
+    before:
+      "(`index.html`, and each\nentry's copy of it in `entries/`, which `src/deploy.test.ts` keeps the same)",
+    after: "(each app's\n`index.html`, which `apps/try/src/deploy.test.ts` keeps the same)",
+    why: "every page is an app's",
+  },
+  {
+    file: "docs/theming.md",
+    before: "`theme/contract.test.ts` checks that every filter a theme uses is there.",
+    after: "`apps/desktop/src/page.test.ts` checks that every filter a theme uses is there.",
+    why: "the check left the UI with the pages",
+  },
+  {
+    file: "apps/try/src/deploy.test.ts",
+    before:
+      "// Each entry's page, whichever package holds it: the UI's two (the desktop app's and the\n// browser app's), and the visitor build's and the content preview's, each its app's own.",
+    after:
+      "// Each entry's page, whichever app holds it: the desktop app's two (its own and the browser\n// app's), and the visitor build's and the content preview's.",
+    why: "the two pages are the desktop app's",
+  },
+  // The renderer's build guards a utility from the UI's own folder too, since its config is
+  // outside it; the guards' test keeps that utility as unique as the others.
+  {
+    file: "tools/build-kit/src/bundle-checks.ts",
+    before:
+      '  { folder: "frontend/demo/", utility: ["under", "line"].join("") },\n]\n\nexport type BundleChecks = {',
+    after:
+      '  { folder: "frontend/demo/", utility: ["under", "line"].join("") },\n]\n\n/**\n * The desktop app\'s pages, whose config is outside the UI\'s folder: the UI\'s own utility as\n * well, the workspace header\'s.\n */\nexport const desktopUtilities: readonly ScannedUtility[] = [\n  ...frontendUtilities,\n  {\n    folder: "frontend/ui/",\n    utility: ["grid-cols-[minmax(0,1fr)_auto", "_minmax(0,1fr)]"].join(""),\n  },\n]\n\nexport type BundleChecks = {',
+    why: "the desktop app's pages guard the UI's folder too, which their config is outside",
+  },
+  {
+    file: "tools/build-kit/src/tailwind-guards.test.ts",
+    before: "frontendUtilities",
+    after: "desktopUtilities",
+    why: "every guard the builds hold, the desktop app's among them",
+    all: true,
   },
   // The UI's architecture test: the entries that connect to a runner leave it.
   {
@@ -207,6 +338,26 @@ export const edits: readonly Edit[] = [
       '    expect(files).toEqual(\n      expect.arrayContaining(["entries/desktop.tsx", "entries/web.tsx", "entries/start.tsx"]),\n    )\n',
     after: '    expect(files).toEqual(expect.arrayContaining(["entries/start.tsx"]))\n',
     why: "start is the UI's last entry",
+  },
+]
+
+/**
+ * The edits that remove a line, made on the run that moves the host alone: a removal is done
+ * once its text is gone, so a later commit on main that brings the line back would see it
+ * removed again by a branch's catch-up.
+ */
+export const onTheMove: readonly Edit[] = [
+  {
+    file: `${ui}/tsconfig.json`,
+    before: '    "entries/**/*.tsx",\n',
+    after: "",
+    why: "the pages' scripts leave with the pages",
+  },
+  {
+    file: `${ui}/tsconfig.json`,
+    before: '    "vite.config.ts",\n',
+    after: "",
+    why: "the pages' build leaves with the pages",
   },
 ]
 
