@@ -3,7 +3,7 @@ import { Select as ArkSelect, createListCollection } from "@ark-ui/react/select"
 import { Check, ChevronDown } from "lucide-react"
 import { useMemo, type RefObject } from "react"
 
-import { cn } from "../class-name"
+import { cn } from "./class-name"
 
 export type SelectOption = { label: string; value: string; description?: string }
 

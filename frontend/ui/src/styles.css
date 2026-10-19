@@ -9,9 +9,11 @@
 @source "../../terminal-views/src";
 @source "../../demo/src";
 @source "../../demo-debug/src";
+@source "../../toolkit/src";
 @source not "../../terminal-views/src/**/*.test.ts";
 @source not "../../demo/src/**/*.test.ts";
 @source not "../../demo-debug/src/**/*.test.ts";
+@source not "../../toolkit/src/**/*.test.ts";
 @import "./theme/contract.css";
 @import "allotment/dist/style.css" layer(base);
 @import "./theme/base.css" layer(base);
@@ -24,22 +26,22 @@
 
 /* Recipes, each beside its component. Feature CSS that a lazily loaded view imports
    itself wraps its own rules in `@layer components`. */
-@import "./ui-toolkit/button.css" layer(components);
-@import "./ui-toolkit/icon-button.css" layer(components);
-@import "./ui-toolkit/badge.css" layer(components);
-@import "./ui-toolkit/label.css" layer(components);
-@import "./ui-toolkit/surface.css" layer(components);
-@import "./ui-toolkit/sheet.css" layer(components);
-@import "./ui-toolkit/overlay.css" layer(components);
-@import "./ui-toolkit/item.css" layer(components);
-@import "./ui-toolkit/segmented.css" layer(components);
-@import "./ui-toolkit/field.css" layer(components);
-@import "./ui-toolkit/toggle.css" layer(components);
-@import "./ui-toolkit/tone.css" layer(components);
-@import "./ui-toolkit/separator.css" layer(components);
-@import "./ui-toolkit/progress.css" layer(components);
-@import "./ui-toolkit/nova-logo.css" layer(components);
-@import "./ui-toolkit/terminal-status.css" layer(components);
+@import "@novadeck/toolkit/button.css" layer(components);
+@import "@novadeck/toolkit/icon-button.css" layer(components);
+@import "@novadeck/toolkit/badge.css" layer(components);
+@import "@novadeck/toolkit/label.css" layer(components);
+@import "@novadeck/toolkit/surface.css" layer(components);
+@import "@novadeck/toolkit/sheet.css" layer(components);
+@import "@novadeck/toolkit/overlay.css" layer(components);
+@import "@novadeck/toolkit/item.css" layer(components);
+@import "@novadeck/toolkit/segmented.css" layer(components);
+@import "@novadeck/toolkit/field.css" layer(components);
+@import "@novadeck/toolkit/toggle.css" layer(components);
+@import "@novadeck/toolkit/tone.css" layer(components);
+@import "@novadeck/toolkit/separator.css" layer(components);
+@import "@novadeck/toolkit/progress.css" layer(components);
+@import "@novadeck/toolkit/nova-logo.css" layer(components);
+@import "@novadeck/toolkit/terminal-status.css" layer(components);
 /* The companion's recipes, before those split from the old styles.css, which win a tie
    with them. */
 @import "./terminals/companion/taskbar.css" layer(components);
@@ -53,6 +55,7 @@
 @import "./terminals/name-chip.css" layer(components);
 @import "./shell/panels.css" layer(components);
 @import "./shell/empty-state.css" layer(components);
+@import "@novadeck/toolkit/sidebar-item.css" layer(components);
 @import "./sidebar/sidebar.css" layer(components);
 @import "./inbox/inbox.css" layer(components);
 @import "./projects/project-status.css" layer(components);

@@ -51,9 +51,11 @@ const holds = (file: string, utility: string): boolean =>
   )
 
 describe("the Tailwind guards", () => {
-  it("leave out only what the sheet leaves out: the UI's own tests, as `.test.ts`", () => {
+  it("leave out only what the sheet leaves out: the UI's and the toolkit's tests, as `.test.ts`", () => {
     expect(left.length).toBeGreaterThan(0)
-    expect(files.filter((file) => /^frontend\/ui\/src\/.*\.test\.ts$/.test(file))).toEqual([])
+    expect(
+      files.filter((file) => /^frontend\/(?:ui|toolkit)\/src\/.*\.test\.ts$/.test(file)),
+    ).toEqual([])
     // Every other kind of file, a test of another kind among them, is read as Tailwind reads it.
     expect(files.some((file) => /\.(?:tsx|mts|json|md|html)$/.test(file))).toBe(true)
   })
