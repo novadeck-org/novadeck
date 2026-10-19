@@ -1,0 +1,92 @@
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
+import { afterEach, describe, expect, it } from "vitest"
+
+import { logPath, openLogFile } from "./file.js"
+
+const folders: string[] = []
+const folder = (): string => {
+  const made = mkdtempSync(join(tmpdir(), "novadeck-log-"))
+  folders.push(made)
+  return made
+}
+
+afterEach(() => {
+  for (const made of folders.splice(0)) rmSync(made, { recursive: true, force: true })
+})
+
+const line = (index: number): string => `line ${String(index).padStart(4, "0")} ${"x".repeat(80)}`
+
+describe("openLogFile", () => {
+  it("appends lines to name.log, making the folder", () => {
+    const logs = join(folder(), "logs")
+    const file = openLogFile({ folder: logs, name: "host" })
+    file.write("one")
+    file.write("two")
+    file.close()
+    expect(readFileSync(join(logs, "host.log"), "utf8")).toBe("one\ntwo\n")
+  })
+
+  it("appends to what an earlier run wrote", () => {
+    const logs = folder()
+    writeFileSync(join(logs, "host.log"), "before\n")
+    const file = openLogFile({ folder: logs, name: "host" })
+    file.write("after")
+    file.close()
+    expect(readFileSync(join(logs, "host.log"), "utf8")).toBe("before\nafter\n")
+  })
+
+  it("rotates past the size, keeps as many files as it's told, and stays within its budget", () => {
+    const logs = folder()
+    const maxBytes = 1_000
+    const file = openLogFile({ folder: logs, name: "runner", maxBytes, keep: 3 })
+    for (let index = 0; index < 200; index += 1) file.write(line(index))
+    file.close()
+    expect(readdirSync(logs).toSorted()).toEqual(["runner.1.log", "runner.2.log", "runner.log"])
+    for (const name of readdirSync(logs))
+      expect(statSync(join(logs, name)).size).toBeLessThanOrEqual(maxBytes)
+    // The newest line is in runner.log, the ones before it in the older files, in order.
+    const newest = readFileSync(logPath(logs, "runner"), "utf8").trim().split("\n")
+    expect(newest.at(-1)).toBe(line(199))
+    const older = readFileSync(logPath(logs, "runner", 1), "utf8")
+      .trim()
+      .split("\n")
+    expect(older.at(-1)).toBe(line(199 - newest.length))
+  })
+
+  it("starts each rotated-in file with its header", () => {
+    const logs = folder()
+    const file = openLogFile({ folder: logs, name: "host", maxBytes: 300, header: () => "HEADER" })
+    for (let index = 0; index < 10; index += 1) file.write(line(index))
+    file.close()
+    expect(readFileSync(logPath(logs, "host"), "utf8").split("\n")[0]).toBe("HEADER")
+    expect(readFileSync(logPath(logs, "host", 1), "utf8").split("\n")[0]).toBe("HEADER")
+  })
+
+  it("drops lines it can't write, without throwing", () => {
+    const blocked = join(folder(), "file")
+    writeFileSync(blocked, "")
+    // A file where the folder should be: nothing can be made under it.
+    const file = openLogFile({ folder: join(blocked, "logs"), name: "host" })
+    expect(() => file.write("lost")).not.toThrow()
+    file.close()
+  })
+
+  it("tries again once the folder can be written", () => {
+    const base = folder()
+    const blocked = join(base, "logs")
+    writeFileSync(blocked, "")
+    let now = 0
+    const file = openLogFile({ folder: blocked, name: "host", retryMs: 1_000, now: () => now })
+    file.write("lost")
+    rmSync(blocked)
+    now = 500
+    file.write("still lost")
+    now = 1_500
+    file.write("kept")
+    file.close()
+    expect(readFileSync(join(blocked, "host.log"), "utf8")).toBe("kept\n")
+  })
+})
