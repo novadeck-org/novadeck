@@ -28,6 +28,15 @@ describe("an edit by hand", () => {
     })
   })
 
+  it("finds it there where the line holds a form main gave it later", () => {
+    const later = { ...edit, settled: ["../../backend/relay/out"] }
+    expect(applyEdit("from: ../../backend/relay/out\n", later)).toEqual({
+      text: "from: ../../backend/relay/out\n",
+      state: "there",
+    })
+    expect(applyEdit("from: elsewhere\n", later)).toHaveProperty("state", "gone")
+  })
+
   it("stops the run where the old text is there twice, unless it's meant everywhere", () => {
     expect(applyEdit("../relay/dist ../relay/dist", edit)).toHaveProperty("problem")
     expect(applyEdit("../relay/dist ../relay/dist", { ...edit, all: true })).toEqual({

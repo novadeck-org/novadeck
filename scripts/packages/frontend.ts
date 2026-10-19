@@ -930,6 +930,15 @@ const fenceIndent = " ".repeat(18)
 const fenceNames = (names: readonly string[]): string =>
   names.map((name) => `${fenceIndent}"${name}",\n${fenceIndent}"${name}/**",\n`).join("")
 
+// The root's test lines as main has them since #315, which split the shards by package: a run
+// on main, or on a branch that took them, finds its three edits there.
+const testLine =
+  '"test": "pnpm run test:repository && turbo run test --filter=!./frontend/* --filter=!./apps/* --filter=!@novadeck/runner --filter=!@novadeck/host && turbo run test --filter=./frontend/* --filter=./apps/* --filter=@novadeck/runner --filter=@novadeck/host --concurrency=1"'
+const shard1Line =
+  '"test:shard1": "pnpm run test:repository && turbo run test --filter=!./frontend/* --filter=!./apps/* --filter=!@novadeck/runner --filter=!@novadeck/host && turbo run test --filter=@novadeck/ui --filter=@novadeck/specs --filter=@novadeck/core --filter=@novadeck/runner-adapter --filter=@novadeck/demo --filter=@novadeck/demo-debug --concurrency=1 -- --shard=1/2"'
+const shard2Line =
+  '"test:shard2": "turbo run test --filter=@novadeck/ui --filter=@novadeck/specs --filter=@novadeck/core --filter=@novadeck/runner-adapter --filter=@novadeck/demo --filter=@novadeck/demo-debug --concurrency=1 -- --shard=2/2 && turbo run test --filter=./frontend/* --filter=./apps/* --filter=!@novadeck/ui --filter=!@novadeck/specs --filter=!@novadeck/core --filter=!@novadeck/runner-adapter --filter=!@novadeck/demo --filter=!@novadeck/demo-debug --filter=@novadeck/host --concurrency=1"'
+
 export const edits: readonly Edit[] = [
   {
     file: "application/host/electron-builder.yml",
@@ -981,6 +990,7 @@ export const edits: readonly Edit[] = [
     after:
       '"test": "pnpm run test:repository && turbo run test --filter=!@novadeck/ui --filter=!@novadeck/specs --filter=!@novadeck/terminal-views --filter=!@novadeck/demo --filter=!@novadeck/runner --filter=!@novadeck/host && turbo run test --filter=@novadeck/ui --filter=@novadeck/specs --filter=@novadeck/terminal-views --filter=@novadeck/demo --filter=@novadeck/runner --filter=@novadeck/host --concurrency=1",',
     why: "every package with browser tests joins the serial list",
+    settled: [testLine],
   },
   {
     file: "apps/try/scripts/poster.ts",
@@ -1380,6 +1390,7 @@ const read = (file: string): string => {
     after:
       "--filter=!@novadeck/ui --filter=!@novadeck/specs --filter=!@novadeck/terminal-views --filter=!@novadeck/demo --filter=!@novadeck/runner --filter=!@novadeck/host && turbo run test --filter=@novadeck/ui --filter=@novadeck/specs --filter=@novadeck/terminal-views --filter=@novadeck/demo --filter=@novadeck/runner --filter=@novadeck/host --concurrency=1 -- --shard=1/2",
     why: "the shards serialise every package with browser projects, as the whole run does",
+    settled: [shard1Line],
   },
   {
     file: "package.json",
@@ -1388,6 +1399,7 @@ const read = (file: string): string => {
     after:
       '"test:shard2": "turbo run test --filter=@novadeck/ui --filter=@novadeck/specs --filter=@novadeck/terminal-views --filter=@novadeck/demo --filter=@novadeck/runner --filter=@novadeck/host --concurrency=1 -- --shard=2/2"',
     why: "as above",
+    settled: [shard2Line],
   },
   {
     file: "README.md",

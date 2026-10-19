@@ -90,13 +90,15 @@ export type Edit = {
   readonly after: string
   readonly why: string
   readonly all?: boolean
+  /** Forms main gave the line after the move, which count as the edit there, not a change. */
+  readonly settled?: readonly string[]
 }
 
 /**
  * The file's text with `edit` made, and whether it was `made` now, `there` already, or `gone`
  * (neither its old text nor its new: a person changed the line, and the edit has nothing to
  * do); or the problem that stops the run. An edit that removes its text is `there` once the
- * text is gone.
+ * text is gone, and so is one whose line holds a form in `settled`.
  */
 export const applyEdit = (
   text: string,
@@ -104,8 +106,13 @@ export const applyEdit = (
 ): { text: string; state: "made" | "there" | "gone" } | { problem: string } => {
   const count = (part: string) => text.split(part).length - 1
   const old = count(edit.before)
-  if (old === 0)
-    return { text, state: edit.after === "" || count(edit.after) > 0 ? "there" : "gone" }
+  if (old === 0) {
+    const there =
+      edit.after === "" ||
+      count(edit.after) > 0 ||
+      (edit.settled ?? []).some((form) => count(form) > 0)
+    return { text, state: there ? "there" : "gone" }
+  }
   if (old === 1 || edit.all)
     return { text: text.split(edit.before).join(edit.after), state: "made" }
   return {
