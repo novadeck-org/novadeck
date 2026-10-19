@@ -255,7 +255,7 @@ export const notes: Record<string, Note> = {
   },
   "frontend/core": {
     purpose:
-      "The pure domain of the workspace: state, reducer and store, seed data, layout rules, roster, conversations, messages, companions and usage, the terminal lifecycle registry the backends share, and the port the UI talks to its backend through, with no React.",
+      "The pure domain of the workspace: state, reducer and store, seed data, layout rules, roster, conversations and the answers to their questions, messages, companions and usage, the terminal lifecycle registry the backends share, and the port the UI talks to its backend through, with no React.",
     entries: [
       { file: `${core}/store.ts`, text: "export const createStore" },
       { file: `${core}/types.ts` },
@@ -335,7 +335,7 @@ export const notes: Record<string, Note> = {
   "frontend/test-kit": { purpose: "Fixtures and render helpers the UI's tests share." },
   "frontend/toolkit": {
     purpose:
-      "Reusable controls, their recipes, class-name composition and the sidebar item every feature draws with.",
+      "Reusable controls, their recipes, class-name composition, the sidebar item and the Markdown every feature draws with.",
   },
   "frontend/companion": {
     purpose:
