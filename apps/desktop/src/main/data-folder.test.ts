@@ -1,3 +1,5 @@
+import { join } from "node:path"
+
 import { context, describe, expect, it } from "../test"
 import { dataFolderName, logsFolder } from "./data-folder"
 
@@ -25,18 +27,20 @@ describe("logs folder", () => {
 
   context("on Linux and Windows", () => {
     it("is inside the data folder", () => {
-      expect(logsFolder({ ...launch, platform: "linux" })).toBe("/home/ana/.config/novadeck/logs")
+      expect(logsFolder({ ...launch, platform: "linux" })).toBe(
+        join("/home/ana/.config/novadeck", "logs"),
+      )
     })
   })
 
   context("on macOS", () => {
     it("is in the system's Logs folder, under the data folder's name", () => {
       expect(logsFolder({ ...launch, platform: "darwin", home: "/Users/ana" })).toBe(
-        "/Users/ana/Library/Logs/novadeck",
+        join("/Users/ana", "Library", "Logs", "novadeck"),
       )
       expect(
         logsFolder({ ...launch, platform: "darwin", home: "/Users/ana", packaged: false }),
-      ).toBe("/Users/ana/Library/Logs/novadeck-dev")
+      ).toBe(join("/Users/ana", "Library", "Logs", "novadeck-dev"))
     })
   })
 
@@ -49,7 +53,7 @@ describe("logs folder", () => {
           userData: "/tmp/profile",
           ownDataFolder: true,
         }),
-      ).toBe("/tmp/profile/logs")
+      ).toBe(join("/tmp/profile", "logs"))
     })
   })
 })

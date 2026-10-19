@@ -73,8 +73,10 @@ describe("openLogFile", () => {
     expect(readFileSync(logPath(logs, "host", 1), "utf8").split("\n")[0]).toBe("HEADER")
   })
 
-  // As on Windows, where a program holding the file open keeps it from being renamed.
-  it.skipIf(process.getuid?.() === 0)(
+  // As on Windows, where a program holding the file open keeps it from being renamed. A
+  // read-only folder stands in for that on Linux and macOS; Windows doesn't enforce one, and
+  // root ignores it.
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
     "writes on where it can't rotate, without a header before each line, and keeps every line",
     () => {
       const logs = folder()
