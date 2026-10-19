@@ -160,6 +160,12 @@ export class UpdateRejected extends Error {}
 
 const rejected = (sentence: string): Error => new UpdateRejected(sentence)
 
+/**
+ * An install left for a later quit, as when the prepared app's signature could not be
+ * checked again: nothing is wrong with the update, and the old app is untouched.
+ */
+export class InstallPostponed extends Error {}
+
 // Whether `codesign --verify` ran and found the signature unsound: it exits 1 for a bad
 // signature and 3 for one that fails its requirement; any other failure, as a timeout,
 // leaves it unchecked.
@@ -173,12 +179,17 @@ const unsound = (error: unknown): boolean => {
 const teamPattern = /^[A-Z0-9]{10}$/u
 
 /**
- * The requirement an update is held to: signed through Apple's certificate chain by the
- * running app's `team`, as Squirrel.Mac held it to the running app's own. The
- * `TeamIdentifier` a signature names is not enough, as any certificate can carry one.
+ * The requirement an update is held to, the one a Developer ID app carries as its own
+ * and Squirrel.Mac held updates to: signed through Apple's certificate chain, by a
+ * Developer ID Application certificate (its leaf field) from the Developer ID
+ * authority (its issuer's), of the running app's `team`. The `TeamIdentifier` a
+ * signature names is not enough, as any certificate can carry one.
  */
 export const updateRequirement = (team: string): string =>
-  `=anchor apple generic and certificate leaf[subject.OU] = "${team}"`
+  "=anchor apple generic" +
+  " and certificate 1[field.1.2.840.113635.100.6.2.6] exists" +
+  " and certificate leaf[field.1.2.840.113635.100.6.1.13] exists" +
+  ` and certificate leaf[subject.OU] = "${team}"`
 
 // The team that signed the running app, which an update must share.
 const runningTeam = async (bundle: string, host: MacUpdateHost): Promise<string> => {
@@ -337,13 +348,14 @@ const installReason = (error: unknown): string => {
  * Puts the prepared app in place of `bundle`. The new one is first staged beside the
  * bundle, renamed there or, across volumes, copied with `ditto`, while the old app is
  * still whole; then the old one is renamed aside and the new one into place, two renames
- * in one folder, so there is no moment without an app to run. In `contents` mode the same
+ * in one folder, between which alone there is no app at its path. In `contents` mode the same
  * is done with the two `Contents` folders inside the bundle, which stays: all that can be
  * done where its parent is not writable. Should a step fail, the old one is put back and
  * the install rejects. The old one then moves into the prepared update's folder, as
  * removing it would hold up the quit, until `removeMacUpdates` clears it at the next
  * launch; where that crosses volumes an old app stays beside the bundle, and old
- * `Contents` are removed at once. The prepared app's signature is checked again first.
+ * `Contents` are removed at once. The prepared app's signature is checked again first;
+ * one that can't be checked rejects with `InstallPostponed`, the old app untouched.
  * Meant for the quit, once the app has saved: it neither quits nor restarts anything.
  */
 export const installMacUpdate = async (
@@ -360,9 +372,15 @@ export const installMacUpdate = async (
   }
   // The prepared app waited in the person's caches, which anything they run can write, so
   // it is checked again before it goes where only this app may put it.
-  await signedBy(install.prepared, await runningTeam(install.bundle, host), host).catch(() => {
-    throw problem("The prepared update no longer passes its signature check.")
-  })
+  await signedBy(install.prepared, await runningTeam(install.bundle, host), host).catch(
+    (error: unknown) => {
+      if (error instanceof UpdateRejected)
+        throw problem("The prepared update no longer passes its signature check.")
+      throw new InstallPostponed(
+        `The prepared update could not be checked again, so it waits for a later quit: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    },
+  )
   try {
     await host.remove(staged)
     await host.remove(aside)

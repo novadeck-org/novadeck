@@ -88,6 +88,7 @@ import {
 } from "./install-windows.js"
 import {
   allowMacUpdates,
+  InstallPostponed,
   installMacUpdate,
   macSwapMode,
   prepareMacUpdate,
@@ -604,8 +605,18 @@ const installMacUpdateOnQuit = async (): Promise<void> => {
     await installMacUpdate({ prepared: update.prepared, bundle, mode })
     updatesLog.info(`Installed ${update.version}; it starts at the next launch.`)
   } catch (error) {
-    updateWarning("Installing the update failed.", error)
-    installFailed(update.version)
+    if (error instanceof InstallPostponed) {
+      // Nothing changed, so the next launch has no install to settle; a later quit tries again.
+      updatesLog.warn(error.message)
+      try {
+        updateState.clearInstalling()
+      } catch (failure) {
+        updateWarning("The install begun was not cleared.", failure)
+      }
+    } else {
+      updateWarning("Installing the update failed.", error)
+      installFailed(update.version)
+    }
   } finally {
     macInstalling = false
   }

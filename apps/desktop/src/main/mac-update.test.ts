@@ -10,6 +10,7 @@ import {
   installMacUpdate,
   macSwapMode,
   macUpdateHost,
+  InstallPostponed,
   prepareMacUpdate,
   removeMacUpdates,
   updateRequirement,
@@ -243,7 +244,10 @@ describe("preparing a downloaded update", () => {
     await prepareMacUpdate(update, host)
     expect(requirements).toEqual([updateRequirement("TEAM123456")])
     expect(updateRequirement("TEAM123456")).toBe(
-      '=anchor apple generic and certificate leaf[subject.OU] = "TEAM123456"',
+      "=anchor apple generic" +
+        " and certificate 1[field.1.2.840.113635.100.6.2.6] exists" +
+        " and certificate leaf[field.1.2.840.113635.100.6.1.13] exists" +
+        ' and certificate leaf[subject.OU] = "TEAM123456"',
     )
   })
 
@@ -318,6 +322,14 @@ describe("installing a prepared update", () => {
       installMacUpdate({ prepared, bundle: running, mode: "whole" }, host),
     ).rejects.toThrow(/no longer passes its signature check/u)
     expect(requirements).toEqual([updateRequirement("TEAM123456")])
+    expect(files.get(`${running}/Contents/MacOS/novadeck`)).toBe("old")
+  })
+
+  it("postpones the install, leaving the old app whole, when the check could not run", async () => {
+    const { host, files } = withPrepared({ verifyFails: "stopped" })
+    await expect(
+      installMacUpdate({ prepared, bundle: running, mode: "whole" }, host),
+    ).rejects.toBeInstanceOf(InstallPostponed)
     expect(files.get(`${running}/Contents/MacOS/novadeck`)).toBe("old")
   })
 
@@ -504,6 +516,12 @@ describe.runIf(process.platform === "darwin")("updating a real bundle", () => {
         expect(readFileSync(join(bundle, "Contents", "Info.plist"), "utf8")).toContain("2.0.0")
         execFileSync("/usr/bin/codesign", ["--verify", "--deep", "--strict", bundle])
       }
+      // The requirement parses, and an ad-hoc signature, outside Apple's chain, fails it:
+      // codesign exits 3 for a requirement not met, unlike a requirement it can't read.
+      const failure: unknown = await macUpdateHost
+        .codesignVerify(downloaded, updateRequirement("TESTTEAM00"))
+        .catch((error: unknown) => error)
+      expect((failure as { code?: unknown } | undefined)?.code).toBe(3)
       await trial("whole")
       await trial("contents")
       expect(await macSwapMode(join(root, "whole", "novadeck.app"), host)).toBe("whole")
