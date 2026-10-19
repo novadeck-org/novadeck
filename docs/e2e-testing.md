@@ -656,8 +656,8 @@ for (const setup of setups) {
   harness's own tools (Claude Code: Bash, Read, Write and Novadeck's `send`; Codex:
   `exec_command` as a command and as an `apply_patch` heredoc, and `send`; Antigravity:
   `run_command`, `view_file`, `write_to_file` and `send`), the chat allowing whatever
-  permission each asks (`agents.answer`). Each prompt waits for its turn to settle and
-  its requests to clear. Then `t.transcript()` must hold every scripted call, its `run`
+  permission each asks (`agents.answer`). Each prompt waits for its turn to be recorded
+  as completed and its requests to clear. Then `t.transcript()` must hold every scripted call, its `run`
   of the kind the harness's `describe` gives (a Codex heredoc patch may read as a run or
   a write), never `other`, paired with exactly one result, and at least as many calls as
   were scripted. In the nightly `NOVADECK_E2E_HARNESS=latest` run it is the alarm for a

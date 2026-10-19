@@ -229,7 +229,9 @@ const items = async (terminal: DeckTerminal): Promise<readonly TranscriptItem[]>
 const allowing = (terminal: DeckTerminal, done: string): Promise<string> =>
   terminal.poll(
     async () => {
-      const request = (await terminal.detail()).requests.find((each) => !each.answered)
+      const request = (await terminal.detail()).requests.find(
+        (each) => !each.answered && each.dialog?.type === "choices",
+      )
       if (request?.dialog?.type === "choices") {
         const yes = request.dialog.options.find((each) => each.label.startsWith("Yes"))
         if (!yes) throw new Error(`No yes in ${JSON.stringify(request.dialog)}`)
@@ -332,10 +334,11 @@ for (const setup of setups) {
           const began = Date.now()
           await t1.prompt(tag(index))
           await allowing(t1, `Finished ${tag(index)}.`)
-          // The next prompt is refused while the turn or a request is pending: Codex's shell
-          // patch settles only through its rollout, a moment behind the hooks.
-          // Its turn ended after the prompt. The delivery state isn't waited on: a request
-          // the chat answered leaves it Drafting, as the keys it pressed look typed.
+          // The next prompt is refused while the turn or a request is pending, so this waits
+          // for the turn to be recorded as completed after the prompt, then for its requests
+          // to clear: Codex's shell patch settles only through its rollout, a moment behind
+          // the hooks. The delivery state isn't waited on: a request the chat answered leaves
+          // it Drafting, as the keys it pressed look typed.
           await t1.poll(
             () => {
               const last = t1.summary().activity?.lastTurn
