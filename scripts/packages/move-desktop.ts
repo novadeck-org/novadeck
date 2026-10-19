@@ -97,7 +97,8 @@ for (const place of outsideWorkspace(root, [host.to]))
 for (const { back, file, renamed } of undoneByMerge({
   root,
   marker: { from: `${host.from}/package.json`, to: `${host.to}/package.json` },
-  olds: [host.from, ...singles.map(({ from }) => from)],
+  // The pages' folders whole, so a rename out of a page's place reads as one.
+  olds: [host.from, ...new Set(singles.map(({ from }) => dirname(from)))],
   destinationOf: (old) => destinationOf(old) ?? undefined,
 }))
   problems.push(
