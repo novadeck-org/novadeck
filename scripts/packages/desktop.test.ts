@@ -78,11 +78,14 @@ describe("the files the move writes whole", () => {
   // Until the move runs, a change to a file it replaces is a change to its template too.
   it("replace only the text they were written for, as it stands at the old place", () => {
     const root = join(import.meta.dirname, "..", "..")
-    for (const { place, was } of templates) {
-      if (was === undefined) continue
+    const replaced = templates.flatMap(({ place, was }) => {
       const old = join(root, host.from, place.slice(host.to.length))
-      if (existsSync(old)) expect(hashOf(readFileSync(old, "utf8")), place).toBe(was)
-    }
+      return was !== undefined && existsSync(old) ? [{ place, was, old }] : []
+    })
+    expect(
+      replaced.filter(({ was, old }) => hashOf(readFileSync(old, "utf8")) !== was),
+      "redo the template and its hash",
+    ).toEqual([])
   })
 })
 

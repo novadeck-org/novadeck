@@ -98,7 +98,7 @@ for (const { back, file, renamed } of undoneByMerge({
   root,
   marker: { from: `${host.from}/package.json`, to: `${host.to}/package.json` },
   olds: [host.from, ...singles.map(({ from }) => from)],
-  destinationOf: (file) => destinationOf(file) ?? undefined,
+  destinationOf: (old) => destinationOf(old) ?? undefined,
 }))
   problems.push(
     renamed
