@@ -1,77 +1,77 @@
 # exec-approve
-tools: Ran · echo approved > probe-out.txt → 5 lines: Chunk ID: cc8de9
+tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 5 lines: Chunk ID: cc8de9
 
 # exec-approve-prefix
-tools: Ran · echo approved > probe-out.txt → 5 lines: Chunk ID: 150f1a
+tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 5 lines: Chunk ID: 150f1a
 
 # exec-approve-session-key-not-offered
-tools: Ran · echo approved > probe-out.txt → no result
+tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → no result recorded.
 
 # exec-decline-key-not-offered
-tools: Ran · echo approved > probe-out.txt → no result
+tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → no result recorded.
 
 # exec-cancel
-tools: Ran · echo approved > probe-out.txt → 2 lines: Wall time: 4.4 seconds
+tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 2 lines: Wall time: 4.4 seconds
 
 # patch-approve
-tools: Ran · apply_patch <<'EOF' → 7 lines: Wall time: 0.0000 seconds
+tools: Ran [run] · apply_patch <<'EOF' | Call: exec_command: 6 lines: apply_patch <<'EOF' → 7 lines: Wall time: 0.0000 seconds
 
 # patch-approve-session
-tools: Ran · apply_patch <<'EOF' → 7 lines: Wall time: 0.0000 seconds
+tools: Ran [run] · apply_patch <<'EOF' | Call: exec_command: 6 lines: apply_patch <<'EOF' → 7 lines: Wall time: 0.0000 seconds
 
 # patch-cancel
-tools: Ran · apply_patch <<'EOF' → 2 lines: Wall time: 4.4 seconds
+tools: Ran [run] · apply_patch <<'EOF' | Call: exec_command: 6 lines: apply_patch <<'EOF' → 2 lines: Wall time: 4.4 seconds
 
 # rui-plan-digit-1
-tools: request_user_input → 1 line: {"answers":{"color":{"answers":["Blue (Recommen…
+tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Blue (Recommen…
 
 # rui-plan-digit-2
-tools: request_user_input → 1 line: {"answers":{"color":{"answers":["Green"]}}}
+tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Green"]}}}
 
 # rui-plan-esc
-tools: request_user_input → 1 line: aborted by user after 3.7s
+tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: aborted by user after 3.7s
 
 # rui-plan-wrong-key-y
-tools: request_user_input → no result
+tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → no result recorded.
 
 # rui-default-on
-tools: request_user_input → 1 line: {"answers":{"color":{"answers":["Green"]}}}
+tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Green"]}}}
 
 # hook-allow
-tools: Ran · echo approved > probe-out.txt → 5 lines: Chunk ID: 3a9333
+tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 5 lines: Chunk ID: 3a9333
 
 # hook-deny
-tools: Ran · echo approved > probe-out.txt → 1 line: exec_command failed: CreateProcess { message: "…
+tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 1 line: exec_command failed: CreateProcess { message: "…
 
 # hook-exit2
-tools: Ran · echo approved > probe-out.txt → 1 line: exec_command failed: CreateProcess { message: "…
+tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 1 line: exec_command failed: CreateProcess { message: "…
 
 # hook-no-decision
-tools: Ran · echo approved > probe-out.txt → no result
+tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → no result recorded.
 
 # hook-allow-with-updatedPermissions
-tools: Ran · echo approved > probe-out.txt → no result
+tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → no result recorded.
 
 # hook-timeout
-tools: Ran · echo approved > probe-out.txt → no result
+tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → no result recorded.
 
 # hook-person-presses-y
-tools: Ran · echo approved > probe-out.txt → 5 lines: Chunk ID: e02d8e
+tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 5 lines: Chunk ID: e02d8e
 
 # hook-person-presses-esc
-tools: Ran · echo approved > probe-out.txt → 2 lines: Wall time: 3.2 seconds
+tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 2 lines: Wall time: 3.2 seconds
 
 # hook-novadeck-view
-tools: Ran · echo approved > probe-out.txt → 5 lines: Chunk ID: 39ca71
+tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 5 lines: Chunk ID: 39ca71
 
 # exec-long-command
-tools: Ran · echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx && echo yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\ → 2 lines: Wall time: 4.3 seconds
+tools: Ran [run] · echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx && echo yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\ | Call: exec_command: 5 lines: cmd: → 2 lines: Wall time: 4.3 seconds
 
 # exec-two-queued
-tools: Ran · echo first > probe-first.txt → 5 lines: Chunk ID: 162875; Ran · echo second > probe-second.txt → 5 lines: Chunk ID: 162875
+tools: Ran [run] · echo first > probe-first.txt | Call: exec_command: 3 lines: cmd: echo first > probe-first.txt → 5 lines: Chunk ID: 162875; Ran [run] · echo second > probe-second.txt | Call: exec_command: 3 lines: cmd: echo second > probe-second.txt → 5 lines: Chunk ID: 162875
 
 # request-permissions
-tools: request_permissions → 1 line: {"permissions":{"network":{"enabled":true},"fil…
+tools: request_permissions [other] | Call: 2 lines: reason: Need network for the build → 1 line: {"permissions":{"network":{"enabled":true},"fil…
 
 # plan-prompt
 
@@ -80,16 +80,16 @@ tools: request_permissions → 1 line: {"permissions":{"network":{"enabled":true
 
 
 # hook-rui-pretooluse-block
-tools: request_user_input → 1 line: Tool call blocked by PreToolUse hook: The perso…
+tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: Tool call blocked by PreToolUse hook: The perso…
 
 # mcp-tool-approval
-tools: mcp__probe__touch → 3 lines: Wall time: 13.1390 seconds
+tools: mcp__probe__touch [other] | Call: 1 line: a.txt → 3 lines: Wall time: 13.1390 seconds
 
 # mcp-tool-approval-esc
-tools: mcp__probe__touch → 3 lines: Wall time: 13.1624 seconds
+tools: mcp__probe__touch [other] | Call: 1 line: a.txt → 3 lines: Wall time: 13.1624 seconds
 
 # mcp-elicitation
-tools: mcp__probe__ask_color → 3 lines: Wall time: 13.1181 seconds
+tools: mcp__probe__ask_color [other] | Call: empty → 3 lines: Wall time: 13.1181 seconds
 
 # hook-mcp-allow
-tools: mcp__probe__touch → 3 lines: Wall time: 3.1714 seconds
+tools: mcp__probe__touch [other] | Call: 1 line: a.txt → 3 lines: Wall time: 3.1714 seconds

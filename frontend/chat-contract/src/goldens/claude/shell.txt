@@ -1,22 +1,22 @@
 # stderr
 user: !echo out-line; echo err-line >&2
-tools: Ran · echo out-line; echo err-line >&2 → 2 lines: out-line
+tools: Ran [run] · echo out-line; echo err-line >&2 | Call: Bash: 1 line: echo out-line; echo err-line >&2 → 2 lines: out-line
 
 # failed
 user: !echo before; exit 3
-tools: Ran · echo before; exit 3 → 1 line: before
+tools: Ran [run] · echo before; exit 3 | Call: Bash: 1 line: echo before; exit 3 → 1 line: before
 
 # missing
 user: !no-such-command-here
-tools: Ran · no-such-command-here → 1 line: /bin/bash: line 1: no-such-command-here: comman…
+tools: Ran [run] · no-such-command-here | Call: Bash: 1 line: no-such-command-here → 1 line: /bin/bash: line 1: no-such-command-here: comman…
 
 # multiline
 user: !echo first ⏎ echo second
-tools: Ran · echo first → 2 lines: first
+tools: Ran [run] · echo first | Call: Bash: 2 lines: echo first → 2 lines: first
 
 # empty
 user: !echo bang-four > four.txt
-tools: Ran · echo bang-four > four.txt → 1 line: (Bash completed with no output)
+tools: Ran [run] · echo bang-four > four.txt | Call: Bash: 1 line: echo bang-four > four.txt → 1 line: (Bash completed with no output)
 
 # caveat
 

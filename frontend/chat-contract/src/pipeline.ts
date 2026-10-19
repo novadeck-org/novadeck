@@ -49,6 +49,10 @@ const textOf = (element: Element): string => {
     .join(" ⏎ ")
 }
 
+// The fold's line: its count and the titles, which the chat sets in spans of their own.
+const foldText = (fold: Element): string =>
+  [...fold.querySelectorAll("span")].map((span) => textOf(span)).join(" · ")
+
 const clip = (text: string, to: number): string =>
   text.length > to ? `${text.slice(0, to - 1)}…` : text
 
@@ -58,25 +62,34 @@ const click = (element: Element): void => {
   })
 }
 
-// What a tool row shows once open: its result, in short.
-const resultOf = (row: Element): string => {
-  const result = row.querySelector('section[aria-label="Result"]')
-  if (!result) return "no result"
-  const body = result.querySelector("pre")?.textContent ?? ""
-  const shortened = result.querySelector(".chat-tool-note") ? ", shortened" : ""
+// What an opened part of a tool row (its call, its result) shows: its line count and first
+// line, and whether the chat says it was shortened.
+const partOf = (part: Element | null): string => {
+  if (!part) return "none"
+  const body = part.querySelector("pre")?.textContent ?? ""
+  const shortened = part.querySelector(".chat-tool-note") ? ", shortened" : ""
   if (body === "(empty)") return `empty${shortened}`
   const lines = body.replace(/\n$/, "").split("\n")
-  // The first line that says anything: some results begin with a blank one.
+  // The first line that says anything: some begin with a blank one.
   const first = lines.find((line) => line.trim() !== "") ?? ""
   return `${lines.length} ${lines.length === 1 ? "line" : "lines"}${shortened}: ${clip(first.trim(), 48)}`
 }
 
+// A row as the chat draws it: its title, its kind (which picks the icon) and its detail, then
+// the call it opens to (the label the chat gives it, its lines) and the result.
 const rowOf = (row: Element): string => {
   const title = row.querySelector(".chat-tool-title")?.textContent ?? ""
   const detail = row.querySelector(".chat-tool-detail")?.textContent
   const summary = row.querySelector("button.chat-tool-summary")
   if (summary?.getAttribute("aria-expanded") === "false") click(summary)
-  return `${detail ? `${title} · ${detail}` : title} → ${resultOf(row)}`
+  const call = row.querySelector('section[aria-label^="Call"]')
+  const result = row.querySelector('section[aria-label="Result"]')
+  const note = result ? "" : (row.querySelector(".chat-tool-note")?.textContent ?? "")
+  return [
+    `${title} [${row.getAttribute("data-kind")}]${detail ? ` · ${detail}` : ""}`,
+    call ? ` | ${call.getAttribute("aria-label")}: ${partOf(call)}` : "",
+    ` → ${result ? partOf(result) : note.replace(/…$/, "").toLowerCase()}`,
+  ].join("")
 }
 
 // One line of a golden per block, from what the DOM shows. A folded run is opened, each of
@@ -84,7 +97,7 @@ const rowOf = (row: Element): string => {
 const lineOf = (block: Element): { line: string; rows: number } => {
   if (block.matches(".chat-tools")) {
     const fold = block.querySelector("button.chat-tools-fold")
-    const folded = fold ? `[${textOf(fold)}] ` : ""
+    const folded = fold ? `[${foldText(fold)}] ` : ""
     if (fold?.getAttribute("aria-expanded") === "false") click(fold)
     const rows = [...block.querySelectorAll("li.chat-tool")].map(rowOf)
     return { line: `tools: ${folded}${rows.join("; ")}`, rows: rows.length }

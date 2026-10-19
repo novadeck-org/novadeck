@@ -4,12 +4,20 @@ import { transcripts as codex } from "@novadeck/harness-codex/transcripts"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 
 import type { Transcripts } from "./pipeline"
+import { claudeAskSkipped } from "./skipped"
+import { agyVocabulary } from "./vocabulary/agy"
+import { claudeVocabulary } from "./vocabulary/claude"
+import { codexVocabulary } from "./vocabulary/codex"
 
 // The harnesses' recorded fixtures that carry transcript records, and where in each the
-// records are. A fixture holds one conversation or several (a scenario each); every one is
-// a list of the record lines the harness's decoder reads.
+// records are, and the hand-written vocabulary conversations beside them. A fixture holds
+// one conversation or several (a scenario each); every one is a list of the record lines
+// the harness's decoder reads.
 
 export type Conversation = { readonly name: string; readonly lines: readonly string[] }
+
+// What an extractor found: the conversations, and the scenarios it had nothing to render in.
+export type Extracted = { readonly conversations: Conversation[]; readonly skipped: string[] }
 
 export type Fixture = {
   // The golden's path below goldens/.
@@ -19,7 +27,10 @@ export type Fixture = {
   readonly transcripts: Transcripts
   // Whether its conversations call tools.
   readonly tools: boolean
-  readonly conversations: () => readonly Conversation[]
+  // How many conversations it has, and which scenarios it has none in.
+  readonly count: number
+  readonly skipped: readonly string[]
+  readonly extract: () => Extracted
 }
 
 type Json = { readonly [key: string]: unknown }
@@ -31,15 +42,17 @@ const load = (harness: Fixture["harness"], file: string): Json =>
   loadProbe<Json>(folderOf(harness), file)
 
 const isRecords = (value: unknown): value is readonly object[] =>
-  Array.isArray(value) && value.length > 0 && value.every((each) => typeof each === "object")
+  Array.isArray(value) &&
+  value.length > 0 &&
+  value.every((each) => typeof each === "object" && each !== null)
 
 const linesOf = (records: readonly object[]): string[] =>
   records.map((record) => JSON.stringify(record))
 
 // No records is a broken extractor or a fixture that changed shape, never an empty contract.
-const found = (file: string, conversations: Conversation[]): Conversation[] => {
-  if (conversations.length === 0) throw new Error(`${file} holds no transcript records`)
-  return conversations
+const found = (file: string, extracted: Extracted): Extracted => {
+  if (extracted.conversations.length === 0) throw new Error(`${file} holds no transcript records`)
+  return extracted
 }
 
 const recordsOf = (file: string, value: unknown): readonly object[] => {
@@ -48,35 +61,38 @@ const recordsOf = (file: string, value: unknown): readonly object[] => {
 }
 
 // { scenarios: { name: [record, …] } }
-const scenarioLists = (harness: Fixture["harness"], file: string): Conversation[] => {
+const scenarioLists = (harness: Fixture["harness"], file: string): Extracted => {
   const { scenarios } = load(harness, file) as { scenarios: { [name: string]: unknown } }
-  return found(
-    file,
-    Object.entries(scenarios).map(([name, records]) => ({
+  return found(file, {
+    conversations: Object.entries(scenarios).map(([name, records]) => ({
       name,
       lines: linesOf(recordsOf(`${file} ${name}`, records)),
     })),
-  )
+    skipped: [],
+  })
 }
 
 // { records: [record, …] }
-const records = (harness: Fixture["harness"], file: string): Conversation[] =>
-  found(file, [
-    {
-      name: "records",
-      lines: linesOf(recordsOf(file, (load(harness, file) as { records: unknown }).records)),
-    },
-  ])
+const records = (harness: Fixture["harness"], file: string): Extracted =>
+  found(file, {
+    conversations: [
+      {
+        name: "records",
+        lines: linesOf(recordsOf(file, (load(harness, file) as { records: unknown }).records)),
+      },
+    ],
+    skipped: [],
+  })
 
 // Claude's ask fixture keeps each scenario's transcript as `{ type, content }`, the record
 // without the `message` Claude Code wraps its content in.
-const claudeAsk = (file: string): Conversation[] => {
+const claudeAsk = (file: string): Extracted => {
   const { scenarios } = load("claude", file) as {
     scenarios: { [name: string]: { transcriptTail?: { type: string; content: unknown }[] } }
   }
-  return found(
-    file,
-    Object.entries(scenarios)
+  const entries = Object.entries(scenarios)
+  return found(file, {
+    conversations: entries
       .filter(([, { transcriptTail }]) => transcriptTail?.length)
       .map(([name, { transcriptTail }]) => ({
         name,
@@ -84,28 +100,32 @@ const claudeAsk = (file: string): Conversation[] => {
           JSON.stringify({ type, message: { content } }),
         ),
       })),
-  )
+    skipped: entries.filter(([, { transcriptTail }]) => !transcriptTail?.length).map(([n]) => n),
+  })
 }
 
-// Codex's ask fixture keeps a scenario's rollout as it was at stages of the run, each
-// holding the stages before it: the longest is the whole.
-const rolloutKeys = [
-  "rollout",
-  "rolloutBeforeAnswer",
-  "rolloutAfter",
-  "rolloutAfterEsc",
-  "rolloutFinal",
-]
-const codexAsk = (file: string): Conversation[] => {
+// Codex's ask fixture keeps a scenario's rollout as it was at stages of the run (every key
+// that starts with `rollout`), each holding the stages before it: the longest is the whole.
+const codexAsk = (file: string): Extracted => {
   const { scenarios } = load("codex", file) as { scenarios: { [name: string]: Json } }
-  return found(
-    file,
-    Object.entries(scenarios).flatMap(([name, scenario]) => {
-      const stages = rolloutKeys.map((key) => scenario[key]).filter(isRecords)
-      const whole = stages.toSorted((a, b) => b.length - a.length)[0]
-      return whole ? [{ name, lines: linesOf(whole) }] : []
-    }),
-  )
+  const conversations: Conversation[] = []
+  const skipped: string[] = []
+  for (const [name, scenario] of Object.entries(scenarios)) {
+    const stages = Object.entries(scenario)
+      .filter(([key, value]) => key.startsWith("rollout") && isRecords(value))
+      .map(([key, value]) => [key, linesOf(value as readonly object[])] as const)
+      .toSorted((a, b) => b[1].length - a[1].length)
+    const whole = stages[0]
+    if (!whole) {
+      skipped.push(name)
+      continue
+    }
+    for (const [key, lines] of stages.slice(1))
+      if (lines.some((line, at) => line !== whole[1][at]))
+        throw new Error(`${file} ${name}: ${key} is not the start of ${whole[0]}`)
+    conversations.push({ name, lines: whole[1] })
+  }
+  return found(file, { conversations, skipped })
 }
 
 // Antigravity's records are steps; wherever a scenario keeps a list of them (what a step
@@ -122,22 +142,33 @@ const stepLists = (
   return Object.entries(value).flatMap(([key, each]) => stepLists(each, [...path, key]))
 }
 
-const agyAsk = (file: string): Conversation[] =>
-  found(
-    file,
-    stepLists(load("agy", file).scenarios, []).map(({ path, steps }) => ({
-      name: path,
-      lines: linesOf(steps),
-    })),
-  )
-
-const agyTranscript = (file: string): Conversation[] => {
-  const { transcript, parallel } = load("agy", file) as { transcript: unknown; parallel: unknown }
-  return found(file, [
-    { name: "transcript", lines: linesOf(recordsOf(file, transcript)) },
-    { name: "parallel", lines: linesOf(recordsOf(file, parallel)) },
-  ])
+const agyAsk = (file: string): Extracted => {
+  const { scenarios } = load("agy", file) as { scenarios: { [name: string]: unknown } }
+  const conversations: Conversation[] = []
+  const skipped: string[] = []
+  for (const [name, scenario] of Object.entries(scenarios)) {
+    const lists = stepLists(scenario, [name])
+    if (lists.length === 0) skipped.push(name)
+    for (const { path, steps } of lists) conversations.push({ name: path, lines: linesOf(steps) })
+  }
+  return found(file, { conversations, skipped })
 }
+
+const agyTranscript = (file: string): Extracted => {
+  const { transcript, parallel } = load("agy", file) as { transcript: unknown; parallel: unknown }
+  return found(file, {
+    conversations: [
+      { name: "transcript", lines: linesOf(recordsOf(file, transcript)) },
+      { name: "parallel", lines: linesOf(recordsOf(file, parallel)) },
+    ],
+    skipped: [],
+  })
+}
+
+const vocabulary = (conversations: Conversation[]): Extracted =>
+  found("vocabulary", { conversations, skipped: [] })
+
+const codexAskSkipped = ["rui-default-off", "y-with-no-dialog"]
 
 export const fixtures: readonly Fixture[] = [
   {
@@ -146,7 +177,9 @@ export const fixtures: readonly Fixture[] = [
     agent: "Claude",
     transcripts: claude,
     tools: true,
-    conversations: () => scenarioLists("claude", "transcript.probe.json"),
+    count: 2,
+    skipped: [],
+    extract: () => scenarioLists("claude", "transcript.probe.json"),
   },
   {
     golden: "claude/shell",
@@ -154,7 +187,9 @@ export const fixtures: readonly Fixture[] = [
     agent: "Claude",
     transcripts: claude,
     tools: true,
-    conversations: () => scenarioLists("claude", "shell.probe.json"),
+    count: 6,
+    skipped: [],
+    extract: () => scenarioLists("claude", "shell.probe.json"),
   },
   {
     golden: "claude/ask",
@@ -162,7 +197,9 @@ export const fixtures: readonly Fixture[] = [
     agent: "Claude",
     transcripts: claude,
     tools: true,
-    conversations: () => claudeAsk("ask.probe.json"),
+    count: 55,
+    skipped: claudeAskSkipped,
+    extract: () => claudeAsk("ask.probe.json"),
   },
   {
     golden: "codex/rollout",
@@ -170,7 +207,9 @@ export const fixtures: readonly Fixture[] = [
     agent: "Codex",
     transcripts: codex,
     tools: true,
-    conversations: () => records("codex", "rollout.probe.json"),
+    count: 1,
+    skipped: [],
+    extract: () => records("codex", "rollout.probe.json"),
   },
   {
     golden: "codex/shell",
@@ -178,15 +217,20 @@ export const fixtures: readonly Fixture[] = [
     agent: "Codex",
     transcripts: codex,
     tools: true,
-    conversations: () => scenarioLists("codex", "shell.probe.json"),
+    count: 6,
+    skipped: [],
+    extract: () => scenarioLists("codex", "shell.probe.json"),
   },
   {
     golden: "codex/plan",
     harness: "codex",
     agent: "Codex",
     transcripts: codex,
+    // A proposed plan, as text.
     tools: false,
-    conversations: () => records("codex", "plan.probe.json"),
+    count: 1,
+    skipped: [],
+    extract: () => records("codex", "plan.probe.json"),
   },
   {
     golden: "codex/ask",
@@ -194,7 +238,9 @@ export const fixtures: readonly Fixture[] = [
     agent: "Codex",
     transcripts: codex,
     tools: true,
-    conversations: () => codexAsk("ask.probe.json"),
+    count: 34,
+    skipped: codexAskSkipped,
+    extract: () => codexAsk("ask.probe.json"),
   },
   {
     golden: "codex/ask.0.160.1",
@@ -202,7 +248,9 @@ export const fixtures: readonly Fixture[] = [
     agent: "Codex",
     transcripts: codex,
     tools: true,
-    conversations: () => codexAsk("ask.probe.0.160.1.json"),
+    count: 32,
+    skipped: codexAskSkipped,
+    extract: () => codexAsk("ask.probe.0.160.1.json"),
   },
   {
     golden: "agy/transcript",
@@ -210,7 +258,9 @@ export const fixtures: readonly Fixture[] = [
     agent: "Antigravity",
     transcripts: agy,
     tools: true,
-    conversations: () => agyTranscript("transcript.probe.json"),
+    count: 2,
+    skipped: [],
+    extract: () => agyTranscript("transcript.probe.json"),
   },
   {
     golden: "agy/ask",
@@ -218,6 +268,39 @@ export const fixtures: readonly Fixture[] = [
     agent: "Antigravity",
     transcripts: agy,
     tools: true,
-    conversations: () => agyAsk("ask.probe.json"),
+    count: 6,
+    skipped: ["ask_question", "hook", "answered", "twin", "replace_file_content"],
+    extract: () => agyAsk("ask.probe.json"),
+  },
+  // Hand-written, in each harness's native shape (see vocabulary/README.md).
+  {
+    golden: "vocabulary/claude",
+    harness: "claude",
+    agent: "Claude",
+    transcripts: claude,
+    tools: true,
+    count: 7,
+    skipped: [],
+    extract: () => vocabulary(claudeVocabulary()),
+  },
+  {
+    golden: "vocabulary/codex",
+    harness: "codex",
+    agent: "Codex",
+    transcripts: codex,
+    tools: true,
+    count: 5,
+    skipped: [],
+    extract: () => vocabulary(codexVocabulary()),
+  },
+  {
+    golden: "vocabulary/agy",
+    harness: "agy",
+    agent: "Antigravity",
+    transcripts: agy,
+    tools: true,
+    count: 6,
+    skipped: [],
+    extract: () => vocabulary(agyVocabulary()),
   },
 ]

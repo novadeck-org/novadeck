@@ -1,16 +1,16 @@
 # command/afterAllow/transcript
-tools: Result → 5 lines: The command exited with code 0.
+tools: Result [other] → 5 lines: The command exited with code 0.
 assistant: Made it.
 
 # command/afterDeny/transcript
-tools: Result → 3 lines: Encountered error in step execution: permission…
+tools: Result [other] → 3 lines: Encountered error in step execution: permission…
 
 # write_to_file/afterAllow/transcript
-tools: Result → 2 lines: Created file file:///tmp/sandbox/project/probe.…
+tools: Result [other] → 2 lines: Created file file:///tmp/sandbox/project/probe.…
 assistant: Made it.
 
 # plan_feedback/afterWrite/transcript
-tools: Result → 3 lines: Created file file:///tmp/sandbox/home/.gemini/a…
+tools: Result [other] → 3 lines: Created file file:///tmp/sandbox/home/.gemini/a…
 assistant: Planned.
 
 # plan_feedback/approved
