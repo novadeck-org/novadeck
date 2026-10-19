@@ -837,11 +837,13 @@ export default defineConfig({
  * moved with their imports pointed elsewhere. `was` is the hash of the text it replaces: the
  * file is replaced while its text is that one, so a branch that changed it stops the run for
  * the template to be redone. Without `was` the file is new, and made only if it isn't there.
+ * `until` is a later step's file that took its place: once that is there, it isn't made.
  */
 export type Made = {
   readonly file: string
   readonly why: string
   readonly was?: string
+  readonly until?: string
 }
 
 export const made: readonly Made[] = [
@@ -849,6 +851,8 @@ export const made: readonly Made[] = [
     file: "frontend/ui/vite.config.ts",
     why: "the desktop and browser builds only: the visitor build and the preview are the apps'",
     was: "6916ada77eff3e38bf274bc41bf6336cc4e79d8f8e8f96d6ff625ed914751b31",
+    // 5.3c moved those builds to the desktop app, and deleted this file.
+    until: "apps/desktop/vite.config.ts",
   },
   {
     file: "frontend/ui/src/architecture.test.ts",
@@ -930,14 +934,12 @@ const fenceIndent = " ".repeat(18)
 const fenceNames = (names: readonly string[]): string =>
   names.map((name) => `${fenceIndent}"${name}",\n${fenceIndent}"${name}/**",\n`).join("")
 
-// The root's test lines as main has them since #315, which split the shards by package: a run
-// on main, or on a branch that took them, finds its three edits there.
+// What marks each of the root's test lines as split by package since #315, whatever main adds
+// to them later (#317's `--output-logs`): a run on main finds its three edits there.
 const testLine =
-  '"test": "pnpm run test:repository && turbo run test --filter=!./frontend/* --filter=!./apps/* --filter=!@novadeck/runner --filter=!@novadeck/host && turbo run test --filter=./frontend/* --filter=./apps/* --filter=@novadeck/runner --filter=@novadeck/host --concurrency=1"'
-const shard1Line =
-  '"test:shard1": "pnpm run test:repository && turbo run test --filter=!./frontend/* --filter=!./apps/* --filter=!@novadeck/runner --filter=!@novadeck/host && turbo run test --filter=@novadeck/ui --filter=@novadeck/specs --filter=@novadeck/core --filter=@novadeck/runner-adapter --filter=@novadeck/demo --filter=@novadeck/demo-debug --concurrency=1 -- --shard=1/2"'
-const shard2Line =
-  '"test:shard2": "turbo run test --filter=@novadeck/ui --filter=@novadeck/specs --filter=@novadeck/core --filter=@novadeck/runner-adapter --filter=@novadeck/demo --filter=@novadeck/demo-debug --concurrency=1 -- --shard=2/2 && turbo run test --filter=./frontend/* --filter=./apps/* --filter=!@novadeck/ui --filter=!@novadeck/specs --filter=!@novadeck/core --filter=!@novadeck/runner-adapter --filter=!@novadeck/demo --filter=!@novadeck/demo-debug --filter=@novadeck/host --concurrency=1"'
+  "--filter=./frontend/* --filter=./apps/* --filter=@novadeck/runner --filter=@novadeck/host"
+const shard1Line = "--filter=@novadeck/demo-debug --concurrency=1 -- --shard=1/2"
+const shard2Line = "--filter=@novadeck/demo-debug --concurrency=1 -- --shard=2/2"
 
 export const edits: readonly Edit[] = [
   {
@@ -945,6 +947,9 @@ export const edits: readonly Edit[] = [
     before: "  - from: ../ui/dist\n",
     after: "  - from: ../../frontend/ui/dist\n",
     why: "a path from the host, one folder deeper",
+    // 5.3c moved the host into apps/desktop, which copies its own build.
+    later: "apps/desktop/electron-builder.yml",
+    settled: ["  - from: dist\n"],
   },
   {
     file: "package.json",
@@ -1035,6 +1040,8 @@ export const edits: readonly Edit[] = [
     before: '"files": ["frontend/ui/src/**"],',
     after: '"files": ["frontend/*/src/**", "apps/*/src/**"],',
     why: "the UI's browser-code rule applies to every package that came out of it",
+    // 5.3c's form of the line.
+    settled: ['"apps/*/src/**", "apps/desktop/renderer/**"'],
   },
   {
     file: ".oxlintrc.json",
@@ -1406,6 +1413,8 @@ const read = (file: string): string => {
     before: "(beside `dist/`, which the desktop app packages)",
     after: "(the desktop app's `frontend/ui/dist/` is what the host packages)",
     why: "the visitor build has a folder of its own",
+    // 5.3c's form of the line.
+    settled: ["`apps/desktop/dist/` is what it packages"],
   },
   {
     file: "README.md",
@@ -1414,6 +1423,8 @@ const read = (file: string): string => {
     after:
       "Each app is an entry of its own, named by its Vite mode, so a deploy carries only its own\nchunks. The desktop and browser apps are in `frontend/ui`: the desktop page is the package's\n`index.html` (built to `dist/`, which the host packages and loads, and the dev server's root\npage in development), and the browser page is `entries/web/` (mode `web` for `pnpm dev:web`,\nbuilt to `dist-web/`). The visitor build and the content preview are apps of their own,\n`apps/try` and `apps/previews` (modes `try` and `content-preview`), each with its page at the\npackage's root and built to its `dist/`. Every page is the same document but for the script it\nstarts, which `apps/try/src/deploy.test.ts` checks; an app's page starts its entry through\n`src/main.tsx` (the browser app's through a one-line `main.tsx` beside its page), as a dev\nserver serves only what's under its root. A backend that must connect first supplies a\n",
     why: "the visitor build and the preview are apps of their own",
+    // 5.3c's form of the line.
+    settled: ["The desktop and browser apps are in `apps/desktop`"],
   },
   {
     file: "README.md",
@@ -1492,6 +1503,8 @@ const read = (file: string): string => {
     before: "one on\n  `application/ui/src` refuses",
     after: "one on\n  `frontend/*/src` and `apps/*/src` refuse",
     why: "the browser-code rule's files",
+    // 5.3c's form of the line.
+    settled: ["`apps/*/src` and `apps/desktop/renderer`"],
   },
 ]
 
@@ -1777,7 +1790,8 @@ export const plan = (input: PlanInput): Planned => {
         )
     } else if (!present.has(file)) fresh.set(file, content)
   }
-  for (const { file, why, was } of made) make(file, input.template(file), was, why)
+  for (const { file, why, was, until } of made)
+    if (until === undefined || !present.has(until)) make(file, input.template(file), was, why)
 
   for (const dir of copied) {
     const file = `${dir}/src/test.ts`
@@ -1883,15 +1897,20 @@ export const plan = (input: PlanInput): Planned => {
   const final = view()
   const skipped: string[] = []
   for (const edit of input.edits ?? edits) {
-    const text = final.get(edit.file)
+    // A file a later step moved is read where that move took it.
+    const file =
+      !final.has(edit.file) && edit.later !== undefined && final.has(edit.later)
+        ? edit.later
+        : edit.file
+    const text = final.get(file)
     if (text === undefined) {
       problems.push(`${edit.file} is gone (${edit.why}): the edit needs a new place`)
       continue
     }
     const result = applyEdit(text, edit)
     if ("problem" in result) problems.push(result.problem)
-    else if (result.state === "made") final.set(edit.file, result.text)
-    else if (result.state === "gone") skipped.push(`${edit.file}, whose line changed: ${edit.why}`)
+    else if (result.state === "made") final.set(file, result.text)
+    else if (result.state === "gone") skipped.push(`${file}, whose line changed: ${edit.why}`)
   }
 
   // The packages' edges make no circle.
