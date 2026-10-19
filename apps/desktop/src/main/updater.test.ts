@@ -10,6 +10,7 @@ import type { IpcMainEvent } from "electron"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import {
+  allowUpdatesChannel,
   openUpdatePageChannel,
   setUpdateChannelChannel,
   updateChannelChannel,
@@ -47,6 +48,7 @@ const build = (overrides: Partial<UpdateBuild> = {}): UpdateBuild => ({
   appImageWritable: true,
   appImageInstalled: true,
   windowsInstalled: true,
+  bundleSwap: undefined,
   ...overrides,
 })
 
@@ -90,6 +92,7 @@ describe("how a build updates", () => {
       expect(updatePlan(build(appImage))).toEqual({
         kind: "appimage",
         mode: "install",
+        allow: false,
       })
     })
 
@@ -97,6 +100,7 @@ describe("how a build updates", () => {
       expect(updatePlan(build({ ...appImage, appImageWritable: false }))).toEqual({
         kind: "appimage",
         mode: "tell",
+        allow: false,
       })
     })
 
@@ -104,6 +108,7 @@ describe("how a build updates", () => {
       expect(updatePlan(build({ ...appImage, appImageInstalled: false }))).toEqual({
         kind: "appimage",
         mode: "tell",
+        allow: false,
       })
     })
 
@@ -129,12 +134,13 @@ describe("how a build updates", () => {
       expect(updatePlan(build({ platform: "win32" }))).toEqual({
         kind: "nsis",
         mode: "install",
+        allow: false,
       })
     })
 
     it("only tells for a copy the installer did not make, and never installs", () => {
       const zip = build({ platform: "win32", windowsInstalled: false })
-      expect(updatePlan(zip)).toEqual({ kind: "nsis", mode: "tell" })
+      expect(updatePlan(zip)).toEqual({ kind: "nsis", mode: "tell", allow: false })
       expect(updatePlan({ ...zip, signed: true })?.mode).toBe("tell")
     })
 
@@ -142,6 +148,7 @@ describe("how a build updates", () => {
       expect(updatePlan(build({ platform: "win32", windowsInstalled: true }))).toEqual({
         kind: "nsis",
         mode: "install",
+        allow: false,
       })
     })
 
@@ -154,27 +161,44 @@ describe("how a build updates", () => {
   })
 
   context("on macOS", () => {
-    it("installs when the app is Developer ID signed", () => {
-      expect(updatePlan(build({ platform: "darwin", signed: true, inApplications: true }))).toEqual(
-        {
+    const installed = { platform: "darwin", inApplications: true } as const
+
+    it("installs when the app is Developer ID signed and its bundle can be replaced", () => {
+      for (const bundleSwap of ["whole", "contents"] as const)
+        expect(updatePlan(build({ ...installed, signed: true, bundleSwap }))).toEqual({
           kind: "mac",
           mode: "install",
-        },
-      )
+          allow: false,
+        })
     })
 
-    it("only tells of updates when it is not", () => {
-      expect(updatePlan(build({ platform: "darwin", inApplications: true }))).toEqual({
+    it("only tells when its bundle can't be written, which an administrator may allow", () => {
+      expect(updatePlan(build({ ...installed, signed: true }))).toEqual({
         kind: "mac",
         mode: "tell",
+        allow: true,
       })
+    })
+
+    it("only tells of updates when it is not signed, writable or not", () => {
+      for (const bundleSwap of ["whole", undefined] as const)
+        expect(updatePlan(build({ ...installed, bundleSwap }))).toEqual({
+          kind: "mac",
+          mode: "tell",
+          allow: false,
+        })
     })
 
     it("only tells, signed or not, when it runs outside Applications, and is portable", () => {
       for (const signed of [true, false])
-        expect(updatePlan(build({ platform: "darwin", signed, inApplications: false }))).toEqual({
+        expect(
+          updatePlan(
+            build({ platform: "darwin", signed, inApplications: false, bundleSwap: "whole" }),
+          ),
+        ).toEqual({
           kind: "mac",
           mode: "tell",
+          allow: false,
         })
     })
   })
@@ -339,6 +363,7 @@ const registered = (own: boolean, channel: UpdateChannel = "stable") => {
       window: () => (own ? "window" : undefined),
       request: (window) => void calls.push(`request ${window}`),
       openPage: () => void calls.push("open page"),
+      allow: () => void calls.push("allow"),
       channel: () => channel,
       setChannel: (next) => void calls.push(`channel ${next}`),
     },
@@ -361,6 +386,12 @@ describe("taking the page's requests about updates", () => {
     expect(calls).toEqual(["open page"])
   })
 
+  it("lets the copy install updates itself when asked", () => {
+    const { send, calls } = registered(true)
+    send(allowUpdatesChannel)
+    expect(calls).toEqual(["allow"])
+  })
+
   it("answers the channel the build follows", () => {
     expect(registered(true, "early").send(updateChannelChannel)).toBe("early")
   })
@@ -378,6 +409,7 @@ describe("taking the page's requests about updates", () => {
     const { send, calls } = registered(false, "early")
     send(updateRequestChannel)
     send(openUpdatePageChannel)
+    send(allowUpdatesChannel)
     send(setUpdateChannelChannel, "early")
     expect(send(updateChannelChannel)).toBe("stable")
     expect(calls).toEqual([])
@@ -458,29 +490,51 @@ describe("checking for updates", () => {
     options: {
       mode?: UpdateMode
       channel?: UpdateChannel
-      native?: EventEmitter
+      prepare?: (update: { readonly version: string; readonly file: string }) => Promise<void>
+      rejected?: (error: unknown) => boolean
       failedVersion?: string
+      allow?: boolean
     } = {},
   ) => {
     const updater = new FakeUpdater()
     const offered: [string, string, number?][] = []
     const failed: string[] = []
+    const started: string[] = []
     const logged: string[] = []
+    const allowed: boolean[] = []
     const checks = checkForUpdates(updater as unknown as Updater, {
       mode: options.mode ?? "install",
       channel: options.channel ?? "stable",
       failedVersion: options.failedVersion,
-      native: options.native,
-      offer: (offer) =>
-        void offered.push(
+      allow: options.allow,
+      prepare: options.prepare,
+      rejected: options.rejected,
+      offer: (offer) => {
+        if (offer.kind === "available") allowed.push(offer.allow === true)
+        offered.push(
           offer.kind === "downloading"
             ? [offer.kind, offer.version, offer.percent]
             : [offer.kind, offer.version],
-        ),
+        )
+      },
+      installStarted: (version) => void started.push(version),
       installFailed: (version) => void failed.push(version),
       log: (message) => void logged.push(message),
     })
-    return { updater, offered, failed, logged, ...checks }
+    return { updater, offered, failed, started, logged, allowed, ...checks }
+  }
+
+  // A macOS `prepare` the test settles, which hears each download it is given.
+  const preparing = () => {
+    const given: { version: string; file: string; settle: ReturnType<typeof deferred<void>> }[] = []
+    return {
+      given,
+      prepare: (update: { readonly version: string; readonly file: string }) => {
+        const settle = deferred<void>()
+        given.push({ ...update, settle })
+        return settle.promise
+      },
+    }
   }
 
   it("installs on quitting in install mode, and asks for each download itself", () => {
@@ -547,23 +601,111 @@ describe("checking for updates", () => {
       expect(offered).toEqual([["ready", "1.2.3"]])
     })
 
-    it("on macOS offers the update as ready only once Squirrel has staged it, downloading until then", () => {
-      const native = new EventEmitter()
-      const { updater, offered } = checking({ native })
-      updater.emit("update-available", { version: "1.2.3" })
-      updater.emit("download-progress", { percent: 0 })
-      updater.emit("download-progress", { percent: 99.6 })
-      updater.emit("update-downloaded", { version: "1.2.3" })
-      expect(offered).toEqual([
-        ["downloading", "1.2.3", 0],
-        ["downloading", "1.2.3", 99],
-      ])
-      updater.emit("download-progress", { percent: 100 })
-      expect(offered).toHaveLength(2)
-      native.emit("update-downloaded")
-      expect(offered.at(-1)).toEqual(["ready", "1.2.3"])
-      native.emit("update-downloaded")
-      expect(offered).toHaveLength(3)
+    context("on macOS, where the host puts the update in place itself", () => {
+      const downloaded = { version: "1.2.3", downloadedFile: "/cache/update.zip" }
+
+      it("hands no download to Squirrel.Mac, which installs only while this is on", () => {
+        expect(checking({ prepare: preparing().prepare }).updater.autoInstallOnAppQuit).toBe(false)
+      })
+
+      it("offers the update as ready only once prepared, downloading until then", async () => {
+        const { given, prepare } = preparing()
+        const { updater, offered } = checking({ prepare })
+        updater.emit("update-available", { version: "1.2.3" })
+        updater.emit("download-progress", { percent: 99.6 })
+        updater.emit("update-downloaded", downloaded)
+        expect(given.map(({ version, file }) => [version, file])).toEqual([
+          ["1.2.3", "/cache/update.zip"],
+        ])
+        expect(offered).toEqual([["downloading", "1.2.3", 99]])
+        given[0]?.settle.resolve()
+        await vi.advanceTimersByTimeAsync(0)
+        expect(offered.at(-1)).toEqual(["ready", "1.2.3"])
+      })
+
+      it("counts a download it could not prepare as a failed install, told of from then on", async () => {
+        const { given, prepare } = preparing()
+        const { updater, offered, failed, logged } = checking({ prepare })
+        updater.emit("update-downloaded", downloaded)
+        given[0]?.settle.reject(new Error("Not signed by the same team."))
+        await vi.advanceTimersByTimeAsync(0)
+        expect(failed).toEqual(["1.2.3"])
+        expect(offered).toEqual([["available", "1.2.3"]])
+        expect(logged).toEqual(["Preparing the update failed."])
+      })
+
+      it("does not download a release it rejected again in the same run", async () => {
+        const { given, prepare } = preparing()
+        const { updater } = checking({ prepare })
+        updater.emit("update-available", { version: "1.2.3" })
+        updater.emit("update-downloaded", downloaded)
+        given[0]?.settle.reject(new Error("Not signed by the same team."))
+        await vi.advanceTimersByTimeAsync(0)
+        updater.emit("update-available", { version: "1.2.3" })
+        expect(updater.downloads).toHaveLength(1)
+      })
+
+      it("tries a download it could not prepare for another reason again, marking nothing", async () => {
+        const { given, prepare } = preparing()
+        const { updater, offered, failed } = checking({ prepare, rejected: () => false })
+        await vi.advanceTimersByTimeAsync(firstCheckMs)
+        updater.emit("update-available", { version: "1.2.3" })
+        updater.emit("update-downloaded", downloaded)
+        given[0]?.settle.reject(new Error("No space left on the disk."))
+        await vi.advanceTimersByTimeAsync(0)
+        expect(failed).toEqual([])
+        expect(offered.at(-1)).toEqual(["retrying", "1.2.3"])
+        await vi.advanceTimersByTimeAsync(retryCheckMs)
+        expect(updater.checks).toBe(2)
+        updater.emit("update-available", { version: "1.2.3" })
+        expect(updater.downloads).toHaveLength(2)
+        // Failing again, it is told of, for the person to fetch.
+        updater.emit("update-downloaded", downloaded)
+        given[1]?.settle.reject(new Error("No space left on the disk."))
+        await vi.advanceTimersByTimeAsync(0)
+        expect(offered.at(-1)).toEqual(["available", "1.2.3"])
+        expect(failed).toEqual([])
+      })
+
+      it("fails to prepare a download that names no file", async () => {
+        const { prepare } = preparing()
+        const { updater, failed } = checking({ prepare })
+        updater.emit("update-downloaded", { version: "1.2.3" })
+        await vi.advanceTimersByTimeAsync(0)
+        expect(failed).toEqual(["1.2.3"])
+      })
+
+      it("does not download the release it is preparing again", () => {
+        const { prepare } = preparing()
+        const { updater } = checking({ prepare })
+        updater.emit("update-available", { version: "1.2.3" })
+        updater.emit("update-downloaded", downloaded)
+        updater.emit("update-available", { version: "1.2.3" })
+        expect(updater.downloads).toHaveLength(1)
+      })
+
+      it("lets a download go that a newer one replaced while it was prepared", async () => {
+        const { given, prepare } = preparing()
+        const { updater, offered } = checking({ prepare })
+        updater.emit("update-downloaded", downloaded)
+        updater.emit("update-downloaded", { version: "1.3.0", downloadedFile: "/cache/update.zip" })
+        given[0]?.settle.resolve()
+        given[1]?.settle.resolve()
+        await vi.advanceTimersByTimeAsync(0)
+        expect(offered).toEqual([["ready", "1.3.0"]])
+      })
+
+      it("keeps checking once an update is ready, so a newer release replaces it", async () => {
+        const { given, prepare } = preparing()
+        const { updater } = checking({ prepare })
+        await vi.advanceTimersByTimeAsync(firstCheckMs)
+        updater.emit("update-downloaded", downloaded)
+        given[0]?.settle.resolve()
+        await vi.advanceTimersByTimeAsync(checkIntervalMs)
+        expect(updater.checks).toBe(2)
+        updater.emit("update-available", { version: "1.3.0" })
+        expect(updater.downloads).toHaveLength(1)
+      })
     })
 
     context("while it downloads", () => {
@@ -705,17 +847,6 @@ describe("checking for updates", () => {
       expect(updater.checks).toBe(4)
     })
 
-    it("on macOS stops checking once an update has downloaded, as Squirrel keeps the one it staged", async () => {
-      const native = new EventEmitter()
-      const { updater } = checking({ native })
-      await vi.advanceTimersByTimeAsync(firstCheckMs)
-      updater.emit("update-downloaded", { version: "1.2.3" })
-      updater.emit("update-available", { version: "1.3.0" })
-      await vi.advanceTimersByTimeAsync(checkIntervalMs * 3)
-      expect(updater.checks).toBe(1)
-      expect(updater.downloads).toHaveLength(0)
-    })
-
     it("does not download the update it has again", () => {
       const { updater } = checking()
       updater.emit("update-available", { version: "1.2.3" })
@@ -852,26 +983,22 @@ describe("checking for updates", () => {
       expect(logged).toEqual(["The update check failed."])
     })
 
-    it("on macOS counts an error while Squirrel stages the download, and none once it has", () => {
-      const native = new EventEmitter()
-      const { updater, failed } = checking({ native })
+    it("tells of the version an install on quitting begins to put in place", () => {
+      const { updater, started } = checking()
       updater.emit("update-downloaded", { version: "1.2.3" })
-      updater.emit("error", new Error("Squirrel could not stage"))
-      expect(failed).toEqual(["1.2.3"])
-      native.emit("update-downloaded")
-      updater.emit("error", new Error("offline"))
-      expect(failed).toEqual(["1.2.3"])
+      updater.install()
+      expect(started).toEqual(["1.2.3"])
+      expect(updater.installed).toBe(1)
     })
 
-    it("on macOS counts a failed staging once, although the updater reports the error twice", () => {
-      const native = new EventEmitter()
-      const { updater, failed, offered, logged } = checking({ native })
+    it("counts a failed install once, though more errors follow", () => {
+      const { updater, failed, logged } = checking()
       updater.emit("update-downloaded", { version: "1.2.3" })
-      updater.emit("error", new Error("Squirrel could not stage"))
-      updater.emit("error", new Error("Squirrel could not stage"))
+      updater.install()
+      updater.emit("error", new Error("could not install"))
+      updater.emit("error", new Error("could not install"))
       expect(failed).toEqual(["1.2.3"])
       expect(logged).toEqual(["Installing the update failed."])
-      expect(offered).toEqual([["available", "1.2.3"]])
     })
 
     it("does not mark a failed check as a failed install", () => {
@@ -903,6 +1030,14 @@ describe("checking for updates", () => {
         ["available", "1.2.3"],
         ["available", "1.3.0"],
       ])
+    })
+
+    it("says an administrator can let the copy install updates itself, where one can", () => {
+      const allowing = checking({ mode: "tell", allow: true })
+      allowing.updater.emit("update-available", { version: "1.2.3" })
+      const plain = checking({ mode: "tell" })
+      plain.updater.emit("update-available", { version: "1.2.3" })
+      expect([allowing.allowed, plain.allowed]).toEqual([[true], [false]])
     })
 
     it("keeps checking, so a newer release replaces the offer", async () => {
@@ -948,8 +1083,8 @@ describe("checking for updates", () => {
     })
 
     it("applies from the next launch once the schedule has ended", async () => {
-      const checks = checking({ native: new EventEmitter() })
-      checks.updater.emit("update-downloaded", { version: "1.2.3" })
+      const checks = checking()
+      checks.stop()
       checks.setChannel("early")
       expect(checks.updater.allowPrerelease).toBe(true)
       await vi.advanceTimersByTimeAsync(checkIntervalMs)

@@ -1,6 +1,7 @@
 import type { UpdateOffer } from "@novadeck/core/update"
 import { useState } from "react"
 
+import { currentPlatform, type Platform } from "../interaction/shortcuts"
 import { Progress } from "../ui-toolkit/Progress"
 import { useLinger } from "./linger"
 
@@ -26,14 +27,16 @@ export const watchedAfter = (
 // An update downloading, as a bar floating above the footer's right end: what is happening
 // and how far along, nothing to press. It never takes keys, focus or clicks, so the corner
 // it covers stays usable, and it waits out Zen mode with the footer, and any notice open in
-// the same corner. A finished download says it installs on the next restart and fades; a
-// failed one (`retrying`) drops the bar at once, as the host tries again by itself.
+// the same corner. A finished download says it installs on the next restart (on macOS,
+// where closing the window doesn't quit, when the person quits) and fades; a failed one (`retrying`) drops the bar at once, as the host tries again by itself.
 export const UpdateProgress = ({
   offer,
   hidden,
+  platform = currentPlatform(),
 }: {
   readonly offer: UpdateOffer | null
   readonly hidden: boolean
+  readonly platform?: Platform
 }): React.JSX.Element => {
   // The version this page saw downloading, and the moment its bar is at.
   const [watched, setWatched] = useState<Watched>()
@@ -43,6 +46,7 @@ export const UpdateProgress = ({
   useLinger(moment, !hidden, (to) => setWatched((current) => current && { ...current, moment: to }))
   const percent = moment === "progress" && offer?.kind === "downloading" ? offer.percent : 100
   const shown = moment !== "gone" && !hidden
+  const when = platform === "mac" ? "when you quit Novadeck" : "on the next restart"
   return (
     <>
       {/* Always mounted, so filling it announces the download and its end, not each percent. */}
@@ -50,7 +54,7 @@ export const UpdateProgress = ({
         {moment === "progress"
           ? "Downloading Novadeck update"
           : moment === "finished"
-            ? "Novadeck update downloaded, installs on the next restart"
+            ? `Novadeck update downloaded, installs ${when}`
             : ""}
       </span>
       {shown && watched && (
@@ -69,7 +73,7 @@ export const UpdateProgress = ({
           <p className="update-progress-note">
             {moment === "progress"
               ? `Downloading ${watched.version}`
-              : `${watched.version} installs on the next restart`}
+              : `${watched.version} installs ${when}`}
           </p>
         </div>
       )}

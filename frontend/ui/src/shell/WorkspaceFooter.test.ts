@@ -6,6 +6,7 @@ import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { fadeMs, finishedForMs } from "./linger"
+import { UpdateProgress } from "./UpdateProgress"
 import { recoveredForMs, WorkspaceFooter, type FooterStatus } from "./WorkspaceFooter"
 
 const mounted: Rendered[] = []
@@ -211,6 +212,18 @@ describe("workspace footer", () => {
       expect(progressAnnouncer(page).textContent).toBe("")
     })
 
+    it("says on macOS that it installs when the person quits, where closing doesn't", () => {
+      const mac = (offer: UpdateOffer | null) =>
+        createElement(UpdateProgress, { offer, hidden: false, platform: "mac" })
+      const page = render(mac(downloading))
+      mounted.push(page)
+      page.rerender(mac(ready))
+      expect(bar(page)?.textContent).toContain("0.0.80 installs when you quit Novadeck")
+      expect(page.container.querySelector<HTMLElement>(".sr-only[role=status]")?.textContent).toBe(
+        "Novadeck update downloaded, installs when you quit Novadeck",
+      )
+    })
+
     it("shows nothing for an update found ready, as at a launch, or one to fetch", () => {
       const page = render(withProgress(ready))
       mounted.push(page)
@@ -275,7 +288,11 @@ describe("workspace footer", () => {
   })
 
   context("for a release an installed copy can't install itself", () => {
-    const withChip = (available?: { version: string; onOpenPage: () => void }) =>
+    const withChip = (available?: {
+      version: string
+      onOpenPage: () => void
+      onAllow?: () => void
+    }) =>
       createElement(WorkspaceFooter, {
         hidden: false,
         count: 2,
@@ -304,6 +321,24 @@ describe("workspace footer", () => {
       act(() => pressed.click())
       expect(onOpenPage).toHaveBeenCalledOnce()
       expect(page.container.querySelector("section")).toBeNull()
+    })
+
+    it("asks for an administrator, as Allow updates, when it can be let install itself", () => {
+      const onAllow = vi.fn<() => void>()
+      const onOpenPage = vi.fn<() => void>()
+      const page = render(withChip({ version: "0.0.81", onOpenPage, onAllow }))
+      mounted.push(page)
+      const pressed = button(page)!
+      expect(pressed.getAttribute("aria-label")).toBe("Allow updates: Novadeck 0.0.81")
+      expect(pressed.textContent).toBe("Allow updatesAllow")
+      expect(pressed.getAttribute("aria-description")).toContain("administrator's password")
+      expect(pressed.title).toContain("administrator's password")
+      expect(
+        [...page.container.querySelectorAll(".sr-only[role=status]")].at(-2)?.textContent,
+      ).toBe("Allow updates")
+      act(() => pressed.click())
+      expect(onAllow).toHaveBeenCalledOnce()
+      expect(onOpenPage).not.toHaveBeenCalled()
     })
 
     it("announces its arrival once, in a polite live region that stays mounted", () => {
@@ -524,6 +559,24 @@ describe("workspace footer", () => {
         page.rerender(installing({ phase: "installed" }))
         expect(notice(page)!.textContent).toContain("Takes effect after you restart Novadeck")
         expect(chip(page).textContent).toBe("Installed")
+      })
+
+      it("says on macOS to quit and reopen, where closing the window doesn't quit", () => {
+        const page = render(
+          createElement(WorkspaceFooter, {
+            ...props("ok"),
+            portable: {
+              ...props("ok").portable,
+              open: true,
+              platform: "mac",
+              portable: { ...portable, install: { phase: "installed" } },
+            },
+          }),
+        )
+        mounted.push(page)
+        expect(notice(page)!.textContent).toContain(
+          "Takes effect after you quit and reopen Novadeck",
+        )
       })
 
       it("says why an install failed, and offers to try again", () => {

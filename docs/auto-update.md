@@ -2,9 +2,22 @@
 
 Every Novadeck build either updates itself or tells the person that a newer release
 exists and where to get it. Installed apps look on GitHub Releases shortly after launch
-and every four hours. The app never restarts on its own, and the page has no restart
+and every two hours. The app never restarts on its own, and the page has no restart
 button: a downloaded update installs when the app next quits, and the page shows only a
 progress bar while it downloads.
+
+Every system follows one rule: a normal quit puts the new version in place before the
+app has gone, so the next launch is the new version however soon it comes; a quit as the
+system shuts down or the session ends installs nothing; a copy that can't install itself
+says "Update available"; and an install that did not take is noticed at the next launch
+(see "Install failures"). Linux swaps the AppImage as it quits, macOS swaps the app bundle
+(see "macOS"), and Windows runs the installer, which closes a copy reopened before it
+finishes, so its update lands all the same.
+
+What the host says of checks, downloads and installs, and electron-updater's own messages,
+go to `updates.log` in Electron's logs folder (`~/Library/Logs/Novadeck` on macOS, `logs`
+in the data folder elsewhere), set aside as `updates.log.1` at a megabyte
+(`update-log.ts`).
 
 The repository to look in comes from `resources/app-update.yml`, which electron-builder
 writes into the app from its `publish` block. The release workflow fills that block from
@@ -34,8 +47,7 @@ back to `stable` never downgrades: an `early` build newer than stable waits unti
 passes it. A downloaded update that waits is replaced by the release the new channel offers
 when that is newer than the running build, as any newer release replaces it (see "Installing
 and telling"): switching from `early` to `stable` with a prerelease waiting installs the
-stable release, even one older than that prerelease. On macOS the schedule ends once an
-update has downloaded, so a switch then applies from the next launch.
+stable release, even one older than that prerelease.
 
 electron-updater decides the release in `GitHubProvider.getLatestVersion`. With
 `allowPrerelease` false it asks `/releases/latest`, which GitHub answers with the latest
@@ -46,8 +58,8 @@ releases feed. `stable` sets it false and `early` true.
 
 | Build                            | Mode                                                                              |
 | -------------------------------- | --------------------------------------------------------------------------------- |
-| macOS, in Applications, signed   | Installs (Squirrel.Mac)                                                           |
-| macOS, in Applications, unsigned | Tells; every build is unsigned until the certificates are in place                |
+| macOS, in Applications, signed   | Installs by swapping the app if the person can write it; else tells (see "macOS") |
+| macOS, in Applications, unsigned | Tells; an update is installed only when signed by the same team                   |
 | macOS, outside Applications      | Tells, signed or not; never installs itself. See "Portable builds"                |
 | Windows installer (`-setup`)     | Installs                                                                          |
 | Windows ZIP (unpacked app)       | Tells; never installs itself. See "Portable builds"                               |
@@ -61,9 +73,52 @@ releases feed. `stable` sets it false and `early` true.
 `NOVADECK_UPDATES=off` turns checks off for a launch. The smoke tests and the release
 workflow's package checks set it, so they never reach the network.
 
-Squirrel.Mac refuses to install into an app that is not Developer ID signed, so a macOS
-build checks its own signature once at launch with `codesign`. See
+An update is installed only when it is signed by the same team as the running app, so a
+macOS build checks its own signature once at launch with `codesign`. See
 [release-signing.md](release-signing.md).
+
+### macOS
+
+The host installs macOS updates itself, as Linux does, rather than through Squirrel.Mac.
+Squirrel's ShipIt installs only once the app has exited, checks the update for about five
+seconds, and gives up ("App Still Running Error") when the app is running again by then, so
+a quit and a quick reopen lost every update, and the next launch downloaded it again and
+said it was ready again. electron-updater still downloads the zip; with
+`autoInstallOnAppQuit` off its `MacUpdater` hands nothing to Squirrel. Then
+(`mac-update.ts`):
+
+- **Prepared once downloaded.** The zip is unpacked with `ditto` into a folder of its own
+  under the temporary folder (`dev.mzpk.novadeck.update-*`), stripped of quarantine, and
+  checked: one app, with the running app's bundle identifier and the offered version,
+  `codesign --verify --deep --strict`, and the same `TeamIdentifier` as the running app.
+  Only then is it offered as `ready`; until then it stays `downloading` at the last
+  percent. One that fails a check (`UpdateRejected`) counts as a failed install (below);
+  one that fails otherwise, as on a full disk, counts as a failed download and is tried
+  again from electron-updater's copy. The folders of earlier updates go only once a newer
+  one is ready, never once quitting has begun, so the one being put in place is never
+  removed under it.
+- **Put in place on quitting**, once every page has saved and the shells have ended, and
+  before the process exits. When the person can write both the app and the folder holding
+  it, the whole bundle is swapped: the old one is moved aside into the prepared folder and
+  the new one moved in. When only the app can be written, as for a standard account whose
+  app is its own in an Applications folder it can't write, its `Contents` is swapped
+  instead, inside the bundle. Any failed step puts the old app back. A rename across
+  volumes falls back to a `ditto` copy beside the app. The old app stays in the prepared
+  folder, as removing it would hold up the quit, and the next launch removes it, unless it changed in the last ten minutes, when another copy on its own data folder may be installing from it. A bundle
+  that is no longer the running version, as one install.sh replaced, is left alone. A quit
+  as the session ends, and the uninstall, install nothing.
+- **A copy the person can't write** only tells. When it is signed and installed, the offer
+  says an administrator can allow it (`allow`), and the footer chip reads "Allow updates":
+  it asks for an administrator's password once (`osascript … with administrator
+  privileges`) to hand the bundle to the person, and the copy then checks again as one that
+  installs. Turned down, as by a person with no administrator to ask, the chip becomes
+  "Update available" for the rest of the run and opens the release page.
+- The schedule goes on once an update is ready, and a newer release replaces it, as on the
+  other systems. A prepared folder the system cleared, as at a restart, is noticed on
+  quitting, and the update downloads again at the next launch.
+
+Squirrel.Mac stays in the bundle, as electron-builder puts it there, unused. A copy from
+before this installs its next update through Squirrel, once.
 
 ### Installing and telling
 
@@ -72,28 +127,29 @@ build checks its own signature once at launch with `codesign`. See
   (`download-progress`), from the first; only the progress of the download the host started
   counts. A download already on disk from an earlier launch reports none and is `ready` at
   once, without a flash of progress. It becomes `ready` once downloaded (on macOS, once
-  Squirrel has staged it, with the percent staying where it was until then), and the page
+  prepared, with the percent staying where it was until then), and the page
   then shows "Update ready" on a floating bar above the footer for a few seconds before it
-  fades; the update installs on the next quit. The bar shows
+  fades; the update installs on the next quit, which on macOS the bar names as quitting
+  Novadeck, since closing its last window there leaves the app running. The bar shows
   the progress meanwhile; it has nothing to press and never takes focus. A `ready` offer
   the page did not see downloading, as at a launch, shows nothing. One download
   is tracked at a time, and a release found while it is under way waits for the next check.
 - **A failed download** is tried again by a check five minutes later, once per release in a
-  run; after that the four-hourly checks try it. Once its progress (or an update it
+  run; after that the two-hourly checks try it. Once its progress (or an update it
   replaces) was offered, it is offered as `retrying` meanwhile, and the page drops the
   bar at once and shows nothing in its place: no chip either, since a copy that installs itself
   has nothing for the person to do, and the retry tries again. One that failed before any progress, with no
   update waiting, goes untold, as a failed check does. Should the early retry fail too, the
   offer turns to `available`, so a copy whose downloads keep failing (a proxy, a full disk)
-  shows the chip rather than fall behind unseen; the four-hourly checks still try it, and a
-  download that gets going turns it back to `downloading`. A failed staging on macOS is an
-  install failure: the version is marked failed, is not tried again, and the offer turns to
-  `available`, for the person to fetch.
+  shows the chip rather than fall behind unseen; the two-hourly checks still try it, and a
+  download that gets going turns it back to `downloading`. A macOS download that fails its
+  checks is an install failure: the version is marked failed, is not tried again, and the
+  offer turns to `available`, for the person to fetch.
 - **A newer release** found while an update waits replaces it, so one quit lands on the
   latest release rather than one per release missed. No release file carries a
   version in its name (`electron-builder.yml`), so electron-updater downloads the newer one
   beside the waiting file and renames it over that file once complete; a quit meanwhile
-  installs the waiting update on Windows and Linux. The offer turns from `ready` into
+  installs the waiting update. The offer turns from `ready` into
   `downloading` the newer release as its progress comes in, so the page shows the bar
   again. Should the download fail, electron-updater clears its download
   folder, which likely takes the waiting file too: the newer release is offered as
@@ -102,9 +158,9 @@ build checks its own signature once at launch with `codesign`. See
   lands installs the newer release. On Windows the newer one costs its changed ranges and
   then the whole file, and its percent starts over once: electron-updater's differential
   download pairs the waiting update's blockmap with the installed build's installer, the
-  result fails its checksum, and it falls back to a full download. macOS keeps the update
-  Squirrel staged and checks again at the next launch, as staging one update over another
-  is untried. `updater.test.ts` pins the file names and electron-updater's handling of the
+  result fails its checksum, and it falls back to a full download. On macOS the newer one
+  is prepared in place of the waiting one, which a quit meanwhile no longer finds, so the
+  update downloads again at the next launch. `updater.test.ts` pins the file names and electron-updater's handling of the
   waiting file: were the folder emptied while the updater still names the file, quitting
   would delete the running AppImage and install nothing.
 - **Telling** builds download nothing and keep checking, so a newer release replaces the
@@ -116,13 +172,13 @@ build checks its own signature once at launch with `codesign`. See
   `https://github.com/<owner>/<repo>/releases/tag/v<version>`, in the browser. A portable
   copy has its install entry instead.
 - A quit caused by the system shutting down or the session ending installs nothing, as the
-  system may kill the installer halfway. On macOS Squirrel.Mac installs a staged update on
-  any exit; it swaps the bundle whole, so an interrupted install leaves the old app.
+  system may kill the installer halfway.
 
 ### Install failures
 
 Only an error raised while installing counts as a failed install: one raised after the
-updater's `install` (the quit-time install) was called, which the host wraps to know, and on macOS one raised while Squirrel stages the download. The
+updater's `install` (the quit-time install) was called, which the host wraps to know, and
+on macOS a download that fails its checks or a swap that fails. The
 AppImage's folder turned read-only, say. Any other error, such as a check still in flight failing offline after
 the download, is only logged. The host then switches installing on quit off, so the same
 failure does not come back at every quit; writes the version whose install failed (the
@@ -133,6 +189,13 @@ as `available`. A newer release installs as usual and the mark, being for the ol
 is ignored. The comparison is in `checkForUpdates` (`failedVersion`), where it is tested. Every write to `update.json` is synchronous and goes through a
 temporary file that is renamed over, re-reading the file first, so the failure mark, which
 is written as the app exits, cannot race another change.
+
+An install that fails after the app has gone, as the Windows installer may, is noticed at
+the next launch: as a quit begins an install it writes the version to `update.json`
+(`installing`), and a launch that installs updates and finds itself still older than that
+version marks it failed as above (`installOutcome`), then clears it either way. A copy
+that only tells, such as a portable one sharing the data folder, leaves it for the
+installed copy.
 
 ### Quitting by a signal on Linux
 
@@ -462,16 +525,16 @@ only from the main frame of the app's own page.
 Every release uploads these assets, and each `latest*.yml` entry's `url` must name an
 uploaded asset exactly:
 
-| Asset                                              | Used by                                           |
-| -------------------------------------------------- | ------------------------------------------------- |
-| `novadeck-mac-universal.dmg`                       | Downloads from the website                        |
-| `novadeck-mac-universal.zip`                       | `install.sh` on macOS, and updates (Squirrel.Mac) |
-| `novadeck-win-x64-setup.exe`                       | The Windows installer and its updates             |
-| `novadeck-win-x64.zip`                             | The portable Windows app; no update source        |
-| `novadeck-linux-x86_64.AppImage`                   | The AppImage and its updates                      |
-| `latest.yml`, `latest-mac.yml`, `latest-linux.yml` | Update metadata, with each package's SHA-512      |
-| `*.blockmap`                                       | Differential downloads of the installer and zip   |
-| `install.sh`                                       | The Linux and macOS install script                |
+| Asset                                              | Used by                                         |
+| -------------------------------------------------- | ----------------------------------------------- |
+| `novadeck-mac-universal.dmg`                       | Downloads from the website                      |
+| `novadeck-mac-universal.zip`                       | `install.sh` on macOS, and updates              |
+| `novadeck-win-x64-setup.exe`                       | The Windows installer and its updates           |
+| `novadeck-win-x64.zip`                             | The portable Windows app; no update source      |
+| `novadeck-linux-x86_64.AppImage`                   | The AppImage and its updates                    |
+| `latest.yml`, `latest-mac.yml`, `latest-linux.yml` | Update metadata, with each package's SHA-512    |
+| `*.blockmap`                                       | Differential downloads of the installer and zip |
+| `install.sh`                                       | The Linux and macOS install script              |
 
 `latest-linux.yml` must list the AppImage. The AppImage is built on the static type2
 runtime (`toolsets.appimage` in `electron-builder.yml`), so it needs a setuid
@@ -490,14 +553,24 @@ full one.
 
 ## Known limits
 
+- **On macOS a signal quits like ⌘Q.** Linux tells an orderly quit from SIGTERM, SIGINT or
+  SIGHUP and installs only on the former; macOS has no such mark, so a `kill` puts a ready
+  update in place as a normal quit would. A logout or shutdown installs nothing.
+- **A Mac with several administrators** hands the bundle to whoever allowed updates last;
+  another account then finds it can't write it, and its chip asks again.
+- **A Windows copy reopened while its installer runs** may mark that update failed in
+  `update.json` before the installer closes it and finishes; the release then installed
+  is the running one, so nothing more comes of it than a line in the log.
+
 - **A channel switch does not cancel work in progress.** An `early` build that is already
   downloading a prerelease when the person switches to `stable` finishes the download and
   installs it on quit. The same switch made during an in-flight check can use the old
-  channel's answer; the next check, within four hours, corrects it.
+  channel's answer; the next check, within two hours, corrects it.
 - **Offers are not retracted.** After switching from `early` to `stable`, an `available`
   offer for an early-only release stays until a later check offers another version; the
   bridge has no way to withdraw one. A downloaded update stays `ready` as well, unless a stable release newer than the running
   build replaces it, and a `downloading` offer is replaced only by its own outcome.
 - **Windows updates are not watched past the call.** An installed copy's update runs the
-  NSIS installer asynchronously as the app exits, so an error there is not seen by the app.
+  NSIS installer asynchronously as the app exits, so an error there is not seen by the app
+  until the next launch finds itself still on the old version (see "Install failures").
   (A portable copy's install is watched: see Portable builds.)
