@@ -34,11 +34,12 @@ jobs:
             os: ubuntu-latest
             command: shellcheck -s sh scripts/install/install.sh
           # The tests in three parts on Linux and Windows, where they take longest (about 13
-          # minutes whole): the repository's own and the smaller packages' with the first half
-          # of the UI's (Vitest's `--shard`), the second half of the UI's with the host's, and
-          # the runner's, whose shell integration test alone takes over three minutes. macOS
-          # runs them whole: its concurrency, which E2E's macOS rows fill on most pull requests,
-          # not its length, is the limit.
+          # minutes whole): the repository's own and the libraries' and backend's with the
+          # first half of the big frontend packages' (Vitest's `--shard`); the second half of
+          # those with the small frontend packages and apps whole, which Vitest can't split, and
+          # the host's; and the runner's, whose shell integration test alone takes over three
+          # minutes. macOS runs them whole: its concurrency, which E2E's macOS rows fill on most
+          # pull requests, not its length, is the limit.
           - name: Test (Linux, 1/3)
             os: ubuntu-latest
             browser: true
