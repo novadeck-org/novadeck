@@ -1,5 +1,5 @@
-// A process with no screen: the pty it runs in and how it ends, its process facts, and on
-// Windows its process tree.
+// A process with no screen: the pty it runs in and how it ends, its process facts, on
+// Windows its process tree, and on Linux the systemd scope it is kept in.
 export {
   foregroundProcess,
   foregroundRuns,
@@ -30,4 +30,13 @@ export {
   type ProcessTrees,
   type Pty,
   type PtyExit,
+  type PtyOptions,
 } from "./pty/pty.js"
+export {
+  userScopes,
+  UserScopes,
+  type ExitCause,
+  type RunTool,
+  type Scope,
+  type Scopes,
+} from "./pty/scopes.js"
