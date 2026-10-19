@@ -632,6 +632,8 @@ describe("runner backend", () => {
       await vi.waitFor(() => expect(messages.state.getSnapshot().paused).toBe(false))
       expect(await runner.client.messages.list(terminal.id)).toMatchObject({ paused: false })
       app.commit([{ type: "terminal/close", target: app.target(), terminalId: terminal.id }])
+      // Once the close's commit is done, as its readers may start a transaction.
+      await Promise.resolve()
       expect(messages.state.getSnapshot().terminals[id]).toBeUndefined()
       app.stop()
     })

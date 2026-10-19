@@ -667,6 +667,8 @@ describe("a terminal's messages on its taskbar", () => {
       },
     },
   })
+  // Mail is heard once the turn that changed it is over.
+  const heard = (): Promise<void> => new Promise((resolve) => queueMicrotask(resolve))
   const following = (mail: MailState) => {
     const state = createStore(mail)
     const workspace = createWorkspaceStore(workspaceFixture())
@@ -686,7 +688,7 @@ describe("a terminal's messages on its taskbar", () => {
     expect(following(mailOf(0)).bar()?.order).toEqual([messagesKey])
   })
 
-  it("join the bar's order with the first message, after an agent with none", () => {
+  it("join the bar's order with the first message, after an agent with none", async () => {
     const { state, bar } = following({
       ...noMail,
       terminals: {
@@ -699,22 +701,57 @@ describe("a terminal's messages on its taskbar", () => {
     })
     expect(bar()).toBeUndefined()
     state.update(() => mailOf(1))
+    await heard()
     expect(bar()?.order).toEqual([messagesKey])
   })
 
-  it("stay off the bar while hidden, whatever else changes", () => {
+  it("stay off the bar while hidden, whatever else changes", async () => {
     const { state, bar, hide } = following(mailOf(1))
     hide()
     state.update((mail) => ({ ...mail, paused: true }))
+    await heard()
     expect(bar()).toMatchObject({ hidden: [messagesKey], order: [] })
   })
 
-  it("come back with the next message once hidden, whether the terminal is on screen or not", () => {
+  it("come back with the next message once hidden, whether the terminal is on screen or not", async () => {
     const { state, bar, hide } = following(mailOf(1))
     hide()
     state.update(() => mailOf(1))
+    await heard()
     expect(bar()?.hidden).toEqual([messagesKey])
     state.update(() => mailOf(2))
+    await heard()
     expect(bar()).toMatchObject({ hidden: [], order: [messagesKey] })
+  })
+
+  it("change inside a workspace commit without failing it, never reaching a terminal it closed", async () => {
+    const state = createStore(mailOf(1))
+    // A backend that lets a closed terminal's mail go as it commits the close, as the
+    // runner adapter does.
+    const workspace = createWorkspaceStore(workspaceFixture(), (_, actions) => {
+      if (actions.some((action) => action.type === "terminal/close")) state.update(() => noMail)
+      else if (actions.some((action) => action.type === "terminal/rename"))
+        state.update(() => mailOf(2))
+    })
+    createPanes({
+      companions: emptyCompanions(),
+      workspace,
+      messages: { state, pause: () => {}, release: () => {}, stop: () => {} },
+    }).connect()
+    const bar = () => activeSession(workspace.getSnapshot())!.state.bars["01"]
+    workspace.dispatch({ type: "bar/hide", target, terminalId: "01", key: messagesKey })
+
+    expect(() =>
+      workspace.dispatch({ type: "terminal/rename", target, terminalId: "01", name: "Moth" }),
+    ).not.toThrow()
+    await heard()
+    expect(bar()).toMatchObject({ hidden: [], order: [messagesKey] })
+
+    state.update(() => mailOf(3))
+    expect(() =>
+      workspace.dispatch({ type: "terminal/close", target, terminalId: "01" }),
+    ).not.toThrow()
+    await heard()
+    expect(bar()).toBeUndefined()
   })
 })

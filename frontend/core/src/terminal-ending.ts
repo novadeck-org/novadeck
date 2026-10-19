@@ -8,13 +8,19 @@ import type { TerminalMetadata } from "./types"
 export type TerminalEnding = {
   readonly tone: "danger" | "warning"
   readonly status: string
-  // Why, where known: the code, the signal, or what stopped it starting.
+  // Why, where known: the code, the signal or running out of memory, or what stopped it
+  // starting.
   readonly reason: string | null
 }
 
 export const terminalEnding = (terminal: TerminalMetadata): TerminalEnding | null => {
   if (terminal.state === "exited") {
-    if (terminal.signal) return { tone: "danger", status: "Killed", reason: terminal.signal }
+    if (terminal.signal)
+      return {
+        tone: "danger",
+        status: "Killed",
+        reason: terminal.cause === "out-of-memory" ? "out of memory" : terminal.signal,
+      }
     return {
       tone: "warning",
       status: "Exited",
