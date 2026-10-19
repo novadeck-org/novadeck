@@ -3012,6 +3012,37 @@ describe("keys while a request waits on the person", () => {
     expect(messaging.delivery("B")?.state).toBe("settled")
   })
 
+  it("leave no draft where an answer pressed them, so its turn's Stop settles", () => {
+    const { messaging, prompt, stop, codex } = create()
+    messaging.keys("B", ["enter"], false)
+    prompt("B", codex)
+    messaging.pressing("B", () => messaging.keys("B", ["content"], true))
+    messaging.askedCleared("B")
+    stop("B", codex)
+    expect(messaging.delivery("B")?.state).toBe("settled")
+  })
+
+  it("count only what the answer itself reports as its own: the person's key between its presses leaves a draft", () => {
+    const { messaging, prompt, stop, codex } = create()
+    messaging.keys("B", ["enter"], false)
+    prompt("B", codex)
+    messaging.pressing("B", () => messaging.keys("B", ["neutral"], true))
+    messaging.keys("B", ["content"], true)
+    messaging.pressing("B", () => messaging.keys("B", ["enter"], true))
+    messaging.askedCleared("B")
+    stop("B", codex)
+    expect(messaging.delivery("B")?.state).toBe("drafting")
+  })
+
+  it("take keys pressed with no request waiting as the person's, as they may land in the box", () => {
+    const { messaging, prompt, stop, codex } = create()
+    messaging.keys("B", ["enter"], false)
+    prompt("B", codex)
+    messaging.pressing("B", () => messaging.keys("B", ["content"], false))
+    stop("B", codex)
+    expect(messaging.delivery("B")?.state).toBe("drafting")
+  })
+
   it("take the person's confirmed submission as emptying the box again", () => {
     const { messaging, prompt, stop, codex, clock: time } = create()
     messaging.keys("B", ["enter"], false)

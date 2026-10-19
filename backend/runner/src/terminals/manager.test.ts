@@ -19,7 +19,10 @@ import {
   started as fresh,
   type Activity,
 } from "../harnesses/activity.js"
+import { harnesses } from "../harnesses/registry.js"
+import { followRoot } from "../harnesses/roots.js"
 import { limitGraceMs } from "../harnesses/telemetry.js"
+import type { Messaging } from "../messaging/messaging.js"
 import { describe, expect, it as base } from "../test.js"
 import { ptyOptions } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
@@ -200,6 +203,52 @@ describe("an answer's hold of the person's input", () => {
     // Neither alone nor with the key.
     expect(since()).not.toContain(`received ${wheel.length} chars`)
     expect(since()).not.toContain(`received ${wheel.length + 1} chars`)
+  })
+})
+
+describe("an answer's own keys", () => {
+  it("leave no draft of the person's, while the person's key the answer held and let go does", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as {
+      records: Map<string, { binding: unknown; activity: Activity | null }>
+      messaging: Messaging
+      typing: {
+        answers: { host: { press: (id: string, data: string) => boolean } }
+        holdInput: (id: string, budget: HoldBudget) => { release: () => void; settle: () => void }
+      }
+    }
+    // Claude Code's root session waits on a permission request.
+    const binding = { agent: "claude", sessionId: "s", instance: null } as const
+    const record = inside.records.get(terminal.id)!
+    record.binding = binding
+    record.activity = { ...fresh(0), pending: [{} as Activity["pending"][number]] }
+    const { changes } = followRoot(null, binding, [], {
+      mode: harnesses.claude.messaging.root,
+      statusLine: false,
+      awaited: () => false,
+    })
+    inside.messaging.rooted(terminal.id, changes)
+    const draft = () => inside.messaging.delivery(terminal.id)?.box.draftWhileAsked
+    // The answer presses its option's key in the dialog.
+    expect(inside.typing.answers.host.press(terminal.id, "2")).toBe(true)
+    expect(draft()).toBe(false)
+    // The person's key, held while the answer read the dialog, is theirs once let go.
+    const hold = inside.typing.holdInput(terminal.id, {
+      inputMs: 5_000,
+      sizeMs: 5_000,
+      deferred: true,
+    })
+    manager.write({ terminalId: terminal.id, data: "k" }, "creator")
+    expect(draft()).toBe(false)
+    hold.release()
+    hold.settle()
+    expect(draft()).toBe(true)
   })
 })
 

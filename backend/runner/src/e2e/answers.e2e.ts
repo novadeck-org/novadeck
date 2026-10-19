@@ -11,7 +11,19 @@ import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported } from "./fixture.js"
 import { text, type Rule } from "./model/script.js"
 import type { FakeModel } from "./model/server.js"
-import { answers, lacking, own, result, start, withoutSandbox } from "./scenarios.js"
+import {
+  answers,
+  deliveries,
+  delivered,
+  lacking,
+  own,
+  result,
+  sends,
+  sent,
+  start,
+  through,
+  withoutSandbox,
+} from "./scenarios.js"
 
 // Answering an agent's requests from the chat, through the dialog in its TUI, the same for
 // every harness (see messaging.e2e.ts for the rule on parity): `agents.detail` shows each
@@ -168,6 +180,71 @@ for (const setup of setups) {
 
         await t1.until(approval!.denied)
         await unrequested(t1)
+      },
+    )
+
+    gated(it, lacking(setup, "approval"))(
+      "rings the agent at once for a message after a permission answered yes from the chat",
+      async ({ e2e: run }) => {
+        run.model.use(
+          answers("Make the file", (call) => approval!.request(call)),
+          sends("Tell moth the news", "moth", "The build is green."),
+          own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
+          own((call) => (delivered(call, "fox") ? { text: "Got the news." } : undefined)),
+          noted,
+        )
+        const t1 = await start(run, setup)
+        const t2 = await start(run, setup)
+        const from1 = t1.mark()
+        const calls = run.model.mark()
+
+        await t1.prompt("Make the file")
+        const request = await dialogOf(t1, "choices")
+        const yes = option(choices(request), /^Yes/, false)
+        await t1.answer(request.ref, { dialog: idOf(request), type: "choice", option: yes.id })
+        await t1.until("Noted.")
+        // The answer's own keys left no draft: its turn ends Settled, not Drafting.
+        const done = await through(t1, ["working", "settled"], { after: from1 })
+
+        // So a message is rung at once, with no look at the screen for an empty box first.
+        await t2.submit("Tell moth the news")
+        await through(t1, ["ringing", "working"], { after: done!.index })
+        const rung = await run.model.waitFor((call) => delivered(call, "fox"), { after: calls })
+        expect(deliveries(rung)).toEqual([{ from: "fox", text: "The build is green." }])
+        await t1.until("Got the news.")
+      },
+    )
+
+    gated(it, lacking(setup, "approval"))(
+      "rings the agent for a message after a permission answered no from the chat",
+      async ({ e2e: run }) => {
+        run.model.use(
+          answers("Make the file", (call) => approval!.request(call)),
+          sends("Tell moth the news", "moth", "The build is green."),
+          own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
+          own((call) => (delivered(call, "fox") ? { text: "Got the news." } : undefined)),
+          noted,
+        )
+        const t1 = await start(run, setup)
+        const t2 = await start(run, setup)
+        const from1 = t1.mark()
+        const calls = run.model.mark()
+
+        await t1.prompt("Make the file")
+        const request = await dialogOf(t1, "choices")
+        const no = option(choices(request), /^No/)
+        // Codex's no is its Escape, which ends the turn with no Stop: Unknown, until the
+        // screen shows its box empty.
+        await t1.answer(request.ref, { dialog: idOf(request), type: "choice", option: no.id })
+        await t1.until(approval!.denied)
+        await unrequested(t1)
+
+        // However the turn ended, the message is rung, not left waiting on its next prompt.
+        await t2.submit("Tell moth the news")
+        await through(t1, ["ringing", "working"], { after: from1 })
+        const rung = await run.model.waitFor((call) => delivered(call, "fox"), { after: calls })
+        expect(deliveries(rung)).toEqual([{ from: "fox", text: "The build is green." }])
+        await t1.until("Got the news.")
       },
     )
 

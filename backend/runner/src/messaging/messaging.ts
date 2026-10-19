@@ -359,6 +359,8 @@ export class Messaging {
   private readonly holdsTold = new Map<string, number>()
   /** When each queued message last came to wait: sent, or put back by a pause, release or lapse. */
   private readonly queuedSince = new Map<string, number>()
+  /** The terminals an answer is pressing its own keys in now (see `pressing`). */
+  private readonly pressed = new Set<string>()
   private readonly responses = new Map<string, string>()
   private readonly threads = new Map<string, Thread>()
   private readonly leases: Leases
@@ -874,14 +876,34 @@ export class Messaging {
 
   /**
    * The person's keys to the terminal, apart from its automatic replies, while a request
-   * waits on them (`asked`) or not. Delivery alone decides what they did to the box.
+   * waits on them (`asked`) or not, or an answer's own within `pressing`. Delivery alone
+   * decides what they did to the box.
    */
   keys(terminalId: string, kinds: readonly KeyKind[], asked: boolean): void {
     const live = this.live.get(terminalId)
     if (!live) return
     const at = this.now()
     live.keyedAt = at
-    for (const key of kinds) this.step(live, { type: "key", key, asked, at })
+    // Novadeck's own keys answering the request, as `pressing` tells; never once none waits.
+    const pressed = asked && this.pressed.has(terminalId)
+    for (const key of kinds)
+      this.step(live, pressed ? { type: "pressed", key, at } : { type: "key", key, asked, at })
+  }
+
+  /**
+   * Runs `press`, which writes an answer's own keys to the terminal through the bookkeeping
+   * the person's keys get (`keys`, which it calls at once): those keys, while a request
+   * waits, are Novadeck's, pressed in the dialog the answer read, and leave no draft. Only
+   * what `press` itself reports counts so: the person's keys, from any client or released
+   * from an answer's hold, come by themselves, never within it.
+   */
+  pressing(terminalId: string, press: () => void): void {
+    this.pressed.add(terminalId)
+    try {
+      press()
+    } finally {
+      this.pressed.delete(terminalId)
+    }
   }
 
   /**
