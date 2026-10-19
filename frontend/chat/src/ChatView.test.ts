@@ -11,11 +11,11 @@ import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
-import { describe, expect, it } from "../../test"
 import { ChatView } from "./ChatView"
 import { createChatCommands } from "./commands"
 import { chatDraftOf, chatReplyOf, chatSendOf } from "./mode-state"
 import { createChat } from "./state"
+import { describe, expect, it } from "./test"
 import { useChat } from "./use-chat"
 
 const unmounts: (() => void)[] = []

@@ -11,11 +11,13 @@
 @source "../../demo-debug/src";
 @source "../../toolkit/src";
 @source "../../companion/src";
+@source "../../chat/src";
 @source not "../../terminal-views/src/**/*.test.ts";
 @source not "../../demo/src/**/*.test.ts";
 @source not "../../demo-debug/src/**/*.test.ts";
 @source not "../../toolkit/src/**/*.test.ts";
 @source not "../../companion/src/**/*.test.ts";
+@source not "../../chat/src/**/*.test.ts";
 @import "./theme/contract.css";
 @import "allotment/dist/style.css" layer(base);
 @import "./theme/base.css" layer(base);
@@ -65,7 +67,7 @@
 @import "./projects/pins-bar.css" layer(components);
 @import "./terminals/window.css" layer(components);
 @import "@novadeck/toolkit/markdown.css" layer(components);
-@import "./terminals/chat/chat.css" layer(components);
+@import "@novadeck/chat/chat.css" layer(components);
 @import "./terminals/tabs.css" layer(components);
 @import "./terminals/team-wire.css" layer(components);
 @import "./terminals/switcher.css" layer(components);

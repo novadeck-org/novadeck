@@ -1,3 +1,4 @@
+import { createChat } from "@novadeck/chat/state"
 import type { Rect } from "@novadeck/core/layout/spatial"
 import type { Backend } from "@novadeck/core/port"
 import { activeSession } from "@novadeck/core/state"
@@ -19,7 +20,6 @@ import {
   watchSwitcher,
 } from "../app/ui-store"
 import type { CanvasHandle } from "../layouts/canvas/types"
-import { createChat } from "../terminals/chat/state"
 
 export type CommandsOptions = {
   readonly workspace?: Workspace

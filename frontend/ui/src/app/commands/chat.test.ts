@@ -1,13 +1,7 @@
+import { chatDraftOf, chatReplyOf, chatSendOf, chatShown, watchChat } from "@novadeck/chat/state"
 import { noConversation, type Conversations } from "@novadeck/core/conversation"
 import type { AgentStatus } from "@novadeck/core/types"
 
-import {
-  chatDraftOf,
-  chatReplyOf,
-  chatSendOf,
-  chatShown,
-  watchChat,
-} from "../../terminals/chat/state"
 import { context, describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"
 

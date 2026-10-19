@@ -1,3 +1,6 @@
+import { ChatView } from "@novadeck/chat/ChatView"
+import { chatDraftOf, chatReplyOf, chatSendOf, chatShown } from "@novadeck/chat/state"
+import { useChat } from "@novadeck/chat/use-chat"
 import { TerminalCompanion } from "@novadeck/companion/TerminalCompanion"
 import { UndockedWindow } from "@novadeck/companion/UndockedWindow"
 import { agentStats } from "@novadeck/core/agent-usage"
@@ -7,9 +10,6 @@ import type { CompanionWindowMeta, TerminalMetadata, Tile } from "@novadeck/core
 import { memo, useCallback, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
-import { ChatView } from "../terminals/chat/ChatView"
-import { chatDraftOf, chatReplyOf, chatSendOf, chatShown } from "../terminals/chat/state"
-import { useChat } from "../terminals/chat/use-chat"
 import { presentedProgram, terminalProfile, windowProfile } from "../terminals/processes/profiles"
 import { renameView } from "../terminals/rename-state"
 import { unreadEnd } from "../terminals/unread-state"

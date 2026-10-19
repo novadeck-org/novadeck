@@ -17,6 +17,8 @@ import { describe, expect, it } from "./test"
 // the sidebar item. Its own rules are its package.json's.
 // terminals/companion/ is the package `@novadeck/companion` (see `modules`): the companion pane
 // and the bar drag, which `layouts/` and `app/` reach as part of `terminals/`.
+// terminals/chat/ is the package `@novadeck/chat` (see `modules`): the chat view, its store and
+// its commands, which `app/` composes.
 const base = ["core/", "interaction/", "ui-toolkit/", "theme/"]
 // The features are the leaves that the shell and the app compose. A feature imports the base
 // and itself, never another feature: what two of them share belongs to the base. `terminals/`
@@ -132,6 +134,7 @@ const vendors: Record<string, readonly string[]> = {
 const modules: Record<string, string> = {
   "@novadeck/toolkit/": "ui-toolkit/",
   "@novadeck/companion/": "terminals/companion/",
+  "@novadeck/chat/": "terminals/chat/",
   "@novadeck/core/testing": "test/fixtures.ts",
   "@novadeck/test-kit/": "test/",
 }
@@ -324,7 +327,7 @@ describe("UI architecture", () => {
 
 // What the UI package exports: the few modules the apps start from, and for the specs those
 // they drive the whole UI through. Anything else is internal, and only the specs may reach a
-// module that isn't public, besides the one the chat contract renders.
+// module that isn't public.
 describe("the UI's exports", () => {
   const publicSubpaths = [
     "./app/App",
@@ -368,18 +371,9 @@ describe("the UI's exports", () => {
   })
 
   it("lets only the specs import what isn't public", () => {
-    // The chat contract renders the chat's transcript from recorded harness records, and
-    // reaches nothing else.
-    const contractSubpaths = new Set(["./terminals/chat/Transcript"])
-    expect(reach.some(({ dir }) => dir === "frontend/chat-contract")).toBe(true)
     expect(
       reach
-        .filter(
-          ({ dir, subpath }) =>
-            dir !== "frontend/specs" &&
-            !publicSubpaths.includes(subpath) &&
-            !(dir === "frontend/chat-contract" && contractSubpaths.has(subpath)),
-        )
+        .filter(({ dir, subpath }) => dir !== "frontend/specs" && !publicSubpaths.includes(subpath))
         .map(({ file, subpath }) => `${file} -> ${subpath}`),
     ).toEqual([])
   })
