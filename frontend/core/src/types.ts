@@ -86,12 +86,18 @@ export type AgentUsage = {
 }
 
 // What a terminal's process is doing. Exit and failure details replace each other.
-// An exited process reports its code, or the signal that killed it. A running agent
-// that reports through its hooks adds what it is doing.
+// An exited process reports its code, or the signal that killed it, and the cause where
+// the platform said, as being killed for memory. A running agent that reports through
+// its hooks adds what it is doing.
 export type TerminalStatus =
   | { readonly state: "starting" | "idle" | "finished" }
   | { readonly state: "running"; readonly agent?: AgentStatus }
-  | { readonly state: "exited"; readonly exitCode: number | null; readonly signal: string | null }
+  | {
+      readonly state: "exited"
+      readonly exitCode: number | null
+      readonly signal: string | null
+      readonly cause?: "out-of-memory"
+    }
   | { readonly state: "failed"; readonly message: string }
 
 // Who a terminal's name is from: the person, an agent (by its terminal's handle), the

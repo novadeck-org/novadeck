@@ -111,6 +111,17 @@ show as `codex` and `claude` while other Node programs stay `node`. Where the pr
 cannot tell, as on Windows or for a Node CLI on macOS, a connected agent that reported
 its session since the shell's last prompt names the program.
 
+On Linux with systemd, each terminal's shell runs in a transient scope of its own (such
+as `app-dev.mzpk.novadeck-term-<pid>.scope`, named after the app's scope), which the
+runner asks the user's service manager for right after the shell starts
+(`libraries/terminal/src/pty/scopes.ts`). Then a program that runs out of memory takes
+down only what the kernel or systemd-oomd kills, never the app: the app's own scope
+stops everything in it on one OOM kill. The scope's `OOMPolicy=continue` keeps the shell
+when the kernel kills only the program, as outside a scope; a terminal whose shell was
+killed for memory, as systemd-oomd kills the whole scope, ends as "Killed · out of
+memory". Without a user bus (no systemd, a container, WSL without systemd), shells run
+in the app's scope as before. macOS and Windows are unchanged.
+
 While a program holds the foreground, its profile decides how the terminal looks.
 `frontend/ui/src/terminals/processes/profiles.ts` maps program names to a tab and
 header icon and a body around the terminal's content; programs it does not list,
@@ -730,9 +741,9 @@ Terminals:
 
 - **Selected terminal:** put the selected terminal in each of its states: starting, loading
   output, back at the prompt, running a long program, Claude Code or Codex, a failed
-  paste, and each way to end (clean exit, exit code, killed, failed to start). Each one
-  that changes the state calls off what the terminal's agent had pending, so a finish
-  due later doesn't bring the agent back. "Leads the others" makes the selected terminal
+  paste, and each way to end (clean exit, exit code, killed, killed for memory, failed to
+  start). Each one that changes the state calls off what the terminal's agent had
+  pending, so a finish due later doesn't bring the agent back. "Leads the others" makes the selected terminal
   lead every other live terminal of the session, for the rail's team wire with many
   workers; with "Burst of" first, part of the team scrolls out of view.
 - **New terminals:** "Every state at once" adds one terminal per state, named after it, so

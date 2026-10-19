@@ -1,5 +1,5 @@
 import { TerminalError, type TerminalEvent } from "../contract.js"
-import type { Disposable, EndBudget, NativeSpawn, ProcessTrees } from "../pty/pty.js"
+import type { Disposable, EndBudget, ProcessTrees, PtyOptions } from "../pty/pty.js"
 import {
   createTerminal,
   type HostedTerminal,
@@ -30,8 +30,8 @@ export type TerminalHostOptions = {
   }
   /** Windows' process trees, which a closed terminal's programs are ended by. */
   readonly trees: ProcessTrees
-  /** The pty as a test plays it (see `spawnPty`). */
-  readonly pty?: { readonly native?: NativeSpawn; readonly platform?: NodeJS.Platform }
+  /** How its ptys start: as a test plays them, and where their programs are kept (see `spawnPty`). */
+  readonly pty?: PtyOptions
 }
 
 /**

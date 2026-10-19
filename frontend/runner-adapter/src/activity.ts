@@ -11,14 +11,21 @@ import type {
 export const defaultQuickExitMs = 2000
 
 // How a shell ended: "clean" (code 0, no signal) closes its terminal; anything else
-// keeps it with a label: killed by a signal, whenever it came; a non-zero code, or
+// keeps it with a label: killed by a signal, whenever it came, and for memory where the
+// runner says so; a non-zero code, or
 // failing to start when that code came within `quickExitMs` of starting.
 export const exitStatus = (
   exit: TerminalExit,
   quickExitMs = defaultQuickExitMs,
 ): TerminalStatus | "clean" => {
   if (exit.code === 0 && !exit.signal) return "clean"
-  if (exit.signal) return { state: "exited", exitCode: exit.code, signal: exit.signal }
+  if (exit.signal)
+    return {
+      state: "exited",
+      exitCode: exit.code,
+      signal: exit.signal,
+      ...(exit.cause && { cause: exit.cause }),
+    }
   if (exit.ranMs < quickExitMs) return { state: "failed", message: "Exited right after starting" }
   return { state: "exited", exitCode: exit.code, signal: null }
 }

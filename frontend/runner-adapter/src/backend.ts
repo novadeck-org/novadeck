@@ -214,7 +214,8 @@ export type RunnerBackend = {
 // Statuses that read the same; a terminal's metadata carries its status among its fields.
 const sameStatus = (a: TerminalStatus, b: TerminalStatus): boolean => statusKey(a) === statusKey(b)
 const statusKey = (status: TerminalStatus): string => {
-  if (status.state === "exited") return `exited:${status.exitCode}:${status.signal}`
+  if (status.state === "exited")
+    return `exited:${status.exitCode}:${status.signal}:${status.cause ?? ""}`
   if (status.state === "failed") return `failed:${status.message}`
   if (status.state === "running") return `running:${JSON.stringify(status.agent ?? null)}`
   return status.state
