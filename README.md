@@ -1099,13 +1099,14 @@ folder of `frontend/ui/src/`:
 | `frontend/core/src/messages.ts`                                 | The contract for agents' messages: threads, states, the pause, and a tab's count.                                              |
 | `frontend/core/src/conversation.ts`                             | The contract for an agent's conversation: transcript items, requests, the port.                                                |
 | `frontend/core/src/inbox.ts`                                    | The contract for the Inbox: items by source, their type and urgency, answers, the port.                                        |
+| `frontend/core/src/answers.ts`                                  | What the person has picked and written for a dialog's questions, and the answer it makes.                                      |
 | `frontend/core/src/conversation-turns.ts`                       | A conversation grouped into blocks, tool calls summed up in a line, the turn's status.                                         |
 | `frontend/core/src/roster.ts`                                   | A session's terminals and undocked windows, laid out as tiles, their order and status.                                         |
 | `frontend/core/src/layout/workspace-layout.ts`                  | Where each terminal sits and how big it is in each view.                                                                       |
 | `terminals/`                                                    | Terminal frame, tabs, rename state, and the recent-terminal switcher.                                                          |
 | `frontend/companion/src/`                                       | Taskbar and pane: the panes' store, `bar.ts` rules, `registry.ts` and `panes/<kind>/` (one folder per kind).                   |
 | `frontend/companion/src/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
-| `terminals/chat/`                                               | The agent's chat: its blocks, markdown reader, tool rows, requests and the composer.                                           |
+| `terminals/chat/`                                               | The agent's chat: its blocks, tool rows, requests and the composer.                                                            |
 | `layouts/canvas/`, `grid/`, `focus/`                            | View adapters and colocated library styles.                                                                                    |
 | `layouts/` (top level)                                          | Helpers shared by views: view transitions, background gestures, visibility.                                                    |
 | `notifications/`                                                | The notification center: what asks for the person across the workspace, and its panel.                                         |
@@ -1113,7 +1114,7 @@ folder of `frontend/ui/src/`:
 | `shell/`                                                        | Header, rail, panels, zen dock, sidebar, and shell state transitions.                                                          |
 | `sidebar/`, `projects/`, `preferences/`, `search/`              | Feature components.                                                                                                            |
 | `interaction/`                                                  | Shortcut records, the keymap, and shared DOM focus/overlay contracts.                                                          |
-| `frontend/toolkit/src/`                                         | Reusable controls, direct Ark UI imports, the shared recipes they draw with, and the sidebar item.                             |
+| `frontend/toolkit/src/`                                         | Reusable controls, direct Ark UI imports, their recipes, the sidebar item and `Markdown`.                                      |
 | `test/`                                                         | The command harness: the real stores, navigator and commands, for tests.                                                       |
 | `frontend/test-kit/src/`                                        | A jsdom render helper, the port contract suite, and test phase timing.                                                         |
 | `assets/`                                                       | Static files referenced from CSS.                                                                                              |
@@ -1138,8 +1139,9 @@ the core and imports no packages;
 features add `frontend/toolkit`; `layouts/` may use
 `terminals/`; the companion pane is a package of its own, `frontend/companion`, built on the
 core, the toolkit and the viewers and never on the UI, which composes it; `notifications/` builds on the base layers and
-`terminals/unread-state.ts`; `inbox/` builds on the base layers and the
-chat's markdown reader and answers; `shell/` may use `layouts/`, `projects/`,
+`terminals/unread-state.ts`; no feature (`inbox/`, `notifications/`, `preferences/`, `projects/`,
+`search/`, `sidebar/` or `voice/`) imports another, only the base and itself, and none reaches the
+chat or the companion; `shell/` may use `layouts/`, `projects/`,
 `notifications/` and `inbox/`. `app/` composes every feature layer, `notifications/` and `inbox/`.
 Only an app imports a backend adapter, each its own: `apps/desktop` takes the runner adapter,
 `apps/try` the demo, and `apps/previews` the demo with its debug panel (tests and specs may
