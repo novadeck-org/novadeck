@@ -64,6 +64,7 @@
 @import "./projects/workspace-switcher.css" layer(components);
 @import "./projects/pins-bar.css" layer(components);
 @import "./terminals/window.css" layer(components);
+@import "@novadeck/toolkit/markdown.css" layer(components);
 @import "./terminals/chat/chat.css" layer(components);
 @import "./terminals/tabs.css" layer(components);
 @import "./terminals/team-wire.css" layer(components);
