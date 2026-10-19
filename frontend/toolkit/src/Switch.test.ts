@@ -1,8 +1,8 @@
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 
-import { describe, expect, it } from "../test"
 import { Switch } from "./Switch"
+import { describe, expect, it } from "./test"
 
 describe("a switch with a change on its way", () => {
   it("takes no clicks, keeps focus, and says it's busy", () => {

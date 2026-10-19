@@ -1,9 +1,9 @@
 import { useSortable } from "@dnd-kit/react/sortable"
 import type { Project } from "@novadeck/core/types"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { Pin, PinOff, Trash2 } from "lucide-react"
 import { useEffect, useRef } from "react"
 
-import { Tooltip } from "../ui-toolkit/Tooltip"
 import { statusText, type ProjectStatus } from "./project-status"
 
 // One project's row in the list: its button, and the pin and remove buttons that show

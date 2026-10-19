@@ -64,6 +64,7 @@ const places = [
   ["backend/terminal-views/", "terminal-views"],
   ["backend/runner/", "runner-adapter"],
   ["core/", "core"],
+  ["ui-toolkit/", "toolkit"],
 ].map(([prefix, name]) => ({ prefix: prefix!, dir: join(src, "..", "..", name!, "src") }))
 const all = [
   ...(readdirSync(src, { recursive: true }) as string[]),
@@ -730,8 +731,18 @@ const imports = (css: string): { readonly target: string; readonly layered: bool
       : []
   })
 
-const resolveCss = (from: string, target: string): string | undefined =>
-  target.startsWith(".") ? posix.normalize(posix.join(posix.dirname(from), target)) : undefined
+// A stylesheet of another package, as `@import "@novadeck/toolkit/item.css"` names it, is the
+// file it was below the old src/: the package's folder is `places`' prefix.
+const packageCss = [["@novadeck/toolkit/", "ui-toolkit/"]] as const
+
+const resolveCss = (from: string, target: string): string | undefined => {
+  const named = packageCss.find(([name]) => target.startsWith(name))
+  return named
+    ? `${named[1]}${target.slice(named[0].length)}`
+    : target.startsWith(".")
+      ? posix.normalize(posix.join(posix.dirname(from), target))
+      : undefined
+}
 
 const unlayered = (file: string): string[] => {
   const css = uncomment(read(file))

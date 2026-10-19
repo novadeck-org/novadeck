@@ -1,11 +1,10 @@
 import { terminalLabel } from "@novadeck/core/handle"
 import { isWindow } from "@novadeck/core/roster"
 import type { Tile } from "@novadeck/core/types"
+import { HandleChip } from "@novadeck/toolkit/HandleChip"
+import { searchResultClasses } from "@novadeck/toolkit/SearchCombobox"
 import { ArrowUpRight, Layers, Terminal, X } from "lucide-react"
 import { useEffect, useRef } from "react"
-
-import { HandleChip } from "../ui-toolkit/HandleChip"
-import { searchResultClasses } from "../ui-toolkit/SearchCombobox"
 
 export const TerminalSwitcher = ({
   terminals,
