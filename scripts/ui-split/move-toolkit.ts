@@ -168,9 +168,9 @@ try {
     writeFileSync(join(root, place), text)
     written.push(place)
   }
-  if (writes.size > 0 || moves.length > 0) finish(root, oxfmt, written)
-  else finish(root, oxfmt, [])
-  git("add", "--", ...new Set([...written, ...moves.map(({ to }) => to)]))
+  finish(root, oxfmt, written)
+  const staged = new Set([...written, ...moves.map(({ to }) => to)])
+  if (staged.size > 0) git("add", "--", ...staged)
 } catch (error) {
   console.error(
     `The move stopped partway: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}\nThe tree is half moved: \`git reset --hard\`, then run the script again.`,
