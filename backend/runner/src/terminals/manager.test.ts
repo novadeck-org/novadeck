@@ -1841,7 +1841,7 @@ describe("a turn the person's Escape ended", () => {
 describe("saving a terminal that was closed", () => {
   type Inside = {
     records: Map<string, unknown>
-    save: (record: unknown, transcript: boolean) => void
+    saves: { save: (record: unknown, transcript: boolean) => void }
   }
   const stored = async () => {
     const store = new WorkspaceStore()
@@ -1866,8 +1866,8 @@ describe("saving a terminal that was closed", () => {
 
       await manager.close({ terminalId: id })
       expect(store.terminal(id)).toBeUndefined()
-      inside.save(record, false)
-      inside.save(record, true)
+      inside.saves.save(record, false)
+      inside.saves.save(record, true)
 
       expect(store.terminal(id)).toBeUndefined()
     } finally {
@@ -2009,7 +2009,7 @@ describe("saving a terminal that was closed", () => {
 
       // A report suspended while it was let go saves once it resumes.
       store.removeTerminal(ids[0])
-      inside.save(records[0], false)
+      inside.saves.save(records[0], false)
 
       expect(store.terminal(ids[0])).toBeDefined()
     } finally {
