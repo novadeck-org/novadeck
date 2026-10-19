@@ -25,7 +25,7 @@ import {
   reconcile,
   write,
   type Picks,
-} from "./answers"
+} from "@novadeck/core/answers"
 import {
   complete as completeForm,
   enter,

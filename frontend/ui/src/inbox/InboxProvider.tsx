@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from "react"
 
-import type { Picks } from "../terminals/chat/answers"
+import type { Picks } from "@novadeck/core/answers"
 import { rowOf } from "./inbox-dom"
 import {
   clearArrived,

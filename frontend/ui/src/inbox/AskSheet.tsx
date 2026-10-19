@@ -2,7 +2,7 @@ import type { ChatQuestion } from "@novadeck/core/conversation"
 import type { AgentAsk, AskOption } from "@novadeck/core/inbox"
 import { useState, type ReactNode } from "react"
 
-import { choose, complete, questionsAnswer, write, type Picks } from "../terminals/chat/answers"
+import { choose, complete, questionsAnswer, write, type Picks } from "@novadeck/core/answers"
 import { Markdown } from "../terminals/chat/Markdown"
 import { Unanswerable } from "./ApproveSheet"
 import { agentName, recommended } from "./inbox-text"

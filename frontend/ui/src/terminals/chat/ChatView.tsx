@@ -14,7 +14,7 @@ import {
   useSyncExternalStore,
 } from "react"
 
-import { wordsOf } from "./answers"
+import { wordsOf } from "@novadeck/core/answers"
 import { Composer } from "./Composer"
 import {
   composerState,

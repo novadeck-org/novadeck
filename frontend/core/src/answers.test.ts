@@ -1,4 +1,4 @@
-import type { ChatQuestion } from "@novadeck/core/conversation"
+import type { ChatQuestion } from "./conversation"
 import { describe, expect, it } from "vitest"
 
 import {

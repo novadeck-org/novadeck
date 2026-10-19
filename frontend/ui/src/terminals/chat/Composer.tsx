@@ -10,7 +10,7 @@ import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { ArrowUp, Square, X } from "lucide-react"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
-import { oneLine } from "./answers"
+import { oneLine } from "@novadeck/core/answers"
 import { Hint } from "./Hint"
 import type { ComposerMode } from "./mode-state"
 
