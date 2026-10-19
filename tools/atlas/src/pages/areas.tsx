@@ -60,8 +60,8 @@ export const AreasPage = () => {
   )
 }
 
-// A token with each part that is an area of its own linking to it: `ui` / `backend` /
-// `runner`.
+// A token with each part that is an area of its own linking to it: `frontend` / `ui` /
+// `app`.
 const TokenPath = ({ id }: { id: string }) => {
   const parts = id.split("/")
   return (

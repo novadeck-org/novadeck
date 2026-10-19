@@ -5,11 +5,16 @@ import { Link } from "react-router"
 import { Token } from "../../components/viz.tsx"
 import { areaPath } from "../../links.ts"
 
-const groups = new Set(["ui", "runner", "protocol", "host"])
-export const groupOfArea = (id: string) => {
-  const top = id.split("/")[0] ?? ""
-  return groups.has(top) ? top : "other"
-}
+// Each colour's areas, by the token they start with: the first that matches.
+const groups = [
+  ["host", "apps/desktop"],
+  ["ui", "frontend"],
+  ["ui", "apps"],
+  ["runner", "backend/runner"],
+  ["protocol", "contract"],
+] as const
+export const groupOfArea = (id: string) =>
+  groups.find(([, prefix]) => id === prefix || id.startsWith(`${prefix}/`))?.[0] ?? "other"
 
 export const groupColor = (id: string) => `var(--g-${groupOfArea(id)})`
 

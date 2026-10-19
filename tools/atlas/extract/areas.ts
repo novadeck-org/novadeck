@@ -28,7 +28,7 @@ const foldersUnder = (files: string[], dir: string): string[] =>
   ].toSorted()
 
 // A package's tokens, most specific first so the first matching glob is the owner:
-// `ui/backend/runner` before `ui/backend` before `ui`.
+// `frontend/ui/app` before `frontend/ui` when a package lists `split` folders.
 const tokensOf = (root: Root, files: string[]): { id: string; glob: string }[] => {
   if (root.src === undefined) return [{ id: root.token, glob: `${root.dir}/**` }]
   const src = `${root.dir}/${root.src}`

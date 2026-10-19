@@ -11,7 +11,7 @@ reading through the folders. From the repository root:
 
 ```sh
 pnpm -s atlas:brief                    # index: every area token with its purpose
-pnpm -s atlas:brief runner/terminals   # an area
+pnpm -s atlas:brief backend/runner/terminals   # an area
 pnpm -s atlas:brief terminals.create   # a procedure, down to the SQL it runs
 pnpm -s atlas:brief terminal/add       # a UI action, from dispatch to the runner
 pnpm -s atlas:brief table:terminals    # a table, its store methods and who reaches them
@@ -29,10 +29,11 @@ if they are missing or stale; the same goes for `extract` and `check`), with `fi
 
 ## Area tokens
 
-Areas are named by tokens that mirror where the code lives: the package, then one
-segment per folder (`runner/terminals` is `backend/runner/src/terminals`,
-`ui/backend/runner` is `frontend/runner-adapter/src`). Use the tokens when you
-report, plan or describe changes, so people and agents name the same thing the same way.
+Areas are named by tokens that mirror where the code lives: the package's folder from the
+repository root, then one segment per folder under its `src` (`backend/runner/terminals` is
+`backend/runner/src/terminals`; `frontend/runner-adapter` and `apps/desktop` are whole
+packages). Use the tokens when you report, plan or describe changes, so people and agents name
+the same thing the same way.
 
 ## Reading a brief
 
@@ -57,7 +58,7 @@ extract`, for `jq`; it is large, so prefer briefs.
   which renders only the generated data; `brief/` renders it as text.
 - Prefer extracting to curating. Whatever is curated points into the code with an anchor
   (`{ file, text }`), and `pnpm --filter @novadeck/atlas check` fails when one rots, when
-  source under `application/`, `harnesses/` or `engines/` belongs to no area, or when a
+  source under `apps/`, `backend/`, `contract/`, `frontend/`, `harnesses/` or `engines/` belongs to no area, or when a
   note names an area that no longer exists. A new folder becomes a token on its own; give
   it a purpose in `content/areas.ts`. A new package needs a root there.
 - Every structure an extractor depends on (a type, a class, a marker line) is expected, not
