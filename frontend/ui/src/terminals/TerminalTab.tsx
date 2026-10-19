@@ -37,6 +37,7 @@ export const TerminalTab = ({
   index,
   selected,
   team,
+  teamWords,
   hidden,
   unread,
   rename,
@@ -60,6 +61,8 @@ export const TerminalTab = ({
   selected: boolean
   // Its place in the selected terminal's team: the lead or one of its workers (tabs.css).
   team?: "lead" | "worker" | undefined
+  // Who leads it and whom it leads, in words, for its description: the wire only draws it.
+  teamWords?: string | undefined
   hidden: boolean
   // Its agent finished while the person looked elsewhere, on its own or on an error: the
   // tab says so until they look.
@@ -112,7 +115,9 @@ export const TerminalTab = ({
         ? `${subagents}: ${subagentsDetail(shell)}`
         : subagents
       : undefined
-  const description = [note, messages, kinds].filter(Boolean).join(", ")
+  const said = [note, messages, kinds, teamWords].filter(Boolean).join(", ")
+  // Its team's words start lower case, as they follow the others, so lead with a capital.
+  const description = said && `${said[0]!.toUpperCase()}${said.slice(1)}`
   const menu = windowMenu({
     terminal,
     onRename: onBeginRename,

@@ -4,6 +4,7 @@ import {
   sameTeam,
   teamOf,
   teamRole,
+  teamText,
   terminalOrigins,
 } from "./derivations"
 import { workspaceReducer } from "./state"
@@ -151,6 +152,40 @@ describe("a terminal's team", () => {
       expect(teamOf(exited, "01")).toBeUndefined()
       expect(teamOf(exited, "02")).toBeUndefined()
     })
+  })
+})
+
+describe("a terminal's team in words", () => {
+  it("says whom a lead leads, by handle", () => {
+    expect(teamText(teams(), "01")).toBe("leads @fox and @owl")
+  })
+
+  it("says who leads a worker", () => {
+    expect(teamText(teams(), "02")).toBe("led by @moth")
+  })
+
+  it("says both for a terminal that works for a lead and leads", () => {
+    expect(teamText(teams(), "04")).toBe("led by @moth, leads @newt")
+  })
+
+  it("says nothing for a terminal in no team", () => {
+    expect(teamText(teams(), "03")).toBeUndefined()
+  })
+
+  it("names the first three workers of a bigger team and counts the rest", () => {
+    const big = [6, 7, 8].reduce(
+      (state, slot) =>
+        [
+          { type: "terminal/add", target, terminal: terminalFixture(slot, "~/project") },
+          { type: "terminal/update", target, terminalId: `0${slot}`, ledBy: "moth" },
+        ].reduce(
+          (inner, action) =>
+            workspaceReducer(inner, action as Parameters<typeof workspaceReducer>[1]),
+          state,
+        ),
+      teams(),
+    )
+    expect(teamText(big, "01")).toBe("leads @fox, @owl, Terminal and 2 more")
   })
 })
 
