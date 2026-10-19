@@ -37,6 +37,20 @@ describe("demo updates", () => {
     expect(heard).toEqual([waiting])
   })
 
+  it("downloads once allowed, but only for an offer that asks to be allowed", () => {
+    vi.useFakeTimers()
+    const { updates, offer } = createDemoUpdates()
+    const heard: string[] = []
+    updates.onOffer((each) => heard.push(each.kind))
+    offer({ kind: "available", version: "0.0.80" })
+    updates.allow?.()
+    vi.advanceTimersByTime(downloadMs)
+    expect(heard).toEqual(["available"])
+    offer({ kind: "available", version: "0.0.80", allow: true })
+    updates.allow?.()
+    expect(heard).toEqual(["available", "available", "downloading"])
+  })
+
   it("holds the restart until it is finished, and finishes only while an update waits", () => {
     let restarts = 0
     const { offer, finish } = createDemoUpdates(() => void (restarts += 1))

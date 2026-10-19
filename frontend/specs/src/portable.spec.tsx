@@ -3,7 +3,12 @@ import { cleanup } from "vitest-browser-react"
 import { page, type Locator } from "vitest/browser"
 
 import { portableInstall } from "./support/backend"
-import { expectStaysAbsent, openWorkspace, press } from "./support/workspace"
+import { expectStaysAbsent, isMac, openWorkspace, press } from "./support/workspace"
+
+// Closing the window doesn't quit the app on macOS, so there a restart is a quit and a reopen.
+const takesEffect = isMac()
+  ? "Takes effect after you quit and reopen Novadeck"
+  : "Takes effect after you restart Novadeck"
 
 // The footer's chips come before the card in the page, which has its own buttons.
 const install = (): Locator =>
@@ -126,9 +131,7 @@ describe("a portable copy's install card", () => {
       await openWorkspace("/?portable=no-release")
       await primary(quiet()).click()
       await expect.element(done()).toBeVisible()
-      await expect
-        .element(done().getByText("Takes effect after you restart Novadeck"))
-        .toBeVisible()
+      await expect.element(done().getByText(takesEffect)).toBeVisible()
       await expect.element(done().getByRole("button", { name: /restart/i })).not.toBeInTheDocument()
       await expect.element(done(), { timeout: 8000 }).not.toBeInTheDocument()
       await expect.element(installedChip()).toBeVisible()
@@ -187,7 +190,7 @@ describe("a portable copy's install card", () => {
       await primary(quiet()).click()
       const newer = page.getByRole("region", { name: "Novadeck 0.0.99 is already installed" })
       await expect.element(newer).toBeVisible()
-      await expect.element(newer.getByText("Takes effect after you restart Novadeck")).toBeVisible()
+      await expect.element(newer.getByText(takesEffect)).toBeVisible()
       await expect.element(primary(newer)).not.toBeInTheDocument()
       await expect
         .element(newer.getByRole("button", { name: /open|restart/i }))
