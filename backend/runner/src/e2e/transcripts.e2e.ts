@@ -8,7 +8,7 @@ import type { AgentSetup } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
-import { asked, latest, tool, type Call, type Reply } from "./model/script.js"
+import { asked, tool, type Call, type Reply } from "./model/script.js"
 import { own, start } from "./scenarios.js"
 
 // The chat's contract with each harness's transcript, the latest half (docs: the chat
@@ -28,7 +28,7 @@ type Step = {
   /** The reply that calls the tool, given the call it answers. */
   readonly reply: (call: Call) => Reply
   /** What the chat's line for the call says: its kind, and the start of its title. */
-  readonly kind: Kind
+  readonly kinds: readonly Kind[]
   readonly title: RegExp
   /** Text only this call's input holds, which finds its item. */
   readonly marker: string
@@ -42,7 +42,7 @@ const message = "transcripts-contract-message"
 /** Novadeck's own `send`, which every harness offers under its own prefix. */
 const send: Step = {
   marker: message,
-  kind: "agent",
+  kinds: ["agent"],
   title: /^Messaged/,
   reply: (call) => {
     const name = tool(call, "send")
@@ -54,7 +54,7 @@ const send: Step = {
 const claudeSteps: Steps = (project) => [
   {
     marker: "transcripts-bash",
-    kind: "run",
+    kinds: ["run"],
     title: /^Ran$/,
     reply: () => ({
       calls: [
@@ -70,7 +70,7 @@ const claudeSteps: Steps = (project) => [
   },
   {
     marker: "transcripts-read.txt",
-    kind: "read",
+    kinds: ["read"],
     title: /^Read$/,
     reply: () => ({
       calls: [
@@ -83,7 +83,7 @@ const claudeSteps: Steps = (project) => [
   },
   {
     marker: "transcripts-write.txt",
-    kind: "write",
+    kinds: ["write"],
     title: /^Wrote$/,
     reply: () => ({
       calls: [
@@ -103,7 +103,7 @@ const claudeSteps: Steps = (project) => [
 const codexSteps: Steps = () => [
   {
     marker: "transcripts-command",
-    kind: "run",
+    kinds: ["run"],
     title: /^Ran$/,
     reply: () => ({
       calls: [
@@ -116,11 +116,13 @@ const codexSteps: Steps = () => [
   },
   {
     // The fake model's Codex is offered no apply_patch tool, so it patches through its
-    // shell with a heredoc (controls.e2e.ts). The rollout records it as the shell call it is,
-    // so it reads as a run, not as `apply_patch`'s write.
+    // shell with a heredoc (controls.e2e.ts). Today the rollout records it as the shell call
+    // it is, which reads as a run; a newer Codex may record it as a patch, a write. Either
+    // is fine: a failure here, then, may be an improvement that needs a new pinned fixture,
+    // not a break. Only `other`, or a call without its result, is one.
     marker: "transcripts-patch.txt",
-    kind: "run",
-    title: /^Ran$/,
+    kinds: ["run", "write"],
+    title: /^(Ran|Patched)$/,
     reply: () => ({
       calls: [
         {
@@ -136,10 +138,18 @@ const codexSteps: Steps = () => [
   send,
 ]
 
+// The folder its commands run in, as its system prompt names it: a command must run there
+// (as agents/agy.ts does).
+const workingDirectory = (call: Call): string => {
+  const folder = /^Command Working Directory: (.+)$/m.exec(call.system)?.[1]
+  if (!folder) throw new Error("Antigravity's system prompt names no command working directory")
+  return folder
+}
+
 const agySteps: Steps = (project) => [
   {
     marker: "transcripts-command",
-    kind: "run",
+    kinds: ["run"],
     title: /^Ran$/,
     reply: (call) => ({
       calls: [
@@ -147,7 +157,7 @@ const agySteps: Steps = (project) => [
           name: "run_command",
           input: {
             CommandLine: "echo transcripts-command",
-            Cwd: /^Command Working Directory: (.+)$/m.exec(call.system)?.[1] ?? project,
+            Cwd: workingDirectory(call),
             WaitMsBeforeAsync: 10_000,
             toolSummary: "Print a word",
             toolAction: "Running",
@@ -158,7 +168,7 @@ const agySteps: Steps = (project) => [
   },
   {
     marker: "transcripts-read.txt",
-    kind: "read",
+    kinds: ["read"],
     title: /^Read$/,
     reply: () => ({
       calls: [
@@ -175,7 +185,7 @@ const agySteps: Steps = (project) => [
   },
   {
     marker: "transcripts-write.txt",
-    kind: "write",
+    kinds: ["write"],
     title: /^Wrote$/,
     reply: () => ({
       calls: [
@@ -216,11 +226,11 @@ const items = async (terminal: DeckTerminal): Promise<readonly TranscriptItem[]>
  * Lets the turn of `done` run to its end: whatever the harness asks the person before the
  * tool runs is allowed through the chat's answer, as the chat does.
  */
-const through = (terminal: DeckTerminal, done: string): Promise<string> =>
+const allowing = (terminal: DeckTerminal, done: string): Promise<string> =>
   terminal.poll(
     async () => {
-      const [request] = (await terminal.detail()).requests
-      if (request?.dialog?.type === "choices" && !request.answered) {
+      const request = (await terminal.detail()).requests.find((each) => !each.answered)
+      if (request?.dialog?.type === "choices") {
         const yes = request.dialog.options.find((each) => each.label.startsWith("Yes"))
         if (!yes) throw new Error(`No yes in ${JSON.stringify(request.dialog)}`)
         await terminal.answer(request.ref, {
@@ -297,8 +307,17 @@ for (const setup of setups) {
         ...steps.flatMap((step, index) => [
           own((call) => (asked(call, tag(index)) ? step.reply(call) : undefined)),
           own((call) => {
-            const last = call.turns.at(-1)
-            return last?.role === "tool" && latest(call).includes(tag(index))
+            // A tool's result after the latest step's prompt, the model not having answered
+            // since: a user text beside the result doesn't hide it.
+            const prompt = call.turns.findLastIndex(
+              (turn) => turn.role === "user" && turn.text.includes("Transcript step "),
+            )
+            const answered = call.turns.findLastIndex((turn) => turn.role === "assistant")
+            const resulted = call.turns.findLastIndex((turn) => turn.role === "tool")
+            return prompt > -1 &&
+              call.turns[prompt]!.text.includes(tag(index)) &&
+              resulted > prompt &&
+              resulted > answered
               ? { text: `Finished ${tag(index)}.` }
               : undefined
           }),
@@ -310,8 +329,26 @@ for (const setup of setups) {
         const t1 = await start(run, setup)
         await start(run, setup)
         for (const [index] of steps.entries()) {
+          const began = Date.now()
           await t1.prompt(tag(index))
-          await through(t1, `Finished ${tag(index)}.`)
+          await allowing(t1, `Finished ${tag(index)}.`)
+          // The next prompt is refused while the turn or a request is pending: Codex's shell
+          // patch settles only through its rollout, a moment behind the hooks.
+          // Its turn ended after the prompt. The delivery state isn't waited on: a request
+          // the chat answered leaves it Drafting, as the keys it pressed look typed.
+          await t1.poll(
+            () => {
+              const last = t1.summary().activity?.lastTurn
+              return last?.outcome === "completed" && last.at >= began ? true : undefined
+            },
+            "its turn to be recorded as completed",
+            30_000,
+          )
+          await t1.poll(
+            async () => ((await t1.detail()).requests.length === 0 ? true : undefined),
+            "its requests to be settled",
+            15_000,
+          )
         }
 
         // The rollout or transcript is read a moment behind the screen: wait for every
@@ -355,10 +392,11 @@ for (const setup of setups) {
         for (const step of steps) {
           const call = calls.find((one) => one.text.includes(step.marker))
           expect(call, `the call holding ${step.marker}`).toBeDefined()
-          expect(call!.run, `${call!.tool}: ${call!.text}`).toMatchObject({
-            kind: step.kind,
-          })
+          expect(call!.run, `${call!.tool}: ${call!.text}`).not.toBeNull()
           expect(call!.run!.kind).not.toBe("other")
+          expect(step.kinds, `${call!.tool}: ${JSON.stringify(call!.run)}`).toContain(
+            call!.run!.kind,
+          )
           expect(call!.run!.title).toMatch(step.title)
           const results = served.filter(
             (one) => one.kind === "tool-result" && one.call === call!.call,
@@ -366,7 +404,12 @@ for (const setup of setups) {
           expect(results, `the result of ${call!.tool}`).toHaveLength(1)
         }
       } catch (error) {
-        keep(setup, run.sandbox.home, tag(0))
+        try {
+          keep(setup, run.sandbox.home, tag(0))
+        } catch (copying) {
+          // The failure to report is the test's own.
+          console.error("The raw transcript could not be kept:", copying)
+        }
         throw error
       }
     })
