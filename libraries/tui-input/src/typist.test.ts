@@ -429,6 +429,21 @@ describe("a look and the gate on it", () => {
     expect((await typist.look())?.calm).toBe(false)
   })
 
+  it("reads the calm without what the profile says ticks by itself while idle", async () => {
+    const fake = terminal()
+    // An elapsed time counting up on its first row, which the profile reads without.
+    const profile = { ...fake.inputBox()!, still: (rows: readonly string[]) => rows.slice(1) }
+    const typist = createTypist(fake.target, { profile: () => profile, timing: fast })
+    fake.rows[0] = "agent 1s"
+    await typist.look()
+    await sleep(40)
+    fake.rows[0] = "agent 2s"
+    expect((await typist.look())?.calm).toBe(true)
+    // Any other row's change still ends the calm.
+    fake.rows[1] = "output"
+    expect((await typist.look())?.calm).toBe(false)
+  })
+
   it("calls the screen calm once it has been still for the whole period, not a moment before", async () => {
     const fake = terminal()
     const typist = looking(fake)

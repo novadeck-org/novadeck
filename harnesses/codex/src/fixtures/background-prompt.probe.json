@@ -2,7 +2,7 @@
   "harness": "codex",
   "version": "0.163.0",
   "source": "src/e2e/probes/background-prompt.e2e.ts, run with NOVADECK_E2E_PROBES=1 (2026-10-19)",
-  "how": "Driven in a PTY (120x40) by the end-to-end deck against the fake model: the root started a spawned agent (spawn_agent), its model call held, and its turn ended while that ran. Each screen read with `screenText`: 1 three seconds after the root's turn ended, 2 with a key (P) typed, 3 after the key was erased and `Ping now` submitted. `took` says the root's model was called for that prompt while the work's call was still held: the box takes a prompt then.",
+  "how": "Driven in a PTY (120x40) by the end-to-end deck against the fake model: the root started a spawned agent (spawn_agent), its model call held, and its turn ended while that ran. Each screen read with `screenText`: 1 three seconds after the root's turn ended, 2 with a key (P) typed, 3 after the key was erased and `Ping now` submitted. `took` says the root's model was called for that prompt while the work's call was still held: the box takes a prompt then. `changing` holds each row that redrew by itself in 3 s after screen 1, sampled every 100 ms, with every text it showed (a later run).",
   "took": true,
   "screens": {
     "1 stopped, work running": {
@@ -112,5 +112,6 @@
         "36": "›"
       }
     }
-  }
+  },
+  "changing": {}
 }

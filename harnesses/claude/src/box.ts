@@ -45,6 +45,17 @@ export const overlay = (screen: ScreenText): boolean =>
  * than about 800 characters (800 showed, 900 did not) as `[Pasted text #5]`. Below the
  * box it keeps two rules' worth and a footer row or two.
  */
+/**
+ * A row of its agents list under the footer, of a background agent (`◯`): its elapsed time
+ * and tokens at its end count up each second while it runs (probed 2026-10-19, 2.1.287,
+ * fixtures/background-prompt.probe.json `changing`; #325 showed `3h 40m 8s · ↓ 708.9k tokens`).
+ */
+const agentRow = /^(\s+◯ .*?)\s+(?:\d+h )?(?:\d+m )?\d+s(?: · ↓ [\d.]+[kKmM]? tokens)?\s*$/
+
+/** The rows without what counts up by itself while it idles: a background agent's elapsed time. */
+export const still = (rows: readonly string[]): readonly string[] =>
+  rows.map((row) => row.replace(agentRow, "$1"))
+
 export const box: BoxProfile = {
   read: (screen) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows)),
   // Enter runs a command shown as a placeholder as the text it stands for. It binds its session
@@ -64,4 +75,5 @@ export const box: BoxProfile = {
   // Probed on 24, 40 and 60 rows: 7, 15 and 25 (2.1.287, `e2e/probes/interrupted-paste.e2e.ts`).
   // Never below 1 on a screen of 11 rows or fewer, which the formula takes to nothing.
   viewport: (rows) => Math.max(Math.floor(rows / 2) - 5, 1),
+  still,
 }

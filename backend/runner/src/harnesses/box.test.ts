@@ -9,6 +9,7 @@ import { box as codex, shellFooter as codexFooter } from "@novadeck/harness-code
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { screen as screenWith } from "@novadeck/harness-core/testing/screens"
 import {
+  checkPaste,
   compact,
   isEmpty,
   sameText,
@@ -714,5 +715,61 @@ describe("Antigravity's panel of running subagents under its box", () => {
   it("is no panel when it holds anything else, or the cursor is not above it", () => {
     expect(agy.read(panel(3, "  Something else"))).toBeUndefined()
     expect(agy.read(panel(5, "  ● Agent(self: One)  Working · 1s"))).toBeUndefined()
+  })
+})
+
+// What each harness redraws by itself while background work runs, which the doorbell's calm
+// and its paste's check read without (`BoxProfile.still`): Claude Code counts up a background
+// agent's elapsed time in its agents list each second; Antigravity redraws its panel of
+// running subagents, elapsed time and all, as a paste lands, pushing its footer's hint out of
+// a paste's reach.
+describe("what ticks by itself while background work runs", () => {
+  it("is Claude Code's background agent's elapsed time, every row it drew read alike", () => {
+    const { changing } = loadProbe<{ changing: { readonly [row: string]: string[] } }>(
+      adapterFolder("claude"),
+      "background-prompt.probe.json",
+    )
+    const shown = Object.values(changing).flat()
+    expect(shown.length).toBeGreaterThan(1)
+    expect(new Set(shown.map((row) => claude.still!([row])[0])).size).toBe(1)
+    // #325's, with hours and tokens; its main row, and a running turn's spinner, kept.
+    expect(
+      claude.still!([
+        "  ◯ fixer   Checking test results in test12.log      3h 40m 8s · ↓ 708.9k tokens",
+        "  ● main",
+        "✻ Thinking… (3s · esc to interrupt)",
+      ]),
+    ).toEqual([
+      "  ◯ fixer   Checking test results in test12.log",
+      "  ● main",
+      "✻ Thinking… (3s · esc to interrupt)",
+    ])
+  })
+
+  it("is Antigravity's panel, set aside, so a paste's check accepts the line it lands", () => {
+    const { screens } = loadProbe<{ screens: { readonly [name: string]: ScreenText } }>(
+      adapterFolder("agy"),
+      "background-prompt.probe.json",
+    )
+    const before = screens["1 stopped, work running"]!.rows
+    const line = "[Novadeck: automatic notice, agent messages waiting, ABCDEF]"
+    // The box takes the line, the panel redraws its time, the footer's hint goes.
+    const after = before.map((row, at) =>
+      at === 18
+        ? `> ${line}`
+        : at === 20
+          ? row.replace(/\d+s$/, "9s")
+          : at === 22
+            ? row.replace("? for shortcuts", "               ")
+            : row,
+    )
+    expect(checkPaste(before, after, line)).toMatchObject({ accepted: false })
+    expect(checkPaste(agy.still!(before), agy.still!(after), line)).toMatchObject({
+      accepted: true,
+    })
+    // No panel, nothing set aside.
+    const plain = fixture("agy").versions
+    const empty = Object.values(plain)[0]!["1 ready empty"]!.rows
+    expect(agy.still!(empty)).toEqual(empty)
   })
 })

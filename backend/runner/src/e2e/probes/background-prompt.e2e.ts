@@ -7,7 +7,8 @@
 // Runs only with NOVADECK_E2E_PROBES=1, by path; writes what it saw to
 // $PROBE_OUT/background-prompt-<agent>.json: each screen a `ScreenRecord` (harness-core's
 // testing/probes.ts), and whether the root's model was called for the typed prompt while
-// the subagent's call was still held (`took`).
+// the subagent's call was still held (`took`), and the rows that redrew by themselves
+// while it waited (`changing`).
 /* eslint-disable no-await-in-loop -- A probe's steps run in order, each after the screen settles. */
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -84,6 +85,21 @@ for (const setup of setups) {
           await sleep(3000)
           out.activity = t.summary().activity
           await look("1 stopped, work running")
+          // What redraws by itself meanwhile, sampled every 100 ms for 3 s: each row that
+          // changed, with every text it showed.
+          const changing: Record<string, string[]> = {}
+          let before = (await t.screenText())?.rows ?? []
+          for (let sample = 0; sample < 30; sample += 1) {
+            await sleep(100)
+            const rows = (await t.screenText())?.rows ?? []
+            rows.forEach((row, at) => {
+              if (row === before[at]) return
+              const seen = (changing[at] ??= [before[at] ?? ""])
+              if (!seen.includes(row)) seen.push(row)
+            })
+            before = rows
+          }
+          out.changing = changing
           t.press("P")
           await sleep(1000)
           await look("2 a key typed")

@@ -840,7 +840,7 @@ normal turn is Drafting if the person answered its question in its terminal; any
 key, a ring that failed, an Escape that ended nothing, or a runner restart leave the
 others. While messages wait for such an agent, with no turn running, no prompt queued
 and no request pending, the doorbell reads its screen (the same calm check as a ring: 750
-ms still, no resize meanwhile) with its harness's own box reader (the one the prompts
+ms still, no resize meanwhile; the calm reads the screen without what the harness redraws by itself while background work runs, `BoxProfile.still`: Claude Code's background agent's elapsed time, Antigravity's panel of running subagents, which a paste's check reads without too) with its harness's own box reader (the one the prompts
 use: Claude Code's ruled box, Codex's `›` box, Antigravity's `>` box). A box that reads
 as taking a prompt and holding nothing, with no queued prompt shown, makes the terminal
 Ready (the `emptied` event), unless the person pressed a key since the read; the ring's

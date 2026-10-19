@@ -208,6 +208,10 @@ export const createTypist = (
     )
   }
 
+  /** The rows as the calm and the paste's check read them (`BoxProfile.still`). */
+  const unticked = (rows: readonly string[]): readonly string[] =>
+    options.profile?.()?.still?.(rows) ?? rows
+
   /** The rows of the screen as last seen, and when each row changed, lately. */
   let seen: { rows: readonly string[]; changes: Map<number, number[]> } | undefined
   /** The screen's text as last seen, and since when. */
@@ -263,7 +267,7 @@ export const createTypist = (
     if (!screen) return undefined
     const at = now()
     observe(screen.rows, at)
-    const text = screen.rows.join("\n")
+    const text = unticked(screen.rows).join("\n")
     const calmSince = still?.text === text ? still.since : at
     still = { text, since: calmSince }
     // A resize ends the calm too: the TUI may not have redrawn for it yet.
@@ -337,8 +341,13 @@ export const createTypist = (
             reason = "gone"
             break
           }
-          const shown = after.rows.join("\n")
-          const checked = checkPaste(before.rows, after.rows, text, { vanish, ticking: rows })
+          // What the program counts up by itself, redrawn as the paste lands, is no change.
+          const settled = unticked(after.rows)
+          const shown = settled.join("\n")
+          const checked = checkPaste(unticked(before.rows), settled, text, {
+            vanish,
+            ticking: rows,
+          })
           const accepted = checked.accepted
           if (!accepted && now() >= until)
             trace(`ring ${nonce}: paste not accepted: ${checked.reason}`)

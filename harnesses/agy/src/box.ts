@@ -59,21 +59,43 @@ export const shellCommandOf = (
 }
 
 /**
- * The screen as its box is read off it, without the panel of subagents it draws between
- * rules under its box while they run, a row each ("  ● Agent(self: Helper)  Working · 1s";
- * probed 2026-10-19, 1.2.14, fixtures/background-prompt.probe.json): there, the lowest pair
- * of rules is the panel's. Only a ruled region below the cursor that holds such rows and
- * nothing else is set aside.
+ * Where it draws its panel of running subagents, between rules under its box, a row each
+ * (`  ● Agent(self: Helper)  Working · 3s`; probed 2026-10-19, 1.2.14,
+ * fixtures/background-prompt.probe.json): the rows from the panel's first to its closing
+ * rule, the box's own closing rule above them. Undefined where the lowest ruled region
+ * holds anything else.
+ */
+const panelOf = (rows: readonly string[]): { first: number; last: number } | undefined => {
+  const bottom = rows.findLastIndex(rule)
+  const top = rows.slice(0, bottom).findLastIndex(rule)
+  if (top < 0) return undefined
+  const inside = rows.slice(top + 1, bottom).filter((row) => row.trim() !== "")
+  return inside.length > 0 && inside.every((row) => /^\s*● Agent\(/.test(row))
+    ? { first: top + 1, last: bottom }
+    : undefined
+}
+
+/**
+ * The screen as its box is read off it, the panel of running subagents under the box set
+ * aside: there, the lowest pair of rules is the panel's. Only one below the cursor.
  */
 const withoutPanel = (screen: ScreenText): ScreenText => {
-  const bottom = screen.rows.findLastIndex(rule)
-  const top = screen.rows.slice(0, bottom).findLastIndex(rule)
-  if (top < 0 || screen.cursor.row >= top) return screen
-  const panel = screen.rows.slice(top + 1, bottom).filter((row) => row.trim() !== "")
-  if (panel.length === 0 || !panel.every((row) => /^\s*● Agent\(/.test(row))) return screen
+  const panel = panelOf(screen.rows)
+  if (!panel || screen.cursor.row >= panel.first - 1) return screen
   const unruled = (rows: readonly string[]) =>
-    rows.map((row, at) => (at > top && at <= bottom ? "" : row))
+    rows.map((row, at) => (at >= panel.first && at <= panel.last ? "" : row))
   return { ...screen, rows: unruled(screen.rows), bright: unruled(screen.bright) }
+}
+
+/**
+ * The rows as the calm and a paste's check read them, without the panel of running
+ * subagents: it redraws their elapsed time with whatever else it draws, as a paste lands,
+ * and pushes the footer, whose hint a paste erases, further from the box than a paste's
+ * reach (`nearRows`).
+ */
+export const still = (rows: readonly string[]): readonly string[] => {
+  const panel = panelOf(rows)
+  return panel ? rows.filter((_, at) => at < panel.first || at > panel.last) : rows
 }
 
 // Its word under a turn the person's Escape stopped (probed 2026-10-02, 1.2.14), white
@@ -115,7 +137,8 @@ export const overlay = (screen: ScreenText): boolean =>
  * Antigravity's input box: between two `─` rules, `> ` leading its first row and the rest
  * indented (probed 1.2.14 and 1.3.1, fixtures/input-box.probe.json). Its history above
  * echoes the person's turns the same way, rules and all, so only the lowest pair is the
- * box, once a panel of running subagents under it is set aside. A paste of more than 15 lines shows as `[Pasted text #1 +40 lines]`, a long line as
+ * box, once a panel of running subagents under it is set aside. A paste of more than 15
+ * lines shows as `[Pasted text #1 +40 lines]`, a long line as
  * `[Pasted text #4 1499 chars]`. It leaves a ZWJ family sequence blank (probed), so the
  * library compares text without such emoji.
  */
@@ -136,4 +159,5 @@ export const box: BoxProfile = {
   queued: (screen) => screen.rows.some((row) => row.includes("Press up to edit queued messages")),
   collapses: (text) => text.split("\n").length > 15 || (!text.includes("\n") && text.length > 1024),
   room: (rows) => rows - 4,
+  still,
 }
