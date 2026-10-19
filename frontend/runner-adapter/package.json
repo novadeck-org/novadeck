@@ -1,0 +1,40 @@
+{
+  "name": "@novadeck/runner-adapter",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The UI's backend for a Novadeck runner, over a WebSocket or the desktop host.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./scripted": "./src/scripted.ts",
+    "./scripted-server": "./src/scripted-server.ts",
+    "./testing": {
+      "node": "./src/testing.ts"
+    }
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@novadeck/core": "workspace:*",
+    "@novadeck/emulator": "workspace:*",
+    "@novadeck/protocol": "workspace:*",
+    "@novadeck/runner-client": "workspace:*",
+    "@novadeck/terminal": "workspace:*",
+    "@novadeck/terminal-views": "workspace:*",
+    "@novadeck/wire": "workspace:*"
+  },
+  "devDependencies": {
+    "@novadeck/build-kit": "workspace:*",
+    "@novadeck/runner": "workspace:*",
+    "@novadeck/test-kit": "workspace:*",
+    "@orpc/server": "catalog:",
+    "@types/node": "^26.6.5",
+    "jsdom": "^30.1.3",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.7",
+    "vitest": "^5.0.5"
+  }
+}

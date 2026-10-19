@@ -1,0 +1,260 @@
+import { maxClipSeconds } from "@novadeck/core/voice"
+import { maxVoiceSeconds, voiceSampleRate, type VoiceState } from "@novadeck/protocol"
+import { WireError } from "@novadeck/wire"
+import { vi } from "vitest"
+
+import { context, describe, expect, it } from "./test"
+import { createRunnerVoice, flushMs, noVoice, type VoiceCalls } from "./voice"
+
+const installed: VoiceState = { ...noVoice, installed: ["small" as const], model: "small" as const }
+
+// The runner's voice calls, with the snapshots the test pushes streamed by `watch`.
+const runner = (overrides: Partial<VoiceCalls> = {}) => {
+  const queued: VoiceState[] = []
+  let wake: (() => void) | undefined
+  const mocks = {
+    watch: vi.fn<VoiceCalls["watch"]>(() => {
+      const iterator: AsyncIterableIterator<VoiceState, undefined> = {
+        [Symbol.asyncIterator]: () => iterator,
+        next: async () => {
+          // eslint-disable-next-line no-await-in-loop -- Waits for the next pushed snapshot.
+          while (!queued.length) await new Promise<void>((resolve) => (wake = resolve))
+          return { value: queued.shift()!, done: false }
+        },
+        return: async () => ({ value: undefined, done: true }),
+      }
+      return iterator
+    }),
+    install: vi.fn<VoiceCalls["install"]>(async () => {}),
+    cancel: vi.fn<VoiceCalls["cancel"]>(async () => {}),
+    uninstall: vi.fn<VoiceCalls["uninstall"]>(async () => {}),
+    set: vi.fn<VoiceCalls["set"]>(async () => {}),
+    record: vi.fn<VoiceCalls["record"]>(async () => {}),
+    transcribe: vi.fn<VoiceCalls["transcribe"]>(async () => ({ text: "hello", language: "en" })),
+    discard: vi.fn<VoiceCalls["discard"]>(async () => {}),
+  }
+  const calls = { ...mocks, ...overrides }
+  const push = (state: VoiceState) => {
+    queued.push(state)
+    wake?.()
+  }
+  return { calls: mocks, push, ...createRunnerVoice(calls) }
+}
+
+describe("the runner's voice input", () => {
+  it("shows nothing installed until the runner's first snapshot, then each one", async () => {
+    const { voice, follow, push } = runner()
+    expect(voice.state.getSnapshot()).toEqual(noVoice)
+    follow()
+    push(installed)
+    await vi.waitFor(() => expect(voice.state.getSnapshot()).toEqual(installed))
+  })
+
+  context("when a call is refused", () => {
+    it("shows why, until the next snapshot", async () => {
+      const { voice, follow, push } = runner({
+        install: async () => {
+          throw new WireError("CONFLICT", "Already installing.")
+        },
+      })
+      follow()
+      voice.install()
+      await vi.waitFor(() =>
+        expect(voice.state.getSnapshot().refused).toEqual({
+          call: "install",
+          message: "Already installing.",
+        }),
+      )
+      push(installed)
+      await vi.waitFor(() => expect(voice.state.getSnapshot().refused).toBeNull())
+    })
+  })
+
+  it("keeps a refused setting apart from the runner's failure of an install", async () => {
+    const { voice, follow } = runner({
+      set: async () => {
+        throw new WireError("CONFLICT", "Not installed.")
+      },
+    })
+    follow()
+    voice.set({ enabled: true })
+    await vi.waitFor(() =>
+      expect(voice.state.getSnapshot().refused).toEqual({ call: "set", message: "Not installed." }),
+    )
+    expect(voice.state.getSnapshot().failure).toBeNull()
+  })
+
+  it("passes installs, settings, cancels and uninstalls to the runner", () => {
+    const { voice, calls } = runner()
+    voice.install()
+    voice.set({ language: "pl" })
+    voice.cancel()
+    voice.uninstall()
+    expect(calls.install).toHaveBeenCalledWith()
+    expect(calls.set).toHaveBeenCalledWith({ language: "pl" })
+    expect(calls.cancel).toHaveBeenCalled()
+    expect(calls.uninstall).toHaveBeenCalled()
+  })
+
+  describe("a clip", () => {
+    it("goes up as little-endian bytes in batches, each at the offset after the last", async () => {
+      vi.useFakeTimers()
+      try {
+        const { voice, calls } = runner()
+        const clip = voice.record()
+        clip.append(Int16Array.of(1, -2))
+        clip.append(Int16Array.of(0x0102))
+        await vi.advanceTimersByTimeAsync(flushMs)
+        clip.append(Int16Array.of(3))
+        const finished = clip.finish({ terminalId: "t1" })
+        await vi.advanceTimersByTimeAsync(0)
+        await expect(finished).resolves.toEqual({ text: "hello", language: "en" })
+        const [first, second] = calls.record.mock.calls
+        expect(first![1]).toBe(0)
+        expect([...first![2]]).toEqual([1, 0, 0xfe, 0xff, 2, 1])
+        expect(second![1]).toBe(6)
+        expect([...second![2]]).toEqual([3, 0])
+        expect(calls.transcribe).toHaveBeenCalledWith(first![0], { terminalId: "t1" })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("keeps the first two minutes of a clip that runs over, instead of failing it", async () => {
+      vi.useFakeTimers()
+      try {
+        const { voice, calls } = runner()
+        const clip = voice.record()
+        const limit = maxVoiceSeconds * voiceSampleRate
+        clip.append(new Int16Array(limit - 10))
+        clip.append(new Int16Array(100))
+        clip.append(new Int16Array(100))
+        const finished = clip.finish()
+        await vi.advanceTimersByTimeAsync(0)
+        await expect(finished).resolves.toMatchObject({ text: "hello" })
+        const sent = calls.record.mock.calls.reduce((sum, call) => sum + call[2].length, 0)
+        expect(sent).toBe(limit * 2)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("sends one batch at a time", async () => {
+      let running = 0
+      let most = 0
+      const { voice, calls } = runner({
+        record: async () => {
+          running += 1
+          most = Math.max(most, running)
+          await new Promise((resolve) => setTimeout(resolve, 5))
+          running -= 1
+        },
+      })
+      const clip = voice.record()
+      clip.append(Int16Array.of(1))
+      await clip.finish()
+      expect(most).toBe(1)
+      expect(calls.transcribe).toHaveBeenCalledOnce()
+    })
+
+    it("says so when nothing was recorded, without asking the runner", async () => {
+      const { voice, calls } = runner()
+      await expect(voice.record().finish()).rejects.toThrow("Nothing was recorded.")
+      expect(calls.transcribe).not.toHaveBeenCalled()
+    })
+
+    it("fails in words for the person when the clip is too long, or voice is off", async () => {
+      const long = runner({
+        record: async () => {
+          throw new WireError("UPLOAD_TOO_LARGE", "too big")
+        },
+      })
+      const clip = long.voice.record()
+      clip.append(Int16Array.of(1))
+      await expect(clip.finish()).rejects.toThrow(/too long to transcribe/)
+      expect(long.calls.transcribe).not.toHaveBeenCalled()
+
+      const off = runner({
+        transcribe: async () => {
+          throw new WireError("VOICE_UNAVAILABLE")
+        },
+      })
+      const next = off.voice.record()
+      next.append(Int16Array.of(1))
+      await expect(next.finish()).rejects.toThrow(/Preferences/)
+
+      // Each reason has its own words and next step.
+      for (const [why, words] of [
+        ["unavailable", /no voice input for this computer/],
+        ["off", /turned off.*Preferences/],
+        ["removing", /being removed/],
+        ["updating", /engine is updating/],
+        ["missing", /engine is missing.*Install/],
+      ] as const) {
+        const refused = runner({
+          record: async () => {
+            throw new WireError("VOICE_UNAVAILABLE", undefined, { data: { reason: why } })
+          },
+        })
+        const refusedClip = refused.voice.record()
+        refusedClip.append(Int16Array.of(1))
+        // eslint-disable-next-line no-await-in-loop -- One reason after the other.
+        await expect(refusedClip.finish()).rejects.toThrow(words)
+      }
+
+      // A missing engine's own message says more than the fixed words.
+      const full = runner({
+        record: async () => {
+          throw new WireError("VOICE_UNAVAILABLE", "There is not enough disk space.", {
+            data: { reason: "missing" },
+          })
+        },
+      })
+      const fullClip = full.voice.record()
+      fullClip.append(Int16Array.of(1))
+      await expect(fullClip.finish()).rejects.toThrow("not enough disk space")
+
+      // A runner that sends no reason, or one this client doesn't know, is still heard.
+      for (const data of [undefined, { reason: "newer" }]) {
+        const unknown = runner({
+          record: async () => {
+            throw new WireError("VOICE_UNAVAILABLE", "Updating the voice engine.", { data })
+          },
+        })
+        const later = unknown.voice.record()
+        later.append(Int16Array.of(1))
+        // eslint-disable-next-line no-await-in-loop -- One after the other.
+        await expect(later.finish()).rejects.toThrow("Updating the voice engine")
+      }
+    })
+
+    it("lets the runner forget a clip whose transcription failed", async () => {
+      const { voice, calls } = runner({
+        transcribe: async () => {
+          throw new WireError("VOICE_FAILED", "engine crashed")
+        },
+      })
+      const clip = voice.record()
+      clip.append(Int16Array.of(1))
+      await expect(clip.finish()).rejects.toThrow(/engine failed/)
+      await vi.waitFor(() => expect(calls.discard).toHaveBeenCalledOnce())
+    })
+
+    it("is forgotten by the runner once discarded, after the upload under way", async () => {
+      const { voice, calls } = runner()
+      const clip = voice.record()
+      clip.append(Int16Array.of(1))
+      clip.discard()
+      clip.append(Int16Array.of(2))
+      await vi.waitFor(() => expect(calls.discard).toHaveBeenCalledOnce())
+      expect(calls.record).not.toHaveBeenCalled()
+      expect(calls.transcribe).not.toHaveBeenCalled()
+    })
+  })
+})
+
+describe("the longest dictation", () => {
+  it("is what the protocol takes of a clip", () => {
+    expect(maxClipSeconds).toBe(maxVoiceSeconds)
+  })
+})

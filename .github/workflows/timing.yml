@@ -89,7 +89,7 @@ jobs:
         shell: bash
         run: |
           echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/ms-playwright" >> "$GITHUB_ENV"
-          echo "version=$(pnpm --filter @novadeck/ui exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
+          echo "version=$(pnpm --filter @novadeck/specs exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
 
       - name: Cache Test Browser
         id: browser-cache
@@ -100,12 +100,12 @@ jobs:
 
       - name: Install Test Browser
         if: steps.browser-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @novadeck/ui exec playwright install --with-deps chromium
+        run: pnpm --filter @novadeck/specs exec playwright install --with-deps chromium
 
       # A cached browser still needs its system libraries.
       - name: Install Test Browser Dependencies
         if: steps.browser-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @novadeck/ui exec playwright install-deps chromium
+        run: pnpm --filter @novadeck/specs exec playwright install-deps chromium
 
       # Builds the runner, the sandbox and the UI's libraries, then times the app. It writes its report even
       # when the run stops short, saying why in the report, and fails when the sandbox

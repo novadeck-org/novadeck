@@ -2,9 +2,9 @@ import { writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import base from "../../application/ui/vitest.config.ts"
+import base from "../../frontend/specs/vitest.config.ts"
 
-const root = fileURLToPath(new URL("../../application/ui/", import.meta.url))
+const root = fileURLToPath(new URL("../../frontend/specs/", import.meta.url))
 const repo = fileURLToPath(new URL("../../", import.meta.url))
 const output = process.env.NOVADECK_GRID_OUTPUT
 if (!output) throw new Error("Run Grid capture through scripts/flaky-capture/grid.ts")
@@ -26,7 +26,7 @@ export default {
         test: {
           ...behaviour.test,
           // Keep every preceding case and the original ordinary/one-move gestures.
-          include: ["src/specs/companions.spec.tsx"],
+          include: ["src/companions.spec.tsx"],
           setupFiles: [
             ...behaviour.test.setupFiles,
             fileURLToPath(new URL("./grid.setup.mjs", import.meta.url)),

@@ -45,8 +45,8 @@ describe("kindOf", () => {
     expect(kindOf(at(react, "performWorkOnRoot"))).toBeUndefined()
     // A store's listener checks its snapshot, through its selector, before any render.
     expect(kindOf(at(react, "checkIfSnapshotChanged"))).toBe("store")
-    expect(kindOf(at("/r/application/ui/src/core/store.ts", "notify"))).toBe("store")
-    expect(kindOf(at("/r/application/ui/src/core/state.ts", "workspaceReducer"))).toBeUndefined()
+    expect(kindOf(at("/r/frontend/core/src/store.ts", "notify"))).toBe("store")
+    expect(kindOf(at("/r/frontend/core/src/state.ts", "workspaceReducer"))).toBeUndefined()
     expect(kindOf(at("/x/app/renderRootSync.js", "renderRootSync"))).toBeUndefined()
   })
 
@@ -84,7 +84,7 @@ describe("groupOf", () => {
     expect(groupOf(at("/r/contract/runner-client/dist/runner.js"))).toBe("protocol")
     expect(groupOf(at("/r/contract/protocol/dist/schemas.js"))).toBe("protocol")
     expect(groupOf(at("/r/libraries/wire/src/client.ts"))).toBe("protocol")
-    expect(groupOf(at("/r/application/ui/src/App.tsx"))).toBe("app")
+    expect(groupOf(at("/r/frontend/ui/src/App.tsx"))).toBe("app")
     expect(groupOf(undefined)).toBe("unmapped")
   })
 

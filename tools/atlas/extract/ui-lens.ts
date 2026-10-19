@@ -18,10 +18,15 @@ import type { LensInput } from "./lens-input.ts"
 // which runner streams feed the store back. Indentation is relied on (the code is
 // formatted), and every leg the scan cannot follow is left empty or flagged in the data.
 
-const ui = "application/ui/src"
-const stateFile = `${ui}/core/state.ts`
-const portFile = `${ui}/core/port.ts`
-const adapterDir = `${ui}/backend/runner/`
+const ui = "frontend/ui/src"
+const core = "frontend/core/src"
+const adapterSrc = "frontend/runner-adapter/src"
+const views = "frontend/terminal-views/src"
+const stateFile = `${core}/state.ts`
+const portFile = `${core}/port.ts`
+const adapterDir = `${adapterSrc}/`
+// The backends: the adapters the UI is drawn over, apart from the app.
+const isBackend = (file: string) => file.startsWith(adapterDir) || file.startsWith(`${views}/`)
 const backendFile = `${adapterDir}backend.ts`
 
 const isNoise = (file: string) =>
@@ -128,7 +133,9 @@ export const extractUiLens = (input: LensInput): UiLens => {
   const { repo, anchors, api } = input
   const area = (file: string) => input.areaOf(file) ?? "ui"
 
-  const files = sourceFiles(repo, ui).filter((file) => !isNoise(file))
+  const files = [ui, core, adapterSrc, views]
+    .flatMap((dir) => sourceFiles(repo, dir))
+    .filter((file) => !isNoise(file))
   const sources = new Map<string, Source>()
   const source = (file: string): Source | null => {
     const cached = sources.get(file)
@@ -714,14 +721,14 @@ export const extractUiLens = (input: LensInput): UiLens => {
 
   const readers = scan(
     /\b(?:useWorkspaceState|useUiState|useStoreSelector|useSyncExternalStore)\(/g,
-    (f) => f !== `${ui}/core/store.ts`,
+    (f) => f !== `${core}/store.ts`,
   )
   const writers = scan(
     /\b(?:workspace|store)\.(?:dispatch|transact)\(/g,
-    (f) => !f.startsWith(`${ui}/backend/`) && f !== `${ui}/core/store.ts`,
+    (f) => !isBackend(f) && f !== `${core}/store.ts`,
   )
-  const uiWrites = scan(/\b(?:ui\.update|updateShell)\(/g, (f) => !f.startsWith(`${ui}/backend/`))
-  const featureStores = scan(/\bcreateStore\s*(?:<[^(]*>)?\(/g, (f) => f !== `${ui}/core/store.ts`)
+  const uiWrites = scan(/\b(?:ui\.update|updateShell)\(/g, (f) => !isBackend(f))
+  const featureStores = scan(/\bcreateStore\s*(?:<[^(]*>)?\(/g, (f) => f !== `${core}/store.ts`)
 
   const uiStateLines = source(`${ui}/app/ui-store.ts`)?.lines ?? []
   const uiStateStart = uiStateLines.findIndex((l) => l.startsWith("export type UiState"))
@@ -818,8 +825,8 @@ export const extractUiLens = (input: LensInput): UiLens => {
       items: [
         item(
           "createWorkspaceStore",
-          `${ui}/core/store.ts`,
-          anchors.find(`${ui}/core/store.ts`, "export const createWorkspaceStore"),
+          `${core}/store.ts`,
+          anchors.find(`${core}/store.ts`, "export const createWorkspaceStore"),
         ),
         ...[...prefixes.entries()].map(([prefix, list]) =>
           item(

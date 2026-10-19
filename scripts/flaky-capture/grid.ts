@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url"
 import { validateGridCapture, type GridCapture, type GridReport } from "./grid-results.ts"
 
 const repo = fileURLToPath(new URL("../../", import.meta.url))
-const ui = join(repo, "application/ui")
+const ui = join(repo, "frontend/specs")
 const require = createRequire(join(ui, "package.json"))
 let captureOutput: string | undefined
 
@@ -146,12 +146,12 @@ const main = async (): Promise<void> => {
       }
     ).version
   const files = [
-    "application/ui/src/specs/companions.spec.tsx",
-    "application/ui/src/specs/support/companions.tsx",
-    "application/ui/src/specs/support/bar-drag.ts",
-    "application/ui/src/terminals/companion/use-bar-drag.ts",
-    "application/ui/src/terminals/drag-session.ts",
-    "application/ui/src/layouts/grid/Grid.tsx",
+    "frontend/specs/src/companions.spec.tsx",
+    "frontend/specs/src/support/companions.tsx",
+    "frontend/specs/src/support/bar-drag.ts",
+    "frontend/ui/src/terminals/companion/use-bar-drag.ts",
+    "frontend/ui/src/terminals/drag-session.ts",
+    "frontend/ui/src/layouts/grid/Grid.tsx",
     "scripts/flaky-capture/grid.ts",
     "scripts/flaky-capture/grid-results.ts",
     "scripts/flaky-capture/grid.config.mts",

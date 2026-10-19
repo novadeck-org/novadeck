@@ -31,7 +31,7 @@ if they are missing or stale; the same goes for `extract` and `check`), with `fi
 
 Areas are named by tokens that mirror where the code lives: the package, then one
 segment per folder (`runner/terminals` is `backend/runner/src/terminals`,
-`ui/backend/runner` is `application/ui/src/backend/runner`). Use the tokens when you
+`ui/backend/runner` is `frontend/runner-adapter/src`). Use the tokens when you
 report, plan or describe changes, so people and agents name the same thing the same way.
 
 ## Reading a brief
