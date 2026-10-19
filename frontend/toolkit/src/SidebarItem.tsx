@@ -1,11 +1,11 @@
 import { useId, type ComponentPropsWithoutRef, type ReactNode, type Ref } from "react"
 
-import { Tooltip } from "../ui-toolkit/Tooltip"
+import { Tooltip } from "./Tooltip"
 
 export const sidebarListClasses =
   "sidebar-list mt-2.5 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-3"
 
-// An item (the item recipe draws it, its selection bar included); sidebar.css adds the
+// An item (the item recipe draws it, its selection bar included); sidebar-item.css adds the
 // row's own looks.
 const sidebarItemClasses =
   "item sidebar-item relative flex min-h-17 min-w-0 shrink-0 [&.dragging]:z-50"

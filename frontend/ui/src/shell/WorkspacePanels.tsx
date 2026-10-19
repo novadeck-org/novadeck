@@ -1,7 +1,7 @@
+import { Dialog } from "@novadeck/toolkit/Dialog"
 import { Allotment, LayoutPriority, type AllotmentHandle } from "allotment"
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
 
-import { Dialog } from "../ui-toolkit/Dialog"
 import { useDesktop } from "./desktop"
 
 const storageKey = "novadeck.sidebar-width"

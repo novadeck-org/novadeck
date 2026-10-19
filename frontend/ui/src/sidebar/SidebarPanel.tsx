@@ -1,7 +1,6 @@
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { X } from "lucide-react"
 import type { ReactNode } from "react"
-
-import { Tooltip } from "../ui-toolkit/Tooltip"
 
 // A panel's create button: a button set flush left across the panel.
 export const sidebarCreateClasses =

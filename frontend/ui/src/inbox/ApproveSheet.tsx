@@ -1,9 +1,9 @@
 import type { ChatAnswer, ChatDialogOption } from "@novadeck/core/conversation"
 import type { HeldMessage } from "@novadeck/core/inbox"
+import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Terminal } from "lucide-react"
 import { useState } from "react"
 
-import { HandleChip } from "../ui-toolkit/HandleChip"
 import { agentName, actionOf, choicesOf, setsStanding, type Choices } from "./inbox-text"
 import { Lead, Page, type SheetContentProps } from "./Page"
 import { CommandCard, Failure, QuietLink, ReplyBox, Sent, Text } from "./sheet-parts"

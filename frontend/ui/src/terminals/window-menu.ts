@@ -1,7 +1,6 @@
 import { titleSourceText } from "@novadeck/core/title-source"
 import type { Tile } from "@novadeck/core/types"
-
-import type { ContextMenuAction } from "../ui-toolkit/ContextMenu"
+import type { ContextMenuAction } from "@novadeck/toolkit/ContextMenu"
 
 // Where a window undocked from a terminal's companion docks back in: that terminal's
 // name, and what docks it there, both absent once that terminal has closed.

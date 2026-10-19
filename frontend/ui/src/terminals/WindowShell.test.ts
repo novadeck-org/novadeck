@@ -1,11 +1,11 @@
 import { terminalFixture } from "@novadeck/core/testing"
 import type { TerminalMetadata } from "@novadeck/core/types"
 import { render } from "@novadeck/test-kit/render"
+import { Portal } from "@novadeck/toolkit/Portal"
 import { createElement } from "react"
 import { afterEach } from "vitest"
 
 import { context, describe, expect, it } from "../test"
-import { Portal } from "../ui-toolkit/Portal"
 import { WindowShell, type WindowShellProps } from "./WindowShell"
 
 const unmounts: (() => void)[] = []

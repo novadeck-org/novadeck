@@ -1,8 +1,7 @@
+import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
+import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
 import { Check, Columns2, Grid2X2, Maximize, Plug, Terminal } from "lucide-react"
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react"
-
-import { ClaudeIcon } from "../ui-toolkit/icons/ClaudeIcon"
-import { CodexIcon } from "../ui-toolkit/icons/CodexIcon"
 
 const views = [
   {

@@ -1,6 +1,6 @@
+import { NovaMark, Wordmark, brandName } from "@novadeck/toolkit/NovaLogo"
 import type { CSSProperties, ReactNode } from "react"
 
-import { NovaMark, Wordmark, brandName } from "../ui-toolkit/NovaLogo"
 import { fieldSlots } from "./boot-field"
 
 const slots = fieldSlots()

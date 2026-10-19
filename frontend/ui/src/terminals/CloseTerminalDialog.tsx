@@ -1,7 +1,6 @@
 import { handleText } from "@novadeck/core/handle"
 import type { TerminalMetadata } from "@novadeck/core/types"
-
-import { ConfirmDialog } from "../ui-toolkit/ConfirmDialog"
+import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 
 export type CloseTerminalDialogProps = {
   // The terminal waiting to close, or null when nothing asks.

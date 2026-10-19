@@ -1,8 +1,8 @@
 import { sidebarPanels, type SidebarPanel } from "@novadeck/core/types"
+import { ToggleGroup, ToggleGroupItem } from "@novadeck/toolkit/ToggleGroup"
 import { Bell, History, Inbox, Terminal as TerminalIcon } from "lucide-react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
-import { ToggleGroup, ToggleGroupItem } from "../ui-toolkit/ToggleGroup"
 import type { BellBadge } from "./notification-badge"
 import { NotificationBadge } from "./NotificationBadge"
 
