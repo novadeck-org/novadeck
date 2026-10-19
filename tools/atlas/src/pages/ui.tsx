@@ -42,7 +42,7 @@ export const UiPage = () => {
             <Stat n={totals.procedures}>calls and streams</Stat>
             <Stat n={totals.streams}>streams back</Stat>
           </div>
-          <StackStrip token="ui" />
+          <StackStrip token="frontend/ui" />
         </>
       }
     >

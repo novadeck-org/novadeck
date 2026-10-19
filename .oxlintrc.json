@@ -46,26 +46,7 @@
         "no-restricted-imports": [
           "error",
           {
-            "paths": [
-              {
-                "name": "@novadeck/runner",
-                "message": "An adapter must not depend on the runner."
-              }
-            ],
             "patterns": [
-              {
-                "group": ["@novadeck/runner/**"],
-                "message": "An adapter must not depend on the runner."
-              },
-              {
-                "group": [
-                  "@novadeck/harness-codex",
-                  "@novadeck/harness-codex/**",
-                  "@novadeck/harness-agy",
-                  "@novadeck/harness-agy/**"
-                ],
-                "message": "An adapter must not import another adapter."
-              },
               {
                 "group": ["../**", "./../**"],
                 "message": "An adapter's sources sit flat in src: nothing above it is its own."
@@ -81,26 +62,7 @@
         "no-restricted-imports": [
           "error",
           {
-            "paths": [
-              {
-                "name": "@novadeck/runner",
-                "message": "An adapter must not depend on the runner."
-              }
-            ],
             "patterns": [
-              {
-                "group": ["@novadeck/runner/**"],
-                "message": "An adapter must not depend on the runner."
-              },
-              {
-                "group": [
-                  "@novadeck/harness-claude",
-                  "@novadeck/harness-claude/**",
-                  "@novadeck/harness-agy",
-                  "@novadeck/harness-agy/**"
-                ],
-                "message": "An adapter must not import another adapter."
-              },
               {
                 "group": ["../**", "./../**"],
                 "message": "An adapter's sources sit flat in src: nothing above it is its own."
@@ -116,62 +78,10 @@
         "no-restricted-imports": [
           "error",
           {
-            "paths": [
-              {
-                "name": "@novadeck/runner",
-                "message": "An adapter must not depend on the runner."
-              }
-            ],
             "patterns": [
-              {
-                "group": ["@novadeck/runner/**"],
-                "message": "An adapter must not depend on the runner."
-              },
-              {
-                "group": [
-                  "@novadeck/harness-claude",
-                  "@novadeck/harness-claude/**",
-                  "@novadeck/harness-codex",
-                  "@novadeck/harness-codex/**"
-                ],
-                "message": "An adapter must not import another adapter."
-              },
               {
                 "group": ["../**", "./../**"],
                 "message": "An adapter's sources sit flat in src: nothing above it is its own."
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["harnesses/core/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "paths": [
-              {
-                "name": "@novadeck/runner",
-                "message": "Harness core must not depend on the runner."
-              }
-            ],
-            "patterns": [
-              {
-                "group": ["@novadeck/runner/**"],
-                "message": "Harness core must not depend on the runner."
-              },
-              {
-                "group": [
-                  "@novadeck/harness-claude",
-                  "@novadeck/harness-claude/**",
-                  "@novadeck/harness-codex",
-                  "@novadeck/harness-codex/**",
-                  "@novadeck/harness-agy",
-                  "@novadeck/harness-agy/**"
-                ],
-                "message": "Harness core must not depend on an adapter."
               }
             ]
           }
@@ -187,125 +97,9 @@
             "patterns": [
               {
                 "group": [
-                  "@novadeck/atlas",
-                  "@novadeck/atlas/**",
-                  "@novadeck/host",
-                  "@novadeck/host/**",
-                  "@novadeck/protocol",
-                  "@novadeck/protocol/**",
-                  "@novadeck/relay",
-                  "@novadeck/relay/**",
-                  "@novadeck/runner",
-                  "@novadeck/runner/**",
-                  "@novadeck/runner-client",
-                  "@novadeck/runner-client/**",
-                  "@novadeck/core",
-                  "@novadeck/core/**",
-                  "@novadeck/demo",
-                  "@novadeck/demo/**",
-                  "@novadeck/demo-debug",
-                  "@novadeck/demo-debug/**",
-                  "@novadeck/previews",
-                  "@novadeck/previews/**",
-                  "@novadeck/runner-adapter",
-                  "@novadeck/runner-adapter/**",
-                  "@novadeck/specs",
-                  "@novadeck/specs/**",
-                  "@novadeck/terminal-views",
-                  "@novadeck/terminal-views/**",
-                  "@novadeck/test-kit",
-                  "@novadeck/test-kit/**",
-                  "@novadeck/try",
-                  "@novadeck/try/**",
-                  "@novadeck/ui",
-                  "@novadeck/ui/**",
-                  "@novadeck/harness-*",
-                  "@novadeck/harness-*/**"
-                ],
-                "message": "A library never imports app code: product specifics come in as options."
-              },
-              {
-                "group": [
                   "**/../atlas",
                   "**/atlas/**",
                   "**/../tools/atlas",
-                  "**/../application",
-                  "**/application/**",
-                  "**/../backend",
-                  "**/../backend/**",
-                  "**/../contract",
-                  "**/../contract/**",
-                  "**/../frontend",
-                  "**/../frontend/**",
-                  "**/../apps",
-                  "**/../apps/**",
-                  "**/../harnesses",
-                  "**/harnesses/**",
-                  "**/../libraries",
-                  "**/libraries/**",
-                  "**/../*/dist",
-                  "**/../*/dist/**"
-                ],
-                "message": "A library imports another library by its package name, and app code not at all."
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["libraries/emulator/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "@novadeck/atlas",
-                  "@novadeck/atlas/**",
-                  "@novadeck/host",
-                  "@novadeck/host/**",
-                  "@novadeck/protocol",
-                  "@novadeck/protocol/**",
-                  "@novadeck/relay",
-                  "@novadeck/relay/**",
-                  "@novadeck/runner",
-                  "@novadeck/runner/**",
-                  "@novadeck/runner-client",
-                  "@novadeck/runner-client/**",
-                  "@novadeck/core",
-                  "@novadeck/core/**",
-                  "@novadeck/demo",
-                  "@novadeck/demo/**",
-                  "@novadeck/demo-debug",
-                  "@novadeck/demo-debug/**",
-                  "@novadeck/previews",
-                  "@novadeck/previews/**",
-                  "@novadeck/runner-adapter",
-                  "@novadeck/runner-adapter/**",
-                  "@novadeck/specs",
-                  "@novadeck/specs/**",
-                  "@novadeck/terminal-views",
-                  "@novadeck/terminal-views/**",
-                  "@novadeck/test-kit",
-                  "@novadeck/test-kit/**",
-                  "@novadeck/try",
-                  "@novadeck/try/**",
-                  "@novadeck/ui",
-                  "@novadeck/ui/**",
-                  "@novadeck/harness-*",
-                  "@novadeck/harness-*/**"
-                ],
-                "message": "A library never imports app code: product specifics come in as options."
-              },
-              {
-                "group": [
-                  "**/../atlas",
-                  "**/atlas/**",
-                  "**/../tools/atlas",
-                  "**/../application",
-                  "**/application/**",
                   "**/../backend",
                   "**/../backend/**",
                   "**/../contract",
@@ -324,465 +118,8 @@
                 "message": "A library imports another library by its package name, and app code not at all."
               },
               {
-                "group": [
-                  "@novadeck/sandbox",
-                  "@novadeck/sandbox/**",
-                  "@novadeck/terminal",
-                  "@novadeck/terminal/**",
-                  "@novadeck/tui-input",
-                  "@novadeck/tui-input/**",
-                  "@novadeck/viewers",
-                  "@novadeck/viewers/**",
-                  "@novadeck/wire",
-                  "@novadeck/wire/**"
-                ],
-                "message": "emulator imports no other library."
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["libraries/sandbox/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "@novadeck/atlas",
-                  "@novadeck/atlas/**",
-                  "@novadeck/host",
-                  "@novadeck/host/**",
-                  "@novadeck/protocol",
-                  "@novadeck/protocol/**",
-                  "@novadeck/relay",
-                  "@novadeck/relay/**",
-                  "@novadeck/runner",
-                  "@novadeck/runner/**",
-                  "@novadeck/runner-client",
-                  "@novadeck/runner-client/**",
-                  "@novadeck/core",
-                  "@novadeck/core/**",
-                  "@novadeck/demo",
-                  "@novadeck/demo/**",
-                  "@novadeck/demo-debug",
-                  "@novadeck/demo-debug/**",
-                  "@novadeck/previews",
-                  "@novadeck/previews/**",
-                  "@novadeck/runner-adapter",
-                  "@novadeck/runner-adapter/**",
-                  "@novadeck/specs",
-                  "@novadeck/specs/**",
-                  "@novadeck/terminal-views",
-                  "@novadeck/terminal-views/**",
-                  "@novadeck/test-kit",
-                  "@novadeck/test-kit/**",
-                  "@novadeck/try",
-                  "@novadeck/try/**",
-                  "@novadeck/ui",
-                  "@novadeck/ui/**",
-                  "@novadeck/harness-*",
-                  "@novadeck/harness-*/**"
-                ],
-                "message": "A library never imports app code: product specifics come in as options."
-              },
-              {
-                "group": [
-                  "**/../atlas",
-                  "**/atlas/**",
-                  "**/../tools/atlas",
-                  "**/../application",
-                  "**/application/**",
-                  "**/../backend",
-                  "**/../backend/**",
-                  "**/../contract",
-                  "**/../contract/**",
-                  "**/../frontend",
-                  "**/../frontend/**",
-                  "**/../apps",
-                  "**/../apps/**",
-                  "**/../harnesses",
-                  "**/harnesses/**",
-                  "**/../libraries",
-                  "**/libraries/**",
-                  "**/../*/dist",
-                  "**/../*/dist/**"
-                ],
-                "message": "A library imports another library by its package name, and app code not at all."
-              },
-              {
-                "group": [
-                  "@novadeck/emulator",
-                  "@novadeck/emulator/**",
-                  "@novadeck/terminal",
-                  "@novadeck/terminal/**",
-                  "@novadeck/tui-input",
-                  "@novadeck/tui-input/**",
-                  "@novadeck/viewers",
-                  "@novadeck/viewers/**",
-                  "@novadeck/wire",
-                  "@novadeck/wire/**"
-                ],
-                "message": "sandbox imports no other library."
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["libraries/terminal/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "@novadeck/atlas",
-                  "@novadeck/atlas/**",
-                  "@novadeck/host",
-                  "@novadeck/host/**",
-                  "@novadeck/protocol",
-                  "@novadeck/protocol/**",
-                  "@novadeck/relay",
-                  "@novadeck/relay/**",
-                  "@novadeck/runner",
-                  "@novadeck/runner/**",
-                  "@novadeck/runner-client",
-                  "@novadeck/runner-client/**",
-                  "@novadeck/core",
-                  "@novadeck/core/**",
-                  "@novadeck/demo",
-                  "@novadeck/demo/**",
-                  "@novadeck/demo-debug",
-                  "@novadeck/demo-debug/**",
-                  "@novadeck/previews",
-                  "@novadeck/previews/**",
-                  "@novadeck/runner-adapter",
-                  "@novadeck/runner-adapter/**",
-                  "@novadeck/specs",
-                  "@novadeck/specs/**",
-                  "@novadeck/terminal-views",
-                  "@novadeck/terminal-views/**",
-                  "@novadeck/test-kit",
-                  "@novadeck/test-kit/**",
-                  "@novadeck/try",
-                  "@novadeck/try/**",
-                  "@novadeck/ui",
-                  "@novadeck/ui/**",
-                  "@novadeck/harness-*",
-                  "@novadeck/harness-*/**"
-                ],
-                "message": "A library never imports app code: product specifics come in as options."
-              },
-              {
-                "group": [
-                  "**/../atlas",
-                  "**/atlas/**",
-                  "**/../tools/atlas",
-                  "**/../application",
-                  "**/application/**",
-                  "**/../backend",
-                  "**/../backend/**",
-                  "**/../contract",
-                  "**/../contract/**",
-                  "**/../frontend",
-                  "**/../frontend/**",
-                  "**/../apps",
-                  "**/../apps/**",
-                  "**/../harnesses",
-                  "**/harnesses/**",
-                  "**/../libraries",
-                  "**/libraries/**",
-                  "**/../*/dist",
-                  "**/../*/dist/**"
-                ],
-                "message": "A library imports another library by its package name, and app code not at all."
-              },
-              {
-                "group": [
-                  "@novadeck/sandbox",
-                  "@novadeck/sandbox/**",
-                  "@novadeck/tui-input",
-                  "@novadeck/tui-input/**",
-                  "@novadeck/viewers",
-                  "@novadeck/viewers/**",
-                  "@novadeck/wire",
-                  "@novadeck/wire/**"
-                ],
-                "message": "terminal imports only the libraries its design depends on: emulator."
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["libraries/tui-input/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "@novadeck/atlas",
-                  "@novadeck/atlas/**",
-                  "@novadeck/host",
-                  "@novadeck/host/**",
-                  "@novadeck/protocol",
-                  "@novadeck/protocol/**",
-                  "@novadeck/relay",
-                  "@novadeck/relay/**",
-                  "@novadeck/runner",
-                  "@novadeck/runner/**",
-                  "@novadeck/runner-client",
-                  "@novadeck/runner-client/**",
-                  "@novadeck/core",
-                  "@novadeck/core/**",
-                  "@novadeck/demo",
-                  "@novadeck/demo/**",
-                  "@novadeck/demo-debug",
-                  "@novadeck/demo-debug/**",
-                  "@novadeck/previews",
-                  "@novadeck/previews/**",
-                  "@novadeck/runner-adapter",
-                  "@novadeck/runner-adapter/**",
-                  "@novadeck/specs",
-                  "@novadeck/specs/**",
-                  "@novadeck/terminal-views",
-                  "@novadeck/terminal-views/**",
-                  "@novadeck/test-kit",
-                  "@novadeck/test-kit/**",
-                  "@novadeck/try",
-                  "@novadeck/try/**",
-                  "@novadeck/ui",
-                  "@novadeck/ui/**",
-                  "@novadeck/harness-*",
-                  "@novadeck/harness-*/**"
-                ],
-                "message": "A library never imports app code: product specifics come in as options."
-              },
-              {
-                "group": [
-                  "**/../atlas",
-                  "**/atlas/**",
-                  "**/../tools/atlas",
-                  "**/../application",
-                  "**/application/**",
-                  "**/../backend",
-                  "**/../backend/**",
-                  "**/../contract",
-                  "**/../contract/**",
-                  "**/../frontend",
-                  "**/../frontend/**",
-                  "**/../apps",
-                  "**/../apps/**",
-                  "**/../harnesses",
-                  "**/harnesses/**",
-                  "**/../libraries",
-                  "**/libraries/**",
-                  "**/../*/dist",
-                  "**/../*/dist/**"
-                ],
-                "message": "A library imports another library by its package name, and app code not at all."
-              },
-              {
-                "group": [
-                  "@novadeck/sandbox",
-                  "@novadeck/sandbox/**",
-                  "@novadeck/terminal",
-                  "@novadeck/terminal/**",
-                  "@novadeck/viewers",
-                  "@novadeck/viewers/**",
-                  "@novadeck/wire",
-                  "@novadeck/wire/**"
-                ],
-                "message": "tui-input imports only the libraries its design depends on: emulator."
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["libraries/viewers/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "@novadeck/atlas",
-                  "@novadeck/atlas/**",
-                  "@novadeck/host",
-                  "@novadeck/host/**",
-                  "@novadeck/protocol",
-                  "@novadeck/protocol/**",
-                  "@novadeck/relay",
-                  "@novadeck/relay/**",
-                  "@novadeck/runner",
-                  "@novadeck/runner/**",
-                  "@novadeck/runner-client",
-                  "@novadeck/runner-client/**",
-                  "@novadeck/core",
-                  "@novadeck/core/**",
-                  "@novadeck/demo",
-                  "@novadeck/demo/**",
-                  "@novadeck/demo-debug",
-                  "@novadeck/demo-debug/**",
-                  "@novadeck/previews",
-                  "@novadeck/previews/**",
-                  "@novadeck/runner-adapter",
-                  "@novadeck/runner-adapter/**",
-                  "@novadeck/specs",
-                  "@novadeck/specs/**",
-                  "@novadeck/terminal-views",
-                  "@novadeck/terminal-views/**",
-                  "@novadeck/test-kit",
-                  "@novadeck/test-kit/**",
-                  "@novadeck/try",
-                  "@novadeck/try/**",
-                  "@novadeck/ui",
-                  "@novadeck/ui/**",
-                  "@novadeck/harness-*",
-                  "@novadeck/harness-*/**"
-                ],
-                "message": "A library never imports app code: product specifics come in as options."
-              },
-              {
-                "group": [
-                  "**/../atlas",
-                  "**/atlas/**",
-                  "**/../tools/atlas",
-                  "**/../application",
-                  "**/application/**",
-                  "**/../backend",
-                  "**/../backend/**",
-                  "**/../contract",
-                  "**/../contract/**",
-                  "**/../frontend",
-                  "**/../frontend/**",
-                  "**/../apps",
-                  "**/../apps/**",
-                  "**/../harnesses",
-                  "**/harnesses/**",
-                  "**/../libraries",
-                  "**/libraries/**",
-                  "**/../*/dist",
-                  "**/../*/dist/**"
-                ],
-                "message": "A library imports another library by its package name, and app code not at all."
-              },
-              {
-                "group": [
-                  "@novadeck/emulator",
-                  "@novadeck/emulator/**",
-                  "@novadeck/sandbox",
-                  "@novadeck/sandbox/**",
-                  "@novadeck/terminal",
-                  "@novadeck/terminal/**",
-                  "@novadeck/tui-input",
-                  "@novadeck/tui-input/**",
-                  "@novadeck/wire",
-                  "@novadeck/wire/**"
-                ],
-                "message": "viewers imports no other library."
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["libraries/wire/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "@novadeck/atlas",
-                  "@novadeck/atlas/**",
-                  "@novadeck/host",
-                  "@novadeck/host/**",
-                  "@novadeck/protocol",
-                  "@novadeck/protocol/**",
-                  "@novadeck/relay",
-                  "@novadeck/relay/**",
-                  "@novadeck/runner",
-                  "@novadeck/runner/**",
-                  "@novadeck/runner-client",
-                  "@novadeck/runner-client/**",
-                  "@novadeck/core",
-                  "@novadeck/core/**",
-                  "@novadeck/demo",
-                  "@novadeck/demo/**",
-                  "@novadeck/demo-debug",
-                  "@novadeck/demo-debug/**",
-                  "@novadeck/previews",
-                  "@novadeck/previews/**",
-                  "@novadeck/runner-adapter",
-                  "@novadeck/runner-adapter/**",
-                  "@novadeck/specs",
-                  "@novadeck/specs/**",
-                  "@novadeck/terminal-views",
-                  "@novadeck/terminal-views/**",
-                  "@novadeck/test-kit",
-                  "@novadeck/test-kit/**",
-                  "@novadeck/try",
-                  "@novadeck/try/**",
-                  "@novadeck/ui",
-                  "@novadeck/ui/**",
-                  "@novadeck/harness-*",
-                  "@novadeck/harness-*/**"
-                ],
-                "message": "A library never imports app code: product specifics come in as options."
-              },
-              {
-                "group": [
-                  "**/../atlas",
-                  "**/atlas/**",
-                  "**/../tools/atlas",
-                  "**/../application",
-                  "**/application/**",
-                  "**/../backend",
-                  "**/../backend/**",
-                  "**/../contract",
-                  "**/../contract/**",
-                  "**/../frontend",
-                  "**/../frontend/**",
-                  "**/../apps",
-                  "**/../apps/**",
-                  "**/../harnesses",
-                  "**/harnesses/**",
-                  "**/../libraries",
-                  "**/libraries/**",
-                  "**/../*/dist",
-                  "**/../*/dist/**"
-                ],
-                "message": "A library imports another library by its package name, and app code not at all."
-              },
-              {
-                "group": [
-                  "@novadeck/emulator",
-                  "@novadeck/emulator/**",
-                  "@novadeck/sandbox",
-                  "@novadeck/sandbox/**",
-                  "@novadeck/terminal",
-                  "@novadeck/terminal/**",
-                  "@novadeck/tui-input",
-                  "@novadeck/tui-input/**",
-                  "@novadeck/viewers",
-                  "@novadeck/viewers/**"
-                ],
-                "message": "wire imports no other library."
+                "group": ["@novadeck/sandbox", "@novadeck/sandbox/**"],
+                "message": "The root's own dependency resolves from any package, so a package reaches it only by declaring it: the sandbox runs in Node, for the runner and the repository's scripts."
               }
             ]
           }
@@ -818,6 +155,279 @@
               {
                 "group": ["**/../libraries", "**/libraries/**"],
                 "message": "Import a library by its package name."
+              },
+              {
+                "group": ["node:*", "node:*/**"],
+                "message": "Browser code runs in the browser: Node built-ins belong to the tools and test support that run in Node."
+              },
+              {
+                "group": ["@novadeck/sandbox", "@novadeck/sandbox/**"],
+                "message": "The root's own dependency resolves from any package, so a package reaches it only by declaring it: the sandbox runs in Node, for the runner and the repository's scripts."
+              }
+            ],
+            "paths": [
+              {
+                "name": "assert",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "assert/strict",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "async_hooks",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "buffer",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "child_process",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "cluster",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "console",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "constants",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "crypto",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "dgram",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "diagnostics_channel",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "dns",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "dns/promises",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "domain",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "events",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "fs",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "fs/promises",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "http",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "http2",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "https",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "inspector",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "inspector/promises",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "module",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "net",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "os",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "path",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "path/posix",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "path/win32",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "perf_hooks",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "process",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "punycode",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "querystring",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "readline",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "readline/promises",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "repl",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "stream",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "stream/consumers",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "stream/promises",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "stream/web",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "string_decoder",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "sys",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "timers",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "timers/promises",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "tls",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "trace_events",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "tty",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "url",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "util",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "util/types",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "v8",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "vm",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "wasi",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "worker_threads",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              },
+              {
+                "name": "zlib",
+                "message": "Browser code runs in the browser: Node built-ins, with or without node:, belong to the tools and test support that run in Node."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "frontend/runner-adapter/src/testing.ts",
+        "frontend/test-kit/src/phases.ts",
+        "frontend/*/src/**/*.{test,spec}.{ts,tsx}",
+        "apps/*/src/**/*.{test,spec}.{ts,tsx}",
+        "apps/desktop/renderer/**/*.{test,spec}.{ts,tsx}",
+        "frontend/*/src/**/*.e2e.ts",
+        "apps/*/src/**/*.e2e.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@novadeck/*/pty",
+                  "@novadeck/*/pty/**",
+                  "@novadeck/*/host",
+                  "@novadeck/*/host/**",
+                  "@novadeck/*/server",
+                  "@novadeck/*/server/**",
+                  "@novadeck/*/electron",
+                  "@novadeck/*/electron/**",
+                  "@novadeck/*/browser/host",
+                  "@novadeck/*/browser/host/**",
+                  "@novadeck/*/shell",
+                  "@novadeck/*/shell/**",
+                  "@novadeck/*/headless",
+                  "@novadeck/*/headless/**"
+                ],
+                "message": "Browser code imports only a library's browser subpaths: /pty, /host, /server, /electron, /browser/host, /shell and /headless run in Node."
+              },
+              {
+                "group": ["**/../libraries", "**/libraries/**"],
+                "message": "Import a library by its package name."
+              },
+              {
+                "group": ["@novadeck/sandbox", "@novadeck/sandbox/**"],
+                "message": "The root's own dependency resolves from any package, so a package reaches it only by declaring it: the sandbox runs in Node, for the runner and the repository's scripts."
               }
             ]
           }

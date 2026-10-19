@@ -8,26 +8,41 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs"
+import { builtinModules } from "node:module"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
-import { appPackages, order } from "./order.ts"
+import { order } from "./order.ts"
 
 const root = join(import.meta.dirname, "..", "..")
 
-// The fence around libraries/ and the UI's browser code. When several overrides match a file,
+// The fence around libraries/ and the UI's browser code. Package names are hardly in it: the
+// package graph (graph.ts) refuses a library's dependency on an app package or an unordered
+// library, and pnpm refuses an undeclared one, but for the root's own dependencies, which
+// resolve from anywhere. What stays is those, paths, which bypass package.json, and the
+// Node-only subpaths and built-ins of browser code. When several overrides match a file,
 // oxlint takes `no-restricted-imports` from the last one alone, dropping the earlier ones'
-// lists, so each library's override repeats the bans every library shares. Reading the config
+// lists, so the override for test support repeats the browser code's other bans. Reading the config
 // can't show what a file ends up with, so this lints probe files at those paths with the real
 // config and reads back which of their imports oxlint refuses.
 
 const names = Object.keys(order)
+const config = JSON.parse(readFileSync(join(root, ".oxlintrc.json"), "utf8")) as {
+  readonly overrides: readonly {
+    readonly files: readonly string[]
+    readonly rules?: {
+      readonly "no-restricted-imports"?: readonly [
+        string,
+        { readonly paths?: readonly { readonly name: string }[] }?,
+      ]
+    }
+  }[]
+}
 
+// Relative paths out of a library, which no package.json sees.
 const app = [
-  ...appPackages(root).flatMap((name) => [name, `${name}/sub`]),
-  "../../../../application/runner/src/manager.ts",
   "../../../../backend/runner/src/manager.ts",
   "../../../../contract/protocol/src/index.ts",
   "../../../../frontend/ui/src/index.ts",
@@ -38,10 +53,9 @@ const app = [
   "../../wire/dist/index.js",
   "../../wire/dist",
   "../../../../atlas/src/index.ts",
-  // A folder named alone, its package's entry, where it is and where step 5 moves it.
+  // A folder named alone, its package's entry.
   "../../../../atlas",
   "../../../../tools/atlas",
-  "../../../../application",
   "../../../../backend",
   "../../../../contract",
   "../../../../frontend",
@@ -50,12 +64,27 @@ const app = [
   "../../../../libraries",
 ]
 const library = (name: string) => [`@novadeck/${name}`, `@novadeck/${name}/sub`]
+// The workspace packages the root itself depends on, which pnpm links at the root's
+// node_modules, so they resolve from every package without its declaring them: the fence
+// refuses them by name.
+const rootManifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+  readonly dependencies?: Readonly<Record<string, string>>
+  readonly devDependencies?: Readonly<Record<string, string>>
+}
+const rootLinked = Object.entries({
+  ...rootManifest.dependencies,
+  ...rootManifest.devDependencies,
+})
+  .filter(([, version]) => version.startsWith("workspace:"))
+  .flatMap(([name]) => [name, `${name}/sub`])
 const node = [
   ...["pty", "host", "server", "electron", "browser/host", "shell"].map(
     (sub) => `@novadeck/terminal/${sub}`,
   ),
   "@novadeck/emulator/headless",
 ]
+// Node's built-ins, in each form they are written: with node: and without.
+const builtins = ["node:fs", "node:fs/promises", "node:worker_threads", "fs", "path/posix"]
 const browser = [
   "@novadeck/emulator/browser",
   "@novadeck/emulator/browser.css",
@@ -70,7 +99,6 @@ const own = [
   "./sibling.ts",
   "../index.ts",
   "./atlas",
-  "./application",
   "./backend",
   "./contract",
   "./frontend",
@@ -79,7 +107,6 @@ const own = [
   // names, and a package's subpath that names one, stay its own.
   "./contract/index.ts",
   "@orpc/contract/plugins",
-  "node:path",
   "@xterm/xterm",
   // A package's own build, as its stylesheets are imported.
   "katex/dist/katex.min.css",
@@ -104,9 +131,8 @@ const write: Readonly<Record<Form, (name: string, index: number) => string>> = {
  */
 const probes = [
   ...names.flatMap((name) => {
-    const imports = [...app, ...names.flatMap(library), ...own]
-    const allowed = new Set([name, ...(order[name] ?? [])].flatMap(library))
-    const refused = [...app, ...names.flatMap(library).filter((each) => !allowed.has(each))]
+    // Any library's name may be imported here, but the root's: the package graph holds the order.
+    const imports = [...app, ...names.flatMap(library), ...rootLinked, ...own, "node:path"]
     return (
       [
         [`libraries/${name}/src/probe.ts`, "import"],
@@ -115,35 +141,51 @@ const probes = [
         [`libraries/${name}/src/deep/named.ts`, "named"],
         [`libraries/${name}/src/deep/dynamic.ts`, "dynamic"],
       ] as const
-    ).map(([file, form]) => ({ file, form, imports, refused }))
+    ).map(([file, form]) => ({ file, form, imports, refused: [...app, ...rootLinked] }))
   }),
-  // A library not in the order yet still keeps off app code.
+  // A library not in the order yet is fenced the same.
   {
     file: "libraries/unlisted/src/probe.ts",
     form: "import" as Form,
-    imports: [...app, ...names.flatMap(library), ...own],
-    refused: app,
+    imports: [...app, ...names.flatMap(library), ...rootLinked, ...own, "node:path"],
+    refused: [...app, ...rootLinked],
   },
   ...(
     [
-      ["frontend/ui/src/probe.ts", "import"],
-      ["frontend/ui/src/types.ts", "type"],
-      ["frontend/ui/src/deep/probe.test.tsx", "export"],
-      ["frontend/ui/src/deep/named.ts", "named"],
-      ["frontend/ui/src/deep/dynamic.ts", "dynamic"],
+      ["frontend/ui/src/probe.ts", "import", true],
+      ["frontend/ui/src/types.ts", "type", true],
+      ["frontend/ui/src/deep/probe.test.tsx", "export", false],
+      ["frontend/ui/src/deep/named.ts", "named", true],
+      ["frontend/ui/src/deep/dynamic.ts", "dynamic", true],
+      ["apps/try/src/probe.ts", "import", true],
+      ["apps/previews/src/probe.ts", "import", true],
+      ["apps/desktop/renderer/probe.ts", "import", true],
+      // Test support, which runs in Node and stays out of the build.
+      ["frontend/runner-adapter/src/testing.ts", "import", false],
+      ["frontend/test-kit/src/phases.ts", "import", false],
+      ["frontend/test-kit/src/other.ts", "import", true],
+      ["apps/try/src/deploy.test.ts", "import", false],
     ] as const
-  ).map(([file, form]) => ({
+  ).map(([file, form, noBuiltins]) => ({
     file,
     form,
     imports: [
       ...node,
+      ...builtins,
+      ...rootLinked,
       ...browser,
       "../../../../libraries/terminal/src/view.ts",
       "../../../../libraries",
       "./libraries",
       ...own,
     ],
-    refused: [...node, "../../../../libraries/terminal/src/view.ts", "../../../../libraries"],
+    refused: [
+      ...node,
+      ...(noBuiltins ? builtins : []),
+      ...rootLinked,
+      "../../../../libraries/terminal/src/view.ts",
+      "../../../../libraries",
+    ],
   })),
 ]
 
@@ -189,6 +231,10 @@ beforeAll(() => {
 afterAll(() => rmSync(workspace, { recursive: true, force: true }))
 
 describe("the libraries' lint fence", () => {
+  it("finds the root's workspace packages", () => {
+    expect(rootLinked).toEqual(expect.arrayContaining(["@novadeck/sandbox"]))
+  })
+
   it("knows the order of every library in libraries/", () => {
     const folders = existsSync(join(root, "libraries"))
       ? readdirSync(join(root, "libraries")).filter((name) =>
@@ -220,7 +266,7 @@ describe("the libraries' lint fence", () => {
   })
 
   it.each(probes.filter(({ file }) => file.startsWith("libraries/")))(
-    "refuses $file exactly app code and the libraries outside its order",
+    "refuses $file exactly the paths out of the library and the root's packages",
     ({ file, refused }) => {
       expect([...new Set(refusals.get(file))].toSorted()).toEqual(refused.toSorted())
     },
@@ -228,8 +274,21 @@ describe("the libraries' lint fence", () => {
 })
 
 describe("the browser code's lint fence", () => {
-  it.each(probes.filter(({ file }) => file.startsWith("frontend/")))(
-    "refuses $file exactly the libraries' Node subpaths and paths into libraries/",
+  // A bare built-in is an exact name, as `path` in a pattern would match `@scope/path` too:
+  // the override lists each, which this keeps to Node's own list.
+  it("names every Node built-in its prefix may be left off", () => {
+    const fence = config.overrides.find((each) => each.files.includes("frontend/*/src/**"))
+    const [, rule] = fence?.rules?.["no-restricted-imports"] ?? []
+    const listed = new Set((rule?.paths ?? []).map(({ name }) => name))
+    expect(
+      builtinModules.filter(
+        (name) => !name.startsWith("_") && !name.startsWith("node:") && !listed.has(name),
+      ),
+    ).toEqual([])
+  })
+
+  it.each(probes.filter(({ file }) => !file.startsWith("libraries/")))(
+    "refuses $file exactly the libraries' Node subpaths, paths into libraries/, the root's packages and, but for test support, Node built-ins",
     ({ file, refused }) => {
       expect([...new Set(refusals.get(file))].toSorted()).toEqual(refused.toSorted())
     },

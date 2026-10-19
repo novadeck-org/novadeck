@@ -131,7 +131,7 @@ const at = (file: string, line: number): Anchor => ({ file, line })
 
 export const extractUiLens = (input: LensInput): UiLens => {
   const { repo, anchors, api } = input
-  const area = (file: string) => input.areaOf(file) ?? "ui"
+  const area = (file: string) => input.areaOf(file) ?? "frontend/ui"
 
   const files = [ui, core, adapterSrc, views]
     .flatMap((dir) => sourceFiles(repo, dir))
