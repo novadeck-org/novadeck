@@ -135,15 +135,18 @@ const heldOf = (
   }
 }
 
-// The messages for a terminal's idle agent that have waited at least `longHoldMs` behind
-// what keeps the doorbell from waking it: why, since when, and how many (none held for the
-// person's release or a pause, which have items and switches of their own).
+// The messages for a terminal's idle agent, the longest of which has waited at least
+// `longHoldMs`: why the doorbell can't wake it (null where it hasn't said), since when, and
+// how many (none held for the person's release or a pause, which have items and switches of
+// their own).
 const heldLong = (
   mail: TerminalMail | undefined,
   now: number,
-): { readonly waits: MailWaits; readonly since: number; readonly count: number } | undefined => {
-  const { waits, waitsSince } = mail ?? {}
-  if (!mail || !waits || waitsSince == null || now - waitsSince < longHoldMs) return undefined
+):
+  | { readonly waits: MailWaits | null; readonly since: number; readonly count: number }
+  | undefined => {
+  const { waits = null, waitsSince } = mail ?? {}
+  if (!mail || waitsSince == null || now - waitsSince < longHoldMs) return undefined
   const count = waitingFor(mail).filter((message) => message.held === null).length
   return count > 0 ? { waits, since: waitsSince, count } : undefined
 }
@@ -557,8 +560,8 @@ export const createRunnerInbox = (
         .flat()
         .filter(({ request }) => request.dialog === null)
         .map(({ askedAt }) => askedAt + dialogMs - at),
-      ...Object.values(mail.getSnapshot().terminals).map(({ waits: why, waitsSince }) =>
-        why && waitsSince != null ? waitsSince + longHoldMs - at : 0,
+      ...Object.values(mail.getSnapshot().terminals).map(({ waitsSince }) =>
+        waitsSince == null ? 0 : waitsSince + longHoldMs - at,
       ),
     ].filter((wait) => wait > 0)
     if (waits.length > 0) due = setTimeout(recompute, Math.min(...waits))

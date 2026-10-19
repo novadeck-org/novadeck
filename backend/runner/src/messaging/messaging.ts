@@ -116,8 +116,11 @@ type Live = Scope & {
   keyedAt: number
   /** Why the doorbell last found the idle agent unringable, from its screen; null if not. */
   waits: Waits | null
-  /** Since when `waits` has said why, without a break, whatever it said; null with none. */
-  waitsSince: number | null
+  /**
+   * Since when its agent has been idle without a break (Settled, Ready, Fresh, Drafting or
+   * Unknown), what the doorbell rings or looks at; null while it isn't.
+   */
+  idleSince: number | null
   /**
    * The nonces of its latest rings that no doorbell prompt confirmed, oldest first: a line
    * of one left alone in its box is Novadeck's to submit. A confirmed one's line in the box
@@ -222,12 +225,17 @@ const named = (ids: readonly string[]): string =>
 export const holdNotice = (
   ids: readonly string[],
   to: string,
-  waits: Waits,
+  waits: Waits | null,
   since: number,
 ): string =>
   `Novadeck: your ${ids.length === 1 ? "message" : "messages"} ${named(ids)} to ${mention(to)} ` +
   `${ids.length === 1 ? "has" : "have"} not arrived since ${clock(since)} ` +
-  `(${waitReasons[waits]}); the user is shown this in Novadeck's Inbox.`
+  `(${waits ? waitReasons[waits] : "its agent is idle, but Novadeck can't wake it yet"}); ` +
+  "the user is shown this in Novadeck's Inbox."
+
+/** Whether the agent is idle by its delivery: what the doorbell rings or looks at. */
+const idle = (delivery: Delivery): boolean =>
+  ringableSince(delivery) !== undefined || waitsIn(delivery)
 
 /** How many of a terminal's latest unconfirmed rings it remembers (`Live.unconfirmed`). */
 const maxUnconfirmed = 8
@@ -329,6 +337,8 @@ export class Messaging {
   private readonly messages = new Map<string, Message>()
   /** Each queued message whose sender was told of its hold, by when that hold began. */
   private readonly holdsTold = new Map<string, number>()
+  /** When each queued message last came to wait: sent, or put back by a pause, release or lapse. */
+  private readonly queuedSince = new Map<string, number>()
   private readonly responses = new Map<string, string>()
   private readonly threads = new Map<string, Thread>()
   private readonly leases: Leases
@@ -405,7 +415,7 @@ export class Messaging {
       prompt: null,
       keyedAt: 0,
       waits: null,
-      waitsSince: null,
+      idleSince: null,
       unconfirmed: [],
       viaScreen: false,
     })
@@ -550,6 +560,7 @@ export class Messaging {
     for (const message of messages) {
       this.messages.delete(message.id)
       this.holdsTold.delete(message.id)
+      this.queuedSince.delete(message.id)
       this.responses.delete(message.response!.askId)
       this.changed(message.to.terminalId)
     }
@@ -890,14 +901,8 @@ export class Messaging {
   blocked(terminalId: string, waits: Waits | null): void {
     const live = this.live.get(terminalId)
     if (!live || live.waits === waits) return
-    this.waits(live, waits)
-    this.changed(terminalId)
-  }
-
-  /** Says why the doorbell can't ring, keeping since when it can't through a change of why. */
-  private waits(live: Live, waits: Waits | null): void {
     live.waits = waits
-    live.waitsSince = waits === null ? null : (live.waitsSince ?? this.now())
+    this.changed(terminalId)
   }
 
   /** Since when the messages for the terminal have been held, the longest; null if none is. */
@@ -917,12 +922,13 @@ export class Messaging {
   }
 
   /**
-   * Since when a message for the terminal has been held behind what keeps its doorbell from
-   * it: the later of its sending and the hold's start; undefined while nothing holds it.
+   * Since when a message waiting for the terminal's idle agent has been held there: the
+   * later of when the agent last went idle and when the message last came to wait (its
+   * sending, or a pause's or a release's end); undefined unless both hold now.
    */
   private heldSince(live: Live, message: Message): number | undefined {
-    return this.waitsOf(live) && live.waitsSince !== null && message.state === "queued"
-      ? Math.max(live.waitsSince, message.sentAt)
+    return live.idleSince !== null && message.state === "queued"
+      ? Math.max(live.idleSince, this.queuedSince.get(message.id) ?? message.sentAt)
       : undefined
   }
 
@@ -932,13 +938,16 @@ export class Messaging {
    */
   heldFrom(terminalId: string): readonly string[] {
     const now = this.now()
-    const held = new Map<string, { live: Live; waits: Waits; since: number; ids: string[] }>()
+    const held = new Map<
+      string,
+      { live: Live; waits: Waits | null; since: number; ids: string[] }
+    >()
     for (const message of this.messages.values()) {
       if (message.from.terminalId !== terminalId) continue
       const to = this.live.get(message.to.terminalId)
       const since = to && this.heldSince(to, message)
-      const waits = to && this.waitsOf(to)
-      if (!to || !waits || since === undefined || now - since < longHoldMs) continue
+      if (!to || since === undefined || now - since < longHoldMs) continue
+      const waits = this.waitsOf(to)
       if (this.holdsTold.get(message.id) === since) continue
       this.holdsTold.set(message.id, since)
       const each = held.get(to.terminalId) ?? { live: to, waits, since, ids: [] }
@@ -1516,6 +1525,7 @@ export class Messaging {
       if (message.projectId === projectId) {
         this.messages.delete(id)
         this.holdsTold.delete(id)
+        this.queuedSince.delete(id)
         if (message.response) this.responses.delete(message.response.askId)
       }
     for (const [id, thread] of this.threads)
@@ -1538,6 +1548,7 @@ export class Messaging {
     for (const { id, response } of old) {
       this.messages.delete(id)
       this.holdsTold.delete(id)
+      this.queuedSince.delete(id)
       if (response) this.responses.delete(response.askId)
     }
     if (old.length > 0) this.write(() => this.records.removeMessages(old.map(({ id }) => id)))
@@ -1907,7 +1918,10 @@ export class Messaging {
         live.delivery.epoch === before.epoch)
     // The doorbell's last word on why it can't ring is about an idle agent only.
     if (state === "working" || state === "ringing" || state === "unbound" || live.viaScreen)
-      this.waits(live, null)
+      live.waits = null
+    // A hold is timed from the agent going idle; a turn or a ring ends it.
+    if (!idle(live.delivery)) live.idleSince = null
+    else if (!idle(before)) live.idleSince = this.now()
     // A turn that ended, or a new one, leaves the last one's delivery behind.
     if ((running(before) && !running(live.delivery)) || live.delivery.epoch !== before.epoch)
       this.leases.forget(live.terminalId)
@@ -1928,8 +1942,12 @@ export class Messaging {
 
   private put(message: Message): void {
     if (this.closed) return
+    const before = this.messages.get(message.id)
     this.messages.set(message.id, message)
-    if (message.state !== "queued") this.holdsTold.delete(message.id)
+    if (message.state !== "queued") {
+      this.holdsTold.delete(message.id)
+      this.queuedSince.delete(message.id)
+    } else if (before?.state !== "queued") this.queuedSince.set(message.id, this.now())
     if (message.response) this.responses.set(message.response.askId, message.id)
     this.write(() => this.records.saveMessage(message))
     this.changed(message.to.terminalId)

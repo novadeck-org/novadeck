@@ -13,6 +13,7 @@ import {
   resumesLabel,
   standingOf,
   subjectOf,
+  toneOf,
   waitLabel,
 } from "./inbox-text"
 
@@ -135,6 +136,13 @@ describe("An item's subject", () => {
     expect(subjectOf(held(1, "dialog"))).toBe(
       `1 message for @${base.source.handle} waits behind a dialog or picker in its terminal`,
     )
+    expect(
+      subjectOf({ ...base, kind: "trouble", trouble: { type: "waits", waits: null, count: 2 } }),
+    ).toBe(
+      `2 messages for @${base.source.handle} wait behind an idle agent Novadeck can't wake yet`,
+    )
+    // It waits on the person, but nothing failed.
+    expect(toneOf(held(3, "draft"))).toBe("waiting")
   })
 })
 

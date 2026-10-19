@@ -89,8 +89,9 @@ export type EvidenceLine = {
 
 // What Novadeck noticed: the same failure again and again; a usage-limit window used up,
 // with when it resets and whether Novadeck continues the agent then; a turn that ended in a
-// failure, with the error where the harness gives it; or `count` messages for the agent
-// that have waited long behind what keeps the doorbell from waking it (`waits`).
+// failure, with the error where the harness gives it; or `count` messages that have waited
+// long for the idle agent, behind what keeps the doorbell from waking it (`waits`, null
+// where the doorbell hasn't said).
 export type Trouble =
   | {
       readonly type: "stuck"
@@ -111,7 +112,7 @@ export type Trouble =
       readonly evidence: readonly EvidenceLine[]
     }
   | { readonly type: "failed"; readonly error: string | null }
-  | { readonly type: "waits"; readonly waits: MailWaits; readonly count: number }
+  | { readonly type: "waits"; readonly waits: MailWaits | null; readonly count: number }
 
 // A finished turn, with the start of the agent's last reply (or murmur's gist of it) and
 // the files its edit tools wrote in the turn; or something the agent told the person.

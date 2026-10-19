@@ -1897,14 +1897,15 @@ describe("listing", () => {
   })
 
   it("gives the runner API a terminal's threads, messages and states", () => {
-    const { messaging, send } = create()
+    const { messaging, send, clock: time } = create()
     sent(send("A", "fox", "hello"))
     expect(messaging.list("B", "fox")).toEqual({
       terminalId: "B",
       handle: "fox",
       delivery: "fresh",
       waits: null,
-      waitsSince: null,
+      // Its agent idle, the message has waited since it was sent.
+      waitsSince: time.now,
       paused: false,
       threads: [
         {
@@ -3495,29 +3496,25 @@ describe("a long hold of the doorbell", () => {
       return { ...made, bound }
     }
 
-    it("is listed from the longest-held message, through a change of why, until it ends", () => {
-      const { messaging, clock: time, send } = held()
+    it("is listed from the longest-held message while the agent stays idle, whatever holds it", () => {
+      const { messaging, clock: time, send, prompt, bound } = held()
       messaging.blocked(to, "draft")
       // Nothing held yet: the hold names no time.
-      expect(messaging.list(to, handle)).toMatchObject({
-        waits: "draft",
-        waitsSince: null,
-      })
+      expect(messaging.list(to, handle)).toMatchObject({ waits: "draft", waitsSince: null })
       time.now += 60_000
       sent(send(from, handle, "first"))
       const since = time.now
       time.now += 1_000
       sent(send(from, handle, "second"))
+      // A change of why, or the doorbell's look clearing it, is no break.
       messaging.blocked(to, "dialog")
-      expect(messaging.list(to, handle)).toMatchObject({
-        waits: "dialog",
-        waitsSince: since,
-      })
+      expect(messaging.list(to, handle)).toMatchObject({ waits: "dialog", waitsSince: since })
       messaging.blocked(to, null)
-      expect(messaging.list(to, handle)).toMatchObject({
-        waits: null,
-        waitsSince: null,
-      })
+      expect(messaging.list(to, handle)).toMatchObject({ waits: null, waitsSince: since })
+      // A turn is: its messages go with it.
+      messaging.keys(to, ["enter"], false)
+      prompt(to, bound[to])
+      expect(messaging.list(to, handle)).toMatchObject({ waits: null, waitsSince: null })
     })
 
     it("tells its sender of each message once it has been held long, in its next hook or answer", () => {
@@ -3539,19 +3536,43 @@ describe("a long hold of the doorbell", () => {
       // Its next prompt carries the two held long, once; the third was sent into the hold.
       expect(context(prompt(from, bound[from]).stdout)).toBe(notice)
       expect((messaging.agents(from) as { text: string }).text).not.toContain("not arrived")
-      stop(from, bound[from])
-      // The third, once held long itself, is told in the next answer.
+      // A Stop never carries it: its output would continue the turn.
       time.now += longHoldMs
+      expect(stop(from, bound[from]).stdout).not.toContain("not arrived")
+      // The third, held long itself, is told in the next answer.
       const answer = sent(send(from, handle, "fourth"))
       expect(answer.holds).toEqual([holdNotice([third], handle, "draft", since + longHoldMs - 1)])
-      // A new hold is told again, once it lasts.
-      messaging.blocked(to, null)
-      messaging.blocked(to, "away")
-      const again = time.now
+    })
+
+    it("tells a hold the doorbell gave no reason for, as when the screen never calms", () => {
+      const { messaging, clock: time, send } = held()
+      const id = sent(send(from, handle, "first")).id
+      const since = time.now
       time.now += longHoldMs
-      const listing = (messaging.agents(from) as { text: string }).text
-      expect(listing).toContain(`have not arrived since ${clock(again)} (waits:`)
-      expect(listing).toContain("its terminal is not at the agent's prompt")
+      expect(messaging.list(to, handle)).toMatchObject({ waits: null, waitsSince: since })
+      expect(sent(send(from, handle, "second")).holds).toEqual([
+        holdNotice([id], handle, null, since),
+      ])
+      expect(holdNotice([id], handle, null, since)).toContain(
+        "(its agent is idle, but Novadeck can't wake it yet)",
+      )
+    })
+
+    it("times a message from when it came to wait again, after a pause", () => {
+      const { messaging, clock: time, send } = held()
+      sent(send(from, handle, "first"))
+      messaging.pause(true)
+      time.now += 10 * longHoldMs
+      expect(messaging.list(to, handle).waitsSince).toBeNull()
+      messaging.pause(false)
+      const resumed = time.now
+      expect(messaging.list(to, handle).waitsSince).toBe(resumed)
+      time.now += longHoldMs - 1
+      expect((messaging.agents(from) as { text: string }).text).not.toContain("not arrived")
+      time.now += 1
+      expect((messaging.agents(from) as { text: string }).text).toContain(
+        `not arrived since ${clock(resumed)}`,
+      )
     })
 
     it("names a few messages, and counts the rest", () => {
@@ -3637,5 +3658,22 @@ describe.each(["claude", "codex", "agy"] as const)("a doorbell line left in %s's
     expect(messaging.ringLeftover(terminal, "n1")).toBe(false)
     // Nor is one Novadeck never rang there.
     expect(messaging.ringLeftover(terminal, "k3f9")).toBe(false)
+  })
+})
+
+describe("the rings a terminal remembers unconfirmed", () => {
+  it("are its latest eight", () => {
+    const { messaging, send, prompt, stop, codex } = create()
+    prompt("B", codex)
+    stop("B", codex)
+    sent(send("A", "fox", "hello"))
+    for (let ring = 0; ring < 9; ring += 1) {
+      expect(messaging.ring("B", `n${ring}`)).toBe(true)
+      messaging.ringFailed("B", `n${ring}`)
+      messaging.emptied("B", messaging.delivery("B")!.epoch)
+    }
+    expect(messaging.unconfirmed("B", "n0")).toBe(false)
+    for (let ring = 1; ring < 9; ring += 1)
+      expect(messaging.unconfirmed("B", `n${ring}`)).toBe(true)
   })
 })

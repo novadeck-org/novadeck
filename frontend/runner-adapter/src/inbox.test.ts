@@ -488,11 +488,22 @@ describe("The Inbox's items", () => {
       })
     })
 
+    it("is raised where the doorbell gave no reason, as when the screen never calms", () => {
+      const [item] = inboxItems(inputs(pair, { mail: heldFor([waiting()], null), now: at }))
+      expect(item).toMatchObject({ trouble: { type: "waits", waits: null, count: 1 } })
+    })
+
     it("is none until the hold has lasted, nor once no message waits or the hold ends", () => {
       expect(inboxItems(inputs(pair, { mail: heldFor([waiting()]), now: at - 1 }))).toEqual([])
       const delivered = waiting({ state: "delivered", deliveredAt: 2_000 })
       expect(inboxItems(inputs(pair, { mail: heldFor([delivered]), now: at }))).toEqual([])
-      expect(inboxItems(inputs(pair, { mail: heldFor([waiting()], null), now: at }))).toEqual([])
+      const ended: MailState = {
+        ...heldFor([waiting()]),
+        terminals: {
+          "p/s/02": { ...heldFor([waiting()]).terminals["p/s/02"]!, waitsSince: null },
+        },
+      }
+      expect(inboxItems(inputs(pair, { mail: ended, now: at }))).toEqual([])
       // Moth's own messages to fox wait in its listing, not for it.
       const sent = heldFor([waiting({ from: "fox", to: "moth" })])
       expect(inboxItems(inputs(pair, { mail: sent, now: at }))).toEqual([])

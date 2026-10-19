@@ -1,5 +1,5 @@
 import type { Trouble } from "@novadeck/core/inbox"
-import { waitsText } from "@novadeck/core/messages"
+import { unsaidWaits, waitsText } from "@novadeck/core/messages"
 import { Switch } from "@novadeck/toolkit/Switch"
 import { useId, useState } from "react"
 
@@ -196,7 +196,7 @@ const HeldUp = (props: SheetContentProps & { readonly trouble: Waits }): React.J
   return (
     <Page>
       <Lead {...props} />
-      <p className="inbox-lead">{waitsText[trouble.waits]}</p>
+      <p className="inbox-lead">{trouble.waits ? waitsText[trouble.waits] : unsaidWaits.text}</p>
       <div className="inbox-actions">
         <button type="button" className="button primary text-control" onClick={reveal}>
           Show terminal

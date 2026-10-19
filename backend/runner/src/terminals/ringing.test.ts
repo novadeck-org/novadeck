@@ -266,6 +266,16 @@ describe.each([
     },
   )
 
+  it.runIf(agent === "claude")("is left alone while a prompt queued beside it shows", () => {
+    // Claude Code's hint under its box while messages are queued.
+    const queued = {
+      ...alone.after,
+      rows: { ...alone.after.rows, 0: "Press up to edit queued messages" },
+    }
+    expect(rings.leftover("t", drawn(alone.after))).toBe("n7Q2")
+    expect(rings.leftover("t", drawn(queued))).toBeUndefined()
+  })
+
   it("is the person's once its ring was confirmed: put back by Escape, or recalled", () => {
     confirmed = true
     try {

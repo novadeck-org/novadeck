@@ -59,7 +59,12 @@ export const waitsText: Readonly<Record<MailWaits, string>> = {
   away: "Its terminal isn't at the agent's prompt, so they wait. They arrive once it is.",
 }
 
-// What the messages wait behind, as the Inbox says it after "N messages for @x wait".
+// What the messages wait behind, as the Inbox says it after "N messages for @x wait", and
+// where the doorbell hasn't said why it can't wake the idle agent.
+export const unsaidWaits = {
+  behind: "an idle agent Novadeck can't wake yet",
+  text: "It is idle, but Novadeck can't wake it yet, so they wait. They arrive at its next prompt.",
+}
 export const waitsBehind: Readonly<Record<MailWaits, string>> = {
   draft: "text in its box",
   dialog: "a dialog or picker in its terminal",

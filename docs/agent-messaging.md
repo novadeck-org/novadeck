@@ -1700,19 +1700,22 @@ the box.
   question, so they wait. They arrive once you answer." The demo shows the third on its
   Codex waiting for permission, and its debug panel's Doorbell group (Agents) puts the
   selected agent in each state.
-- **A long hold.** A message is held from the later of its sending and the start of an
-  unbroken hold of the doorbell, whatever `waits` said meanwhile; the listing says since
-  when its longest-held message has been (`waitsSince`). Once that is `longHoldMs` (3
-  minutes) ago with messages still waiting for it (none held for release or a pause), the
-  Inbox shows the terminal's trouble item, "N messages for @kite wait
-  behind text in its box", its words for what holds them taken from `waits`, with the
-  Messages pane's sentence and **Show terminal**; a request or an `ask` of that agent's
-  comes first, a finished turn after. Each sender learns of each of its messages held that
-  long, once per hold, in whatever Novadeck answers it next, without
+- **A long hold.** A message waiting for an idle agent (Settled, Ready, Fresh, Drafting or
+  Unknown) is held from the later of when the agent last went idle and when the message
+  last came to wait (its sending, or the end of a pause or a release); a turn or a ring ends
+  the hold, and nothing the doorbell says or stops saying does. The listing says since when
+  its longest-held message has waited (`waitsSince`). Once that is `longHoldMs` (3 minutes)
+  ago with messages still waiting (none held for release or a pause), the Inbox shows the
+  terminal's item, "N messages for @kite wait behind text in its box", its words for what
+  holds them taken from `waits` ("an idle agent Novadeck can't wake yet" where the doorbell
+  gave no reason, as for a screen that never calms), with the Messages pane's sentence and
+  **Show terminal**. It waits on the person but marks no failure; a request or an `ask` of
+  that agent's comes first, a finished turn after. Each sender learns of each of its
+  messages held that long, once per hold, in whatever Novadeck answers it next, without
   asking: its next `send` or `agents` answer, or the context its next prompt-time or
   tool-call hook prints ("your message m-1 to @kite has not arrived since 11:41 (waits:
   there's text in its box, rung once it is empty); the user is shown this in Novadeck's
-  Inbox."). A Stop hook never carries it alone, as printing would continue the turn.
+  Inbox."). A Stop hook never carries it, as its output would continue the turn.
 
 Naming adds to it: every terminal summary says who its title is from
 (`titleSource`), `terminals.resetTitle` hands a title back to Novadeck, and

@@ -910,16 +910,15 @@ export const messageThread = z.strictObject({
 // (`dialog`), a question it waits on the person for (`asking`), rings that failed (`failed`), or a terminal not at the agent's prompt (`away`).
 export const deliveryWaits = z.enum(["draft", "dialog", "asking", "failed", "away"])
 
-// How long a message may be held from an idle agent whose doorbell is kept from it, without a
-// break, whatever its `waits`, before the hold is raised: an Inbox item for the person, and a
-// word to its sender, in milliseconds.
+// How long a message may wait for an idle agent, the agent idle all along, before the hold is
+// raised: an Inbox item for the person, and a word to its sender, in milliseconds.
 export const longHoldMs = 3 * 60_000
 
 // `messages.list`: a terminal's handle, how its agent can take messages now, why the doorbell
-// can't ring it if it is idle (`waits`), since when the longest-held message for it has been
-// kept by that (`waitsSince`, epoch milliseconds: the later of its sending and the hold's
-// start; null with none held), whether messaging is paused, and every thread it is in,
-// latest first.
+// can't ring it if it is idle (`waits`), since when the longest-held message for its idle
+// agent has waited (`waitsSince`, epoch milliseconds: the later of when the agent last went
+// idle and when the message last came to wait; null with none), whether messaging is
+// paused, and every thread it is in, latest first.
 export const terminalMessages = z.strictObject({
   terminalId: id,
   handle,
