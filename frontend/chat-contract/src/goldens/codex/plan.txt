@@ -1,0 +1,2 @@
+# records
+assistant: <proposed_plan> ⏎ Add a greeting README ⏎ Create README.md in the current folder containing exactly Hello!\n. ⏎ Verify the file exists and its contents match. No tests or other changes are needed. ⏎ </proposed_plan>
