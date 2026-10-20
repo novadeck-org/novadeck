@@ -133,6 +133,9 @@ describe("the checks on a model's answer", () => {
       "The website explains pins.",
       "CI runs faster.",
       "A GitHub Action is added.",
+      "Novadeck updates itself, with stable and early build channels.",
+      "Early updates arrive first.",
+      "Prereleases install on their own.",
     ]) {
       const checked = check(withChange(line))
       expect(checked, line).toMatchObject({ ok: true, output: { changes: [] } })
@@ -140,6 +143,9 @@ describe("the checks on a model's answer", () => {
       expect(JSON.stringify(checked), line).not.toContain(line)
     }
     expect(failure(withChange("Terminals pick up a new decision."))).toBeUndefined()
+    expect(droppedFor(withChange("An early exit no longer loses the terminal's output."))).toEqual(
+      [],
+    )
   })
 
   it("drops a highlight on an excluded topic and keeps a promotion valid with none left", () => {

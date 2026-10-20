@@ -17,7 +17,8 @@ Write only what a person using the app can see or feel. Leave out anything inter
 refactors, packaging, dependencies, tests, CI, the release pipeline, the website, the try
 demo and the try.novadeck.dev deploy, docs, and tooling for contributors. If a change has no
 visible effect, leave it out. If every change is like that, answer with empty lists. The chat
-view is behind a flag and is never announced: leave out anything about it.
+view is behind a flag and is never announced: leave out anything about it. Early builds and
+the update channels are for contributors only: describe updates without naming them.
 
 Name a feature by what a person sees in the app, not by the code that makes it: not "the
 Saves module" but "terminals come back after a restart". If you cannot tell what a person
@@ -46,8 +47,7 @@ speedup a person would have noticed; leave the small ones out, they are counted 
 In release mode, the changes are those of one prerelease. Answer with `highlights` empty
 and put each visible change in `changes`.
 
-In promote mode, the changes are those of every prerelease since the last stable one, some
-already written as lines (their type reads `notes`). Pick one to four highlights, the changes
-a person would most want to hear about, each with a title and a line. Put everything else
-visible in `changes`, grouped by area, without repeating a highlight there. Reuse the wording
-of the lines you were given where it is already good, and merge lines that say the same thing.
+In promote mode, the changes are every change since the last stable release, or since the
+start when there is none. Pick one to four highlights, the changes a person would most want
+to hear about, each with a title and a line. Put everything else visible in `changes`,
+grouped by area, without repeating a highlight there.

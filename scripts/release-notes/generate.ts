@@ -1,7 +1,7 @@
 import { readNotesBlock, type ReleaseNotes } from "../../contract/protocol/src/release-notes.ts"
 import { checkOutput } from "./check.ts"
 import { parseCommits } from "./commits.ts"
-import { commitItem, noteItems, type Item } from "./items.ts"
+import { commitItem, type Item } from "./items.ts"
 import { parseOutput, type Answer } from "./model.ts"
 import { originalOf } from "./render.ts"
 import { Skip, viaGh } from "./skip.ts"
@@ -48,15 +48,14 @@ const sorted = (tags: readonly string[]): string[] =>
   tags.filter((tag) => versionOf(tag)).toSorted(compare)
 
 /**
- * The notes for these items, as the model wrote them and the checks left them. `carried` is
- * the count of smaller fixes releases already tallied. Throws `Skip` when there is no answer
- * to use; an answer of empty lists is an answer, of a release with nothing to see.
+ * The notes for these items, as the model wrote them and the checks left them. Throws
+ * `Skip` when there is no answer to use; an answer of empty lists is an answer, of a
+ * release with nothing to see.
  */
 const compose = async (
   kind: "release" | "promote",
   tag: string,
   items: readonly Item[],
-  carried: number,
   ask: Ask,
 ): Promise<
   Pick<Generated, "notes" | "raw" | "outputTokens" | "model" | "dropped" | "considered">
@@ -66,7 +65,7 @@ const compose = async (
   const given = items.filter((item) => item.prs.length > 0)
   if (given.length === 0)
     return {
-      notes: { version, kind, highlights: [], changes: [], fixes: carried },
+      notes: { version, kind, highlights: [], changes: [], fixes: 0 },
       raw: "(nothing was asked)",
       outputTokens: 0,
       model: "(none asked)",
@@ -84,7 +83,7 @@ const compose = async (
   const cited = new Set([...told, ...changes.flatMap((change) => change.prs)])
   const unnamed = given.filter((item) => item.fix && !item.prs.some((pr) => cited.has(pr))).length
   return {
-    notes: { version, kind, highlights, changes, fixes: carried + unnamed },
+    notes: { version, kind, highlights, changes, fixes: unnamed },
     raw: text,
     outputTokens,
     model,
@@ -114,14 +113,14 @@ export const generateRelease = async (
   if (readNotesBlock(release.body)?.kind === "promote")
     throw new Skip(`${tag}'s body is a promotion's notes, which a build's don't replace`)
   return {
-    ...(await compose("release", tag, items, 0, ask)),
+    ...(await compose("release", tag, items, ask)),
     original: originalOf(release.body),
     compare: undefined,
   }
 }
 
 /**
- * A promotion's notes: every release since the latest stable one, up to `tag`. The details
+ * A promotion's notes: every change since the latest stable one, up to `tag`. The details
  * keep only the promoted release's own changelog and a link to the whole range.
  */
 export const generatePromote = async (
@@ -137,30 +136,14 @@ export const generatePromote = async (
   if (stable && versionOf(stable) && compare(stable, tag) >= 0)
     throw new Skip(`${tag} is not newer than the stable release ${stable}`)
   const known = stable && versionOf(stable) ? stable : undefined
-  const range = tags.filter((candidate) => !known || compare(candidate, known) > 0)
-  const items: Item[] = []
-  let carried = 0
-  let own = ""
-  for (const release of range) {
-    // eslint-disable-next-line no-await-in-loop -- One `gh` call at a time, for the API's rate limit.
-    const found = await viaGh(`read ${release}'s release`, sources.release(release))
-    if (release === tag) {
-      if (!found) throw new Skip(`${tag} has no release to write notes on`)
-      own = originalOf(found.body)
-    }
-    // Only a prerelease's own notes are reused; a promotion's cover a range, not this release.
-    const notes = found ? readNotesBlock(found.body) : undefined
-    if (notes?.kind === "release") {
-      items.push(...noteItems(notes))
-      carried += notes.fixes
-      continue
-    }
-    const previous = tags[tags.indexOf(release) - 1]
-    // eslint-disable-next-line no-await-in-loop -- One git process at a time.
-    items.push(...parseCommits(await sources.commits(previous, release)).map(commitItem))
-  }
+  // Every commit of the range goes to the model as it is, not through what a prerelease's
+  // own run made of it: the model that picks the highlights judges every change itself.
+  const items = parseCommits(await sources.commits(known, tag)).map(commitItem)
+  const found = await viaGh(`read ${tag}'s release`, sources.release(tag))
+  if (!found) throw new Skip(`${tag} has no release to write notes on`)
+  const own = originalOf(found.body)
   return {
-    ...(await compose("promote", tag, items, carried, ask)),
+    ...(await compose("promote", tag, items, ask)),
     original: own,
     // Without a stable release there is no start to compare from, so the link is the history.
     compare: known

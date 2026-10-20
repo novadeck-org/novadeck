@@ -12,7 +12,7 @@ import { type Client } from "./model.ts"
 
 const sources = fakeSources({
   tags: ["v0.0.151", "v0.0.152"],
-  commits: { "v0.0.151..v0.0.152": [commit(330)] },
+  commits: { "v0.0.151..v0.0.152": [commit(330)], "..v0.0.152": [commit(330)] },
   bodies: { "v0.0.152": releaseBody },
 })
 const withReply = (reply: () => Promise<Response>): ((mode: "release" | "promote") => Client) => {

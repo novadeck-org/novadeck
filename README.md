@@ -1577,8 +1577,8 @@ commits become short lines grouped by area; when a prerelease is promoted, its n
 rewritten with up to four highlights picked from everything since the last stable release,
 which the app shows once after updating to it. The `OPENROUTER_API_KEY` repository secret
 enables it, and the `RELEASE_NOTES_PRERELEASE_MODEL` and `RELEASE_NOTES_PROMOTE_MODEL`
-repository variables pick the models (by default `anthropic/claude-haiku-5.5` and `anthropic/claude-opus-5.5`).
-Without the key, or when a run fails, a release keeps the notes it has; neither step holds a
+repository variables pick the models (by default `deepseek/deepseek-v4-pro` and
+`anthropic/claude-opus-5.5`). Without the key, or when a run fails, a release keeps the notes it has; neither step holds a
 release or a promotion. Run `node scripts/release-notes/main.ts promote v1.2.3 --dry-run` to
 see what a promotion would write without changing anything.
 
