@@ -149,17 +149,6 @@ export class Typing {
     this.doorbell?.close()
   }
 
-  /** Whether the activity says the agent in a running terminal works (`agentWorking`). */
-  working(terminalId: string): boolean {
-    const record = this.host.live(terminalId)
-    return agentWorking(
-      this.host.messaging(),
-      terminalId,
-      record?.binding ?? null,
-      record?.activity ?? null,
-    )
-  }
-
   /** The harness of the agent bound to the terminal, or shown at its prompt, as its box reads. */
   boxOf(record: Record): BoxProfile | undefined {
     return profileOf(record.binding, () => this.host.messaging().shownAgent(record.summary.id))
@@ -489,12 +478,10 @@ export class Typing {
       endExited: (record) => this.host.endExited(record),
       messaging: this.host.messaging(),
       working: (terminalId, activity) =>
-        agentWorking(
-          this.host.messaging(),
-          terminalId,
-          this.host.live(terminalId)?.binding ?? null,
+        agentWorking(this.host.messaging(), terminalId, {
+          binding: this.host.live(terminalId)?.binding ?? null,
           activity,
-        ),
+        }),
       stopping: () => this.host.stopping(),
     })
   }
