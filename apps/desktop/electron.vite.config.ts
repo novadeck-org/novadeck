@@ -22,6 +22,8 @@ export default defineConfig({
           runner: resolve("src/runner/index.ts"),
           // The thread murmur redacts digests in, which the runner starts from a file beside it.
           murmurWorker: resolve(runnerSource, "murmur/worker.ts"),
+          // The thread that masks secrets in saved transcripts, started the same way.
+          redactionWorker: resolve(runnerSource, "terminals/redactionWorker.ts"),
         },
         // Native PTYs load through Node's own resolver, from the unpacked package.
         external: ["node-pty"],

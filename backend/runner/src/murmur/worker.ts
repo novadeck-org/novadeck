@@ -7,11 +7,11 @@ import type { Input } from "./describer.js"
 import { messages } from "./prompt.js"
 import { redactDigest } from "./redact.js"
 
-parentPort?.on("message", (request: { id: number; digest: Input }) => {
+parentPort?.on("message", (job: { id: number; request: Input }) => {
   try {
-    parentPort?.postMessage({ id: request.id, chat: messages(redactDigest(request.digest)) })
+    parentPort?.postMessage({ id: job.id, result: messages(redactDigest(job.request)) })
   } catch (error) {
-    parentPort?.postMessage({ id: request.id, failed: String(error) })
+    parentPort?.postMessage({ id: job.id, failed: String(error) })
   }
 })
 parentPort?.postMessage({ ready: true })

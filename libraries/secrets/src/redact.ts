@@ -462,48 +462,62 @@ export const maskedSpans = (text: string): string[] => {
   )
 }
 
-// The screen's rows with a key block masked: every row from a BEGIN marker to its END marker,
+// Which rows of the screen a key block covers: every row from a BEGIN marker to its END marker,
 // or to the end of the screen if that is not visible. A marker may be split by the end of a
-// row, so rows that go on in the next are read together; the whole group is masked.
-const maskKeyBlocks = (screen: readonly string[], continues: readonly boolean[]): string[] => {
-  const rows = [...screen]
+// row, so rows that go on in the next are read together; the whole group is covered.
+const keyBlockRows = (screen: readonly string[], continues: readonly boolean[]): boolean[] => {
+  const covered: boolean[] = screen.map(() => false)
   let inside = false
-  for (let first = 0; first < rows.length;) {
+  for (let first = 0; first < screen.length;) {
     let last = first
-    while (continues[last] && last + 1 < rows.length) last += 1
-    const text = rows.slice(first, last + 1).join("")
+    while (continues[last] && last + 1 < screen.length) last += 1
+    const text = screen.slice(first, last + 1).join("")
     // A marker cut short by the pane's width still starts or ends a block: its dashes may be
     // on the next row, or lost. Whichever comes last in the group says if a block is open.
     const lastBegin = text.lastIndexOf("-----BEGIN")
     const lastEnd = text.lastIndexOf("-----END")
     if (lastEnd >= 0 && !inside && lastBegin < 0) {
       // An END with no BEGIN on screen: its block began above the top.
-      for (let i = 0; i <= last; i += 1) rows[i] = redacted
+      for (let i = 0; i <= last; i += 1) covered[i] = true
     } else if (inside || lastBegin >= 0) {
-      for (let i = first; i <= last; i += 1) rows[i] = redacted
+      for (let i = first; i <= last; i += 1) covered[i] = true
     }
     if (lastBegin >= 0 || lastEnd >= 0) inside = lastBegin > lastEnd
     first = last + 1
   }
-  return rows
+  return covered
 }
 
-// Redacts the rows of a screen. Rows that go on (each but the last of a group ended at the
-// pane's edge) are marked apart and as one text from each of their starts, and what any of
-// those marks is masked, in whichever row it lies: a secret across a boundary is masked on both
-// sides of it, even when the row before it ended in a word character, and a row's own context
-// changes nothing else. Marking keeps lengths, so the readings line up character for character.
+// How much text is read together from a row's start: rows from there on, until they add up to
+// this many characters. A rule needs at most a value (`valueCap`) with its name or prefix whole,
+// so 4 times that holds any match with room to spare, and a longer run of base64 or a JWT is
+// covered by the windows that start at each of its rows, which overlap. It bounds the work on a
+// group of any size to a window for each row, instead of all the rows after it.
+const readWindow = 4 * valueCap
+
+// Which characters of the screen's rows are a secret. Rows that go on (each but the last of a
+// group ended at the pane's edge) are marked apart, as one text from the first of them, and as
+// one text of a window (see `window`) from each of their starts, and what any of those marks is masked, in whichever row it lies: a secret across a boundary
+// is masked on both sides of it, even when the row before it ended in a word character, and a
+// row's own context changes nothing else. Marking keeps lengths, so the readings line up
+// character for character. Rows `skip` says are masked already are not read.
 // Nothing here bounds the work: a caller that needs a bound runs it in a worker.
-const redactRows = (screen: readonly string[], continues: readonly boolean[]): string[] => {
-  // A row that holds the sentinel itself could not be told from a mask.
-  const rows = screen.map((row) => row.replaceAll(sentinel, "?"))
-  const result: string[] = []
+const markedRows = (
+  rows: readonly string[],
+  continues: readonly boolean[],
+  skip: readonly boolean[],
+): boolean[][] => {
+  const result: boolean[][] = []
   for (let first = 0; first < rows.length;) {
     let last = first
     while (continues[last] && last + 1 < rows.length) last += 1
     const group = rows.slice(first, last + 1)
-    if (group.length === 1) result.push(redact(group[0] ?? ""))
-    else {
+    if (skip[first]) {
+      for (const row of group) result.push(Array.from({ length: row.length }, () => false))
+    } else if (group.length === 1) {
+      const marked = mark(group[0] ?? "")
+      result.push(Array.from({ length: marked.length }, (_, i) => marked[i] === sentinel))
+    } else {
       const text = group.join("")
       const masked: boolean[] = Array.from({ length: text.length }, () => false)
       const note = (marked: string, from: number): void => {
@@ -513,15 +527,19 @@ const redactRows = (screen: readonly string[], continues: readonly boolean[]): s
       let from = 0
       for (let start = 0; start < group.length; start += 1) {
         note(mark(group[start] ?? ""), from)
-        note(mark(group.slice(start).join("")), from)
+        // The whole group from its first row; from each later start, a window of rows.
+        let end = start + 1
+        if (start === 0) end = group.length
+        else {
+          let size = group[start]?.length ?? 0
+          while (end < group.length && size < readWindow) size += group[end++]?.length ?? 0
+        }
+        note(mark(group.slice(start, end).join("")), from)
         from += (group[start] ?? "").length
       }
       let offset = 0
       for (const row of group) {
-        let marked = ""
-        for (let i = offset; i < offset + row.length; i += 1)
-          marked += masked[i] ? sentinel : (text[i] ?? "")
-        result.push(render(marked))
+        result.push(masked.slice(offset, offset + row.length))
         offset += row.length
       }
     }
@@ -530,10 +548,44 @@ const redactRows = (screen: readonly string[], continues: readonly boolean[]): s
   return result
 }
 
+// A row that holds the sentinel itself could not be told from a mask.
+const clean = (screen: readonly string[]): string[] =>
+  screen.map((row) => row.replaceAll(sentinel, "?"))
+
+/**
+ * Which UTF-16 units of a screen's rows are secret, one array of flags per row, as long as the
+ * row. Rows are read as `redactScreen` reads them: each on its own and, where it runs to the
+ * pane's edge (`continues`), with the rows that go on from it; a key block flags every unit of
+ * every row it covers, to the end of the screen when its end is not on it.
+ */
+export const maskScreen = (
+  screen: readonly string[],
+  continues: readonly boolean[],
+): boolean[][] => {
+  const covered = keyBlockRows(screen, continues)
+  const marked = markedRows(clean(screen), continues, covered)
+  return marked.map((row, i) => (covered[i] ? row.map(() => true) : row))
+}
+
 /**
  * A screen's rows with their secrets masked, each row on its own and, where it runs to the
  * pane's edge (`continues`), read with the rows that go on from it; a key block masks every
  * row it covers, to the end of the screen when its end is not on it.
  */
-export const redactScreen = (screen: readonly string[], continues: readonly boolean[]): string[] =>
-  redactRows(maskKeyBlocks(screen, continues), continues)
+export const redactScreen = (
+  screen: readonly string[],
+  continues: readonly boolean[],
+): string[] => {
+  const covered = keyBlockRows(screen, continues)
+  const rows = clean(screen)
+  const masked = markedRows(rows, continues, covered)
+  return rows.map((row, i) =>
+    covered[i]
+      ? redacted
+      : render(
+          Array.from({ length: row.length }, (_, at) =>
+            masked[i]?.[at] ? sentinel : row[at],
+          ).join(""),
+        ),
+  )
+}

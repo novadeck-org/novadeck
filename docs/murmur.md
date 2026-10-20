@@ -66,13 +66,16 @@ behind a random API key made for each launch and passed in the environment
   go through `redactScreen`, so a token split across wrapped rows is still found.
   - The length caps apply after redaction, in the prompt, so a cut token's prefix can't leak.
     Permission commands are never in a digest.
-- **Worker thread** (`prepare.ts`, `worker.ts`): redaction is a large set of regexes, so it
+- **Worker thread** (`prepare.ts`, `worker.ts`, on the runner's `thread.ts`, which saved
+  transcripts' redaction shares): redaction is a large set of regexes, so it
   never runs on the runner's event loop. Each digest, or note digest, is redacted and turned into the chat in a
   worker thread, with a deadline of about 1.5 s. A digest that overruns ends the thread (the
   only way to stop a stuck regex) and is dropped as "did not run": only that terminal is held
   off for a while, and the others carry on. A thread that will not start at all backs murmur
   off and shows on the card. The install check's test terminal goes through the worker too,
-  so a broken worker fails the install.
+  so a broken worker fails the install. `thread.ts` holds the mechanics both users share: finding
+  the script (`murmurWorker.js` or `worker.js` beside the built file, else `worker.ts` through
+  tsx), the ready handshake, one job at a time, the deadline, the idle end and the stop.
 - **Titles are short noun names**, like a ticket or a branch ("Webhook key rotation",
   "EMO-118 login", "Git history"), asked for as 1 to 3 words. They name what an agent's session
   works toward (the person's substantial prompts, the summary, the plan and the reply), not its
@@ -267,7 +270,8 @@ carries `changed` (true; `same` makes it false); a shell's has the title alone. 
 title that opens with the project "shopdeck". The model is
 installed as `models/<first 12 of its sha256>-<name>`, and other files there are removed
 after a model install. `testing/slow-worker.mjs` and `testing/regex-worker.mjs` stand in for the
-redaction thread (a spinning loop, and a regex that backtracks without end). `murmur/real.test.ts`
+redaction thread (a spinning loop, and a regex that backtracks without end); they speak
+`thread.ts`'s protocol (`{ id, request }` in, `{ id, result }` or `{ id, failed }` out). `murmur/real.test.ts`
 runs the real engine when `NOVADECK_MURMUR_REAL_ENGINE` (an unpacked engine folder) and
 `NOVADECK_MURMUR_REAL_MODEL` are set; it writes a title, a headline and a gist. Title-only jobs take 2 to 6 s warm on an Arc iGPU.
 

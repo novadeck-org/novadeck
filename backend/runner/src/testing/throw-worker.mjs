@@ -4,7 +4,7 @@
 import { parentPort } from "node:worker_threads"
 
 parentPort?.on("message", ({ id }) => {
-  parentPort?.postMessage({ id, chat: [{ role: "user", content: "ok" }] })
+  parentPort?.postMessage({ id, result: [{ role: "user", content: "ok" }] })
   setTimeout(() => {
     throw new Error("boom later")
   }, 50)

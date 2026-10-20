@@ -4,7 +4,7 @@
 // stuck on text built to stall it would.
 import { parentPort } from "node:worker_threads"
 
-parentPort?.on("message", ({ id, digest }) => {
+parentPort?.on("message", ({ id, request: digest }) => {
   if (digest.project === "hang") {
     if (digest.redactionProbe instanceof SharedArrayBuffer) {
       const progress = new Int32Array(digest.redactionProbe)
@@ -20,7 +20,7 @@ parentPort?.on("message", ({ id, digest }) => {
   }
   parentPort?.postMessage({
     id,
-    chat: [
+    result: [
       { role: "system", content: "system" },
       { role: "user", content: `about ${digest.project}` },
     ],

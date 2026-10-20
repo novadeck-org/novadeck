@@ -15,9 +15,15 @@ machine. Pure JavaScript, for Node and the browser alike.
 - `redactAs(placeholder)`: a `redact` that writes `placeholder` instead.
 - `redactScreen(rows, continues)`: a screen's rows with their secrets masked, one row out for
   each row in. `continues[i]` says row `i` runs to the pane's edge and goes on in the next: such
-  rows are read on their own and together, so a secret split across them is masked on both
-  sides. A key block masks every row it covers, to the end of the screen when its end is not
+  rows are read on their own and together: as one text from the first row of the group, and
+  from each row's start as many rows on as add up to 4096 characters (a window, 4 times the
+  longest value a rule takes whole). A secret split across them is masked on both sides, a
+  longer one by the windows that overlap along it, and the work grows with the rows, not with
+  their square. A key block masks every row it covers, to the end of the screen when its end is not
   on it.
+- `maskScreen(rows, continues)`: the same reading as `redactScreen`, but returning which UTF-16
+  units of each row are secret, one array of flags per row as long as the row, for a caller that
+  masks the cells themselves and keeps the screen's shape.
 - `maskedSpans(text)`: the pieces of the text `redact` masks, for a check on what it masked.
 
 ## What the rules find
@@ -50,5 +56,5 @@ in-house token format) is kept. On a narrow pane a group of wrapped rows that re
 differently as one is masked whole, so a neighbouring row can go with a secret; a quote left
 open across rows that did not run to the edge is not followed.
 
-Nothing bounds the work: the rules are many regexes, so a caller with a deadline runs them in
+Nothing bounds a single reading: the rules are many regexes, so a caller with a deadline runs them in
 a worker, where a stuck one can be ended.

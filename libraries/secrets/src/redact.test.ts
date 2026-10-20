@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { redact, redactAs, redactScreen, redacted } from "./redact.js"
+import { maskScreen, redact, redactAs, redactScreen, redacted } from "./redact.js"
 
 describe("redacting secrets", () => {
   it("writes each secret as the placeholder it is given", () => {
@@ -972,4 +972,129 @@ describe("Google keys without a digit, and ids glued to a secret", () => {
     expect(result).not.toContain("MDENGbPxRfiCY")
     expect(result).not.toContain("wJalrXUtnFEMI")
   })
+})
+
+describe("which units of a screen are masked", () => {
+  const flagged = (row: string, flags: readonly boolean[] | undefined): string =>
+    [...row].map((_unit, i) => (flags?.[i] ? "^" : " ")).join("")
+
+  it("flags the units of a secret and no others, as long as each row", () => {
+    const shown = ["$ echo API_KEY=hunter2abc ok", "plain"]
+
+    const masks = maskScreen(shown, [false, false])
+
+    expect(masks.map((flags) => flags.length)).toEqual(shown.map((row) => row.length))
+    expect(flagged(shown[0] ?? "", masks[0])).toBe("               ^^^^^^^^^^   ")
+    expect(masks[1]?.some(Boolean)).toBe(false)
+  })
+
+  it("counts the units of a character that takes two, so a surrogate pair is flagged whole", () => {
+    const row = "token=\u{1F600}\u{1F600}abc1 end"
+
+    const [flags] = maskScreen([row], [false])
+
+    expect(flags?.slice(6, 6 + "\u{1F600}\u{1F600}abc1".length).every(Boolean)).toBe(true)
+    expect(flags?.length).toBe(row.length)
+  })
+
+  it("flags a secret split across a full row on both shown", () => {
+    const hex = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a09"
+    const shown = ["$ sha256sum f", hex.slice(0, 40), hex.slice(40), "$"]
+
+    const masks = maskScreen(shown, [false, true, false, false])
+
+    expect(masks[1]?.every(Boolean)).toBe(true)
+    expect(masks[2]?.every(Boolean)).toBe(true)
+    expect(masks[0]?.some(Boolean)).toBe(false)
+    expect(masks[3]?.some(Boolean)).toBe(false)
+  })
+
+  it("flags every unit of every row a key block covers", () => {
+    const shown = ["$ cat key", "-----BEGIN PRIVATE KEY-----", "MIIEvQIBADANBg", "", "$ next"]
+
+    const masks = maskScreen(shown, [false, false, false, false, false])
+
+    expect(masks.map((flags) => flags.every(Boolean))).toEqual([false, true, true, true, true])
+    expect(masks.map((flags) => flags.length)).toEqual(shown.map((row) => row.length))
+  })
+
+  it("reads a sentinel character in a row as the text it is, not as a mask", () => {
+    const [flags] = maskScreen(["a\uE000b"], [false])
+
+    expect(flags).toEqual([false, false, false])
+  })
+
+  it("masks exactly what redactScreen writes as a mask", () => {
+    const shown = [
+      "env | grep STRIPE",
+      "STRIPE_SECRET_KEY=sk_li",
+      "ve_51HxYzAbCdEfGhIjKlMn",
+      "done",
+    ]
+    const continues = [false, true, false, false]
+
+    const masks = maskScreen(shown, continues)
+    const hidden = shown.map((row, i) =>
+      [...row].map((unit, at) => (masks[i]?.[at] ? "\uE000" : unit)).join(""),
+    )
+
+    expect(hidden.map((row) => row.replaceAll(/\uE000+/g, redacted))).toEqual(
+      redactScreen(shown, continues),
+    )
+  })
+})
+
+describe("secrets longer than the window rows are read in", () => {
+  const wrap = (text: string, width: number): string[] => chop(text, width)
+  const continuing = (screen: string[]): boolean[] => screen.map((_row, i) => i < screen.length - 1)
+  const b64 = (length: number): string => {
+    let out = ""
+    for (let i = 0; out.length < length; i += 1)
+      out += Buffer.from(`${i * 7919} Zq8rT2mWx9LpKd3VnB7sYcHt5Gf ${i}`).toString("base64")
+    return out.slice(0, length).replaceAll("=", "A")
+  }
+
+  it("masks a 6 KB base64 run wrapped across many rows after a word character, end to end", () => {
+    const run = b64(6000)
+    const screen = wrap(`prefix${run} done`, 80)
+
+    const result = redactScreen(screen, continuing(screen))
+
+    expect(result.join("")).not.toContain(run.slice(100, 140))
+    expect(result.join("")).not.toContain(run.slice(3000, 3040))
+    expect(result.join("")).not.toContain(run.slice(5900, 5940))
+  })
+
+  it("masks a 3 KB JWT wrapped across rows", () => {
+    const part = b64(1000).replaceAll("+", "-").replaceAll("/", "_")
+    const jwt = `eyJ${part}.${part}.${part}`
+    const screen = wrap(`word ${jwt} end`, 60)
+
+    const result = redactScreen(screen, continuing(screen))
+
+    expect(result.join("")).not.toContain(part.slice(200, 240))
+    expect(result.join("")).not.toContain(part.slice(900, 940))
+  })
+
+  // This thread's own CPU time, in milliseconds.
+  const time = (screen: string[]): number => {
+    const started = process.threadCpuUsage()
+    redactScreen(screen, continuing(screen))
+    const { user, system } = process.threadCpuUsage(started)
+    return (user + system) / 1000
+  }
+  it.each([
+    ["hex", () => "9f86d081884c7d65".repeat(10_000)],
+    ["base64", () => b64(160_000)],
+    ["a=b", () => "a=b".repeat(53_000)],
+    ["quotes", () => '"a: '.repeat(40_000)],
+    ["Ab1+", () => "Ab1+".repeat(40_000)],
+  ])(
+    "is quick for a 2,000-row group of one wrapped line of %s",
+    { timeout: 60_000 },
+    (_name, line) => {
+      // A budget to catch the cost growing with the square of the rows (it was 12 to 45 s; about 1 s now).
+      expect(time(wrap(line(), 80))).toBeLessThan(15_000)
+    },
+  )
 })
