@@ -8,7 +8,7 @@ import { coalesced } from "./coalesce.js"
 describe("coalesced changes", () => {
   it("run once per key per tick, however many changes came", async () => {
     const runs: string[] = []
-    const changed = coalesced((key) => runs.push(key), "failed:")
+    const changed = coalesced((key) => runs.push(key), "failed:", "terminals.look-failed")
     for (let index = 0; index < 100; index++) changed("a")
     changed("b")
     changed("b")
@@ -24,12 +24,16 @@ describe("coalesced changes", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {})
     const runs: string[] = []
     const broken = new Error("broken")
-    const changed = coalesced((key) => {
-      runs.push(key)
-      if (key === "throws") throw broken
-      if (key === "rejects") return Promise.reject(broken)
-      return undefined
-    }, "Looking failed:")
+    const changed = coalesced(
+      (key) => {
+        runs.push(key)
+        if (key === "throws") throw broken
+        if (key === "rejects") return Promise.reject(broken)
+        return undefined
+      },
+      "Looking failed:",
+      "terminals.look-failed",
+    )
     changed("throws")
     changed("rejects")
     changed("next")

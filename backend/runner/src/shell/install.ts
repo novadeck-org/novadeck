@@ -5,8 +5,11 @@ import { promisify } from "node:util"
 
 import { relayPath } from "@novadeck/relay"
 
+import { logs } from "../log.js"
 import { withoutInherited } from "./inherited.js"
 import { shellFiles, shellPaths, staleShellFiles, type ShellPaths } from "./scripts.js"
+
+const log = logs.for("shell")
 
 /**
  * The shell files as written, with the launchers as Novadeck's shells name them: the
@@ -42,7 +45,7 @@ export const installShellFiles = async (
   const relayed = await installRelay(relay, paths.relay).then(
     () => true,
     (error: unknown) => {
-      console.error("Novadeck's relay is unavailable:", error)
+      log.error("relay.unavailable", "Novadeck's relay is unavailable", { err: error })
       return false
     },
   )
@@ -50,11 +53,13 @@ export const installShellFiles = async (
   // An agent that runs its hooks in cmd reads nothing they answer after cmd's own output.
   const prints = process.platform === "win32" ? await cmdPrints() : undefined
   if (prints === "prints")
-    console.error(
+    log.warn(
+      "shell.cmd-prints",
       "Novadeck: cmd prints something of its own before every command, as an AutoRun (HKLM or HKCU\\Software\\Microsoft\\Command Processor\\AutoRun) that doesn't send its output to nul does. Antigravity can read none of its hooks' answers then, so Novadeck registers no PreToolUse hook for it, and installs its plugin again where it is connected; its own policy asks before each tool, and messaging with it won't work until that output goes.",
     )
   if (prints === "slow")
-    console.error(
+    log.warn(
+      "shell.cmd-slow",
       "Novadeck: cmd took more than 5 seconds to run a command, as a slow AutoRun (HKLM or HKCU\\Software\\Microsoft\\Command Processor\\AutoRun) may on a cold start, so whether it prints anything of its own isn't known. In case it does, which would let Antigravity's tools run unasked, Novadeck registers no PreToolUse hook for it this time; Antigravity's own policy asks before each tool. It looks again at the next start.",
     )
   for (const file of shellFiles(paths, process.platform, undefined, {

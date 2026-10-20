@@ -3,12 +3,15 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
 import { errors, protocolVersion } from "@novadeck/protocol"
+import { TerminalError } from "@novadeck/terminal"
 import { userScopes } from "@novadeck/terminal/pty"
 import { createSessions, type Sessions } from "@novadeck/wire/server"
 import { ORPCError } from "@orpc/server"
 
 import { CompanionItems } from "./companions/items.js"
+import { DomainError } from "./errors.js"
 import { createHarnesses, type HarnessesOptions } from "./harnesses/service.js"
+import { logs } from "./log.js"
 import { Murmur } from "./murmur/service.js"
 import { apiError, createRouter } from "./router.js"
 import { installShellFiles } from "./shell/install.js"
@@ -22,6 +25,8 @@ import {
   WorkspaceStore,
   WorkspaceTooNewError,
 } from "./workspaces/store.js"
+
+const log = logs.for("runner")
 
 export type RunnerOptions = {
   /** SQLite file for project and session metadata; in memory when omitted. */
@@ -103,7 +108,10 @@ const openStore = (database: string | undefined): WorkspaceStore => {
   } catch (error) {
     if (!(error instanceof EarlierWorkspaceError) || database === undefined) throw error
     const aside = setAsideWorkspace(database)
-    console.warn(`${error.message} It was set aside as ${aside}, and a new one started.`)
+    log.warn(
+      "workspace.set-aside",
+      `${error.message} It was set aside as ${aside}, and a new one started.`,
+    )
     return new WorkspaceStore(database)
   }
 }
@@ -124,7 +132,9 @@ export const wire = (options: RunnerOptions) => {
           options.shell,
           options.relay === undefined ? {} : { relay: options.relay },
         ).catch((error: unknown) => {
-          console.error("Novadeck shell integration is unavailable:", error)
+          log.error("shell.integration-unavailable", "Novadeck shell integration is unavailable", {
+            err: error,
+          })
           return undefined
         })
   // The runner's own calls of the relay use the build's, never the copy for agents.
@@ -134,7 +144,11 @@ export const wire = (options: RunnerOptions) => {
   // where they differ from that copy (see `Harness.installed`).
   void shellFiles
     .then((written) => (written ? agents.refresh() : []))
-    .catch((error: unknown) => console.error("Novadeck could not refresh its plugins:", error))
+    .catch((error: unknown) =>
+      log.error("harnesses.refresh-failed", "Novadeck could not refresh its plugins", {
+        err: error,
+      }),
+    )
   // What agents show and the person attaches beside terminals, kept in the store; it
   // asks the terminals where each one is.
   const items = new CompanionItems({
@@ -238,11 +252,32 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
     return startRunner(options)
   } catch (error) {
     if (error instanceof WorkspaceTooNewError) {
-      console.error(error)
+      log.error("workspace.too-new", "A newer Novadeck wrote the workspace database", {
+        err: error,
+      })
       return refusingRunner()
     }
     throw error
   }
+}
+
+/**
+ * Logs a failure a client was answered with: one the contract names, by its code alone, as
+ * the client is told, at info, as a page asking for what just went is routine; any other,
+ * which the client sees as an internal error, as an error with its stack.
+ */
+const logFailure = (path: readonly string[], error: unknown): void => {
+  const code: unknown = (error as { code?: unknown } | undefined)?.code
+  const procedure = path.join(".")
+  if (error instanceof DomainError || error instanceof TerminalError || error instanceof ORPCError)
+    log.info("rpc.failed", "A call failed as the contract says.", {
+      data: { path: procedure, code: typeof code === "string" ? code : null },
+    })
+  else
+    log.error("rpc.failed", "A call failed unexpectedly.", {
+      data: { path: procedure, code: null },
+      err: error,
+    })
 }
 
 const startRunner = (options: RunnerOptions): Runner => {
@@ -263,8 +298,12 @@ const startRunner = (options: RunnerOptions): Runner => {
         closing: () => closing !== undefined,
       }),
       error: apiError,
+      failed: logFailure,
+      admit: (session) =>
+        log.info("client.connected", "A client connected.", { data: { session: session.id } }),
       // Whatever a client held through a session it lost or replaced: its shells keep running.
       closed: (session) => {
+        log.info("client.closed", "A client's session ended.", { data: { session: session.id } })
         terminals.release(session.id)
         voice.release(session.id)
         murmur.release(session.id)

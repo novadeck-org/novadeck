@@ -10,6 +10,7 @@ import { foregroundProcess, openFiles, processSetting, type Pty } from "@novadec
 
 import { agents, harnesses } from "../../harnesses/registry.js"
 import type { Messaging } from "../../messaging/messaging.js"
+import { failed } from "../failures.js"
 import type { Record } from "../record.js"
 import type { Typing } from "../typing.js"
 import type { Bindings } from "./facts.js"
@@ -162,7 +163,7 @@ export class Shown {
           },
           undefined,
         )
-      })().catch((error: unknown) => console.error("Novadeck could not read a title:", error))
+      })().catch(failed.title)
     }
   }
 

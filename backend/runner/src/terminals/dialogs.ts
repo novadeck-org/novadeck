@@ -10,6 +10,10 @@ import type {
 } from "@novadeck/harness-core/dialogs"
 import { requestDialog, type AgentName, type RequestDialog } from "@novadeck/protocol"
 
+import { logs } from "../log.js"
+
+const log = logs.for("dialogs")
+
 /** A request waiting on the person, as the tracker looks for its dialog. */
 export type Waiting = {
   readonly ref: string
@@ -321,7 +325,9 @@ export class Dialogs {
       () => {
         state.timer = undefined
         void this.look(terminalId, state).catch((error: unknown) =>
-          console.error("Novadeck could not read an agent's dialog:", error),
+          log.error("dialogs.read-failed", "Novadeck could not read an agent's dialog", {
+            err: error,
+          }),
         )
       },
       Math.max(0, delay),

@@ -28,6 +28,7 @@ import {
 
 import type { ItemRecord, ItemRecords, Placed, WindowRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
+import { logs } from "../log.js"
 import type { AskRecords, Letter } from "../messaging/asks.js"
 import type { Message, Thread } from "../messaging/mailbox.js"
 import type { MailboxRecords } from "../messaging/records.js"
@@ -41,6 +42,8 @@ import type {
   TerminalToSave,
 } from "../terminals/records.js"
 import type { Work } from "../terminals/work.js"
+
+const log = logs.for("store")
 
 /** Settings to change; those left out, or undefined, stay as they are. */
 export type VoiceSettingsChange = {
@@ -913,7 +916,13 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
     try {
       this.database.exec("PRAGMA wal_checkpoint(TRUNCATE)")
     } catch (error) {
-      console.error("Novadeck could not scrub deleted content from its store's log:", error)
+      log.error(
+        "store.scrub-failed",
+        "Novadeck could not scrub deleted content from its store's log",
+        {
+          err: error,
+        },
+      )
     }
   }
 
@@ -927,7 +936,10 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
       try {
         return [JSON.parse(record) as Letter]
       } catch (error) {
-        console.error(`Novadeck could not read its Inbox item ${id}:`, error)
+        log.error("inbox.read-failed", `Novadeck could not read its Inbox item ${id}`, {
+          data: { id },
+          err: error,
+        })
         return []
       }
     })

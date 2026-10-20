@@ -13,6 +13,7 @@ import { useRef, useState, type ReactNode } from "react"
 import { shortcutGroups } from "../interaction/keymap"
 import { currentPlatform } from "../interaction/shortcuts"
 import { themes, type ThemeEntry, type ThemeId } from "../theme/themes"
+import { AddonRow } from "./addon-parts"
 import { AgentSwitches, agentsExplanation, type AgentSwitch } from "./AgentSwitches"
 import { murmurDescription } from "./murmur-addon"
 import { MurmurAddon, type MurmurAddonValue } from "./MurmurAddon"
@@ -105,6 +106,7 @@ export const Preferences = ({
   murmur,
   updates,
   version,
+  logs,
   uninstall,
   notices = false,
   chat = false,
@@ -143,6 +145,8 @@ export const Preferences = ({
   }
   // The desktop app's version; absent where the backend has none to give.
   version?: string
+  // Opens the desktop app's logs folder; absent where the backend keeps no logs.
+  logs?: () => void
   // Removing the desktop app; absent where the backend offers none, as for a portable copy.
   uninstall?: UninstallValue
 }): React.JSX.Element => {
@@ -404,7 +408,7 @@ export const Preferences = ({
                 </div>
               </Section>
             )}
-            {(version || uninstall) && (
+            {(version || logs || uninstall) && (
               <Section title="About">
                 {version && (
                   <dl className={`${settingsCardClasses} m-0`}>
@@ -413,6 +417,25 @@ export const Preferences = ({
                       <dd className="m-0 select-text">{versionText(version)}</dd>
                     </div>
                   </dl>
+                )}
+                {logs && (
+                  <div className={settingsCardClasses}>
+                    <AddonRow
+                      scope="about"
+                      id="logs"
+                      label="Logs"
+                      description="What Novadeck recorded of its recent runs, without anything your terminals showed. Attach them to a bug report."
+                    >
+                      <button
+                        type="button"
+                        className="button min-h-8 shrink-0 px-3 text-control"
+                        aria-describedby="about-logs-description"
+                        onClick={logs}
+                      >
+                        Open logs folder
+                      </button>
+                    </AddonRow>
+                  </div>
                 )}
                 {uninstall && <UninstallApp uninstall={uninstall} />}
               </Section>

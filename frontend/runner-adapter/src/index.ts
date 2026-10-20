@@ -162,6 +162,7 @@ export const connectRunnerBackend = async (
     const notices = desktopNotices(desktopHost())
     const updates = desktopUpdates(desktopHost())
     const version = desktopVersion(desktopHost())
+    const openLogs = desktopHost()?.openLogs
     const sandbox = desktopSandbox(desktopHost())
     const portable = desktopPortable(desktopHost())
     const uninstall = desktopUninstall(desktopHost())
@@ -179,6 +180,7 @@ export const connectRunnerBackend = async (
           ...(notices ? { notices } : {}),
           ...(updates ? { updates } : {}),
           ...(version ? { version } : {}),
+          ...(openLogs ? { openLogs: () => openLogs() } : {}),
           ...(sandbox ? { sandbox } : {}),
           ...(portable ? { portable } : {}),
           ...(uninstall ? { uninstall } : {}),

@@ -16,6 +16,7 @@ import type { HookAnswer } from "../../shell/reports.js"
 import { sameToken } from "../callers.js"
 import { promptIn } from "../commands.js"
 import type { Companion } from "../companion.js"
+import { failed } from "../failures.js"
 import type { Murmur, Reported } from "../murmur.js"
 import { atPrompt, fired, noticesAt } from "../nudges.js"
 import type { TerminalPeers } from "../peers.js"
@@ -76,10 +77,7 @@ export class Reports {
   queue<T>(terminalId: string, work: () => Promise<T>, fallback: T): Promise<T> {
     const result = (this.queues.get(terminalId) ?? Promise.resolve())
       .then(work)
-      .catch((error: unknown) => {
-        console.error("Novadeck could not take an agent report:", error)
-        return fallback
-      })
+      .catch(failed.report(fallback))
     const tail = result.then(() => {})
     this.queues.set(terminalId, tail)
     void tail.then(() => {
