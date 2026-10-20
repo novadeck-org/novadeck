@@ -36,7 +36,7 @@ export type Record = {
   /**
    * The harness session holding the current shell's foreground; `summary.agent` shows it.
    * Without one, `activity` and `telemetry` are null too: every end of a binding takes all
-   * three (`Bindings.unbind`, or `Bindings.restarted`'s fields). The one exception is a report
+   * three (`Bindings.endSession`, or `Bindings.restarted`'s fields). The one exception is a report
    * binding a session (`Reports.report`), which sets this first and the new activity and
    * telemetry after, so whatever runs in between, as a lead ended there (saved, told to
    * messaging, announced), sees the new binding with the old activity and telemetry, or none.

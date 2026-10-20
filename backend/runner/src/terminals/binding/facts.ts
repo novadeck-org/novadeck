@@ -90,76 +90,62 @@ export class Bindings {
   }
 
   /**
-   * Lets go of the bound session's half of the record, all at once: without a binding,
-   * `activity` and `telemetry` are null too, outside the moment a report binds a session
-   * (see `Record.binding`). `endBinding`, `forgotten` and `exited` take all three through
-   * here, `restarted` gives the same nulls as fields, and each differs from the others only
-   * where it says so.
+   * Ends the bound session, the one way every end takes: its binding, with its activity and
+   * telemetry (see `Record.binding`), and the sources that follow it. What is left after is
+   * the shell's: still there (`endBinding`, `forgotten`), gone (`exited`), or new
+   * (`restarted`).
    */
-  private unbind(record: Record): void {
+  private endSession(record: Record): void {
     record.binding = null
     record.activity = null
     record.telemetry = null
+    this.unwatch(record)
   }
 
   /**
-   * Ends the terminal's binding, with its activity and the sources that follow it; with
-   * `only`, only while that session is still the one bound. Whether it ended one. The
-   * root is followed anew (`rebound`); the summary shows no agent, and the prompt still
-   * shown as ready, announced only where it showed an agent.
+   * The session ended in a shell still there: its root is followed anew (`rebound`), and
+   * the summary shows no agent, the prompt still shown as ready, announced where it changed.
+   * What the shell keeps stays, as an agent a Ctrl+Z left `suspended`, which its lead waits on.
+   */
+  private kept(record: Record): void {
+    this.host.rebound(record)
+    this.publishSummary(record, false)
+  }
+
+  /**
+   * Ends the terminal's binding; with `only`, only while that session is still the one
+   * bound. Whether it ended one.
    */
   endBinding(record: Record, only?: string): boolean {
     if (only !== undefined && record.binding?.sessionId !== only) return false
-    this.unbind(record)
-    this.unwatch(record)
-    this.host.rebound(record)
-    if (record.summary.agent !== null) {
-      record.summary = {
-        ...record.summary,
-        agent: null,
-        ready: this.readyOf(record),
-        activity: null,
-        telemetry: null,
-      }
-      this.host.announce(record)
-    }
+    this.endSession(record)
+    this.kept(record)
     return true
   }
 
   /**
-   * Ends the binding of a harness that was disconnected, as `endBinding` does, but the
-   * summary also says again whether an agent ran there (`agentRan`, from the sessions it
-   * still has), and it is announced whatever it showed before.
+   * Ends the binding of a harness that was disconnected, as `endBinding` does; the summary
+   * says again whether an agent ran there, from the sessions the terminal still has.
    */
-  forgotten(record: Record, agentRan: boolean): void {
-    this.unbind(record)
-    this.unwatch(record)
-    this.host.rebound(record)
-    record.summary = {
-      ...record.summary,
-      agentRan,
-      agent: null,
-      ready: this.readyOf(record),
-      activity: null,
-      telemetry: null,
-    }
-    this.host.announce(record)
+  forgotten(record: Record): void {
+    this.endSession(record)
+    this.kept(record)
   }
 
   /**
-   * The shell exited: the binding goes, and the root with it, without following the root
-   * anew (no `rebound`) and before its sources are let go; the caller unwatches, shows
-   * neither agent nor ready prompt, and announces.
+   * The shell exited: the session ends, and what the shell held with it, its root not
+   * followed anew, nothing suspended and no entry seen in a transcript, as a restart starts
+   * from (`restarted`). The caller shows neither agent nor ready prompt, and announces.
    */
   exited(record: Record): void {
-    this.unbind(record)
-    record.root = null
+    this.endSession(record)
+    Object.assign(record, this.shellEnded())
   }
 
   /**
-   * What a restarted shell starts from, as the record's fields: no binding (its sources
-   * were let go as the shell exited), no root, nothing suspended and no entry seen in a
-   * transcript. The binding a session found gone (`left`) stays.
+   * What a restarted shell starts from, as the record's fields: no binding (it ended as the
+   * shell exited, and its sources with it), and nothing of the shell before (`shellEnded`).
+   * The binding a session found gone (`left`) stays.
    */
   restarted(): Pick<
     Record,
@@ -176,12 +162,15 @@ export class Bindings {
       binding: null,
       activity: null,
       telemetry: null,
-      suspended: null,
-      root: null,
-      seenEntry: undefined,
       watching: null,
       transcript: null,
+      ...this.shellEnded(),
     }
+  }
+
+  /** What a shell held of its agents, which ends with it, as it exits or restarts. */
+  private shellEnded(): Pick<Record, "suspended" | "root" | "seenEntry"> {
+    return { suspended: null, root: null, seenEntry: undefined }
   }
 
   /**
@@ -406,8 +395,8 @@ export class Bindings {
   }
 
   /**
-   * Shows the bound agent and its activity in the summary, announcing a change, or the
-   * summary's own change when `moved`.
+   * Shows the bound agent and its activity in the summary (`publishSummary`), and tells
+   * what follows its activity: its detail, its dialogs, murmur.
    */
   publishAgent(record: Record, moved: boolean): void {
     // Detail changes where the summary may not: a revised request, a subject.
@@ -415,6 +404,14 @@ export class Bindings {
     this.host.typing().dialogsChanged(record.summary.id)
     // Murmur writes a headline or gist for what the activity now holds.
     this.host.murmurChanged(record.summary.id)
+    this.publishSummary(record, moved)
+  }
+
+  /**
+   * Shows the bound agent, its activity and whether an agent ran in the summary, and the
+   * prompt shown as ready, announcing a change, or the summary's own change when `moved`.
+   */
+  private publishSummary(record: Record, moved: boolean): void {
     const agent = record.binding?.agent ?? null
     const ready = this.readyOf(record)
     const activity = record.binding && record.activity ? activitySummary(record.activity) : null

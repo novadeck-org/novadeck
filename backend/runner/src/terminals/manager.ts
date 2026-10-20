@@ -1202,7 +1202,7 @@ export class Terminals {
       record.agents = rest
       const agentRan = hasRun(rest)
       // Its binding ends too: a disconnected harness holds no terminal's foreground.
-      if (record.binding?.agent === agent) this.bindings.forgotten(record, agentRan)
+      if (record.binding?.agent === agent) this.bindings.forgotten(record)
       else if (record.summary.agentRan !== agentRan) {
         record.summary = { ...record.summary, agentRan }
         this.announce(record)
@@ -1570,9 +1570,10 @@ export class Terminals {
     } else this.bindings.endLead(record)
     // Nothing came of the agent the shell was opened to run: it is a plain shell now.
     if (binding === null && ran) record.expecting = null
-    this.bindings.endBinding(record)
-    // An agent whose prompt showed, with no session bound, left with it.
+    // An agent whose prompt showed, with no session bound, left with it: first, so the
+    // binding's end never shows its prompt ready again.
     this.messaging.unshown(record.summary.id)
+    this.bindings.endBinding(record)
     this.bindings.publishAgent(record, false)
     if (moved) {
       record.summary = { ...record.summary, cwd }
@@ -1593,7 +1594,6 @@ export class Terminals {
   private exited(record: Record): void {
     this.bindings.exited(record)
     forgetPrompts(record)
-    this.bindings.unwatch(record)
     // An exited terminal takes no messages; its agent's are gone until it runs again.
     this.messaging.unregister(record.summary.id)
     this.asks.reconcile(record.summary.id)

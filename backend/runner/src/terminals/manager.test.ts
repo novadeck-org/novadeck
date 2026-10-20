@@ -2192,3 +2192,39 @@ describe("a usage limit a turn ran into", () => {
     expect(lastTurn()?.limit).toBeUndefined()
   })
 })
+
+describe("a shell's prompt coming back", () => {
+  type Inside = {
+    records: Map<
+      string,
+      { binding: unknown; summary: { ready: string | null }; terminal: { pty: unknown } }
+    >
+    bindings: { publishAgent: (record: unknown, moved: boolean) => void }
+    messaging: { shown: (id: string, agent: string, prefix: string | null) => void }
+    announce: (record: unknown) => void
+    prompted: (record: unknown, child: unknown, cwd: string) => void
+  }
+
+  it("never shows ready the agent whose prompt left with it, though a session showed there in the bound one's place", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside
+    const record = inside.records.get(terminal.id)!
+    record.binding = { agent: "codex", sessionId: "s1", instance: null }
+    inside.bindings.publishAgent(record, false)
+    // As Codex's /clear: a new thread shows at its prompt, to bind with its first prompt.
+    inside.messaging.shown(terminal.id, "codex", null)
+    const ready: (string | null)[] = []
+    inside.announce = (one) => {
+      if (one === record) ready.push(record.summary.ready)
+    }
+    // Codex exited: the shell's prompt is back.
+    inside.prompted(record, record.terminal.pty, cwd)
+    expect(ready).toEqual([null])
+  })
+})
