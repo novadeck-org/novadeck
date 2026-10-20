@@ -10,7 +10,7 @@ import { Bindings, type BindingsHost } from "./facts.js"
  * there (`shown`), and the announcements, counted.
  */
 const bindings = (shown?: AgentName) => {
-  const announce = vi.fn()
+  const announce = vi.fn<(record: Record) => void>()
   const host = {
     messaging: () => ({ shownAgent: () => shown }),
     rebound: () => {},
