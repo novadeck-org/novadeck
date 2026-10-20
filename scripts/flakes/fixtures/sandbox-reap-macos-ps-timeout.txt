@@ -1,0 +1,51 @@
+2026-10-19T21:57:54.5125030Z @novadeck/sandbox:test:  [31m❯[39m src/reap.test.ts [2m([22m[2m12 tests[22m[2m | [22m[31m1 failed[39m[2m | [22m[33m2 skipped[39m[2m)[22m[33m 27128[2mms[22m[39m
+2026-10-19T21:57:54.5228700Z @novadeck/sandbox:test:    [2m[90m↓[39m[22m reap [2m(1)[22m
+2026-10-19T21:57:54.5334240Z @novadeck/sandbox:test:      [2m[90m↓[39m[22m ends a process left in the sandbox, naming it, and one stopped as stopped
+2026-10-19T21:57:54.5445530Z @novadeck/sandbox:test:    [2m[90m↓[39m[22m reap on Windows [2m(1)[22m
+2026-10-19T21:57:54.5548460Z @novadeck/sandbox:test:      [2m[90m↓[39m[22m ends what runs in the sandbox or has its home, naming it, and nothing else
+2026-10-19T21:57:54.5654690Z @novadeck/sandbox:test:    [32m✓[39m ending a Windows process's tree [2m(4)[22m
+2026-10-19T21:57:54.5755790Z @novadeck/sandbox:test:      [32m✓[39m ends the tree its reader reads, rooted at the process found[32m 2[2mms[22m[39m
+2026-10-19T21:57:54.5871100Z @novadeck/sandbox:test:      [32m✓[39m ends nothing where the root is a later process given the same pid[32m 0[2mms[22m[39m
+2026-10-19T21:57:54.5980940Z @novadeck/sandbox:test:      [32m✓[39m ends the process alone when asked, or forcibly with no reader to read its tree[32m 0[2mms[22m[39m
+2026-10-19T21:57:54.6090700Z @novadeck/sandbox:test:      [32m✓[39m ends it by recorded parents where its reader can't read the tree[32m 0[2mms[22m[39m
+2026-10-19T21:57:54.6198280Z @novadeck/sandbox:test:    [31m❯[39m reap on macOS [2m(3)[22m
+2026-10-19T21:57:54.6322270Z @novadeck/sandbox:test: [31m     [31m×[31m ends what runs in the sandbox or has its home, naming it, and nothing else[39m[33m 11521[2mms[22m[39m
+2026-10-19T21:57:54.6406450Z @novadeck/sandbox:test:      [33m[2m✓[22m[39m ends a system program one of them started elsewhere, which shows no environment[33m 5779[2mms[22m[39m
+2026-10-19T21:57:54.6508670Z @novadeck/sandbox:test:      [33m[2m✓[22m[39m ends one found through its parent though that parent has gone since, and it ignores SIGTERM[33m 9821[2mms[22m[39m
+2026-10-19T21:57:54.6610390Z @novadeck/sandbox:test:    [32m✓[39m macOS's process listing [2m(3)[22m
+2026-10-19T21:57:54.6712070Z @novadeck/sandbox:test:      [32m✓[39m reads each process's pid, parent, group, state, start and command's name[32m 1[2mms[22m[39m
+2026-10-19T21:57:54.6815800Z @novadeck/sandbox:test:      [32m✓[39m counts a found process's children and its group's, however deep, but never the tests' group[32m 0[2mms[22m[39m
+2026-10-19T21:57:54.6918300Z @novadeck/sandbox:test:      [32m✓[39m reads each process's working folder from lsof's fields[32m 0[2mms[22m[39m
+2026-10-19T21:57:54.7023140Z @novadeck/sandbox:test: 
+2026-10-19T21:57:54.7128630Z @novadeck/sandbox:test: [31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-19T21:57:54.7230170Z @novadeck/sandbox:test: 
+2026-10-19T21:57:54.7332530Z @novadeck/sandbox:test: [41m[1m FAIL [22m[49m src/reap.test.ts[2m > [22mreap on macOS[2m > [22mends what runs in the sandbox or has its home, naming it, and nothing else
+2026-10-19T21:57:54.7371910Z @novadeck/sandbox:test: [31m[1mError[22m: reap: ps -axww -o pid=,ppid=,pgid=,stat=,lstart=,comm= failed[39m
+2026-10-19T21:57:54.7477490Z @novadeck/sandbox:test: [36m [2m❯[22m run src/reap.ts:[2m373:11[22m[39m
+2026-10-19T21:57:54.7579370Z @novadeck/viewers:test:  [32m✓[39m [30m[42m browser (chromium) [49m[39m src/markdown/scroll.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 80[2mms[22m[39m
+2026-10-19T21:57:54.7686260Z @novadeck/sandbox:test:     [90m371|[39m     const { code, stdout } = error as { code?: unknown; stdout?: strin…
+2026-10-19T21:57:54.7794250Z @novadeck/sandbox:test:     [90m372|[39m     if (partial && code === 1 && stdout !== undefined) return stdout
+2026-10-19T21:57:54.7897980Z @novadeck/sandbox:test:     [90m373|[39m     throw new Error(`reap: ${program} ${args.join(" ")} failed`, { cau…
+2026-10-19T21:57:54.8005070Z @novadeck/sandbox:test:     [90m   |[39m           [31m^[39m
+2026-10-19T21:57:54.8113810Z @novadeck/sandbox:test:     [90m374|[39m   }
+2026-10-19T21:57:54.8215990Z @novadeck/sandbox:test:     [90m375|[39m }
+2026-10-19T21:57:54.8317420Z @novadeck/sandbox:test: [90m [2m❯[22m everyProcess src/reap.ts:[2m471:24[22m[39m
+2026-10-19T21:57:54.8462160Z @novadeck/sandbox:test: [90m [2m❯[22m Object.darwinList [as list] src/reap.ts:[2m403:18[22m[39m
+2026-10-19T21:57:54.8564260Z @novadeck/sandbox:test: [90m [2m❯[22m reap src/reap.ts:[2m549:20[22m[39m
+2026-10-19T21:57:54.8668750Z @novadeck/sandbox:test: [90m [2m❯[22m src/reap.test.ts:[2m197:23[22m[39m
+2026-10-19T21:57:54.8771130Z @novadeck/sandbox:test: 
+2026-10-19T21:57:54.8873080Z @novadeck/sandbox:test: [31m[1mCaused by: Error[22m: Command failed: ps -axww -o pid=,ppid=,pgid=,stat=,lstart=,comm=
+2026-10-19T21:57:54.8978690Z @novadeck/sandbox:test: [39m
+2026-10-19T21:57:54.9078480Z @novadeck/sandbox:test: [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22m[39m
+2026-10-19T21:57:54.9180920Z @novadeck/sandbox:test: [31m[1mSerialized Error:[22m[39m [90m{ code: null, killed: true, signal: 'SIGTERM', cmd: 'ps -axww -o pid=,ppid=,pgid=,stat=,lstart=,comm=', stdout: '', stderr: '' }[39m
+2026-10-19T21:57:54.9282720Z @novadeck/sandbox:test: [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-10-19T21:57:54.9383570Z @novadeck/sandbox:test: 
+2026-10-19T21:57:54.9484670Z @novadeck/sandbox:test: 
+2026-10-19T21:57:54.9588200Z @novadeck/sandbox:test: [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m2 passed[39m[22m[90m (3)[39m
+2026-10-19T21:57:54.9691270Z @novadeck/sandbox:test: [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m22 passed[39m[22m[2m | [22m[33m4 skipped[39m[90m (27)[39m
+2026-10-19T21:57:54.9811970Z @novadeck/sandbox:test: [2m   Start at [22m 21:57:25
+2026-10-19T21:57:54.9916250Z @novadeck/sandbox:test: [2m   Duration [22m 29.37s[2m (tests 92%, import 5%, transform 2%, worker 1%)[22m
+2026-10-19T21:57:55.0035310Z @novadeck/sandbox:test: 
+2026-10-19T21:57:55.0139100Z @novadeck/sandbox:test: 
+2026-10-19T21:57:55.0242460Z @novadeck/sandbox:test: ::error file=/Users/runner/work/novadeck/novadeck/libraries/sandbox/src/reap.ts,title=src/reap.test.ts > reap on macOS > ends what runs in the sandbox or has its home%2C naming it%2C and nothing else,line=373,column=11::Error: reap: ps -axww -o pid=,ppid=,pgid=,stat=,lstart=,comm= failed%0A ❯ run src/reap.ts:373:11%0A ❯ everyProcess src/reap.ts:471:24%0A ❯ Object.darwinList [as list] src/reap.ts:403:18%0A ❯ reap src/reap.ts:549:20%0A ❯ src/reap.test.ts:197:23%0A%0ACaused by: Caused by: Error: Command failed: ps -axww -o pid=,ppid=,pgid=,stat=,lstart=,comm=%0A%0A⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯%0ASerialized Error: { code: null, killed: true, signal: 'SIGTERM', cmd: 'ps -axww -o pid=,ppid=,pgid=,stat=,lstart=,comm=', stdout: '', stderr: '' }%0A
+2026-10-19T21:57:55.0365680Z @novadeck/harness-agy:test:  [32m✓[39m src/dialogs.test.ts [2m([22m[2m36 tests[22m[2m)[22m[33m 368[2mms[22m[39m
