@@ -26,6 +26,7 @@
   "devDependencies": {
     "@novadeck/build-kit": "workspace:*",
     "@novadeck/core": "workspace:*",
+    "@novadeck/log": "workspace:*",
     "@novadeck/protocol": "workspace:*",
     "@novadeck/relay": "workspace:*",
     "@novadeck/runner": "workspace:*",

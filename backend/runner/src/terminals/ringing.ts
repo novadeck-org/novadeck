@@ -8,6 +8,7 @@ import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
 import type { Activity } from "../harnesses/activity.js"
 import type { Binding } from "../harnesses/bindings.js"
 import { harnesses } from "../harnesses/registry.js"
+import { doorbellLog } from "../messaging/doorbell-log.js"
 import { tracer, type DoorbellHost } from "../messaging/doorbell.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { busy } from "./busy.js"
@@ -134,11 +135,12 @@ export const doorbellHost = <R extends RingRecord>(
     settledSince: (terminalId) => messaging.settledSince(terminalId),
     ring: (terminalId, nonce) => {
       const record = live(terminalId)
-      return (
+      const rung =
         record !== undefined &&
         !working(terminalId, record.activity) &&
         messaging.ring(terminalId, nonce)
-      )
+      if (rung) doorbellLog.current?.ring(terminalId, messaging.waitedMs(terminalId))
+      return rung
     },
     ringing: (terminalId) => messaging.ringing(terminalId),
     // The doorbell asks before it reads the foreground; the read itself ends nothing.
@@ -205,15 +207,25 @@ export const doorbellHost = <R extends RingRecord>(
       if (!box || !text || text.mode !== "prompt" || box.overlay(screen)) return undefined
       return leftoverNonce(text.text)
     },
-    ringLeftover: (terminalId, nonce) => messaging.ringLeftover(terminalId, nonce),
+    ringLeftover: (terminalId, nonce) => {
+      const rung = messaging.ringLeftover(terminalId, nonce)
+      if (rung) doorbellLog.current?.ring(terminalId, messaging.waitedMs(terminalId))
+      return rung
+    },
     emptied: (terminalId, readAt) => {
       const delivery = messaging.delivery(terminalId)
       const record = live(terminalId)
       if (delivery && record && !working(terminalId, record.activity))
         messaging.emptied(terminalId, delivery.epoch, readAt)
     },
-    blocked: (terminalId, waits) => messaging.blocked(terminalId, waits),
-    ringFailed: (terminalId, nonce, ours) => messaging.ringFailed(terminalId, nonce, ours),
+    blocked: (terminalId, waits) => {
+      doorbellLog.current?.hold(terminalId, waits)
+      messaging.blocked(terminalId, waits)
+    },
+    ringFailed: (terminalId, nonce, ours) => {
+      doorbellLog.current?.ringFailed(terminalId, ours === true)
+      messaging.ringFailed(terminalId, nonce, ours)
+    },
     target: (terminalId) => (live(terminalId) ? typingTarget(terminalId, host) : undefined),
     profile,
   }

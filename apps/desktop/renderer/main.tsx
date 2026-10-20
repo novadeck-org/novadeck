@@ -1,9 +1,15 @@
 // First, so its `@layer` order statement leads the bundle.
 import "@novadeck/ui/styles.css"
 import type { BackendSelection } from "@novadeck/core/port"
+import type { DesktopHost } from "@novadeck/protocol/bridge"
 import { App } from "@novadeck/ui/app/App"
 import { start } from "@novadeck/ui/entries/start"
 import { pageTheme } from "@novadeck/ui/theme/source"
+
+import { reportPageErrors } from "./page-errors"
+
+// The host logs the errors the page doesn't catch.
+reportPageErrors(window, (window as Window & { novadeck?: DesktopHost }).novadeck)
 
 // The desktop app: the runner the host starts, whose client and terminal emulator load with
 // the connection instead of the entry point.

@@ -1,7 +1,7 @@
 import type { MenuItemConstructorOptions } from "electron"
 
 import { describe, expect, it } from "../test"
-import { linuxMenu } from "./menu"
+import { linuxMenu, macMenu } from "./menu"
 
 describe("the Linux application menu", () => {
   it("keeps the default menus, Edit, View and Window, by their roles", () => {
@@ -23,5 +23,27 @@ describe("the Linux application menu", () => {
     expect(items[0]!.role).toBeUndefined()
     ;(items[0]!.click as () => void)()
     expect(quits).toEqual(["quit"])
+  })
+})
+
+describe("the macOS application menu", () => {
+  it("keeps the default menus by their roles", () => {
+    expect(macMenu(() => {}).map((item) => item.role)).toEqual([
+      "appMenu",
+      "fileMenu",
+      "editMenu",
+      "viewMenu",
+      "windowMenu",
+      "help",
+    ])
+  })
+
+  it("opens the logs folder from Help", () => {
+    const opened: string[] = []
+    const help = macMenu(() => void opened.push("logs")).at(-1)!
+    const [item] = help.submenu as MenuItemConstructorOptions[]
+    expect(item).toMatchObject({ label: "Open Logs Folder" })
+    ;(item!.click as () => void)()
+    expect(opened).toEqual(["logs"])
   })
 })
