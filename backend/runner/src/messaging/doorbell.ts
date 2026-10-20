@@ -34,7 +34,7 @@ export type DoorbellHost = {
   readonly ready: (terminalId: string) => boolean
   /**
    * Starts the ring with its nonce: the terminal is Ringing; false when it may not now, as
-   * the agent's activity says a turn or subagents run (checked here, just before the paste).
+   * the agent's activity says it works (checked here, just before the paste).
    */
   readonly ring: (terminalId: string, nonce: string) => boolean
   /** The nonce of the ring under way there, if any. */
@@ -42,8 +42,9 @@ export type DoorbellHost = {
   /** The ring failed: the terminal is Unknown, and its messages wait. */
   readonly ringFailed: (terminalId: string, nonce: string, ours?: boolean) => void
   /**
-   * Whether the agent is idle but Fresh, Drafting or Unknown (not ringable by its state), with
-   * messages waiting: its screen is looked at for an empty box.
+   * Whether the agent is idle but Fresh, Drafting or Unknown (not ringable by its state), or
+   * Working on background work only where its box takes a prompt then, with messages
+   * waiting: its screen is looked at for an empty box.
    */
   readonly stalled: (terminalId: string) => boolean
   /**
@@ -479,7 +480,8 @@ export class Doorbell {
 
   /**
    * Looks at the screen of an idle agent whose state keeps it from ringing (Fresh, Drafting
-   * or Unknown, with messages waiting), once the screen is calm: its own box empty and
+   * or Unknown, or Working on background work only where its box takes a prompt then, with
+   * messages waiting), once the screen is calm: its own box empty and
    * taking a prompt makes it Ready, rung as any Ready terminal is; otherwise says why it
    * can't be (text in its box, a dialog, a question) and looks again, with growing waits.
    * It never types: only the ring's own test paste does, once Ready.

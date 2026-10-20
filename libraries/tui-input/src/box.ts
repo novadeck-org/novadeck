@@ -105,6 +105,13 @@ export type BoxProfile = {
    * Omitted where the program's box shows all (or grows to `room`).
    */
   readonly viewport?: (rows: number) => number
+  /**
+   * The rows as the screen's calm reads them, without what the program redraws by itself
+   * while idle at its prompt, as an elapsed time it counts up each second; omitted where it
+   * redraws nothing so. Only what ticks while no turn runs: a running turn's spinner still
+   * says the screen isn't calm.
+   */
+  readonly still?: (rows: readonly string[]) => readonly string[]
 }
 
 /** A line with its tabs spread to the next multiple of eight columns. */

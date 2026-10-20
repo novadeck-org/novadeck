@@ -5,7 +5,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import { codex } from "./agents/codex.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
-import { asked, latest, type Call } from "./model/script.js"
+import { asked, gate, latest, type Call } from "./model/script.js"
 import {
   deliveries,
   delivered,
@@ -211,6 +211,61 @@ describe.skipIf(!supported)("Codex", () => {
     await through(t1, [holds("fox", "moth", "delivered"), "settled"], { after: mark })
     expect((await t1.detail()).sessionId).toBe(root)
   })
+  // A spawned agent runs on with the root idle, its activity still listing it (#325): a
+  // message sent then rings the root at its empty box, delivered once, the agent held.
+  it("rings it while an agent it spawned runs on, delivering once", async ({ e2e: run }) => {
+    const finishing = gate()
+    const task = "Helper task: wait for the build"
+    const owns = (call: Call) =>
+      !call.side && call.turns.some((one) => one.role === "user" && one.text.includes(task))
+    run.model.use(
+      own(async (call) => {
+        if (!owns(call)) return undefined
+        await finishing.opened
+        return { text: "Helper done." }
+      }),
+      own((call) => {
+        const spawn = call.tools.find((offered) => offered.endsWith("spawn_agent"))
+        if (!spawn || !asked(call, "Spawn a helper")) return undefined
+        return { calls: [{ name: spawn, input: { message: task } }] }
+      }),
+      own((call) => (result(call)?.includes('"agent_id"') ? { text: "Spawned it." } : undefined)),
+      sends("Tell moth the news", "moth", "The build is green."),
+      own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
+      own((call) => (delivered(call, "fox") ? { text: "Noted the news." } : undefined)),
+    )
+    const t1 = await start(run, codex)
+    const t2 = await start(run, codex)
+    const calls = run.model.mark()
+
+    await turn(t1, "Spawn a helper", "Spawned it.")
+    await run.model.waitFor(owns, { after: calls })
+    await t1.poll(
+      () =>
+        t1.summary().activity?.state === "idle" && t1.summary().activity?.subagents.length === 1
+          ? true
+          : undefined,
+      "the root idle, its spawned agent listed",
+    )
+    const stopped = t1.mark()
+
+    await t2.submit("Tell moth the news")
+    await t2.until("Told moth.")
+    const rung = await run.model.waitFor((call) => delivered(call, "fox"), { after: calls })
+    expect(latest(rung)).toMatch(ring)
+    expect(deliveries(rung)).toEqual([{ from: "fox", text: "The build is green." }])
+    await t1.until("Noted the news.")
+    await through(t1, ["ringing", "working", holds("fox", "moth", "delivered"), "settled"], {
+      after: stopped,
+    })
+
+    // The agent ends; nothing more is delivered, nothing waits.
+    finishing.open()
+    await sleep(quiet)
+    expect(run.model.calls.slice(calls).filter((call) => delivered(call, "fox"))).toHaveLength(1)
+    expect(messages(t1).map((one) => one.state)).toEqual(["delivered"])
+  })
+
   // A spawned agent's approval dialog shows in its root's screen, naming its thread. Esc on
   // it fires no hook (no Interrupt, no SubagentStop) and aborts only that agent's turn,
   // which only its own rollout records, `turn_aborted`; Novadeck follows that rollout while
