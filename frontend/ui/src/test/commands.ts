@@ -9,7 +9,7 @@ import type { PreferencesValue, Workspace } from "@novadeck/core/types"
 import type { CommandContext, CommandEffects } from "../app/commands/context"
 import { createNavigator, type RouterNavigate } from "../app/commands/navigator"
 import { createWorkspaceCommands } from "../app/commands/workspace"
-import { resolveRoute } from "../app/routing"
+import { availablePanels, resolveRoute } from "../app/routing"
 import {
   createUiStore,
   initialUi,
@@ -66,7 +66,13 @@ export const openCommands = ({
   murmur,
 }: CommandsOptions = {}) => {
   const [pathname = "", query = ""] = url.split("?")
-  const resolved = resolveRoute(workspace, { pathname, search: `?${query}` }, preferences, 0)
+  const resolved = resolveRoute(
+    workspace,
+    { pathname, search: `?${query}` },
+    preferences,
+    0,
+    availablePanels(true),
+  )
   const store = createWorkspaceStore(resolved.workspace)
   const ui = createUiStore(
     initialUi({
@@ -119,6 +125,7 @@ export const openCommands = ({
     workspace: store,
     ui,
     now: () => 1,
+    panels: availablePanels(true),
   })
   const urls: (string | number)[] = []
   // What each new terminal was asked for, as the backend received it.

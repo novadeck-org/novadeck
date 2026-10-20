@@ -39,6 +39,7 @@ import {
 } from "./samples"
 import { createShowcase } from "./showcase/simulation"
 import { storefrontArtifacts } from "./showcase/storefront"
+import { withSource } from "./source"
 import { terminalOf } from "./terminals"
 import { agentTranscripts, type DemoTranscript } from "./transcripts"
 import { demoTurns, type DemoTurns } from "./turns"
@@ -98,6 +99,8 @@ export const demoBackend = (
   let latest: Workspace | undefined
   const backend: Backend = {
     seed,
+    // Every backend built here is the demo's, which shows features still being designed.
+    demo: true,
     newTerminal: ({ target, directory, title, launch }) => {
       const session = latest?.projects
         .find((project) => project.id === target.projectId)
@@ -416,6 +419,8 @@ const withFinishes = (backend: Backend, turns: DemoTurns): Backend => ({
 // messages between them, the agents' with every kind of Inbox item, the plain one with its
 // first-run welcome dialog open, and Chirp's, a one-off for a video (see `chirp.ts`). Each has
 // the Inbox its agents make; the Inbox demo shows the hardcoded items of every kind over theirs.
+// The agents', messages' and Inbox demos have the Source of the storefront project (see
+// `source.ts`), as the try demo does: the others have no agents there to change files.
 export type PlainVariant = "plain" | "agents" | "messages" | "inbox" | "welcome" | "chirp"
 
 export const plainDemo = (
@@ -448,10 +453,13 @@ export const plainDemo = (
     )
   const transcripts = agentTranscripts(now)
   if (variant === "messages")
-    return withInbox(
-      withConversations(
-        withFinishes(withMessages({ ...backend, seed: demoSeed(now, true) }, now), turns),
-        transcripts,
+    return withSource(
+      withInbox(
+        withConversations(
+          withFinishes(withMessages({ ...backend, seed: demoSeed(now, true) }, now), turns),
+          transcripts,
+          turns,
+        ),
         turns,
       ),
       turns,
@@ -463,8 +471,13 @@ export const plainDemo = (
     transcripts,
     turns,
   )
-  if (variant !== "inbox") return withInbox(conversing, turns)
-  return withInbox({ ...conversing, messages: createDemoMessages([]) }, turns, demoInboxItems(now))
+  // Only where the storefront's terminals run agents: the plain and welcome shells don't.
+  if (variant === "plain" || variant === "welcome") return withInbox(conversing, turns)
+  if (variant === "agents") return withSource(withInbox(conversing, turns), turns)
+  return withSource(
+    withInbox({ ...conversing, messages: createDemoMessages([]) }, turns, demoInboxItems(now)),
+    turns,
+  )
 }
 
 // The variant the address's hash asks for, as specs do with `?demo=`, and how long an

@@ -31,6 +31,7 @@ import { useWorkspaceEffects } from "./controller/useWorkspaceEffects"
 import { announceShown, EmbeddedContext, heldInput, holdInputUntilEngaged } from "./embedded"
 import { HeaderSection } from "./HeaderSection"
 import { InboxHost } from "./InboxHost"
+import { sourceShown } from "./routing"
 import { currentState, currentTarget, shallowEqual } from "./selectors"
 import { SidebarSection } from "./SidebarSection"
 import { useInboxBadge } from "./useInboxBadge"
@@ -192,6 +193,7 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
       sidebarVisible={shell.sidebarVisible}
       sidebarPanel={sidebarPanel}
       zen={zen}
+      hasSource={sourceShown(services.backend)}
       toggleSidebar={toggleSidebar}
       hideSidebar={hideSidebar}
     />
