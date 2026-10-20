@@ -380,6 +380,104 @@
   );
 }
 
+/* The sheet a window hangs off its canvas node is a second tube beside it, with the same
+   shape, rim and glass, sized to the sheet. The sheet itself is not clipped, as its
+   tether (::before) lies outside it: its reader is, and carries the rim (::before) and
+   the glass (::after) over what it holds, plans' menus (z-index 201) included, letting
+   clicks through. The sheet's own edge, shadow and ground give way to the rim, as the
+   window's do, so its corners fall away. */
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) {
+  --pane-attached-border-color: transparent;
+  --pane-attached-shadow: none;
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) .plan-attached {
+  background-color: transparent;
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .plan-attached
+  > .plan-reader {
+  position: relative;
+  isolation: isolate;
+  clip-path: shape(
+    from 3px 2px,
+    curve to calc(100% - 3px) 2px with 50% -2px,
+    curve to calc(100% - 3px) calc(100% - 2px) with calc(100% + 3px) 50%,
+    curve to 3px calc(100% - 2px) with 50% calc(100% + 2px),
+    curve to 3px 2px with -3px 50%,
+    close
+  );
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .plan-attached
+  > .plan-reader::before,
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .plan-attached
+  > .plan-reader::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .plan-attached
+  > .plan-reader::after {
+  z-index: 300;
+  background-image: var(--window-glass-image);
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .plan-attached
+  > .plan-reader::before {
+  z-index: 301;
+  background-color: var(--color-line-strong);
+  clip-path: shape(
+    evenodd from 3px 2px,
+    curve to calc(100% - 3px) 2px with 50% -2px,
+    curve to calc(100% - 3px) calc(100% - 2px) with calc(100% + 3px) 50%,
+    curve to 3px calc(100% - 2px) with 50% calc(100% + 2px),
+    curve to 3px 2px with -3px 50%,
+    close,
+    move to 4px 3px,
+    curve to calc(100% - 4px) 3px with 50% -1px,
+    curve to calc(100% - 4px) calc(100% - 3px) with calc(100% + 2px) 50%,
+    curve to 4px calc(100% - 3px) with 50% calc(100% + 1px),
+    curve to 4px 3px with -2px 50%,
+    close
+  );
+}
+/* It is doubled with the window when the node is selected. */
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .canvas-node.selected
+  .plan-attached
+  > .plan-reader::before {
+  background-color: var(--color-strong);
+  clip-path: shape(
+    evenodd from 3px 2px,
+    curve to calc(100% - 3px) 2px with 50% -2px,
+    curve to calc(100% - 3px) calc(100% - 2px) with calc(100% + 3px) 50%,
+    curve to 3px calc(100% - 2px) with 50% calc(100% + 2px),
+    curve to 3px 2px with -3px 50%,
+    close,
+    move to 4.5px 3.5px,
+    curve to calc(100% - 4.5px) 3.5px with 50% -0.5px,
+    curve to calc(100% - 4.5px) calc(100% - 3.5px) with calc(100% + 1.5px) 50%,
+    curve to 4.5px calc(100% - 3.5px) with 50% calc(100% + 0.5px),
+    curve to 4.5px 3.5px with -1.5px 50%,
+    close,
+    move to 6px 5px,
+    curve to calc(100% - 6px) 5px with 50% 1px,
+    curve to calc(100% - 6px) calc(100% - 5px) with calc(100% + 0px) 50%,
+    curve to 6px calc(100% - 5px) with 50% calc(100% - 1px),
+    curve to 6px 5px with 0px 50%,
+    close,
+    move to 7.5px 6.5px,
+    curve to calc(100% - 7.5px) 6.5px with 50% 2.5px,
+    curve to calc(100% - 7.5px) calc(100% - 6.5px) with calc(100% - 1.5px) 50%,
+    curve to 7.5px calc(100% - 6.5px) with 50% calc(100% - 2.5px),
+    curve to 7.5px 6.5px with 1.5px 50%,
+    close
+  );
+}
+
 /* Outlines a window draws for itself fall outside its clip, and one drawn inside it
    lies under the window's own content, its header and chat included. In the tube they
    are drawn on the glass instead, which lies over everything the window holds: the ring

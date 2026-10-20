@@ -14,6 +14,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -50,11 +51,13 @@ type PaneView = Omit<Parameters<typeof CompanionPane>[0], "presentation">
 // Terminal left, pane right, inside the terminal's own window. The divider drags.
 const SplitPane = ({
   view: shown,
+  owner,
   terminalView,
   presence,
   children,
 }: {
   view: PaneView
+  owner: string
   terminalView: ViewMode
   presence: Presence
   children: ReactNode
@@ -96,7 +99,11 @@ const SplitPane = ({
           )
         }}
       />
-      <div {...presence.props} className="plan-split-reader nodrag nopan nowheel">
+      <div
+        {...presence.props}
+        className="plan-split-reader nodrag nopan nowheel"
+        data-companion-of={owner}
+      >
         <CompanionPane {...shown} presentation="split" />
       </div>
     </div>
@@ -112,13 +119,19 @@ const attachedExtent = { right: 20 + 720, height: 560 }
 export const AttachedHost = createContext<HTMLElement | null | undefined>(undefined)
 
 // A sheet hanging off the canvas node's right edge, so it pans and zooms with it. It is
-// positioned against the node, outside the window's clipping.
+// positioned against the node, outside the window's clipping. Hung there, outside its
+// terminal's region too, the region owns it, so assistive technology still finds it there.
 const AttachedPane = ({
   view: shown,
+  owner,
+  within,
   onReveal,
   presence,
 }: {
   view: PaneView
+  owner: string
+  // Inside the terminal's window, wherever the sheet hangs.
+  within: React.RefObject<HTMLElement | null>
   onReveal: Reveal | undefined
   presence: Presence
 }): React.JSX.Element | null => {
@@ -126,8 +139,20 @@ const AttachedPane = ({
   const reveal = useRef(onReveal)
   useEffect(() => reveal.current?.(attachedExtent), [])
   const host = useContext(AttachedHost)
+  const id = useId()
+  useEffect(() => {
+    const region = host ? within.current?.closest("[data-terminal]") : undefined
+    if (!region) return
+    region.setAttribute("aria-owns", id)
+    return () => region.removeAttribute("aria-owns")
+  }, [host, within, id])
   const sheet = (
-    <div {...presence.props} className="plan-attached nodrag nopan nowheel">
+    <div
+      {...presence.props}
+      id={id}
+      className="plan-attached nodrag nopan nowheel"
+      data-companion-of={owner}
+    >
       <CompanionPane {...shown} presentation="attached" />
     </div>
   )
@@ -274,13 +299,19 @@ export const TerminalCompanion = ({
   // And an empty one to drop on, while an icon is dragged over a terminal without a bar.
   const emptyBar = usePresence(hovered && !present)
   const wasOpen = useRef(open)
+  const within = useRef<HTMLDivElement>(null)
   // Opening leaves focus on the taskbar. Hiding the pane from inside it (Escape) would
-  // drop focus with the pane, so it goes back to the taskbar.
+  // drop focus with the pane, which stays a moment as it animates out, so it goes back
+  // to the taskbar.
   useEffect(() => {
-    const lost = !document.activeElement || document.activeElement === document.body
+    const focused = document.activeElement
+    const lost =
+      !focused ||
+      focused === document.body ||
+      focused.closest(`[data-companion-of="${CSS.escape(terminal)}"]`) !== null
     if (!open && wasOpen.current && lost) trigger.current?.focus({ preventScroll: true })
     wasOpen.current = open
-  }, [open])
+  }, [open, terminal])
   const paneView: PaneView = {
     member,
     panes,
@@ -293,9 +324,9 @@ export const TerminalCompanion = ({
     onHide: () => commands.closeBarPane(terminal),
   }
   return (
-    <div className="terminal-plan" data-plan-open={open}>
+    <div ref={within} className="terminal-plan" data-plan-open={open}>
       {shown.mounted && presentation === "split" ? (
-        <SplitPane view={paneView} terminalView={view} presence={shown}>
+        <SplitPane view={paneView} owner={terminal} terminalView={view} presence={shown}>
           {children}
         </SplitPane>
       ) : (
@@ -352,7 +383,13 @@ export const TerminalCompanion = ({
         widthClassName="w-[min(360px,calc(100vw-32px))]"
       />
       {shown.mounted && presentation === "attached" && (
-        <AttachedPane view={paneView} onReveal={onReveal} presence={shown} />
+        <AttachedPane
+          view={paneView}
+          owner={terminal}
+          within={within}
+          onReveal={onReveal}
+          presence={shown}
+        />
       )}
     </div>
   )
