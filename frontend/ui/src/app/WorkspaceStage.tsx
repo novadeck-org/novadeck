@@ -6,6 +6,7 @@ import { memo, Suspense, useCallback, useEffect, useMemo, useState, type RefObje
 import type { CanvasHandle } from "../layouts/canvas/types"
 import { Focus } from "../layouts/focus/Focus"
 import { EmptyWorkspace } from "../shell/EmptyWorkspace"
+import { firstFlight, flies, flightAfter } from "../shell/shell-state"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { Canvas, Grid, preloadViews } from "./deferred-views"
 import {
@@ -76,6 +77,12 @@ export const WorkspaceStage = memo(
         view,
         fromOtherView: opened.context === context && opened.view !== view,
       })
+    // A navigation that flies is for the view on screen as it was asked, here or in the
+    // session it brought to the front (see `flightAfter`).
+    const [flight, setFlight] = useState(() => firstFlight(shellNavigation, context, view))
+    const after = flightAfter(flight, shellNavigation, context, view)
+    if (after !== flight) setFlight(after)
+    const flying = flies(after, shellNavigation, context, view)
     // The terminal Focus shows: the selection, a kept preview, or the first terminal.
     const displayed = activeTerminal(terminals, selected, context, focusPreview)?.id
     const {
@@ -158,7 +165,8 @@ export const WorkspaceStage = memo(
               layout={canvasLayout}
               revealOnMount={revealCanvas}
               fitOnMount={opened.fromOtherView}
-              fitOnNavigate={shellNavigation.fit}
+              fitOnNavigate={shellNavigation.move === "fit"}
+              flyOnNavigate={flying}
               onLayoutChange={setCanvasLayout}
               terminals={terminals}
               selected={selected}

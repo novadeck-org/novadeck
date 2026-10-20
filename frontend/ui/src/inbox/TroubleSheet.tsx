@@ -1,4 +1,5 @@
 import type { Trouble } from "@novadeck/core/inbox"
+import { unsaidWaits, waitsText } from "@novadeck/core/messages"
 import { Switch } from "@novadeck/toolkit/Switch"
 import { useId, useState } from "react"
 
@@ -13,6 +14,7 @@ import { Evidence, Failure, QuietLink, ReplyBox, Sent, Text } from "./sheet-part
 type Stuck = Extract<Trouble, { type: "stuck" }>
 type Limit = Extract<Trouble, { type: "limit" }>
 type Failed = Extract<Trouble, { type: "failed" }>
+type Waits = Extract<Trouble, { type: "waits" }>
 
 const Stuck = (props: SheetContentProps & { readonly trouble: Stuck }): React.JSX.Element => {
   const { item, trouble, sent, answering, failed, onNext, submit } = props
@@ -187,11 +189,29 @@ const Errored = (props: SheetContentProps & { readonly trouble: Failed }): React
   )
 }
 
+// Messages held long behind what keeps the doorbell from the idle agent, which only the
+// person can clear, in its terminal.
+const HeldUp = (props: SheetContentProps & { readonly trouble: Waits }): React.JSX.Element => {
+  const { trouble, reveal } = props
+  return (
+    <Page>
+      <Lead {...props} />
+      <p className="inbox-lead">{trouble.waits ? waitsText[trouble.waits] : unsaidWaits.text}</p>
+      <div className="inbox-actions">
+        <button type="button" className="button primary text-control" onClick={reveal}>
+          Show terminal
+        </button>
+      </div>
+    </Page>
+  )
+}
+
 export const TroubleSheet = (props: SheetContentProps): React.JSX.Element | null => {
   const { item } = props
   if (item.kind !== "trouble") return null
   const { trouble } = item
   if (trouble.type === "stuck") return <Stuck {...props} trouble={trouble} />
   if (trouble.type === "limit") return <LimitReached {...props} trouble={trouble} />
+  if (trouble.type === "waits") return <HeldUp {...props} trouble={trouble} />
   return <Errored {...props} trouble={trouble} />
 }

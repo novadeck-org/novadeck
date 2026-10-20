@@ -2,10 +2,17 @@ import { afterEach, describe as context, describe, expect, it } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
 import { openMessages } from "./support/messages"
-import { expectStaysAbsent, openWorkspace, sidebarPanel, terminal } from "./support/workspace"
+import {
+  expectStaysAbsent,
+  openWorkspace,
+  sidebarPanel,
+  tabDescription,
+  terminal,
+} from "./support/workspace"
 
 // The Inbox demo: the agents demo with an Inbox of hardcoded items across its projects, one
-// of each kind, waiting on the person.
+// of each kind, waiting on the person, over what its own agents wait on: api-service's plan and
+// permission, and, a moment after it opens, infra's failed turn and design-system's finish.
 const inbox = "/?demo=inbox"
 
 const openInbox = async (route = inbox): Promise<void> => {
@@ -28,39 +35,29 @@ afterEach(() => {
 })
 
 describe("The Inbox on the rail", () => {
-  context("when the backend has an Inbox", () => {
-    it("takes the Notifications toggle's place, counting what isn't an update", async () => {
-      await openWorkspace(inbox)
+  it("counts what isn't an update", async () => {
+    await openWorkspace(inbox)
 
-      await expect.element(sidebarPanel("Inbox")).toHaveAccessibleName("Inbox, 9 waiting")
-      await expect.element(sidebarPanel("Notifications")).not.toBeInTheDocument()
-    })
+    await expect.element(sidebarPanel("Inbox")).toHaveAccessibleName("Inbox, 12 waiting")
   })
+})
 
-  context("when the backend has none", () => {
-    it("keeps the Notifications toggle as it is", async () => {
-      await openWorkspace()
+describe("The agents demo's Inbox", () => {
+  it("lists what its agents wait on, and an answer there moves the agent on", async () => {
+    await openWorkspace("/?demo=agents")
+    const skip = page.getByRole("button", { name: "Skip for now" })
+    if (await skip.query()) await skip.click()
+    await expect.poll(() => tabDescription("Checkout review") ?? "").toContain("Needs permission")
+    await sidebarPanel("Inbox").click()
+    await expect.element(row("Approve the plan?").first()).toBeVisible()
+    await expect.element(row("Which approach should I take?")).toBeVisible()
 
-      await expect.element(sidebarPanel("Notifications")).toBeVisible()
-      await expect.element(sidebarPanel("Inbox")).not.toBeInTheDocument()
-    })
-  })
+    await row("Run pnpm test").click()
+    await sheet("Checkout review").getByRole("button", { name: "Allow", exact: true }).click()
 
-  context("when opening a link to the Inbox on a backend with none", () => {
-    it("shows the Notifications panel, as the app always has", async () => {
-      await openWorkspace("/?panel=inbox")
-
-      await expect.element(sidebarPanel("Notifications")).toBeChecked()
-      await expect.element(sidebarPanel("Inbox")).not.toBeInTheDocument()
-    })
-  })
-
-  context("when opening a link to the Notifications panel", () => {
-    it("shows the Inbox", async () => {
-      await openWorkspace(`${inbox}&panel=notifications`)
-
-      await expect.element(sidebarPanel("Inbox")).toBeChecked()
-    })
+    await expect.element(confirmation()).toMatchTextContent("Allowed. Codex is working again.")
+    await sidebarPanel("Terminals").click()
+    await expect.poll(() => tabDescription("Checkout review") ?? "").not.toContain("Needs")
   })
 })
 
@@ -68,7 +65,7 @@ describe("The Inbox's list", () => {
   it("lists one row for each item, trouble that stopped an agent first", async () => {
     await openInbox()
 
-    await expect.element(rows()).toHaveLength(11)
+    await expect.element(rows()).toHaveLength(15)
     await expect
       .element(rows().first())
       .toMatchTextContent(/Seems stuck: the same failure 3 times[\s\S]*7m[\s\S]*api-service/)
@@ -470,7 +467,7 @@ describe("Marking updates read", () => {
     await openInbox()
     await page.getByRole("button", { name: "Mark all read" }).click()
 
-    await expect.element(rows()).toHaveLength(9)
+    await expect.element(rows()).toHaveLength(12)
     await expect
       .element(page.getByRole("button", { name: "Mark all read" }))
       .not.toBeInTheDocument()

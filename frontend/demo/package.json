@@ -9,6 +9,7 @@
     "./agent-link": "./src/agent-link.ts",
     "./content": "./src/content.ts",
     "./inbox": "./src/inbox.ts",
+    "./inbox-fixtures": "./src/inbox-fixtures.ts",
     "./messages": "./src/messages.ts",
     "./murmur": "./src/murmur.ts",
     "./runtime": "./src/runtime.ts",

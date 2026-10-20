@@ -22,37 +22,17 @@ import { describe, expect, it } from "./test"
 const base = ["core/", "interaction/", "ui-toolkit/", "theme/"]
 // The features are the leaves that the shell and the app compose. A feature imports the base
 // and itself, never another feature: what two of them share belongs to the base. `terminals/`
-// and `layouts/` are the workspace's frame, not features, so a feature may read the frame's
-// plain state (notifications read the unread finishes). The chat and the companion are
+// and `layouts/` are the workspace's frame, not features. The chat and the companion are
 // packages (`terminals/chat/` and `terminals/companion/` below), denied to a feature by its
 // allow-list, and no rule keys on them: a key that matches no file fails the dead-layer check.
-const features = [
-  "inbox/",
-  "notifications/",
-  "preferences/",
-  "projects/",
-  "search/",
-  "sidebar/",
-  "voice/",
-]
+const features = ["inbox/", "preferences/", "projects/", "search/", "sidebar/", "voice/"]
 const rules: Record<string, readonly string[]> = {
   "theme/": ["theme/", "core/types.ts"],
   "interaction/": ["interaction/", "core/"],
   ...Object.fromEntries(features.map((layer) => [layer, [...base, layer]])),
   "terminals/": [...base, "terminals/"],
   "layouts/": [...base, "layouts/", "terminals/"],
-  // What asks for the person across the workspace: terminals' requests and unread finishes.
-  "notifications/": [...base, "notifications/", "terminals/unread-state.ts"],
-  "shell/": [
-    ...base,
-    "shell/",
-    "sidebar/",
-    "terminals/",
-    "layouts/",
-    "projects/",
-    "notifications/",
-    "inbox/",
-  ],
+  "shell/": [...base, "shell/", "sidebar/", "terminals/", "layouts/", "projects/", "inbox/"],
   "app/": ["app/", ...base, ...features, "terminals/", "layouts/", "shell/"],
   // Commands are plain functions over the stores: no React, no DOM libraries.
   "app/commands/": [
@@ -64,10 +44,8 @@ const rules: Record<string, readonly string[]> = {
     // The keymap's types only: commands never touch the DOM contracts in interaction/dom.ts.
     "interaction/keymap.ts",
     "shell/shell-state.ts",
-    // Which panel a link to the sidebar shows.
-    "shell/panels.ts",
     "terminals/rename-state.ts",
-    // Unread finishes, which the notification center's dismissals clear.
+    // Unread finishes, which the Inbox reads.
     "terminals/unread-state.ts",
     // The switcher's arrangement, which commands change by its pure functions.
     "projects/project-arrangement.ts",
@@ -280,13 +258,7 @@ describe("UI architecture", () => {
   it("keeps each feature to the base and itself", () => {
     // No feature imports another: what two share is the base's. The chat and the companion
     // are packages, which no feature's allow-list names.
-    const exceptions: Record<string, readonly string[]> = {
-      // A plain-state file of the frame, not a layer of it.
-      "notifications/": ["terminals/unread-state.ts"],
-    }
-    for (const feature of features) {
-      expect(rules[feature], feature).toEqual([...base, feature, ...(exceptions[feature] ?? [])])
-    }
+    for (const feature of features) expect(rules[feature], feature).toEqual([...base, feature])
     // No nested key gives a feature's file more than the feature has.
     expect(
       Object.keys(rules).filter(

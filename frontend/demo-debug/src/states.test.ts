@@ -484,16 +484,16 @@ describe("demo states", () => {
     })
   })
 
-  context("with the notification center", () => {
+  context("with the Inbox filled from waiting agents", () => {
     it("asks for the terminal on screen first", () => {
       const { run, notes } = panel(undefined)
-      run("Fill notifications")
+      run("Fill the Inbox")
       expect(notes).toEqual(["Select a terminal first."])
     })
 
     it("fills it with every kind, across projects, past the badge's cap", () => {
       const { run, actionContext } = panel("04")
-      run("Fill notifications")
+      run("Fill the Inbox")
       vi.advanceTimersByTime(3000)
       const all = asksOf(actionContext.workspace()!, key("04"))
       expect(all).toHaveLength(12)
@@ -508,7 +508,7 @@ describe("demo states", () => {
 
     it("asks with the verbs, and finishes after the usual turn", () => {
       const { run, calls } = panel("04")
-      run("Fill notifications")
+      run("Fill the Inbox")
       expect(calls).toHaveLength(12)
       for (const call of calls) {
         if (call.verb === "ask") expect(call.args[1]).toBe(1)
@@ -519,7 +519,7 @@ describe("demo states", () => {
 
     it("gives the second round of kinds murmur's headlines and gists, and the rest none", () => {
       const { run, calls } = panel("04")
-      run("Fill notifications")
+      run("Fill the Inbox")
       const asks = calls.filter((call) => call.verb === "ask")
       expect(
         asks.flatMap((call) => (typeof call.args[2] === "string" ? [call.args[2]] : [])).toSorted(),
@@ -544,7 +544,7 @@ describe("demo states", () => {
 
     it("adds what it needs without selecting it, so every finish lands elsewhere", () => {
       const { run, onScreen, plus, added, actionContext } = panel("04", { keeping: 3 })
-      run("Fill notifications")
+      run("Fill the Inbox")
       vi.advanceTimersByTime(3000)
       expect(added.length).toBeGreaterThan(0)
       // Not through the app's "+", which selects the terminal and shows the Terminals panel.
@@ -558,10 +558,10 @@ describe("demo states", () => {
 
     it("empties it again, resting every agent that works, asks or finished", () => {
       const { run, calls, actionContext } = panel("04")
-      run("Fill notifications")
+      run("Fill the Inbox")
       vi.advanceTimersByTime(3000)
       calls.length = 0
-      run("Clear notifications")
+      run("Clear waiting agents")
       vi.advanceTimersByTime(100)
       expect(asksOf(actionContext.workspace()!, key("04"))).toEqual([])
       expect(calls.filter((call) => call.verb === "rest").length).toBeGreaterThanOrEqual(12)
@@ -569,10 +569,10 @@ describe("demo states", () => {
 
     it("calls off the finishes still pending by working, then resting their agents", () => {
       const { run, calls } = panel("04")
-      run("Fill notifications")
+      run("Fill the Inbox")
       vi.advanceTimersByTime(1000)
       calls.length = 0
-      run("Clear notifications")
+      run("Clear waiting agents")
       expect(calls.filter((call) => call.verb === "work").length).toBeGreaterThanOrEqual(12)
       vi.advanceTimersByTime(100)
       expect(calls.filter((call) => call.verb === "rest").length).toBeGreaterThanOrEqual(12)
@@ -582,7 +582,7 @@ describe("demo states", () => {
       const { run, calls, actionContext } = panel("04")
       const at = key("02")
       actionContext.dispatch!(backToPrompt(at))
-      run("Clear notifications")
+      run("Clear waiting agents")
       expect(calls).toContainEqual(expect.objectContaining({ verb: "work", key: at }))
       vi.advanceTimersByTime(100)
       expect(calls).toContainEqual(expect.objectContaining({ verb: "rest", key: at }))
@@ -684,9 +684,9 @@ describe("demo states over the real agents", () => {
 
     it(`leaves nothing to read, ask or work after Fill then Clear (${variant})`, () => {
       const { run, workspace, backend } = openOver(variant)
-      run("Fill notifications")
+      run("Fill the Inbox")
       vi.advanceTimersByTime(3_500)
-      run("Clear notifications")
+      run("Clear waiting agents")
       vi.advanceTimersByTime(10_000)
       for (const each of workspace.getSnapshot().projects)
         for (const owner of each.history)

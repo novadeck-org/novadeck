@@ -17,11 +17,10 @@ import { harnesses } from "../harnesses/registry.js"
 import { Doorbell, type DoorbellOptions } from "../messaging/doorbell.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { Answers, type AnswerOptions } from "./answers.js"
-import { busy } from "./busy.js"
 import { Dialogs, type DialogsOptions } from "./dialogs.js"
 import { Interrupts, Prompts } from "./prompting.js"
 import type { Record } from "./record.js"
-import { doorbellHost, profileOf } from "./ringing.js"
+import { agentWorking, doorbellHost, profileOf } from "./ringing.js"
 
 /** How long `settleBox` looks at a screen for an empty box, in milliseconds. */
 const boxSettleMs = 5_000
@@ -152,7 +151,9 @@ export class Typing {
 
   /** The harness of the agent bound to the terminal, or shown at its prompt, as its box reads. */
   boxOf(record: Record): BoxProfile | undefined {
-    return profileOf(record.binding, () => this.host.messaging().shownAgent(record.summary.id))
+    return profileOf(record.bound?.binding ?? null, () =>
+      this.host.messaging().shownAgent(record.summary.id),
+    )
   }
 
   /**
@@ -164,14 +165,14 @@ export class Typing {
     if (this.host.stopping()) throw new DomainError("CLOSING")
     const record = this.host.record(terminalId)
     this.host.running(record)
-    if (!record.binding && this.host.messaging().shownAgent(terminalId) === undefined)
+    if (!record.bound && this.host.messaging().shownAgent(terminalId) === undefined)
       throw new DomainError(
         "CONFLICT",
         "No agent is running in this terminal.",
         undefined,
         "no-agent",
       )
-    if ((record.activity?.pending.length ?? 0) > 0)
+    if ((record.bound?.activity.pending.length ?? 0) > 0)
       throw new DomainError(
         "CONFLICT",
         "The agent waits on the person's answer to a request.",
@@ -200,18 +201,6 @@ export class Typing {
     const record = this.host.live(terminalId)
     if (!record) return noHold
     return record.terminal.hold(budget)
-  }
-
-  /**
-   * Whether the activity says a turn or subagents run, where that outweighs what messaging
-   * knows: a Settled or Ready terminal made so by a Stop or a session's start stands against
-   * an activity that lingers; every other, and any made so by the screen alone, does not.
-   */
-  working(terminalId: string, activity: Parameters<typeof busy>[0]): boolean {
-    const messaging = this.host.messaging()
-    const state = messaging.delivery(terminalId)?.state
-    const known = (state === "settled" || state === "ready") && !messaging.byScreen(terminalId)
-    return !known && busy(activity)
   }
 
   /**
@@ -283,6 +272,30 @@ export class Typing {
     return true
   }
 
+  /**
+   * Presses an answer's keys into a running terminal, through what watches the person's
+   * keys, which delivery takes as Novadeck's own while a request waits: no draft of theirs.
+   */
+  private pressed(terminalId: string, data: string): boolean {
+    const record = this.host.live(terminalId)
+    if (!record) return false
+    this.host.messaging().pressing(terminalId, () => this.host.keyed(record, data))
+    record.terminal.type(data)
+    return true
+  }
+
+  /**
+   * An answer's keys that didn't go as it should have may have landed in the agent's box,
+   * as Antigravity's artifact review types into it: a possible draft, as the person's keys
+   * would leave, until a submission or the screen says otherwise.
+   */
+  private astray(terminalId: string): void {
+    const record = this.host.live(terminalId)
+    if (!record) return
+    const asked = (record.bound?.activity.pending.length ?? 0) > 0
+    this.host.messaging().keys(terminalId, ["content"], asked)
+  }
+
   /** What prompts ask of the terminals and messaging. */
   private promptHost(): ConstructorParameters<typeof Prompts>[0] {
     return {
@@ -300,7 +313,7 @@ export class Typing {
       },
       bound: (terminalId) => {
         const record = this.host.live(terminalId)
-        return record === undefined || record.binding !== null
+        return record === undefined || record.bound !== null
       },
       ringing: (terminalId) => this.host.messaging().ringing(terminalId),
       screen: (terminalId) => this.screenOf(terminalId),
@@ -311,7 +324,7 @@ export class Typing {
   private interruptHost(): ConstructorParameters<typeof Interrupts>[0] {
     return {
       admit: (terminalId) => void this.promptable(terminalId),
-      working: (terminalId) => this.host.live(terminalId)?.activity?.state === "working",
+      working: (terminalId) => this.host.live(terminalId)?.bound?.activity.state === "working",
       alive: (terminalId) => this.host.live(terminalId) !== undefined,
       profile: (terminalId) => {
         const record = this.host.live(terminalId)
@@ -341,9 +354,10 @@ export class Typing {
 
   /** The request of a terminal's bound agent that a ref names, with its facts. */
   private waiting(record: Record, ref: string) {
-    const { binding, activity } = record
-    if (!binding || !activity) return undefined
-    const request = activity.pending.find((each) => requestRef(binding, each) === ref)
+    const { bound } = record
+    if (!bound) return undefined
+    const { binding } = bound
+    const request = bound.activity.pending.find((each) => requestRef(binding, each) === ref)
     return request && { binding, request }
   }
 
@@ -361,7 +375,7 @@ export class Typing {
           actor: request.actor,
           facts: this.factsOf(record, request),
           adapter: harnesses[binding.agent].dialogs,
-          others: (record.activity?.pending ?? [])
+          others: (record.bound?.activity.pending ?? [])
             .filter((each) => each !== request)
             .map((each) => ({
               ref: requestRef(binding, each),
@@ -373,11 +387,11 @@ export class Typing {
       },
       ringing: (terminalId) => this.host.messaging().ringing(terminalId),
       screen: (terminalId) => this.screenOf(terminalId),
-      type: (terminalId, data) => this.typed(terminalId, data),
+      press: (terminalId, data) => this.pressed(terminalId, data),
       prompt: (entry, terminalId, text) => this.prompts.promptIn(entry, terminalId, text),
-      working: (terminalId) => this.host.held(terminalId)?.activity?.state === "working",
+      working: (terminalId) => this.host.held(terminalId)?.bound?.activity.state === "working",
       turnStartedAt: (terminalId) => {
-        const activity = this.host.held(terminalId)?.activity
+        const activity = this.host.held(terminalId)?.bound?.activity
         return activity?.state === "working" ? activity.turnAt : undefined
       },
       closed: (terminalId, ref) => this.dialogs.closed(terminalId, ref),
@@ -389,6 +403,7 @@ export class Typing {
       raw: (terminalId, ref) => this.dialogs.shown(terminalId, ref)?.type === "raw",
       lock: (terminalId, ref, reason, rows) => {
         this.dialogs.lock(terminalId, ref, reason, rows)
+        if (reason === "failed") this.astray(terminalId)
       },
       done: (terminalId, ref) => {
         this.dialogs.done(terminalId, ref)
@@ -409,8 +424,9 @@ export class Typing {
     return {
       pending: (terminalId) => {
         const record = this.host.live(terminalId)
-        const { binding, activity } = record ?? {}
-        if (!record || !binding || !activity) return undefined
+        const bound = record?.bound
+        if (!record || !bound) return undefined
+        const { binding, activity } = bound
         return {
           agent: binding.agent,
           requests: activity.pending.map((request) => ({
@@ -427,7 +443,7 @@ export class Typing {
       screen: (terminalId) => this.screenOf(terminalId),
       ask: (terminalId, request) => {
         const record = this.host.live(terminalId)
-        const { binding } = record ?? {}
+        const binding = record?.bound?.binding
         if (!record || !binding) return
         const { agent, sessionId, instance } = binding
         const fact: ActivityEvent = {
@@ -462,7 +478,7 @@ export class Typing {
 
   /** A request only the screen told no longer waits: its screen is gone, or it was answered. */
   private clearScreenRequest(record: Record, request: Activity["pending"][number]): void {
-    const { binding } = record
+    const binding = record.bound?.binding
     if (!binding) return
     const { agent, sessionId, instance } = binding
     const fact: ActivityEvent = {
@@ -490,7 +506,7 @@ export class Typing {
       queued: (terminalId, work) => this.host.queued(terminalId, work),
       endExited: (record) => this.host.endExited(record),
       messaging: this.host.messaging(),
-      working: (terminalId, activity) => this.working(terminalId, activity),
+      working: (terminalId, bound) => agentWorking(this.host.messaging(), terminalId, bound),
       stopping: () => this.host.stopping(),
     })
   }

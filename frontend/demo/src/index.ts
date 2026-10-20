@@ -1,5 +1,6 @@
 import { emptyCompanions } from "@novadeck/core/companion"
 import type { Conversations } from "@novadeck/core/conversation"
+import type { InboxItem } from "@novadeck/core/inbox"
 import type {
   AgentConnection,
   Backend,
@@ -23,7 +24,8 @@ import { createDemoChat } from "./chat"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { demoHandle } from "./handles"
 import { createDemoInbox, isDemoInbox } from "./inbox"
-import { checkoutMailboxes, createDemoMessages } from "./messages"
+import { demoInboxItems } from "./inbox-fixtures"
+import { checkoutMailboxes, createDemoMessages, isDemoMessages } from "./messages"
 import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./murmur"
 import {
   createMockTerminal,
@@ -130,6 +132,9 @@ export const demoBackend = (
     murmur,
     // Older than every update the demo offers (see debug/states.ts).
     version: () => Promise.resolve("0.0.79"),
+    // The demo keeps no logs: Preferences offers the folder as the desktop app does, and
+    // opening it does nothing.
+    openLogs: () => {},
     // Dictation pastes into the command line, which never submits it.
     typeInto: terminals.typeInto,
     transcripts: {
@@ -323,6 +328,27 @@ export const withConversations = (
   return linked
 }
 
+// A backend with the demo's Inbox (see `createDemoInbox`): what its agents wait on, from the
+// conversations and messages `backend` has, which `withConversations` gave it, and `items`
+// over them, the demo's own. Answering one of those for an agent that waits takes the agent
+// past it, to wait for the person's next words. Its messages keep a record of what the
+// person answered, where they are the demo's.
+export const withInbox = (
+  backend: Backend,
+  turns: DemoTurns,
+  items: readonly InboxItem[] = [],
+): Backend => {
+  const { conversations, messages } = backend
+  if (!conversations) throw new Error("withInbox wraps a backend withConversations made")
+  const record = isDemoMessages(messages) ? messages.record : undefined
+  const inbox = createDemoInbox(Date.now(), items, record, {
+    conversations,
+    messages,
+    resume: (key, terminal) => turns.resume(key, terminal, { waits: true }),
+  })
+  return { ...backend, inbox }
+}
+
 // The agents demo's storefront terminals hold what their agents showed, on their bars,
 // to open, peek at and move; nothing there changes.
 export const withStorefrontArtifacts = (backend: Backend): Backend => {
@@ -386,9 +412,9 @@ const withFinishes = (backend: Backend, turns: DemoTurns): Backend => ({
 })
 
 // The demos with no content showcase: the plain one, the agents', the agents' with
-// messages between them, the agents' with the Inbox, and the plain one with its first-run
-// welcome dialog open. Only the Inbox demo has an Inbox: it is not built yet, so the demos
-// that tests, try mode and the website run on must not show it.
+// messages between them, the agents' with every kind of Inbox item, and the plain one with
+// its first-run welcome dialog open. Each has the Inbox its agents make; the Inbox demo
+// shows the hardcoded items of every kind over theirs.
 export type PlainVariant = "plain" | "agents" | "messages" | "inbox" | "welcome"
 
 export const plainDemo = (
@@ -411,9 +437,12 @@ export const plainDemo = (
   )
   const transcripts = agentTranscripts(now)
   if (variant === "messages")
-    return withConversations(
-      withFinishes(withMessages({ ...backend, seed: demoSeed(now, true) }, now), turns),
-      transcripts,
+    return withInbox(
+      withConversations(
+        withFinishes(withMessages({ ...backend, seed: demoSeed(now, true) }, now), turns),
+        transcripts,
+        turns,
+      ),
       turns,
     )
   const conversing = withConversations(
@@ -423,9 +452,8 @@ export const plainDemo = (
     transcripts,
     turns,
   )
-  if (variant !== "inbox") return conversing
-  const messages = createDemoMessages([])
-  return { ...conversing, messages, inbox: createDemoInbox(now, undefined, messages.record) }
+  if (variant !== "inbox") return withInbox(conversing, turns)
+  return withInbox({ ...conversing, messages: createDemoMessages([]) }, turns, demoInboxItems(now))
 }
 
 // The variant the address's hash asks for, as specs do with `?demo=`, and how long an

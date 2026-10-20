@@ -7,6 +7,7 @@ describe("the visitor demo", () => {
     expect(Object.keys(visitorDemo()).toSorted()).toEqual([
       "commit",
       "companions",
+      "inbox",
       "mountTerminal",
       "newTerminal",
       "seed",

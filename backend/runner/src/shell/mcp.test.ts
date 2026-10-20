@@ -726,6 +726,18 @@ describe("Novadeck's MCP server", () => {
         "Your earlier message m-3 to @fox won't arrive: the user stopped that thread in Novadeck.",
       )
       expect(held.content[0]?.text).toContain("/hooks")
+      // The runner's words on a long hold go on as they come.
+      const holds = await said({
+        ok: true,
+        to: "fox",
+        id: "m-4",
+        state: "queued",
+        route: "waits: there's text in its box, rung once it is empty",
+        holds: ["Novadeck: your message m-1 to @fox has not arrived since 11:41 (…)."],
+      })
+      expect(holds.content[0]?.text).toContain(
+        "\nNovadeck: your message m-1 to @fox has not arrived since 11:41 (…).\nEnd your turn",
+      )
       const refused = await said({ ok: false, reason: '"codex" is no terminal\'s handle here.' })
       expect(refused).toEqual({
         content: [{ type: "text", text: '"codex" is no terminal\'s handle here.' }],

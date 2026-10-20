@@ -106,6 +106,43 @@ const serve = (options: Partial<SessionsOptions> = {}) => {
 }
 
 describe("createSessions", () => {
+  it("tells each failure a client is answered with, by its procedure, before it is mapped", async () => {
+    const failed = vi.fn<(path: readonly string[], error: unknown) => void>()
+    const { open } = serve({ failed })
+    const { client, handshake } = open()
+    await expect(client.echo("hi")).rejects.toMatchObject({ code: "UNAUTHORIZED" })
+    await expect(
+      client.wire.handshake({ protocolVersion: 1, token: "secret" }),
+    ).rejects.toMatchObject({
+      code: "INCOMPATIBLE_PROTOCOL",
+    })
+    await handshake()
+    await expect(client.fail()).rejects.toMatchObject({ code: "APP" })
+    const ticks = await client.ticks()
+    await ticks.next()
+    await ticks.next()
+    await expect(ticks.next()).rejects.toMatchObject({ code: "APP" })
+    expect(
+      failed.mock.calls.map(([path, error]) => [path.join("."), (error as Error).constructor.name]),
+    ).toEqual([
+      ["echo", "ORPCError"],
+      ["wire.handshake", "ORPCError"],
+      ["fail", "AppError"],
+      ["ticks", "AppError"],
+    ])
+  })
+
+  it("answers as ever when what it tells of a failure throws", async () => {
+    const { open } = serve({
+      failed: () => {
+        throw new Error("broken log")
+      },
+    })
+    const { client, handshake } = open()
+    await handshake()
+    await expect(client.fail()).rejects.toMatchObject({ code: "APP" })
+  })
+
   it("serves a session only once its handshake proves it", async () => {
     const { sessions, open } = serve()
     const { session, client, authenticated, handshake } = open()

@@ -157,6 +157,7 @@ const listing = (delivery: DeliveryState, state: MessageState): TerminalMessages
   handle: "fox",
   delivery,
   waits: null,
+  waitsSince: null,
   paused: false,
   threads: [
     {

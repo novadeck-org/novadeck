@@ -1,3 +1,7 @@
+import { logs } from "../log.js"
+
+const log = logs.for("terminals")
+
 /**
  * Runs `run` for a key once this tick, however often the key is changed within it, as a
  * burst of changes to one terminal makes one look at it. A run that fails, at once or
@@ -6,9 +10,12 @@
 export const coalesced = (
   run: (key: string) => unknown,
   label: string,
+  /** The event a failure is logged as, which tells one coalesced run from another. */
+  evt: string,
 ): ((key: string) => void) => {
   const scheduled = new Set<string>()
-  const failed = (error: unknown): void => console.error(label, error)
+  // Logged as its label says, without the colon the console adds back.
+  const failed = (error: unknown): void => log.error(evt, label.replace(/:$/, ""), { err: error })
   return (key) => {
     if (scheduled.has(key)) return
     scheduled.add(key)

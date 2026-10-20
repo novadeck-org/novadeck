@@ -620,6 +620,7 @@ describe("runner backend", () => {
           // A plain shell: no agent takes messages there.
           agent: false,
           waits: null,
+          waitsSince: null,
           threads: [],
         }),
       )

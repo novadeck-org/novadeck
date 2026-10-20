@@ -114,14 +114,14 @@ const requestedUninstall = (): Backend["uninstall"] => {
 }
 
 // `&version=dev` makes the host a development build, which carries 0.0.0, and
-// `&version=none` one that gives no version.
+// `&version=none` one that gives no version and keeps no logs, as a browser.
 const requestedVersion = (
   backend: ReturnType<typeof createDemoBackend>,
 ): ReturnType<typeof createDemoBackend> => {
   const version = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("version")
   if (version === "dev") return { ...backend, version: () => Promise.resolve("0.0.0") }
   if (version !== "none") return backend
-  const { version: _given, ...rest } = backend
+  const { version: _given, openLogs: _logs, ...rest } = backend
   return rest
 }
 

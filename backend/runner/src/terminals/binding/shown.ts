@@ -10,6 +10,7 @@ import { foregroundProcess, openFiles, processSetting, type Pty } from "@novadec
 
 import { agents, harnesses } from "../../harnesses/registry.js"
 import type { Messaging } from "../../messaging/messaging.js"
+import { failed } from "../failures.js"
 import type { Record } from "../record.js"
 import type { Typing } from "../typing.js"
 import type { Bindings } from "./facts.js"
@@ -62,7 +63,7 @@ export class Shown {
     for (const agent of agents) {
       const shown = harnesses[agent].title?.(title, Date.now())
       if (!shown) continue
-      const { binding } = record
+      const binding = record.bound?.binding ?? null
       const prefix = shown.sessionPrefix
       // Its bound session at its prompt again, as after each turn: nothing to ask.
       if (binding?.agent === agent && prefix !== undefined && binding.sessionId.startsWith(prefix))
@@ -92,7 +93,7 @@ export class Shown {
           epoch !== undefined &&
           now === epoch + 1 &&
           record.left === binding &&
-          record.binding === null
+          record.bound === null
         )
       }
       void (async () => {
@@ -157,12 +158,12 @@ export class Shown {
           async () => {
             if (!(await inForeground())) return
             // Ended in turn with the reports, so a session bound since is never touched.
-            if (exited && record.binding === binding) this.host.bindings().endExited(record)
+            if (exited && record.bound?.binding === binding) this.host.bindings().endExited(record)
             this.showPrompt(record, shown, exited ? undefined : replaced)
           },
           undefined,
         )
-      })().catch((error: unknown) => console.error("Novadeck could not read a title:", error))
+      })().catch(failed.title)
     }
   }
 
@@ -261,7 +262,7 @@ export class Shown {
   showPrompt(record: Record, shown: PromptShown, replaced?: string): void {
     const { agent, sessionPrefix } = shown
     if (shown.startedAt <= (record.promptedAt ?? 0)) return
-    const { binding } = record
+    const binding = record.bound?.binding
     const id = record.summary.id
     if (!binding) {
       this.host.messaging().shown(id, agent, sessionPrefix ?? null)

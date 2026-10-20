@@ -164,21 +164,13 @@ export const chooseView = async (name: "Focus" | "Grid" | "Canvas"): Promise<voi
 
 export const sidebar = (): Locator => page.getByRole("complementary")
 
-export const sidebarPanel = (name: "Terminals" | "Sessions" | "Notifications" | "Inbox"): Locator =>
+export const sidebarPanel = (name: "Terminals" | "Sessions" | "Inbox"): Locator =>
   page
     .getByRole("radiogroup", { name: "Sidebar actions" })
-    // The bell and the Inbox add how many wait to their names, e.g. "Inbox, 3 waiting".
+    // The Inbox adds how many wait to its name, e.g. "Inbox, 3 waiting".
     .getByRole("radio", {
-      name: name === "Notifications" || name === "Inbox" ? new RegExp(`^${name}(,|$)`) : name,
+      name: name === "Inbox" ? new RegExp(`^${name}(,|$)`) : name,
     })
-
-/** The Notifications sidebar's rows, one for each terminal that asks for the person. */
-export const notifications = (): Locator =>
-  page.getByRole("list", { name: "Notifications" }).getByRole("listitem")
-
-/** The notification about the terminal in a project, e.g. `notification("docs-site")`. */
-export const notification = (project: string): Locator =>
-  notifications().filter({ hasText: project })
 
 const literal = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 

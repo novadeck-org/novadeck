@@ -102,13 +102,12 @@ export type Entered = {
   readonly settle: () => void
 }
 
-/** The delivery began and failed. `ours`: the line, if it landed, is alone in the box. */
+/** The delivery began and failed. */
 export type DeliveryFailed = {
   readonly entered: false
   readonly started: true
   readonly nonce: string
   readonly reason: DeliveryFailure
-  readonly ours: boolean
   /** Whether the failure counts: not when nothing was pasted. */
   readonly counted: boolean
 }
@@ -208,6 +207,28 @@ export const createTypist = (
     )
   }
 
+  /** The rows as the calm and the paste's check read them (`BoxProfile.still`). */
+  const unticked = (rows: readonly string[]): readonly string[] =>
+    options.profile?.()?.still?.(rows) ?? rows
+
+  /**
+   * `checkPaste` on the rows as `unticked` reads them, which may leave some out: rows seen
+   * ticking (by their index on the screen) are blanked on the screen's own rows first, where
+   * a row first changed elsewhere.
+   */
+  const pasteChecked = (
+    before: readonly string[],
+    after: readonly string[],
+    text: string,
+    vanish: boolean,
+    ticking: ReadonlySet<number>,
+  ) => {
+    const checked = checkPaste(unticked(before), unticked(after), text, { vanish })
+    if (checked.accepted || checked.reason !== "elsewhere" || ticking.size === 0) return checked
+    const blanked = (rows: readonly string[]) => rows.map((row, at) => (ticking.has(at) ? "" : row))
+    return checkPaste(unticked(blanked(before)), unticked(blanked(after)), text, { vanish })
+  }
+
   /** The rows of the screen as last seen, and when each row changed, lately. */
   let seen: { rows: readonly string[]; changes: Map<number, number[]> } | undefined
   /** The screen's text as last seen, and since when. */
@@ -263,7 +284,7 @@ export const createTypist = (
     if (!screen) return undefined
     const at = now()
     observe(screen.rows, at)
-    const text = screen.rows.join("\n")
+    const text = unticked(screen.rows).join("\n")
     const calmSince = still?.text === text ? still.since : at
     still = { text, since: calmSince }
     // A resize ends the calm too: the TUI may not have redrawn for it yet.
@@ -307,8 +328,6 @@ export const createTypist = (
     const hold = entry.hold({ inputMs: pasteMs + timing.inputCapMs, sizeMs: timing.sizeCapMs })
     let pressed = false
     let reason: DeliveryFailure = "gone"
-    // Whether the paste check accepted the line: then it is alone in the agent's box.
-    let acceptedTwice = false
     try {
       const before = await target.screen()
       // The box is looked at again now, on every platform: a key of the person's or a view
@@ -320,7 +339,6 @@ export const createTypist = (
           started: true,
           nonce,
           reason: "no-input-box",
-          ours: false,
           counted: false,
         }
       }
@@ -337,14 +355,15 @@ export const createTypist = (
             reason = "gone"
             break
           }
-          const shown = after.rows.join("\n")
-          const checked = checkPaste(before.rows, after.rows, text, { vanish, ticking: rows })
+          // What the program counts up by itself, redrawn as the paste lands, is no change.
+          const settled = unticked(after.rows)
+          const shown = settled.join("\n")
+          const checked = pasteChecked(before.rows, after.rows, text, vanish, rows)
           const accepted = checked.accepted
           if (!accepted && now() >= until)
             trace(`ring ${nonce}: paste not accepted: ${checked.reason}`)
           // Accepted twice running on the same screen, so it isn't caught mid-draw.
           if (accepted && landed === shown) {
-            acceptedTwice = true
             trace(`ring ${nonce}: paste accepted, Enter`)
             pressed = hold.holding() && o.still(nonce) && target.type("\r")
             reason = "not-pressed"
@@ -368,7 +387,6 @@ export const createTypist = (
         started: true,
         nonce,
         reason,
-        ours: acceptedTwice,
         counted: true,
       }
     }
@@ -390,7 +408,6 @@ export const createTypist = (
         started: true,
         nonce,
         reason: "not-pressed",
-        ours: true,
         counted: true,
       }
     }
