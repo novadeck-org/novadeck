@@ -62,8 +62,8 @@ export type InboxInputs = {
   // Windows path always does.
   readonly caseless: boolean
   // How long a message may wait for an idle agent before its hold is raised (the protocol's
-  // `longHoldMs`); absent where the backend raises none, as the demo's.
-  readonly longHoldMs?: number
+  // `longHoldMs`); null where the backend raises none, as the demo's.
+  readonly longHoldMs: number | null
 }
 
 type Where = {
@@ -183,7 +183,7 @@ const candidates = (
   // Not while it works, as its status says, whatever the listing last said.
   const held =
     !status.working &&
-    longHoldMs !== undefined &&
+    longHoldMs !== null &&
     heldLong(
       mail.terminals[
         companionKeyId({

@@ -76,11 +76,14 @@ describe("a Canvas camera visit", () => {
     expect(visit.back()?.viewport).toEqual(origin)
   })
 
-  it("leaves a terminal visited for another entered from outside, as a double-click does", () => {
+  it("takes over a visit from one entered after it, keeping that visit's way back", () => {
     const visit = createCanvasVisit()
     visit.finish(visit.begin("one", origin, destination)!)
     const other = { x: 0, y: 0, zoom: 2 }
-    expect(visit.enter("two", destination, other)?.viewport).toEqual(other)
+    const taken = visit.enter("two", destination, other)!
+    expect(taken.viewport).toEqual(other)
+    visit.finish(taken)
+    expect(visit.back()?.viewport).toEqual(origin)
   })
 
   it("manual camera changes invalidate an outstanding flight and its return point", () => {

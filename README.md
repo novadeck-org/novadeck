@@ -85,7 +85,8 @@ return point. Flying to a different terminal starts a new visit from the current
 Repeated double gestures during a flight are ignored. Going to a terminal from outside the
 canvas, as Show terminal on an Inbox item or a click on a desktop notification does, flies to it
 the same way, from another session's camera too; it never flies back, so a terminal already
-visited stays, and the gesture on its header still returns. The header's arrow opens Focus view.
+visited stays, and going on to another keeps the way back to where the visit began, which the
+gesture on the header returns to. The header's arrow opens Focus view.
 
 Click **New terminal** or use its keyboard shortcut to create and select a terminal
 immediately in any view, with or without Zen, ready to type in; F2 renames it. Focus

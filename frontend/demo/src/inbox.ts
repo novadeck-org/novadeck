@@ -788,6 +788,8 @@ export const createDemoInbox = (
       requests,
       now: at,
       caseless: false,
+      // The demo's messages wait for no idle agent long.
+      longHoldMs: null,
     })
     const ids = new Set(found.map((each) => each.id))
     for (const id of seen) if (!ids.has(id)) seen.delete(id)
