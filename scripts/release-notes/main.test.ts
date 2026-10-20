@@ -94,6 +94,27 @@ describe("the command", () => {
     expect(printed.join("\n")).not.toContain("secret")
   })
 
+  it("skips at once without a key, before collecting anything, dry run or not", async () => {
+    const untouched = {
+      ...sources,
+      tags: async () => {
+        throw new Error("collected")
+      },
+    }
+    const keyless = (mode: "release" | "promote") => ({
+      ...saying(answer)(mode),
+      apiKey: undefined,
+    })
+    for (const args of [
+      ["release", "v0.0.152", scratch()],
+      ["promote", "v0.0.152", "--dry-run"],
+    ]) {
+      const printed: string[] = []
+      await main(args, untouched, keyless, (line) => printed.push(line))
+      expect(printed.join("\n")).toContain("No OPENROUTER_API_KEY")
+    }
+  })
+
   it("writes no file when gh can't read the release", async () => {
     const out = scratch()
     const broken = {

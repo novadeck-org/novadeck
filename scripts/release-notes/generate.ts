@@ -71,7 +71,7 @@ const compose = async (
       outputTokens: 0,
       model: "(none asked)",
       dropped: [],
-      considered: items.length,
+      considered: given.length,
     }
   const { text, outputTokens, model } = await ask(kind, version, given)
   const output = parseOutput(text)
@@ -89,7 +89,7 @@ const compose = async (
     outputTokens,
     model,
     dropped: checked.dropped,
-    considered: items.length,
+    considered: given.length,
   }
 }
 

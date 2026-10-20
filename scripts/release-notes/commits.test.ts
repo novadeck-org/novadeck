@@ -43,6 +43,37 @@ describe("the commits a release is written from", () => {
     expect(what).toBe("Plans open on their own. They can be edited.\n- Notes work.")
   })
 
+  it("removes a whole sentence about chats or demos from a hard-wrapped What, plurals included", () => {
+    const what = parseCommit({
+      sha: "a",
+      subject: "feat(ui): answer agents from the Inbox (#3)",
+      body: [
+        "## What",
+        "",
+        "Agents are answered from the Inbox. A permission can also be answered from the",
+        "chat box, without switching terminals. Rows clear themselves.",
+        "",
+        "- The demos show the same rows",
+        "  on a fake runner.",
+        "- Held messages wait for the agent.",
+        "1. Open the Inbox. Chats stay out of it.",
+        "",
+        "## Why",
+        "",
+        "x",
+      ].join("\n"),
+    })!.what
+    expect(what).toBe(
+      "Agents are answered from the Inbox. Rows clear themselves.\n\n- Held messages wait for the agent.\n1. Open the Inbox.",
+    )
+    expect(
+      parseCommit({ sha: "a", subject: "feat(ui): two chats side by side (#4)", body: "" }),
+    ).toBeUndefined()
+    expect(
+      parseCommit({ sha: "a", subject: "fix(ui): demos load faster (#5)", body: "" }),
+    ).toBeUndefined()
+  })
+
   it("takes the type, scope and pull request number off the subject", () => {
     expect(parseCommit(commit(330))).toMatchObject({
       type: "feat",

@@ -121,6 +121,12 @@ describe("the model call", () => {
     expect(clientFor("release", env)).toMatchObject({ model: "x/cheap", apiKey: "k" })
     expect(clientFor("promote", env)).toMatchObject({ model: "x/strong", timeout: 480_000 })
     expect(timeouts).toEqual({ release: 180_000, promote: 480_000 })
+    expect(clientFor("release", { RELEASE_NOTES_PRERELEASE_MODEL: " x/padded\n" }).model).toBe(
+      "x/padded",
+    )
+    expect(clientFor("promote", { RELEASE_NOTES_PROMOTE_MODEL: "  " }).model).toBe(
+      defaultModels.promote,
+    )
   })
 
   it("sends the chosen model", async () => {

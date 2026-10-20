@@ -103,6 +103,23 @@ describe("the checks on a model's answer", () => {
     }
   })
 
+  it("drops a line that GitHub would link or format as a heading or a list", () => {
+    for (const line of [
+      "Mail me@example.com about it.",
+      "# Heading",
+      "1. First step",
+      "  12. Twelfth",
+    ])
+      expect(droppedFor(withChange(line)), line).toEqual(["a markup character"])
+    const title = { ...good, highlights: [{ ...good.highlights[0]!, title: "# Big" }] }
+    expect(droppedFor(title)).toEqual(["a markup character"])
+  })
+
+  it("drops chats and demos in the plural too", () => {
+    for (const line of ["Chats now stream.", "Two demos load faster."])
+      expect(droppedFor(withChange(line)), line).toHaveLength(1)
+  })
+
   it("lets a terminal's word handle through", () => {
     expect(failure(withChange("Terminals are named @moth, @fox and @owl."))).toBeUndefined()
   })

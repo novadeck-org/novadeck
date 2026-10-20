@@ -63,8 +63,10 @@ export const clientFor = (
   fetch,
   apiKey: env.OPENROUTER_API_KEY?.trim() || undefined,
   model:
-    (mode === "release" ? env.RELEASE_NOTES_PRERELEASE_MODEL : env.RELEASE_NOTES_PROMOTE_MODEL) ||
-    defaultModels[mode],
+    (mode === "release"
+      ? env.RELEASE_NOTES_PRERELEASE_MODEL
+      : env.RELEASE_NOTES_PROMOTE_MODEL
+    )?.trim() || defaultModels[mode],
   timeout: timeouts[mode],
 })
 

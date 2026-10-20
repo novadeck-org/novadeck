@@ -41,22 +41,40 @@ const conventional =
 /** The longest `## What` handed to the model: a pull request's own words, not its essay. */
 export const maxWhat = 700
 
-const chat = /\bchat\b/i
+/** The chat view ships behind a flag, and the try demo is not the app: neither is announced. */
+export const chat = /\bchats?\b/i
+export const demo = /\bdemos?\b/i
+const unannounced = (text: string): boolean => chat.test(text) || demo.test(text)
+
+// A list item or a numbered one starts a block of its own.
+const itemStart = /^\s*(?:[-*+]|\d+\.)\s/
 
 /** The text under a pull request body's `## What` heading, up to the next heading. */
 export const whatOf = (body: string): string => {
   const found = /^## What[ \t]*\r?\n(?<text>[\s\S]*?)(?=^## |(?![\s\S]))/m.exec(body)
-  const text = (found?.groups?.text ?? "")
-    .replaceAll("\r", "")
-    .split("\n")
-    // The chat view ships behind a flag: a sentence that names it never reaches the model.
-    .flatMap((line) => {
-      const kept = line
+  // The bodies are hard-wrapped, so a sentence runs over lines: join each paragraph or list
+  // item before cutting into sentences, then drop the sentences that name what isn't announced.
+  const blocks: string[] = []
+  let open = false
+  for (const line of (found?.groups?.text ?? "").replaceAll("\r", "").split("\n")) {
+    if (!line.trim()) {
+      blocks.push("")
+      open = false
+    } else if (open && !itemStart.test(line)) {
+      blocks[blocks.length - 1] += ` ${line.trim()}`
+    } else {
+      blocks.push(line.trimEnd())
+      open = true
+    }
+  }
+  const text = blocks
+    .flatMap((block) => {
+      const kept = block
         .split(/(?<=[.!?])\s+/)
-        .filter((sentence) => !chat.test(sentence))
+        .filter((sentence) => !unannounced(sentence))
         .join(" ")
-      // A line that was all about it goes whole; a blank line stays a blank line.
-      return line.trim() && !kept ? [] : [kept]
+      // A block that was all about it goes whole; a blank line stays a blank line.
+      return block && !kept ? [] : [kept]
     })
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
@@ -73,7 +91,7 @@ export const parseCommit = (raw: RawCommit): Commit | undefined => {
   if (!found) return undefined
   const { type, scope, subject, pr } = found
   if (type !== "feat" && type !== "fix" && type !== "perf") return undefined
-  if (chat.test(subject!)) return undefined
+  if (unannounced(subject!)) return undefined
   if (scope?.split(",").some((part) => excludedScopes.has(part.trim()))) return undefined
   return {
     sha: raw.sha,

@@ -64,6 +64,8 @@ export const main = async (
   const ask: Ask = (kind, version, items) => askModel(client, kind, version, items)
   let summary: string
   try {
+    // Before anything is collected: a run without a key has nothing to wait for.
+    if (!client.apiKey) throw new Skip("No OPENROUTER_API_KEY")
     const generated =
       mode === "release"
         ? await generateRelease(tag, sources, ask)

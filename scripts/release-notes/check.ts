@@ -1,4 +1,5 @@
 import { noteAreas, type NoteArea } from "../../contract/protocol/src/release-notes.ts"
+import { chat, demo } from "./commits.ts"
 import { type ModelOutput } from "./model.ts"
 
 export const maxTitle = 40
@@ -23,12 +24,15 @@ const steered: readonly [RegExp, string][] = [
 
 // Markup a plain line has no use for. A slip drops that line and the rest stands.
 const markup = /[*~\\`[<>]/
+// An address GitHub would turn into a link, and a line that would open as a heading or a list.
+const autolinked = /\S+@\S+\.\w+/
+const structural = /^\s*(?:#|\d+\. )/
 
 // What is not for the notes: the chat view ships behind a flag, and the demo, the website and
 // the pipeline are not the app. A line that mentions one is dropped, the rest stands.
 const excluded: readonly RegExp[] = [
-  /\bchat\b/i,
-  /\bdemo\b/i,
+  chat,
+  demo,
   /try\.novadeck/i,
   /\bwebsite\b/i,
   /\bCI\b/,
@@ -85,7 +89,9 @@ export const checkOutput = (
     const reason =
       (title !== undefined && (!title || title.length > maxTitle)) || !line || line.length > maxLine
         ? `a title or line outside 1 to ${maxTitle}/${maxLine} characters`
-        : markup.test(text)
+        : markup.test(text) ||
+            autolinked.test(text) ||
+            [title, line].some((part) => part !== undefined && structural.test(part))
           ? "a markup character"
           : topic
             ? `an excluded topic ${topic}`
