@@ -517,6 +517,20 @@ describe("createRedactor", () => {
     expect(redact(text)).not.toMatch(kept)
   })
 
+  it.each([
+    ["a diff's added line", "@@ -1 +1 @@\n-/home/ana/old/x\n+/home/ana/new/clientco/x"],
+    ["a quoted added path", '"+/home/ana/acme/clientco.md"'],
+    ["a Windows path after +", String.raw`+C:\Users\ana\clientco`],
+    ["a path after C++", "C++/src/clientco/x"],
+  ])("hashes %s", (_what, text) => {
+    expect(redact(text)).not.toMatch(/clientco/)
+  })
+
+  it("writes placeholders whole, though the account is named as one", () => {
+    const named = createRedactor({ ...linux, user: "secret", salt })
+    expect(named("token sk-proj-abcdefghijklmnop1234 for secret")).toBe("token <secret> for <user>")
+  })
+
   it("leaves a short or ordinary account name in the text", () => {
     expect(createRedactor({ user: "dev", salt })("dev build")).toBe("dev build")
     expect(createRedactor({ user: "al", salt })("al dente")).toBe("al dente")

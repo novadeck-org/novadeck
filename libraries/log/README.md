@@ -85,7 +85,9 @@ relative path (`src/billing.ts`), a folder's name, a project's or terminal's tit
 found by it. **A line's `msg` and `data` must never interpolate those: only ids, enums, counts,
 times and absolute paths.** An unquoted path whose last name has spaces in it, with no extension and at
 the end of the text (`/home/ana/My Project`), keeps the words after the first space, and a
-bare host is hashed only where a network error names it (`getaddrinfo ENOTFOUND host`). What a screen showed, typed text, prompts and message bodies are
+bare host is hashed only where a network error names it (`getaddrinfo ENOTFOUND host`). A path
+right after a letter or digit and a `+` (`name+/tmp/x`) is taken for part of a base64 key and
+not hashed; after a `+` alone, as a diff's added line has it, it is. What a screen showed, typed text, prompts and message bodies are
 never logged, but for lines marked `verbose`.
 
 `startSession`'s marker belongs to one process per launch, the one whose end is the launch's

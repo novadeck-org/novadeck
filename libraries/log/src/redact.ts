@@ -120,7 +120,7 @@ export const createRedactor = (options: RedactOptions): Redactor => {
   const user = options.user
   const account =
     user && user.length >= 3 && !commonNames.has(user.toLowerCase())
-      ? new RegExp(String.raw`(?<![\w.-])${escape(user)}(?![\w-])`, "gi")
+      ? new RegExp(String.raw`(?<![\w.<-])${escape(user)}(?![\w>-])`, "gi")
       : undefined
   return (text) => {
     let result = text
