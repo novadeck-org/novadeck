@@ -96,7 +96,7 @@ describe("createDoorbellLog", () => {
     log.trace("t1", "look: ringable true")
     log.trace("t1", "ring abc pressed")
     expect(lines()).toEqual([])
-    log.ringFailed("t1", false)
+    log.ringFailed("t1")
     log.close()
     expect(lines().map((line) => [line.evt, line.msg])).toEqual([
       ["doorbell.ring-failed", "A ring of the doorbell failed."],
@@ -170,7 +170,7 @@ describe("createDoorbellLog", () => {
     const quiet = setup()
     const log = createDoorbellLog(quiet.logger.for("doorbell"), { now: () => 0 })
     log.trace("t1", "reading draft", screen(["secret plans", "> half a prompt"]))
-    log.ringFailed("t1", false)
+    log.ringFailed("t1")
     log.close()
     expect(JSON.stringify(quiet.lines())).not.toContain("secret plans")
 
@@ -195,7 +195,7 @@ describe("logDoorbell", () => {
     const { logger, lines } = setup()
     logDoorbell(logger.for("doorbell"), { now: () => 0 })
     tracer.sink?.("t1", "gate not-calm (foreground true, input box true, bracketed paste true)")
-    doorbellLog.current?.ringFailed("t1", true)
+    doorbellLog.current?.ringFailed("t1")
     expect(lines().map((line) => [line.evt, line.msg])).toEqual([
       ["doorbell.ring-failed", "A ring of the doorbell failed."],
       [

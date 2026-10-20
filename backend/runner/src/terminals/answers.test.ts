@@ -216,7 +216,7 @@ const terminal = (
           : undefined,
     ringing: () => undefined,
     screen: () => Promise.resolve(tui.screen()),
-    type: (_terminal, data) => {
+    press: (_terminal, data) => {
       tui.write(data)
       options.after?.(tui)
       return true

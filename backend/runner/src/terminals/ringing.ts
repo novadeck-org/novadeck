@@ -199,13 +199,18 @@ export const doorbellHost = <R extends RingRecord>(
       if (!isEmpty(text)) return "draft"
       return box.queued(screen) ? "queued" : "empty"
     },
-    // The line a failed ring left, all the box holds, which the person has not touched.
+    // A doorbell line all the agent's own box holds, of a ring no doorbell prompt confirmed:
+    // Novadeck's, however that ring ended (its paste check rejected, abandoned mid-way, its
+    // Enter lost). A confirmed ring's line there is the person's (their Escape put it back,
+    // or they recalled it), as is anything beside it, or a prompt queued with it.
     leftover: (terminalId, screen) => {
-      if (!live(terminalId) || !messaging.ours(terminalId)) return undefined
+      if (!live(terminalId)) return undefined
       const box = profile(terminalId)
       const text = box?.read(screen)
-      if (!box || !text || text.mode !== "prompt" || box.overlay(screen)) return undefined
-      return leftoverNonce(text.text)
+      if (!box || !text || text.mode !== "prompt" || box.overlay(screen) || box.queued(screen))
+        return undefined
+      const nonce = leftoverNonce(text.text)
+      return nonce !== undefined && messaging.unconfirmed(terminalId, nonce) ? nonce : undefined
     },
     ringLeftover: (terminalId, nonce) => {
       const rung = messaging.ringLeftover(terminalId, nonce)
@@ -222,9 +227,9 @@ export const doorbellHost = <R extends RingRecord>(
       doorbellLog.current?.hold(terminalId, waits)
       messaging.blocked(terminalId, waits)
     },
-    ringFailed: (terminalId, nonce, ours) => {
-      doorbellLog.current?.ringFailed(terminalId, ours === true)
-      messaging.ringFailed(terminalId, nonce, ours)
+    ringFailed: (terminalId, nonce) => {
+      doorbellLog.current?.ringFailed(terminalId)
+      messaging.ringFailed(terminalId, nonce)
     },
     target: (terminalId) => (live(terminalId) ? typingTarget(terminalId, host) : undefined),
     profile,
