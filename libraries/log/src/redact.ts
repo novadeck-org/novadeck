@@ -1,3 +1,5 @@
+import { redactAs } from "@novadeck/secrets"
+
 import { hashPaths } from "./paths.js"
 import { hashUrls, type UrlRule } from "./urls.js"
 
@@ -56,7 +58,11 @@ const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, Str
 // Names whose value is a secret, in a query (`?token=…`), a setting (`password=…`) or JSON.
 const secretKey = String.raw`[\w.-]*?(?:token|secret|passw(?:or)?d|pass|pwd|key|auth|credentials?|signature|sig|session)`
 
-/** The shapes of secrets, each with what it becomes. */
+/**
+ * What a log hides beyond the shapes every terminal text loses (see `secrets` below): a URL's
+ * user, whole credential headers, and the values of more names than a screen's, each with
+ * what it becomes.
+ */
 const shapes: readonly (readonly [RegExp, string])[] = [
   // A URL's user and password: `https://ana:hunter2@host`.
   [/\b([a-z][\w+.-]*:\/\/)[^\s/@:]*(?::[^\s/@]*)?@/gi, "$1<redacted>@"],
@@ -66,25 +72,6 @@ const shapes: readonly (readonly [RegExp, string])[] = [
     "$1$2<redacted>",
   ],
   [/\b(bearer)\s+[\w\-.~+/]+=*/gi, "$1 <redacted>"],
-  // Private keys, whole.
-  [
-    /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|$)/g,
-    "<secret>",
-  ],
-  // Keys and tokens by their prefixes: Anthropic and OpenAI, GitHub, AWS, Slack, npm,
-  // GitLab, Google, Stripe, Hugging Face, and JSON web tokens.
-  [/\bsk-(?:ant-|proj-)?[\w-]{16,}/g, "<secret>"],
-  [/\bgh[pousr]_[A-Za-z0-9]{20,}/g, "<secret>"],
-  [/\bgithub_pat_\w{20,}/g, "<secret>"],
-  [/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, "<secret>"],
-  [/\bxox[abposr]-[\w-]{10,}/g, "<secret>"],
-  [/\bnpm_[A-Za-z0-9]{36}\b/g, "<secret>"],
-  [/\bglpat-[\w-]{20,}/g, "<secret>"],
-  [/\bAIza[\w-]{35}/g, "<secret>"],
-  [/\bya29\.[\w-]{20,}/g, "<secret>"],
-  [/\b[sr]k_(?:live|test)_\w{16,}/g, "<secret>"],
-  [/\bhf_[A-Za-z]{30,}/g, "<secret>"],
-  [/\beyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,}/g, "<secret>"],
   [new RegExp(String.raw`("${secretKey}"\s*:\s*)"[^"]*"`, "gi"), '$1"<redacted>"'],
   [
     new RegExp(String.raw`((?:^|[?&;\s"'(,])${secretKey})(\s*=\s*)(?!<)[^&\s"';,)]+`, "gi"),
@@ -104,14 +91,18 @@ const shapes: readonly (readonly [RegExp, string])[] = [
   [/(\bSyntaxError: [^"'`\n]*?)[\s,:]*["'`][^\n]*/g, "$1 (input withheld)"],
 ]
 
+// Private keys and tokens by their shapes (see @novadeck/secrets), after the values `shapes`
+// wrote as `<redacted>`.
+const secrets = redactAs("<secret>")
+
 // Email addresses; not a Git remote's `git@host:`, which `hashUrls` wrote first.
 const email = /[\w.%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b(?!:[\w#~./<])/g
 
 /**
  * A redactor for this machine: what it returns of any text is what a log may keep, and what
  * a person could send in a bug report. In order: the secrets this process holds, the values of
- * the secret variables, URL credentials, credential headers, tokens by their shapes,
- * `key=value` secrets; then addresses and Git remotes (see `hashUrls`); then email
+ * the secret variables, URL credentials, credential headers, `key=value` secrets; then
+ * private keys and tokens by their shapes; then addresses and Git remotes (see `hashUrls`); then email
  * addresses; then the paths (see `hashPaths`); then the account name, as a word of its own,
  * unless it is short or an ordinary word.
  */
@@ -133,6 +124,7 @@ export const createRedactor = (options: RedactOptions): Redactor => {
     for (const pattern of held) result = result.replace(pattern, "<secret>")
     for (const pattern of named) result = result.replace(pattern, "$1$2$3<redacted>")
     for (const [pattern, replacement] of shapes) result = result.replace(pattern, replacement)
+    result = secrets(result)
     result = hashUrls(result, options).replace(email, "<email>")
     result = hashPaths(result, options)
     return account ? result.replace(account, "<user>") : result

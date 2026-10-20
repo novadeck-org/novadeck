@@ -39,7 +39,8 @@ One JSON object per line, in one envelope (`Entry`):
 - `err` is `{ name, message, stack, code }`.
 - `verbose: true` marks a line only verbose logging writes, which may hold what a screen showed.
 
-`msg`, `err.message` and data text are cut to 500 characters, a stack to 4,000. A
+`msg`, `err.message` and data text are cut to 500 characters, a stack to 4,000, after
+redaction; only four times that much is read, so a long text never holds up the process. A
 `SyntaxError` keeps nothing from its first quote on, as JSON.parse quotes its input.
 
 ## Parts
@@ -52,9 +53,10 @@ One JSON object per line, in one envelope (`Entry`):
 - `openLogFile`: appends synchronously, so a crash right after loses nothing, and rotates
   `name.log` → `name.1.log` → … by size, keeping `keep` files. Each rotated-in file starts with a
   `session.resume` line, so it reads on its own.
-- `createRedactor`: held secrets, named secret variables, URL credentials, credential headers,
-  tokens by shape (PEM private keys too) and `key=value` secrets; then `hashUrls`; then email
-  addresses; then `hashPaths`; then the account name as a word of its own.
+- `createRedactor`: held secrets, named secret variables, URL credentials, credential headers
+  and `key=value` secrets; then private keys and tokens by their shapes, as
+  [`@novadeck/secrets`](../secrets/README.md) finds them, as `<secret>`; then `hashUrls`; then
+  email addresses; then `hashPaths`; then the account name as a word of its own.
 - `hashUrls`: addresses and Git remotes over SSH. Those the app names readable (`readableUrls`:
   a host, `*.` a host and its subdomains, or a host and path) stay whole; public forges
   (`github.com`, `gitlab.com`, `bitbucket.org`) and the loopback keep their host; any other host

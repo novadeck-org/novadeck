@@ -63,6 +63,20 @@ export const clip = (text: string, limit = textLimit): string =>
   text.length <= limit ? text : `${text.slice(0, limit - 1)}…`
 
 /**
+ * `text` passed through `redact`, then cut to `limit` characters. Only its first `limit` × 4
+ * characters are read: what lies past them would be cut anyway, and redacting a line of any
+ * length would hold up the process that logs it.
+ */
+export const cleaned = (
+  text: string,
+  redact: (text: string) => string,
+  limit = textLimit,
+): string => {
+  const read = text.slice(0, limit * 4)
+  return clip(redact(read) + (read.length < text.length ? "…" : ""), limit)
+}
+
+/**
  * What a syntax error may say of where it failed, without the input it quotes: JSON.parse
  * quotes the text it was given (`Unexpected token 'h', "hello" is not valid JSON`), which may
  * be anything, such as a message's body. Everything from the first quote on is dropped.
@@ -94,9 +108,9 @@ export const loggedError = (error: unknown, redact: (text: string) => string): L
   const stack = error.stack && (message === raw ? error.stack : error.stack.replace(raw, message))
   const code = codeOf(error)
   return {
-    name: clip(redact(error.name)),
-    message: clip(redact(message)),
-    ...(stack && { stack: clip(redact(stack), stackLimit) }),
-    ...(code !== undefined && { code: clip(redact(code), 80) }),
+    name: cleaned(error.name, redact),
+    message: cleaned(message, redact),
+    ...(stack && { stack: cleaned(stack, redact, stackLimit) }),
+    ...(code !== undefined && { code: cleaned(code, redact, 80) }),
   }
 }

@@ -1068,6 +1068,8 @@ atlas.
 | `libraries/viewers`       | Content viewers behind one contract: code, image, markdown and web pages.                 |
 | `libraries/wire`          | RPC calls and streams between processes over a WebSocket or a MessagePort.                |
 | `libraries/sandbox`       | An isolated environment for tests and benchmarks that run real shells and programs.       |
+| `libraries/log`           | Structured, privacy-first log files: the line, the rotating file, the redactor.           |
+| `libraries/secrets`       | Finding secrets in terminal text by their shape, and masking them.                        |
 | `tools/build-kit`         | The apps' Vite helpers: CSP sources, hosting headers, noindex, fonts, bundle checks.      |
 | `tools/atlas`             | Dev-only code map: `pnpm atlas`; agent briefs: `pnpm -s atlas:brief`.                     |
 | `scripts`                 | Repository checks and automation.                                                         |

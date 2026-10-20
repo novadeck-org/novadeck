@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { clip, loggedError, logSchema, textLimit } from "./envelope.js"
+import { cleaned, clip, loggedError, logSchema, textLimit } from "./envelope.js"
 
 const same = (text: string): string => text
 
@@ -85,6 +85,29 @@ describe("loggedError", () => {
 describe("clip", () => {
   it("leaves short text as it is", () => {
     expect(clip("short")).toBe("short")
+  })
+})
+
+describe("cleaned", () => {
+  it("redacts no more of a long text than four times what it keeps", () => {
+    const seen: number[] = []
+    const result = cleaned("x".repeat(10 * textLimit), (text) => {
+      seen.push(text.length)
+      return text
+    })
+    expect(seen).toEqual([4 * textLimit])
+    expect(result).toHaveLength(textLimit)
+    expect(result.endsWith("…")).toBe(true)
+  })
+
+  it("marks a text it read only part of as cut, though redacting shortened it", () => {
+    expect(cleaned("x".repeat(10 * textLimit), () => "short")).toBe("short…")
+  })
+
+  it("keeps a short text whole", () => {
+    expect(cleaned("token=abc", (text) => text.replace("abc", "<redacted>"))).toBe(
+      "token=<redacted>",
+    )
   })
 })
 

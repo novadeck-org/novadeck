@@ -1,7 +1,7 @@
 import { collapse, drain, due, type Repeats } from "./collapse.js"
 import {
   atLeast,
-  clip,
+  cleaned,
   loggedError,
   logSchema,
   type Data,
@@ -77,7 +77,7 @@ const cleanData = (data: Data, redact: Redactor): Data =>
   Object.fromEntries(
     Object.entries(data).map(([key, value]) => [
       key,
-      typeof value === "string" ? clip(redact(value)) : value,
+      typeof value === "string" ? cleaned(value, redact) : value,
     ]),
   )
 
@@ -109,7 +109,7 @@ export const createLogger = (options: LoggerOptions): Logger => {
     pid,
     src: from.src,
     evt,
-    ...(msg !== undefined && { msg: clip(redact(msg)) }),
+    ...(msg !== undefined && { msg: cleaned(msg, redact) }),
     ...(detail?.data && { data: cleanData(detail.data, redact) }),
     ...(detail?.err !== undefined && { err: loggedError(detail.err, redact) }),
     ...(detail?.verbose && { verbose: true as const }),
