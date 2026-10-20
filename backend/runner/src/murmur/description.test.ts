@@ -1102,7 +1102,13 @@ describe("reading the model's gist", () => {
     "Edited src/murmur/service.ts and its tests",
     "Moved @novadeck/protocol exports into index.ts",
     "Patched CVE-2024-3094 on ubuntu-24.04",
+    "Merged PR #131 and bumped Node 26",
+    "Bumped react to 18.3.1 in the app",
+    "Timeout is now 30s instead of 5m",
+    "Edited src/murmur/service.ts for retries",
+    "Moved @novadeck/protocol files around",
   ])("keeps %s, which holds names, versions and numbers", (text) => {
+    // The tidying drops a "#".
     expect(gist(text)?.text).toBe(text.replace("#", ""))
   })
 
@@ -1111,34 +1117,17 @@ describe("reading the model's gist", () => {
     "Leaked ghp_AbC9dEf2GhI4jKl7mN0p in the log",
     "Commit 9f86d081884c7d659a2feaa0c55ad015a3bf fixed it",
     "Set password=x7Kp2mQ9vL4nR8sT in the env file",
+    "Found that sk-AbC9dEf2GhI4jKl7 is leaked",
+    "Rotated ghp_AbC9dEf2GhI4jKl7mN0p today",
+    "Saw 9f86d081884c7d659a2feaa0c55ad015a3bf in the log",
+    "Used AKIAIOSFODNN7EXAMPLE key for tests",
+    "Set token=x7Kp2mQ9vL4nR8sT in the file",
   ])("refuses %s, a secret inside a sentence", (text) => {
     expect(gist(text)).toBeUndefined()
   })
 
   it("refuses a provider key in the raw string even when tidying splits it", () => {
     expect(parseGist('{"gist":"Leaked ghp_AbC9dEf2GhI4jKl7mN0p in the log"}')).toBeUndefined()
-  })
-
-  it.each([
-    "Merged PR #131 and bumped Node 26",
-    "Bumped react to 18.3.1 in the app",
-    "Timeout is now 30s instead of 5m",
-    "Edited src/murmur/service.ts for retries",
-    "Moved @novadeck/protocol files around",
-    "Patched CVE-2024-3094 on ubuntu-24.04",
-  ])("keeps %s, which holds names, versions and numbers", (text) => {
-    // The tidying drops a "#".
-    expect(gist(text)?.text).toBe(text.replace("#", ""))
-  })
-
-  it.each([
-    "Found that sk-AbC9dEf2GhI4jKl7 is leaked",
-    "Rotated ghp_AbC9dEf2GhI4jKl7mN0p today",
-    "Saw 9f86d081884c7d659a2feaa0c55ad015a3bf",
-    "Used AKIAIOSFODNN7EXAMPLE key for tests",
-    "Set token=x7Kp2mQ9vL4nR8sT in the file",
-  ])("refuses %s, a secret inside a sentence", (text) => {
-    expect(gist(text)).toBeUndefined()
   })
 
   it("refuses a key that markdown or invisible characters split", () => {

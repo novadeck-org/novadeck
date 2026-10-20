@@ -1,7 +1,8 @@
 # Murmur
 
 Murmur is an opt-in local model that writes terminal titles, and a short gist of a
-reply the person has not seen. (Summaries are the agents' own, written with their `summarize` tool; murmur reads them as the strongest input to a title.) It runs
+reply the person has not seen, which the Inbox shows as the subject of that finished turn's row
+in place of the reply's start. (Summaries are the agents' own, written with their `summarize` tool; murmur reads them as the strongest input to a title.) It runs
 Qwen3.5-2B (Q4_K_M, 1.28 GB) on llama.cpp's `llama-server`, an engine of its own like
 voice input's, installed from Preferences > Addons. Without it, terminals keep their default
 titles.
@@ -96,7 +97,7 @@ behind a random API key made for each launch and passed in the environment
   only the project's name is refused. A leading verb filler ("Working on", "Help with", "Review
   of", "Updating"; not "Running", which is content for `docker ps`) is taken off when real words remain ("Fixing login" is kept), and a
   title made only of chat or filler words (Help, Done, Status, Review, Working on, ...) is
-  refused. Anything else is dropped. A gist is 3 to 10 words and at most 60 characters (two lines of the sidebar), and is refused if it ends in `?` or opens like an English question put to someone (`Should I`, `Do you`, `Can we`) (the gist states what the agent did or found). A gist is
+  refused. Anything else is dropped. A gist is 3 to 10 words and at most 60 characters (two lines of an Inbox row), and is refused if it ends in `?` or opens like an English question put to someone (`Should I`, `Do you`, `Can we`) (the gist states what the agent did or found). A gist is
   refused like a title for chat words, a copy of a prompt example (the example itself, or a part
   of it that the digest does not say, in any inflection and by whole words: "awarie" says "Awaria", "monkey" does not say "key") and `looksSecret`. Format characters (bidi overrides,
   zero-width characters) and C1 controls are stripped first, so a title shows what it says.
@@ -152,7 +153,7 @@ behind a random API key made for each launch and passed in the environment
   digit, or if a piece of a word looks like a key (12 or more characters mixing letters and
   digits with no long run of lower case, or high entropy; a long hex run is one too). Lines
   with ordinary numbers ("Fix PR 131", "Upgrade to Node 26") pass.
-- A gist is for the person only: they ride on a terminal's activity to the UI and are never in
+- A gist is for the person only: it rides on a terminal's activity to the UI and is never in
   an agent-facing listing or tool.
 - Everything stays on this machine: the digest goes to a server on `127.0.0.1` behind a key
   made for the run, and nothing is sent anywhere else.
