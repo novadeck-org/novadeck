@@ -61,6 +61,7 @@ import type { Record } from "./record.js"
 import { hasRun, type TerminalRecords } from "./records.js"
 import { restoredSeparator } from "./restored.js"
 import { cancelResume, Claims } from "./resumes.js"
+import { agentWorking } from "./ringing.js"
 import { Sampler, shellProcess } from "./sampling.js"
 import { Saves } from "./saving.js"
 import { Streams } from "./streams.js"
@@ -495,7 +496,7 @@ export class Terminals {
       platform: this.options.platform,
       // A message is kept while either of its terminals is, running or saved.
       exists: (id) => this.records.has(id) || this.saves.identity(id) !== undefined,
-      busy: (id) => this.typing.working(id),
+      busy: (id) => agentWorking(this.messaging, id, this.live(id)),
     })
     this.asks = new Asks(
       {

@@ -102,13 +102,12 @@ export type Entered = {
   readonly settle: () => void
 }
 
-/** The delivery began and failed. `ours`: the line, if it landed, is alone in the box. */
+/** The delivery began and failed. */
 export type DeliveryFailed = {
   readonly entered: false
   readonly started: true
   readonly nonce: string
   readonly reason: DeliveryFailure
-  readonly ours: boolean
   /** Whether the failure counts: not when nothing was pasted. */
   readonly counted: boolean
 }
@@ -329,8 +328,6 @@ export const createTypist = (
     const hold = entry.hold({ inputMs: pasteMs + timing.inputCapMs, sizeMs: timing.sizeCapMs })
     let pressed = false
     let reason: DeliveryFailure = "gone"
-    // Whether the paste check accepted the line: then it is alone in the agent's box.
-    let acceptedTwice = false
     try {
       const before = await target.screen()
       // The box is looked at again now, on every platform: a key of the person's or a view
@@ -342,7 +339,6 @@ export const createTypist = (
           started: true,
           nonce,
           reason: "no-input-box",
-          ours: false,
           counted: false,
         }
       }
@@ -368,7 +364,6 @@ export const createTypist = (
             trace(`ring ${nonce}: paste not accepted: ${checked.reason}`)
           // Accepted twice running on the same screen, so it isn't caught mid-draw.
           if (accepted && landed === shown) {
-            acceptedTwice = true
             trace(`ring ${nonce}: paste accepted, Enter`)
             pressed = hold.holding() && o.still(nonce) && target.type("\r")
             reason = "not-pressed"
@@ -392,7 +387,6 @@ export const createTypist = (
         started: true,
         nonce,
         reason,
-        ours: acceptedTwice,
         counted: true,
       }
     }
@@ -414,7 +408,6 @@ export const createTypist = (
         started: true,
         nonce,
         reason: "not-pressed",
-        ours: true,
         counted: true,
       }
     }
