@@ -124,6 +124,25 @@ describe("Antigravity's plans, as captured", () => {
     expect(planned({ ...plan!.payload, toolCall: outside })).toEqual([])
   })
 
+  it("are 1.4's write_file artifacts too, which name the file as Path", () => {
+    const plan = hooks.find(
+      ({ payload }) =>
+        (payload.toolCall as { args?: { ArtifactMetadata?: { RequestFeedback?: boolean } } })?.args
+          ?.ArtifactMetadata?.RequestFeedback === true,
+    )
+    const call = plan!.payload.toolCall as { name: string; args: Record<string, unknown> }
+    const { TargetFile, CodeContent, ...rest } = call.args
+    const written = {
+      name: "write_file",
+      args: { ...rest, Path: TargetFile, Content: CodeContent },
+    }
+    expect(
+      decode(report({ ...plan!.payload, toolCall: written })).filter(
+        (event) => event.type === "plan-observed",
+      ),
+    ).toMatchObject([{ plan: { kind: "file", path: TargetFile } }])
+  })
+
   it("name the transcript on every hook", () => {
     expect(decode(report(hooks[0]!.payload))[0]).toMatchObject({
       type: "session-observed",

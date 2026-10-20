@@ -142,7 +142,7 @@ describe("gemini", () => {
     expect(title.turns).toEqual([{ role: "user", text: "Ask fox" }])
   })
 
-  it("streams a reply's text and calls, a lazy tool's through call_mcp_tool", async () => {
+  it("streams a reply's text and calls, a lazy tool's through call_mcp_tool, as 1.4 takes it", async () => {
     const { response, calls } = await handle(post(stream, conversation), {
       text: "Sending.",
       calls: [
@@ -159,7 +159,9 @@ describe("gemini", () => {
     }[]
     const parts = event?.candidates[0]?.content.parts
     expect(parts?.[0]).toEqual({ text: "Sending." })
-    expect(parts?.[1]?.functionCall).toMatchObject({
+    // 1.4 refuses any argument of call_mcp_tool's but these three (probed 2026-10-20, 1.4.3).
+    expect(parts?.[1]?.functionCall).toEqual({
+      id: expect.any(String),
       name: "call_mcp_tool",
       args: {
         ServerName: "novadeck_novadeck",

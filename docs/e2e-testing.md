@@ -141,7 +141,7 @@ again without it. These tests skip anywhere else. Its traces upload as
 | ----------- | ----------------------------------------------------- | ------- |
 | Claude Code | npm, `@anthropic-ai/claude-code`                      | 2.1.287 |
 | Codex       | npm, `@openai/codex`                                  | 0.163.0 |
-| Antigravity | an archive, by its address and SHA-512 (Linux x86-64) | 1.2.14  |
+| Antigravity | an archive, by its address and SHA-512 (Linux x86-64) | 1.4.3   |
 
 `install.ts` installs each harness into `<cache>/<harness>-<version>`, staging it first
 in a folder with a random name so an interrupted install never counts as done, and
@@ -655,7 +655,7 @@ for (const setup of setups) {
   contract test: one conversation per harness, whose prompts have the fake model call the
   harness's own tools (Claude Code: Bash, Read, Write and Novadeck's `send`; Codex:
   `exec_command` as a command and as an `apply_patch` heredoc, and `send`; Antigravity:
-  `run_command`, `view_file`, `write_to_file` and `send`), the chat allowing whatever
+  `run_command`, `read_file`, `write_file` and `send`), the chat allowing whatever
   permission each asks (`agents.answer`). Each prompt waits for its turn to be recorded
   as completed and its requests to clear. Then `t.transcript()` must hold every scripted call, its `run`
   of the kind the harness's `describe` gives (a Codex heredoc patch may read as a run or
@@ -1092,7 +1092,7 @@ stops going through a member a probe wraps.
   person resume the parent. No command line forks a conversation, so it has no
   `fork.picker`.
   `AGY_CLI_DISABLE_AUTO_UPDATE` stops it updating itself.
-- **What it calls.** 1.2.14 streams each model call from
+- **What it calls.** 1.4.3 streams each model call from
   `POST /v1beta/models/<model>:streamGenerateContent?alt=sse`; its session's title is a
   call with no tools, so `side`. MCP tools are lazy: it offers one `call_mcp_tool` and
   lists Novadeck's tools in its system prompt, so the dialect offers them by the names
@@ -1102,10 +1102,11 @@ stops going through a member a probe wraps.
   what makes it do so is unknown): its system prompt lists them under `Eager:`, it
   declares each as a tool of its own and offers no `call_mcp_tool`. A call to one then
   needs a `toolSummary` beside its arguments and no `toolAction`, which Antigravity
-  refuses as invalid arguments otherwise; the dialect reads either listing and gives
-  each call what it needs. A server's `tools` entry with `{ "eager": true }` for each of
-  its tools in its `mcp_config.json` loaded them eagerly in every run that had it, which
-  reproduces it. A `PreInvocation` hook's message arrives as a user content just after
+  refuses as invalid arguments otherwise, while a `call_mcp_tool` takes nothing but
+  `ServerName`, `ToolName` and `Arguments` (1.4.3); the dialect reads either listing and
+  gives each call what it needs. A server's `tools` entry with `{ "eager": true }` for
+  each of its tools in its `mcp_config.json` loaded them eagerly in every run that had
+  it, which reproduces it (1.2.14 and 1.4.3). A `PreInvocation` hook's message arrives as a user content just after
   the prompt.
 - **Refused tunnels.** Its feature flags (`antigravity-unleash.goog`) and telemetry
   (`play.googleapis.com`) go through the proxy, which refuses them; they are its setup's
