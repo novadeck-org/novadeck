@@ -396,8 +396,11 @@ agent.
 - **Transcripts.** Each terminal's recent output is kept, and a restored terminal shows
   it read-only above a separator and its fresh prompt; a resumed agent shows its own
   history instead. Transcripts are on by default and can be turned off in Preferences,
-  which also forgets the saved ones. They can contain secrets that were typed or
-  printed: they live in `workspace.sqlite`, readable by your account only, with up to
+  which also forgets the saved ones. A changed terminal's transcript is saved about every
+  30 seconds, and when its shell exits or restarts. What looks like a secret (a known
+  token prefix, a value named like a secret, a key, a long key-like run) is masked before
+  the transcript is saved; anything else that was typed or printed may still be saved.
+  Transcripts live in `workspace.sqlite`, readable by your account only, with up to
   256 KiB kept per terminal.
 
 Codex may ask you to review Novadeck's hook ("Hooks need review") and records the

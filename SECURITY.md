@@ -167,8 +167,12 @@ hangup-ignoring descendants may survive. Use service-level process isolation and
 cleanup if that guarantee is required.
 Replay stays in memory. Unless turned off in Preferences (`settings.set`), the runner
 keeps each terminal's transcript, its serialized screen and scrollback capped at 256 KiB,
-in the SQLite metadata file so a restored terminal can show it again. Transcripts may
-contain secrets that were typed or printed. Metadata files use owner-only permissions
+in the SQLite metadata file so a restored terminal can show it again. It is saved about
+every 30 seconds while it changes, and when a shell exits or restarts. Before it is saved,
+what looks like a secret (known token prefixes, values named like secrets, keys, long
+key-like runs) is masked in a worker thread; a transcript that cannot be masked is not
+saved, and the copy saved before stays. Anything else that was typed or printed may still
+be saved. Metadata files use owner-only permissions
 where supported (0600 in a 0700 directory); on Windows they live in the per-user
 application data folder. Nothing is logged.
 

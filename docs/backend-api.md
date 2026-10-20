@@ -655,7 +655,12 @@ its transcript (the serialized screen and scrollback, without the alternate scre
 capped at 256 KiB), its title, the command it was opened with and the program it last
 had in its foreground, until it is closed. The directory, agent sessions and title are
 saved as they change, the rest every five seconds when changed, when a shell exits, and
-on `persist()` and `close()`, which save before any shell ends. Closing a terminal
+on `persist()` and `close()`, which save before any shell ends. The transcript is saved
+separately, after the runner masks what looks like a secret in it (known token prefixes,
+values named like secrets, keys, long key-like runs; anything else may still be saved): at
+most every 30 seconds when its screen changed, when the shell exits or restarts, and in a
+pass of about a second as `persist()` and `close()` run, whose unfinished transcripts keep
+their last saved copy. A transcript that cannot be masked is not saved. See [transcript-redaction.md](transcript-redaction.md). Closing a terminal
 forgets it, including one from an earlier runner.
 
 - `terminals.create({ …, restore: true, resume? })` continues the saved terminal of
