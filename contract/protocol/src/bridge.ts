@@ -357,19 +357,20 @@ const highlightText = (value: unknown, length: number): string | undefined => {
 
 /**
  * What is new when it is something the contract allows, else undefined. Highlights that
- * break it are left out, and with none left there is nothing to show.
+ * break it are left out first, then the most that is shown are kept, so a valid one never
+ * gives way to an invalid one before it. With none left there is nothing to show.
  */
 export const parseWhatsNew = (value: unknown): WhatsNew | undefined => {
   if (!isRecord(value) || !isVersion(value.version) || !Array.isArray(value.highlights))
     return undefined
   const highlights = value.highlights
-    .slice(0, whatsNewHighlights)
     .flatMap((highlight: unknown): WhatsNewHighlight[] => {
       if (!isRecord(highlight)) return []
       const title = highlightText(highlight.title, whatsNewTitleLength)
       const line = highlightText(highlight.line, whatsNewLineLength)
       return title && line ? [{ title, line }] : []
     })
+    .slice(0, whatsNewHighlights)
   return highlights.length > 0 ? { version: value.version, highlights } : undefined
 }
 

@@ -18,8 +18,6 @@ export type WhatsNewProps = {
   readonly returnFocus: () => boolean
 }
 
-// What assistive technology hears when the card comes up, once: the version and the
-// highlights' titles, not their lines, which the card has for whoever goes to read it.
 // The highlights with a key each, even when the host repeats one: the second of two equal
 // highlights is told apart by how many came before it.
 const keyed = (highlights: Notes["highlights"]): { key: string; title: string; line: string }[] => {
@@ -32,6 +30,8 @@ const keyed = (highlights: Notes["highlights"]): { key: string; title: string; l
   })
 }
 
+// What assistive technology hears when the card comes up, once: the version and the
+// highlights' titles, not their lines, which the card has for whoever goes to read it.
 export const announcement = ({ version, highlights }: Notes): string =>
   `New in Novadeck ${version}: ${highlights.map(({ title }) => title).join(", ")}`
 
@@ -44,8 +44,9 @@ export const announcement = ({ version, highlights }: Notes): string =>
 // focus back to the terminal. It shares the corner with the other notices by waiting
 // (`blocked`, or Zen mode, `hidden`) while one is open, and for the download's bar, which
 // has the corner from its start until it fades (WorkspaceFooter.tsx): the card can stay for
-// weeks, a download must not be hidden by it. The text is the host's and is shown as text: no Markdown, no
-// markup, no links.
+// weeks, a download must not be hidden by it. The text is the host's and is shown as text:
+// no Markdown, no markup, no links. In a short window the card keeps to the room between
+// the header and the footer and the highlights scroll inside it, the × and the link in view.
 export const WhatsNew = ({
   card,
   hidden,
@@ -68,8 +69,13 @@ export const WhatsNew = ({
   useEffect(() => {
     if (shown || !lost.current) return
     lost.current = false
-    const active = document.activeElement
-    if (!active || active === document.body) returnFocus?.()
+    // A frame on, once whatever took the card's place has had focus: if nothing holds it,
+    // the terminal gets it.
+    const frame = requestAnimationFrame(() => {
+      const active = document.activeElement
+      if (!active || active === document.body) returnFocus?.()
+    })
+    return () => cancelAnimationFrame(frame)
   }, [shown, returnFocus])
   const inside = (): boolean => panel.current?.contains(document.activeElement) === true
   return (
@@ -113,7 +119,7 @@ export const WhatsNew = ({
               <X size={14} />
             </button>
           </p>
-          <ul className="whats-new-list">
+          <ul className="whats-new-list" tabIndex={0} aria-labelledby={titleId}>
             {keyed(card.notes.highlights).map(({ key, title, line }) => (
               <li key={key}>
                 <b className="whats-new-title">{title}</b>

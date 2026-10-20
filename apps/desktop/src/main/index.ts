@@ -541,6 +541,9 @@ const whatsNew = keepWhatsNew({
   launched: settleWhatsNewLaunch,
   pending: () => updateState.read().whatsNewPending,
   clear: () => updateState.settleWhatsNew(app.getVersion(), isNewerVersion),
+  checkedAt: () => updateState.read().whatsNewCheckedAt,
+  recordCheck: (time) => updateState.recordWhatsNewCheck(time),
+  now: Date.now,
   repository: releaseRepository,
   fetch: (url, init) => net.fetch(url, init),
   log: updateWarning,
@@ -1163,6 +1166,9 @@ const launch = async (): Promise<void> => {
     murmurEngine(),
     detectSoftwareGraphics(app),
   ])
+  // Settled before the runner makes its database, which marks a data folder as used: a
+  // launch that dies in between must not make the next one look like an update.
+  await settleWhatsNewLaunch()
   runner = startRunner({
     entry: join(currentDirectory, "runner.js"),
     database: join(app.getPath("userData"), "workspace.sqlite"),
@@ -1375,7 +1381,6 @@ const launch = async (): Promise<void> => {
   if (!app.isPackaged) await waitFor(developmentOrigin)
 
   createWindow(server.origin)
-  void settleWhatsNewLaunch()
   void startUpdates().catch((error: unknown) => console.warn("Updates did not start.", error))
 }
 

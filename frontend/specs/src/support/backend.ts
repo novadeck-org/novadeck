@@ -66,6 +66,10 @@ export const forgetHostCalls = (): void => void (made.length = 0)
 export const startDownload = (version: string): void =>
   made.forEach((each) => each.download(version))
 
+/** How many times the page has asked the host what is new, since `forgetHostCalls`. */
+export const whatsNewAsked = (): number =>
+  made.reduce((sum, each) => sum + each.whatsNewCalls.asked, 0)
+
 /** What the page has asked of the host about what's new, since `forgetHostCalls`. */
 export const whatsNewCalls = (): { readonly dismissed: number; readonly pages: number } => ({
   dismissed: made.reduce((sum, each) => sum + each.whatsNewCalls.dismissed, 0),

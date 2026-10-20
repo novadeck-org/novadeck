@@ -30,6 +30,11 @@ export type UpdateState = {
    * portable and an installed copy sharing this file, never bring a dismissed card back.
    */
   readonly whatsNewSettled: string | undefined
+  /**
+   * When (milliseconds since the epoch) a prerelease's release was last read and had no
+   * highlights yet, so that read is not repeated at every launch; see ./whats-new.ts.
+   */
+  readonly whatsNewCheckedAt: number | undefined
 }
 
 const defaults: UpdateState = {
@@ -39,6 +44,7 @@ const defaults: UpdateState = {
   lastRunVersion: undefined,
   whatsNewPending: undefined,
   whatsNewSettled: undefined,
+  whatsNewCheckedAt: undefined,
 }
 
 /**
@@ -54,8 +60,15 @@ export const updateStateOf = (text: string): UpdateState => {
     return defaults
   }
   if (typeof kept !== "object" || kept === null) return defaults
-  const { channel, installFailedOn, installing, lastRunVersion, whatsNewPending, whatsNewSettled } =
-    kept as Record<string, unknown>
+  const {
+    channel,
+    installFailedOn,
+    installing,
+    lastRunVersion,
+    whatsNewPending,
+    whatsNewSettled,
+    whatsNewCheckedAt,
+  } = kept as Record<string, unknown>
   return {
     channel: updateChannels.find((known) => known === channel) ?? defaults.channel,
     installFailedOn: typeof installFailedOn === "string" ? installFailedOn : undefined,
@@ -63,6 +76,10 @@ export const updateStateOf = (text: string): UpdateState => {
     lastRunVersion: typeof lastRunVersion === "string" ? lastRunVersion : undefined,
     whatsNewPending: typeof whatsNewPending === "string" ? whatsNewPending : undefined,
     whatsNewSettled: typeof whatsNewSettled === "string" ? whatsNewSettled : undefined,
+    whatsNewCheckedAt:
+      typeof whatsNewCheckedAt === "number" && Number.isFinite(whatsNewCheckedAt)
+        ? whatsNewCheckedAt
+        : undefined,
   }
 }
 
@@ -119,7 +136,14 @@ export const keepUpdateState = (file: string) => {
     clearInstalling: (): void => change({ installing: undefined }),
     /** Marks the version this launch runs, and which version's notes are yet to be shown. */
     recordLaunch: (lastRunVersion: string, whatsNewPending: string | undefined): void =>
-      change({ lastRunVersion, whatsNewPending }),
+      change({
+        lastRunVersion,
+        whatsNewPending,
+        // A read of another version's release says nothing of this one's.
+        ...(whatsNewPending === read().whatsNewPending ? {} : { whatsNewCheckedAt: undefined }),
+      }),
+    /** Marks when a prerelease's release was read and had no highlights yet. */
+    recordWhatsNewCheck: (whatsNewCheckedAt: number): void => change({ whatsNewCheckedAt }),
     /**
      * Marks that the notes of `version` are settled: seen, or none to see. The newest
      * version settled is kept, so settling an older one after a downgrade moves nothing back.
@@ -129,6 +153,7 @@ export const keepUpdateState = (file: string) => {
       const { whatsNewSettled } = read()
       change({
         whatsNewPending: undefined,
+        whatsNewCheckedAt: undefined,
         whatsNewSettled:
           whatsNewSettled !== undefined && newer(whatsNewSettled, version)
             ? whatsNewSettled

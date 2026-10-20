@@ -64,10 +64,26 @@ export const updateScenarios = {
       ]),
     reboots: true,
   },
+  whatsNewLong: {
+    label: "What's new, longest highlights",
+    hint: "Four highlights at the longest the host allows: the list scrolls in a short window; reboots",
+    play: ({ showWhatsNew }, version) =>
+      showWhatsNew(
+        version,
+        ["First", "Second", "Third", "Fourth"].map((word) => ({
+          title: `${word} highlight with a title that runs to the longest allowed`.padEnd(80, "."),
+          line: `${word}: a line that runs on to the longest the host allows, `.padEnd(
+            240,
+            "and on ",
+          ),
+        })),
+      ),
+    reboots: true,
+  },
   noHighlights: {
     label: "Updated, no highlights",
-    hint: "The host has nothing to show: no card; reboots",
-    play: () => {},
+    hint: "The host takes 1.5 s to answer it has nothing to show: no card appears; reboots",
+    play: ({ delayWhatsNew }) => delayWhatsNew(1500),
     reboots: true,
   },
 } as const satisfies Record<string, UpdateScenario>

@@ -128,6 +128,6 @@ describe("demo updates", () => {
     whatsNew.openPage()
     whatsNew.dismiss()
     expect(await whatsNew.get()).toBeUndefined()
-    expect(whatsNewCalls).toEqual({ dismissed: 1, pages: 1 })
+    expect(whatsNewCalls).toEqual({ dismissed: 1, pages: 1, asked: 3 })
   })
 })

@@ -7,6 +7,8 @@ import type { ReleaseRepository } from "./update-release.js"
 
 /** How long reading the release waits; the card is optional, so a slow network gives it up. */
 export const releaseReadMs = 10_000
+/** How long a prerelease without highlights waits before its release is read again. */
+export const prereleaseRecheckMs = 24 * 60 * 60 * 1000
 
 /**
  * What a launch records and whether it leaves the notes of this version to show. Only an
@@ -52,8 +54,11 @@ export const whatsNewAtLaunch = (
   }
 }
 
-/** What reading a release came to: its notes, none to be had ever, or none for now. */
-type Reading = WhatsNew | "none" | "later"
+/**
+ * What reading a release came to: its notes, none to be had ever, none for now, or none
+ * yet from a prerelease, which is not read again for a while.
+ */
+type Reading = WhatsNew | "none" | "later" | "waiting"
 
 // Reads the release of `version` and the highlights in its notes.
 const readRelease = async (
@@ -71,9 +76,20 @@ const readRelease = async (
       signal: AbortSignal.timeout(releaseReadMs),
     },
   )
-  // A release that does not exist never will; any other refusal, as a rate limit or a
-  // server error, may pass.
-  if (response.status === 404) return "none"
+  // A release that does not exist never will, but only GitHub's own answer says so: a
+  // proxy or captive portal answers 404 in HTML, and that passes. Any other refusal, as a
+  // rate limit or a server error, may pass too.
+  if (response.status === 404) {
+    const message = await response.json().then(
+      (answer: unknown) =>
+        typeof answer === "object" && answer !== null && "message" in answer
+          ? answer.message
+          : undefined,
+      () => undefined,
+    )
+    const json = /\bjson\b/i.test(response.headers.get("content-type") ?? "")
+    return json && typeof message === "string" ? "none" : "later"
+  }
   if (!response.ok) return "later"
   const release: unknown = await response.json()
   const field = (name: string): unknown =>
@@ -88,7 +104,7 @@ const readRelease = async (
   })
   // A prerelease has no highlights yet: promoting it writes them onto this same tag
   // before it turns stable, so an early user who installed it is shown them then.
-  return shown ?? (field("prerelease") === true ? "later" : "none")
+  return shown ?? (field("prerelease") === true ? "waiting" : "none")
 }
 
 /** What reading a release uses of the network: Electron's `net.fetch`, by default. */
@@ -101,6 +117,7 @@ export type ReleaseFetch = (
 ) => Promise<{
   readonly status: number
   readonly ok: boolean
+  readonly headers: { get(name: string): string | null }
   json(): Promise<unknown>
 }>
 
@@ -118,6 +135,9 @@ export const keepWhatsNew = ({
   launched,
   pending,
   clear,
+  checkedAt,
+  recordCheck,
+  now,
   repository,
   fetch,
   log,
@@ -127,6 +147,10 @@ export const keepWhatsNew = ({
   readonly launched: () => Promise<void>
   readonly pending: () => string | undefined
   readonly clear: () => void
+  /** When a prerelease without highlights was last read, if it was. */
+  readonly checkedAt: () => number | undefined
+  readonly recordCheck: (time: number) => void
+  readonly now: () => number
   readonly repository: () => Promise<ReleaseRepository | undefined>
   readonly fetch: ReleaseFetch
   readonly log: (message: string, error: unknown) => void
@@ -144,7 +168,8 @@ export const keepWhatsNew = ({
       const source = await repository()
       if (source === undefined) return undefined
       const result = await readRelease(fetch, source, version)
-      if (result === "later") return undefined
+      if (result === "waiting") recordCheck(now())
+      if (result === "later" || result === "waiting") return undefined
       if (result === "none") forget()
       else return result
     } catch (error) {
@@ -158,6 +183,9 @@ export const keepWhatsNew = ({
       await launched()
       // Dismissed, or never pending, or settled for another version: nothing to show.
       if (pending() !== version) return undefined
+      // A prerelease whose notes were not there yet is looked at again once a day.
+      const last = checkedAt()
+      if (last !== undefined && now() - last < prereleaseRecheckMs) return undefined
       reading ??= read()
       return reading
     },

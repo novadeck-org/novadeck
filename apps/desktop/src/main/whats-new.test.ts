@@ -4,7 +4,13 @@ import type { IpcMainEvent } from "electron"
 import { dismissWhatsNewChannel, openWhatsNewPageChannel, whatsNewChannel } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 import { isNewerVersion } from "./applications-folder"
-import { keepWhatsNew, registerWhatsNewIpc, whatsNewAtLaunch, type ReleaseFetch } from "./whats-new"
+import {
+  keepWhatsNew,
+  prereleaseRecheckMs,
+  registerWhatsNewIpc,
+  whatsNewAtLaunch,
+  type ReleaseFetch,
+} from "./whats-new"
 
 const launch = (
   previous: string | undefined,
@@ -87,17 +93,27 @@ const notes = (highlights: ReleaseNotes["highlights"]): ReleaseNotes => ({
 })
 const highlight = { title: "Faster Grid", line: "Grid opens in half the time.", prs: [12] }
 
+const jsonType = { get: () => "application/json; charset=utf-8" }
+
 const release = (body: string, status = 200, prerelease = false) => ({
   status,
   ok: status >= 200 && status < 300,
-  json: async () => ({ body, prerelease }),
+  headers: jsonType,
+  json: async (): Promise<unknown> =>
+    status === 404 ? { message: "Not Found" } : { body, prerelease },
 })
 
 const kept = (
   answer: () => ReturnType<ReleaseFetch>,
-  options: { pending?: string | undefined; launched?: () => Promise<void> } = {},
+  options: {
+    pending?: string | undefined
+    launched?: () => Promise<void>
+    checkedAt?: number
+    now?: () => number
+  } = {},
 ) => {
-  const state: { pending: string | undefined } = {
+  const state: { pending: string | undefined; checkedAt: number | undefined } = {
+    checkedAt: options.checkedAt,
     pending: "pending" in options ? options.pending : "0.5.0",
   }
   const urls: string[] = []
@@ -108,6 +124,9 @@ const kept = (
     launched: options.launched ?? (async () => {}),
     pending: () => state.pending,
     clear: () => void (state.pending = undefined),
+    checkedAt: () => state.checkedAt,
+    recordCheck: (time) => void (state.checkedAt = time),
+    now: options.now ?? (() => 1_000_000_000),
     repository: async () => repository,
     fetch: (url, init) => {
       urls.push(url)
@@ -183,7 +202,7 @@ describe("what is new in the version", () => {
         async () => release(notesBlock(notes([]))),
         async () => release("Just words."),
         async () => release("", 404),
-        async () => ({ status: 200, ok: true, json: async () => null }),
+        async () => ({ status: 200, ok: true, headers: jsonType, json: async () => null }),
       ]
       const runs = answers.map((answer) => kept(answer))
       expect(await Promise.all(runs.map(({ whatsNew }) => whatsNew()))).toEqual(
@@ -198,6 +217,53 @@ describe("what is new in the version", () => {
       const { whatsNew, state } = kept(async () => release(notesBlock(notes([])), 200, true))
       expect(await whatsNew()).toBeUndefined()
       expect(state.pending).toBe("0.5.0")
+      expect(state.checkedAt).toBe(1_000_000_000)
+    })
+
+    it("reads such a prerelease again only after a day", async () => {
+      const answer = async () => release(notesBlock(notes([])), 200, true)
+      const soon = kept(answer, { checkedAt: 1_000_000_000 - prereleaseRecheckMs + 1 })
+      expect(await soon.whatsNew()).toBeUndefined()
+      expect(soon.urls).toEqual([])
+      const later = kept(answer, { checkedAt: 1_000_000_000 - prereleaseRecheckMs })
+      await later.whatsNew()
+      expect(later.urls).toHaveLength(1)
+    })
+
+    it("does not throttle a failed read", async () => {
+      const failed = kept(async () => release("", 503))
+      await failed.whatsNew()
+      expect(failed.state.checkedAt).toBeUndefined()
+    })
+
+    it("takes a 404 that is not GitHub's JSON for a passing failure", async () => {
+      const answers = [
+        {
+          status: 404,
+          ok: false,
+          headers: { get: () => "text/html" },
+          json: async () => ({ message: "x" }),
+        },
+        {
+          status: 404,
+          ok: false,
+          headers: { get: () => null },
+          json: async () => ({ message: "x" }),
+        },
+        { status: 404, ok: false, headers: jsonType, json: async () => ({}) },
+        { status: 404, ok: false, headers: jsonType, json: async () => ({ message: 3 }) },
+        {
+          status: 404,
+          ok: false,
+          headers: jsonType,
+          json: async (): Promise<unknown> => {
+            throw new SyntaxError("<html>")
+          },
+        },
+      ]
+      const runs = answers.map((answer) => kept(async () => answer))
+      await Promise.all(runs.map(({ whatsNew }) => whatsNew()))
+      expect(runs.map(({ state }) => state.pending)).toEqual(answers.map(() => "0.5.0"))
     })
 
     it("keeps the mark for a later launch", async () => {
@@ -214,6 +280,7 @@ describe("what is new in the version", () => {
         async () => ({
           status: 200,
           ok: true,
+          headers: jsonType,
           json: async (): Promise<unknown> => {
             throw new SyntaxError("Unexpected end of JSON input")
           },

@@ -27,6 +27,7 @@ describe("what the host remembers about updating", () => {
       lastRunVersion: undefined,
       whatsNewPending: undefined,
       whatsNewSettled: undefined,
+      whatsNewCheckedAt: undefined,
     })
   })
 
@@ -53,7 +54,22 @@ describe("what the host remembers about updating", () => {
         lastRunVersion: undefined,
         whatsNewPending: undefined,
         whatsNewSettled: undefined,
+        whatsNewCheckedAt: undefined,
       })
+    })
+
+    it("keeps when a prerelease was last read, only for the notes still pending", () => {
+      const state = keepUpdateState(file)
+      state.recordLaunch("0.5.0-beta.1", "0.5.0-beta.1")
+      state.recordWhatsNewCheck(5)
+      state.recordLaunch("0.5.0-beta.1", "0.5.0-beta.1")
+      expect(state.read().whatsNewCheckedAt).toBe(5)
+      state.recordLaunch("0.5.0-beta.2", "0.5.0-beta.2")
+      expect(state.read().whatsNewCheckedAt).toBeUndefined()
+      state.recordWhatsNewCheck(7)
+      state.settleWhatsNew("0.5.0-beta.2", isNewerVersion)
+      expect(state.read().whatsNewCheckedAt).toBeUndefined()
+      expect(updateStateOf('{"whatsNewCheckedAt":"5"}').whatsNewCheckedAt).toBeUndefined()
     })
 
     it("keeps the newest version settled, whatever order they are settled in", () => {

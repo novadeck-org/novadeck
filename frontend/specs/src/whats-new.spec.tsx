@@ -1,7 +1,7 @@
 import { beforeEach, describe as context, describe, expect, it } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
-import { forgetHostCalls, startDownload, whatsNewCalls } from "./support/backend"
+import { forgetHostCalls, startDownload, whatsNewAsked, whatsNewCalls } from "./support/backend"
 import {
   commandInput,
   expectStaysAbsent,
@@ -33,8 +33,11 @@ describe("the what's-new card", () => {
 
   it("is absent when the host answers that there is nothing to show", async () => {
     await openWorkspace("/?update=noHighlights")
-    await expectStaysAbsent(card())
+    // The host takes 1.5 s to say so: the page has asked, and shows nothing once it has.
+    await expect.poll(whatsNewAsked).toBeGreaterThan(0)
+    await expectStaysAbsent(card(), { ms: 2_500 })
     expect(cardElement()).toBeNull()
+    expect(whatsNewCalls()).toEqual({ dismissed: 0, pages: 0 })
   })
 
   context("after an update with highlights", () => {
@@ -93,8 +96,28 @@ describe("the what's-new card", () => {
     it("is reached with the keyboard", async () => {
       await openWorkspace("/?update=whatsNew")
       await expect.element(card()).toBeVisible()
-      closeButton().element().focus()
-      await expect.element(closeButton()).toHaveFocus()
+      // From the footer's start, Tab gets to the card's controls: the highlights, then ×, then
+      // the link.
+      document.querySelector<HTMLElement>("footer")?.setAttribute("tabindex", "-1")
+      document.querySelector<HTMLElement>("footer")?.focus()
+      await expect
+        .poll(async () => {
+          await press("{Tab}")
+          return cardElement()?.contains(document.activeElement) ?? false
+        }, slow)
+        .toBe(true)
+      const reached = new Set<string>()
+      for (let step = 0; step < 4; step += 1) {
+        reached.add(
+          document.activeElement?.getAttribute("aria-label") ??
+            document.activeElement?.textContent ??
+            "",
+        )
+        // eslint-disable-next-line no-await-in-loop -- Each Tab starts from where the last stopped.
+        await press("{Tab}")
+      }
+      expect(reached.has("Dismiss")).toBe(true)
+      expect(reached.has("Release notes ↗")).toBe(true)
     })
 
     it("waits out Zen mode with the footer, and is there after", async () => {
@@ -134,6 +157,23 @@ describe("the what's-new card", () => {
       await closeButton().click()
       await expect.element(card()).not.toBeInTheDocument()
       expect(whatsNewCalls()).toEqual({ dismissed: 1, pages: 0 })
+    })
+
+    it("keeps to the room between the header and the footer, scrolling its highlights", async () => {
+      await page.viewport(1280, 520)
+      try {
+        await openWorkspace("/?update=whatsNewLong")
+        await expect.element(card()).toBeVisible()
+        const box = card().element().getBoundingClientRect()
+        const header = document.querySelector("header")?.getBoundingClientRect()
+        expect(box.top).toBeGreaterThanOrEqual(header?.bottom ?? 0)
+        await expect.element(closeButton()).toBeVisible()
+        await expect.element(releaseNotes()).toBeVisible()
+        const list = card().element().querySelector(".whats-new-list")!
+        expect(list.scrollHeight).toBeGreaterThan(list.clientHeight)
+      } finally {
+        await page.viewport(1440, 900)
+      }
     })
 
     it("hands focus to the terminal when a download's bar takes the card's place", async () => {

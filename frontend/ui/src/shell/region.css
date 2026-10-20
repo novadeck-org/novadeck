@@ -397,6 +397,7 @@
    fallback in brackets): --whats-new-label-fg (strong). */
 .update-card.whats-new {
   width: 20.5rem;
+  max-height: calc(100dvh - 7rem);
   gap: 10px;
   padding: 12px 14px 14px;
 }
@@ -408,6 +409,8 @@
   text-transform: uppercase;
 }
 .whats-new-list {
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 9px;

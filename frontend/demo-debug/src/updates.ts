@@ -27,10 +27,13 @@ export const createDemoUpdates = (
   readonly channel: () => UpdateChannel
   readonly whatsNew: DemoStates["whatsNew"]
   readonly showWhatsNew: (version: string, highlights?: WhatsNew["highlights"]) => void
-  readonly whatsNewCalls: { dismissed: number; pages: number }
+  readonly whatsNewCalls: { dismissed: number; pages: number; asked: number }
+  // Has the host take this long to answer what is new.
+  readonly delayWhatsNew: (ms: number) => void
 } => {
   let notes: WhatsNew | undefined
-  const whatsNewCalls = { dismissed: 0, pages: 0 }
+  const whatsNewCalls = { dismissed: 0, pages: 0, asked: 0 }
+  let answerAfterMs = 0
   let waiting: UpdateOffer | undefined
   let channel: UpdateChannel = "stable"
   const listeners = new Set<(offer: UpdateOffer) => void>()
@@ -91,7 +94,13 @@ export const createDemoUpdates = (
     },
     channel: () => channel,
     whatsNew: {
-      get: () => Promise.resolve(notes),
+      get: () => {
+        whatsNewCalls.asked += 1
+        const answer = notes
+        return answerAfterMs > 0
+          ? new Promise((resolve) => setTimeout(() => resolve(answer), answerAfterMs))
+          : Promise.resolve(answer)
+      },
       dismiss: () => {
         whatsNewCalls.dismissed += 1
         notes = undefined
@@ -101,6 +110,7 @@ export const createDemoUpdates = (
     showWhatsNew: (version, highlights = sampleHighlights) =>
       void (notes = { version, highlights }),
     whatsNewCalls,
+    delayWhatsNew: (ms) => void (answerAfterMs = ms),
   }
 }
 
