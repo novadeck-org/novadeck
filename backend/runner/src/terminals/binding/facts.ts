@@ -104,12 +104,14 @@ export class Bindings {
 
   /**
    * The session ended in a shell still there: its root is followed anew (`rebound`), and
-   * the summary shows no agent, the prompt still shown as ready, announced where it changed.
-   * What the shell keeps stays, as an agent a Ctrl+Z left `suspended`, which its lead waits on.
+   * the agent is published gone (`publishAgent`): the summary shows the prompt still shown as
+   * ready, announced where it changed. What the shell keeps stays: an agent a Ctrl+Z left
+   * `suspended`, which its lead waits on, and the entry seen in a transcript, which only that
+   * transcript's session reads, as it comes back from `fg` or a resume.
    */
   private kept(record: Record): void {
     this.host.rebound(record)
-    this.publishSummary(record, false)
+    this.publishAgent(record, false)
   }
 
   /**
@@ -168,7 +170,10 @@ export class Bindings {
     }
   }
 
-  /** What a shell held of its agents, which ends with it, as it exits or restarts. */
+  /**
+   * What the shell held of its agents, which ends with it, as it exits or restarts. The rest
+   * of a shell's state (its prompts, line, foreground) the restart sets for the new one.
+   */
   private shellEnded(): Pick<Record, "suspended" | "root" | "seenEntry"> {
     return { suspended: null, root: null, seenEntry: undefined }
   }
@@ -395,8 +400,8 @@ export class Bindings {
   }
 
   /**
-   * Shows the bound agent and its activity in the summary (`publishSummary`), and tells
-   * what follows its activity: its detail, its dialogs, murmur.
+   * Shows the bound agent and its activity in the summary, announcing a change, or the
+   * summary's own change when `moved`.
    */
   publishAgent(record: Record, moved: boolean): void {
     // Detail changes where the summary may not: a revised request, a subject.
@@ -404,14 +409,6 @@ export class Bindings {
     this.host.typing().dialogsChanged(record.summary.id)
     // Murmur writes a headline or gist for what the activity now holds.
     this.host.murmurChanged(record.summary.id)
-    this.publishSummary(record, moved)
-  }
-
-  /**
-   * Shows the bound agent, its activity and whether an agent ran in the summary, and the
-   * prompt shown as ready, announcing a change, or the summary's own change when `moved`.
-   */
-  private publishSummary(record: Record, moved: boolean): void {
     const agent = record.binding?.agent ?? null
     const ready = this.readyOf(record)
     const activity = record.binding && record.activity ? activitySummary(record.activity) : null

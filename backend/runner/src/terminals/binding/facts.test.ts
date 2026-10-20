@@ -7,16 +7,20 @@ import { Bindings, type BindingsHost } from "./facts.js"
 
 /**
  * Bindings with what the ends of a session use of their host: whose prompt shows as ready
- * there (`shown`), and the announcements, counted.
+ * there (`shown`), and the announcements and detail changes, counted.
  */
 const bindings = (shown?: AgentName) => {
   const announce = vi.fn<(record: Record) => void>()
+  const detailed = vi.fn<(record: Record) => void>()
   const host = {
     messaging: () => ({ shownAgent: () => shown }),
+    typing: () => ({ dialogsChanged: () => {} }),
+    murmurChanged: () => {},
     rebound: () => {},
     announce,
+    detailed,
   } as unknown as BindingsHost
-  return { bindings: new Bindings(host), announce }
+  return { bindings: new Bindings(host), announce, detailed }
 }
 
 /** A terminal with a Claude Code session bound in its shell, shown as the summary says. */
@@ -27,10 +31,11 @@ const record = (summary: Partial<Record["summary"]> = {}) =>
     binding: { agent: "claude", sessionId: "s1", instance: "41" },
     activity: null,
     telemetry: null,
-    watching: null,
-    actorWatches: new Map(),
-    transcript: null,
-    sourceReaders: new Set(),
+    // Its own sources followed: its transcript, a subagent's, a reader of the transcript.
+    watching: new AbortController(),
+    actorWatches: new Map([["a1", { controller: new AbortController(), since: 0 }]]),
+    transcript: "/t.jsonl",
+    sourceReaders: new Set([new AbortController()]),
     readyEntered: false,
     root: { agent: "claude", sessionId: "s1" },
     suspended: "41",
@@ -52,6 +57,33 @@ describe("the ends of a session", () => {
     const { bindings: ends, announce } = bindings()
     ends.forgotten(record({ agentRan: false }))
     expect(announce).not.toHaveBeenCalled()
+  })
+
+  it("tells the detail readers that a disconnection ended the agent", () => {
+    const { bindings: ends, detailed } = bindings()
+    const bound = record({ agent: "claude", agentRan: true })
+    ends.forgotten(bound)
+    expect(detailed).toHaveBeenCalledWith(bound)
+  })
+
+  it("lets go of the session's own sources, whichever way it ends", () => {
+    const { bindings: ends } = bindings()
+    for (const end of [
+      (bound: Record) => ends.endBinding(bound),
+      (bound: Record) => ends.forgotten(bound),
+      (bound: Record) => ends.exited(bound),
+    ]) {
+      const bound = record({ agent: "claude", agentRan: true })
+      const sources = [
+        bound.watching!,
+        ...[...bound.actorWatches.values()].map(({ controller }) => controller),
+        ...bound.sourceReaders,
+      ]
+      end(bound)
+      expect(sources.map(({ signal }) => signal.aborted)).toEqual([true, true, true])
+      expect(bound).toMatchObject({ watching: null, transcript: null })
+      expect([bound.actorWatches.size, bound.sourceReaders.size]).toEqual([0, 0])
+    }
   })
 
   it("keeps what the shell holds while it is still there, as an agent a Ctrl+Z left suspended", () => {

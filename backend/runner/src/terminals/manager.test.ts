@@ -2195,19 +2195,17 @@ describe("a usage limit a turn ran into", () => {
 
 describe("a shell's prompt coming back", () => {
   type Inside = {
-    records: Map<
-      string,
-      { binding: unknown; summary: { ready: string | null }; terminal: { pty: unknown } }
-    >
-    bindings: { publishAgent: (record: unknown, moved: boolean) => void }
+    records: Map<string, { summary: { ready: string | null }; terminal: { pty: unknown } }>
+    bindings: {
+      publishAgent: (record: unknown, moved: boolean) => void
+      readyEnter: (record: unknown) => void
+    }
     messaging: { shown: (id: string, agent: string, prefix: string | null) => void }
     announce: (record: unknown) => void
     prompted: (record: unknown, child: unknown, cwd: string) => void
   }
 
-  it("never shows ready the agent whose prompt left with it, though a session showed there in the bound one's place", async ({
-    terminals,
-  }) => {
+  it("never shows ready again the agent whose prompt left with it", async ({ terminals }) => {
     const manager = terminals.manager(ptyOptions)
     const terminal = await manager.create(
       { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
@@ -2215,16 +2213,20 @@ describe("a shell's prompt coming back", () => {
     )
     const inside = manager as unknown as Inside
     const record = inside.records.get(terminal.id)!
-    record.binding = { agent: "codex", sessionId: "s1", instance: null }
-    inside.bindings.publishAgent(record, false)
-    // As Codex's /clear: a new thread shows at its prompt, to bind with its first prompt.
+    // Codex's title says it is ready at its prompt, no session bound yet; the person's Enter
+    // there, as `/status`, starts nothing that binds.
     inside.messaging.shown(terminal.id, "codex", null)
+    inside.bindings.publishAgent(record, false)
+    expect(record.summary.ready).toBe("codex")
+    inside.bindings.readyEnter(record)
+    expect(record.summary.ready).toBeNull()
     const ready: (string | null)[] = []
     inside.announce = (one) => {
       if (one === record) ready.push(record.summary.ready)
     }
     // Codex exited: the shell's prompt is back.
     inside.prompted(record, record.terminal.pty, cwd)
-    expect(ready).toEqual([null])
+    expect(ready).not.toContain("codex")
+    expect(record.summary.ready).toBeNull()
   })
 })

@@ -1574,7 +1574,6 @@ export class Terminals {
     // binding's end never shows its prompt ready again.
     this.messaging.unshown(record.summary.id)
     this.bindings.endBinding(record)
-    this.bindings.publishAgent(record, false)
     if (moved) {
       record.summary = { ...record.summary, cwd }
       this.announce(record)
