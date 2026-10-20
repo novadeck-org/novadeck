@@ -929,8 +929,13 @@ App:
   launch offers an update downloaded before this run, which shows nothing, as at a launch.
   Finish restart reloads the demo, as the app comes back on the new version. Early builds on
   and off set the channel Preferences' Updates switch shows once Preferences is reopened.
+  What's new, after an update shows the card of three highlights until it is dismissed; What's
+  new, text with markup shows highlights holding `<b>` and `**stars**` as typed; What's new,
+  longest highlights fills four highlights to the host's limits, so the list scrolls; Updated,
+  no highlights has the host answer after 1.5 s that it has nothing, and no card appears; each
+  reboots the demo, as the card is asked for once at launch.
   For specs, `?update=` opens any of these by key (`download`, `held`, `failed`, `available`,
-  `allow`, `ready`). Both panels and the spec keys come from one record, `frontend/demo-debug/src/scenarios.ts`.
+  `allow`, `ready`, `whatsNew`, `whatsNewMarkup`, `whatsNewLong`, `noHighlights`). Both panels and the spec keys come from one record, `frontend/demo-debug/src/scenarios.ts`.
 
 ### Visitor build
 

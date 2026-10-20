@@ -146,6 +146,7 @@ import {
   type UpdateBuild,
   type UpdaterKind,
 } from "./updater.js"
+import { keepWhatsNew, registerWhatsNewIpc, whatsNewAtLaunch } from "./whats-new.js"
 
 const appId = "dev.mzpk.novadeck"
 // Where the app keeps its data; a development launch keeps its own (see ./data-folder.ts).
@@ -272,6 +273,11 @@ const appearance = keepAppearance(join(app.getPath("userData"), "appearance.json
 
 // What the host remembers about updating: the channel, a failed install, how long this copy is behind.
 const updateState = keepUpdateState(join(app.getPath("userData"), "update.json"))
+// Whether the app ran in this data folder before this launch, which the runner's database
+// shows: it is made when the first launch starts the runner and never removed, and older
+// builds, which kept no last-run version, made it too. Read here, before the runner starts,
+// so this launch's own database doesn't count; see `whatsNewAtLaunch`.
+const ranBefore = existsSync(join(app.getPath("userData"), "workspace.sqlite"))
 // The log of updating, in the host's log; see `updateLogOn` in ./logs.ts.
 const updatesLog = updateLogOn(logger.for("updates"))
 // The macOS update made ready to put in place on quitting, and whether quitting puts it
@@ -612,6 +618,39 @@ const settleLastInstall = (): void => {
     updateWarning("The last install was not settled.", error)
   }
 }
+
+// What the person is shown once after an update; see ./whats-new.ts. The launch is settled
+// first, once, and the page's request waits for it.
+let whatsNewLaunch: Promise<void> | undefined
+const settleWhatsNewLaunch = (): Promise<void> =>
+  (whatsNewLaunch ??= (async () => {
+    const repository = await releaseRepository()
+    const state = updateState.read()
+    const settled = whatsNewAtLaunch(
+      {
+        previous: state.lastRunVersion,
+        current: app.getVersion(),
+        pending: state.whatsNewPending,
+        settled: state.whatsNewSettled,
+        ranBefore,
+        offerable: repository !== undefined,
+      },
+      isNewerVersion,
+    )
+    if (settled) updateState.recordLaunch(settled.lastRunVersion, settled.pending)
+  })().catch((error: unknown) => updateWarning("The launch was not recorded.", error)))
+const whatsNew = keepWhatsNew({
+  version: app.getVersion(),
+  launched: settleWhatsNewLaunch,
+  pending: () => updateState.read().whatsNewPending,
+  clear: () => updateState.settleWhatsNew(app.getVersion(), isNewerVersion),
+  checkedAt: () => updateState.read().whatsNewCheckedAt,
+  recordCheck: (time) => updateState.recordWhatsNewCheck(time),
+  now: Date.now,
+  repository: releaseRepository,
+  fetch: (url, init) => net.fetch(url, init),
+  log: updateWarning,
+})
 
 // The macOS download being made ready, so one finished after a newer one began is let go.
 let preparing = 0
@@ -1293,6 +1332,9 @@ const launch = async (): Promise<void> => {
     murmurEngine(),
     detectSoftwareGraphics(app),
   ])
+  // Settled before the runner makes its database, which marks a data folder as used: a
+  // launch that dies in between must not make the next one look like an update.
+  await settleWhatsNewLaunch()
   runner = startRunner({
     entry: join(currentDirectory, "runner.js"),
     database: join(app.getPath("userData"), "workspace.sqlite"),
@@ -1362,6 +1404,20 @@ const launch = async (): Promise<void> => {
       } catch (error) {
         log.warn("update.channel-not-kept", "The update channel was not kept.", { err: error })
       }
+    },
+  })
+  // The page learns what is new after an update, once, and can open the release's page.
+  registerWhatsNewIpc(ipcMain, {
+    window: (event) => appWindow(event)?.webContents,
+    whatsNew: whatsNew.whatsNew,
+    dismiss: whatsNew.dismiss,
+    openPage: () => {
+      void releaseRepository()
+        .then((repository) => {
+          const url = repository && releasePageUrl(repository, app.getVersion())
+          if (url) return shell.openExternal(url)
+        })
+        .catch((error: unknown) => console.warn("The release page did not open.", error))
     },
   })
   // The page learns whether this is a portable copy and may install the app from it,

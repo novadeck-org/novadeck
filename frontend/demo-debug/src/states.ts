@@ -303,7 +303,7 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
   const { agents, openWelcome, failNext: failAgents, limitAntigravity } = createDemoAgents()
   const { notices, Notices } = createDemoNotices()
   const updateControls = createDemoUpdates()
-  const { updates, offer } = updateControls
+  const { updates, offer, whatsNew } = updateControls
   const { pickDirectory, failNext: failPick } = createDemoFolders()
   const chat = createDebugChat()
   const waitingActions = createWaitingActions(verbs)
@@ -584,6 +584,7 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
     openWelcome,
     notices,
     updates,
+    whatsNew,
     offer,
     updateControls,
     pickDirectory,

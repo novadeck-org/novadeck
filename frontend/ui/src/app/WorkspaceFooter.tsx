@@ -8,6 +8,7 @@ import { WorkspaceFooter as Footer, type FooterStatus } from "../shell/Workspace
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useAccounts } from "./controller/footer-accounts"
 import { crashLoopQuestion, currentState, shallowEqual } from "./selectors"
+import { dismissWhatsNew } from "./ui-store"
 
 const always = (): (() => void) => () => {}
 // The link's state, connected where the backend reports none.
@@ -20,12 +21,13 @@ const useConnection = (connection: Backend["connection"]): BackendConnectionStat
 // The footer wired to the workspace's counts, the account's subscriptions and the
 // backend's link.
 export const WorkspaceFooter = memo((): React.JSX.Element => {
-  const { backend, commands, workspace: store } = useWorkspaceServices()
+  const { backend, commands, ui, workspace: store } = useWorkspaceServices()
   const { updates, portable: portableHost } = backend
   const connection = useConnection(backend.connection)
   const crashes = useUiState((state) => state.crashLoop)
   const offer = useUiState((state) => state.update)
   const portableCardOpen = useUiState((state) => state.portableCardOpen)
+  const whatsNew = useUiState((state) => state.whatsNew)
   const sandbox = useUiState((state) => state.sandbox)
   const sandboxOpen = useUiState((state) => state.sandboxOpen)
   const portableState = useUiState((state) => state.portable)
@@ -100,6 +102,24 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
       // has its install entry, with the release it is missing.
       progress={updates && !portable ? offer : null}
       noticeOpen={sandboxOpen}
+      // It takes turns with the other notices in its corner: a dialog, the sandbox notice or
+      // a portable copy's card (which an installed copy that was updated never has) goes first.
+      whatsNew={
+        whatsNew && backend.whatsNew
+          ? {
+              notes: whatsNew,
+              blocked: asking || welcome || sandboxOpen || (portable && portableCardOpen),
+              onDismiss: () => dismissWhatsNew(backend.whatsNew, ui),
+              onOpenPage: backend.whatsNew.openPage,
+              returnFocus: () => {
+                const { selected, view } = currentState(store.getSnapshot())
+                if (!selected) return false
+                commands.setKeyboardFocus({ id: selected, view })
+                return true
+              },
+            }
+          : undefined
+      }
       available={
         updates && !portable && !portablePending && offer?.kind === "available"
           ? {
