@@ -1,10 +1,11 @@
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { activeSession } from "@novadeck/core/state"
-import { createWorkspaceStore } from "@novadeck/core/store"
+import { createStore, createWorkspaceStore } from "@novadeck/core/store"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { answerMs, answeredMs } from "./chat"
 import { chirpIntroOf, chirpWaiting } from "./chirp"
+import { isDemoInbox } from "./inbox"
 import { demoTerminalId } from "./samples"
 import { demoTurns } from "./turns"
 import { createDemo } from "./variants"
@@ -12,11 +13,11 @@ import { createDemo } from "./variants"
 const desk = { projectId: "night-shift", workspaceSessionId: "initial" }
 const key = (number: number) => ({ ...desk, terminalId: demoTerminalId(desk, number) })
 
-// The Chirp demo, opened in Grid as its video shows it.
+// The Chirp demo, opened on the Canvas as its video shows it.
 const open = () => {
   const backend = createDemo("chirp", undefined, demoTurns())
   const store = createWorkspaceStore(
-    workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 0 }),
+    workspaceFromSeed(backend.seed, { view: "canvas", windowedView: "canvas", now: 0 }),
     backend.commit,
   )
   backend.commit(store.getSnapshot(), [])
@@ -25,7 +26,7 @@ const open = () => {
     activeSession(store.getSnapshot())!.state.roster.terminals.find(
       (each) => each.id === key(number).terminalId,
     )
-  return { backend, terminal }
+  return { backend, terminal, store }
 }
 
 describe("the Chirp demo", () => {
@@ -55,8 +56,28 @@ describe("the Chirp demo", () => {
         expect(terminal).toMatchObject({ state: "running", agent: { working: true } })
   })
 
-  it("has the Inbox its agents make, as every demo does", () => {
-    expect(open().backend.inbox).toBeDefined()
+  it("has the Inbox its agents make: Cache warmer's request, answered from it until it's gone", async () => {
+    const { backend, terminal, store } = open()
+    const inbox = backend.inbox
+    if (!isDemoInbox(inbox)) throw new Error("the Chirp demo has the demo's Inbox")
+    inbox.bind!({ workspace: store, unread: createStore({}), read: () => {} })
+    const items = inbox.state.getSnapshot().items
+    expect(items).toHaveLength(1)
+    const [item] = items
+    expect(item).toMatchObject({
+      kind: "request",
+      source: { terminalId: key(chirpWaiting).terminalId, title: "Cache warmer" },
+    })
+    if (item?.kind !== "request" || item.request.dialog?.type !== "choices")
+      throw new Error("a request with choices")
+    inbox.answer(item.id, {
+      kind: "request",
+      answer: { type: "choice", dialog: item.request.dialog.id, option: "1" },
+    })
+    await vi.advanceTimersByTimeAsync(answerMs + answeredMs + 100)
+    expect(inbox.state.getSnapshot().items).toEqual([])
+    const answered = terminal(chirpWaiting)
+    expect(answered?.state === "running" && answered.agent?.attention).toBeFalsy()
   })
 
   it("lets her answer the waiting agent: the request goes, its tests pass, and it waits no more", async () => {
