@@ -666,7 +666,8 @@ unfinished then keeps its last saved copy. A transcript that cannot be masked is
 saved, and the copy saved before stays, unless an earlier runner left it, which is then
 forgotten. A result that arrives after its terminal was closed, or transcripts were
 turned off, is dropped. Transcripts saved before masking existed are forgotten once, as the
-store first opens. See [transcript-redaction.md](transcript-redaction.md). Closing a terminal
+store first opens; a database set aside as `workspace.sqlite.earlier-<time>` is not
+touched. See [transcript-redaction.md](transcript-redaction.md). Closing a terminal
 forgets it, including one from an earlier runner.
 
 - `terminals.create({ …, restore: true, resume? })` continues the saved terminal of

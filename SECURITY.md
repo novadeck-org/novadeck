@@ -171,11 +171,13 @@ in the SQLite metadata file so a restored terminal can show it again. It is save
 every 30 seconds while it changes, and when a shell exits or restarts. Before it is saved,
 what looks like a secret (known token prefixes, values named like secrets, keys, long
 key-like runs) is masked in a worker thread; a transcript that cannot be masked is not
-saved, and the copy saved before stays. Transcripts saved before masking existed are
-forgotten once, on the first start of a runner that masks them. Anything else that was typed
-or printed may still be saved. Metadata files use owner-only permissions
-where supported (0600 in a 0700 directory); on Windows they live in the per-user
-application data folder. Nothing is logged.
+saved, and the copy saved before stays, unless an earlier runner left it, which is then
+forgotten. Transcripts saved before masking existed are forgotten once, on the first start
+of a runner that masks them; a database set aside as `workspace.sqlite.earlier-<time>`
+keeps what it held, unmasked transcripts included, until you delete it. Anything else that
+was typed or printed may still be saved. Metadata files use owner-only permissions where
+supported (0600 in a 0700 directory); on Windows they live in the per-user application data
+folder. Nothing is logged.
 
 Each shell the runner starts can report which agent session runs in it, through a
 local endpoint: a Unix socket in a private temporary directory, or a named pipe on

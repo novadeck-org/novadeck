@@ -584,10 +584,10 @@ Novadeck has no database migrations before its first release. A runner that open
 `workspace.sqlite` an earlier build wrote, whose tables or schema version differ from its
 own, sets it aside as `workspace.sqlite.earlier-<time>` (with its `-wal` and `-shm`) and
 starts a new one, so your projects, sessions and kept terminals start over; the old file
-stays for you to delete. A standalone runner keeps it at
-`~/.local/share/novadeck/workspace.sqlite` unless `NOVADECK_DATABASE` is set; the
-desktop app keeps it in its data folder, `novadeck` on every platform:
-`~/.config/novadeck/workspace.sqlite` on Linux, `~/Library/Application
+stays for you to delete, and may hold saved terminal output that was never masked. A
+standalone runner keeps it at `~/.local/share/novadeck/workspace.sqlite` unless
+`NOVADECK_DATABASE` is set; the desktop app keeps it in its data folder, `novadeck` on every
+platform: `~/.config/novadeck/workspace.sqlite` on Linux, `~/Library/Application
 Support/novadeck/workspace.sqlite` on macOS and `%APPDATA%\novadeck\workspace.sqlite` on
 Windows (`novadeck-dev` in place of `novadeck` for `pnpm dev`). Novadeck never
 deletes or rewrites it for you.
