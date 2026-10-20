@@ -50,6 +50,18 @@ export const updateRequestChannel = "novadeck:update-request"
 /** Renderer-to-main request to open the release page of the last offer in the browser. */
 export const openUpdatePageChannel = "novadeck:open-update-page"
 
+/**
+ * Renderer-to-main request for what is new in the version the app updated to; answers a
+ * `WhatsNew` or undefined. See main/whats-new.ts.
+ */
+export const whatsNewChannel = "novadeck:whats-new"
+
+/** Renderer-to-main report that the person has seen what is new; nothing is answered. */
+export const dismissWhatsNewChannel = "novadeck:dismiss-whats-new"
+
+/** Renderer-to-main request to open the release page of the app's own version in the browser. */
+export const openWhatsNewPageChannel = "novadeck:open-whats-new-page"
+
 /** Renderer-to-main request to let this copy install updates itself, by an administrator's password. */
 export const allowUpdatesChannel = "novadeck:allow-updates"
 

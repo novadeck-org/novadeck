@@ -51,8 +51,26 @@ const demoWithUpdate = (
   const controls = createDemoUpdates()
   if (scenario) scenario.play(controls, "0.0.80")
   else if (portable?.offer) controls.offer(portable.offer)
-  return { ...demo, updates: controls.updates }
+  made.push(controls)
+  return { ...demo, updates: controls.updates, whatsNew: controls.whatsNew }
 }
+
+// The updates of every backend made since `forgetHostCalls`: StrictMode makes two and keeps
+// one, so what the page asked of the host is counted across them.
+const made: ReturnType<typeof createDemoUpdates>[] = []
+
+/** Starts counting what the page asks of the host about what's new from nothing. */
+export const forgetHostCalls = (): void => void (made.length = 0)
+
+/** Has the host's update download begin, in the backend the page uses (and its twin). */
+export const startDownload = (version: string): void =>
+  made.forEach((each) => each.download(version))
+
+/** What the page has asked of the host about what's new, since `forgetHostCalls`. */
+export const whatsNewCalls = (): { readonly dismissed: number; readonly pages: number } => ({
+  dismissed: made.reduce((sum, each) => sum + each.whatsNewCalls.dismissed, 0),
+  pages: made.reduce((sum, each) => sum + each.whatsNewCalls.pages, 0),
+})
 
 // Specs open the demo on a host running without its security sandbox with `?sandbox=off`,
 // or `?sandbox=off-unfixed` for one with no command to offer.

@@ -34,6 +34,7 @@ import {
   watchPortable,
   watchSandbox,
   watchUpdates,
+  watchWhatsNew,
   type UiLocation,
   type UiState,
   type UiStore,
@@ -154,6 +155,7 @@ export const WorkspaceProvider = ({
   useEffect(() => watchSwitcher(services.workspace, services.ui), [services])
   useEffect(() => watchCrashLoop(services.backend.crashLoop?.crashes, services.ui), [services])
   useEffect(() => watchUpdates(services.backend.updates, services.ui), [services])
+  useEffect(() => watchWhatsNew(services.backend.whatsNew, services.ui), [services])
   useEffect(() => watchSandbox(services.backend.sandbox, services.ui), [services])
   useEffect(() => watchPortable(services.backend.portable, services.ui), [services])
   useEffect(() => watchClosing(services.workspace, services.ui), [services])

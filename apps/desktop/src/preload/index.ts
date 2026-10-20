@@ -1,6 +1,7 @@
 import {
   parsePortableState,
   parseUpdateOffer,
+  parseWhatsNew,
   runnerPortMessage,
   updateChannels,
   updateVersionPattern,
@@ -19,11 +20,13 @@ import {
   apiUrlArgumentPrefix,
   appearanceChannel,
   directoryPickerChannel,
+  dismissWhatsNewChannel,
   installAppChannel,
   portableStateChannel,
   noticeChannel,
   noticeClickChannel,
   openUpdatePageChannel,
+  openWhatsNewPageChannel,
   portableChannel,
   quitAppChannel,
   runnerPortChannel,
@@ -36,6 +39,7 @@ import {
   versionChannel,
   updateOfferChannel,
   updateRequestChannel,
+  whatsNewChannel,
 } from "../bridge.js"
 
 const argument = process.argv.find((value) => value.startsWith(apiUrlArgumentPrefix))
@@ -194,6 +198,14 @@ const bridge = {
   // Only a known channel crosses; the main process checks it again.
   setUpdateChannel: (channel) => {
     if (updateChannels.includes(channel)) ipcRenderer.send(setUpdateChannelChannel, channel)
+  },
+  // Only an answer the contract allows reaches the page; anything else is nothing to show.
+  whatsNew: async () => parseWhatsNew(await ipcRenderer.invoke(whatsNewChannel)),
+  dismissWhatsNew: () => {
+    ipcRenderer.send(dismissWhatsNewChannel)
+  },
+  openWhatsNewPage: () => {
+    ipcRenderer.send(openWhatsNewPageChannel)
   },
   version: async () => {
     const version: unknown = await ipcRenderer.invoke(versionChannel)

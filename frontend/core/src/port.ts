@@ -19,7 +19,7 @@ import type {
   WorkspaceTarget,
 } from "./types"
 import type { UninstallPlan, UninstallResult } from "./uninstall"
-import type { UpdateChannel, UpdateOffer } from "./update"
+import type { UpdateChannel, UpdateOffer, WhatsNew } from "./update"
 import type { Voice } from "./voice"
 
 // The UI-owned contract every terminal backend implements. Only app/ talks to it.
@@ -295,6 +295,17 @@ export type BackendFields = {
       readonly get: () => Promise<UpdateChannel>
       readonly set: (channel: UpdateChannel) => void
     }
+  }
+  // Optional. What is new in the version the desktop app updated to. `get` is asked once,
+  // after the workspace is up, and answers the release's highlights while the person has
+  // not dismissed them, else undefined (also when the notes can't be read, which the host
+  // tries again on a later launch); it can take a few seconds. `dismiss` marks them seen,
+  // so no later launch offers them again; `openPage` opens the release page. Absent where
+  // the app does not say, as in a browser.
+  readonly whatsNew?: {
+    readonly get: () => Promise<WhatsNew | undefined>
+    readonly dismiss: () => void
+    readonly openPage: () => void
   }
   // Optional. The version of the desktop app, asked once when Preferences needs it. Absent
   // in a browser and in a host that does not say.

@@ -17,12 +17,28 @@ export type UpdateState = {
    * whether it did; see `installOutcome`.
    */
   readonly installing: string | undefined
+  /** The version the app last launched as, to tell an update from a fresh install. */
+  readonly lastRunVersion: string | undefined
+  /**
+   * The version whose release notes the person has yet to be shown, until they dismiss
+   * them or the release turns out to have nothing to show; see ./whats-new.ts.
+   */
+  readonly whatsNewPending: string | undefined
+  /**
+   * The newest version whose notes were settled, shown and dismissed or found to have
+   * nothing to show. No version at or below it is offered again, so a downgrade, or a
+   * portable and an installed copy sharing this file, never bring a dismissed card back.
+   */
+  readonly whatsNewSettled: string | undefined
 }
 
 const defaults: UpdateState = {
   channel: "stable",
   installFailedOn: undefined,
   installing: undefined,
+  lastRunVersion: undefined,
+  whatsNewPending: undefined,
+  whatsNewSettled: undefined,
 }
 
 /**
@@ -38,11 +54,15 @@ export const updateStateOf = (text: string): UpdateState => {
     return defaults
   }
   if (typeof kept !== "object" || kept === null) return defaults
-  const { channel, installFailedOn, installing } = kept as Record<string, unknown>
+  const { channel, installFailedOn, installing, lastRunVersion, whatsNewPending, whatsNewSettled } =
+    kept as Record<string, unknown>
   return {
     channel: updateChannels.find((known) => known === channel) ?? defaults.channel,
     installFailedOn: typeof installFailedOn === "string" ? installFailedOn : undefined,
     installing: typeof installing === "string" ? installing : undefined,
+    lastRunVersion: typeof lastRunVersion === "string" ? lastRunVersion : undefined,
+    whatsNewPending: typeof whatsNewPending === "string" ? whatsNewPending : undefined,
+    whatsNewSettled: typeof whatsNewSettled === "string" ? whatsNewSettled : undefined,
   }
 }
 
@@ -97,5 +117,23 @@ export const keepUpdateState = (file: string) => {
     recordInstalling: (version: string): void => change({ installing: version }),
     /** Marks that a launch has seen how the install begun last ended. */
     clearInstalling: (): void => change({ installing: undefined }),
+    /** Marks the version this launch runs, and which version's notes are yet to be shown. */
+    recordLaunch: (lastRunVersion: string, whatsNewPending: string | undefined): void =>
+      change({ lastRunVersion, whatsNewPending }),
+    /**
+     * Marks that the notes of `version` are settled: seen, or none to see. The newest
+     * version settled is kept, so settling an older one after a downgrade moves nothing back.
+     * `newer` tells whether its first version is newer than its second.
+     */
+    settleWhatsNew: (version: string, newer: (a: string, b: string) => boolean): void => {
+      const { whatsNewSettled } = read()
+      change({
+        whatsNewPending: undefined,
+        whatsNewSettled:
+          whatsNewSettled !== undefined && newer(whatsNewSettled, version)
+            ? whatsNewSettled
+            : version,
+      })
+    },
   }
 }

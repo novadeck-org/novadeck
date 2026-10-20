@@ -101,6 +101,7 @@ export type RunnerBackendOptions = {
   readonly updates?: Backend["updates"]
   readonly version?: Backend["version"]
   readonly sandbox?: Backend["sandbox"]
+  readonly whatsNew?: Backend["whatsNew"]
   readonly portable?: Backend["portable"]
   readonly uninstall?: Backend["uninstall"]
   // Where the host lets the page finish its saves before its window closes or the app
@@ -1516,6 +1517,7 @@ export const runnerBackend = (
     ...(options.updates ? { updates: options.updates } : {}),
     ...(options.version ? { version: options.version } : {}),
     ...(options.sandbox ? { sandbox: options.sandbox } : {}),
+    ...(options.whatsNew ? { whatsNew: options.whatsNew } : {}),
     ...(options.portable ? { portable: options.portable } : {}),
     ...(options.uninstall ? { uninstall: options.uninstall } : {}),
   }

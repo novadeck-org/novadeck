@@ -6,6 +6,7 @@ import { join } from "node:path"
 import { afterEach, beforeEach } from "vitest"
 
 import { context, describe, expect, it } from "../test"
+import { isNewerVersion } from "./applications-folder"
 import { installOutcome, keepUpdateState, updateStateOf } from "./update-state"
 
 let folder: string
@@ -23,6 +24,9 @@ describe("what the host remembers about updating", () => {
       channel: "stable",
       installFailedOn: undefined,
       installing: undefined,
+      lastRunVersion: undefined,
+      whatsNewPending: undefined,
+      whatsNewSettled: undefined,
     })
   })
 
@@ -46,6 +50,36 @@ describe("what the host remembers about updating", () => {
         channel: "early",
         installFailedOn: undefined,
         installing: undefined,
+        lastRunVersion: undefined,
+        whatsNewPending: undefined,
+        whatsNewSettled: undefined,
+      })
+    })
+
+    it("keeps the newest version settled, whatever order they are settled in", () => {
+      const state = keepUpdateState(file)
+      state.settleWhatsNew("0.6.0", isNewerVersion)
+      state.settleWhatsNew("0.5.0", isNewerVersion)
+      expect(state.read().whatsNewSettled).toBe("0.6.0")
+      state.settleWhatsNew("0.7.0", isNewerVersion)
+      expect(state.read().whatsNewSettled).toBe("0.7.0")
+      expect(updateStateOf('{"whatsNewSettled":3}').whatsNewSettled).toBeUndefined()
+    })
+
+    it("keeps the launch's version and the notes still to show, each apart", () => {
+      const state = keepUpdateState(file)
+      state.setChannel("early")
+      state.recordLaunch("0.5.0", "0.5.0")
+      expect(state.read()).toMatchObject({
+        channel: "early",
+        lastRunVersion: "0.5.0",
+        whatsNewPending: "0.5.0",
+      })
+      state.settleWhatsNew("0.5.0", isNewerVersion)
+      expect(state.read()).toMatchObject({ lastRunVersion: "0.5.0", whatsNewPending: undefined })
+      expect(updateStateOf('{"lastRunVersion":5,"whatsNewPending":{}}')).toMatchObject({
+        lastRunVersion: undefined,
+        whatsNewPending: undefined,
       })
     })
   })
