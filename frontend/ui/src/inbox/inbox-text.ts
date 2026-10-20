@@ -1,6 +1,7 @@
 import type { ChatDialog, ChatDialogOption, ChatRequest } from "@novadeck/core/conversation"
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
-import { inboxType, type InboxItem, type Trouble } from "@novadeck/core/inbox"
+import { inboxType, type InboxItem, type InboxSource, type Trouble } from "@novadeck/core/inbox"
+import { unsaidWaits, waitsBehind } from "@novadeck/core/messages"
 
 // What the Inbox says about an item, in words: pure, so the rows and the sheet read the
 // same sentences, and so their rules read apart from the markup.
@@ -79,10 +80,12 @@ const requestSubject = (request: ChatRequest): string => {
   return subject ? `Use ${request.tool} on \`${subject}\`?` : `Use ${request.tool}?`
 }
 
-const troubleSubject = (trouble: Trouble, agent: AgentName): string => {
+const troubleSubject = (trouble: Trouble, source: InboxSource): string => {
   if (trouble.type === "failed") return "Its turn ended in an error"
+  if (trouble.type === "waits")
+    return `${trouble.count === 1 ? "1 message" : `${trouble.count} messages`} for @${source.handle} ${trouble.count === 1 ? "waits" : "wait"} behind ${trouble.waits ? waitsBehind[trouble.waits] : unsaidWaits.behind}`
   if (trouble.type === "limit") {
-    return `Hit ${agentName(agent)}'s ${limitWindow(trouble.minutes)} limit`
+    return `Hit ${agentName(source.agent)}'s ${limitWindow(trouble.minutes)} limit`
   }
   const times = Math.max(...trouble.evidence.map((line) => line.times), 0)
   return times > 1
@@ -100,7 +103,7 @@ export const subjectOf = (item: InboxItem): string => {
     case "ask":
       return item.ask.subject
     case "trouble":
-      return troubleSubject(item.trouble, item.source.agent)
+      return troubleSubject(item.trouble, item.source)
     case "update":
       return item.update.subject
   }
@@ -166,9 +169,11 @@ export const fromNovadeck = (item: InboxItem): boolean =>
 export type Tone = "urgent" | "waiting" | "quiet"
 export const toneOf = (item: InboxItem): Tone => {
   if (!item.stopped) return "quiet"
-  // A limit that waits for the person waits; it has not failed.
-  const limit = item.kind === "trouble" && item.trouble.type === "limit"
-  return inboxType(item) === "trouble" && !limit ? "urgent" : "waiting"
+  // A limit that waits for the person waits, as do messages held for an idle agent: neither
+  // has failed.
+  const waits =
+    item.kind === "trouble" && (item.trouble.type === "limit" || item.trouble.type === "waits")
+  return inboxType(item) === "trouble" && !waits ? "urgent" : "waiting"
 }
 
 // A permission's or plan's options, as the buttons the sheet offers. Allow is a plain yes;

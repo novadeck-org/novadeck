@@ -1,4 +1,5 @@
 import { agentWorking } from "@novadeck/core/agent-finish"
+import { companionKeyId } from "@novadeck/core/companion"
 import type { ChatAnswer, ChatRequest, ConversationKey } from "@novadeck/core/conversation"
 import type { AgentName } from "@novadeck/core/harnesses"
 import {
@@ -14,7 +15,14 @@ import {
   type InboxState,
   type InboxUnread,
 } from "@novadeck/core/inbox"
-import type { AgentMessage, MailState, MessageThread } from "@novadeck/core/messages"
+import {
+  waitingFor,
+  type AgentMessage,
+  type MailState,
+  type MailWaits,
+  type MessageThread,
+  type TerminalMail,
+} from "@novadeck/core/messages"
 import { isAgentProgram } from "@novadeck/core/process"
 import { createStore, type Store } from "@novadeck/core/store"
 import type {
@@ -23,7 +31,7 @@ import type {
   WorkspaceProject,
   WorkspaceSession,
 } from "@novadeck/core/types"
-import type { AgentDetail, AskAnswer, InboxLetter } from "@novadeck/protocol"
+import { longHoldMs, type AgentDetail, type AskAnswer, type InboxLetter } from "@novadeck/protocol"
 import { currentPlatform } from "@novadeck/terminal-views/platform"
 
 import { requestOf } from "./conversations"
@@ -127,8 +135,27 @@ const heldOf = (
   }
 }
 
+// The messages for a terminal's idle agent, the longest of which has waited at least
+// `longHoldMs`: why the doorbell can't wake it (null where it hasn't said), since when, and
+// how many (none held for the person's release or a pause, which have items and switches of
+// their own).
+const heldLong = (
+  mail: TerminalMail | undefined,
+  now: number,
+):
+  | { readonly waits: MailWaits | null; readonly since: number; readonly count: number }
+  | undefined => {
+  const { waits = null, waitsSince } = mail ?? {}
+  if (!mail || waitsSince == null || now - waitsSince < longHoldMs) return undefined
+  const count = waitingFor(mail).filter((message) => message.state === "queued").length
+  return count > 0 ? { waits, since: waitsSince, count } : undefined
+}
+
 // Each terminal's candidate items, before only the most urgent is kept.
-const candidates = ({ unread, requests, now }: InboxInputs, here: Where): readonly InboxItem[] => {
+const candidates = (
+  { unread, mail, requests, now }: InboxInputs,
+  here: Where,
+): readonly InboxItem[] => {
   const { project, session, terminal } = here
   const agent = agentOf(terminal)
   if (!agent || terminal.state !== "running" || !terminal.agent) return []
@@ -151,6 +178,26 @@ const candidates = ({ unread, requests, now }: InboxInputs, here: Where): readon
       })
     return found
   }
+
+  // Its messages held long, as only the person can clear what holds them: in the terminal.
+  // Not while it works, as its status says, whatever the listing last said.
+  const held =
+    !status.working &&
+    heldLong(
+      mail.terminals[
+        companionKeyId({
+          projectId: project.id,
+          workspaceSessionId: session.id,
+          terminalId: terminal.id,
+        })
+      ],
+      now,
+    )
+  if (held)
+    add(`waits:${terminal.id}:${held.since}`, held.since, true, {
+      kind: "trouble",
+      trouble: { type: "waits", waits: held.waits, count: held.count },
+    })
 
   const turn = status.lastTurn
   if (turn && !status.working) {
@@ -507,14 +554,19 @@ export const createRunnerInbox = (
         : { items: kept, answering, failed: rest }
     })
 
-    // A request whose dialog is unread shows anyway once it has waited long enough.
+    // A request whose dialog is unread shows anyway once it has waited long enough, and a
+    // hold once it has held long enough.
     clearTimeout(due)
     due = undefined
-    const waits = Object.values(requests)
-      .flat()
-      .filter(({ request }) => request.dialog === null)
-      .map(({ askedAt }) => askedAt + dialogMs - at)
-      .filter((wait) => wait > 0)
+    const waits = [
+      ...Object.values(requests)
+        .flat()
+        .filter(({ request }) => request.dialog === null)
+        .map(({ askedAt }) => askedAt + dialogMs - at),
+      ...Object.values(mail.getSnapshot().terminals).map(({ waitsSince }) =>
+        waitsSince == null ? 0 : waitsSince + longHoldMs - at,
+      ),
+    ].filter((wait) => wait > 0)
     if (waits.length > 0) due = setTimeout(recompute, Math.min(...waits))
   }
 

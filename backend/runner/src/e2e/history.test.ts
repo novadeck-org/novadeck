@@ -9,6 +9,7 @@ const listing = (delivery: DeliveryState, state?: MessageState): TerminalMessage
   handle: "fox",
   delivery,
   waits: null,
+  waitsSince: null,
   paused: false,
   threads:
     state === undefined
