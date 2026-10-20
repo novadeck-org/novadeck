@@ -37,12 +37,19 @@ export type Client = {
   readonly timeout: number
 }
 
-/** The model a run asks unless RELEASE_NOTES_MODEL says another. */
-export const defaultModel = "anthropic/claude-opus-5.5"
+/**
+ * The model a mode asks unless an environment variable says another: a cheap one for the many
+ * prereleases (RELEASE_NOTES_PRERELEASE_MODEL), a strong one for the few promotions
+ * (RELEASE_NOTES_PROMOTE_MODEL).
+ */
+export const defaultModels = {
+  release: "anthropic/claude-haiku-5.5",
+  promote: "anthropic/claude-opus-5.5",
+} as const
 
 /**
- * How long a mode waits for the model, a promotion having far more to read. The call is not
- * streamed, so this is a bound on the whole of it.
+ * How long a mode waits for the model, a promotion having far more to read. The answer is
+ * streamed, but this bounds the whole call, the last chunk included.
  */
 export const timeouts = { release: 180_000, promote: 480_000 } as const
 
@@ -54,8 +61,10 @@ export const clientFor = (
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): Client => ({
   fetch,
-  apiKey: env.OPENROUTER_API_KEY || undefined,
-  model: env.RELEASE_NOTES_MODEL || defaultModel,
+  apiKey: env.OPENROUTER_API_KEY?.trim() || undefined,
+  model:
+    (mode === "release" ? env.RELEASE_NOTES_PRERELEASE_MODEL : env.RELEASE_NOTES_PROMOTE_MODEL) ||
+    defaultModels[mode],
   timeout: timeouts[mode],
 })
 
@@ -192,21 +201,24 @@ export const ask = async (
   items: readonly Item[],
 ): Promise<Answer> => {
   if (!client.apiKey) throw new Skip("No OPENROUTER_API_KEY")
+  const key = client.apiKey
+  // Nothing about the request may reach a message with the key in it.
+  const redact = (text: string): string => text.replaceAll(key, "[key]")
   const signal = AbortSignal.timeout(client.timeout)
   const failed = (error: unknown): Skip =>
     signal.aborted
       ? new Skip(`The model did not answer within ${client.timeout / 1000} s`)
-      : new Skip(`The request failed: ${textOf(error)}`)
-  let response: Response
+      : new Skip(`The request failed: ${redact(textOf(error))}`)
+  let request: RequestInit
   try {
-    response = await client.fetch(endpoint, {
+    request = {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${client.apiKey}`,
+      headers: new Headers({
+        Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
         "HTTP-Referer": referer,
         "X-Title": "Novadeck release notes",
-      },
+      }),
       body: JSON.stringify({
         model: client.model,
         max_tokens: 64_000,
@@ -220,12 +232,19 @@ export const ask = async (
           type: "json_schema",
           json_schema: { name: "release_notes", strict: true, schema: responseSchema },
         },
-        // Only a provider that honours `response_format` may take the request.
+        // Only a provider that honours `response_format` may take the request. No `reasoning`
+        // is sent: with this flag a model without that parameter would be left with no provider.
         provider: { require_parameters: true },
-        reasoning: { effort: "medium" },
       }),
       signal,
-    })
+    }
+  } catch {
+    // The error would name the header value, which is the key.
+    throw new Skip("The request could not be built")
+  }
+  let response: Response
+  try {
+    response = await client.fetch(endpoint, request)
   } catch (error) {
     throw failed(error)
   }

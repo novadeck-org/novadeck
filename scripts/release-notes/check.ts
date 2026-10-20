@@ -9,23 +9,20 @@ export const maxHighlights = 4
 export const maxChanges = 200
 export const maxPrs = 32
 
-// What a title or line must not hold. A line is plain text; a link, markup or a mention means
-// the model was steered by a commit or a pull request description, so the whole answer goes.
-// (`@` is not here: terminals' word handles such as @moth are a feature's name, and the
-// rendered body puts them in code spans so GitHub mentions nobody.)
-const steered: readonly RegExp[] = [
-  /\]\(/,
-  /\[/,
-  /</,
-  />/,
-  /https?:/i,
-  /\bwww\./i,
-  /`/,
-  /!\[/,
-  /\*/,
-  /~/,
-  /\\/,
+// Signs the model was steered by a commit or a pull request description: a link, an image, a
+// URL or an HTML tag. They fail the whole answer. (`@` is not here: terminals' word handles
+// such as @moth are a feature's name, and the rendered body puts them in code spans so
+// GitHub mentions nobody.)
+const steered: readonly [RegExp, string][] = [
+  [/\]\(/, "a Markdown link"],
+  [/!\[/, "a Markdown image"],
+  [/https?:/i, "a URL"],
+  [/\bwww\./i, "a URL"],
+  [/<[a-z/!]/i, "an HTML tag"],
 ]
+
+// Markup a plain line has no use for. A slip drops that line and the rest stands.
+const markup = /[*~\\`[<>]/
 
 // What is not for the notes: the chat view ships behind a flag, and the demo, the website and
 // the pipeline are not the app. A line that mentions one is dropped, the rest stands.
@@ -47,6 +44,7 @@ export type Checked =
         readonly highlights: ModelOutput["highlights"]
         readonly changes: { area: NoteArea; line: string; prs: number[] }[]
       }
+      /** Why each dropped line was dropped, never the line: logs and summaries are public. */
       readonly dropped: readonly string[]
     }
   | { readonly ok: false; readonly reason: string }
@@ -55,48 +53,51 @@ const fail = (reason: string): Checked => ({ ok: false, reason })
 
 /**
  * Whether the model's answer can be published, and what of it. A whole-answer failure is a
- * size or shape the notes can't hold, a pull request it was not given, or markup and links; a
- * line on an excluded topic or in an unknown area is dropped and named in `dropped`. `allowed`
- * holds the pull requests the model was given.
+ * size the notes can't hold, a pull request it was not given, or a sign of steering (links,
+ * URLs, HTML). A line that breaks a softer rule (too long, markup, an excluded topic, an
+ * unknown area) is dropped, and `dropped` says why. A release has no highlights, so the model's
+ * are ignored. `allowed` holds the pull requests the model was given.
  */
-export const checkOutput = (output: ModelOutput, allowed: ReadonlySet<number>): Checked => {
-  if (output.highlights.length > maxHighlights)
-    return fail(`At most ${maxHighlights} highlights, got ${output.highlights.length}`)
+export const checkOutput = (
+  output: ModelOutput,
+  kind: "release" | "promote",
+  allowed: ReadonlySet<number>,
+): Checked => {
+  const given = kind === "promote" ? output.highlights : []
+  if (given.length > maxHighlights)
+    return fail(`At most ${maxHighlights} highlights, got ${given.length}`)
   if (output.changes.length > maxChanges)
     return fail(`At most ${maxChanges} changes, got ${output.changes.length}`)
   const dropped: string[] = []
   const highlights: ModelOutput["highlights"] = []
   const changes: { area: NoteArea; line: string; prs: number[] }[] = []
-  for (const item of [...output.highlights, ...output.changes]) {
+  for (const item of [...given, ...output.changes]) {
     const title = "title" in item ? item.title.trim() : undefined
     const line = item.line.trim()
-    if (title !== undefined && (!title || title.length > maxTitle))
-      return fail(`Title "${title}" is not 1 to ${maxTitle} characters`)
-    if (!line || line.length > maxLine)
-      return fail(`Line "${line}" is not 1 to ${maxLine} characters`)
     if (item.prs.length === 0 || item.prs.length > maxPrs)
-      return fail(`Line "${line}" cites ${item.prs.length} pull requests, not 1 to ${maxPrs}`)
+      return fail(`A line cites ${item.prs.length} pull requests, not 1 to ${maxPrs}`)
     const stranger = item.prs.find((pr) => !allowed.has(pr))
-    if (stranger !== undefined)
-      return fail(`Line "${line}" cites #${stranger}, which was not given`)
+    if (stranger !== undefined) return fail(`A line cites #${stranger}, which was not given`)
     const text = [title, line].join("\n")
-    const markup = steered.find((pattern) => pattern.test(text))
-    if (markup) return fail(`"${line}" holds ${markup}, which plain text doesn't`)
+    const steer = steered.find(([pattern]) => pattern.test(text))
+    if (steer) return fail(`A line holds ${steer[1]}, which plain text doesn't`)
     const topic = excluded.find((pattern) => pattern.test(text))
-    if (topic) {
-      dropped.push(`"${title ?? line}" mentions ${topic}`)
+    const reason =
+      (title !== undefined && (!title || title.length > maxTitle)) || !line || line.length > maxLine
+        ? `a title or line outside 1 to ${maxTitle}/${maxLine} characters`
+        : markup.test(text)
+          ? "a markup character"
+          : topic
+            ? `an excluded topic ${topic}`
+            : title === undefined && !isArea("area" in item ? item.area : "")
+              ? "an area that is not one of ours"
+              : undefined
+    if (reason) {
+      dropped.push(reason)
       continue
     }
-    if (title !== undefined) {
-      highlights.push({ title, line, prs: item.prs })
-      continue
-    }
-    const area = "area" in item ? item.area : ""
-    if (!isArea(area)) {
-      dropped.push(`"${line}" is in the area "${area}", which is not one of ours`)
-      continue
-    }
-    changes.push({ area, line, prs: item.prs })
+    if (title !== undefined) highlights.push({ title, line, prs: item.prs })
+    else changes.push({ area: (item as { area: NoteArea }).area, line, prs: item.prs })
   }
   return { ok: true, output: { highlights, changes }, dropped }
 }

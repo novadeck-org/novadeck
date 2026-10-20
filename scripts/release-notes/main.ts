@@ -2,7 +2,7 @@ import { appendFileSync, rmSync, writeFileSync } from "node:fs"
 
 import { generatePromote, generateRelease, type Ask, type Generated } from "./generate.ts"
 import { ask as askModel, clientFor as defaultClientFor, type Client } from "./model.ts"
-import { renderBody } from "./render.ts"
+import { fitBody } from "./render.ts"
 import { Skip } from "./skip.ts"
 import { gitSources, type Sources } from "./sources.ts"
 
@@ -17,9 +17,18 @@ export const summaryOf = (mode: string, tag: string, generated: Generated): stri
   const lines = notes.highlights.length + notes.changes.length
   return [
     `Release notes for ${tag} (${mode}): ${plural(lines, "line", "lines")} from ${plural(considered, "change", "changes")}, ${plural(notes.fixes, "smaller fix", "smaller fixes")} counted. Model ${model}, ${outputTokens} output tokens.`,
-    ...dropped.map((line) => `Dropped: ${line}.`),
+    ...droppedLines(dropped),
     "",
   ].join("\n")
+}
+
+/** How many lines were dropped and why; never the lines, as logs and summaries are public. */
+const droppedLines = (dropped: readonly string[]): string[] => {
+  const counts = new Map<string, number>()
+  for (const reason of dropped) counts.set(reason, (counts.get(reason) ?? 0) + 1)
+  return [...counts].map(
+    ([reason, count]) => `Dropped ${plural(count, "line", "lines")} for ${reason}.`,
+  )
 }
 
 /** The account of a run that wrote nothing: the release keeps the body it has. */
@@ -36,8 +45,9 @@ export const skippedSummary = (mode: string, tag: string, skip: Skip): string =>
  * saying why: the workflows edit a release only when the file exists, so it keeps its body.
  * A usage error or a failure of git exits non-zero. `--dry-run` prints the body and the
  * model's answer, or the reason there is no body, and writes no file. OPENROUTER_API_KEY is
- * the model's key and RELEASE_NOTES_MODEL names the model; GH_REPO and GH_TOKEN are `gh`'s, and GH_REPO also names the repository
- * the pull request links point at.
+ * the model's key; RELEASE_NOTES_PRERELEASE_MODEL and RELEASE_NOTES_PROMOTE_MODEL name the
+ * model for each mode. GH_REPO and GH_TOKEN are `gh`'s, and GH_REPO also names the
+ * repository the pull request links point at.
  */
 export const main = async (
   args = process.argv.slice(2),
@@ -60,8 +70,11 @@ export const main = async (
         : await generatePromote(tag, sources, ask, repo)
     let body: string
     try {
-      body = renderBody(generated.notes, generated.original, repo, generated.compare)
+      const fitted = fitBody(generated.notes, generated.original, repo, generated.compare)
+      if (!fitted) throw new Skip("The notes alone are longer than GitHub allows in a release body")
+      body = fitted
     } catch (error) {
+      if (error instanceof Skip) throw error
       throw new Skip(
         `The notes could not be written: ${error instanceof Error ? error.message : String(error)}`,
         generated.raw,

@@ -75,7 +75,7 @@ const compose = async (
     }
   const { text, outputTokens, model } = await ask(kind, version, given)
   const output = parseOutput(text)
-  const checked = checkOutput(output, new Set(given.flatMap((item) => item.prs)))
+  const checked = checkOutput(output, kind, new Set(given.flatMap((item) => item.prs)))
   if (!checked.ok) throw new Skip(checked.reason, text)
   const highlights = kind === "promote" ? checked.output.highlights : []
   // A change a highlight already tells is not told twice.

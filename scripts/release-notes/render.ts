@@ -93,3 +93,28 @@ export const originalOf = (body: string | undefined): string => {
       .replace(/^\[Compare on GitHub\]\([^)\n]*\)\s*/, "")
   return body.trim()
 }
+
+/** GitHub refuses a release body past 125,000 characters; this leaves some room. */
+export const maxBody = 120_000
+
+const cut = "\n\n(The rest of the changelog is cut for length.)"
+
+/**
+ * The rendered body within `limit`: the changelog is shortened first, with a note, and the
+ * notes themselves are never cut. `undefined` when they alone are too long.
+ */
+export const fitBody = (
+  notes: ReleaseNotes,
+  original: string,
+  repo: string,
+  compare: string | undefined,
+  limit = maxBody,
+): string | undefined => {
+  const whole = renderBody(notes, original, repo, compare)
+  if (whole.length <= limit) return whole
+  const bare = renderBody(notes, "", repo, compare)
+  const room = limit - bare.length - cut.length - 200
+  if (room <= 0 || bare.length > limit) return undefined
+  const body = renderBody(notes, `${original.slice(0, room).trimEnd()}${cut}`, repo, compare)
+  return body.length <= limit ? body : undefined
+}

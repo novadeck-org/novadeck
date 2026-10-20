@@ -78,6 +78,22 @@ describe("the command", () => {
     }
   })
 
+  it("prints the count and reason of dropped lines but never their text", async () => {
+    const out = scratch()
+    const printed: string[] = []
+    const secret = "Chat view shows secret plans."
+    const reply = JSON.stringify({
+      highlights: [],
+      changes: [
+        { area: "Look & feel", line: "Tab descriptions say who leads whom.", prs: [330] },
+        { area: "Look & feel", line: secret, prs: [330] },
+      ],
+    })
+    await main(["release", "v0.0.152", out], sources, saying(reply), (line) => printed.push(line))
+    expect(printed.join("\n")).toMatch(/Dropped 1 line for an excluded topic/)
+    expect(printed.join("\n")).not.toContain("secret")
+  })
+
   it("writes no file when gh can't read the release", async () => {
     const out = scratch()
     const broken = {

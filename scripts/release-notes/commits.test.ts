@@ -24,6 +24,25 @@ describe("the commits a release is written from", () => {
     ])
   })
 
+  it("drops the scopes of tests, dependencies and benchmarks, so their fixes are not counted", () => {
+    for (const scope of ["test", "tests", "e2e", "deps", "bench", "specs", "flakes"])
+      expect(
+        parseCommit({ sha: "a", subject: `fix(${scope}): a thing (#1)`, body: "" }),
+      ).toBeUndefined()
+  })
+
+  it("drops a commit whose subject names the chat, and the sentences of a What that do", () => {
+    expect(
+      parseCommit({ sha: "a", subject: "feat(ui): chat shows plans (#1)", body: "" }),
+    ).toBeUndefined()
+    const what = parseCommit({
+      sha: "a",
+      subject: "feat(ui): plans open beside the terminal (#2)",
+      body: "## What\n\nPlans open on their own. The chat view shows them too. They can be edited.\n- The chat renders it.\n- Notes work.\n\n## Why\n\nx",
+    })!.what
+    expect(what).toBe("Plans open on their own. They can be edited.\n- Notes work.")
+  })
+
   it("takes the type, scope and pull request number off the subject", () => {
     expect(parseCommit(commit(330))).toMatchObject({
       type: "feat",

@@ -74,10 +74,6 @@ describe("the notes of a prerelease", () => {
       [answer({ highlights: [] }), /wrong shape/],
       [answer({ highlights: [], changes: [{ area: "Voice", line: "x", prs: [999] }] }), /#999/],
       [
-        answer({ highlights: [], changes: [{ area: "Voice", line: "x".repeat(111), prs: [330] }] }),
-        /Line/,
-      ],
-      [
         answer({
           highlights: [],
           changes: [{ area: "Voice", line: "See [a](http://b).", prs: [330] }],
@@ -90,6 +86,21 @@ describe("the notes of a prerelease", () => {
       expect((error as Skip).message).toMatch(reason)
       expect((error as Skip).raw).toBeTruthy()
     }
+  })
+
+  it("drops a too long line and keeps the rest, saying why but not what", async () => {
+    const long = "x".repeat(111)
+    const generated = await generateRelease(
+      "v0.0.152",
+      sources,
+      answer({
+        highlights: [],
+        changes: [...released.changes, { area: "Voice", line: long, prs: [261] }],
+      }),
+    )
+    expect(generated.notes.changes).toHaveLength(2)
+    expect(generated.dropped).toHaveLength(1)
+    expect(generated.dropped.join()).not.toContain(long)
   })
 
   it("skips when the model throws", async () => {

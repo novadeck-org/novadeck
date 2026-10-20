@@ -263,7 +263,7 @@ jobs:
         timeout-minutes: 6
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          RELEASE_NOTES_MODEL: ${{ vars.RELEASE_NOTES_MODEL }}
+          RELEASE_NOTES_PRERELEASE_MODEL: ${{ vars.RELEASE_NOTES_PRERELEASE_MODEL }}
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: v${{ needs.prepare.outputs.version }}
