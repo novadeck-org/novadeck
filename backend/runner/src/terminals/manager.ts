@@ -1025,15 +1025,8 @@ export class Terminals {
                     telemetry: null,
                   } satisfies AgentSummary,
                   foreground: undefined,
-                  binding: null,
-                  suspended: null,
-                  root: null,
-                  seenEntry: undefined,
+                  ...this.bindings.restarted(),
                   shellName: shellProcess(shell)?.name,
-                  activity: null,
-                  telemetry: null,
-                  watching: null,
-                  transcript: null,
                   submitted: started.resumes,
                   startupRuns: started.resumes,
                   readyEntered: false,
@@ -1209,22 +1202,8 @@ export class Terminals {
       record.agents = rest
       const agentRan = hasRun(rest)
       // Its binding ends too: a disconnected harness holds no terminal's foreground.
-      if (record.binding?.agent === agent) {
-        record.binding = null
-        record.activity = null
-        record.telemetry = null
-        this.bindings.unwatch(record)
-        this.reporting.rebound(record)
-        record.summary = {
-          ...record.summary,
-          agentRan,
-          agent: null,
-          ready: this.bindings.readyOf(record),
-          activity: null,
-          telemetry: null,
-        }
-        this.announce(record)
-      } else if (record.summary.agentRan !== agentRan) {
+      if (record.binding?.agent === agent) this.bindings.forgotten(record, agentRan)
+      else if (record.summary.agentRan !== agentRan) {
         record.summary = { ...record.summary, agentRan }
         this.announce(record)
       }
@@ -1612,10 +1591,7 @@ export class Terminals {
 
   /** The shell exited: the agent layer lets go of it, before its viewers read the exit. */
   private exited(record: Record): void {
-    record.binding = null
-    record.root = null
-    record.activity = null
-    record.telemetry = null
+    this.bindings.exited(record)
     forgetPrompts(record)
     this.bindings.unwatch(record)
     // An exited terminal takes no messages; its agent's are gone until it runs again.
