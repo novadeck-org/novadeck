@@ -380,7 +380,7 @@ describe("a session stopped with background work running", () => {
     const rings = doorbellHost({
       ...world(terminal).host,
       messaging,
-      working: (terminalId, activity) => agentWorking(messaging, terminalId, binding, activity),
+      working: (terminalId, activity) => agentWorking(messaging, terminalId, { binding, activity }),
     })
     /** Its turn, then a Stop that says what it left running. */
     const turn = (background: Background) => {
