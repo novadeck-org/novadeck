@@ -726,9 +726,9 @@ export const createDemoInbox = (
     own.getSnapshot().items.find((each) => each.id === id)
 
   let binding: InboxBinding | null = null
-  // Each binding's own: an answer still on its way when the app unbound it says nothing to the
-  // next one.
-  let bound = 0
+  // How many times the app unbound it: an answer still on its way then says nothing to the
+  // next binding.
+  let unbound = 0
   const seen = new Set<string>()
   const inFlight = new Set<string>()
   // Answers that took and may leave their item standing a moment, as trouble's do.
@@ -834,10 +834,10 @@ export const createDemoInbox = (
     submitted.add(id)
     inFlight.add(id)
     recompute()
-    const binds = bound
+    const binds = unbound
     work().then(
       () => {
-        if (binds !== bound) return
+        if (binds !== unbound) return
         inFlight.delete(id)
         if (!settles) submitted.delete(id)
         recompute()
@@ -851,7 +851,7 @@ export const createDemoInbox = (
         )
       },
       (error: unknown) => {
-        if (binds !== bound) return
+        if (binds !== unbound) return
         inFlight.delete(id)
         submitted.delete(id)
         fail(id, whyOf(error))
@@ -913,7 +913,6 @@ export const createDemoInbox = (
   return {
     state,
     bind: (next) => {
-      bound += 1
       binding = next
       const stops = [
         next.workspace,
@@ -930,7 +929,7 @@ export const createDemoInbox = (
         clearTimeout(due)
         due = undefined
         for (const known of [seen, inFlight, submitted, failed, asked]) known.clear()
-        bound += 1
+        unbound += 1
         if (binding === next) binding = null
         derived.update(() => emptyInbox)
       }

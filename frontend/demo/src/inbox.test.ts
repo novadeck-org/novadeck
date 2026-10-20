@@ -388,6 +388,22 @@ describe("the Inbox demo's own items", () => {
     expect(read).not.toHaveBeenCalled()
   })
 
+  it("read a finish under an update of their own, which is read with it", async () => {
+    const { inbox, unread, read, terminalOf, itemOn } = boot("inbox")
+    await vi.advanceTimersByTimeAsync(10_000)
+    const done = terminalOf("design-system", 1)!
+    unread.update(() => ({ "design-system/initial": { [done.id]: "done" } }))
+    const finish = itemOn("design-system", 1)!
+    const told = inbox.state.getSnapshot().items.find((each) => each.id === demoInboxIds.told)!
+    inbox.add({ ...told, source: { ...finish.source } })
+    expect(itemOn("design-system", 1)?.id).toBe(demoInboxIds.told)
+
+    inbox.readAll()
+    expect(read).toHaveBeenCalledExactlyOnceWith([
+      { context: "design-system/initial", terminalId: done.id },
+    ])
+  })
+
   it("take the agent past what it waited on once answered", async () => {
     const { inbox, terminalOf } = boot("inbox")
     const codex = inbox.state
