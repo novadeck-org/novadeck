@@ -105,6 +105,22 @@ describe("A terminal's taskbar", () => {
   })
 })
 
+describe("The pane in Canvas", () => {
+  it("hangs beside its terminal's window, not clipped by it", async () => {
+    await openShowcase("canvas")
+    await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
+    const pane = companionPane("Build Studio")
+    await expect.element(pane).toBeVisible()
+    // What's drawn just inside the pane's corner is the pane, not the board under it.
+    await expect
+      .poll(() => {
+        const box = pane.element().getBoundingClientRect()
+        return pane.element().contains(document.elementFromPoint(box.left + 24, box.top + 24))
+      })
+      .toBe(true)
+  })
+})
+
 describe("An image", () => {
   it("scrolls under its header, which stays in view", async () => {
     await openShowcase()

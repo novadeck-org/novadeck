@@ -10,7 +10,16 @@ import type { Messages } from "@novadeck/core/messages"
 import type { ViewMode } from "@novadeck/core/types"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { usePresence, type Presence } from "@novadeck/toolkit/presence"
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
+import { createPortal } from "react-dom"
 
 import type { CompanionActions } from "./actions"
 import { barMembers, composeBar, dropOutcome, shownTab, slotKeys, type BarMember } from "./bar"
@@ -97,6 +106,11 @@ const SplitPane = ({
 // Canvas units, matching .plan-attached.
 const attachedExtent = { right: 20 + 720, height: 560 }
 
+// Where an attached sheet hangs: the canvas node around the window, which the window's
+// clipping (its overflow and paint containment) doesn't reach. Null until the node has
+// mounted; left unset, as outside a canvas node, the sheet stays where it's rendered.
+export const AttachedHost = createContext<HTMLElement | null | undefined>(undefined)
+
 // A sheet hanging off the canvas node's right edge, so it pans and zooms with it. It is
 // positioned against the node, outside the window's clipping.
 const AttachedPane = ({
@@ -107,15 +121,18 @@ const AttachedPane = ({
   view: PaneView
   onReveal: Reveal | undefined
   presence: Presence
-}): React.JSX.Element => {
+}): React.JSX.Element | null => {
   // Frame once as the sheet opens, not whenever the canvas hands over a new callback.
   const reveal = useRef(onReveal)
   useEffect(() => reveal.current?.(attachedExtent), [])
-  return (
+  const host = useContext(AttachedHost)
+  const sheet = (
     <div {...presence.props} className="plan-attached nodrag nopan nowheel">
       <CompanionPane {...shown} presentation="attached" />
     </div>
   )
+  if (host === undefined) return sheet
+  return host ? createPortal(sheet, host) : null
 }
 
 // A terminal's companion: its taskbar, and the pane it opens in the terminal's own
