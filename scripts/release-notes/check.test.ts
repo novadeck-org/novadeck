@@ -115,6 +115,25 @@ describe("the checks on a model's answer", () => {
     expect(droppedFor(title)).toEqual(["a markup character"])
   })
 
+  it("drops lines about early, beta or other pre-release channels, but not a preview of an image", () => {
+    for (const line of [
+      "Pick the beta update channel in Preferences.",
+      "Nightly builds install on their own.",
+      "Join the canary channel.",
+      "Early builds are listed in Preferences.",
+      "Choose an update channel.",
+      "A prerelease is offered.",
+    ])
+      expect(droppedFor(withChange(line)), line).toHaveLength(1)
+    expect(droppedFor(withChange("Preview images open in the pane."))).toEqual([])
+  })
+
+  it("drops a line or title with a bare issue number", () => {
+    expect(droppedFor(withChange("Fixes the crash from #261."))).toEqual(["a markup character"])
+    const title = { ...good, highlights: [{ ...good.highlights[0]!, title: "See #12" }] }
+    expect(droppedFor(title)).toEqual(["a markup character"])
+  })
+
   it("drops chats and demos in the plural too", () => {
     for (const line of ["Chats now stream.", "Two demos load faster."])
       expect(droppedFor(withChange(line)), line).toHaveLength(1)

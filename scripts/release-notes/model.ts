@@ -55,11 +55,12 @@ export const timeouts = { release: 180_000, promote: 480_000 } as const
 
 /**
  * The most a mode lets the model write. A build's answer is short, and some providers of the
- * cheaper models cap a completion at 16,384. OpenRouter holds the cost of the whole limit
- * before it answers, so a promotion's stays well under what a key limited to a dollar can
- * hold at Opus's price, and still leaves room for its thinking and a long answer.
+ * cheaper models cap a completion at 16,384. The promotion's number is low on purpose:
+ * OpenRouter holds the cost of the whole limit up front, before the model writes a word, and
+ * that hold has to fit what is left on a key capped at a dollar with the prereleases' spend
+ * already taken out. A real promotion's answer was under 5,000 tokens.
  */
-export const maxTokens = { release: 16_000, promote: 32_000 } as const
+export const maxTokens = { release: 16_000, promote: 16_000 } as const
 
 export const endpoint = "https://openrouter.ai/api/v1/chat/completions"
 const referer = "https://github.com/novadeck-org/novadeck"
@@ -129,6 +130,8 @@ const textOf = (error: unknown): string => (error instanceof Error ? error.messa
 const messageOf = (error: unknown): string | undefined => {
   if (!error || typeof error !== "object") return undefined
   const { code, message } = error as { code?: unknown; message?: unknown }
+  // The text of a credit error says how much is left on the key, and logs are public.
+  if (code === 402) return "not enough credit on the key (402)"
   return `${typeof code === "number" ? `${code}: ` : ""}${typeof message === "string" ? message : "an error"}`
 }
 
@@ -264,6 +267,7 @@ export const ask = async (
   } catch (error) {
     throw failed(error)
   }
+  if (response.status === 402) throw new Skip("OpenRouter: not enough credit on the key (402)")
   if (!response.ok) {
     let failure: string | undefined
     try {

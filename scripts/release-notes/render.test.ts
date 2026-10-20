@@ -23,14 +23,21 @@ const original = originalOf(releaseBody)
 
 describe("a rendered body", () => {
   it("leads a promotion with highlights, then the areas in their order, then the fixes", () => {
-    const body = renderBody(promote, original, repo)
+    const body = renderBody(
+      {
+        ...promote,
+        changes: promote.changes.filter((change) => change.area !== "Fixes & speedups"),
+      },
+      original,
+      repo,
+    )
     const at = (text: string) => body.indexOf(text)
     expect(body).toMatch(
       /^## Highlights\n\n- \*\*Word handles\*\*: Terminals get a name like `@moth`\. \(\[#181\]\(https:\/\/github\.com\/novadeck-org\/novadeck\/pull\/181\)\)/,
     )
     expect(body).toContain("[#188](https://github.com/novadeck-org/novadeck/pull/188), [#190]")
     expect(at("## Highlights")).toBeLessThan(at("## What's new"))
-    expect(at("### Inbox & notifications")).toBeLessThan(at("### Fixes & speedups"))
+    expect(at("## Highlights")).toBeLessThan(at("### Inbox & notifications"))
     expect(at("## What's new")).toBeLessThan(at("## Fixes and speedups"))
     expect(body).toContain(
       "## Fixes and speedups\n\n3 smaller fixes and speedups besides the ones above.",
@@ -109,6 +116,27 @@ describe("a rendered body", () => {
     )
     expect(originalOf(releaseBody)).toBe(releaseBody)
     expect(originalOf(undefined)).toBe("")
+  })
+
+  it("closes the Fixes & speedups area with the smaller fixes' count when there is one", () => {
+    const body = renderBody(promote, "", repo)
+    expect(body).toMatch(
+      /### Fixes & speedups\n\n- Off-screen[^\n]*\n\nPlus 3 smaller fixes and speedups\.\n/,
+    )
+    expect(body).not.toContain("## Fixes and speedups")
+    const release = renderBody({ ...promote, kind: "release", highlights: [] }, "", repo)
+    expect(release).toMatch(/### Fixes & speedups[\s\S]*\n\nPlus 3 smaller fixes and speedups\.\n/)
+    expect(release.match(/Plus 3 smaller/g)).toHaveLength(1)
+    // Without that area the count keeps its own section.
+    const without = renderBody(
+      {
+        ...promote,
+        changes: promote.changes.filter((change) => change.area !== "Fixes & speedups"),
+      },
+      "",
+      repo,
+    )
+    expect(without).toContain("## Fixes and speedups\n\n3 smaller fixes and speedups besides")
   })
 
   it("fits the body to the limit by cutting the changelog first, then gives up", () => {

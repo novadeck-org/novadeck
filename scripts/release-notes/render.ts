@@ -37,9 +37,15 @@ export const renderBody = (
   compare?: string,
 ): string => {
   const sections: string[] = []
+  // When there is a "Fixes & speedups" area, the count of the smaller ones closes it.
+  const fixesIn = byArea(notes.changes).some(({ area }) => area === "Fixes & speedups")
   const areas = byArea(notes.changes).map(
     ({ area, lines }) =>
-      `### ${area}\n\n${lines.map((change) => bullet(change.line, change.prs, repo)).join("\n")}`,
+      `### ${area}\n\n${lines.map((change) => bullet(change.line, change.prs, repo)).join("\n")}${
+        area === "Fixes & speedups" && notes.fixes > 0
+          ? `\n\nPlus ${notes.fixes} smaller ${notes.fixes === 1 ? "fix or speedup" : "fixes and speedups"}.`
+          : ""
+      }`,
   )
   if (notes.kind === "promote") {
     if (notes.highlights.length > 0)
@@ -52,7 +58,7 @@ export const renderBody = (
           .join("\n")}`,
       )
     if (areas.length > 0) sections.push(`## What's new\n\n${areas.join("\n\n")}`)
-    if (notes.fixes > 0)
+    if (notes.fixes > 0 && !fixesIn)
       sections.push(
         `## Fixes and speedups\n\n${notes.fixes} smaller ${notes.fixes === 1 ? "fix or speedup" : "fixes and speedups"}${notes.highlights.length + areas.length > 0 ? " besides the ones above" : ""}.`,
       )
@@ -60,7 +66,7 @@ export const renderBody = (
       sections.push("Nothing in this build changes what you see in the app.")
   } else {
     sections.push(...areas)
-    if (notes.fixes > 0)
+    if (notes.fixes > 0 && !fixesIn)
       sections.push(
         `${areas.length > 0 ? "Plus " : ""}${notes.fixes} smaller ${notes.fixes === 1 ? "fix or speedup" : "fixes and speedups"}.`,
       )
