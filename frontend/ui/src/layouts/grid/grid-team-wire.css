@@ -55,10 +55,10 @@
     height: 1px;
     background: linear-gradient(90deg, var(--_fg), color-mix(in srgb, var(--_fg) 55%, transparent));
     transform-origin: left;
-    animation: grid-team-wire-across 180ms var(--ease-interface) var(--_at, 0ms) both;
+    animation: grid-team-wire-across 180ms var(--ease-interface) both;
   }
   /* One light that leaves the cursor once it has blinked and runs along the route to a
-   worker, where its tick lights. Routes that share a run run it together. */
+   worker's tick. Routes that share a run run it together. */
   .grid-team-wire-pulse {
     width: 18px;
     height: 3px;
@@ -74,13 +74,13 @@
     animation: grid-team-wire-pulse var(--_duration, 500ms) linear var(--team-wire-blink, 520ms)
       both;
   }
-  /* Once a wire has drawn in, a layout change redraws its runs without it. Its cursor and
-     ticks play again only for a selection, while the pulse is out. */
-  .grid-team-wire-shape[data-drawn] .grid-team-wire-run {
+  /* Once a wire has drawn in, its runs and ticks stay put: a layout change or a selection
+     never draws them again. Only its cursor blinks again, for a selection, while the pulse
+     is out. */
+  .grid-team-wire-shape[data-drawn] :is(.grid-team-wire-run, .grid-team-wire-tick) {
     animation: none;
   }
-  .grid-team-wire-shape[data-drawn]:not([data-pulsing])
-    :is(.grid-team-wire-cursor, .grid-team-wire-tick) {
+  .grid-team-wire-shape[data-drawn]:not([data-pulsing]) .grid-team-wire-cursor {
     animation: none;
   }
   @media (prefers-reduced-motion: reduce) {

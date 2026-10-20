@@ -25,7 +25,7 @@ const pathOf = (points: readonly Point[]) =>
 // Every team's wire through the Grid's gutters: a block cursor left of the lead's tile, a
 // tick into each worker's, and runs between them that never cross a tile. A wire draws in
 // when it first appears and stays; selecting a member of a team blinks its cursor and sends
-// one pulse from the lead along its runs, lighting each tick as it arrives. It sits in the
+// one pulse from the lead along its runs to each tick, which stay as they are. It sits in the
 // grid's own frame, so it scrolls with the tiles, takes no pointer and is only drawn, as the
 // window's header says who leads a terminal in words.
 export const GridTeamWire = ({
@@ -144,16 +144,7 @@ const Wire = ({
         style={{ left: route.cursor[0], top: route.cursor[1] }}
       />
       {route.workers.map((worker) => (
-        <i
-          key={`${worker.id}:${selected ?? ""}`}
-          className="grid-team-wire-tick"
-          style={
-            {
-              ...place(worker.tick),
-              "--_at": pulsing ? `${Math.round(blinkMs + duration(worker.distance))}ms` : "0ms",
-            } as React.CSSProperties
-          }
-        />
+        <i key={worker.id} className="grid-team-wire-tick" style={place(worker.tick)} />
       ))}
       {pulsing &&
         route.workers.map((worker) => (
