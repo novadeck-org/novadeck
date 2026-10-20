@@ -353,12 +353,9 @@ describe("Grid view's team wire", () => {
     await expect.poll(ticks).toBe(1)
     expect(gridView().element().querySelectorAll(".grid-team-wire-cursor")).toHaveLength(1)
     // It runs through the gutters: no tile has a run in it, nor a tick past its border.
-    const tiles = gridView()
-      .element()
-      .querySelectorAll("[data-grid-terminal]")
-      .values()
-      .map((tile) => tile.getBoundingClientRect())
-      .toArray()
+    const tiles = [...gridView().element().querySelectorAll("[data-grid-terminal]")].map((tile) =>
+      tile.getBoundingClientRect(),
+    )
     const pieces = [
       ...gridView().element().querySelectorAll(".grid-team-wire-run, .grid-team-wire-tick"),
     ]
@@ -373,14 +370,21 @@ describe("Grid view's team wire", () => {
     }
   })
 
-  it("is gone while a terminal in no team is selected", async () => {
+  it("stays, without a pulse, while a terminal in no team is selected", async () => {
     await openMessagesDemo()
     await terminalTab("Checkout implementation").click()
     await chooseView("Grid")
     await expect.poll(ticks).toBe(1)
     await terminal("Dev server").click({ position: { x: 150, y: 150 } })
     await expectSelected("Dev server")
-    await expect.poll(ticks).toBe(0)
-    expect(gridView().element().querySelectorAll(".grid-team-wire")).toHaveLength(0)
+    await expectStaysTrue(() => ticks() === 1, "the wire stays while Dev server is selected")
+    expect(gridView().element().querySelectorAll(".grid-team-wire-pulse")).toHaveLength(0)
+  })
+
+  it("is there when the view opens with a terminal in no team selected", async () => {
+    await openMessagesDemo()
+    await terminalTab("Dev server").click()
+    await chooseView("Grid")
+    await expect.poll(ticks).toBe(1)
   })
 })

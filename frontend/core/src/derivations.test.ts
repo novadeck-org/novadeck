@@ -1,8 +1,10 @@
 import {
+  allTeams,
   handleNames,
   ledTerminals,
   runningLeads,
   sameTeam,
+  sameTeams,
   teamOf,
   teamRole,
   teamText,
@@ -209,6 +211,26 @@ describe("a terminal's team in words", () => {
       teams(),
     )
     expect(teamText(four, "01")).toBe("leads @fox, @owl, @w6 and @w7")
+  })
+})
+
+describe("every team", () => {
+  it("lists each running lead's team, whatever is selected", () => {
+    expect(allTeams(select(teams(), "03"))).toEqual([
+      { lead: "01", workers: ["02", "04"] },
+      { lead: "04", workers: ["05"] },
+    ])
+  })
+
+  it("are the same teams while their leads and workers are", () => {
+    const listed = [
+      { lead: "01", workers: ["02", "04"] },
+      { lead: "04", workers: ["05"] },
+    ]
+    expect(sameTeams(allTeams(teams()), listed)).toBe(true)
+    expect(sameTeams(listed, [listed[0]!, { lead: "04", workers: ["05", "06"] }])).toBe(false)
+    expect(sameTeams(listed, [listed[1]!, listed[0]!])).toBe(false)
+    expect(sameTeams(listed, [])).toBe(false)
   })
 })
 

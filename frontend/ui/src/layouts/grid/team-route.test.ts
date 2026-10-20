@@ -1,6 +1,13 @@
 import { describe as context, describe, expect, it } from "vitest"
 
-import { teamRoute, tileBoxes, type Run, type TeamRoute, type TileBox } from "./team-route"
+import {
+  teamRoute,
+  teamRoutes,
+  tileBoxes,
+  type Run,
+  type TeamRoute,
+  type TileBox,
+} from "./team-route"
 
 const gap = 16
 const width = 1000
@@ -106,7 +113,7 @@ describe("The team wire's route", () => {
     })
   })
 
-  context("with many irregular tiles", () => {
+  context("with many irregular tiles and three teams", () => {
     it("finds its way in well under a frame", () => {
       const many = Array.from({ length: 60 }, (_, i) => ({
         id: `t${i}`,
@@ -116,8 +123,17 @@ describe("The team wire's route", () => {
         height: 200 + ((i * 53) % 4) * 25,
       }))
       const start = performance.now()
-      const route = teamRoute(many, "t0", ["t7", "t30", "t45", "t59"], gap, 1264)
-      expect(route!.workers).toHaveLength(4)
+      const routes = teamRoutes(
+        many,
+        [
+          { lead: "t0", workers: ["t7", "t30", "t45"] },
+          { lead: "t2", workers: ["t11", "t38"] },
+          { lead: "t13", workers: ["t50", "t59", "t21"] },
+        ],
+        gap,
+        1264,
+      )
+      expect(routes.map((route) => route?.workers.length)).toEqual([3, 2, 3])
       expect(performance.now() - start).toBeLessThan(100)
     })
   })
@@ -132,6 +148,39 @@ describe("The team wire's route", () => {
     it("draws nothing without a worker", () => {
       expect(teamRoute(boxes, "lead", ["gone"], gap, width)).toBeUndefined()
     })
+  })
+})
+
+describe("Several teams' wires", () => {
+  // Two teams in a row of tiles over a row of tiles: both leads on the left.
+  const boxes = [
+    tile("a", 0, 0),
+    tile("a1", 1, 0),
+    tile("b", 0, 1),
+    tile("b1", 1, 1),
+    tile("a2", 2, 0),
+    tile("b2", 2, 1),
+  ]
+  const crews = [
+    { lead: "a", workers: ["a1", "a2"] },
+    { lead: "b", workers: ["b1", "b2"] },
+  ]
+
+  it("draws each team's wire, none crossing a tile", () => {
+    const routes = teamRoutes(boxes, crews, gap, width)
+    expect(routes.map((route) => route?.workers.length)).toEqual([2, 2])
+    for (const route of routes) never(route, boxes)
+  })
+
+  it("keeps the teams on runs of their own where the grid has room", () => {
+    const [a, b] = teamRoutes(boxes, crews, gap, width)
+    const taken = new Set(a!.runs.map((run) => `${run.axis}${run.x},${run.y}`))
+    expect(b!.runs.filter((run) => taken.has(`${run.axis}${run.x},${run.y}`))).toEqual([])
+  })
+
+  it("leaves a team out that has no lead or no worker among the tiles", () => {
+    const routes = teamRoutes(boxes, [{ lead: "gone", workers: ["a1"] }, crews[1]!], gap, width)
+    expect(routes.map((route) => route !== undefined)).toEqual([false, true])
   })
 })
 

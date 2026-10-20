@@ -110,6 +110,18 @@ export const teamOf = (workspace: Workspace, terminalId: string): Team | undefin
   return lead === undefined ? undefined : { lead, workers: workers.get(lead)! }
 }
 
+// Every team of the current session's running leads, as Grid and Canvas draw them whatever
+// is selected: in the order each lead's first worker appears in the roster, which Grid
+// routes them in, the earlier ones taking the clearer gutters.
+export const allTeams = (workspace: Workspace): readonly Team[] => {
+  const { workers } = teamsOf(rosterOf(workspace))
+  return [...workers].map(([lead, led]) => ({ lead, workers: led }))
+}
+
+// Whether two lists of teams are the same teams in the same order.
+export const sameTeams = (a: readonly Team[], b: readonly Team[]): boolean =>
+  a === b || (a.length === b.length && a.every((team, index) => sameTeam(team, b[index])))
+
 // What a terminal is in the selected terminal's team: its lead, one of its workers, or
 // nothing, as no team is selected or it isn't in it.
 export const teamRole = (

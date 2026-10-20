@@ -2,9 +2,11 @@
    It wears the rail's tokens (team-wire.css), so a theme that styles one styles both:
    --team-wire-fg (strong), --team-wire-glow (item-selected-indicator-shadow, then none)
    and --team-wire-pulse-fg (strong-hover, then strong). Hooks on `.grid-team-wire`:
-   --team-wire-blink (the cursor's blink before the pulse leaves it), data-settled (the
-   pulse has played; what's drawn after, as the layout changes, appears without it) and
-   data-hidden (the tiles are moving, or a window is over the grid: the wire is out of the way, and while a tile is dragged or resized the grid's data-gesture). */
+   --team-wire-blink (the cursor's blink before the pulse leaves it). Each team has a
+   `.grid-team-wire-shape` with data-drawn (it has drawn in) and data-pulsing (a member is
+   selected and its pulse is out), and `.grid-team-wire` has data-hidden (the tiles are
+   moving, or a window is over the grid: the wires are out of the way; so, while a tile is
+   dragged or resized, is the grid's data-gesture). */
 @layer components {
   .grid-team-wire {
     position: absolute;
@@ -72,11 +74,14 @@
     animation: grid-team-wire-pulse var(--_duration, 500ms) linear var(--team-wire-blink, 520ms)
       both;
   }
-  .grid-team-wire[data-settled] .grid-team-wire-shape > i {
+  /* Once a wire has drawn in, a layout change redraws its runs without it. Its cursor and
+     ticks play again only for a selection, while the pulse is out. */
+  .grid-team-wire-shape[data-drawn] .grid-team-wire-run {
     animation: none;
   }
-  .grid-team-wire[data-settled] .grid-team-wire-pulse {
-    display: none;
+  .grid-team-wire-shape[data-drawn]:not([data-pulsing])
+    :is(.grid-team-wire-cursor, .grid-team-wire-tick) {
+    animation: none;
   }
   @media (prefers-reduced-motion: reduce) {
     .grid-team-wire,

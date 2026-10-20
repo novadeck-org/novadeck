@@ -71,6 +71,7 @@ const TerminalCanvas = ({
   preview,
   selected,
   team,
+  teams,
   keyboardFocusRequest,
   navigation,
   onSelect,
@@ -651,7 +652,7 @@ const TerminalCanvas = ({
               size={1.6}
               bgColor="transparent"
             />
-            <CanvasTeamWire team={team} selected={selected} />
+            <CanvasTeamWire teams={teams} team={team} selected={selected} />
             {ghost && (
               <ViewportPortal>
                 <div

@@ -790,6 +790,8 @@ describe("Canvas", () => {
 
 describe("Canvas's team wire", () => {
   const wire = () => document.querySelectorAll(".canvas-team-wire-tick").length
+  const wireOpacity = () =>
+    Number(getComputedStyle(document.querySelector(".canvas-team-wire")!).opacity)
   const opacityOf = (name: string) =>
     Number(getComputedStyle(terminal(name).element().closest(".canvas-node")!).opacity)
 
@@ -812,14 +814,42 @@ describe("Canvas's team wire", () => {
     await expect.poll(() => opacityOf("Dev server")).toBeLessThan(1)
   })
 
-  it("is gone, and nothing else is kept bright, while a terminal in no team is selected", async () => {
+  it("stays, receded with its windows, while a terminal in no team is selected", async () => {
     await openMessagesDemo()
     await terminalTab("Checkout review").click()
     await chooseView("Canvas")
     await expect.poll(wire).toBe(1)
+    await expect.poll(() => wireOpacity()).toBe(1)
     await terminalTab("Dev server").click()
-    await expect.poll(wire).toBe(0)
-    expect(document.querySelectorAll(".canvas-team-wire-cursor")).toHaveLength(0)
     await expect.poll(() => opacityOf("Checkout implementation")).toBeLessThan(1)
+    await expect.poll(() => wireOpacity()).toBeLessThan(1)
+    expect(wire()).toBe(1)
+    expect(document.querySelectorAll(".canvas-team-wire-cursor")).toHaveLength(1)
+    // Still beneath the windows.
+    const node = terminal("Dev server").element().closest<HTMLElement>(".react-flow__node")!
+    expect(
+      Number(getComputedStyle(document.querySelector(".canvas-team-wire")!).zIndex),
+    ).toBeLessThan(0)
+    expect(Number(getComputedStyle(node).zIndex)).toBeGreaterThanOrEqual(0)
+  })
+
+  it("plays its pulse once for each selection into the team, and again on coming back to it", async () => {
+    const pulsing = () => document.querySelector(".canvas-team-wire[data-pulsing]") !== null
+    await openMessagesDemo()
+    await terminalTab("Checkout review").click()
+    await chooseView("Canvas")
+    await expect.poll(pulsing).toBe(true)
+    // It is over once played, and stays over while the selection stays.
+    await expect.poll(pulsing, { timeout: 4000 }).toBe(false)
+    await terminalTab("Dev server").click()
+    await terminalTab("Checkout review").click()
+    await expect.poll(pulsing).toBe(true)
+  })
+
+  it("is drawn from the start, without any team selected", async () => {
+    await openMessagesDemo()
+    await terminalTab("Dev server").click()
+    await chooseView("Canvas")
+    await expect.poll(wire).toBe(1)
   })
 })

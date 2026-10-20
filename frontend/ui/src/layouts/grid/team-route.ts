@@ -1,4 +1,4 @@
-// The wire that joins the selected terminal's team through the Grid's gutters
+// The wires that join each team through the Grid's gutters
 // (GridTeamWire.tsx), worked out from where the tiles sit. All in the grid container's
 // frame in pixels, so the route is plain numbers and can be tested alone.
 
@@ -46,6 +46,9 @@ const headerLine = 27
 // drew costs per pixel: little, so routes join into a trunk.
 const bendCost = 40
 const sharedCost = 0.05
+// What a run another team's wire already takes costs per pixel: enough to go round it
+// where there is room, not so much as to leave a team unreached.
+const foreignCost = 4
 
 // The pixel boxes of the grid's items, where react-grid-layout puts them (its own
 // calculation, so edges that meet there meet here).
@@ -81,23 +84,38 @@ type Edge = {
   readonly axis: 0 | 1
 }
 
-// The wire from the lead to its workers through the gutters, or none while the lead or
-// every worker is missing or can't be reached without crossing a tile. A worker that can't
-// be reached has no tick, and the rest are drawn.
+// A team as the route sees it.
+export type Crew = { readonly lead: string; readonly workers: readonly string[] }
+
+// The wire of one team alone: see `teamRoutes`.
 export const teamRoute = (
   boxes: readonly TileBox[],
   lead: string,
   workers: readonly string[],
   gap: number,
   width: number,
-): TeamRoute | undefined => {
+): TeamRoute | undefined => teamRoutes(boxes, [{ lead, workers }], gap, width)[0]
+
+// The wire of each team from its lead to its workers through the gutters, in the order the
+// teams come: none for a team whose lead or every worker is missing or can't be reached
+// without crossing a tile. A worker that can't be reached has no tick, and the rest are
+// drawn. Teams keep to runs of their own where the grid has room, so two can be told apart.
+export const teamRoutes = (
+  boxes: readonly TileBox[],
+  teams: readonly Crew[],
+  gap: number,
+  width: number,
+): (TeamRoute | undefined)[] => {
   const byId = new Map(boxes.map((box) => [box.id, box]))
-  const from = byId.get(lead)
-  const members = workers.flatMap((id) => {
-    const box = byId.get(id)
-    return box && id !== lead ? [box] : []
+  const crews = teams.map(({ lead, workers }) => {
+    const from = byId.get(lead)
+    const members = workers.flatMap((id) => {
+      const box = byId.get(id)
+      return box && id !== lead ? [box] : []
+    })
+    return { from, members }
   })
-  if (!from || !members.length) return undefined
+  if (!crews.some((crew) => crew.from && crew.members.length)) return teams.map(() => undefined)
   const half = gap / 2
 
   // Lines through the middle of every gutter, and each member's header line.
@@ -109,7 +127,9 @@ export const teamRoute = (
   const ys = lines([
     -half,
     ...boxes.flatMap((box) => [box.top - half, box.top + box.height + half]),
-    ...[from, ...members].map((box) => box.top + headerLine),
+    ...crews.flatMap(({ from, members }) =>
+      from && members.length ? [from, ...members].map((box) => box.top + headerLine) : [],
+    ),
   ])
   const free = (x1: number, y1: number, x2: number, y2: number) =>
     !boxes.some(
@@ -139,74 +159,83 @@ export const teamRoute = (
     node(xs.indexOf(box.left - half), ys.indexOf(box.top + headerLine))
   const point = (n: number): Point => [xs[Math.floor(n / ys.length)]!, ys[n % ys.length]!]
 
-  const used = new Set<string>()
-  const start = portOf(from)
+  // What earlier teams' wires run along.
+  const taken = new Set<string>()
+  return crews.map(({ from, members }) => {
+    if (!from || !members.length) return undefined
+    const used = new Set<string>()
+    const start = portOf(from)
 
-  // The cheapest route to `goal`: length, a penalty for each corner, and next to nothing
-  // over what an earlier route used. States are a node and the axis it was reached along.
-  const route = (goal: number): number[] | undefined => {
-    const cost = new Map<number, number>()
-    const before = new Map<number, number>()
-    const queue = new Heap()
-    const push = (at: number, state: number, previous: number) => {
-      if (at >= (cost.get(state) ?? Infinity)) return
-      cost.set(state, at)
-      before.set(state, previous)
-      queue.push(at, state)
-    }
-    push(0, start * 2, -1)
-    push(0, start * 2 + 1, -1)
-    while (queue.size) {
-      const [at, state] = queue.pop()!
-      if (at > (cost.get(state) ?? Infinity)) continue
-      const here = state >> 1
-      if (here === goal) {
-        const path = [here]
-        for (let step = before.get(state)!; step >= 0; step = before.get(step)!)
-          path.push(step >> 1)
-        return path.toReversed().filter((n, i, all) => n !== all[i - 1])
+    // The cheapest route to `goal`: length, a penalty for each corner, next to nothing over
+    // what an earlier route of this team used and a good deal over another team's. States
+    // are a node and the axis it was reached along.
+    const route = (goal: number): number[] | undefined => {
+      const cost = new Map<number, number>()
+      const before = new Map<number, number>()
+      const queue = new Heap()
+      const push = (at: number, state: number, previous: number) => {
+        if (at >= (cost.get(state) ?? Infinity)) return
+        cost.set(state, at)
+        before.set(state, previous)
+        queue.push(at, state)
       }
-      for (const edge of edges[here]!) {
-        const next = at + edge.length * (used.has(key(here, edge.to)) ? sharedCost : 1)
-        push(next + (edge.axis === (state & 1) ? 0 : bendCost), edge.to * 2 + edge.axis, state)
+      push(0, start * 2, -1)
+      push(0, start * 2 + 1, -1)
+      while (queue.size) {
+        const [at, state] = queue.pop()!
+        if (at > (cost.get(state) ?? Infinity)) continue
+        const here = state >> 1
+        if (here === goal) {
+          const path = [here]
+          for (let step = before.get(state)!; step >= 0; step = before.get(step)!)
+            path.push(step >> 1)
+          return path.toReversed().filter((n, i, all) => n !== all[i - 1])
+        }
+        for (const edge of edges[here]!) {
+          const edgeKey = key(here, edge.to)
+          const rate = used.has(edgeKey) ? sharedCost : taken.has(edgeKey) ? foreignCost : 1
+          const next = at + edge.length * rate
+          push(next + (edge.axis === (state & 1) ? 0 : bendCost), edge.to * 2 + edge.axis, state)
+        }
       }
+      return undefined
     }
-    return undefined
-  }
 
-  // Nearest first, so the farther ones join the runs they leave.
-  const reached = members
-    .map((box) => ({ box, goal: portOf(box) }))
-    .toSorted(
-      (a, b) =>
-        Math.abs(a.box.top - from.top) +
-        Math.abs(a.box.left - from.left) -
-        (Math.abs(b.box.top - from.top) + Math.abs(b.box.left - from.left)),
-    )
-    .flatMap(({ box, goal }) => {
-      const path = route(goal)
-      if (!path) return []
-      path.forEach((n, i) => i && used.add(key(path[i - 1]!, n)))
-      return [{ box, path: corners(path.map(point)) }]
-    })
-  if (!reached.length) return undefined
+    // Nearest first, so the farther ones join the runs they leave.
+    const reached = members
+      .map((box) => ({ box, goal: portOf(box) }))
+      .toSorted(
+        (a, b) =>
+          Math.abs(a.box.top - from.top) +
+          Math.abs(a.box.left - from.left) -
+          (Math.abs(b.box.top - from.top) + Math.abs(b.box.left - from.left)),
+      )
+      .flatMap(({ box, goal }) => {
+        const path = route(goal)
+        if (!path) return []
+        path.forEach((n, i) => i && used.add(key(path[i - 1]!, n)))
+        return [{ box, path: corners(path.map(point)) }]
+      })
+    if (!reached.length) return undefined
+    for (const edge of used) taken.add(edge)
 
-  const [cursorX, cursorY] = point(start)
-  return {
-    cursor: [cursorX, cursorY],
-    runs: merged(used, point),
-    workers: reached.map(({ box, path }) => ({
-      id: box.id,
-      tick: {
-        x: box.left - half,
-        y: box.top + headerLine,
-        length: half,
-        axis: "horizontal",
-      },
-      path,
-      distance: length(path),
-    })),
-  }
+    const [cursorX, cursorY] = point(start)
+    return {
+      cursor: [cursorX, cursorY],
+      runs: merged(used, point),
+      workers: reached.map(({ box, path }) => ({
+        id: box.id,
+        tick: {
+          x: box.left - half,
+          y: box.top + headerLine,
+          length: half,
+          axis: "horizontal" as const,
+        },
+        path,
+        distance: length(path),
+      })),
+    }
+  })
 }
 
 // A queue that gives back its smallest cost first.

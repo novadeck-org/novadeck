@@ -120,20 +120,28 @@
     cursor: text;
   }
 
-  /* The selected terminal's team wire (CanvasTeamWire.tsx), in the viewport's world, so it
-     pans and zooms with the windows. Its sizes are set in world units from the zoom, to
-     stay as many screen pixels at any zoom. Beneath the windows (their z-index is never
-     below 0), and it takes no pointer. The recipe is the sidebar's (team-wire.css), with its
-     tokens: --team-wire-fg (strong), --team-wire-glow (item-selected-indicator-shadow, then
-     none), --team-wire-pulse-fg (strong-hover, then strong). */
+  /* Every team's wire (CanvasTeamWire.tsx), in the viewport's world, so it pans and zooms
+     with the windows. Its sizes are set in world units from the zoom, to stay as many
+     screen pixels at any zoom. Beneath the windows (their z-index is never below 0), and it
+     takes no pointer. The recipe is the sidebar's (team-wire.css), with its tokens:
+     --team-wire-fg (strong), --team-wire-glow (item-selected-indicator-shadow, then none),
+     --team-wire-pulse-fg (strong-hover, then strong). Lines appear as they are; only the
+     cursor's blink and the pulse of a selection move. A wire recedes with its team's windows
+     unless its team is the selected one, as they do. */
   .canvas-team-wire {
     position: absolute;
     top: 0;
     left: 0;
     z-index: -1;
     pointer-events: none;
+    opacity: var(--terminal-idle-opacity);
+    transition: opacity var(--motion-state) var(--ease-interface);
     --_fg: var(--team-wire-fg, var(--color-strong));
     --_glow: var(--team-wire-glow, var(--item-selected-indicator-shadow, none));
+  }
+  .canvas-team-wire[data-selected],
+  .canvas-viewport[data-has-selection="false"] .canvas-team-wire {
+    opacity: 1;
   }
   .canvas-team-wire-shape > i {
     position: absolute;
@@ -143,23 +151,13 @@
     background-color: var(--_fg);
     box-shadow: var(--_glow);
   }
-  .canvas-team-wire-stem {
-    transform-origin: var(--_origin, left) center;
-    animation: canvas-team-wire-reach 160ms var(--ease-interface) both;
-  }
-  .canvas-team-wire-trunk {
-    transform-origin: top;
-    animation: canvas-team-wire-grow 220ms var(--ease-interface) 120ms both;
-  }
-  /* Each tick lights as the pulse reaches it, and fades towards its window. */
+  /* A tick fades towards its window. */
   .canvas-team-wire-tick {
     background: linear-gradient(
       to right,
       var(--_fg),
       color-mix(in srgb, var(--_fg) 55%, transparent)
     );
-    transform-origin: left center;
-    animation: canvas-team-wire-reach 180ms var(--ease-interface) var(--_at, 0ms) both;
   }
   .canvas-team-wire-tick[data-to="left"] {
     background: linear-gradient(
@@ -167,12 +165,14 @@
       var(--_fg),
       color-mix(in srgb, var(--_fg) 55%, transparent)
     );
-    transform-origin: right center;
   }
   .canvas-team-wire-cursor {
     border-radius: 1px;
     background-color: var(--_fg);
     box-shadow: var(--_glow);
+  }
+  /* A selection's cursor blinks once, then one pulse leaves it along the runs. */
+  .canvas-team-wire[data-pulsing] .canvas-team-wire-cursor {
     animation: canvas-team-wire-blink var(--team-wire-blink, 520ms) steps(1) both;
   }
   .canvas-team-wire-pulse {
@@ -191,28 +191,12 @@
     animation: canvas-team-wire-pulse var(--_duration, 500ms) cubic-bezier(0.4, 0, 0.2, 1)
       var(--team-wire-blink, 520ms) both;
   }
-  .canvas-team-wire[data-settled] .canvas-team-wire-shape > i {
-    animation: none;
-  }
-  .canvas-team-wire[data-settled] .canvas-team-wire-pulse {
-    display: none;
-  }
   @media (prefers-reduced-motion: reduce) {
-    .canvas-team-wire-shape > i {
+    .canvas-team-wire[data-pulsing] .canvas-team-wire-cursor {
       animation: none;
     }
     .canvas-team-wire .canvas-team-wire-shape > .canvas-team-wire-pulse {
       display: none;
-    }
-  }
-  @keyframes canvas-team-wire-grow {
-    from {
-      transform: scaleY(0);
-    }
-  }
-  @keyframes canvas-team-wire-reach {
-    from {
-      transform: scaleX(0);
     }
   }
   @keyframes canvas-team-wire-blink {

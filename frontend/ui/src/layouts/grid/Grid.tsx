@@ -57,7 +57,8 @@ type Props = {
   terminals: readonly Tile[]
   navigation: number
   selected: string
-  // The selected terminal's team, whose wire runs through the gutters.
+  // Every team's wire runs through the gutters; the selected terminal's team's pulses.
+  teams: readonly Team[]
   team: Team | undefined
   onSelect: (id: string) => void
   layouts: GridLayouts
@@ -74,6 +75,7 @@ export const Grid = ({
   onToggleWidth,
   terminals,
   selected,
+  teams,
   team,
   navigation,
   onSelect,
@@ -292,6 +294,7 @@ export const Grid = ({
         <div ref={containerRef} className="relative">
           {mounted && (
             <GridTeamWire
+              teams={teams}
               team={team}
               selected={selected}
               boxes={boxes}

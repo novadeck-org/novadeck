@@ -10,7 +10,8 @@ export type TerminalNode = Node<
     compactHeader: boolean
     hiding: boolean
     preview: boolean
-    // What the window is in the selected terminal's team, if it is in it.
+    // What the window is in the selected terminal's team, if it is in it: those windows stay
+    // bright.
     team: "lead" | "worker" | undefined
     focusRequest: number | null
     onResizeStart: () => void
@@ -33,8 +34,11 @@ export type CanvasProps = {
   hidden: Record<string, boolean>
   preview: string
   selected: string
-  // The selected terminal's team, which the canvas wires.
+  // The selected terminal's team, if it has one: its pulse plays and its windows and wire
+  // stay bright while the others recede.
   team: Team | undefined
+  // Every team, whose wires the canvas draws whatever is selected.
+  teams: readonly Team[]
   keyboardFocusRequest: number | null
   navigation: number
   onSelect: (id: string) => void
