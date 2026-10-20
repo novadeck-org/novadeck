@@ -491,6 +491,21 @@ describe("createRedactor", () => {
       expect(redact(text)).toBe(written)
     })
 
+  it.each([
+    ["a hex segment", "/home/ana/.config/Code/0123456789abcdef0123456789abcdef/bigbank/state.db"],
+    ["a token-like segment", "/home/ana/code/sk-learning-notes/bigbank/plan.md"],
+    [
+      "a token-like Windows segment",
+      String.raw`C:\Users\ana\0123456789abcdef0123456789abcdef\bigbank\plan.md`,
+    ],
+    ["a hex host", "fetch https://0123456789abcdef0123456789abcdef.bigbank.dev/plan failed"],
+    ["a token-like host", "getaddrinfo ENOTFOUND sk-abcdefgh.bigbank.dev"],
+    ["a hex email address", "reply to 0123456789abcdef0123456789abcdef@reply.bigbank.com failed"],
+    ["a hex remote", "git@git.bigbank.dev:0123456789abcdef0123456789abcdef/plan.git"],
+  ])("hashes a path or address whole, though %s in it looks like a secret", (_what, text) => {
+    expect(redact(text)).not.toMatch(/bigbank|plan\.|state\./)
+  })
+
   it("leaves a short or ordinary account name in the text", () => {
     expect(createRedactor({ user: "dev", salt })("dev build")).toBe("dev build")
     expect(createRedactor({ user: "al", salt })("al dente")).toBe("al dente")
