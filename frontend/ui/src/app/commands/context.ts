@@ -1,3 +1,5 @@
+import type { Chat } from "@novadeck/chat/state"
+import type { Panes } from "@novadeck/companion/state"
 import type { Rect } from "@novadeck/core/layout/spatial"
 import type { Murmur } from "@novadeck/core/murmur"
 import type { Backend } from "@novadeck/core/port"
@@ -5,7 +7,6 @@ import type { WorkspaceStore } from "@novadeck/core/store"
 import type { SidebarPanel } from "@novadeck/core/types"
 
 import type { CanvasHandle } from "../../layouts/canvas/types"
-import type { Panes } from "../../terminals/companion/state"
 import type { Dictation } from "../../voice/dictation-control"
 import type { WorkspaceNavigator } from "../routing"
 import type { UiStore } from "../ui-store"
@@ -54,6 +55,8 @@ export type CommandContext = {
   readonly ui: UiStore
   readonly navigation: WorkspaceNavigator
   readonly newTerminal: Backend["newTerminal"]
+  // What the chat keeps: drafts, replies, sends and the terminals answered in.
+  readonly chat: Chat
   // Whether the backend has an Inbox, which the sidebar shows where it would show Notifications.
   readonly inbox?: Backend["inbox"] | undefined
   readonly pickDirectory?: Backend["pickDirectory"] | undefined

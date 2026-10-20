@@ -1,3 +1,6 @@
+import { createChat, watchChat } from "@novadeck/chat/state"
+import { createDragSession, DragSessionContext } from "@novadeck/companion/drag-session"
+import { createPanes } from "@novadeck/companion/state"
 import type { CreateBackend } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createWorkspaceStore, type Store } from "@novadeck/core/store"
@@ -8,8 +11,6 @@ import type { CanvasHandle } from "../layouts/canvas/types"
 import { readPreferences } from "../preferences/preferences-storage"
 import { readProjectArrangement } from "../projects/project-arrangement-storage"
 import { readSidebarCollapsed, readWindowedView } from "../shell/shell-storage"
-import { createPanes } from "../terminals/companion/state"
-import { createDragSession, DragSessionContext } from "../terminals/drag-session"
 import { followSavedPreferences, watchAppearance } from "./appearance"
 import { createNavigator, type NavigatorServices, type RouterBinding } from "./commands/navigator"
 import { createWorkspaceCommands } from "./commands/workspace"
@@ -26,7 +27,6 @@ import {
   persistUi,
   trackRecent,
   watchPresentation,
-  watchChatModes,
   watchClosing,
   watchCrashLoop,
   watchFinishes,
@@ -70,6 +70,7 @@ const createServices = (
       projectArrangement: readProjectArrangement(),
     }),
   )
+  const chat = createChat()
   const { bind, settle, ...navigation } = createNavigator({ workspace, ui, now })
   const canvas = createRef<CanvasHandle>()
   const panes =
@@ -78,6 +79,7 @@ const createServices = (
   const commands = createWorkspaceCommands({
     workspace,
     ui,
+    chat,
     navigation,
     newTerminal: backend.newTerminal,
     inbox: backend.inbox,
@@ -95,6 +97,7 @@ const createServices = (
       backend,
       workspace,
       ui,
+      chat,
       navigation,
       commands,
       canvas,
@@ -154,7 +157,7 @@ export const WorkspaceProvider = ({
   useEffect(() => watchSandbox(services.backend.sandbox, services.ui), [services])
   useEffect(() => watchPortable(services.backend.portable, services.ui), [services])
   useEffect(() => watchClosing(services.workspace, services.ui), [services])
-  useEffect(() => watchChatModes(services.workspace, services.ui), [services])
+  useEffect(() => watchChat(services.chat, services.workspace), [services])
   useEffect(() => watchPageFocus(services.ui, window), [services])
   useEffect(
     () =>

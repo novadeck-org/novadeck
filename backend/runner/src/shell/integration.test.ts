@@ -30,9 +30,9 @@ import { Latest } from "@novadeck/wire/server"
 import { vi } from "vitest"
 
 import { CompanionItems } from "../companions/items.js"
+import { readyReturnMs } from "../terminals/binding/facts.js"
 import { handleWords } from "../terminals/handles.js"
 import { Terminals, type TerminalOptions } from "../terminals/index.js"
-import { readyReturnMs } from "../terminals/manager.js"
 import type { TerminalRecords } from "../terminals/records.js"
 import { describe, expect, it as base } from "../test.js"
 import { FakeDescriber } from "../testing/describer.js"
@@ -846,7 +846,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
     })
     const terminal = await create(manager, shell)
-    const inside = manager as unknown as { trees: Trees; reports: Map<string, Promise<void>> }
+    const inside = manager as unknown as {
+      trees: Trees
+      reporting: { queues: Map<string, Promise<void>> }
+    }
     let reads = 0
     inside.trees = new Trees(
       async () => "relay.exe",
@@ -857,7 +860,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     )
     manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
     await shell.until(manager, terminal.id, "reports sent")
-    await inside.reports.get(terminal.id)
+    await inside.reporting.queues.get(terminal.id)
     expect(manager.reportedSession(terminal.id, "claude")).toBe("root")
     expect(manager.get(terminal.id).agent).toBe("claude")
     expect(reads).toBe(0)
@@ -957,8 +960,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
           }
         >
         trees: Trees
-        reports: Map<string, Promise<void>>
-        disconnections: Map<string, number>
+        reporting: {
+          queues: Map<string, Promise<void>>
+          disconnections: Map<string, number>
+        }
       }
       let started!: () => void
       let release!: () => void
@@ -993,10 +998,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         })
       if (change === "exit")
         record.terminal = Object.create(original.terminal, { exiting: { value: true } })
-      if (change === "disconnection") inside.disconnections.set("claude", 1)
+      if (change === "disconnection") inside.reporting.disconnections.set("claude", 1)
       release()
       try {
-        await inside.reports.get(terminal.id)
+        await inside.reporting.queues.get(terminal.id)
         expect(record.binding).toBe(change === "binding" ? switched : original.binding)
         expect(manager.reportedSession(terminal.id, "claude")).toBeNull()
       } finally {
@@ -2143,6 +2148,58 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     manager.write({ terminalId: ids.worker, data: "claude\r" }, "owner")
     await expect.poll(() => manager.get(ids.worker).ledBy).toBeNull()
     expect(shell.store.terminalIdentity(ids.worker)?.ledBy).toBeNull()
+  })
+
+  it("announces the lead's end with the new binding before its activity, a known transient state", async ({
+    shell,
+  }) => {
+    const session = randomUUID()
+    fakeClaude(shell.home, shell.plugins, session)
+    writeFileSync(join(shell.home, ".bashrc"), 'export PATH="$HOME/bin:$PATH"\n')
+    const ids = { lead: randomUUID(), worker: randomUUID() }
+    keepLed(shell, ids, session)
+    const manager = shell.manager()
+    const next = shell.watch(manager)
+    await create(manager, shell, { id: ids.lead, restore: true })
+    await create(manager, shell, { id: ids.worker, restore: true, resume: "claude" })
+    await next((summary) => summary.id === ids.worker && summary.agent === "claude")
+    manager.write({ terminalId: ids.worker, data: "\x1a" }, "owner")
+    await shell.until(manager, ids.worker, "Stopped")
+    manager.write({ terminalId: ids.worker, data: "echo back\r" }, "owner")
+    await shell.until(manager, ids.worker, /\nback\r?\n/)
+    expect(manager.get(ids.worker).ledBy).toBe("moth")
+    // What the record holds each time its detail is told of a change, read as it is told.
+    type Seen = { ledBy: string | null; bound: boolean; activity: boolean }
+    const seen: Seen[] = []
+    const { streams } = manager as unknown as {
+      streams: {
+        detailed: (record: {
+          summary: { id: string; ledBy: string | null }
+          binding: unknown
+          activity: unknown
+        }) => void
+      }
+    }
+    const detailed = streams.detailed.bind(streams)
+    streams.detailed = (record) => {
+      if (record.summary.id === ids.worker)
+        seen.push({
+          ledBy: record.summary.ledBy,
+          bound: record.binding !== null,
+          activity: record.activity !== null,
+        })
+      detailed(record)
+    }
+    // Another agent binds beside the suspended one, ending the lead as it binds.
+    manager.write({ terminalId: ids.worker, data: "claude\r" }, "owner")
+    await expect.poll(() => manager.get(ids.worker).ledBy).toBeNull()
+    await expect.poll(() => manager.get(ids.worker).agent).toBe("claude")
+    // A report binds the session first and gives it its activity after, so the lead's end,
+    // announced in between, shows the new binding with no activity yet. One value holding
+    // both (manager-split.md, "the type enforces it") would change this on purpose.
+    const ended = seen.findIndex(({ ledBy }) => ledBy === null)
+    expect(seen[ended]).toEqual({ ledBy: null, bound: true, activity: false })
+    expect(seen.slice(ended + 1)).toContainEqual({ ledBy: null, bound: true, activity: true })
   })
 
   it("ends a worker's lead when its agent exits before any session bound, and its brief is gone", async ({

@@ -15,22 +15,34 @@ import { describe, expect, it } from "./test"
 // terminal emulator, takes the page's theme from the entry, as the port's `ThemeSource`.
 // ui-toolkit/ is the package `@novadeck/toolkit` (see `modules`): the controls, `class-name` and
 // the sidebar item. Its own rules are its package.json's.
+// terminals/companion/ is the package `@novadeck/companion` (see `modules`): the companion pane
+// and the bar drag, which `layouts/` and `app/` reach as part of `terminals/`.
+// terminals/chat/ is the package `@novadeck/chat` (see `modules`): the chat view, its store and
+// its commands, which `app/` composes.
 const base = ["core/", "interaction/", "ui-toolkit/", "theme/"]
-const features = ["sidebar/", "projects/", "preferences/", "search/"]
+// The features are the leaves that the shell and the app compose. A feature imports the base
+// and itself, never another feature: what two of them share belongs to the base. `terminals/`
+// and `layouts/` are the workspace's frame, not features, so a feature may read the frame's
+// plain state (notifications read the unread finishes). The chat and the companion are
+// packages (`terminals/chat/` and `terminals/companion/` below), denied to a feature by its
+// allow-list, and no rule keys on them: a key that matches no file fails the dead-layer check.
+const features = [
+  "inbox/",
+  "notifications/",
+  "preferences/",
+  "projects/",
+  "search/",
+  "sidebar/",
+  "voice/",
+]
 const rules: Record<string, readonly string[]> = {
   "theme/": ["theme/", "core/types.ts"],
   "interaction/": ["interaction/", "core/"],
   ...Object.fromEntries(features.map((layer) => [layer, [...base, layer]])),
-  // Voice input: capture and the dictation state machine over the model's `Voice`, and the
-  // one terminal contract it types into.
-  "voice/": ["voice/", "core/", "ui-toolkit/"],
   "terminals/": [...base, "terminals/"],
   "layouts/": [...base, "layouts/", "terminals/"],
   // What asks for the person across the workspace: terminals' requests and unread finishes.
   "notifications/": [...base, "notifications/", "terminals/unread-state.ts"],
-  // The Inbox: what asks for the person, answered in place, in the sidebar item's rows, with
-  // the chat's markdown reader and its answers' rules.
-  "inbox/": [...base, "inbox/", "terminals/chat/Markdown.tsx", "terminals/chat/answers.ts"],
   "shell/": [
     ...base,
     "shell/",
@@ -41,17 +53,7 @@ const rules: Record<string, readonly string[]> = {
     "notifications/",
     "inbox/",
   ],
-  "app/": [
-    "app/",
-    ...base,
-    ...features,
-    "terminals/",
-    "layouts/",
-    "shell/",
-    "voice/",
-    "notifications/",
-    "inbox/",
-  ],
+  "app/": ["app/", ...base, ...features, "terminals/", "layouts/", "shell/"],
   // Commands are plain functions over the stores: no React, no DOM libraries.
   "app/commands/": [
     "app/commands/",
@@ -70,9 +72,13 @@ const rules: Record<string, readonly string[]> = {
     // The switcher's arrangement, which commands change by its pure functions.
     "projects/project-arrangement.ts",
     "terminals/recent.ts",
-    "terminals/chat/mode-state.ts",
-    // The companion panes' store, which commands use by its type.
+    // The chat's store and commands, which the app composes; its pure helpers are theirs.
+    "terminals/chat/state.ts",
+    "terminals/chat/commands.ts",
+    // The companion panes' store, which commands use by its type, and the actions they
+    // implement, which they declare they satisfy.
     "terminals/companion/state.ts",
+    "terminals/companion/actions.ts",
     "layouts/canvas/types.ts",
     // The dictation contract's types, which keys call.
     "voice/dictation-control.ts",
@@ -90,6 +96,8 @@ const rules: Record<string, readonly string[]> = {
     "app/routing.ts",
     "app/ui-store.ts",
     "layouts/canvas/types.ts",
+    // The chat store that the helper puts in the command context.
+    "terminals/chat/state.ts",
   ],
   "test.ts": [],
 }
@@ -105,7 +113,6 @@ const typeOnlyPackages: Record<string, readonly string[]> = {
 const testLayers = new Set(["test/", "test.ts"])
 const vendors: Record<string, readonly string[]> = {
   "@xyflow/react": ["layouts/canvas/"],
-  "@codemirror": ["terminals/companion/plan-editor/"],
   "react-grid-layout": ["layouts/grid/"],
   allotment: ["shell/"],
   // Terminals' tabs, windows and taskbars, the footer's subscriptions and the project
@@ -121,14 +128,13 @@ const vendors: Record<string, readonly string[]> = {
   ],
   "react-router": ["app/", "shell/"],
   "react-dom": ["layouts/transition.ts", "entries/start.tsx"],
-  // One entry per workspace package, with the folders that own it. The content viewers serve
-  // the companion pane and chat.
-  "@novadeck/viewers": ["terminals/companion/", "terminals/chat/"],
 }
 
 // The packages that hold what used to be folders of src, named as the layers above know them.
 const modules: Record<string, string> = {
   "@novadeck/toolkit/": "ui-toolkit/",
+  "@novadeck/companion/": "terminals/companion/",
+  "@novadeck/chat/": "terminals/chat/",
   "@novadeck/core/testing": "test/fixtures.ts",
   "@novadeck/test-kit/": "test/",
 }
@@ -269,6 +275,30 @@ describe("UI architecture", () => {
         .map((owner) => `${vendor} in ${owner}`),
     )
     expect([...deadLayers, ...deadVendors]).toEqual([])
+  })
+
+  it("keeps each feature to the base and itself", () => {
+    // No feature imports another: what two share is the base's. The chat and the companion
+    // are packages, which no feature's allow-list names.
+    const exceptions: Record<string, readonly string[]> = {
+      // A plain-state file of the frame, not a layer of it.
+      "notifications/": ["terminals/unread-state.ts"],
+    }
+    for (const feature of features) {
+      expect(rules[feature], feature).toEqual([...base, feature, ...(exceptions[feature] ?? [])])
+    }
+    // No nested key gives a feature's file more than the feature has.
+    expect(
+      Object.keys(rules).filter(
+        (layer) =>
+          !features.includes(layer) && features.some((feature) => layer.startsWith(feature)),
+      ),
+    ).toEqual([])
+    expect(
+      Object.keys(rules).filter(
+        (layer) => layer.startsWith("terminals/chat") || layer.startsWith("terminals/companion"),
+      ),
+    ).toEqual([])
   })
 
   it("keeps imports statically resolvable", () => {

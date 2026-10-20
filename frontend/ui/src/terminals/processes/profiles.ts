@@ -1,3 +1,4 @@
+import { iconOf } from "@novadeck/companion/registry"
 import type { CompanionItem } from "@novadeck/core/companion"
 import type { TerminalMetadata } from "@novadeck/core/types"
 import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
@@ -5,7 +6,6 @@ import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
 import { FileText, Terminal, type LucideIcon } from "lucide-react"
 import type { ComponentType, ReactNode } from "react"
 
-import { iconOf } from "../companion/artifact-icons"
 import { ClaudeBody } from "./ClaudeBody"
 import { CodexBody } from "./CodexBody"
 

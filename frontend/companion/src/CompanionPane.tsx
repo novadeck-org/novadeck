@@ -1,0 +1,149 @@
+import type { WorkspaceTarget } from "@novadeck/core/types"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
+import { AppWindow, PanelRightClose } from "lucide-react"
+import type { ReactNode } from "react"
+
+import type { BarMember } from "./bar"
+import type { MailHandle } from "./panes/messages/mail"
+import { registrationOf } from "./registry"
+import type { Panes, PlanPresentation } from "./state"
+
+// What the pane does with what it shows, at the end of its header: undocks it into a
+// window of its own, where it can, and minimizes the pane back to the taskbar, as Escape
+// does.
+const PaneActions = ({
+  onUndock,
+  onHide,
+}: {
+  onUndock: (() => void) | undefined
+  onHide: () => void
+}): React.JSX.Element => (
+  <span className="artifact-actions">
+    {onUndock && (
+      <Tooltip content="Undock to its own window">
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Undock to its own window"
+          onClick={onUndock}
+        >
+          <AppWindow size={14} strokeWidth={1.75} aria-hidden />
+        </button>
+      </Tooltip>
+    )}
+    <Tooltip content="Minimize to the taskbar · Esc">
+      <button
+        type="button"
+        className="icon-button"
+        aria-label="Minimize to the taskbar"
+        onClick={onHide}
+      >
+        <PanelRightClose size={14} strokeWidth={1.75} aria-hidden />
+      </button>
+    </Tooltip>
+  </span>
+)
+
+// What the pane shows of one thing on the bar.
+const MemberTab = ({
+  member,
+  panes,
+  target,
+  mail,
+  peerName,
+  actions,
+}: {
+  member: BarMember
+  panes: Panes
+  target: WorkspaceTarget
+  mail: MailHandle
+  peerName: (handle: string) => string | undefined
+  actions: ReactNode
+}): React.JSX.Element => {
+  const { View } = registrationOf(member)
+  return (
+    <View
+      member={member}
+      panes={panes}
+      target={target}
+      mail={mail}
+      peerName={peerName}
+      actions={actions}
+    />
+  )
+}
+
+// A terminal's companion pane, wherever it is presented: what it shows of the terminal's
+// taskbar, `member`: a plan, edited where it's read, something an agent showed, its
+// messages, or another terminal's item placed here, under a line saying whose it is.
+export const CompanionPane = ({
+  member,
+  panes,
+  target,
+  agent,
+  mail,
+  peerName,
+  presentation,
+  originOf,
+  onUndock,
+  onHide,
+}: {
+  member: BarMember | undefined
+  panes: Panes
+  target: WorkspaceTarget
+  // Who showed what's here, as the pane's label names them.
+  agent: string
+  mail: MailHandle
+  peerName: (handle: string) => string | undefined
+  presentation: PlanPresentation
+  originOf: (member: BarMember) => string | undefined
+  // Undocks what's shown into a window of its own.
+  onUndock: (member: BarMember) => void
+  onHide: () => void
+}): React.JSX.Element => {
+  const messages = member?.kind === "messages"
+  const plan = member?.kind === "item" && member.item.kind === "plan" ? member.item : undefined
+  const undock = member?.kind === "item" && !member.placed ? () => onUndock(member) : undefined
+  const tab = member && (
+    <MemberTab
+      key={member.key}
+      member={member}
+      panes={panes}
+      target={target}
+      mail={mail}
+      peerName={peerName}
+      actions={<PaneActions onUndock={undock} onHide={onHide} />}
+    />
+  )
+  return (
+    <section
+      className="plan-reader"
+      data-workspace-companion
+      data-presentation={presentation}
+      aria-label={messages ? "Messages" : `What ${agent} showed you`}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.stopPropagation()
+          onHide()
+        }
+      }}
+      // Leaving the plan saves it at once, so an agent told to re-read it finds the edits.
+      onBlur={(event) => {
+        if (plan && !event.currentTarget.contains(event.relatedTarget))
+          panes.plan(target, plan.id).flush()
+      }}
+    >
+      {!member ? (
+        // All that's left may hold secrets, which shows only once picked.
+        <div className="artifact-status">Pick what to show from the taskbar.</div>
+      ) : member.kind === "item" && member.placed ? (
+        <div className="placed-tab">
+          <p className="placed-from">From {originOf(member) ?? "another terminal"}</p>
+          {tab}
+        </div>
+      ) : (
+        tab
+      )}
+    </section>
+  )
+}

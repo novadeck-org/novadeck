@@ -14,6 +14,7 @@ import type { Anchors } from "./anchors.ts"
 const mcpFile = "backend/runner/src/shell/mcp.ts"
 const managerFile = "backend/runner/src/terminals/manager.ts"
 const companionFile = "backend/runner/src/terminals/companion.ts"
+const callsFile = "backend/runner/src/terminals/calls.ts"
 const contractFile = "harnesses/core/src/harness.ts"
 
 // The method that performs each tool's call, and the runner file it is in.
@@ -21,14 +22,14 @@ const handlers: Record<string, { readonly file: string; readonly method: string 
   show: { file: companionFile, method: "present" },
   showing: { file: companionFile, method: "showing" },
   close: { file: companionFile, method: "dismiss" },
-  open_terminal: { file: managerFile, method: "open" },
-  close_terminal: { file: managerFile, method: "closePeer" },
+  open_terminal: { file: callsFile, method: "open" },
+  close_terminal: { file: callsFile, method: "closePeer" },
   send: { file: managerFile, method: "send" },
   agents: { file: managerFile, method: "agents" },
-  summarize: { file: managerFile, method: "summarize" },
-  // The Inbox's, which the manager's call hands to its asks.
-  ask: { file: managerFile, method: "call" },
-  tell: { file: managerFile, method: "call" },
+  summarize: { file: callsFile, method: "summarize" },
+  // The Inbox's, which the calls' dispatch hands to its asks.
+  ask: { file: callsFile, method: "call" },
+  tell: { file: callsFile, method: "call" },
 }
 
 const lineOf = (source: string | null, pattern: RegExp): number | null => {

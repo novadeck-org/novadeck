@@ -1,3 +1,8 @@
+import { ChatView } from "@novadeck/chat/ChatView"
+import { chatDraftOf, chatReplyOf, chatSendOf, chatShown } from "@novadeck/chat/state"
+import { useChat } from "@novadeck/chat/use-chat"
+import { TerminalCompanion } from "@novadeck/companion/TerminalCompanion"
+import { UndockedWindow } from "@novadeck/companion/UndockedWindow"
 import { agentStats } from "@novadeck/core/agent-usage"
 import { handleNames, runningLeads, terminalOrigins } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
@@ -5,10 +10,6 @@ import type { CompanionWindowMeta, TerminalMetadata, Tile } from "@novadeck/core
 import { memo, useCallback, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
-import { ChatView } from "../terminals/chat/ChatView"
-import { chatDraftOf, chatReplyOf, chatSendOf, chatShown } from "../terminals/chat/mode-state"
-import { TerminalCompanion } from "../terminals/companion/TerminalCompanion"
-import { UndockedWindow } from "../terminals/companion/UndockedWindow"
 import { presentedProgram, terminalProfile, windowProfile } from "../terminals/processes/profiles"
 import { renameView } from "../terminals/rename-state"
 import { unreadEnd } from "../terminals/unread-state"
@@ -169,7 +170,7 @@ export const WorkspaceTerminal = memo(
     readonly controls: TerminalLayoutControls
   }): React.JSX.Element => {
     const { onReveal, onScreen = true } = controls
-    const { backend, commands, panes, navigation } = useWorkspaceServices()
+    const { backend, commands, panes, navigation, chat } = useWorkspaceServices()
     const { setKeyboardFocus } = commands
     const dictation = useContext(DictationContext)
     const terminalId = terminal.id
@@ -220,14 +221,15 @@ export const WorkspaceTerminal = memo(
     const conversations = backend.conversations
     // A terminal whose agent has a conversation to show, with the chat view on, on a backend
     // that reads it.
-    const showChat = useUiState(
+    const chatView = useUiState((state) => state.preferences.chatView)
+    const showChat = useChat(
+      chat,
       (state) =>
-        conversations !== undefined &&
-        chatShown(state.preferences.chatView, state.answering, chatContext, terminal),
+        conversations !== undefined && chatShown(chatView, state.answering, chatContext, terminal),
     )
-    const draft = useUiState((state) => chatDraftOf(state.chatDrafts, chatContext, terminalId))
-    const replyTo = useUiState((state) => chatReplyOf(state.chatReplies, chatContext, terminalId))
-    const sending = useUiState((state) => chatSendOf(state.chatSends, chatContext, terminalId))
+    const draft = useChat(chat, (state) => chatDraftOf(state.drafts, chatContext, terminalId))
+    const replyTo = useChat(chat, (state) => chatReplyOf(state.replies, chatContext, terminalId))
+    const sending = useChat(chat, (state) => chatSendOf(state.sends, chatContext, terminalId))
     const conversation = useMemo(
       () => (showChat ? conversations?.conversation(terminalKey) : undefined),
       [showChat, conversations, terminalKey],

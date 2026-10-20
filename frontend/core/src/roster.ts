@@ -193,7 +193,8 @@ const sameStatus = (terminal: TerminalMetadata, status: TerminalStatus): boolean
     return (
       terminal.state === "exited" &&
       terminal.exitCode === status.exitCode &&
-      terminal.signal === status.signal
+      terminal.signal === status.signal &&
+      terminal.cause === status.cause
     )
   if (status.state === "failed")
     return terminal.state === "failed" && terminal.message === status.message
@@ -208,7 +209,12 @@ const sameStatus = (terminal: TerminalMetadata, status: TerminalStatus): boolean
 // Only the fields a status defines, so nothing else the caller put on it is copied.
 const statusFields = (status: TerminalStatus): TerminalStatus => {
   if (status.state === "exited")
-    return { state: status.state, exitCode: status.exitCode, signal: status.signal }
+    return {
+      state: status.state,
+      exitCode: status.exitCode,
+      signal: status.signal,
+      ...(status.cause && { cause: status.cause }),
+    }
   if (status.state === "failed") return { state: status.state, message: status.message }
   if (status.state === "running")
     return { state: status.state, ...(status.agent ? { agent: status.agent } : {}) }

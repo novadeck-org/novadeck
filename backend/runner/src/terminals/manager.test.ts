@@ -121,7 +121,7 @@ describe("holding the person's input", () => {
     )
     type Hold = { holding: () => boolean; release: () => void; settle: () => void }
     const hold = (
-      manager as unknown as {
+      (manager as unknown as { typing: unknown }).typing as {
         holdInput: (
           id: string,
           budget: { inputMs: number; sizeMs: number },
@@ -134,7 +134,7 @@ describe("holding the person's input", () => {
       // Timers armed before the clock was faked still run on real time: arm anew.
       hold.settle()
       const again = (
-        manager as unknown as {
+        (manager as unknown as { typing: unknown }).typing as {
           holdInput: (
             id: string,
             budget: { inputMs: number; sizeMs: number },
@@ -181,7 +181,7 @@ describe("an answer's hold of the person's input", () => {
     })
     // An answer's hold, as the queue gives it: its keys deferred until delivered.
     const hold = (
-      manager as unknown as {
+      (manager as unknown as { typing: unknown }).typing as {
         holdInput: (id: string, budget: HoldBudget) => { release: () => void; settle: () => void }
       }
     ).holdInput(terminal.id, { inputMs: 5_000, sizeMs: 5_000, deferred: true })
@@ -213,12 +213,14 @@ describe("answers and the prompts after them", () => {
       "creator",
     )
     const inside = manager as unknown as {
-      inputs: InputQueue
-      answers: { answer: () => Promise<void> }
-      prompts: {
-        host: { admit: (id: string) => unknown }
-        give: (entry: unknown, id: string, text: string) => Promise<void>
-        promptIn: (entry: unknown, id: string, text: string) => Promise<void>
+      typing: {
+        inputs: InputQueue
+        answers: { answer: () => Promise<void> }
+        prompts: {
+          host: { admit: (id: string) => unknown }
+          give: (entry: unknown, id: string, text: string) => Promise<void>
+          promptIn: (entry: unknown, id: string, text: string) => Promise<void>
+        }
       }
       records: Map<string, { binding: unknown; activity: unknown }>
     }
@@ -229,19 +231,19 @@ describe("answers and the prompts after them", () => {
     record.activity = waiting
     const order: string[] = []
     // What the paste does is not under test: it admits as the real prompt does, and takes its time.
-    inside.prompts.give = async (_entry, id, text) => {
-      inside.prompts.host.admit(id)
+    inside.typing.prompts.give = async (_entry, id, text) => {
+      inside.typing.prompts.host.admit(id)
       order.push(`start ${text}`)
       await new Promise((resolve) => setTimeout(resolve, 30))
       order.push(`end ${text}`)
     }
-    inside.answers = {
+    inside.typing.answers = {
       answer: () =>
-        inside.inputs.run(terminal.id, async (entry) => {
+        inside.typing.inputs.run(terminal.id, async (entry) => {
           await new Promise((resolve) => setTimeout(resolve, 60))
           // The dialog took the answer; the hook that ends its request is a moment behind.
           record.activity = { ...waiting, pending: [] }
-          await inside.prompts.promptIn(entry, terminal.id, "the person's words")
+          await inside.typing.prompts.promptIn(entry, terminal.id, "the person's words")
         }),
     }
     const answer = manager.answer({
@@ -332,7 +334,7 @@ describe("terminal interrupts", () => {
     terminals,
   }) => {
     const { manager, id, record } = await agent(terminals, "idle")
-    const inside = manager as unknown as {
+    const inside = (manager as unknown as { typing: unknown }).typing as {
       holdInput: (
         id: string,
         budget: { inputMs: number; sizeMs: number },
@@ -363,7 +365,7 @@ describe("terminal interrupts", () => {
     terminals,
   }) => {
     const { manager, id, record } = await agent(terminals, "idle")
-    const inside = manager as unknown as {
+    const inside = (manager as unknown as { typing: unknown }).typing as {
       holdInput: (
         id: string,
         budget: { inputMs: number; sizeMs: number },
@@ -494,7 +496,7 @@ describe("terminal interrupts", () => {
     terminals,
   }) => {
     const { manager, id, writes } = await agent(terminals, "working")
-    const inside = manager as unknown as {
+    const inside = (manager as unknown as { typing: unknown }).typing as {
       inputs: { run: (id: string, work: () => Promise<unknown>) => Promise<unknown> }
     }
     // A prompt's paste, an answer with its words or a ring, whose keys no Escape may cut into.
@@ -1649,8 +1651,10 @@ describe.skipIf(process.platform === "win32")("terminal message watches", () => 
 describe("a turn the person's Escape ended", () => {
   type Inside = {
     records: Map<string, { binding: unknown; activity: Activity | null }>
-    applyFact: (record: unknown, fact: ActivityEvent) => boolean
-    escaped: (record: unknown) => void
+    bindings: {
+      applyFact: (record: unknown, fact: ActivityEvent) => boolean
+      escaped: (record: unknown) => void
+    }
     messaging: { escaped: (id: string, binding: unknown) => ActivityEvent | undefined }
   }
 
@@ -1668,7 +1672,7 @@ describe("a turn the person's Escape ended", () => {
     record.binding = binding
     const tell = (fact: object) => {
       const event = { ...binding, ...fact } as ActivityEvent
-      inside.applyFact(record, event)
+      inside.bindings.applyFact(record, event)
       return event
     }
     const lastTurn = () => record.activity && record.activity.lastTurn
@@ -1680,7 +1684,7 @@ describe("a turn the person's Escape ended", () => {
         // Delivery tells the Escape once, as the manager asks after the person's key.
         const escaped = { ...binding, type: "turn-escaped", startedAt: 20 } as ActivityEvent
         inside.messaging.escaped = () => escaped
-        inside.escaped(record)
+        inside.bindings.escaped(record)
         if (stop) tell({ type: "turn-ended", outcome: "completed", startedAt: 25, reply: "Done." })
         vi.advanceTimersByTime(escapeVerdictMs - 1)
         expect(lastTurn()).toMatchObject({ outcome: "interrupted" })
@@ -1703,7 +1707,9 @@ describe("a turn the person's Escape ended", () => {
       { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
       "creator",
     )
-    const inside = manager as unknown as Inside & { screenOf: (id: string) => Promise<unknown> }
+    const inside = manager as unknown as Inside & {
+      typing: { screenOf: (id: string) => Promise<unknown> }
+    }
     const record = inside.records.get(terminal.id)! as {
       transcript: string | null
       verdict?: unknown
@@ -1815,17 +1821,17 @@ describe("a turn the person's Escape ended", () => {
         // for anything that looks before.
         const reads = [screen].flat()
         let reading = 0
-        inside.screenOf = () =>
+        inside.typing.screenOf = () =>
           Promise.resolve(reads[record.verdict ? 0 : Math.min(reading++, reads.length - 1)])
         record.activity = fresh(0, true, false)
-        inside.applyFact(record, {
+        inside.bindings.applyFact(record, {
           ...binding,
           type: "turn-started",
           cause: "prompt",
           startedAt: 10,
         })
         inside.messaging.escaped = () => ({ ...binding, type: "turn-escaped", startedAt: 20 })
-        inside.escaped(record)
+        inside.bindings.escaped(record)
         // eslint-disable-next-line no-await-in-loop -- Each case waits for its own verdict.
         await vi.waitFor(
           () => expect(record.activity?.lastTurn?.escaped?.settled ?? true).toBe(true),
@@ -2099,7 +2105,7 @@ describe("a usage limit a turn ran into", () => {
       string,
       { binding: unknown; activity: Activity | null; summary: { activity: unknown } }
     >
-    applyFact: (record: unknown, fact: ActivityEvent) => boolean
+    bindings: { applyFact: (record: unknown, fact: ActivityEvent) => boolean }
   }
 
   it("latches the window its records show used up, as the turn ends or once it is idle, and keeps it", async ({
@@ -2115,7 +2121,7 @@ describe("a usage limit a turn ran into", () => {
     const binding = { agent: "claude", sessionId: "s", instance: null } as const
     record.binding = binding
     const tell = (fact: object) =>
-      inside.applyFact(record, { ...binding, ...fact } as ActivityEvent)
+      inside.bindings.applyFact(record, { ...binding, ...fact } as ActivityEvent)
     const lastTurn = () => record.activity?.lastTurn
     const usage = (used: number, startedAt: number) =>
       tell({

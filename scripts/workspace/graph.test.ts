@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs"
-import { join } from "node:path"
+import { join, posix } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
@@ -102,6 +102,8 @@ describe("the package graph", () => {
       "apps/try",
       "frontend/ui",
       "frontend/toolkit",
+      "frontend/companion",
+      "frontend/chat",
       "frontend/demo",
       "frontend/demo-debug",
       "frontend/runner-adapter",
@@ -182,16 +184,85 @@ describe("the package graph", () => {
     )
   })
 
-  it("keeps the toolkit's shipped code off the test kit, which only its tests may import", () => {
-    const src = join(root, "frontend", "toolkit", "src")
-    const shipped = (readdirSync(src, { recursive: true }) as string[])
-      .map((file) => file.split("\\").join("/"))
-      .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))
-    expect(shipped.length).toBeGreaterThan(10)
+  it("keeps the companion off the app's chrome and every backend", () => {
+    // The companion pane is a part the UI composes: it reaches the core, the toolkit and the
+    // viewers, and nothing that composes it, nor the chat beside it, nor a backend.
+    const reached = reaches("frontend/companion")
     expect(
-      shipped.filter((file) =>
-        readFileSync(join(src, file), "utf8").includes("@novadeck/test-kit"),
-      ),
+      ["frontend/ui", "frontend/chat", ...backends]
+        .filter((folder) => reached.has(folder))
+        .map((f) => `frontend/companion -> ${f}`),
+    ).toEqual([])
+  })
+
+  it("keeps the chat off the app's chrome, the companion, every backend and every harness", () => {
+    // The chat view is a part the UI composes: it reaches the core and the toolkit, and nothing
+    // that composes it, nor the companion beside it, nor a backend, nor a harness (the contract
+    // test is the one that renders it over them).
+    const reached = reaches("frontend/chat")
+    const harnesses = [...packages.keys()].filter((folder) => folder.startsWith("harnesses/"))
+    expect(harnesses.length).toBeGreaterThan(0)
+    expect(
+      ["frontend/ui", "frontend/companion", ...backends, ...harnesses]
+        .filter((folder) => reached.has(folder))
+        .map((f) => `frontend/chat -> ${f}`),
+    ).toEqual([])
+  })
+
+  it("keeps shipped code of the toolkit, the companion and the chat off the test kit, which only their tests may import", () => {
+    for (const folder of ["frontend/toolkit", "frontend/companion", "frontend/chat"]) {
+      const src = join(root, folder, "src")
+      const shipped = (readdirSync(src, { recursive: true }) as string[])
+        .map((file) => file.split("\\").join("/"))
+        .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))
+      expect(shipped.length, folder).toBeGreaterThan(10)
+      expect(
+        shipped.filter((file) =>
+          readFileSync(join(src, file), "utf8").includes("@novadeck/test-kit"),
+        ),
+        folder,
+      ).toEqual([])
+    }
+  })
+
+  it("keeps every frontend package's relative imports inside its own folder", () => {
+    // A relative path into a sibling package (a path into the UI, say) would reach it without a
+    // dependency, which the manifests above can't see. Only a package name may cross.
+    const specifier = /(?:\bfrom\s*|\bimport\s*\(?\s*)(["'])(\.\.?\/[^"']*)\1/g
+    const leaving: string[] = []
+    const folders = [...packages.keys()].filter((folder) => folder.startsWith("frontend/"))
+    for (const folder of folders) {
+      const base = join(root, folder)
+      const files = (
+        existsSync(join(base, "src"))
+          ? (readdirSync(join(base, "src"), { recursive: true }) as string[])
+          : []
+      )
+        .map((file) => `src/${file.split("\\").join("/")}`)
+        .filter((file) => /\.[cm]?[jt]sx?$/.test(file))
+      for (const file of files) {
+        const text = readFileSync(join(base, file), "utf8")
+        for (const [, , target] of text.matchAll(specifier)) {
+          const resolved = posix.normalize(posix.join(posix.dirname(file), target!))
+          if (resolved === ".." || resolved.startsWith("../"))
+            leaving.push(`${folder}/${file} -> ${target}`)
+        }
+      }
+    }
+    expect(folders.length).toBeGreaterThan(5)
+    expect(leaving).toEqual([])
+  })
+
+  it("keeps CodeMirror in the companion's plan editor, where it loads lazily", () => {
+    // The plan's and the markdown document's views reach the editor through `lazy()`; a
+    // static import of CodeMirror anywhere else would pull it into the first chunk.
+    const src = join(root, "frontend", "companion", "src")
+    const files = (readdirSync(src, { recursive: true }) as string[])
+      .map((file) => file.split("\\").join("/"))
+      .filter((file) => /\.tsx?$/.test(file) && !file.startsWith("panes/plan/plan-editor/"))
+    expect(files.length).toBeGreaterThan(10)
+    expect(
+      files.filter((file) => /["']@codemirror\//.test(readFileSync(join(src, file), "utf8"))),
     ).toEqual([])
   })
 

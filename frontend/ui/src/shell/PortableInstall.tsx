@@ -4,6 +4,7 @@ import { Progress } from "@novadeck/toolkit/Progress"
 import { X } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
+import { currentPlatform, type Platform } from "../interaction/shortcuts"
 import { useLinger } from "./linger"
 import { KeepFocus, useOverlayOpen, useRecoverFocus } from "./notice-focus"
 
@@ -35,13 +36,21 @@ export type PortableInstallProps = {
   readonly onShown: () => void
   // Puts typing focus back in the selected terminal; false when there is none.
   readonly returnFocus: () => boolean
+  // Where the app runs, for how a new copy takes effect; the page's own by default.
+  readonly platform?: Platform | undefined
 }
 
 // What the card says of where installing stands, as its title and its one line.
 const cardWords = (
   offer: UpdateOffer | undefined,
   install: InstallState,
+  platform: Platform,
 ): { readonly title: string; readonly line: string } => {
+  // Closing the window doesn't quit the app on macOS, so a restart there is a quit and a reopen.
+  const takesEffect =
+    platform === "mac"
+      ? "Takes effect after you quit and reopen Novadeck"
+      : "Takes effect after you restart Novadeck"
   switch (install.phase) {
     case "downloading":
       return { title: "Installing Novadeck", line: "Downloading…" }
@@ -50,12 +59,12 @@ const cardWords = (
     case "installed":
       return {
         title: "Novadeck installed",
-        line: "Takes effect after you restart Novadeck",
+        line: takesEffect,
       }
     case "newer":
       return {
         title: `Novadeck ${install.version} is already installed`,
-        line: "Takes effect after you restart Novadeck",
+        line: takesEffect,
       }
     case "failed":
       return { title: "Couldn't install", line: install.reason }
@@ -199,7 +208,7 @@ export const PortableInstall = ({
     askedNow.current = false
     if (raise) onOpenChange?.(true)
   }, [phase, onOpenChange, askedNow])
-  const { title, line } = cardWords(offer, install)
+  const { title, line } = cardWords(offer, install, card?.platform ?? currentPlatform())
   const chipText = running ? "Installing…" : done ? "Installed" : word
   return (
     <>

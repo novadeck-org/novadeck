@@ -51,13 +51,13 @@ against the hook timeout (ten minutes) rather than a test's. A harness left out 
 `backend/runner/vitest.e2e.config.ts` includes them. The unit tests for its parts
 (`src/e2e/**/*.test.ts`) run with the rest.
 
-| Variable                      | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NOVADECK_E2E_CACHE`          | Where harnesses are installed. Defaults to `$XDG_CACHE_HOME/novadeck/e2e`, or `~/.cache/novadeck/e2e` without XDG_CACHE_HOME                                                                                                                                                                                                                                                                                                                                                                             |
-| `NOVADECK_E2E_HARNESS=latest` | Installs and runs each harness's newest release instead of its pin, as a drift check                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `NOVADECK_E2E_AGENTS`         | The harnesses to run, comma-separated (`claude`, `codex`, `agy`); all when unset. `selected(setup)` in `fixture.ts` reads it                                                                                                                                                                                                                                                                                                                                                                             |
-| `NOVADECK_E2E_SPACED=1`       | Names the sandbox with a space (`novadeck e2e-…`), so the home and Novadeck's launcher are too, as Windows CI's quirks job runs it                                                                                                                                                                                                                                                                                                                                                                       |
-| `NOVADECK_E2E_TRACES`         | Where a failed test writes its trace (`trace.ts`): each hook's report and when its hook started, the person's keys, each delivery change, each fact told an agent's activity and what it made of it, each answer to a hook, each look and decision of the doorbell (`doorbell <handle> …`: whether it looked, why not, the screen's calm, the reading, the gate's verdict, a ring's start, its paste check and its end), and the model's calls. CI uploads them as an artifact. Unset, nothing is traced |
+| Variable                      | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NOVADECK_E2E_CACHE`          | Where harnesses are installed. Defaults to `$XDG_CACHE_HOME/novadeck/e2e`, or `~/.cache/novadeck/e2e` without XDG_CACHE_HOME                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `NOVADECK_E2E_HARNESS=latest` | Installs and runs each harness's newest release instead of its pin, as a drift check                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `NOVADECK_E2E_AGENTS`         | The harnesses to run, comma-separated (`claude`, `codex`, `agy`); all when unset. `selected(setup)` in `fixture.ts` reads it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `NOVADECK_E2E_SPACED=1`       | Names the sandbox with a space (`novadeck e2e-…`), so the home and Novadeck's launcher are too, as Windows CI's quirks job runs it                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `NOVADECK_E2E_TRACES`         | Where a failed test writes its trace (`trace.ts`): each hook's report and when its hook started, the person's keys, each delivery change, each fact told an agent's activity and what it made of it, each answer to a hook, each look and decision of the doorbell (`doorbell <handle> …`: whether it looked, why not, the screen's calm, the reading, the gate's verdict, a ring's start, its paste check and its end), and the model's calls; `transcripts.e2e.ts` also copies the harness's raw transcript, as `transcripts-<agent>-raw-<file>`. CI uploads them as an artifact. Unset, nothing is traced |
 
 In CI (`.github/workflows/e2e.yml`) each harness runs in a job of its own, which runs
 the whole suite with `NOVADECK_E2E_AGENTS` set to that harness, so the scenarios across
@@ -391,7 +391,8 @@ terminal or in place in `forks.e2e.ts`, the person clearing the conversation
 or leaving the agent for another in `lifecycle.e2e.ts`, and the person's controls over
 a running agent and untrusted seeds in `controls.e2e.ts`, and the chat view's way to an agent
 (`agents.prompt` and `agents.interrupt`) in `chat.e2e.ts`, answering the agent's requests
-from the chat (`agents.answer`) in `answers.e2e.ts`, each written once and run for
+from the chat (`agents.answer`) in `answers.e2e.ts`, the tool calls each harness makes, as the
+chat's transcript shows them, in `transcripts.e2e.ts`, each written once and run for
 every harness in `setups` (`agents/index.ts`):
 
 ```ts
@@ -650,6 +651,19 @@ for (const setup of setups) {
   - _Interrupt_: with the reply held, `interrupt()` ends the turn without a normal Stop
     (Unknown), the harness says it was interrupted before the held reply is let go,
     which never shows; the next prompt's turn settles.
+- **The transcripts' contract** (`transcripts.e2e.ts`), the latest half of the chat
+  contract test: one conversation per harness, whose prompts have the fake model call the
+  harness's own tools (Claude Code: Bash, Read, Write and Novadeck's `send`; Codex:
+  `exec_command` as a command and as an `apply_patch` heredoc, and `send`; Antigravity:
+  `run_command`, `view_file`, `write_to_file` and `send`), the chat allowing whatever
+  permission each asks (`agents.answer`). Each prompt waits for its turn to be recorded
+  as completed and its requests to clear. Then `t.transcript()` must hold every scripted call, its `run`
+  of the kind the harness's `describe` gives (a Codex heredoc patch may read as a run or
+  a write), never `other`, paired with exactly one result, and at least as many calls as
+  were scripted. In the nightly `NOVADECK_E2E_HARNESS=latest` run it is the alarm for a
+  release that renamed or reshaped a tool. A failure copies the harness's raw transcript
+  (Claude Code's session JSONL, Codex's rollout, Antigravity's steps) to
+  `NOVADECK_E2E_TRACES`, found by the first prompt's text in the sandbox's store.
 - **The Escape race** (`escape-race.e2e.ts`), a raw Escape pressed as a held reply is
   let go, a few ms ahead of it where that loses the key (per harness; probed): retried
   until the reply wins, the turn reads `completed` with that reply as `lastTurn` once the
@@ -837,6 +851,30 @@ and `exec` events (`hooks`, `statusline`, `transcript`, `rollout`, `plan`, `exec
 harness's. Those probes' fixtures are read with `loadProbe` too, but hold no screen to
 convert. The model fixtures under `src/e2e/model/fixtures` are recorded HTTP requests, not
 probe output, and keep their own loader.
+
+### Probes and CI
+
+CI's E2E jobs leave the probes out (`vitest.e2e.config.ts` runs them only when
+`NOVADECK_E2E_PROBES` is set), and running them there as they are would cost more than it
+finds:
+
+- Most record rather than check. Beyond setup (the pinned version, a tool list that isn't
+  empty) they fail only on a timeout; what they find goes to the file a person reads
+  (`PROBE_OUT` and its siblings), so a run passes whatever the harness showed. The exception
+  is `agy-stop-boundary`, which asserts that each prompt reached the model exactly once; the
+  Flaky capture workflow runs it when it, its config or that workflow changes.
+- Every case starts a real harness, and the ask probes run dozens of cases each (Antigravity's
+  about 65), in jobs whose macOS and Windows runners already queue longest.
+- At the pinned version they'd repeat what the fixtures hold; with
+  `NOVADECK_E2E_HARNESS=latest` they follow each harness's newest release, whose findings
+  change on their own, which belongs in a person's run, not a required check.
+
+What can rot unseen is how two of them reach into the runner, through casts typecheck can't
+see past: `interrupt-held-reply` wraps `bindings.applyFact`, and `agy-stop-boundary` wraps
+`reporting.report` and reads `records` (a record's binding and pty) and
+`messaging.delivery`, all private to `Terminals`. A unit test that those members are still
+there would catch a rename or a move in milliseconds, with no harness, though not a caller
+that stops going through the member a probe wraps.
 
 ## Adding a harness
 

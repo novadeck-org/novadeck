@@ -12,11 +12,17 @@ export type UpdateState = {
    * that release only tells of it; a newer release installs as usual.
    */
   readonly installFailedOn: string | undefined
+  /**
+   * The version an install on quitting began to put in place, until a launch has seen
+   * whether it did; see `installOutcome`.
+   */
+  readonly installing: string | undefined
 }
 
 const defaults: UpdateState = {
   channel: "stable",
   installFailedOn: undefined,
+  installing: undefined,
 }
 
 /**
@@ -32,11 +38,27 @@ export const updateStateOf = (text: string): UpdateState => {
     return defaults
   }
   if (typeof kept !== "object" || kept === null) return defaults
-  const { channel, installFailedOn } = kept as Record<string, unknown>
+  const { channel, installFailedOn, installing } = kept as Record<string, unknown>
   return {
     channel: updateChannels.find((known) => known === channel) ?? defaults.channel,
     installFailedOn: typeof installFailedOn === "string" ? installFailedOn : undefined,
+    installing: typeof installing === "string" ? installing : undefined,
   }
+}
+
+/**
+ * What a launch learns of the install the last quit began, if any: `failed` when this
+ * build is older than the version it was putting in place, as when the installer failed
+ * after the app exited or the swap was undone, else `done`. `newer` tells whether its
+ * first version is newer than its second.
+ */
+export const installOutcome = (
+  state: Pick<UpdateState, "installing">,
+  version: string,
+  newer: (a: string, b: string) => boolean,
+): "failed" | "done" | undefined => {
+  if (state.installing === undefined) return undefined
+  return newer(state.installing, version) ? "failed" : "done"
 }
 
 /**
@@ -68,7 +90,12 @@ export const keepUpdateState = (file: string) => {
   return {
     read,
     setChannel: (channel: UpdateChannel): void => change({ channel }),
-    /** Marks that installing failed on `version`. */
-    recordInstallFailure: (version: string): void => change({ installFailedOn: version }),
+    /** Marks that installing failed on `version`, which settles any install begun. */
+    recordInstallFailure: (version: string): void =>
+      change({ installFailedOn: version, installing: undefined }),
+    /** Marks that an install on quitting began to put `version` in place. */
+    recordInstalling: (version: string): void => change({ installing: version }),
+    /** Marks that a launch has seen how the install begun last ended. */
+    clearInstalling: (): void => change({ installing: undefined }),
   }
 }

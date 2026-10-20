@@ -49,11 +49,14 @@ export const roots: Root[] = [
   { token: "frontend/core", dir: "frontend/core", node: "renderer" },
   { token: "frontend/test-kit", dir: "frontend/test-kit", node: "renderer" },
   { token: "frontend/toolkit", dir: "frontend/toolkit", node: "renderer" },
+  { token: "frontend/companion", dir: "frontend/companion", node: "renderer" },
+  { token: "frontend/chat", dir: "frontend/chat", node: "renderer" },
   { token: "frontend/runner-adapter", dir: "frontend/runner-adapter", node: "renderer" },
   { token: "frontend/terminal-views", dir: "frontend/terminal-views", node: "renderer" },
   { token: "frontend/demo", dir: "frontend/demo", node: "renderer" },
   { token: "frontend/demo-debug", dir: "frontend/demo-debug", node: "renderer" },
   { token: "frontend/specs", dir: "frontend/specs", node: "renderer" },
+  { token: "frontend/chat-contract", dir: "frontend/chat-contract", node: "renderer" },
   { token: "apps/try", dir: "apps/try", node: "renderer" },
   { token: "apps/previews", dir: "apps/previews", node: "renderer" },
   { token: "engines/whisper", dir: "engines/whisper", node: "whisper" },
@@ -253,7 +256,7 @@ export const notes: Record<string, Note> = {
   },
   "frontend/core": {
     purpose:
-      "The pure domain of the workspace: state, reducer and store, seed data, layout rules, roster, conversations, messages, companions and usage, the terminal lifecycle registry the backends share, and the port the UI talks to its backend through, with no React.",
+      "The pure domain of the workspace: state, reducer and store, seed data, layout rules, roster, conversations and the answers to their questions, messages, companions and usage, the terminal lifecycle registry the backends share, and the port the UI talks to its backend through, with no React.",
     entries: [
       { file: `${core}/store.ts`, text: "export const createStore" },
       { file: `${core}/types.ts` },
@@ -285,8 +288,8 @@ export const notes: Record<string, Note> = {
     entries: [{ file: `${ui}/test/commands.ts` }],
   },
   "frontend/ui/terminals": {
-    purpose: "Terminal frames and tabs, the companion taskbar and panes, and the agent chat.",
-    entries: [{ file: `${ui}/terminals/drag-session.ts` }],
+    purpose: "Terminal frames and tabs.",
+    entries: [{ file: `${ui}/terminals/TerminalTabs.tsx` }],
   },
   "frontend/ui/layouts": {
     purpose: "The Focus, Grid and Canvas views that arrange terminals, and the workspace ground.",
@@ -326,10 +329,30 @@ export const notes: Record<string, Note> = {
     entries: [{ file: `${ui}/interaction/keymap.ts` }],
   },
   "frontend/specs": { purpose: "Behaviour specs that exercise the whole UI on the demo backend." },
+  "frontend/chat-contract": {
+    purpose:
+      "The chat's contract test: recorded harness transcripts run through every stage to the rendered chat, against goldens.",
+  },
   "frontend/test-kit": { purpose: "Fixtures and render helpers the UI's tests share." },
   "frontend/toolkit": {
     purpose:
-      "Reusable controls, their recipes, class-name composition and the sidebar item every feature draws with.",
+      "Reusable controls, their recipes, class-name composition, the sidebar item and the Markdown every feature draws with.",
+  },
+  "frontend/companion": {
+    purpose:
+      "The companion pane: a terminal's taskbar, peek and pane for its items and messages, the plan editor, the undocked window and the bar drag.",
+    entries: [
+      {
+        file: "frontend/companion/src/TerminalCompanion.tsx",
+        text: "export const TerminalCompanion",
+      },
+      { file: "frontend/companion/src/drag-session.ts" },
+    ],
+  },
+  "frontend/chat": {
+    purpose:
+      "The chat view: a conversation's blocks as a transcript, the requests an agent waits on, the composer, and the chat's own store and commands.",
+    entries: [{ file: "frontend/chat/src/ChatView.tsx", text: "export const ChatView" }],
   },
   "frontend/demo-debug": {
     purpose: "The demo's debug panel and rehearsals, for the content preview and the specs.",

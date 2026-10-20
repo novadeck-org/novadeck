@@ -1,10 +1,10 @@
+import { chatShown, dictateIntoDraft, type Chat } from "@novadeck/chat/state"
 import type { TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceStore } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from "react"
 
 import { currentPlatform, matchesShortcut, shortcutBindings } from "../../interaction/shortcuts"
-import { chatDraftOf, chatShown, setChatDraft } from "../../terminals/chat/mode-state"
 import type { DictationControls } from "../../terminals/WindowShell"
 import { isAgentTerminal } from "../../voice/agent-terminal"
 import { startCapture } from "../../voice/capture"
@@ -28,24 +28,18 @@ export const DictationContext = createContext<DictationController | undefined>(u
 export const dictateInto =
   (
     ui: UiStore,
+    chat: Chat,
     typeInto: (key: TerminalKey, text: string) => boolean,
     terminalOf: (key: TerminalKey) => TerminalMetadata | undefined,
   ) =>
   (key: TerminalKey, text: string): boolean => {
     const context = `${key.projectId}/${key.workspaceSessionId}`
     const terminal = terminalOf(key)
-    const { preferences, answering } = ui.getSnapshot()
+    const { answering } = chat.store.getSnapshot()
+    const { preferences } = ui.getSnapshot()
     if (!terminal || !chatShown(preferences.chatView, answering, context, terminal))
       return typeInto(key, text)
-    ui.update((state) => {
-      const draft = chatDraftOf(state.chatDrafts, context, key.terminalId)
-      const next =
-        draft.trim() === "" ? text : /\s$/.test(draft) ? draft + text : `${draft} ${text}`
-      return {
-        ...state,
-        chatDrafts: setChatDraft(state.chatDrafts, context, key.terminalId, next),
-      }
-    })
+    dictateIntoDraft(chat, context, key.terminalId, text)
     return true
   }
 
@@ -99,8 +93,9 @@ export const useDictationController = ({
   backend,
   workspace,
   ui,
+  chat,
   commands,
-}: Pick<WorkspaceServices, "backend" | "workspace" | "ui" | "commands">):
+}: Pick<WorkspaceServices, "backend" | "workspace" | "ui" | "chat" | "commands">):
   | DictationController
   | undefined => {
   const { voice, typeInto } = backend
@@ -111,7 +106,7 @@ export const useDictationController = ({
       createDictation({
         voice,
         offered: () => void commands.takeAddonOffer("voice"),
-        typeInto: dictateInto(ui, typeInto, (key) =>
+        typeInto: dictateInto(ui, chat, typeInto, (key) =>
           backend.conversations
             ? workspace
                 .getSnapshot()
@@ -124,7 +119,7 @@ export const useDictationController = ({
         now: domEffects.now,
         after: domEffects.after,
       }),
-    [voice, typeInto, backend.conversations, workspace, ui, commands],
+    [voice, typeInto, backend.conversations, workspace, ui, chat, commands],
   )
   useEffect(() => () => controller?.dictation.cancel(), [controller])
   useEffect(() => controller?.start(), [controller])

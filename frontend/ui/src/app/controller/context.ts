@@ -1,11 +1,12 @@
+import type { Chat } from "@novadeck/chat/state"
+import type { DragSession } from "@novadeck/companion/drag-session"
+import type { Panes } from "@novadeck/companion/state"
 import type { Backend } from "@novadeck/core/port"
 import type { WorkspaceStore } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
 import { createContext, useContext, type RefObject } from "react"
 
 import type { CanvasHandle } from "../../layouts/canvas/types"
-import type { Panes } from "../../terminals/companion/state"
-import type { DragSession } from "../../terminals/drag-session"
 import type { WorkspaceCommands } from "../commands/workspace"
 import type { WorkspaceNavigator } from "../routing"
 import type { UiState, UiStore } from "../ui-store"
@@ -17,6 +18,8 @@ export type WorkspaceServices = {
   readonly backend: Backend
   readonly workspace: WorkspaceStore
   readonly ui: UiStore
+  // What the chat keeps: drafts, replies, sends and the terminals answered in.
+  readonly chat: Chat
   readonly navigation: WorkspaceNavigator
   readonly commands: WorkspaceCommands
   // The mounted Canvas, for commands that move its camera.

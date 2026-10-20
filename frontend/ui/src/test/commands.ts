@@ -1,3 +1,4 @@
+import { createChat } from "@novadeck/chat/state"
 import type { Rect } from "@novadeck/core/layout/spatial"
 import type { Backend } from "@novadeck/core/port"
 import { activeSession } from "@novadeck/core/state"
@@ -73,6 +74,7 @@ export const openCommands = ({
       preferences,
     }),
   )
+  const chat = createChat()
   const effects: string[] = []
   const queued: (() => void)[] = []
   const screen: { desktop: boolean; tiles: { id: string; rect: Rect }[] } = {
@@ -126,6 +128,7 @@ export const openCommands = ({
   const context: CommandContext = {
     workspace: store,
     ui,
+    chat,
     navigation,
     newTerminal: (input) => {
       allocated.push(input)
@@ -166,6 +169,7 @@ export const openCommands = ({
     context,
     workspace: store,
     ui,
+    chat,
     commands,
     navigation,
     // Effects in the order they ran, and the URLs the router was asked for.

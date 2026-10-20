@@ -2,14 +2,16 @@
 
 The controls every feature of the UI draws with: wrappers over Ark UI (dialogs, menus,
 popovers, selects, tabs, tooltips and the rest), the recipes that give them their look, the
-`cn` class-name helper and the sidebar item. A feature composes them and owns its content and
+`cn` class-name helper, the sidebar item and `Markdown`, which draws an agent's text (read by
+`@novadeck/viewers/markdown-blocks`, highlighted by `@novadeck/viewers/code`) for the chat and the
+inbox alike. A feature composes them and owns its content and
 state; nothing here knows about a terminal, a project or an agent.
 
 ## Contract
 
 - **It depends on no other frontend package.** Its manifest holds Ark UI, `clsx`,
-  `tailwind-merge`, Lucide and React. The one workspace package it names is `test-kit`, as a
-  dev dependency of its tests; `scripts/workspace/graph.test.ts` holds the rest.
+  `tailwind-merge`, Lucide, React and the viewers library. The workspace packages it names are the viewers library (for `Markdown`) and `test-kit`, as a
+  dev dependency of its tests; `scripts/workspace/graph.test.ts` holds the rest, and that no relative import leaves the package.
 - **Ark UI is imported here and nowhere else.** The UI's architecture test reads this package
   as its old `ui-toolkit/` layer, which every feature may use and which may use nothing of
   theirs.
@@ -17,6 +19,8 @@ state; nothing here knows about a terminal, a project or an agent.
   the UI's `styles.css` into `layer(components)` at the place it always had. The recipes use
   `@apply`, which compiles in the UI's Tailwind run; the theming contract (`docs/theming.md`)
   covers them as it covers the UI's own.
+- **`markdown.css` is imported just before `chat.css`**, not with the recipes above, so the
+  Markdown's rules still come after the Inbox's and win their ties as they always did.
 - **A context styles a control from outside.** The sidebar item's base rules are
   `sidebar-item.css`; what the terminal tabs or the team wire add to it stays with them.
 

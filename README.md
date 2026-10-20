@@ -111,6 +111,19 @@ show as `codex` and `claude` while other Node programs stay `node`. Where the pr
 cannot tell, as on Windows or for a Node CLI on macOS, a connected agent that reported
 its session since the shell's last prompt names the program.
 
+On Linux with systemd, each terminal's shell runs in a transient scope of its own (such
+as `app-dev.mzpk.novadeck-term<pid>.scope`, named after the app's scope), which the
+runner asks the user's service manager for right after the shell starts
+(`libraries/terminal/src/pty/scopes.ts`). The app's own scope stops everything in it on
+one OOM kill, so before this a program in any terminal that ran out of memory took the
+whole app down. Now a kill inside a terminal's scope stays there. The scope's
+`OOMPolicy=continue` keeps the shell when the kernel kills only the program, as outside
+a scope; a terminal whose shell was killed for memory, as systemd-oomd kills the whole
+scope, ends as "Killed · out of memory". What stays in the app's scope can still take it
+down: the app's own processes, and anything a shell started in the few milliseconds
+before its move. Without a user bus (no systemd, a container, WSL without systemd),
+shells run in the app's scope as before. macOS and Windows are unchanged.
+
 While a program holds the foreground, its profile decides how the terminal looks.
 `frontend/ui/src/terminals/processes/profiles.ts` maps program names to a tab and
 header icon and a body around the terminal's content; programs it does not list,
@@ -730,9 +743,9 @@ Terminals:
 
 - **Selected terminal:** put the selected terminal in each of its states: starting, loading
   output, back at the prompt, running a long program, Claude Code or Codex, a failed
-  paste, and each way to end (clean exit, exit code, killed, failed to start). Each one
-  that changes the state calls off what the terminal's agent had pending, so a finish
-  due later doesn't bring the agent back. "Leads the others" makes the selected terminal
+  paste, and each way to end (clean exit, exit code, killed, killed for memory, failed to
+  start). Each one that changes the state calls off what the terminal's agent had
+  pending, so a finish due later doesn't bring the agent back. "Leads the others" makes the selected terminal
   lead every other live terminal of the session, for the rail's team wire with many
   workers; with "Burst of" first, part of the team scrolls out of view.
 - **New terminals:** "Every state at once" adds one terminal per state, named after it, so
@@ -876,7 +889,7 @@ App:
   (Install when narrow); "Update available" adds a release, so the card reads "Novadeck
   0.0.80 is out" and the chip says Update available with a dot. Install takes four seconds
   here, a download climbing to 100% and then the install, and ends as installed: the card says
-  it takes effect after a restart, fades after a few seconds and leaves Installed on the chip;
+  it takes effect after a restart (after a quit and reopen on macOS), fades after a few seconds and leaves Installed on the chip;
   Novadeck never restarts itself. "Install never finishes" holds the Installing card and the
   chip's Installing…. "Newer install exists" and "Install fails" arm the other ends: a card
   saying a newer Novadeck is already installed, or one giving the reason with Try again.
@@ -904,12 +917,14 @@ App:
   look at. Download failed holds the bar at 40% for a moment, or fails one already running, and
   drops it with nothing in the footer, as the host tries again by itself (`retrying`). Release
   to fetch shows the Update available chip alone, which opens the release page (nothing opens
-  in a browser). Ready at
+  in a browser). Release, needs an administrator shows the Allow updates chip instead
+  (Allow when narrow), which stands in for the administrator's step: pressing it starts the
+  download. Ready at
   launch offers an update downloaded before this run, which shows nothing, as at a launch.
   Finish restart reloads the demo, as the app comes back on the new version. Early builds on
   and off set the channel Preferences' Updates switch shows once Preferences is reopened.
   For specs, `?update=` opens any of these by key (`download`, `held`, `failed`, `available`,
-  `ready`). Both panels and the spec keys come from one record, `frontend/demo-debug/src/scenarios.ts`.
+  `allow`, `ready`). Both panels and the spec keys come from one record, `frontend/demo-debug/src/scenarios.ts`.
 
 ### Visitor build
 
@@ -1020,12 +1035,15 @@ atlas.
 | `frontend/ui`             | React frontend built with Vite, Tailwind CSS, and Lucide icons.                           |
 | `frontend/core`           | The UI's model: types, reducer, stores, and the port to a backend.                        |
 | `frontend/toolkit`        | The controls every feature draws with: Ark UI wrappers, shared recipes, the sidebar item. |
+| `frontend/companion`      | The companion pane: taskbar, peek, pane, plan editor, messages, and the bar drag.         |
+| `frontend/chat`           | The chat view: transcript, requests and composer, with the chat's own store and commands. |
 | `frontend/runner-adapter` | The UI's backend for a runner, over a WebSocket or the desktop host.                      |
 | `frontend/terminal-views` | The xterm mount both backends draw terminals with.                                        |
 | `frontend/demo`           | The demo backend: a scripted workspace and simulated terminals.                           |
 | `frontend/demo-debug`     | The demo's debug panel and rehearsals.                                                    |
 | `frontend/test-kit`       | What the UI's tests render and drive the app with.                                        |
 | `frontend/specs`          | Behaviour specs: the whole app in a real browser, over the demo.                          |
+| `frontend/chat-contract`  | The chat's contract test: recorded harness transcripts through to the rendered chat.      |
 | `apps/desktop`            | Electron host that starts the runner and loads the packaged UI.                           |
 | `apps/try`                | The visitor build of the demo, which the website embeds.                                  |
 | `apps/previews`           | The content preview: the demo with its debug panel.                                       |
@@ -1072,8 +1090,8 @@ backend-only tests.
 ### Working on the UI
 
 The UI is split into packages: `frontend/core`, `frontend/ui`, `frontend/toolkit`,
-`frontend/runner-adapter`, `frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit` and
-`frontend/specs`, and the apps `apps/desktop`, `apps/try` and `apps/previews`. `frontend/ui`
+`frontend/companion`, `frontend/chat`, `frontend/runner-adapter`, `frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit`,
+`frontend/specs` and `frontend/chat-contract`, and the apps `apps/desktop`, `apps/try` and `apps/previews`. `frontend/ui`
 holds the page's layers, each a folder of its `src/`; the rest are packages of their own. In
 the table a path that starts with `frontend/` or `apps/` is a package, and any other is a
 folder of `frontend/ui/src/`:
@@ -1095,13 +1113,14 @@ folder of `frontend/ui/src/`:
 | `frontend/core/src/messages.ts`                                 | The contract for agents' messages: threads, states, the pause, and a tab's count.                                              |
 | `frontend/core/src/conversation.ts`                             | The contract for an agent's conversation: transcript items, requests, the port.                                                |
 | `frontend/core/src/inbox.ts`                                    | The contract for the Inbox: items by source, their type and urgency, answers, the port.                                        |
-| `frontend/core/src/conversation-turns.ts`                       | A conversation grouped into blocks, tool calls summed up in a line, the turn's status.                                         |
+| `frontend/core/src/answers.ts`                                  | What the person has picked and written for a dialog's questions, and the answer it makes.                                      |
+| `frontend/core/src/conversation-turns.ts`                       | A conversation grouped into blocks, the turn's status.                                                                         |
 | `frontend/core/src/roster.ts`                                   | A session's terminals and undocked windows, laid out as tiles, their order and status.                                         |
 | `frontend/core/src/layout/workspace-layout.ts`                  | Where each terminal sits and how big it is in each view.                                                                       |
 | `terminals/`                                                    | Terminal frame, tabs, rename state, and the recent-terminal switcher.                                                          |
-| `terminals/companion/`                                          | Taskbar and pane: the panes' store, `bar.ts` rules, viewers, `plan-editor/` (notes).                                           |
-| `terminals/drag-session.ts`                                     | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
-| `terminals/chat/`                                               | The agent's chat: its blocks, markdown reader, tool rows, requests and the composer.                                           |
+| `frontend/companion/src/`                                       | Taskbar and pane: the panes' store, `bar.ts` rules, `registry.ts` and `panes/<kind>/` (one folder per kind).                   |
+| `frontend/companion/src/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
+| `frontend/chat/src/`                                            | The agent's chat: its blocks, tool rows, requests and the composer, and the chat's own store (`state.ts`) and commands.        |
 | `layouts/canvas/`, `grid/`, `focus/`                            | View adapters and colocated library styles.                                                                                    |
 | `layouts/` (top level)                                          | Helpers shared by views: view transitions, background gestures, visibility.                                                    |
 | `notifications/`                                                | The notification center: what asks for the person across the workspace, and its panel.                                         |
@@ -1109,7 +1128,7 @@ folder of `frontend/ui/src/`:
 | `shell/`                                                        | Header, rail, panels, zen dock, sidebar, and shell state transitions.                                                          |
 | `sidebar/`, `projects/`, `preferences/`, `search/`              | Feature components.                                                                                                            |
 | `interaction/`                                                  | Shortcut records, the keymap, and shared DOM focus/overlay contracts.                                                          |
-| `frontend/toolkit/src/`                                         | Reusable controls, direct Ark UI imports, the shared recipes they draw with, and the sidebar item.                             |
+| `frontend/toolkit/src/`                                         | Reusable controls, direct Ark UI imports, their recipes, the sidebar item and `Markdown`.                                      |
 | `test/`                                                         | The command harness: the real stores, navigator and commands, for tests.                                                       |
 | `frontend/test-kit/src/`                                        | A jsdom render helper, the port contract suite, and test phase timing.                                                         |
 | `assets/`                                                       | Static files referenced from CSS.                                                                                              |
@@ -1132,9 +1151,11 @@ package imports only what its `package.json` declares. The demo's debug panel is
 of its own, `frontend/demo-debug`, the one with React and Lucide. `interaction/` builds on
 the core and imports no packages;
 features add `frontend/toolkit`; `layouts/` may use
-`terminals/`; `notifications/` builds on the base layers and
-`terminals/unread-state.ts`; `inbox/` builds on the base layers and the
-chat's markdown reader and answers; `shell/` may use `layouts/`, `projects/`,
+`terminals/`; the companion pane is a package of its own, `frontend/companion`, built on the
+core, the toolkit and the viewers and never on the UI, which composes it, as it does the chat, another package, `frontend/chat`, built on the core and the toolkit and never on the UI or the companion; `notifications/` builds on the base layers and
+`terminals/unread-state.ts`; no feature (`inbox/`, `notifications/`, `preferences/`, `projects/`,
+`search/`, `sidebar/` or `voice/`) imports another, only the base and itself, and none reaches the
+chat or the companion; `shell/` may use `layouts/`, `projects/`,
 `notifications/` and `inbox/`. `app/` composes every feature layer, `notifications/` and `inbox/`.
 Only an app imports a backend adapter, each its own: `apps/desktop` takes the runner adapter,
 `apps/try` the demo, and `apps/previews` the demo with its debug panel (tests and specs may
@@ -1143,7 +1164,7 @@ has no direct React or package imports, though
 routing still loads React Router at runtime: it builds on the core,
 `interaction/keymap.ts`, the UI store, routing, selectors,
 the Canvas handle type in `layouts/canvas/types.ts`, and the pure state modules
-of `shell/` and `terminals/` (unread finishes among them), the companion panes' store and the chat's modes among them. Vendor
+of `shell/` and `terminals/` (unread finishes among them), the companion panes' store and the chat's store among them. Vendor
 libraries stay in their adapters: XYFlow in `layouts/canvas/`, React Grid Layout
 in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
 `frontend/toolkit`, React Router in `app/` and `shell/`, and React DOM in
@@ -1194,14 +1215,14 @@ It starts over on reload apart from preferences, the collapsed sidebar and the
 project arrangement (the switcher's order and pins, `novadeck.project-arrangement`),
 which store subscriptions persist. Another subscription saves the active session's
 windowed view from the workspace store, and a new App seeds sessions with it. The
-companion panes' store in `terminals/companion/state.ts` holds what the panes load,
+companion panes' store in `frontend/companion/src/state.ts` holds what the panes load,
 by item: each plan as the person edits it, what each item last loaded, and the secret
 files the person chose to see; it follows the backend's companions and messages from an
 effect. What an item loaded stays 30 seconds after nothing shows it, then goes, so a
 large image doesn't stay in memory. What a taskbar shows is derived from it and the workspace in
-`terminals/companion/bar.ts`, never stored.
+`frontend/companion/src/bar.ts`, never stored.
 `WorkspaceProvider` creates the backend, the stores, the drag session
-(`terminals/drag-session.ts`), the navigator, and the commands once per App, in a pure
+(`frontend/companion/src/drag-session.ts`), the navigator, and the commands once per App, in a pure
 initializer, and shares them through context; it receives the page as children, so a URL
 change re-renders only the provider.
 
