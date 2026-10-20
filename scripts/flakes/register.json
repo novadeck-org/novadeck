@@ -245,6 +245,15 @@
       ]
     },
     {
+      "id": "sandbox-reap-macos-ps-timeout",
+      "jobs": ["^Test \\(macOS(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/reap.test.ts > reap on macOS > ends what runs in the sandbox or has its home, naming it, and nothing else",
+      "signature": "reap: ps -axww -o pid=,ppid=,pgid=,stat=,lstart=,comm= failed",
+      "status": "known",
+      "cause": "Suspected a loaded macOS runner: reap's listing of every process (ps -axww with lstart, in libraries/sandbox/src/reap.ts) ran past run()'s 10 s timeout and was killed (SIGTERM, no output), so reap failed closed, as it should. The test took 11.5 s; the rerun passed. The signature is any failure of that ps, as the log's report of the failure ends before its cause's signal.",
+      "seen": ["#359 run 39330398836 attempt 1 job 118326826477 (macOS)"]
+    },
+    {
       "id": "runner-engines-server-port-picked-again",
       "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/engines/server.test.ts > a server > starts again on another port when something takes the one it was given",
