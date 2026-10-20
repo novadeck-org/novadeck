@@ -1,28 +1,18 @@
 import { agentWorking } from "@novadeck/core/agent-finish"
-import type { ChatAnswer, ChatRequest, ConversationKey } from "@novadeck/core/conversation"
-import type { AgentName } from "@novadeck/core/harnesses"
+import type { ChatAnswer, ConversationKey } from "@novadeck/core/conversation"
 import {
   emptyInbox,
-  ordered,
-  urgency,
   type Inbox,
   type InboxAnswer,
   type InboxBinding,
-  type InboxContent,
   type InboxItem,
   type InboxSource,
   type InboxState,
-  type InboxUnread,
 } from "@novadeck/core/inbox"
-import type { AgentMessage, MailState, MessageThread } from "@novadeck/core/messages"
-import { isAgentProgram } from "@novadeck/core/process"
+import { dialogMs, inboxItems, type Asked } from "@novadeck/core/inbox-items"
+import type { MailState } from "@novadeck/core/messages"
 import { createStore, type Store } from "@novadeck/core/store"
-import type {
-  TerminalMetadata,
-  Workspace,
-  WorkspaceProject,
-  WorkspaceSession,
-} from "@novadeck/core/types"
+import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 import type { AgentDetail, AskAnswer, InboxLetter } from "@novadeck/protocol"
 import { currentPlatform } from "@novadeck/terminal-views/platform"
 
@@ -31,12 +21,9 @@ import { requestOf } from "./conversations"
 // The runner's Inbox: what every agent terminal waits on the person for, one item per
 // terminal, built from what the UI already has: the terminals' statuses (a finished turn,
 // its error, a usage limit), the messages held for release, and the requests of the agents
-// that ask (read from `agents.detail`, opened only while one waits). `inboxItems` is the
-// pure derivation; `createRunnerInbox` keeps it current and answers through the runner.
+// that ask (read from `agents.detail`, opened only while one waits). Core's `inboxItems` is
+// the pure derivation; `createRunnerInbox` keeps it current and answers through the runner.
 
-// How long a request's dialog may stay unread before its item shows anyway, to be answered
-// in the terminal.
-export const dialogMs = 3000
 // How long a terminal's detail stays open once nothing waits on it, so a request that
 // comes straight after is not missed, and how soon a lost one is opened again.
 export const detailGraceMs = 5000
@@ -46,214 +33,6 @@ const replyTrackingLimit = 1000
 // How long an answer to trouble may leave its item standing before it can be answered again.
 // Antigravity marks a turn's start at its first model call, which can take a while.
 export const settleMs = 15_000
-
-// A request, with when its hook started on the runner's clock.
-export type Asked = { readonly request: ChatRequest; readonly askedAt: number }
-
-export type InboxInputs = {
-  readonly workspace: Workspace
-  readonly unread: InboxUnread
-  readonly mail: MailState
-  readonly letters: readonly InboxLetter[]
-  // The requests of each terminal whose detail is open, by terminal id, oldest first.
-  readonly requests: Readonly<Record<string, readonly Asked[]>>
-  readonly now: number
-}
-
-type Where = {
-  readonly project: WorkspaceProject
-  readonly session: WorkspaceSession
-  readonly terminal: TerminalMetadata
-}
-
-const agentOf = (terminal: TerminalMetadata): AgentName | null =>
-  terminal.state === "running" && isAgentProgram(terminal.process)
-    ? (terminal.process as AgentName)
-    : null
-
-const sourceOf = ({ project, session, terminal }: Where, agent: AgentName): InboxSource => ({
-  projectId: project.id,
-  workspaceSessionId: session.id,
-  terminalId: terminal.id,
-  handle: terminal.handle ?? "",
-  agent,
-  title: terminal.name,
-  projectName: project.name,
-})
-
-const slashed = (path: string): string => path.replaceAll("\\", "/")
-
-// A path inside the project's directory, relative to it; any other as it is. Separators
-// match either way, and case does on Windows paths and on macOS.
-const relative = (directory: string, file: string): string => {
-  const base = slashed(directory).replace(/\/+$/, "")
-  if (base === "") return file
-  const folded = currentPlatform() === "mac" || /^[A-Za-z]:/.test(base)
-  const same = (path: string): string => (folded ? path.toLowerCase() : path)
-  const path = slashed(file)
-  return same(path).startsWith(`${same(base)}/`) ? file.slice(base.length + 1) : file
-}
-
-const heldOf = (
-  thread: MessageThread,
-  message: AgentMessage,
-  where: Where[],
-): InboxItem | undefined => {
-  const named = (handle: string) => where.find(({ terminal }) => terminal.handle === handle)
-  const sender = named(message.from)
-  const recipient = named(message.to)
-  const source = [sender, recipient].find((each) => each && agentOf(each.terminal))
-  const agent = source && agentOf(source.terminal)
-  if (!source || !agent) return undefined
-  const person = (handle: string, found: Where | undefined) => ({
-    handle,
-    title: found?.terminal.name ?? handle,
-  })
-  return {
-    id: `held:${thread.id}`,
-    source: sourceOf(source, agent),
-    at: message.sentAt,
-    stopped: !sender || !agentWorking(sender.terminal),
-    seen: false,
-    kind: "held",
-    held: {
-      threadId: thread.id,
-      from: person(message.from, sender),
-      to: person(message.to, recipient),
-      text: message.text,
-      hop: message.hop,
-      allowed: thread.allowed,
-    },
-  }
-}
-
-// Each terminal's candidate items, before only the most urgent is kept.
-const candidates = ({ unread, requests, now }: InboxInputs, here: Where): readonly InboxItem[] => {
-  const { project, session, terminal } = here
-  const agent = agentOf(terminal)
-  if (!agent || terminal.state !== "running" || !terminal.agent) return []
-  const status = terminal.agent
-  const source = sourceOf(here, agent)
-  const found: InboxItem[] = []
-  const add = (id: string, at: number, stopped: boolean, content: InboxContent): void => {
-    found.push({ id, source, at, stopped, seen: false, ...content })
-  }
-
-  // A request waiting on the person is the terminal's item, whatever it ended on before.
-  // The oldest is the one to answer: until its dialog reads, or it has waited long enough
-  // to be answered in the terminal, the terminal shows nothing.
-  if (status.attention) {
-    const [oldest] = requests[terminal.id] ?? []
-    if (oldest && (oldest.request.dialog !== null || now - oldest.askedAt >= dialogMs))
-      add(`request:${oldest.request.id}`, oldest.askedAt, true, {
-        kind: "request",
-        request: oldest.request,
-      })
-    return found
-  }
-
-  const turn = status.lastTurn
-  if (turn && !status.working) {
-    const mark = unread[`${project.id}/${session.id}`]?.[terminal.id]
-    if (turn.limit) {
-      add(`limit:${terminal.id}:${turn.at}`, turn.at, true, {
-        kind: "trouble",
-        trouble: {
-          type: "limit",
-          minutes: turn.limit.minutes ?? 0,
-          resetsAt: turn.limit.resetsAt,
-          autoResume: null,
-          evidence: [{ text: turn.error ?? "Usage limit reached", result: null, times: 1 }],
-        },
-      })
-    } else if (turn.outcome === "failed" && mark === "failed") {
-      add(`trouble:${terminal.id}:${turn.at}`, turn.at, true, {
-        kind: "trouble",
-        trouble: { type: "failed", error: turn.error ?? null },
-      })
-    } else if (mark === "done") {
-      add(`update:${terminal.id}:${turn.at}`, turn.at, false, {
-        kind: "update",
-        update: {
-          type: "finished",
-          subject: turn.gist ?? turn.reply ?? "Finished its turn",
-          reply: turn.reply ?? "",
-          files: (turn.files ?? []).map((file) => relative(project.directory, file)),
-        },
-      })
-    }
-  }
-  return found
-}
-
-// Every item the Inbox now holds, the longest waiting among the most urgent first: one per
-// terminal, the most urgent of what it has, then the oldest; and each thread held for release.
-export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
-  const where: Where[] = inputs.workspace.projects.flatMap((project) =>
-    project.history.flatMap((session) =>
-      session.state.roster.terminals.map((terminal) => ({ project, session, terminal })),
-    ),
-  )
-  const all = where.flatMap((here) => candidates(inputs, here))
-  for (const letter of inputs.letters) {
-    const here = where.find(
-      ({ project, session, terminal }) =>
-        project.id === letter.projectId &&
-        session.id === letter.workspaceSessionId &&
-        terminal.id === letter.terminalId &&
-        terminal.handle === letter.handle &&
-        (letter.content.kind === "tell" || agentOf(terminal) === letter.agent),
-    )
-    if (!here) continue
-    // A permission or plan needs the person first. While its dialog is still reading,
-    // retain the request's grace period rather than showing a different question.
-    if (here.terminal.state === "running" && here.terminal.agent?.attention) {
-      const gate = all.find(
-        (item) => item.source.terminalId === letter.terminalId && item.kind === "request",
-      )
-      if (!gate || gate.kind !== "request" || gate.request.kind !== "question") continue
-    }
-    const content: InboxContent =
-      letter.content.kind === "ask"
-        ? { kind: "ask", ask: letter.content.ask }
-        : {
-            kind: "update",
-            update: { type: "told", subject: letter.content.subject, body: letter.content.body },
-          }
-    all.push({
-      id: letter.id,
-      source: sourceOf(here, letter.agent),
-      at: letter.at,
-      stopped: letter.content.kind === "ask" && !agentWorking(here.terminal),
-      seen: false,
-      ...content,
-    })
-  }
-
-  // A thread held for release is listed by both its terminals: once, from its oldest
-  // held message.
-  const threads = new Map<string, InboxItem>()
-  for (const mail of Object.values(inputs.mail.terminals))
-    for (const thread of mail.threads) {
-      if (!thread.held || threads.has(thread.id)) continue
-      const message = thread.messages.find((each) => each.held === "release")
-      const item = message && heldOf(thread, message, where)
-      if (item) threads.set(thread.id, item)
-    }
-
-  const best = new Map<string, InboxItem>()
-  for (const item of all) {
-    const kept = best.get(item.source.terminalId)
-    if (
-      !kept ||
-      urgency(item) < urgency(kept) ||
-      (urgency(item) === urgency(kept) && item.at < kept.at)
-    )
-      best.set(item.source.terminalId, item)
-  }
-  // A held thread is its own item, whatever else its terminal has to show.
-  return ordered([...best.values(), ...threads.values()])
-}
 
 // The streams and calls the Inbox needs of the runner.
 export type InboxStreams = {
@@ -448,6 +227,7 @@ export const createRunnerInbox = (
       letters,
       requests,
       now: at,
+      caseless: currentPlatform() === "mac",
     })
     const ids = new Set(found.map((item) => item.id))
     for (const id of seen) if (!ids.has(id)) seen.delete(id)
