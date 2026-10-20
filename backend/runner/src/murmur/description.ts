@@ -1,7 +1,8 @@
 // What the model writes is a guess in JSON. This keeps the guesses that fit a terminal's
 // title bar, tidies them, and drops the rest, so nothing downstream checks again.
+import { maskedSpans, redacted } from "@novadeck/secrets"
+
 import type { Description, Gist } from "./describer.js"
-import { maskedSpans, redacted } from "./redact.js"
 
 // A title is a short noun name, like a ticket or a branch: the prompt asks for one to three
 // words, and the parser lets one more through, so a name a little long is kept, not lost.
