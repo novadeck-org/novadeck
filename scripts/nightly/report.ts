@@ -5,6 +5,7 @@
 
 /** A job of the run that didn't succeed. */
 export type FailedJob = {
+  readonly id: number
   readonly name: string
   readonly conclusion: string
   readonly url: string

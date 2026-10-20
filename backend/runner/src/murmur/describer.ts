@@ -70,22 +70,6 @@ export type ShellDigest = {
 
 export type Digest = AgentDigest | ShellDigest
 
-/** What murmur is shown of a question an agent asks the person. */
-export type QuestionDigest = {
-  readonly kind: "question"
-  /** The question as its harness gave it: the first of several, or an MCP form's message. */
-  readonly question: string
-  /** The answers it offers, by label, at most 16. */
-  readonly choices: readonly string[]
-}
-
-/** What murmur is shown of a plan an agent asks the person to review. */
-export type PlanDigest = {
-  readonly kind: "plan"
-  /** The plan's start, as Markdown, at most 16 KiB. */
-  readonly plan: string
-}
-
 /** What murmur is shown of the reply that ended an agent's turn. */
 export type ReplyDigest = {
   readonly kind: "reply"
@@ -95,7 +79,7 @@ export type ReplyDigest = {
   readonly failed: boolean
 }
 
-export type NoteDigest = QuestionDigest | PlanDigest | ReplyDigest
+export type NoteDigest = ReplyDigest
 
 /** Everything murmur may be shown: what the worker redacts and writes a chat for. */
 export type Input = Digest | NoteDigest
@@ -107,10 +91,9 @@ export type Input = Digest | NoteDigest
  */
 export type Description = { readonly title: string; readonly changed: boolean }
 
-export type Headline = { readonly kind: "headline"; readonly text: string }
-export type Gist = { readonly kind: "gist"; readonly text: string; readonly asks: boolean }
-/** A headline for a question or plan, a gist for a reply; already validated. */
-export type Note = Headline | Gist
+export type Gist = { readonly kind: "gist"; readonly text: string }
+/** A gist for a reply; already validated. */
+export type Note = Gist
 
 export type Describer = {
   /**
@@ -129,8 +112,8 @@ export type Describer = {
     options: { readonly signal?: AbortSignal; readonly terminal: string },
   ): Promise<Description | null | undefined>
   /**
-   * As `describe`: a `Note`, null when it ran and was refused, undefined when it did not run.
-   * A question or plan gives a `Headline`, a reply a `Gist`.
+   * As `describe`: a `Note` (the gist of a reply), null when it ran and was refused,
+   * undefined when it did not run.
    */
   note(
     digest: NoteDigest,

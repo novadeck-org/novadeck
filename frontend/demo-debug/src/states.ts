@@ -24,7 +24,6 @@ import {
   killedForMemory,
   leadsOthers,
   murmurGists,
-  murmurHeadlines,
   noisyAgents,
   openedByAgent,
   othersOf,
@@ -260,14 +259,7 @@ const createWaitingActions = (verbs: DemoAgentVerbs): readonly [DemoAction, Demo
             after: turnMs,
             ...(murmur ? { gist: murmurGists[kind] } : {}),
           })
-        else
-          verbs.ask(
-            key,
-            terminal,
-            kind,
-            1,
-            murmur && kind !== "permission" ? murmurHeadlines[kind] : undefined,
-          )
+        else verbs.ask(key, terminal, kind, 1)
       })
     },
   }
@@ -311,7 +303,7 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
   const { agents, openWelcome, failNext: failAgents, limitAntigravity } = createDemoAgents()
   const { notices, Notices } = createDemoNotices()
   const updateControls = createDemoUpdates()
-  const { updates, offer } = updateControls
+  const { updates, offer, whatsNew } = updateControls
   const { pickDirectory, failNext: failPick } = createDemoFolders()
   const chat = createDebugChat()
   const waitingActions = createWaitingActions(verbs)
@@ -592,6 +584,7 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
     openWelcome,
     notices,
     updates,
+    whatsNew,
     offer,
     updateControls,
     pickDirectory,

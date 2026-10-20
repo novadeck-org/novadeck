@@ -14,7 +14,6 @@ import {
   summary,
   withGist,
   withLimit,
-  withHeadline,
   withoutNotes,
   type Activity,
 } from "./activity.js"
@@ -67,7 +66,7 @@ const replay = (agent: AgentName, name: string) => {
 // Idle once its turn ended as `lastTurn` says, whenever it ended.
 const idle = (lastTurn: Omit<NonNullable<ReturnType<typeof summary>["lastTurn"]>, "at">) => ({
   state: "idle",
-  attention: { pending: 0, kind: null, headline: null },
+  attention: { pending: 0, kind: null },
   subagents: [],
   planning: false,
   background: null,
@@ -92,7 +91,7 @@ describe("activity from captured hooks", () => {
     const { states, last } = replay("claude", "allow")
     expect(states).toContainEqual({
       state: "working",
-      attention: { pending: 1, kind: "permission", headline: null },
+      attention: { pending: 1, kind: "permission" },
       subagents: [],
       planning: false,
       background: null,
@@ -105,7 +104,7 @@ describe("activity from captured hooks", () => {
     const { states, last } = replay("claude", "question")
     expect(states).toContainEqual({
       state: "working",
-      attention: { pending: 1, kind: "question", headline: null },
+      attention: { pending: 1, kind: "question" },
       subagents: [],
       planning: false,
       background: null,
@@ -117,7 +116,7 @@ describe("activity from captured hooks", () => {
   it("keeps a denied Claude Code request waiting, as nothing reports the denial", () => {
     expect(replay("claude", "deny").last).toEqual({
       state: "working",
-      attention: { pending: 1, kind: "permission", headline: null },
+      attention: { pending: 1, kind: "permission" },
       subagents: [],
       planning: false,
       background: null,
@@ -129,7 +128,7 @@ describe("activity from captured hooks", () => {
     const { states, last } = replay("codex", "deny-then-interrupt")
     expect(states).toContainEqual({
       state: "working",
-      attention: { pending: 1, kind: "permission", headline: null },
+      attention: { pending: 1, kind: "permission" },
       subagents: [],
       planning: false,
       background: null,
@@ -151,7 +150,7 @@ describe("activity from captured hooks", () => {
     const { states, last } = replay("codex", "approve")
     expect(states).toContainEqual({
       state: "working",
-      attention: { pending: 1, kind: "permission", headline: null },
+      attention: { pending: 1, kind: "permission" },
       subagents: [],
       planning: false,
       background: null,
@@ -159,7 +158,7 @@ describe("activity from captured hooks", () => {
     })
     expect(states).toContainEqual({
       state: "working",
-      attention: { pending: 0, kind: null, headline: null },
+      attention: { pending: 0, kind: null },
       subagents: [],
       planning: false,
       background: null,
@@ -172,7 +171,7 @@ describe("activity from captured hooks", () => {
     const { last } = replay("claude", "plan")
     expect(last).toMatchObject({
       planning: true,
-      attention: { pending: 1, kind: "plan", headline: null },
+      attention: { pending: 1, kind: "plan" },
     })
   })
 
@@ -180,7 +179,7 @@ describe("activity from captured hooks", () => {
     const { states } = replay("agy", "clear")
     expect(states[0]).toEqual({
       state: "working",
-      attention: { pending: 0, kind: null, headline: null },
+      attention: { pending: 0, kind: null },
       subagents: [],
       planning: false,
       background: null,
@@ -301,7 +300,7 @@ describe("applying activity", () => {
       fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
     )!
     expect(ended.pending).toEqual([])
-    expect(summary(ended).attention).toEqual({ pending: 0, kind: null, headline: null })
+    expect(summary(ended).attention).toEqual({ pending: 0, kind: null })
   })
 
   it("settles a question loosely by its actor and tool, as its answered call changed", () => {
@@ -365,7 +364,6 @@ describe("applying activity", () => {
       expect(summary(next).attention, boundary.type).toEqual({
         pending: 1,
         kind: "permission",
-        headline: null,
       })
     }
   })
@@ -462,9 +460,9 @@ describe("applying activity", () => {
         startedAt,
       })
     const revised = apply(apply(started(0), binding, plan("p1", 5))!, binding, plan("p2", 6))!
-    expect(summary(revised).attention).toEqual({ pending: 1, kind: "plan", headline: null })
+    expect(summary(revised).attention).toEqual({ pending: 1, kind: "plan" })
     const approved = apply(revised, binding, result("p3", null, "ExitPlanMode", true))!
-    expect(summary(approved).attention).toEqual({ pending: 0, kind: null, headline: null })
+    expect(summary(approved).attention).toEqual({ pending: 0, kind: null })
   })
 
   it("plans as the latest hook to name the mode said, whatever order they arrive in", () => {
@@ -501,7 +499,7 @@ describe("applying activity", () => {
     // Nor does its own next request: both dialogs may show.
     const again = apply(ended, binding, request("bg:Bash:2", "bg", 12))!
     expect(ids(again)).toEqual(["bg:Bash:1", "bg:Bash:2"])
-    expect(summary(again).attention).toEqual({ pending: 2, kind: "permission", headline: null })
+    expect(summary(again).attention).toEqual({ pending: 2, kind: "permission" })
     // An older one, arriving after the newer one, waits too.
     expect(ids(apply(again, binding, request("bg:Bash:0", "bg", 8))!)).toEqual([
       "bg:Bash:1",
@@ -1547,7 +1545,7 @@ describe("a turn the person's Escape ended", () => {
   })
 })
 
-describe("murmur's headlines and gists", () => {
+describe("murmur's gists", () => {
   const binding: Binding = { agent: "claude", sessionId: "s", instance: "7" }
   type Fields = Parameters<typeof fact>[0]
   const on = (activity: Activity, fields: object) =>
@@ -1556,103 +1554,47 @@ describe("murmur's headlines and gists", () => {
     on(activity, { type: "turn-started", cause: "prompt", startedAt })
   const stop = (activity: Activity, startedAt: number, extra: object = {}) =>
     on(activity, { type: "turn-ended", outcome: "completed", startedAt, ...extra })
-  const ask = (activity: Activity, requestId: string, kind: string, startedAt: number) =>
-    on(activity, {
-      type: "attention-requested",
-      requestId,
-      actor: null,
-      toolName: "Tool",
-      kind,
-      subject: "Which database?",
-      choices: [],
-      startedAt,
-    })
-  const resolve = (activity: Activity, requestId: string, startedAt: number) =>
-    on(activity, {
-      type: "attention-resolved",
-      requestId,
-      actor: null,
-      toolName: "Tool",
-      loose: false,
-      outcome: "allowed",
-      startedAt,
-    })
   const running = turn(started(0), 1)
-
-  it("puts a headline on the request asked at that time, once, and shows the oldest's", () => {
-    const asked = ask(ask(running, "q1", "question", 2), "q2", "plan", 3)
-    expect(summary(asked).attention.headline).toBeNull()
-    expect(withHeadline(asked, "q1", 99, "Asks which")).toBeUndefined()
-    expect(withHeadline(asked, "nobody", 2, "Asks which")).toBeUndefined()
-    const headlined = withHeadline(asked, "q1", 2, "Asks which database to use")!
-    expect(summary(headlined).attention).toEqual({
-      pending: 2,
-      kind: "question",
-      headline: "Asks which database to use",
-    })
-    expect(withHeadline(headlined, "q1", 2, "Again")).toBeUndefined()
-    // The next request shows its own once the oldest is answered.
-    const both = withHeadline(headlined, "q2", 3, "Plan to split billing")!
-    expect(summary(resolve(both, "q1", 4)).attention.headline).toBe("Plan to split billing")
-  })
-
-  it("shows a permission no headline, and a request no longer waiting takes none", () => {
-    const asked = ask(running, "p1", "permission", 2)
-    expect(summary(withHeadline(asked, "p1", 2, "Never shown")!).attention.headline).toBeNull()
-    const answered = resolve(ask(running, "q1", "question", 2), "q1", 4)
-    expect(withHeadline(answered, "q1", 2, "Late")).toBeUndefined()
-  })
-
-  it("drops the headline of a revised plan, whose new request awaits its own", () => {
-    const plan = ask(running, "plan", "plan", 2)
-    const headlined = withHeadline(plan, "plan", 2, "Plan to split billing")!
-    const revised = ask(headlined, "plan2", "plan", 5)
-    expect(summary(revised).attention).toMatchObject({ pending: 1, headline: null })
-    expect(withHeadline(revised, "plan", 2, "Stale")).toBeUndefined()
-    expect(summary(withHeadline(revised, "plan2", 5, "Plan to merge")!).attention.headline).toBe(
-      "Plan to merge",
-    )
-  })
 
   it("puts a gist on the end it was written for, while it is the last and none runs", () => {
     const done = stop(running, 2, { reply: "Done." })
-    expect(withGist(done, 3, { text: "Fixed it", asks: false })).toBeUndefined()
-    const gisted = withGist(done, 2, { text: "Fixed the rounding bug", asks: true })!
+    expect(withGist(done, 3, "Fixed it")).toBeUndefined()
+    const gisted = withGist(done, 2, "Fixed the rounding bug")!
     expect(summary(gisted).lastTurn).toEqual({
       outcome: "completed",
       reply: "Done.",
       at: 2,
-      gist: { text: "Fixed the rounding bug", asks: true },
+      gist: "Fixed the rounding bug",
       error: null,
       limit: null,
       files: [],
     })
     // Once only; and the outcome is never changed by it.
-    expect(withGist(gisted, 2, { text: "Other", asks: false })).toBeUndefined()
+    expect(withGist(gisted, 2, "Other")).toBeUndefined()
     // A new turn drops it, and a late gist for the old end is refused.
     const next = turn(gisted, 5)
     expect(summary(next).lastTurn).toBeNull()
-    expect(withGist(next, 2, { text: "Late", asks: false })).toBeUndefined()
+    expect(withGist(next, 2, "Late")).toBeUndefined()
     expect(summary(stop(next, 6)).lastTurn?.gist).toBeNull()
   })
 
   it("writes no gist for an interrupted turn or one that is running", () => {
-    expect(withGist(running, 1, { text: "Nothing", asks: false })).toBeUndefined()
+    expect(withGist(running, 1, "Nothing")).toBeUndefined()
     const interrupted = stop(running, 2, { outcome: "interrupted" })
-    expect(withGist(interrupted, 2, { text: "Nothing", asks: false })).toBeUndefined()
+    expect(withGist(interrupted, 2, "Nothing")).toBeUndefined()
     const failed = stop(running, 2, { outcome: "failed" })
-    expect(withGist(failed, 2, { text: "Build broke", asks: false })).toBeDefined()
+    expect(withGist(failed, 2, "Build broke")).toBeDefined()
   })
 
   it("keeps the gist when the hook's Stop fills in an end its records already told", () => {
     const recorded = stop(running, 3, { recorded: true })
-    const gisted = withGist(recorded, 3, { text: "Fixed it", asks: false })!
+    const gisted = withGist(recorded, 3, "Fixed it")!
     const filled = stop(gisted, 4, { reply: "All green." })
     expect(summary(filled).lastTurn).toEqual({
       outcome: "completed",
       reply: "All green.",
       at: 3,
-      gist: { text: "Fixed it", asks: false },
+      gist: "Fixed it",
       error: null,
       limit: null,
       files: [],
@@ -1664,7 +1606,7 @@ describe("murmur's headlines and gists", () => {
 
   it("drops the gist when the hook's Stop tells the same end another way", () => {
     const recorded = stop(running, 3, { recorded: true })
-    const gisted = withGist(recorded, 3, { text: "Fixed it", asks: false })!
+    const gisted = withGist(recorded, 3, "Fixed it")!
     const other = stop(gisted, 4, { outcome: "failed" })
     expect(summary(other).lastTurn).toMatchObject({
       outcome: "failed",
@@ -1676,12 +1618,9 @@ describe("murmur's headlines and gists", () => {
     })
   })
 
-  it("takes both away when murmur is turned off, and says when it had none", () => {
-    const asked = withHeadline(ask(running, "q1", "question", 2), "q1", 2, "Asks which")!
+  it("takes the gist away when murmur is turned off, and says when it had none", () => {
     expect(withoutNotes(started(0))).toBeUndefined()
-    expect(withoutNotes(ask(running, "q1", "question", 2))).toBeUndefined()
-    expect(summary(withoutNotes(asked)!).attention.headline).toBeNull()
-    const gisted = withGist(stop(running, 2), 2, { text: "Fixed it", asks: false })!
+    const gisted = withGist(stop(running, 2), 2, "Fixed it")!
     expect(summary(withoutNotes(gisted)!).lastTurn?.gist).toBeNull()
     expect(withoutNotes(withoutNotes(gisted)!)).toBeUndefined()
   })

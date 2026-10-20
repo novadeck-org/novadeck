@@ -875,6 +875,11 @@ versions it names). That's where they pay:
 
 A failed night, probes included, opens the "Nightly E2E is failing" issue or adds to it,
 and the first green night closes it (`.github/workflows/nightly.yml`, `scripts/nightly`).
+Each such report also carries a model's "Likely cause", read from the failed tests' errors
+and the harness versions each job installed, through OpenRouter as the release notes ask
+(`scripts/openrouter`). It is labelled as a model's, and without the key or an answer the
+report goes without it. A dispatch of Nightly Report with a run's id shows the report it
+would make, as a dry run.
 
 Two of them reach into the runner through casts typecheck can't see past:
 `interrupt-held-reply` wraps `bindings.applyFact`, and `agy-stop-boundary` wraps

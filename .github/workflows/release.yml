@@ -128,7 +128,7 @@ jobs:
       vars.PAUSE_DEV_RELEASES != 'true'
     needs: [prepare, package]
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 18
     permissions:
       contents: write
       # Build provenance for every package, which `gh attestation verify` checks.
@@ -253,6 +253,34 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: pnpm exec release-it "${{ needs.prepare.outputs.version }}" --ci
+
+      # Notes people can read: a model rewrites the release's commits into short lines, and
+      # the body gains the hidden block the app reads (scripts/release-notes). It never
+      # holds a release: without the key, or when anything fails, the script writes no
+      # notes and the generated changelog stays as it is.
+      - name: Rewrite Release Notes
+        continue-on-error: true
+        timeout-minutes: 6
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          RELEASE_NOTES_PRERELEASE_MODEL: ${{ vars.RELEASE_NOTES_PRERELEASE_MODEL }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: v${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$OPENROUTER_API_KEY" ]]; then
+            echo "No OPENROUTER_API_KEY; the release keeps its generated changelog."
+            exit 0
+          fi
+          node scripts/release-notes/main.ts release "$TAG" "$RUNNER_TEMP/notes.md"
+          # A promotion while the model wrote may have given the release its own notes since,
+          # before or after turning it stable.
+          if [[ -s "$RUNNER_TEMP/notes.md" ]] &&
+            [[ "$(gh release view "$TAG" --json isPrerelease,body \
+              --jq '.isPrerelease and (.body | contains("\"kind\":\"promote\"") | not)')" == true ]]; then
+            gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
+          fi
 
   # The visitor demo follows each release, prereleases included, until launch; then it moves
   # to Promote to Stable. Publishing with GITHUB_TOKEN starts no `release` workflow, so this

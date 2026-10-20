@@ -3,9 +3,11 @@ import { useEffect, useState, type ReactNode } from "react"
 
 import { FooterMurmur, type FooterMurmurProps } from "./FooterMurmur"
 import { FooterSandbox, type FooterSandboxProps } from "./FooterSandbox"
+import { useOverlayOpen } from "./notice-focus"
 import { PortableInstall, type PortableInstallProps } from "./PortableInstall"
 import { UpdateAvailable, type FooterAvailable } from "./UpdateAvailable"
 import { UpdateProgress } from "./UpdateProgress"
+import { WhatsNew, type WhatsNewProps } from "./WhatsNew"
 
 // How the backend link is doing, most severe first: "ok" shows nothing.
 export type FooterStatus = "restarting" | "unavailable" | "reconnecting" | "ok"
@@ -27,7 +29,9 @@ const shown: Record<Exclude<FooterStatus, "ok">, { readonly tone: Tone; readonly
 // itself is a chip, "Update available", that opens the release page (UpdateAvailable.tsx).
 // A portable copy has a chip there instead, "Install Novadeck" or "Update available", in
 // the bar's own colours, which opens its notice (PortableInstall.tsx). Without the security
-// sandbox, a chip before it says so (FooterSandbox.tsx).
+// sandbox, a chip before it says so (FooterSandbox.tsx). After an update, a card says what
+// is new until it is dismissed (WhatsNew.tsx); it waits while a download's bar
+// shows, since notices there don't stack.
 export const WorkspaceFooter = ({
   hidden,
   count,
@@ -39,6 +43,7 @@ export const WorkspaceFooter = ({
   progress = null,
   available,
   noticeOpen = false,
+  whatsNew,
   sandbox,
   murmur,
   usage,
@@ -58,6 +63,8 @@ export const WorkspaceFooter = ({
   readonly progress?: UpdateOffer | null
   // A release an installed copy can't install itself: a chip that opens its release page.
   readonly available?: FooterAvailable | undefined
+  // What is new in the version the app updated to, as the card above the right end.
+  readonly whatsNew?: WhatsNewProps | undefined
   // Whether a notice is open above the footer's right end, where the bar would cover it.
   readonly noticeOpen?: boolean
   // Set while the app runs without its security sandbox: a chip beside the update's
@@ -70,6 +77,16 @@ export const WorkspaceFooter = ({
 }): React.JSX.Element => {
   // Murmur's sheet, in the place the download's bar would cover.
   const [murmurSheet, setMurmurSheet] = useState(false)
+  // The card is up when nothing else holds the corner: not a notice, Murmur's sheet, or a
+  // dialog, menu or popover (looked at, as they come and go in portals).
+  const [barActive, setBarActive] = useState(false)
+  const cardWanted =
+    whatsNew !== undefined && !whatsNew.blocked && !hidden && !murmurSheet && !barActive
+  const overlay = useOverlayOpen(cardWanted)
+  const card = whatsNew && {
+    ...whatsNew,
+    blocked: whatsNew.blocked || murmurSheet || overlay || barActive,
+  }
   const [previous, setPrevious] = useState(status)
   const [recovered, setRecovered] = useState(false)
   if (status !== previous) {
@@ -110,8 +127,14 @@ export const WorkspaceFooter = ({
         <FooterSandbox sandbox={sandbox} hidden={hidden} />
         <FooterMurmur murmur={murmur} hidden={hidden} onSheetChange={setMurmurSheet} />
         <PortableInstall portable={portable} hidden={hidden} />
+        <WhatsNew card={card} hidden={hidden} />
         <UpdateAvailable available={available} />
-        <UpdateProgress offer={progress} hidden={hidden || noticeOpen || murmurSheet} />
+        {/* A download has the corner from its start until its bar fades; the card waits. */}
+        <UpdateProgress
+          offer={progress}
+          hidden={hidden || noticeOpen || murmurSheet}
+          onActive={setBarActive}
+        />
         <span className="footer-status flex items-center gap-1.5 font-bold">
           <span role="status" aria-live={current?.tone === "danger" ? "assertive" : "polite"}>
             {current?.text}
