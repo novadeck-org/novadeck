@@ -310,6 +310,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           {...(murmur ? { murmur } : {})}
           {...(updates ? { updates } : {})}
           {...(version ? { version } : {})}
+          {...(backend.openLogs ? { logs: backend.openLogs } : {})}
           {...(uninstall ? { uninstall } : {})}
           {...(backend.agents
             ? { agents: { list: agents.list, onChange: backend.agents.set } }

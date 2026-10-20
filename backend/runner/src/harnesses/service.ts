@@ -9,8 +9,11 @@ import { relayPath } from "@novadeck/relay"
 import { refreshPath } from "@novadeck/terminal/shell"
 
 import { DomainError } from "../errors.js"
+import { logs } from "../log.js"
 import type { ShellPaths } from "../shell/scripts.js"
 import { agents, harnesses } from "./registry.js"
+
+const log = logs.for("harnesses")
 
 export type HarnessesOptions = {
   readonly env?: NodeJS.ProcessEnv
@@ -325,14 +328,20 @@ export const createHarnesses = (
             await rm(reinstalling(where), { force: true })
             // An agent that rewrites what it copies would be installed again at every start.
             if (await differing(installed, where))
-              console.error(
-                `Novadeck installed its plugin into ${agent} again, and its copy still differs from Novadeck's: ${installed.files.join(", ")}.`,
+              log.error(
+                "harnesses.plugin-differs",
+                `Novadeck installed its plugin into ${agent} again, and its copy still differs from Novadeck's.`,
+                { data: { agent, files: installed.files.length } },
               )
             return true
           })
           if (done) refreshed.push(agent)
         } catch (error) {
-          console.error(`Novadeck could not install its changed plugin into ${agent}:`, error)
+          log.error(
+            "harnesses.plugin-install-failed",
+            `Novadeck could not install its changed plugin into ${agent}`,
+            { data: { agent }, err: error },
+          )
         }
       }
       return refreshed

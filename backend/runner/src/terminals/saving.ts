@@ -1,8 +1,11 @@
 import { transcript as transcriptOf } from "@novadeck/emulator/headless"
 import type { AgentName } from "@novadeck/protocol"
 
+import { logs } from "../log.js"
 import type { Record } from "./record.js"
 import type { ListedTerminal, SavedTerminal, TerminalIdentity, TerminalRecords } from "./records.js"
+
+const log = logs.for("terminals")
 
 /** What saving reads of a terminal's record, and the two fields it keeps there. */
 export type SavedRecord = Pick<
@@ -211,7 +214,7 @@ export class Saves {
       work()
       return true
     } catch (error) {
-      console.error("Novadeck could not save a terminal:", error)
+      log.error("terminals.save-failed", "Novadeck could not save a terminal", { err: error })
       return false
     }
   }

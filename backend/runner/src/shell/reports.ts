@@ -7,8 +7,11 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { Report } from "@novadeck/harness-core/report"
 
+import { logs } from "../log.js"
 import { relayHook } from "./hook.js"
 import { mcpAnswer, type McpCall } from "./mcp.js"
+
+const log = logs.for("reports")
 
 /**
  * What a Stop or prompt-time hook hears back as it asks (see docs/agent-messaging.md):
@@ -117,10 +120,12 @@ const refuse = (value: unknown): void => {
   const why =
     relay === undefined
       ? "a connection that isn't a relay's"
-      : `a relay speaking version ${JSON.stringify(relay)} of its protocol`
+      : typeof relay === "number"
+        ? `a relay speaking version ${relay} of its protocol`
+        : "a relay speaking a version it doesn't name as a number"
   if (refused.has(why)) return
   refused.add(why)
-  console.error(`Novadeck's report endpoint turned away ${why}.`)
+  log.error("reports.refused", `Novadeck's report endpoint turned away ${why}.`)
 }
 
 // One line of an agent's MCP session may hold more than a hook's report, as a message's

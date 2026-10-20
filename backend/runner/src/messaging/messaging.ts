@@ -13,6 +13,7 @@ import { DomainError } from "../errors.js"
 import type { Binding } from "../harnesses/bindings.js"
 import { agents as allAgents, harnesses } from "../harnesses/registry.js"
 import { rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
+import { logs } from "../log.js"
 import type { HookAnswer } from "../shell/reports.js"
 import { bareHandle, mention } from "../terminals/handles.js"
 import {
@@ -70,6 +71,15 @@ import {
   type Peer,
 } from "./peers.js"
 import { memoryMailbox, type MailboxRecords } from "./records.js"
+import { longWaits } from "./waits.js"
+
+const log = logs.for("messaging")
+
+/** How long messages wait for a terminal before the log says so, whatever keeps them. */
+const longWaitMs = 5 * 60_000
+
+/** How often a wait that goes on is told again. */
+const longWaitAgainMs = 60 * 60_000
 
 /** Which terminals see each other: those of one project and one Novadeck session. */
 export type Scope = { readonly projectId: string; readonly sessionId: string }
@@ -187,6 +197,8 @@ export type MessagingOptions = {
   readonly leaseMs?: number
   /** How often messages past retention are deleted, in milliseconds. */
   readonly sweepMs?: number
+  /** How often long waits are looked for, for the log, in milliseconds; 0 for never. */
+  readonly waitsMs?: number
   /**
    * How long after the runner starts its terminals have to be restored and their agents
    * resumed, in milliseconds: then messages for a session not running are gone, until it
@@ -369,6 +381,9 @@ export class Messaging {
   private allSent: readonly number[] = []
   private readonly sweeper: ReturnType<typeof setInterval> | undefined
   private readonly restoring: ReturnType<typeof setTimeout> | undefined
+  private readonly waitWatch: ReturnType<typeof setInterval> | undefined
+  /** Each long wait told, by terminal: its oldest message and when it was told. */
+  private readonly toldWaits = new Map<string, { readonly id: string; readonly at: number }>()
   /**
    * Whether the runner closed it: what its end does to its terminals, each shell's exit
    * unregistering it, is the runner stopping, not its agents ending, so no message changes.
@@ -401,6 +416,47 @@ export class Messaging {
       this.restoring = setTimeout(() => this.restored(), options.restoreMs ?? 120_000)
       this.restoring.unref()
     }
+    if (options.waitsMs !== 0) {
+      this.waitWatch = setInterval(() => this.tellWaits(), options.waitsMs ?? 60_000)
+      this.waitWatch.unref()
+    }
+  }
+
+  /**
+   * Logs each terminal whose messages have waited longer than `longWaitMs`, whatever keeps
+   * them (a working agent, a held thread, text in its box), with its delivery state; once,
+   * and again every `longWaitAgainMs` while the same message still waits.
+   */
+  tellWaits(): void {
+    const now = this.now()
+    const long = longWaits(this.messages.values(), now, longWaitMs)
+    for (const wait of long) {
+      const told = this.toldWaits.get(wait.terminalId)
+      if (told?.id === wait.oldestId && now - told.at < longWaitAgainMs) continue
+      this.toldWaits.set(wait.terminalId, { id: wait.oldestId, at: now })
+      const live = this.live.get(wait.terminalId)
+      log.info("delivery.waiting", "Messages have waited long for a terminal.", {
+        data: {
+          terminal: wait.terminalId,
+          count: wait.count,
+          waitedMs: now - wait.oldestAt,
+          state: live?.delivery.state ?? null,
+          waits: live?.waits ?? null,
+        },
+      })
+    }
+    const still = new Set(long.map((wait) => wait.terminalId))
+    for (const terminalId of this.toldWaits.keys())
+      if (!still.has(terminalId)) this.toldWaits.delete(terminalId)
+  }
+
+  /** How long the oldest message waiting for the terminal has waited, in milliseconds; null for none. */
+  waitedMs(terminalId: string): number | null {
+    const [wait] = longWaits(
+      [...this.messages.values()].filter((message) => message.to.terminalId === terminalId),
+      this.now(),
+    )
+    return wait ? this.now() - wait.oldestAt : null
   }
 
   /**
@@ -410,6 +466,7 @@ export class Messaging {
   close(): void {
     this.closed = true
     clearInterval(this.sweeper)
+    clearInterval(this.waitWatch)
     clearTimeout(this.restoring)
     this.leases.clear()
   }
@@ -459,7 +516,7 @@ export class Messaging {
         message.fromLead &&
         (message.state === "queued" || message.state === "held")
       )
-        this.gone(message)
+        this.gone(message, "lead-ended")
   }
 
   /**
@@ -490,7 +547,8 @@ export class Messaging {
     if (!live) return
     this.applyRoot(live, [{ type: "ended" }])
     for (const message of this.messages.values())
-      if (message.to.terminalId === terminalId && undelivered(message)) this.gone(message)
+      if (message.to.terminalId === terminalId && undelivered(message))
+        this.gone(message, "terminal-closed")
     this.live.delete(terminalId)
   }
 
@@ -1544,8 +1602,10 @@ export class Messaging {
     for (const message of this.messages.values()) {
       if (message.thread !== threadId) continue
       terminals.add(message.from.terminalId).add(message.to.terminalId)
-      if (message.state === "queued" || message.state === "held")
+      if (message.state === "queued" || message.state === "held") {
+        this.noteGone(message, "thread-stopped")
         this.put({ ...message, state: "gone", notified: false, stopped: true })
+      }
     }
     for (const terminalId of terminals) this.changed(terminalId)
   }
@@ -1605,7 +1665,7 @@ export class Messaging {
       if (live?.root && this.addressed(message, live.root)) continue
       // The session the agent showing its prompt there is about to bind.
       if (live && !live.root && this.awaiting(live, message)) continue
-      this.gone(message)
+      this.gone(message, "session-not-restored")
     }
   }
 
@@ -1693,6 +1753,7 @@ export class Messaging {
     if (message.stopped) return
     const thread = this.threads.get(message.thread)
     if (thread?.stoppedAt != null && undelivered(message)) {
+      this.noteGone(message, "thread-stopped")
       this.put({ ...message, state: "gone", notified: false, stopped: true })
       return
     }
@@ -1700,7 +1761,23 @@ export class Messaging {
     if (state !== message.state) this.put({ ...message, state })
   }
 
-  private gone(message: Message): void {
+  /** Logs that a message that waited can't be delivered, and why. */
+  private noteGone(message: Message, reason: string): void {
+    if (message.state === "gone") return
+    log.info("delivery.gone", "A message could not be delivered.", {
+      data: {
+        message: message.id,
+        terminal: message.to.terminalId,
+        reason,
+        state: message.state,
+        waitedMs: this.now() - message.sentAt,
+      },
+    })
+  }
+
+  /** The message can't be delivered now, for `reason`; it waits again if its session comes back. */
+  private gone(message: Message, reason: string): void {
+    this.noteGone(message, reason)
     const response =
       message.response && message.state !== "gone" && message.deliveredAt === null
         ? { ...message.response, goneAt: this.now() }
@@ -1806,7 +1883,7 @@ export class Messaging {
             message.to.sessionId !== null &&
             undelivered(message)
           )
-            this.gone(message)
+            this.gone(message, "session-ended")
       } else if (change.type === "new")
         this.rootAt(live, change.root, change.guess, change.ready, change.startedAt, change.firedAt)
       else this.correct(live, change.from, change.root, change.confirmed)
@@ -1847,10 +1924,10 @@ export class Messaging {
         if (!undelivered(message)) continue
         if (message.to.agent === root.agent)
           this.put({ ...message, to: { ...message.to, sessionId: root.sessionId } })
-        else this.gone(message)
+        else this.gone(message, "other-agent")
       } else if (this.addressed(message, root)) {
         if (message.state === "gone") this.wait(message)
-      } else if (!guess && undelivered(message)) this.gone(message)
+      } else if (!guess && undelivered(message)) this.gone(message, "other-session")
     }
   }
 
@@ -1868,7 +1945,8 @@ export class Messaging {
         if (undelivered(message)) this.put({ ...message, to: { ...to, sessionId: root.sessionId } })
       } else if (this.addressed(message, root)) {
         if (message.state === "gone") this.wait(message)
-      } else if (confirmed && to.sessionId !== null && undelivered(message)) this.gone(message)
+      } else if (confirmed && to.sessionId !== null && undelivered(message))
+        this.gone(message, "other-session")
     }
   }
 
@@ -2008,7 +2086,9 @@ export class Messaging {
         listener(change)
       } catch (error) {
         // One listener failing never stops messaging, nor the others hearing.
-        console.error("Novadeck could not follow its messages:", error)
+        log.error("messaging.listener-failed", "Novadeck could not follow its messages", {
+          err: error,
+        })
       }
   }
 
@@ -2023,7 +2103,7 @@ export class Messaging {
     try {
       return work()
     } catch (error) {
-      console.error("Novadeck could not read its messages:", error)
+      log.error("messaging.read-failed", "Novadeck could not read its messages", { err: error })
       return fallback
     }
   }
@@ -2033,7 +2113,7 @@ export class Messaging {
     try {
       work()
     } catch (error) {
-      console.error("Novadeck could not save its messages:", error)
+      log.error("messaging.save-failed", "Novadeck could not save its messages", { err: error })
     }
   }
 }

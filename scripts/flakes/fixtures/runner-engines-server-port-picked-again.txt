@@ -1,0 +1,55 @@
+2026-10-19T19:42:37.9341295Z @novadeck/runner:test:  [32m✓[39m src/murmur/prompt.test.ts [2m([22m[2m37 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+2026-10-19T19:42:38.3163508Z @novadeck/runner:test:  [32m✓[39m src/terminals/settle.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 135[2mms[22m[39m
+2026-10-19T19:42:38.7424645Z @novadeck/runner:test:  [32m✓[39m src/shell/plugins.test.ts [2m([22m[2m17 tests[22m[2m | [22m[33m1 skipped[39m[2m)[22m[32m 238[2mms[22m[39m
+2026-10-19T19:42:40.0328740Z @novadeck/runner:test:  [31m❯[39m src/engines/server.test.ts [2m([22m[2m14 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 1182[2mms[22m[39m
+2026-10-19T19:42:40.0329575Z @novadeck/runner:test:    [31m❯[39m a server [2m(10)[22m
+2026-10-19T19:42:40.0330371Z @novadeck/runner:test:      [32m✓[39m runs the program under a path of its own, with the environment its spec and the launch give[32m 148[2mms[22m[39m
+2026-10-19T19:42:40.0331328Z @novadeck/runner:test:      [32m✓[39m starts another process for another key and shares one for the same[32m 224[2mms[22m[39m
+2026-10-19T19:42:40.0332230Z @novadeck/runner:test: [31m     [31m×[31m starts again on another port when something takes the one it was given[39m[32m 161[2mms[22m[39m
+2026-10-19T19:42:40.0332708Z @novadeck/runner:test:      [32m✓[39m gives up when the port stays taken[32m 72[2mms[22m[39m
+2026-10-19T19:42:40.0333266Z @novadeck/runner:test:      [32m✓[39m starts once when it fails for another reason than a port[32m 31[2mms[22m[39m
+2026-10-19T19:42:40.0334370Z @novadeck/runner:test:      [32m✓[39m does not start again once it was stopped between two attempts[32m 32[2mms[22m[39m
+2026-10-19T19:44:26.2750590Z @novadeck/runner:test:      [33m[2m✓[22m[39m rings an agent whose terminal only reported the mouse's scroll and motion and its focus since the turn[33m 2180[2mms[22m[39m
+2026-10-19T19:44:26.2751898Z @novadeck/runner:test:      [33m[2m✓[22m[39m takes Antigravity's turn after the person's Enter as theirs once its transcript shows the input[33m 1585[2mms[22m[39m
+2026-10-19T19:44:26.2752960Z @novadeck/runner:test:      [33m[2m✓[22m[39m keeps Antigravity Drafting when a turn after the Enter brought no typed input[33m 3140[2mms[22m[39m
+2026-10-19T19:44:26.2753933Z @novadeck/runner:test:      [33m[2m✓[22m[39m keeps Antigravity Drafting when the person typed after their Enter[33m 2833[2mms[22m[39m
+2026-10-19T19:44:26.2754925Z @novadeck/runner:test:      [33m[2m✓[22m[39m never rings an agent whose process group doesn't hold the terminal's foreground[33m 1972[2mms[22m[39m
+2026-10-19T19:44:26.2755533Z @novadeck/runner:test: 
+2026-10-19T19:44:26.2756009Z @novadeck/runner:test: [31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-19T19:44:26.2756422Z @novadeck/runner:test: 
+2026-10-19T19:44:26.2757168Z @novadeck/runner:test: [41m[1m FAIL [22m[49m src/engines/server.test.ts[2m > [22ma server[2m > [22mstarts again on another port when something takes the one it was given
+2026-10-19T19:44:26.2758086Z @novadeck/runner:test: [31m[1mAssertionError[22m: expected 2 to be 3 // Object.is equality[39m
+2026-10-19T19:44:26.2758542Z @novadeck/runner:test: 
+2026-10-19T19:44:26.2758830Z @novadeck/runner:test: [32m- Expected[39m
+2026-10-19T19:44:26.2759174Z @novadeck/runner:test: [31m+ Received[39m
+2026-10-19T19:44:26.2759450Z @novadeck/runner:test: 
+2026-10-19T19:44:26.2759732Z @novadeck/runner:test: [32m- 3[39m
+2026-10-19T19:44:26.2760039Z @novadeck/runner:test: [31m+ 2[39m
+2026-10-19T19:44:26.2760466Z @novadeck/runner:test: 
+2026-10-19T19:44:26.2760898Z @novadeck/runner:test: [36m [2m❯[22m src/engines/server.test.ts:[2m132:33[22m[39m
+2026-10-19T19:44:26.2782514Z @novadeck/runner:test:     [90m130|[39m
+2026-10-19T19:44:26.2782965Z @novadeck/runner:test:     [90m131|[39m     expect(ports).toHaveLength(3)
+2026-10-19T19:44:26.2783635Z @novadeck/runner:test:     [90m132|[39m     expect(new Set(ports).size).toBe(3)
+2026-10-19T19:44:26.2784121Z @novadeck/runner:test:     [90m   |[39m                                 [31m^[39m
+2026-10-19T19:44:26.2784632Z @novadeck/runner:test:     [90m133|[39m     expect(String(running.port)).toBe(ports[2])
+2026-10-19T19:44:26.2785053Z @novadeck/runner:test:     [90m134|[39m   })
+2026-10-19T19:44:26.2785319Z @novadeck/runner:test: 
+2026-10-19T19:44:26.2785679Z @novadeck/runner:test: [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-10-19T19:44:26.2786215Z @novadeck/runner:test: 
+2026-10-19T19:44:26.2786421Z @novadeck/runner:test: 
+2026-10-19T19:44:26.2787025Z @novadeck/runner:test: [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m102 passed[39m[22m[2m | [22m[33m4 skipped[39m[90m (107)[39m
+2026-10-19T19:44:26.2795551Z @novadeck/runner:test: [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m3017 passed[39m[22m[2m | [22m[33m22 skipped[39m[90m (3040)[39m
+2026-10-19T19:44:26.2796237Z @novadeck/runner:test: [2m   Start at [22m 19:41:09
+2026-10-19T19:44:26.2799055Z @novadeck/runner:test: [2m   Duration [22m 196.93s[2m (tests 97%, import 2%, transform 1%)[22m
+2026-10-19T19:44:26.2808329Z @novadeck/runner:test: 
+2026-10-19T19:44:26.3231075Z @novadeck/runner:test: [ELIFECYCLE] Test failed. See above for more details.
+2026-10-19T19:44:26.3471264Z ##[error]command (/home/runner/work/novadeck/novadeck/backend/runner) /home/runner/setup-pnpm/pnpm run test --reporter=default --reporter=hanging-process exited (1)
+2026-10-19T19:44:26.3478899Z 
+2026-10-19T19:44:26.3479650Z @novadeck/runner#test:  ERROR  command (/home/runner/work/novadeck/novadeck/backend/runner) /home/runner/setup-pnpm/pnpm run test --reporter=default --reporter=hanging-process exited (1)
+2026-10-19T19:44:26.3480401Z  ERROR  run failed: command  exited (1)
+2026-10-19T19:44:26.3480711Z  Tasks:    13 successful, 14 total
+2026-10-19T19:44:26.3480975Z Cached:    0 cached, 14 total
+2026-10-19T19:44:26.3481206Z   Time:    3m28.193s 
+2026-10-19T19:44:26.3481417Z Failed:    @novadeck/runner#test
+2026-10-19T19:44:26.3483842Z 
+2026-10-19T19:44:26.3623207Z ##[error]Process completed with exit code 1.

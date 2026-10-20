@@ -59,7 +59,7 @@ extract`, for `jq`; it is large, so prefer briefs.
 - Prefer extracting to curating. Whatever is curated points into the code with an anchor
   (`{ file, text }`), and `pnpm --filter @novadeck/atlas check` fails when one rots, when
   source under `apps/`, `backend/`, `contract/`, `frontend/`, `harnesses/` or `engines/` belongs to no area, or when a
-  note names an area that no longer exists. A new folder becomes a token on its own; give
+  note names an area that no longer exists. `pnpm lint` runs it, so CI's Lint job does too. A new folder becomes a token on its own; give
   it a purpose in `content/areas.ts`. A new package needs a root there.
 - Every structure an extractor depends on (a type, a class, a marker line) is expected, not
   assumed: when it is gone, or a scan that must find something finds nothing, the extractor

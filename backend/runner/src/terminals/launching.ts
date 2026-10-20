@@ -12,6 +12,7 @@ import { DomainError } from "../errors.js"
 import type { InstalledShell } from "../shell/install.js"
 import { shellLaunch } from "../shell/integration.js"
 import { listenForReports, type ReportHandlers, type Reports } from "../shell/reports.js"
+import { failed } from "./failures.js"
 import type { Started } from "./record.js"
 
 /** The runner's shell integration, once its files are written and reports are heard. */
@@ -89,7 +90,7 @@ export class Launcher {
       if (!this.host.stopping()) return { paths, reports }
       await reports.close()
     } catch (error) {
-      console.error("Novadeck shell integration is unavailable:", error)
+      failed.integration(error)
     }
     return undefined
   }

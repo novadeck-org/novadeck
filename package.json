@@ -34,7 +34,7 @@
     "test:e2e:install": "pnpm --filter @novadeck/protocol... --filter @novadeck/relay build && node scripts/e2e/install/main.ts",
     "test:e2e:isolated": "pnpm test:e2e:install && node scripts/e2e/isolated/main.ts -- pnpm --filter @novadeck/runner test:e2e",
     "typecheck": "tsc --noEmit -p tsconfig.json && turbo run typecheck",
-    "lint": "oxlint --deny-warnings . && pnpm --filter @novadeck/relay lint",
+    "lint": "oxlint --deny-warnings . && pnpm --filter @novadeck/relay lint && pnpm --filter @novadeck/atlas check",
     "format": "oxfmt && pnpm --filter @novadeck/relay format",
     "format:check": "oxfmt --check && pnpm --filter @novadeck/relay format:check"
   },
