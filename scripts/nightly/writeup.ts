@@ -131,7 +131,8 @@ export const question = (workflow: string, logs: readonly JobLog[]): Question =>
   system,
   user: userMessage(workflow, logs),
   schema: { name: "nightly_writeup", json: schema },
-  maxTokens: 2_000,
+  // The model reasons before it answers, and its reasoning counts: 2,000 ran out first.
+  maxTokens: 8_000,
 })
 
 /** The writeup for a failed night's logs, rendered, or `Skip` with the reason there is none. */
