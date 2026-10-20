@@ -29,7 +29,9 @@ the same validated owner and repository from that file (`update-release.ts`).
 ## Channels
 
 A build follows one channel, which the person picks in Preferences and the host keeps
-across launches in `update.json` in the data folder:
+across launches in `update.json` in the data folder. The same file keeps what the card of what is
+new needs (see "What is new"): `lastRunVersion`, `whatsNewPending`, `whatsNewSettled` and
+`whatsNewCheckedAt`.
 
 | Channel  | Follows                                          |
 | -------- | ------------------------------------------------ |
@@ -511,11 +513,32 @@ kill the process tree and wait.
 
 `DesktopBridge` in `contract/protocol/src/bridge.ts` carries `onUpdate` (an
 `UpdateOffer` with `kind` (`downloading`, `ready`, `retrying` or `available`), `version` and, for `downloading`, a whole `percent`), `openUpdatePage`,
-`updateChannel` and `setUpdateChannel`. The app shows no release notes. `onPortableState`
+`updateChannel` and `setUpdateChannel`. After an update the app shows one card of what is new (see
+"What is new" below), through `whatsNew`, `dismissWhatsNew` and `openWhatsNewPage`. `onPortableState`
 pushes the `PortableState` to every window when it changes, each step of an install included.
 The preload checks every offer and portable state again, with the protocol's parsers, before the
 page sees it: a bad offer is dropped, and so is a bad pushed state; a bad answer to `portable` counts as not portable. Requests count
 only from the main frame of the app's own page.
+
+## What is new
+
+The app tells of an update in one place, a card of highlights shown once, on the first launch
+after the app has updated to a version whose release has any. The notes come from the release
+itself: the promotion of a stable release writes a hidden `<!-- novadeck:notes {json} -->` block
+at the end of its body (`scripts/release-notes`), and the host reads it with `readNotesBlock`
+from the release page's API (`/releases/tags/v{version}`), never from the page.
+
+At launch the host records the version it runs in `update.json` as `lastRunVersion`, and marks
+that version `whatsNewPending` when it is newer than the one the last launch recorded. A first
+launch marks nothing; an install from before the version was kept counts as updated when the
+data folder holds the runner's `workspace.sqlite`. The mark is settled, and the version
+recorded as `whatsNewSettled`, when the person dismisses the card or the release is read and
+has nothing to show (no block, no highlights, or GitHub's own JSON 404); nothing at or below
+a settled version is offered again. A failed read (offline, timeout, 403, 429, 5xx, or an
+answer that is not that release) keeps the mark for a later launch. A prerelease whose notes
+have no highlights yet is read at most once a day (`whatsNewCheckedAt`), as its promotion
+writes them onto the same tag. Builds that look for no updates (version 0.0.0, no release
+repository) never offer a card.
 
 ## Release assets
 

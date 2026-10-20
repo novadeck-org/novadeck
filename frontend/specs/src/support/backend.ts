@@ -66,6 +66,10 @@ export const forgetHostCalls = (): void => void (made.length = 0)
 export const startDownload = (version: string): void =>
   made.forEach((each) => each.download(version))
 
+/** Has the host report this download progress, in the backend the page uses (and its twin). */
+export const reportProgress = (version: string, percent: number): void =>
+  made.forEach((each) => each.offer({ kind: "downloading", version, percent }))
+
 /** How many times the page has asked the host what is new, since `forgetHostCalls`. */
 export const whatsNewAsked = (): number =>
   made.reduce((sum, each) => sum + each.whatsNewCalls.asked, 0)

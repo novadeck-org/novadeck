@@ -96,7 +96,11 @@ const readRelease = async (
     typeof release === "object" && release !== null && name in release
       ? (release as Record<string, unknown>)[name]
       : undefined
+  // Only the release itself settles anything: an empty or odd answer that is not this
+  // release, as a proxy's JSON would be, passes.
   const body = field("body")
+  if (field("tag_name") !== `v${version}` || (typeof body !== "string" && body !== null))
+    return "later"
   const notes = typeof body === "string" ? readNotesBlock(body) : undefined
   const shown = parseWhatsNew({
     version,
@@ -185,7 +189,9 @@ export const keepWhatsNew = ({
       if (pending() !== version) return undefined
       // A prerelease whose notes were not there yet is looked at again once a day.
       const last = checkedAt()
-      if (last !== undefined && now() - last < prereleaseRecheckMs) return undefined
+      // A time ahead of now, as after the clock moved back, is stale, not a reason to wait.
+      const since = last === undefined ? undefined : now() - last
+      if (since !== undefined && since >= 0 && since < prereleaseRecheckMs) return undefined
       reading ??= read()
       return reading
     },

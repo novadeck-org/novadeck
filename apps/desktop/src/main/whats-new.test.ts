@@ -100,7 +100,7 @@ const release = (body: string, status = 200, prerelease = false) => ({
   ok: status >= 200 && status < 300,
   headers: jsonType,
   json: async (): Promise<unknown> =>
-    status === 404 ? { message: "Not Found" } : { body, prerelease },
+    status === 404 ? { message: "Not Found" } : { tag_name: "v0.5.0", body, prerelease },
 })
 
 const kept = (
@@ -202,13 +202,29 @@ describe("what is new in the version", () => {
         async () => release(notesBlock(notes([]))),
         async () => release("Just words."),
         async () => release("", 404),
-        async () => ({ status: 200, ok: true, headers: jsonType, json: async () => null }),
+        async () => ({ ...release(""), json: async () => ({ tag_name: "v0.5.0", body: null }) }),
       ]
       const runs = answers.map((answer) => kept(answer))
       expect(await Promise.all(runs.map(({ whatsNew }) => whatsNew()))).toEqual(
         answers.map(() => undefined),
       )
       expect(runs.map(({ state }) => state.pending)).toEqual(answers.map(() => undefined))
+    })
+
+    it("keeps the mark for an answer that is not this release", async () => {
+      const answers = [
+        null,
+        {},
+        { error: "oops" },
+        { tag_name: "v0.4.2", body: "" },
+        { tag_name: "v0.5.0" },
+        { tag_name: "v0.5.0", body: 3 },
+      ]
+      const runs = answers.map((answer) =>
+        kept(async () => ({ ...release(""), json: async () => answer })),
+      )
+      await Promise.all(runs.map(({ whatsNew }) => whatsNew()))
+      expect(runs.map(({ state }) => state.pending)).toEqual(answers.map(() => "0.5.0"))
     })
   })
 
@@ -228,6 +244,14 @@ describe("what is new in the version", () => {
       const later = kept(answer, { checkedAt: 1_000_000_000 - prereleaseRecheckMs })
       await later.whatsNew()
       expect(later.urls).toHaveLength(1)
+    })
+
+    it("reads again when the recorded time is ahead of now, as after the clock moved back", async () => {
+      const ahead = kept(async () => release(notesBlock(notes([])), 200, true), {
+        checkedAt: 1_000_000_000 + 60_000,
+      })
+      await ahead.whatsNew()
+      expect(ahead.urls).toHaveLength(1)
     })
 
     it("does not throttle a failed read", async () => {

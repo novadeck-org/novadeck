@@ -1,7 +1,13 @@
 import { beforeEach, describe as context, describe, expect, it } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
-import { forgetHostCalls, startDownload, whatsNewAsked, whatsNewCalls } from "./support/backend"
+import {
+  forgetHostCalls,
+  reportProgress,
+  startDownload,
+  whatsNewAsked,
+  whatsNewCalls,
+} from "./support/backend"
 import {
   commandInput,
   expectStaysAbsent,
@@ -96,8 +102,8 @@ describe("the what's-new card", () => {
     it("is reached with the keyboard", async () => {
       await openWorkspace("/?update=whatsNew")
       await expect.element(card()).toBeVisible()
-      // From the footer's start, Tab gets to the card's controls: the highlights, then ×, then
-      // the link.
+      // From the footer's start, Tab gets to the card's controls: × first, then the
+      // highlights when they scroll, then the link.
       document.querySelector<HTMLElement>("footer")?.setAttribute("tabindex", "-1")
       document.querySelector<HTMLElement>("footer")?.focus()
       await expect
@@ -171,6 +177,8 @@ describe("the what's-new card", () => {
         await expect.element(releaseNotes()).toBeVisible()
         const list = card().element().querySelector(".whats-new-list")!
         expect(list.scrollHeight).toBeGreaterThan(list.clientHeight)
+        // Only a list that scrolls is a Tab stop.
+        await expect.poll(() => list.getAttribute("tabindex")).toBe("0")
       } finally {
         await page.viewport(1440, 900)
       }
@@ -184,6 +192,31 @@ describe("the what's-new card", () => {
       startDownload("0.0.81")
       await expect.element(card()).not.toBeInTheDocument()
       await expect.element(commandInput("Checkout review")).toHaveFocus()
+    })
+
+    it("still hands focus back when the footer re-renders within the frame", async () => {
+      await openWorkspace("/?update=whatsNew")
+      await terminalTab("Checkout review").click()
+      closeButton().element().focus()
+      await expect.element(closeButton()).toHaveFocus()
+      startDownload("0.0.81")
+      // Progress arrives faster than a frame, so the footer renders again while the card's
+      // focus is still being handed back.
+      let percent = 0
+      const timer = setInterval(() => reportProgress("0.0.81", Math.min((percent += 1), 99)), 3)
+      try {
+        await expect.element(commandInput("Checkout review")).toHaveFocus()
+      } finally {
+        clearInterval(timer)
+      }
+    })
+
+    it("keeps a short list out of the Tab order", async () => {
+      await openWorkspace("/?update=whatsNew")
+      await expect.element(card()).toBeVisible()
+      const list = card().element().querySelector(".whats-new-list")!
+      expect(list.scrollHeight).toBeLessThanOrEqual(list.clientHeight)
+      expect(list.hasAttribute("tabindex")).toBe(false)
     })
 
     it("gives the corner to the sandbox notice while that is open, and comes back", async () => {

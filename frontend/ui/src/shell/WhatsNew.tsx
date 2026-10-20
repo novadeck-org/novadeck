@@ -1,6 +1,6 @@
 import type { WhatsNew as Notes } from "@novadeck/core/update"
 import { X } from "lucide-react"
-import { useEffect, useId, useRef, useState } from "react"
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
 import { KeepFocus } from "./notice-focus"
 
@@ -65,18 +65,41 @@ export const WhatsNew = ({
   // does: focus would drop to the page, so it goes back to the terminal, unless whatever
   // took the card's place (a notice, a dialog) has taken it.
   const lost = useRef(false)
-  const returnFocus = card?.returnFocus
+  // The latest way back to the terminal, which changes with every render of the footer:
+  // a re-render in the frame below must not cancel the return.
+  const latestReturn = useRef(card?.returnFocus)
   useEffect(() => {
-    if (shown || !lost.current) return
-    lost.current = false
+    latestReturn.current = card?.returnFocus
+  })
+  useEffect(() => {
+    if (shown) {
+      lost.current = false
+      return undefined
+    }
+    if (!lost.current) return undefined
     // A frame on, once whatever took the card's place has had focus: if nothing holds it,
     // the terminal gets it.
     const frame = requestAnimationFrame(() => {
+      lost.current = false
       const active = document.activeElement
-      if (!active || active === document.body) returnFocus?.()
+      if (!active || active === document.body) latestReturn.current?.()
     })
     return () => cancelAnimationFrame(frame)
-  }, [shown, returnFocus])
+  }, [shown])
+  // Whether the highlights overflow the card, in a short window: only then is the list a Tab
+  // stop, so the keyboard can scroll it.
+  const [list, setList] = useState<HTMLUListElement | null>(null)
+  const [scrolls, setScrolls] = useState(false)
+  useLayoutEffect(() => {
+    const element = list
+    if (!element) return undefined
+    const measure = (): void => setScrolls(element.scrollHeight > element.clientHeight)
+    measure()
+    if (typeof ResizeObserver === "undefined") return undefined
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [list])
   const inside = (): boolean => panel.current?.contains(document.activeElement) === true
   return (
     <>
@@ -119,7 +142,12 @@ export const WhatsNew = ({
               <X size={14} />
             </button>
           </p>
-          <ul className="whats-new-list" tabIndex={0} aria-labelledby={titleId}>
+          <ul
+            ref={setList}
+            className="whats-new-list"
+            tabIndex={scrolls ? 0 : undefined}
+            aria-labelledby={scrolls ? titleId : undefined}
+          >
             {keyed(card.notes.highlights).map(({ key, title, line }) => (
               <li key={key}>
                 <b className="whats-new-title">{title}</b>
