@@ -37,7 +37,11 @@ export const createCanvasVisit = () => {
     // `begin` does, but never back, so a visit already at (or flying to) the terminal stays.
     // One asked during another flight takes over from it, its way back where that visit's was.
     enter(id: string, current: Viewport, destination: Viewport): Flight | null {
-      if (origin?.id === id) return null
+      if (origin?.id === id) {
+        // Under way to it with a way back asked for: it stays, as asked now.
+        backRequested = false
+        return null
+      }
       if (!active) return begin(id, current, destination)
       const home = origin?.viewport ?? active.viewport
       origin = { id, viewport: { ...home } }

@@ -78,12 +78,13 @@ export const WorkspaceStage = memo(
       })
     // A navigation that flies is for the view on screen as it was asked, here or in the
     // session it brought to the front: once the view or the session changes, it is spent,
-    // and a view the session opens into later frames as it would.
+    // and a view the session opens into later frames as it would. One from before the stage
+    // mounted, as when the window crosses the desktop width, was never for it.
     const [flight, setFlight] = useState({
       count: shellNavigation.count,
       context,
       view,
-      spent: false,
+      spent: true,
     })
     if (flight.count !== shellNavigation.count)
       setFlight({ count: shellNavigation.count, context, view, spent: false })
