@@ -347,6 +347,9 @@ jobs:
         run: |
           mkdir -p "$PROBE_OUT"
           git add --intent-to-add --all harnesses backend/runner/src
+          # As the repository formats them, so a probe that writes plain JSON shows what it
+          # found, not how it wrote it.
+          git diff --name-only -z -- harnesses backend/runner/src | xargs -0 -r pnpm exec oxfmt --write || true
           git diff -- harnesses backend/runner/src > "$PROBE_OUT/fixtures.diff"
           {
             echo "## Probes: $HARNESS_NAME ($NOVADECK_E2E_HARNESS)"
