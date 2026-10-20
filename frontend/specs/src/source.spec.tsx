@@ -3,8 +3,8 @@ import { page } from "vitest/browser"
 
 import { layoutSettled, openWorkspace, sidebarPanel } from "./support/workspace"
 
-// The agents demo has a Source panel with the storefront's files; nobody is writing as it opens,
-// so a row's marks and chips hold still.
+// The agents demo has a Source panel with the storefront's files. Specs run with reduced motion,
+// so the demo's agents write nothing while a test looks, and a row's marks and chips hold still.
 const agents = "/?demo=agents"
 
 const skipIntro = async (): Promise<void> => {

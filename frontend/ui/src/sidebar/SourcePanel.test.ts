@@ -645,14 +645,14 @@ describe("The Source panel", () => {
         family = "Wide Mono"
         await act(async () => {
           document.documentElement.dataset["theme"] = "phosphor"
-          await Promise.resolve()
+          await nextFrame()
         })
         expect(shown(panel, "short.ts")).toEqual(["@moth"])
 
         family = "Narrow Mono"
         await act(async () => {
           document.documentElement.dataset["theme"] = "graphite"
-          await Promise.resolve()
+          await nextFrame()
         })
         expect(shown(panel, "short.ts")).toHaveLength(2)
         await nextFrame()

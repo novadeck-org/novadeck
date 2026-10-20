@@ -359,13 +359,20 @@ export const SourcePanel = ({
       // did not: a new object folds the chips again.
       setFonts(fontsOf(element))
     }
-    // A theme sets its own fonts (a mono sans in phosphor) on the root element.
+    // A theme sets its own fonts (a mono sans in phosphor) on the root element. Its style also
+    // changes for other reasons, as a view's transition, so the measuring waits for the next
+    // frame and runs once however many changes came before it.
     const root = typeof document === "undefined" ? undefined : document.documentElement
+    let frame: number | undefined
     const themed =
       typeof MutationObserver === "undefined"
         ? undefined
         : new MutationObserver(() => {
-            if (current) measure()
+            if (!current || frame !== undefined) return
+            frame = requestAnimationFrame(() => {
+              frame = undefined
+              if (current) measure()
+            })
           })
     themed?.observe(root!, {
       attributes: true,
@@ -377,6 +384,7 @@ export const SourcePanel = ({
     if (typeof ResizeObserver === "undefined")
       return () => {
         current = false
+        if (frame !== undefined) cancelAnimationFrame(frame)
         themed?.disconnect()
         faces?.removeEventListener?.("loadingdone", fontsChanged)
       }
@@ -384,6 +392,7 @@ export const SourcePanel = ({
     observer.observe(element)
     return () => {
       current = false
+      if (frame !== undefined) cancelAnimationFrame(frame)
       themed?.disconnect()
       faces?.removeEventListener?.("loadingdone", fontsChanged)
       observer.disconnect()
