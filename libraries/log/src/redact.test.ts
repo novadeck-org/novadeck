@@ -506,6 +506,17 @@ describe("createRedactor", () => {
     expect(redact(text)).not.toMatch(/bigbank|plan\.|state\./)
   })
 
+  it.each([
+    [
+      "a base64 key with +/ in it",
+      "key wJalrXUtnFEMI+/K7MDENGbPxRfiCYEXAMPLEKEY99 loaded",
+      /wJalr|K7MD/,
+    ],
+    ["a pass phrase that starts with the account name", "passphrase: ana.2019!xyz", /2019|xyz/],
+  ])("leaves nothing of %s", (_what, text, kept) => {
+    expect(redact(text)).not.toMatch(kept)
+  })
+
   it("leaves a short or ordinary account name in the text", () => {
     expect(createRedactor({ user: "dev", salt })("dev build")).toBe("dev build")
     expect(createRedactor({ user: "al", salt })("al dente")).toBe("al dente")

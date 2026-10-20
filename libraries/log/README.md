@@ -54,13 +54,13 @@ redaction, so a secret is never cut short before it is looked for. A
   `name.log` → `name.1.log` → … by size, keeping `keep` files. Each rotated-in file starts with a
   `session.resume` line, so it reads on its own.
 - `createRedactor`: held secrets, named secret variables, URL credentials, credential headers
-  and `key=value` secrets; then `hashUrls`; then email addresses; then `hashPaths`; then the
-  account name as a word of its own; then keys and tokens by their shapes, as
-  [`@novadeck/secrets`](../secrets/README.md) finds them, as `<secret>`: last, so a secret
-  inside a path or an address is hashed with it and never stops its hashing. Those shapes take
+  and `key=value` secrets; then `hashUrls`; then email addresses; then `hashPaths`; then keys
+  and tokens by their shapes, as [`@novadeck/secrets`](../secrets/README.md) finds them, as
+  `<secret>`, after the hashing, so a secret never stops it and one inside a hashed path or
+  address goes with it; then the account name as a word of its own. Those shapes take
   more than secrets: long hex and base64 runs (a digest without its `sha256:`, a dashless id;
   commit ids, dashed UUIDs and `sha256:` digests are kept), any `-----BEGIN …-----` block to its
-  end (certificates too), and a `Cookie:` line to its end.
+  end (certificates too), and a `Cookie:` or `Set-Cookie:` line to its end.
 - `hashUrls`: addresses and Git remotes over SSH. Those the app names readable (`readableUrls`:
   a host, `*.` a host and its subdomains, or a host and path) stay whole; public forges
   (`github.com`, `gitlab.com`, `bitbucket.org`) and the loopback keep their host; any other host

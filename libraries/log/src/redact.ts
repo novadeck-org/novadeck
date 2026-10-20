@@ -91,9 +91,11 @@ const shapes: readonly (readonly [RegExp, string])[] = [
   [/(\bSyntaxError: [^"'`\n]*?)[\s,:]*["'`][^\n]*/g, "$1 (input withheld)"],
 ]
 
-// Keys and tokens by their shapes (see @novadeck/secrets), last: a mask inside a path, an
-// address or an email address would end it there for `hashPaths`, `hashUrls` and `email`,
-// and leave the rest of it as it is, while a secret inside one is hashed with it.
+// Keys and tokens by their shapes (see @novadeck/secrets), after the paths and addresses are
+// hashed: a mask inside a path, an address or an email address would end it there for
+// `hashPaths`, `hashUrls` and `email`, and leave the rest of it as it is, while a secret inside
+// one is hashed with it. Before the account name, which would otherwise start a secret's value
+// as `<user>` and so hide it from them.
 const secrets = redactAs("<secret>")
 
 // Email addresses; not a Git remote's `git@host:`, which `hashUrls` wrote first.
@@ -104,8 +106,8 @@ const email = /[\w.%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b(?!:[\
  * a person could send in a bug report. In order: the secrets this process holds, the values of
  * the secret variables, URL credentials, credential headers, `key=value` secrets; then
  * addresses and Git remotes (see `hashUrls`); then email addresses; then the paths (see
- * `hashPaths`); then the account name, as a word of its own, unless it is short or an ordinary
- * word; then keys and tokens by their shapes.
+ * `hashPaths`); then keys and tokens by their shapes; then the account name, as a word of its
+ * own, unless it is short or an ordinary word.
  */
 export const createRedactor = (options: RedactOptions): Redactor => {
   const held = (options.secrets ?? [])
@@ -126,8 +128,7 @@ export const createRedactor = (options: RedactOptions): Redactor => {
     for (const pattern of named) result = result.replace(pattern, "$1$2$3<redacted>")
     for (const [pattern, replacement] of shapes) result = result.replace(pattern, replacement)
     result = hashUrls(result, options).replace(email, "<email>")
-    result = hashPaths(result, options)
-    if (account) result = result.replace(account, "<user>")
-    return secrets(result)
+    result = secrets(hashPaths(result, options))
+    return account ? result.replace(account, "<user>") : result
   }
 }
