@@ -33,7 +33,7 @@ export const readingAt = (
 const gap: Line = []
 
 // The agent's name and where it runs: Claude Code's on a line, Codex's in a box.
-const banner =
+export const banner =
   (agent: DemoAgent, directory: string): Block =>
   (width) => {
     if (agent === "claude")
