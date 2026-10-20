@@ -1,5 +1,6 @@
 import type { ChatAnswer, ChatRequest } from "./conversation"
 import type { AgentName } from "./harnesses"
+import type { MailWaits } from "./messages"
 import type { Store } from "./store"
 import type { Workspace } from "./types"
 
@@ -13,7 +14,8 @@ import type { Workspace } from "./types"
 // - `held`: a message between two agents that Novadeck holds until the person releases
 //   it, as its thread went back and forth as often as it may (an Approve).
 // - `ask`: what the agent asked through Novadeck's MCP `ask` tool (an Ask).
-// - `trouble`: what Novadeck noticed about the agent: stuck, at a usage limit, or failed.
+// - `trouble`: what Novadeck noticed about the agent: stuck, at a usage limit, failed, or
+//   its messages held long behind what keeps the doorbell from waking it.
 // - `update`: a finished turn, or what the agent told through the MCP `tell` tool.
 // Agents write subjects, bodies and options; Novadeck shows them as they are.
 
@@ -86,8 +88,10 @@ export type EvidenceLine = {
 }
 
 // What Novadeck noticed: the same failure again and again; a usage-limit window used up,
-// with when it resets and whether Novadeck continues the agent then; or a turn that
-// ended in a failure, with the error where the harness gives it.
+// with when it resets and whether Novadeck continues the agent then; a turn that ended in a
+// failure, with the error where the harness gives it; or `count` messages that have waited
+// long for the idle agent, behind what keeps the doorbell from waking it (`waits`, null
+// where the doorbell hasn't said).
 export type Trouble =
   | {
       readonly type: "stuck"
@@ -108,6 +112,7 @@ export type Trouble =
       readonly evidence: readonly EvidenceLine[]
     }
   | { readonly type: "failed"; readonly error: string | null }
+  | { readonly type: "waits"; readonly waits: MailWaits | null; readonly count: number }
 
 // A finished turn, with the start of the agent's last reply (or murmur's gist of it) and
 // the files its edit tools wrote in the turn; or something the agent told the person.
@@ -211,10 +216,12 @@ export type Inbox = {
 // How urgent an item is, most urgent first: trouble that stopped the agent, then
 // anything else that stopped it (a limit that waits for the person among them), then what
 // asks while the agent works on, then trouble that handles itself (a limit Novadeck
-// resumes from), then updates.
+// resumes from) or that only holds its messages (whose own question, if any, comes first),
+// then updates.
 export const urgency = (item: InboxItem): number => {
   const type = inboxType(item)
   if (type === "update") return 4
+  if (item.kind === "trouble" && item.trouble.type === "waits") return 3
   if (type === "trouble") {
     if (!item.stopped) return 3
     return item.kind === "trouble" && item.trouble.type === "limit" ? 1 : 0

@@ -941,13 +941,21 @@ export const deliveryWaits = z.enum([
   "away",
 ])
 
+// How long a message may wait for an idle agent, the agent idle all along, before the hold is
+// raised: an Inbox item for the person, and a word to its sender, in milliseconds.
+export const longHoldMs = 3 * 60_000
+
 // `messages.list`: a terminal's handle, how its agent can take messages now, why the doorbell
-// can't ring it if it is idle (`waits`), whether messaging is paused, and every thread it is in, latest first.
+// can't ring it if it is idle (`waits`), since when the longest-held message for its idle
+// agent has waited (`waitsSince`, epoch milliseconds: the later of when the agent last went
+// idle and when the message last came to wait; null with none), whether messaging is
+// paused, and every thread it is in, latest first.
 export const terminalMessages = z.strictObject({
   terminalId: id,
   handle,
   delivery: deliveryState,
   waits: deliveryWaits.nullable(),
+  waitsSince: z.number().int().nonnegative().nullable(),
   paused: z.boolean(),
   threads: z.array(messageThread).max(1000),
 })

@@ -35,9 +35,10 @@ const limit = (autoResume: boolean | null, resetsAt: number, minutes = 300): Inb
   trouble: { type: "limit", minutes, resetsAt, autoResume, evidence: [] },
 })
 
-// The sheet of one limit item, open, and the answers it gives.
+// The sheet of one limit item, open, and the answers it gives, and the terminals it shows.
 const mount = (item: InboxItem) => {
   const sent: InboxAnswer[] = []
+  const revealed: string[] = []
   const inbox: Inbox = {
     state: createStore({ ...emptyInbox, items: [item] }),
     answer: (_id, answer) => sent.push(answer),
@@ -47,14 +48,14 @@ const mount = (item: InboxItem) => {
   const view = render(
     createElement(
       InboxProvider,
-      { inbox, reveal: () => {} },
+      { inbox, reveal: (terminalId: string) => revealed.push(terminalId) },
       createElement("div", { id: "inbox-panel" }, createElement(InboxList)),
       createElement(InboxSheet, { active: true }),
     ),
   )
   act(() => view.container.querySelector<HTMLElement>(".inbox-row-select")!.click())
   const sheet = (): string => document.querySelector(".inbox-sheet")?.textContent ?? ""
-  return { view, sent, sheet }
+  return { view, sent, revealed, sheet }
 }
 
 describe("A usage limit's sheet", () => {
@@ -94,6 +95,25 @@ describe("A usage limit's sheet", () => {
 
     expect(open.sheet()).toContain("used up its usage window")
     expect(open.sheet()).not.toContain("0-hour")
+    await nextFrame()
+    open.view.unmount()
+  })
+})
+
+describe("A long hold's sheet", () => {
+  it("says what holds the messages and shows the terminal, answering nothing", async () => {
+    const { trouble: _, ...item } = limit(null, 0) as Extract<InboxItem, { kind: "trouble" }>
+    const open = mount({ ...item, trouble: { type: "waits", waits: "draft", count: 2 } })
+
+    expect(open.sheet()).toContain("2 messages for @moth wait behind text in its box")
+    expect(open.sheet()).toContain("There's text in its box, so they wait.")
+    const button = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(".inbox-sheet .inbox-actions button"),
+    ).find((each) => each.textContent?.trim() === "Show terminal")!
+    act(() => button.click())
+
+    expect(open.revealed).toEqual(["t"])
+    expect(open.sent).toEqual([])
     await nextFrame()
     open.view.unmount()
   })

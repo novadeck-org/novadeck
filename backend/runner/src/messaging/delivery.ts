@@ -133,13 +133,6 @@ export type Box = {
    * screen settles it once no turn runs: see `emptied`. Any key ends the doubt.
    */
   readonly doubted: boolean
-  /**
-   * Whether the doorbell's own line, left in the box by a ring that failed, is all that
-   * is there, the person having typed nothing since: Novadeck's, not their draft, so the
-   * doorbell may submit it (see docs/agent-messaging.md, "The doorbell"). Any key of
-   * theirs, or a turn, ends it.
-   */
-  readonly ours: boolean
 }
 
 /** What every state carries. */
@@ -284,15 +277,13 @@ export type DeliveryEvent =
       readonly type: "ring"
       readonly nonce: string
       readonly opening: boolean
-      /** Submits the line a failed ring left in the box (`Box.ours`), pasting nothing. */
+      /**
+       * Submits a doorbell line the screen shows alone in the box, as a ring that failed or
+       * was abandoned left it, pasting nothing.
+       */
       readonly leftover?: true
     }
-  | {
-      readonly type: "ring-failed"
-      readonly nonce: string
-      /** The paste check had accepted its line, which is alone in the box: Novadeck's own. */
-      readonly ours?: true
-    }
+  | { readonly type: "ring-failed"; readonly nonce: string }
 
 /** A box nothing is known to be in: as a session binds. */
 const emptyBox: Box = {
@@ -308,7 +299,6 @@ const emptyBox: Box = {
   queuedAt: null,
   draftWhileAsked: false,
   doubted: false,
-  ours: false,
 }
 
 export const unbound: Delivery = {
@@ -395,7 +385,6 @@ const typed = (box: Box): Box => ({
   queued: false,
   queuedAt: null,
   doubted: false,
-  ours: false,
 })
 
 /**
@@ -489,7 +478,6 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
       empty: false,
       strayed: true,
       doubted: false,
-      ours: false,
     })
   }
   // The person's Escape may interrupt a root turn, which no hook may tell (Claude Code's
@@ -581,7 +569,6 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
             enteredAt: null,
             typedAt: null,
             strayed: false,
-            ours: false,
           },
         })
       }
@@ -659,9 +646,7 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
         epoch: delivery.epoch + 1,
         continued: 0,
         byPerson: person,
-        box: later
-          ? { ...after, ours: false }
-          : { ...after, queuing: false, escapedAt: null, ours: false },
+        box: later ? after : { ...after, queuing: false, escapedAt: null },
       })
       // The person's Escape after the Enter it answers and after its hook fired may have
       // cancelled the turn before any other hook ran: Unknown, its prompt back in the box.
@@ -726,14 +711,14 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
         ? turn(delivery, delivery.idledAt)
         : delivery
     case "ring":
-      // Its line goes into the box: a draft, until its own prompt confirms it. A leftover line
-      // is submitted where the doorbell looks (`waitsIn`), Working on background work only
-      // included, where messaging lets it look (`stalled`).
-      return ringableSince(delivery) !== undefined ||
-        (event.leftover && box.ours && waitsIn(delivery, true))
+      // Its line goes into the box: a draft, until its own prompt confirms it. A line
+      // already there, which the screen shows is a doorbell line alone, is submitted where
+      // the doorbell looks (`waitsIn`), Working on background work only included, where
+      // messaging lets it look (`stalled`).
+      return ringableSince(delivery) !== undefined || (event.leftover && waitsIn(delivery, true))
         ? {
             ...counts(delivery),
-            box: { ...box, empty: false, ours: false },
+            box: { ...box, empty: false },
             state: "ringing",
             nonce: event.nonce,
             touched: false,
@@ -741,13 +726,9 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
           }
         : delivery
     case "ring-failed":
-      // Its line may be in the box, Novadeck's own unless the person's key touched it.
+      // Its line may be in the box: a draft, until the screen shows what is there.
       return delivery.state === "ringing" && delivery.nonce === event.nonce
-        ? {
-            ...counts(delivery),
-            box: { ...box, ours: event.ours === true && !delivery.touched },
-            state: "unknown",
-          }
+        ? { ...counts(delivery), state: "unknown" }
         : delivery
     case "key": {
       // While a request waits on the person, no key is a submission, and a bare Enter
@@ -824,7 +805,7 @@ export const pendingEnter = (
 const asked = (delivery: Delivery): Delivery =>
   delivery.box.draftWhileAsked && !delivery.box.doubted
     ? delivery
-    : { ...delivery, box: { ...delivery.box, draftWhileAsked: true, doubted: false, ours: false } }
+    : { ...delivery, box: { ...delivery.box, draftWhileAsked: true, doubted: false } }
 
 /** The delivery with no doubt left of its draft: any key of the person's ends one. */
 const undoubted = (delivery: Delivery): Delivery =>
@@ -850,7 +831,6 @@ const keyed = (delivery: Delivery, submits: boolean, at: number | null): Deliver
         : typed(box)),
     empty: false,
     doubted: false,
-    ours: false,
     // Only while a root turn runs, or may, does the harness queue what the person submits.
     queuing: box.queuing || (mayRun(delivery) && submits),
     queuingSince: box.queuing ? box.queuingSince : mayRun(delivery) && submits ? at : null,

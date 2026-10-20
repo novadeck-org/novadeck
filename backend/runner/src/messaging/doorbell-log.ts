@@ -24,7 +24,7 @@ export type DoorbellLog = {
   /** A ring began, for messages the oldest of which has waited `messageWaitedMs`, if known. */
   ring(terminalId: string, messageWaitedMs?: number | null): void
   /** A ring failed. */
-  ringFailed(terminalId: string, ours: boolean): void
+  ringFailed(terminalId: string): void
   /** The terminal stopped running: what was kept of it goes, its timer with it. */
   forget(terminalId: string): void
   /** Stops its timers. */
@@ -160,10 +160,10 @@ export const createDoorbellLog = (log: Log, options: DoorbellLogOptions = {}): D
       held.waitingSince = undefined
       held.escalated = false
     },
-    ringFailed(terminalId, ours) {
+    ringFailed(terminalId) {
       const held = state(terminalId)
       log.warn("doorbell.ring-failed", "A ring of the doorbell failed.", {
-        data: { terminal: terminalId, ours },
+        data: { terminal: terminalId },
       })
       dump(terminalId, held)
     },

@@ -1247,7 +1247,7 @@ describe("an idle agent whose screen shows its box empty", () => {
     expect(emptied(stray).state).toBe("ready")
     // Unknown: an Escape, a denial, a failed turn, a ring that never confirmed.
     const ringing = transition(settled, { type: "ring", nonce: "k3f9", opening: false })
-    const failed = transition(ringing, { type: "ring-failed", nonce: "k3f9", ours: true })
+    const failed = transition(ringing, { type: "ring-failed", nonce: "k3f9" })
     expect(failed.state).toBe("unknown")
     expect(emptied(failed).state).toBe("ready")
     expect(emptied(run(working, ended)).state).toBe("ready")
@@ -1331,56 +1331,50 @@ describe("an idle agent whose screen shows its box empty", () => {
   })
 })
 
-describe("the line a failed ring left in the box", () => {
+describe("a doorbell line left in the box", () => {
   const rung = transition(settled, { type: "ring", nonce: "k3f9", opening: false })
-  const failed = transition(rung, { type: "ring-failed", nonce: "k3f9", ours: true })
+  const failed = transition(rung, { type: "ring-failed", nonce: "k3f9" })
   const resume = { type: "ring", nonce: "k3f9", opening: false, leftover: true } as const
 
-  it("is Novadeck's own while the person typed nothing since", () => {
-    expect(failed).toMatchObject({ state: "unknown", box: { ours: true, empty: false } })
+  it("is submitted under its own nonce from the Unknown a failed ring leaves", () => {
+    expect(failed).toMatchObject({ state: "unknown", box: { empty: false } })
     // Rung again under its own nonce, pasting nothing; a repeat fails the same way.
     const again = transition(failed, resume)
     expect(again).toMatchObject({ state: "ringing", nonce: "k3f9", touched: false })
-    expect(again.box.ours).toBe(false)
-    expect(transition(again, { type: "ring-failed", nonce: "k3f9", ours: true }).box.ours).toBe(
-      true,
-    )
-    // A ring whose paste check rejected its line leaves it nobody's to submit.
-    expect(transition(again, { type: "ring-failed", nonce: "k3f9" }).box.ours).toBe(false)
+    expect(transition(again, { type: "ring-failed", nonce: "k3f9" }).state).toBe("unknown")
     // Its prompt confirms it as any ring's.
     expect(
       transition(again, { type: "prompt", by: "doorbell", nonce: "k3f9", at, startedAt: at }).state,
     ).toBe("working")
   })
 
+  it("is submitted from the Drafting a ring abandoned for a turn leaves", () => {
+    // A turn the harness started mid-ring takes the ring over, which then fails unheard;
+    // its Stop leaves the box a draft, holding the line.
+    const taken = transition(rung, { type: "prompt", by: "harness", at, startedAt: at })
+    expect(transition(taken, { type: "ring-failed", nonce: "k3f9" })).toBe(taken)
+    const left = transition(taken, { type: "stop", continued: false, background: false, at })
+    expect(left).toMatchObject({ state: "drafting", box: { empty: false } })
+    expect(transition(left, resume)).toMatchObject({ state: "ringing", nonce: "k3f9" })
+  })
+
   it("is submitted while only background work runs too, where messaging lets the doorbell look", () => {
-    // Its turn's end, still listing the work, keeps the line Novadeck's own.
     const waiting = transition(failed, background)
-    expect(waiting).toMatchObject({ state: "working", phase: "background", box: { ours: true } })
+    expect(waiting).toMatchObject({ state: "working", phase: "background" })
     expect(transition(waiting, resume)).toMatchObject({ state: "ringing", nonce: "k3f9" })
   })
 
-  it("is the person's draft once they press any key, or a turn starts", () => {
-    for (const kind of ["content", "enter", "neutral", "accept"] as const) {
-      const after = transition(failed, key(kind, at + 10))
-      expect(after.box.ours).toBe(false)
-      expect(transition(after, resume)).toBe(after)
-    }
-    expect(transition(failed, key("content", at + 10, true)).box.ours).toBe(false)
-    expect(transition(failed, prompted(at + 10)).box.ours).toBe(false)
+  it("is submitted after the person's keys too, as the screen alone says what the box holds", () => {
+    for (const kind of ["content", "enter", "neutral", "accept"] as const)
+      expect(transition(transition(failed, key(kind, at + 10)), resume)).toMatchObject({
+        state: "ringing",
+      })
   })
 
-  it("is the person's draft when they typed during the ring", () => {
-    const touched = transition(rung, key("content", at + 10))
-    expect(touched).toMatchObject({ state: "ringing", touched: true })
-    expect(transition(touched, { type: "ring-failed", nonce: "k3f9", ours: true }).box.ours).toBe(
-      false,
-    )
-  })
-
-  it("is only resumed from an idle state that left it, never a Settled, Working or other draft", () => {
-    expect(transition(settled, resume)).toMatchObject({ state: "ringing" })
+  it("is never submitted while a turn runs or a ring is under way", () => {
     expect(transition(working, resume)).toBe(working)
-    expect(transition(drafting, resume)).toBe(drafting)
+    expect(transition(rung, resume)).toBe(rung)
+    // Settled or Ready rings as any ring does.
+    expect(transition(settled, resume)).toMatchObject({ state: "ringing" })
   })
 })

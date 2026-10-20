@@ -5,6 +5,7 @@ import { InputQueue, pasteMsOn, type TypingTarget } from "@novadeck/tui-input"
 import type { BoxProfile } from "@novadeck/tui-input/box"
 import { vi } from "vitest"
 
+import { leftoverNonce } from "../terminals/leftover.js"
 import { describe, expect, it } from "../test.js"
 import type { Waits } from "./delivery.js"
 import { confirmMs, Doorbell, ringSizeCapMs, type DoorbellHost } from "./doorbell.js"
@@ -25,6 +26,10 @@ const terminal = (
     busy?: boolean
     /** Idle with the line a failed ring left in the box, all it holds: its nonce. */
     leftover?: string
+    /** Its box is read for a doorbell line alone in it, as the runner's host reads it. */
+    readsLeftover?: boolean
+    /** A turn takes the ring over as its line lands: messaging leaves Ringing, unfailed. */
+    abandons?: boolean
     /** A row far from the box changes by itself this often, in milliseconds. */
     tickMs?: number
     /** The screen changes this often, as output streaming, in milliseconds. */
@@ -79,7 +84,6 @@ const terminal = (
   const emptied: number[] = []
   const blocks: (Waits | null)[] = []
   let leftover = options.leftover
-  const oursReported: boolean[] = []
   const ringLeftovers: string[] = []
   // What the doorbell asked of the agent and the foreground, in order.
   const asked: ("agentGone" | "holdsForeground")[] = []
@@ -113,7 +117,11 @@ const terminal = (
     // Without an `inputBox` sequence there is no profile option: the gate can't tell the box.
     ...(profile && { profile: () => profile as unknown as BoxProfile }),
 
-    leftover: () => leftover,
+    leftover: () =>
+      leftover ??
+      (options.readsLeftover && rows[6]?.startsWith("> ")
+        ? leftoverNonce(rows[6].slice(2))
+        : undefined),
     ringLeftover: (_, nonce) => {
       ringLeftovers.push(nonce)
       ringing = nonce
@@ -142,8 +150,7 @@ const terminal = (
       return true
     },
     ringing: () => ringing,
-    ringFailed: (_, nonce, ours) => {
-      oursReported.push(ours === true)
+    ringFailed: (_, nonce) => {
       if (ringing !== nonce) return
       ringing = undefined
       failed.push(nonce)
@@ -183,6 +190,7 @@ const terminal = (
         else rows[6] = `> ${pasted}`
       }
       if (pasted && options.takes === "elsewhere") rows[0] = "popup closed"
+      if (pasted && options.abandons) ringing = undefined
       if (pasted && options.logo) rows[2] = ""
       return true
     },
@@ -231,7 +239,6 @@ const terminal = (
     ringLeftovers,
     asked,
     emptiedAt,
-    oursReported,
     bump: () => (stamp += 1),
     screens: () => screens,
     screensAt,
@@ -255,6 +262,8 @@ const terminal = (
     resize: () => (resizedAt = Date.now()),
     // The ring's prompt arrived: messaging leaves Ringing.
     confirm: () => (ringing = undefined),
+    // Idle but not ringable by its state, as after the turn that took a ring over.
+    stall: () => (stalled = true),
   }
 }
 
@@ -820,23 +829,57 @@ describe("the doorbell's care with a terminal it looks at", () => {
   })
 })
 
-describe("the doorbell's word on the line a failed ring left", () => {
-  it("calls it Novadeck's only where the paste check accepted it", async () => {
-    const swallowed = terminal({ takes: "nothing" })
-    const one = new Doorbell(swallowed.host, swallowed.host.queue, fast)
-    one.changed("t")
-    await vi.waitFor(() => expect(swallowed.failed).toHaveLength(1))
-    expect(swallowed.oursReported[0]).toBe(false)
-    one.close()
-    swallowed.stop()
-    // Accepted, then its hold lapsed before Enter: the line is alone in the box.
-    const lapsed = terminal({ holdMs: 1 })
-    const two = new Doorbell(lapsed.host, lapsed.host.queue, fast)
-    two.changed("t")
-    await vi.waitFor(() => expect(lapsed.failed.length).toBeGreaterThan(0))
-    expect(lapsed.oursReported[0]).toBe(true)
-    two.close()
-    lapsed.stop()
+describe("a doorbell line a ring left alone in the box", () => {
+  const recheck = { ...fast, recheckMs: 20, recheckMaxMs: 40 }
+  const nonceOf = (written: readonly string[]) =>
+    // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
+    leftoverNonce(/^\x1b\[200~(.*)\x1b\[201~$/.exec(written[0] ?? "")?.[1] ?? "")
+
+  it("is submitted after a ring whose paste check rejected it", async () => {
+    // The line landed in the box, but a row elsewhere changed with it: the check rejects.
+    const rejected = terminal({ takes: "elsewhere", readsLeftover: true })
+    const doorbell = new Doorbell(rejected.host, rejected.host.queue, recheck)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(rejected.failed).toHaveLength(1))
+    expect(enters(rejected.written)).toBe(0)
+    const nonce = nonceOf(rejected.written)
+    expect(nonce).toBeDefined()
+    // Submitted under its own nonce with Enter alone, pasting nothing more.
+    await vi.waitFor(() => expect(rejected.ringLeftovers).toEqual([nonce]))
+    await vi.waitFor(() => expect(enters(rejected.written)).toBe(1))
+    expect(rejected.written.filter((data) => data.startsWith("\x1b[200~"))).toHaveLength(1)
+    doorbell.close()
+    rejected.stop()
+  })
+
+  it("is submitted after a ring abandoned for a turn, once the agent is idle again", async () => {
+    const abandoned = terminal({ abandons: true, readsLeftover: true })
+    const doorbell = new Doorbell(abandoned.host, abandoned.host.queue, recheck)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(abandoned.written).toHaveLength(1))
+    const nonce = nonceOf(abandoned.written)
+    expect(nonce).toBeDefined()
+    expect(abandoned.ringLeftovers).toEqual([])
+    // The turn that took it over ends, leaving the line in the box.
+    abandoned.stall()
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(abandoned.ringLeftovers).toEqual([nonce]))
+    await vi.waitFor(() => expect(enters(abandoned.written)).toBe(1))
+    doorbell.close()
+    abandoned.stop()
+  })
+
+  it("is the person's draft once anything is beside it, and never pressed", async () => {
+    const drafted = terminal({ ringable: false, readsLeftover: true, stalled: "draft" })
+    const doorbell = new Doorbell(drafted.host, drafted.host.queue, recheck)
+    drafted.rows[6] = "> and then [Novadeck: automatic notice, agent messages waiting, k3f9Xz]"
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(drafted.blocks).toContain("draft"))
+    await sleep(150)
+    expect(drafted.written).toEqual([])
+    expect(drafted.ringLeftovers).toEqual([])
+    doorbell.close()
+    drafted.stop()
   })
 })
 
