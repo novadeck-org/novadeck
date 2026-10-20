@@ -59,18 +59,20 @@ describe("the checks on a model's answer", () => {
     expect(checked).toMatchObject({ ok: true, output: { highlights: [], changes: good.changes } })
   })
 
-  it("refuses what the notes' schema couldn't hold, so writing the block can't throw", () => {
+  it("refuses more changes than the notes' schema holds, so writing the block can't throw", () => {
     const many = Array.from({ length: maxChanges + 1 }, () => good.changes[0]!)
     expect(failure({ ...good, changes: many })).toMatch(/At most 200 changes/)
-    const prs = Array.from({ length: maxPrs + 1 }, (_, index) => index + 1)
-    expect(failure(withChange("Fine.", prs))).toMatch(/pull requests/)
   })
 
-  it("refuses a pull request it was not given, or none, without quoting the line", () => {
-    expect(failure(withChange("Fine.", [999]))).toMatch(/#999/)
-    expect(failure(withChange("Fine.", [195, 999]))).toMatch(/#999/)
-    expect(failure(withChange("Fine.", []))).toMatch(/pull requests/)
-    expect(failure(withChange("Secret words.", [999]))).not.toContain("Secret")
+  it("drops a line citing none, too many or a pull request it was not given, and keeps the rest", () => {
+    const many = Array.from({ length: maxPrs + 1 }, (_, index) => index + 1)
+    for (const prs of [[], many, [999], [195, 999]]) {
+      const checked = check(withChange("Secret words.", prs))
+      expect(checked).toMatchObject({ ok: true, output: { changes: [] } })
+      expect(checked.ok && checked.dropped).toHaveLength(1)
+      expect(JSON.stringify(checked)).not.toContain("Secret")
+    }
+    expect(failure(withChange("Fine.", [195]))).toBeUndefined()
   })
 
   it("refuses the whole answer on a link, an image, a URL or an HTML tag", () => {
@@ -118,6 +120,8 @@ describe("the checks on a model's answer", () => {
   it("drops lines about early, beta or other pre-release channels, but not a preview of an image", () => {
     for (const line of [
       "Pick the beta update channel in Preferences.",
+      "Stable and early build channels are listed.",
+      "Early access builds install on their own.",
       "Nightly builds install on their own.",
       "Join the canary channel.",
       "Early builds are listed in Preferences.",
@@ -125,7 +129,12 @@ describe("the checks on a model's answer", () => {
       "A prerelease is offered.",
     ])
       expect(droppedFor(withChange(line)), line).toHaveLength(1)
-    expect(droppedFor(withChange("Preview images open in the pane."))).toEqual([])
+    for (const line of [
+      "Preview images open in the pane.",
+      "The markdown preview updates as the file changes.",
+      "Terminals that exit early now show their release code.",
+    ])
+      expect(droppedFor(withChange(line)), line).toEqual([])
   })
 
   it("drops a line or title with a bare issue number", () => {

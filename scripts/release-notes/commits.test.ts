@@ -105,6 +105,25 @@ describe("the commits a release is written from", () => {
       raw("revert: undo the change", "This reverts #6, which broke it."),
     ])
     expect(numbered.map((each) => each.pr)).toEqual([1])
+    // A revert of a revert brings the original back: both reverts and the commit's fate follow order.
+    const restored = parseCommits([
+      raw("feat(ui): add a thing (#2)"),
+      raw('Revert "feat(ui): add a thing (#2)" (#3)'),
+      raw('Revert "Revert "feat(ui): add a thing (#2)" (#3)" (#4)'),
+    ])
+    expect(restored.map((each) => each.pr)).toEqual([2])
+    // A typed revert names a type-less subject: another scope's commit is not its target.
+    const other = parseCommits([
+      raw("fix(ui): stop a loop (#4)"),
+      raw("revert(runner): stop a loop (#5)"),
+    ])
+    expect(other.map((each) => each.pr)).toEqual([4])
+    // A quoted revert matches the whole subject, type and scope included.
+    const quotedOther = parseCommits([
+      raw("fix(ui): stop a loop (#4)"),
+      raw('Revert "fix(runner): stop a loop" (#5)'),
+    ])
+    expect(quotedOther.map((each) => each.pr)).toEqual([4])
     // A revert of something outside the range cancels nothing in it.
     expect(parseCommits([kept, raw('Revert "feat: old thing (#9)" (#10)')])).toHaveLength(1)
   })

@@ -14,8 +14,9 @@ export type Commit = {
 }
 
 // The scopes of changes that are not the app: the try demo, the wire between processes, the
-// atlas, the release pipeline, CI, tests and dependencies, and the scripts and harness adapters around the product. The chat
-// view ships behind a flag, so anything scoped to it is never announced.
+// atlas, the release pipeline, CI, tests and dependencies, and the scripts and harness
+// adapters around the product. The chat view ships behind a flag, so anything scoped to it is
+// never announced.
 export const excludedScopes: ReadonlySet<string> = new Set([
   "demo",
   "wire",
@@ -107,8 +108,19 @@ export const parseCommit = (raw: RawCommit): Commit | undefined => {
   }
 }
 
-// What a revert says it undoes: the subject it quotes and the pull requests it names.
-type Reverted = { readonly name: string | undefined; readonly prs: readonly number[] }
+// A revert, by what it says it undoes.
+type Revert = {
+  /** The full subject it quotes, lowercase and without a pull request number. */
+  readonly quoted: string | undefined
+  /** The pull request number the quote carries. */
+  readonly quotedPr: number | undefined
+  /** For `revert(scope): subject`: the scope and subject, which the type can't be told from. */
+  readonly typed: { readonly scope: string | undefined; readonly subject: string } | undefined
+  /** Pull requests it names: inside the quote, or after "reverts" in its body. */
+  readonly prs: readonly number[]
+  /** Its own full subject, lowercase and without a number, for a later revert of it. */
+  readonly own: string
+}
 
 const withoutPr = (subject: string): string =>
   subject
@@ -116,37 +128,67 @@ const withoutPr = (subject: string): string =>
     .trim()
     .toLowerCase()
 
-const revertOf = (raw: RawCommit): Reverted | undefined => {
+const revertOf = (raw: RawCommit): Revert | undefined => {
   const subject = raw.subject.trim()
   const quoted = /^Revert "(?<inner>.+)"(?: \(#\d+\))?$/.exec(subject)?.groups?.["inner"]
-  const typed = /^revert(?:\([^)]*\))?!?: (?<inner>.+)$/i.exec(subject)?.groups?.["inner"]
-  const inner = quoted ?? typed
-  if (!inner) return undefined
-  // The revert's own number is the last in its subject; those inside the quote, and a body that
-  // says "reverts #12", name the work undone.
-  const named = quoted ? inner : inner.replace(/ \(#\d+\)$/, "")
-  const prs = [
-    ...[...named.matchAll(/#(\d+)/g)].map((found) => Number(found[1])),
-    ...[...raw.body.matchAll(/\breverts?\b[^\n]*?#(\d+)/gi)].map((found) => Number(found[1])),
-  ]
-  return { name: withoutPr(named), prs }
+  const typed = /^revert(?:\((?<scope>[^)]*)\))?!?: (?<inner>.+)$/i.exec(subject)?.groups
+  if (!quoted && !typed) return undefined
+  const named = quoted ?? typed!["inner"]!.replace(/ \(#\d+\)$/, "")
+  return {
+    quoted: quoted ? withoutPr(quoted) : undefined,
+    quotedPr: quoted ? Number(/\(#(\d+)\)$/.exec(quoted)?.[1]) || undefined : undefined,
+    typed: typed
+      ? { scope: typed["scope"] || undefined, subject: named.trim().toLowerCase() }
+      : undefined,
+    prs: [
+      ...[...named.matchAll(/#(\d+)/g)].map((found) => Number(found[1])),
+      ...[...raw.body.matchAll(/\breverts?\b[^\n]*?#(\d+)/gi)].map((found) => Number(found[1])),
+    ],
+    own: withoutPr(subject),
+  }
 }
 
 /**
  * The user-visible commits of a range. A commit that a revert in the range undoes is left out
- * along with the revert, matched by the subject the revert quotes or a pull request it names.
+ * along with the revert; a revert of a revert brings the original back. Commits are taken
+ * oldest first, and a revert matches by the full subject it quotes (type and scope included),
+ * by a typed `revert(scope): subject` with the same scope and subject, or by a pull request it names.
  */
 export const parseCommits = (raws: readonly RawCommit[]): Commit[] => {
-  const reverts = raws.flatMap((raw) => revertOf(raw) ?? [])
-  return raws.flatMap((raw) => {
-    const commit = parseCommit(raw)
-    if (!commit) return []
-    const names = new Set([withoutPr(raw.subject), commit.subject.toLowerCase()])
-    const undone = reverts.some(
-      (revert) =>
-        (revert.name !== undefined && names.has(revert.name)) ||
-        (commit.pr !== undefined && revert.prs.includes(commit.pr)),
+  type Entry = { commit: Commit; full: string; undoneBy: number | undefined }
+  const entries: Entry[] = []
+  const reverts: { revert: Revert; active: boolean }[] = []
+  for (const raw of raws) {
+    const revert = revertOf(raw)
+    if (!revert) {
+      const commit = parseCommit(raw)
+      if (commit) entries.push({ commit, full: withoutPr(raw.subject), undoneBy: undefined })
+      continue
+    }
+    const index = reverts.length
+    // A revert of an earlier revert cancels it, and what it had undone stands again.
+    const earlier = reverts.findIndex(
+      (each) => each.active && revert.quoted !== undefined && each.revert.own === revert.quoted,
     )
-    return undone ? [] : [commit]
-  })
+    if (earlier >= 0) {
+      reverts[earlier]!.active = false
+      for (const entry of entries) if (entry.undoneBy === earlier) entry.undoneBy = undefined
+      reverts.push({ revert, active: false })
+      continue
+    }
+    reverts.push({ revert, active: true })
+    for (const entry of entries) {
+      const { commit } = entry
+      const byQuote =
+        revert.quoted === entry.full &&
+        (revert.quotedPr === undefined || revert.quotedPr === commit.pr)
+      const byType =
+        revert.typed !== undefined &&
+        revert.typed.subject === commit.subject.toLowerCase() &&
+        revert.typed.scope === commit.scope
+      const byNumber = commit.pr !== undefined && revert.prs.includes(commit.pr)
+      if (entry.undoneBy === undefined && (byQuote || byType || byNumber)) entry.undoneBy = index
+    }
+  }
+  return entries.flatMap((entry) => (entry.undoneBy === undefined ? [entry.commit] : []))
 }

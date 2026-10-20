@@ -31,6 +31,10 @@ const droppedLines = (dropped: readonly string[]): string[] => {
   )
 }
 
+/** A workflow command's data escapes `%` and line breaks. */
+const annotation = (text: string): string =>
+  text.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A")
+
 /** The account of a run that wrote nothing: the release keeps the body it has. */
 export const skippedSummary = (mode: string, tag: string, skip: Skip): string =>
   `No release notes written for ${tag} (${mode}), so the release keeps its body: ${skip.message}.\n`
@@ -92,6 +96,9 @@ export const main = async (
   } catch (error) {
     if (!(error instanceof Skip)) throw error
     summary = skippedSummary(mode, tag, error)
+    // On the run's page the reason shows as a warning; it holds no line text or credit amount.
+    if (process.env.GITHUB_ACTIONS)
+      log(`::warning title=Release notes::${annotation(error.message)}`)
     // A file left from an earlier run would be taken for this run's notes.
     if (!dryRun) rmSync(out!, { force: true })
     log(dryRun && error.raw ? `${summary}\n--- model answer ---\n${error.raw}` : summary)

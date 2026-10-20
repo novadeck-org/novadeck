@@ -72,7 +72,6 @@ describe("the notes of a prerelease", () => {
     for (const [ask, reason] of [
       [async () => ({ text: "not json", outputTokens: 1, model: "m/test" }), /not JSON/],
       [answer({ highlights: [] }), /wrong shape/],
-      [answer({ highlights: [], changes: [{ area: "Voice", line: "x", prs: [999] }] }), /#999/],
       [
         answer({
           highlights: [],

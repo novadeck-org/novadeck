@@ -126,9 +126,6 @@ jobs:
     continue-on-error: true
     permissions:
       contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
     steps:
       - name: Check Out Source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -166,6 +163,9 @@ jobs:
       - name: Write Release Notes
         timeout-minutes: 12
         env:
+          # The token only here, where the notes are read and written, not during setup.
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           RELEASE_NOTES_PROMOTE_MODEL: ${{ vars.RELEASE_NOTES_PROMOTE_MODEL }}
           TAG: ${{ needs.verify.outputs.tag }}
