@@ -750,32 +750,37 @@ const random = (): string =>
   ).join("")
 
 describe("the time redaction takes", () => {
-  it("does not repeatedly parse ordinary assignment values in a continued screen", () => {
-    const screen = rows(`${"a=b".repeat(133)}a`)
-    const exec = RegExp.prototype.exec
-    let characters = 0
-    const scanned = vi.spyOn(RegExp.prototype, "exec").mockImplementation(function (
-      this: RegExp,
-      text,
-    ) {
-      const found = exec.call(this, text)
-      characters += found?.[0].length ?? 0
-      return found
-    })
-    let result: string[]
-    try {
-      result = redactScreen(
-        screen,
-        screen.map((_row, i) => i < screen.length - 1),
-      )
-    } finally {
-      scanned.mockRestore()
-    }
-    expect(result).toEqual(screen)
-    // The overlapping row contexts are intentional. Re-reading 1024-character values
-    // at every '=' used to match over 240 million characters in this 24,000-char screen.
-    expect(characters).toBeLessThan(screen.join("").length * 80)
-  })
+  // Counting every match through a spy is slow on a loaded runner; the count is what is checked.
+  it(
+    "does not repeatedly parse ordinary assignment values in a continued screen",
+    { timeout: 30_000 },
+    () => {
+      const screen = rows(`${"a=b".repeat(133)}a`)
+      const exec = RegExp.prototype.exec
+      let characters = 0
+      const scanned = vi.spyOn(RegExp.prototype, "exec").mockImplementation(function (
+        this: RegExp,
+        text,
+      ) {
+        const found = exec.call(this, text)
+        characters += found?.[0].length ?? 0
+        return found
+      })
+      let result: string[]
+      try {
+        result = redactScreen(
+          screen,
+          screen.map((_row, i) => i < screen.length - 1),
+        )
+      } finally {
+        scanned.mockRestore()
+      }
+      expect(result).toEqual(screen)
+      // The overlapping row contexts are intentional. Re-reading 1024-character values
+      // at every '=' used to match over 240 million characters in this 24,000-char screen.
+      expect(characters).toBeLessThan(screen.join("").length * 80)
+    },
+  )
 
   // This thread's own CPU time, in milliseconds: a loaded machine makes the wall clock run on
   // while the test waits for a core, but not this.
