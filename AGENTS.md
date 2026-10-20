@@ -23,8 +23,9 @@ or the demo's debug panel (`pnpm dev:previews`, the Debug handle in the footer's
 When the demo can't produce a new state yet — a dialog, an error, a badge, a tab or
 window phase, a backend field it never sets — add it in the same change:
 
-- Terminal, notification and picker states go in `frontend/demo-debug/src/states.ts`,
-  with pure action builders in `debug/terminals.ts`. A new tab or window phase also
+- Terminal, waiting-agent and picker states go in `frontend/demo-debug/src/states.ts`,
+  with pure action builders in `debug/terminals.ts`; an Inbox item of a kind no demo agent
+  makes goes in the demo's Inbox fixtures, with its action in `frontend/demo-debug/src/inbox.ts`. A new tab or window phase also
   joins the "Every state at once" gallery there.
 - An agent's state is one of `demoTurns`' verbs (`work`, `ask`, `finish`, `rest`, `usage`), never a
   status the panel dispatches, so the chat, the screen and the Inbox

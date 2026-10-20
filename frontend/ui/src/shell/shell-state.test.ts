@@ -3,6 +3,9 @@ import {
   bumpNavigation,
   enterZen,
   exitZen,
+  firstFlight,
+  flies,
+  flightAfter,
   hideSidebar,
   initialShell,
   resetPresentation,
@@ -53,6 +56,49 @@ describe("shell state", () => {
         freshSession: null,
       })
       expect(resetPresentation(shell, "other").sidebar).toBe(false)
+    })
+  })
+})
+
+describe("a navigation that flies", () => {
+  const center = { count: 4, move: "center" } as const
+  const fly = { count: 5, move: "fly" } as const
+
+  context("when the stage mounts after it", () => {
+    it("is spent, as it was for a stage that is gone", () => {
+      const flight = firstFlight(fly, "p/s", "canvas")
+      expect(flies(flightAfter(flight, fly, "p/s", "canvas"), fly, "p/s", "canvas")).toBe(false)
+    })
+  })
+
+  context("when it arrives", () => {
+    it("flies the view on screen, in the session it brought to the front", () => {
+      const flight = flightAfter(firstFlight(center, "p/s", "grid"), fly, "q/t", "canvas")
+      expect(flight).toEqual({ count: 5, context: "q/t", view: "canvas", spent: false })
+      expect(flies(flight, fly, "q/t", "canvas")).toBe(true)
+    })
+
+    it("flies again on every render until something changes", () => {
+      const flight = flightAfter(firstFlight(center, "p/s", "canvas"), fly, "p/s", "canvas")
+      expect(flightAfter(flight, fly, "p/s", "canvas")).toBe(flight)
+    })
+  })
+
+  context("when the view or the session changes after it", () => {
+    it("is spent, and a view opened later frames as it would", () => {
+      const flown = flightAfter(firstFlight(center, "p/s", "canvas"), fly, "p/s", "canvas")
+      const inGrid = flightAfter(flown, fly, "p/s", "grid")
+      expect(inGrid.spent).toBe(true)
+      const back = flightAfter(inGrid, fly, "p/s", "canvas")
+      expect(flies(back, fly, "p/s", "canvas")).toBe(false)
+      expect(flies(flightAfter(flown, fly, "q/t", "canvas"), fly, "q/t", "canvas")).toBe(false)
+    })
+  })
+
+  context("when the navigation does not fly", () => {
+    it("flies nothing", () => {
+      const flight = flightAfter(firstFlight(fly, "p/s", "canvas"), center, "p/s", "canvas")
+      expect(flies(flight, { ...center, count: 4 }, "p/s", "canvas")).toBe(false)
     })
   })
 })

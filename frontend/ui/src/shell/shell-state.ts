@@ -83,6 +83,57 @@ export const exitZen = (shell: ShellState): ShellState =>
     ? { ...shell, sidebar: shell.zen.sidebar, sidebarCollapsed: shell.zen.collapsed, zen: null }
     : shell
 
+// A navigation that flies, as the stage keeps it: the pulse it came with, and the session
+// (`context`) and view on screen then. It is for that view alone: once the view or the session
+// changes it is spent, and a view the session opens into later frames as it would.
+export type Flight = {
+  readonly count: number
+  readonly context: string
+  readonly view: ViewMode
+  readonly spent: boolean
+}
+
+// The flight as a stage first sees it: one from before it mounted, as when the window
+// crosses the desktop width, was never for it.
+export const firstFlight = (
+  navigation: ShellNavigation,
+  context: string,
+  view: ViewMode,
+): Flight => ({
+  count: navigation.count,
+  context,
+  view,
+  spent: true,
+})
+
+// The flight after the stage renders with `navigation` on `context`'s `view`: a new pulse
+// is for what is on screen now, and one already seen is spent once either changes.
+export const flightAfter = (
+  flight: Flight,
+  navigation: ShellNavigation,
+  context: string,
+  view: ViewMode,
+): Flight => {
+  if (flight.count !== navigation.count)
+    return { count: navigation.count, context, view, spent: false }
+  if (!flight.spent && (flight.context !== context || flight.view !== view))
+    return { ...flight, spent: true }
+  return flight
+}
+
+// Whether the view on screen flies in to the selection.
+export const flies = (
+  flight: Flight,
+  navigation: ShellNavigation,
+  context: string,
+  view: ViewMode,
+): boolean =>
+  navigation.move === "fly" &&
+  flight.count === navigation.count &&
+  !flight.spent &&
+  flight.context === context &&
+  flight.view === view
+
 export const bumpNavigation = (shell: ShellState, move: NavigationMove = "center"): ShellState => ({
   ...shell,
   navigation: { count: shell.navigation.count + 1, move },

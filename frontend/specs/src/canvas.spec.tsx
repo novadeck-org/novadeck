@@ -354,6 +354,9 @@ describe("Canvas", () => {
 
       await expect.element(view("Canvas")).toBeChecked()
       await expect.poll(() => fillsView(boxOf(terminal("Checkout review")))).toBe(true)
+      // A visit, as a header's double-click makes, which a plain fit would not: it goes back.
+      await doubleClickHeader("Checkout review")
+      await expect.poll(() => fillsView(boxOf(terminal("Checkout review")))).toBe(false)
     })
 
     it("frames every window when Canvas opens from another view later, flying no more", async () => {

@@ -12,8 +12,8 @@ import {
 import { useEffect, useId, useRef, useState } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
+import { BellCount } from "./BellCount"
 import type { BellBadge } from "./inbox-badge"
-import { NotificationBadge } from "./NotificationBadge"
 
 const views = [
   { id: "focus", label: "Focus", icon: PanelLeft },
@@ -91,7 +91,7 @@ export const ZenDock = ({
             onClick={onInbox}
           >
             <Bell size={16} />
-            <NotificationBadge text={badge.text} />
+            <BellCount text={badge.text} />
           </button>
         </Tooltip>
       )}

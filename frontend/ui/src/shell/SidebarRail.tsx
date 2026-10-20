@@ -3,8 +3,8 @@ import { ToggleGroup, ToggleGroupItem } from "@novadeck/toolkit/ToggleGroup"
 import { History, Inbox, Terminal as TerminalIcon } from "lucide-react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
+import { BellCount } from "./BellCount"
 import type { BellBadge } from "./inbox-badge"
-import { NotificationBadge } from "./NotificationBadge"
 
 export const SidebarRail = ({
   mobile = false,
@@ -59,7 +59,7 @@ export const SidebarRail = ({
             data-project-status={status?.status}
           >
             <Icon size={16} />
-            {status && <NotificationBadge text={status.text} />}
+            {status && <BellCount text={status.text} />}
           </ToggleGroupItem>
         )
       })}
