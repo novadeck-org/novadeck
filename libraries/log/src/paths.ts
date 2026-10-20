@@ -105,7 +105,7 @@ const separator = String.raw`[\\/]+`
  */
 const roots = String.raw`(?<root>(?<=file://)/[A-Za-z]:(?=/)|[A-Za-z]:(?=[\\/])|\\\\(?=[^\\\s])|~(?=[\\/])|<[A-Za-z][\w-]*>(?=[\\/])|(?=/))`
 const pathPattern = new RegExp(
-  String.raw`(?<![\w.~\-\\/#])(?<!<[A-Za-z][\w-]*>)(?!(?<=[A-Za-z][\w+.-]*:)//)(?<file>file://)?${roots}` +
+  String.raw`(?<![\w.~\-\\/#])(?<![A-Za-z0-9]\+)(?<!<[A-Za-z][\w-]*>)(?!(?<=[A-Za-z][\w+.-]*:)//)(?<file>file://)?${roots}` +
     String.raw`(?<rest>[\\/]*${pathSegment}(?:${separator}${pathSegment})*)`,
   "g",
 )

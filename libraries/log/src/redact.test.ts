@@ -365,7 +365,7 @@ describe("createRedactor", () => {
       "fetch https://ana:hunter2@git.acme.dev/x failed",
       `fetch https://<redacted>@${h("git.acme.dev")}.dev/${h("x")} failed`,
     ],
-    ["a bearer token", "Authorization: Bearer abc.def.ghi", "Authorization: <redacted>"],
+    ["a bearer token", "Authorization: Bearer abc.def.ghi", "Authorization: <secret>"],
     ["a bare bearer token", "sent bearer a1b2c3d4e5", "sent bearer <redacted>"],
     ["a cookie", "cookie=sid=abc123; path=/", "cookie=<redacted>; path=/"],
     ["an Anthropic key", "key sk-ant-api03-abcdefghijklmnopqrstuv", "key <secret>"],
@@ -394,7 +394,7 @@ describe("createRedactor", () => {
       "Error: no\n    at read (/home/ana/acme/src/a.ts:1:2)\n    at node:internal/fs:3:4",
       `Error: no\n    at read (~/${h("acme")}/${h("src")}/${h("a", ".ts")}:1:2)\n    at node:internal/fs:3:4`,
     ],
-    ["a Google key", "key=AIzaSyA1234567890abcdefghijklmnopqrstuv", "key=<secret>"],
+    ["a Google key", "key=AIzaSyA1234567890abcdefghijklmnopqrstuv", "key=<redacted>"],
     ["a bare Google key", "AIzaSyA1234567890abcdefghijklmnopqrstuv", "<secret>"],
     ["a Stripe key", "sk_live_abcdefghijklmnop1234", "<secret>"],
     ["a Stripe restricted key", "rk_test_abcdefghijklmnop1234", "<secret>"],
@@ -490,6 +490,59 @@ describe("createRedactor", () => {
     it(`replaces ${what}`, () => {
       expect(redact(text)).toBe(written)
     })
+
+  it.each([
+    ["a hex segment", "/home/ana/.config/Code/0123456789abcdef0123456789abcdef/bigbank/state.db"],
+    ["a token-like segment", "/home/ana/code/sk-learning-notes/bigbank/plan.md"],
+    [
+      "a token-like Windows segment",
+      String.raw`C:\Users\ana\0123456789abcdef0123456789abcdef\bigbank\plan.md`,
+    ],
+    ["a hex host", "fetch https://0123456789abcdef0123456789abcdef.bigbank.dev/plan failed"],
+    ["a token-like host", "getaddrinfo ENOTFOUND sk-abcdefgh.bigbank.dev"],
+    ["a hex email address", "reply to 0123456789abcdef0123456789abcdef@reply.bigbank.com failed"],
+    ["a hex remote", "git@git.bigbank.dev:0123456789abcdef0123456789abcdef/plan.git"],
+  ])("hashes a path or address whole, though %s in it looks like a secret", (_what, text) => {
+    expect(redact(text)).not.toMatch(/bigbank|plan\.|state\./)
+  })
+
+  it.each([
+    [
+      "a base64 key with +/ in it",
+      "key wJalrXUtnFEMI+/K7MDENGbPxRfiCYEXAMPLEKEY99 loaded",
+      /wJalr|K7MD/,
+    ],
+    ["a pass phrase that starts with the account name", "passphrase: ana.2019!xyz", /2019|xyz/],
+  ])("leaves nothing of %s", (_what, text, kept) => {
+    expect(redact(text)).not.toMatch(kept)
+  })
+
+  it.each([
+    ["a diff's added line", "@@ -1 +1 @@\n-/home/ana/old/x\n+/home/ana/new/clientco/x"],
+    ["a quoted added path", '"+/home/ana/acme/clientco.md"'],
+    ["a Windows path after +", String.raw`+C:\Users\ana\clientco`],
+    ["a path after C++", "C++/src/clientco/x"],
+  ])("hashes %s", (_what, text) => {
+    expect(redact(text)).not.toMatch(/clientco/)
+  })
+
+  it("writes placeholders whole, though the account is named as one", () => {
+    const named = createRedactor({ ...linux, user: "secret", salt })
+    expect(named("token sk-proj-abcdefghijklmnop1234 for secret")).toBe("token <secret> for secret")
+  })
+
+  it.each(["PRIVATE_KEY=", "password: ", "--token ", "/tmp/x"])(
+    "masks a key block whole after %s",
+    (before) => {
+      const block =
+        "-----BEGIN PRIVATE KEY-----\nMIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8w\nabcdefghijklmnop\n-----END PRIVATE KEY-----"
+      expect(redact(`${before}${block}`)).not.toMatch(/MIIB|abcdefgh|BEGIN|END/)
+    },
+  )
+
+  it("writes the account name as <user> beside angle brackets", () => {
+    expect(redact("ana> ls")).toBe("<user>> ls")
+  })
 
   it("leaves a short or ordinary account name in the text", () => {
     expect(createRedactor({ user: "dev", salt })("dev build")).toBe("dev build")

@@ -30,10 +30,14 @@ const resolveScript = (): { url: URL; execArgv: string[] } => {
     const url = new URL(name, import.meta.url)
     if (existsSync(fileURLToPath(url))) return { url, execArgv: [] }
   }
-  // From source, as in development and tests: the TypeScript file, through tsx.
+  // From source, as in development and tests: the TypeScript file, through tsx, with the
+  // workspace's packages read from their sources too.
   const loader = pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href
   const source = "./worker.ts"
-  return { url: new URL(source, import.meta.url), execArgv: ["--import", loader] }
+  return {
+    url: new URL(source, import.meta.url),
+    execArgv: ["--conditions=development", "--import", loader],
+  }
 }
 
 type Reply = { id?: number; ready?: true; chat?: Message[]; failed?: string }

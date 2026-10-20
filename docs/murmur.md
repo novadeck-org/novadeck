@@ -56,22 +56,10 @@ behind a random API key made for each launch and passed in the environment
 
 ## Guardrails
 
-- **Redaction** (`redact.ts`): fixed rules strip secrets from every digest string before the
-  model sees it, by shape alone. They cover provider keys and tokens (`sk-`, `sk_live_`,
-  `ghp_`, `github_pat_`, `glpat-`, `hf_`, `hvs.`, `npm_`, `pypi-`, `AIza`, `AKIA`, `xox`,
-  `AGE-SECRET-KEY-`), JWTs, `Authorization`, `Cookie` and bearer values, webhook URLs, URLs with
-  `user:password@` (also with an empty user) and secret query parameters, key blocks,
-  `NAME=value`, `name: value` and `"name": "value"` when the name sounds secret, exact
-  secret flags (`--password`, `--token`, `--api-key`, ...), `mysql -p`, `docker login -p`
-  and `curl -u`, and long hex or base64 runs.
-  - A name sounds secret by its words: `secret`, `password`, `token`, `pass`, `pwd`, an `api`,
-    `private` or `access` before `key`, and so on. `KEY_COUNT`, `token_count`,
-    `PRIMARY_KEY`, `auth=required`, `sessionId` and `--sort-key` are not secrets. Values that are
-    paths, short numbers or words like `true` are kept.
-  - Base64 never matches inside a path, and needs digits, mixed case and no long word, so
-    identifiers and paths survive. Commit ids (40 hex) and `sha256:` digests are kept.
-  - A terminal wraps long lines, so a token split across rows is still found; the row after a
-    wrapped token may be removed with it.
+- **Redaction** (`redact.ts`): every digest string loses its secrets before the model sees
+  it, by the fixed rules of `@novadeck/secrets`, which find them by shape alone (see
+  [its README](../libraries/secrets/README.md) for what they cover and miss). A screen's rows
+  go through `redactScreen`, so a token split across wrapped rows is still found.
   - The length caps apply after redaction, in the prompt, so a cut token's prefix can't leak.
     Permission commands are never in a digest.
 - **Worker thread** (`prepare.ts`, `worker.ts`): redaction is a large set of regexes, so it
