@@ -2,7 +2,7 @@
 
 The chat's contract test: real recorded harness transcripts, run through every stage to the
 rendered chat. A test-only package; it ships nothing. It may depend on the harnesses and the
-UI at once, which don't depend on each other.
+chat package at once, which don't depend on each other.
 
 ## What it checks
 
@@ -14,7 +14,7 @@ the hand-written vocabulary conversations (below):
    `transcriptItem`;
 3. the runner adapter maps them to the chat's items (`withBatch`);
 4. core's `groupItems` makes blocks of them;
-5. the UI's real `Transcript` renders the blocks in jsdom.
+5. the chat package's real `Transcript` renders the blocks in jsdom.
 
 The rendered DOM is read as text, one line per block, and compared with a golden in
 `src/goldens/`: one file per fixture, a `# scenario` heading for each conversation in it.

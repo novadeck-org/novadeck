@@ -2,7 +2,6 @@ import { createWorkspaceStore } from "@novadeck/core/store"
 import { workspaceFixture } from "@novadeck/core/testing"
 import type { AgentStatus } from "@novadeck/core/types"
 
-import { describe, expect, it } from "../../test"
 import { setChatDraft, setChatReply } from "./mode-state"
 import {
   answerInTerminal,
@@ -13,6 +12,7 @@ import {
   chatDraftOf,
   chatReplyOf,
 } from "./state"
+import { describe, expect, it } from "./test"
 
 const context = "project/initial"
 const target = { projectId: "project", workspaceSessionId: "initial" }

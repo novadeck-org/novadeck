@@ -4,9 +4,9 @@ import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach } from "vitest"
 
-import { describe, expect, it } from "../../test"
 import { Composer } from "./Composer"
 import { composerState } from "./mode-state"
+import { describe, expect, it } from "./test"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
