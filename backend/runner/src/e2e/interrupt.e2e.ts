@@ -170,8 +170,9 @@ for (const setup of setups) {
       // Let go only once the agent has taken the Escape: Antigravity and Codex take the key a
       // moment after it is written, and a reply let go before then still draws, its turn
       // finished (probes/interrupt-held-reply.e2e.ts). Their own account of the
-      // interruption says they took it; Claude Code's is the prompt gone from the screen,
-      // which the runner clears from its box before `interrupt` resolves.
+      // interruption says they took it, as Claude Code's does from 2.1.304; to 2.1.287 its
+      // account is the prompt gone from the screen, which the runner clears from its box
+      // before `interrupt` resolves.
       const account = setup.interrupted("Hold on")
       await t1.poll(
         async () => {

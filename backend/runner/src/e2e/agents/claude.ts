@@ -123,10 +123,14 @@ export const claude: AgentSetup = {
     ],
     approved: /User has approved your plan/,
   },
-  // Escape before any reply came drops the turn and puts its prompt back in the box,
-  // between the box's rules, with no word of the interruption (probed 2026-10-02, 2.1.287).
+  // Escape before any reply came drops the turn. Up to 2.1.287 it put its prompt back in the
+  // box, between the box's rules, with no word of the interruption (probed 2026-10-02); from
+  // 2.1.304 the prompt stays in the chat, the box empty, and it says so under it, as
+  // Antigravity does, a no-break space after the `⎿` (seen 2026-10-20).
   interrupted: (prompt) =>
-    new RegExp(`─\\n❯\\s+${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n─`),
+    new RegExp(
+      `─\\n❯\\s+${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n─|⎿\\s+Interrupted · What should Claude do instead\\?`,
+    ),
   // Esc-Esc opens its Rewind picker, a list with no text field, which swallows a paste
   // whole and stays as it was (probed 2026-10-02, 2.1.287). With nothing yet to go back to
   // it says so instead (seen on Windows CI, a session just interrupted).
