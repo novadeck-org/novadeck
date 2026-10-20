@@ -396,8 +396,8 @@ export class Terminals {
         [...this.records.values()].some(
           (other) =>
             other.summary.id !== terminalId &&
-            other.binding?.agent === agent &&
-            other.binding.sessionId === session,
+            other.bound?.binding.agent === agent &&
+            other.bound.binding.sessionId === session,
         ),
     })
     // Read once now, so the first terminal doesn't wait for it; see `Launcher.environment`.
@@ -430,9 +430,9 @@ export class Terminals {
       detail: (record) =>
         agentDetail(
           record.summary.id,
-          record.binding,
-          record.activity,
-          record.telemetry,
+          record.bound?.binding ?? null,
+          record.bound?.activity ?? null,
+          record.bound?.telemetry ?? null,
           this.typing.dialogs.view(record.summary.id),
           this.typing.dialogs.answered(record.summary.id),
         ),
@@ -496,7 +496,7 @@ export class Terminals {
       platform: this.options.platform,
       // A message is kept while either of its terminals is, running or saved.
       exists: (id) => this.records.has(id) || this.saves.identity(id) !== undefined,
-      busy: (id) => agentWorking(this.messaging, id, this.live(id)),
+      busy: (id) => agentWorking(this.messaging, id, this.live(id)?.bound),
     })
     this.asks = new Asks(
       {
@@ -731,10 +731,8 @@ export class Terminals {
         foreground: undefined,
         origin,
         agents: saved?.agents ?? {},
-        binding: null,
+        bound: null,
         suspended: null,
-        activity: null,
-        telemetry: null,
         watching: null,
         actorWatches: new Map(),
         transcript: null,
@@ -910,7 +908,8 @@ export class Terminals {
    * asked for them, the mouse's scroll, are no keys.
    */
   private keyed(record: Record, data: string): void {
-    const queueKey = record.binding ? harnesses[record.binding.agent].messaging.queueKey : undefined
+    const agent = record.bound?.binding.agent
+    const queueKey = agent && harnesses[agent].messaging.queueKey
     const keys = keysOf(data, queueKey, record.terminal.reporting())
     if (keys.length === 0) return
     // A prompt whose trust is still being checked is no longer known empty after a key.
@@ -934,7 +933,7 @@ export class Terminals {
     this.messaging.keys(
       record.summary.id,
       keys.map(({ kind }) => kind),
-      (record.activity?.pending.length ?? 0) > 0,
+      (record.bound?.activity.pending.length ?? 0) > 0,
     )
     this.bindings.escaped(record)
     if (this.messaging.untrustedAgent(record.summary.id)) this.shown.recheckTrust(record)
@@ -1204,7 +1203,7 @@ export class Terminals {
       record.agents = rest
       const agentRan = hasRun(rest)
       // Its binding ends too: a disconnected harness holds no terminal's foreground.
-      if (record.binding?.agent === agent) this.bindings.forgotten(record)
+      if (record.bound?.binding.agent === agent) this.bindings.forgotten(record)
       else if (record.summary.agentRan !== agentRan) {
         record.summary = { ...record.summary, agentRan }
         this.announce(record)
@@ -1396,12 +1395,12 @@ export class Terminals {
   ): AsyncGenerator<TranscriptChange> {
     if (this.stopping) throw new DomainError("CLOSING")
     const record = this.record(terminalId)
-    const { binding, transcript: root } = record
-    const source = binding && harnesses[binding.agent].transcripts
-    const native = binding && actorOf(binding, record.activity, actor)
-    if (!binding || !source || !root || native === undefined) throw new DomainError("NOT_FOUND")
-    const path = await source.locate(root, binding.sessionId, native)
-    if (!path || record.binding !== binding) throw new DomainError("NOT_FOUND")
+    const { bound, transcript: root } = record
+    const source = bound && harnesses[bound.binding.agent].transcripts
+    const native = bound && actorOf(bound.binding, bound.activity, actor)
+    if (!bound || !source || !root || native === undefined) throw new DomainError("NOT_FOUND")
+    const path = await source.locate(root, bound.binding.sessionId, native)
+    if (!path || record.bound?.binding !== bound.binding) throw new DomainError("NOT_FOUND")
     const reader = new AbortController()
     record.sourceReaders.add(reader)
     const abort = () => reader.abort()
@@ -1558,7 +1557,7 @@ export class Terminals {
     record.startupRuns = false
     record.changed = true
     const moved = cwd !== record.summary.cwd
-    const { binding } = record
+    const binding = record.bound?.binding ?? null
     // The agent it was started to run left without ever binding a session (a failed
     // login, Ctrl-C at startup, a declined trust): the lead it had ends with it. One bound
     // ends the lead only once its process is gone; suspended with Ctrl+Z it still runs,

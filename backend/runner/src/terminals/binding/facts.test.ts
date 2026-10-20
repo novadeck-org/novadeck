@@ -1,6 +1,7 @@
 import type { AgentName } from "@novadeck/protocol"
 import { vi } from "vitest"
 
+import { started } from "../../harnesses/activity.js"
 import { describe, expect, it } from "../../test.js"
 import type { Record } from "../record.js"
 import { Bindings, type BindingsHost } from "./facts.js"
@@ -28,9 +29,11 @@ const record = (summary: Partial<Record["summary"]> = {}) =>
   ({
     summary: { id: "t1", agent: null, ready: null, activity: null, telemetry: null, ...summary },
     agents: {},
-    binding: { agent: "claude", sessionId: "s1", instance: "41" },
-    activity: null,
-    telemetry: null,
+    bound: {
+      binding: { agent: "claude", sessionId: "s1", instance: "41" },
+      activity: started(0),
+      telemetry: null,
+    },
     // Its own sources followed: its transcript, a subagent's, a reader of the transcript.
     watching: new AbortController(),
     actorWatches: new Map([["a1", { controller: new AbortController(), since: 0 }]]),
@@ -94,7 +97,7 @@ describe("the ends of a session", () => {
     ]) {
       const bound = record({ agent: "claude", agentRan: true })
       end(bound)
-      expect(bound).toMatchObject({ binding: null, suspended: "41", seenEntry: { id: 3 } })
+      expect(bound).toMatchObject({ bound: null, suspended: "41", seenEntry: { id: 3 } })
     }
   })
 
@@ -102,8 +105,8 @@ describe("the ends of a session", () => {
     const { bindings: ends } = bindings()
     const bound = record({ agent: "claude", agentRan: true })
     ends.exited(bound)
-    const { binding, activity, telemetry, suspended, root, seenEntry } = ends.restarted()
-    expect(bound).toMatchObject({ binding, activity, telemetry, suspended, root })
+    const { bound: session, suspended, root, seenEntry } = ends.restarted()
+    expect(bound).toMatchObject({ bound: session, suspended, root })
     expect(bound.seenEntry).toBe(seenEntry)
   })
 })

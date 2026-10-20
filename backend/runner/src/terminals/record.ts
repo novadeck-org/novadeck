@@ -14,6 +14,16 @@ import type { AgentReport } from "./records.js"
 import type { AgentSummary } from "./summary.js"
 import type { Work } from "./work.js"
 
+/** A harness session bound to a terminal (`Record.bound`). */
+export type Bound = {
+  /** The session; `summary.agent` shows it. */
+  readonly binding: Binding
+  /** What the agent is doing, as its hooks said. */
+  readonly activity: Activity
+  /** Its tokens and quotas, as its records said; null until they did. */
+  readonly telemetry: Telemetry | null
+}
+
 /**
  * What the runner holds of a terminal while it runs, or exited and retained: one mutable
  * object per terminal, which every part of the agent layer reads and writes through the
@@ -34,14 +44,11 @@ export type Record = {
   /** The latest session each agent reported in this terminal, across its shells. */
   agents: { [agent in AgentName]?: AgentReport }
   /**
-   * The harness session holding the current shell's foreground; `summary.agent` shows it.
-   * Without one, `activity` and `telemetry` are null too: every end of a binding takes all
-   * three (`Bindings.endSession`, or `Bindings.restarted`'s fields). The one exception is a report
-   * binding a session (`Reports.report`), which sets this first and the new activity and
-   * telemetry after, so whatever runs in between, as a lead ended there (saved, told to
-   * messaging, announced), sees the new binding with the old activity and telemetry, or none.
+   * The harness session holding the current shell's foreground, with what its hooks and
+   * records told of it; null without one. They move as one: a session binds with its fresh
+   * activity, and every end takes all of it (`Bindings.endSession`).
    */
-  binding: Binding | null
+  bound: Bound | null
   /**
    * The last binding ended as its process was found gone or its pid reused: a late report of
    * that session from no process or from that one, as from a hook that outlived it, binds
@@ -52,10 +59,6 @@ export type Record = {
    * own pid, so it binds all the same.
    */
   left?: Binding
-  /** What the bound agent is doing, as its hooks said; null without a binding. */
-  activity: Activity | null
-  /** The bound agent's tokens and quotas, as its records said; null until they did. */
-  telemetry: Telemetry | null
   /** Stops following the bound session's own sources, as its transcript. */
   watching: AbortController | null
   /**

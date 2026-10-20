@@ -24,7 +24,7 @@ type Process = {
   write: (data: string) => void
   onData: (listen: (data: string) => void) => { dispose: () => void }
 }
-type Record = { terminal: { pty: Process }; binding: Binding | null }
+type Record = { terminal: { pty: Process }; bound: { binding: Binding } | null }
 type Inside = {
   records: Map<string, Record>
   reporting: { report: (report: Report, deadline?: number) => Promise<HookAnswer> }
@@ -58,7 +58,7 @@ describe.skipIf(!enabled || !supported)("Antigravity natural Stop boundary captu
       else eventOverflow = true
     }
     const binding = (id: string) => {
-      const found = inside.records.get(id)?.binding
+      const found = inside.records.get(id)?.bound?.binding
       return found && { agent: found.agent, sessionId: found.sessionId, instance: found.instance }
     }
     const delivery = (id: string) => {

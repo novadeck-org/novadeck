@@ -35,7 +35,7 @@ import {
   type OpenAnswer,
   type OpenRequests,
 } from "./opens.js"
-import type { TerminalPeers } from "./peers.js"
+import { peerOf, type TerminalPeers } from "./peers.js"
 import type { Record } from "./record.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
 
@@ -277,7 +277,7 @@ export class Calls {
     // Already on its way out, and forgotten, as another close ended its shell.
     if (this.closingHere(record.summary.sessionId, to))
       return refused(`${mention(to)} is already closing.`)
-    const target = await this.host.peers().target(record, to)
+    const target = await this.host.peers().target(peerOf(record), to)
     if (!target.ok) return target
     // Closed, or the runner stopped, while the terminals were described.
     const closing = this.host.records().get(target.terminalId)
@@ -357,7 +357,7 @@ export class Calls {
     const refusal = summaryRefusal(summary)
     if (refusal) return refused(refusal)
     // Drift is measured from where its work is now.
-    const facts = await this.host.peers().facts(record)
+    const facts = await this.host.peers().facts(peerOf(record))
     if (this.host.stopping() || this.host.records().get(call.terminalId) !== record)
       return unansweredCalls.summarize
     record.naming = summarized(record.naming, summary)

@@ -13,6 +13,7 @@ import type { HintFacts } from "../voice/hint.js"
 import { gitBranch } from "./branch.js"
 import type { Naming } from "./naming.js"
 import type { Facts } from "./nudges.js"
+import type { Bound, Record } from "./record.js"
 import type { AgentSummary } from "./summary.js"
 import { busiestFolders, shorten, type Work } from "./work.js"
 
@@ -27,14 +28,28 @@ export type PeerTerminal = {
   readonly openedBy: string | null
 }
 
+/** What peers read of a terminal's record, as the terminal manager keeps it. */
+export type PeerRecord = Pick<Record, "summary" | "naming" | "work" | "openedBy"> & {
+  readonly bound: Pick<Bound, "activity"> | null
+}
+
+/** The terminal a record is, as peers read it. */
+export const peerOf = (record: PeerRecord): PeerTerminal => ({
+  summary: record.summary,
+  naming: record.naming,
+  work: record.work,
+  activity: record.bound?.activity ?? null,
+  openedBy: record.openedBy,
+})
+
 export type PeersOptions = {
   readonly messaging: Messaging
   /** The running terminal whose shell's own token this is; undefined for any other. */
-  readonly caller: (terminalId: string, token: string) => PeerTerminal | undefined
+  readonly caller: (terminalId: string, token: string) => PeerRecord | undefined
   /** A terminal the runner holds, running or exited. */
-  readonly terminal: (terminalId: string) => PeerTerminal | undefined
+  readonly terminal: (terminalId: string) => PeerRecord | undefined
   /** The running terminals of a session. */
-  readonly running: (sessionId: string) => readonly PeerTerminal[]
+  readonly running: (sessionId: string) => readonly PeerRecord[]
   /** The folder of the project a session belongs to, when one is known. */
   readonly projectFolder: (sessionId: string) => string | undefined
   /** Whether the runner is stopping. */
@@ -161,36 +176,39 @@ export class TerminalPeers {
   private async whereabouts(sessionId: string): Promise<Map<string, Whereabouts>> {
     const project = this.options.projectFolder(sessionId)
     const entries = await Promise.all(
-      this.options.running(sessionId).map(async (terminal) => {
-        const { cwd } = terminal.summary
-        const [branch, plan] = await Promise.all([this.branch(cwd), this.plan(terminal)])
-        const place = (path: string): string => {
-          for (const base of [project, cwd]) {
-            if (base === undefined) continue
-            const inside = relative(base, path)
-            if (!inside) return "."
-            if (!inside.startsWith("..") && !isAbsolute(inside)) return inside
+      this.options
+        .running(sessionId)
+        .map(peerOf)
+        .map(async (terminal) => {
+          const { cwd } = terminal.summary
+          const [branch, plan] = await Promise.all([this.branch(cwd), this.plan(terminal)])
+          const place = (path: string): string => {
+            for (const base of [project, cwd]) {
+              if (base === undefined) continue
+              const inside = relative(base, path)
+              if (!inside) return "."
+              if (!inside.startsWith("..") && !isAbsolute(inside)) return inside
+            }
+            return path
           }
-          return path
-        }
-        const where: Whereabouts = {
-          title: terminal.summary.title,
-          titleSource: terminal.summary.titleSource,
-          summary: terminal.naming.summary,
-          folder: place(cwd),
-          branch,
-          plan,
-          work: terminal.work,
-          openedBy: terminal.openedBy,
-          working: terminal.summary.activity?.state === "working",
-          waiting: waitingOf(terminal.activity),
-          place: (path) => {
-            const shown = place(path)
-            return shown.length > 80 ? `…${shown.slice(-79)}` : shown
-          },
-        }
-        return [terminal.summary.id, where] as const
-      }),
+          const where: Whereabouts = {
+            title: terminal.summary.title,
+            titleSource: terminal.summary.titleSource,
+            summary: terminal.naming.summary,
+            folder: place(cwd),
+            branch,
+            plan,
+            work: terminal.work,
+            openedBy: terminal.openedBy,
+            working: terminal.summary.activity?.state === "working",
+            waiting: waitingOf(terminal.activity),
+            place: (path) => {
+              const shown = place(path)
+              return shown.length > 80 ? `…${shown.slice(-79)}` : shown
+            },
+          }
+          return [terminal.summary.id, where] as const
+        }),
     )
     return new Map(entries)
   }

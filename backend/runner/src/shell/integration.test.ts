@@ -955,7 +955,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
           string,
           {
             agents: { agy?: { seq: number } }
-            binding: { agent: string; sessionId: string; instance: string | null } | null
+            bound: {
+              binding: { agent: string; sessionId: string; instance: string | null }
+            } | null
             terminal: { pty: object; exiting: boolean }
           }
         >
@@ -988,9 +990,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
       await reading
       const record = inside.records.get(terminal.id)!
-      const original = { binding: record.binding, terminal: record.terminal }
-      const switched = { agent: "codex", sessionId: "new-root", instance: null }
-      if (change === "binding") record.binding = switched
+      const original = { bound: record.bound, terminal: record.terminal }
+      const switched = {
+        ...original.bound,
+        binding: { agent: "codex", sessionId: "new-root", instance: null },
+      }
+      if (change === "binding") record.bound = switched
       // Another run, or this one's exit queued, as the manager sees its terminal.
       if (change === "process")
         record.terminal = Object.create(original.terminal, {
@@ -1002,10 +1007,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       release()
       try {
         await inside.reporting.queues.get(terminal.id)
-        expect(record.binding).toBe(change === "binding" ? switched : original.binding)
+        expect(record.bound).toBe(change === "binding" ? switched : original.bound)
         expect(manager.reportedSession(terminal.id, "claude")).toBeNull()
       } finally {
-        record.binding = original.binding
+        record.bound = original.bound
         record.terminal = original.terminal
       }
     },
@@ -2150,7 +2155,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     expect(shell.store.terminalIdentity(ids.worker)?.ledBy).toBeNull()
   })
 
-  it("announces the lead's end with the new binding before its activity, a known transient state", async ({
+  it("announces the lead's end with the new binding and its activity together", async ({
     shell,
   }) => {
     const session = randomUUID()
@@ -2169,14 +2174,13 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await shell.until(manager, ids.worker, /\nback\r?\n/)
     expect(manager.get(ids.worker).ledBy).toBe("moth")
     // What the record holds each time its detail is told of a change, read as it is told.
-    type Seen = { ledBy: string | null; bound: boolean; activity: boolean }
+    type Seen = { ledBy: string | null; agent: string | null; activity: string | null }
     const seen: Seen[] = []
     const { streams } = manager as unknown as {
       streams: {
         detailed: (record: {
           summary: { id: string; ledBy: string | null }
-          binding: unknown
-          activity: unknown
+          bound: { binding: { agent: string }; activity: { state: string } } | null
         }) => void
       }
     }
@@ -2185,8 +2189,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       if (record.summary.id === ids.worker)
         seen.push({
           ledBy: record.summary.ledBy,
-          bound: record.binding !== null,
-          activity: record.activity !== null,
+          agent: record.bound?.binding.agent ?? null,
+          activity: record.bound?.activity.state ?? null,
         })
       detailed(record)
     }
@@ -2194,12 +2198,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     manager.write({ terminalId: ids.worker, data: "claude\r" }, "owner")
     await expect.poll(() => manager.get(ids.worker).ledBy).toBeNull()
     await expect.poll(() => manager.get(ids.worker).agent).toBe("claude")
-    // A report binds the session first and gives it its activity after, so the lead's end,
-    // announced in between, shows the new binding with no activity yet. One value holding
-    // both (manager-split.md, "the type enforces it") would change this on purpose.
+    // A report binds the session with its fresh activity, one value (`Record.bound`), so the
+    // lead's end, announced as it binds, shows the new binding with its own activity.
     const ended = seen.findIndex(({ ledBy }) => ledBy === null)
-    expect(seen[ended]).toEqual({ ledBy: null, bound: true, activity: false })
-    expect(seen.slice(ended + 1)).toContainEqual({ ledBy: null, bound: true, activity: true })
+    expect(seen[ended]).toEqual({ ledBy: null, agent: "claude", activity: "idle" })
   })
 
   it("ends a worker's lead when its agent exits before any session bound, and its brief is gone", async ({
