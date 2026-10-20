@@ -43,7 +43,7 @@ export type Client = {
  * (RELEASE_NOTES_PROMOTE_MODEL).
  */
 export const defaultModels = {
-  release: "anthropic/claude-haiku-5.5",
+  release: "deepseek/deepseek-v4-pro",
   promote: "anthropic/claude-opus-5.5",
 } as const
 
@@ -52,6 +52,12 @@ export const defaultModels = {
  * streamed, but this bounds the whole call, the last chunk included.
  */
 export const timeouts = { release: 180_000, promote: 480_000 } as const
+
+/**
+ * The most a mode lets the model write. A build's answer is short, and some providers of the
+ * cheaper models cap a completion at 16,384.
+ */
+export const maxTokens = { release: 16_000, promote: 64_000 } as const
 
 export const endpoint = "https://openrouter.ai/api/v1/chat/completions"
 const referer = "https://github.com/novadeck-org/novadeck"
@@ -223,7 +229,7 @@ export const ask = async (
       }),
       body: JSON.stringify({
         model: client.model,
-        max_tokens: 64_000,
+        max_tokens: maxTokens[kind],
         // Usage arrives once, in the stream's last chunk, with nothing to ask for.
         stream: true,
         messages: [

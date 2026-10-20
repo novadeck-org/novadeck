@@ -1,7 +1,7 @@
 /* eslint-disable no-await-in-loop -- Each case runs on its own, one after another. */
 import { describe, expect, it } from "vitest"
 
-import { notesBlock, type ReleaseNotes } from "../../contract/protocol/src/release-notes.ts"
+import { notesBlock } from "../../contract/protocol/src/release-notes.ts"
 import { commit, commits, fakeSources, releaseBody } from "./fixtures.ts"
 import { generatePromote, generateRelease, type Ask } from "./generate.ts"
 import { renderBody } from "./render.ts"
@@ -207,72 +207,56 @@ describe("the notes of a prerelease", () => {
 })
 
 describe("the notes of a promotion", () => {
-  const block = (notes: Partial<ReleaseNotes>): string =>
-    notesBlock({
-      version: "0.0.150",
-      kind: "release",
-      highlights: [],
-      changes: [],
-      fixes: 0,
-      ...notes,
-    })
-  const body150 = `### Voice\n\n- Offer voice input in context.\n\n${block({
-    changes: [{ area: "Voice", line: "Offer voice input in context.", prs: [203] }],
-    fixes: 2,
-  })}\n\n<details><summary>All commits</summary>\n\n## 0.0.150\n\n* addons offer\n\n</details>`
   const sources = (stable: string | undefined, own = releaseBody) =>
     fakeSources({
       tags,
       stable,
       commits: {
-        "v0.0.148..v0.0.149": [commit(181)],
-        "v0.0.150..v0.0.151": [commit(195)],
-        "v0.0.151..v0.0.152": [commit(330)],
+        "v0.0.148..v0.0.152": [commit(181), commit(195), commit(330)],
+        "v0.0.150..v0.0.152": [commit(195), commit(330)],
+        "..v0.0.152": [commit(181), commit(195), commit(330)],
       },
-      bodies: {
-        "v0.0.149": "## 0.0.149\n\n* old changelog",
-        "v0.0.150": body150,
-        "v0.0.151": "## 0.0.151\n\n* inbox",
-        "v0.0.152": own,
-      },
+      bodies: { "v0.0.152": own },
     })
   const repo = "novadeck-org/novadeck"
   const picked = {
     highlights: [{ title: "Word handles", line: "Terminals get a name like @moth.", prs: [181] }],
-    changes: [{ area: "Voice", line: "Offer voice input in context.", prs: [203] }],
+    changes: [{ area: "Inbox & notifications", line: "Answer agents from the Inbox.", prs: [195] }],
   }
 
-  it("reuses the lines of releases that have a block and reads the commits of those that don't", async () => {
+  it("asks about every commit of the range as it is, and reads no other release's notes", async () => {
     const source = sources("v0.0.148")
+    // A prerelease's body with a block of its own is never consulted: only the promoted body is read.
+    const read: string[] = []
+    const watched = {
+      ...source,
+      release: async (tag: string) => (read.push(tag), source.release(tag)),
+    }
     const asked: string[] = []
     const generated = await generatePromote(
       "v0.0.152",
-      source,
+      watched,
       async (kind, version, items) => {
         asked.push(items.map((item) => `${item.label}:${item.prs}`).join(" "))
         return { text: JSON.stringify(picked), outputTokens: 5, model: "m/test" }
       },
       repo,
     )
-    expect(asked).toEqual(["feat:181 notes:203 feat:195 feat(ui):330"])
-    // v0.0.150 has a block, so its commits are never read.
-    expect(source.ranges).toEqual([
-      "v0.0.148..v0.0.149",
-      "v0.0.150..v0.0.151",
-      "v0.0.151..v0.0.152",
-    ])
-    // The block's two smaller fixes carry over; 195 and 330 are cited by no line.
-    expect(generated.notes).toMatchObject({ kind: "promote", version: "0.0.152", fixes: 2 })
+    expect(asked).toEqual(["feat:181 feat:195 feat(ui):330"])
+    expect(source.ranges).toEqual(["v0.0.148..v0.0.152"])
+    expect(read).toEqual(["v0.0.152"])
+    // 330 is cited by no line, but it is a feature, not a smaller fix.
+    expect(generated.notes).toMatchObject({ kind: "promote", version: "0.0.152", fixes: 0 })
     expect(generated.notes.highlights).toHaveLength(1)
   })
 
-  it("covers only what is newer than the stable release, and all of it when there is none", async () => {
+  it("counts the fixes no line names, and covers only what is newer than the stable release", async () => {
     const after = sources("v0.0.150")
     await generatePromote("v0.0.152", after, answer({ highlights: [], changes: [] }), repo)
-    expect(after.ranges).toEqual(["v0.0.150..v0.0.151", "v0.0.151..v0.0.152"])
+    expect(after.ranges).toEqual(["v0.0.150..v0.0.152"])
     const all = sources(undefined)
     await generatePromote("v0.0.152", all, answer({ highlights: [], changes: [] }), repo)
-    expect(all.ranges[0]).toBe("..v0.0.148")
+    expect(all.ranges).toEqual(["..v0.0.152"])
   })
 
   it("keeps only its own changelog, and links the range from the stable release", async () => {

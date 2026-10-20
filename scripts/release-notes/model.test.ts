@@ -96,6 +96,15 @@ describe("the model call", () => {
     expect(sent[0]!.init.signal).toBeInstanceOf(AbortSignal)
   })
 
+  it("lets a build write 16,000 tokens and a promotion 64,000", async () => {
+    const build = client(() => json(ok()))
+    await ask(build.fake, "release", "1", items)
+    expect(build.sent[0]!.body.max_tokens).toBe(16_000)
+    const promotion = client(() => json(ok()))
+    await ask(promotion.fake, "promote", "1", items)
+    expect(promotion.sent[0]!.body.max_tokens).toBe(64_000)
+  })
+
   it("holds the area to a real enum in the schema it sends, with no bounds the providers refuse", async () => {
     const { fake, sent } = client(() => json(ok()))
     await ask(fake, "release", "1", items)
@@ -107,7 +116,7 @@ describe("the model call", () => {
 
   it("takes a model for each mode from its own variable, and the key from OPENROUTER_API_KEY", () => {
     expect(clientFor("release", {})).toMatchObject({
-      model: "anthropic/claude-haiku-5.5",
+      model: "deepseek/deepseek-v4-pro",
       apiKey: undefined,
       timeout: 180_000,
     })
