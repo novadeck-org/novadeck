@@ -726,6 +726,9 @@ export const createDemoInbox = (
     own.getSnapshot().items.find((each) => each.id === id)
 
   let binding: InboxBinding | null = null
+  // Each binding's own: an answer still on its way when the app unbound it says nothing to the
+  // next one.
+  let bound = 0
   const seen = new Set<string>()
   const inFlight = new Set<string>()
   // Answers that took and may leave their item standing a moment, as trouble's do.
@@ -831,8 +834,10 @@ export const createDemoInbox = (
     submitted.add(id)
     inFlight.add(id)
     recompute()
+    const binds = bound
     work().then(
       () => {
+        if (binds !== bound) return
         inFlight.delete(id)
         if (!settles) submitted.delete(id)
         recompute()
@@ -846,6 +851,7 @@ export const createDemoInbox = (
         )
       },
       (error: unknown) => {
+        if (binds !== bound) return
         inFlight.delete(id)
         submitted.delete(id)
         fail(id, whyOf(error))
@@ -907,6 +913,7 @@ export const createDemoInbox = (
   return {
     state,
     bind: (next) => {
+      bound += 1
       binding = next
       const stops = [
         next.workspace,
@@ -923,6 +930,7 @@ export const createDemoInbox = (
         clearTimeout(due)
         due = undefined
         for (const known of [seen, inFlight, submitted, failed, asked]) known.clear()
+        bound += 1
         if (binding === next) binding = null
         derived.update(() => emptyInbox)
       }
@@ -1002,8 +1010,14 @@ export const createDemoInbox = (
       )
     },
     readAll: () => {
-      // The finishes the Inbox shows: one whose row an item of the demo's own took stays unread.
-      const shown = new Set(state.getSnapshot().items.map((each) => each.id))
+      // The finishes the Inbox shows, or that an update of the demo's own read now covered: one
+      // whose row another item of the demo's own took stays unread.
+      const covered = new Set(
+        own
+          .getSnapshot()
+          .items.filter((each) => each.kind !== "update" && each.kind !== "held")
+          .map((each) => each.source.terminalId),
+      )
       for (const each of own.getSnapshot().items)
         if (each.kind === "update") record(each, { kind: "update", action: "read" })
       change((current) => ({
@@ -1012,7 +1026,7 @@ export const createDemoInbox = (
       }))
       const finishes = derived
         .getSnapshot()
-        .items.filter((each) => each.kind === "update" && shown.has(each.id))
+        .items.filter((each) => each.kind === "update" && !covered.has(each.source.terminalId))
         .map((each) => ({
           context: `${each.source.projectId}/${each.source.workspaceSessionId}`,
           terminalId: each.source.terminalId,

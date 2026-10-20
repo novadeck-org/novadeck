@@ -288,6 +288,24 @@ describe("the agents demo's Inbox", () => {
     })
   })
 
+  context("when trouble is answered and its item stays", () => {
+    it("holds its buttons a moment, then gives them back", async () => {
+      const { inbox, unread, itemOn, terminalOf } = boot()
+      await vi.advanceTimersByTimeAsync(10_000)
+      const infra = terminalOf("infra", 1)!
+      unread.update(() => ({ "infra/initial": { [infra.id]: "failed" } }))
+      const trouble = itemOn("infra", 1)!
+      expect(trouble).toMatchObject({ kind: "trouble", trouble: { type: "failed" } })
+
+      inbox.answer(trouble.id, { kind: "trouble", action: { type: "stop" } })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(itemOn("infra", 1)?.id).toBe(trouble.id)
+      expect(inbox.state.getSnapshot().answering[trouble.id]).toBe(true)
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(inbox.state.getSnapshot().answering[trouble.id]).toBeUndefined()
+    })
+  })
+
   context("when an item is seen", () => {
     it("marks only that item", () => {
       const { inbox, itemOn } = boot()
@@ -353,6 +371,21 @@ describe("the Inbox demo's own items", () => {
       .items.filter((each) => each.kind !== "held")
       .map((each) => each.source.terminalId)
     expect(new Set(terminals).size).toBe(terminals.length)
+  })
+
+  it("leave a finish unread under one that still waits, when every update is read", async () => {
+    const { inbox, unread, read, terminalOf, itemOn } = boot("inbox")
+    await vi.advanceTimersByTimeAsync(10_000)
+    const done = terminalOf("design-system", 1)!
+    unread.update(() => ({ "design-system/initial": { [done.id]: "done" } }))
+    const finish = itemOn("design-system", 1)!
+    expect(finish.kind).toBe("update")
+    const ask = inbox.state.getSnapshot().items.find((each) => each.id === demoInboxIds.webhook)!
+    inbox.add({ ...ask, source: { ...finish.source } })
+    expect(itemOn("design-system", 1)?.id).toBe(demoInboxIds.webhook)
+
+    inbox.readAll()
+    expect(read).not.toHaveBeenCalled()
   })
 
   it("take the agent past what it waited on once answered", async () => {

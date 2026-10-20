@@ -783,9 +783,8 @@ Agents:
   a finish only counts while you look elsewhere. "Clear waiting agents" rests every agent,
   which answers every request, reads every finish and calls off those still to come, and
   has a terminal back at its prompt work for a moment and leave, for an empty Inbox. Its
-  second round of kinds carries what Murmur would write (a headline on the question and the
-  plan, a gist on the done and the failed finish, the done one asking), so the rows can be
-  seen without Murmur installed. The notices for finishes need the Preferences switch
+  second round of kinds carries what Murmur would write (a gist on the done and the failed
+  finish), so the rows can be seen without Murmur installed. The notices for finishes need the Preferences switch
   "Notify when an agent finishes" on.
 - **Chat: next send or Stop fails:** arm the next send from a chat to fail as the runner turns it away: a
   draft in the agent's box, its shell mode, too tall a message, no box on screen, or no
