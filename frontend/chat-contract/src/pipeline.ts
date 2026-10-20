@@ -1,10 +1,10 @@
+import { Transcript } from "@novadeck/chat/Transcript"
 import type { ChatItem } from "@novadeck/core/conversation"
 import { groupItems } from "@novadeck/core/conversation-turns"
 import type { Harness } from "@novadeck/harness-core/harness"
 import { transcriptItem } from "@novadeck/protocol"
 import { withBatch } from "@novadeck/runner-adapter/conversations"
 import { render } from "@novadeck/test-kit/render"
-import { Transcript } from "@novadeck/ui/terminals/chat/Transcript"
 import { act, createElement } from "react"
 
 // The stages between a harness's record and the rendered chat, run as the app runs them.

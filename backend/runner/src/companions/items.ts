@@ -15,6 +15,7 @@ import type {
 import { KeyedChanges } from "@novadeck/wire/server"
 
 import { DomainError } from "../errors.js"
+import { logs } from "../log.js"
 import { agentLabel } from "../messaging/mailbox.js"
 import { mention } from "../terminals/handles.js"
 import {
@@ -39,6 +40,8 @@ import {
   type PresentFailure,
   type PresentRequest,
 } from "./request.js"
+
+const log = logs.for("companions")
 
 /** A terminal items are shown in or placed on: where it is, and how agents address it. */
 export type TerminalPlace = {
@@ -204,7 +207,9 @@ export class CompanionItems {
     } catch (error) {
       // Its terminal went while the file was looked at; anything else is worth a word.
       if (!(error instanceof DomainError && error.code === "TERMINAL_NOT_FOUND"))
-        console.error("Novadeck could not keep an item beside its terminal:", error)
+        log.error("companions.keep-failed", "Novadeck could not keep an item beside its terminal", {
+          err: error,
+        })
       kept = undefined
     }
     if (!kept) return failure("Novadeck couldn't show it.")
@@ -513,7 +518,9 @@ export class CompanionItems {
   ): Promise<void> {
     const observed = this.observing.then(() => this.observe(place, slot, plan, at))
     this.observing = observed.catch((error: unknown) => {
-      console.error("Novadeck could not keep a plan beside its terminal:", error)
+      log.error("companions.plan-failed", "Novadeck could not keep a plan beside its terminal", {
+        err: error,
+      })
     })
     return this.observing
   }

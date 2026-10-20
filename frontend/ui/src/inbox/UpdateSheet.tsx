@@ -1,6 +1,6 @@
+import { Markdown } from "@novadeck/toolkit/Markdown"
 import { Check } from "lucide-react"
 
-import { Markdown } from "../terminals/chat/Markdown"
 import { agentName } from "./inbox-text"
 import { Lead, Page, type SheetContentProps } from "./Page"
 import { Failure, QuietLink, Sent } from "./sheet-parts"

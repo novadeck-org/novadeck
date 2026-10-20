@@ -17,9 +17,14 @@ import type { Waits } from "./delivery.js"
 
 /**
  * Where the doorbell tells what it decided, line by line, for the e2e trace to show (see
- * `e2e/trace.ts`); nothing listens in the app.
+ * `e2e/trace.ts`) and the app's log (`messaging/doorbell-log.ts`). A line holds facts alone,
+ * never what the screen shows; the screen it read comes beside it, for verbose logging.
  */
-export const tracer: { sink?: (terminalId: string, line: string) => void } = {}
+export const tracer: {
+  sink?: (terminalId: string, line: string, screen?: ScreenText) => void
+  /** Told when a terminal stops running, so what was kept of it goes. */
+  forgotten?: (terminalId: string) => void
+} = {}
 
 /** What the doorbell needs of the terminal manager and messaging, by terminal. */
 export type DoorbellHost = {
@@ -194,6 +199,7 @@ export class Doorbell {
   private readonly schedule = coalesced(
     (terminalId) => this.check(terminalId),
     "Novadeck's doorbell failed:",
+    "doorbell.check-failed",
   )
   private readonly checking = new Set<string>()
   /** Each terminal's ring pressed and awaiting its prompt: its nonce, and its hold to settle. */
@@ -241,6 +247,7 @@ export class Doorbell {
 
   /** Forgets a terminal that stopped running. */
   forget(terminalId: string): void {
+    tracer.forgotten?.(terminalId)
     this.settle(terminalId)
     clearTimeout(this.timers.get(terminalId))
     this.timers.delete(terminalId)
@@ -302,8 +309,8 @@ export class Doorbell {
    * settle window has passed, and the screen has been still for a while, takes a bracketed
    * paste and is the foreground's. Otherwise undefined, with a later look where one is due.
    */
-  private note(terminalId: string, line: string): void {
-    tracer.sink?.(terminalId, line)
+  private note(terminalId: string, line: string, screen?: ScreenText): void {
+    tracer.sink?.(terminalId, line, screen)
   }
 
   /** What types into the terminal, over the host's target; undefined once it is gone. */
@@ -490,7 +497,7 @@ export class Doorbell {
   private async recover(terminalId: string, screen: ScreenText, calmSince: number): Promise<void> {
     const now = this.now()
     const reading = this.host.reading(terminalId, screen)
-    this.note(terminalId, `reading ${reading}`)
+    this.note(terminalId, `reading ${reading}`, screen)
     // A question open on the person is theirs first, whatever the box shows.
     if (reading === "asking") {
       this.host.blocked(terminalId, "asking")
