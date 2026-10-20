@@ -10,8 +10,9 @@ const log = logs.for("terminals")
 
 export type TranscriptRedactor = {
   /**
-   * The transcript with its secrets masked; null when it could not be redacted (failed, too
-   * slow, no thread); undefined once `signal` aborted or the redactor closed.
+   * The transcript with its secrets masked and cut to `maxChars`; "" when there is nothing to
+   * keep (blank, or not even its visible rows fit); null when it could not be redacted (failed,
+   * too slow, no thread); undefined once `signal` aborted or the redactor closed.
    */
   redact(input: TranscriptInput, signal?: AbortSignal): Promise<string | null | undefined>
   close(): Promise<void>
@@ -44,7 +45,7 @@ export const transcriptDeadlineMs = 6000
 export const createTranscriptRedactor = (
   options: TranscriptRedactorOptions = {},
 ): TranscriptRedactor => {
-  const thread = new WorkerThread<TranscriptInput, string | null>(where, {
+  const thread = new WorkerThread<TranscriptInput, string>(where, {
     deadlineMs: options.deadlineMs ?? transcriptDeadlineMs,
     ...(options.script && { script: options.script }),
   })

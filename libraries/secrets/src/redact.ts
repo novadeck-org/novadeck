@@ -164,15 +164,40 @@ const secretValue = (value: string, code = false): boolean => {
   return !plain.has(bare.toLowerCase())
 }
 
+// Whether a short stretch of a run looks like key material: both cases of letter, and no word.
+const keyLike = (piece: string): boolean =>
+  /[a-z]/.test(piece) && /[A-Z]/.test(piece) && !/[a-z]{7}/.test(piece)
+
+// Whether a run is a path: a fifth of what is between its slashes are words (random base64 has
+// a slash every 64 characters or so, and sometimes a few lowercase letters between two of them).
+const pathLike = (text: string): boolean => {
+  if (!text.includes("/")) return false
+  const parts = text.split("/")
+  const words = parts.filter((part) => /^[a-z]{4,}$/.test(part)).length
+  return words / parts.length >= 0.2
+}
+
+// A run is judged by what most of it looks like, in pieces of this many characters: a word
+// anywhere in a key's thousands of characters (random base64 has a run of 7 lowercase letters
+// about every 550 characters) must not leave it visible. A run of four pieces or more may have
+// a third of them fail, if digits are a good share of it, as they are in base64 (one in six)
+// and not in identifiers.
+const piece = 20
+
 const qualifies = (text: string): boolean => {
-  if (text.length < 40 || !/[a-z]/.test(text) || !/[A-Z]/.test(text) || /[a-z]{7}/.test(text))
-    return false
+  if (text.length < 40 || !/[a-z]/.test(text) || !/[A-Z]/.test(text) || pathLike(text)) return false
   const digits = text.replaceAll(/\D/g, "").length
-  // Standard base64 has `+`, `/` and `=`, which words and identifiers don't. A path has words
-  // between its slashes; a key's segments are not words.
+  // Standard base64 has `+`, `/` and `=`, which words and identifiers don't.
   const marked = /[+/]|=$/.test(text)
-  if (text.includes("/") && text.split("/").some((part) => /^[a-z]{4,}$/.test(part))) return false
-  return marked ? digits >= 1 : digits >= 3
+  if (marked ? digits < 1 : digits < 3) return false
+  if (!/[a-z]{7}/.test(text)) return true
+  const pieces = Math.floor(text.length / piece)
+  if (pieces < 4 || digits < text.length / 20) return false
+  let failing = 0
+  for (let i = 0; i < pieces; i += 1)
+    if (!keyLike(text.slice(i * piece, i === pieces - 1 ? text.length : (i + 1) * piece)))
+      failing += 1
+  return failing <= Math.floor(pieces / 3)
 }
 
 // Whether `value` opens a quote it never closes while the name before it sits inside an open
@@ -490,18 +515,31 @@ const keyBlockRows = (screen: readonly string[], continues: readonly boolean[]):
 
 // How much text is read together from a row's start: rows from there on, until they add up to
 // this many characters. A rule needs at most a value (`valueCap`) with its name or prefix whole,
-// so 4 times that holds any match with room to spare, and a longer run of base64 or a JWT is
-// covered by the windows that start at each of its rows, which overlap. It bounds the work on a
-// group of any size to a window for each row, instead of all the rows after it.
+// so 4 times that holds any match with room to spare. A longer secret is masked whole all the
+// same: a mask that reaches the window's end goes on through the characters a token is made of,
+// and windows start at every row, so they overlap along it. The work on a group of any size is
+// bounded to a window for each row, instead of all the rows after it.
 const readWindow = 4 * valueCap
+// What a token, a key or a hash is made of.
+const tokenCharacter = /[\w.+/=~-]/
+// The starts of tokens that have a prefix of their own (see the rules), and how long a run of
+// token characters after one has to be to be masked on that alone: too long for a window to
+// hold the whole token, which a rule needs to match it.
+const tokenStart = new RegExp(
+  `(?:eyJ|sk-|[sr]k_(?:live|test)_|gh[pousr]_|github_pat_|glpat-|hf_|hvs\\.|npm_|pypi-|ya29\\.|AIza|SG\\.|xox[abeoprs]-|AGE-SECRET-KEY-1)`,
+  "y",
+)
+const longToken = readWindow / 2
 
 // Which characters of the screen's rows are a secret. Rows that go on (each but the last of a
 // group ended at the pane's edge) are marked apart, as one text from the first of them, and as
-// one text of a window (see `window`) from each of their starts, and what any of those marks is masked, in whichever row it lies: a secret across a boundary
-// is masked on both sides of it, even when the row before it ended in a word character, and a
-// row's own context changes nothing else. Marking keeps lengths, so the readings line up
-// character for character. Rows `skip` says are masked already are not read.
-// Nothing here bounds the work: a caller that needs a bound runs it in a worker.
+// one text of a window (see `readWindow`) from each of their starts, and what any of those
+// marks is masked, in whichever row it lies: a secret across a boundary is masked on both sides
+// of it, even when the row before it ended in a word character, and a row's own context changes
+// nothing else. A long token with a prefix is masked whole on its own (see `longToken`).
+// Marking keeps lengths, so the readings line up character for character. Rows `skip` says are
+// masked already are not read.
+// Nothing here bounds a single reading: a caller that needs a bound runs it in a worker.
 const markedRows = (
   rows: readonly string[],
   continues: readonly boolean[],
@@ -520,11 +558,27 @@ const markedRows = (
     } else {
       const text = group.join("")
       const masked: boolean[] = Array.from({ length: text.length }, () => false)
+      // A token with a prefix, longer than a window reads, at the start of a row (where the
+      // rule's boundary may be hidden by the row before) or after a boundary, is masked whole.
+      for (let at = 0, row = 0; row < group.length; at += group[row++]?.length ?? 0) {
+        for (let found = at; found < at + (group[row]?.length ?? 0); found += 1) {
+          if (found !== at && /\w/.test(text[found - 1] ?? "")) continue
+          tokenStart.lastIndex = found
+          if (!tokenStart.test(text)) continue
+          let end = found
+          while (end < text.length && tokenCharacter.test(text[end] ?? "")) end += 1
+          if (end - found < longToken) continue
+          for (let i = found; i < end; i += 1) masked[i] = true
+          found = end
+        }
+      }
       const note = (marked: string, from: number): void => {
         for (let i = 0; i < marked.length; i += 1)
           if (marked[i] === sentinel) masked[from + i] = true
       }
       let from = 0
+      // The run the last window's mask was carried through, so that the next is not carried over it again.
+      let covered = { from: 0, to: 0 }
       for (let start = 0; start < group.length; start += 1) {
         note(mark(group[start] ?? ""), from)
         // The whole group from its first row; from each later start, a window of rows.
@@ -534,7 +588,20 @@ const markedRows = (
           let size = group[start]?.length ?? 0
           while (end < group.length && size < readWindow) size += group[end++]?.length ?? 0
         }
-        note(mark(group.slice(start, end).join("")), from)
+        const marked = mark(group.slice(start, end).join(""))
+        note(marked, from)
+        // A mask that runs to the window's end goes on through the rest of its run, as a
+        // value that reaches `valueCap` does: a token longer than the window is masked whole.
+        const reach = from + marked.length
+        if (
+          end < group.length &&
+          marked.endsWith(sentinel) &&
+          !(reach > covered.from && reach < covered.to)
+        ) {
+          let at = reach
+          while (at < text.length && tokenCharacter.test(text[at] ?? "")) masked[at++] = true
+          covered = { from: reach, to: at }
+        }
         from += (group[start] ?? "").length
       }
       let offset = 0

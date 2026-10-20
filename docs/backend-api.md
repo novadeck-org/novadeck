@@ -661,7 +661,7 @@ values named like secrets, keys, long key-like runs; anything else may still be 
 Only a terminal whose screen changed is queued, at most every 30 seconds; one whose shell
 exits or restarts goes first in the queue. One transcript is masked at a time, for the
 whole runner. `persist()` and `close()` also give the changed screens one pass of about a
-second, written until that second is over (the records close after it); a transcript
+second, written until that second is over (as the runner closes, its records close only after it); a transcript
 unfinished then keeps its last saved copy. A transcript that cannot be masked is not
 saved, and the copy saved before stays, unless an earlier runner left it, which is then
 forgotten. A result that arrives after its terminal was closed, or transcripts were

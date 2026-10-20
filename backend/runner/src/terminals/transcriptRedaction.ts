@@ -26,6 +26,9 @@ export type TranscriptInput = {
 type Line = NonNullable<ReturnType<Screen["buffer"]["active"]["getLine"]>>
 type Cell = ReturnType<Screen["buffer"]["active"]["getNullCell"]>
 
+// A double-width character is masked with this, which is one character of two columns.
+const wideStar = "\uFF0A"
+
 const written = (screen: Screen, data: string): Promise<void> =>
   new Promise((resolve) => screen.write(data, resolve))
 
@@ -50,19 +53,26 @@ const reachesEdge = (line: Line, next: Line | undefined, cols: number, cell: Cel
   return last.getWidth() === 0 || last.getChars().trim() !== ""
 }
 
-const readRow = (line: Line, cols: number, whole: boolean, cell: Cell): Row => {
+const readRow = (line: Line, cols: number, whole: boolean, wraps: boolean, cell: Cell): Row => {
   const row: Row = { text: "", columns: [], starts: [] }
-  let end = 0
-  for (let column = 0; column < cols; column += 1) {
+  // Where the line's characters end: a line that does not run on is read without the blanks
+  // after its last character. One that wraps into the next is read to its last cell, but for
+  // the cells nothing was drawn in: a double-width character that did not fit leaves one, and
+  // the line goes on in the next as if it were not there.
+  let last = whole && !wraps ? cols - 1 : -1
+  if (last < 0)
+    for (let column = cols - 1; column >= 0 && last < 0; column -= 1) {
+      const at = line.getCell(column, cell)
+      if (at && (wraps ? at.getChars() !== "" || at.getWidth() === 0 : at.getChars().trim() !== ""))
+        last = column
+    }
+  for (let column = 0; column <= last; column += 1) {
     const at = line.getCell(column, cell)
     if (!at || at.getWidth() === 0) continue
     row.columns.push(column)
     row.starts.push(row.text.length)
     row.text += at.getChars() || " "
-    if (whole || at.getChars().trim() !== "") end = row.text.length
   }
-  // A line that does not run on is read without the blanks after its last character.
-  row.text = row.text.slice(0, end)
   return row
 }
 
@@ -95,12 +105,17 @@ const penOf = (cell: Cell): string => {
 }
 
 /**
- * The transcript with the secrets on its rows masked, a `*` over each column of a secret in
- * the cell's own colours; the text itself when there is none; null when it could not be
- * written out within `maxChars`, or could not be drawn whole (a line of it scrolled out of
- * reach of the cursor).
+ * The transcript with the secrets on its rows masked, a `*` over each column of a secret in the
+ * cell's own colours (a double-width character becomes the one double-width `＊`), and cut to
+ * `maxChars` as `transcript` cuts: the oldest scrollback first. The text is not rewritten when
+ * there is no secret in it and it fits. Empty when there is nothing to keep: the screen is blank,
+ * or not even its visible rows fit in `maxChars` (`transcript` gives null for that). It only
+ * throws when the work fails, which is the caller's failure to log; never null.
+ *
+ * The text may be larger than `maxChars` (the whole of a screen's scrollback): the secrets are
+ * found before anything is cut, so one that straddles where the cut falls is masked.
  */
-export const redactTranscript = async (input: TranscriptInput): Promise<string | null> => {
+export const redactTranscript = async (input: TranscriptInput): Promise<string> => {
   const { text, cols, rows, lines, maxChars } = input
   // The screen it came from, as far as the text shows: the same size, every line kept.
   const origin = createScreen({ cols, rows, scrollback: lines })
@@ -115,13 +130,18 @@ export const redactTranscript = async (input: TranscriptInput): Promise<string |
       const next = buffer.getLine(y + 1)
       const reaches = line ? reachesEdge(line, next, cols, cell) : false
       continues.push(reaches)
-      texts.push(line ? readRow(line, cols, reaches, cell) : { text: "", columns: [], starts: [] })
+      texts.push(
+        line
+          ? readRow(line, cols, reaches, next?.isWrapped ?? false, cell)
+          : { text: "", columns: [], starts: [] },
+      )
     }
     const masks = maskScreen(
       texts.map((row) => row.text),
       continues,
     )
-    if (!masks.some((row) => row.some(Boolean))) return text
+    if (!masks.some((row) => row.some(Boolean)))
+      return text.length <= maxChars ? text : (transcript(origin, maxChars) ?? "")
 
     // Drawn again with a row for every line, so a cursor can reach each of them.
     const flat = createScreen({ cols, rows: texts.length, scrollback: 0 })
@@ -145,18 +165,25 @@ export const redactTranscript = async (input: TranscriptInput): Promise<string |
           const style = penOf(at)
           if (style !== last) edits += style
           last = style
-          edits += `\x1b[${y + 1};${column + 1}H${"*".repeat(Math.max(at.getWidth(), 1))}`
+          edits += `\x1b[${y + 1};${column + 1}H${at.getWidth() === 2 ? wideStar : "*"}`
         })
       })
       await written(flat, `${edits}\x1b8`)
       const drawn = transcript(flat, Number.POSITIVE_INFINITY)
-      if (drawn === null) return null
-      // Written out again by a screen of the size the text came from, so the result is
-      // cut to `maxChars` as `transcript` cuts: the oldest scrollback first.
+      if (drawn === null) return ""
+      // Drawn on a screen of the size the text came from, which is cut to `maxChars` as
+      // `transcript` cuts. The text of a screen with a row for every line puts a cursor on a
+      // blank last row as moves, which draw no row: the line count and cursor are set as they
+      // were, so the result has the shape of the text it came from.
       const again = createScreen({ cols, rows, scrollback: lines })
       try {
         await written(again, drawn)
-        return transcript(again, maxChars)
+        const missing = buffer.length - again.buffer.normal.length
+        await written(
+          again,
+          `${missing > 0 ? `\x1b[${rows}B${"\r\n".repeat(missing)}` : ""}\x1b[${buffer.cursorY + 1};${buffer.cursorX + 1}H`,
+        )
+        return transcript(again, maxChars) ?? ""
       } finally {
         again.dispose()
       }

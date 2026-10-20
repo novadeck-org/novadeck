@@ -114,11 +114,12 @@ describe("masking the secrets in a transcript", () => {
     expect(rows[0]).toBe(`你好 😀 👨‍👩‍👧 password=${"*".repeat(10)} ok`)
   })
 
-  it("masks a secret beside wide characters, two columns for each wide one", async () => {
+  it("masks a secret beside wide characters, a double-width mask for each wide one", async () => {
     const { result } = await redacted(`token=你好hunter2你 end\r\n$ `)
 
     const [row] = await drawn(result ?? "")
-    expect(row?.text).toBe(`token=${"*".repeat(2 + 2 + 7 + 2)} end`)
+    // A double-width character is masked with the one double-width `＊`.
+    expect(row?.text).toBe(`token=＊＊${"*".repeat(7)}＊ end`)
   })
 
   it("keeps the cursor where it was and the lines it had", async () => {
@@ -167,9 +168,154 @@ describe("masking the secrets in a transcript", () => {
     expect(rows.join("\n")).not.toContain("abcdef")
   })
 
-  it("is null when the masked text does not fit at all", async () => {
+  it("is empty, nothing to keep, when not even the visible rows fit", async () => {
     const { text, lines } = await saved(`TOKEN=${token}\r\n$ `)
 
-    expect(await redactTranscript({ text, cols: COLS, rows: ROWS, lines, maxChars: 5 })).toBeNull()
+    expect(await redactTranscript({ text, cols: COLS, rows: ROWS, lines, maxChars: 5 })).toBe("")
+    const plain = await saved("one\r\ntwo")
+    expect(
+      await redactTranscript({
+        text: plain.text,
+        cols: COLS,
+        rows: ROWS,
+        lines: plain.lines,
+        maxChars: 3,
+      }),
+    ).toBe("")
+  })
+
+  it.each([true, false])(
+    "fits the limit on a wide, coloured screen with 1000 lines of scrollback (secret: %s)",
+    async (secret) => {
+      const output = Array.from(
+        { length: 1100 },
+        (_, i) =>
+          `\x1b[3${i % 8}m你好 line ${i} 😀 ${secret && i % 97 === 0 ? `TOKEN=${token}` : "plain"}\x1b[0m`,
+      ).join("\r\n")
+      const screen = createScreen({ cols: COLS, rows: ROWS, scrollback: 1000 })
+      await written(screen, output)
+      const text = transcript(screen, Number.POSITIVE_INFINITY) ?? ""
+      const lines = screen.buffer.normal.length
+      expect(lines).toBeGreaterThan(1000)
+
+      for (const maxChars of [text.length, Math.floor(text.length / 2), 5000]) {
+        // eslint-disable-next-line no-await-in-loop -- Each limit is tried on its own.
+        const result = await redactTranscript({ text, cols: COLS, rows: ROWS, lines, maxChars })
+        expect(result.length).toBeLessThanOrEqual(maxChars)
+        expect(result.length).toBeGreaterThan(0)
+        expect(result).not.toContain("abcdef")
+        // The newest lines are the ones kept.
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        expect((await textOf(result, COLS, ROWS)).join("\n")).toContain("line 1099")
+      }
+    },
+  )
+
+  it("masks a value after a double-width character that did not fit at the end of the row", async () => {
+    // At 20 columns the wide character leaves the last column of its row empty.
+    const { result } = await redacted("password=abcdefghij你hunter2xyzSECRETtail\r\n$ ", 20, 10)
+
+    const rows = await textOf(result ?? "", 20, 10)
+    expect(rows.join("")).not.toMatch(/abcdef|hunter2|SECRET|tail/)
+  })
+
+  describe("on a screen with more lines than rows", () => {
+    const tall = async (extra: string, rows = 6) => {
+      const output = `${Array.from({ length: 40 }, (_, i) => `line ${i} 你好`).join("\r\n")}\r\nTOKEN=${token} ${extra}\r\n`
+      const screen = createScreen({ cols: COLS, rows, scrollback: 1000 })
+      await written(screen, output)
+      return { screen, text: transcript(screen, Number.POSITIVE_INFINITY) ?? "" }
+    }
+
+    it("keeps the text's line count, cursor and ending, even with no room to spare", async () => {
+      const { screen, text } = await tall("你好")
+      const lines = screen.buffer.normal.length
+
+      const result = await redactTranscript({
+        text,
+        cols: COLS,
+        rows: 6,
+        lines,
+        maxChars: text.length,
+      })
+
+      expect(text.endsWith("\r\n")).toBe(true)
+      expect(result?.endsWith("\r\n")).toBe(true)
+      expect(result?.length).toBeLessThanOrEqual(text.length)
+      const after = createScreen({ cols: COLS, rows: 6, scrollback: 1000 })
+      await written(after, result ?? "")
+      expect(after.buffer.normal.length).toBe(lines)
+      expect([after.buffer.normal.cursorX, after.buffer.normal.cursorY]).toEqual([
+        screen.buffer.normal.cursorX,
+        screen.buffer.normal.cursorY,
+      ])
+      expect(result).not.toContain("abcdef")
+      // The oldest lines are all there: nothing was cut.
+      expect((await textOf(result ?? "", COLS, 6))[0]).toBe("line 0 你好")
+    })
+
+    it("cuts text larger than the limit as transcript does, to the newest lines", async () => {
+      const { screen, text } = await tall("")
+      const maxChars = Math.floor(text.length / 2)
+
+      const result = await redactTranscript({
+        text,
+        cols: COLS,
+        rows: 6,
+        lines: screen.buffer.normal.length,
+        maxChars,
+      })
+
+      expect(result?.length).toBeLessThanOrEqual(maxChars)
+      expect(result).not.toContain("abcdef")
+      const rows = await textOf(result ?? "", COLS, 6)
+      expect(rows.join("\n")).toContain("TOKEN=*")
+      expect(rows[0]).not.toBe("line 0 你好")
+    })
+
+    it("cuts text with no secret in it that is larger than the limit", async () => {
+      const screen = createScreen({ cols: COLS, rows: 6, scrollback: 1000 })
+      await written(screen, Array.from({ length: 60 }, (_, i) => `line ${i}`).join("\r\n"))
+      const text = transcript(screen, Number.POSITIVE_INFINITY) ?? ""
+
+      const result = await redactTranscript({
+        text,
+        cols: COLS,
+        rows: 6,
+        lines: screen.buffer.normal.length,
+        maxChars: 200,
+      })
+
+      expect(result).toBe(transcript(screen, 200))
+    })
+  })
+
+  it("masks a name and value the cut would have split, whatever the limit", async () => {
+    // The name ends one row and the value starts the next, at the row the first cut keeps.
+    const value = "hunter2SECRETvalue99"
+    const build = (at: number): string =>
+      Array.from({ length: 80 }, (_, i) =>
+        i === at ? `${"y".repeat(31)} API_KEY=${value}` : `line ${i}`,
+      ).join("\r\n")
+    const probe = createScreen({ cols: 40, rows: 6, scrollback: 1000 })
+    await written(probe, build(0))
+    // The first cut keeps half of the scrollback: it starts at the row after this one.
+    const at = Math.ceil(probe.buffer.normal.baseY / 2) - 1
+    const screen = createScreen({ cols: 40, rows: 6, scrollback: 1000 })
+    await written(screen, build(at))
+    const text = transcript(screen, Number.POSITIVE_INFINITY) ?? ""
+    const lines = screen.buffer.normal.length
+
+    let straddled = 0
+    for (let maxChars = 300; maxChars <= text.length; maxChars += 37) {
+      const cut = transcript(screen, maxChars) ?? ""
+      if (cut.includes(value.slice(0, 8)) && !cut.includes("API_KEY")) straddled += 1
+      // eslint-disable-next-line no-await-in-loop -- Each limit is tried on its own.
+      const result = await redactTranscript({ text, cols: 40, rows: 6, lines, maxChars })
+      expect(result ?? "").not.toContain(value.slice(0, 8))
+      expect(result ?? "").not.toContain("SECRETvalue")
+    }
+    // The limits tried did cut where a cut first would have left the value alone.
+    expect(straddled).toBeGreaterThan(0)
   })
 })

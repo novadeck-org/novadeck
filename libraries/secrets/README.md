@@ -18,7 +18,8 @@ machine. Pure JavaScript, for Node and the browser alike.
   rows are read on their own and together: as one text from the first row of the group, and
   from each row's start as many rows on as add up to 4096 characters (a window, 4 times the
   longest value a rule takes whole). A secret split across them is masked on both sides, a
-  longer one by the windows that overlap along it, and the work grows with the rows, not with
+  longer one by the windows that overlap along it (a token with a prefix, longer than 2048
+  characters, is masked to the end of its run), and the work grows with the rows, not with
   their square. A key block masks every row it covers, to the end of the screen when its end is not
   on it.
 - `maskScreen(rows, continues)`: the same reading as `redactScreen`, but returning which UTF-16
@@ -45,7 +46,9 @@ machine. Pure JavaScript, for Node and the browser alike.
     Values that are paths, short numbers, words like `true` or code that reads a secret from
     elsewhere (`process.env.X`, `$TOKEN`) are kept.
 - Long hex or base64 runs. Base64 never matches inside a path, and needs digits, mixed case and
-  no long word, so identifiers and paths survive. Commit ids (40 hex) and `sha256:` digests are
+  no long word, so identifiers and paths survive. A run of 80 characters or more is judged by
+  its pieces of 20, and a third of them may hold a word, so a long random key is masked whole
+  although it now and then holds seven lowercase letters in a row. Commit ids (40 hex) and `sha256:` digests are
   kept.
 
 ## Limits

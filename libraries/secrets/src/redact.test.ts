@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto"
+
 import { describe, expect, it, vi } from "vitest"
 
 import { maskScreen, redact, redactAs, redactScreen, redacted } from "./redact.js"
@@ -1097,4 +1099,96 @@ describe("secrets longer than the window rows are read in", () => {
       expect(time(wrap(line(), 80))).toBeLessThan(15_000)
     },
   )
+})
+
+describe("long runs of random base64", () => {
+  it.each([1000, 4000])("masks %i random bytes of base64 whole, as a key or a blob", (bytes) => {
+    for (let i = 0; i < 30; i += 1) {
+      const blob = randomBytes(bytes).toString("base64")
+      expect(redact(blob)).toBe(redacted)
+      expect(redact(`  tls.key: ${blob}`)).toBe(`  tls.key: ${redacted}`)
+      expect(redact(randomBytes(bytes).toString("base64url"))).toBe(redacted)
+    }
+  })
+
+  it("masks a base64 PEM body, which is base64 of base64", () => {
+    const pem = Buffer.from(
+      `-----BEGIN PRIVATE KEY-----\n${randomBytes(1200).toString("base64")}\n-----END PRIVATE KEY-----\n`,
+    ).toString("base64")
+
+    expect(redact(`data: ${pem}`)).toBe(`data: ${redacted}`)
+  })
+
+  it.each([
+    [
+      "a camelCase identifier",
+      "someVeryLongCamelCaseIdentifierWithoutAnythingSpecialAtAll_v2_getUserAccountBalanceFromRemote",
+    ],
+    [
+      "a long URL path",
+      "https://example.com/api/v1/organizations/members/permissions/assignments/12345/history",
+    ],
+    [
+      "a file path",
+      "/usr/local/lib/node_modules/typescript/lib/typescript.js:1234:56 src/components/ui/button/index.tsx",
+    ],
+    [
+      "a minified function",
+      "function a(b,c){return b.map(function(d){return d.value+c}).filter(Boolean).join(',')}",
+    ],
+    [
+      "a long snake_case name",
+      "test_that_the_user_account_balance_is_updated_after_a_remote_service_call_2",
+    ],
+    [
+      "a kebab-case slug",
+      "how-to-configure-the-remote-service-and-cache-the-account-balance-in-2024-edition",
+    ],
+    [
+      "a Go import path",
+      "github.com/aws/aws-sdk-go-v2/service/secretsmanager/internal/endpoints/v1",
+    ],
+  ])("leaves %s alone", (_name, text) => {
+    expect(redact(text)).toBe(text)
+  })
+})
+
+describe("tokens longer than the window", () => {
+  const visible = (drawn: string[], secret: string): number => {
+    const text = drawn.join("")
+    let found = 0
+    for (let i = 0; i + 20 <= secret.length; i += 20)
+      if (text.includes(secret.slice(i, i + 20))) found += 1
+    return found
+  }
+
+  it.each([5000, 6300])(
+    "masks a %i character JWT glued to a full row that ends in a word character, whole",
+    (length) => {
+      const part = randomBytes(Math.ceil((length * 3) / 4))
+        .toString("base64url")
+        .slice(0, length)
+      const jwt = `eyJhbGciOiJSUzI1NiJ9.${part}.${part.slice(0, 200)}`
+      const screen = chop(`${"=".repeat(119)}x${jwt}`, 120)
+
+      const result = redactScreen(
+        screen,
+        screen.map((_row, i) => i < screen.length - 1),
+      )
+
+      expect(visible(result, jwt.slice(21))).toBe(0)
+    },
+  )
+
+  it("masks a long token with a prefix whole, wherever it starts in the group", () => {
+    const token = `ghp_${randomBytes(4000).toString("base64url").replaceAll(/[-_]/g, "A")}`
+    const screen = chop(`${"abcdefg=".repeat(30)}${token}`, 100)
+
+    const result = redactScreen(
+      screen,
+      screen.map((_row, i) => i < screen.length - 1),
+    )
+
+    expect(visible(result, token.slice(4))).toBe(0)
+  })
 })
