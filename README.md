@@ -1575,12 +1575,15 @@ Release notes are written by a model through OpenRouter
 ([scripts/release-notes](scripts/release-notes)). After each prerelease is published, its
 commits become short lines grouped by area; when a prerelease is promoted, its notes are
 rewritten with up to four highlights picked from everything since the last stable release,
-which the app shows once after updating to it. The `OPENROUTER_API_KEY` repository secret
-enables it, and the `RELEASE_NOTES_PRERELEASE_MODEL` and `RELEASE_NOTES_PROMOTE_MODEL`
-repository variables pick the models (by default `deepseek/deepseek-v4-pro` and
-`anthropic/claude-opus-5.5`). Without the key, or when a run fails, a release keeps the notes it has; neither step holds a
-release or a promotion. Run `node scripts/release-notes/main.ts promote v1.2.3 --dry-run` to
-see what a promotion would write without changing anything.
+which the app shows after updating to it until the person dismisses them. The
+`OPENROUTER_API_KEY` repository secret enables it, and the `RELEASE_NOTES_PRERELEASE_MODEL`
+and `RELEASE_NOTES_PROMOTE_MODEL` repository variables pick the models (by default
+`deepseek/deepseek-v4-pro` and `anthropic/claude-opus-5.5`). Without the key, when the key is
+out of credit, or when a run fails, a release keeps the notes it has, the run page shows a
+warning, and neither step holds a release or a promotion. A promotion costs about $0.20 and a
+prerelease well under a cent. With `OPENROUTER_API_KEY` and a `gh` login,
+`node scripts/release-notes/main.ts promote v1.2.3 --dry-run` prints what a promotion would
+write without changing any release; it asks the model, so it spends credit.
 
 For an interrupted release, inspect the latest
 workflow first. An unpublished draft or orphaned version tag must be cleaned up before

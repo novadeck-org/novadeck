@@ -78,6 +78,24 @@ describe("the command", () => {
     }
   })
 
+  it("prints a warning annotation with the reason alone when a run skips on GitHub Actions", async () => {
+    const printed: string[] = []
+    process.env.GITHUB_ACTIONS = "true"
+    try {
+      await main(["release", "v0.0.152", scratch()], sources, saying("sorry"), (line) =>
+        printed.push(line),
+      )
+    } finally {
+      delete process.env.GITHUB_ACTIONS
+    }
+    expect(printed.some((line) => line.startsWith("::warning title=Release notes::"))).toBe(true)
+    const plain: string[] = []
+    await main(["release", "v0.0.152", scratch()], sources, saying("sorry"), (line) =>
+      plain.push(line),
+    )
+    expect(plain.join("\n")).not.toContain("::warning")
+  })
+
   it("prints the count and reason of dropped lines but never their text", async () => {
     const out = scratch()
     const printed: string[] = []

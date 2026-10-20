@@ -33,7 +33,7 @@ const structural = /^\s*(?:#|\d+\. )/
 // not the app. A line that mentions one is dropped, the rest stands.
 const excluded: readonly RegExp[] = [
   chat,
-  /\b(?:early|beta|nightly|canary|preview)\b.{0,20}\b(?:builds?|channels?|releases?|updates?)\b/i,
+  /\b(?:early|beta|nightly|canary)\s+(?:access\s+)?(?:builds?|channels?|releases?|updates?|versions?)\b/i,
   /\bupdate channels?\b/i,
   /\bprereleases?\b/i,
   demo,
@@ -61,9 +61,9 @@ const fail = (reason: string): Checked => ({ ok: false, reason })
 
 /**
  * Whether the model's answer can be published, and what of it. A whole-answer failure is a
- * size the notes can't hold, a pull request it was not given, or a sign of steering (links,
- * URLs, HTML). A line that breaks a softer rule (too long, markup, an excluded topic, an
- * unknown area) is dropped, and `dropped` says why. A release has no highlights, so the model's
+ * size the notes can't hold or a sign of steering (links, URLs, HTML). A line that breaks a
+ * softer rule (a citation the notes can't hold or a pull request that was not given, too long,
+ * markup, an excluded topic, an unknown area) is dropped, and `dropped` says why. A release has no highlights, so the model's
  * are ignored. `allowed` holds the pull requests the model was given.
  */
 export const checkOutput = (
@@ -82,26 +82,29 @@ export const checkOutput = (
   for (const item of [...given, ...output.changes]) {
     const title = "title" in item ? item.title.trim() : undefined
     const line = item.line.trim()
-    if (item.prs.length === 0 || item.prs.length > maxPrs)
-      return fail(`A line cites ${item.prs.length} pull requests, not 1 to ${maxPrs}`)
-    const stranger = item.prs.find((pr) => !allowed.has(pr))
-    if (stranger !== undefined) return fail(`A line cites #${stranger}, which was not given`)
     const text = [title, line].join("\n")
     const steer = steered.find(([pattern]) => pattern.test(text))
     if (steer) return fail(`A line holds ${steer[1]}, which plain text doesn't`)
     const topic = excluded.find((pattern) => pattern.test(text))
+    // A citation the notes can't hold, or one the model wasn't given, costs that line only.
     const reason =
-      (title !== undefined && (!title || title.length > maxTitle)) || !line || line.length > maxLine
-        ? `a title or line outside 1 to ${maxTitle}/${maxLine} characters`
-        : markup.test(text) ||
-            autolinked.test(text) ||
-            [title, line].some((part) => part !== undefined && structural.test(part))
-          ? "a markup character"
-          : topic
-            ? `an excluded topic ${topic}`
-            : title === undefined && !isArea("area" in item ? item.area : "")
-              ? "an area that is not one of ours"
-              : undefined
+      item.prs.length === 0 || item.prs.length > maxPrs
+        ? `a line citing no pull request or more than ${maxPrs}`
+        : item.prs.some((pr) => !allowed.has(pr))
+          ? "a line citing a pull request that was not given"
+          : (title !== undefined && (!title || title.length > maxTitle)) ||
+              !line ||
+              line.length > maxLine
+            ? `a title or line outside 1 to ${maxTitle}/${maxLine} characters`
+            : markup.test(text) ||
+                autolinked.test(text) ||
+                [title, line].some((part) => part !== undefined && structural.test(part))
+              ? "a markup character"
+              : topic
+                ? `an excluded topic ${topic}`
+                : title === undefined && !isArea("area" in item ? item.area : "")
+                  ? "an area that is not one of ours"
+                  : undefined
     if (reason) {
       dropped.push(reason)
       continue
