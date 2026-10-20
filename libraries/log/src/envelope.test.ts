@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { cleaned, clip, loggedError, logSchema, textLimit } from "./envelope.js"
+import { createRedactor } from "./redact.js"
 
 const same = (text: string): string => text
 
@@ -91,7 +92,7 @@ describe("clip", () => {
 describe("cleaned", () => {
   it("redacts no more of a long text than four times what it keeps", () => {
     const seen: number[] = []
-    const result = cleaned("x".repeat(10 * textLimit), (text) => {
+    const result = cleaned("word ".repeat(2 * textLimit), (text) => {
       seen.push(text.length)
       return text
     })
@@ -100,8 +101,31 @@ describe("cleaned", () => {
     expect(result.endsWith("…")).toBe(true)
   })
 
+  it("reads a long JSON text to the last field it holds whole", () => {
+    const redact = createRedactor({ salt: "s".repeat(32) })
+    const fields = '{"id":1234567,"ok":true},'.repeat((4 * textLimit) / 25 - 1)
+    const result = cleaned(
+      `[${fields}{"t":"AKIAIOSFODNN7EXAMPLE"}]`.slice(0, 4 * textLimit + 9),
+      redact,
+    )
+    expect(result.startsWith('[{"id":1234567,"ok":true},')).toBe(true)
+    expect(result).not.toMatch(/AKIA/)
+  })
+
+  it("reads none of a long text with nothing but a word in it", () => {
+    expect(cleaned("x".repeat(10 * textLimit), (text) => text)).toBe("…")
+  })
+
   it("marks a text it read only part of as cut, though redacting shortened it", () => {
-    expect(cleaned("x".repeat(10 * textLimit), () => "short")).toBe("short…")
+    expect(cleaned("word ".repeat(2 * textLimit), () => "short")).toBe("short…")
+  })
+
+  it("keeps nothing of a secret the read cut short", () => {
+    const redact = createRedactor({ salt: "s".repeat(32) })
+    // A hex run that redacts to almost nothing, then a key cut by the read at its 10th character.
+    const hex = "0123456789abcdef".repeat(125).slice(0, 4 * textLimit - 10)
+    const result = cleaned(`${hex} AKIAIOSFODNN7EXAMPLE after`, redact)
+    expect(result).toBe("<secret> …")
   })
 
   it("keeps a short text whole", () => {

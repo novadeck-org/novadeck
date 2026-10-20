@@ -24,8 +24,8 @@ machine. Pure JavaScript, for Node and the browser alike.
 
 - Provider keys and tokens by their prefixes (`sk-`, `sk_live_`, `ghp_`, `github_pat_`,
   `glpat-`, `hf_`, `hvs.`, `npm_`, `pypi-`, `AIza`, `ya29.`, `AKIA`, `xox`, `SG.`,
-  `AGE-SECRET-KEY-`), Discord bot tokens, JWTs and key blocks (`-----BEGIN … -----`), whole,
-  or to the end of the text when the end is cut off.
+  `AGE-SECRET-KEY-`), each once long enough to be one, Discord bot tokens and JWTs. Key blocks
+  (`-----BEGIN … -----`) are masked whole, or to the end of the text when their end is cut off.
 - `Authorization`, `Cookie` and bearer values, webhook URLs, URLs with `user:password@` (an
   empty user too) and secret query parameters.
 - `NAME=value`, `name: value` and `"name": "value"` (a JSON string inside a string too) when
@@ -43,6 +43,9 @@ machine. Pure JavaScript, for Node and the browser alike.
   kept.
 
 ## Limits
+
+A token cut short, as by a text cut to size before it is redacted, may no longer be long
+enough to look like one: cut a text after redacting it, or where no token can be cut in two.
 
 It finds secrets by their shape, so a secret with neither a known prefix, a name that sounds
 secret beside it, nor the look of a long key (a bare password on a line of its own, an
