@@ -506,6 +506,44 @@ describe("createRedactor", () => {
     expect(redact(text)).not.toMatch(/bigbank|plan\.|state\./)
   })
 
+  it.each([
+    [
+      "a base64 key with +/ in it",
+      "key wJalrXUtnFEMI+/K7MDENGbPxRfiCYEXAMPLEKEY99 loaded",
+      /wJalr|K7MD/,
+    ],
+    ["a pass phrase that starts with the account name", "passphrase: ana.2019!xyz", /2019|xyz/],
+  ])("leaves nothing of %s", (_what, text, kept) => {
+    expect(redact(text)).not.toMatch(kept)
+  })
+
+  it.each([
+    ["a diff's added line", "@@ -1 +1 @@\n-/home/ana/old/x\n+/home/ana/new/clientco/x"],
+    ["a quoted added path", '"+/home/ana/acme/clientco.md"'],
+    ["a Windows path after +", String.raw`+C:\Users\ana\clientco`],
+    ["a path after C++", "C++/src/clientco/x"],
+  ])("hashes %s", (_what, text) => {
+    expect(redact(text)).not.toMatch(/clientco/)
+  })
+
+  it("writes placeholders whole, though the account is named as one", () => {
+    const named = createRedactor({ ...linux, user: "secret", salt })
+    expect(named("token sk-proj-abcdefghijklmnop1234 for secret")).toBe("token <secret> for secret")
+  })
+
+  it.each(["PRIVATE_KEY=", "password: ", "--token ", "/tmp/x"])(
+    "masks a key block whole after %s",
+    (before) => {
+      const block =
+        "-----BEGIN PRIVATE KEY-----\nMIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8w\nabcdefghijklmnop\n-----END PRIVATE KEY-----"
+      expect(redact(`${before}${block}`)).not.toMatch(/MIIB|abcdefgh|BEGIN|END/)
+    },
+  )
+
+  it("writes the account name as <user> beside angle brackets", () => {
+    expect(redact("ana> ls")).toBe("<user>> ls")
+  })
+
   it("leaves a short or ordinary account name in the text", () => {
     expect(createRedactor({ user: "dev", salt })("dev build")).toBe("dev build")
     expect(createRedactor({ user: "al", salt })("al dente")).toBe("al dente")

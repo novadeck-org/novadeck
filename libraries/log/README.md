@@ -54,13 +54,15 @@ redaction, so a secret is never cut short before it is looked for. A
   `name.log` → `name.1.log` → … by size, keeping `keep` files. Each rotated-in file starts with a
   `session.resume` line, so it reads on its own.
 - `createRedactor`: held secrets, named secret variables, URL credentials, credential headers
-  and `key=value` secrets; then `hashUrls`; then email addresses; then `hashPaths`; then the
-  account name as a word of its own; then keys and tokens by their shapes, as
-  [`@novadeck/secrets`](../secrets/README.md) finds them, as `<secret>`: last, so a secret
-  inside a path or an address is hashed with it and never stops its hashing. Those shapes take
+  and `key=value` secrets; then `hashUrls`; then email addresses; then `hashPaths`; then keys
+  and tokens by their shapes, as [`@novadeck/secrets`](../secrets/README.md) finds them, as
+  `<secret>`, after the hashing, so a secret never stops it and one inside a hashed path or
+  address goes with it; then the account name as a word of its own. Those shapes take
   more than secrets: long hex and base64 runs (a digest without its `sha256:`, a dashless id;
   commit ids, dashed UUIDs and `sha256:` digests are kept), any `-----BEGIN …-----` block to its
-  end (certificates too), and a `Cookie:` line to its end.
+  end (certificates too), a `Cookie:` or `Set-Cookie:` line to its end, the value after any
+  name that sounds secret (`credential.helper=`, `signature:`, `set token …`), and command-line
+  passwords (`mysql -p`, `redis-cli -a`, `docker login -p`, `curl -u`).
 - `hashUrls`: addresses and Git remotes over SSH. Those the app names readable (`readableUrls`:
   a host, `*.` a host and its subdomains, or a host and path) stay whole; public forges
   (`github.com`, `gitlab.com`, `bitbucket.org`) and the loopback keep their host; any other host
@@ -85,7 +87,10 @@ relative path (`src/billing.ts`), a folder's name, a project's or terminal's tit
 found by it. **A line's `msg` and `data` must never interpolate those: only ids, enums, counts,
 times and absolute paths.** An unquoted path whose last name has spaces in it, with no extension and at
 the end of the text (`/home/ana/My Project`), keeps the words after the first space, and a
-bare host is hashed only where a network error names it (`getaddrinfo ENOTFOUND host`). What a screen showed, typed text, prompts and message bodies are
+bare host is hashed only where a network error names it (`getaddrinfo ENOTFOUND host`). A path
+right after a letter or digit and a `+` (`name+/tmp/x`, `x+~/a`, `x+C:\a`, `x+<uploads>/a`) is
+taken for part of a base64 key and not hashed; after a `+` alone, as a diff's added line has
+it, it is. What a screen showed, typed text, prompts and message bodies are
 never logged, but for lines marked `verbose`.
 
 `startSession`'s marker belongs to one process per launch, the one whose end is the launch's
