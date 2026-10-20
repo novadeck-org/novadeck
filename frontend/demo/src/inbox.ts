@@ -12,7 +12,7 @@ import {
   type InboxItem,
   type InboxState,
 } from "@novadeck/core/inbox"
-import { inboxItems, type Asked } from "@novadeck/core/inbox-items"
+import { dialogMs, inboxItems, reuse, type Asked } from "@novadeck/core/inbox-items"
 import { noMail, type InboxHistory, type Messages } from "@novadeck/core/messages"
 import { terminalKeyId } from "@novadeck/core/registry"
 import { createStore, type Store } from "@novadeck/core/store"
@@ -624,6 +624,14 @@ const resumed = (found: InboxItem, on: boolean): InboxItem =>
     ? { ...found, stopped: !on, trouble: { ...found.trouble, autoResume: on } }
     : found
 
+// How long an answer to trouble may leave its item standing before it can be answered again,
+// as an agent that was stopped at rest stays as it was.
+const settleMs = 3000
+
+// A request's id as the Inbox has it, unique across the workspace: the demo's transcripts give
+// each sample terminal's requests the same ids in every session.
+const scoped = (key: TerminalKey, id: string): string => `${terminalKeyId(key)}/${id}`
+
 const whyOf = (error: unknown): string =>
   error instanceof Error && error.message ? error.message : "That didn't take. Try again."
 
@@ -694,16 +702,21 @@ export const createDemoInbox = (
   }
   // What the demo's agents would show, while the app binds it.
   const derived = createStore<InboxState>(emptyInbox)
-  const combine = (): InboxState => {
+  const combine = (current: InboxState): InboxState => {
     const mine = own.getSnapshot()
     const theirs = derived.getSnapshot()
-    return {
-      items: merged(mine.items, theirs.items),
+    const next = {
+      items: reuse(current.items, merged(mine.items, theirs.items)),
       answering: { ...theirs.answering, ...mine.answering },
       failed: { ...theirs.failed, ...mine.failed },
     }
+    return next.items === current.items &&
+      JSON.stringify(next.answering) === JSON.stringify(current.answering) &&
+      JSON.stringify(next.failed) === JSON.stringify(current.failed)
+      ? current
+      : next
   }
-  const state = createStore<InboxState>(combine())
+  const state = createStore<InboxState>(combine(emptyInbox))
   own.subscribe(() => state.update(combine))
   derived.subscribe(() => state.update(combine))
 
@@ -715,6 +728,10 @@ export const createDemoInbox = (
   let binding: InboxBinding | null = null
   const seen = new Set<string>()
   const inFlight = new Set<string>()
+  // Answers that took and may leave their item standing a moment, as trouble's do.
+  const submitted = new Set<string>()
+  const settling = new Map<string, ReturnType<typeof setTimeout>>()
+  let due: ReturnType<typeof setTimeout> | undefined
   const failed = new Map<string, string>()
   // When the demo first saw each request, which is when it started waiting.
   const asked = new Map<string, number>()
@@ -749,12 +766,17 @@ export const createDemoInbox = (
     follow(workspace)
     const at = Date.now()
     const requests: Record<string, Asked[]> = {}
+    const present = new Set<string>()
     for (const { key, store } of followed.values()) {
-      requests[key.terminalId] = store.getSnapshot().requests.map((request) => {
+      requests[key.terminalId] = store.getSnapshot().requests.map((each) => {
+        const request = { ...each, id: scoped(key, each.id) }
+        present.add(request.id)
         if (!asked.has(request.id)) asked.set(request.id, at)
         return { request, askedAt: asked.get(request.id)! }
       })
     }
+    // A request asked again later waits from then.
+    for (const id of asked.keys()) if (!present.has(id)) asked.delete(id)
     const found = inboxItems({
       workspace,
       unread: binding.unread.getSnapshot(),
@@ -767,32 +789,65 @@ export const createDemoInbox = (
     const ids = new Set(found.map((each) => each.id))
     for (const id of seen) if (!ids.has(id)) seen.delete(id)
     for (const id of failed.keys()) if (!ids.has(id)) failed.delete(id)
+    for (const id of submitted) if (!ids.has(id) && !inFlight.has(id)) submitted.delete(id)
     const answering: Record<string, true> = {}
     for (const each of found)
-      if (inFlight.has(each.id) || (each.kind === "request" && each.request.answered))
+      if (
+        inFlight.has(each.id) ||
+        submitted.has(each.id) ||
+        (each.kind === "request" && each.request.answered)
+      )
         answering[each.id] = true
-    derived.update(() => ({
-      items: found.map((each) => (seen.has(each.id) ? { ...each, seen: true } : each)),
-      answering,
-      failed: Object.fromEntries(failed),
-    }))
+    const listed = found.map((each) => (seen.has(each.id) ? { ...each, seen: true } : each))
+    derived.update((current) => {
+      const kept = reuse(current.items, listed)
+      return kept === current.items &&
+        JSON.stringify(answering) === JSON.stringify(current.answering) &&
+        JSON.stringify(Object.fromEntries(failed)) === JSON.stringify(current.failed)
+        ? current
+        : { items: kept, answering, failed: Object.fromEntries(failed) }
+    })
+    // A request whose dialog is unread shows anyway once it has waited long enough.
+    clearTimeout(due)
+    due = undefined
+    const waits = Object.values(requests)
+      .flat()
+      .filter(({ request }) => request.dialog === null)
+      .map(({ askedAt }) => askedAt + dialogMs - at)
+      .filter((wait) => wait > 0)
+    if (waits.length > 0) due = setTimeout(recompute, Math.min(...waits))
   }
   const fail = (id: string, why: string): void => {
     failed.set(id, why)
     recompute()
   }
-  // Runs an answer to one of the agents' items, which shows answering until it took.
-  const call = (id: string, work: () => Promise<unknown>): void => {
+  // Runs an answer to one of the agents' items, which shows answering until it took. With
+  // `settles`, an answer that took but left its item standing gives the buttons back after a
+  // moment.
+  const call = (id: string, work: () => Promise<unknown>, settles = false): void => {
+    clearTimeout(settling.get(id))
+    settling.delete(id)
     failed.delete(id)
+    submitted.add(id)
     inFlight.add(id)
     recompute()
     work().then(
       () => {
         inFlight.delete(id)
+        if (!settles) submitted.delete(id)
         recompute()
+        if (!settles) return
+        settling.set(
+          id,
+          setTimeout(() => {
+            settling.delete(id)
+            if (submitted.delete(id)) recompute()
+          }, settleMs),
+        )
       },
       (error: unknown) => {
         inFlight.delete(id)
+        submitted.delete(id)
         fail(id, whyOf(error))
       },
     )
@@ -807,8 +862,10 @@ export const createDemoInbox = (
     }
     const { conversations, messages } = sources
     const key = keyOf(target)
-    if (target.kind === "request" && given.kind === "request")
-      return call(target.id, () => conversations.answer(key, target.request.id, given.answer))
+    if (target.kind === "request" && given.kind === "request") {
+      const request = target.request.id.slice(scoped(key, "").length)
+      return call(target.id, () => conversations.answer(key, request, given.answer))
+    }
     if (target.kind === "held" && given.kind === "held") {
       failed.delete(target.id)
       if (given.action === "release") messages?.release(target.held.threadId)
@@ -824,14 +881,18 @@ export const createDemoInbox = (
     if (target.kind === "trouble" && given.kind === "trouble") {
       const { action } = given
       if (action.type === "continue")
-        return call(target.id, () => conversations.send(key, "continue"))
-      if (action.type === "stop") return call(target.id, () => conversations.interrupt(key))
+        return call(target.id, () => conversations.send(key, "continue"), true)
+      if (action.type === "stop") return call(target.id, () => conversations.interrupt(key), true)
       if (action.type === "nudge") {
         const terminal = terminalAt(binding.workspace.getSnapshot(), key)
-        return call(target.id, async () => {
-          if (terminal && agentWorking(terminal)) await conversations.interrupt(key)
-          await conversations.send(key, action.text)
-        })
+        return call(
+          target.id,
+          async () => {
+            if (terminal && agentWorking(terminal)) await conversations.interrupt(key)
+            await conversations.send(key, action.text)
+          },
+          true,
+        )
       }
     }
   }
@@ -857,6 +918,11 @@ export const createDemoInbox = (
         stops.forEach((stop) => stop())
         for (const each of followed.values()) each.stop()
         followed.clear()
+        settling.forEach(clearTimeout)
+        settling.clear()
+        clearTimeout(due)
+        due = undefined
+        for (const known of [seen, inFlight, submitted, failed, asked]) known.clear()
         if (binding === next) binding = null
         derived.update(() => emptyInbox)
       }
@@ -936,6 +1002,8 @@ export const createDemoInbox = (
       )
     },
     readAll: () => {
+      // The finishes the Inbox shows: one whose row an item of the demo's own took stays unread.
+      const shown = new Set(state.getSnapshot().items.map((each) => each.id))
       for (const each of own.getSnapshot().items)
         if (each.kind === "update") record(each, { kind: "update", action: "read" })
       change((current) => ({
@@ -944,7 +1012,7 @@ export const createDemoInbox = (
       }))
       const finishes = derived
         .getSnapshot()
-        .items.filter((each) => each.kind === "update")
+        .items.filter((each) => each.kind === "update" && shown.has(each.id))
         .map((each) => ({
           context: `${each.source.projectId}/${each.source.workspaceSessionId}`,
           terminalId: each.source.terminalId,

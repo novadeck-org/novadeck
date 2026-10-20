@@ -253,3 +253,18 @@ export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
   // A held thread is its own item, whatever else its terminal has to show.
   return ordered([...best.values(), ...threads.values()])
 }
+
+// Items that read the same keep their old objects, so what shows them stays as it is.
+export const reuse = (
+  before: readonly InboxItem[],
+  next: readonly InboxItem[],
+): readonly InboxItem[] => {
+  const old = new Map(before.map((item) => [item.id, item]))
+  const items = next.map((item) => {
+    const known = old.get(item.id)
+    return known && JSON.stringify(known) === JSON.stringify(item) ? known : item
+  })
+  return items.length === before.length && items.every((item, index) => item === before[index])
+    ? before
+    : items
+}

@@ -9,7 +9,7 @@ import {
   type InboxSource,
   type InboxState,
 } from "@novadeck/core/inbox"
-import { dialogMs, inboxItems, type Asked } from "@novadeck/core/inbox-items"
+import { dialogMs, inboxItems, reuse, type Asked } from "@novadeck/core/inbox-items"
 import type { MailState } from "@novadeck/core/messages"
 import { createStore, type Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
@@ -75,18 +75,6 @@ const askedOf = (detail: AgentDetail): readonly Asked[] => {
 
 const reason = (error: unknown): string =>
   error instanceof Error && error.message ? error.message : "That didn't take. Try again."
-
-// Items that read the same keep their old objects, so what shows them stays as it is.
-const reuse = (before: readonly InboxItem[], next: readonly InboxItem[]): readonly InboxItem[] => {
-  const old = new Map(before.map((item) => [item.id, item]))
-  const items = next.map((item) => {
-    const known = old.get(item.id)
-    return known && JSON.stringify(known) === JSON.stringify(item) ? known : item
-  })
-  return items.length === before.length && items.every((item, index) => item === before[index])
-    ? before
-    : items
-}
 
 export const createRunnerInbox = (
   streams: InboxStreams,

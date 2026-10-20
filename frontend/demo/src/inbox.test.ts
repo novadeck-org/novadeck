@@ -304,6 +304,43 @@ describe("the agents demo's Inbox", () => {
       unbind()
       expect(inbox.state.getSnapshot().items).toEqual([])
     })
+
+    it("forgets what it knew of their items, once bound again", async () => {
+      const { inbox, itemOn, unbind, store, unread, read } = boot()
+      const codex = itemOn("storefront", 4)!
+      inbox.see(codex.id)
+      inbox.failNext()
+      inbox.answer(codex.id, firstChoice(codex))
+      await vi.advanceTimersByTimeAsync(0)
+      unbind()
+
+      inbox.bind!({ workspace: store, unread, read })
+      const again = itemOn("storefront", 4)
+      expect(again).toMatchObject({ id: codex.id, seen: false })
+      expect(inbox.state.getSnapshot().failed).toEqual({})
+    })
+  })
+
+  context("when the workspace changes in a way no item shows", () => {
+    it("keeps the Inbox as it was", () => {
+      const { inbox, store, terminalOf } = boot()
+      const before = inbox.state.getSnapshot()
+      store.transact([
+        {
+          type: "terminal/rename",
+          target: { projectId: "storefront", workspaceSessionId: "initial" },
+          terminalId: terminalOf("storefront", 2)!.id,
+          name: "Renamed",
+        },
+      ] as never)
+      expect(inbox.state.getSnapshot()).toBe(before)
+    })
+  })
+
+  it("names each request by its terminal, so the same sample in two sessions is two items", () => {
+    const { itemOn, terminalOf } = boot()
+    const codex = itemOn("storefront", 4)
+    expect(codex?.id).toContain(terminalOf("storefront", 4)!.id)
   })
 })
 
