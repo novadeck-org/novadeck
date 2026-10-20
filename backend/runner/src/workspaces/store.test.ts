@@ -510,6 +510,24 @@ describe("saved terminals", () => {
     expect(reopened.terminal(terminal.id)).toBeUndefined()
   })
 
+  it("forgets, once, the transcripts saved before they were masked", ({ directory, store }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const first = store(path)
+    const id = keptTerminal(first, "session", "owl")
+    first.saveTerminal({ ...first.terminal(id)!, transcript: "TOKEN=hunter2" })
+    first.close()
+    // A file an older runner wrote, with no mark that its transcripts were masked.
+    const older = new DatabaseSync(path)
+    older.exec("DELETE FROM settings WHERE key = 'transcriptsMasked'")
+    older.close()
+
+    const upgraded = store(path)
+    expect(upgraded.terminal(id)?.transcript).toBeNull()
+    upgraded.saveTerminal({ ...upgraded.terminal(id)!, transcript: "TOKEN=[redacted]" })
+    upgraded.close()
+    expect(store(path).terminal(id)?.transcript).toBe("TOKEN=[redacted]")
+  })
+
   it("keep murmur's title and the agent's summary beside the person's and the opener's title", ({
     directory,
     store,

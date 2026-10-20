@@ -48,8 +48,9 @@ machine. Pure JavaScript, for Node and the browser alike.
 - Long hex or base64 runs. Base64 never matches inside a path, and needs digits, mixed case and
   no long word, so identifiers and paths survive. A run of 80 characters or more is judged by
   its pieces of 20, and a third of them may hold a word if digits are a twentieth of the run
-  or more (random base64 has one in six, identifiers almost none; mangled `_Z…`/`_R…` names
-  are never keys), so a long random key is masked whole
+  or more (random base64 has one in six, identifiers almost none; a mangled `_Z…`/`_R…` name
+  with no `-`, `+`, `/` or `=` is judged by the stricter rule alone), so a long random key is
+  masked whole
   although it now and then holds seven lowercase letters in a row. Commit ids (40 hex) and `sha256:` digests are
   kept.
 

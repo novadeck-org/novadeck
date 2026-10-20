@@ -1255,3 +1255,16 @@ describe("the time prefixed tokens take", () => {
     },
   )
 })
+
+describe("long keys that look like something else at first", () => {
+  it("masks a base64url key that starts as a mangled name does", () => {
+    const key =
+      "_ZqH3mKp9vX2-abcdefgLw8Rt5YuNc4Ve7Bn1Mz6Qa0Sd3Fg8Hj2Kl5Px9Cv4Bn7Mz1Qw6Er3Ty8Ui2Op5As0Df7Gh4Jk9Lz2Xc6Vb1Nm3Qp8Wo5Ei7Ru4Ty0"
+    expect(redact(`echo ${key}`)).toBe(`echo ${redacted}`)
+  })
+
+  it("masks a key that ends a sentence, and keeps the full stop", () => {
+    const key = "wJalrXUtnFEMI9K7MDENGbPxRfiCYEXAMPLEKEY99Ab3dZ"
+    expect(redact(`your key is ${key}.`)).toBe(`your key is ${redacted}.`)
+  })
+})

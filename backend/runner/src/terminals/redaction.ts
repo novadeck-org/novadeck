@@ -34,8 +34,9 @@ const where = {
 }
 
 /**
- * The most a transcript of 256 KiB may take. Ordinary ones take well under a second, and the
- * worst screens built against the patterns (2,000 rows of one wrapped line) about 1.6 s
+ * The most one transcript may take. Ordinary ones take well under a second, and the worst
+ * screens built against the patterns (1,000 lines of scrollback of one wrapped line, 500
+ * columns wide) about 1.5 s
  * (docs/transcript-redaction.md has the measurements), so this leaves a machine several times
  * slower its time and still ends a thread that is stuck.
  */

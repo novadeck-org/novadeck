@@ -191,8 +191,9 @@ const qualifies = (text: string): boolean => {
   const marked = /[+/]|=$/.test(text)
   if (marked ? digits < 1 : digits < 3) return false
   if (!/[a-z]{7}/.test(text)) return true
-  // A mangled C++ or Rust name is long, mixed in case and full of words, and no key.
-  if (/^_{1,2}(?:Z[A-Za-z0-9]|R[A-Z])/.test(text)) return false
+  // A mangled C++ or Rust name is long, mixed in case and full of words, and no key; it never
+  // holds base64's `-`, `+`, `/` or `=`, which a key of this length almost always does.
+  if (/^_{1,2}(?:Z[A-Za-z0-9]|R[A-Z])/.test(text) && !/[-+/=]/.test(text)) return false
   const pieces = Math.floor(text.length / piece)
   if (pieces < 4 || digits < text.length / 20) return false
   let failing = 0
@@ -402,7 +403,7 @@ const rules: readonly Rule[] = [
   // Base64 long enough to hold a key. Paths, words and identifiers are long and mixed too:
   // a run needs digits and no long word in it, and is never part of a path.
   [
-    /(?<![\w/\\.+=-])(?<!;base64,)(?!sha(?:1|256|384|512)-)[A-Za-z0-9+/_-]{40,}={0,2}(?![\w\\.+-])/g,
+    /(?<![\w/\\.+=-])(?<!;base64,)(?!sha(?:1|256|384|512)-)[A-Za-z0-9+/_-]{40,}={0,2}(?![\w\\+-]|\.[\w\\.+-])/g,
     (run) => (qualifies(run) ? hide(run) : run),
   ],
 ]

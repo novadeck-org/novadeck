@@ -38,8 +38,9 @@ transcript is styled text with line breaks, not rows:
    oldest scrollback as it always does. It is empty (nothing to keep) when not even the visible
    rows fit; only a failure of the work is null. A cursor at the very edge of a row, about to
    wrap, is put back by printing the row's last character again; the result is never longer
-   than the text, and in rare cases with a double-width character at the cursor it lands a
-   column to the left.
+   than the text. The cursor can still land a column to the left, as when it was moved back
+   off a full last row, and the pen left at the end can differ: restoring resets both before
+   it draws anything, so neither shows.
 
 ## In a thread
 
@@ -69,7 +70,9 @@ so the work on a group is bounded by a window for each row, not by all the rows 
   characters) on it is a key if at most a third of the pieces fail to look like one (a word in
   them, one case of letter) and digits are a twentieth of it or more (random base64 has one in
   six; identifiers almost none). So a stray run of seven lowercase letters does not leave a
-  part of a long random key visible. Mangled C++ and Rust names (`_Z…`, `_R…`) are not keys.
+  part of a long random key visible. Mangled C++ and Rust names (`_Z…`, `_R…`, with no `-`,
+  `+`, `/` or `=` in them) are judged by the stricter rule alone, as before it, which still
+  masks the ones with no seven lowercase letters in a row.
   Measured with random bytes, a run still escapes about 1 in 140 at 100 characters and 1 in
   2,000 at 400; and short ones, 40 to 80 characters, about 1 in 20, nearly all of them (about
   90%) because of a run of seven lowercase letters, and about 3% because a slash between two
