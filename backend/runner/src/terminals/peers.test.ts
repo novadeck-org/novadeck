@@ -51,12 +51,11 @@ describe("what peers learn of a request waiting on the person", () => {
 })
 
 describe("murmur's words for the person", () => {
-  it("never reach other agents: the waiting request and the listing show neither a headline nor a gist", async () => {
-    const headline = "Asks which database to use"
+  it("never reach other agents: the listing shows no gist", async () => {
     const gist = "Fixed the rounding bug"
     const activity = {
       ...started(0),
-      pending: [request({ kind: "question", subject: "Which database?", headline })],
+      pending: [request({ kind: "question", subject: "Which database?" })],
       lastTurn: {
         outcome: "completed" as const,
         reply: null,
@@ -64,7 +63,7 @@ describe("murmur's words for the person", () => {
         recorded: false,
         files: [],
         from: 0,
-        gist: { text: gist, asks: false },
+        gist,
       },
     }
     expect(waitingOf(activity)).toEqual({
@@ -100,7 +99,6 @@ describe("murmur's words for the person", () => {
     expect(listed).toHaveLength(1)
     const text = JSON.stringify(listed)
     expect(text).toContain("Which database?")
-    expect(text).not.toContain(headline)
     expect(text).not.toContain(gist)
   })
 })

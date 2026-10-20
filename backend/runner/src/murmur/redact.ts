@@ -514,9 +514,6 @@ const redactRows = (screen: readonly string[], continues: readonly boolean[]): s
 
 /** The input with every string run through `redact`. */
 export const redactDigest = (digest: Input): Input => {
-  if (digest.kind === "question")
-    return { ...digest, question: redact(digest.question), choices: digest.choices.map(redact) }
-  if (digest.kind === "plan") return { ...digest, plan: redact(digest.plan) }
   if (digest.kind === "reply") return { ...digest, reply: redact(digest.reply) }
   const one = (text: string | null): string | null => (text === null ? null : redact(text))
   const previous = digest.previous && { title: redact(digest.previous.title) }

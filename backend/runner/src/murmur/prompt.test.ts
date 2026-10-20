@@ -1,6 +1,6 @@
 import { describe, expect, it } from "../test.js"
 import type { AgentDigest, NoteDigest, ShellDigest } from "./describer.js"
-import { gistCharacters, headlineCharacters, titleCharacters } from "./description.js"
+import { gistCharacters, titleCharacters } from "./description.js"
 import {
   agentSystem,
   agentTitleSchema,
@@ -200,61 +200,6 @@ describe("asking for a title", () => {
   })
 })
 
-describe("asking for a headline", () => {
-  const question: NoteDigest = {
-    kind: "question",
-    question: "Which database should the billing service use?",
-    choices: ["Postgres", "SQLite", "  "],
-  }
-
-  it("shows a question and its answers, and tells it to start with Asks", () => {
-    const chat = messages(question)
-    const text = chat[1]?.content ?? ""
-
-    expect(chat[0]?.content).toMatch(/starts with "Asks"/)
-    expect(text).toContain("Which database should the billing service use?")
-    expect(text).toContain("- Postgres\n- SQLite")
-    expect(text).not.toMatch(/- {2}$/m)
-    expect(text.trimEnd().split("\n").at(-1)).toMatch(/language of the question/)
-  })
-
-  it("leaves the answers out of a question that offers none", () => {
-    expect(user({ ...question, choices: [] })).not.toContain("The answers it offers")
-  })
-
-  it("shows the start of a plan, and tells it to start with Plan to", () => {
-    const chat = messages({ kind: "plan", plan: "1. Split billing" })
-
-    expect(chat[0]?.content).toMatch(/starts with "Plan to"/)
-    expect(chat[1]?.content).toContain("1. Split billing")
-  })
-
-  it("cuts a question, its answers and a plan to their budgets", () => {
-    const long = "x".repeat(3000)
-    const choices = Array.from({ length: 12 }, (_, index) => `${index}${long}`)
-
-    const asked = user({ kind: "question", question: long, choices }).split("\n")
-    const offered = asked.filter((line) => line.startsWith("- "))
-
-    expect(asked.some((line) => line.length > 600)).toBe(false)
-    expect(offered).toHaveLength(8)
-    expect(offered.every((line) => line.length <= 82)).toBe(true)
-    expect(
-      user({ kind: "plan", plan: long })
-        .split("\n")
-        .every((line) => line.length <= 1500),
-    ).toBe(true)
-  })
-
-  it("asks for a headline alone", () => {
-    const { responseFormat: format, maxTokens } = formats.headline
-
-    expect(format.json_schema.name).toBe("request_headline")
-    expect(format.json_schema.schema.required).toEqual(["headline"])
-    expect(maxTokens).toBe(96)
-  })
-})
-
 const reply = (text: string, failed = false): NoteDigest => ({
   kind: "reply",
   reply: text,
@@ -390,16 +335,14 @@ describe("asking for a gist", () => {
     expect(shown).not.toContain("[…]")
   })
 
-  it("tells the model what asking is, and asks for asks first", () => {
+  it("asks for the gist alone", () => {
     const chat = messages(reply("Want me to add tests?"))
     const { responseFormat: format, maxTokens } = formats.gist
 
-    expect(chat[0]?.content).toMatch(/asking the person to pick, decide or supply something/)
-    expect(chat[0]?.content).toMatch(/false for an offer to do more/)
     expect(chat[0]?.content).toMatch(/in those words/)
     expect(format.json_schema.name).toBe("reply_gist")
-    expect(Object.keys(format.json_schema.schema.properties)).toEqual(["asks", "gist"])
-    expect(format.json_schema.schema.required).toEqual(["asks", "gist"])
+    expect(Object.keys(format.json_schema.schema.properties)).toEqual(["gist"])
+    expect(format.json_schema.schema.required).toEqual(["gist"])
     expect(maxTokens).toBe(128)
   })
 
@@ -416,7 +359,6 @@ const length = (format: { json_schema: { schema: { properties: object } } }, nam
 describe("the schemas' room", () => {
   it("allows more than the parser does, so an overrun is refused and not cut", () => {
     expect(length(responseFormat, "title")).toBeGreaterThan(titleCharacters)
-    expect(length(formats.headline.responseFormat, "headline")).toBeGreaterThan(headlineCharacters)
     expect(length(formats.gist.responseFormat, "gist")).toBeGreaterThan(gistCharacters)
   })
 })

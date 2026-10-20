@@ -24,8 +24,6 @@ export type Request = {
   readonly screen?: true
   /** When its hook started: asked again later, the same call is another request. */
   readonly askedAt: number
-  /** Murmur's line on a question or plan, for the person only; see `withHeadline`. */
-  readonly headline?: string
 }
 
 // A path as a comparison reads it: separators alike, and case folded where it is a Windows
@@ -145,7 +143,7 @@ export type LastTurn = {
   readonly at: number
   readonly recorded: boolean
   /** Murmur's gist of the reply, for the person only; see `withGist`. */
-  readonly gist?: { readonly text: string; readonly asks: boolean }
+  readonly gist?: string
   /** Set while the person's Escape is the only word on how the turn ended. */
   readonly escaped?: Escape
   /** A failed turn's error as its harness said it. */
@@ -873,36 +871,10 @@ const asked = (
 }
 
 /**
- * The activity with murmur's headline on the request asked as `requestId` at `askedAt`;
- * undefined when that request no longer waits (answered, revised, gone) or already has it.
- */
-export const withHeadline = (
-  activity: Activity,
-  requestId: string,
-  askedAt: number,
-  text: string,
-): Activity | undefined => {
-  const index = activity.pending.findIndex(
-    (request) => request.requestId === requestId && request.askedAt === askedAt,
-  )
-  if (index < 0 || activity.pending[index]!.headline !== undefined) return undefined
-  return {
-    ...activity,
-    pending: activity.pending.map((request, at) =>
-      at === index ? { ...request, headline: text } : request,
-    ),
-  }
-}
-
-/**
  * The activity with murmur's gist on its last turn, while that turn is still the one that
  * ended at `at`, completed or failed, and none runs; undefined otherwise.
  */
-export const withGist = (
-  activity: Activity,
-  at: number,
-  gist: { readonly text: string; readonly asks: boolean },
-): Activity | undefined => {
+export const withGist = (activity: Activity, at: number, gist: string): Activity | undefined => {
   const { lastTurn } = activity
   if (
     activity.state === "working" ||
@@ -912,7 +884,7 @@ export const withGist = (
     lastTurn.gist
   )
     return undefined
-  return { ...activity, lastTurn: { ...lastTurn, gist: { text: gist.text, asks: gist.asks } } }
+  return { ...activity, lastTurn: { ...lastTurn, gist } }
 }
 
 /**
@@ -937,25 +909,16 @@ export const withLimit = (
   }
 }
 
-const unheadlined = (request: Request): Request => {
-  const { headline: _, ...rest } = request
-  return rest
-}
 const ungisted = (lastTurn: LastTurn): LastTurn => {
   const { gist: _, ...rest } = lastTurn
   return rest
 }
 
-/** The activity without any headline or gist murmur wrote (murmur turned off); undefined when it had none. */
+/** The activity without the gist murmur wrote (murmur turned off); undefined when it had none. */
 export const withoutNotes = (activity: Activity): Activity | undefined => {
   const { lastTurn } = activity
-  if (lastTurn?.gist === undefined && !activity.pending.some(({ headline }) => headline))
-    return undefined
-  return {
-    ...activity,
-    pending: activity.pending.map(unheadlined),
-    lastTurn: lastTurn && ungisted(lastTurn),
-  }
+  if (lastTurn?.gist === undefined) return undefined
+  return { ...activity, lastTurn: ungisted(lastTurn) }
 }
 
 /**
@@ -995,7 +958,6 @@ export const summary = ({
   attention: {
     pending: pending.length,
     kind: pending[0]?.kind ?? null,
-    headline: (pending[0]?.kind !== "permission" && pending[0]?.headline) || null,
   },
   subagents: subagents.map(({ id, type }) => ({ id: subagentRef(id), type })),
   lastTurn:
