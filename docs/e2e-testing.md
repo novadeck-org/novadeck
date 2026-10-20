@@ -139,7 +139,7 @@ again without it. These tests skip anywhere else. Its traces upload as
 
 | Harness     | Published as                                          | Version |
 | ----------- | ----------------------------------------------------- | ------- |
-| Claude Code | npm, `@anthropic-ai/claude-code`                      | 2.1.287 |
+| Claude Code | npm, `@anthropic-ai/claude-code`                      | 2.1.304 |
 | Codex       | npm, `@openai/codex`                                  | 0.163.0 |
 | Antigravity | an archive, by its address and SHA-512 (Linux x86-64) | 1.4.3   |
 
@@ -974,8 +974,10 @@ stops going through a member a probe wraps.
     those whose first user turn holds it. The root's Stop lists it among its running
     `background_tasks`, and its end starts a turn by itself, with a task notification.
   - _Escape_: `\x1b`. Its Esc-Esc window is about 800 ms (see "Escape on its own" above).
-    Escape before any reply came drops the turn with no word of it and puts the prompt
-    back in its box, between the box's rules (`interrupted`).
+    Escape before any reply came drops the turn. To 2.1.287 it did so with no word of
+    it and put the prompt back in its box, between the box's rules; from 2.1.304 the
+    prompt stays in the chat, the box empty, with "⎿ Interrupted · What should Claude do
+    instead?" under it (`interrupted` takes either).
   - _Folder trust_: "Is this a project you created or one you trust?" with `❯ No, exit`
     selected; Down selects `❯ Yes, I trust this folder`. About 130 ms after it first
     shows, it draws the question again with `❯ No, exit` selected anew, undoing a Down
@@ -1012,6 +1014,18 @@ stops going through a member a probe wraps.
   calls go to the same endpoint, streamed. A `UserPromptSubmit` hook's
   `additionalContext` arrives as a `system` message just after the user's message, and
   the dialect folds it into that user turn.
+- **Deferred tools.** From 2.1.304, Claude Code uses tool search behind any
+  `ANTHROPIC_BASE_URL`: 2.1.287 turned it off for an address not Anthropic's own, as
+  the fake model's is. MCP tools, Novadeck's among them, and some of its own then come
+  only as names, in a reminder ("The following deferred tools are now available via
+  ToolSearch…"), until the model loads their schemas with its `ToolSearch` tool. Where a
+  call names any, the dialect first answers with one `ToolSearch` call selecting them all,
+  as a model would before calling one, without asking the rules. Claude Code answers it
+  with a `tool_reference` for each and "Tool loaded.", and offers them from then on. The
+  rules see the next call with that exchange left out, every tool offered, so a scenario
+  reads the conversation as it was before tools were deferred. A server that joins
+  later, as a scenario's own MCP server may, has its tools loaded the same way when they
+  are named.
 
 ## Codex against the fake model
 
