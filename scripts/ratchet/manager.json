@@ -8,7 +8,7 @@
   "lines": {
     "budget": 1649,
     "reason": "Typing.working, a thin wrapper over agentWorking, went: Messaging's busy hook calls agentWorking itself, one import line more.",
-    "from": "task/manager-split@working"
+    "from": "#367"
   },
   "methods": 68,
   "slack": { "lines": 100, "methods": 5 }
