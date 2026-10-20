@@ -8,6 +8,17 @@ export const createCanvasVisit = () => {
   let origin: { id: string; viewport: Viewport } | null = null
   let active: Flight | null = null
   let backRequested = false
+  const begin = (id: string, current: Viewport, destination: Viewport): Flight | null => {
+    if (active) return null
+    if (origin?.id === id) {
+      active = { viewport: origin.viewport }
+      origin = null
+    } else {
+      origin = { id, viewport: { ...current } }
+      active = { viewport: { ...destination } }
+    }
+    return active
+  }
   return {
     get flying(): boolean {
       return active !== null
@@ -20,16 +31,13 @@ export const createCanvasVisit = () => {
     get home(): Viewport | null {
       return origin?.viewport ?? active?.viewport ?? null
     },
-    begin(id: string, current: Viewport, destination: Viewport): Flight | null {
-      if (active) return null
-      if (origin?.id === id) {
-        active = { viewport: origin.viewport }
-        origin = null
-      } else {
-        origin = { id, viewport: { ...current } }
-        active = { viewport: { ...destination } }
-      }
-      return active
+    // A header's double-click: flies in to the terminal, or back from the one visited.
+    begin,
+    // Going to a terminal from outside the canvas, as from a notification: flies in as
+    // `begin` does, but never back, so a visit already at the terminal stays.
+    enter(id: string, current: Viewport, destination: Viewport): Flight | null {
+      if (origin?.id === id) return null
+      return begin(id, current, destination)
     },
     back(): Flight | null {
       if (active) {

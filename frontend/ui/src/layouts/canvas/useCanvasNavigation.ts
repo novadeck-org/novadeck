@@ -15,7 +15,13 @@ import type { createCanvasVisit } from "./visit"
 
 type NavigationProps = Pick<
   CanvasProps,
-  "navigation" | "selected" | "hidden" | "fitOnNavigate" | "revealOnMount" | "fitOnMount"
+  | "navigation"
+  | "selected"
+  | "hidden"
+  | "fitOnNavigate"
+  | "flyOnNavigate"
+  | "revealOnMount"
+  | "fitOnMount"
 > & {
   initialViewport: CanvasViewport | undefined
   // Read when needed: it changes every frame while the sidebar slides.
@@ -25,6 +31,8 @@ type NavigationProps = Pick<
   createdPositions: RefObject<Map<string, XYPosition>>
   pointerCreated: RefObject<Set<string>>
   visit: ReturnType<typeof createCanvasVisit>
+  // Flies the camera in to a terminal, as `flyOnNavigate` asks.
+  flyIn: (id: string) => void
 }
 
 // Sidebar navigation and new-terminal revelation preserve zoom unless fitting is requested.
@@ -33,6 +41,7 @@ export const useCanvasNavigation = ({
   selected,
   hidden,
   fitOnNavigate,
+  flyOnNavigate,
   revealOnMount,
   fitOnMount,
   initialViewport,
@@ -42,11 +51,13 @@ export const useCanvasNavigation = ({
   createdPositions,
   pointerCreated,
   visit,
+  flyIn,
 }: NavigationProps) => {
   const { fitView, getNode, getViewport, setCenter } = useReactFlow<TerminalNode>()
   const initialized = useNodesInitialized()
-  // Canvas sets its camera as it opens (below); only new sidebar requests recenter it.
-  const lastNavigation = useRef(initialViewport ? navigation : 0)
+  // Canvas sets its camera as it opens (below); only new sidebar requests recenter it. One
+  // that flies is left for the windows to be measured, and flies from that camera.
+  const lastNavigation = useRef(initialViewport && !flyOnNavigate ? navigation : 0)
   useEffect(() => {
     if (
       !initialized ||
@@ -58,6 +69,8 @@ export const useCanvasNavigation = ({
     const node = getNode(selected)
     if (!node || node.hidden) return
     lastNavigation.current = navigation
+    // A visit already at the terminal stays, so its way back is kept.
+    if (flyOnNavigate) return flyIn(selected)
     visit.clear()
     const duration = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 180
     if (pointerCreated.current.delete(selected)) return
@@ -106,6 +119,8 @@ export const useCanvasNavigation = ({
     selected,
     hidden,
     fitOnNavigate,
+    flyOnNavigate,
+    flyIn,
     fitView,
     getNode,
     getViewport,
@@ -119,10 +134,12 @@ export const useCanvasNavigation = ({
 
   // Canvas opened from another view frames every visible window, however its camera was
   // left; a terminal opened into it is revealed instead. Otherwise, as on returning to a
-  // session, it keeps the camera it was left with.
+  // session, it keeps the camera it was left with. A terminal gone to from outside the
+  // canvas is flown in to from there, once its windows are measured (above).
   const initializeViewport = (instance: ReactFlowInstance<TerminalNode>) => {
-    const framing = fitOnMount && !revealOnMount
+    const framing = (fitOnMount && !revealOnMount) || flyOnNavigate
     if (!container.current || (initialViewport && !revealOnMount && !framing)) return
+    if (initialViewport && flyOnNavigate) return
     const selectedNode = navigation && !framing ? instance.getNode(selected) : undefined
     const target = selectedNode?.hidden ? undefined : selectedNode
     if (initialViewport && target && !fitOnNavigate) {
@@ -134,7 +151,7 @@ export const useCanvasNavigation = ({
     const visible = instance.getNodes().filter((node) => !node.hidden)
     if (!visible.length) return
     const bounds = getNodesBounds(target ? [target] : visible)
-    lastNavigation.current = navigation
+    if (!flyOnNavigate) lastNavigation.current = navigation
     // Compute the first camera before a view-transition snapshot, without waiting for paint.
     void instance.setViewport(
       getViewportForBounds(

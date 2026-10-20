@@ -43,11 +43,11 @@ describe("shell state", () => {
 
   context("when the presentation starts over", () => {
     it("pulses navigation and opens the drawer only for the session just created", () => {
-      const shell = { ...bumpNavigation(initialShell(false), true), freshSession: "new" }
-      expect(shell.navigation).toEqual({ count: 2, fit: true })
+      const shell = { ...bumpNavigation(initialShell(false), "fit"), freshSession: "new" }
+      expect(shell.navigation).toEqual({ count: 2, move: "fit" })
       const created = resetPresentation({ ...shell, revealCanvas: true }, "new")
       expect(created).toMatchObject({
-        navigation: { count: 3, fit: false },
+        navigation: { count: 3, move: "center" },
         revealCanvas: false,
         sidebar: true,
         freshSession: null,

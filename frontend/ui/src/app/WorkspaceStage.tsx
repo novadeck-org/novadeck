@@ -158,7 +158,8 @@ export const WorkspaceStage = memo(
               layout={canvasLayout}
               revealOnMount={revealCanvas}
               fitOnMount={opened.fromOtherView}
-              fitOnNavigate={shellNavigation.fit}
+              fitOnNavigate={shellNavigation.move === "fit"}
+              flyOnNavigate={shellNavigation.move === "fly"}
               onLayoutChange={setCanvasLayout}
               terminals={terminals}
               selected={selected}

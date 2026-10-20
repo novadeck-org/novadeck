@@ -91,7 +91,7 @@ describe("presentation watch", () => {
       }))
       workspace.dispatch({ type: "session/add", projectId: "project", session: session("fresh") })
       expect(ui.getSnapshot().shell).toMatchObject({
-        navigation: { count: 2, fit: false },
+        navigation: { count: 2, move: "center" },
         revealCanvas: false,
         sidebar: true,
         freshSession: null,

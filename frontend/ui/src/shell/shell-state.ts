@@ -6,7 +6,10 @@ export type CanvasKeyboardFocus = {
   readonly id: string
   readonly request: number
 }
-export type ShellNavigation = { readonly count: number; readonly fit: boolean }
+// How a view brings the selection into sight: as it is, framed alone, or, on Canvas, with
+// the camera flown in to it as a header's double-click does.
+export type NavigationMove = "center" | "fit" | "fly"
+export type ShellNavigation = { readonly count: number; readonly move: NavigationMove }
 export type ZenState = {
   readonly sidebar: boolean
   readonly collapsed: boolean
@@ -46,7 +49,7 @@ export const initialShell = (sidebarCollapsed: boolean): ShellState => ({
   revealCanvas: false,
   keyboardFocus: null,
   canvasKeyboardFocus: null,
-  navigation: { count: 1, fit: false },
+  navigation: { count: 1, move: "center" },
   focusPreview: null,
   freshSession: null,
   navigate: false,
@@ -80,9 +83,9 @@ export const exitZen = (shell: ShellState): ShellState =>
     ? { ...shell, sidebar: shell.zen.sidebar, sidebarCollapsed: shell.zen.collapsed, zen: null }
     : shell
 
-export const bumpNavigation = (shell: ShellState, fit = false): ShellState => ({
+export const bumpNavigation = (shell: ShellState, move: NavigationMove = "center"): ShellState => ({
   ...shell,
-  navigation: { count: shell.navigation.count + 1, fit },
+  navigation: { count: shell.navigation.count + 1, move },
 })
 
 // A new session, or Back/Forward to another view or selection, starts its

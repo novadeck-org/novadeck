@@ -82,7 +82,10 @@ to fit the canvas viewport. Repeat the gesture on the same terminal to return to
 previous camera position and zoom. Manual pan or zoom (including keyboard shortcuts),
 Fit all, sidebar camera navigation, leaving Canvas, or switching sessions clears that
 return point. Flying to a different terminal starts a new visit from the current camera.
-Repeated double gestures during a flight are ignored. The header's arrow opens Focus view.
+Repeated double gestures during a flight are ignored. Going to a terminal from outside the
+canvas, as Show terminal on an Inbox item or a click on a desktop notification does, flies to it
+the same way, from another session's camera too; it never flies back, so a terminal already
+visited stays, and the gesture on its header still returns. The header's arrow opens Focus view.
 
 Click **New terminal** or use its keyboard shortcut to create and select a terminal
 immediately in any view, with or without Zen, ready to type in; F2 renames it. Focus

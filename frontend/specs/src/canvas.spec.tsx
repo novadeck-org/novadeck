@@ -33,6 +33,7 @@ import {
   focusStage,
   openWorkspace,
   press,
+  sidebarPanel,
   terminal,
   terminalTab,
   view,
@@ -310,6 +311,29 @@ describe("Canvas", () => {
       await expect
         .poll(() => sameBox(boxOf(terminal("Checkout implementation")), visited))
         .toBe(true)
+    })
+  })
+
+  context("when going to a terminal from its Inbox item", () => {
+    it("flies the camera in to it, as a double-click on its header does", async () => {
+      await openWorkspace("/?demo=agents")
+      const skip = page.getByRole("button", { name: "Skip for now" })
+      if (await skip.query()) await skip.click()
+      await chooseView("Canvas")
+      await expect.element(terminal("Checkout review")).toBeVisible()
+      expect(fillsView(await settled(() => boxOf(terminal("Checkout review"))))).toBe(false)
+      await sidebarPanel("Inbox").click()
+      await page.getByRole("button", { name: /Run pnpm test/ }).click()
+
+      await page
+        .getByRole("dialog", { name: "Checkout review" })
+        .getByRole("button", { name: "Show terminal" })
+        .click()
+
+      await expect.poll(() => fillsView(boxOf(terminal("Checkout review")))).toBe(true)
+      // The way back is the visit's, as from a header.
+      await doubleClickHeader("Checkout review")
+      await expect.poll(() => fillsView(boxOf(terminal("Checkout review")))).toBe(false)
     })
   })
 

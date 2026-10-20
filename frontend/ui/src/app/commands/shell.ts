@@ -9,6 +9,7 @@ import {
   sidebarVisible,
   type FocusPreview,
   type KeyboardFocus,
+  type NavigationMove,
   type ShellState,
 } from "../../shell/shell-state"
 import { currentContext } from "../selectors"
@@ -35,7 +36,7 @@ export type ShellCommands = {
 export type ShellEdits = {
   readonly change: (edit: (shell: ShellState) => ShellState) => void
   readonly set: <K extends keyof ShellState>(key: K, value: ShellState[K]) => void
-  readonly pulse: (fit?: boolean) => void
+  readonly pulse: (move?: NavigationMove) => void
 }
 
 export const shellEdits = ({ ui }: Pick<CommandContext, "ui">): ShellEdits => {
@@ -44,7 +45,7 @@ export const shellEdits = ({ ui }: Pick<CommandContext, "ui">): ShellEdits => {
     change,
     set: (key, value) =>
       change((shell) => (Object.is(shell[key], value) ? shell : { ...shell, [key]: value })),
-    pulse: (fit = false) => change((shell) => bumpNavigation(shell, fit)),
+    pulse: (move) => change((shell) => bumpNavigation(shell, move)),
   }
 }
 
