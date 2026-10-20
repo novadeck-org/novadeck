@@ -14,7 +14,7 @@ import { harnesses } from "../harnesses/registry.js"
 import { unanswered, unansweredCalls, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
 import { callerOf } from "./callers.js"
-import type { TerminalPeers } from "./peers.js"
+import { peerOf, type TerminalPeers } from "./peers.js"
 import type { Record } from "./record.js"
 import type { SavedTerminal } from "./records.js"
 
@@ -102,7 +102,7 @@ export class Companion {
     const records = this.host.records()
     const record = records.get(terminalId)
     if (!record) return undefined
-    const facts = await this.host.peers().hint(record, this.items?.bar(terminalId) ?? [])
+    const facts = await this.host.peers().hint(peerOf(record), this.items?.bar(terminalId) ?? [])
     // The session's open terminals' handles, in the order they were given, so dictation
     // spells them.
     const handles = [...records.values()]
@@ -118,10 +118,11 @@ export class Companion {
   livePlan(item: ItemRecord): PlanText | undefined {
     const { plan } = item
     const record = this.host.records().get(item.from.terminalId)
-    const { binding } = record ?? {}
+    const { bound } = record ?? {}
+    const binding = bound?.binding
     if (!plan || !binding || binding.agent !== plan.agent || binding.sessionId !== plan.session)
       return undefined
-    const live = record?.activity?.plans.find(({ actor }) => actor === plan.actor)
+    const live = bound?.activity.plans.find(({ actor }) => actor === plan.actor)
     if (live?.source.kind !== "text") return undefined
     return { text: live.source.text, truncated: live.source.truncated, changedAt: live.at }
   }

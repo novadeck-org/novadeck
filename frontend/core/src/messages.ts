@@ -46,12 +46,24 @@ export type MessageThread = {
   readonly messages: readonly AgentMessage[]
 }
 
-// Why the doorbell can't wake an idle agent whose messages wait, as its screen shows: text
-// in its box (`draft`), a dialog or picker over it (`dialog`), or a question it waits on
-// the person for (`asking`). The pane says so in plain words.
-export type MailWaits = "draft" | "dialog" | "asking" | "failed" | "away"
+// Why the doorbell can't wake an idle agent whose messages wait, as it saw: a turn running
+// (`working`), a prompt queued in the agent (`queued`), its box in shell mode (`shell`),
+// text in its box (`draft`), a dialog or picker over it (`dialog`), or a question it waits
+// on the person for (`asking`). The pane says so in plain words.
+export type MailWaits =
+  | "working"
+  | "queued"
+  | "shell"
+  | "draft"
+  | "dialog"
+  | "asking"
+  | "failed"
+  | "away"
 
 export const waitsText: Readonly<Record<MailWaits, string>> = {
+  working: "It is working, so they wait. They arrive once its turn ends.",
+  queued: "A prompt is queued in it, so they wait. They arrive once that prompt has run.",
+  shell: "Its box is in shell mode, so they wait. They arrive once it's back to a prompt.",
   draft: "There's text in its box, so they wait. They arrive once the box is empty.",
   dialog: "A dialog or picker is open in its terminal, so they wait. They arrive once it closes.",
   asking: "It is asking you a question, so they wait. They arrive once you answer.",
@@ -59,12 +71,31 @@ export const waitsText: Readonly<Record<MailWaits, string>> = {
   away: "Its terminal isn't at the agent's prompt, so they wait. They arrive once it is.",
 }
 
+// What the messages wait behind, as the Inbox says it after "N messages for @x wait", and
+// where the doorbell hasn't said why it can't wake the idle agent.
+export const unsaidWaits = {
+  behind: "an idle agent Novadeck can't wake yet",
+  text: "It is idle, but Novadeck can't wake it yet, so they wait. They arrive at its next prompt.",
+}
+export const waitsBehind: Readonly<Record<MailWaits, string>> = {
+  working: "its turn running",
+  queued: "a prompt queued in the agent",
+  shell: "its box in shell mode",
+  draft: "text in its box",
+  dialog: "a dialog or picker in its terminal",
+  asking: "a question it asks you",
+  failed: "a doorbell that failed three times",
+  away: "a terminal that isn't at its prompt",
+}
+
 // A terminal's messages: its own handle, whether an agent is there to take them, why the
-// doorbell can't wake it now if its agent is idle, and its threads, latest first.
+// doorbell can't wake it now if its agent is idle and since when (epoch milliseconds), and
+// its threads, latest first.
 export type TerminalMail = {
   readonly handle: string
   readonly agent: boolean
   readonly waits?: MailWaits | null
+  readonly waitsSince?: number | null
   readonly threads: readonly MessageThread[]
 }
 

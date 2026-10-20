@@ -14,6 +14,7 @@ import {
   submitWindowMs,
   transition,
   unbound,
+  waitsIn,
   type Delivery,
   type DeliveryEvent,
 } from "./delivery.js"
@@ -797,6 +798,65 @@ describe("keys while a request waits on the person", () => {
   })
 })
 
+describe("an answer's own keys, pressed in a request's dialog", () => {
+  const pressed = (kind: KeyKind, time = at): DeliveryEvent => ({
+    type: "pressed",
+    key: kind,
+    at: time,
+  })
+  const cleared = { type: "asked-cleared" } as const
+
+  it("leave no draft, so the turn's Stop settles it", () => {
+    // Claude Code's "2", Codex's "y", Antigravity's Down and Enter, a field's words and Enter.
+    for (const kinds of [
+      ["content"],
+      ["neutral", "enter"],
+      ["content", "enter"],
+      ["accept", "content", "enter"],
+    ] as const) {
+      const answered = run(working, ...kinds.map((kind) => pressed(kind)))
+      expect(answered.box.draftWhileAsked).toBe(false)
+      expect(run(answered, cleared, stop).state).toBe("settled")
+    }
+    // Answered between turns, as a request that outlived its turn's Stop.
+    expect(run(settled, pressed("content"), cleared).state).toBe("settled")
+  })
+
+  it("leave the person's own keys during the request a draft, before or between them", () => {
+    const asked = (kind: KeyKind) => key(kind, at, true)
+    expect(run(working, asked("content"), pressed("content"), cleared, stop).state).toBe("drafting")
+    expect(
+      run(working, pressed("neutral"), asked("neutral"), pressed("enter"), cleared, stop).state,
+    ).toBe("drafting")
+  })
+
+  it("end no doubt of the box, which only the screen settles", () => {
+    // A prompt too long after the person's Enter to be theirs: the box is doubted.
+    const doubted = run(settled, enter, prompted(at + submitWindowMs + 1_000), stop)
+    expect(doubted).toMatchObject({ state: "drafting", box: { doubted: true } })
+    expect(transition(doubted, pressed("content"))).toBe(doubted)
+  })
+
+  it("take an Escape as ending the running turn, as the person's would, the box left as it was", () => {
+    // Codex's denial and its questions set aside are an Escape.
+    const escaped = run(working, pressed("escape", at + 500))
+    expect(escaped).toMatchObject({
+      state: "unknown",
+      escapedAt: at + 500,
+      box: { empty: true, typedSinceEnter: false },
+    })
+    expect(transition(escaped, stop).state).toBe("settled")
+    // The person's own may have put the turn's prompt back in Claude Code's box.
+    expect(run(working, key("escape", at + 500), stop).state).toBe("drafting")
+    // Outside a running turn it ends nothing.
+    expect(transition(settled, pressed("escape"))).toBe(settled)
+  })
+
+  it("change nothing with no agent bound", () => {
+    expect(transition(unbound, pressed("content"))).toBe(unbound)
+  })
+})
+
 describe("when a message would reach an agent", () => {
   it("says so in send's words for each state", () => {
     expect(route(bound, false, undefined)).toBe("ringing it once its box reads empty")
@@ -806,6 +866,13 @@ describe("when a message would reach an agent", () => {
     expect(route(working, true, undefined)).toBe("at its turn's end or its next prompt")
     expect(route(transition(working, background), false, undefined)).toBe(
       "when its next turn starts",
+    )
+    // Where its box takes a prompt while only that work runs, it is rung then.
+    expect(route(transition(working, background), false, undefined, undefined, true)).toBe(
+      "ringing it once its box reads empty",
+    )
+    expect(route(transition(working, background), false, undefined, "draft", true)).toBe(
+      "waits: there's text in its box, rung once it is empty",
     )
     expect(route(settled, false, undefined)).toBe("ringing it now")
     for (const state of [drafting, unknown])
@@ -819,6 +886,15 @@ describe("when a message would reach an agent", () => {
     )
     expect(route(bound, false, undefined, "asking")).toBe(
       "waits: it is asking the user a question, rung once answered",
+    )
+    expect(route(unknown, false, undefined, "working")).toBe(
+      "waits: it is working, rung once its turn ends",
+    )
+    expect(route(drafting, false, undefined, "queued")).toBe(
+      "waits: a prompt is queued in it, rung once that prompt has run",
+    )
+    expect(route(drafting, false, undefined, "shell")).toBe(
+      "waits: its box is in shell mode, rung once it is back to a prompt",
     )
   })
 
@@ -1230,11 +1306,25 @@ describe("an idle agent whose screen shows its box empty", () => {
     expect(emptied(stray).state).toBe("ready")
     // Unknown: an Escape, a denial, a failed turn, a ring that never confirmed.
     const ringing = transition(settled, { type: "ring", nonce: "k3f9", opening: false })
-    const failed = transition(ringing, { type: "ring-failed", nonce: "k3f9", ours: true })
+    const failed = transition(ringing, { type: "ring-failed", nonce: "k3f9" })
     expect(failed.state).toBe("unknown")
     expect(emptied(failed).state).toBe("ready")
     expect(emptied(run(working, ended)).state).toBe("ready")
     expect(ringableSince(emptied(failed))).toBe(at + 9_000)
+  })
+
+  it("is Ready while only background work runs, its box taking a prompt meanwhile (#325)", () => {
+    // Messaging lets the doorbell look only where the harness's box does (`waitsIn`).
+    const waiting = transition(working, background)
+    expect(waiting).toMatchObject({ state: "working", phase: "background" })
+    expect(waitsIn(waiting)).toBe(false)
+    expect(waitsIn(waiting, true)).toBe(true)
+    expect(waitsIn(working, true)).toBe(false)
+    expect(emptied(waiting)).toMatchObject({
+      state: "ready",
+      since: at + 9_000,
+      box: { empty: true },
+    })
   })
 
   it("leaves a turn running and a ring under way alone", () => {
@@ -1300,49 +1390,50 @@ describe("an idle agent whose screen shows its box empty", () => {
   })
 })
 
-describe("the line a failed ring left in the box", () => {
+describe("a doorbell line left in the box", () => {
   const rung = transition(settled, { type: "ring", nonce: "k3f9", opening: false })
-  const failed = transition(rung, { type: "ring-failed", nonce: "k3f9", ours: true })
+  const failed = transition(rung, { type: "ring-failed", nonce: "k3f9" })
   const resume = { type: "ring", nonce: "k3f9", opening: false, leftover: true } as const
 
-  it("is Novadeck's own while the person typed nothing since", () => {
-    expect(failed).toMatchObject({ state: "unknown", box: { ours: true, empty: false } })
+  it("is submitted under its own nonce from the Unknown a failed ring leaves", () => {
+    expect(failed).toMatchObject({ state: "unknown", box: { empty: false } })
     // Rung again under its own nonce, pasting nothing; a repeat fails the same way.
     const again = transition(failed, resume)
     expect(again).toMatchObject({ state: "ringing", nonce: "k3f9", touched: false })
-    expect(again.box.ours).toBe(false)
-    expect(transition(again, { type: "ring-failed", nonce: "k3f9", ours: true }).box.ours).toBe(
-      true,
-    )
-    // A ring whose paste check rejected its line leaves it nobody's to submit.
-    expect(transition(again, { type: "ring-failed", nonce: "k3f9" }).box.ours).toBe(false)
+    expect(transition(again, { type: "ring-failed", nonce: "k3f9" }).state).toBe("unknown")
     // Its prompt confirms it as any ring's.
     expect(
       transition(again, { type: "prompt", by: "doorbell", nonce: "k3f9", at, startedAt: at }).state,
     ).toBe("working")
   })
 
-  it("is the person's draft once they press any key, or a turn starts", () => {
-    for (const kind of ["content", "enter", "neutral", "accept"] as const) {
-      const after = transition(failed, key(kind, at + 10))
-      expect(after.box.ours).toBe(false)
-      expect(transition(after, resume)).toBe(after)
-    }
-    expect(transition(failed, key("content", at + 10, true)).box.ours).toBe(false)
-    expect(transition(failed, prompted(at + 10)).box.ours).toBe(false)
+  it("is submitted from the Drafting a ring abandoned for a turn leaves", () => {
+    // A turn the harness started mid-ring takes the ring over, which then fails unheard;
+    // its Stop leaves the box a draft, holding the line.
+    const taken = transition(rung, { type: "prompt", by: "harness", at, startedAt: at })
+    expect(transition(taken, { type: "ring-failed", nonce: "k3f9" })).toBe(taken)
+    const left = transition(taken, { type: "stop", continued: false, background: false, at })
+    expect(left).toMatchObject({ state: "drafting", box: { empty: false } })
+    expect(transition(left, resume)).toMatchObject({ state: "ringing", nonce: "k3f9" })
   })
 
-  it("is the person's draft when they typed during the ring", () => {
-    const touched = transition(rung, key("content", at + 10))
-    expect(touched).toMatchObject({ state: "ringing", touched: true })
-    expect(transition(touched, { type: "ring-failed", nonce: "k3f9", ours: true }).box.ours).toBe(
-      false,
-    )
+  it("is submitted while only background work runs too, where messaging lets the doorbell look", () => {
+    const waiting = transition(failed, background)
+    expect(waiting).toMatchObject({ state: "working", phase: "background" })
+    expect(transition(waiting, resume)).toMatchObject({ state: "ringing", nonce: "k3f9" })
   })
 
-  it("is only resumed from an idle state that left it, never a Settled, Working or other draft", () => {
-    expect(transition(settled, resume)).toMatchObject({ state: "ringing" })
+  it("is submitted after the person's keys too, as the screen alone says what the box holds", () => {
+    for (const kind of ["content", "enter", "neutral", "accept"] as const)
+      expect(transition(transition(failed, key(kind, at + 10)), resume)).toMatchObject({
+        state: "ringing",
+      })
+  })
+
+  it("is never submitted while a turn runs or a ring is under way", () => {
     expect(transition(working, resume)).toBe(working)
-    expect(transition(drafting, resume)).toBe(drafting)
+    expect(transition(rung, resume)).toBe(rung)
+    // Settled or Ready rings as any ring does.
+    expect(transition(settled, resume)).toMatchObject({ state: "ringing" })
   })
 })

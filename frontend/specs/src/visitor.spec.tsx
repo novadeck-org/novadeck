@@ -309,10 +309,9 @@ describe("the visitor build", () => {
   })
 
   describe("on its desk", () => {
-    // The bell, whose name says how many wait, e.g. "Notifications, 1 waiting".
-    const bell = () => sidebarPanel("Notifications")
-    const waiting = (count: number) =>
-      page.getByRole("radio", { name: `Notifications, ${count} waiting` })
+    // The bell, whose name says how many wait, e.g. "Inbox, 1 waiting".
+    const bell = () => sidebarPanel("Inbox")
+    const waiting = (count: number) => page.getByRole("radio", { name: `Inbox, ${count} waiting` })
     // Answers what the agent in the terminal asks with its first option, on its screen.
     const answer = async (name: string): Promise<void> => {
       await page.getByRole("button", { name: labelled("Select ", name) }).click()
@@ -326,7 +325,7 @@ describe("the visitor build", () => {
       await expect
         .poll(() => tabDescription("Checkout implementation"))
         .toBe("Plan ready for review")
-      await expect.element(bell()).toHaveAccessibleName("Notifications, 1 waiting")
+      await expect.element(bell()).toHaveAccessibleName("Inbox, 1 waiting")
       await expect.element(workspaceSwitcher()).not.toHaveAttribute("data-project-status")
     })
 
@@ -348,8 +347,8 @@ describe("the visitor build", () => {
 
       await answer("Checkout review")
       await expect.poll(() => tabDescription("Checkout review") ?? "").not.toContain("Needs")
-      await expect.element(bell()).toHaveAccessibleName("Notifications")
-      await expectStaysAbsent(page.getByRole("radio", { name: /^Notifications, / }), { ms: 800 })
+      await expect.element(bell()).toHaveAccessibleName("Inbox")
+      await expectStaysAbsent(page.getByRole("radio", { name: /^Inbox, / }), { ms: 800 })
     })
   })
 })

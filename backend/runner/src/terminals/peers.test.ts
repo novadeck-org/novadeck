@@ -5,7 +5,7 @@ import type { TerminalSummary } from "@novadeck/protocol"
 import { started, type Request } from "../harnesses/activity.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { describe, expect, it } from "../test.js"
-import { TerminalPeers, waitingOf, type PeerTerminal } from "./peers.js"
+import { TerminalPeers, waitingOf, type PeerRecord, type PeerTerminal } from "./peers.js"
 import { freshWork } from "./work.js"
 
 const request = (fields: Partial<Request>): Request => ({
@@ -74,11 +74,11 @@ describe("murmur's words for the person", () => {
       more: 0,
     })
     const summary = { id: "b", cwd: "/w/repo", sessionId: "s", title: "T" } as TerminalSummary
-    const peer: PeerTerminal = {
+    const peer: PeerRecord = {
       summary,
       naming: { person: null, agent: null, murmur: null, summary: null },
       work: null,
-      activity,
+      bound: { activity },
       openedBy: null,
     }
     // What agents list of a peer is whatever the `about` the messaging asks for tells.

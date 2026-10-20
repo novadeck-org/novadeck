@@ -99,7 +99,7 @@ export const unheardText = (terminal: TerminalMetadata): string | undefined =>
     : undefined
 
 // What waits on the person, with how many do when several: "Asks a question · 2 waiting".
-export const waitingText = (what: string, count: number): string =>
+const waitingText = (what: string, count: number): string =>
   count > 1 ? `${what} · ${count} waiting` : what
 
 // What the agent in a terminal waits on the person for, in a few words; undefined when

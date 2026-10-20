@@ -251,10 +251,9 @@ export type BackendFields = {
   // Absent where the backend cannot run one.
   readonly murmur?: Murmur
   // Optional. The Inbox: what the agents in every project wait on the person for, one
-  // item per agent terminal, answered in place. Absent where the backend has none; the
-  // runner's builds it from the app's workspace (`bind`) and the runner's facts, the
-  // demo's from hardcoded items in its `inbox` variant. Where present it replaces the
-  // Notifications panel.
+  // item per agent terminal, answered in place, behind the bell. The runner's and the
+  // demo's build it from the app's workspace (`bind`) and their own facts (see core's
+  // `inbox-items`). Absent where the backend has none: the Inbox then lists nothing.
   readonly inbox?: Inbox
   // Optional. Types text into a terminal as a paste, bracketed where its program asks,
   // without pressing Enter, as dictation does. Says whether it typed: false when the
@@ -311,6 +310,10 @@ export type BackendFields = {
   // Optional. The version of the desktop app, asked once when Preferences needs it. Absent
   // in a browser and in a host that does not say.
   readonly version?: () => Promise<string>
+  // Optional. Opens the folder of the desktop app's logs in the system's file manager, for
+  // the person to read them or attach them to a bug report. Absent in a browser and in a host
+  // that keeps none.
+  readonly openLogs?: () => void
   // Optional. Whether the desktop app runs in Electron's security sandbox, asked once at
   // startup since the answer holds for the whole run. Absent in a browser and in a host
   // that does not say.

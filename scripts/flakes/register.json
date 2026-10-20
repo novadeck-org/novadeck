@@ -281,6 +281,15 @@
       "seen": ["#290 (macOS)", "#316 run 39180073047 job 117830757032 (macOS)"]
     },
     {
+      "id": "adapter-restore-macos-shell-exited",
+      "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/backend.test.ts > runner backend > when many saved terminals come back at once > starts a fresh shell for every one of them",
+      "signature": "to have a length of 40 but got \\d+",
+      "status": "known",
+      "cause": "Seen on macOS: of the 40 saved terminals the test restores at once, one's shell wasn't running once the app was idle (39 with no exit). Suspected the same as runner-manager-hangup-spawn-failed: a transient spawn failure with that many PTYs opening together beside the suite's other workers. The test asserts the count before the failed starts, so the log doesn't say whether that shell failed to start or exited; it passed 10 of 10 on Linux at the same head. Seen on #366, which changes how a session ends, not how a shell starts.",
+      "seen": ["#366 run 39387468519 attempt 1 job 118510646498 (macOS)"]
+    },
+    {
       "id": "ui-process-windows-layout-settled",
       "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/process-windows.spec.tsx > process windows > presents claude in its window with input and controls in every layout",

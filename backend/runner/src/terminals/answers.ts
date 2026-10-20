@@ -51,10 +51,11 @@ export type AnswerHost = {
   /** The screen once it has drawn all pending output; undefined once the terminal is gone. */
   readonly screen: (terminalId: string) => Promise<ScreenText | undefined>
   /**
-   * Writes keys to the agent as the person's, through the bookkeeping their own keys get,
-   * ahead of anything their held input waits to send; false once the terminal is gone.
+   * Presses the answer's keys in the request's dialog, ahead of anything the person's held
+   * input waits to send, through the bookkeeping their own keys get, which takes them as
+   * Novadeck's: they leave no draft of the person's. False once the terminal is gone.
    */
-  readonly type: (terminalId: string, data: string) => boolean
+  readonly press: (terminalId: string, data: string) => boolean
   /** Whether nothing may be pressed for the request: its dialog turned raw, or it was answered. */
   readonly closed: (terminalId: string, ref: string) => boolean
   /** Whether the request was answered through `agents.answer` and waits still. */
@@ -525,7 +526,7 @@ export class Answers {
       }
       const text = "press" in step ? step.press : this.typed(step.type, screen)
       if (!pressed) pressedAt = Date.now()
-      if (!this.host.type(terminalId, text))
+      if (!this.host.press(terminalId, text))
         throw new Failed("The terminal went away before the keys were pressed.", pressed)
       pressed = true
     }

@@ -14,3 +14,17 @@ export const linuxMenu = (quit: () => void): MenuItemConstructorOptions[] => [
   { role: "viewMenu" },
   { role: "windowMenu" },
 ]
+
+/**
+ * The application menu on macOS: Electron's default, each menu by its role, with Help
+ * holding "Open Logs Folder", which shows the folder a bug report attaches. Elsewhere the
+ * menu bar is hidden, so Preferences offers the same.
+ */
+export const macMenu = (openLogs: () => void): MenuItemConstructorOptions[] => [
+  { role: "appMenu" },
+  { role: "fileMenu" },
+  { role: "editMenu" },
+  { role: "viewMenu" },
+  { role: "windowMenu" },
+  { role: "help", submenu: [{ label: "Open Logs Folder", click: openLogs }] },
+]

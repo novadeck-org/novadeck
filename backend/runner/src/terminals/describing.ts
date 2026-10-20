@@ -7,6 +7,7 @@ import { harnesses } from "../harnesses/registry.js"
 import type { MurmurHost, MurmurSubject } from "./murmur.js"
 import type { Names } from "./names.js"
 import { murmured } from "./naming.js"
+import { peerOf } from "./peers.js"
 import type { Record } from "./record.js"
 import { shellAtPrompt } from "./sampling.js"
 import type { Saves } from "./saving.js"
@@ -15,16 +16,12 @@ import { savedSummaryOf } from "./summary.js"
 
 /** What murmur reads of a running terminal's record. */
 const murmurSubject = (record: Record): MurmurSubject => ({
-  summary: record.summary,
-  naming: record.naming,
-  work: record.work,
-  activity: record.activity,
-  openedBy: record.openedBy,
-  agent: record.binding?.agent ?? null,
+  ...peerOf(record),
+  agent: record.bound?.binding.agent ?? null,
   transcript: record.transcript,
   program: record.summary.process,
   atPrompt: shellAtPrompt(record),
-  expecting: record.binding === null ? record.expecting : null,
+  expecting: record.bound === null ? record.expecting : null,
 })
 
 /**
@@ -142,19 +139,21 @@ export const murmurHost = (host: DescribingHost): MurmurHost => ({
   },
   headlined: (terminalId, { requestId, askedAt }, text) => {
     const record = host.live(terminalId)
-    if (!record?.activity || !murmurHeadline.safeParse(text).success) return
-    const next = withHeadline(record.activity, requestId, askedAt, text)
+    if (!record?.bound || !murmurHeadline.safeParse(text).success) return
+    const { bound } = record
+    const next = withHeadline(bound.activity, requestId, askedAt, text)
     if (!next) return
-    record.activity = next
+    record.bound = { ...bound, activity: next }
     host.publishAgent(record)
   },
   gisted: (terminalId, at, gist) => {
     const record = host.live(terminalId)
     const parsed = murmurGist.safeParse({ text: gist.text, asks: gist.asks })
-    if (!record?.activity || !parsed.success) return
-    const next = withGist(record.activity, at, parsed.data)
+    if (!record?.bound || !parsed.success) return
+    const { bound } = record
+    const next = withGist(bound.activity, at, parsed.data)
     if (!next) return
-    record.activity = next
+    record.bound = { ...bound, activity: next }
     host.publishAgent(record)
   },
   fileHead: async (path) =>
@@ -163,9 +162,10 @@ export const murmurHost = (host: DescribingHost): MurmurHost => ({
     // Murmur is off or gone: its titles go, running terminals' and saved ones', and the
     // headlines and gists it wrote.
     for (const record of host.records()) {
-      const next = record.activity && withoutNotes(record.activity)
+      const { bound } = record
+      const next = bound && withoutNotes(bound.activity)
       if (next) {
-        record.activity = next
+        record.bound = { ...bound, activity: next }
         host.publishAgent(record)
       }
     }

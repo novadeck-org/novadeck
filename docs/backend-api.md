@@ -886,7 +886,10 @@ forgets it, including one from an earlier runner.
   words that follow it as the agent's next prompt (a `prompt` option's or a `chat`'s), takes
   one turn in the terminal's input queue, so nothing else is typed between them (see
   `agents.prompt`). Where the option chosen sends words as the agent's next prompt, they are
-  given once the dialog took its key. Errors:
+  given once the dialog took its key. Its keys go through the bookkeeping the person's own
+  do, but messaging takes them as Novadeck's: they leave no draft in the agent's box, so
+  the next message rings once the turn ends (docs/agent-messaging.md, "What counts").
+  Errors:
   - `NOT_FOUND`: the agent has no such request.
   - `DIALOG_CHANGED`: the screen no longer reads with the answer's `dialog`; nothing is
     pressed or locked, and the next `agents.detail` has the new read.

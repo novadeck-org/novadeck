@@ -7,11 +7,14 @@ import type { TerminalEvent } from "@novadeck/protocol"
 import { command } from "@novadeck/terminal/testing"
 import { vi } from "vitest"
 
+import { started } from "../harnesses/activity.js"
+import type { Binding } from "../harnesses/bindings.js"
 import { submitWindowMs } from "../messaging/delivery.js"
 import { describe, expect, it } from "../test.js"
 import { ptyOptions } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
 import { Terminals } from "./manager.js"
+import type { Bound } from "./record.js"
 
 // The manager's pause between looks at a screen runs on the clock the tests fake.
 vi.mock("node:timers/promises", async (original) => ({
@@ -39,9 +42,12 @@ const root = (sessionId: string) => ({
   startedAt: Date.now() + submitWindowMs + hookShellSlackMs(process.platform) + 1_000,
 })
 
+/** A session bound with its fresh activity, as its first report binds it. */
+const bound = (binding: Binding): Bound => ({ binding, activity: started(0), telemetry: null })
+
 describe("settling a draft kept only by doubt", () => {
   type Inside = {
-    records: Map<string, { binding: unknown }>
+    records: Map<string, { bound: Bound | null }>
     typing: {
       screenOf: (id: string) => Promise<unknown>
       settleBox: (record: unknown) => void
@@ -77,7 +83,7 @@ describe("settling a draft kept only by doubt", () => {
     )
     const inside = manager as unknown as Inside
     const record = inside.records.get(terminal.id)!
-    record.binding = { agent: "agy", sessionId: "s", instance: null }
+    record.bound = bound({ agent: "agy", sessionId: "s", instance: null })
     const { messaging } = inside
     messaging.rooted(terminal.id, [root("a")])
     messaging.keys(terminal.id, ["content", "enter"], false)
@@ -208,7 +214,7 @@ describe("settling a draft kept only by doubt", () => {
       })
     }
     const settle = async (sessionId: string, next: string) => {
-      record.binding = { agent: "agy", sessionId, instance: null }
+      record.bound = bound({ agent: "agy", sessionId, instance: null })
       messaging.rooted(terminal.id, [root(sessionId)])
       messaging.keys(terminal.id, ["content", "enter"], false)
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
@@ -254,8 +260,8 @@ describe("settling a draft kept only by doubt", () => {
       )
       const inside = manager as unknown as Inside
       const record = inside.records.get(terminal.id)!
-      const identity = { agent: "codex", sessionId: "a", instance: null }
-      record.binding = identity
+      const identity = { agent: "codex", sessionId: "a", instance: null } as const
+      record.bound = bound(identity)
       let reads = 0
       inside.typing.screenOf = () => {
         reads += 1

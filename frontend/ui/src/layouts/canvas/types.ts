@@ -23,6 +23,8 @@ export type CanvasProps = {
   // Opened from another view: it frames every visible window as it mounts.
   fitOnMount: boolean
   fitOnNavigate: boolean
+  // Navigation flies the camera in to the selection, as a header's double-click does.
+  flyOnNavigate: boolean
   onLayoutChange: Dispatch<SetStateAction<CanvasLayout>>
   terminals: readonly Tile[]
   hidden: Record<string, boolean>

@@ -14,7 +14,7 @@ import { sidebarToggle } from "../interaction/dom"
 import { dictationKeys } from "../interaction/shortcuts"
 import { cancelTerminalTransition } from "../layouts/transition"
 import { useDesktop } from "../shell/desktop"
-import { panelLabels, shownPanel } from "../shell/panels"
+import { panelLabels } from "../shell/panels"
 import { sidebarVisible } from "../shell/shell-state"
 import { SidebarRail } from "../shell/SidebarRail"
 import { WorkspacePanels } from "../shell/WorkspacePanels"
@@ -33,7 +33,7 @@ import { HeaderSection } from "./HeaderSection"
 import { InboxHost } from "./InboxHost"
 import { currentState, currentTarget, shallowEqual } from "./selectors"
 import { SidebarSection } from "./SidebarSection"
-import { useNotificationBadge } from "./useNotifications"
+import { useInboxBadge } from "./useInboxBadge"
 import { VisitorBar, VisitorCover } from "./Visitor"
 import { WorkspaceFooter } from "./WorkspaceFooter"
 import { WorkspaceOverlays } from "./WorkspaceOverlays"
@@ -152,11 +152,11 @@ const TeamWireSection = ({
 // the badge as it was re-renders neither them nor the app around them.
 const RailWithBadge = (
   props: Omit<ComponentProps<typeof SidebarRail>, "badge">,
-): React.JSX.Element => <SidebarRail {...props} badge={useNotificationBadge()} />
+): React.JSX.Element => <SidebarRail {...props} badge={useInboxBadge()} />
 
 const ZenDockWithBadge = (
   props: Omit<ComponentProps<typeof ZenDock>, "badge">,
-): React.JSX.Element => <ZenDock {...props} badge={useNotificationBadge()} />
+): React.JSX.Element => <ZenDock {...props} badge={useInboxBadge()} />
 
 export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX.Element => {
   const services = useWorkspaceServices()
@@ -170,7 +170,7 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
       sidebar,
       sidebarCollapsed,
       sidebarVisible: sidebarVisible(state.shell, desktop),
-      sidebarPanel: shownPanel(state.location.route.panel, services.backend.inbox !== undefined),
+      sidebarPanel: state.location.route.panel,
       fontSize: state.preferences.fontSize,
       enabledViews: state.preferences.enabledViews,
     }
@@ -194,7 +194,6 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
       zen={zen}
       toggleSidebar={toggleSidebar}
       hideSidebar={hideSidebar}
-      inbox={services.backend.inbox !== undefined}
     />
   )
   return (
@@ -241,14 +240,11 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
                 <ZenDockWithBadge
                   view={view}
                   enabledViews={enabledViews}
-                  inbox={services.backend.inbox !== undefined}
                   onCreate={() => add()}
                   onViewChange={(next) => {
                     if (next !== view) changeView(next)
                   }}
-                  onNotifications={() =>
-                    toggleSidebar(services.backend.inbox ? "inbox" : "notifications")
-                  }
+                  onInbox={() => toggleSidebar("inbox")}
                   onExit={exitZen}
                 />
               )}

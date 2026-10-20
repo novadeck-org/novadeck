@@ -760,6 +760,7 @@ describe("runner client messages", () => {
       handle: "moth",
       delivery: "unbound",
       waits: null,
+      waitsSince: null,
       paused: false,
       threads: [],
     })
@@ -799,6 +800,7 @@ describe("runner client message watch", () => {
         handle: "moth",
         delivery: "unbound",
         waits: null,
+        waitsSince: null,
         paused: false,
         threads: [],
       },

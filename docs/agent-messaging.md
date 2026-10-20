@@ -311,10 +311,14 @@ like them, only inside Novadeck's terminals.
 
 - **`send(to, text)`** answers with the recipient's handle, the message id and one of:
   - `queued`, with the route it will take: "when its current turn ends", "when its next
-    turn starts" (only background work runs after its Stop), "ringing it now" (Settled or
-    Ready, and the doorbell isn't blocked), "ringing it once its box reads empty" (Fresh, Drafting or Unknown: the
+    turn starts" (only background work runs after its Stop, in a harness whose box takes
+    no prompt meanwhile: none today), "ringing it now" (Settled or
+    Ready, and the doorbell isn't blocked), "ringing it once its box reads empty" (Fresh, Drafting or Unknown, or
+    Working on background work only: the
     doorbell is looking at its screen), one of the `waits:` reasons when it looked and
-    can't ring, Settled or Ready included ("waits: there's text in its box, rung once it is empty", "waits: a
+    can't ring, Settled or Ready included ("waits: it is working, rung once its turn
+    ends", "waits: a prompt is queued in it, rung once that prompt has run", "waits: its
+    box is in shell mode, rung once it is back to a prompt", "waits: there's text in its box, rung once it is empty", "waits: a
     dialog or picker is open in its terminal, rung once it closes", "waits: it is
     asking the user a question, rung once answered"), or "when its agent starts: rung
     once Novadeck sees it at its prompt, else at its first turn"
@@ -616,11 +620,30 @@ terminal escapes, controls, invisible separators and bidi marks before being sho
   3. once the request clears, a draft left by (2) makes the prompt a draft, and the
      usual rules go on from there.
 
-  A request answered with Enter alone leaves the box as it was. One navigated with
-  any other key (an arrow, Home or End, Tab, a hotkey such as Claude Code's "1" or
-  Codex's "y"), and any multi-question form, ends Drafting: its messages wait for the
-  person's next prompt, or until the screen shows the agent's own box empty (below,
-  "Idle but not Ready"), when it is rung.
+  A request answered with Enter alone leaves the box as it was. One the person navigated
+  in the terminal with any other key (an arrow, Home or End, Tab, a hotkey such as Claude
+  Code's "1" or Codex's "y"), and any multi-question form, ends Drafting: its messages wait
+  for the person's next prompt, or until the screen shows the agent's own box empty
+  (below, "Idle but not Ready"), when it is rung.
+
+  A request answered from the chat (`agents.answer`) leaves the box as it was, whatever
+  keys it pressed: those are Novadeck's own, not the person's, so a permission approved
+  from the chat ends its turn Settled and the next message rings at once, in all three
+  harnesses. The answer presses them only once it read the request's dialog on screen,
+  holding the person's keys meanwhile (see [Answer driver](harness-adapters.md#answer-driver)),
+  and tells messaging which writes are its own (`Messaging.pressing`, the delivery event
+  `pressed`): only the keys the answer itself writes, while the request waits, never
+  the person's. Their keys during the request still count as above, from whichever
+  client: typed before the answer took hold of them, or held by the answer and let go
+  because it pressed nothing (held while it pressed, they are dropped, never typed). An answer that pressed keys and then failed (`ANSWER_FAILED`) leaves a
+  possible draft, as the person's keys would: they may have landed in the box, as
+  Antigravity's artifact review types `/artifact` and the person's feedback there. An
+  answer's Escape (Codex's no, and its questions set aside to talk) ends a running turn as
+  the person's would (Unknown, below), with the box as it was: the dialog took the key, so
+  no prompt of the turn's comes back into the box. One gap remains: an answer that
+  succeeds is not checked between keys it presses back to back (a digit after arrows),
+  so a dialog that the agent closed by itself within those milliseconds, with no report,
+  would take the rest into its box unseen.
 
 - **A bare Enter** is a carriage return of its own: not Alt or Shift+Enter (`\x1b\r`,
   a newline in the box), nor one inside a bracketed paste. Nothing else submits, but
@@ -756,7 +779,11 @@ facts above, so the prompt's emptiness is known before any message arrives:
 - **Working**: a root turn is running (its `turn` phase); Novadeck continued its Stop and
   waits for the continuation (`continuing`); or after its Stop only work it started
   still runs (`background`: subagents, which wake it once done, never a command alone),
-  when a message waits for its next turn. At a root Stop, if the person didn't submit during the turn,
+  when a message waits for its next turn, or for the doorbell: every harness's box takes
+  a prompt while that work runs (`MessagingProfile.promptsInBackground`; probed
+  2026-10-19, Claude Code 2.1.287, Codex 0.163.0, Antigravity 1.2.14, in
+  `e2e/probes/background-prompt.e2e.ts`), so the doorbell looks at its screen as at an
+  idle Drafting one's, and an empty box makes it Ready (#325). At a root Stop, if the person didn't submit during the turn,
   the Stop hook's ask gets a lease (below) and the turn continues, still Working.
   Novadeck continues a root turn at most twice, by its own count, then lets it end. A
   prompt right after a Stop Novadeck continued is that continuation, keeping the count,
@@ -827,18 +854,20 @@ facts above, so the prompt's emptiness is known before any message arrives:
 - **Unbound**: no agent session bound.
 
 **Idle but not Ready.** Fresh, Drafting and Unknown are states Novadeck derives from keys
-and hooks, so each can outlast what is true of the screen: Codex 0.159.3 idle after a
+and hooks, so each can outlast what is true of the screen (and Working on background work
+only, where the agent's box takes a prompt meanwhile, is looked at the same way): Codex 0.159.3 idle after a
 normal turn is Drafting if the person answered its question in its terminal; any stray
 key, a ring that failed, an Escape that ended nothing, or a runner restart leave the
 others. While messages wait for such an agent, with no turn running, no prompt queued
 and no request pending, the doorbell reads its screen (the same calm check as a ring: 750
-ms still, no resize meanwhile) with its harness's own box reader (the one the prompts
+ms still, no resize meanwhile; the calm reads the screen without what the harness redraws by itself while background work runs, `BoxProfile.still`: Claude Code's background agent's elapsed time, Antigravity's panel of running subagents, which a paste's check reads without too) with its harness's own box reader (the one the prompts
 use: Claude Code's ruled box, Codex's `›` box, Antigravity's `>` box). A box that reads
 as taking a prompt and holding nothing, with no queued prompt shown, makes the terminal
 Ready (the `emptied` event), unless the person pressed a key since the read; the ring's
 own gate then runs as for any Ready terminal, its settle window counted from there. Any
-other reading rings nothing, ever types nothing, and says why (`Waits`): `draft`, there
-is text in its box (or it is in shell mode, or a paste placeholder); `dialog`, no input
+other reading rings nothing, ever types nothing, and says why (`Waits`): `working`, its
+activity says a turn runs; `queued`, the harness shows a prompt queued in it; `shell`, its
+box is in shell mode; `draft`, there is text in its box (or a paste placeholder); `dialog`, no input
 box reads, as under a menu, picker, trust or approval screen, or a view of the harness
 draws a field like its box (`BoxProfile.overlay`: Claude Code's agents view, which Left
 opens, prompt history search and transcript; Codex's history search, shortcuts panel and `/side` conversation;
@@ -851,8 +880,10 @@ line. A ring that
 fails waits the same doubling, from 2 s, before the terminal is rung again; a ring that
 confirms ends the count. The look has bounds: it is made at most once a calm window and never while output streams (each
 change pushes it back; a screen that redraws the same text does not shorten the doubling
-wait, only a key of the person's or a turn event ends it); never while the agent's activity says a turn or subagents run,
-whatever its status line or spinner draws; and the box counts only from the start of the
+wait, only a key of the person's or a turn event ends it); never while the agent's activity says a turn runs
+(`working`), whatever its status line or spinner draws, though work a stopped turn left
+running (background agents, a subagent running on) doesn't count, as the box
+takes a prompt meanwhile; and the box counts only from the start of the
 calm it rests on, so a key typed while the screen was read, or not yet drawn, makes the
 look stale. A row starting with the box's marker that is a numbered choice (`❯ 1. Yes`)
 is a picker, `dialog`; a new session before its prompt draws says nothing (`starting`).
@@ -870,7 +901,7 @@ for a first screen's logo vanishing (below) is not given to it.
 **Refusals and looks.** Every refusal of the gate says why and is looked at again with
 growing waits (1 s doubling to 15 s, the same for a screen that keeps changing): a
 terminal whose agent doesn't hold it, or takes no paste, says `away`; one with no box
-reading says what the screen shows (`draft`, `dialog`, `asking`). A new session before its
+reading says what the screen shows (`working`, `queued`, `shell`, `draft`, `dialog`, `asking`). A new session before its
 prompt draws says nothing (`starting`) until it has shown none for 5 s, then `dialog`
 (a trust, update or login screen waits for the person). The agent's activity is checked
 in the gate and again right before the paste. An overlay is read from the rows from the
@@ -882,14 +913,25 @@ session's start earns. The paste check lets the history above the box lose one l
 way Codex's Tip goes, only when at most one line of text is under it and the rows below
 moved up (a list that lost an item has more of its items below).
 
-**The line a failed ring left.** The ring's own line, left in the box by a ring whose
-Enter was lost or whose confirmation never came, with its paste check having accepted the line (a ring it rejected leaves a line nobody submits, as it may be in a widget), is Novadeck's, not the person's draft:
-when the box shows exactly one doorbell line and nothing else, and the person pressed no
-key since that ring failed (`Box.ours`; any key of theirs, and any turn, ends it), the
-doorbell submits it with Enter alone under the same gate as a ring, pasting nothing
-(the terminal is Ringing under that line's own nonce, which its doorbell prompt
-confirms). A line with anything beside it, or after a key of the person's, stays their
-draft and is never touched.
+**The line a ring left.** A doorbell line that is all the agent's own box holds, as its
+harness's box reader reads it (the prompt, no overlay over it, no prompt queued, wrapped
+anywhere), whose nonce is one of the terminal's last rings that no doorbell prompt
+confirmed, is Novadeck's, never the person's draft, however that ring ended: its Enter lost,
+its confirmation never come, its paste check rejecting it (the line landed but the screen
+changed elsewhere), or the ring abandoned mid-way (a turn the harness started took over,
+and its Stop left the box Drafting). A confirmed ring's line back in the box is the
+person's: their Escape put it back (Claude Code returns an interrupted prompt to its box),
+or they recalled it from the prompt's history. No person types an unconfirmed ring's line,
+so no key of theirs makes it theirs: from Fresh, Drafting or Unknown, idle with messages
+waiting, the doorbell submits
+it with Enter alone under the same gate as a ring, after the same wait a failed ring earns,
+pasting nothing (the terminal is Ringing under that line's own nonce, which its doorbell
+prompt confirms; three that fail stop it as rings do). A line with anything beside it (the
+person's text, a picker's `@` or `/`) is their draft and is never touched; a menu or an
+approval that swallowed the paste shows no box holding it. Before 2026-10-19 only a ring
+whose paste check had accepted the line, with no key of the person's since, left it
+Novadeck's (`Box.ours`): a rejected or abandoned ring's line held messages for hours
+behind it (#287).
 
 Transitions:
 
@@ -905,6 +947,7 @@ Transitions:
 | Any bound state                          | A session replaces it at its prompt, box not known empty, no Enter just before   | Drafting              |
 | Drafting (by doubt only)                 | The screen shows the agent's box empty, on two reads running within 5 s          | Ready or Settled      |
 | Fresh, Drafting, Unknown, idle           | Messages waiting and the calm screen shows the agent's own box empty             | Ready or Settled      |
+| Working, only background work            | Messages waiting and the calm screen shows the agent's own box empty             | Ready                 |
 | Fresh, Ready, Settled, Drafting, Unknown | A root prompt                                                                    | Working               |
 | Working                                  | A normal root Stop, not continued, prompt known empty                            | Settled               |
 | Working                                  | A normal root Stop, not continued, prompt not known empty                        | Drafting              |
@@ -1082,8 +1125,9 @@ text in `record.terminal.screen` (`@xterm/headless`), with its paste mode. The r
 
 1. **Idle.** The terminal is Settled: its last root turn ended normally, nothing runs in
    the background, no request is pending; or Ready: a new session at its own prompt, with
-   no turn yet; or Fresh, Drafting or Unknown with its box read empty off the screen,
-   which makes it Ready first. Messages wait for its root session.
+   no turn yet; or Fresh, Drafting or Unknown, or Working on background work only (its
+   harness's box takes a prompt then), with its box read empty off the screen, which
+   makes it Ready first, that work running on. Messages wait for its root session.
 2. **Untouched.** The prompt is known empty (see [What counts](#what-counts)): the
    person sent no input since their last submission, a confirmed ring, the command-line
    prompt or the session binding, where Left, Home and End count as input as well
@@ -1195,12 +1239,14 @@ text in `record.terminal.screen` (`@xterm/headless`), with its paste mode. The r
    request asked after the Enter, before the confirmation, fails the ring too: the Enter
    may have answered its dialog.
 
-A ring that fails presses no further key, ever, and leaves the terminal Unknown; the
+A ring that fails presses no further key, but for the Enter that submits its own line
+found alone in the box later ("The line a ring left"), and leaves the terminal Unknown; the
 messages wait, the person sees them as undelivered, and the terminal is rung again once
 its screen is calm with the box empty (above), after a longer wait each time.
 A ring that fails or is abandoned, as when a turn starts mid-ring, may have left its
-line in the box, so the prompt counts as a draft until the person next submits or, if the line is all the
-box holds and they typed nothing since, Novadeck submits it itself (below). A
+line in the box, so the prompt counts as a draft until the person next submits or, if the
+screen shows the line is all the box holds, Novadeck submits it itself ("The line a ring
+left", above). A
 doorbell prompt whose messages can't be leased now (the hook's deadline is too near, or
 messaging is paused) is told they still wait and will come on a later turn; only one
 with nothing left waiting is told so.
@@ -1681,12 +1727,35 @@ holds the person's keys and the window's resizes as a ring does, so the two neve
 the box.
 
 - **Why messages wait.** An idle agent the doorbell cannot ring says why in the
-  Messages pane, from the listing's `waits` (`draft`, `dialog`, `asking`): "There's text
+  Messages pane, from the listing's `waits` (`working`, `queued`, `shell`, `draft`,
+  `dialog`, `asking`): "It is working, so they wait. They arrive once its turn ends.", "A
+  prompt is queued in it, so they wait. They arrive once that prompt has run.", "Its box
+  is in shell mode, so they wait. They arrive once it's back to a prompt.", "There's text
   in its box, so they wait. They arrive once the box is empty.", "A dialog or picker is
   open in its terminal, so they wait. They arrive once it closes.", "It is asking you a
-  question, so they wait. They arrive once you answer." The demo shows the third on its
+  question, so they wait. They arrive once you answer." The demo shows the question on its
   Codex waiting for permission, and its debug panel's Doorbell group (Agents) puts the
   selected agent in each state.
+- **A long hold.** A message waiting for an idle agent (Settled, Ready, Fresh, Drafting or
+  Unknown) is held from the later of when the agent last went idle and when the message
+  last came to wait (its sending, or the end of a pause or a release), counting only what
+  the doorbell rings for. A turn ends the hold and a Stop starts it afresh; a ring that
+  fails, counted or not, ends none, nor does anything the doorbell says or stops saying. No
+  hold counts while the agent's activity says a turn or subagents run, as the doorbell
+  judges it (an Escape that only closed a popup leaves delivery Unknown while the turn runs
+  on), and the Inbox shows none while the terminal's status says it works. The listing says since when
+  its longest-held message has waited (`waitsSince`). Once that is `longHoldMs` (3 minutes)
+  ago with messages still waiting (none held for release or a pause), the Inbox shows the
+  terminal's item, "N messages for @kite wait behind text in its box", its words for what
+  holds them taken from `waits` ("an idle agent Novadeck can't wake yet" where the doorbell
+  gave no reason, as for a screen that never calms), with the Messages pane's sentence and
+  **Show terminal**. It waits on the person but marks no failure; a request or an `ask` of
+  that agent's comes first, a finished turn after. Each sender learns of each of its
+  messages held that long, once per hold, in whatever Novadeck answers it next, without
+  asking: its next `send` or `agents` answer, or the context its next prompt-time or
+  tool-call hook prints ("your message m-1 to @kite has not arrived since 11:41 (waits:
+  there's text in its box, rung once it is empty); the user is shown this in Novadeck's
+  Inbox."). A Stop hook never carries it, as its output would continue the turn.
 
 Naming adds to it: every terminal summary says who its title is from
 (`titleSource`), `terminals.resetTitle` hands a title back to Novadeck, and

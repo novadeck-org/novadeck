@@ -220,7 +220,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
         groups: [
           ...states.groups,
           updatesGroup(launch, states.updateControls),
-          ...inboxGroups(isDemoInbox(inner.inbox) ? inner.inbox : undefined),
+          ...inboxGroups(isDemoInbox(inner.inbox) ? inner.inbox : undefined, inner.seed),
           ...planGroups(inner.companions),
           ...doorbellGroups(inner.messages),
           ...murmurGroups(isDemoMurmur(inner.murmur) ? inner.murmur : undefined),
