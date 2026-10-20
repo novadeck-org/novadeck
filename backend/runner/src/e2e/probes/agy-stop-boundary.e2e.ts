@@ -27,7 +27,7 @@ type Process = {
 type Record = { terminal: { pty: Process }; binding: Binding | null }
 type Inside = {
   records: Map<string, Record>
-  report: (report: Report, deadline?: number) => Promise<HookAnswer>
+  reporting: { report: (report: Report, deadline?: number) => Promise<HookAnswer> }
   messaging: { delivery: (id: string) => Delivery | undefined }
 }
 
@@ -140,8 +140,8 @@ describe.skipIf(!enabled || !supported)("Antigravity natural Stop boundary captu
       return result
     }
     const inside = run.deck.terminals as unknown as Inside
-    const report = inside.report
-    inside.report = async function (incoming, deadline) {
+    const report = inside.reporting.report
+    inside.reporting.report = async function (incoming, deadline) {
       secrets.add(incoming.token)
       record("hook.received", {
         agent: incoming.agent,
@@ -270,7 +270,7 @@ describe.skipIf(!enabled || !supported)("Antigravity natural Stop boundary captu
     } finally {
       if (child && original) child.write = original
       native?.dispose()
-      delete (inside as Partial<Inside>).report
+      delete (inside.reporting as Partial<Inside["reporting"]>).report
       ServerResponse.prototype.write = write
       ServerResponse.prototype.end = end
       save("summary.json", {

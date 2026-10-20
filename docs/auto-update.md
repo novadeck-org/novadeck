@@ -14,10 +14,11 @@ says "Update available"; and an install that did not take is noticed at the next
 (see "macOS"), and Windows runs the installer, which closes a copy reopened before it
 finishes, so its update lands all the same.
 
-What the host says of checks, downloads and installs, and electron-updater's own messages,
-go to `updates.log` in Electron's logs folder (`~/Library/Logs/Novadeck` on macOS, `logs`
-in the data folder elsewhere), set aside as `updates.log.1` at a megabyte
-(`update-log.ts`).
+What the host says of checks, downloads and installs goes to the app's `host.log` as
+`update.progress` and `update.warning` lines, and electron-updater's own messages as
+`updater.info`, `updater.warning` and `updater.error`, redacted as every line of the log is
+(see `@novadeck/log` and `main/logs.ts`, `updateLogOn`). The logs folder is
+`~/Library/Logs/novadeck` on macOS and `logs` in the data folder elsewhere.
 
 The repository to look in comes from `resources/app-update.yml`, which electron-builder
 writes into the app from its `publish` block. The release workflow fills that block from

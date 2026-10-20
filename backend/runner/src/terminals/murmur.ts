@@ -6,6 +6,7 @@ import { terminalTitle, type AgentName, type ForegroundProcess } from "@novadeck
 
 import type { Activity } from "../harnesses/activity.js"
 import type { Items } from "../harnesses/replies.js"
+import { logs } from "../log.js"
 import { agentLabel } from "../messaging/mailbox.js"
 import type {
   AgentDigest,
@@ -22,6 +23,8 @@ import { sharesContentWord } from "../murmur/description.js"
 import type { Facts } from "./nudges.js"
 import type { PeerTerminal } from "./peers.js"
 import { busiestFolders, promptChars, shorten, type Work } from "./work.js"
+
+const log = logs.for("murmur")
 
 /*
  * When a terminal is described by murmur, and from what (see docs/agent-messaging.md,
@@ -523,7 +526,7 @@ export class Descriptions<D = Digest, O = Description> {
       })
       if (job.latest === mine && !controller.signal.aborted) done(outcome, digest)
     } catch (error) {
-      console.error("Novadeck could not describe a terminal:", error)
+      log.error("murmur.describe-failed", "Novadeck could not describe a terminal", { err: error })
     } finally {
       if (job.latest === mine) {
         job.running = false
@@ -865,7 +868,9 @@ export class Murmur {
     try {
       this.host.cleared()
     } catch (error) {
-      console.error("Novadeck could not clear the terminals' murmur text:", error)
+      log.error("murmur.clear-failed", "Novadeck could not clear the terminals' murmur text", {
+        err: error,
+      })
     }
   }
 
@@ -970,7 +975,9 @@ export class Murmur {
     try {
       this.react(terminalId, told)
     } catch (error) {
-      console.error("Novadeck could not look at a terminal to describe it:", error)
+      log.error("murmur.look-failed", "Novadeck could not look at a terminal to describe it", {
+        err: error,
+      })
     }
   }
 
@@ -1136,7 +1143,9 @@ export class Murmur {
     try {
       this.look(terminalId)
     } catch (error) {
-      console.error("Novadeck could not look at a terminal to write its notes:", error)
+      log.error("murmur.notes-failed", "Novadeck could not look at a terminal to write its notes", {
+        err: error,
+      })
     }
   }
 
@@ -1201,7 +1210,9 @@ export class Murmur {
         terminalId,
       )
     } catch (error) {
-      console.error("Novadeck could not look at a terminal to write its gist:", error)
+      log.error("murmur.gist-failed", "Novadeck could not look at a terminal to write its gist", {
+        err: error,
+      })
     }
   }
 
@@ -1290,7 +1301,9 @@ export class Murmur {
     try {
       subjects = this.host.subjects()
     } catch (error) {
-      console.error("Novadeck could not list the terminals to describe:", error)
+      log.error("murmur.list-failed", "Novadeck could not list the terminals to describe", {
+        err: error,
+      })
     }
     // One terminal that cannot be looked at leaves the others their turn.
     for (const subject of subjects) {
@@ -1298,7 +1311,9 @@ export class Murmur {
         this.catchUpOne(subject)
         this.catchUpNotes(subject.summary.id)
       } catch (error) {
-        console.error("Novadeck could not look at a terminal to describe it:", error)
+        log.error("murmur.look-failed", "Novadeck could not look at a terminal to describe it", {
+          err: error,
+        })
       }
     }
   }
@@ -1335,7 +1350,9 @@ export class Murmur {
    */
   private turnEnded(terminalId: string): void {
     this.consider(terminalId).catch((error: unknown) =>
-      console.error("Novadeck could not look at a terminal to describe it:", error),
+      log.error("murmur.look-failed", "Novadeck could not look at a terminal to describe it", {
+        err: error,
+      }),
     )
   }
 

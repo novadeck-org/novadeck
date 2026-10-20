@@ -161,7 +161,7 @@ describe("terminal states", () => {
   })
 })
 
-describe("notification states", () => {
+describe("waiting agents' states", () => {
   it("lists the live terminals but the viewed one, project by project in turn", () => {
     const keys = otherTerminals(initial, key("04"))
     expect(keys).not.toContainEqual(key("04"))

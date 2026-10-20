@@ -66,6 +66,7 @@ const places = [
   ["core/", "core"],
   ["ui-toolkit/", "toolkit"],
   ["terminals/companion/", "companion"],
+  ["terminals/chat/", "chat"],
 ].map(([prefix, name]) => ({ prefix: prefix!, dir: join(src, "..", "..", name!, "src") }))
 const all = [
   ...(readdirSync(src, { recursive: true }) as string[]),
@@ -737,6 +738,7 @@ const imports = (css: string): { readonly target: string; readonly layered: bool
 const packageCss = [
   ["@novadeck/toolkit/", "ui-toolkit/"],
   ["@novadeck/companion/", "terminals/companion/"],
+  ["@novadeck/chat/", "terminals/chat/"],
 ] as const
 
 const resolveCss = (from: string, target: string): string | undefined => {

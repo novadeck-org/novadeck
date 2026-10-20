@@ -1,0 +1,27 @@
+{
+  "name": "@novadeck/log",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Structured, privacy-first log files: a JSON Lines envelope, a size-bounded rotating writer, a redactor for paths, secrets and addresses, and collapsing of repeats.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "node": {
+        "development": "./src/index.ts",
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

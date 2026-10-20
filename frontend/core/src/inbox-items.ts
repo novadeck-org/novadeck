@@ -1,4 +1,5 @@
 import { agentWorking } from "./agent-finish"
+import { companionKeyId } from "./companion"
 import type { ChatRequest } from "./conversation"
 import type { AgentName } from "./harnesses"
 import {
@@ -10,7 +11,14 @@ import {
   type InboxSource,
   type InboxUnread,
 } from "./inbox"
-import type { AgentMessage, MailState, MessageThread } from "./messages"
+import {
+  waitingFor,
+  type AgentMessage,
+  type MailState,
+  type MailWaits,
+  type MessageThread,
+  type TerminalMail,
+} from "./messages"
 import { isAgentProgram } from "./process"
 import type { TerminalMetadata, Workspace, WorkspaceProject, WorkspaceSession } from "./types"
 
@@ -53,6 +61,9 @@ export type InboxInputs = {
   // Whether paths on the backend's machine match whatever their case, as on macOS; a
   // Windows path always does.
   readonly caseless: boolean
+  // How long a message may wait for an idle agent before its hold is raised (the protocol's
+  // `longHoldMs`); null where the backend raises none, as the demo's.
+  readonly longHoldMs: number | null
 }
 
 type Where = {
@@ -123,9 +134,26 @@ const heldOf = (
   }
 }
 
+// The messages for a terminal's idle agent, the longest of which has waited at least
+// `longHoldMs`: why the doorbell can't wake it (null where it hasn't said), since when, and
+// how many (none held for the person's release or a pause, which have items and switches of
+// their own).
+const heldLong = (
+  mail: TerminalMail | undefined,
+  now: number,
+  longHoldMs: number,
+):
+  | { readonly waits: MailWaits | null; readonly since: number; readonly count: number }
+  | undefined => {
+  const { waits = null, waitsSince } = mail ?? {}
+  if (!mail || waitsSince == null || now - waitsSince < longHoldMs) return undefined
+  const count = waitingFor(mail).filter((message) => message.state === "queued").length
+  return count > 0 ? { waits, since: waitsSince, count } : undefined
+}
+
 // Each terminal's candidate items, before only the most urgent is kept.
 const candidates = (
-  { unread, requests, now, caseless }: InboxInputs,
+  { unread, mail, requests, now, caseless, longHoldMs }: InboxInputs,
   here: Where,
 ): readonly InboxItem[] => {
   const { project, session, terminal } = here
@@ -150,6 +178,28 @@ const candidates = (
       })
     return found
   }
+
+  // Its messages held long, as only the person can clear what holds them: in the terminal.
+  // Not while it works, as its status says, whatever the listing last said.
+  const held =
+    !status.working &&
+    longHoldMs !== null &&
+    heldLong(
+      mail.terminals[
+        companionKeyId({
+          projectId: project.id,
+          workspaceSessionId: session.id,
+          terminalId: terminal.id,
+        })
+      ],
+      now,
+      longHoldMs,
+    )
+  if (held)
+    add(`waits:${terminal.id}:${held.since}`, held.since, true, {
+      kind: "trouble",
+      trouble: { type: "waits", waits: held.waits, count: held.count },
+    })
 
   const turn = status.lastTurn
   if (turn && !status.working) {

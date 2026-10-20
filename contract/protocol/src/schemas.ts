@@ -919,18 +919,37 @@ export const messageThread = z.strictObject({
   messages: z.array(agentMessage).max(1000),
 })
 
-// Why the doorbell can't ring an idle agent whose messages wait, as its screen shows: text
-// in its input box (`draft`), a dialog, picker or other screen that isn't its prompt
-// (`dialog`), a question it waits on the person for (`asking`), rings that failed (`failed`), or a terminal not at the agent's prompt (`away`).
-export const deliveryWaits = z.enum(["draft", "dialog", "asking", "failed", "away"])
+// Why the doorbell can't ring an idle agent whose messages wait, as it saw: its activity
+// saying a turn runs (`working`), a prompt the harness shows queued (`queued`), its box in
+// shell mode (`shell`), text in its input box (`draft`), a dialog, picker or other screen
+// that isn't its prompt (`dialog`), a question it waits on the person for (`asking`), rings
+// that failed (`failed`), or a terminal not at the agent's prompt (`away`).
+export const deliveryWaits = z.enum([
+  "working",
+  "queued",
+  "shell",
+  "draft",
+  "dialog",
+  "asking",
+  "failed",
+  "away",
+])
+
+// How long a message may wait for an idle agent, the agent idle all along, before the hold is
+// raised: an Inbox item for the person, and a word to its sender, in milliseconds.
+export const longHoldMs = 3 * 60_000
 
 // `messages.list`: a terminal's handle, how its agent can take messages now, why the doorbell
-// can't ring it if it is idle (`waits`), whether messaging is paused, and every thread it is in, latest first.
+// can't ring it if it is idle (`waits`), since when the longest-held message for its idle
+// agent has waited (`waitsSince`, epoch milliseconds: the later of when the agent last went
+// idle and when the message last came to wait; null with none), whether messaging is
+// paused, and every thread it is in, latest first.
 export const terminalMessages = z.strictObject({
   terminalId: id,
   handle,
   delivery: deliveryState,
   waits: deliveryWaits.nullable(),
+  waitsSince: z.number().int().nonnegative().nullable(),
   paused: z.boolean(),
   threads: z.array(messageThread).max(1000),
 })

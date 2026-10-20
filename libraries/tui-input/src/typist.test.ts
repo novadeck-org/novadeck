@@ -221,7 +221,6 @@ describe("a delivery", () => {
         entered: false,
         started: true,
         reason: "not-landed",
-        ours: false,
         counted: true,
       })
       expect(fake.written).toHaveLength(1)
@@ -242,7 +241,7 @@ describe("a delivery", () => {
   it("abandons a delivery whose hold lapsed before its Enter, leaving the line as its own", async () => {
     const fake = terminal({ holdMs: 40, screenMs: 30 })
     const delivered = await typing(fake).deliver()
-    expect(delivered).toMatchObject({ entered: false, reason: "not-pressed", ours: true })
+    expect(delivered).toMatchObject({ entered: false, reason: "not-pressed" })
     expect(fake.written).toHaveLength(1)
     expect(enters(fake.written)).toBe(0)
     expect(fake.state()).toMatchObject({ held: false, sizes: false })
@@ -251,7 +250,7 @@ describe("a delivery", () => {
   it("presses nothing once the caller says it is no longer its delivery", async () => {
     const fake = terminal()
     const delivered = await typing(fake).deliver({ still: () => false })
-    expect(delivered).toMatchObject({ entered: false, started: true, ours: false })
+    expect(delivered).toMatchObject({ entered: false, started: true })
     expect(enters(fake.written)).toBe(0)
   })
 
@@ -262,7 +261,6 @@ describe("a delivery", () => {
       entered: false,
       started: true,
       reason: "no-input-box",
-      ours: false,
       counted: false,
     })
     expect(fake.written).toEqual([])
@@ -291,7 +289,7 @@ describe("a delivery", () => {
         return true
       },
     })
-    expect(delivered).toMatchObject({ entered: false, reason: "gone", ours: false, counted: true })
+    expect(delivered).toMatchObject({ entered: false, reason: "gone", counted: true })
     expect(fake.written).toEqual([])
   })
 
@@ -352,6 +350,24 @@ describe("a delivery", () => {
       expect(enters(fake.written)).toBe(1)
     })
 
+    it("still presses Enter where the profile reads the screen without some rows above it", async () => {
+      // The profile sets the first row aside, so every row below moves up one: the ticking
+      // row, seen by its index on the screen, is still the one let be as the line lands
+      // after a tick, not the one that takes its index.
+      const fake = terminal({ tickMs: 60, landMs: 100 })
+      const profile = { ...fake.inputBox()!, still: (rows: readonly string[]) => rows.slice(1) }
+      const typist = createTypist(fake.target, {
+        profile: () => profile,
+        timing: { ...fast, ...ticking },
+      })
+      const delivered = await run(
+        typist.deliver(fake.entry, line, { calmSince: 0, start: () => true, still: () => true }),
+      )
+      fake.stop()
+      expect(delivered).toMatchObject({ entered: true })
+      expect(enters(fake.written)).toBe(1)
+    })
+
     it("still fails a paste that changed another row far from the box", async () => {
       const fake = terminal({ tickMs: 60, takes: "elsewhere" })
       const delivered = await typing(fake, ticking).deliver()
@@ -396,14 +412,13 @@ describe("a submission", () => {
     expect(fake.state()).toEqual({ holds: 1, held: false, sizes: true })
   })
 
-  it("presses nothing once the nonce is no longer the caller's, and says the line is ours", async () => {
+  it("presses nothing once the nonce is no longer the caller's", async () => {
     const fake = terminal()
     const typist = createTypist(fake.target, { profile: fake.inputBox, timing: fast })
     const delivered = await run(typist.submit(fake.entry, "k3f9Xz", () => false))
     expect(delivered).toMatchObject({
       entered: false,
       reason: "not-pressed",
-      ours: true,
       counted: true,
     })
     expect(fake.written).toEqual([])
@@ -426,6 +441,21 @@ describe("a look and the gate on it", () => {
     expect(second!.calmFor).toBe(40)
     expect(second!.calmSince).toBe(first!.at)
     fake.rows[1] = "a clock ticked"
+    expect((await typist.look())?.calm).toBe(false)
+  })
+
+  it("reads the calm without what the profile says ticks by itself while idle", async () => {
+    const fake = terminal()
+    // An elapsed time counting up on its first row, which the profile reads without.
+    const profile = { ...fake.inputBox()!, still: (rows: readonly string[]) => rows.slice(1) }
+    const typist = createTypist(fake.target, { profile: () => profile, timing: fast })
+    fake.rows[0] = "agent 1s"
+    await typist.look()
+    await sleep(40)
+    fake.rows[0] = "agent 2s"
+    expect((await typist.look())?.calm).toBe(true)
+    // Any other row's change still ends the calm.
+    fake.rows[1] = "output"
     expect((await typist.look())?.calm).toBe(false)
   })
 

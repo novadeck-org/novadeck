@@ -16,6 +16,7 @@ import type { DeliveryEvent } from "../messaging/delivery.js"
 import { tracer } from "../messaging/doorbell.js"
 import { Messaging } from "../messaging/messaging.js"
 import { Bindings } from "../terminals/binding/facts.js"
+import { Reports } from "../terminals/binding/reports.js"
 import { Shown } from "../terminals/binding/shown.js"
 import { Launcher } from "../terminals/launching.js"
 import { Terminals } from "../terminals/manager.js"
@@ -83,7 +84,7 @@ type Bound = {
 const whose = ({ sessionId, instance }: Bound): string =>
   `${sessionId?.slice(0, 8) ?? "?"}/${instance ?? "-"}`
 type Runner = {
-  readonly records: ReadonlyMap<string, Titled>
+  readonly host: { records: () => ReadonlyMap<string, Titled> }
   readonly disconnections: ReadonlyMap<string, number>
   queue: <T>(terminalId: string, work: () => Promise<T>, fallback: T) => Promise<T>
   report: (report: Report, deadline?: number) => Promise<unknown>
@@ -172,7 +173,7 @@ export const startTrace = (name: string, model: FakeModel) => {
   const titles = new AsyncLocalStorage<TitleProbe>()
   const reports = new AsyncLocalStorage<ReportProbe>()
   const reportState = (runner: Runner, probe: ReportProbe) => {
-    const record = runner.records.get(probe.report.terminalId)
+    const record = runner.host.records().get(probe.report.terminalId)
     return brief(
       {
         bound: record?.binding,
@@ -372,7 +373,8 @@ export const startTrace = (name: string, model: FakeModel) => {
   }
 
   // When a report came, began after the terminal's earlier ones, and was done.
-  const runner = methods(Terminals.prototype as unknown as Runner, "Terminals", ["queue", "report"])
+  // The terminals' reports and asks, taken in turn.
+  const runner = methods(Reports.prototype as unknown as Runner, "Reports", ["queue", "report"])
   const { queue, report: handle } = runner
   // Agents' own prompts as their harnesses show them, and the hooks' trust there.
   const prompter = methods(Shown.prototype as unknown as Prompter, "Shown", [
@@ -511,7 +513,7 @@ export const startTrace = (name: string, model: FakeModel) => {
     ) as Promise<T>
   }
   runner.report = function (report, deadline) {
-    const record = this.records.get(report.terminalId)
+    const record = this.host.records().get(report.terminalId)
     const probe = {
       report,
       record,

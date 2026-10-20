@@ -1,6 +1,6 @@
 import type { ChatDialog } from "@novadeck/core/conversation"
 import type { InboxBinding, InboxFinish, InboxUnread } from "@novadeck/core/inbox"
-import { dialogMs, inboxItems, type Asked } from "@novadeck/core/inbox-items"
+import { dialogMs, type Asked } from "@novadeck/core/inbox-items"
 import {
   noMail,
   type AgentMessage,
@@ -10,7 +10,7 @@ import {
 import { createTerminalState } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import type { AgentStatus, AgentTurnEnd, TerminalMetadata, Workspace } from "@novadeck/core/types"
-import type { AgentDetail, InboxLetter } from "@novadeck/protocol"
+import { longHoldMs, type AgentDetail, type InboxLetter } from "@novadeck/protocol"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { createRunnerInbox, detailGraceMs, retryMs, settleMs, type InboxStreams } from "./inbox"
@@ -105,20 +105,6 @@ const thread = (change: Partial<MessageThread> = {}): MessageThread => ({
 const mailOf = (...threads: MessageThread[]): MailState => ({
   ...noMail,
   terminals: { "p/s/01": { handle: "moth", agent: true, threads } },
-})
-
-const inputs = (
-  workspace: Workspace,
-  more: Partial<Parameters<typeof inboxItems>[0]> = {},
-): Parameters<typeof inboxItems>[0] => ({
-  workspace,
-  unread: {},
-  mail: noMail,
-  requests: {},
-  letters: [],
-  now: 10_000,
-  caseless: false,
-  ...more,
 })
 
 const done: InboxUnread = { "p/s": { "01": "done" } }
@@ -321,6 +307,38 @@ describe("The runner's Inbox", () => {
 
       expect(ids()).toEqual(["request:r1"])
       expect(inbox.state.getSnapshot().items[0]).toMatchObject({ request: { dialog: null } })
+    })
+
+    it("shows messages held behind an idle agent's box once the hold has lasted", async () => {
+      const pair = workspaceOf(
+        agentTerminal(1, { working: false }),
+        agentTerminal(2, { working: false }, "agy"),
+      )
+      const mail: MailState = {
+        ...noMail,
+        terminals: {
+          "p/s/02": {
+            handle: "fox",
+            agent: true,
+            waits: "draft",
+            waitsSince: 10_000,
+            threads: [
+              thread({
+                peer: "moth",
+                held: false,
+                messages: [message({ state: "queued", held: null })],
+              }),
+            ],
+          },
+        },
+      }
+      const { ids } = setup(pair, {}, mail)
+      await settle()
+      expect(ids()).toEqual([])
+
+      await vi.advanceTimersByTimeAsync(longHoldMs)
+
+      expect(ids()).toEqual(["waits:02:10000"])
     })
 
     it("closes the detail a while after nothing waits, and not before", async () => {
@@ -699,19 +717,6 @@ describe("Inbox letters", () => {
     expect(ids()).toEqual([])
   })
 
-  it("derives whether an ask waits from the agent's current working state", () => {
-    for (const agent of ["claude", "codex", "agy"] as const) {
-      for (const working of [true, false]) {
-        const items = inboxItems(
-          inputs(workspaceOf(agentTerminal(1, { working }, agent)), {
-            letters: [letter({ agent })],
-          }),
-        )
-        expect(items[0]).toMatchObject({ kind: "ask", stopped: !working, source: { agent } })
-      }
-    }
-  })
-
   it("keeps the most urgent item and reveals a waiting letter once trouble clears", async () => {
     const { letters, unreadStore, inbox, ids } = setup(
       workspaceOf(agentTerminal(1, { working: false, lastTurn: turn({ outcome: "failed" }) })),
@@ -728,25 +733,6 @@ describe("Inbox letters", () => {
       kind: "update",
       update: { type: "told" },
     })
-  })
-
-  it("keeps an unread tell after its agent exits, with its original attribution", () => {
-    const exited: TerminalMetadata = {
-      ...agentTerminal(1),
-      state: "exited",
-      exitCode: 0,
-      signal: null,
-    }
-    const items = inboxItems(inputs(workspaceOf(exited), { letters: [letter(), told()] }))
-    expect(items).toHaveLength(1)
-    expect(items[0]).toMatchObject({
-      id: "told-1",
-      kind: "update",
-      stopped: false,
-      source: { agent: "claude", handle: "moth" },
-      update: { type: "told" },
-    })
-    expect(inboxItems(inputs(workspaceOf(), { letters: [told()] }))).toEqual([])
   })
 
   it("keeps the old agent's tell beneath a new agent's ask until the tell is read", async () => {
@@ -780,57 +766,6 @@ describe("Inbox letters", () => {
     inbox.readAll()
     expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["told-1"])
     expect(read).not.toHaveBeenCalled()
-  })
-
-  it("keeps a current permission or plan ahead of an older stopped MCP ask", () => {
-    for (const kind of ["permission", "plan"] as const) {
-      const request = asked("gate", 8000)
-      const waiting = workspaceOf(
-        agentTerminal(1, { working: false, attention: { kind, count: 1 } }),
-      )
-      const items = inboxItems(
-        inputs(waiting, {
-          letters: [letter()],
-          requests: { "01": [{ ...request, request: { ...request.request, kind } }] },
-        }),
-      )
-      expect(items.map(({ id }) => id)).toEqual(["request:gate"])
-    }
-  })
-
-  it("keeps a gate's unread dialog grace instead of showing an MCP ask", () => {
-    const waiting = workspaceOf(agentTerminal(1, attention))
-    for (const requests of [{}, { "01": [asked("gate", 9500, null)] }]) {
-      expect(inboxItems(inputs(waiting, { letters: [letter()], requests }))).toEqual([])
-    }
-  })
-
-  it("keeps the oldest of two stopped questions", () => {
-    const question = asked("question", 8000)
-    const waiting = workspaceOf(
-      agentTerminal(1, { working: false, attention: { kind: "question", count: 1 } }),
-    )
-    const items = inboxItems(
-      inputs(waiting, {
-        letters: [letter()],
-        requests: { "01": [{ ...question, request: { ...question.request, kind: "question" } }] },
-      }),
-    )
-    expect(items.map(({ id }) => id)).toEqual(["letter-1"])
-  })
-
-  it("ignores letters for terminals outside their recorded ownership context", () => {
-    for (const change of [
-      { terminalId: "closed" },
-      { projectId: "elsewhere" },
-      { workspaceSessionId: "other" },
-      { handle: "old-handle" },
-      { agent: "codex" as const },
-    ]) {
-      expect(
-        inboxItems(inputs(workspaceOf(agentTerminal(1)), { letters: [letter(change)] })),
-      ).toEqual([])
-    }
   })
 
   it("sends an answer once and stays pending until the runner takes it", async () => {

@@ -1,6 +1,11 @@
+import { mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
 import type { ActivityEvent, HarnessEvent } from "@novadeck/harness-core/events"
 import { doorbellLine } from "@novadeck/harness-core/harness"
-import type { AgentName } from "@novadeck/protocol"
+import { consoleLogger, createLogger, logPath, type Entry } from "@novadeck/log"
+import { longHoldMs, type AgentName } from "@novadeck/protocol"
 import { keysOf } from "@novadeck/tui-input"
 import { afterEach, beforeEach, vi } from "vitest"
 
@@ -14,12 +19,14 @@ import type { Binding } from "../harnesses/bindings.js"
 import { harnesses } from "../harnesses/registry.js"
 import { followRoot, type Root } from "../harnesses/roots.js"
 import { typedPromptStart } from "../harnesses/typed-prompts.js"
+import { useLogger } from "../log.js"
 import { handleWords } from "../terminals/handles.js"
 import { bareHandle } from "../terminals/handles.js"
 import { describe, expect, it } from "../test.js"
 import { running, submitWindowMs } from "./delivery.js"
 import { clock, retentionMs, threadMs } from "./mailbox.js"
 import {
+  holdNotice,
   Messaging,
   type MessagingChange,
   type MessagingOptions,
@@ -284,8 +291,9 @@ describe("sending", () => {
     messaging.acknowledge("A", stop("A", claude).leaseId!)
     prompt("A", claude, "harness")
     stop("A", claude, true)
+    // Its box takes a prompt while that runs: the doorbell looks at it.
     expect(sent(send("B", "moth", "four"))).toMatchObject({
-      route: "when its next turn starts",
+      route: "ringing it once its box reads empty",
     })
   })
 
@@ -906,7 +914,8 @@ describe("delivery through hooks", () => {
     sent(send("A", "fox", "b".repeat(4_000)))
     const first = prompt("B", codex)
     messaging.acknowledge("B", first.leaseId!)
-    expect(first.stdout).not.toContain("bbb")
+    // Longer than any id the output holds, whose ten random characters may run "bbb".
+    expect(first.stdout).not.toContain("b".repeat(64))
     expect(prompt("B", codex).stdout).toContain("b".repeat(4_000))
   })
 
@@ -928,12 +937,17 @@ describe("delivery through hooks", () => {
     expect(messaging.delivery("B")?.state).toBe("fresh")
   })
 
-  it("keeps a Claude Code turn working while its background tasks run", () => {
-    const { messaging, prompt, stop, claude } = create()
+  it("keeps a Claude Code turn working while its background tasks run, its screen looked at", () => {
+    const { messaging, prompt, stop, send, claude } = create()
     prompt("A", claude)
     stop("A", claude, true)
     expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "background" })
+    // Its box takes a prompt meanwhile: a message is rung once the box reads empty (#325).
+    expect(sent(send("B", "moth", "Any news?")).route).toBe("ringing it once its box reads empty")
+    expect(messaging.stalled("A")).toBe(true)
+    expect(messaging.ringable("A")).toBe(false)
     prompt("A", claude, "harness")
+    expect(messaging.stalled("A")).toBe(false)
     stop("A", claude)
     expect(messaging.delivery("A")?.state).toBe("settled")
   })
@@ -948,6 +962,113 @@ describe("delivery through hooks", () => {
     prompt("A", claude)
     sent(send("B", "moth", "Review it"))
     expect(stop("A", claude).leaseId).toEqual(expect.any(String))
+  })
+
+  describe("rung while only its background work runs", () => {
+    // Stopped with a background agent running, a message waiting, and the doorbell's look
+    // at its calm screen reading the box empty: Ready, its settle window passed.
+    const emptiedInBackground = () => {
+      const setup = create()
+      const { messaging, prompt, stop, send, claude, clock: time } = setup
+      prompt("A", claude)
+      stop("A", claude, true)
+      sent(send("B", "moth", "Any news?"))
+      time.now += 1_000
+      messaging.emptied("A", messaging.delivery("A")!.epoch, time.now - 500)
+      expect(messaging.delivery("A")?.state).toBe("ready")
+      time.now += 6_000
+      expect(messaging.ringable("A")).toBe(true)
+      return setup
+    }
+    const delivered = (messaging: Messaging) =>
+      messages(messaging, "A").filter((message) => message.state === "delivered")
+
+    it("is confirmed by its doorbell prompt, whose hook delivers, and waits on its work again", () => {
+      const { messaging, ask, stop, claude } = emptiedInBackground()
+      expect(messaging.ring("A", "n1")).toBe(true)
+      const answer = ask("A", claude, "UserPromptSubmit", [doorbellStarted(claude, "n1")])
+      expect(answer.stdout).toContain(">Any news?</message>")
+      messaging.acknowledge("A", answer.leaseId!)
+      expect(messaging.ringing("A")).toBeUndefined()
+      expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "turn" })
+      // The agent still waits on its background agent once that turn ends.
+      stop("A", claude, true)
+      expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "background" })
+      expect(delivered(messaging)).toHaveLength(1)
+    })
+
+    it("delivers once when its background agent's own turn starts mid-ring, never taking that turn for the ring's", () => {
+      const { messaging, ask, prompt, stop, claude } = emptiedInBackground()
+      expect(messaging.ring("A", "n1")).toBe(true)
+      // The agent finishes and Claude Code starts a turn with its task notification, before
+      // the doorbell's line is submitted: that turn's hook delivers, and the ring is over.
+      const woken = prompt("A", claude, "harness")
+      expect(woken.stdout).toContain(">Any news?</message>")
+      messaging.acknowledge("A", woken.leaseId!)
+      expect(messaging.ringing("A")).toBeUndefined()
+      expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "turn" })
+      stop("A", claude)
+      // The line Claude Code queued behind that turn is submitted after it: nothing waits.
+      const late = ask("A", claude, "UserPromptSubmit", [doorbellStarted(claude, "n1")])
+      expect(late.leaseId).toBeNull()
+      expect(late.stdout).toContain("no agent messages are waiting")
+      expect(delivered(messaging)).toHaveLength(1)
+    })
+
+    it("delivers once when its background agent's own turn follows the ring's", () => {
+      const { messaging, ask, prompt, stop, claude } = emptiedInBackground()
+      messaging.ring("A", "n1")
+      const answer = ask("A", claude, "UserPromptSubmit", [doorbellStarted(claude, "n1")])
+      messaging.acknowledge("A", answer.leaseId!)
+      // The agent finished during the ring's turn: its notification is a turn after it.
+      expect(stop("A", claude).leaseId).toBeNull()
+      const woken = prompt("A", claude, "harness")
+      expect(woken.leaseId).toBeNull()
+      expect(woken.stdout).not.toContain("Any news?")
+      stop("A", claude)
+      expect(messaging.delivery("A")?.state).toBe("settled")
+      expect(delivered(messaging)).toHaveLength(1)
+    })
+
+    it("keeps why it can't ring it through a key, as for an idle one", () => {
+      const { messaging, prompt, stop, send, claude } = create()
+      prompt("A", claude)
+      stop("A", claude, true)
+      sent(send("B", "moth", "Any news?"))
+      messaging.blocked("A", "draft")
+      messaging.keys("A", ["content"], false)
+      expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "background" })
+      expect(messaging.list("A", "fox").waits).toBe("draft")
+    })
+
+    it("forgets why it couldn't ring it once that work is over", () => {
+      const { messaging, observe, prompt, stop, send, claude } = create()
+      prompt("A", claude)
+      stop("A", claude, true)
+      sent(send("B", "moth", "Any news?"))
+      messaging.blocked("A", "draft")
+      // Its status line says the work is done, with no turn: Settled.
+      observe("A", claude, [
+        {
+          type: "turn-idle",
+          agent: claude.agent,
+          sessionId: claude.sessionId,
+          instance: claude.instance,
+          startedAt: asHeard,
+          background: { agents: 0, tasks: 0 },
+        },
+      ])
+      expect(messaging.delivery("A")?.state).toBe("settled")
+      expect(messaging.list("A", "fox").waits).toBeNull()
+    })
+
+    it("is not rung once its background agent's own turn starts before the ring", () => {
+      const { messaging, prompt, claude } = emptiedInBackground()
+      const woken = prompt("A", claude, "harness")
+      expect(woken.stdout).toContain(">Any news?</message>")
+      expect(messaging.ringable("A")).toBe(false)
+      expect(messaging.ring("A", "n1")).toBe(false)
+    })
   })
 
   it("leaves a turn that began since alone when an older Stop's lease lapses", () => {
@@ -1896,13 +2017,15 @@ describe("listing", () => {
   })
 
   it("gives the runner API a terminal's threads, messages and states", () => {
-    const { messaging, send } = create()
+    const { messaging, send, clock: time } = create()
     sent(send("A", "fox", "hello"))
     expect(messaging.list("B", "fox")).toEqual({
       terminalId: "B",
       handle: "fox",
       delivery: "fresh",
       waits: null,
+      // Its agent idle, the message has waited since it was sent.
+      waitsSince: time.now,
       paused: false,
       threads: [
         {
@@ -2524,42 +2647,13 @@ describe("a new agent session at its own prompt", () => {
     expect(messaging.list("N", "owl").waits).toBeNull()
   })
 
-  it("lets the doorbell submit the line a failed ring left, until the person types", () => {
+  it("submits no leftover with nothing waiting, or while a turn runs", () => {
     const { messaging, send, observe, ask, launched } = openedClaude()
     observe("N", launched, sessionStarted(launched, "startup"))
-    sent(send("A", "owl", "hello"))
-    expect(messaging.ours("N")).toBe(false)
-    expect(messaging.ring("N", "n1")).toBe(true)
-    messaging.ringFailed("N", "n1", true)
-    expect(messaging.delivery("N")?.state).toBe("unknown")
-    expect(messaging.ours("N")).toBe(true)
-    expect(messaging.stalled("N")).toBe(true)
-    // Rung again under the line's own nonce, which its prompt confirms and delivers.
-    expect(messaging.ringLeftover("N", "n1")).toBe(true)
-    expect(messaging.ringing("N")).toBe("n1")
-    expect(
-      ask("N", launched, "UserPromptSubmit", [doorbellStarted(launched, "n1")]).stdout,
-    ).toContain(">hello</message>")
-  })
-
-  it("takes the line a failed ring left as the person's draft once they press a key", () => {
-    const { messaging, send, observe, launched } = openedClaude()
-    observe("N", launched, sessionStarted(launched, "startup"))
-    sent(send("A", "owl", "hello"))
     messaging.ring("N", "n1")
-    messaging.ringFailed("N", "n1", true)
-    messaging.keys("N", ["content"], false)
-    expect(messaging.ours("N")).toBe(false)
     expect(messaging.ringLeftover("N", "n1")).toBe(false)
-  })
-
-  it("leaves the line of a ring whose paste check rejected it nobody's to submit", () => {
-    const { messaging, send, observe, launched } = openedClaude()
-    observe("N", launched, sessionStarted(launched, "startup"))
     sent(send("A", "owl", "hello"))
-    messaging.ring("N", "n1")
-    messaging.ringFailed("N", "n1")
-    expect(messaging.ours("N")).toBe(false)
+    ask("N", launched, "UserPromptSubmit", [started(launched)])
     expect(messaging.ringLeftover("N", "n1")).toBe(false)
   })
 
@@ -2923,6 +3017,56 @@ describe("keys while a request waits on the person", () => {
     messaging.askedCleared("B")
     stop("B", codex)
     expect(messaging.delivery("B")?.state).toBe("settled")
+  })
+
+  it("leave no draft where an answer pressed them, so its turn's Stop settles", () => {
+    const { messaging, prompt, stop, codex } = create()
+    messaging.keys("B", ["enter"], false)
+    prompt("B", codex)
+    messaging.pressing("B", () => messaging.keys("B", ["content"], true))
+    messaging.askedCleared("B")
+    stop("B", codex)
+    expect(messaging.delivery("B")?.state).toBe("settled")
+  })
+
+  it("count only what the answer itself reports as its own: the person's key between its presses leaves a draft", () => {
+    const { messaging, prompt, stop, codex } = create()
+    messaging.keys("B", ["enter"], false)
+    prompt("B", codex)
+    messaging.pressing("B", () => messaging.keys("B", ["neutral"], true))
+    messaging.keys("B", ["content"], true)
+    messaging.pressing("B", () => messaging.keys("B", ["enter"], true))
+    messaging.askedCleared("B")
+    stop("B", codex)
+    expect(messaging.delivery("B")?.state).toBe("drafting")
+  })
+
+  it("end the turn on an answer's Escape as the person's would, telling the activity once", () => {
+    const { messaging, prompt, stop, codex, clock: time } = create()
+    messaging.keys("B", ["enter"], false)
+    prompt("B", codex)
+    time.now += 1_000
+    // Codex's no is its Escape.
+    messaging.pressing("B", () => messaging.keys("B", ["escape"], true))
+    expect(messaging.delivery("B")).toMatchObject({ state: "unknown", escapedAt: time.now })
+    expect(messaging.escaped("B", codex)).toMatchObject({
+      type: "turn-escaped",
+      startedAt: time.now,
+    })
+    expect(messaging.escaped("B", codex)).toBeUndefined()
+    // The box is as it was: a Stop after it settles.
+    messaging.askedCleared("B")
+    stop("B", codex)
+    expect(messaging.delivery("B")?.state).toBe("settled")
+  })
+
+  it("take keys pressed with no request waiting as the person's, as they may land in the box", () => {
+    const { messaging, prompt, stop, codex } = create()
+    messaging.keys("B", ["enter"], false)
+    prompt("B", codex)
+    messaging.pressing("B", () => messaging.keys("B", ["content"], false))
+    stop("B", codex)
+    expect(messaging.delivery("B")?.state).toBe("drafting")
   })
 
   it("take the person's confirmed submission as emptying the box again", () => {
@@ -3501,5 +3645,339 @@ describe("the listing's lead lines", () => {
     messaging.unregister("A")
     expect(listed("W")).not.toContain("led by")
     expect(listed("W")).not.toContain("your lead")
+  })
+})
+
+describe("a long hold of the doorbell", () => {
+  // Either way round: Codex held for Claude Code's messages, and Claude Code for Codex's.
+  describe.each([
+    { from: "A", to: "B", handle: "fox" },
+    { from: "B", to: "A", handle: "moth" },
+  ] as const)("from $from to @$handle", ({ from, to, handle }) => {
+    const held = () => {
+      const made = create()
+      const { messaging, prompt, stop, claude, codex } = made
+      const bound = { A: claude, B: codex }
+      // The recipient's turn ends with the person's draft in its box: the doorbell waits.
+      prompt(to, bound[to])
+      messaging.keys(to, ["content"], false)
+      stop(to, bound[to])
+      expect(messaging.delivery(to)?.state).toBe("drafting")
+      return { ...made, bound }
+    }
+
+    it("is listed from the longest-held message while the agent stays idle, whatever holds it", () => {
+      const { messaging, clock: time, send, prompt, bound } = held()
+      messaging.blocked(to, "draft")
+      // Nothing held yet: the hold names no time.
+      expect(messaging.list(to, handle)).toMatchObject({ waits: "draft", waitsSince: null })
+      time.now += 60_000
+      sent(send(from, handle, "first"))
+      const since = time.now
+      time.now += 1_000
+      sent(send(from, handle, "second"))
+      // A change of why, or the doorbell's look clearing it, is no break.
+      messaging.blocked(to, "dialog")
+      expect(messaging.list(to, handle)).toMatchObject({ waits: "dialog", waitsSince: since })
+      messaging.blocked(to, null)
+      expect(messaging.list(to, handle)).toMatchObject({ waits: null, waitsSince: since })
+      // A turn is: its messages go with it.
+      messaging.keys(to, ["enter"], false)
+      prompt(to, bound[to])
+      expect(messaging.list(to, handle)).toMatchObject({ waits: null, waitsSince: null })
+    })
+
+    it("tells its sender of each message once it has been held long, in its next hook or answer", () => {
+      const { messaging, clock: time, send, prompt, stop, bound } = held()
+      const first = sent(send(from, handle, "first")).id
+      const second = sent(send(from, handle, "second")).id
+      const since = time.now
+      messaging.blocked(to, "draft")
+      time.now += longHoldMs - 1
+      expect(sent(send(from, handle, "third")).holds).toBeUndefined()
+      const third = messages(messaging, to).at(-1)!.id
+      const notice = holdNotice([first, second], handle, "draft", since)
+      expect(notice).toBe(
+        `Novadeck: your messages ${first}, ${second} to @${handle} have not arrived since ` +
+          `${clock(since)} (waits: there's text in its box, rung once it is empty); the user ` +
+          "is shown this in Novadeck's Inbox.",
+      )
+      time.now += 1
+      // Its next prompt carries the two held long, once; the third was sent into the hold.
+      expect(context(prompt(from, bound[from]).stdout)).toBe(notice)
+      expect((messaging.agents(from) as { text: string }).text).not.toContain("not arrived")
+      // A Stop never carries it: its output would continue the turn.
+      time.now += longHoldMs
+      expect(stop(from, bound[from]).stdout).not.toContain("not arrived")
+      // The third, held long itself, is told in the next answer.
+      const answer = sent(send(from, handle, "fourth"))
+      expect(answer.holds).toEqual([holdNotice([third], handle, "draft", since + longHoldMs - 1)])
+    })
+
+    it("is timed while only background work runs, as the doorbell looks at its box then", () => {
+      const { messaging, clock: time, send, prompt, stop, claude, codex } = create()
+      const bound = { A: claude, B: codex }
+      prompt(to, bound[to])
+      stop(to, bound[to], true)
+      expect(messaging.delivery(to)).toMatchObject({ state: "working", phase: "background" })
+      time.now += 60_000
+      const id = sent(send(from, handle, "first")).id
+      const since = time.now
+      messaging.blocked(to, "draft")
+      time.now += longHoldMs
+      expect(messaging.list(to, handle)).toMatchObject({ waits: "draft", waitsSince: since })
+      expect(sent(send(from, handle, "second")).holds).toEqual([
+        holdNotice([id], handle, "draft", since),
+      ])
+    })
+
+    it("tells a hold the doorbell gave no reason for, as when the screen never calms", () => {
+      const { messaging, clock: time, send } = held()
+      const id = sent(send(from, handle, "first")).id
+      const since = time.now
+      time.now += longHoldMs
+      expect(messaging.list(to, handle)).toMatchObject({ waits: null, waitsSince: since })
+      expect(sent(send(from, handle, "second")).holds).toEqual([
+        holdNotice([id], handle, null, since),
+      ])
+      expect(holdNotice([id], handle, null, since)).toContain(
+        "(its agent is idle, but Novadeck can't wake it yet)",
+      )
+    })
+
+    it("times a message from when it came to wait again, after a pause", () => {
+      const { messaging, clock: time, send } = held()
+      sent(send(from, handle, "first"))
+      messaging.pause(true)
+      time.now += 10 * longHoldMs
+      expect(messaging.list(to, handle).waitsSince).toBeNull()
+      messaging.pause(false)
+      const resumed = time.now
+      expect(messaging.list(to, handle).waitsSince).toBe(resumed)
+      time.now += longHoldMs - 1
+      expect((messaging.agents(from) as { text: string }).text).not.toContain("not arrived")
+      time.now += 1
+      expect((messaging.agents(from) as { text: string }).text).toContain(
+        `not arrived since ${clock(resumed)}`,
+      )
+    })
+
+    it("counts no hold while the agent works unseen, and starts it again at its Stop", () => {
+      // The person's Escape mid-turn only closed a popup: delivery takes the agent for
+      // Unknown, but its activity says the turn runs on.
+      const working = new Set<string>()
+      const made = create(memoryMailbox(), { now: 1_000_000 }, { busy: (id) => working.has(id) })
+      const { messaging, clock: time, send, prompt, observe, claude, codex } = made
+      const bound = { A: claude, B: codex }
+      prompt(to, bound[to])
+      messaging.keys(to, ["escape"], false)
+      expect(messaging.delivery(to)?.state).toBe("unknown")
+      working.add(to)
+      const id = sent(send(from, handle, "first")).id
+      time.now += 2 * longHoldMs
+      expect(messaging.list(to, handle).waitsSince).toBeNull()
+      expect(sent(send(from, handle, "second")).holds).toBeUndefined()
+      // The turn ends; its Stop, which leases nothing here, starts the hold afresh.
+      working.delete(to)
+      observe(to, bound[to], [stopped(bound[to])])
+      const since = time.now
+      expect(messaging.list(to, handle).waitsSince).toBe(since)
+      time.now += longHoldMs - 1
+      expect((messaging.agents(from) as { text: string }).text).not.toContain("not arrived")
+      time.now += 1
+      expect((messaging.agents(from) as { text: string }).text).toContain(id)
+    })
+
+    it("keeps counting through rings that fail, counted or not", () => {
+      const { messaging, clock: time, send } = held()
+      sent(send(from, handle, "first"))
+      const since = time.now
+      for (let ring = 0; ring < 5; ring += 1) {
+        time.now += 30_000
+        messaging.emptied(to, messaging.delivery(to)!.epoch)
+        expect(messaging.ring(to, `n${ring}`)).toBe(true)
+        messaging.ringFailed(to, `n${ring}`)
+      }
+      expect(messaging.list(to, handle).waitsSince).toBe(since)
+    })
+
+    it("names a few messages, and counts the rest", () => {
+      expect(holdNotice(["m1", "m2", "m3", "m4", "m5", "m6"], handle, "draft", 0)).toContain(
+        "your messages m1, m2, m3 and 3 more to",
+      )
+    })
+
+    it("tells nothing of messages already delivered, or of a terminal no longer held", () => {
+      const { messaging, clock: time, send, prompt, bound } = held()
+      sent(send(from, handle, "first"))
+      messaging.blocked(to, "draft")
+      time.now += longHoldMs
+      // The person cleared the box and submitted: the turn takes the message.
+      messaging.keys(to, ["enter"], false)
+      prompt(to, bound[to])
+      expect(sent(send(from, handle, "second")).holds).toBeUndefined()
+    })
+  })
+})
+
+describe.each(["claude", "codex", "agy"] as const)("a doorbell line left in %s's box", (agent) => {
+  // The terminal idle, Settled, with a message from another waiting for it.
+  const idle = () => {
+    const setup = create()
+    const terminal = agent === "claude" ? "A" : agent === "codex" ? "B" : "G"
+    const handle = agent === "claude" ? "moth" : agent === "codex" ? "fox" : "owl"
+    const bound =
+      agent === "claude"
+        ? setup.claude
+        : agent === "codex"
+          ? setup.codex
+          : binding("agy", "c-root", "7")
+    if (agent === "agy") {
+      setup.messaging.register("G", here, handle, null)
+      setup.observe("G", bound, agyStatus(bound, "idle"), true)
+    }
+    setup.prompt(terminal, bound)
+    setup.stop(terminal, bound)
+    expect(setup.messaging.delivery(terminal)?.state).toBe("settled")
+    sent(setup.send(terminal === "A" ? "B" : "A", handle, "hello"))
+    const event = agent === "agy" ? "PreInvocation" : "UserPromptSubmit"
+    const rung = (nonce: string) =>
+      setup.ask(terminal, bound, event, [doorbellStarted(bound, nonce)])
+    return { ...setup, terminal, handle, bound, rung }
+  }
+
+  it("is submitted after a ring whose paste check rejected it, and delivers", () => {
+    const { messaging, terminal, rung } = idle()
+    expect(messaging.ring(terminal, "n1")).toBe(true)
+    messaging.ringFailed(terminal, "n1")
+    expect(messaging.delivery(terminal)?.state).toBe("unknown")
+    expect(messaging.unconfirmed(terminal, "n1")).toBe(true)
+    expect(messaging.stalled(terminal)).toBe(true)
+    expect(messaging.ringLeftover(terminal, "n1")).toBe(true)
+    expect(rung("n1").stdout).toContain(">hello</message>")
+    expect(messaging.unconfirmed(terminal, "n1")).toBe(false)
+  })
+
+  it("is submitted after a ring abandoned for a turn the harness started, once it ends", () => {
+    const { messaging, observe, terminal, bound, rung } = idle()
+    expect(messaging.ring(terminal, "n1")).toBe(true)
+    // The harness starts a turn of its own mid-ring, and it ends with the line in the box.
+    observe(terminal, bound, [started(bound, "harness")])
+    expect(messaging.ringing(terminal)).toBeUndefined()
+    messaging.ringFailed(terminal, "n1")
+    // Its Stop, which the message isn't leased to.
+    observe(terminal, bound, [stopped(bound)])
+    expect(messaging.delivery(terminal)?.state).toBe("drafting")
+    expect(messaging.stalled(terminal)).toBe(true)
+    expect(messaging.ringLeftover(terminal, "n1")).toBe(true)
+    expect(rung("n1").stdout).toContain(">hello</message>")
+  })
+
+  it("is the person's once its ring was confirmed, as when their Escape puts it back", () => {
+    const { messaging, send, terminal, handle, rung } = idle()
+    expect(messaging.ring(terminal, "n1")).toBe(true)
+    rung("n1")
+    messaging.keys(terminal, ["escape"], false)
+    sent(send(terminal === "A" ? "B" : "A", handle, "more"))
+    expect(messaging.stalled(terminal)).toBe(true)
+    expect(messaging.unconfirmed(terminal, "n1")).toBe(false)
+    expect(messaging.ringLeftover(terminal, "n1")).toBe(false)
+    // Nor is one Novadeck never rang there.
+    expect(messaging.ringLeftover(terminal, "k3f9")).toBe(false)
+  })
+})
+
+describe("the rings a terminal remembers unconfirmed", () => {
+  it("are its latest eight", () => {
+    const { messaging, send, prompt, stop, codex } = create()
+    prompt("B", codex)
+    stop("B", codex)
+    sent(send("A", "fox", "hello"))
+    for (let ring = 0; ring < 9; ring += 1) {
+      expect(messaging.ring("B", `n${ring}`)).toBe(true)
+      messaging.ringFailed("B", `n${ring}`)
+      messaging.emptied("B", messaging.delivery("B")!.epoch)
+    }
+    expect(messaging.unconfirmed("B", "n0")).toBe(false)
+    for (let ring = 1; ring < 9; ring += 1)
+      expect(messaging.unconfirmed("B", `n${ring}`)).toBe(true)
+  })
+})
+
+/** The runner's log, written to a fresh folder for the test, and its lines' events and data. */
+const captureLog = () => {
+  const folder = mkdtempSync(join(tmpdir(), "novadeck-messaging-log-"))
+  const logger = createLogger({
+    proc: "runner",
+    sid: "test",
+    file: { folder, name: "runner" },
+    redact: (line) => line,
+    collapseMs: 0,
+  })
+  useLogger(logger)
+  return {
+    lines: (): Entry[] => {
+      try {
+        return readFileSync(logPath(folder, "runner"), "utf8")
+          .trim()
+          .split("\n")
+          .filter(Boolean)
+          .map((line) => JSON.parse(line) as Entry)
+      } catch {
+        return []
+      }
+    },
+    stop: () => {
+      useLogger(consoleLogger())
+      logger.close()
+      rmSync(folder, { recursive: true, force: true })
+    },
+  }
+}
+
+describe("the log of waiting messages", () => {
+  it("tells a terminal's messages waiting past five minutes, whatever keeps them, once an hour", () => {
+    const log = captureLog()
+    try {
+      const { messaging, send, clock: time } = create()
+      sent(send("A", "fox", "first"))
+      time.now += 4 * 60_000
+      messaging.tellWaits()
+      expect(log.lines()).toEqual([])
+      time.now += 2 * 60_000
+      messaging.tellWaits()
+      messaging.tellWaits()
+      time.now += 61 * 60_000
+      messaging.tellWaits()
+      const waits = log.lines().filter((line) => line.evt === "delivery.waiting")
+      expect(waits.map((line) => [line.data?.count, line.data?.waitedMs])).toEqual([
+        [1, 6 * 60_000],
+        [1, 67 * 60_000],
+      ])
+      expect(waits[0]?.data).toEqual(
+        expect.objectContaining({ terminal: expect.any(String), state: expect.any(String) }),
+      )
+      expect(messaging.waitedMs(waits[0]!.data!.terminal as string)).toBe(67 * 60_000)
+    } finally {
+      log.stop()
+    }
+  })
+
+  it("tells each message a stopped thread drops", () => {
+    const log = captureLog()
+    try {
+      const { messaging, send } = create()
+      sent(send("A", "fox", "first"))
+      const [thread] = messaging.list("A", "fox").threads
+      messaging.stop(thread!.id)
+      expect(
+        log
+          .lines()
+          .filter((line) => line.evt === "delivery.gone")
+          .map((line) => line.data?.reason),
+      ).toEqual(["thread-stopped"])
+    } finally {
+      log.stop()
+    }
   })
 })

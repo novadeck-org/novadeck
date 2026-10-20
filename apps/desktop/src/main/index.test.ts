@@ -106,7 +106,8 @@ describe("compiled desktop host", () => {
       const main = await read("main/index.js")
 
       expect(main).toContain("releaseLock: () => app.releaseSingleInstanceLock()")
-      expect(main).toContain("exit: () => app.exit(0)")
+      // Exits through the helper that logs the launch's end first.
+      expect(main).toContain("exit: () => exitApp(0)")
       expect(main).toContain('import { execFile, spawn } from "node:child_process"')
       // The lock goes first so the child can take it; the child is let go of before this one
       // exits. The bundler may rename `spawn`.
@@ -126,6 +127,17 @@ describe("compiled desktop host", () => {
       expect(handler.slice(0, handler.indexOf("\n});"))).toMatch(
         /bringForward\(window\);\s*else if \(server && !stopping\) createWindow\(server\.origin\);\s*if \(process\.platform === "darwin"\) app\.focus\(\{ steal: true \}\)/u,
       )
+    })
+
+    it("opens the launch's records before it waits on anything, and ends them on every exit", async () => {
+      const main = await read("main/index.js")
+      const opened = main.indexOf("openSession(")
+      expect(opened).toBeGreaterThan(-1)
+      // Before the app is ready, and before the launch, whose first await comes early.
+      expect(opened).toBeLessThan(main.indexOf("app.whenReady()"))
+      expect(opened).toBeLessThan(main.indexOf("const launch = async"))
+      // app.exit skips Node's exit event, so nothing calls it but the helper that logs the end.
+      expect(main.match(/app\.exit\(/g)).toHaveLength(2)
     })
 
     it("reads installed versions with the environment the installed copy gets", async () => {

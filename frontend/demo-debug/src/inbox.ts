@@ -1,11 +1,7 @@
 import type { InboxItem } from "@novadeck/core/inbox"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
-import {
-  demoHiddenCommand,
-  demoInboxIds,
-  demoInboxItemsAll,
-  type DemoInbox,
-} from "@novadeck/demo/inbox"
+import type { DemoInbox } from "@novadeck/demo/inbox"
+import { demoHiddenCommand, demoInboxIds, demoInboxItemsAll } from "@novadeck/demo/inbox-fixtures"
 
 import type { DemoActionGroup } from "./types"
 
@@ -102,6 +98,11 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
     label: "Held message, sender gone",
     name: "heldSenderGone",
     hint: "Approve row for a held message whose sender's terminal closed: it shows on the recipient, the sender by its handle",
+  },
+  {
+    label: "Messages held long",
+    name: "waits",
+    hint: "Trouble row saying two messages for the agent have waited long behind a dialog open in its idle terminal",
   },
   {
     label: "Finished turn",

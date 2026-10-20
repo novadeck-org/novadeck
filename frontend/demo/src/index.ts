@@ -23,7 +23,8 @@ import type { DemoAgentLink } from "./agent-link"
 import { createDemoChat } from "./chat"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { demoHandle } from "./handles"
-import { createDemoInbox, demoInboxItems, isDemoInbox } from "./inbox"
+import { createDemoInbox, isDemoInbox } from "./inbox"
+import { demoInboxItems } from "./inbox-fixtures"
 import { checkoutMailboxes, createDemoMessages, isDemoMessages } from "./messages"
 import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./murmur"
 import {
@@ -131,6 +132,9 @@ export const demoBackend = (
     murmur,
     // Older than every update the demo offers (see debug/states.ts).
     version: () => Promise.resolve("0.0.79"),
+    // The demo keeps no logs: Preferences offers the folder as the desktop app does, and
+    // opening it does nothing.
+    openLogs: () => {},
     // Dictation pastes into the command line, which never submits it.
     typeInto: terminals.typeInto,
     transcripts: {

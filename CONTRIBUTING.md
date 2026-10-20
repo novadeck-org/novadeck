@@ -23,7 +23,7 @@ relevant project checks; report results and anything you could not run. Update
 documentation when behavior changes.
 
 `pnpm format` and `pnpm lint` cover the relay's Rust in `backend/relay` too, as CI
-does.
+does, and `pnpm lint` checks atlas's anchors (`pnpm --filter @novadeck/atlas check`).
 
 The budgets of `backend/runner/src/terminals/manager.ts` only go down: `scripts/ratchet/manager.test.ts`
 holds its lines and the methods of its `Terminals` class to the budgets in

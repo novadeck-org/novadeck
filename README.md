@@ -85,7 +85,8 @@ return point. Flying to a different terminal starts a new visit from the current
 Repeated double gestures during a flight are ignored. Going to a terminal from outside the
 canvas, as Show terminal on an Inbox item or a click on a desktop notification does, flies to it
 the same way, from another session's camera too; it never flies back, so a terminal already
-visited stays, and the gesture on its header still returns. The header's arrow opens Focus view.
+visited stays, and going on to another keeps the way back to where the visit began, which the
+gesture on the header returns to. The header's arrow opens Focus view.
 
 Click **New terminal** or use its keyboard shortcut to create and select a terminal
 immediately in any view, with or without Zen, ready to type in; F2 renames it. Focus
@@ -813,7 +814,8 @@ App:
   detected question, an ask while its agent keeps working, a login request, the 5-hour limit, a usage limit Novadeck can't resume (no switch), a request whose dialog never read, a
   failed turn with no error, a held message whose sender is gone, a plan approval
   (its bypass-permissions yes a quiet link), a failed turn, a free-text ask, a permission
-  whose Deny is a plain no, a heads-up and a finished turn. "Fail the next answer" makes
+  whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
+  agent, a heads-up and a finished turn. "Fail the next answer" makes
   the next answer to any item fail, so its sheet shows why and keeps the item and draft for retry. Ask, Tell and Your reply
   also appear in the terminal's Messages pane under You; replies show queued and delivered states.
   "Stale next answer" makes the next answer report that the ask is no longer available,
@@ -827,7 +829,9 @@ App:
   as nothing. "A new item arrives" adds the next kind not there
   yet, and "Clear the added items" takes away the hardcoded items and those added here,
   leaving what the agents wait on. An added item takes its terminal's row from what its
-  agent waits on; answering one for an agent that waits takes the agent past it.
+  agent waits on; answering an added request for an agent that waits takes the agent past
+  it. The group shows in every variant over the sample projects, so not in the content
+  showcase.
 - **Murmur:** the demo starts with it installed and on, as the try demo shows it, and never
   offers it; `&murmur=uninstalled`, `unsupported`, `no-device`, `network-down` (the first install fails
   on the network, the second works) or `offered-out` (the offer already shown in three sessions)
@@ -1036,6 +1040,7 @@ atlas.
 | `frontend/core`           | The UI's model: types, reducer, stores, and the port to a backend.                        |
 | `frontend/toolkit`        | The controls every feature draws with: Ark UI wrappers, shared recipes, the sidebar item. |
 | `frontend/companion`      | The companion pane: taskbar, peek, pane, plan editor, messages, and the bar drag.         |
+| `frontend/chat`           | The chat view: transcript, requests and composer, with the chat's own store and commands. |
 | `frontend/runner-adapter` | The UI's backend for a runner, over a WebSocket or the desktop host.                      |
 | `frontend/terminal-views` | The xterm mount both backends draw terminals with.                                        |
 | `frontend/demo`           | The demo backend: a scripted workspace and simulated terminals.                           |
@@ -1089,7 +1094,7 @@ backend-only tests.
 ### Working on the UI
 
 The UI is split into packages: `frontend/core`, `frontend/ui`, `frontend/toolkit`,
-`frontend/companion`, `frontend/runner-adapter`, `frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit`,
+`frontend/companion`, `frontend/chat`, `frontend/runner-adapter`, `frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit`,
 `frontend/specs` and `frontend/chat-contract`, and the apps `apps/desktop`, `apps/try` and `apps/previews`. `frontend/ui`
 holds the page's layers, each a folder of its `src/`; the rest are packages of their own. In
 the table a path that starts with `frontend/` or `apps/` is a package, and any other is a
@@ -1119,7 +1124,7 @@ folder of `frontend/ui/src/`:
 | `terminals/`                                                    | Terminal frame, tabs, rename state, and the recent-terminal switcher.                                                          |
 | `frontend/companion/src/`                                       | Taskbar and pane: the panes' store, `bar.ts` rules, `registry.ts` and `panes/<kind>/` (one folder per kind).                   |
 | `frontend/companion/src/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
-| `terminals/chat/`                                               | The agent's chat: its blocks, tool rows, requests and the composer.                                                            |
+| `frontend/chat/src/`                                            | The agent's chat: its blocks, tool rows, requests and the composer, and the chat's own store (`state.ts`) and commands.        |
 | `layouts/canvas/`, `grid/`, `focus/`                            | View adapters and colocated library styles.                                                                                    |
 | `layouts/` (top level)                                          | Helpers shared by views: view transitions, background gestures, visibility.                                                    |
 | `inbox/`                                                        | The Inbox: what agents ask of the person, its sidebar rows and the sheet that answers.                                         |
@@ -1150,7 +1155,7 @@ of its own, `frontend/demo-debug`, the one with React and Lucide. `interaction/`
 the core and imports no packages;
 features add `frontend/toolkit`; `layouts/` may use
 `terminals/`; the companion pane is a package of its own, `frontend/companion`, built on the
-core, the toolkit and the viewers and never on the UI, which composes it; no feature
+core, the toolkit and the viewers and never on the UI, which composes it, as it does the chat, another package, `frontend/chat`, built on the core and the toolkit and never on the UI or the companion; no feature
 (`inbox/`, `preferences/`, `projects/`,
 `search/`, `sidebar/` or `voice/`) imports another, only the base and itself, and none reaches the
 chat or the companion; `shell/` may use `layouts/`, `projects/`,
@@ -1162,7 +1167,7 @@ has no direct React or package imports, though
 routing still loads React Router at runtime: it builds on the core,
 `interaction/keymap.ts`, the UI store, routing, selectors,
 the Canvas handle type in `layouts/canvas/types.ts`, and the pure state modules
-of `shell/` and `terminals/` (unread finishes among them), the companion panes' store and the chat's modes among them. Vendor
+of `shell/` and `terminals/` (unread finishes among them), the companion panes' store and the chat's store among them. Vendor
 libraries stay in their adapters: XYFlow in `layouts/canvas/`, React Grid Layout
 in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
 `frontend/toolkit`, React Router in `app/` and `shell/`, and React DOM in

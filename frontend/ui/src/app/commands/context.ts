@@ -1,3 +1,4 @@
+import type { Chat } from "@novadeck/chat/state"
 import type { Panes } from "@novadeck/companion/state"
 import type { Rect } from "@novadeck/core/layout/spatial"
 import type { Murmur } from "@novadeck/core/murmur"
@@ -6,7 +7,6 @@ import type { WorkspaceStore } from "@novadeck/core/store"
 import type { SidebarPanel } from "@novadeck/core/types"
 
 import type { CanvasHandle } from "../../layouts/canvas/types"
-import type { Chat } from "../../terminals/chat/state"
 import type { Dictation } from "../../voice/dictation-control"
 import type { WorkspaceNavigator } from "../routing"
 import type { UiStore } from "../ui-store"

@@ -50,6 +50,7 @@ export const roots: Root[] = [
   { token: "frontend/test-kit", dir: "frontend/test-kit", node: "renderer" },
   { token: "frontend/toolkit", dir: "frontend/toolkit", node: "renderer" },
   { token: "frontend/companion", dir: "frontend/companion", node: "renderer" },
+  { token: "frontend/chat", dir: "frontend/chat", node: "renderer" },
   { token: "frontend/runner-adapter", dir: "frontend/runner-adapter", node: "renderer" },
   { token: "frontend/terminal-views", dir: "frontend/terminal-views", node: "renderer" },
   { token: "frontend/demo", dir: "frontend/demo", node: "renderer" },
@@ -287,7 +288,7 @@ export const notes: Record<string, Note> = {
     entries: [{ file: `${ui}/test/commands.ts` }],
   },
   "frontend/ui/terminals": {
-    purpose: "Terminal frames and tabs, and the agent chat.",
+    purpose: "Terminal frames and tabs.",
     entries: [{ file: `${ui}/terminals/TerminalTabs.tsx` }],
   },
   "frontend/ui/layouts": {
@@ -343,6 +344,11 @@ export const notes: Record<string, Note> = {
       },
       { file: "frontend/companion/src/drag-session.ts" },
     ],
+  },
+  "frontend/chat": {
+    purpose:
+      "The chat view: a conversation's blocks as a transcript, the requests an agent waits on, the composer, and the chat's own store and commands.",
+    entries: [{ file: "frontend/chat/src/ChatView.tsx", text: "export const ChatView" }],
   },
   "frontend/demo-debug": {
     purpose: "The demo's debug panel and rehearsals, for the content preview and the specs.",

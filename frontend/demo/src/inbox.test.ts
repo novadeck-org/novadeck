@@ -12,14 +12,8 @@ import type { TerminalMetadata } from "@novadeck/core/types"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { answerMs as chatAnswerMs, answeredMs } from "./chat"
-import {
-  answerMs,
-  createDemoInbox,
-  demoInboxIds,
-  demoInboxItems,
-  demoInboxItemsAll,
-  isDemoInbox,
-} from "./inbox"
+import { answerMs, createDemoInbox, isDemoInbox } from "./inbox"
+import { demoInboxIds, demoInboxItems, demoInboxItemsAll } from "./inbox-fixtures"
 import { plainDemo, type PlainVariant } from "./index"
 import { demoTerminalId } from "./samples"
 import { context, describe, expect, it } from "./test"
@@ -44,7 +38,7 @@ describe("the demo Inbox's items", () => {
     const shapes = items.flatMap((each) => (each.kind === "ask" ? [each.ask.shape.type] : []))
     expect(new Set(shapes)).toEqual(new Set(["options", "action", "text"]))
     const troubles = items.flatMap((each) => (each.kind === "trouble" ? [each.trouble.type] : []))
-    expect(new Set(troubles)).toEqual(new Set(["stuck", "limit", "failed"]))
+    expect(new Set(troubles)).toEqual(new Set(["stuck", "limit", "failed", "waits"]))
     const requests = items.flatMap((each) => (each.kind === "request" ? [each.request.kind] : []))
     expect(new Set(requests)).toEqual(new Set(["permission", "question", "plan"]))
     const updates = items.flatMap((each) => (each.kind === "update" ? [each.update.type] : []))
@@ -53,8 +47,11 @@ describe("the demo Inbox's items", () => {
 
   it("puts one item on each sample terminal, none seen, none from the future", () => {
     // The states the debug panel adds too: each on a terminal of its own, but for a held
-    // message, which is its thread's whatever else its terminal shows.
-    const items = demoInboxItemsAll(now).filter((each) => each.kind !== "held")
+    // message, which is its thread's, and messages held long, which are the terminal's
+    // alongside whatever else it shows.
+    const items = demoInboxItemsAll(now).filter(
+      (each) => each.kind !== "held" && !(each.kind === "trouble" && each.trouble.type === "waits"),
+    )
     const terminals = items.map((each) => each.source.terminalId)
     expect(new Set(terminals).size).toBe(terminals.length)
     expect(items.every((each) => !each.seen && each.at <= now)).toBe(true)
