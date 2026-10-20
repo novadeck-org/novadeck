@@ -6,10 +6,21 @@ name: Nightly Report
 # reported too, by its attempt, except Known Flakes' own: GitHub starts no workflow from a
 # rerun its token makes, so a night that a flake's rerun made green stays open until the
 # next green night.
+#
+# A dispatch reports on the run it names as a dry run: the summary says what it would do and
+# shows the writeup, and no issue changes.
 on:
   workflow_run:
     workflows: [E2E, Benchmark Timing]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      run:
+        description: The id of a scheduled run to report on, dry
+        required: true
+      attempt:
+        description: Its attempt
+        default: "1"
 
 permissions:
   contents: read
@@ -17,7 +28,7 @@ permissions:
 jobs:
   report:
     name: Report
-    if: github.event.workflow_run.event == 'schedule'
+    if: github.event.workflow_run.event == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -28,8 +39,9 @@ jobs:
       issues: write
     env:
       GH_TOKEN: ${{ github.token }}
-      RUN_ID: ${{ github.event.workflow_run.id }}
-      RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+      RUN_ID: ${{ github.event.workflow_run.id || inputs.run }}
+      RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt || inputs.attempt }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
     steps:
       - name: Check Out Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -41,5 +53,9 @@ jobs:
         with:
           runtime: node@26
 
+      # A failed night's report carries a model's writeup of its logs; without the key, or if
+      # the model fails, it goes without one (scripts/nightly/writeup.ts).
       - name: Report Night
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: node scripts/nightly/main.ts
