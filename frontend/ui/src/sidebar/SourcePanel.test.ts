@@ -554,7 +554,10 @@ describe("The Source panel", () => {
               fontFamily: "Measured Sans",
               font: "",
             } as CSSStyleDeclaration)
-          : real(element, ...rest),
+          : // The chips' font stays unknown, so they are estimated and nothing of them is kept.
+            element.classList.contains("handle-chip")
+            ? ({ fontSize: "", fontFamily: "" } as CSSStyleDeclaration)
+            : real(element, ...rest),
       )
       treeWidth = 400
       const panel = mount(crowded({ moth: recent, crow: recent - 1000 }))
@@ -566,18 +569,95 @@ describe("The Source panel", () => {
       panel.view.unmount()
     })
 
-    it("does not count a trail that has aged out as a mark beside the name", async () => {
+    it("keeps the room for a trail that has aged out, so the fold never depends on the time", async () => {
       // "short.ts" and two chips fit in 190px without a mark, and not with one.
       treeWidth = 190
       const old = Date.now() - 20 * 60_000
       const fresh = mount(crowded({ moth: recent, crow: recent - 1000 }))
-      expect(shown(fresh, "short.ts")).toHaveLength(1)
-      fresh.view.unmount()
-
       const aged = mount(crowded({ moth: old, crow: old - 1000 }))
-      expect(shown(aged, "short.ts")).toHaveLength(2)
+
+      expect(shown(fresh, "short.ts")).toHaveLength(1)
+      expect(shown(aged, "short.ts")).toHaveLength(1)
+      const trail = (panel: ReturnType<typeof mount>) =>
+        panel.row("short.ts").querySelector<HTMLElement>(".source-trail")!
+      expect(trail(fresh).style.visibility).toBe("")
+      expect(trail(aged).style.visibility).toBe("hidden")
       await nextFrame()
+      fresh.view.unmount()
       aged.view.unmount()
+    })
+
+    context("when the chips and the theme set their own fonts", () => {
+      // A chip in "Wide Mono" measures 90px a text, any other font 8px.
+      let family = "Narrow Mono"
+      const measureFonts = (): void => {
+        measured = {
+          font: "",
+          measureText(this: { font: string }) {
+            return { width: this.font.includes("Wide Mono") ? 90 : 8 }
+          },
+        } as never
+        const real = window.getComputedStyle.bind(window)
+        vi.spyOn(window, "getComputedStyle").mockImplementation((element, ...rest) =>
+          element.classList.contains("source-name")
+            ? ({
+                fontStyle: "normal",
+                fontWeight: "400",
+                fontSize: "13px",
+                fontFamily: "Narrow Name",
+                font: "",
+              } as CSSStyleDeclaration)
+            : element.classList.contains("handle-chip") || element.classList.contains("source-more")
+              ? ({
+                  fontStyle: "normal",
+                  fontWeight: "400",
+                  fontSize: "11px",
+                  fontFamily: family,
+                  font: "",
+                } as CSSStyleDeclaration)
+              : real(element, ...rest),
+        )
+      }
+      afterEach(() => {
+        vi.restoreAllMocks()
+        family = "Narrow Mono"
+        delete document.documentElement.dataset["theme"]
+      })
+
+      it("folds by the width the chips measure in their own font, not by an estimate", async () => {
+        measureFonts()
+        family = "Wide Mono"
+        treeWidth = 220
+        const panel = mount(crowded({ moth: recent, crow: recent - 1000 }))
+
+        // The estimate (6.6px a glyph) would keep both chips of "short.ts" here.
+        expect(shown(panel, "short.ts")).toEqual(["@moth"])
+        await nextFrame()
+        panel.view.unmount()
+      })
+
+      it("folds again when a theme changes the fonts", async () => {
+        measureFonts()
+        treeWidth = 220
+        const panel = mount(crowded({ moth: recent, crow: recent - 1000 }))
+        expect(shown(panel, "short.ts")).toHaveLength(2)
+
+        family = "Wide Mono"
+        await act(async () => {
+          document.documentElement.dataset["theme"] = "phosphor"
+          await Promise.resolve()
+        })
+        expect(shown(panel, "short.ts")).toEqual(["@moth"])
+
+        family = "Narrow Mono"
+        await act(async () => {
+          document.documentElement.dataset["theme"] = "graphite"
+          await Promise.resolve()
+        })
+        expect(shown(panel, "short.ts")).toHaveLength(2)
+        await nextFrame()
+        panel.view.unmount()
+      })
     })
 
     it("stops lighting an agent whose chip a narrower tree folded away", async () => {

@@ -149,7 +149,8 @@
 
 /* Once it stops, a hollow block fades by the curve of trailOpacity (source-tree.ts), 0.7
    down to 0.04 over --source-trail-life, and on to nothing at its end. The delay starts it as far along as the write is
-   old, so the page never redraws it as time passes. */
+   old, so the page never redraws it as time passes. One too old to show is `visibility: hidden`
+   (the panel sets it), keeping its box so a row's room does not depend on the time. */
 .source-trail {
   box-sizing: border-box;
   width: 6px;

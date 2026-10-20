@@ -35,7 +35,7 @@ export const sourceGroups = (source: DemoSource | undefined): readonly DemoActio
           actions: [
             {
               label: "Agent writes a file",
-              hint: "Open Source: the selected storefront agent's row pulses and its cursor moves to the file, back on one after it stopped (Crow if the selection isn't a storefront agent)",
+              hint: "Open Source: the selected storefront agent's row pulses and its cursor moves to the file, back on one after it stopped (Crow if the selection isn't a storefront agent); an agent that isn't working loses the cursor again at the workspace's next change",
               run: ({ selected, workspace }) => source.write(handleOf(selected(), workspace())),
             },
             {
@@ -45,8 +45,13 @@ export const sourceGroups = (source: DemoSource | undefined): readonly DemoActio
             },
             {
               label: "Third agent edits Checkout.tsx",
-              hint: `Open Source: src/checkout/Checkout.tsx shows moth, crow and ${sourceThird} (storefront's third terminal, Claude Code in the agents demos), the chips folding into +1`,
-              run: () => source.write(sourceThird, sourcePaths.checkout),
+              hint: `Open Source: src/checkout/Checkout.tsx shows moth, crow and ${sourceThird} (storefront's third terminal, Claude Code in the agents demos), the chips folding into +1; the row pulses once and ${sourceThird} leaves no cursor`,
+              // One write and done: the simulation never runs this agent, so nothing else
+              // would take its cursor away.
+              run: () => {
+                source.write(sourceThird, sourcePaths.checkout)
+                source.endTurn(sourceThird)
+              },
             },
             {
               label: "Agent creates a file in a folder",

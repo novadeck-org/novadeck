@@ -244,13 +244,17 @@ export const createDemoSource = (
   clock: SourceClock = realClock,
   working: readonly string[] = [crow],
 ): DemoSource => {
+  // Held still, the page shows no agent writing at all: a cursor would blink.
   const state = createStore<SourceState>({
-    projects: { [projectId]: storefrontSource(now, working) },
+    projects: { [projectId]: storefrontSource(now, stillRequested() ? [] : working) },
   })
+  // A change that leaves the project as it was leaves the store as it was, so the per-commit
+  // check on idle agents tells nobody anything.
   const change = (apply: (project: SourceProject) => SourceProject): void => {
     state.update((was) => {
       const project = was.projects[projectId]
-      return project ? { projects: { ...was.projects, [projectId]: apply(project) } } : was
+      const next = project && apply(project)
+      return next && next !== project ? { projects: { ...was.projects, [projectId]: next } } : was
     })
   }
   const write = (handle: string, path?: string): void =>

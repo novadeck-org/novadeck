@@ -5,6 +5,7 @@ import {
   buildTree,
   chipsOf,
   chipsWidth,
+  marksOf,
   estimateNameWidth,
   fileIconOf,
   foldChips,
@@ -14,7 +15,6 @@ import {
   trailGone,
   trailLifeMs,
   trailOpacity,
-  trailVisible,
   visibleRows,
   writtenPaths,
 } from "./source-tree"
@@ -209,6 +209,24 @@ describe("Folding a row's chips by its room", () => {
     expect(chipsWidth(["moth", "crow"], 3)).toBeGreaterThan(chipsWidth(["moth", "crow"], 0))
     expect(estimateNameWidth("abcd")).toBe(estimateNameWidth("ab") * 2)
   })
+
+  it("measures each chip text it is given, `@handle` and `+N`", () => {
+    const seen: string[] = []
+    const width = chipsWidth(["moth", "crow"], 3, (text) => {
+      seen.push(text)
+      return 40
+    })
+
+    expect(seen).toEqual(["@moth", "@crow", "+3"])
+    expect(width).toBe(8 + 3 * 40 + 2 * 6)
+  })
+
+  it("folds by the measured chips, not the estimate", () => {
+    const wide = { ...fit, nameWidth: 78, chipWidth: () => 60 }
+
+    expect(foldChips(two, wide).shown).toHaveLength(1)
+    expect(foldChips(two, { ...wide, chipWidth: () => 20 }).shown).toHaveLength(2)
+  })
 })
 
 describe("The lit agent", () => {
@@ -244,12 +262,32 @@ describe("A file's trail", () => {
     expect(trailLifeMs / 1000).toBeGreaterThan(420)
     expect(trailLifeMs / 1000).toBeLessThan(440)
   })
+})
 
-  it("shows from its write until it hides itself, and never for a file with no write", () => {
-    expect(trailVisible(1_000, 1_000)).toBe(true)
-    expect(trailVisible(1_000, 1_000 + trailLifeMs - 1)).toBe(true)
-    expect(trailVisible(1_000, 1_000 + trailLifeMs + 1)).toBe(false)
-    expect(trailVisible(0, 5)).toBe(false)
+describe("The marks after a file's name", () => {
+  const file = (touched: Record<string, number>, writing: string[] = []) =>
+    buildTree(
+      project({
+        changes: { "a.ts": { kind: "modified", touched } },
+        writing: Object.fromEntries(writing.map((handle) => [handle, "a.ts"])),
+      }),
+    )[0]!
+
+  it("are a cursor for each agent writing, else one slot for the trail whatever its age", () => {
+    expect(marksOf(file({ moth: 1, crow: 2 }, ["moth", "crow"]))).toBe(2)
+    expect(marksOf(file({ moth: 1 }))).toBe(1)
+    expect(marksOf(file({ moth: Date.now() - 24 * 3_600_000 }))).toBe(1)
+  })
+
+  it("are none for a file nobody changed, or a folder", () => {
+    expect(marksOf(buildTree(project({ entries: ["a.ts", "src/"] }))[0]!)).toBe(0)
+    expect(
+      marksOf(
+        buildTree(
+          project({ changes: { "src/a.ts": { kind: "added", touched: { moth: 1 } } } }),
+        )[0]!,
+      ),
+    ).toBe(0)
   })
 })
 

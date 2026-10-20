@@ -102,6 +102,7 @@ describe("the debug panel's Source group", () => {
     expect(Object.keys(touched)).toHaveLength(3)
     expect(touched.owl).toBeDefined()
     expect(touched.fox).toBeUndefined()
+    expect(project(source).writing.owl).toBeUndefined()
   })
 
   it("has an agent create a file in a folder the project lacks a change in", () => {

@@ -346,8 +346,24 @@ describe("the demo source", () => {
       expect(pending()).toBe(0)
     })
 
-    it("takes Crow's cursor away on a page held still once its agent waits on the person", () => {
+    it("shows nobody writing on a page held still", () => {
       vi.stubGlobal("location", { search: "?still" })
+      const { clock } = manual()
+      const source = createDemoSource(now, clock)
+      source.start(demoTurns())
+      expect(project(source).writing).toEqual({})
+    })
+
+    it("leaves the store as it was when an idle agent is stopped again", () => {
+      const { clock } = manual()
+      const source = createDemoSource(now, clock, [])
+      const before = source.state.getSnapshot()
+      source.endTurn("moth")
+      expect(source.state.getSnapshot()).toBe(before)
+    })
+
+    it("takes Crow's cursor away under less motion once its agent waits on the person", () => {
+      vi.stubGlobal("matchMedia", () => ({ matches: true }))
       const { clock } = manual()
       const turns = demoTurns()
       const source = createDemoSource(now, clock)

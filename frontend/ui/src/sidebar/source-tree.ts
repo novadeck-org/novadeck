@@ -189,8 +189,9 @@ export const chipsOf = (
 // The row's widths in px, from source.css and the type scale: the item recipe's border is 1px a
 // side (`--border-width`), `.source-row-select` pads 6px left
 // (plus `indent` per depth) and 4px right and spaces its parts by 6px; the twisty is 12px, the
-// icon 14px; a cursor or trail mark is 6px; `.source-chips` pads 8px right, spaces by 6px and sets
-// handles in the caption size (11px) of the mono font, about 0.6em a glyph.
+// icon 14px; a cursor or trail mark is 6px; `.source-chips` pads 8px right and spaces by 6px.
+// A plain handle chip has no padding of its own, so a chip is as wide as its text: measured in
+// the caller's font, else about 0.6em a glyph of the caption size (11px) of the mono font.
 export const indent = 12
 const rowBorder = 1
 const rowPadding = 6
@@ -220,10 +221,20 @@ const rowFixedWidth = (depth: number, marks: number): number =>
   marks * (rowGap + markWidth) +
   rowPaddingEnd
 
-// The chip area for these handles and a `+N` of `more`.
-export const chipsWidth = (handles: readonly string[], more: number): number => {
-  const widths = handles.map((handle) => (handle.length + 1) * chipGlyph)
-  if (more > 0) widths.push((String(more).length + 1) * chipGlyph)
+export const estimateChipWidth = (text: string): number => text.length * chipGlyph
+
+// A chip's text: `@handle`, and `+N` for the count.
+export const handleText = (handle: string): string => `@${handle}`
+export const moreText = (more: number): string => `+${more}`
+
+// The chip area for these handles and a `+N` of `more`, each text's width from `widthOf`.
+export const chipsWidth = (
+  handles: readonly string[],
+  more: number,
+  widthOf: (text: string) => number = estimateChipWidth,
+): number => {
+  const widths = handles.map((handle) => widthOf(handleText(handle)))
+  if (more > 0) widths.push(widthOf(moreText(more)))
   return (
     chipsPaddingEnd + widths.reduce((sum, width) => sum + width, 0) + chipGap * (widths.length - 1)
   )
@@ -235,8 +246,10 @@ export type RowFit = {
   readonly depth: number
   // The name's full width in px.
   readonly nameWidth: number
-  // How many cursors or trails follow the name.
+  // How many cursors or trails follow the name (see `marksOf`).
   readonly marks: number
+  // A chip text's width in px; the estimate where it can't be measured.
+  readonly chipWidth?: (text: string) => number
 }
 
 // Folds a row's chips by the room it has: two chips stay while the name still reads in full beside
@@ -244,7 +257,7 @@ export type RowFit = {
 export const foldChips = (chips: Chips, fit: RowFit): Chips => {
   if (fit.width === undefined || chips.shown.length < 2) return chips
   const room = fit.width - rowFixedWidth(fit.depth, fit.marks) - fit.nameWidth
-  if (chipsWidth(chips.shown, chips.more) <= room) return chips
+  if (chipsWidth(chips.shown, chips.more, fit.chipWidth) <= room) return chips
   return { ...chips, shown: chips.shown.slice(0, 1), more: chips.more + chips.shown.length - 1 }
 }
 
@@ -301,6 +314,11 @@ export const trailLifeMs = trailTimeMs * Math.log(trailStart / trailGone)
 export const trailOpacity = (ageMs: number): number =>
   trailStart * Math.exp(-Math.max(0, ageMs) / trailTimeMs)
 
-// Whether a trail from a write at `latest` still shows at `now`, or has aged past hiding itself.
-export const trailVisible = (latest: number, now: number): boolean =>
-  latest > 0 && trailOpacity(now - latest) >= trailGone
+// The time of a node's latest write, or 0 for none.
+export const latestWrite = (node: SourceNode): number => Math.max(0, ...Object.values(node.touched))
+
+// How many marks follow a file's name: a cursor for each agent writing it now, else one slot for
+// its trail. The slot is kept whatever the trail's age, so the count never depends on the clock:
+// an aged-out trail only turns invisible (see `Trail`), keeping its room.
+export const marksOf = (node: SourceNode): number =>
+  node.folder ? 0 : node.writing.length > 0 ? node.writing.length : latestWrite(node) > 0 ? 1 : 0
