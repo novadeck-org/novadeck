@@ -298,6 +298,10 @@ export type BackendFields = {
   // Optional. The version of the desktop app, asked once when Preferences needs it. Absent
   // in a browser and in a host that does not say.
   readonly version?: () => Promise<string>
+  // Optional. Opens the folder of the desktop app's logs in the system's file manager, for
+  // the person to read them or attach them to a bug report. Absent in a browser and in a host
+  // that keeps none.
+  readonly openLogs?: () => void
   // Optional. Whether the desktop app runs in Electron's security sandbox, asked once at
   // startup since the answer holds for the whole run. Absent in a browser and in a host
   // that does not say.

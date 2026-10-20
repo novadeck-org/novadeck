@@ -10,7 +10,7 @@ import {
 import { createTerminalState } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import type { AgentStatus, AgentTurnEnd, TerminalMetadata, Workspace } from "@novadeck/core/types"
-import type { AgentDetail, InboxLetter } from "@novadeck/protocol"
+import { longHoldMs, type AgentDetail, type InboxLetter } from "@novadeck/protocol"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { createRunnerInbox, detailGraceMs, retryMs, settleMs, type InboxStreams } from "./inbox"
@@ -118,6 +118,7 @@ const inputs = (
   letters: [],
   now: 10_000,
   caseless: false,
+  longHoldMs,
   ...more,
 })
 
@@ -321,6 +322,38 @@ describe("The runner's Inbox", () => {
 
       expect(ids()).toEqual(["request:r1"])
       expect(inbox.state.getSnapshot().items[0]).toMatchObject({ request: { dialog: null } })
+    })
+
+    it("shows messages held behind an idle agent's box once the hold has lasted", async () => {
+      const pair = workspaceOf(
+        agentTerminal(1, { working: false }),
+        agentTerminal(2, { working: false }, "agy"),
+      )
+      const mail: MailState = {
+        ...noMail,
+        terminals: {
+          "p/s/02": {
+            handle: "fox",
+            agent: true,
+            waits: "draft",
+            waitsSince: 10_000,
+            threads: [
+              thread({
+                peer: "moth",
+                held: false,
+                messages: [message({ state: "queued", held: null })],
+              }),
+            ],
+          },
+        },
+      }
+      const { ids } = setup(pair, {}, mail)
+      await settle()
+      expect(ids()).toEqual([])
+
+      await vi.advanceTimersByTimeAsync(longHoldMs)
+
+      expect(ids()).toEqual(["waits:02:10000"])
     })
 
     it("closes the detail a while after nothing waits, and not before", async () => {

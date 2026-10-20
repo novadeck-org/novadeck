@@ -123,6 +123,28 @@ export type DesktopBridge = {
   uninstallApp?(options: { readonly keepData: boolean }): Promise<UninstallResult>
   /** Quits the app after the host's shutdown; the page offers it once `uninstallApp` answered `removed`. */
   quitApp?(): void
+  /**
+   * Opens the folder of the app's logs in the system's file manager, for a person to read
+   * them or attach them to a bug report. Absent from hosts that came before it.
+   */
+  openLogs?(): void
+  /**
+   * Tells the host of an error the page didn't catch, which it logs: its name, message and
+   * stack, each cut to size; the host drops a report that is anything else. Absent from hosts
+   * that came before it.
+   */
+  reportError?(error: PageError): void
+}
+
+/**
+ * An error the page didn't catch: `error`, one thrown, or `rejection`, a promise that failed
+ * with nothing to catch it. Never what the error was about, only what it says of itself.
+ */
+export type PageError = {
+  readonly kind: "error" | "rejection"
+  readonly name: string
+  readonly message: string
+  readonly stack?: string
 }
 
 /**

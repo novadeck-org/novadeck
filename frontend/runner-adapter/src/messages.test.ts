@@ -14,6 +14,7 @@ const listing = (change: Partial<TerminalMessages> = {}): TerminalMessages => ({
   handle: "moth",
   delivery: "working",
   waits: null,
+  waitsSince: null,
   paused: false,
   threads: [
     {
@@ -90,6 +91,7 @@ describe("the runner's messages", () => {
         handle: "moth",
         agent: true,
         waits: null,
+        waitsSince: null,
         threads: [
           {
             id: "t-1",
@@ -122,10 +124,20 @@ describe("the runner's messages", () => {
   it("carry why the doorbell cannot ring an idle agent, from the runner's listing", async () => {
     const { messages, push } = streams()
     messages.follow(key)
-    push(listing({ delivery: "drafting", waits: "draft" }))
-    await vi.waitFor(() => expect(messages.state.getSnapshot().terminals[id]?.waits).toBe("draft"))
+    push(listing({ delivery: "drafting", waits: "draft", waitsSince: 1_000 }))
+    await vi.waitFor(() =>
+      expect(messages.state.getSnapshot().terminals[id]).toMatchObject({
+        waits: "draft",
+        waitsSince: 1_000,
+      }),
+    )
     push(listing({ delivery: "ready", waits: null }))
-    await vi.waitFor(() => expect(messages.state.getSnapshot().terminals[id]?.waits).toBeNull())
+    await vi.waitFor(() =>
+      expect(messages.state.getSnapshot().terminals[id]).toMatchObject({
+        waits: null,
+        waitsSince: null,
+      }),
+    )
   })
 
   it("take an agent whose own prompt shows, with no session bound yet, as one there", async () => {

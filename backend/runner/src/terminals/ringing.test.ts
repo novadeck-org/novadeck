@@ -1,15 +1,24 @@
+import { readFileSync } from "node:fs"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import type { ScreenText } from "@novadeck/emulator/headless"
+import type { Background, HarnessEvent } from "@novadeck/harness-core/events"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { screen } from "@novadeck/harness-core/testing/screens"
+import type { AgentName } from "@novadeck/protocol"
 import { createTypist } from "@novadeck/tui-input"
 
+import { started as startedActivity, type Activity } from "../harnesses/activity.js"
 import type { Binding } from "../harnesses/bindings.js"
 import { harnesses } from "../harnesses/registry.js"
-import type { Messaging } from "../messaging/messaging.js"
+import { followRoot, type Root } from "../harnesses/roots.js"
+import { Messaging } from "../messaging/messaging.js"
+import { memoryMailbox } from "../messaging/records.js"
 import { describe, expect, it } from "../test.js"
-import { doorbellHost, profileOf, typingTarget, type RingRecord } from "./ringing.js"
+import { adapterFolder } from "../testing/adapters.js"
+import { agentWorking, doorbellHost, profileOf, typingTarget, type RingRecord } from "./ringing.js"
 
-const bound = (agent: "claude" | "codex", instance?: string) =>
+const bound = (agent: AgentName, instance?: string) =>
   ({ agent, ...(instance && { instance }) }) as unknown as Binding
 
 /** A running terminal as the manager keeps it, as far as the doorbell reads it. */
@@ -195,5 +204,290 @@ describe("the doorbell's host", () => {
     expect(await typist.ready(look)).toBe("no-input-box")
     state.shown = "claude"
     expect(rings.profile("t")).toBe(harnesses.claude.box)
+  })
+})
+
+// Each harness's screen after the doorbell's line was pasted into its box, as probed in a
+// PTY (the paste check's fixtures in @novadeck/tui-input): `a` Claude Code 2.1.286, `b`
+// Codex 0.159.3, `c` Antigravity 1.2.14. A recording keeps the rows' text only; the cursor
+// is put at the end of the line, where the paste left it.
+type Recorded = { readonly height: number; readonly rows: { readonly [row: string]: string } }
+type Pair = {
+  readonly name: string
+  readonly expected: "accept" | "reject" | "draft"
+  readonly after: Recorded & { readonly columns: number }
+}
+const pasted = (recording: string): readonly Pair[] =>
+  (
+    JSON.parse(
+      readFileSync(
+        new URL(
+          `../../../../libraries/tui-input/src/fixtures/paste-${recording}.json`,
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as { readonly pairs: readonly Pair[] }
+  ).pairs
+
+const drawn = ({ height, columns, rows }: Pair["after"]): ScreenText => {
+  const all = Array.from({ length: height }, (_, row) => rows[row] ?? "")
+  const last = all.findLastIndex((row) => row.includes("n7Q2"))
+  const row = last === -1 ? all.findLastIndex((each) => each.trim() !== "") : last
+  return screen({ rows: all, columns, cursor: { row, column: all[row]!.trimEnd().length } })
+}
+
+describe.each([
+  { agent: "claude", recording: "a" },
+  { agent: "codex", recording: "b" },
+  { agent: "agy", recording: "c" },
+] as const)("Novadeck's own line left in $agent's box", ({ agent, recording }) => {
+  // The ring that pasted n7Q2 never confirmed, unless a test says it did.
+  let confirmed = false
+  const { host } = world(record(bound(agent, "10")).running)
+  const rings = doorbellHost({
+    ...host,
+    messaging: {
+      ...host.messaging,
+      unconfirmed: (_: string, nonce: string) => nonce === "n7Q2" && !confirmed,
+    } as unknown as Messaging,
+  })
+  const pairs = pasted(recording)
+  const alone = pairs.find((pair) => pair.expected === "accept")!
+
+  it.each(pairs.filter((pair) => pair.expected === "accept").map((pair) => [pair.name, pair]))(
+    "is told by its nonce, however the ring left it: %s",
+    (_, pair) => {
+      const shown = drawn(pair.after)
+      // The box reads as text, which held messages behind it as the person's draft.
+      expect(rings.reading("t", shown)).toBe("draft")
+      expect(rings.leftover("t", shown)).toBe("n7Q2")
+    },
+  )
+
+  it.each(pairs.filter((pair) => pair.expected !== "accept").map((pair) => [pair.name, pair]))(
+    "is not taken from a draft, a menu or a picker: %s",
+    (_, pair) => {
+      expect(rings.leftover("t", drawn(pair.after))).toBeUndefined()
+    },
+  )
+
+  it.runIf(agent === "claude")("is left alone while a prompt queued beside it shows", () => {
+    // Claude Code's hint under its box while messages are queued.
+    const queued = {
+      ...alone.after,
+      rows: { ...alone.after.rows, 0: "Press up to edit queued messages" },
+    }
+    expect(rings.leftover("t", drawn(alone.after))).toBe("n7Q2")
+    expect(rings.leftover("t", drawn(queued))).toBeUndefined()
+  })
+
+  it("is the person's once its ring was confirmed: put back by Escape, or recalled", () => {
+    confirmed = true
+    try {
+      expect(rings.leftover("t", drawn(alone.after))).toBeUndefined()
+    } finally {
+      confirmed = false
+    }
+  })
+})
+
+// A session stopped at its prompt with work its turn left running (#325): a background
+// agent and shell, or a subagent that runs on. Each harness's box takes a prompt then
+// (fixtures/background-prompt.probe.json, from e2e/probes/background-prompt.e2e.ts), so
+// the doorbell reads its screen and rings it once the box is empty, whatever its activity
+// says still runs. Real messaging, the manager's `working` and the harness's box readers,
+// on the screens the probe recorded; only the activity is stubbed.
+describe("a session stopped with background work running", () => {
+  type Screens = { readonly screens: { readonly [label: string]: ScreenText } }
+  const recorded = (agent: AgentName) =>
+    loadProbe<Screens>(adapterFolder(agent), "background-prompt.probe.json").screens
+  const stopped = recorded("claude")["1 stopped, work running"]!
+  const typed = recorded("claude")["2 a key typed"]!
+
+  // The screen #325 reported, rebuilt: a later Claude Code, its footer naming the shell and
+  // the agent, the agent's row under it, and the spinner's row above the box.
+  const rule = "─".repeat(60)
+  const reported = screen({
+    rows: [
+      "● Started the work.",
+      "",
+      "✻ Waiting for 1 background agent to finish",
+      rule,
+      "❯ ",
+      rule,
+      "  ⏵⏵ auto mode on · 1 shell · ← 1 agent",
+      "",
+      "  ● main",
+      "  ◯ fixer   Checking test results in test12.log      3h 40m 8s · ↓ 708.9k tokens",
+    ],
+    cursor: { row: 4, column: 2 },
+  })
+
+  // What a harness's hooks say of its root's turn.
+  const fact = (of: Binding) => ({
+    agent: of.agent,
+    sessionId: of.sessionId,
+    instance: of.instance,
+    startedAt: 1,
+  })
+  const prompted = (of: Binding): HarnessEvent => ({
+    type: "turn-started",
+    ...fact(of),
+    cause: "prompt",
+  })
+  const ended = (of: Binding, background: Background): HarnessEvent => ({
+    type: "turn-ended",
+    ...fact(of),
+    outcome: "completed",
+    background,
+  })
+
+  /** Terminal "t", its agent bound, and "s", which sends it a message; the doorbell's host. */
+  const setup = (agent: AgentName) => {
+    const clock = { now: 1_000_000 }
+    const messaging = new Messaging({
+      records: memoryMailbox(),
+      now: () => clock.now,
+      sweepMs: 0,
+      restoreMs: 0,
+      platform: "linux",
+    })
+    const binding: Binding = { agent, sessionId: `s-${agent}`, instance: "1" }
+    const sender: Binding = { agent: "codex", sessionId: "s-sender", instance: "2" }
+    const roots = new Map<string, Root | null>()
+    const follow = (terminalId: string, one: Binding, events: readonly HarnessEvent[] = []) => {
+      const { root, changes } = followRoot(roots.get(terminalId) ?? null, one, events, {
+        mode: harnesses[one.agent].messaging.root,
+        statusLine: false,
+        awaited: (sessionId) => messaging.awaits(terminalId, sessionId),
+      })
+      roots.set(terminalId, root)
+      messaging.rooted(terminalId, changes)
+    }
+    messaging.register("t", { projectId: "p", sessionId: "w" }, "moth", null)
+    messaging.register("s", { projectId: "p", sessionId: "w" }, "fox", null)
+    follow("t", binding)
+    follow("s", sender)
+    const ask = (event: string, events: HarnessEvent[]) => {
+      clock.now += 1_000
+      const timed = events.map((one) => ({ ...one, startedAt: clock.now }))
+      follow("t", binding, timed)
+      return messaging.ask("t", { agent, event, events: timed, deadline: clock.now + 3_000 })
+    }
+    const { running } = record(binding)
+    const terminal = { ...running, activity: null as Activity | null }
+    const rings = doorbellHost({
+      ...world(terminal).host,
+      messaging,
+      working: (terminalId, activity) => agentWorking(messaging, terminalId, { binding, activity }),
+    })
+    /** Its turn, then a Stop that says what it left running. */
+    const turn = (background: Background) => {
+      ask(agent === "agy" ? "PreInvocation" : "UserPromptSubmit", [prompted(binding)])
+      ask("Stop", [ended(binding, background)])
+    }
+    const send = () => {
+      clock.now += 1_000
+      const answer = messaging.send("s", { to: "moth", text: "Any news?" })
+      expect(answer).toMatchObject({ ok: true })
+      return answer
+    }
+    /** The doorbell's read of a calm screen, from a moment ago. */
+    const emptied = () => {
+      clock.now += 1_000
+      rings.emptied("t", clock.now - 500)
+    }
+    return { messaging, rings, terminal, turn, send, emptied, clock }
+  }
+
+  // What each harness's activity says runs after its Stop, as the probe saw.
+  const left = (agent: AgentName, state: "idle" | "working" = "idle"): Activity => ({
+    ...startedActivity(0),
+    state,
+    subagents: [
+      { id: "a1", type: agent === "codex" ? "default" : "general-purpose", startedAt: 0 },
+    ],
+    background: agent === "codex" ? null : { agents: 1, tasks: agent === "claude" ? 1 : 0 },
+  })
+
+  it.each([
+    { agent: "claude", said: { agents: 1, tasks: 1 } },
+    { agent: "agy", said: { agents: 0, tasks: 0, more: true } },
+  ] as const)(
+    "rings $agent at its empty box while it waits Working on its background work",
+    ({ agent, said }) => {
+      const { messaging, rings, terminal, turn, send, emptied } = setup(agent)
+      turn(said)
+      terminal.activity = left(agent)
+      expect(messaging.delivery("t")).toMatchObject({ state: "working", phase: "background" })
+      expect(send()).toMatchObject({
+        state: "queued",
+        route: "ringing it once its box reads empty",
+      })
+      // Its screen is looked at, and the box it shows reads empty, not a draft.
+      expect(rings.ringable("t")).toBe(false)
+      expect(rings.stalled("t")).toBe(true)
+      expect(rings.reading("t", recorded(agent)["1 stopped, work running"]!)).toBe("empty")
+      expect(rings.reading("t", recorded(agent)["2 a key typed"]!)).toBe("draft")
+      // Read empty: Ready, and rung as any Ready terminal is.
+      emptied()
+      expect(messaging.delivery("t")?.state).toBe("ready")
+      expect(rings.ringable("t")).toBe(true)
+    },
+  )
+
+  it.each(["claude", "codex"] as const)(
+    "rings $0 at its empty box while Drafting, its activity still listing the work",
+    (agent) => {
+      const { messaging, rings, terminal, turn, send, emptied } = setup(agent)
+      // As in #325: idle, but not Settled by its Stop alone (a key since), so the activity
+      // is weighed, and it lists a background agent (Claude Code) or a subagent that runs
+      // on with the root idle (Codex).
+      turn({ agents: 0, tasks: 0 })
+      messaging.keys("t", ["content"], false)
+      terminal.activity = left(agent)
+      expect(messaging.delivery("t")?.state).toBe("drafting")
+      send()
+      expect(rings.stalled("t")).toBe(true)
+      const screens =
+        agent === "claude" ? [stopped, reported] : [recorded(agent)["1 stopped, work running"]!]
+      for (const shown of screens) expect(rings.reading("t", shown)).toBe("empty")
+      emptied()
+      expect(messaging.delivery("t")?.state).toBe("ready")
+      expect(rings.ringable("t")).toBe(true)
+    },
+  )
+
+  it("still holds one whose turn runs, saying it is working, not that its box holds text", () => {
+    const { messaging, rings, terminal, turn, send } = setup("claude")
+    turn({ agents: 0, tasks: 0 })
+    messaging.keys("t", ["content"], false)
+    terminal.activity = left("claude", "working")
+    send()
+    expect(rings.stalled("t")).toBe(false)
+    expect(messaging.list("t", "fox").waits).toBe("working")
+    expect(rings.reading("t", stopped)).toBe("working")
+  })
+
+  it("names what it saw: text in its box, a prompt queued, or its shell mode", () => {
+    const { messaging, rings, terminal, turn, send } = setup("claude")
+    turn({ agents: 0, tasks: 0 })
+    messaging.keys("t", ["content"], false)
+    terminal.activity = left("claude")
+    send()
+    expect(rings.reading("t", typed)).toBe("draft")
+    const box = (line: string, ...under: string[]) =>
+      screen({ rows: [rule, line, rule, ...under], cursor: { row: 1, column: line.length } })
+    expect(rings.reading("t", box("! ls"))).toBe("shell")
+    expect(
+      rings.reading(
+        "t",
+        screen({
+          rows: ["❯ Queued prompt", "", rule, "❯ ", rule, "  Press up to edit queued messages"],
+          cursor: { row: 3, column: 2 },
+        }),
+      ),
+    ).toBe("queued")
   })
 })

@@ -1,3 +1,4 @@
+import { resetAnswering } from "@novadeck/chat/state"
 import { addCompactGridTerminal } from "@novadeck/core/layout/grid-placement"
 import { canvasNewTerminalSize } from "@novadeck/core/layout/terminal-size"
 import type { TerminalRequest } from "@novadeck/core/port"
@@ -20,7 +21,6 @@ import {
   togglePin,
   type ProjectArrangement,
 } from "../../projects/project-arrangement"
-import { resetAnswering } from "../../terminals/chat/state"
 import {
   currentContext,
   currentState,

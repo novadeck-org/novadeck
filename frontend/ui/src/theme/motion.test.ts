@@ -19,6 +19,7 @@ const places = [
   ["core/", "core"],
   ["ui-toolkit/", "toolkit"],
   ["terminals/companion/", "companion"],
+  ["terminals/chat/", "chat"],
 ].map(([prefix, name]) => ({ prefix: prefix!, dir: join(src, "..", "..", name!, "src") }))
 const stylesheets = [
   ...(readdirSync(src, { recursive: true }) as string[]),

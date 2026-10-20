@@ -13,7 +13,7 @@ import { dialogMs, inboxItems, reuse, type Asked } from "@novadeck/core/inbox-it
 import type { MailState } from "@novadeck/core/messages"
 import { createStore, type Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
-import type { AgentDetail, AskAnswer, InboxLetter } from "@novadeck/protocol"
+import { longHoldMs, type AgentDetail, type AskAnswer, type InboxLetter } from "@novadeck/protocol"
 import { currentPlatform } from "@novadeck/terminal-views/platform"
 
 import { requestOf } from "./conversations"
@@ -216,6 +216,7 @@ export const createRunnerInbox = (
       requests,
       now: at,
       caseless: currentPlatform() === "mac",
+      longHoldMs,
     })
     const ids = new Set(found.map((item) => item.id))
     for (const id of seen) if (!ids.has(id)) seen.delete(id)
@@ -275,14 +276,19 @@ export const createRunnerInbox = (
         : { items: kept, answering, failed: rest }
     })
 
-    // A request whose dialog is unread shows anyway once it has waited long enough.
+    // A request whose dialog is unread shows anyway once it has waited long enough, and a
+    // hold once it has held long enough.
     clearTimeout(due)
     due = undefined
-    const waits = Object.values(requests)
-      .flat()
-      .filter(({ request }) => request.dialog === null)
-      .map(({ askedAt }) => askedAt + dialogMs - at)
-      .filter((wait) => wait > 0)
+    const waits = [
+      ...Object.values(requests)
+        .flat()
+        .filter(({ request }) => request.dialog === null)
+        .map(({ askedAt }) => askedAt + dialogMs - at),
+      ...Object.values(mail.getSnapshot().terminals).map(({ waitsSince }) =>
+        waitsSince == null ? 0 : waitsSince + longHoldMs - at,
+      ),
+    ].filter((wait) => wait > 0)
     if (waits.length > 0) due = setTimeout(recompute, Math.min(...waits))
   }
 

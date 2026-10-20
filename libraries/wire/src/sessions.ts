@@ -58,6 +58,12 @@ export type SessionsOptions = {
   readonly closed?: (session: Session) => void
   /** Maps an app's failure to the oRPC error its client sees; others pass through as they are. */
   readonly error?: (error: unknown) => unknown
+  /**
+   * Told of each failure a client is answered with, by the procedure's path, before it is
+   * mapped: a call's, a stream's, and a handshake refused. For a log; what it throws is
+   * ignored.
+   */
+  readonly failed?: (path: readonly string[], error: unknown) => void
 }
 
 /** A server's sessions: who's connected, authenticated, and how many calls each has running. */
@@ -93,6 +99,13 @@ export const createSessions = (
   options: SessionsOptions & { readonly router: AnyRouter },
 ): Sessions => {
   const { protocolVersion, admit, error: mapError = (error) => error } = options
+  const failed = (path: readonly string[], error: unknown): void => {
+    try {
+      options.failed?.(path, error)
+    } catch {
+      // A log that fails changes no answer.
+    }
+  }
   // The handshake sits beside the app's procedures, which a lazy router would hide it behind.
   if (isLazy(options.router)) throw new Error("The sessions' router can't be lazy")
   if ("wire" in options.router)
@@ -126,8 +139,18 @@ export const createSessions = (
     clients.set(clientId, session)
   }
 
+  // A call refused before it ran: told as a failure, then thrown.
+  const refused = (path: readonly string[], error: Error): never => {
+    failed(path, error)
+    throw error
+  }
+
   // Ends a stream once its session closed, even one that began after, and maps its failures.
-  const guard = async function* <T>(session: Record, stream: AsyncIterable<T>): AsyncGenerator<T> {
+  const guard = async function* <T>(
+    session: Record,
+    stream: AsyncIterable<T>,
+    path: readonly string[],
+  ): AsyncGenerator<T> {
     try {
       if (session.closed) {
         // Never read, but told it's done, as one a reader leaves is.
@@ -139,22 +162,32 @@ export const createSessions = (
         yield item
       }
     } catch (error) {
+      failed(path, error)
       throw mapError(error)
     }
   }
 
-  const gate = os.$context<SessionContext>().middleware(async ({ context, next }) => {
+  const gate = os.$context<SessionContext>().middleware(async ({ context, next, path }) => {
     const session = record(context.session)
     if (!session.authenticated || session.closed)
-      throw new ORPCError("UNAUTHORIZED", { status: wireErrors.UNAUTHORIZED.status })
+      return refused(
+        path,
+        new ORPCError("UNAUTHORIZED", { status: wireErrors.UNAUTHORIZED.status }),
+      )
     if (session.calls >= session.transport.maxCalls)
-      throw new ORPCError("RESOURCE_LIMIT", { status: wireErrors.RESOURCE_LIMIT.status })
+      return refused(
+        path,
+        new ORPCError("RESOURCE_LIMIT", { status: wireErrors.RESOURCE_LIMIT.status }),
+      )
     // A stream holds its call only until the procedure hands it back, not while it runs.
     session.calls += 1
     try {
       const result = await next()
-      return isStream(result.output) ? { ...result, output: guard(session, result.output) } : result
+      return isStream(result.output)
+        ? { ...result, output: guard(session, result.output, path) }
+        : result
     } catch (error) {
+      failed(path, error)
       throw mapError(error)
     } finally {
       session.calls -= 1
@@ -166,8 +199,10 @@ export const createSessions = (
     wire: {
       handshake: api.wire.handshake.handler(({ input, context, errors }) => {
         const session = record(context.session)
-        if (session.closed || !session.transport.verify(input.token)) throw errors.UNAUTHORIZED()
-        if (input.protocolVersion !== protocolVersion) throw errors.INCOMPATIBLE_PROTOCOL()
+        const path = ["wire", "handshake"]
+        if (session.closed || !session.transport.verify(input.token))
+          refused(path, errors.UNAUTHORIZED())
+        if (input.protocolVersion !== protocolVersion) refused(path, errors.INCOMPATIBLE_PROTOCOL())
         admit?.(session)
         session.authenticated = true
         if (input.clientId !== undefined) claim(session, input.clientId)

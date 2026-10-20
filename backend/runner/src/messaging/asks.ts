@@ -16,6 +16,7 @@ import { z } from "zod"
 
 import { DomainError } from "../errors.js"
 import type { RootChange } from "../harnesses/roots.js"
+import { logs } from "../log.js"
 import {
   allowSend,
   byteLength,
@@ -25,6 +26,8 @@ import {
   undelivered,
   type Message,
 } from "./mailbox.js"
+
+const log = logs.for("inbox")
 
 // Resolved letters stay as the Messages pane's history. Only open letters reach Inbox.
 export type Letter = InboxLetter & {
@@ -243,7 +246,9 @@ export class Asks {
         try {
           this.prune()
         } catch (error) {
-          console.error("Novadeck could not prune its Inbox history:", error)
+          log.error("inbox.prune-failed", "Novadeck could not prune its Inbox history", {
+            err: error,
+          })
         }
       }, sweepMs)
       this.sweeper.unref()
@@ -654,14 +659,14 @@ export class Asks {
     try {
       work()
     } catch (error) {
-      console.error("Novadeck could not save its Inbox:", error)
+      log.error("inbox.save-failed", "Novadeck could not save its Inbox", { err: error })
     }
   }
   private maintain(terminalId?: string): void {
     try {
       this.prune(terminalId)
     } catch (error) {
-      console.error("Novadeck could not prune its Inbox history:", error)
+      log.error("inbox.prune-failed", "Novadeck could not prune its Inbox history", { err: error })
     }
   }
   private keep(letter: Letter): void {

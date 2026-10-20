@@ -1,4 +1,4 @@
-import { once } from "node:events"
+import { on, once } from "node:events"
 import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -10,7 +10,13 @@ import { relayName, relayPath } from "@novadeck/relay"
 import { connectRunner } from "@novadeck/runner-client"
 import { messagePort } from "@novadeck/wire/client"
 
-import { databaseArgumentPrefix, graphicsArgumentPrefix, relayArgumentPrefix } from "../bridge"
+import {
+  databaseArgumentPrefix,
+  graphicsArgumentPrefix,
+  logArgumentPrefix,
+  relayArgumentPrefix,
+} from "../bridge"
+import type { LogSetup } from "../logging"
 import { context, describe, expect, it } from "../test"
 
 const entry = pathToFileURL(join(process.cwd(), "out", "main", "runner.js")).href
@@ -25,6 +31,7 @@ process.parentPort = {
     parentPort.on("message", ({ data, ports }) => listener({ data, ports }))
     parentPort.postMessage("listening")
   },
+  postMessage: (message) => parentPort.postMessage(message),
 }
 import(workerData.entry)
 `
@@ -40,8 +47,11 @@ const start = (database: string, extra: readonly string[] = []) => {
     argv: [`${databaseArgumentPrefix}${database}`, `${relayArgumentPrefix}${relayPath}`, ...extra],
     workerData: { entry },
   })
-  // Rejects if the runner fails to start, rather than leaving the handshake to time out.
-  const listening = once(worker, "message")
+  // Rejects if the runner fails to start, rather than leaving the handshake to time out. It
+  // says it is ready first, as the host hears, then listens.
+  const listening = (async () => {
+    for await (const [message] of on(worker, "message")) if (message === "listening") return
+  })()
   const connect = async () => {
     await listening
     const { port1, port2 } = new MessageChannel()
@@ -232,6 +242,48 @@ describe("compiled desktop runner", () => {
         expect(states[1]).toBeNull()
         // Voice input installs its small model straight away only where the host said so.
         expect(aims).toEqual(["small", "turbo"])
+      } finally {
+        await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+      }
+    }, 30_000)
+
+    it("writes its own log, numbered as the host started it, and leaves the launch's marker alone", async () => {
+      const directory = await mkdtemp(join(tmpdir(), "novadeck-host-runner-"))
+      const logs = join(directory, "logs")
+      const setup: LogSetup = {
+        folder: logs,
+        sid: "launch-1",
+        run: 3,
+        verbose: false,
+        places: { userData: directory, logs },
+        saltFile: join(directory, "log-salt"),
+      }
+      try {
+        const runner = start(join(directory, "workspace.sqlite"), [
+          `${logArgumentPrefix}${JSON.stringify(setup)}`,
+        ])
+        const client = await runner.connect()
+        await client.projects.list()
+        await client.close()
+        await runner.close()
+        const lines = (await readFile(join(logs, "runner.log"), "utf8"))
+          .trim()
+          .split("\n")
+          .map(
+            (line) => JSON.parse(line) as { evt: string; sid: string; run: number; proc: string },
+          )
+        expect(lines.map((line) => line.evt)).toEqual(
+          expect.arrayContaining([
+            "runner.start",
+            "runner.ready",
+            "client.connected",
+            "runner.end",
+          ]),
+        )
+        expect(lines.every((line) => line.sid === "launch-1" && line.run === 3)).toBe(true)
+        expect(lines.every((line) => line.proc === "runner")).toBe(true)
+        // The launch's marker is the host's: the runner never writes it.
+        await expect(stat(join(logs, "session.json"))).rejects.toThrow()
       } finally {
         await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
       }
