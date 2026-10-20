@@ -9,13 +9,20 @@ const run = (over: Partial<Night> = {}): Night => ({
   sha: "2b9eedc6ec776caa1e6f2b2dfdc747878ec4189c",
   startedAt: "2026-10-20T08:33:12Z",
   failed: [
-    { name: "Mixed", conclusion: "failure", url: "https://github.com/o/r/actions/runs/1/job/3" },
     {
+      id: 3,
+      name: "Mixed",
+      conclusion: "failure",
+      url: "https://github.com/o/r/actions/runs/1/job/3",
+    },
+    {
+      id: 2,
       name: "Antigravity",
       conclusion: "failure",
       url: "https://github.com/o/r/actions/runs/1/job/2",
     },
     {
+      id: 4,
       name: "Claude Code (macOS)",
       conclusion: "cancelled",
       url: "https://github.com/o/r/actions/runs/1/job/4",
