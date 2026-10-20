@@ -1,9 +1,9 @@
 import { sidebarPanels, type SidebarPanel } from "@novadeck/core/types"
 import { ToggleGroup, ToggleGroupItem } from "@novadeck/toolkit/ToggleGroup"
-import { Bell, History, Inbox, Terminal as TerminalIcon } from "lucide-react"
+import { History, Inbox, Terminal as TerminalIcon } from "lucide-react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
-import type { BellBadge } from "./notification-badge"
+import type { BellBadge } from "./inbox-badge"
 import { NotificationBadge } from "./NotificationBadge"
 
 export const SidebarRail = ({
@@ -12,7 +12,6 @@ export const SidebarRail = ({
   sidebarPanel,
   zen,
   badge,
-  inbox = false,
   toggleSidebar,
   hideSidebar,
 }: {
@@ -21,8 +20,6 @@ export const SidebarRail = ({
   sidebarPanel: SidebarPanel
   zen: boolean
   badge: BellBadge | undefined
-  // Whether the backend has an Inbox, which takes the Notifications toggle's place.
-  inbox?: boolean
   toggleSidebar: (panel: SidebarPanel) => void
   hideSidebar: () => void
 }): React.JSX.Element => {
@@ -43,12 +40,10 @@ export const SidebarRail = ({
         [
           { id: "terminals", label: "Terminals", icon: TerminalIcon },
           { id: "sessions", label: "Sessions", icon: History },
-          inbox
-            ? { id: "inbox", label: "Inbox", icon: Inbox }
-            : { id: "notifications", label: "Notifications", icon: Bell },
+          { id: "inbox", label: "Inbox", icon: Inbox },
         ] as const
       ).map(({ id, label, icon: Icon }) => {
-        const status = id === "notifications" || id === "inbox" ? badge : undefined
+        const status = id === "inbox" ? badge : undefined
         return (
           <ToggleGroupItem
             key={id}

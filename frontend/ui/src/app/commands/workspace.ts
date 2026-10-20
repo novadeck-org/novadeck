@@ -32,8 +32,8 @@ import { notePortableCardShown } from "../ui-store"
 import { createChatCommands, type ChatCommands } from "./chat"
 import { createCompanionCommands, type CompanionCommands } from "./companion"
 import type { CommandContext } from "./context"
+import { createFinishCommands, type FinishCommands } from "./finishes"
 import { createLayoutCommands, type LayoutCommands } from "./layout"
-import { createNotificationCommands, type NotificationCommands } from "./notifications"
 import { createRecentCommands, type RecentCommands } from "./recent"
 import { createRenameCommands, type RenameCommands } from "./rename"
 import { folderProject, newWorkspaceSession } from "./sessions"
@@ -49,7 +49,7 @@ export type WorkspaceCommands = ShellCommands &
   RenameCommands &
   RecentCommands &
   LayoutCommands &
-  NotificationCommands & {
+  FinishCommands & {
     readonly switchSession: (id: string) => void
     readonly startFresh: () => void
     readonly switchProject: (next: Project) => void
@@ -133,7 +133,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
   const shell = createShellCommands(ctx)
   const rename = createRenameCommands(ctx)
   const recent = createRecentCommands(ctx)
-  const notifications = createNotificationCommands(ctx)
+  const finishes = createFinishCommands(ctx)
   // Rearranges the switcher's projects from the latest of both stores.
   const arrange = (
     change: (projects: Workspace["projects"], current: ProjectArrangement) => ProjectArrangement,
@@ -213,7 +213,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     ...shell,
     ...rename,
     ...recent,
-    ...notifications,
+    ...finishes,
     ...createLayoutCommands(ctx),
     ...createChatCommands(ctx),
     ...createCompanionCommands(ctx, {

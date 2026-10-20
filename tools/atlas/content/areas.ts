@@ -305,10 +305,6 @@ export const notes: Record<string, Note> = {
     purpose: "Preferences, the welcome dialog and the voice and murmur add-ons.",
   },
   "frontend/ui/search": { purpose: "Finding a terminal." },
-  "frontend/ui/notifications": {
-    purpose: "The notifications panel.",
-    entries: [{ file: `${ui}/notifications/notifications.ts` }],
-  },
   "frontend/ui/inbox": {
     purpose:
       "The Inbox: what agents ask of the person, as sidebar rows and the sheet that answers.",

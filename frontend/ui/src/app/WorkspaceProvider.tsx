@@ -82,7 +82,6 @@ const createServices = (
     chat,
     navigation,
     newTerminal: backend.newTerminal,
-    inbox: backend.inbox,
     pickDirectory: backend.pickDirectory,
     crashLoop: backend.crashLoop,
     resetTitle: backend.resetTitle,
@@ -173,7 +172,7 @@ export const WorkspaceProvider = ({
       services.backend.inbox?.bind?.({
         workspace: services.workspace,
         unread: unreadOf(services.ui),
-        read: services.commands.dismissAllNotifications,
+        read: services.commands.readFinishes,
       }),
     [services],
   )

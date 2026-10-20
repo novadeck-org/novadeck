@@ -27,7 +27,7 @@ window phase, a backend field it never sets — add it in the same change:
   with pure action builders in `debug/terminals.ts`. A new tab or window phase also
   joins the "Every state at once" gallery there.
 - An agent's state is one of `demoTurns`' verbs (`work`, `ask`, `finish`, `rest`, `usage`), never a
-  status the panel dispatches, so the chat, the screen and the notification center
+  status the panel dispatches, so the chat, the screen and the Inbox
   follow it: add a verb or an option there, and an action that calls it: in the panel's "Agent"
   group on the group's target, or, for a setting such as usage, in "Agent fixtures" on
   the selected terminal. Only a display-only fixture, as an unheard agent,

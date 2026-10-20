@@ -308,7 +308,7 @@ switcher's dot covers them again. The order and the pins are kept in this browse
 (`novadeck.project-arrangement` in local storage), not shared with other clients of the
 runner.
 
-The Inbox (the bell on the sidebar rail, on by default on the runner) lists everything
+The Inbox (the bell on the sidebar rail) lists everything
 across every project and session that waits on you, one row per agent terminal: a dialog to
 answer, a message between agents held for you to release, a turn that failed, a usage
 limit, a question sent through the agent's `ask` tool, an update sent through `tell`,
@@ -319,13 +319,8 @@ when answered, withdrawn by the agent, or its session ends; a `tell` clears when
 read. Ask, Tell and Your reply remain in that terminal's Messages pane under **You**.
 Other rows clear once answered, once you view the terminal, or when the agent starts working again. A count badge on the bell, and on
 Zen's dock, tells how many wait on you; finishes and tells are not counted. A usage limit stays until
-the agent's next turn, so Continue is there after the reset. Where a backend has no Inbox,
-the bell opens the Notifications panel, which lists the questions, permissions and plans
-to review and the agents that finished while you looked elsewhere. With Murmur on, a
-waiting question or plan shows a headline under its row, such as "Asks which database to
-use", and a finish you haven't seen shows a short gist of its reply in place of the
-reply's start, marked when the reply asks you something; the tooltip and the screen
-reader's description keep the reply itself. Without Murmur every row reads as it always did.
+the agent's next turn, so Continue is there after the reset. With Murmur on, a finish you
+haven't seen leads with a short gist of its reply in place of the reply's start.
 
 The project switcher removes a project from its row's trash icon, after
 you confirm; its terminals close, and the folder on disk stays. The last project stays.
@@ -777,14 +772,14 @@ Agents:
 - **Agent fixtures:** what no turn produces: an unheard agent (Claude Code whose hooks say
   nothing), and context and limits or tokens alone, in the tooltip and status; those two set
   only the usage of the selected terminal's agent, so a turn, request or queued prompt stays.
-- **Notifications:** "Fill notifications" has up to 12 terminals across
+- **Waiting agents:** "Fill the Inbox" has up to 12 terminals across
   the projects ask for you (questions, permissions, plans), and after 3 s finish done or
-  failed, so the Notifications panel lists every kind and the rail badge reads 9+. It
+  failed, so the Inbox lists every kind and the rail badge reads 9+. It
   adds terminals to the current session if the workspace has too few, without selecting
-  them or leaving the Notifications panel, and leaves the selected terminal alone, since
-  a finish only counts while you look elsewhere. "Clear notifications" rests every agent,
+  them or leaving the Inbox, and leaves the selected terminal alone, since
+  a finish only counts while you look elsewhere. "Clear waiting agents" rests every agent,
   which answers every request, reads every finish and calls off those still to come, and
-  has a terminal back at its prompt work for a moment and leave, for the empty panel. Its
+  has a terminal back at its prompt work for a moment and leave, for an empty Inbox. Its
   second round of kinds carries what Murmur would write (a headline on the question and the
   plan, a gist on the done and the failed finish, the done one asking), so the rows can be
   seen without Murmur installed. The notices for finishes need the Preferences switch
@@ -1125,7 +1120,6 @@ folder of `frontend/ui/src/`:
 | `terminals/chat/`                                               | The agent's chat: its blocks, tool rows, requests and the composer.                                                            |
 | `layouts/canvas/`, `grid/`, `focus/`                            | View adapters and colocated library styles.                                                                                    |
 | `layouts/` (top level)                                          | Helpers shared by views: view transitions, background gestures, visibility.                                                    |
-| `notifications/`                                                | The notification center: what asks for the person across the workspace, and its panel.                                         |
 | `inbox/`                                                        | The Inbox: what agents ask of the person, its sidebar rows and the sheet that answers.                                         |
 | `shell/`                                                        | Header, rail, panels, zen dock, sidebar, and shell state transitions.                                                          |
 | `sidebar/`, `projects/`, `preferences/`, `search/`              | Feature components.                                                                                                            |
@@ -1154,11 +1148,11 @@ of its own, `frontend/demo-debug`, the one with React and Lucide. `interaction/`
 the core and imports no packages;
 features add `frontend/toolkit`; `layouts/` may use
 `terminals/`; the companion pane is a package of its own, `frontend/companion`, built on the
-core, the toolkit and the viewers and never on the UI, which composes it; `notifications/` builds on the base layers and
-`terminals/unread-state.ts`; no feature (`inbox/`, `notifications/`, `preferences/`, `projects/`,
+core, the toolkit and the viewers and never on the UI, which composes it; no feature
+(`inbox/`, `preferences/`, `projects/`,
 `search/`, `sidebar/` or `voice/`) imports another, only the base and itself, and none reaches the
 chat or the companion; `shell/` may use `layouts/`, `projects/`,
-`notifications/` and `inbox/`. `app/` composes every feature layer, `notifications/` and `inbox/`.
+and `inbox/`. `app/` composes every feature layer, `inbox/` among them.
 Only an app imports a backend adapter, each its own: `apps/desktop` takes the runner adapter,
 `apps/try` the demo, and `apps/previews` the demo with its debug panel (tests and specs may
 import the demo's spec entry). Each starts the UI through `entries/start.tsx`. `app/commands/`
