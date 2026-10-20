@@ -728,11 +728,13 @@ connection state, the crash-loop count and the terminal count, over the demo swi
 sample agents' plans and artifacts), `plain`, `agents` (its seven projects each with
 an agent in a state of its own: waiting, asking, working, and two that finish done and
 failed a moment after it opens, for the project switcher), `messages`, `inbox` (the agents
-demo with hardcoded Inbox items of every kind over those its agents make) or `welcome`.
-Every variant's Inbox lists what its agents wait on, built as the runner's is. The
-switcher in the panel's header changes between them without reloading (pressing the
-current one boots it again), and the browser
-tab remembers the last one chosen. `&turnMs=` sets how long a demo agent's turn works
+demo with hardcoded Inbox items of every kind over those its agents make), `welcome` or
+`chirp` (a one-off for the runner-skits video "Chirp": a desk of twelve agents at work on the
+Canvas, one waiting to run a command; `frontend/demo/src/chirp.ts`). Every variant's Inbox
+lists what its agents wait on, built as the runner's is. The switcher in the panel's header,
+which leaves out `welcome` and `chirp`, changes between them without reloading (pressing the
+current one boots it again), and the browser tab remembers the last one chosen. `&turnMs=` sets
+how long a demo agent's turn works
 (1500 ms unless given), as a spec does that must act on the screen before the turn ends.
 
 The search field at the top filters actions by label, hint and group. Groups start folded,

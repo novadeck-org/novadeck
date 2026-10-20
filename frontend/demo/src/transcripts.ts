@@ -29,15 +29,15 @@ export type DemoOutcome =
 export type DemoDraft = Pick<ChatItem, "role" | "kind" | "text"> &
   Partial<Pick<ChatItem, "tool" | "call" | "author" | "truncated" | "run">>
 
-const user = (text: string): DemoDraft => ({ role: "user", kind: "text", text })
-const say = (text: string): DemoDraft => ({
+export const user = (text: string): DemoDraft => ({ role: "user", kind: "text", text })
+export const say = (text: string): DemoDraft => ({
   role: "assistant",
   kind: "text",
   text,
 })
 // A tool call, with the line the chat shows for it written beside it, as its harness's decoder
 // would have said it.
-const use = (call: string, tool: string, input: unknown, run: ToolRun): DemoDraft => ({
+export const use = (call: string, tool: string, input: unknown, run: ToolRun): DemoDraft => ({
   role: "assistant",
   kind: "tool-call",
   tool,
@@ -45,7 +45,7 @@ const use = (call: string, tool: string, input: unknown, run: ToolRun): DemoDraf
   run,
   text: typeof input === "string" ? input : JSON.stringify(input),
 })
-const got = (call: string, text: string, truncated = false): DemoDraft => ({
+export const got = (call: string, text: string, truncated = false): DemoDraft => ({
   role: "tool",
   kind: "tool-result",
   call,
@@ -60,7 +60,11 @@ const from = (author: string, text: string): DemoDraft => ({
 })
 
 // Numbers the drafts as one terminal's items, a half minute apart, the last just now.
-const written = (terminalId: string, now: number, drafts: readonly DemoDraft[]): ChatItem[] =>
+export const written = (
+  terminalId: string,
+  now: number,
+  drafts: readonly DemoDraft[],
+): ChatItem[] =>
   drafts.map((draft, index) => ({
     id: `${terminalId}:${index + 1}`,
     at: now - (drafts.length - index) * 30_000,
