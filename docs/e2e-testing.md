@@ -871,10 +871,11 @@ finds:
 
 Two of them reach into the runner through casts typecheck can't see past:
 `interrupt-held-reply` wraps `bindings.applyFact`, and `agy-stop-boundary` wraps
-`reporting.report` and reads `records` (a record's binding and pty) and `messaging.delivery`,
-all private to `Terminals`. So do two tests CI's E2E jobs run, but only with harnesses:
-`doorbell` (`messaging.ring` and `ringFailed`, and `live`'s screen and pty) and `person`
-(`live`'s screen). `src/e2e/reach-ins.test.ts`, a unit test, looks for each of those members
+`reporting.report` and reads `records` (a record's `bound` session and its pty) and
+`messaging.delivery`, all private to `Terminals`; the bound session's own type is `Record`'s,
+which typecheck follows. So do two tests CI's E2E jobs run, but only with harnesses: `doorbell`
+(`messaging.ring` and `ringFailed`, and `live`'s screen and pty) and `person` (`live`'s
+screen). `src/e2e/reach-ins.test.ts`, a unit test, looks for each of those members
 on a real `Terminals`, so a rename or a move fails in a second, with no harness. It also fails
 when another file under `src/e2e/` casts the deck's `Terminals` (or the deck) to `unknown`,
 `never` or `any`, until the test checks what that one reaches. It can't tell a caller that
