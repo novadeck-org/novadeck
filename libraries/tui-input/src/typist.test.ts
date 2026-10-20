@@ -221,7 +221,6 @@ describe("a delivery", () => {
         entered: false,
         started: true,
         reason: "not-landed",
-        ours: false,
         counted: true,
       })
       expect(fake.written).toHaveLength(1)
@@ -242,7 +241,7 @@ describe("a delivery", () => {
   it("abandons a delivery whose hold lapsed before its Enter, leaving the line as its own", async () => {
     const fake = terminal({ holdMs: 40, screenMs: 30 })
     const delivered = await typing(fake).deliver()
-    expect(delivered).toMatchObject({ entered: false, reason: "not-pressed", ours: true })
+    expect(delivered).toMatchObject({ entered: false, reason: "not-pressed" })
     expect(fake.written).toHaveLength(1)
     expect(enters(fake.written)).toBe(0)
     expect(fake.state()).toMatchObject({ held: false, sizes: false })
@@ -251,7 +250,7 @@ describe("a delivery", () => {
   it("presses nothing once the caller says it is no longer its delivery", async () => {
     const fake = terminal()
     const delivered = await typing(fake).deliver({ still: () => false })
-    expect(delivered).toMatchObject({ entered: false, started: true, ours: false })
+    expect(delivered).toMatchObject({ entered: false, started: true })
     expect(enters(fake.written)).toBe(0)
   })
 
@@ -262,7 +261,6 @@ describe("a delivery", () => {
       entered: false,
       started: true,
       reason: "no-input-box",
-      ours: false,
       counted: false,
     })
     expect(fake.written).toEqual([])
@@ -291,7 +289,7 @@ describe("a delivery", () => {
         return true
       },
     })
-    expect(delivered).toMatchObject({ entered: false, reason: "gone", ours: false, counted: true })
+    expect(delivered).toMatchObject({ entered: false, reason: "gone", counted: true })
     expect(fake.written).toEqual([])
   })
 
@@ -414,14 +412,13 @@ describe("a submission", () => {
     expect(fake.state()).toEqual({ holds: 1, held: false, sizes: true })
   })
 
-  it("presses nothing once the nonce is no longer the caller's, and says the line is ours", async () => {
+  it("presses nothing once the nonce is no longer the caller's", async () => {
     const fake = terminal()
     const typist = createTypist(fake.target, { profile: fake.inputBox, timing: fast })
     const delivered = await run(typist.submit(fake.entry, "k3f9Xz", () => false))
     expect(delivered).toMatchObject({
       entered: false,
       reason: "not-pressed",
-      ours: true,
       counted: true,
     })
     expect(fake.written).toEqual([])
