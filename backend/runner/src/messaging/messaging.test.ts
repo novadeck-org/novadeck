@@ -912,7 +912,8 @@ describe("delivery through hooks", () => {
     sent(send("A", "fox", "b".repeat(4_000)))
     const first = prompt("B", codex)
     messaging.acknowledge("B", first.leaseId!)
-    expect(first.stdout).not.toContain("bbb")
+    // Longer than any id the output holds, whose ten random characters may run "bbb".
+    expect(first.stdout).not.toContain("b".repeat(64))
     expect(prompt("B", codex).stdout).toContain("b".repeat(4_000))
   })
 

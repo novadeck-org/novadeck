@@ -1,12 +1,5 @@
 import { transcript as transcriptOf } from "@novadeck/emulator/headless"
-import type { HarnessEvent, SessionObserved } from "@novadeck/harness-core/events"
-import {
-  firedFacts,
-  hookShellSlackMs,
-  silentFor,
-  type Install,
-} from "@novadeck/harness-core/harness"
-import { type Report } from "@novadeck/harness-core/report"
+import { hookShellSlackMs, type Install } from "@novadeck/harness-core/harness"
 import type { AskAnswer, InboxLetter } from "@novadeck/protocol"
 import type {
   AgentDetail,
@@ -24,14 +17,7 @@ import type {
 } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 import { createTerminalHost, type Terminal, type TerminalHost } from "@novadeck/terminal/host"
-import {
-  relayMs,
-  shellInForeground,
-  Trees,
-  type ProcessTrees,
-  type Pty,
-  type PtyOptions,
-} from "@novadeck/terminal/pty"
+import { Trees, type ProcessTrees, type Pty, type PtyOptions } from "@novadeck/terminal/pty"
 import { afterKeys, emptyLine, withLocale } from "@novadeck/terminal/shell"
 import { keysOf } from "@novadeck/tui-input"
 import type { PromptOptions } from "@novadeck/tui-input"
@@ -41,44 +27,34 @@ import type { PlanText } from "../companions/content.js"
 import type { CompanionItems, TerminalPlace } from "../companions/items.js"
 import type { ItemRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
-import { boundSince, started as fresh } from "../harnesses/activity.js"
-import { observe, type Binding } from "../harnesses/bindings.js"
 import { actorOf, agentDetail } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
-import { unreplied, withReplies } from "../harnesses/replies.js"
-import { followRoot, rootedIn, type RootChange } from "../harnesses/roots.js"
-import { transcriptWaitMs, typedPromptStart } from "../harnesses/typed-prompts.js"
 import { Asks, type AskRecords } from "../messaging/asks.js"
 import { type DoorbellOptions } from "../messaging/doorbell.js"
-import {
-  leaseMargin,
-  Messaging,
-  type AgentsAnswer,
-  type SendAnswer,
-} from "../messaging/messaging.js"
+import { Messaging, type AgentsAnswer, type SendAnswer } from "../messaging/messaging.js"
 import type { MailboxRecords } from "../messaging/records.js"
 import type { Describer } from "../murmur/describer.js"
 import { inherited } from "../shell/inherited.js"
 import type { InstalledShell } from "../shell/install.js"
-import { type Ack, type Call, type HookAnswer } from "../shell/reports.js"
+import { type Ack, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
 import { type AnswerOptions } from "./answers.js"
 import { Bindings } from "./binding/facts.js"
+import { Reports } from "./binding/reports.js"
 import { Shown } from "./binding/shown.js"
 import { sameToken } from "./callers.js"
 import { Calls } from "./calls.js"
 import { type CloseAnswer } from "./closes.js"
 import { coalesced } from "./coalesce.js"
-import { expectedAgent, promptIn } from "./commands.js"
+import { expectedAgent } from "./commands.js"
 import { Companion } from "./companion.js"
 import { forgetPrompts, markPrompt, murmurHost } from "./describing.js"
 import { type DialogsOptions } from "./dialogs.js"
-import { failed } from "./failures.js"
 import { Launcher, startedIn, startFailed } from "./launching.js"
-import { Murmur, type MurmurTimes, type Reported } from "./murmur.js"
+import { Murmur, type MurmurTimes } from "./murmur.js"
 import { Names } from "./names.js"
 import { openedWith, renamed as renamedTo, summaryTitle, unnamed, type Naming } from "./naming.js"
-import { atPrompt, fired, noNudges, noticesAt } from "./nudges.js"
+import { noNudges } from "./nudges.js"
 import { OpenRequests } from "./opens.js"
 import { TerminalPeers } from "./peers.js"
 import type { Record } from "./record.js"
@@ -91,7 +67,6 @@ import { Streams } from "./streams.js"
 import { savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
 import { transcriptChanges } from "./transcripts.js"
 import { Typing } from "./typing.js"
-import { judgedFirst, workAfter } from "./work.js"
 
 export type TerminalOptions = {
   shell?: string
@@ -226,10 +201,6 @@ const alive = (pid: string): boolean => {
   }
 }
 
-// How much time a prompt's hook must have left for drift to be read, in milliseconds:
-// a git branch and a plan's file, each with its own short timeout.
-const driftReadMs = 1_500
-
 // How long a closed Windows terminal's programs have to end by themselves once its
 // console closes, as they do on its CTRL_CLOSE_EVENT, saving what they were writing, in
 // milliseconds: within the five seconds Windows gives them. What is left of the terminal's
@@ -272,6 +243,8 @@ export class Terminals {
   private readonly bindings: Bindings
   /** An agent's own prompt as its harness shows it, and whether its hooks run there. */
   private readonly shown: Shown
+  /** The hooks' reports and asks of each terminal's agents, taken in the order they came. */
+  private readonly reporting: Reports
   /**
    * Everything that types into terminals' agents, through one input queue per terminal:
    * the doorbell, prompts, interrupts and answers, with the dialogs it reads.
@@ -329,8 +302,6 @@ export class Terminals {
   private readonly pty: PtyOptions
   /** Saves terminals for restoring, and reads them back. */
   private readonly saves: Saves
-  /** Each terminal's agent reports and asks waiting their turn, in the order they came. */
-  private readonly reports = new Map<string, Promise<void>>()
   /** Agents' messages to each other, and how each terminal's agent takes them. */
   private readonly messaging: Messaging
   private readonly asks: Asks
@@ -342,8 +313,6 @@ export class Terminals {
   private readonly closedIds = new Set<string>()
   /** Sessions whose project is going or gone, in which no terminal starts again. */
   private readonly closingSessions = new Set<string>()
-  /** How many times each harness was disconnected, so a report that waited meanwhile is dropped. */
-  private readonly disconnections = new Map<AgentName, number>()
   private stopping = false
   /** The runner has stopped: its records may be closed, and nothing reads or forgets them. */
   private stopped = false
@@ -415,8 +384,8 @@ export class Terminals {
     this.launcher = new Launcher(this.options, {
       stopping: () => this.stopping,
       handlers: {
-        report: (report) => this.queueReport(report),
-        ask: (report, deadline) => this.queueAsk(report, deadline),
+        report: (report) => this.reporting.queueReport(report),
+        ask: (report, deadline) => this.reporting.queueAsk(report, deadline),
         ack: (ack) => this.acknowledge(ack),
         call: (call) => this.calls.call(call),
       },
@@ -483,20 +452,36 @@ export class Terminals {
       save: (record) => this.saves.save(record, false),
       detailed: (record) => this.streams.detailed(record),
       murmurChanged: (terminalId) => this.murmur?.changed(terminalId),
-      trackRoot: (record, events, statusLine) => this.trackRoot(record, events, statusLine),
-      rebound: (record) => this.rebound(record),
+      trackRoot: (record, events, statusLine) =>
+        this.reporting.trackRoot(record, events, statusLine),
+      rebound: (record) => this.reporting.rebound(record),
       alive,
     })
     this.shown = new Shown({
       messaging: () => this.messaging,
       bindings: () => this.bindings,
       typing: () => this.typing,
-      queue: (terminalId, work, fallback) => this.queue(terminalId, work, fallback),
+      queue: (terminalId, work, fallback) => this.reporting.queue(terminalId, work, fallback),
       connected: (agent) => this.launcher.connected(agent),
       install: (agent) => this.options.install(agent),
       env: () => this.options.env,
       options: () => this.options,
       alive,
+    })
+    this.reporting = new Reports({
+      records: () => this.records,
+      messaging: () => this.messaging,
+      asks: () => this.asks,
+      peers: () => this.peers,
+      murmur: () => this.murmur,
+      bindings: () => this.bindings,
+      shown: () => this.shown,
+      typing: () => this.typing,
+      companion: () => this.companion,
+      save: (record) => this.saves.save(record, false),
+      connected: (agent) => this.launcher.connected(agent),
+      trees: () => this.trees,
+      platform: () => this.options.platform,
     })
     this.companion = new Companion(this.options.items, {
       records: () => this.records,
@@ -532,7 +517,7 @@ export class Terminals {
       if (change.kind !== "terminal") return
       const record = this.records.get(change.terminalId)
       if (record) {
-        this.lapsed(record)
+        this.reporting.lapsed(record)
         this.typing.settleBox(record)
       }
     })
@@ -560,7 +545,7 @@ export class Terminals {
         detailed: (record) => this.streams.detailed(record),
         endExited: (record) => this.bindings.endExited(record),
         queued: (terminalId, work) =>
-          void this.queue(terminalId, () => Promise.resolve(work()), undefined),
+          void this.reporting.queue(terminalId, () => Promise.resolve(work()), undefined),
         alive,
         messaging: () => this.messaging,
       },
@@ -1041,15 +1026,8 @@ export class Terminals {
                     telemetry: null,
                   } satisfies AgentSummary,
                   foreground: undefined,
-                  binding: null,
-                  suspended: null,
-                  root: null,
-                  seenEntry: undefined,
+                  ...this.bindings.restarted(),
                   shellName: shellProcess(shell)?.name,
-                  activity: null,
-                  telemetry: null,
-                  watching: null,
-                  transcript: null,
                   submitted: started.resumes,
                   startupRuns: started.resumes,
                   readyEntered: false,
@@ -1219,28 +1197,14 @@ export class Terminals {
 
   /** Forgets every session `agent` reported, as once it is disconnected. */
   forgetAgent(agent: AgentName): void {
-    this.disconnections.set(agent, (this.disconnections.get(agent) ?? 0) + 1)
+    this.reporting.disconnected(agent)
     for (const record of this.records.values()) {
       const { [agent]: _forgotten, ...rest } = record.agents
       record.agents = rest
       const agentRan = hasRun(rest)
       // Its binding ends too: a disconnected harness holds no terminal's foreground.
-      if (record.binding?.agent === agent) {
-        record.binding = null
-        record.activity = null
-        record.telemetry = null
-        this.bindings.unwatch(record)
-        this.rebound(record)
-        record.summary = {
-          ...record.summary,
-          agentRan,
-          agent: null,
-          ready: this.bindings.readyOf(record),
-          activity: null,
-          telemetry: null,
-        }
-        this.announce(record)
-      } else if (record.summary.agentRan !== agentRan) {
+      if (record.binding?.agent === agent) this.bindings.forgotten(record, agentRan)
+      else if (record.summary.agentRan !== agentRan) {
         record.summary = { ...record.summary, agentRan }
         this.announce(record)
       }
@@ -1621,473 +1585,6 @@ export class Terminals {
     if (binding === null || moved) this.murmur?.prompted(record.summary.id, entered || moved)
   }
 
-  /**
-   * Runs a terminal's report or ask once its earlier ones are done, in the order they
-   * came, as a report may wait for the platform to tell who holds the foreground; other
-   * terminals' never hold it up. A failure gives `fallback`.
-   */
-  private queue<T>(terminalId: string, work: () => Promise<T>, fallback: T): Promise<T> {
-    const result = (this.reports.get(terminalId) ?? Promise.resolve())
-      .then(work)
-      .catch(failed.report(fallback))
-    const tail = result.then(() => {})
-    this.reports.set(terminalId, tail)
-    void tail.then(() => {
-      if (this.reports.get(terminalId) === tail) this.reports.delete(terminalId)
-    })
-    return result
-  }
-
-  private queueReport(report: Report): void {
-    void this.queue(report.terminalId, () => this.report(report), undefined)
-  }
-
-  /** A Stop or prompt-time hook's ask: its report, then what it prints (see `Messaging.ask`). */
-  private queueAsk(report: Report, deadline: number): Promise<HookAnswer> {
-    const silent = {
-      leaseId: null,
-      stdout: silentFor(harnesses[report.agent].messaging, report.event),
-    }
-    return this.queue(report.terminalId, () => this.report(report, deadline), silent)
-  }
-
-  /**
-   * A harness hook reported; its harness decodes it, and `observe` decides whether each
-   * session it names is this terminal's own and the latest, and what it changes. A report
-   * that names no session needs neither the foreground nor the harness's connection. An
-   * ask, with its hook's `deadline`, then hears what its hook prints.
-   */
-  private async report(report: Report, deadline?: number): Promise<HookAnswer> {
-    const silent = {
-      leaseId: null,
-      stdout: silentFor(harnesses[report.agent].messaging, report.event),
-    }
-    const record = this.records.get(report.terminalId)
-    if (!record || record.terminal.exiting || !sameToken(record.token, report.token)) return silent
-    const decoded = firedFacts(harnesses[report.agent].decode(report), report)
-    // A turn's end its hook named no reply for reads the reply from the agent's
-    // transcript; any other report goes on at once.
-    const events =
-      unreplied(decoded) < 0
-        ? decoded
-        : await withReplies(
-            decoded,
-            harnesses[report.agent].transcripts?.items,
-            record.binding?.agent === report.agent
-              ? { sessionId: record.binding.sessionId, transcript: record.transcript }
-              : undefined,
-          )
-    // Its prompt shows before any session of its binds, as Antigravity's status line says.
-    const promptShown = harnesses[report.agent].shown?.(report)
-    const shown = promptShown && firedFacts([promptShown], report)[0]
-    if (events.length === 0 && !shown) return silent
-    const child = record.terminal.pty
-    const disconnections = this.disconnections.get(report.agent)
-    const observes =
-      shown !== undefined || events.some((event) => event.type === "session-observed")
-    const [foreground, connected, reused] = observes
-      ? await Promise.all([
-          shellInForeground(child.pid),
-          this.launcher.connected(report.agent),
-          this.reusedBinding(record, events, deadline),
-        ])
-      : [undefined, true, undefined]
-    if (record.terminal.pty !== child || record.terminal.exiting) return silent
-    // A disconnection while this waited forgot what the report would bring back.
-    if (this.disconnections.get(report.agent) !== disconnections) return silent
-    // The bound agent process may have exited without the shell showing a prompt, as in
-    // tmux or a nested shell: its binding ended with it, and a later process may bind.
-    let changed = false
-    if (reused !== undefined && record.binding === reused) {
-      record.left = reused
-      this.bindings.endLead(record)
-      this.bindings.endBinding(record)
-    } else this.bindings.endExited(record)
-    const facts = {
-      promptedAt: record.promptedAt,
-      shellInForeground: foreground,
-      submitted: record.submitted,
-      connected,
-      busy:
-        record.activity !== null &&
-        (record.activity.state === "working" || record.activity.background !== null),
-      platform: process.platform,
-    }
-    // Its prompt shows, as the agent holding the terminal tells, as for a session it names;
-    // one whose hooks its harness says don't run there can take no message.
-    if (shown && foreground !== true && (process.platform !== "win32" || record.submitted)) {
-      const trust = await this.shown.promptTrust(record, report.agent)
-      if (record.terminal.pty === child && shown.startedAt > (record.promptedAt ?? 0)) {
-        if (trust === "counts") this.shown.showPrompt(record, shown)
-        else if (trust === "untrusted") this.messaging.untrusted(record.summary.id, report.agent)
-      }
-    }
-    if (events.length === 0) return silent
-    const cwd = record.summary.cwd
-    // Every fact applies before messaging sees the report: a turn's start clears the
-    // requests waiting on the person, and `askedCleared` must reach messaging before that
-    // turn's prompt does, so a draft typed while asked counts before the person's Enter
-    // could take the prompt as theirs (pinned by the integration test "applies a draft
-    // typed while asked before the prompt that clears the request").
-    for (const event of events) {
-      if (event.type !== "session-observed") {
-        this.bindings.applyFact(record, event)
-        continue
-      }
-      if (this.late(record, event)) continue
-      // The bound session's transcript, from a later report when the one that bound it
-      // named none, as Antigravity's status line does.
-      const { binding: bound } = record
-      if (
-        event.transcript !== undefined &&
-        record.transcript === null &&
-        bound?.agent === event.agent &&
-        bound.sessionId === event.sessionId
-      )
-        record.transcript = event.transcript
-      const next = observe(
-        { sessions: record.agents, binding: record.binding, cwd: record.summary.cwd },
-        event,
-        facts,
-      )
-      if (!next) continue
-      const before = record.binding
-      record.agents = next.sessions
-      record.binding = next.binding
-      if (next.binding !== null) {
-        // After a suspended agent, a binding is that agent back from `fg`, or another the
-        // person started at the prompt, which its lead never directed.
-        if (record.suspended !== null && next.binding.instance !== record.suspended)
-          this.bindings.endLead(record)
-        record.suspended = null
-      }
-      changed = true
-      // A newly bound session waits for its first prompt; one still bound keeps its activity.
-      // What its hooks told from before it bound is past, but for one fired with the hook
-      // that bound it (see `boundTogetherMs`).
-      const same =
-        before !== null &&
-        next.binding !== null &&
-        before.agent === next.binding.agent &&
-        before.sessionId === next.binding.sessionId
-      if (!same) {
-        record.activity = next.binding
-          ? fresh(
-              boundSince(event),
-              harnesses[next.binding.agent].wakes,
-              harnesses[next.binding.agent].records,
-            )
-          : null
-        record.telemetry = null
-        this.bindings.follow(record, event)
-        // The plans its bar mirrored of another session go; unbinding alone keeps them.
-        if (next.binding) this.companion.bound(record.summary.id, next.binding.sessionId)
-      }
-      record.summary = { ...record.summary, cwd: next.cwd }
-    }
-    // A Stop Novadeck may continue shows once its ask is answered, so a continued turn
-    // never flashes idle.
-    const stopAsk =
-      deadline !== undefined && harnesses[report.agent].messaging.asks[report.event] === "stop"
-    const moved = record.summary.cwd !== cwd
-    if (!stopAsk) this.bindings.publishAgent(record, moved)
-    const changes = this.followRootOf(record, events, report.event === "StatusLine")
-    const told = await this.attributed(record, events)
-    // What the root worked on, from its prompts as told, as Antigravity's from its
-    // transcript; this terminal's later reports wait for this one.
-    if (this.tallyWork(record, told, changes) || changed) this.saves.save(record, false)
-    // The harness compacted the root session's context: it may have lost the notice of its bar.
-    if (
-      events.some(
-        (event) =>
-          event.type === "session-observed" && event.compacted && rootedIn(record.root, event),
-      )
-    )
-      record.nudges = fired(record.nudges, "compaction")
-    this.murmur?.reported(report.terminalId, this.reported(record, changes))
-    if (deadline === undefined) {
-      this.messaging.observe(report.terminalId, told)
-      this.bindings.escaped(record)
-      this.judgeFirst(record)
-      return silent
-    }
-    const answer = this.messaging.ask(report.terminalId, {
-      agent: report.agent,
-      event: report.event,
-      events: told,
-      deadline,
-    })
-    if (stopAsk) {
-      this.continued(record, told, answer)
-      this.bindings.publishAgent(record, moved)
-    }
-    this.bindings.escaped(record)
-    this.judgeFirst(record)
-    return this.nudged(record, report, told, answer, deadline)
-  }
-
-  /**
-   * What a report tells murmur of the terminal's root session (see `Murmur.reported`). A
-   * session is new to murmur when the work's session is not the one murmur was last told
-   * of, however it came to move (this report's, or another's tallied meanwhile): a root
-   * bound again to the session it already worked in (a restored terminal, `claude
-   * --resume`) is not, and neither is a guess corrected to its real id.
-   */
-  private reported(record: Record, changes: readonly RootChange[]): Reported {
-    const corrected = changes.flatMap((change) =>
-      change.type === "corrected"
-        ? [
-            {
-              from: `${change.root.agent}:${change.from}`,
-              to: `${change.root.agent}:${change.root.sessionId}`,
-            },
-          ]
-        : [],
-    )
-    for (const { from, to } of corrected)
-      if (record.murmurSession === from) record.murmurSession = to
-    const session = record.work !== null && record.work.session !== record.murmurSession
-    record.murmurSession = record.work?.session ?? record.murmurSession
-    return { session, corrected }
-  }
-
-  /** A Stop Novadeck continued, lapsed as delivery took it, ends the agent's turn too. */
-  private lapsed(record: Record): void {
-    const { binding, activity } = record
-    const event =
-      binding && activity && this.messaging.lapsed(record.summary.id, binding, activity.turnAt)
-    if (event && this.bindings.applyFact(record, event)) this.bindings.publishAgent(record, false)
-  }
-
-  /**
-   * A root Stop Novadeck continued with messages, its hook's answer leasing them: the
-   * agent's turn goes on, as delivery's does, until the continuation's own Stop.
-   */
-  private continued(record: Record, events: readonly HarnessEvent[], answer: HookAnswer): void {
-    if (answer.leaseId === null) return
-    const stop = events.find(
-      (event) =>
-        event.type === "turn-ended" &&
-        event.outcome === "completed" &&
-        rootedIn(record.root, event),
-    )
-    if (!stop || stop.type !== "turn-ended") return
-    const { agent, sessionId, instance, startedAt } = stop
-    this.bindings.applyFact(record, {
-      type: "turn-continued",
-      agent,
-      sessionId,
-      instance,
-      startedAt,
-    })
-  }
-
-  /**
-   * Tells whose the root session's first prompt is, once delivery has taken its turn:
-   * the person's own submission, or not, as an agent's command-line prompt.
-   */
-  private judgeFirst(record: Record): void {
-    const { work } = record
-    if (!work?.first || work.firstByPerson !== undefined) return
-    const prompt = this.messaging.personPrompt(record.summary.id)
-    // The opener's own command-line prompt is never the person's, whatever Enter came before.
-    const command =
-      work.opened === true &&
-      prompt !== undefined &&
-      record.openerCommand !== null &&
-      promptIn(record.openerCommand, prompt)
-    record.work = judgedFirst(work, prompt !== undefined && !command)
-    this.saves.save(record, false)
-  }
-
-  /**
-   * A prompt-time hook's answer, with Novadeck's notices when any is due (see
-   * `nudges.ts`): the bar beside the terminal, for a session that begins or lost its
-   * context, which a `summarize` never clears, and a nudge to summarize the terminal's
-   * work, when a trigger fired since the last `summarize`; only at the person's prompt, as
-   * a paragraph each, never in an answer that carries messages or another notice, nor at
-   * Stop. Each of the person's prompts counts toward the backstop, and where nothing else
-   * is said, whether the work drifted is looked at.
-   */
-  private async nudged(
-    record: Record,
-    report: Report,
-    events: readonly HarnessEvent[],
-    answer: HookAnswer,
-    deadline: number,
-  ): Promise<HookAnswer> {
-    const { messaging } = harnesses[report.agent]
-    if (messaging.asks[report.event] !== "prompt") return answer
-    const prompt = events.some(
-      (event) =>
-        event.type === "turn-started" && event.cause === "prompt" && rootedIn(record.root, event),
-    )
-    if (!prompt) return answer
-    const silent = answer.leaseId === null && answer.stdout === silentFor(messaging, report.event)
-    const inTime = (ms: number) => deadline - Date.now() >= ms
-    // Read only for an answer that has nothing else to say, so a delivery never waits on
-    // it, and only with time to spare.
-    const facts =
-      silent && record.nudges.baseline && inTime(driftReadMs)
-        ? await this.peers.facts(record)
-        : undefined
-    // A nudge that may miss the hook's deadline is never spent: its trigger waits.
-    const taken = atPrompt(record.nudges, { quiet: silent && inTime(leaseMargin), facts })
-    record.nudges = taken.nudges
-    if (!taken.nudge) return answer
-    return {
-      leaseId: null,
-      stdout: messaging.prompt(noticesAt(taken, { summary: record.naming.summary })),
-    }
-  }
-
-  /**
-   * Follows the terminal's root session after its binding changed or a report's facts,
-   * as its harness's profile says, telling messaging how it changed, and tallies what the
-   * root worked on; true when that work changed, to be saved.
-   */
-  private trackRoot(record: Record, events: readonly HarnessEvent[], statusLine: boolean): boolean {
-    const changes = this.followRootOf(record, events, statusLine)
-    const tallied = this.tallyWork(record, events, changes)
-    this.murmur?.reported(record.summary.id, this.reported(record, changes))
-    return tallied
-  }
-
-  /**
-   * Follows the terminal's root session after its binding changed or a report's facts, as
-   * its harness's profile says, telling messaging how it changed; how it changed.
-   */
-  private followRootOf(
-    record: Record,
-    events: readonly HarnessEvent[],
-    statusLine: boolean,
-  ): readonly RootChange[] {
-    const { id } = record.summary
-    const agent = record.binding?.agent ?? record.root?.agent
-    const { root, changes } = followRoot(record.root, record.binding, events, {
-      mode: agent ? harnesses[agent].messaging.root : "binding",
-      statusLine,
-      awaited: (sessionId) => this.messaging.awaits(id, sessionId),
-    })
-    record.root = root
-    if (changes.length > 0) {
-      this.messaging.rooted(id, changes)
-      this.asks.rooted(id, changes)
-      this.typing.settleBox(record)
-    }
-    // A new root session has yet to hear of the bar beside its terminal.
-    if (changes.some((change) => change.type === "new"))
-      record.nudges = fired(record.nudges, "session")
-    return changes
-  }
-
-  /**
-   * Tallies what the root worked on from a report's facts, after its root `changes`;
-   * true when that work changed, to be saved. The first session after an agent opened the
-   * terminal is marked, as its first prompt may be that agent's command.
-   */
-  private tallyWork(
-    record: Record,
-    events: readonly HarnessEvent[],
-    changes: readonly RootChange[],
-  ): boolean {
-    const after = workAfter(record.work, record.root, events, Date.now(), changes)
-    if (after === record.work) return false
-    const started = after !== null && after.session !== record.work?.session
-    const work = started && record.awaitsOpened ? { ...after, opened: true as const } : after
-    if (started) record.awaitsOpened = false
-    record.work = work
-    return true
-  }
-
-  /**
-   * The facts with a root turn's prompt told from the agent's transcript, where its
-   * harness's hooks name none (see `typedPromptStart`), remembering what was seen there.
-   */
-  private async attributed(
-    record: Record,
-    events: readonly HarnessEvent[],
-  ): Promise<readonly HarnessEvent[]> {
-    const { id } = record.summary
-    const { root, transcript } = record
-    const typedEntry = root && harnesses[root.agent].messaging.typedEntry
-    if (!root || !typedEntry || !transcript) return events
-    // The person's Enter, judged by when the turn's hook fired, as delivery judges it.
-    const started = events.find((event) => event.type === "turn-started")
-    const told = await typedPromptStart(
-      events,
-      {
-        root,
-        typedEntry,
-        transcript,
-        // What was seen of this transcript, not another's.
-        seen: record.seenEntry?.transcript === transcript ? record.seenEntry.id : undefined,
-        enteredAt:
-          started && this.messaging.pendingSubmission(id, started.startedAt, started.firedAt),
-        ringing: this.messaging.ringing(id),
-        startedWith: record.startedWith,
-      },
-      undefined,
-      { waitMs: transcriptWaitMs(this.options.platform) },
-    )
-    if (told.seen !== undefined) record.seenEntry = { transcript, id: told.seen }
-    return told.events
-  }
-
-  /** Follows the root after the terminal's binding changed outside its hooks' reports. */
-  private rebound(record: Record): void {
-    this.trackRoot(record, [], false)
-  }
-
-  /**
-   * A Windows pid can already name another process when the next agent reports. Only
-   * a known start after the bound session was observed proves that reuse: an unknown
-   * tree, a missing root or an older process leaves the nested-agent gate intact.
-   */
-  private async reusedBinding(
-    record: Record,
-    events: readonly HarnessEvent[],
-    deadline?: number,
-  ): Promise<Binding | undefined> {
-    const { binding } = record
-    if (this.options.platform !== "win32" || !binding?.instance) return undefined
-    if (
-      !events.some(
-        (event) =>
-          event.type === "session-observed" &&
-          event.instance !== null &&
-          (event.agent !== binding.agent ||
-            event.instance !== binding.instance ||
-            (event.evidence === "startup" && event.sessionId !== binding.sessionId)),
-      )
-    )
-      return undefined
-    // A late old hook can move this forward and hide reuse; it cannot prove a live
-    // original process is newer than its own hook.
-    const observed = record.agents[binding.agent]?.seq
-    if (observed === undefined) return undefined
-    // Leave an asking hook time to print its answer; a report has the relay's normal bound.
-    const timeoutMs =
-      deadline === undefined ? relayMs : Math.min(relayMs, deadline - Date.now() - 500)
-    if (timeoutMs <= 0) return undefined
-    const pid = Number(binding.instance)
-    const members = await this.trees.read(pid, timeoutMs)
-    const root = members?.find((member) => member.pid === pid)
-    // The two wall-clock samples may round differently; close starts prove nothing.
-    return root !== undefined && root.startedAt > observed + 50 ? binding : undefined
-  }
-
-  /** Whether an observation is a late one of the session whose process was found gone. */
-  private late(record: Record, event: SessionObserved): boolean {
-    const { left } = record
-    return (
-      left !== undefined &&
-      left.agent === event.agent &&
-      left.sessionId === event.sessionId &&
-      (event.instance === null || event.instance === left.instance)
-    )
-  }
-
   /** Shows a transcript on the record's fresh screen, ahead of its shell's output. */
   private show(record: Record, transcript: string, savedAt: Date | null): void {
     void record.terminal.replay(transcript, restoredSeparator(savedAt))
@@ -2095,10 +1592,7 @@ export class Terminals {
 
   /** The shell exited: the agent layer lets go of it, before its viewers read the exit. */
   private exited(record: Record): void {
-    record.binding = null
-    record.root = null
-    record.activity = null
-    record.telemetry = null
+    this.bindings.exited(record)
     forgetPrompts(record)
     this.bindings.unwatch(record)
     // An exited terminal takes no messages; its agent's are gone until it runs again.

@@ -9,8 +9,8 @@ import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { describe, expect, it } from "../../test"
 import { againMs, Requests } from "./Requests"
+import { describe, expect, it } from "./test"
 
 const unmounts: (() => void)[] = []
 afterEach(() => {

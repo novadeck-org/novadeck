@@ -1,6 +1,5 @@
 import type { ChatRequest } from "@novadeck/core/conversation"
 
-import { context, describe, expect, it } from "../../test"
 import {
   composerState,
   joinDraft,
@@ -15,6 +14,7 @@ import {
   setAnsweringInTerminal,
   setChatDraft,
 } from "./mode-state"
+import { context, describe, expect, it } from "./test"
 
 describe("answers in the terminal", () => {
   it("are kept by session and terminal", () => {
