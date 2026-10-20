@@ -51,6 +51,9 @@ const html = (mail: MailHandle): string => {
 
 describe("the Messages pane's note on why the doorbell cannot wake an idle agent", () => {
   it.each([
+    ["working", "It is working"],
+    ["queued", "A prompt is queued in it"],
+    ["shell", "Its box is in shell mode"],
     ["draft", "There's text in its box"],
     ["dialog", "A dialog or picker is open"],
     ["asking", "It is asking you a question"],

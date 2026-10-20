@@ -555,6 +555,7 @@ export class Terminals {
     const mailChanged = coalesced(
       (terminalId) => this.streams.mailChanged(terminalId),
       "Novadeck could not tell its message watches:",
+      "messaging.watch-failed",
     )
     this.messaging.subscribe((change) => {
       if (change.kind === "terminal") mailChanged(change.terminalId)

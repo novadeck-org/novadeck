@@ -100,6 +100,7 @@ export type RunnerBackendOptions = {
   // Where the host offers the update it has downloaded.
   readonly updates?: Backend["updates"]
   readonly version?: Backend["version"]
+  readonly openLogs?: Backend["openLogs"]
   readonly sandbox?: Backend["sandbox"]
   readonly portable?: Backend["portable"]
   readonly uninstall?: Backend["uninstall"]
@@ -1515,6 +1516,7 @@ export const runnerBackend = (
     ...(options.notices ? { notices: options.notices } : {}),
     ...(options.updates ? { updates: options.updates } : {}),
     ...(options.version ? { version: options.version } : {}),
+    ...(options.openLogs ? { openLogs: options.openLogs } : {}),
     ...(options.sandbox ? { sandbox: options.sandbox } : {}),
     ...(options.portable ? { portable: options.portable } : {}),
     ...(options.uninstall ? { uninstall: options.uninstall } : {}),

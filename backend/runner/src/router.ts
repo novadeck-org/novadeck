@@ -14,12 +14,15 @@ import { savePlan } from "./companions/content.js"
 import type { CompanionItems } from "./companions/items.js"
 import { DomainError } from "./errors.js"
 import type { Harnesses } from "./harnesses/service.js"
+import { logs } from "./log.js"
 import type { Murmur } from "./murmur/service.js"
 import type { Terminals } from "./terminals/index.js"
 import type { Uploads } from "./terminals/uploads.js"
 import type { Voice } from "./voice/service.js"
 import type { Projects } from "./workspaces/projects.js"
 import type { WorkspaceStore } from "./workspaces/store.js"
+
+const log = logs.for("router")
 
 // The wire serves its own handshake; the runner serves the rest of the contract.
 const { wire: _, ...served } = contract
@@ -196,10 +199,10 @@ export const createRouter = (options: {
         } catch (error) {
           // A plan that can't be written is told to the client; anything else is only seen here.
           if (!(error instanceof DomainError))
-            console.error(
-              `Novadeck could not save a plan (${(error as NodeJS.ErrnoException | undefined)?.code ?? "unknown"}) at ${item.path ?? "no path"}:`,
-              error,
-            )
+            log.error("companions.plan-save-failed", "Novadeck could not save a plan", {
+              data: { path: item.path ?? null },
+              err: error,
+            })
           throw error
         }
       }),

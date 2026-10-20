@@ -13,6 +13,7 @@ import { racesOwnSettings } from "./known-gaps.js"
 import { asked, gate, latest, Refusal, tool, type Call, type Reply } from "./model/script.js"
 import {
   answers,
+  deliveries,
   delivered,
   holds,
   lacking,
@@ -468,6 +469,80 @@ for (const setup of setups) {
         },
       )
     }
+
+    // Its box takes a prompt while a subagent its turn left running runs (#325): a message
+    // sent then rings it at its empty box, and is delivered once, the subagent still held.
+    gated(it, lacking(setup, "background"))(
+      "rings it while a subagent it left running runs, delivering once",
+      async ({ e2e: run }) => {
+        const finishing = gate()
+        const { owns } = background!
+        run.model.use(
+          own(async (call) => {
+            if (!owns(call)) return undefined
+            await finishing.opened
+            return { text: "Background work done." }
+          }),
+          answers("Start the work", (call) => background!.start(call)),
+          sends("Ask moth for news", "moth", "Any news?"),
+          own((call) => (sent(call, "moth") ? { text: "Asked." } : undefined)),
+          own((call) => (delivered(call, "fox") ? { text: "No news." } : undefined)),
+          own((call) =>
+            result(call) !== undefined && !owns(call) ? { text: "Started the work." } : undefined,
+          ),
+        )
+        const t1 = await start(run, setup)
+        const t2 = await start(run, setup)
+        expect([t1.handle, t2.handle]).toEqual(["moth", "fox"])
+        const calls = run.model.mark()
+
+        // Its turn ends while the subagent runs, its call held.
+        await t1.submit("Start the work")
+        await run.model.waitFor(owns, { after: calls })
+        await t1.until("Started the work.")
+        await t1.poll(
+          () => (t1.summary().activity?.background?.agents === 1 ? true : undefined),
+          "the agent's turn to end, its subagent counted",
+        )
+        const stopped = t1.mark()
+
+        // fox's message rings it, and its doorbell prompt's hook delivers it.
+        await t2.submit("Ask moth for news")
+        await t2.until("Asked.")
+        const rung = await run.model.waitFor((call) => delivered(call, "fox"), { after: calls })
+        expect(latest(rung)).toMatch(ring)
+        expect(deliveries(rung)).toEqual([{ from: "fox", text: "Any news?" }])
+        await t1.until("No news.")
+        await through(t1, ["ringing", "working", holds("fox", "moth", "delivered")], {
+          after: stopped,
+        })
+        // All the while, the subagent's call is held: it still runs, counted once the ring's
+        // turn has ended (Antigravity's Stop says only that something runs, its status line
+        // counts it).
+        await t1.poll(
+          () => (t1.summary().activity?.background?.agents === 1 ? true : undefined),
+          "the subagent still counted after the ring's turn",
+        )
+
+        // It ends and wakes the agent, whose turn settles with nothing left: one delivery.
+        const woken = run.model.mark()
+        const before = t1.mark()
+        finishing.open()
+        await run.model.waitFor((call) => !call.side && !owns(call), { after: woken })
+        await t1.reached("settled", { after: before })
+        await t1.poll(
+          () =>
+            t1.summary().activity?.state === "idle" && t1.summary().activity?.background === null
+              ? true
+              : undefined,
+          "the agent idle, nothing left running",
+        )
+        expect(run.model.calls.slice(calls).filter((call) => delivered(call, "fox"))).toHaveLength(
+          1,
+        )
+        expect(messages(t1).map((one) => one.state)).toEqual(["delivered"])
+      },
+    )
 
     it("tells the start of the agent's last reply once its turn ends", async ({ e2e: run }) => {
       // Claude Code's and Codex's Stop name the reply; Antigravity's transcript records it.

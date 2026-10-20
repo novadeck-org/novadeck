@@ -15,6 +15,7 @@ import { lastReply } from "../../harnesses/replies.js"
 import { limitOf, observeTelemetry, telemetrySummary } from "../../harnesses/telemetry.js"
 import type { Messaging } from "../../messaging/messaging.js"
 import type { Companion } from "../companion.js"
+import { failed } from "../failures.js"
 import type { Record } from "../record.js"
 import { hasRun } from "../records.js"
 import type { Typing } from "../typing.js"
@@ -198,7 +199,7 @@ export class Bindings {
     void watch(run, controller.signal, (fact) => {
       if (record.watching !== controller || fact.type === "session-observed") return
       this.sourceFact(record, fact)
-    }).catch((error: unknown) => console.error("Novadeck stopped following an agent:", error))
+    }).catch(failed.following)
   }
 
   /** Applies what the bound session's own sources said, as its hooks' reports apply. */
@@ -357,7 +358,7 @@ export class Bindings {
         if (actorWatches.get(actor)?.controller !== controller) return
         if (fact.type === "session-observed") return
         this.sourceFact(record, fact)
-      }).catch((error: unknown) => console.error("Novadeck stopped following a subagent:", error))
+      }).catch(failed.followingSubagent)
     }
   }
 

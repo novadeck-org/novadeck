@@ -9,6 +9,21 @@ const states: readonly {
   readonly hint: string
 }[] = [
   {
+    label: "Working",
+    waits: "working",
+    hint: "Messages pane says the agent is working, so its messages wait",
+  },
+  {
+    label: "Prompt queued",
+    waits: "queued",
+    hint: "Messages pane says a prompt is queued in the agent, so its messages wait",
+  },
+  {
+    label: "Shell mode",
+    waits: "shell",
+    hint: "Messages pane says the agent's box is in shell mode, so its messages wait",
+  },
+  {
     label: "Text in its box",
     waits: "draft",
     hint: "Messages pane says there's text in the agent's box, so its messages wait",
