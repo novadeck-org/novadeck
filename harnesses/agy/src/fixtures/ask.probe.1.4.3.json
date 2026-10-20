@@ -1,0 +1,97 @@
+{
+  "harness": "agy",
+  "version": "1.4.3",
+  "source": "captured",
+  "how": "the same probes (agy-ask.e2e.ts, agy-edit.e2e.ts) against 1.4.3, 120x40, 2026-10-20: a command's, write_file's and edit_file's confirmations and ask_question's dialog, the banner cut; they read as 1.2.14's (fixtures/ask.probe.json), but the tools are write_file and edit_file, naming their file as Path, run_command takes no Cwd, and a file's diff rows read \"  1  +  hello\"; paths replaced",
+  "screens": {
+    "command": {
+      "height": 19,
+      "rows": {
+        "0": "────────────────────────────────────────────────────────────",
+        "1": "> Run it",
+        "3": "● Ran (echo approved) (ctrl+o to expand)",
+        "5": "Command",
+        "6": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "8": "Requesting permission for:",
+        "9": "   echo approved",
+        "11": "Run this command?",
+        "12": "> 1. Yes, run command",
+        "13": "  2. Yes, and always allow in this conversation for commands that start with 'echo'",
+        "14": "  3. Yes, and always allow for commands that start with 'echo' (Persist to settings.json)",
+        "15": "  4. No, cancel",
+        "17": "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
+        "18": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+      }
+    },
+    "write": {
+      "height": 17,
+      "rows": {
+        "0": "────────────────────────────────────────────────────────────",
+        "1": "> Make the file",
+        "3": "● Edited 1 file (probe.txt) (ctrl+o to expand)",
+        "5": "Create file",
+        "6": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "8": "/tmp/sandbox/project/probe.txt  +1",
+        "9": "  1  +  hello",
+        "11": "Allow creation of this file?",
+        "12": "> 1. Yes, allow creation",
+        "13": "  2. No, deny creation",
+        "15": "  ↑/↓ Navigate · tab Amend · f full diff",
+        "16": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+      }
+    },
+    "edit": {
+      "height": 19,
+      "rows": {
+        "0": "────────────────────────────────────────────────────────────",
+        "1": "> Edit one",
+        "3": "● Edited 1 file (probe.txt) (ctrl+o to expand)",
+        "5": "Pending edit",
+        "6": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "8": "/tmp/sandbox/project/probe.txt  +1 -1",
+        "9": "  1  -  hello",
+        "10": "  1  +  goodbye",
+        "12": "  shift+tab to auto-approve file edits",
+        "13": "Accept this file edit?",
+        "14": "> 1. Yes, accept this change",
+        "15": "  2. No, reject this change",
+        "17": "  ↑/↓ Navigate · tab Amend · f full diff",
+        "18": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+      }
+    },
+    "ask": {
+      "height": 17,
+      "rows": {
+        "0": "────────────────────────────────────────────────────────────",
+        "1": "> Ask me",
+        "3": "? Which colour?",
+        "5": "Question",
+        "6": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "8": "Question 1/1: Which colour?",
+        "10": "> 1. Red",
+        "11": "  2. Green",
+        "12": "  3. Blue",
+        "13": "  4. Write-in...",
+        "15": "  ↑/↓ Navigate · enter Select · esc Skip",
+        "16": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+      }
+    },
+    "multi": {
+      "height": 17,
+      "rows": {
+        "0": "────────────────────────────────────────────────────────────",
+        "1": "> Ask me",
+        "3": "? Which colour?",
+        "5": "Question",
+        "6": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "8": "Question 1/1: Which colour?",
+        "10": "> 1. [ ] Red",
+        "11": "  2. [ ] Green",
+        "12": "  3. [ ] Blue",
+        "13": "  4. Write-in...",
+        "15": "  ↑/↓ Navigate · space Toggle · enter Submit · esc Skip",
+        "16": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+      }
+    }
+  }
+}

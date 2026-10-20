@@ -133,7 +133,10 @@ export const agy = {
           ...(!(platform === "win32" && machine.cmdPrints) && {
             PreToolUse: [{ matcher: "*", hooks: [handler(platform, "PreToolUse")] }],
           }),
+          // write_file and edit_file from 1.4, write_to_file and replace_file_content before.
           PostToolUse: [
+            { matcher: "write_file", hooks: [handler(platform, "PostToolUse")] },
+            { matcher: "edit_file", hooks: [handler(platform, "PostToolUse")] },
             { matcher: "write_to_file", hooks: [handler(platform, "PostToolUse")] },
             { matcher: "replace_file_content", hooks: [handler(platform, "PostToolUse")] },
             { matcher: "ask_question", hooks: [handler(platform, "PostToolUse")] },

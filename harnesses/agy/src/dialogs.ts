@@ -121,8 +121,8 @@ type Confirmation = {
   readonly drawn?: { readonly rows: readonly string[]; readonly width: number }
   /** A command's tool lines above its heading. */
   readonly history?: string
-  /** The tool a file confirmation's header names. */
-  readonly tool?: string
+  /** The tools a file confirmation's header may name. */
+  readonly tools?: readonly string[]
 }
 
 // A command's confirmation, or a file's, read in full: from `Requesting permission for:`
@@ -163,22 +163,24 @@ const confirmation = (rows: readonly string[]): Confirmation | undefined => {
   // A file's: its header over a rule, then what it shows, down to the question.
   const ruleAt = lines.findLastIndex((row, index) => index < ask && rule(row))
   const header = ruleAt > 0 ? lines[ruleAt - 1]!.trim() : ""
-  const tool = files[header]
-  if (tool === undefined) return undefined
+  const tools = files[header]
+  if (tools === undefined) return undefined
   // Its edit's hint about auto-approval is no part of what it asks.
   const shown = lines
     .slice(ruleAt + 1, ask)
     .filter((row) => !row.trim().startsWith("shift+tab to auto-approve"))
     .join("\n")
     .trim()
-  return shown === "" ? undefined : { question, options, shown, command: false, tool }
+  return shown === "" ? undefined : { question, options, shown, command: false, tools }
 }
 
-// The tool each file confirmation's header means (only what was probed).
-const files: { readonly [header: string]: string } = {
-  "Create file": "write_to_file",
+// The tools each file confirmation's header means (only what was probed): 1.4's, which
+// name the file as Path, and the earlier ones, which name it as TargetFile.
+const files: { readonly [header: string]: readonly string[] } = {
+  // "Allow creation of this file?" (probed 2026-10-20, 1.2.14 and 1.4.3).
+  "Create file": ["write_file", "write_to_file"],
   // A line replaced in a file (probed 2026-10-15, 1.2.14 and 1.3.5): "Accept this file edit?".
-  "Pending edit": "replace_file_content",
+  "Pending edit": ["edit_file", "replace_file_content"],
 }
 
 // Whether what the screen shows of a command is the call's, all of it. A command cut short
@@ -236,8 +238,9 @@ const matches = (read: Confirmation, input: unknown): boolean => {
     return call.name === "run_command" && sameCommand(read.shown, call.args.CommandLine)
   // A file's: the header names the call's tool, and the dialog's own first line, between
   // that header and the question, starts with the call's whole path.
-  const file = call.args.TargetFile
-  if (typeof file !== "string" || file.trim() === "" || call.name !== read.tool) return false
+  const file = call.args.Path ?? call.args.TargetFile
+  if (typeof file !== "string" || file.trim() === "" || !read.tools?.includes(call.name))
+    return false
   const line = read.shown.split("\n")[0]!.replace(/\s+[+-]\d+(\s+[+-]\d+)*\s*$/, "")
   return collapse(line) === collapse(file)
 }

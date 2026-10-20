@@ -179,15 +179,8 @@ const writing = (agent: AgentName, path: string): Reply =>
       : {
           calls: [
             {
-              name: "write_to_file",
-              input: {
-                TargetFile: path,
-                Overwrite: true,
-                CodeContent: "x\n",
-                Description: "Writes the file",
-                toolSummary: "Write",
-                toolAction: "Writing",
-              },
+              name: "write_file",
+              input: { Path: path, Overwrite: true, Content: "x\n" },
             },
           ],
         }

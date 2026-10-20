@@ -841,3 +841,63 @@ describe("Antigravity 1.3.0's dialogs (fixtures/ask.probe.1.3.0.json)", () => {
     expect(dialogs.screenRequest!(latest.planApproved!.rows)).toBeUndefined()
   })
 })
+
+// 1.4's file tools are write_file and edit_file, naming the file as Path; its dialogs read
+// as before (probed 2026-10-20, 1.4.3).
+describe("Antigravity 1.4.3's dialogs", () => {
+  const { screens } = loadProbe(import.meta.dirname, "ask.probe.1.4.3.json") as {
+    screens: { [name: string]: ScreenText }
+  }
+  const file = "/tmp/sandbox/project/probe.txt"
+  const written = { name: "write_file", args: { Path: file, Content: "hello\n" } }
+  const edited = {
+    name: "edit_file",
+    args: { Path: file, Target: "hello", Replacement: "goodbye" },
+  }
+
+  it("reads write_file's confirmation, agreeing with its Path", () => {
+    const screen = screens.write!.rows
+    const found = read(screen, permission(written))
+    expect(found.dialog).toEqual({
+      type: "choices",
+      title: "Allow creation of this file?",
+      detail: `${file}  +1\n  1  +  hello`,
+      options: [
+        { id: "1", label: "Yes, allow creation", text: null },
+        { id: "2", label: "No, deny creation", text: "prompt" },
+      ],
+    })
+    expect(sent(found.keys(choice("1")))).toEqual(["1"])
+    const other = { name: "write_file", args: { Path: "/tmp/sandbox/project/other.txt" } }
+    expect(dialogs.read(screen, permission(other))).toBeUndefined()
+    expect(dialogs.read(screen, permission(edited))).toBeUndefined()
+  })
+
+  it("reads edit_file's confirmation, agreeing with its Path", () => {
+    const screen = screens.edit!.rows
+    const found = read(screen, permission(edited))
+    expect(found.dialog).toEqual({
+      type: "choices",
+      title: "Accept this file edit?",
+      detail: `${file}  +1 -1\n  1  -  hello\n  1  +  goodbye`,
+      options: [
+        { id: "1", label: "Yes, accept this change", text: null },
+        { id: "2", label: "No, reject this change", text: "prompt" },
+      ],
+    })
+    expect(dialogs.read(screen, permission(written))).toBeUndefined()
+  })
+
+  it("reads a command's confirmation for a call with no Cwd, and ask_question", () => {
+    const echo = { name: "run_command", args: { CommandLine: "echo approved" } }
+    expect(read(screens.command!.rows, permission(echo)).dialog).toMatchObject({
+      type: "choices",
+      title: "Run this command?",
+      detail: "echo approved",
+    })
+    expect(read(screens.ask!.rows, question(colour)).dialog).toMatchObject({
+      type: "questions",
+      questions: [{ question: "Which colour?" }],
+    })
+  })
+})

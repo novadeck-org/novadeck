@@ -11,7 +11,7 @@ const record = (value: unknown): Readonly<Record<string, unknown>> =>
     : {}
 
 // The schema the model actually sees, after its harness translated the MCP declaration.
-// Antigravity loads it lazily: view_file's result is the model's copy, not the runner's.
+// Antigravity loads it lazily: read_file's result is the model's copy, not the runner's.
 const parameters = (call: Call, name: string, reading: boolean): unknown => {
   if (reading) {
     const lines =
@@ -104,8 +104,7 @@ for (const setup of setups) {
               .findLast((entry) => entry.role === "assistant")
               ?.calls.some(
                 (entry) =>
-                  entry.name === "view_file" &&
-                  /[/\\]ask\.json$/.test(String(entry.input.AbsolutePath)),
+                  entry.name === "read_file" && /[/\\]ask\.json$/.test(String(entry.input.Path)),
               ) === true
           if (asked(call, "Ask through Inbox") && call.tools.includes("call_mcp_tool")) {
             const folder = /directory `([^`]+)[/\\]<serverName>`/.exec(call.system)?.[1]
@@ -113,12 +112,8 @@ for (const setup of setups) {
             return {
               calls: [
                 {
-                  name: "view_file",
-                  input: {
-                    AbsolutePath: join(folder, "novadeck_novadeck", "ask.json"),
-                    toolSummary: "Read Inbox schema",
-                    toolAction: "Reading Inbox schema",
-                  },
+                  name: "read_file",
+                  input: { Path: join(folder, "novadeck_novadeck", "ask.json") },
                 },
               ],
             }
