@@ -1,7 +1,7 @@
 import type { Backend, ThemeSource } from "@novadeck/core/port"
 
 import { createDemoEngine } from "../engine"
-import { demoBackend, withConversations } from "../index"
+import { demoBackend, withConversations, withInbox } from "../index"
 import { lessMotion, stillRequested } from "../motion"
 import { agentTranscripts } from "../transcripts"
 import { demoTurns } from "../turns"
@@ -16,7 +16,8 @@ const visitorTurnMs = 4000
 // only as the visitor answers them (see `visitorStory`), with a little going on by itself
 // meanwhile (see `visitorAmbient`), and without what a browser page
 // can't offer: the debug panel, the chat view, connecting agents, voice, murmur, notices,
-// updates and a version. The terminals' screens read the agents' conversations. What it
+// updates and a version. The terminals' screens read the agents' conversations, and the
+// Inbox lists what they wait on. What it
 // returns is listed field by field, so nothing added to the agents demo reaches a public
 // page unasked. Specs shorten the turns, the wait before Codex asks and the time Claude Code
 // reads before its plan, which none of them wait for by default (`readingMs: 0`), and
@@ -52,7 +53,7 @@ export const visitorDemo = ({
     },
   })
   const storied = story.wrap(withConversations(base, story.transcripts, turns))
-  const backend = ambient && !still ? life.wrap(storied) : storied
+  const backend = withInbox(ambient && !still ? life.wrap(storied) : storied, turns)
   return {
     seed: backend.seed,
     newTerminal: backend.newTerminal,
@@ -62,6 +63,7 @@ export const visitorDemo = ({
     telemetry: backend.telemetry,
     ...(backend.companions && { companions: backend.companions }),
     ...(backend.start && { start: backend.start }),
+    ...(backend.inbox && { inbox: backend.inbox }),
     visitor: true,
   }
 }

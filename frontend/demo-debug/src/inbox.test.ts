@@ -116,9 +116,9 @@ describe("the debug panel's Inbox group", () => {
     }
   })
 
-  it("clears the Inbox", () => {
+  it("clears the items it and the Inbox demo added", () => {
     const inbox = createDemoInbox(1)
-    run(inbox, "Clear the Inbox")
+    run(inbox, "Clear the added items")
     expect(inbox.state.getSnapshot().items).toEqual([])
   })
 })

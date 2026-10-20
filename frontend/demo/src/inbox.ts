@@ -1,23 +1,30 @@
-import type { ChatRequest } from "@novadeck/core/conversation"
+import { agentWorking } from "@novadeck/core/agent-finish"
+import type { ChatRequest, Conversation, Conversations } from "@novadeck/core/conversation"
 import type { AgentName } from "@novadeck/core/harnesses"
 import {
   emptyInbox,
+  ordered,
   type AskOption,
   type Inbox,
   type InboxAnswer,
+  type InboxBinding,
   type InboxContent,
   type InboxItem,
   type InboxState,
 } from "@novadeck/core/inbox"
-import type { InboxHistory } from "@novadeck/core/messages"
-import { createStore } from "@novadeck/core/store"
+import { inboxItems, type Asked } from "@novadeck/core/inbox-items"
+import { noMail, type InboxHistory, type Messages } from "@novadeck/core/messages"
+import { terminalKeyId } from "@novadeck/core/registry"
+import { createStore, type Store } from "@novadeck/core/store"
+import type { TerminalKey, TerminalMetadata, Workspace } from "@novadeck/core/types"
 
 import { demoHandle } from "./handles"
 import { deliveryMs } from "./messages"
 import { demoTerminalId, terminals } from "./samples"
 
-// The demo's Inbox: hardcoded items on the sample terminals, answered for a moment and
-// then gone, as the runner's will be once the backend drops what the person answered.
+// The demo's Inbox: what its agents wait on, built as the runner's is (`createDemoInbox`),
+// and the hardcoded items below on the sample terminals, which the Inbox demo shows and the
+// debug panel adds, answered for a moment and then gone.
 
 // How long an answered item stays, marked answering, before it goes.
 export const answerMs = 600
@@ -617,36 +624,262 @@ const resumed = (found: InboxItem, on: boolean): InboxItem =>
     ? { ...found, stopped: !on, trouble: { ...found.trouble, autoResume: on } }
     : found
 
+const whyOf = (error: unknown): string =>
+  error instanceof Error && error.message ? error.message : "That didn't take. Try again."
+
+// What the demo's Inbox is built from, as the runner's is from the runner: the agents'
+// conversations, which hold what each asks and answer it as its screen does; the messages
+// held for release, where the demo has messages; and a way to take an agent past what it
+// waits on, once the person answered one of the demo's own items for it.
+export type DemoInboxSources = {
+  readonly conversations: Conversations
+  readonly messages?: Messages | undefined
+  readonly resume: (key: TerminalKey, terminal: TerminalMetadata) => void
+}
+
+// Every running terminal of the workspace that waits on the person, by its full address.
+const waiting = (workspace: Workspace): { key: TerminalKey; terminal: TerminalMetadata }[] =>
+  workspace.projects.flatMap((project) =>
+    project.history.flatMap((session) =>
+      session.state.roster.terminals
+        .filter((terminal) => terminal.state === "running" && terminal.agent?.attention)
+        .map((terminal) => ({
+          key: { projectId: project.id, workspaceSessionId: session.id, terminalId: terminal.id },
+          terminal,
+        })),
+    ),
+  )
+
+const terminalAt = (workspace: Workspace, key: TerminalKey): TerminalMetadata | undefined =>
+  workspace.projects
+    .find((project) => project.id === key.projectId)
+    ?.history.find((session) => session.id === key.workspaceSessionId)
+    ?.state.roster.terminals.find((terminal) => terminal.id === key.terminalId)
+
+const keyOf = ({ source }: InboxItem): TerminalKey => ({
+  projectId: source.projectId,
+  workspaceSessionId: source.workspaceSessionId,
+  terminalId: source.terminalId,
+})
+
+// The demo's own items take their terminal's row from what its agents would show; a held
+// thread is its own row whatever else its terminals show.
+const merged = (own: readonly InboxItem[], derived: readonly InboxItem[]): InboxItem[] => {
+  const taken = new Set(
+    own.filter((each) => each.kind !== "held").map((each) => each.source.terminalId),
+  )
+  return ordered([
+    ...own,
+    ...derived.filter((each) => each.kind === "held" || !taken.has(each.source.terminalId)),
+  ])
+}
+
+// The demo's Inbox, built as the runner's is once the app binds it (core's `inboxItems`):
+// what its agents wait on, their finishes and the messages held for release, answered
+// through their conversations and messages, so an answer here moves the agent on as one on
+// its screen does. Over those, the items the demo shows that its agents don't make: `items`,
+// the Inbox demo's showcase, and what the debug panel adds, answered for a moment and then
+// gone, taking the agent past what it waited on where it did.
 export const createDemoInbox = (
   now: number,
-  items = demoInboxItems(now),
+  items: readonly InboxItem[] = demoInboxItems(now),
   record: (item: InboxItem, answer?: InboxAnswer, outcome?: InboxHistory) => void = () => {},
+  sources?: DemoInboxSources,
 ): DemoInbox => {
   for (const each of items) record(each)
-  const state = createStore<InboxState>({ ...emptyInbox, items })
+  // The demo's own items.
+  const own = createStore<InboxState>({ ...emptyInbox, items: [...items] })
   const change = (next: (current: InboxState) => InboxState): void => {
-    state.update(next)
+    own.update(next)
   }
+  // What the demo's agents would show, while the app binds it.
+  const derived = createStore<InboxState>(emptyInbox)
+  const combine = (): InboxState => {
+    const mine = own.getSnapshot()
+    const theirs = derived.getSnapshot()
+    return {
+      items: merged(mine.items, theirs.items),
+      answering: { ...theirs.answering, ...mine.answering },
+      failed: { ...theirs.failed, ...mine.failed },
+    }
+  }
+  const state = createStore<InboxState>(combine())
+  own.subscribe(() => state.update(combine))
+  derived.subscribe(() => state.update(combine))
+
   let failing: string | null = null
   let dropping = false
-  const find = (id: string): InboxItem | undefined =>
-    state.getSnapshot().items.find((each) => each.id === id)
+  const ownItem = (id: string): InboxItem | undefined =>
+    own.getSnapshot().items.find((each) => each.id === id)
+
+  let binding: InboxBinding | null = null
+  const seen = new Set<string>()
+  const inFlight = new Set<string>()
+  const failed = new Map<string, string>()
+  // When the demo first saw each request, which is when it started waiting.
+  const asked = new Map<string, number>()
+  // The conversations followed, of the terminals that wait, by terminal.
+  const followed = new Map<
+    string,
+    {
+      readonly key: TerminalKey
+      readonly store: Store<Conversation>
+      readonly stop: () => void
+    }
+  >()
+  const follow = (workspace: Workspace): void => {
+    if (!sources) return
+    const asking = waiting(workspace)
+    const ids = new Set(asking.map(({ key }) => terminalKeyId(key)))
+    for (const [id, each] of followed)
+      if (!ids.has(id)) {
+        each.stop()
+        followed.delete(id)
+      }
+    for (const { key } of asking) {
+      const id = terminalKeyId(key)
+      if (followed.has(id)) continue
+      const store = sources.conversations.conversation(key)
+      followed.set(id, { key, store, stop: store.subscribe(() => recompute()) })
+    }
+  }
+  const recompute = (): void => {
+    if (!binding || !sources) return
+    const workspace = binding.workspace.getSnapshot()
+    follow(workspace)
+    const at = Date.now()
+    const requests: Record<string, Asked[]> = {}
+    for (const { key, store } of followed.values()) {
+      requests[key.terminalId] = store.getSnapshot().requests.map((request) => {
+        if (!asked.has(request.id)) asked.set(request.id, at)
+        return { request, askedAt: asked.get(request.id)! }
+      })
+    }
+    const found = inboxItems({
+      workspace,
+      unread: binding.unread.getSnapshot(),
+      mail: sources.messages?.state.getSnapshot() ?? noMail,
+      letters: [],
+      requests,
+      now: at,
+      caseless: false,
+    })
+    const ids = new Set(found.map((each) => each.id))
+    for (const id of seen) if (!ids.has(id)) seen.delete(id)
+    for (const id of failed.keys()) if (!ids.has(id)) failed.delete(id)
+    const answering: Record<string, true> = {}
+    for (const each of found)
+      if (inFlight.has(each.id) || (each.kind === "request" && each.request.answered))
+        answering[each.id] = true
+    derived.update(() => ({
+      items: found.map((each) => (seen.has(each.id) ? { ...each, seen: true } : each)),
+      answering,
+      failed: Object.fromEntries(failed),
+    }))
+  }
+  const fail = (id: string, why: string): void => {
+    failed.set(id, why)
+    recompute()
+  }
+  // Runs an answer to one of the agents' items, which shows answering until it took.
+  const call = (id: string, work: () => Promise<unknown>): void => {
+    failed.delete(id)
+    inFlight.add(id)
+    recompute()
+    work().then(
+      () => {
+        inFlight.delete(id)
+        recompute()
+      },
+      (error: unknown) => {
+        inFlight.delete(id)
+        fail(id, whyOf(error))
+      },
+    )
+  }
+  const answerDerived = (target: InboxItem, given: InboxAnswer): void => {
+    if (!sources || !binding || derived.getSnapshot().answering[target.id]) return
+    if (target.kind !== given.kind) return fail(target.id, "That answer isn't for this item.")
+    if (failing) {
+      const why = failing
+      failing = null
+      return fail(target.id, why)
+    }
+    const { conversations, messages } = sources
+    const key = keyOf(target)
+    if (target.kind === "request" && given.kind === "request")
+      return call(target.id, () => conversations.answer(key, target.request.id, given.answer))
+    if (target.kind === "held" && given.kind === "held") {
+      failed.delete(target.id)
+      if (given.action === "release") messages?.release(target.held.threadId)
+      else messages?.stop(target.held.threadId)
+      return
+    }
+    if (target.kind === "update" && given.kind === "update") {
+      failed.delete(target.id)
+      return binding.read([
+        { context: `${key.projectId}/${key.workspaceSessionId}`, terminalId: key.terminalId },
+      ])
+    }
+    if (target.kind === "trouble" && given.kind === "trouble") {
+      const { action } = given
+      if (action.type === "continue")
+        return call(target.id, () => conversations.send(key, "continue"))
+      if (action.type === "stop") return call(target.id, () => conversations.interrupt(key))
+      if (action.type === "nudge") {
+        const terminal = terminalAt(binding.workspace.getSnapshot(), key)
+        return call(target.id, async () => {
+          if (terminal && agentWorking(terminal)) await conversations.interrupt(key)
+          await conversations.send(key, action.text)
+        })
+      }
+    }
+  }
+  // An answered item of the demo's own for an agent that waits takes it past what it waits on.
+  const release = (answered: InboxItem): void => {
+    if (answered.kind !== "request" || !sources || !binding) return
+    const key = keyOf(answered)
+    const terminal = terminalAt(binding.workspace.getSnapshot(), key)
+    if (terminal?.state === "running" && terminal.agent?.attention) sources.resume(key, terminal)
+  }
+
   return {
     state,
+    bind: (next) => {
+      binding = next
+      const stops = [
+        next.workspace,
+        next.unread,
+        ...(sources?.messages ? [sources.messages.state] : []),
+      ].map((store) => store.subscribe(recompute))
+      recompute()
+      return () => {
+        stops.forEach((stop) => stop())
+        for (const each of followed.values()) each.stop()
+        followed.clear()
+        if (binding === next) binding = null
+        derived.update(() => emptyInbox)
+      }
+    },
     answer: (id, answer) => {
-      const found = find(id)
-      if (!found || state.getSnapshot().answering[id]) return
+      const found = ownItem(id)
+      if (!found) {
+        const theirs = derived.getSnapshot().items.find((each) => each.id === id)
+        if (theirs) answerDerived(theirs, answer)
+        return
+      }
+      if (own.getSnapshot().answering[id]) return
       if (!answers(found, answer))
         return change((current) => ({
           ...current,
           failed: { ...current.failed, [id]: "That answer isn't for this item." },
         }))
       if (failing) {
-        const reason = failing
+        const why = failing
         failing = null
         return change((current) => ({
           ...current,
-          failed: { ...current.failed, [id]: reason },
+          failed: { ...current.failed, [id]: why },
         }))
       }
       // Auto-resume only changes how the agent goes on; the item stays.
@@ -672,6 +905,7 @@ export const createDemoInbox = (
           answering: withoutKey(current.answering, id) as Record<string, true>,
           failed: current.failed,
         }))
+        release(found)
         if (undelivered)
           setTimeout(
             () =>
@@ -686,7 +920,12 @@ export const createDemoInbox = (
           )
       }, answerMs)
     },
-    see: (id) =>
+    see: (id) => {
+      if (!ownItem(id)) {
+        if (seen.has(id) || !derived.getSnapshot().items.some((each) => each.id === id)) return
+        seen.add(id)
+        return recompute()
+      }
       change((current) =>
         current.items.some((each) => each.id === id && !each.seen)
           ? {
@@ -694,14 +933,23 @@ export const createDemoInbox = (
               items: current.items.map((each) => (each.id === id ? { ...each, seen: true } : each)),
             }
           : current,
-      ),
+      )
+    },
     readAll: () => {
-      for (const each of state.getSnapshot().items)
+      for (const each of own.getSnapshot().items)
         if (each.kind === "update") record(each, { kind: "update", action: "read" })
       change((current) => ({
         ...current,
         items: current.items.filter((each) => each.kind !== "update"),
       }))
+      const finishes = derived
+        .getSnapshot()
+        .items.filter((each) => each.kind === "update")
+        .map((each) => ({
+          context: `${each.source.projectId}/${each.source.workspaceSessionId}`,
+          terminalId: each.source.terminalId,
+        }))
+      if (finishes.length > 0) binding?.read(finishes)
     },
     add: (added) => {
       record(added)
@@ -711,7 +959,7 @@ export const createDemoInbox = (
       }))
     },
     resolve: (id, outcome) => {
-      const found = find(id)
+      const found = ownItem(id)
       if (found?.kind !== "ask") return
       record(found, undefined, outcome)
       change((current) => ({ ...current, items: current.items.filter((each) => each.id !== id) }))

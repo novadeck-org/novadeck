@@ -116,7 +116,7 @@ const fresh = (id: string): InboxItem | undefined => {
   return found && { ...found, at: now }
 }
 
-// The Inbox's actions for the demo that has one. Each adds a fresh item, waiting from
+// The Inbox's actions, for the demo's Inbox. Each adds a fresh item, waiting from
 // now, in place of the one of its kind that was there.
 export const inboxGroups = (inbox: DemoInbox | undefined): readonly DemoActionGroup[] => {
   if (!inbox) return []
@@ -207,8 +207,8 @@ export const inboxGroups = (inbox: DemoInbox | undefined): readonly DemoActionGr
           },
         },
         {
-          label: "Clear the Inbox",
-          hint: "Every item goes; the Inbox reads Nothing needs you",
+          label: "Clear the added items",
+          hint: "The hardcoded items and those added here go; what the agents wait on stays",
           run: () => inbox.clear(),
         },
       ],

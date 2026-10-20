@@ -729,7 +729,8 @@ connection state, the crash-loop count and the terminal count, over the demo swi
 sample agents' plans and artifacts), `plain`, `agents` (its seven projects each with
 an agent in a state of its own: waiting, asking, working, and two that finish done and
 failed a moment after it opens, for the project switcher), `messages`, `inbox` (the agents
-demo with hardcoded Inbox items, which no other variant has) or `welcome`. The
+demo with hardcoded Inbox items of every kind over those its agents make) or `welcome`.
+Every variant's Inbox lists what its agents wait on, built as the runner's is. The
 switcher in the panel's header changes between them without reloading (pressing the
 current one boots it again), and the browser
 tab remembers the last one chosen. `&turnMs=` sets how long a demo agent's turn works
@@ -809,7 +810,7 @@ Agents:
 
 App:
 
-- **Inbox:** the actions show up in the `inbox` variant, whose Inbox holds hardcoded items. Each action adds one item of its kind to the Inbox,
+- **Inbox:** each action adds one item of its kind to the Inbox, over what the agents wait on,
   waiting from now and in place of the one of its kind already there: a stuck agent, Codex's
   command permission, an unreadable dialog, a held message, a decision with options, a
   detected question, an ask while its agent keeps working, a login request, the 5-hour limit, a usage limit Novadeck can't resume (no switch), a request whose dialog never read, a
@@ -827,7 +828,9 @@ App:
   window reset, offering Continue now. "Command hiding lines" adds a permission whose command
   buries a line under blank lines and spaces; its card counts the lines and marks what draws
   as nothing. "A new item arrives" adds the next kind not there
-  yet, and "Clear the Inbox" empties it.
+  yet, and "Clear the added items" takes away the hardcoded items and those added here,
+  leaving what the agents wait on. An added item takes its terminal's row from what its
+  agent waits on; answering one for an agent that waits takes the agent past it.
 - **Murmur:** the demo starts with it installed and on, as the try demo shows it, and never
   offers it; `&murmur=uninstalled`, `unsupported`, `no-device`, `network-down` (the first install fails
   on the network, the second works) or `offered-out` (the offer already shown in three sessions)
