@@ -22,11 +22,11 @@ export type RingRecord = {
 }
 
 /**
- * Whether the activity of the agent bound in a running terminal (`bound`; none in one not
- * running) says it works (`busy`, for its harness), where
+ * Whether the activity says the agent bound there works (`busy`, for its harness), where
  * that outweighs what messaging knows: a Settled or Ready terminal made so by a Stop or a
  * session's start stands against an activity that lingers; every other, and any made so
- * by the screen alone, does not.
+ * by the screen alone, does not. `bound` is the terminal's binding and activity, undefined
+ * for a terminal not running.
  */
 export const agentWorking = (
   messaging: Pick<Messaging, "delivery" | "byScreen">,
