@@ -57,8 +57,6 @@ export type CommandContext = {
   readonly newTerminal: Backend["newTerminal"]
   // What the chat keeps: drafts, replies, sends and the terminals answered in.
   readonly chat: Chat
-  // Whether the backend has an Inbox, which the sidebar shows where it would show Notifications.
-  readonly inbox?: Backend["inbox"] | undefined
   readonly pickDirectory?: Backend["pickDirectory"] | undefined
   readonly crashLoop?: Backend["crashLoop"] | undefined
   readonly resetTitle?: Backend["resetTitle"] | undefined

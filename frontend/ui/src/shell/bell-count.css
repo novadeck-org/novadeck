@@ -1,0 +1,28 @@
+/* The count over the Inbox's bell, in the rail and in the Zen dock: a small pill in
+   the tone of the most pressing item, as the switcher's dot is. Its tone is
+   project-status.css's, set by the bell's data-project-status.
+
+   Tokens, each optional (its fallback in brackets):
+   --bell-count-fg (paper): the count.
+   --bell-count-ring (paper): the ring that sets the pill off the bell. */
+.bell-count {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  display: grid;
+  min-width: 12px;
+  height: 12px;
+  place-items: center;
+  padding: 0 2px;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1.5px var(--bell-count-ring, var(--color-paper));
+  background-color: currentColor;
+  pointer-events: none;
+}
+.bell-count-text {
+  color: var(--bell-count-fg, var(--color-paper));
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+}

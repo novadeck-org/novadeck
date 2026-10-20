@@ -45,15 +45,14 @@ const turnMs = 3000
 // How long a new terminal takes to fail when it fails "right away".
 const quickFailMs = 400
 const burst = 30
-// How many terminals the notification center fills: enough to pass the badge's 9+ and to scroll.
+// How many terminals Fill the Inbox takes: enough to pass the badge's 9+ and to scroll.
 const crowd = 12
 // How long clearing waits between the agents working and resting, for the app to see both.
 const calmMs = 100
 // How long a screen takes to arrive, as the runner's.
 const attachMs = 2500
 
-// The second round of kinds in the notification center reads as murmur wrote it, the first
-// as it never ran.
+// The second round of kinds reads as murmur wrote it, the first as it never ran.
 const murmured = (index: number): boolean =>
   index >= terminalAsks.length && index < 2 * terminalAsks.length
 
@@ -232,16 +231,16 @@ const everyState = (verbs: DemoAgentVerbs): DemoAction => ({
   },
 })
 
-// The notification center's Fill and Clear, over the verbs.
-const createNotificationActions = (verbs: DemoAgentVerbs): readonly [DemoAction, DemoAction] => {
-  // Every kind of notification across the workspace's projects and sessions, in terminals
+// What fills the Inbox with waiting agents and clears it of them, over the verbs.
+const createWaitingActions = (verbs: DemoAgentVerbs): readonly [DemoAction, DemoAction] => {
+  // Every kind of wait and finish across the workspace's projects and sessions, in terminals
   // the person doesn't view. Takes up to `crowd` terminals, adding some to the session on
   // screen when the workspace has fewer, without selecting them or leaving the panel the
   // person is on. A request waits at once; each finish lands as the agent ends its turn,
   // while the person looks elsewhere.
-  const fillNotifications: DemoAction = {
-    label: "Fill notifications",
-    hint: `${crowd} terminals ask or finish; badge reads 9+`,
+  const fillInbox: DemoAction = {
+    label: "Fill the Inbox",
+    hint: `${crowd} terminals ask or finish; the Inbox badge reads 9+`,
     run: ({ selected, workspace, addInBackground, dispatch, note }) => {
       const viewed = selected()
       if (!viewed) return note("Select a terminal first.")
@@ -277,9 +276,9 @@ const createNotificationActions = (verbs: DemoAgentVerbs): readonly [DemoAction,
   // clears its unread mark, as its next turn would, then rests, which also calls off a finish
   // still to come. A terminal back at its shell's prompt may hold a finish unread too, so an
   // agent works there and leaves again.
-  const clearNotifications: DemoAction = {
-    label: "Clear notifications",
-    hint: "Answers and reads everything; center empties",
+  const clearWaiting: DemoAction = {
+    label: "Clear waiting agents",
+    hint: "Answers and reads everything; the Inbox empties of what agents wait on",
     run: ({ workspace, dispatch }) => {
       if (!dispatch) return
       const agents = noisyAgents(workspace())
@@ -305,7 +304,7 @@ const createNotificationActions = (verbs: DemoAgentVerbs): readonly [DemoAction,
     },
   }
 
-  return [fillNotifications, clearNotifications]
+  return [fillInbox, clearWaiting]
 }
 
 export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
@@ -315,7 +314,7 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
   const { updates, offer } = updateControls
   const { pickDirectory, failNext: failPick } = createDemoFolders()
   const chat = createDebugChat()
-  const notificationActions = createNotificationActions(verbs)
+  const waitingActions = createWaitingActions(verbs)
   const screens = createStore<ReadonlyMap<string, DemoScreenState>>(new Map())
   // The terminals whose next pasted file fails to save.
   const pasteFails = new Set<string>()
@@ -557,8 +556,8 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
     },
     {
       section: "Agents",
-      title: "Notifications",
-      actions: [...notificationActions],
+      title: "Waiting agents",
+      actions: [...waitingActions],
     },
     {
       section: "Agents",

@@ -33,6 +33,7 @@ import {
   focusStage,
   openWorkspace,
   press,
+  sidebarPanel,
   terminal,
   terminalTab,
   view,
@@ -310,6 +311,72 @@ describe("Canvas", () => {
       await expect
         .poll(() => sameBox(boxOf(terminal("Checkout implementation")), visited))
         .toBe(true)
+    })
+  })
+
+  context("when going to a terminal from its Inbox item", () => {
+    it("flies the camera in to it, as a double-click on its header does", async () => {
+      await openWorkspace("/?demo=agents")
+      const skip = page.getByRole("button", { name: "Skip for now" })
+      if (await skip.query()) await skip.click()
+      await chooseView("Canvas")
+      await expect.element(terminal("Checkout review")).toBeVisible()
+      expect(fillsView(await settled(() => boxOf(terminal("Checkout review"))))).toBe(false)
+      await sidebarPanel("Inbox").click()
+      await page.getByRole("button", { name: /Run pnpm test/ }).click()
+
+      await page
+        .getByRole("dialog", { name: "Checkout review" })
+        .getByRole("button", { name: "Show terminal" })
+        .click()
+
+      await expect.poll(() => fillsView(boxOf(terminal("Checkout review")))).toBe(true)
+      // The way back is the visit's, as from a header.
+      await doubleClickHeader("Checkout review")
+      await expect.poll(() => fillsView(boxOf(terminal("Checkout review")))).toBe(false)
+    })
+
+    it("flies in from the camera its session was left with, when the item is from another", async () => {
+      await openWorkspace("/projects/storefront/sessions/initial/canvas?demo=agents")
+      const skip = page.getByRole("button", { name: "Skip for now" })
+      if (await skip.query()) await skip.click()
+      await expect.element(terminal("Checkout review")).toBeVisible()
+      // To docs-site's Grid, leaving storefront's Canvas with its camera.
+      window.location.hash = "#/projects/docs-site/sessions/initial/grid"
+      await expect.element(view("Grid")).toBeChecked()
+      await sidebarPanel("Inbox").click()
+      await page.getByRole("button", { name: /Run pnpm test/ }).click()
+
+      await page
+        .getByRole("dialog", { name: "Checkout review" })
+        .getByRole("button", { name: "Show terminal" })
+        .click()
+
+      await expect.element(view("Canvas")).toBeChecked()
+      await expect.poll(() => fillsView(boxOf(terminal("Checkout review")))).toBe(true)
+      // A visit, as a header's double-click makes, which a plain fit would not: it goes back.
+      await doubleClickHeader("Checkout review")
+      await expect.poll(() => fillsView(boxOf(terminal("Checkout review")))).toBe(false)
+    })
+
+    it("frames every window when Canvas opens from another view later, flying no more", async () => {
+      await openWorkspace("/?demo=agents")
+      const skip = page.getByRole("button", { name: "Skip for now" })
+      if (await skip.query()) await skip.click()
+      await chooseView("Canvas")
+      await sidebarPanel("Inbox").click()
+      await page.getByRole("button", { name: /Run pnpm test/ }).click()
+      await page
+        .getByRole("dialog", { name: "Checkout review" })
+        .getByRole("button", { name: "Show terminal" })
+        .click()
+      await expect.poll(() => fillsView(boxOf(terminal("Checkout review")))).toBe(true)
+
+      await chooseView("Grid")
+      await chooseView("Canvas")
+
+      await expect.poll(() => fillsView(boxOf(terminal("Checkout review")))).toBe(false)
+      await expect.poll(() => insideView(boxOf(terminal("Checkout implementation")))).toBe(true)
     })
   })
 

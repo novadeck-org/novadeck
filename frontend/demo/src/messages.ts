@@ -143,6 +143,10 @@ export type DemoMessages = Messages & {
   readonly record: (item: InboxItem, answer?: InboxAnswer, outcome?: InboxHistory) => void
 }
 
+// Whether a backend's messages are the demo's, which keep a record of what the person answered.
+export const isDemoMessages = (messages: Messages | undefined): messages is DemoMessages =>
+  messages !== undefined && "record" in messages
+
 export const createDemoMessages = (
   initial: readonly DemoMailbox[],
   paused = false,

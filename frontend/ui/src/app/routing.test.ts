@@ -92,7 +92,7 @@ describe("route reconciliation", () => {
 
   it("round-trips the sidebar panel through the URL", () => {
     const pathname = "/projects/project/sessions/initial/grid"
-    for (const panel of ["sessions", "notifications"] as const) {
+    for (const panel of ["sessions", "inbox"] as const) {
       const { route } = resolveRoute(
         fixture(),
         { pathname, search: `?terminal=01&panel=${panel}` },

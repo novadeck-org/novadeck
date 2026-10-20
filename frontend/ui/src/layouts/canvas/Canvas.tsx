@@ -35,7 +35,13 @@ import { useTerminalVisibility } from "../useTerminalVisibility"
 import { fitOptions, canvasStep, terminalHeaderHeight, chromeScaleAt, centerOf } from "./geometry"
 import { createNodeVisibility } from "./nodeVisibility"
 import { NodeVisibilityContext, TerminalContent, nodeTypes } from "./TerminalNode"
-import type { CanvasProps, CanvasHandle, TerminalCanvasProps, TerminalNode } from "./types"
+import type {
+  CanvasProps,
+  CanvasHandle,
+  CanvasViewport,
+  TerminalCanvasProps,
+  TerminalNode,
+} from "./types"
 import { useCanvasGeometry } from "./useCanvasGeometry"
 import { useCanvasNavigation } from "./useCanvasNavigation"
 import { useCanvasPersistence } from "./useCanvasPersistence"
@@ -57,6 +63,7 @@ const TerminalCanvas = ({
   revealOnMount,
   fitOnMount,
   fitOnNavigate,
+  flyOnNavigate,
   onLayoutChange,
   terminals,
   hidden,
@@ -203,11 +210,44 @@ const TerminalCanvas = ({
   }, [ghost])
   const settling = useRef(new Map<string, XYPosition>())
   const stacking = useRef<string[]>([])
+  // Where the camera frames a terminal's window whole: its fly-to's destination.
+  const framing = useCallback(
+    (id: string): CanvasViewport | null => {
+      const node = getNode(id)
+      const size = viewportSize()
+      if (!node || !size.width || !size.height) return null
+      return getViewportForBounds(
+        {
+          ...node.position,
+          width: node.width ?? 550,
+          height: node.height ?? 400,
+        },
+        size.width,
+        size.height,
+        0,
+        Infinity,
+        0,
+      )
+    },
+    [getNode, viewportSize],
+  )
+  // Going to a terminal from outside the canvas flies in to it, as its header's double-click
+  // does, but never back out.
+  const flyIn = useCallback(
+    (id: string): void => {
+      const destination = framing(id)
+      if (!destination) return
+      const flight = visit.enter(id, getViewport(), destination)
+      if (flight) animateVisit(flight)
+    },
+    [animateVisit, framing, getViewport, visit],
+  )
   const initializeViewport = useCanvasNavigation({
     navigation,
     selected,
     hidden,
     fitOnNavigate,
+    flyOnNavigate,
     revealOnMount,
     fitOnMount,
     initialViewport,
@@ -217,6 +257,7 @@ const TerminalCanvas = ({
     createdPositions,
     pointerCreated,
     visit,
+    flyIn,
   })
   const fitAll = useCallback((): void => {
     visit.clear()
@@ -254,28 +295,15 @@ const TerminalCanvas = ({
   const flyTo = useCallback(
     (terminal: Tile) => {
       if (visit.flying) return
-      const node = getNode(terminal.id)
-      if (!node) return
+      if (!getNode(terminal.id)) return
       onSelect(terminal.id)
-      const size = viewportSize()
-      if (!size.width || !size.height) return
-      const viewport = getViewportForBounds(
-        {
-          ...node.position,
-          width: node.width ?? 550,
-          height: node.height ?? 400,
-        },
-        size.width,
-        size.height,
-        0,
-        Infinity,
-        0,
-      )
-      const flight = visit.begin(terminal.id, getViewport(), viewport)
+      const destination = framing(terminal.id)
+      if (!destination) return
+      const flight = visit.begin(terminal.id, getViewport(), destination)
       if (!flight) return
       animateVisit(flight)
     },
-    [animateVisit, getNode, getViewport, onSelect, viewportSize, visit],
+    [animateVisit, framing, getNode, getViewport, onSelect, visit],
   )
 
   const nodeFrom = useCallback(

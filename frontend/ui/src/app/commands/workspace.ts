@@ -32,8 +32,8 @@ import { notePortableCardShown } from "../ui-store"
 import { createChatCommands, type ChatCommands } from "./chat"
 import { createCompanionCommands, type CompanionCommands } from "./companion"
 import type { CommandContext } from "./context"
+import { createFinishCommands, type FinishCommands } from "./finishes"
 import { createLayoutCommands, type LayoutCommands } from "./layout"
-import { createNotificationCommands, type NotificationCommands } from "./notifications"
 import { createRecentCommands, type RecentCommands } from "./recent"
 import { createRenameCommands, type RenameCommands } from "./rename"
 import { folderProject, newWorkspaceSession } from "./sessions"
@@ -49,7 +49,7 @@ export type WorkspaceCommands = ShellCommands &
   RenameCommands &
   RecentCommands &
   LayoutCommands &
-  NotificationCommands & {
+  FinishCommands & {
     readonly switchSession: (id: string) => void
     readonly startFresh: () => void
     readonly switchProject: (next: Project) => void
@@ -86,7 +86,8 @@ export type WorkspaceCommands = ShellCommands &
     // and answers the request; it comes into view only when the request asks.
     readonly openRequested: (request: TerminalRequest) => void
     // Brings a terminal into view wherever it is, as a click on a notification about it
-    // asks: its project and session to the front, the terminal selected.
+    // asks: its project and session to the front, the terminal selected, and on Canvas the
+    // camera flown in to it.
     readonly reveal: (terminalId: string) => void
     // Closes the terminal, or asks first while a program runs in it.
     readonly close: (terminalId: string) => void
@@ -133,7 +134,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
   const shell = createShellCommands(ctx)
   const rename = createRenameCommands(ctx)
   const recent = createRecentCommands(ctx)
-  const notifications = createNotificationCommands(ctx)
+  const finishes = createFinishCommands(ctx)
   // Rearranges the switcher's projects from the latest of both stores.
   const arrange = (
     change: (projects: Workspace["projects"], current: ProjectArrangement) => ProjectArrangement,
@@ -150,7 +151,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
   const setSelected = (terminal: string): void => go({ terminal })
   const select = (id: string, fit = false): void => {
     setSelected(id)
-    pulse(fit)
+    pulse(fit ? "fit" : "center")
     set("sidebar", false)
   }
   const showWindowed = (id: string, target: WorkspaceTarget, destination: ViewMode): void => {
@@ -213,7 +214,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     ...shell,
     ...rename,
     ...recent,
-    ...notifications,
+    ...finishes,
     ...createLayoutCommands(ctx),
     ...createChatCommands(ctx),
     ...createCompanionCommands(ctx, {
@@ -358,7 +359,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     openSearchResult: (id) => {
       const { view } = currentState(workspace.getSnapshot())
       go({ terminal: id, dialog: null })
-      pulse(view === "canvas")
+      pulse(view === "canvas" ? "fit" : "center")
       set("sidebar", false)
     },
     chooseRecent: (id) => {
@@ -454,7 +455,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       // Out from behind any dialog, as the session's front comes from another one.
       if (sameTarget(target, currentTarget(snapshot))) {
         go({ terminal: terminalId, dialog: null })
-        pulse()
+        pulse("fly")
         set("sidebar", false)
         return
       }
@@ -475,7 +476,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         ],
         { terminal: terminalId, dialog: null },
       )
-      pulse()
+      pulse("fly")
       set("sidebar", false)
     },
     close: (terminalId) => {
