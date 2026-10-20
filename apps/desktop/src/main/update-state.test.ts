@@ -72,6 +72,20 @@ describe("what the host remembers about updating", () => {
       expect(updateStateOf('{"whatsNewCheckedAt":"5"}').whatsNewCheckedAt).toBeUndefined()
     })
 
+    it("reads a version that is not a release's as unset, so a corrupt one silences nothing", () => {
+      const state = updateStateOf(
+        '{"lastRunVersion":"x","whatsNewPending":"1.2","whatsNewSettled":"99999999999.0.0"}',
+      )
+      expect(state).toMatchObject({
+        lastRunVersion: undefined,
+        whatsNewPending: undefined,
+        whatsNewSettled: undefined,
+      })
+      expect(
+        updateStateOf('{"whatsNewSettled":"0.5.0","lastRunVersion":"0.5.0-beta.1"}'),
+      ).toMatchObject({ whatsNewSettled: "0.5.0", lastRunVersion: "0.5.0-beta.1" })
+    })
+
     it("keeps the newest version settled, whatever order they are settled in", () => {
       const state = keepUpdateState(file)
       state.settleWhatsNew("0.6.0", isNewerVersion)

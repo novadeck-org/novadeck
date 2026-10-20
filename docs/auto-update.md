@@ -522,10 +522,10 @@ only from the main frame of the app's own page.
 
 ## What is new
 
-The app tells of an update in one place, a card of highlights shown once, on the first launch
-after the app has updated to a version whose release has any. The notes come from the release
+The app tells of an update in one place, a card of highlights for the version it updated to,
+shown at each launch until the person dismisses it or the release turns out to have none. The notes come from the release
 itself: the promotion of a stable release writes a hidden `<!-- novadeck:notes {json} -->` block
-at the end of its body (`scripts/release-notes`), and the host reads it with `readNotesBlock`
+in its body, before the "All commits" details (`scripts/release-notes`), and the host reads it with `readNotesBlock`
 from the release page's API (`/releases/tags/v{version}`), never from the page.
 
 At launch the host records the version it runs in `update.json` as `lastRunVersion`, and marks
@@ -537,7 +537,8 @@ has nothing to show (no block, no highlights, or GitHub's own JSON 404); nothing
 a settled version is offered again. A failed read (offline, timeout, 403, 429, 5xx, or an
 answer that is not that release) keeps the mark for a later launch. A prerelease whose notes
 have no highlights yet is read at most once a day (`whatsNewCheckedAt`), as its promotion
-writes them onto the same tag. Builds that look for no updates (version 0.0.0, no release
+writes them onto the same tag. A read that fails for a reason that may pass is tried once
+more two minutes later in the same launch, and the page's one request waits for it. Builds that look for no updates (version 0.0.0, no release
 repository) never offer a card.
 
 ## Release assets

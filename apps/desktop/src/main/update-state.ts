@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 
-import { updateChannels, type UpdateChannel } from "@novadeck/protocol/bridge"
+import { updateChannels, updateVersionPattern, type UpdateChannel } from "@novadeck/protocol/bridge"
 
 /** What the host remembers across launches about updating. */
 export type UpdateState = {
@@ -47,6 +47,11 @@ const defaults: UpdateState = {
   whatsNewCheckedAt: undefined,
 }
 
+// A version as a release names it, else unset: a corrupt one must not stand for a version
+// that is compared against later launches.
+const versionOf = (value: unknown): string | undefined =>
+  typeof value === "string" && updateVersionPattern.test(value) ? value : undefined
+
 /**
  * The state in a file's text. The file is the host's own, but a damaged or edited one
  * must not break launching, so each field that is not a known value falls back to its
@@ -73,9 +78,9 @@ export const updateStateOf = (text: string): UpdateState => {
     channel: updateChannels.find((known) => known === channel) ?? defaults.channel,
     installFailedOn: typeof installFailedOn === "string" ? installFailedOn : undefined,
     installing: typeof installing === "string" ? installing : undefined,
-    lastRunVersion: typeof lastRunVersion === "string" ? lastRunVersion : undefined,
-    whatsNewPending: typeof whatsNewPending === "string" ? whatsNewPending : undefined,
-    whatsNewSettled: typeof whatsNewSettled === "string" ? whatsNewSettled : undefined,
+    lastRunVersion: versionOf(lastRunVersion),
+    whatsNewPending: versionOf(whatsNewPending),
+    whatsNewSettled: versionOf(whatsNewSettled),
     whatsNewCheckedAt:
       typeof whatsNewCheckedAt === "number" && Number.isFinite(whatsNewCheckedAt)
         ? whatsNewCheckedAt

@@ -7,6 +7,8 @@ import type { ReleaseRepository } from "./update-release.js"
 
 /** How long reading the release waits; the card is optional, so a slow network gives it up. */
 export const releaseReadMs = 10_000
+/** How long a read that failed for a reason that may pass waits before its one more try. */
+export const readRetryMs = 2 * 60 * 1000
 /** How long a prerelease without highlights waits before its release is read again. */
 export const prereleaseRecheckMs = 24 * 60 * 60 * 1000
 
@@ -130,7 +132,8 @@ export type ReleaseFetch = (
  * read once per launch, the first time it is asked for, and its answer kept. When the
  * release is read and has no highlights, or does not exist, there is nothing to show
  * ever, so the pending mark is cleared. A failure to read it, offline, timed out, rate
- * limited or a server error, leaves the mark for a later launch and shows nothing now.
+ * limited or a server error, is tried once more `readRetryMs` later, and when that fails
+ * too the mark is left for a later launch and nothing is shown.
  * Nothing is thrown: the card is a courtesy, and `log` hears of what went wrong.
  * `repository` is where the build's releases are, or undefined for a build without one.
  */
@@ -142,6 +145,7 @@ export const keepWhatsNew = ({
   checkedAt,
   recordCheck,
   now,
+  delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   repository,
   fetch,
   log,
@@ -155,6 +159,8 @@ export const keepWhatsNew = ({
   readonly checkedAt: () => number | undefined
   readonly recordCheck: (time: number) => void
   readonly now: () => number
+  /** Waits `ms`; a timer by default. */
+  readonly delay?: (ms: number) => Promise<void>
   readonly repository: () => Promise<ReleaseRepository | undefined>
   readonly fetch: ReleaseFetch
   readonly log: (message: string, error: unknown) => void
@@ -167,19 +173,33 @@ export const keepWhatsNew = ({
     }
   }
   let reading: Promise<WhatsNew | undefined> | undefined
-  const read = async (): Promise<WhatsNew | undefined> => {
+  // One read: the highlights, nothing to show, or `retry` for a failure that may pass.
+  const attempt = async (): Promise<WhatsNew | "retry" | undefined> => {
     try {
       const source = await repository()
       if (source === undefined) return undefined
       const result = await readRelease(fetch, source, version)
       if (result === "waiting") recordCheck(now())
-      if (result === "later" || result === "waiting") return undefined
+      if (result === "waiting") return undefined
+      if (result === "later") return "retry"
       if (result === "none") forget()
       else return result
     } catch (error) {
       log("The release notes were not read.", error)
+      return "retry"
     }
     return undefined
+  }
+  // A failure that may pass is tried once more a couple of minutes on, in the same launch.
+  // The page asks once, so its answer waits for that, which a page does not mind: the card
+  // is not what it waits on. A dismissal meanwhile ends it.
+  const read = async (): Promise<WhatsNew | undefined> => {
+    const first = await attempt()
+    if (first !== "retry") return first
+    await delay(readRetryMs)
+    if (pending() !== version) return undefined
+    const second = await attempt()
+    return second === "retry" ? undefined : second
   }
   return {
     whatsNew: async (): Promise<WhatsNew | undefined> => {

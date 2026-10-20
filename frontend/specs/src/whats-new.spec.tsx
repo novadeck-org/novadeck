@@ -19,7 +19,7 @@ import {
 // The card is a region named by its label, which the CSS sets in capitals.
 const card = (): Locator => page.getByRole("region", { name: /New in Novadeck/ })
 const closeButton = (): Locator => card().getByRole("button", { name: "Dismiss" })
-const releaseNotes = (): Locator => card().getByRole("button", { name: "Release notes ↗" })
+const releaseNotes = (): Locator => card().getByRole("button", { name: "Release notes" })
 const announcer = () => page.getByRole("status").filter({ hasText: /New in Novadeck/ })
 const sandboxNotice = (): Locator =>
   page.getByRole("region", { name: "Novadeck is running without its security sandbox" })
@@ -71,6 +71,18 @@ describe("the what's-new card", () => {
         )
       expect(announcer().element().getAttribute("aria-live")).toBe("polite")
       expect(cardElement()?.contains(document.activeElement) ?? false).toBe(false)
+    })
+
+    it("leaves nothing to browse while it waits, and does not announce again on its return", async () => {
+      await openWorkspace("/?update=whatsNew")
+      await expect.element(announcer()).toBeInTheDocument()
+      await page.getByRole("button", { name: "Enter Zen mode" }).click()
+      await expect.element(card()).not.toBeInTheDocument()
+      await expect.element(announcer()).not.toBeInTheDocument()
+      await dock().getByRole("button", { name: "Show Zen controls" }).click()
+      await dock().getByRole("button", { name: "Exit Zen" }).click()
+      await expect.element(card()).toBeVisible()
+      await expectStaysAbsent(announcer())
     })
 
     it("leaves typing in a terminal alone", async () => {

@@ -1,5 +1,6 @@
 import { notesBlock, type ReleaseNotes } from "@novadeck/protocol/release-notes"
 import type { IpcMainEvent } from "electron"
+import { vi } from "vitest"
 
 import { dismissWhatsNewChannel, openWhatsNewPageChannel, whatsNewChannel } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
@@ -7,6 +8,7 @@ import { isNewerVersion } from "./applications-folder"
 import {
   keepWhatsNew,
   prereleaseRecheckMs,
+  readRetryMs,
   registerWhatsNewIpc,
   whatsNewAtLaunch,
   type ReleaseFetch,
@@ -109,6 +111,7 @@ const kept = (
     pending?: string | undefined
     launched?: () => Promise<void>
     checkedAt?: number
+    delay?: (ms: number) => Promise<void>
     now?: () => number
   } = {},
 ) => {
@@ -127,6 +130,7 @@ const kept = (
     checkedAt: () => state.checkedAt,
     recordCheck: (time) => void (state.checkedAt = time),
     now: options.now ?? (() => 1_000_000_000),
+    ...(options.delay ? { delay: options.delay } : { delay: async () => {} }),
     repository: async () => repository,
     fetch: (url, init) => {
       urls.push(url)
@@ -194,6 +198,66 @@ describe("what is new in the version", () => {
     state.pending = "0.5.0"
     settle()
     expect(await asked).toBeDefined()
+  })
+
+  context("when the first read fails for a reason that may pass", () => {
+    it("tries once more after two minutes, in the same launch, and answers what it finds", async () => {
+      vi.useFakeTimers()
+      try {
+        const answers = [release("", 429), release(notesBlock(notes([highlight])))]
+        const whatsNew = keepWhatsNew({
+          version: "0.5.0",
+          launched: async () => {},
+          pending: () => "0.5.0",
+          clear: () => {},
+          checkedAt: () => undefined,
+          recordCheck: () => {},
+          now: () => 0,
+          repository: async () => repository,
+          fetch: async () => answers.shift()!,
+          log: () => {},
+        }).whatsNew
+        let answer: unknown = "unanswered"
+        void whatsNew().then((found) => (answer = found))
+        await vi.advanceTimersByTimeAsync(readRetryMs - 1)
+        expect(answer).toBe("unanswered")
+        await vi.advanceTimersByTimeAsync(1)
+        expect(answer).toEqual({
+          version: "0.5.0",
+          highlights: [{ title: "Faster Grid", line: "Grid opens in half the time." }],
+        })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("tries only once more, and keeps the mark when that fails too", async () => {
+      const run = kept(async () => release("", 503))
+      expect(await run.whatsNew()).toBeUndefined()
+      expect(run.urls).toHaveLength(2)
+      expect(run.state.pending).toBe("0.5.0")
+    })
+
+    it("does not try again when the person dismissed it meanwhile", async () => {
+      let wake!: () => void
+      const run = kept(async () => release("", 503), {
+        delay: () => new Promise<void>((resolve) => (wake = resolve)),
+      })
+      const asked = run.whatsNew()
+      await vi.waitFor(() => expect(wake).toBeDefined())
+      run.dismiss()
+      wake()
+      expect(await asked).toBeUndefined()
+      expect(run.urls).toHaveLength(1)
+    })
+
+    it("does not try again after a read that settles, or a prerelease's wait", async () => {
+      const gone = kept(async () => release("", 404))
+      await gone.whatsNew()
+      const waiting = kept(async () => release(notesBlock(notes([])), 200, true))
+      await waiting.whatsNew()
+      expect([gone.urls.length, waiting.urls.length]).toEqual([1, 1])
+    })
   })
 
   context("when the release has nothing to show", () => {
@@ -322,7 +386,10 @@ describe("what is new in the version", () => {
         throw new TypeError("fetch failed")
       })
       await whatsNew()
-      expect(logged).toEqual(["The release notes were not read."])
+      expect(logged).toEqual([
+        "The release notes were not read.",
+        "The release notes were not read.",
+      ])
     })
   })
 })

@@ -56,11 +56,15 @@ export const WhatsNew = ({
 }): React.JSX.Element => {
   const panel = useRef<HTMLElement>(null)
   const titleId = useId()
-  // Whether the card has been up, so a return from Zen mode does not announce it again.
-  const [told, setTold] = useState(false)
+  // Whether the card has not been up yet, is being announced as it is, or has been: the
+  // words stay in the live region only while the card is up for the first time, so a card
+  // that waits (Zen mode, a dialog, a download) leaves nothing to browse and is not
+  // announced again on its return.
+  const [told, setTold] = useState<"not yet" | "telling" | "told">("not yet")
   const shown = card !== undefined && !card.blocked && !hidden
-  if (shown && !told) setTold(true)
-  if (!card && told) setTold(false)
+  if (shown && told === "not yet") setTold("telling")
+  if (!shown && told === "telling") setTold("told")
+  if (!card && told !== "not yet") setTold("not yet")
   // Whether the card went away with focus inside it, as a download's bar taking the corner
   // does: focus would drop to the page, so it goes back to the terminal, unless whatever
   // took the card's place (a notice, a dialog) has taken it.
@@ -105,7 +109,7 @@ export const WhatsNew = ({
     <>
       {/* Always mounted, so filling it announces the card once, as the footer's other notices do. */}
       <span role="status" aria-live="polite" className="sr-only">
-        {card && told ? announcement(card.notes) : ""}
+        {card && told === "telling" ? announcement(card.notes) : ""}
       </span>
       {card && shown && (
         <section
@@ -161,7 +165,8 @@ export const WhatsNew = ({
               className="button link whats-new-link text-control"
               onClick={card.onOpenPage}
             >
-              Release notes ↗
+              Release notes
+              <span aria-hidden="true"> ↗</span>
             </button>
           </div>
         </section>
