@@ -528,6 +528,13 @@ describe("workspace commands", () => {
       expect(app.state().selected).toBe("09")
     })
 
+    it("asks the view to fly in to it, as Canvas does from a header", () => {
+      const app = openCommands()
+      const { count } = app.shell().navigation
+      app.commands.reveal("02")
+      expect(app.shell().navigation).toEqual({ count: count + 1, move: "fly" })
+    })
+
     it("does nothing for a terminal that is gone", () => {
       const app = openCommands()
       const urls = app.urls.length

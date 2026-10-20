@@ -1,7 +1,7 @@
 import type { ChatAnswer, ChatRequest } from "./conversation"
 import type { AgentName } from "./harnesses"
 import type { MailWaits } from "./messages"
-import type { Store } from "./store"
+import { createStore, type Store } from "./store"
 import type { Workspace } from "./types"
 
 // The Inbox: everything across the workspace that an agent, or Novadeck about an agent,
@@ -232,3 +232,11 @@ export const urgency = (item: InboxItem): number => {
 // The Inbox's order: by urgency, then the longest waiting first.
 export const ordered = (items: readonly InboxItem[]): InboxItem[] =>
   items.toSorted((a, b) => urgency(a) - urgency(b) || a.at - b.at)
+
+// The Inbox of a backend that has none: it lists nothing, and has nothing to answer.
+export const noInbox: Inbox = {
+  state: createStore(emptyInbox),
+  answer: () => {},
+  see: () => {},
+  readAll: () => {},
+}

@@ -159,8 +159,7 @@ export const contextOnly: AgentUsage = {
   effort: null,
 }
 
-// What murmur would say of each notification, in its words, for the notification center to
-// show without it.
+// What murmur would say of each wait and finish, in its words, for the app to show without it.
 export const murmurHeadlines = {
   question: "Asks which database to use",
   plan: "Plan to split the billing service",
@@ -171,7 +170,7 @@ export const murmurGists = {
 } as const
 
 // The live terminals of every session of every project but the one the person views,
-// project by project in turn, so each kind of notification lands in several projects. An
+// project by project in turn, so each kind of wait lands in several projects. An
 // unread finish marks only a terminal the person doesn't look at.
 export const otherTerminals = (
   workspace: Workspace | undefined,
@@ -203,7 +202,7 @@ export const otherTerminals = (
   return keys
 }
 
-// The kinds of notification dealt out to `count` terminals in turn, most pressing first.
+// The kinds of wait and finish dealt out to `count` terminals in turn, most pressing first.
 export const dealKinds = (count: number): TerminalAsk[] =>
   Array.from({ length: count }, (_, index) => terminalAsks[index % terminalAsks.length]!)
 

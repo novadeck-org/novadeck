@@ -154,7 +154,7 @@ export const focusZenCreate = (): void =>
   focusStranded("[data-workspace-zen-create]", "[data-workspace-zen-enter]")
 // The rail's toggle for a panel the Zen dock's bell just opened, when focus has nowhere else.
 export const focusSidebarToggleStranded = (panel: SidebarPanel): void =>
-  focusStranded(`#${panel}-toggle`, ".zen-notifications")
+  focusStranded(`#${panel}-toggle`, ".zen-inbox")
 export const focusZenEnter = (): void => focusStranded("[data-workspace-zen-enter]", ".zen-exit")
 
 export const focusTerminalInput = (id: string): boolean => {

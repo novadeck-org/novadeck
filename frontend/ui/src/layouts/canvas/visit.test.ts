@@ -47,6 +47,45 @@ describe("a Canvas camera visit", () => {
     expect(visit.back()?.viewport).toEqual(destination)
   })
 
+  it("flies in to a terminal entered from outside, and stays when already there", () => {
+    const visit = createCanvasVisit()
+    const flight = visit.enter("one", origin, destination)!
+    expect(flight.viewport).toEqual(destination)
+    visit.finish(flight)
+    expect(visit.enter("one", destination, destination)).toBeNull()
+    expect(visit.back()?.viewport).toEqual(origin)
+  })
+
+  it("stays at a terminal entered while flying to it, though the way back was asked", () => {
+    const visit = createCanvasVisit()
+    const flight = visit.begin("one", origin, destination)!
+    visit.back()
+    expect(visit.enter("one", origin, destination)).toBeNull()
+    expect(visit.finish(flight)).toBeNull()
+    expect(visit.visiting).toBe(true)
+  })
+
+  it("takes over a flight from one entered during it, keeping that visit's way back", () => {
+    const visit = createCanvasVisit()
+    const flight = visit.begin("one", origin, destination)!
+    const other = { x: 0, y: 0, zoom: 2 }
+    const taken = visit.enter("two", destination, other)!
+    expect(taken.viewport).toEqual(other)
+    expect(visit.finish(flight)).toBeNull()
+    visit.finish(taken)
+    expect(visit.back()?.viewport).toEqual(origin)
+  })
+
+  it("takes over a visit from one entered after it, keeping that visit's way back", () => {
+    const visit = createCanvasVisit()
+    visit.finish(visit.begin("one", origin, destination)!)
+    const other = { x: 0, y: 0, zoom: 2 }
+    const taken = visit.enter("two", destination, other)!
+    expect(taken.viewport).toEqual(other)
+    visit.finish(taken)
+    expect(visit.back()?.viewport).toEqual(origin)
+  })
+
   it("manual camera changes invalidate an outstanding flight and its return point", () => {
     const visit = createCanvasVisit()
     const flight = visit.begin("one", origin, destination)!

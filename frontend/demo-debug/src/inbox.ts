@@ -1,10 +1,7 @@
 import type { InboxItem } from "@novadeck/core/inbox"
-import {
-  demoHiddenCommand,
-  demoInboxIds,
-  demoInboxItemsAll,
-  type DemoInbox,
-} from "@novadeck/demo/inbox"
+import type { WorkspaceSeed } from "@novadeck/core/seed"
+import type { DemoInbox } from "@novadeck/demo/inbox"
+import { demoHiddenCommand, demoInboxIds, demoInboxItemsAll } from "@novadeck/demo/inbox-fixtures"
 
 import type { DemoActionGroup } from "./types"
 
@@ -103,6 +100,11 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
     hint: "Approve row for a held message whose sender's terminal closed: it shows on the recipient, the sender by its handle",
   },
   {
+    label: "Messages held long",
+    name: "waits",
+    hint: "Trouble row saying two messages for the agent have waited long behind a dialog open in its idle terminal",
+  },
+  {
     label: "Finished turn",
     name: "finished",
     hint: "Update row with the reply and the files an agent wrote",
@@ -116,10 +118,20 @@ const fresh = (id: string): InboxItem | undefined => {
   return found && { ...found, at: now }
 }
 
-// The Inbox's actions for the demo that has one. Each adds a fresh item, waiting from
-// now, in place of the one of its kind that was there.
-export const inboxGroups = (inbox: DemoInbox | undefined): readonly DemoActionGroup[] => {
-  if (!inbox) return []
+// Whether the demo's workspace has the sample projects the Inbox's items are about: the
+// content showcase has its own.
+const samplesIn = (seed: WorkspaceSeed): boolean =>
+  demoInboxItemsAll(0).every((item) =>
+    seed.projects.some((project) => project.id === item.source.projectId),
+  )
+
+// The Inbox's actions, for the demo's Inbox over the sample projects. Each adds a fresh item,
+// waiting from now, in place of the one of its kind that was there.
+export const inboxGroups = (
+  inbox: DemoInbox | undefined,
+  seed: WorkspaceSeed,
+): readonly DemoActionGroup[] => {
+  if (!inbox || !samplesIn(seed)) return []
   const present = (): ReadonlySet<string> =>
     new Set(inbox.state.getSnapshot().items.map((each) => each.id))
   return [
@@ -207,8 +219,8 @@ export const inboxGroups = (inbox: DemoInbox | undefined): readonly DemoActionGr
           },
         },
         {
-          label: "Clear the Inbox",
-          hint: "Every item goes; the Inbox reads Nothing needs you",
+          label: "Clear the added items",
+          hint: "The hardcoded items and those added here go; what the agents wait on stays",
           run: () => inbox.clear(),
         },
       ],
