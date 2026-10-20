@@ -104,12 +104,16 @@
   display: flex;
   width: 720px;
   height: max(100%, 560px);
-  overflow: hidden;
   border: var(--border-width) solid var(--pane-attached-border-color, var(--color-line-strong));
   border-radius: var(--pane-attached-radius, var(--radius-panel));
   background-color: var(--pane-bg, var(--color-paper));
   box-shadow: var(--pane-attached-shadow, var(--shadow-floating));
   cursor: default;
+}
+/* Its reader clips to its corners, not the sheet, whose tether (::before) lies outside it. */
+.plan-attached > .plan-reader {
+  overflow: hidden;
+  border-radius: calc(var(--pane-attached-radius, var(--radius-panel)) - var(--border-width));
 }
 .plan-attached::before {
   content: "";

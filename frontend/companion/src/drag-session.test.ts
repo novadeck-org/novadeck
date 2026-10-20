@@ -1,4 +1,4 @@
-import { createDragSession, type HitTest } from "./drag-session"
+import { createDragSession, pageHitTest, type HitTest } from "./drag-session"
 import { describe, expect, it } from "./test"
 
 const canvas = { canvas: { x: 120, y: 48 } }
@@ -54,5 +54,35 @@ describe("a drag off a taskbar", () => {
     expect(session.drag.getSnapshot()).toBeNull()
     session.start({ from: "01", name: "hero.png", undocks: true })
     expect(session.end(true)).toBeNull()
+  })
+})
+
+describe("what the page has under a point", () => {
+  // Terminal 02's window with its taskbar, under terminal 01's Canvas sheet.
+  const layered = (withSheet: boolean): Element[] => {
+    const window = document.createElement("section")
+    window.dataset.terminal = "02"
+    const bar = document.createElement("div")
+    bar.dataset.taskbar = ""
+    window.append(bar)
+    const sheet = document.createElement("div")
+    sheet.dataset.companionOf = "01"
+    const text = document.createElement("p")
+    sheet.append(text)
+    document.body.append(window, sheet)
+    return withSheet ? [text, sheet, bar, window, document.body] : [bar, window, document.body]
+  }
+  const pointAt = (elements: Element[]): void => {
+    document.elementsFromPoint = () => elements
+  }
+
+  it("is a terminal's taskbar where nothing covers it", () => {
+    pointAt(layered(false))
+    expect(pageHitTest(10, 10)).toEqual({ over: "02", onBar: true })
+  })
+
+  it("is the sheet's own terminal, not the bar it covers", () => {
+    pointAt(layered(true))
+    expect(pageHitTest(10, 10)).toEqual({ over: "01", onBar: false })
   })
 })

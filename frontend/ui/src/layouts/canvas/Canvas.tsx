@@ -242,6 +242,12 @@ const TerminalCanvas = ({
     },
     [animateVisit, framing, getViewport, visit],
   )
+  const entrySheets = useRef<Map<string, { right: number; height: number }> | null>(new Map())
+  const takeEntrySheets = useCallback(() => {
+    const sheets = entrySheets.current ?? new Map()
+    entrySheets.current = null
+    return sheets
+  }, [])
   const initializeViewport = useCanvasNavigation({
     navigation,
     selected,
@@ -257,6 +263,7 @@ const TerminalCanvas = ({
     createdPositions,
     pointerCreated,
     visit,
+    takeEntrySheets,
     flyIn,
   })
   const fitAll = useCallback((): void => {
@@ -353,6 +360,11 @@ const TerminalCanvas = ({
         onFlyTo: () => flyTo(terminal),
         onResizePreset: () => resizeToViewport(id),
         onReveal: ({ right, height }) => {
+          // A sheet already open as Canvas mounts waits for the first camera, which fits it.
+          if (entrySheets.current) {
+            entrySheets.current.set(id, { right, height })
+            return
+          }
           const node = getNode(id)
           if (!node) return
           void fitBounds(
