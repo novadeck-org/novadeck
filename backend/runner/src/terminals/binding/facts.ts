@@ -38,7 +38,7 @@ export type BindingsHost = {
   readonly save: (record: Record) => void
   /** Tells the terminal's detail readers of a change. */
   readonly detailed: (record: Record) => void
-  /** Murmur writes a headline or gist for what the activity now holds. */
+  /** Murmur writes a gist for what the activity now holds. */
   readonly murmurChanged: (terminalId: string) => void
   /** Follows the terminal's root session after a report's facts; true when its work changed. */
   readonly trackRoot: (
@@ -342,7 +342,7 @@ export class Bindings {
     // Detail changes where the summary may not: a revised request, a subject.
     this.host.detailed(record)
     this.host.typing().dialogsChanged(record.summary.id)
-    // Murmur writes a headline or gist for what the activity now holds.
+    // Murmur writes a gist for what the activity now holds.
     this.host.murmurChanged(record.summary.id)
     const agent = record.binding?.agent ?? null
     const ready = this.readyOf(record)

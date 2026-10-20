@@ -5,13 +5,7 @@ import { join } from "node:path"
 import { createScreen, readScreen } from "@novadeck/emulator/headless"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import {
-  started,
-  withGist,
-  withHeadline,
-  type Activity,
-  type Request,
-} from "../harnesses/activity.js"
+import { started, withGist, type Activity, type Request } from "../harnesses/activity.js"
 import type { Items } from "../harnesses/replies.js"
 import type { Description, Digest, ShellDigest } from "../murmur/describer.js"
 import { redactDigest } from "../murmur/redact.js"
@@ -538,10 +532,7 @@ const create = (
   const replies: { current: string | null } = { current: null }
   const written: { readonly title: string }[] = []
   const clears = { count: 0 }
-  const files = new Map<string, string>()
-  const heads: string[] = []
-  const hooks: { items?: () => void; head?: Promise<string | null> } = {}
-  const headlined: string[] = []
+  const hooks: { items?: () => void } = {}
   const gisted: string[] = []
   const host: MurmurHost = {
     subject: (id) => subjects.get(id),
@@ -570,24 +561,12 @@ const create = (
       if (subject)
         subjects.set(id, { ...subject, naming: { ...subject.naming, murmur: description } })
     },
-    headlined: (id, { requestId, askedAt }, headline) => {
-      const subject = subjects.get(id)
-      const activity =
-        subject?.activity && withHeadline(subject.activity, requestId, askedAt, headline)
-      if (!activity) return
-      headlined.push(headline)
-      subjects.set(id, { ...subject, activity })
-    },
     gisted: (id, at, gist) => {
       const subject = subjects.get(id)
       const activity = subject?.activity && withGist(subject.activity, at, gist)
       if (!activity) return
       gisted.push(gist.text)
       subjects.set(id, { ...subject, activity })
-    },
-    fileHead: (path) => {
-      heads.push(path)
-      return hooks.head ?? Promise.resolve(files.get(path) ?? null)
     },
     cleared: () => {
       clears.count += 1
@@ -630,10 +609,7 @@ const create = (
     replies,
     written,
     clears,
-    files,
-    heads,
     hooks,
-    headlined,
     gisted,
     change,
     times,
@@ -2719,243 +2695,23 @@ describe("when the person turns murmur off or removes it", () => {
   })
 })
 
-const request = (fields: Partial<Request> = {}): Request => ({
-  requestId: "r1",
-  actor: null,
-  toolName: "AskUserQuestion",
-  kind: "question",
-  subject: "Which database should it use?",
-  choices: ["Postgres", "SQLite"],
-  askedAt: 10,
-  ...fields,
-})
-const asking = (requests: readonly Request[], fields: Partial<Activity> = {}): Activity => ({
+const asking = (requests: readonly Request[]): Activity => ({
   ...started(0),
   state: "working",
   pending: requests,
-  ...fields,
 })
 const ended = (at = 20, outcome: "completed" | "failed" = "completed"): Activity => ({
   ...started(0),
   lastTurn: { outcome, reply: null, at, recorded: false, files: [], from: 0 },
 })
-const planned = (source: string): Partial<Activity> => ({
-  plans: [{ actor: null, source: { kind: "text", text: source, truncated: false }, at: 1 }],
-})
 const real = (ms = 150) => new Promise((resolve) => setTimeout(resolve, ms))
-const pending = (subjects: ReturnType<typeof create>["subjects"]) =>
-  subjects.get("a")!.activity!.pending
 
-describe("murmur's headlines and gists", () => {
+describe("murmur's gists", () => {
   beforeEach(() => {
     vi.useFakeTimers()
   })
   afterEach(() => {
     vi.useRealTimers()
-  })
-
-  describe("of a question or plan", () => {
-    it("asks once for a question, with its answers, and puts the headline on the request", async () => {
-      const { murmur, describer, subjects, change, headlined } = create({
-        activity: asking([request()]),
-      })
-      murmur.changed("a")
-      murmur.changed("a")
-      await settle()
-      expect(describer.notes.map(({ digest, terminal }) => [digest, terminal])).toEqual([
-        [
-          {
-            kind: "question",
-            question: "Which database should it use?",
-            choices: ["Postgres", "SQLite"],
-          },
-          "a",
-        ],
-      ])
-      expect(headlined).toEqual(["Headline 1"])
-      expect(pending(subjects)[0]!.headline).toBe("Headline 1")
-      // Told again, with the headline there, nothing is asked.
-      change({ activity: subjects.get("a")!.activity })
-      murmur.changed("a")
-      await settle()
-      expect(describer.notes).toHaveLength(1)
-      // Titles are not asked for by it.
-      expect(describer.jobs).toHaveLength(0)
-    })
-
-    it("asks nothing for a permission, a question with no subject, or a terminal with no agent", async () => {
-      const { murmur, describer, change } = create({
-        activity: asking([
-          request({ kind: "permission" }),
-          request({ requestId: "r2", subject: null }),
-        ]),
-      })
-      murmur.changed("a")
-      await settle()
-      change({ agent: null, activity: asking([request()]) })
-      murmur.changed("a")
-      await settle()
-      expect(describer.notes).toHaveLength(0)
-    })
-
-    it("gives each waiting question its own job", async () => {
-      const { murmur, describer, subjects } = create({
-        activity: asking([request(), request({ requestId: "r2", askedAt: 11 })]),
-      })
-      murmur.changed("a")
-      await settle()
-      expect(describer.notes).toHaveLength(2)
-      expect(pending(subjects).map(({ headline }) => headline)).toEqual([
-        "Headline 1",
-        "Headline 2",
-      ])
-    })
-
-    it("calls the job off when the request is answered, and drops its late answer", async () => {
-      const { murmur, describer, subjects, change, headlined } = create({
-        activity: asking([request()]),
-      })
-      describer.hold = true
-      murmur.changed("a")
-      await settle()
-      expect(describer.notes).toHaveLength(1)
-      change({ activity: asking([]) })
-      murmur.changed("a")
-      expect(describer.notes[0]!.signal?.aborted).toBe(true)
-      describer.notes[0]!.answer({ kind: "headline", text: "Late" })
-      await settle()
-      expect(headlined).toEqual([])
-      expect(subjects.get("a")!.activity!.pending).toEqual([])
-    })
-
-    it("asks again for a revised plan, whose old headline and job are gone", async () => {
-      const first = request({ kind: "plan", requestId: "p", toolName: "ExitPlanMode" })
-      const { murmur, describer, subjects, change, headlined } = create({
-        activity: asking([first], planned("# Plan\nSplit the billing service")),
-      })
-      describer.hold = true
-      murmur.changed("a")
-      await settle()
-      expect(describer.notes[0]!.digest).toEqual({
-        kind: "plan",
-        plan: "# Plan\nSplit the billing service",
-      })
-      change({
-        activity: asking([{ ...first, askedAt: 30 }], planned("# Plan\nMerge the services")),
-      })
-      murmur.changed("a")
-      await settle()
-      expect(describer.notes[0]!.signal?.aborted).toBe(true)
-      expect(describer.notes).toHaveLength(2)
-      expect(describer.notes[1]!.digest).toMatchObject({ plan: "# Plan\nMerge the services" })
-      describer.notes[0]!.answer({ kind: "headline", text: "Stale" })
-      describer.notes[1]!.answer({ kind: "headline", text: "Plan to merge services" })
-      await settle()
-      expect(headlined).toEqual(["Plan to merge services"])
-      expect(pending(subjects)[0]!.headline).toBe("Plan to merge services")
-    })
-
-    it("reads a plan from its file, the first 16 KiB", async () => {
-      const path = "/plans/billing.md"
-      const { murmur, describer, files } = create({
-        activity: asking([request({ kind: "plan", requestId: "p" })], {
-          plans: [{ actor: null, source: { kind: "file", path }, at: 1 }],
-        }),
-      })
-      files.set(path, "x".repeat(20_000))
-      murmur.changed("a")
-      await settle()
-      expect(describer.notes).toHaveLength(1)
-      expect((describer.notes[0]!.digest as { plan: string }).plan).toHaveLength(16 * 1024)
-    })
-
-    it("uses the plan of the actor that asked, not another's", async () => {
-      const { murmur, describer } = create({
-        activity: asking([request({ kind: "plan", requestId: "p", actor: "sub" })], {
-          plans: [
-            { actor: null, source: { kind: "text", text: "root plan", truncated: false }, at: 1 },
-            { actor: "sub", source: { kind: "text", text: "sub plan", truncated: false }, at: 2 },
-          ],
-        }),
-      })
-      murmur.changed("a")
-      await settle()
-      expect(describer.notes[0]!.digest).toEqual({ kind: "plan", plan: "sub plan" })
-    })
-
-    it("keeps a refusal final, and asks again after a job that did not run", async () => {
-      const refused = create(
-        { activity: asking([request()]) },
-        new FakeDescriber({ note: () => null }),
-      )
-      refused.murmur.changed("a")
-      await settle()
-      refused.murmur.changed("a")
-      await settle()
-      expect(refused.describer.notes).toHaveLength(1)
-
-      // A job that did not run is asked for again after a while, with no other change.
-      const skipped = create(
-        { activity: asking([request()]) },
-        new FakeDescriber({
-          note: (_digest, call) =>
-            call === 1 ? undefined : { kind: "headline", text: "Asks which one" },
-        }),
-      )
-      skipped.murmur.changed("a")
-      await settle()
-      expect(skipped.headlined).toEqual([])
-      await settle(61_000)
-      expect(skipped.headlined).toEqual(["Asks which one"])
-    })
-
-    it("asks once for a plan it can't read, until the request changes", async () => {
-      const path = "/plans/gone.md"
-      const plan = request({ kind: "plan", requestId: "p" })
-      const fields = { plans: [{ actor: null, source: { kind: "file" as const, path }, at: 1 }] }
-      const { murmur, describer, heads, change } = create({ activity: asking([plan], fields) })
-      for (let i = 0; i < 3; i++) {
-        murmur.changed("a")
-        // eslint-disable-next-line no-await-in-loop -- Each change waits out its quiet.
-        await settle()
-      }
-      expect(heads).toEqual([path])
-      change({ activity: asking([{ ...plan, askedAt: 30 }], fields) })
-      murmur.changed("a")
-      await settle()
-      expect(heads).toEqual([path, path])
-      expect(describer.notes).toHaveLength(0)
-    })
-
-    it("drops a plan whose request was answered while its file was read", async () => {
-      const path = "/plans/billing.md"
-      const { murmur, describer, change, hooks } = create({
-        activity: asking([request({ kind: "plan", requestId: "p" })], {
-          plans: [{ actor: null, source: { kind: "file", path }, at: 1 }],
-        }),
-      })
-      const gate = { read: (_text: string) => {} }
-      hooks.head = new Promise((resolve) => (gate.read = resolve))
-      murmur.changed("a")
-      await settle()
-      change({ activity: asking([]) })
-      gate.read("# Plan")
-      await settle()
-      expect(describer.notes).toHaveLength(0)
-    })
-
-    it("asks nothing while murmur is unusable, until it is usable again", async () => {
-      const { murmur, describer, headlined } = create(
-        { activity: asking([request()]) },
-        new FakeDescriber({ usable: false }),
-      )
-      murmur.changed("a")
-      await settle()
-      expect(describer.notes).toHaveLength(0)
-      describer.setUsable(true)
-      await settle()
-      expect(headlined).toEqual(["Headline 1"])
-    })
   })
 
   describe("of a reply", () => {
@@ -3123,58 +2879,56 @@ describe("murmur's headlines and gists", () => {
   })
 
   describe("across murmur's life", () => {
-    it("asks again when murmur becomes usable, for a question and a remembered gist", async () => {
+    let directory: string
+    // Transcripts are read from disk, which fake timers don't wait for.
+    beforeEach(() => {
       vi.useRealTimers()
-      const directory = mkdtempSync(join(tmpdir(), "novadeck-gist-"))
-      try {
-        const transcript = join(directory, "t.jsonl")
-        writeFileSync(transcript, "assistant:text:Done.")
-        const done = create({ activity: ended(20), transcript })
-        done.describer.hold = true
-        done.murmur.replied("a", 20)
-        await vi.waitFor(() => expect(done.describer.notes).toHaveLength(1))
-        expect(done.describer.notes).toHaveLength(1)
-        done.describer.setUsable(false)
-        expect(done.describer.notes[0]!.signal?.aborted).toBe(true)
-        done.describer.setUsable(true)
-        await vi.waitFor(() => expect(done.describer.notes).toHaveLength(2))
+      directory = mkdtempSync(join(tmpdir(), "novadeck-gist-"))
+    })
+    afterEach(() => rmSync(directory, { recursive: true, force: true }))
 
-        const asked = create({ activity: asking([request()]) })
-        asked.describer.setUsable(false)
-        asked.murmur.changed("a")
-        asked.describer.setUsable(true)
-        await vi.waitFor(() => expect(asked.headlined).toEqual(["Headline 1"]))
-      } finally {
-        rmSync(directory, { recursive: true, force: true })
-      }
+    const transcript = () => {
+      const path = join(directory, "t.jsonl")
+      writeFileSync(path, "assistant:text:Done.")
+      return path
+    }
+
+    it("asks again when murmur becomes usable, for a remembered gist", async () => {
+      const done = create({ activity: ended(20), transcript: transcript() })
+      done.describer.hold = true
+      done.murmur.replied("a", 20)
+      await vi.waitFor(() => expect(done.describer.notes).toHaveLength(1))
+      done.describer.setUsable(false)
+      expect(done.describer.notes[0]!.signal?.aborted).toBe(true)
+      done.describer.setUsable(true)
+      await vi.waitFor(() => expect(done.describer.notes).toHaveLength(2))
     })
 
     it("stops its jobs and forgets what it asked when murmur is turned off", async () => {
-      const { murmur, describer, headlined } = create({ activity: asking([request()]) })
+      const { murmur, describer } = create({ activity: ended(20), transcript: transcript() })
       describer.hold = true
-      murmur.changed("a")
-      await settle()
+      murmur.replied("a", 20)
+      await vi.waitFor(() => expect(describer.notes).toHaveLength(1))
       describer.fireCleared()
       expect(describer.notes[0]!.signal?.aborted).toBe(true)
       describer.hold = false
-      murmur.changed("a")
-      await settle()
-      expect(describer.notes).toHaveLength(2)
-      expect(headlined).toEqual(["Headline 2"])
+      murmur.replied("a", 20)
+      await vi.waitFor(() => expect(describer.notes).toHaveLength(2))
     })
 
     it("cancels a terminal's jobs when it is gone, and all of them on stop", async () => {
-      const { murmur, describer } = create({ activity: asking([request()]) })
+      const path = transcript()
+      const { murmur, describer } = create({ activity: ended(20), transcript: path })
       describer.hold = true
-      murmur.changed("a")
-      await settle()
+      murmur.replied("a", 20)
+      await vi.waitFor(() => expect(describer.notes).toHaveLength(1))
       murmur.gone("a")
       expect(describer.notes[0]!.signal?.aborted).toBe(true)
 
-      const other = create({ activity: asking([request()]) })
+      const other = create({ activity: ended(20), transcript: path })
       other.describer.hold = true
-      other.murmur.changed("a")
-      await settle()
+      other.murmur.replied("a", 20)
+      await vi.waitFor(() => expect(other.describer.notes).toHaveLength(1))
       other.murmur.stop()
       expect(other.describer.notes[0]!.signal?.aborted).toBe(true)
     })

@@ -53,11 +53,7 @@ export class FakeDescriber implements Describer {
     this.usable = options.usable ?? true
     this.reply = options.reply ?? ((_digest, call) => ({ title: `Title ${call}` }))
     this.replyNote =
-      options.note ??
-      ((digest, call) =>
-        digest.kind === "reply"
-          ? { kind: "gist", text: `Gist ${call}`, asks: false }
-          : { kind: "headline", text: `Headline ${call}` })
+      options.note ?? ((_digest, call) => ({ kind: "gist", text: `Gist ${call}`, asks: false }))
   }
 
   private readonly replyNote: (digest: NoteDigest, call: number) => Note | null | undefined

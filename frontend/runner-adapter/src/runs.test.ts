@@ -241,7 +241,7 @@ describe("runs of a terminal", () => {
 
 const idle = {
   state: "idle" as const,
-  attention: { pending: 0, kind: null, headline: null },
+  attention: { pending: 0, kind: null },
   subagents: [],
   planning: false,
   background: null,

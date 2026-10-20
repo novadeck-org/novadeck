@@ -21,13 +21,12 @@ export type DemoAgentVerbs = {
     how?: { readonly planning?: true; readonly subagents?: true },
   ) => void
   // Stops the agent's turn on `count` requests of `kind`, each answerable from the chat
-  // and the screen; a plan in plan mode. `headline` is murmur's, for a question or a plan.
+  // and the screen; a plan in plan mode.
   readonly ask: (
     key: TerminalKey,
     terminal: TerminalMetadata | undefined,
     kind: DemoAsk,
     count: number,
-    headline?: string,
   ) => void
   // Works, if not already, and ends the turn `after` ms later the way asked, with its
   // reply, murmur's `gist` of it where given, and what it leaves running, where given.

@@ -517,13 +517,9 @@ describe("demo states", () => {
       expect(new Set(calls.map((call) => call.verb))).toEqual(new Set(["ask", "finish"]))
     })
 
-    it("gives the second round of kinds murmur's headlines and gists, and the rest none", () => {
+    it("gives the second round of finishes murmur's gists, and the rest none", () => {
       const { run, calls } = panel("04")
       run("Fill the Inbox")
-      const asks = calls.filter((call) => call.verb === "ask")
-      expect(
-        asks.flatMap((call) => (typeof call.args[2] === "string" ? [call.args[2]] : [])).toSorted(),
-      ).toEqual(["Asks which database to use", "Plan to split the billing service"])
       expect(
         calls
           .flatMap((call) => {
@@ -536,9 +532,13 @@ describe("demo states", () => {
         ["completed", "Checkout totals round per line, tests pass", true],
         ["failed", "Test suite no longer compiles", undefined],
       ])
-      // The first round reads as it did before murmur: a question without a headline.
+      // The first round reads as it did before murmur: a finish without a gist.
       expect(
-        asks.filter((call) => call.args[0] === "question" && call.args[2] === undefined),
+        calls.filter(
+          (call) =>
+            call.verb === "finish" &&
+            (call.args[1] as { gist?: unknown } | undefined)?.gist === undefined,
+        ),
       ).not.toHaveLength(0)
     })
 

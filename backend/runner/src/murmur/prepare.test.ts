@@ -54,15 +54,15 @@ describe("preparing a digest in a thread", () => {
       resources.defer(() => preparer.close())
 
       const chat = await preparer.prepare({
-        kind: "question",
-        question: "Use API_KEY=hunter2abc for staging?",
-        choices: ["Yes", "No"],
+        kind: "reply",
+        reply: "Use API_KEY=hunter2abc for staging?",
+        failed: false,
       })
 
       expect(chat).toHaveLength(2)
       expect(JSON.stringify(chat)).not.toContain("hunter2abc")
       const messages = chat as { content: string }[]
-      expect(messages[0]?.content).toContain("headline")
+      expect(messages[0]?.content).toContain("gist")
       expect(messages[1]?.content).toContain("API_KEY=[redacted]")
     },
   )

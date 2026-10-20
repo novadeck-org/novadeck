@@ -1,8 +1,7 @@
 import { readScreen, type ScreenText } from "@novadeck/emulator/headless"
-import { murmurGist, murmurHeadline } from "@novadeck/protocol"
+import { murmurGist } from "@novadeck/protocol"
 
-import { readPlanFile } from "../companions/content.js"
-import { withGist, withHeadline, withoutNotes } from "../harnesses/activity.js"
+import { withGist, withoutNotes } from "../harnesses/activity.js"
 import { harnesses } from "../harnesses/registry.js"
 import type { MurmurHost, MurmurSubject } from "./murmur.js"
 import type { Names } from "./names.js"
@@ -140,14 +139,6 @@ export const murmurHost = (host: DescribingHost): MurmurHost => ({
     host.names().retitle(record)
     host.saves().save(record, false)
   },
-  headlined: (terminalId, { requestId, askedAt }, text) => {
-    const record = host.live(terminalId)
-    if (!record?.activity || !murmurHeadline.safeParse(text).success) return
-    const next = withHeadline(record.activity, requestId, askedAt, text)
-    if (!next) return
-    record.activity = next
-    host.publishAgent(record)
-  },
   gisted: (terminalId, at, gist) => {
     const record = host.live(terminalId)
     const parsed = murmurGist.safeParse({ text: gist.text, asks: gist.asks })
@@ -157,11 +148,9 @@ export const murmurHost = (host: DescribingHost): MurmurHost => ({
     record.activity = next
     host.publishAgent(record)
   },
-  fileHead: async (path) =>
-    (await readPlanFile(path).catch(() => undefined))?.text.slice(0, 16 * 1024) ?? null,
   cleared: () => {
     // Murmur is off or gone: its titles go, running terminals' and saved ones', and the
-    // headlines and gists it wrote.
+    // gists it wrote.
     for (const record of host.records()) {
       const next = record.activity && withoutNotes(record.activity)
       if (next) {

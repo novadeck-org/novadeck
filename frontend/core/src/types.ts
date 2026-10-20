@@ -41,8 +41,6 @@ export type AgentStatus = {
   readonly attention?: {
     readonly kind: "permission" | "question" | "plan"
     readonly count: number
-    // Murmur's headline for the oldest request, a question's or a plan's, where it wrote one.
-    readonly headline?: string
   }
   readonly subagents?: readonly { readonly id: string; readonly type: string | null }[]
   // How its latest turn ended, once none runs, with the start of its last reply where its

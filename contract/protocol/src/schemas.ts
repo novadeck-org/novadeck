@@ -59,9 +59,7 @@ export const replyPreviewLength = 120
 // eslint-disable-next-line no-control-regex -- These are the characters it refuses.
 const oneLine = /^[^\x00-\x1f\x7f-\x9f]*$/
 const murmurLine = (max: number) => z.string().min(1).max(max).regex(oneLine)
-export const murmurHeadlineLength = 64
 export const murmurGistLength = 96
-export const murmurHeadline = murmurLine(murmurHeadlineLength)
 export const murmurGist = z.strictObject({ text: murmurLine(murmurGistLength), asks: z.boolean() })
 
 // What the agent holding a terminal's foreground is doing, as its own hooks report it:
@@ -84,9 +82,6 @@ export const agentActivity = z.strictObject({
   attention: z.strictObject({
     pending: z.number().int().nonnegative(),
     kind: z.enum(["permission", "question", "plan"]).nullable(),
-    // Murmur's headline for the oldest request, a question's or a plan's ("Asks which database
-    // to use"); null for a permission, without murmur, and until it wrote one.
-    headline: murmurHeadline.nullable(),
   }),
   // Whether it plans rather than acts, as its hooks last said.
   planning: z.boolean(),

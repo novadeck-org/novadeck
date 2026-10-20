@@ -4,18 +4,15 @@
 import type { AgentDigest, Input, NoteDigest } from "./describer.js"
 import {
   exampleGists,
-  exampleHeadlines,
   exampleTitles,
   gistCharacters,
   gistWords,
-  headlineCharacters,
-  headlineWords,
   titleCharacters,
   titleWords,
 } from "./description.js"
 
-/** What murmur writes: a terminal's title, a headline for a question or plan, a reply's gist. */
-export type Task = "title" | "headline" | "gist"
+/** What murmur writes: a terminal's title, a reply's gist. */
+export type Task = "title" | "gist"
 
 export type Message = { readonly role: "system" | "user"; readonly content: string }
 
@@ -92,25 +89,6 @@ export const responseFormat = {
   json_schema: { name: "terminal_title", strict: true, schema },
 } as const
 
-export const headlineSystem = `You write one line for a developer's notification list. You get a question an AI coding agent asks the person, or a plan it asks the person to review. Reply with a JSON object holding a headline.
-
-headline: ${headlineWords.min} to ${headlineWords.max} words, at most ${headlineCharacters} characters, saying what the agent wants decided.
-
-Rules:
-- A question always starts with "Asks" (or the same verb in the language of the question), then names the specific subject of the choice, such as the file, feature or tool, never just "which approach". Never start with a verb such as "Ship" or "Drop", nor with "Should", "Shall", "Can", "Could", "Would", "Will", "Do", "Does", "Did", "Is" or "Are": the headline reports that something is asked, it is not the question and not a decision.
-- A plan starts with "Plan to" (or the same in the language of the plan) and names what it will change.
-- Write in the language of the text, whatever language these instructions are in.
-- Use only facts in the text. Never answer the question and never pick one of its options.
-- Use no markdown, no quotation marks and no full stop.
-
-Examples of the reply, which show the shape only: never reuse their words for another text:
-Question "Which database should the billing service use? Options: Postgres, SQLite" gives:
-{"headline":"${exampleHeadlines[0]}"}
-Question "Którą bazę mam wybrać dla usługi rozliczeń?" gives:
-{"headline":"${exampleHeadlines[1]}"}
-A plan "1. Move invoicing out of the billing module 2. Add a queue between them" gives:
-{"headline":"${exampleHeadlines[2]}"}`
-
 export const gistSystem = `You write one line for a developer's notification list. You get the reply an AI coding agent ended its turn with. Reply with a JSON object holding asks and a gist, in that order.
 
 asks: true when the reply ends by asking the person to pick, decide or supply something the agent needs to go on, with or without a question mark: "Which direction appeals to you?", "Tell me where it downloaded". false for an offer to do more, such as "Want me to add tests?", "Should I also update the docs?" or "Let me know if you need anything else".
@@ -131,16 +109,6 @@ A reply that adds the validation and ends "Want me to add more?" gives:
 A reply that ends on a build error and "Tell me which Node version CI uses" gives:
 {"asks":true,"gist":"${exampleGists[2]}"}`
 
-/** The schema for `response_format`, which keeps the reply to the headline. */
-const headlineSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["headline"],
-  properties: {
-    headline: { type: "string", minLength: 3, maxLength: headlineCharacters + overrun },
-  },
-} as const
-
 // `asks` comes first because the engine's grammar writes properties in this order, so the
 // model has decided it before it writes a gist that might otherwise talk around it.
 const gistSchema = {
@@ -156,13 +124,6 @@ const gistSchema = {
 /** What each task asks of the engine: the shape of the reply and how many tokens it may take. */
 export const formats = {
   title: { responseFormat, maxTokens: 64 },
-  headline: {
-    responseFormat: {
-      type: "json_schema",
-      json_schema: { name: "request_headline", strict: true, schema: headlineSchema },
-    },
-    maxTokens: 96,
-  },
   gist: {
     responseFormat: {
       type: "json_schema",
@@ -198,10 +159,6 @@ const budget = {
   row: 160,
   rows: 30,
   olderRows: 6,
-  question: 600,
-  choices: 8,
-  choice: 80,
-  plan: 1500,
   // A reply is budgeted in tokens, estimated by `cost` as a ceiling, since a chat window of
   // 4096 tokens holds very different amounts of text by script: the system prompt (about 450),
   // the answer (128) and a margin come out of it, and 3100 are left for the reply.
@@ -338,44 +295,24 @@ const fact = (name: string, value: string | null): string[] =>
 // that redaction would have caught whole.
 const noteMessages = (input: NoteDigest): Message[] => {
   const lines: string[] = []
-  if (input.kind === "question") {
-    lines.push(
-      "The agent asks the person this question:",
-      head(input.question.trim(), budget.question),
-    )
-    const choices = input.choices.filter((choice) => choice.trim() !== "")
-    if (choices.length > 0) {
-      lines.push("", "The answers it offers:")
-      for (const choice of choices.slice(0, budget.choices))
-        lines.push(`- ${head(choice.trim(), budget.choice)}`)
-    }
-    lines.push("", "Write the headline in the language of the question.")
-  } else if (input.kind === "plan") {
-    lines.push(
-      "The agent asks the person to review this plan:",
-      head(input.plan.trim(), budget.plan),
-    )
-    lines.push("", "Write the headline in the language of the plan.")
-  } else {
-    const reply = prose(input.reply)
-    const whole = cost(reply) <= budget.replyHead + budget.replyTail
-    if (input.failed) lines.push("The turn ended with an error.", "")
-    // The two ends are named and the cut marked, so they are not read as one text.
-    lines.push(
-      ...(whole
-        ? ["The agent's reply:", reply]
-        : [
-            "The start of the agent's reply:",
-            startWithin(reply, budget.replyHead).trimEnd(),
-            "[…]",
-            "The end of the agent's reply:",
-            endWithin(reply, budget.replyTail).trimStart(),
-          ]),
-    )
-    lines.push("", "Write the gist in the language of the reply.")
-  }
+  const reply = prose(input.reply)
+  const whole = cost(reply) <= budget.replyHead + budget.replyTail
+  if (input.failed) lines.push("The turn ended with an error.", "")
+  // The two ends are named and the cut marked, so they are not read as one text.
+  lines.push(
+    ...(whole
+      ? ["The agent's reply:", reply]
+      : [
+          "The start of the agent's reply:",
+          startWithin(reply, budget.replyHead).trimEnd(),
+          "[…]",
+          "The end of the agent's reply:",
+          endWithin(reply, budget.replyTail).trimStart(),
+        ]),
+  )
+  lines.push("", "Write the gist in the language of the reply.")
   return [
-    { role: "system", content: input.kind === "reply" ? gistSystem : headlineSystem },
+    { role: "system", content: gistSystem },
     { role: "user", content: lines.join("\n") },
   ]
 }
@@ -442,8 +379,7 @@ const agentMessages = (digest: AgentDigest): Message[] => {
 
 /** The chat that asks the model to write about `input`; it should already be redacted. */
 export const messages = (digest: Input): Message[] => {
-  if (digest.kind === "question" || digest.kind === "plan" || digest.kind === "reply")
-    return noteMessages(digest)
+  if (digest.kind === "reply") return noteMessages(digest)
   if (digest.kind === "agent") return agentMessages(digest)
   const lines: string[] = ["Terminal: a plain shell"]
   const screen = digest.screen.slice(-budget.rows).map((row) => head(row, budget.row))
