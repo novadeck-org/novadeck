@@ -45,15 +45,8 @@ export const GridTeamWire = ({
   // While a window is dropped on the grid; a tile dragged or resized is the stylesheet's.
   hidden: boolean
 }): React.JSX.Element | null => {
-  // The route is worked out again only when the tiles or the team moved, not on every
-  // update of the roster that hands over the same boxes anew.
   const geometry = `${width}|${boxes.map((box) => `${box.id}:${box.left},${box.top},${box.width},${box.height}`).join("|")}`
   const members = team ? [team.lead, ...team.workers].join("|") : ""
-  const route = useMemo(
-    () => (team ? teamRoute(boxes, team.lead, team.workers, gap, width) : undefined),
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-    [geometry, members, gap],
-  )
   // The tiles slide to a new layout over a moment: the wire is out of the way until they
   // have, then fades back without playing its pulse again.
   const [still, setStill] = useState(geometry)
@@ -61,6 +54,16 @@ export const GridTeamWire = ({
     const timer = setTimeout(() => setStill(geometry), movingMs)
     return () => clearTimeout(timer)
   }, [geometry])
+  // The route is worked out again each time the tiles come to rest, by the timer or by
+  // landing back where they were, and when the team changes: not on every frame of a
+  // resize, while it is hidden anyway, nor on every update of the roster that hands over
+  // the same boxes anew.
+  const resting = still === geometry ? geometry : "moving"
+  const route = useMemo(
+    () => (team ? teamRoute(boxes, team.lead, team.workers, gap, width) : undefined),
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+    [resting, members, gap],
+  )
   // The selection whose pulse has played.
   const [played, setPlayed] = useState<string | undefined>(undefined)
   useEffect(() => {
