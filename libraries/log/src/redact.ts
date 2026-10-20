@@ -16,8 +16,9 @@ export type RedactOptions = UrlRule & {
 /** Text as a log may keep it. */
 export type Redactor = (text: string) => string
 
-// Account names that are ordinary words too, or too short to tell from part of one: written
-// as they are, since replacing them would mangle the text around them.
+// Account names that are ordinary words too, or too short to tell from part of one, or the
+// redactor's own placeholders: written as they are, since replacing them would mangle the text
+// around them.
 const commonNames = new Set([
   "admin",
   "administrator",
@@ -29,6 +30,7 @@ const commonNames = new Set([
   "demo",
   "dev",
   "docker",
+  "email",
   "guest",
   "home",
   "info",
@@ -38,8 +40,10 @@ const commonNames = new Set([
   "node",
   "owner",
   "public",
+  "redacted",
   "root",
   "runner",
+  "secret",
   "server",
   "student",
   "system",
@@ -64,6 +68,8 @@ const secretKey = String.raw`[\w.-]*?(?:token|secret|passw(?:or)?d|pass|pwd|key|
  * what it becomes.
  */
 const shapes: readonly (readonly [RegExp, string])[] = [
+  // A key or certificate block, whole, before a rule below can take its BEGIN line for a value.
+  [/-----BEGIN [A-Z0-9 ]*-----[\s\S]*?(?:-----END [A-Z0-9 ]*-----|$)/g, "<secret>"],
   // A URL's user and password: `https://ana:hunter2@host`.
   [/\b([a-z][\w+.-]*:\/\/)[^\s/@:]*(?::[^\s/@]*)?@/gi, "$1<redacted>@"],
   // Headers that carry credentials, as written in a request or its dump.
@@ -120,7 +126,7 @@ export const createRedactor = (options: RedactOptions): Redactor => {
   const user = options.user
   const account =
     user && user.length >= 3 && !commonNames.has(user.toLowerCase())
-      ? new RegExp(String.raw`(?<![\w.<-])${escape(user)}(?![\w>-])`, "gi")
+      ? new RegExp(String.raw`(?<![\w.-])${escape(user)}(?![\w-])`, "gi")
       : undefined
   return (text) => {
     let result = text

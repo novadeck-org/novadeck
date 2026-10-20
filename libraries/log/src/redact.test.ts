@@ -528,7 +528,20 @@ describe("createRedactor", () => {
 
   it("writes placeholders whole, though the account is named as one", () => {
     const named = createRedactor({ ...linux, user: "secret", salt })
-    expect(named("token sk-proj-abcdefghijklmnop1234 for secret")).toBe("token <secret> for <user>")
+    expect(named("token sk-proj-abcdefghijklmnop1234 for secret")).toBe("token <secret> for secret")
+  })
+
+  it.each(["PRIVATE_KEY=", "password: ", "--token ", "/tmp/x"])(
+    "masks a key block whole after %s",
+    (before) => {
+      const block =
+        "-----BEGIN PRIVATE KEY-----\nMIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8w\nabcdefghijklmnop\n-----END PRIVATE KEY-----"
+      expect(redact(`${before}${block}`)).not.toMatch(/MIIB|abcdefgh|BEGIN|END/)
+    },
+  )
+
+  it("writes the account name as <user> beside angle brackets", () => {
+    expect(redact("ana> ls")).toBe("<user>> ls")
   })
 
   it("leaves a short or ordinary account name in the text", () => {
