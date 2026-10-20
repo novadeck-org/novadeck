@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process"
 import {
   appendFileSync,
   existsSync,
@@ -17,19 +18,20 @@ import { codex } from "../agents/codex.js"
 import type { DeckTerminal } from "../deck.js"
 import { poll } from "../deck.js"
 import { describe, e2e, supported, type E2E } from "../fixture.js"
-import { installHarness } from "../install.js"
+import { installHarness, pins } from "../install.js"
 import { asked, type Call, type Rule } from "../model/script.js"
 import { prompted } from "../scenarios.js"
 
-// PROBE, not a test of Novadeck: how Codex (the pin, 0.159.3, or the newest with NOVADECK_E2E_HARNESS=latest) asks the person for things in its
+// PROBE, not a test of Novadeck: how Codex (the pin, or the newest with NOVADECK_E2E_HARNESS=latest) asks the person for things in its
 // interactive TUI, which hooks fire, what its rollout records and which keys answer, for
 // the chat view's "answer from the chat" decision. Each scenario writes what it saw into
 // harnesses/codex/src/fixtures/ask.probe.json (afterAll), scrubbed of the sandbox's paths.
 
 const it = e2e(codex)
 
-// The pinned release writes ask.probe.json; with NOVADECK_E2E_HARNESS=latest the newest
-// writes ask.probe.<version>.json beside it, so the pin's screens are never overwritten.
+// The pinned release writes ask.probe.json; with NOVADECK_E2E_HARNESS=latest a newer one
+// writes ask.probe.<version>.json beside it, so the pin's screens are never overwritten (a
+// latest that is the pin writes ask.probe.json).
 const fixtureFolder = join(adapterFolder("codex"), "fixtures")
 
 type Json = Record<string, unknown>
@@ -176,13 +178,67 @@ const interesting = (records: Json[]): Json[] =>
     return false
   })
 
+// What differs from one run of the same scenario to the next: times, durations, process
+// ids and ids made per run, by their key wherever they sit. Two recordings at 0.163.0,
+// compared, differed in these and in one race only: which of exec-two-queued's commands
+// Codex asks for first, which varies run to run.
+const perRun = new Set([
+  "askedAt",
+  "at",
+  "completed_at",
+  "completed_at_ms",
+  "create_time",
+  "duration_ms",
+  "nanos",
+  "process_id",
+  "started_at",
+  "started_at_ms",
+  "t",
+  "time_to_first_token_ms",
+  "timestamp",
+])
+const perRunIds = new Set(["actor", "ref"])
+const fixedInstant = "2000-01-01T00:00:00.000Z"
+
+const scrubbed = (value: unknown, key?: string): unknown => {
+  if (Array.isArray(value)) return value.map((each) => scrubbed(each))
+  if (typeof value === "object" && value !== null)
+    return Object.fromEntries(
+      Object.entries(value).map(([k, each]) =>
+        // A dialog's id hashes what it shows, the sandbox's path included.
+        key === "dialog" && k === "id" ? [k, "<id>"] : [k, scrubbed(each, k)],
+      ),
+    )
+  // Each stays of its kind, as readers parse them: an instant one fixed instant, any other
+  // number 0.
+  if (key !== undefined && perRun.has(key)) {
+    if (typeof value === "number") return 0
+    if (typeof value === "string" && /^\d{4}-\d\d-\d\dT[\d:.]+Z$/.test(value)) return fixedInstant
+    if (typeof value === "string" && /^-?[\d.]+$/.test(value)) return "0"
+  }
+  if (key !== undefined && perRunIds.has(key) && typeof value === "string") return "<id>"
+  return value
+}
+
 const scrub = (run: E2E, value: unknown): unknown => {
   const text = JSON.stringify(value)
     .split(run.sandbox.root)
     .join("/tmp/sandbox")
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, "<uuid>")
     .replace(/call_[0-9a-f]{24}/g, "call_<id>")
-  return JSON.parse(text) as unknown
+    .replace(/\b(fc|msg)_[0-9a-f]{24}\b/g, "$1_<id>")
+    .replace(
+      /sessions\/\d{4}\/\d\d\/\d\d\/rollout-[\dT-]+-<uuid>/g,
+      "sessions/<date>/rollout-<time>-<uuid>",
+    )
+    .replace(/Chunk ID: [0-9a-f]{6}/g, "Chunk ID: <id>")
+    .replace(/Wall time: \d+\.\d+ seconds/g, "Wall time: <n> seconds")
+    .replace(/aborted by user after [\d.]+s/g, "aborted by user after <n>s")
+    // A finished turn's line, its time and the clock: "Worked for 4s • 15:49".
+    .replace(/Worked for [^"•]*• \d\d:\d\d/g, "Worked for <n> • <HH:MM>")
+    // A running call's mark blinks between • and ◦.
+    .replace(/"◦ /g, '"• ')
+  return scrubbed(JSON.parse(text))
 }
 
 const waitScreen = (t: DeckTerminal, shows: string | RegExp, timeoutMs = 20_000) =>
@@ -246,9 +302,12 @@ const save = (run: E2E, name: string, data: Json) => {
 }
 
 afterAll(async () => {
-  const latest = process.env.NOVADECK_E2E_HARNESS === "latest"
-  const version = latest ? (await installHarness("codex")).version : "0.159.3"
-  const fixturePath = join(fixtureFolder, latest ? `ask.probe.${version}.json` : "ask.probe.json")
+  // A run that probed no Codex scenario (another harness's, or none supported) writes nothing.
+  if (Object.keys(captured).length === 0) return
+  // A latest release that is the pin's writes the pin's file, not a copy of it.
+  const { version } = await installHarness("codex")
+  const pinned = version === pins.codex?.version
+  const fixturePath = join(fixtureFolder, pinned ? "ask.probe.json" : `ask.probe.${version}.json`)
   // A filtered run adds to what the file already holds.
   const before = existsSync(fixturePath)
     ? ((
@@ -257,7 +316,10 @@ afterAll(async () => {
         }
       ).scenarios ?? {})
     : {}
-  Object.assign(captured, { ...before, ...captured })
+  // By name, so a re-recording's diff shows what changed, not the order scenarios ran in.
+  const scenarios = Object.fromEntries(
+    Object.entries({ ...before, ...captured }).toSorted(([a], [b]) => a.localeCompare(b)),
+  )
   writeFileSync(
     fixturePath,
     `${JSON.stringify(
@@ -266,11 +328,22 @@ afterAll(async () => {
         version,
         source: "captured",
         how: "the codex TUI in the e2e sandbox against the fake model (Responses API), driven through Novadeck's terminals at 120x40 and 60x20, with a probe hook (hooks.json, --dangerously-bypass-hook-trust) logging each hook's payload; paths and ids scrubbed",
-        scenarios: captured,
+        scenarios,
       },
       null,
       2,
     )}\n`,
+  )
+  // In the repository's own style, as committed, so a rewrite by a run that saw nothing new
+  // changes nothing.
+  const root = join(fixtureFolder, "..", "..", "..", "..")
+  execFileSync(
+    process.execPath,
+    [join(root, "node_modules", "oxfmt", "bin", "oxfmt"), fixturePath],
+    {
+      cwd: root,
+      stdio: ["ignore", "ignore", "inherit"],
+    },
   )
 })
 
@@ -443,6 +516,15 @@ describe.skipIf(!supported)("Codex ask surfaces (probe)", () => {
     const t = await open(run)
     await t.prompt("Ask me about the button")
     await t.until("Finished the request.")
+    // Its Stop hook may still be running when the reply shows.
+    await poll(
+      () =>
+        hookLines(hooks).some((line) => line.kind === "end" && line.event === "Stop")
+          ? true
+          : undefined,
+      "its Stop hook to end",
+      10_000,
+    )
     save(run, "rui-default-off", {
       hooksAll: hookLines(hooks),
       toolOutputSeenByModel: lastTool(run) ?? null,
@@ -516,7 +598,8 @@ describe.skipIf(!supported)("Codex ask surfaces (probe)", () => {
       },
       hooksAfterEsc,
       rolloutAfterEsc,
-      requestSettledAfterMs: settledAfterMs,
+      // To the second: the milliseconds vary run to run, a held request would not.
+      requestSettledAfterMs: Math.round(settledAfterMs / 1000) * 1000,
       screenAfterPrompt: afterPrompt,
       hooksFinal: hookLines(hooks),
       rolloutFinal: interesting(rollout(run)),
@@ -810,6 +893,8 @@ describe.skipIf(!supported)("Codex more surfaces and risks (probe)", () => {
     })
   })
 
+  // Codex asks for the two in either order, run to run, so this scenario's record may
+  // swap them between recordings with nothing changed.
   it("two approvals queued: one y, then y again", async ({ e2e: run }) => {
     run.model.use(
       ...script("Run both", () => ({
