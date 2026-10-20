@@ -10,6 +10,9 @@ export type UpdateScenario = {
   readonly hint: string
   // Plays the scenario on an installed copy's updates, offering `version`.
   readonly play: (updates: DemoUpdates, version: string) => void
+  // The page asks for it once, as the workspace comes up, so the panel plays it by booting
+  // again rather than in place.
+  readonly reboots?: true
 }
 
 export const updateScenarios = {
@@ -42,6 +45,46 @@ export const updateScenarios = {
     label: "Ready at launch",
     hint: "No bar: downloaded before this run",
     play: ({ offer }, version) => offer({ kind: "ready", version }),
+  },
+  whatsNew: {
+    label: "What's new, after an update",
+    hint: "Card in the corner with three highlights, until dismissed; reboots, as it is asked once at launch",
+    play: ({ showWhatsNew }, version) => showWhatsNew(version),
+    reboots: true,
+  },
+  whatsNewMarkup: {
+    label: "What's new, text with markup",
+    hint: "Card whose highlights hold <b> and **stars**: shown as typed, never rendered; reboots",
+    play: ({ showWhatsNew }, version) =>
+      showWhatsNew(version, [
+        {
+          title: "Bold <b>words</b> and **stars**",
+          line: "A [link](https://example.com) and <i>tags</i>.",
+        },
+      ]),
+    reboots: true,
+  },
+  whatsNewLong: {
+    label: "What's new, longest highlights",
+    hint: "Four highlights at the longest the host allows: the list scrolls in a short window; reboots",
+    play: ({ showWhatsNew }, version) =>
+      showWhatsNew(
+        version,
+        ["First", "Second", "Third", "Fourth"].map((word) => ({
+          title: `${word} highlight with a title that runs to the longest allowed`.padEnd(80, "."),
+          line: `${word}: a line that runs on to the longest the host allows, `.padEnd(
+            240,
+            "and on ",
+          ),
+        })),
+      ),
+    reboots: true,
+  },
+  noHighlights: {
+    label: "Updated, no highlights",
+    hint: "The host takes 1.5 s to answer it has nothing to show: no card appears; reboots",
+    play: ({ delayWhatsNew }) => delayWhatsNew(1500),
+    reboots: true,
   },
 } as const satisfies Record<string, UpdateScenario>
 

@@ -203,6 +203,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     agents: states.agents,
     notices: states.notices,
     updates: states.updates,
+    whatsNew: states.whatsNew,
     ...(launch.sandbox ? { sandbox: createDemoSandbox(launch.sandbox) } : {}),
     ...(launch.portable ? { portable: createDemoPortable(launch.portable).portable } : {}),
     ...(launch.uninstall ? { uninstall: createDemoUninstall(launch.uninstall).uninstall } : {}),

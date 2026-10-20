@@ -3,12 +3,13 @@ import { clearPortableCardRaised } from "@novadeck/core/portable-card-raised"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { appearance, workspaceFixture } from "@novadeck/core/testing"
 import type { AgentStatus } from "@novadeck/core/types"
-import type { UpdateOffer } from "@novadeck/core/update"
+import type { UpdateOffer, WhatsNew } from "@novadeck/core/update"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import {
   createUiStore,
+  dismissWhatsNew,
   initialUi,
   notePortableCardShown,
   persist,
@@ -19,6 +20,7 @@ import {
   watchSandbox,
   watchSwitcher,
   watchUpdates,
+  watchWhatsNew,
   type FinishNotify,
   type UiState,
 } from "./ui-store"
@@ -493,6 +495,61 @@ const offered = (
 ): UpdateOffer => ({
   kind,
   version,
+})
+
+const notes: WhatsNew = {
+  version: "0.2.0",
+  highlights: [{ title: "Word handles", line: "Talk to @moth." }],
+}
+
+const whatsNewHost = (answer: Promise<WhatsNew | undefined>) => {
+  const calls = { dismissed: 0, pages: 0 }
+  return {
+    calls,
+    whatsNew: {
+      get: () => answer,
+      dismiss: () => void (calls.dismissed += 1),
+      openPage: () => void (calls.pages += 1),
+    },
+  }
+}
+
+describe("what's new", () => {
+  it("is asked once and kept for the footer's card", async () => {
+    const { whatsNew } = whatsNewHost(Promise.resolve(notes))
+    const ui = createUiStore(initial())
+    watchWhatsNew(whatsNew, ui)
+    expect(ui.getSnapshot().whatsNew).toBeNull()
+    await vi.waitFor(() => expect(ui.getSnapshot().whatsNew).toEqual(notes))
+  })
+
+  it("stays empty when the host has nothing, fails, or is not there", async () => {
+    const none = createUiStore(initial())
+    watchWhatsNew(whatsNewHost(Promise.resolve(undefined)).whatsNew, none)
+    const failing = createUiStore(initial())
+    watchWhatsNew(whatsNewHost(Promise.reject(new Error("no"))).whatsNew, failing)
+    watchWhatsNew(undefined, createUiStore(initial()))()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(none.getSnapshot().whatsNew).toBeNull()
+    expect(failing.getSnapshot().whatsNew).toBeNull()
+  })
+
+  it("ignores an answer that comes after the page stopped asking", async () => {
+    const ui = createUiStore(initial())
+    watchWhatsNew(whatsNewHost(Promise.resolve(notes)).whatsNew, ui)()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(ui.getSnapshot().whatsNew).toBeNull()
+  })
+
+  it("is dismissed to the host once, and the card goes", () => {
+    const { whatsNew, calls } = whatsNewHost(Promise.resolve(notes))
+    const ui = createUiStore({ ...initial(), whatsNew: notes })
+    dismissWhatsNew(whatsNew, ui)
+    expect(ui.getSnapshot().whatsNew).toBeNull()
+    expect(calls).toEqual({ dismissed: 1, pages: 0 })
+  })
 })
 
 describe("a waiting update", () => {
