@@ -1,12 +1,16 @@
 import { createDemoInbox, demoHiddenCommand, demoInboxIds } from "@novadeck/demo/inbox"
+import { demoSeed } from "@novadeck/demo/samples"
 import { vi } from "vitest"
 
 import { inboxGroups } from "./inbox"
 import { describe, expect, it } from "./test"
 import type { DemoActionContext } from "./types"
 
+// The sample projects the Inbox's items are about.
+const seed = demoSeed(0, true)
+
 const run = (inbox: ReturnType<typeof createDemoInbox>, label: string, notes: string[] = []) => {
-  const [group] = inboxGroups(inbox)
+  const [group] = inboxGroups(inbox, seed)
   const context: DemoActionContext = {
     target: "selected",
     selected: () => undefined,
@@ -26,11 +30,15 @@ const run = (inbox: ReturnType<typeof createDemoInbox>, label: string, notes: st
 
 describe("the debug panel's Inbox group", () => {
   it("is absent where the demo has no Inbox", () => {
-    expect(inboxGroups(undefined)).toEqual([])
+    expect(inboxGroups(undefined, seed)).toEqual([])
+  })
+
+  it("is absent where the workspace has none of the sample projects, as the content showcase", () => {
+    expect(inboxGroups(createDemoInbox(1, []), { ...seed, projects: [] })).toEqual([])
   })
 
   it("hints what each action shows", () => {
-    const [group] = inboxGroups(createDemoInbox(1, []))
+    const [group] = inboxGroups(createDemoInbox(1, []), seed)
     expect(group!.actions.every((action) => action.hint.length > 0)).toBe(true)
   })
 
@@ -46,7 +54,7 @@ describe("the debug panel's Inbox group", () => {
     const inbox = createDemoInbox(1, [])
     const notes: string[] = []
     // Lifecycle controls and variants change or add items rather than adding a kind.
-    const kinds = inboxGroups(inbox)[0]!.actions.length - 9
+    const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 9
     for (let each = 0; each < kinds; each += 1) run(inbox, "A new item arrives", notes)
     expect(inbox.state.getSnapshot().items).toHaveLength(kinds)
     run(inbox, "A new item arrives", notes)

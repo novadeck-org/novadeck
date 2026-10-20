@@ -18,7 +18,7 @@ import type { TerminalMetadata, Workspace, WorkspaceProject, WorkspaceSession } 
 // what every agent terminal waits on the person for, one item per terminal, from the
 // terminals' statuses (a finished turn, its error, a usage limit), the messages held for
 // release, the requests of the agents that ask, and what agents wrote through Novadeck's MCP
-// `ask` and `tell`. The runner's Inbox keeps it current.
+// `ask` and `tell`. The runner's Inbox and the demo's keep it current.
 
 // How long a request's dialog may stay unread before its item shows anyway, to be answered
 // in the terminal.

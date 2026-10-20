@@ -24,7 +24,7 @@ import { createDemoChat } from "./chat"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { demoHandle } from "./handles"
 import { createDemoInbox, demoInboxItems, isDemoInbox } from "./inbox"
-import { checkoutMailboxes, createDemoMessages, type DemoMessages } from "./messages"
+import { checkoutMailboxes, createDemoMessages, isDemoMessages } from "./messages"
 import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./murmur"
 import {
   createMockTerminal,
@@ -336,7 +336,7 @@ export const withInbox = (
 ): Backend => {
   const { conversations, messages } = backend
   if (!conversations) throw new Error("withInbox wraps a backend withConversations made")
-  const record = messages && "record" in messages ? (messages as DemoMessages).record : undefined
+  const record = isDemoMessages(messages) ? messages.record : undefined
   const inbox = createDemoInbox(Date.now(), items, record, {
     conversations,
     messages,
