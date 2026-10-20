@@ -24,6 +24,7 @@ import {
 } from "./support/canvas"
 import { escapeFrom, newTerminalName } from "./support/keyboard"
 import { overlaps } from "./support/layouts"
+import { openMessagesDemo } from "./support/messages"
 import {
   chooseView,
   commandInput,
@@ -784,5 +785,41 @@ describe("Canvas", () => {
       expect(near(filled.width, whole.width, 4) && near(filled.height, whole.height, 4)).toBe(true)
       expect(near(filled.left, 0, 3) && near(filled.top, 0, 3)).toBe(true)
     })
+  })
+})
+
+describe("Canvas's team wire", () => {
+  const wire = () => document.querySelectorAll(".canvas-team-wire-tick").length
+  const opacityOf = (name: string) =>
+    Number(getComputedStyle(terminal(name).element().closest(".canvas-node")!).opacity)
+
+  it("joins the lead and its worker, who stay as bright as the selection, while one of the team is selected", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout review").click()
+    await chooseView("Canvas")
+    await expect.poll(wire).toBe(1)
+    expect(document.querySelectorAll(".canvas-team-wire-cursor")).toHaveLength(1)
+    // The wire is only drawn, and sits beneath the windows.
+    const drawn = document.querySelector(".canvas-team-wire")!
+    expect(getComputedStyle(drawn).pointerEvents).toBe("none")
+    expect(drawn.getAttribute("aria-hidden")).toBe("true")
+    const node = terminal("Checkout review").element().closest<HTMLElement>(".react-flow__node")!
+    expect(Number(getComputedStyle(drawn).zIndex)).toBeLessThan(0)
+    expect(Number(getComputedStyle(node).zIndex)).toBeGreaterThanOrEqual(0)
+    await expect.poll(() => opacityOf("Checkout implementation")).toBe(1)
+    await expect.poll(() => opacityOf("Checkout review")).toBe(1)
+    // Terminals outside the team still recede.
+    await expect.poll(() => opacityOf("Dev server")).toBeLessThan(1)
+  })
+
+  it("is gone, and nothing else is kept bright, while a terminal in no team is selected", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout review").click()
+    await chooseView("Canvas")
+    await expect.poll(wire).toBe(1)
+    await terminalTab("Dev server").click()
+    await expect.poll(wire).toBe(0)
+    expect(document.querySelectorAll(".canvas-team-wire-cursor")).toHaveLength(0)
+    await expect.poll(() => opacityOf("Checkout implementation")).toBeLessThan(1)
   })
 })

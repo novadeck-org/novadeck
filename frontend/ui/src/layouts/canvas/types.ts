@@ -1,3 +1,4 @@
+import type { Team } from "@novadeck/core/derivations"
 import type { SizePreset, Tile, CanvasLayout } from "@novadeck/core/types"
 import type { Node } from "@xyflow/react"
 import type { Dispatch, SetStateAction, Ref, ReactNode } from "react"
@@ -9,6 +10,8 @@ export type TerminalNode = Node<
     compactHeader: boolean
     hiding: boolean
     preview: boolean
+    // What the window is in the selected terminal's team, if it is in it.
+    team: "lead" | "worker" | undefined
     focusRequest: number | null
     onResizeStart: () => void
     onResizeEnd: (width: number, height: number) => void
@@ -30,6 +33,8 @@ export type CanvasProps = {
   hidden: Record<string, boolean>
   preview: string
   selected: string
+  // The selected terminal's team, which the canvas wires.
+  team: Team | undefined
   keyboardFocusRequest: number | null
   navigation: number
   onSelect: (id: string) => void

@@ -12,6 +12,7 @@ import {
   overlaps,
   sameBox,
 } from "./support/layouts"
+import { openMessagesDemo } from "./support/messages"
 import {
   chooseView,
   clickInto,
@@ -339,5 +340,47 @@ describe("Grid arrow keys", () => {
       await press("{ArrowRight}")
       await expect.element(terminalTab("Tests")).toHaveAttribute("aria-current", "true")
     })
+  })
+})
+
+describe("Grid view's team wire", () => {
+  const ticks = () => gridView().element().querySelectorAll(".grid-team-wire-tick").length
+
+  it("runs from the lead to its worker while a member of the team is selected", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout implementation").click()
+    await chooseView("Grid")
+    await expect.poll(ticks).toBe(1)
+    expect(gridView().element().querySelectorAll(".grid-team-wire-cursor")).toHaveLength(1)
+    // It runs through the gutters: no tile has a run in it, nor a tick past its border.
+    const tiles = gridView()
+      .element()
+      .querySelectorAll("[data-grid-terminal]")
+      .values()
+      .map((tile) => tile.getBoundingClientRect())
+      .toArray()
+    const pieces = [
+      ...gridView().element().querySelectorAll(".grid-team-wire-run, .grid-team-wire-tick"),
+    ]
+    expect(pieces.length).toBeGreaterThan(1)
+    for (const piece of pieces) {
+      const rect = piece.getBoundingClientRect()
+      const slack = piece.className.includes("tick") ? 1 : 0
+      for (const tile of tiles)
+        expect(
+          overlaps(new DOMRect(rect.left, rect.top, rect.width - slack, rect.height), tile),
+        ).toBe(false)
+    }
+  })
+
+  it("is gone while a terminal in no team is selected", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout implementation").click()
+    await chooseView("Grid")
+    await expect.poll(ticks).toBe(1)
+    await terminal("Dev server").click({ position: { x: 150, y: 150 } })
+    await expectSelected("Dev server")
+    await expect.poll(ticks).toBe(0)
+    expect(gridView().element().querySelectorAll(".grid-team-wire")).toHaveLength(0)
   })
 })

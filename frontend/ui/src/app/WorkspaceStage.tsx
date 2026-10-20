@@ -1,3 +1,4 @@
+import { sameTeam, teamOf } from "@novadeck/core/derivations"
 import { tilesOf } from "@novadeck/core/roster"
 import type { ValueUpdate } from "@novadeck/core/state"
 import type { CanvasLayout, GridLayouts } from "@novadeck/core/types"
@@ -46,6 +47,8 @@ export const WorkspaceStage = memo(
         layout: state.layout,
       }
     }, shallowEqual)
+    // The selected terminal's team, which Grid and Canvas draw as the sidebar's rail does.
+    const team = useWorkspaceState((workspace) => teamOf(workspace, selected), sameTeam)
     const {
       canvas: canvasLayout,
       grid: gridLayouts,
@@ -140,6 +143,7 @@ export const WorkspaceStage = memo(
               hidden={layoutHidden}
               preview={preview}
               selected={selected}
+              team={team}
               onSelect={setSelected}
               navigation={shellNavigation.count}
               presets={sizePresets.grid}
@@ -170,6 +174,7 @@ export const WorkspaceStage = memo(
               onLayoutChange={setCanvasLayout}
               terminals={terminals}
               selected={selected}
+              team={team}
               keyboardFocusRequest={
                 canvasKeyboardFocus?.context === context && canvasKeyboardFocus.id === selected
                   ? canvasKeyboardFocus.request

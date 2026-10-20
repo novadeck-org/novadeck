@@ -751,8 +751,8 @@ Terminals:
   paste, and each way to end (clean exit, exit code, killed, killed for memory, failed to
   start). Each one that changes the state calls off what the terminal's agent had
   pending, so a finish due later doesn't bring the agent back. "Leads the others" makes the selected terminal
-  lead every other live terminal of the session, for the rail's team wire with many
-  workers; with "Burst of" first, part of the team scrolls out of view.
+  lead every other live terminal of the session, for the team wire with many workers on
+  the rail, in Grid and in Canvas; with "Burst of" first, part of the team scrolls out of view.
 - **New terminals:** "Every state at once" adds one terminal per state, named after it, so
   the tabs and the windows in Grid and Canvas show attention, done, error, ended and the
   rest side by side; you stay on one that needs permission, and the done marks land on

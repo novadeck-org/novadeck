@@ -1,5 +1,6 @@
 import {
   handleNames,
+  ledTerminals,
   runningLeads,
   sameTeam,
   teamOf,
@@ -208,6 +209,20 @@ describe("a terminal's team in words", () => {
       teams(),
     )
     expect(teamText(four, "01")).toBe("leads @fox, @owl, @w6 and @w7")
+  })
+})
+
+describe("whom a lead directs, for its window", () => {
+  it("counts a lead's workers and names them", () => {
+    expect(ledTerminals(teams(), "01")).toEqual({ count: 2, names: "@fox and @owl" })
+  })
+
+  it("says nothing for a worker that leads no one", () => {
+    expect(ledTerminals(teams(), "02")).toBeUndefined()
+  })
+
+  it("says nothing for a terminal in no team", () => {
+    expect(ledTerminals(teams(), "03")).toBeUndefined()
   })
 })
 

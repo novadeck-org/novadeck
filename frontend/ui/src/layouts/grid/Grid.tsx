@@ -1,5 +1,6 @@
 import "./grid.css"
 import { useDrag, useDragSession } from "@novadeck/companion/drag-session"
+import type { Team } from "@novadeck/core/derivations"
 import { canvasPresetSize, gridPresetWidth } from "@novadeck/core/layout/terminal-size"
 import { dropOnGrid, type WindowPlace } from "@novadeck/core/layout/window-place"
 import type {
@@ -30,6 +31,7 @@ import {
 import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
+import { GridTeamWire } from "./GridTeamWire"
 import {
   dropLayout,
   dropPlaceholder,
@@ -39,6 +41,7 @@ import {
   type GridWidthToggle,
   visibleGridLayouts,
 } from "./layout"
+import { tileBoxes } from "./team-route"
 
 const breakpoints = { wide: 1586, desktop: 1036, tablet: 636, mobile: 0 }
 // The grid's rows and the space between windows, in pixels: a row is its height and the
@@ -54,6 +57,8 @@ type Props = {
   terminals: readonly Tile[]
   navigation: number
   selected: string
+  // The selected terminal's team, whose wire runs through the gutters.
+  team: Team | undefined
   onSelect: (id: string) => void
   layouts: GridLayouts
   onLayoutsChange: (layouts: GridLayouts) => void
@@ -69,6 +74,7 @@ export const Grid = ({
   onToggleWidth,
   terminals,
   selected,
+  team,
   navigation,
   onSelect,
   layouts,
@@ -191,6 +197,37 @@ export const Grid = ({
     [dropPlace, terminals, layouts, removed],
   )
   const showing = dropPreview ?? current
+  // While a tile is dragged or resized the grid's layout isn't the one the wire is drawn
+  // from, so the grid says so in an attribute the wire's stylesheet reads: set directly, as
+  // a state would render every window again, and cleared by the release wherever it lands.
+  const startGesture = useCallback(() => {
+    const container = containerRef.current
+    if (!container) return
+    container.setAttribute("data-gesture", "")
+    const end = (): void => {
+      container.removeAttribute("data-gesture")
+      window.removeEventListener("pointerup", end, true)
+      window.removeEventListener("pointercancel", end, true)
+    }
+    window.addEventListener("pointerup", end, true)
+    window.addEventListener("pointercancel", end, true)
+  }, [containerRef])
+  const shownBreakpoint = width
+    ? (getBreakpointFromWidth(breakpoints, width) as GridBreakpoint)
+    : null
+  const boxes = useMemo(
+    () =>
+      shownBreakpoint
+        ? tileBoxes(
+            current[shownBreakpoint] ?? [],
+            width,
+            gridColumns[shownBreakpoint],
+            gridRowHeight,
+            gridMargin,
+          )
+        : [],
+    [current, shownBreakpoint, width],
+  )
 
   useLayoutEffect(() => {
     if (!resized) return
@@ -252,7 +289,17 @@ export const Grid = ({
           if (item) event.currentTarget.scrollTo({ top: item.y * 24, behavior: "instant" })
         }}
       >
-        <div ref={containerRef}>
+        <div ref={containerRef} className="relative">
+          {mounted && (
+            <GridTeamWire
+              team={team}
+              selected={selected}
+              boxes={boxes}
+              gap={gridMargin}
+              width={width}
+              hidden={dropPreview !== null}
+            />
+          )}
           {mounted && (
             <ResponsiveGridLayout
               className="terminal-grid"
@@ -266,6 +313,8 @@ export const Grid = ({
               compactor={verticalCompactor}
               dragConfig={{ handle: ".terminal-header", cancel: "button, input", threshold: 5 }}
               resizeConfig={{ handles: ["se"] }}
+              onDragStart={startGesture}
+              onResizeStart={startGesture}
               onLayoutChange={(_, next) => {
                 // Room made for a placeholder isn't the person's layout until it's dropped.
                 if (dropPreview) return

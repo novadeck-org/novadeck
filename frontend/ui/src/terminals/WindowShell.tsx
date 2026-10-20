@@ -67,6 +67,8 @@ export type WindowShellProps = {
   unread?: "done" | "failed" | undefined
   // The terminal that directs this one's work while it runs, by its handle and name.
   lead?: { handle: string; name: string }
+  // The terminals this one directs while it leads: how many, and who in words.
+  leads?: { count: number; names: string }
   rename: TerminalRename | null
   onBeginRename: () => void
   onRenameDraft: (value: string) => void
@@ -98,6 +100,7 @@ export const WindowShell = ({
   fresh = false,
   unread,
   lead,
+  leads,
   rename,
   onBeginRename,
   onRenameDraft,
@@ -250,8 +253,8 @@ export const WindowShell = ({
           icon
         )}
         <>
-          {/* The name and who leads it share a line; "led by" shows whole beside the name
-              or wraps out of sight (window.css), so the name gives way last. */}
+          {/* The name, who leads it and how many it leads share a line; each shows whole
+              beside the name or wraps out of sight (window.css), so the name gives way last. */}
           <span
             className={`terminal-title-text [&>h1]:truncate [&>h2]:truncate ${phase === "done" ? "[&>h1]:font-bold [&>h2]:font-bold" : "[&>h1]:font-medium [&>h2]:font-medium"}`}
             hidden={renaming}
@@ -265,6 +268,13 @@ export const WindowShell = ({
               >
                 <span className="terminal-lead nodrag nopan" data-terminal-lead={lead.handle}>
                   led by {handleText(lead.handle)}
+                </span>
+              </Tooltip>
+            )}
+            {leads && !renaming && (
+              <Tooltip content={`Directs the agents in ${leads.names}`}>
+                <span className="terminal-lead nodrag nopan" data-terminal-leads={leads.count}>
+                  leads {leads.count}
                 </span>
               </Tooltip>
             )}

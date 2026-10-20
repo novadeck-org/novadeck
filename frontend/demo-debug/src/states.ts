@@ -353,7 +353,7 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
         ),
         onSelected(
           "Leads the others",
-          "Every other terminal joins its team; the rail's wire joins them",
+          "Every other terminal joins its team; the wire joins them on the rail, in Grid and Canvas",
           (key, { dispatch, workspace, note }) => {
             const actions = leadsOthers(workspace(), key)
             if (!actions.length) return note("It needs a handle and other terminals to lead.")

@@ -266,6 +266,27 @@ describe("A terminal an agent opened", () => {
   })
 })
 
+describe("A terminal that leads others", () => {
+  it("says how many it leads, and whom on hover", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout implementation").click()
+    const leads = page.getByText("leads 1", { exact: true })
+    await expect.element(leads).toBeVisible()
+    expect(await tooltipOf(leads)).toBe("Directs the agents in @crow")
+  })
+
+  it("is said only in the lead's own window", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout review").click()
+    await expect.element(page.getByText("led by @moth", { exact: true })).toBeVisible()
+    const windows = [...document.querySelectorAll("[data-terminal-leads]")].map(
+      (leads) =>
+        leads.closest(".terminal-window")?.querySelector("[data-terminal-name]")?.textContent,
+    )
+    expect(new Set(windows)).toEqual(new Set(["Checkout implementation"]))
+  })
+})
+
 // What a tab is in the selected terminal's team, as its tab marks it.
 const teamMark = (name: string) =>
   terminalTab(name).element().closest("[data-terminal-tab-id]")?.getAttribute("data-team") ?? null
