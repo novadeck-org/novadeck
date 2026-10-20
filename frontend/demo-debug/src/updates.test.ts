@@ -117,4 +117,17 @@ describe("demo updates", () => {
     updates.channel?.set("early")
     expect(await updates.channel?.get()).toBe("early")
   })
+
+  it("answers what's new only once shown, until it is dismissed, and counts what was asked", async () => {
+    const { whatsNew, showWhatsNew, whatsNewCalls } = createDemoUpdates()
+    expect(await whatsNew.get()).toBeUndefined()
+    showWhatsNew("0.0.80")
+    const notes = await whatsNew.get()
+    expect(notes?.version).toBe("0.0.80")
+    expect(notes?.highlights).toHaveLength(3)
+    whatsNew.openPage()
+    whatsNew.dismiss()
+    expect(await whatsNew.get()).toBeUndefined()
+    expect(whatsNewCalls).toEqual({ dismissed: 1, pages: 1, asked: 3 })
+  })
 })

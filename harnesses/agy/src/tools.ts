@@ -50,18 +50,21 @@ const known = (name: string, fields: Fields | null): ToolRun | undefined => {
       return {
         kind: "read",
         title: "Read",
-        detail: path("file_path", "AbsolutePath", "path", "notebook_path"),
+        detail: path("file_path", "AbsolutePath", "Path", "path", "notebook_path"),
       }
     case "list_dir":
       return { kind: "read", title: "Listed", detail: path("DirectoryPath", "path") }
+    // write_file and edit_file from 1.4, write_to_file and replace_file_content before.
+    case "write_file":
     case "write_to_file":
-      return { kind: "write", title: "Wrote", detail: path("file_path", "TargetFile") }
+      return { kind: "write", title: "Wrote", detail: path("file_path", "Path", "TargetFile") }
+    case "edit_file":
     case "replace_file_content":
     case "multi_replace_file_content":
       return {
         kind: "write",
         title: "Edited",
-        detail: path("file_path", "TargetFile", "notebook_path"),
+        detail: path("file_path", "Path", "TargetFile", "notebook_path"),
       }
     case "grep_search":
       return {

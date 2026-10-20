@@ -11,3 +11,10 @@ export type UpdateOffer =
 
 // Which releases the desktop app follows: stable ones, or every release as it is published.
 export type UpdateChannel = "stable" | "early"
+
+// What is new in the version the app updated to: the highlights of its release notes, each
+// a short title and one plain line. Text only: the page shows it as text, never as markup.
+export type WhatsNew = {
+  readonly version: string
+  readonly highlights: readonly { readonly title: string; readonly line: string }[]
+}

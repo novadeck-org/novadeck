@@ -6,6 +6,7 @@ import { join } from "node:path"
 import { afterEach, beforeEach } from "vitest"
 
 import { context, describe, expect, it } from "../test"
+import { isNewerVersion } from "./applications-folder"
 import { installOutcome, keepUpdateState, updateStateOf } from "./update-state"
 
 let folder: string
@@ -23,6 +24,10 @@ describe("what the host remembers about updating", () => {
       channel: "stable",
       installFailedOn: undefined,
       installing: undefined,
+      lastRunVersion: undefined,
+      whatsNewPending: undefined,
+      whatsNewSettled: undefined,
+      whatsNewCheckedAt: undefined,
     })
   })
 
@@ -46,6 +51,65 @@ describe("what the host remembers about updating", () => {
         channel: "early",
         installFailedOn: undefined,
         installing: undefined,
+        lastRunVersion: undefined,
+        whatsNewPending: undefined,
+        whatsNewSettled: undefined,
+        whatsNewCheckedAt: undefined,
+      })
+    })
+
+    it("keeps when a prerelease was last read, only for the notes still pending", () => {
+      const state = keepUpdateState(file)
+      state.recordLaunch("0.5.0-beta.1", "0.5.0-beta.1")
+      state.recordWhatsNewCheck(5)
+      state.recordLaunch("0.5.0-beta.1", "0.5.0-beta.1")
+      expect(state.read().whatsNewCheckedAt).toBe(5)
+      state.recordLaunch("0.5.0-beta.2", "0.5.0-beta.2")
+      expect(state.read().whatsNewCheckedAt).toBeUndefined()
+      state.recordWhatsNewCheck(7)
+      state.settleWhatsNew("0.5.0-beta.2", isNewerVersion)
+      expect(state.read().whatsNewCheckedAt).toBeUndefined()
+      expect(updateStateOf('{"whatsNewCheckedAt":"5"}').whatsNewCheckedAt).toBeUndefined()
+    })
+
+    it("reads a version that is not a release's as unset, so a corrupt one silences nothing", () => {
+      const state = updateStateOf(
+        '{"lastRunVersion":"x","whatsNewPending":"1.2","whatsNewSettled":"99999999999.0.0"}',
+      )
+      expect(state).toMatchObject({
+        lastRunVersion: undefined,
+        whatsNewPending: undefined,
+        whatsNewSettled: undefined,
+      })
+      expect(
+        updateStateOf('{"whatsNewSettled":"0.5.0","lastRunVersion":"0.5.0-beta.1"}'),
+      ).toMatchObject({ whatsNewSettled: "0.5.0", lastRunVersion: "0.5.0-beta.1" })
+    })
+
+    it("keeps the newest version settled, whatever order they are settled in", () => {
+      const state = keepUpdateState(file)
+      state.settleWhatsNew("0.6.0", isNewerVersion)
+      state.settleWhatsNew("0.5.0", isNewerVersion)
+      expect(state.read().whatsNewSettled).toBe("0.6.0")
+      state.settleWhatsNew("0.7.0", isNewerVersion)
+      expect(state.read().whatsNewSettled).toBe("0.7.0")
+      expect(updateStateOf('{"whatsNewSettled":3}').whatsNewSettled).toBeUndefined()
+    })
+
+    it("keeps the launch's version and the notes still to show, each apart", () => {
+      const state = keepUpdateState(file)
+      state.setChannel("early")
+      state.recordLaunch("0.5.0", "0.5.0")
+      expect(state.read()).toMatchObject({
+        channel: "early",
+        lastRunVersion: "0.5.0",
+        whatsNewPending: "0.5.0",
+      })
+      state.settleWhatsNew("0.5.0", isNewerVersion)
+      expect(state.read()).toMatchObject({ lastRunVersion: "0.5.0", whatsNewPending: undefined })
+      expect(updateStateOf('{"lastRunVersion":5,"whatsNewPending":{}}')).toMatchObject({
+        lastRunVersion: undefined,
+        whatsNewPending: undefined,
       })
     })
   })

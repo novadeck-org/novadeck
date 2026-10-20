@@ -1,11 +1,12 @@
 import type { PortableState } from "@novadeck/core/portable"
 import type { SandboxState } from "@novadeck/core/sandbox"
 import type { UninstallPlan, UninstallResult } from "@novadeck/core/uninstall"
-import type { UpdateOffer } from "@novadeck/core/update"
+import type { UpdateOffer, WhatsNew } from "@novadeck/core/update"
 import type {
   DesktopHost,
   DesktopNotice,
   UpdateOffer as BridgeOffer,
+  WhatsNew as BridgeWhatsNew,
   PortableState as BridgePortable,
   SandboxState as BridgeState,
   UninstallPlan as BridgePlan,
@@ -19,6 +20,7 @@ import {
   desktopUninstall,
   desktopUpdates,
   desktopVersion,
+  desktopWhatsNew,
   hostNotice,
   hostSandbox,
   hostUninstallPlan,
@@ -238,6 +240,68 @@ describe("desktop updates", () => {
       expect(desktopUpdates(undefined)).toBeUndefined()
       expect(desktopUpdates({} as DesktopHost)).toBeUndefined()
     })
+  })
+})
+
+describe("desktop what's new", () => {
+  const highlight = { title: "Word handles", line: "Talk to @moth." }
+  const whatsNewHost = (answer: unknown) => {
+    const calls = { dismissed: 0, pages: 0 }
+    const bridge = {
+      whatsNew: () => Promise.resolve(answer),
+      dismissWhatsNew: () => void (calls.dismissed += 1),
+      openWhatsNewPage: () => void (calls.pages += 1),
+    } as unknown as DesktopHost
+    return { bridge, calls }
+  }
+
+  it("fits the protocol's, which the page's own copy must keep to", () => {
+    const ours: WhatsNew = { version: "0.2.0", highlights: [highlight] }
+    const theirs: BridgeWhatsNew = ours
+    const back: WhatsNew = theirs
+    expect(back).toEqual(ours)
+  })
+
+  it("is absent in a browser, a host that came before it, or one with only some of its calls", () => {
+    expect(desktopWhatsNew(undefined)).toBeUndefined()
+    expect(desktopWhatsNew({} as DesktopHost)).toBeUndefined()
+    const { bridge } = whatsNewHost(undefined)
+    delete (bridge as { openWhatsNewPage?: unknown }).openWhatsNewPage
+    expect(desktopWhatsNew(bridge)).toBeUndefined()
+  })
+
+  it("gives the highlights the contract allows, as plain lines", async () => {
+    const { bridge } = whatsNewHost({
+      version: "0.2.0",
+      highlights: [{ title: "  A\n<b>b</b> ", line: "x" }, { title: "", line: "no title" }, 3],
+    })
+    expect(await desktopWhatsNew(bridge)!.get()).toEqual({
+      version: "0.2.0",
+      highlights: [{ title: "A <b>b</b>", line: "x" }],
+    })
+  })
+
+  it("has nothing to give when the host has none, or its answer breaks the contract", async () => {
+    const answers = [
+      undefined,
+      null,
+      "0.2.0",
+      { version: "latest", highlights: [highlight] },
+      { version: "0.2.0", highlights: [] },
+    ]
+    const heard = await Promise.all(
+      answers.map((answer) => desktopWhatsNew(whatsNewHost(answer).bridge)!.get()),
+    )
+    expect(heard).toEqual(answers.map(() => undefined))
+  })
+
+  it("dismisses and opens the release page through the host, once per call", () => {
+    const { bridge, calls } = whatsNewHost(undefined)
+    const whatsNew = desktopWhatsNew(bridge)!
+    whatsNew.dismiss()
+    expect(calls).toEqual({ dismissed: 1, pages: 0 })
+    whatsNew.openPage()
+    expect(calls).toEqual({ dismissed: 1, pages: 1 })
   })
 })
 

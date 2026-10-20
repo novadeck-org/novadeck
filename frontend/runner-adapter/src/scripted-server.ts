@@ -80,7 +80,7 @@ export const scriptedRunner = ({
         activity: {
           state: "working",
           background: null,
-          attention: { pending: 0, kind: null, headline: null },
+          attention: { pending: 0, kind: null },
           planning: false,
           subagents: [],
           lastTurn: null,

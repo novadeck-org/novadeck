@@ -9,6 +9,9 @@ import {
   installAppChannel,
   noticeChannel,
   noticeClickChannel,
+  dismissWhatsNewChannel,
+  openWhatsNewPageChannel,
+  whatsNewChannel,
   openUpdatePageChannel,
   portableChannel,
   portableStateChannel,
@@ -289,6 +292,50 @@ describe("the update channel", () => {
     for (const value of ["nightly", undefined, {}, 3, "Early"])
       electron.exposed.setUpdateChannel!(value as never)
     expect(electron.sent).toEqual([])
+  })
+})
+
+describe("what is new", () => {
+  it("is what the host answers, when the contract allows it", async () => {
+    electron.answer = {
+      version: "0.5.0",
+      highlights: [{ title: "Faster", line: "Grid is quick." }],
+    }
+    expect(await electron.exposed.whatsNew!()).toEqual(electron.answer)
+    expect(electron.sent).toEqual([whatsNewChannel])
+  })
+
+  it("is nothing when the host answers anything else, dropping the highlights that break it", async () => {
+    const answers = [
+      undefined,
+      "0.5.0",
+      { version: "latest", highlights: [{ title: "T", line: "L" }] },
+      { version: "0.5.0", highlights: [] },
+      { version: "0.5.0", highlights: [{ title: "", line: "L" }, { title: "T" }] },
+    ]
+    const results = answers.map((answer) => {
+      electron.answer = answer
+      return electron.exposed.whatsNew!()
+    })
+    expect(await Promise.all(results)).toEqual(answers.map(() => undefined))
+    electron.answer = {
+      version: "0.5.0",
+      highlights: [
+        { title: "", line: "L" },
+        { title: "Kept", line: "Line", prs: [1] },
+      ],
+    }
+    expect(await electron.exposed.whatsNew!()).toEqual({
+      version: "0.5.0",
+      highlights: [{ title: "Kept", line: "Line" }],
+    })
+  })
+
+  it("tells the host of a dismissal and of opening the page, naming nothing", () => {
+    electron.exposed.dismissWhatsNew!()
+    electron.exposed.openWhatsNewPage!()
+    expect(electron.sent).toEqual([dismissWhatsNewChannel, openWhatsNewPageChannel])
+    expect(electron.messages).toEqual([])
   })
 })
 

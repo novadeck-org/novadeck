@@ -21,6 +21,7 @@ import {
   desktopUninstall,
   desktopUpdates,
   desktopVersion,
+  desktopWhatsNew,
 } from "./desktop-host"
 import type { RunnerListing } from "./seed"
 
@@ -161,6 +162,7 @@ export const connectRunnerBackend = async (
     const showAppearance = desktopHost()?.showAppearance
     const notices = desktopNotices(desktopHost())
     const updates = desktopUpdates(desktopHost())
+    const whatsNew = desktopWhatsNew(desktopHost())
     const version = desktopVersion(desktopHost())
     const openLogs = desktopHost()?.openLogs
     const sandbox = desktopSandbox(desktopHost())
@@ -179,6 +181,7 @@ export const connectRunnerBackend = async (
           ...(showAppearance ? { showAppearance: (look) => showAppearance(look) } : {}),
           ...(notices ? { notices } : {}),
           ...(updates ? { updates } : {}),
+          ...(whatsNew ? { whatsNew } : {}),
           ...(version ? { version } : {}),
           ...(openLogs ? { openLogs: () => openLogs() } : {}),
           ...(sandbox ? { sandbox } : {}),

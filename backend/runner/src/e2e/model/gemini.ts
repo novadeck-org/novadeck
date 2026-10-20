@@ -168,11 +168,12 @@ export const parse = (model: string, body: unknown): Call => {
 }
 
 /**
- * A tool call as Antigravity takes it: a lazy MCP tool's through `call_mcp_tool`, with
- * the summary and action it asks of that call; an eager one's as a tool of its own, with
- * the summary it asks of it beside the tool's arguments, refusing the call without one
- * ("missing property 'toolSummary'") or with an action ("'toolAction' not allowed"); and
- * any other as itself.
+ * A tool call as Antigravity takes it: a lazy MCP tool's through `call_mcp_tool`, with no
+ * argument of its own but the server, the tool and the tool's arguments (1.4 refuses any
+ * other); an eager one's as a tool of its own, with the summary it asks of it beside the
+ * tool's arguments, refusing the call without one ("missing property 'toolSummary'") or
+ * with an action ("'toolAction' not allowed"), as 1.4.3 still does (probed 2026-10-20);
+ * and any other as itself.
  */
 const functionCallOf = (call: Call, name: string, input: Readonly<Record<string, unknown>>) => {
   const target = mcpTools(call.system).get(name)
@@ -183,13 +184,7 @@ const functionCallOf = (call: Call, name: string, input: Readonly<Record<string,
   return {
     id: id("call"),
     name: lazy,
-    args: {
-      ServerName: target.server,
-      ToolName: target.tool,
-      Arguments: input,
-      toolSummary,
-      toolAction: `Calling ${target.tool}`,
-    },
+    args: { ServerName: target.server, ToolName: target.tool, Arguments: input },
   }
 }
 

@@ -805,8 +805,8 @@ export const startTrace = (name: string, model: FakeModel) => {
                       entry.calls.some(
                         (tool) =>
                           tool.id === turn.id &&
-                          tool.name === "view_file" &&
-                          /[/\\]mcp[/\\].*\.json$/.test(String(tool.input.AbsolutePath)),
+                          tool.name === "read_file" &&
+                          /[/\\]mcp[/\\].*\.json$/.test(String(tool.input.Path)),
                       ),
                   ),
               ),

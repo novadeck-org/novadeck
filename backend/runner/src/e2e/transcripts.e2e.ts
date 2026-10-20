@@ -138,29 +138,19 @@ const codexSteps: Steps = () => [
   send,
 ]
 
-// The folder its commands run in, as its system prompt names it: a command must run there
-// (as agents/agy.ts does).
-const workingDirectory = (call: Call): string => {
-  const folder = /^Command Working Directory: (.+)$/m.exec(call.system)?.[1]
-  if (!folder) throw new Error("Antigravity's system prompt names no command working directory")
-  return folder
-}
-
 const agySteps: Steps = (project) => [
   {
     marker: "transcripts-command",
     kinds: ["run"],
     title: /^Ran$/,
-    reply: (call) => ({
+    reply: () => ({
       calls: [
         {
           name: "run_command",
           input: {
             CommandLine: "echo transcripts-command",
-            Cwd: workingDirectory(call),
             WaitMsBeforeAsync: 10_000,
             toolSummary: "Print a word",
-            toolAction: "Running",
           },
         },
       ],
@@ -173,12 +163,8 @@ const agySteps: Steps = (project) => [
     reply: () => ({
       calls: [
         {
-          name: "view_file",
-          input: {
-            AbsolutePath: join(project, "transcripts-read.txt"),
-            toolSummary: "Read a file",
-            toolAction: "Reading",
-          },
+          name: "read_file",
+          input: { Path: join(project, "transcripts-read.txt") },
         },
       ],
     }),
@@ -190,14 +176,11 @@ const agySteps: Steps = (project) => [
     reply: () => ({
       calls: [
         {
-          name: "write_to_file",
+          name: "write_file",
           input: {
-            TargetFile: join(project, "transcripts-write.txt"),
+            Path: join(project, "transcripts-write.txt"),
             Overwrite: true,
-            CodeContent: "written\n",
-            Description: "Writes the file",
-            toolSummary: "Write",
-            toolAction: "Writing",
+            Content: "written\n",
           },
         },
       ],

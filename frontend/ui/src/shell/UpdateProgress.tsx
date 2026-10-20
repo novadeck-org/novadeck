@@ -1,6 +1,6 @@
 import type { UpdateOffer } from "@novadeck/core/update"
 import { Progress } from "@novadeck/toolkit/Progress"
-import { useState } from "react"
+import { useLayoutEffect, useState } from "react"
 
 import { currentPlatform, type Platform } from "../interaction/shortcuts"
 import { useLinger } from "./linger"
@@ -32,10 +32,14 @@ export const watchedAfter = (
 export const UpdateProgress = ({
   offer,
   hidden,
+  onActive,
   platform = currentPlatform(),
 }: {
   readonly offer: UpdateOffer | null
   readonly hidden: boolean
+  // Told whether the bar has a download to show, hidden or not: from the download's start
+  // until its finished bar has faded. The what's-new card waits for it (WorkspaceFooter.tsx).
+  readonly onActive?: (active: boolean) => void
   readonly platform?: Platform
 }): React.JSX.Element => {
   // The version this page saw downloading, and the moment its bar is at.
@@ -44,6 +48,11 @@ export const UpdateProgress = ({
   if (next?.version !== watched?.version || next?.moment !== watched?.moment) setWatched(next)
   const moment = watched?.moment ?? "gone"
   useLinger(moment, !hidden, (to) => setWatched((current) => current && { ...current, moment: to }))
+  const active = moment !== "gone"
+  // Before paint, so the card never shares a frame with a bar that is just starting.
+  useLayoutEffect(() => {
+    onActive?.(active)
+  }, [active, onActive])
   const percent = moment === "progress" && offer?.kind === "downloading" ? offer.percent : 100
   const shown = moment !== "gone" && !hidden
   const when = platform === "mac" ? "when you quit Novadeck" : "on the next restart"

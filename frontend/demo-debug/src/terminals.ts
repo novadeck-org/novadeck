@@ -159,14 +159,10 @@ export const contextOnly: AgentUsage = {
   effort: null,
 }
 
-// What murmur would say of each wait and finish, in its words, for the app to show without it.
-export const murmurHeadlines = {
-  question: "Asks which database to use",
-  plan: "Plan to split the billing service",
-} as const
+// What murmur would say of each finish, in its words, for the app to show without it.
 export const murmurGists = {
-  done: { text: "Checkout totals round per line, tests pass", asks: true },
-  failed: { text: "Test suite no longer compiles" },
+  done: "Checkout totals round per line, tests pass",
+  failed: "Test suite no longer compiles",
 } as const
 
 // The live terminals of every session of every project but the one the person views,

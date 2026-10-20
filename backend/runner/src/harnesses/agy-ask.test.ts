@@ -282,6 +282,8 @@ describe("Antigravity's PreToolUse answer", () => {
         { matcher: "*", hooks: [{ command: agy.hook(platform, "PreToolUse") }] },
       ])
       expect(registered.PostToolUse?.map(({ matcher }) => matcher)).toEqual([
+        "write_file",
+        "edit_file",
         "write_to_file",
         "replace_file_content",
         "ask_question",
