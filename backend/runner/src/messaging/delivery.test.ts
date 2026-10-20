@@ -798,6 +798,65 @@ describe("keys while a request waits on the person", () => {
   })
 })
 
+describe("an answer's own keys, pressed in a request's dialog", () => {
+  const pressed = (kind: KeyKind, time = at): DeliveryEvent => ({
+    type: "pressed",
+    key: kind,
+    at: time,
+  })
+  const cleared = { type: "asked-cleared" } as const
+
+  it("leave no draft, so the turn's Stop settles it", () => {
+    // Claude Code's "2", Codex's "y", Antigravity's Down and Enter, a field's words and Enter.
+    for (const kinds of [
+      ["content"],
+      ["neutral", "enter"],
+      ["content", "enter"],
+      ["accept", "content", "enter"],
+    ] as const) {
+      const answered = run(working, ...kinds.map((kind) => pressed(kind)))
+      expect(answered.box.draftWhileAsked).toBe(false)
+      expect(run(answered, cleared, stop).state).toBe("settled")
+    }
+    // Answered between turns, as a request that outlived its turn's Stop.
+    expect(run(settled, pressed("content"), cleared).state).toBe("settled")
+  })
+
+  it("leave the person's own keys during the request a draft, before or between them", () => {
+    const asked = (kind: KeyKind) => key(kind, at, true)
+    expect(run(working, asked("content"), pressed("content"), cleared, stop).state).toBe("drafting")
+    expect(
+      run(working, pressed("neutral"), asked("neutral"), pressed("enter"), cleared, stop).state,
+    ).toBe("drafting")
+  })
+
+  it("end no doubt of the box, which only the screen settles", () => {
+    // A prompt too long after the person's Enter to be theirs: the box is doubted.
+    const doubted = run(settled, enter, prompted(at + submitWindowMs + 1_000), stop)
+    expect(doubted).toMatchObject({ state: "drafting", box: { doubted: true } })
+    expect(transition(doubted, pressed("content"))).toBe(doubted)
+  })
+
+  it("take an Escape as ending the running turn, as the person's would, the box left as it was", () => {
+    // Codex's denial and its questions set aside are an Escape.
+    const escaped = run(working, pressed("escape", at + 500))
+    expect(escaped).toMatchObject({
+      state: "unknown",
+      escapedAt: at + 500,
+      box: { empty: true, typedSinceEnter: false },
+    })
+    expect(transition(escaped, stop).state).toBe("settled")
+    // The person's own may have put the turn's prompt back in Claude Code's box.
+    expect(run(working, key("escape", at + 500), stop).state).toBe("drafting")
+    // Outside a running turn it ends nothing.
+    expect(transition(settled, pressed("escape"))).toBe(settled)
+  })
+
+  it("change nothing with no agent bound", () => {
+    expect(transition(unbound, pressed("content"))).toBe(unbound)
+  })
+})
+
 describe("when a message would reach an agent", () => {
   it("says so in send's words for each state", () => {
     expect(route(bound, false, undefined)).toBe("ringing it once its box reads empty")

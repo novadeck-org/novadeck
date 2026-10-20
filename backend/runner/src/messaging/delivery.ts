@@ -222,6 +222,8 @@ export const firing = (
  * - `working`: the agent shows working, as Antigravity's status line does, which resumes
  *   only a turn an older idle one ended;
  * - `key`: the person's key, while a request waits on them (`asked`) or not;
+ * - `pressed`: Novadeck's own key, answering a request that waits on the person through
+ *   the dialog the answer read on screen (`terminals/answers.ts`), never the person's;
  * - `asked-cleared`: no request waits on the person any more;
  * - `emptied`: the screen shows the agent's own box empty, with no turn running: Drafting,
  *   Unknown or Fresh becomes Ready, as does Working on background work only, where
@@ -271,6 +273,7 @@ export type DeliveryEvent =
     }
   | { readonly type: "working"; readonly startedAt: number }
   | { readonly type: "key"; readonly key: KeyKind; readonly asked: boolean; readonly at: number }
+  | { readonly type: "pressed"; readonly key: KeyKind; readonly at: number }
   | { readonly type: "asked-cleared" }
   | { readonly type: "emptied"; readonly at: number; readonly epoch: number }
   | {
@@ -753,6 +756,15 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
         return delivery
       return keyed(delivery, event.key === "enter" || event.key === "queue", event.at)
     }
+    case "pressed":
+      // An answer's own key goes where the dialog it read takes it: no draft, and no doubt
+      // ended either (one that failed after its keys leaves a draft as the person's key
+      // would, see `Typing`). Only its Escape, as Codex's denial and its questions set aside
+      // press, may end the turn the dialog stood in, as the person's would; the box stays as
+      // it was, as the dialog took the key and no prompt of the turn's comes back.
+      return event.key === "escape" && running(delivery)
+        ? { ...counts(delivery), state: "unknown", escapedAt: event.at }
+        : delivery
     case "emptied":
       // The screen shows the agent's own box empty and calm, where only doubt or an
       // unconfirmed end holds the terminal back: Drafting, Unknown or Fresh, with no turn
