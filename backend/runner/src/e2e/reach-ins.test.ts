@@ -11,9 +11,9 @@ import { ptyOptions } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
 
 // Some e2e tests and probes reach into the runner's `Terminals` through a cast, for what
-// nothing a person does can reach: typecheck can't see past it, and CI leaves the probes out
-// (docs/e2e-testing.md, "Probes and CI"). So each member they reach is looked for here on a
-// real `Terminals`, and a rename or a move fails in a second. A caller that stops going
+// nothing a person does can reach: typecheck can't see past it, and only the nightly runs
+// the probes (docs/e2e-testing.md, "Probes and CI"). So each member they reach is looked for
+// here on a real `Terminals`, and a rename or a move fails a pull request in a second. A caller that stops going
 // through a member a probe wraps still passes.
 
 const here = dirname(fileURLToPath(import.meta.url))

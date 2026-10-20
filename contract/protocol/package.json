@@ -25,6 +25,11 @@
       "types": "./dist/pages.d.ts",
       "default": "./dist/pages.js"
     },
+    "./release-notes": {
+      "development": "./src/release-notes.ts",
+      "types": "./dist/release-notes.d.ts",
+      "default": "./dist/release-notes.js"
+    },
     "./text": {
       "development": "./src/text.ts",
       "types": "./dist/text.d.ts",

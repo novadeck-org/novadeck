@@ -8,6 +8,17 @@ export const createCanvasVisit = () => {
   let origin: { id: string; viewport: Viewport } | null = null
   let active: Flight | null = null
   let backRequested = false
+  const begin = (id: string, current: Viewport, destination: Viewport): Flight | null => {
+    if (active) return null
+    if (origin?.id === id) {
+      active = { viewport: origin.viewport }
+      origin = null
+    } else {
+      origin = { id, viewport: { ...current } }
+      active = { viewport: { ...destination } }
+    }
+    return active
+  }
   return {
     get flying(): boolean {
       return active !== null
@@ -20,15 +31,23 @@ export const createCanvasVisit = () => {
     get home(): Viewport | null {
       return origin?.viewport ?? active?.viewport ?? null
     },
-    begin(id: string, current: Viewport, destination: Viewport): Flight | null {
-      if (active) return null
+    // A header's double-click: flies in to the terminal, or back from the one visited.
+    begin,
+    // Going to a terminal from outside the canvas, as from a notification: flies in as
+    // `begin` does, but never back, so a visit already at (or flying to) the terminal stays.
+    // One asked during another visit, or its flight, takes over from it, its way back where
+    // that visit's was: going down the Inbox's items, the way back is to where it began.
+    enter(id: string, current: Viewport, destination: Viewport): Flight | null {
       if (origin?.id === id) {
-        active = { viewport: origin.viewport }
-        origin = null
-      } else {
-        origin = { id, viewport: { ...current } }
-        active = { viewport: { ...destination } }
+        // Under way to it with a way back asked for: it stays, as asked now.
+        backRequested = false
+        return null
       }
+      if (!active && !origin) return begin(id, current, destination)
+      const home = origin?.viewport ?? active?.viewport ?? current
+      origin = { id, viewport: { ...home } }
+      active = { viewport: { ...destination } }
+      backRequested = false
       return active
     },
     back(): Flight | null {

@@ -1,14 +1,21 @@
-import { inboxType, type InboxItem } from "@novadeck/core/inbox"
+import {
+  inboxType,
+  ordered,
+  type InboxAnswer,
+  type InboxFinish,
+  type InboxItem,
+  type InboxUnread,
+} from "@novadeck/core/inbox"
+import { workspaceFromSeed } from "@novadeck/core/seed"
+import { createStore, createWorkspaceStore } from "@novadeck/core/store"
+import type { TerminalMetadata } from "@novadeck/core/types"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import {
-  answerMs,
-  createDemoInbox,
-  demoInboxIds,
-  demoInboxItems,
-  demoInboxItemsAll,
-  isDemoInbox,
-} from "./inbox"
+import { answerMs as chatAnswerMs, answeredMs } from "./chat"
+import { answerMs, createDemoInbox, isDemoInbox } from "./inbox"
+import { demoInboxIds, demoInboxItems, demoInboxItemsAll } from "./inbox-fixtures"
+import { plainDemo, type PlainVariant } from "./index"
+import { demoTerminalId } from "./samples"
 import { context, describe, expect, it } from "./test"
 import { createDemo, demoVariants } from "./variants"
 
@@ -31,7 +38,7 @@ describe("the demo Inbox's items", () => {
     const shapes = items.flatMap((each) => (each.kind === "ask" ? [each.ask.shape.type] : []))
     expect(new Set(shapes)).toEqual(new Set(["options", "action", "text"]))
     const troubles = items.flatMap((each) => (each.kind === "trouble" ? [each.trouble.type] : []))
-    expect(new Set(troubles)).toEqual(new Set(["stuck", "limit", "failed"]))
+    expect(new Set(troubles)).toEqual(new Set(["stuck", "limit", "failed", "waits"]))
     const requests = items.flatMap((each) => (each.kind === "request" ? [each.request.kind] : []))
     expect(new Set(requests)).toEqual(new Set(["permission", "question", "plan"]))
     const updates = items.flatMap((each) => (each.kind === "update" ? [each.update.type] : []))
@@ -40,8 +47,11 @@ describe("the demo Inbox's items", () => {
 
   it("puts one item on each sample terminal, none seen, none from the future", () => {
     // The states the debug panel adds too: each on a terminal of its own, but for a held
-    // message, which is its thread's whatever else its terminal shows.
-    const items = demoInboxItemsAll(now).filter((each) => each.kind !== "held")
+    // message, which is its thread's, and messages held long, which are the terminal's
+    // alongside whatever else it shows.
+    const items = demoInboxItemsAll(now).filter(
+      (each) => each.kind !== "held" && !(each.kind === "trouble" && each.trouble.type === "waits"),
+    )
     const terminals = items.map((each) => each.source.terminalId)
     expect(new Set(terminals).size).toBe(terminals.length)
     expect(items.every((each) => !each.seen && each.at <= now)).toBe(true)
@@ -152,7 +162,7 @@ describe("the demo Inbox", () => {
       const inbox = createDemoInbox(now)
       const waiting = demoInboxItems(now).filter((each) => each.kind !== "update")
       inbox.readAll()
-      expect(ids(inbox)).toEqual(waiting.map((each) => each.id))
+      expect(ids(inbox)).toEqual(ordered(waiting).map((each) => each.id))
     })
   })
 
@@ -170,9 +180,234 @@ describe("the demo Inbox", () => {
 })
 
 describe("the demo variants' Inbox", () => {
-  it("is in the inbox variant alone", () => {
-    expect(isDemoInbox(createDemo("inbox").inbox)).toBe(true)
-    for (const variant of demoVariants.filter((each) => each !== "inbox"))
-      expect(createDemo(variant).inbox).toBeUndefined()
+  it("is in every variant", () => {
+    for (const variant of demoVariants) expect(isDemoInbox(createDemo(variant).inbox)).toBe(true)
+  })
+})
+
+// A plain demo the app has opened, its Inbox bound to the workspace as the app binds it.
+const boot = (variant: PlainVariant = "agents") => {
+  const backend = plainDemo(variant)
+  const store = createWorkspaceStore(
+    workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 0 }),
+    backend.commit,
+  )
+  backend.commit(store.getSnapshot(), [])
+  backend.start!({ dispatch: (actions) => store.transact(actions as never), open: () => {} })
+  const unread = createStore<InboxUnread>({})
+  const read = vi.fn<(finishes: readonly InboxFinish[]) => void>()
+  const { inbox } = backend
+  if (!isDemoInbox(inbox)) throw new Error("every demo has the demo's Inbox")
+  const unbind = inbox.bind!({ workspace: store, unread, read })
+  const terminalOf = (projectId: string, slot: number): TerminalMetadata | undefined =>
+    store
+      .getSnapshot()
+      .projects.find((project) => project.id === projectId)
+      ?.history[0]?.state.roster.terminals.find(
+        (terminal) =>
+          terminal.id === demoTerminalId({ projectId, workspaceSessionId: "initial" }, slot),
+      )
+  const itemOn = (projectId: string, slot: number): InboxItem | undefined =>
+    inbox.state
+      .getSnapshot()
+      .items.find((item) => item.source.terminalId === terminalOf(projectId, slot)?.id)
+  return { inbox, store, unread, read, unbind, terminalOf, itemOn }
+}
+
+const waitsOn = (terminal: TerminalMetadata | undefined) =>
+  terminal?.state === "running" ? terminal.agent?.attention?.kind : undefined
+
+// The first option of a request's dialog, as the person would pick it.
+const firstChoice = (item: InboxItem | undefined): InboxAnswer => {
+  if (item?.kind !== "request" || item.request.dialog?.type !== "choices")
+    throw new Error("not a dialog of choices")
+  const { dialog } = item.request
+  return {
+    kind: "request",
+    answer: { type: "choice", dialog: dialog.id, option: dialog.options[0]!.id },
+  }
+}
+
+describe("the agents demo's Inbox", () => {
+  it("lists what each of its agents waits on, as their terminals say", () => {
+    const { itemOn, inbox } = boot()
+    for (const [project, slot, kind] of [
+      ["storefront", 1, "plan"],
+      ["storefront", 4, "permission"],
+      ["api-service", 1, "plan"],
+      ["api-service", 4, "permission"],
+      ["docs-site", 1, "question"],
+    ] as const) {
+      const item = itemOn(project, slot)
+      expect(item?.kind === "request" && item.request.kind, `${project} ${slot}`).toBe(kind)
+    }
+    expect(inbox.state.getSnapshot().items.every((item) => item.kind === "request")).toBe(true)
+  })
+
+  context("when a request is answered", () => {
+    it("moves its agent on, as an answer on its screen does, and the item goes", async () => {
+      const { inbox, itemOn, terminalOf } = boot()
+      const codex = itemOn("storefront", 4)
+      expect(waitsOn(terminalOf("storefront", 4))).toBe("permission")
+
+      inbox.answer(codex!.id, firstChoice(codex))
+      expect(inbox.state.getSnapshot().answering[codex!.id]).toBe(true)
+      await vi.advanceTimersByTimeAsync(chatAnswerMs + answeredMs)
+
+      expect(waitsOn(terminalOf("storefront", 4))).toBeUndefined()
+      expect(itemOn("storefront", 4)).toBeUndefined()
+    })
+
+    it("says why where the answer didn't take, and keeps the item", async () => {
+      const { inbox, itemOn } = boot()
+      const codex = itemOn("storefront", 4)!
+      inbox.failNext()
+      inbox.answer(codex.id, firstChoice(codex))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(inbox.state.getSnapshot().failed[codex.id]).toMatch(/Try again/)
+      expect(itemOn("storefront", 4)?.id).toBe(codex.id)
+    })
+  })
+
+  context("when an agent finished while the person looked elsewhere", () => {
+    it("lists its reply, and reads it through the app", async () => {
+      const { inbox, unread, read, itemOn, terminalOf } = boot()
+      await vi.advanceTimersByTimeAsync(10_000)
+      const done = terminalOf("design-system", 1)!
+      unread.update(() => ({ "design-system/initial": { [done.id]: "done" } }))
+      const item = itemOn("design-system", 1)
+      expect(item).toMatchObject({ kind: "update", update: { type: "finished" } })
+
+      inbox.answer(item!.id, { kind: "update", action: "read" })
+      expect(read).toHaveBeenCalledExactlyOnceWith([
+        { context: "design-system/initial", terminalId: done.id },
+      ])
+    })
+  })
+
+  context("when trouble is answered and its item stays", () => {
+    it("holds its buttons a moment, then gives them back", async () => {
+      const { inbox, unread, itemOn, terminalOf } = boot()
+      await vi.advanceTimersByTimeAsync(10_000)
+      const infra = terminalOf("infra", 1)!
+      unread.update(() => ({ "infra/initial": { [infra.id]: "failed" } }))
+      const trouble = itemOn("infra", 1)!
+      expect(trouble).toMatchObject({ kind: "trouble", trouble: { type: "failed" } })
+
+      inbox.answer(trouble.id, { kind: "trouble", action: { type: "stop" } })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(itemOn("infra", 1)?.id).toBe(trouble.id)
+      expect(inbox.state.getSnapshot().answering[trouble.id]).toBe(true)
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(inbox.state.getSnapshot().answering[trouble.id]).toBeUndefined()
+    })
+  })
+
+  context("when an item is seen", () => {
+    it("marks only that item", () => {
+      const { inbox, itemOn } = boot()
+      const codex = itemOn("storefront", 4)!
+      inbox.see(codex.id)
+      const seen = inbox.state.getSnapshot().items.filter((each) => each.seen)
+      expect(seen.map((each) => each.id)).toEqual([codex.id])
+    })
+  })
+
+  context("when the app unbinds it", () => {
+    it("empties of what the agents wait on", () => {
+      const { inbox, unbind } = boot()
+      unbind()
+      expect(inbox.state.getSnapshot().items).toEqual([])
+    })
+
+    it("forgets what it knew of their items, once bound again", async () => {
+      const { inbox, itemOn, unbind, store, unread, read } = boot()
+      const codex = itemOn("storefront", 4)!
+      inbox.see(codex.id)
+      inbox.failNext()
+      inbox.answer(codex.id, firstChoice(codex))
+      await vi.advanceTimersByTimeAsync(0)
+      unbind()
+
+      inbox.bind!({ workspace: store, unread, read })
+      const again = itemOn("storefront", 4)
+      expect(again).toMatchObject({ id: codex.id, seen: false })
+      expect(inbox.state.getSnapshot().failed).toEqual({})
+    })
+  })
+
+  context("when the workspace changes in a way no item shows", () => {
+    it("keeps the Inbox as it was", () => {
+      const { inbox, store, terminalOf } = boot()
+      const before = inbox.state.getSnapshot()
+      store.transact([
+        {
+          type: "terminal/rename",
+          target: { projectId: "storefront", workspaceSessionId: "initial" },
+          terminalId: terminalOf("storefront", 2)!.id,
+          name: "Renamed",
+        },
+      ] as never)
+      expect(inbox.state.getSnapshot()).toBe(before)
+    })
+  })
+
+  it("names each request by its terminal, so the same sample in two sessions is two items", () => {
+    const { itemOn, terminalOf } = boot()
+    const codex = itemOn("storefront", 4)
+    expect(codex?.id).toContain(terminalOf("storefront", 4)!.id)
+  })
+})
+
+describe("the Inbox demo's own items", () => {
+  it("take their terminal's row from what its agent waits on", () => {
+    const { inbox, itemOn } = boot("inbox")
+    expect(itemOn("storefront", 4)?.id).toBe(demoInboxIds.codexPermission)
+    const terminals = inbox.state
+      .getSnapshot()
+      .items.filter((each) => each.kind !== "held")
+      .map((each) => each.source.terminalId)
+    expect(new Set(terminals).size).toBe(terminals.length)
+  })
+
+  it("leave a finish unread under one that still waits, when every update is read", async () => {
+    const { inbox, unread, read, terminalOf, itemOn } = boot("inbox")
+    await vi.advanceTimersByTimeAsync(10_000)
+    const done = terminalOf("design-system", 1)!
+    unread.update(() => ({ "design-system/initial": { [done.id]: "done" } }))
+    const finish = itemOn("design-system", 1)!
+    expect(finish.kind).toBe("update")
+    const ask = inbox.state.getSnapshot().items.find((each) => each.id === demoInboxIds.webhook)!
+    inbox.add({ ...ask, source: { ...finish.source } })
+    expect(itemOn("design-system", 1)?.id).toBe(demoInboxIds.webhook)
+
+    inbox.readAll()
+    expect(read).not.toHaveBeenCalled()
+  })
+
+  it("read a finish under an update of their own, which is read with it", async () => {
+    const { inbox, unread, read, terminalOf, itemOn } = boot("inbox")
+    await vi.advanceTimersByTimeAsync(10_000)
+    const done = terminalOf("design-system", 1)!
+    unread.update(() => ({ "design-system/initial": { [done.id]: "done" } }))
+    const finish = itemOn("design-system", 1)!
+    const told = inbox.state.getSnapshot().items.find((each) => each.id === demoInboxIds.told)!
+    inbox.add({ ...told, source: { ...finish.source } })
+    expect(itemOn("design-system", 1)?.id).toBe(demoInboxIds.told)
+
+    inbox.readAll()
+    expect(read).toHaveBeenCalledExactlyOnceWith([
+      { context: "design-system/initial", terminalId: done.id },
+    ])
+  })
+
+  it("take the agent past what it waited on once answered", async () => {
+    const { inbox, terminalOf } = boot("inbox")
+    const codex = inbox.state
+      .getSnapshot()
+      .items.find((each) => each.id === demoInboxIds.codexPermission)
+    inbox.answer(demoInboxIds.codexPermission, firstChoice(codex))
+    await vi.advanceTimersByTimeAsync(answerMs)
+    expect(waitsOn(terminalOf("storefront", 4))).toBeUndefined()
   })
 })

@@ -854,20 +854,27 @@ probe output, and keep their own loader.
 
 ### Probes and CI
 
-CI's E2E jobs leave the probes out (`vitest.e2e.config.ts` runs them only when
-`NOVADECK_E2E_PROBES` is set), and running them there as they are would cost more than it
-finds:
+Pull requests' E2E jobs leave the probes out (`vitest.e2e.config.ts` runs them only when
+`NOVADECK_E2E_PROBES` is set); the nightly runs them, in a Probes job per harness on Linux,
+against each harness's latest release (a dispatch with `probes` runs them too, at the
+versions it names). That's where they pay:
 
 - Most record rather than check. Beyond setup (the pinned version, a tool list that isn't
-  empty) they fail only on a timeout; what they find goes to the file a person reads
-  (`PROBE_OUT` and its siblings), so a run passes whatever the harness showed. The exception
-  is `agy-stop-boundary`, which asserts that each prompt reached the model exactly once; the
-  Flaky capture workflow runs it when it, its config or that workflow changes.
+  empty) they fail only on a timeout; what they find goes to the files a person reads
+  (`PROBE_OUT` and its siblings). The job keeps those as its `probes-<harness>` artifact,
+  with a `fixtures.diff` of the fixtures the probes rewrote in the tree, and its summary
+  says which changed: against the latest release, that is the harness's drift, before a
+  pin moves. The exception is `agy-stop-boundary`, which asserts that each prompt reached
+  the model exactly once; it runs only with `AGY_CAPTURE`, and the Flaky capture workflow
+  runs it when it, its config or that workflow changes.
 - Every case starts a real harness, and the ask probes run dozens of cases each (Antigravity's
-  about 65), in jobs whose macOS and Windows runners already queue longest.
-- At the pinned version they'd repeat what the fixtures hold; with
-  `NOVADECK_E2E_HARNESS=latest` they follow each harness's newest release, whose findings
-  change on their own, which belongs in a person's run, not a required check.
+  about 65), too slow for a pull request, and too slow for the macOS and Windows runners,
+  which already queue longest.
+- At the pinned version they'd repeat what the fixtures hold, so a pull request learns
+  nothing from them.
+
+A failed night, probes included, opens the "Nightly E2E is failing" issue or adds to it,
+and the first green night closes it (`.github/workflows/nightly.yml`, `scripts/nightly`).
 
 Two of them reach into the runner through casts typecheck can't see past:
 `interrupt-held-reply` wraps `bindings.applyFact`, and `agy-stop-boundary` wraps

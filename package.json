@@ -53,7 +53,8 @@
     "release-it": "21.1.1",
     "turbo": "^2.11.8",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "zod": "catalog:"
   },
   "engines": {
     "node": "26.x"

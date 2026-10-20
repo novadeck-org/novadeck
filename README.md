@@ -82,7 +82,11 @@ to fit the canvas viewport. Repeat the gesture on the same terminal to return to
 previous camera position and zoom. Manual pan or zoom (including keyboard shortcuts),
 Fit all, sidebar camera navigation, leaving Canvas, or switching sessions clears that
 return point. Flying to a different terminal starts a new visit from the current camera.
-Repeated double gestures during a flight are ignored. The header's arrow opens Focus view.
+Repeated double gestures during a flight are ignored. Going to a terminal from outside the
+canvas, as Show terminal on an Inbox item or a click on a desktop notification does, flies to it
+the same way, from another session's camera too; it never flies back, so a terminal already
+visited stays, and going on to another keeps the way back to where the visit began, which the
+gesture on the header returns to. The header's arrow opens Focus view.
 
 Click **New terminal** or use its keyboard shortcut to create and select a terminal
 immediately in any view, with or without Zen, ready to type in; F2 renames it. Focus
@@ -308,7 +312,7 @@ switcher's dot covers them again. The order and the pins are kept in this browse
 (`novadeck.project-arrangement` in local storage), not shared with other clients of the
 runner.
 
-The Inbox (the bell on the sidebar rail, on by default on the runner) lists everything
+The Inbox (the bell on the sidebar rail) lists everything
 across every project and session that waits on you, one row per agent terminal: a dialog to
 answer, a message between agents held for you to release, a turn that failed, a usage
 limit, a question sent through the agent's `ask` tool, an update sent through `tell`,
@@ -319,13 +323,8 @@ when answered, withdrawn by the agent, or its session ends; a `tell` clears when
 read. Ask, Tell and Your reply remain in that terminal's Messages pane under **You**.
 Other rows clear once answered, once you view the terminal, or when the agent starts working again. A count badge on the bell, and on
 Zen's dock, tells how many wait on you; finishes and tells are not counted. A usage limit stays until
-the agent's next turn, so Continue is there after the reset. Where a backend has no Inbox,
-the bell opens the Notifications panel, which lists the questions, permissions and plans
-to review and the agents that finished while you looked elsewhere. With Murmur on, a
-waiting question or plan shows a headline under its row, such as "Asks which database to
-use", and a finish you haven't seen shows a short gist of its reply in place of the
-reply's start, marked when the reply asks you something; the tooltip and the screen
-reader's description keep the reply itself. Without Murmur every row reads as it always did.
+the agent's next turn, so Continue is there after the reset. With Murmur on, a finish you
+haven't seen leads with a short gist of its reply in place of the reply's start.
 
 The project switcher removes a project from its row's trash icon, after
 you confirm; its terminals close, and the folder on disk stays. The last project stays.
@@ -729,10 +728,13 @@ connection state, the crash-loop count and the terminal count, over the demo swi
 sample agents' plans and artifacts), `plain`, `agents` (its seven projects each with
 an agent in a state of its own: waiting, asking, working, and two that finish done and
 failed a moment after it opens, for the project switcher), `messages`, `inbox` (the agents
-demo with hardcoded Inbox items, which no other variant has) or `welcome`. The
-switcher in the panel's header changes between them without reloading (pressing the
-current one boots it again), and the browser
-tab remembers the last one chosen. `&turnMs=` sets how long a demo agent's turn works
+demo with hardcoded Inbox items of every kind over those its agents make), `welcome` or
+`chirp` (a one-off for the runner-skits video "Chirp": a desk of twelve agents at work on the
+Canvas, one waiting to run a command; `frontend/demo/src/chirp.ts`). Every variant's Inbox
+lists what its agents wait on, built as the runner's is. The switcher in the panel's header,
+which leaves out `welcome` and `chirp`, changes between them without reloading (pressing the
+current one boots it again), and the browser tab remembers the last one chosen. `&turnMs=` sets
+how long a demo agent's turn works
 (1500 ms unless given), as a spec does that must act on the screen before the turn ends.
 
 The search field at the top filters actions by label, hint and group. Groups start folded,
@@ -776,17 +778,16 @@ Agents:
 - **Agent fixtures:** what no turn produces: an unheard agent (Claude Code whose hooks say
   nothing), and context and limits or tokens alone, in the tooltip and status; those two set
   only the usage of the selected terminal's agent, so a turn, request or queued prompt stays.
-- **Notifications:** "Fill notifications" has up to 12 terminals across
+- **Waiting agents:** "Fill the Inbox" has up to 12 terminals across
   the projects ask for you (questions, permissions, plans), and after 3 s finish done or
-  failed, so the Notifications panel lists every kind and the rail badge reads 9+. It
+  failed, so the Inbox lists every kind and the rail badge reads 9+. It
   adds terminals to the current session if the workspace has too few, without selecting
-  them or leaving the Notifications panel, and leaves the selected terminal alone, since
-  a finish only counts while you look elsewhere. "Clear notifications" rests every agent,
+  them or leaving the Inbox, and leaves the selected terminal alone, since
+  a finish only counts while you look elsewhere. "Clear waiting agents" rests every agent,
   which answers every request, reads every finish and calls off those still to come, and
-  has a terminal back at its prompt work for a moment and leave, for the empty panel. Its
-  second round of kinds carries what Murmur would write (a headline on the question and the
-  plan, a gist on the done and the failed finish, the done one asking), so the rows can be
-  seen without Murmur installed. The notices for finishes need the Preferences switch
+  has a terminal back at its prompt work for a moment and leave, for an empty Inbox. Its
+  second round of kinds carries what Murmur would write (a gist on the done and the failed
+  finish), so the rows can be seen without Murmur installed. The notices for finishes need the Preferences switch
   "Notify when an agent finishes" on.
 - **Chat: next send or Stop fails:** arm the next send from a chat to fail as the runner turns it away: a
   draft in the agent's box, its shell mode, too tall a message, no box on screen, or no
@@ -809,13 +810,14 @@ Agents:
 
 App:
 
-- **Inbox:** the actions show up in the `inbox` variant, whose Inbox holds hardcoded items. Each action adds one item of its kind to the Inbox,
+- **Inbox:** each action adds one item of its kind to the Inbox, over what the agents wait on,
   waiting from now and in place of the one of its kind already there: a stuck agent, Codex's
   command permission, an unreadable dialog, a held message, a decision with options, a
   detected question, an ask while its agent keeps working, a login request, the 5-hour limit, a usage limit Novadeck can't resume (no switch), a request whose dialog never read, a
   failed turn with no error, a held message whose sender is gone, a plan approval
   (its bypass-permissions yes a quiet link), a failed turn, a free-text ask, a permission
-  whose Deny is a plain no, a heads-up and a finished turn. "Fail the next answer" makes
+  whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
+  agent, a heads-up and a finished turn. "Fail the next answer" makes
   the next answer to any item fail, so its sheet shows why and keeps the item and draft for retry. Ask, Tell and Your reply
   also appear in the terminal's Messages pane under You; replies show queued and delivered states.
   "Stale next answer" makes the next answer report that the ask is no longer available,
@@ -827,7 +829,11 @@ App:
   window reset, offering Continue now. "Command hiding lines" adds a permission whose command
   buries a line under blank lines and spaces; its card counts the lines and marks what draws
   as nothing. "A new item arrives" adds the next kind not there
-  yet, and "Clear the Inbox" empties it.
+  yet, and "Clear the added items" takes away the hardcoded items and those added here,
+  leaving what the agents wait on. An added item takes its terminal's row from what its
+  agent waits on; answering an added request for an agent that waits takes the agent past
+  it. The group shows in every variant over the sample projects, so not in the content
+  showcase.
 - **Murmur:** the demo starts with it installed and on, as the try demo shows it, and never
   offers it; `&murmur=uninstalled`, `unsupported`, `no-device`, `network-down` (the first install fails
   on the network, the second works) or `offered-out` (the offer already shown in three sessions)
@@ -1123,7 +1129,6 @@ folder of `frontend/ui/src/`:
 | `frontend/chat/src/`                                            | The agent's chat: its blocks, tool rows, requests and the composer, and the chat's own store (`state.ts`) and commands.        |
 | `layouts/canvas/`, `grid/`, `focus/`                            | View adapters and colocated library styles.                                                                                    |
 | `layouts/` (top level)                                          | Helpers shared by views: view transitions, background gestures, visibility.                                                    |
-| `notifications/`                                                | The notification center: what asks for the person across the workspace, and its panel.                                         |
 | `inbox/`                                                        | The Inbox: what agents ask of the person, its sidebar rows and the sheet that answers.                                         |
 | `shell/`                                                        | Header, rail, panels, zen dock, sidebar, and shell state transitions.                                                          |
 | `sidebar/`, `projects/`, `preferences/`, `search/`              | Feature components.                                                                                                            |
@@ -1152,11 +1157,11 @@ of its own, `frontend/demo-debug`, the one with React and Lucide. `interaction/`
 the core and imports no packages;
 features add `frontend/toolkit`; `layouts/` may use
 `terminals/`; the companion pane is a package of its own, `frontend/companion`, built on the
-core, the toolkit and the viewers and never on the UI, which composes it, as it does the chat, another package, `frontend/chat`, built on the core and the toolkit and never on the UI or the companion; `notifications/` builds on the base layers and
-`terminals/unread-state.ts`; no feature (`inbox/`, `notifications/`, `preferences/`, `projects/`,
+core, the toolkit and the viewers and never on the UI, which composes it, as it does the chat, another package, `frontend/chat`, built on the core and the toolkit and never on the UI or the companion; no feature
+(`inbox/`, `preferences/`, `projects/`,
 `search/`, `sidebar/` or `voice/`) imports another, only the base and itself, and none reaches the
 chat or the companion; `shell/` may use `layouts/`, `projects/`,
-`notifications/` and `inbox/`. `app/` composes every feature layer, `notifications/` and `inbox/`.
+and `inbox/`. `app/` composes every feature layer, `inbox/` among them.
 Only an app imports a backend adapter, each its own: `apps/desktop` takes the runner adapter,
 `apps/try` the demo, and `apps/previews` the demo with its debug panel (tests and specs may
 import the demo's spec entry). Each starts the UI through `entries/start.tsx`. `app/commands/`
@@ -1569,7 +1574,23 @@ the Actions tab, with a version such as `1.2.3` or none for the newest prereleas
 checks that the release is published, is a prerelease, carries every package, `latest*.yml`
 and `install.sh`, and is newer than the current stable release, then clears **Set as a
 pre-release** and sets it as the latest. No rebuild happens, and GitHub still lets those
-two flags change on an immutable release. For an interrupted release, inspect the latest
+two flags, and the notes, change on an immutable release.
+
+Release notes are written by a model through OpenRouter
+([scripts/release-notes](scripts/release-notes)). After each prerelease is published, its
+commits become short lines grouped by area; when a prerelease is promoted, its notes are
+rewritten with up to four highlights picked from everything since the last stable release,
+which the app shows after updating to it until the person dismisses them. The
+`OPENROUTER_API_KEY` repository secret enables it, and the `RELEASE_NOTES_PRERELEASE_MODEL`
+and `RELEASE_NOTES_PROMOTE_MODEL` repository variables pick the models (by default
+`deepseek/deepseek-v4-pro` and `anthropic/claude-opus-5.5`). Without the key, when the key is
+out of credit, or when a run fails, a release keeps the notes it has, the run page shows a
+warning, and neither step holds a release or a promotion. A promotion costs about $0.20 and a
+prerelease well under a cent. With `OPENROUTER_API_KEY` and a `gh` login,
+`node scripts/release-notes/main.ts promote v1.2.3 --dry-run` prints what a promotion would
+write without changing any release; it asks the model, so it spends credit.
+
+For an interrupted release, inspect the latest
 workflow first. An unpublished draft or orphaned version tag must be cleaned up before
 rerunning the latest release workflow; published immutable releases must remain intact.
 

@@ -28,6 +28,10 @@ on:
         type: choice
         options: [pinned, latest]
         default: pinned
+      probes:
+        description: Run the probes too (src/e2e/probes), as the nightly does
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -252,6 +256,120 @@ jobs:
           cache: ${{ env.NOVADECK_E2E_CACHE }}
           harness: agy
           key: ${{ steps.agy.outputs.cache-primary-key }}
+
+  # The probes (src/e2e/probes): how each harness behaves where Novadeck's design depends on
+  # it, recorded rather than checked, so they run nightly against each harness's latest
+  # release (or when a dispatch asks), never on a pull request (docs/e2e-testing.md,
+  # "Probes and CI"). A probe fails only on its setup or a timeout; what it saw is the
+  # job's artifact, with the fixtures the probes rewrote in place as a diff, and the
+  # summary says which changed. Linux only, in the e2e jobs' network namespace: macOS and
+  # Windows runners queue longest, and the probes' findings are about the harness, not the
+  # system.
+  probes:
+    if: github.event_name == 'schedule' || inputs.probes
+    name: Probes (${{ matrix.setup.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        setup:
+          - { name: Claude Code, agents: claude }
+          - { name: Codex, agents: codex }
+          - { name: Antigravity, agents: agy }
+    env:
+      NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache
+      NOVADECK_E2E_TRACES: ${{ github.workspace }}/e2e-traces
+      NOVADECK_E2E_AGENTS: ${{ matrix.setup.agents }}
+      NOVADECK_E2E_HARNESS: ${{ (github.event_name == 'schedule' || inputs.harness == 'latest') && 'latest' || 'pinned' }}
+      NOVADECK_E2E_PROBES: "1"
+      # Each probe's findings, by the variable it reads, all in one folder.
+      PROBE_OUT: ${{ github.workspace }}/probe-out
+      AGY_PROBE_OUT: ${{ github.workspace }}/probe-out/agy
+      PATCH_PROBE_OUT: ${{ github.workspace }}/probe-out/codex-patch
+      FAILURE_PROBE_OUT: ${{ github.workspace }}/probe-out/failures
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set Up Toolchain
+        id: toolchain
+        continue-on-error: true
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      # An immediate retry hit the same registry outage in the flake audit.
+      - name: Wait Before Retrying Toolchain
+        if: steps.toolchain.outcome == 'failure'
+        shell: bash
+        run: sleep 180
+
+      - name: Set Up Toolchain Again
+        if: steps.toolchain.outcome == 'failure'
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      # The e2e jobs' caches, restored only: those jobs save them.
+      - name: Restore Harness
+        if: env.NOVADECK_E2E_HARNESS == 'pinned'
+        uses: ./.github/actions/e2e-harness-cache/restore
+        with:
+          cache: ${{ env.NOVADECK_E2E_CACHE }}
+          harness: ${{ matrix.setup.agents }}
+
+      - name: Build Protocol and Relay
+        run: pnpm --filter @novadeck/protocol... --filter @novadeck/relay build
+
+      - name: Install Harnesses
+        run: node scripts/e2e/install/main.ts
+
+      # Every probe, each skipping what isn't its harness's.
+      - name: Run Probes
+        run: |
+          mkdir -p "$PROBE_OUT"
+          node scripts/e2e/isolated/main.ts -- pnpm --filter @novadeck/runner test:e2e src/e2e/probes
+
+      # What the probes rewrote of the fixtures in the tree, as a person's run would leave it
+      # to commit: against the pins' fixtures, a change there is the harness's drift.
+      - name: Record Fixture Drift
+        if: ${{ !cancelled() }}
+        env:
+          HARNESS_NAME: ${{ matrix.setup.name }}
+        run: |
+          mkdir -p "$PROBE_OUT"
+          git add --intent-to-add --all harnesses backend/runner/src
+          git diff -- harnesses backend/runner/src > "$PROBE_OUT/fixtures.diff"
+          {
+            echo "## Probes: $HARNESS_NAME ($NOVADECK_E2E_HARNESS)"
+            echo
+            if [ -s "$PROBE_OUT/fixtures.diff" ]; then
+              echo "The probes changed these fixtures (\`fixtures.diff\` in the artifact):"
+              echo
+              git diff --stat -- harnesses backend/runner/src | sed 's/^/    /'
+            else
+              echo "No fixture in the tree changed."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Probe Findings
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: probes-${{ matrix.setup.agents }}
+          path: |
+            ${{ env.PROBE_OUT }}
+            ${{ env.NOVADECK_E2E_TRACES }}
+          if-no-files-found: ignore
+          retention-days: 14
 
   # What a green Windows job above can't catch, as people's machines differ from the
   # runner's: a PowerShell profile that prints (Claude Code's hooks run in PowerShell, and

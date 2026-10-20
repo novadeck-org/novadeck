@@ -12,8 +12,8 @@ import {
 import { useEffect, useId, useRef, useState } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
-import type { BellBadge } from "./notification-badge"
-import { NotificationBadge } from "./NotificationBadge"
+import { BellCount } from "./BellCount"
+import type { BellBadge } from "./inbox-badge"
 
 const views = [
   { id: "focus", label: "Focus", icon: PanelLeft },
@@ -25,20 +25,17 @@ export const ZenDock = ({
   view,
   enabledViews,
   badge,
-  inbox = false,
   onCreate,
   onViewChange,
-  onNotifications,
+  onInbox,
   onExit,
 }: {
   view: ViewMode
   enabledViews: ViewMode[]
   badge: BellBadge | undefined
-  // Whether the bell opens the Inbox, as where the backend has one, and not Notifications.
-  inbox?: boolean
   onCreate: () => void
   onViewChange: (view: ViewMode) => void
-  onNotifications: () => void
+  onInbox: () => void
   onExit: () => void
 }): React.JSX.Element => {
   const [open, setOpen] = useState(false)
@@ -86,15 +83,15 @@ export const ZenDock = ({
         </button>
       </Tooltip>
       {badge && (
-        <Tooltip content={inbox ? "Inbox" : "Notifications"}>
+        <Tooltip content="Inbox">
           <button
-            className="icon-button zen-notifications relative"
+            className="icon-button zen-inbox relative"
             aria-label={badge.label}
             data-project-status={badge.status}
-            onClick={onNotifications}
+            onClick={onInbox}
           >
             <Bell size={16} />
-            <NotificationBadge text={badge.text} />
+            <BellCount text={badge.text} />
           </button>
         </Tooltip>
       )}

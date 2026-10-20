@@ -4,12 +4,9 @@ import type { ComponentProps } from "react"
 
 import { HeldPill, InboxList, InboxMarkAll } from "../inbox/InboxList"
 import { shortcutBindings } from "../interaction/shortcuts"
-import type { Notification } from "../notifications/notifications"
-import { MarkAllReadButton, NotificationsPanel } from "../notifications/NotificationsPanel"
 import { SessionsPanel } from "../sidebar/SessionsPanel"
 import { SidebarPanel, sidebarCreateClasses } from "../sidebar/SidebarPanel"
 import { TerminalTabs } from "../terminals/TerminalTabs"
-import type { Viewing } from "../terminals/unread-state"
 import { panelLabels } from "./panels"
 
 type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
@@ -19,16 +16,8 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   terminalCount: number
   ordered: readonly Tile[]
   sidebarPanel: PanelId
-  // What asks for the person across the workspace, and the terminal they look at.
-  notifications: readonly Notification[]
-  viewing: Viewing
   sidebarVisible: boolean
-  // Whether the backend has an Inbox, which the Notifications panel gives way to.
-  inbox: boolean
   onSessionSelect: (id: string) => void
-  onReveal: (notification: Notification) => void
-  onDismissNotification: (notification: Notification) => void
-  onDismissAllNotifications: (shown: readonly Notification[]) => void
   onFresh: () => void
   onHide: () => void
   onCreate: () => void
@@ -40,14 +29,8 @@ export const WorkspaceSidebar = ({
   terminalCount,
   ordered,
   sidebarPanel,
-  notifications,
-  viewing,
   sidebarVisible,
-  inbox,
   onSessionSelect,
-  onReveal,
-  onDismissNotification,
-  onDismissAllNotifications,
   onFresh,
   onHide,
   onCreate,
@@ -107,35 +90,15 @@ export const WorkspaceSidebar = ({
         onReorder={onReorder}
       />
     </SidebarPanel>
-    {inbox ? (
-      <SidebarPanel
-        id="inbox-panel"
-        title="Inbox"
-        titleExtra={<HeldPill />}
-        active={sidebarPanel === "inbox"}
-        onClose={onHide}
-        actions={<InboxMarkAll />}
-      >
-        <InboxList />
-      </SidebarPanel>
-    ) : (
-      <SidebarPanel
-        id="notifications-panel"
-        title="Notifications"
-        count={notifications.length}
-        active={sidebarPanel === "notifications"}
-        onClose={onHide}
-        actions={
-          <MarkAllReadButton items={notifications} onDismissAll={onDismissAllNotifications} />
-        }
-      >
-        <NotificationsPanel
-          items={notifications}
-          viewing={viewing}
-          onReveal={onReveal}
-          onDismiss={onDismissNotification}
-        />
-      </SidebarPanel>
-    )}
+    <SidebarPanel
+      id="inbox-panel"
+      title="Inbox"
+      titleExtra={<HeldPill />}
+      active={sidebarPanel === "inbox"}
+      onClose={onHide}
+      actions={<InboxMarkAll />}
+    >
+      <InboxList />
+    </SidebarPanel>
   </aside>
 )
