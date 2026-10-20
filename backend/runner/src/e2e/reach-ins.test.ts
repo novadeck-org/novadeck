@@ -13,12 +13,15 @@ import type { Resources } from "../testing/resources.js"
 // Some e2e tests and probes reach into the runner's `Terminals` through a cast, for what
 // nothing a person does can reach: typecheck can't see past it, and CI leaves the probes out
 // (docs/e2e-testing.md, "Probes and CI"). So each member they reach is looked for here on a
-// real `Terminals`, and a rename or a move fails in milliseconds. A caller that stops going
+// real `Terminals`, and a rename or a move fails in a second. A caller that stops going
 // through a member a probe wraps still passes.
 
 const here = dirname(fileURLToPath(import.meta.url))
 
-/** The files that cast the deck's `Terminals`, each checked below. */
+/**
+ * The files that cast the deck's `Terminals` (`run.deck.terminals`, a `terminals` taken from
+ * it, or the deck), each checked below.
+ */
 const reaching = [
   "doorbell.e2e.ts",
   "person.e2e.ts",
@@ -51,7 +54,10 @@ describe("the e2e reach-ins", () => {
     const files = readdirSync(here, { recursive: true, encoding: "utf8" }).filter(
       (file) =>
         file.endsWith(".ts") &&
-        /deck\.terminals\s+as\s/.test(readFileSync(join(here, file), "utf8")),
+        file !== "reach-ins.test.ts" &&
+        /\b(?:terminals|deck)\)?\s+as\s+(?:unknown|never|any)\b/.test(
+          readFileSync(join(here, file), "utf8"),
+        ),
     )
     expect(files.map((file) => file.replaceAll("\\", "/")).toSorted()).toEqual(reaching)
   })
