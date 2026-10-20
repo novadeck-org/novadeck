@@ -21,6 +21,7 @@ import type { TitleSource, Workspace } from "@novadeck/core/types"
 
 import type { DemoAgentLink } from "./agent-link"
 import { createDemoChat } from "./chat"
+import { chirpIntroOf, chirpSeed, chirpTranscripts } from "./chirp"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { demoHandle } from "./handles"
 import { createDemoInbox, isDemoInbox } from "./inbox"
@@ -412,10 +413,10 @@ const withFinishes = (backend: Backend, turns: DemoTurns): Backend => ({
 })
 
 // The demos with no content showcase: the plain one, the agents', the agents' with
-// messages between them, the agents' with every kind of Inbox item, and the plain one with
-// its first-run welcome dialog open. Each has the Inbox its agents make; the Inbox demo
-// shows the hardcoded items of every kind over theirs.
-export type PlainVariant = "plain" | "agents" | "messages" | "inbox" | "welcome"
+// messages between them, the agents' with every kind of Inbox item, the plain one with its
+// first-run welcome dialog open, and Chirp's, a one-off for a video (see `chirp.ts`). Each has
+// the Inbox its agents make; the Inbox demo shows the hardcoded items of every kind over theirs.
+export type PlainVariant = "plain" | "agents" | "messages" | "inbox" | "welcome" | "chirp"
 
 export const plainDemo = (
   variant: PlainVariant,
@@ -429,12 +430,22 @@ export const plainDemo = (
     welcome:
       variant === "welcome" ||
       (import.meta.env.DEV && import.meta.env.VITE_WELCOME_PREVIEW === "true"),
-    ...(terminals && { terminals }),
+    // Chirp's agents open on their own work (see `chirp.ts`).
+    ...(variant === "chirp"
+      ? { terminals: { ...terminals, introOf: chirpIntroOf } }
+      : terminals && { terminals }),
   })
   const now = Date.now()
   turns.telemetry.update(() =>
-    variant === "plain" || variant === "welcome" ? noTelemetry : demoTelemetry(now),
+    variant === "plain" || variant === "welcome" || variant === "chirp"
+      ? noTelemetry
+      : demoTelemetry(now),
   )
+  if (variant === "chirp")
+    return withInbox(
+      withConversations({ ...backend, seed: chirpSeed(now) }, chirpTranscripts(now), turns),
+      turns,
+    )
   const transcripts = agentTranscripts(now)
   if (variant === "messages")
     return withInbox(
