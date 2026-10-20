@@ -270,6 +270,8 @@ describe("the what's-new card", () => {
       await page.getByRole("button", { name: /^No sandbox:/ }).click()
       await expect.element(sandboxNotice()).toBeVisible()
       await expect.element(card()).not.toBeInTheDocument()
+      // The notice takes focus a frame after it shows, and only then does Escape reach it.
+      await expect.element(sandboxNotice()).toHaveFocus()
       await press("{Escape}")
       await expect.element(sandboxNotice()).not.toBeInTheDocument()
       await expect.element(card()).toBeVisible()
