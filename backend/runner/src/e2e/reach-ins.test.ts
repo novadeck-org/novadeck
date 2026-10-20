@@ -11,9 +11,9 @@ import { ptyOptions } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
 
 // Some e2e tests and probes reach into the runner's `Terminals` through a cast, for what
-// nothing a person does can reach: typecheck can't see past it, and CI leaves the probes out
-// (docs/e2e-testing.md, "Probes and CI"). So each member they reach is looked for here on a
-// real `Terminals`, and a rename or a move fails in a second. A caller that stops going
+// nothing a person does can reach: typecheck can't see past it, and only the nightly runs
+// the probes (docs/e2e-testing.md, "Probes and CI"). So each member they reach is looked for
+// here on a real `Terminals`, and a rename or a move fails a pull request in a second. A caller that stops going
 // through a member a probe wraps still passes.
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -31,7 +31,7 @@ const reaching = [
 
 type Process = { write: unknown; onData: unknown }
 type Inside = {
-  readonly records: Map<string, { binding: unknown; terminal: { pty: Process } }>
+  readonly records: Map<string, { bound: unknown; terminal: { pty: Process } }>
   readonly bindings: { applyFact: unknown }
   readonly reporting: { report: unknown }
   readonly messaging: { delivery(id: string): unknown; ring: unknown; ringFailed: unknown }
@@ -81,7 +81,7 @@ describe("the e2e reach-ins", () => {
   }) => {
     const { inside, id } = await running(resources)
     const record = inside.records.get(id)!
-    expect(record).toHaveProperty("binding", null)
+    expect(record).toHaveProperty("bound", null)
     expect(record.terminal.pty.write).toBeTypeOf("function")
     expect(record.terminal.pty.onData).toBeTypeOf("function")
     // The probe wraps `report` on the instance and deletes its wrapper after, which leaves the

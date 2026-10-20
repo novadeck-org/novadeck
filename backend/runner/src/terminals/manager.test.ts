@@ -28,6 +28,7 @@ import { ptyOptions } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { Terminals } from "./manager.js"
+import type { Bound } from "./record.js"
 
 const cwd = process.cwd()
 
@@ -216,7 +217,7 @@ describe("an answer's own keys", () => {
       "creator",
     )
     const inside = manager as unknown as {
-      records: Map<string, { binding: unknown; activity: Activity | null }>
+      records: Map<string, { bound: Bound | null }>
       messaging: Messaging
       typing: {
         answers: {
@@ -231,8 +232,11 @@ describe("an answer's own keys", () => {
     // Claude Code's root session waits on a permission request.
     const binding = { agent: "claude", sessionId: "s", instance: null } as const
     const record = inside.records.get(terminal.id)!
-    record.binding = binding
-    record.activity = { ...fresh(0), pending: [{} as Activity["pending"][number]] }
+    record.bound = {
+      binding,
+      activity: { ...fresh(0), pending: [{} as Activity["pending"][number]] },
+      telemetry: null,
+    }
     const { changes } = followRoot(null, binding, [], {
       mode: harnesses.claude.messaging.root,
       statusLine: false,
@@ -265,7 +269,7 @@ describe("an answer's own keys", () => {
       "creator",
     )
     const inside = manager as unknown as {
-      records: Map<string, { binding: unknown; activity: Activity | null }>
+      records: Map<string, { bound: Bound | null }>
       messaging: Messaging
       typing: {
         answers: {
@@ -279,8 +283,11 @@ describe("an answer's own keys", () => {
     // Antigravity's artifact review types the person's words into its prompt box.
     const binding = { agent: "agy", sessionId: "s", instance: null } as const
     const record = inside.records.get(terminal.id)!
-    record.binding = binding
-    record.activity = { ...fresh(0), pending: [{} as Activity["pending"][number]] }
+    record.bound = {
+      binding,
+      activity: { ...fresh(0), pending: [{} as Activity["pending"][number]] },
+      telemetry: null,
+    }
     const { changes } = followRoot(null, binding, [], {
       mode: harnesses.agy.messaging.root,
       statusLine: false,
@@ -315,13 +322,13 @@ describe("answers and the prompts after them", () => {
           promptIn: (entry: unknown, id: string, text: string) => Promise<void>
         }
       }
-      records: Map<string, { binding: unknown; activity: unknown }>
+      records: Map<string, { bound: unknown }>
     }
     const record = inside.records.get(terminal.id)!
     // The agent waits on a request, which the answer's keys take.
-    record.binding = { agent: "claude" }
+    const binding = { agent: "claude" }
     const waiting = { state: "idle", pending: [{}], plans: [], background: null }
-    record.activity = waiting
+    record.bound = { binding, activity: waiting }
     const order: string[] = []
     // What the paste does is not under test: it admits as the real prompt does, and takes its time.
     inside.typing.prompts.give = async (_entry, id, text) => {
@@ -335,7 +342,7 @@ describe("answers and the prompts after them", () => {
         inside.typing.inputs.run(terminal.id, async (entry) => {
           await new Promise((resolve) => setTimeout(resolve, 60))
           // The dialog took the answer; the hook that ends its request is a moment behind.
-          record.activity = { ...waiting, pending: [] }
+          record.bound = { binding, activity: { ...waiting, pending: [] } }
           await inside.typing.prompts.promptIn(entry, terminal.id, "the person's words")
         }),
     }
@@ -388,8 +395,7 @@ describe("terminal interrupts", () => {
     records: Map<
       string,
       {
-        binding: unknown
-        activity: unknown
+        bound: unknown
         terminal: { pty: { write: (data: string) => void }; resizedAt: number }
       }
     >
@@ -411,8 +417,10 @@ describe("terminal interrupts", () => {
     )
     const record = (manager as unknown as Inside).records.get(terminal.id)
     if (!record) throw new Error("No record")
-    record.binding = { agent: "claude" }
-    record.activity = { state, pending: [], plans: [], background: null }
+    record.bound = {
+      binding: { agent: "claude" },
+      activity: { state, pending: [], plans: [], background: null },
+    }
     const writes: string[] = []
     // The manager's writes, not the terminal's own replies to the screen's queries.
     const pty = { ...record.terminal.pty, write: (data: string) => void writes.push(data) }
@@ -496,7 +504,10 @@ describe("terminal interrupts", () => {
     // The turn ends as the harness takes the Escape.
     record.terminal.pty.write = (data) => {
       write(data)
-      record.activity = { state: "idle", pending: [], plans: [], background: null }
+      record.bound = {
+        binding: { agent: "claude" },
+        activity: { state: "idle", pending: [], plans: [], background: null },
+      }
     }
     await Promise.all([
       manager.interrupt({ terminalId: id }),
@@ -542,8 +553,10 @@ describe("terminal interrupts", () => {
       )
       const record = (manager as unknown as Inside).records.get(terminal.id)
       if (!record) throw new Error("No record")
-      record.binding = { agent: "claude" }
-      record.activity = { state: "working", pending: [], plans: [], background: null }
+      record.bound = {
+        binding: { agent: "claude" },
+        activity: { state: "working", pending: [], plans: [], background: null },
+      }
       await new Promise((resolve) => setTimeout(resolve, 500))
       await expect(manager.interrupt({ terminalId: terminal.id })).rejects.toMatchObject({
         code: "BOX_NOT_CLEARED",
@@ -576,8 +589,10 @@ describe("terminal interrupts", () => {
       )
       const record = (manager as unknown as Inside).records.get(terminal.id)
       if (!record) throw new Error("No record")
-      record.binding = { agent: "claude" }
-      record.activity = { state: "working", pending: [], plans: [], background: null }
+      record.bound = {
+        binding: { agent: "claude" },
+        activity: { state: "working", pending: [], plans: [], background: null },
+      }
       await new Promise((resolve) => setTimeout(resolve, 500))
       expect(await manager.interrupt({ terminalId: terminal.id })).toEqual({
         returned: "Queued words",
@@ -1743,7 +1758,7 @@ describe.skipIf(process.platform === "win32")("terminal message watches", () => 
 
 describe("a turn the person's Escape ended", () => {
   type Inside = {
-    records: Map<string, { binding: unknown; activity: Activity | null }>
+    records: Map<string, { bound: Bound | null }>
     bindings: {
       applyFact: (record: unknown, fact: ActivityEvent) => boolean
       escaped: (record: unknown) => void
@@ -1762,17 +1777,16 @@ describe("a turn the person's Escape ended", () => {
     const inside = manager as unknown as Inside
     const record = inside.records.get(terminal.id)!
     const binding = { agent: "claude", sessionId: "s", instance: null } as const
-    record.binding = binding
     const tell = (fact: object) => {
       const event = { ...binding, ...fact } as ActivityEvent
       inside.bindings.applyFact(record, event)
       return event
     }
-    const lastTurn = () => record.activity && record.activity.lastTurn
+    const lastTurn = () => record.bound && record.bound.activity.lastTurn
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
     try {
       for (const stop of [true, false]) {
-        record.activity = fresh(0)
+        record.bound = { binding, activity: fresh(0), telemetry: null }
         tell({ type: "turn-started", cause: "prompt", startedAt: 10 })
         // Delivery tells the Escape once, as the manager asks after the person's key.
         const escaped = { ...binding, type: "turn-escaped", startedAt: 20 } as ActivityEvent
@@ -1808,7 +1822,6 @@ describe("a turn the person's Escape ended", () => {
       verdict?: unknown
     } & (typeof inside.records extends Map<string, infer R> ? R : never)
     const binding = { agent: "agy", sessionId: "s", instance: null } as const
-    record.binding = binding
     const directory = mkdtempSync(join(tmpdir(), "novadeck-escape-"))
     const asked = JSON.stringify({
       source: "USER_EXPLICIT",
@@ -1916,7 +1929,7 @@ describe("a turn the person's Escape ended", () => {
         let reading = 0
         inside.typing.screenOf = () =>
           Promise.resolve(reads[record.verdict ? 0 : Math.min(reading++, reads.length - 1)])
-        record.activity = fresh(0, true, false)
+        record.bound = { binding, activity: fresh(0, true, false), telemetry: null }
         inside.bindings.applyFact(record, {
           ...binding,
           type: "turn-started",
@@ -1927,10 +1940,10 @@ describe("a turn the person's Escape ended", () => {
         inside.bindings.escaped(record)
         // eslint-disable-next-line no-await-in-loop -- Each case waits for its own verdict.
         await vi.waitFor(
-          () => expect(record.activity?.lastTurn?.escaped?.settled ?? true).toBe(true),
+          () => expect(record.bound?.activity.lastTurn?.escaped?.settled ?? true).toBe(true),
           { timeout: escapeVerdictMs + escapeScreenMs + 2000 },
         )
-        expect(record.activity?.lastTurn?.outcome, what).toBe(outcome)
+        expect(record.bound?.activity.lastTurn?.outcome, what).toBe(outcome)
       }
     } finally {
       Object.defineProperty(process, "platform", platform)
@@ -2194,10 +2207,7 @@ describe("saving a terminal that was closed", () => {
 
 describe("a usage limit a turn ran into", () => {
   type Inside = {
-    records: Map<
-      string,
-      { binding: unknown; activity: Activity | null; summary: { activity: unknown } }
-    >
+    records: Map<string, { bound: Bound | null; summary: { activity: unknown } }>
     bindings: { applyFact: (record: unknown, fact: ActivityEvent) => boolean }
   }
 
@@ -2212,10 +2222,13 @@ describe("a usage limit a turn ran into", () => {
     const inside = manager as unknown as Inside
     const record = inside.records.get(terminal.id)!
     const binding = { agent: "claude", sessionId: "s", instance: null } as const
-    record.binding = binding
     const tell = (fact: object) =>
       inside.bindings.applyFact(record, { ...binding, ...fact } as ActivityEvent)
-    const lastTurn = () => record.activity?.lastTurn
+    const lastTurn = () => record.bound?.activity.lastTurn
+    // A fresh activity for the next turn, the telemetry its records told kept.
+    const freshTurn = () => {
+      record.bound = { binding, activity: fresh(0), telemetry: record.bound?.telemetry ?? null }
+    }
     const usage = (used: number, startedAt: number) =>
       tell({
         type: "telemetry-observed",
@@ -2224,7 +2237,7 @@ describe("a usage limit a turn ran into", () => {
       })
 
     // The window is used up before the turn ends.
-    record.activity = fresh(0)
+    freshTurn()
     usage(1, 5)
     tell({ type: "turn-started", cause: "prompt", startedAt: 10 })
     tell({
@@ -2241,7 +2254,7 @@ describe("a usage limit a turn ran into", () => {
 
     // Without its harness's word, a window used up is no limit the turn ran into, as when
     // another model's bucket fills beside it.
-    record.activity = fresh(0)
+    freshTurn()
     usage(0.5, 25)
     tell({ type: "turn-started", cause: "prompt", startedAt: 30 })
     tell({ type: "turn-ended", outcome: "failed", startedAt: 40 })
@@ -2249,7 +2262,7 @@ describe("a usage limit a turn ran into", () => {
     expect(lastTurn()?.limit).toBeUndefined()
 
     // With it, the window latches and stays latched when the records move on.
-    record.activity = fresh(0)
+    freshTurn()
     usage(1, 55)
     tell({ type: "turn-started", cause: "prompt", startedAt: 60 })
     tell({ type: "turn-ended", outcome: "failed", startedAt: 65, limited: true })
@@ -2260,7 +2273,7 @@ describe("a usage limit a turn ran into", () => {
     expect(lastTurn()).toBeNull()
 
     // A latch picked as the most used gives way to a window then seen used up, within the grace.
-    record.activity = fresh(0)
+    freshTurn()
     usage(0.9, 100)
     tell({ type: "turn-started", cause: "prompt", startedAt: 101 })
     tell({ type: "turn-ended", outcome: "failed", startedAt: 105, limited: true })
@@ -2278,10 +2291,48 @@ describe("a usage limit a turn ran into", () => {
     expect(lastTurn()?.limit).toEqual({ minutes: 10_080, resetsAt: 990_000 })
 
     // A window that fills long after a turn is the person's, not the turn's.
-    record.activity = fresh(0)
+    freshTurn()
     tell({ type: "turn-started", cause: "prompt", startedAt: 200 })
     tell({ type: "turn-ended", outcome: "failed", startedAt: 205 })
     usage(1, 205 + limitGraceMs + 1)
     expect(lastTurn()?.limit).toBeUndefined()
+  })
+})
+
+describe("a shell's prompt coming back", () => {
+  type Inside = {
+    records: Map<string, { summary: { ready: string | null }; terminal: { pty: unknown } }>
+    bindings: {
+      publishAgent: (record: unknown, moved: boolean) => void
+      readyEnter: (record: unknown) => void
+    }
+    messaging: { shown: (id: string, agent: string, prefix: string | null) => void }
+    announce: (record: unknown) => void
+    prompted: (record: unknown, child: unknown, cwd: string) => void
+  }
+
+  it("never shows ready again the agent whose prompt left with it", async ({ terminals }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside
+    const record = inside.records.get(terminal.id)!
+    // Codex's title says it is ready at its prompt, no session bound yet; the person's Enter
+    // there, as `/status`, starts nothing that binds.
+    inside.messaging.shown(terminal.id, "codex", null)
+    inside.bindings.publishAgent(record, false)
+    expect(record.summary.ready).toBe("codex")
+    inside.bindings.readyEnter(record)
+    expect(record.summary.ready).toBeNull()
+    const ready: (string | null)[] = []
+    inside.announce = (one) => {
+      if (one === record) ready.push(record.summary.ready)
+    }
+    // Codex exited: the shell's prompt is back.
+    inside.prompted(record, record.terminal.pty, cwd)
+    expect(ready).not.toContain("codex")
+    expect(record.summary.ready).toBeNull()
   })
 })

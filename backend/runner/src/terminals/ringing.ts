@@ -5,7 +5,6 @@ import { foregroundRuns, processGroup, terminalForeground } from "@novadeck/term
 import type { TypingTarget } from "@novadeck/tui-input"
 import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
 
-import type { Activity } from "../harnesses/activity.js"
 import type { Binding } from "../harnesses/bindings.js"
 import { harnesses } from "../harnesses/registry.js"
 import { doorbellLog } from "../messaging/doorbell-log.js"
@@ -13,32 +12,37 @@ import { tracer, type DoorbellHost } from "../messaging/doorbell.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { busy } from "./busy.js"
 import { leftoverNonce } from "./leftover.js"
+import type { Bound } from "./record.js"
 
 /** What the doorbell reads of a running terminal's record. */
 export type RingRecord = {
   readonly terminal: Terminal
-  readonly binding: Binding | null
-  readonly activity: Activity | null
+  readonly bound: RingBound | null
 }
+
+/** What the doorbell reads of the session bound to a terminal (`Record.bound`). */
+export type RingBound = Pick<Bound, "binding" | "activity">
 
 /**
  * Whether the activity says the agent bound there works (`busy`, for its harness), where
  * that outweighs what messaging knows: a Settled or Ready terminal made so by a Stop or a
  * session's start stands against an activity that lingers; every other, and any made so
- * by the screen alone, does not. `bound` is the terminal's binding and activity, undefined
- * for a terminal not running.
+ * by the screen alone, does not. `bound` is the session bound to the terminal, null without
+ * one, and undefined for a terminal not running.
  */
 export const agentWorking = (
   messaging: Pick<Messaging, "delivery" | "byScreen">,
   terminalId: string,
-  bound: Pick<RingRecord, "binding" | "activity"> | undefined,
+  bound: RingBound | null | undefined,
 ): boolean => {
-  const { binding = null, activity = null } = bound ?? {}
   const state = messaging.delivery(terminalId)?.state
   const known = (state === "settled" || state === "ready") && !messaging.byScreen(terminalId)
   return (
     !known &&
-    busy(activity, binding !== null && harnesses[binding.agent].messaging.promptsInBackground)
+    busy(
+      bound?.activity ?? null,
+      bound != null && harnesses[bound.binding.agent].messaging.promptsInBackground,
+    )
   )
 }
 
@@ -85,10 +89,9 @@ export const typingTarget = <R extends RingRecord>(
     if (!record) return undefined
     // A prompt shown before any session bound: its agent must still hold the
     // terminal, as the shell's prompt may have come back unseen (a nested shell).
-    const shown = record.binding ? undefined : host.shownAgent(terminalId)
+    const shown = record.bound ? undefined : host.shownAgent(terminalId)
     if (shown) return foregroundRuns(record.terminal.pty.pid, shown)
-    const { binding } = record
-    const instance = binding?.instance
+    const instance = record.bound?.binding.instance
     if (!instance) return undefined
     // The bound agent left unseen: no ring for its session, whatever holds the terminal now.
     if (!host.alive(instance)) return false
@@ -107,7 +110,7 @@ export type RingHost<R extends RingRecord> = TargetHost<R> & {
   readonly endExited: (record: R) => void
   readonly messaging: Messaging
   /** Whether the activity says the agent works, where that outweighs what messaging knows. */
-  readonly working: (terminalId: string, activity: Activity | null) => boolean
+  readonly working: (terminalId: string, bound: RingBound | null) => boolean
   readonly stopping: () => boolean
 }
 
@@ -118,7 +121,9 @@ export const doorbellHost = <R extends RingRecord>(
   const { live, messaging, working } = host
   const profile = (terminalId: string): BoxProfile | undefined => {
     const record = live(terminalId)
-    return record && profileOf(record.binding, () => messaging.shownAgent(terminalId))
+    return (
+      record && profileOf(record.bound?.binding ?? null, () => messaging.shownAgent(terminalId))
+    )
   }
   return {
     // A request asked after the turn's Stop waits on the person though messaging has the
@@ -127,8 +132,8 @@ export const doorbellHost = <R extends RingRecord>(
       const record = live(terminalId)
       return (
         record !== undefined &&
-        (record.activity?.pending.length ?? 0) === 0 &&
-        !working(terminalId, record.activity) &&
+        (record.bound?.activity.pending.length ?? 0) === 0 &&
+        !working(terminalId, record.bound) &&
         !host.stopping() &&
         messaging.ringable(terminalId)
       )
@@ -138,7 +143,7 @@ export const doorbellHost = <R extends RingRecord>(
       const record = live(terminalId)
       const rung =
         record !== undefined &&
-        !working(terminalId, record.activity) &&
+        !working(terminalId, record.bound) &&
         messaging.ring(terminalId, nonce)
       if (rung) doorbellLog.current?.ring(terminalId, messaging.waitedMs(terminalId))
       return rung
@@ -147,12 +152,12 @@ export const doorbellHost = <R extends RingRecord>(
     // The doorbell asks before it reads the foreground; the read itself ends nothing.
     agentGone: (terminalId) => {
       const record = live(terminalId)
-      const binding = record?.binding
+      const binding = record?.bound?.binding
       const instance = binding?.instance
       // Its binding ends in turn with the reports, if it is still the one found.
       if (record && binding && instance && !host.alive(instance))
         host.queued(terminalId, () => {
-          if (record.binding === binding) host.endExited(record)
+          if (record.bound?.binding === binding) host.endExited(record)
         })
     },
     ready: (terminalId) => messaging.ready(terminalId),
@@ -162,11 +167,12 @@ export const doorbellHost = <R extends RingRecord>(
     stalled: (terminalId) => {
       const record = live(terminalId)
       if (!record) return false
-      if (working(terminalId, record.activity)) {
+      const activity = record.bound?.activity
+      if (working(terminalId, record.bound)) {
         if (messaging.stalled(terminalId) || messaging.idleWaiting(terminalId)) {
           tracer.sink?.(
             terminalId,
-            `not looked at: activity ${record.activity?.state}, ${record.activity?.subagents.length ?? 0} subagents, background ${JSON.stringify(record.activity?.background)}`,
+            `not looked at: activity ${activity?.state}, ${activity?.subagents.length ?? 0} subagents, background ${JSON.stringify(activity?.background)}`,
           )
           // Its hold says so, not what an older look saw.
           messaging.blocked(terminalId, "working")
@@ -175,7 +181,7 @@ export const doorbellHost = <R extends RingRecord>(
       }
       return (
         messaging.stalled(terminalId) ||
-        ((record.activity?.pending.length ?? 0) > 0 && messaging.idleWaiting(terminalId))
+        ((activity?.pending.length ?? 0) > 0 && messaging.idleWaiting(terminalId))
       )
     },
     stamp: (terminalId) => messaging.stamp(terminalId),
@@ -187,8 +193,8 @@ export const doorbellHost = <R extends RingRecord>(
     reading: (terminalId, screen) => {
       const record = live(terminalId)
       if (!record) return "dialog"
-      if ((record.activity?.pending.length ?? 0) > 0) return "asking"
-      if (working(terminalId, record.activity)) return "working"
+      if ((record.bound?.activity.pending.length ?? 0) > 0) return "asking"
+      if (working(terminalId, record.bound)) return "working"
       const box = profile(terminalId)
       const text = box?.read(screen)
       if (!box || box.overlay(screen)) return "dialog"
@@ -221,7 +227,7 @@ export const doorbellHost = <R extends RingRecord>(
     emptied: (terminalId, readAt) => {
       const delivery = messaging.delivery(terminalId)
       const record = live(terminalId)
-      if (delivery && record && !working(terminalId, record.activity))
+      if (delivery && record && !working(terminalId, record.bound))
         messaging.emptied(terminalId, delivery.epoch, readAt)
     },
     blocked: (terminalId, waits) => {
