@@ -404,8 +404,9 @@ for (const setup of setups) {
       const ended = await t1.reached("unknown", { after: mark })
       // The harness takes the key a moment after it is written: its own account of the
       // interruption shows before the held reply is let go, which must never show.
-      // Claude Code's account is the prompt back in its box, which the runner clears before
-      // `interrupt` resolves: then the prompt shows nowhere, its echo gone with the turn.
+      // Claude Code's account, to 2.1.287, is the prompt back in its box, which the runner
+      // clears before `interrupt` resolves: then the prompt shows nowhere, its echo gone with
+      // the turn. From 2.1.304 it says so, as the others do.
       const account = setup.interrupted("Take your time")
       await t1.poll(
         async () => {

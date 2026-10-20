@@ -66,6 +66,47 @@ const turnsOf = (message: z.infer<typeof messages>["messages"][number]): Turn[] 
   return text || results.length === 0 ? [...results, { role: "user", text }] : results
 }
 
+// Claude Code's tool that loads the schemas of the tools it names only (`deferredOf`).
+const search = "ToolSearch"
+
+/**
+ * The turns without the fake model's own loads of deferred tools (see `anthropic`): its
+ * call to `ToolSearch`, the result, and the "Tool loaded." Claude Code says with it, so the
+ * rules see the conversation as it was before the load. Anything else that came with the
+ * result, as a reminder, joins the turn before the load, a user's or a tool result.
+ */
+const unsearched = (turns: readonly Turn[]): Turn[] => {
+  const loads = new Set(
+    turns.flatMap((turn) =>
+      turn.role === "assistant" &&
+      turn.text === "" &&
+      turn.calls.length > 0 &&
+      turn.calls.every((call) => call.name === search)
+        ? turn.calls.map((call) => call.id)
+        : [],
+    ),
+  )
+  let loaded = false
+  return turns.reduce<Turn[]>((kept, turn) => {
+    const after = loaded
+    loaded = false
+    if (turn.role === "assistant" && turn.calls.some((call) => loads.has(call.id))) return kept
+    if (turn.role === "tool" && loads.has(turn.id)) {
+      loaded = true
+      return kept
+    }
+    const last = kept.at(-1)
+    if (turn.role !== "user" || (!after && last?.role !== "user")) return [...kept, turn]
+    const text = after ? turn.text.replace(/^Tool loaded\.\n?/, "") : turn.text
+    if (!text) return kept
+    if (last?.role === "user")
+      return [...kept.slice(0, -1), { role: "user", text: `${last.text}\n${text}` }]
+    if (last?.role === "tool")
+      return [...kept.slice(0, -1), { ...last, text: `${last.text}\n${text}` }]
+    return [...kept, { role: "user", text }]
+  }, [])
+}
+
 /**
  * The conversation as turns. A system message mid-conversation is context a hook added
  * beside the prompt (Claude Code passes `UserPromptSubmit`'s `additionalContext` so), so
@@ -87,6 +128,30 @@ const conversation = (request: z.infer<typeof messages>): { turns: Turn[]; syste
     { turns: [], system: request.system === undefined ? [] : [textOf(request.system)] },
   )
 
+// How Claude Code lists the tools it offers by name only, one a line, in its reminders.
+const deferredList =
+  /The following deferred tools are now available via ToolSearch\.[^\n]*\n((?:[^\n]+\n?)+)/g
+
+/**
+ * The tools a request names as deferred and doesn't offer yet: their schemas load only
+ * once the model asks `ToolSearch` for them. Claude Code defers MCP tools, and some of its
+ * own; from 2.1.304 behind any API, where 2.1.287 offered them all behind one not
+ * Anthropic's own, as this one is.
+ */
+const deferredOf = (request: z.infer<typeof messages>): string[] => {
+  const offered = new Set((request.tools ?? []).map((tool) => tool.name))
+  const texts = [
+    ...(request.system === undefined ? [] : [textOf(request.system)]),
+    ...request.messages.map((message) => textOf(message.content)),
+  ]
+  const named = texts.flatMap((text) =>
+    [...text.matchAll(deferredList)].flatMap((match) =>
+      (match[1] ?? "").split("\n").map((line) => line.trim()),
+    ),
+  )
+  return [...new Set(named)].filter((name) => name !== "" && !offered.has(name))
+}
+
 /**
  * The call a Messages request makes. One that offers no tools is the harness's own, as
  * Claude Code's title and quota calls are: its agent's turns always offer them.
@@ -99,7 +164,7 @@ export const parse = (body: unknown): Call => {
     api: "anthropic",
     model: request.model,
     system: system.join("\n"),
-    turns,
+    turns: unsearched(turns),
     tools,
     rawTools: request.tools ?? [],
     side: tools.length === 0,
@@ -178,7 +243,12 @@ const models = ["claude-opus-4-1", "claude-sonnet-4-5", "claude-haiku-4-5"].map(
 
 const route = (path: string): string => path.split("?")[0] ?? path
 
-/** Anthropic's Messages API, as Claude Code speaks it. */
+/**
+ * Anthropic's Messages API, as Claude Code speaks it. Where it offers tools by name only
+ * (`deferredOf`), the fake model first loads them all through `ToolSearch`, as a model
+ * would before calling one, without asking the rules: they see that call's conversation
+ * on the next, with every tool offered, as before tools were deferred.
+ */
 export const anthropic: Dialect = {
   api: "anthropic",
   // Claude Code's own wrapper for a call it won't run; other errors wrapped the same way,
@@ -197,8 +267,27 @@ export const anthropic: Dialect = {
     if (path !== "/v1/messages" || request.method !== "POST")
       return json(404, { type: "error", error: { type: "not_found_error", message: path } })
     const call = parse(body)
-    const message = messageOf(call, await reply(call))
-    if (!messages.parse(body).stream) return json(200, message)
+    const sent = messages.parse(body)
+    const deferred = call.tools.includes(search) ? deferredOf(sent) : []
+    // Loaded once: what a load left deferred isn't asked for again.
+    const last = sent.messages.findLast((one) => one.role === "assistant")?.content
+    const loading =
+      deferred.length > 0 &&
+      !(Array.isArray(last) && last.some((one) => one.type === "tool_use" && one.name === search))
+    const message = messageOf(
+      call,
+      loading
+        ? {
+            calls: [
+              {
+                name: search,
+                input: { query: `select:${deferred.join(",")}`, max_results: deferred.length },
+              },
+            ],
+          }
+        : await reply(call),
+    )
+    if (!sent.stream) return json(200, message)
     return {
       status: 200,
       headers: {

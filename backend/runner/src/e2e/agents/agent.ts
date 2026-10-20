@@ -313,6 +313,11 @@ export type AgentSetup = {
    * reply came, the harness's own account of the interruption.
    */
   readonly interrupted: (prompt: string) => RegExp
+  /**
+   * What the screen shows once `prompt`, queued behind a running turn, is through what the
+   * harness runs before it can send it, where the harness runs anything then.
+   */
+  readonly queued?: (prompt: string) => RegExp
   /** What it shows when a seed leaves the folder or Novadeck's hooks untrusted. */
   readonly trust?: Trust
   /**
