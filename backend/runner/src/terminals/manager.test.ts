@@ -39,7 +39,9 @@ const withoutMarker = async function* (stream: ReturnType<Terminals["attach"]>) 
 
 const fixture = (resources: Resources) => {
   const manager = (options: ConstructorParameters<typeof Terminals>[0] = {}) => {
-    const instance = new Terminals({ shell: "/bin/sh", env: { PS1: "" }, ...options })
+    // Masks nothing: no test here saves a secret.
+    const redactor = { redact: async ({ text }: { text: string }) => text, close: async () => {} }
+    const instance = new Terminals({ shell: "/bin/sh", env: { PS1: "" }, redactor, ...options })
     resources.defer(() => instance.shutdown())
     return instance
   }

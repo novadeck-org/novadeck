@@ -122,8 +122,8 @@ for (const [name, label] of [
   console.log(`The packaged app carries its ${label} manifest.`)
 }
 
-// The thread murmur redacts digests in, started as the runner starts it: a worker on the
-// script inside app.asar. The packaged executable runs the check as Node, which reads
+// The threads the runner redacts in (murmur's digests, saved transcripts), started as the
+// runner starts them: a worker on the script inside app.asar. The packaged executable runs the check as Node, which reads
 // asar archives the same way the app does.
 {
   const script = join(mkdtempSync(join(tmpdir(), "novadeck-smoke-worker-")), "start-worker.mjs")
@@ -145,20 +145,23 @@ worker.once("message", (reply) => {
 })
 `,
   )
-  try {
-    execFileSync(
-      executable,
-      [script, join(resources, "app.asar", "out", "main", "murmurWorker.js")],
-      {
+  for (const [label, file] of [
+    ["murmur", "murmurWorker.js"],
+    ["transcript redaction", "redactionWorker.js"],
+  ]) {
+    try {
+      execFileSync(executable, [script, join(resources, "app.asar", "out", "main", file)], {
         env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
         timeout: 30_000,
         stdio: ["ignore", "pipe", "pipe"],
-      },
-    )
-  } catch (error) {
-    fail(`The packaged murmur worker did not start: ${error.stderr?.toString().trim() || error}`)
+      })
+    } catch (error) {
+      fail(
+        `The packaged ${label} worker did not start: ${error.stderr?.toString().trim() || error}`,
+      )
+    }
+    console.log(`The packaged ${label} worker started from app.asar.`)
   }
-  console.log("The packaged murmur worker started from app.asar.")
 }
 
 // The client as the host depends on it: its built code, which plain node resolves to, so the

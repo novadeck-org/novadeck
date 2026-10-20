@@ -1,6 +1,8 @@
+import { randomBytes } from "node:crypto"
+
 import { describe, expect, it, vi } from "vitest"
 
-import { redact, redactAs, redactScreen, redacted } from "./redact.js"
+import { maskScreen, redact, redactAs, redactScreen, redacted } from "./redact.js"
 
 describe("redacting secrets", () => {
   it("writes each secret as the placeholder it is given", () => {
@@ -976,5 +978,304 @@ describe("Google keys without a digit, and ids glued to a secret", () => {
     expect(result).not.toContain("IOSFODNN7EXAMPLE")
     expect(result).not.toContain("MDENGbPxRfiCY")
     expect(result).not.toContain("wJalrXUtnFEMI")
+  })
+})
+
+describe("which units of a screen are masked", () => {
+  const flagged = (row: string, flags: readonly boolean[] | undefined): string =>
+    [...row].map((_unit, i) => (flags?.[i] ? "^" : " ")).join("")
+
+  it("flags the units of a secret and no others, as long as each row", () => {
+    const shown = ["$ echo API_KEY=hunter2abc ok", "plain"]
+
+    const masks = maskScreen(shown, [false, false])
+
+    expect(masks.map((flags) => flags.length)).toEqual(shown.map((row) => row.length))
+    expect(flagged(shown[0] ?? "", masks[0])).toBe("               ^^^^^^^^^^   ")
+    expect(masks[1]?.some(Boolean)).toBe(false)
+  })
+
+  it("counts the units of a character that takes two, so a surrogate pair is flagged whole", () => {
+    const row = "token=\u{1F600}\u{1F600}abc1 end"
+
+    const [flags] = maskScreen([row], [false])
+
+    expect(flags?.slice(6, 6 + "\u{1F600}\u{1F600}abc1".length).every(Boolean)).toBe(true)
+    expect(flags?.length).toBe(row.length)
+  })
+
+  it("flags a secret split across a full row on both shown", () => {
+    const hex = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a09"
+    const shown = ["$ sha256sum f", hex.slice(0, 40), hex.slice(40), "$"]
+
+    const masks = maskScreen(shown, [false, true, false, false])
+
+    expect(masks[1]?.every(Boolean)).toBe(true)
+    expect(masks[2]?.every(Boolean)).toBe(true)
+    expect(masks[0]?.some(Boolean)).toBe(false)
+    expect(masks[3]?.some(Boolean)).toBe(false)
+  })
+
+  it("flags every unit of every row a key block covers", () => {
+    const shown = ["$ cat key", "-----BEGIN PRIVATE KEY-----", "MIIEvQIBADANBg", "", "$ next"]
+
+    const masks = maskScreen(shown, [false, false, false, false, false])
+
+    expect(masks.map((flags) => flags.every(Boolean))).toEqual([false, true, true, true, true])
+    expect(masks.map((flags) => flags.length)).toEqual(shown.map((row) => row.length))
+  })
+
+  it("reads a sentinel character in a row as the text it is, not as a mask", () => {
+    const [flags] = maskScreen(["a\uE000b"], [false])
+
+    expect(flags).toEqual([false, false, false])
+  })
+
+  it("masks exactly what redactScreen writes as a mask", () => {
+    const shown = [
+      "env | grep STRIPE",
+      "STRIPE_SECRET_KEY=sk_li",
+      "ve_51HxYzAbCdEfGhIjKlMn",
+      "done",
+    ]
+    const continues = [false, true, false, false]
+
+    const masks = maskScreen(shown, continues)
+    const hidden = shown.map((row, i) =>
+      [...row].map((unit, at) => (masks[i]?.[at] ? "\uE000" : unit)).join(""),
+    )
+
+    expect(hidden.map((row) => row.replaceAll(/\uE000+/g, redacted))).toEqual(
+      redactScreen(shown, continues),
+    )
+  })
+})
+
+describe("secrets longer than the window rows are read in", () => {
+  const wrap = (text: string, width: number): string[] => chop(text, width)
+  const continuing = (screen: string[]): boolean[] => screen.map((_row, i) => i < screen.length - 1)
+  const b64 = (length: number): string => {
+    let out = ""
+    for (let i = 0; out.length < length; i += 1)
+      out += Buffer.from(`${i * 7919} Zq8rT2mWx9LpKd3VnB7sYcHt5Gf ${i}`).toString("base64")
+    return out.slice(0, length).replaceAll("=", "A")
+  }
+
+  it("masks a 6 KB base64 run wrapped across many rows after a word character, end to end", () => {
+    const run = b64(6000)
+    const screen = wrap(`prefix${run} done`, 80)
+
+    const result = redactScreen(screen, continuing(screen))
+
+    expect(result.join("")).not.toContain(run.slice(100, 140))
+    expect(result.join("")).not.toContain(run.slice(3000, 3040))
+    expect(result.join("")).not.toContain(run.slice(5900, 5940))
+  })
+
+  it("masks a 3 KB JWT wrapped across rows", () => {
+    const part = b64(1000).replaceAll("+", "-").replaceAll("/", "_")
+    const jwt = `eyJ${part}.${part}.${part}`
+    const screen = wrap(`word ${jwt} end`, 60)
+
+    const result = redactScreen(screen, continuing(screen))
+
+    expect(result.join("")).not.toContain(part.slice(200, 240))
+    expect(result.join("")).not.toContain(part.slice(900, 940))
+  })
+
+  // This thread's own CPU time, in milliseconds.
+  const time = (screen: string[]): number => {
+    const started = process.threadCpuUsage()
+    redactScreen(screen, continuing(screen))
+    const { user, system } = process.threadCpuUsage(started)
+    return (user + system) / 1000
+  }
+  it.each([
+    ["hex", () => "9f86d081884c7d65".repeat(10_000)],
+    ["base64", () => b64(160_000)],
+    ["a=b", () => "a=b".repeat(53_000)],
+    ["quotes", () => '"a: '.repeat(40_000)],
+    ["Ab1+", () => "Ab1+".repeat(40_000)],
+  ])(
+    "is quick for a 2,000-row group of one wrapped line of %s",
+    { timeout: 60_000 },
+    (_name, line) => {
+      // A budget to catch the cost growing with the square of the rows (it was 12 to 45 s; about 1 s now).
+      expect(time(wrap(line(), 80))).toBeLessThan(15_000)
+    },
+  )
+})
+
+describe("long runs of random base64", () => {
+  it.each([1000, 4000])("masks %i random bytes of base64 whole, as a key or a blob", (bytes) => {
+    for (let i = 0; i < 30; i += 1) {
+      const blob = randomBytes(bytes).toString("base64")
+      expect(redact(blob)).toBe(redacted)
+      expect(redact(`  tls.key: ${blob}`)).toBe(`  tls.key: ${redacted}`)
+      expect(redact(randomBytes(bytes).toString("base64url"))).toBe(redacted)
+    }
+  })
+
+  it("masks a base64 PEM body, which is base64 of base64", () => {
+    const pem = Buffer.from(
+      `-----BEGIN PRIVATE KEY-----\n${randomBytes(1200).toString("base64")}\n-----END PRIVATE KEY-----\n`,
+    ).toString("base64")
+
+    expect(redact(`data: ${pem}`)).toBe(`data: ${redacted}`)
+  })
+
+  it.each([
+    [
+      "a camelCase identifier",
+      "someVeryLongCamelCaseIdentifierWithoutAnythingSpecialAtAll_v2_getUserAccountBalanceFromRemote",
+    ],
+    [
+      "a long URL path",
+      "https://example.com/api/v1/organizations/members/permissions/assignments/12345/history",
+    ],
+    [
+      "a file path",
+      "/usr/local/lib/node_modules/typescript/lib/typescript.js:1234:56 src/components/ui/button/index.tsx",
+    ],
+    [
+      "a minified function",
+      "function a(b,c){return b.map(function(d){return d.value+c}).filter(Boolean).join(',')}",
+    ],
+    [
+      "a long snake_case name",
+      "test_that_the_user_account_balance_is_updated_after_a_remote_service_call_2",
+    ],
+    [
+      "a kebab-case slug",
+      "how-to-configure-the-remote-service-and-cache-the-account-balance-in-2024-edition",
+    ],
+    [
+      "a Go import path",
+      "github.com/aws/aws-sdk-go-v2/service/secretsmanager/internal/endpoints/v1",
+    ],
+  ])("leaves %s alone", (_name, text) => {
+    expect(redact(text)).toBe(text)
+  })
+})
+
+describe("tokens longer than the window", () => {
+  const visible = (drawn: string[], secret: string): number => {
+    const text = drawn.join("")
+    let found = 0
+    for (let i = 0; i + 20 <= secret.length; i += 20)
+      if (text.includes(secret.slice(i, i + 20))) found += 1
+    return found
+  }
+
+  it.each([5000, 6300])(
+    "masks a %i character JWT glued to a full row that ends in a word character, whole",
+    (length) => {
+      const part = randomBytes(Math.ceil((length * 3) / 4))
+        .toString("base64url")
+        .slice(0, length)
+      const jwt = `eyJhbGciOiJSUzI1NiJ9.${part}.${part.slice(0, 200)}`
+      const screen = chop(`${"=".repeat(119)}x${jwt}`, 120)
+
+      const result = redactScreen(
+        screen,
+        screen.map((_row, i) => i < screen.length - 1),
+      )
+
+      expect(visible(result, jwt.slice(21))).toBe(0)
+    },
+  )
+
+  it("masks a long token with a prefix whole, wherever it starts in the group", () => {
+    const token = `ghp_${randomBytes(4000).toString("base64url").replaceAll(/[-_]/g, "A")}`
+    const screen = chop(`${"abcdefg=".repeat(30)}${token}`, 100)
+
+    const result = redactScreen(
+      screen,
+      screen.map((_row, i) => i < screen.length - 1),
+    )
+
+    expect(visible(result, token.slice(4))).toBe(0)
+  })
+})
+
+describe("mangled symbols are not keys", () => {
+  it.each([
+    "_ZN4llvm15ScalarEvolution18getOrCreateAddExprENS_8ArrayRefIPKNS_4SCEVEEENS2_11NoWrapFlagsE",
+    "_ZN4llvm4yaml7yamlizeISt6vectorINS0_22DebugValueSubstitutionESaIS3_EENS0_12EmptyContextEEENSt9enable_ifIXsr18has_SequenceTraitsIT_EE5valueEvE4typeERNS0_2IOERS8_bRT0_",
+    "_ZNK4llvm15ScalarEvolution31getNonTrivialDefiningScopeBoundEPKNS_4SCEVE",
+    "__ZN4core3fmt9Formatter9write_str17h0123456789abcdefE",
+    "_RNvMs0_NtNtCs9ltFPbKhVHr_4core3fmt9Formatter9write_str",
+  ])("leaves %s alone", (symbol) => {
+    const line = `    at ${symbol} (lib.so)`
+
+    expect(redact(line)).toBe(line)
+  })
+})
+
+describe("what a mask is carried on through", () => {
+  it("does not mask the words after a hash that ends where a window does", () => {
+    // Rows of 80 columns; the hash ends the row at which a window (4096 characters) ends.
+    const filler = "abcdefg hijklmn ".repeat(5)
+    const hash = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    const screen = Array.from({ length: 70 }, (_, i) =>
+      i === 52
+        ? `${"abcdefg hijklmn "}${hash}`
+        : i === 53
+          ? ".tar.gz/and/some/plain/words/here"
+          : filler,
+    )
+
+    const result = redactScreen(
+      screen,
+      screen.map((_row, i) => i < screen.length - 1),
+    )
+
+    expect(result[52]).toContain(redacted)
+    expect(result[53]).toBe(".tar.gz/and/some/plain/words/here")
+  })
+})
+
+describe("the time prefixed tokens take", () => {
+  const time = (screen: string[]): number => {
+    const started = process.threadCpuUsage()
+    maskScreen(
+      screen,
+      screen.map((_row, i) => i < screen.length - 1),
+    )
+    const { user, system } = process.threadCpuUsage(started)
+    return (user + system) / 1000
+  }
+  it.each(["sk-", "-hf_", "eyJ"])(
+    "grows with the rows, not their square, for one wrapped line of %s repeated",
+    { timeout: 60_000 },
+    (unit) => {
+      const line = (size: number): string[] =>
+        chop(unit.repeat(Math.floor(size / unit.length)), 120)
+      const small = time(line(62_500))
+      const large = time(line(250_000))
+
+      // Four times the text takes about four times as long: it took sixteen when each row went
+      // over the same run again.
+      expect(large).toBeLessThan(8 * small + 300)
+    },
+  )
+})
+
+describe("long keys that look like something else at first", () => {
+  it("masks a base64url key that starts as a mangled name does", () => {
+    const key =
+      "_ZqH3mKp9vX2-abcdefgLw8Rt5YuNc4Ve7Bn1Mz6Qa0Sd3Fg8Hj2Kl5Px9Cv4Bn7Mz1Qw6Er3Ty8Ui2Op5As0Df7Gh4Jk9Lz2Xc6Vb1Nm3Qp8Wo5Ei7Ru4Ty0"
+    expect(redact(`echo ${key}`)).toBe(`echo ${redacted}`)
+  })
+
+  it("keeps a mangled name with a stack frame's offset glued on", () => {
+    const frame =
+      "./app(_Z34uspoof_getSkeletonUnicodeString_74PK13USpoofCheckerjRKN6icu_7413UnicodeStringERS3_P10UErrorCode+0x1a2) [0x7f3a2b1c4d5e]"
+    expect(redact(frame)).toBe(frame)
+  })
+
+  it("masks a key that ends a sentence, and keeps the full stop", () => {
+    const key = "wJalrXUtnFEMI9K7MDENGbPxRfiCYEXAMPLEKEY99Ab3dZ"
+    expect(redact(`your key is ${key}.`)).toBe(`your key is ${redacted}.`)
   })
 })
