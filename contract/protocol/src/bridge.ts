@@ -75,6 +75,21 @@ export type DesktopBridge = {
    */
   setUpdateChannel?(channel: UpdateChannel): void
   /**
+   * What is new in this version, once: on the launches after the app updated to a release
+   * whose notes name highlights, until the person dismisses it. Undefined otherwise, and
+   * when the notes can't be read, which the host tries again on a later launch. The host
+   * reads the notes from the release page, so the answer can take a few seconds. Absent
+   * from hosts that came before it. See `WhatsNew`.
+   */
+  whatsNew?(): Promise<WhatsNew | undefined>
+  /** Marks this version's `whatsNew` as seen, so no later launch offers it again. */
+  dismissWhatsNew?(): void
+  /**
+   * Opens the release page of the app's own version in the browser. The host builds the
+   * address from its own release repository; the page never names one.
+   */
+  openWhatsNewPage?(): void
+  /**
    * The version of the app, as a release is named. Absent from hosts that came before it.
    */
   version?(): Promise<string>
@@ -311,6 +326,51 @@ export const parsePortableState = (value: unknown): PortableState | undefined =>
   if (typeof run !== "string" || !portableRunPattern.test(run)) return undefined
   const parsed = parsePortableInstall(install)
   return parsed ? { portable: true, version, run, install: parsed } : undefined
+}
+
+/**
+ * What is new in the version the app updated to: its release's highlights, each a short
+ * title and one plain line, as the release notes give them (scripts/release-notes). One to
+ * `whatsNewHighlights` of them; text only, never Markdown or links.
+ */
+export type WhatsNew = {
+  readonly version: string
+  readonly highlights: readonly WhatsNewHighlight[]
+}
+
+export type WhatsNewHighlight = { readonly title: string; readonly line: string }
+
+/** The most highlights a release names. */
+export const whatsNewHighlights = 4
+/** The longest highlight title the page shows. */
+export const whatsNewTitleLength = 80
+/** The longest highlight line the page shows. */
+export const whatsNewLineLength = 240
+
+// A highlight's text as one plain line: control, format and separator characters become
+// spaces and runs of space collapse. Empty or too long, it is no highlight.
+const highlightText = (value: unknown, length: number): string | undefined => {
+  if (typeof value !== "string") return undefined
+  const text = value.replace(new RegExp(unwanted.source, "gu"), " ").replace(/\s+/g, " ").trim()
+  return text !== "" && Array.from(text).length <= length ? text : undefined
+}
+
+/**
+ * What is new when it is something the contract allows, else undefined. Highlights that
+ * break it are left out, and with none left there is nothing to show.
+ */
+export const parseWhatsNew = (value: unknown): WhatsNew | undefined => {
+  if (!isRecord(value) || !isVersion(value.version) || !Array.isArray(value.highlights))
+    return undefined
+  const highlights = value.highlights
+    .slice(0, whatsNewHighlights)
+    .flatMap((highlight: unknown): WhatsNewHighlight[] => {
+      if (!isRecord(highlight)) return []
+      const title = highlightText(highlight.title, whatsNewTitleLength)
+      const line = highlightText(highlight.line, whatsNewLineLength)
+      return title && line ? [{ title, line }] : []
+    })
+  return highlights.length > 0 ? { version: value.version, highlights } : undefined
 }
 
 /** A desktop notification about one terminal; see `DesktopBridge.showNotice`. */
