@@ -34,10 +34,16 @@ export const createCanvasVisit = () => {
     // A header's double-click: flies in to the terminal, or back from the one visited.
     begin,
     // Going to a terminal from outside the canvas, as from a notification: flies in as
-    // `begin` does, but never back, so a visit already at the terminal stays.
+    // `begin` does, but never back, so a visit already at (or flying to) the terminal stays.
+    // One asked during another flight takes over from it, its way back where that visit's was.
     enter(id: string, current: Viewport, destination: Viewport): Flight | null {
       if (origin?.id === id) return null
-      return begin(id, current, destination)
+      if (!active) return begin(id, current, destination)
+      const home = origin?.viewport ?? active.viewport
+      origin = { id, viewport: { ...home } }
+      active = { viewport: { ...destination } }
+      backRequested = false
+      return active
     },
     back(): Flight | null {
       if (active) {

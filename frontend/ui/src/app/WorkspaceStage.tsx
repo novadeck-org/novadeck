@@ -76,6 +76,25 @@ export const WorkspaceStage = memo(
         view,
         fromOtherView: opened.context === context && opened.view !== view,
       })
+    // A navigation that flies is for the view on screen as it was asked, here or in the
+    // session it brought to the front: once the view or the session changes, it is spent,
+    // and a view the session opens into later frames as it would.
+    const [flight, setFlight] = useState({
+      count: shellNavigation.count,
+      context,
+      view,
+      spent: false,
+    })
+    if (flight.count !== shellNavigation.count)
+      setFlight({ count: shellNavigation.count, context, view, spent: false })
+    else if (!flight.spent && (flight.context !== context || flight.view !== view))
+      setFlight({ ...flight, spent: true })
+    const flies =
+      shellNavigation.move === "fly" &&
+      flight.count === shellNavigation.count &&
+      !flight.spent &&
+      flight.context === context &&
+      flight.view === view
     // The terminal Focus shows: the selection, a kept preview, or the first terminal.
     const displayed = activeTerminal(terminals, selected, context, focusPreview)?.id
     const {
@@ -159,7 +178,7 @@ export const WorkspaceStage = memo(
               revealOnMount={revealCanvas}
               fitOnMount={opened.fromOtherView}
               fitOnNavigate={shellNavigation.move === "fit"}
-              flyOnNavigate={shellNavigation.move === "fly"}
+              flyOnNavigate={flies}
               onLayoutChange={setCanvasLayout}
               terminals={terminals}
               selected={selected}

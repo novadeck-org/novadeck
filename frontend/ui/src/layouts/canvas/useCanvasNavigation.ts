@@ -70,7 +70,11 @@ export const useCanvasNavigation = ({
     if (!node || node.hidden) return
     lastNavigation.current = navigation
     // A visit already at the terminal stays, so its way back is kept.
-    if (flyOnNavigate) return flyIn(selected)
+    if (flyOnNavigate) {
+      pointerCreated.current.delete(selected)
+      createdPositions.current.delete(selected)
+      return flyIn(selected)
+    }
     visit.clear()
     const duration = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 180
     if (pointerCreated.current.delete(selected)) return

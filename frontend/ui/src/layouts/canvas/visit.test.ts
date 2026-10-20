@@ -56,6 +56,17 @@ describe("a Canvas camera visit", () => {
     expect(visit.back()?.viewport).toEqual(origin)
   })
 
+  it("takes over a flight from one entered during it, keeping that visit's way back", () => {
+    const visit = createCanvasVisit()
+    const flight = visit.begin("one", origin, destination)!
+    const other = { x: 0, y: 0, zoom: 2 }
+    const taken = visit.enter("two", destination, other)!
+    expect(taken.viewport).toEqual(other)
+    expect(visit.finish(flight)).toBeNull()
+    visit.finish(taken)
+    expect(visit.back()?.viewport).toEqual(origin)
+  })
+
   it("leaves a terminal visited for another entered from outside, as a double-click does", () => {
     const visit = createCanvasVisit()
     visit.finish(visit.begin("one", origin, destination)!)
