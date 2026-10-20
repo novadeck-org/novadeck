@@ -24,7 +24,6 @@ import {
   killedForMemory,
   leadsOthers,
   murmurGists,
-  murmurHeadlines,
   noisyAgents,
   openedByAgent,
   othersOf,
@@ -260,14 +259,7 @@ const createWaitingActions = (verbs: DemoAgentVerbs): readonly [DemoAction, Demo
             after: turnMs,
             ...(murmur ? { gist: murmurGists[kind] } : {}),
           })
-        else
-          verbs.ask(
-            key,
-            terminal,
-            kind,
-            1,
-            murmur && kind !== "permission" ? murmurHeadlines[kind] : undefined,
-          )
+        else verbs.ask(key, terminal, kind, 1)
       })
     },
   }

@@ -1697,48 +1697,31 @@ describe("clearing titles", () => {
   })
 })
 
-const question: NoteDigest = {
-  kind: "question",
-  question: "Which database should the billing service use? API_KEY=hunter2 is set.",
-  choices: ["Postgres", "SQLite"],
-}
-const plan: NoteDigest = { kind: "plan", plan: "1. Split the billing service\n2. Add a queue" }
 const reply: NoteDigest = {
   kind: "reply",
-  reply: "I rounded the checkout totals per line. Which mode should I keep?",
+  reply:
+    "I rounded the checkout totals per line. Which mode should I keep? API_KEY=hunter2 is set.",
   failed: false,
 }
 
 describe("writing notes", () => {
-  it("answers a question or plan with a headline and a reply with a gist", async ({
-    resources,
-  }) => {
+  it("answers a reply with a gist", async ({ resources }) => {
     const { murmur, directory } = await installed(resources, { behaviour: "log" })
 
-    expect(await murmur.note(question, { terminal: "t" })).toEqual({
-      kind: "headline",
-      text: expect.stringMatching(/^Fake headline \d+$/),
-    })
-    expect(await murmur.note(plan, { terminal: "t" })).toMatchObject({ kind: "headline" })
     expect(await murmur.note(reply, { terminal: "t" })).toEqual({
       kind: "gist",
       text: expect.stringMatching(/^Fake gist \d+$/),
-      asks: false,
     })
 
     const asked = await requests(directory)
-    const names = asked
-      .slice(-3)
-      .map(
-        (request) =>
-          (request as unknown as { response_format: { json_schema: { name: string } } })
-            .response_format.json_schema.name,
-      )
-    expect(names).toEqual(["request_headline", "request_headline", "reply_gist"])
-    const limits = asked.slice(-3).map((request) => (request as { max_tokens?: number }).max_tokens)
-    expect(limits).toEqual([96, 96, 128])
-    // The worker redacted the question before the model saw it.
-    const text = asked.at(-3)?.messages[1]?.content ?? ""
+    const request = asked.at(-1) as unknown as {
+      response_format: { json_schema: { name: string } }
+      max_tokens?: number
+    }
+    expect(request.response_format.json_schema.name).toBe("reply_gist")
+    expect(request.max_tokens).toBe(128)
+    // The worker redacted the reply before the model saw it.
+    const text = asked.at(-1)?.messages[1]?.content ?? ""
     expect(text).not.toContain("hunter2")
     expect(text).toContain("API_KEY=[redacted]")
   })
@@ -1749,14 +1732,13 @@ describe("writing notes", () => {
     await context.murmur.set({ enabled: false })
     await context.murmur.set({ enabled: true })
 
-    expect(await context.murmur.note(question, { terminal: "t" })).toBeNull()
     expect(await context.murmur.note(reply, { terminal: "t" })).toBeNull()
   })
 
   it("does not run when murmur is off", async ({ resources }) => {
     const { murmur } = await setup(resources, { engine: false })
 
-    await expect(murmur.note(question, { terminal: "t" })).resolves.toBeUndefined()
+    await expect(murmur.note(reply, { terminal: "t" })).resolves.toBeUndefined()
   })
 })
 
@@ -1766,9 +1748,7 @@ const order = async (murmur: Murmur, jobs: readonly (readonly [string, NoteDiges
   const results = jobs.map(([name, input]) => {
     const options = { terminal: "t" }
     const result =
-      input.kind === "question" || input.kind === "plan" || input.kind === "reply"
-        ? murmur.note(input, options)
-        : murmur.describe(input, options)
+      input.kind === "reply" ? murmur.note(input, options) : murmur.describe(input, options)
     return result.then((value) => {
       finished.push(name)
       return value
@@ -1779,9 +1759,7 @@ const order = async (murmur: Murmur, jobs: readonly (readonly [string, NoteDiges
 }
 
 describe("the line of jobs", () => {
-  it("serves a headline before a gist before a title, and first come first served within", async ({
-    resources,
-  }) => {
+  it("serves a gist before a title, and first come first served within", async ({ resources }) => {
     const { murmur } = await installed(resources, { behaviour: "slow" })
 
     const finished = await order(murmur, [
@@ -1789,21 +1767,11 @@ describe("the line of jobs", () => {
       ["title 1", digest],
       ["gist 1", reply],
       ["title 2", digest],
-      ["headline 1", question],
       ["gist 2", reply],
-      ["headline 2", plan],
     ])
 
     // The one running is never pre-empted.
-    expect(finished).toEqual([
-      "running",
-      "headline 1",
-      "headline 2",
-      "gist 1",
-      "gist 2",
-      "title 1",
-      "title 2",
-    ])
+    expect(finished).toEqual(["running", "gist 1", "gist 2", "title 1", "title 2"])
   })
 
   it("lets a waiting job leave when its signal aborts, without holding the others", async ({
@@ -1813,20 +1781,18 @@ describe("the line of jobs", () => {
     const leaving = new AbortController()
     const finished: string[] = []
     const running = murmur.describe(digest, { terminal: "t" }).then(() => finished.push("running"))
-    const headline = murmur
-      .note(question, { terminal: "t", signal: leaving.signal })
-      .then((value) => {
-        finished.push("headline")
-        return value
-      })
+    const gist = murmur.note(reply, { terminal: "t", signal: leaving.signal }).then((value) => {
+      finished.push("gist")
+      return value
+    })
     const title = murmur.describe(digest, { terminal: "t" }).then(() => finished.push("title"))
     leaving.abort()
 
-    expect(await headline).toBeUndefined()
+    expect(await gist).toBeUndefined()
     await Promise.all([running, title])
-    expect(finished).toEqual(["headline", "running", "title"])
+    expect(finished).toEqual(["gist", "running", "title"])
     // The line is idle again.
-    expect(await murmur.note(plan, { terminal: "t" })).toMatchObject({ kind: "headline" })
+    expect(await murmur.note(reply, { terminal: "t" })).toMatchObject({ kind: "gist" })
   })
 })
 
@@ -1837,20 +1803,17 @@ describe("notes that keep being refused", () => {
     await context.murmur.set({ enabled: false })
     await context.murmur.set({ enabled: true })
 
-    expect(await context.murmur.note(question, { terminal: "a" })).toBeNull()
-    expect(await context.murmur.note(question, { terminal: "a" })).toBeNull()
+    expect(await context.murmur.note(reply, { terminal: "a" })).toBeNull()
+    expect(await context.murmur.note(reply, { terminal: "a" })).toBeNull()
     await fix(context)
 
-    // Two headlines refused in a row: that terminal's headlines are held off.
-    expect(await context.murmur.note(question, { terminal: "a" })).toBeUndefined()
-    // Its gists and titles are not, nor are another terminal's headlines.
-    expect(await context.murmur.note(reply, { terminal: "a" })).toMatchObject({ kind: "gist" })
+    // Two gists refused in a row: that terminal's gists are held off.
+    expect(await context.murmur.note(reply, { terminal: "a" })).toBeUndefined()
+    // Its titles are not, nor are another terminal's gists.
     expect(await context.murmur.describe(digest, { terminal: "a" })).toMatchObject({
       title: expect.any(String),
     })
-    expect(await context.murmur.note(question, { terminal: "b" })).toMatchObject({
-      kind: "headline",
-    })
+    expect(await context.murmur.note(reply, { terminal: "b" })).toMatchObject({ kind: "gist" })
   })
 })
 
@@ -1880,10 +1843,10 @@ describe("notes giving way", () => {
     await context.murmur.set({ enabled: false })
     await context.murmur.set({ enabled: true })
 
-    expect(await context.murmur.note(question, { terminal: "t" })).toBeUndefined()
+    expect(await context.murmur.note(reply, { terminal: "t" })).toBeUndefined()
     await fix(context)
 
-    expect(await context.murmur.note(plan, { terminal: "u" })).toBeUndefined()
+    expect(await context.murmur.note(reply, { terminal: "u" })).toBeUndefined()
     expect(await context.murmur.describe(digest, { terminal: "v" })).toBeUndefined()
   })
 
@@ -1916,7 +1879,6 @@ describe("a request too big for the context", () => {
     await context.murmur.set({ enabled: false })
     await context.murmur.set({ enabled: true })
 
-    expect(await context.murmur.note(question, { terminal: "a" })).toBeNull()
     expect(await context.murmur.note(reply, { terminal: "b" })).toBeNull()
     expect(await context.murmur.describe(digest, { terminal: "c" })).toBeNull()
 

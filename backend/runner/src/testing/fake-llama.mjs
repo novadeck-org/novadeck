@@ -125,21 +125,19 @@ const server = createServer(async (request, response) => {
         ? `${label} on ${device}`
         : `${label} ${completions}`
   const answer =
-    kind === "request_headline"
-      ? { headline: text("Fake headline", "Asks which database to use") }
-      : kind === "reply_gist"
-        ? { asks: false, gist: text("Fake gist", "Checkout totals now round per line") }
-        : {
-            // An agent's title (`agent_title`) carries the verdict; a shell's has only the title.
-            ...(kind === "agent_title" && { changed: !mode.includes("same") }),
-            title: mode.includes("project")
-              ? "Shopdeck login redirect"
-              : mode.includes("junk")
-                ? "!!!!!!!!"
-                : mode.includes("verbose")
-                  ? "Add retries with backoff to the payment client"
-                  : text("Fake title", "Webhook key rotation"),
-          }
+    kind === "reply_gist"
+      ? { gist: text("Fake gist", "Checkout totals now round per line") }
+      : {
+          // An agent's title (`agent_title`) carries the verdict; a shell's has only the title.
+          ...(kind === "agent_title" && { changed: !mode.includes("same") }),
+          title: mode.includes("project")
+            ? "Shopdeck login redirect"
+            : mode.includes("junk")
+              ? "!!!!!!!!"
+              : mode.includes("verbose")
+                ? "Add retries with backoff to the payment client"
+                : text("Fake title", "Webhook key rotation"),
+        }
   const content = mode.includes("garbage")
     ? "Sure! Here is a title for your terminal."
     : JSON.stringify(answer)

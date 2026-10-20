@@ -109,7 +109,7 @@ describe("demo turns", () => {
       const { turns, held, agent, chat } = open()
       vi.setSystemTime(1_000_000)
       turns.finish(key("06"), held(key("06")), "completed", {
-        gist: { text: "All good", asks: true },
+        gist: "All good",
       })
       expect(agent(key("06"))).toMatchObject({ working: true })
       await vi.advanceTimersByTimeAsync(demoTurnMs)
@@ -118,7 +118,6 @@ describe("demo turns", () => {
         lastTurn: {
           outcome: "completed",
           gist: "All good",
-          asks: true,
           at: 1_000_000 + demoTurnMs,
         },
       })

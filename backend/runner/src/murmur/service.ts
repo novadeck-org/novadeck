@@ -21,17 +21,8 @@ import {
 import { EngineError, engineFolder, exists, programFile } from "../engines/unpack.js"
 import { DomainError } from "../errors.js"
 import type { MurmurSettingsChange, MurmurVerdict } from "../workspaces/store.js"
-import type {
-  Description,
-  Describer,
-  Digest,
-  Gist,
-  Headline,
-  Input,
-  Note,
-  NoteDigest,
-} from "./describer.js"
-import { parseDescription, parseGist, parseHeadline, sharesContentWord } from "./description.js"
+import type { Description, Describer, Digest, Gist, Input, Note, NoteDigest } from "./describer.js"
+import { parseDescription, parseGist, sharesContentWord } from "./description.js"
 import { candidates, parseDevices, type Device } from "./devices.js"
 import { parseVmStat } from "./memory.js"
 import { Preparer } from "./prepare.js"
@@ -196,11 +187,11 @@ export const serverArguments = (model: string, device: string, port: number): st
   "--exit-with-stdin",
 ]
 
-// What each task makes, and the order the line serves them in: a headline is waited on in
-// front of the person, a gist is wanted soon, a title can wait.
-type Made = { title: Description; headline: Headline; gist: Gist }
-const priority: Record<Task, number> = { headline: 0, gist: 1, title: 2 }
-const parsers = { title: parseDescription, headline: parseHeadline, gist: parseGist } as const
+// What each task makes, and the order the line serves them in: a gist is wanted soon, a title
+// can wait.
+type Made = { title: Description; gist: Gist }
+const priority: Record<Task, number> = { gist: 0, title: 1 }
+const parsers = { title: parseDescription, gist: parseGist } as const
 
 // What the install check takes for a working device: a reply that is a JSON object with a
 // title of at least two letters in a row, since a broken backend writes junk the grammar still
@@ -972,12 +963,7 @@ export class Murmur implements Describer {
     digest: NoteDigest,
     options: { readonly signal?: AbortSignal; readonly terminal: string },
   ): Promise<Note | null | undefined> {
-    return this.write(
-      digest,
-      digest.kind === "reply" ? "gist" : "headline",
-      options.signal,
-      options.terminal,
-    )
+    return this.write(digest, "gist", options.signal, options.terminal)
   }
 
   // Waits for the turn of `task` on the line, and runs the job.
