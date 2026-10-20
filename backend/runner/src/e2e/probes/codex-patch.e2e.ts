@@ -41,7 +41,20 @@ describe.skipIf(!supported)("Codex patch (probe)", () => {
     )
     const t1 = await start(run, setup)
     await t1.submit("Patch it")
-    await t1.until("Patched.")
+    // Since 0.163.0 its sandbox asks before the shell's patch writes: the chat allows each
+    // request it asks, as the person would, until the turn says it patched.
+    await t1.poll(
+      async () => {
+        const request = (await t1.detail()).requests.find((each) => !each.answered)
+        const { dialog } = request ?? {}
+        const yes = dialog?.type === "choices" ? dialog.options[0] : undefined
+        if (request && dialog?.type === "choices" && yes?.label.startsWith("Yes"))
+          await t1.answer(request.ref, { dialog: dialog.id, type: "choice", option: yes.id })
+        return (await t1.screen()).includes("Patched.") ? true : undefined
+      },
+      "the patch to be applied",
+      60_000,
+    )
     await new Promise((resolve) => setTimeout(resolve, 1500))
     cpSync(join(run.sandbox.home, ".codex"), out, { recursive: true, dereference: false })
   })
