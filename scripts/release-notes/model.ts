@@ -55,9 +55,11 @@ export const timeouts = { release: 180_000, promote: 480_000 } as const
 
 /**
  * The most a mode lets the model write. A build's answer is short, and some providers of the
- * cheaper models cap a completion at 16,384.
+ * cheaper models cap a completion at 16,384. OpenRouter holds the cost of the whole limit
+ * before it answers, so a promotion's stays well under what a key limited to a dollar can
+ * hold at Opus's price, and still leaves room for its thinking and a long answer.
  */
-export const maxTokens = { release: 16_000, promote: 64_000 } as const
+export const maxTokens = { release: 16_000, promote: 32_000 } as const
 
 export const endpoint = "https://openrouter.ai/api/v1/chat/completions"
 const referer = "https://github.com/novadeck-org/novadeck"

@@ -17,7 +17,8 @@ Write only what a person using the app can see or feel. Leave out anything inter
 refactors, packaging, dependencies, tests, CI, the release pipeline, the website, the try
 demo and the try.novadeck.dev deploy, docs, and tooling for contributors. If a change has no
 visible effect, leave it out. If every change is like that, answer with empty lists. The chat
-view is behind a flag and is never announced: leave out anything about it.
+view is behind a flag and is never announced: leave out anything about it. Early builds and
+the update channels are for contributors only: describe updates without naming them.
 
 Name a feature by what a person sees in the app, not by the code that makes it: not "the
 Saves module" but "terminals come back after a restart". If you cannot tell what a person

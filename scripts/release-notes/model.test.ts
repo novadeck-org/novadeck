@@ -102,7 +102,7 @@ describe("the model call", () => {
     expect(build.sent[0]!.body.max_tokens).toBe(16_000)
     const promotion = client(() => json(ok()))
     await ask(promotion.fake, "promote", "1", items)
-    expect(promotion.sent[0]!.body.max_tokens).toBe(64_000)
+    expect(promotion.sent[0]!.body.max_tokens).toBe(32_000)
   })
 
   it("holds the area to a real enum in the schema it sends, with no bounds the providers refuse", async () => {
