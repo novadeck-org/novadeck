@@ -16,6 +16,7 @@
     "./samples": "./src/samples.ts",
     "./showcase/agents": "./src/showcase/agents.ts",
     "./showcase/simulation": "./src/showcase/simulation.ts",
+    "./source": "./src/source.ts",
     "./terminals": "./src/terminals.ts",
     "./turns": "./src/turns.ts",
     "./variants": "./src/variants.ts",
