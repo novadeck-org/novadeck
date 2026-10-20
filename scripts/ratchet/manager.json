@@ -8,7 +8,7 @@
   "lines": {
     "budget": 1669,
     "reason": "Transcript redaction: three Terminals options (transcriptMs, transcriptShutdownMs, redactor) with their Omit entries, the redactor's construction, the restart's save once the earlier screen is shown, and the restore's once its replay ends; the rest is in saving.ts.",
-    "from": "transcript-redaction PR 2"
+    "from": "#376"
   },
   "methods": 68,
   "slack": { "lines": 100, "methods": 5 }
