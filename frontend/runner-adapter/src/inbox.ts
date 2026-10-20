@@ -1,4 +1,3 @@
-import { agentWorking } from "@novadeck/core/agent-finish"
 import type { ChatAnswer, ConversationKey } from "@novadeck/core/conversation"
 import {
   emptyInbox,
@@ -9,7 +8,15 @@ import {
   type InboxSource,
   type InboxState,
 } from "@novadeck/core/inbox"
-import { dialogMs, inboxItems, reuse, type Asked } from "@novadeck/core/inbox-items"
+import {
+  answerFailure,
+  answerItem,
+  createInboxTracker,
+  finishOf,
+  keepInbox,
+  keyOf,
+} from "@novadeck/core/inbox-answers"
+import { dialogMs, inboxItems, type Asked } from "@novadeck/core/inbox-items"
 import type { MailState } from "@novadeck/core/messages"
 import { createStore, type Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
@@ -73,9 +80,6 @@ const askedOf = (detail: AgentDetail): readonly Asked[] => {
   }))
 }
 
-const reason = (error: unknown): string =>
-  error instanceof Error && error.message ? error.message : "That didn't take. Try again."
-
 export const createRunnerInbox = (
   streams: InboxStreams,
   mail: Store<MailState>,
@@ -100,23 +104,13 @@ export const createRunnerInbox = (
   }
   let unsubscribe: (() => void)[] = []
   const readings = new Map<string, Reading>()
-  const seen = new Set<string>()
-  // What the person answered, until the item goes; and why an answer didn't take.
-  const submitted = new Set<string>()
-  const inFlight = new Set<string>()
+  // What the person answered, what failed, and when an answer is given up on.
+  const tracker = createInboxTracker({ settleMs, changed: () => recompute(), track })
   // Keep recent replies until delivery is known, their terminal closes or observed history goes.
   const replies = new Map<
     string,
     { readonly thread: string; readonly source: InboxSource; readonly observed: boolean }
   >()
-  const failed = new Map<string, string>()
-  let due: ReturnType<typeof setTimeout> | undefined
-  // Per item, when its answer is given up on if the item still stands.
-  const settling = new Map<string, ReturnType<typeof setTimeout>>()
-  const clearSettling = (): void => {
-    for (const timer of settling.values()) clearTimeout(timer)
-    settling.clear()
-  }
   // Set once the backend stops: nothing opens or recomputes after it.
   let ended = false
 
@@ -218,20 +212,11 @@ export const createRunnerInbox = (
       caseless: currentPlatform() === "mac",
       longHoldMs,
     })
-    const ids = new Set(found.map((item) => item.id))
-    for (const id of seen) if (!ids.has(id)) seen.delete(id)
-    for (const id of submitted) if (!ids.has(id) && !inFlight.has(id)) submitted.delete(id)
-    const items = found.map((item) => (seen.has(item.id) ? { ...item, seen: true } : item))
-    const answering: Record<string, true> = Object.fromEntries(
-      [...inFlight].map((id) => [id, true]),
-    )
-    for (const item of items)
-      if (submitted.has(item.id) || (item.kind === "request" && item.request.answered))
-        answering[item.id] = true
+    const { items, answering, failed: shown } = tracker.view(found)
 
     // A held thread's release or stop is tracked with the messages, so a pane's counts too.
     const { releasing, failed: refused } = mail.getSnapshot()
-    const rest: Record<string, string> = Object.fromEntries(failed)
+    const rest: Record<string, string> = shown
     const threads = new Map(
       Object.values(mail.getSnapshot().terminals).flatMap((listing) =>
         listing.threads.map((thread) => [thread.id, thread] as const),
@@ -252,7 +237,7 @@ export const createRunnerInbox = (
         replies.delete(id)
       } else if (lost || !terminalOf(reply.source)) {
         const message = "Your reply was not delivered because the agent's session ended."
-        failed.set(id, message)
+        tracker.note(id, message)
         rest[id] = message
         replies.delete(id)
       } else if (!history && reply.observed) {
@@ -267,20 +252,11 @@ export const createRunnerInbox = (
         if (releasing[thread]) answering[item.id] = true
         if (refused[thread]) rest[item.id] = refused[thread]
       }
-    state.update((current) => {
-      const kept = reuse(current.items, items)
-      return kept === current.items &&
-        JSON.stringify(answering) === JSON.stringify(current.answering) &&
-        JSON.stringify(rest) === JSON.stringify(current.failed)
-        ? current
-        : { items: kept, answering, failed: rest }
-    })
+    state.update((current) => keepInbox(current, { items, answering, failed: rest }))
 
     // A request whose dialog is unread shows anyway once it has waited long enough, and a
     // hold once it has held long enough.
-    clearTimeout(due)
-    due = undefined
-    const waits = [
+    tracker.wake([
       ...Object.values(requests)
         .flat()
         .filter(({ request }) => request.dialog === null)
@@ -288,18 +264,11 @@ export const createRunnerInbox = (
       ...Object.values(mail.getSnapshot().terminals).map(({ waitsSince }) =>
         waitsSince == null ? 0 : waitsSince + longHoldMs - at,
       ),
-    ].filter((wait) => wait > 0)
-    if (waits.length > 0) due = setTimeout(recompute, Math.min(...waits))
+    ])
   }
 
   const find = (id: string): InboxItem | undefined =>
     state.getSnapshot().items.find((item) => item.id === id)
-
-  const fail = (id: string, message: string): void => {
-    submitted.delete(id)
-    failed.set(id, message)
-    recompute()
-  }
 
   const terminalOf = (source: InboxSource): TerminalMetadata | undefined =>
     binding?.workspace
@@ -308,55 +277,10 @@ export const createRunnerInbox = (
       ?.history.find((session) => session.id === source.workspaceSessionId)
       ?.state.roster.terminals.find((terminal) => terminal.id === source.terminalId)
 
-  // Runs an answer. With `settles`, an answer that took but left its item standing (a
-  // prompt that started no turn) gives the buttons back after a few seconds.
-  const call = (id: string, work: () => Promise<unknown>, settles = false): void => {
-    clearTimeout(settling.get(id))
-    settling.delete(id)
-    failed.delete(id)
-    submitted.add(id)
-    inFlight.add(id)
-    recompute()
-    track(work()).then(
-      () => {
-        inFlight.delete(id)
-        recompute()
-        if (!settles) return
-        settling.set(
-          id,
-          setTimeout(() => {
-            settling.delete(id)
-            if (!submitted.delete(id)) return
-            recompute()
-          }, settleMs),
-        )
-      },
-      (error: unknown) => {
-        inFlight.delete(id)
-        replies.delete(id)
-        fail(id, reason(error))
-      },
-    )
-  }
-
   const answer = (id: string, given: InboxAnswer): void => {
     const item = find(id)
     if (!item || !binding || state.getSnapshot().answering[id]) return
-    if (item.kind !== given.kind) return fail(id, "That answer isn't for this item.")
-    const key: ConversationKey = {
-      projectId: item.source.projectId,
-      workspaceSessionId: item.source.workspaceSessionId,
-      terminalId: item.source.terminalId,
-    }
-    if (item.kind === "request" && given.kind === "request")
-      return call(id, () => streams.answer(key, item.request.id, given.answer))
-    if (item.kind === "held" && given.kind === "held") {
-      failed.delete(id)
-      const { threadId } = item.held
-      if (given.action === "release") streams.release(threadId)
-      else streams.stop(threadId)
-      return
-    }
+    const key = keyOf(item)
     if (item.kind === "ask" && given.kind === "ask") {
       replies.delete(id)
       replies.set(id, {
@@ -365,68 +289,47 @@ export const createRunnerInbox = (
         observed: false,
       })
       if (replies.size > replyTrackingLimit) replies.delete(replies.keys().next().value!)
-      return call(id, () => streams.asks.answer(id, given.answer))
+      return tracker.call(id, () => streams.asks.answer(id, given.answer), {
+        onError: () => replies.delete(id),
+      })
     }
-    if (item.kind === "update" && given.kind === "update") {
-      if (item.update.type === "told") return call(id, () => streams.asks.read([id]))
-      failed.delete(id)
-      return binding.read([
-        {
-          context: `${item.source.projectId}/${item.source.workspaceSessionId}`,
-          terminalId: key.terminalId,
-        },
-      ])
-    }
-    if (item.kind === "trouble" && given.kind === "trouble") {
-      const { action } = given
-      if (action.type === "continue") return call(id, () => streams.send(key, "continue"), true)
-      if (action.type === "stop") return call(id, () => streams.interrupt(key), true)
-      if (action.type === "nudge") {
-        const terminal = terminalOf(item.source)
-        return call(
-          id,
-          async () => {
-            if (terminal && agentWorking(terminal)) await streams.interrupt(key)
-            await streams.send(key, action.text)
-          },
-          true,
-        )
-      }
-      // Novadeck resumes no agent in this backend: nothing to turn on or off.
-    }
+    if (item.kind === "update" && given.kind === "update" && item.update.type === "told")
+      return tracker.call(id, () => streams.asks.read([id]))
+    const { read } = binding
+    answerItem(tracker, item, given, {
+      request: (_, { request }, chat) => streams.answer(key, request.id, chat),
+      release: (thread) => streams.release(thread),
+      stop: (thread) => streams.stop(thread),
+      read,
+      send: (at, text) => streams.send(at, text),
+      interrupt: (at) => streams.interrupt(at),
+      terminal: () => terminalOf(item.source),
+    })
   }
 
   return {
     state,
     answer,
     see: (id) => {
-      if (seen.has(id) || !find(id)) return
-      seen.add(id)
-      recompute()
+      if (find(id)) tracker.see(id)
     },
     readAll: () => {
       // Include told updates hidden by a more urgent item on the same terminal.
       const tells = letters.filter((letter) => letter.content.kind === "tell").map(({ id }) => id)
       if (tells.length > 0) {
-        for (const id of tells) submitted.add(id)
+        tracker.submit(tells)
         recompute()
         for (let start = 0; start < tells.length; start += 1000) {
           const batch = tells.slice(start, start + 1000)
           track(streams.asks.read(batch)).catch((error: unknown) => {
-            for (const id of batch) fail(id, reason(error))
+            for (const id of batch) tracker.fail(id, answerFailure(error))
           })
         }
       }
       const updates = state
         .getSnapshot()
         .items.filter((item) => item.kind === "update" && item.update.type === "finished")
-      if (updates.length > 0 && binding)
-        binding.read(
-          updates.map((item) => ({
-            context: `${item.source.projectId}/${item.source.workspaceSessionId}`,
-            terminalId: item.source.terminalId,
-          })),
-        )
+      if (updates.length > 0 && binding) binding.read(updates.map(finishOf))
     },
     bind: (next) => {
       binding = next
@@ -460,22 +363,16 @@ export const createRunnerInbox = (
         binding = null
         for (const stop of unsubscribe) stop()
         unsubscribe = []
-        clearTimeout(due)
-        clearSettling()
+        tracker.reset()
         for (const id of readings.keys()) close(id)
-        seen.clear()
-        submitted.clear()
-        inFlight.clear()
         replies.clear()
-        failed.clear()
         state.update(() => emptyInbox)
       }
     },
     end: () => {
       ended = true
       stopLetters()
-      clearTimeout(due)
-      clearSettling()
+      tracker.stop()
       for (const id of readings.keys()) close(id)
     },
   }

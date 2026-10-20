@@ -814,7 +814,8 @@ App:
   detected question, an ask while its agent keeps working, a login request, the 5-hour limit, a usage limit Novadeck can't resume (no switch), a request whose dialog never read, a
   failed turn with no error, a held message whose sender is gone, a plan approval
   (its bypass-permissions yes a quiet link), a failed turn, a free-text ask, a permission
-  whose Deny is a plain no, a heads-up and a finished turn. "Fail the next answer" makes
+  whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
+  agent, a heads-up and a finished turn. "Fail the next answer" makes
   the next answer to any item fail, so its sheet shows why and keeps the item and draft for retry. Ask, Tell and Your reply
   also appear in the terminal's Messages pane under You; replies show queued and delivered states.
   "Stale next answer" makes the next answer report that the ask is no longer available,

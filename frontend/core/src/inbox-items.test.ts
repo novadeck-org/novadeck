@@ -671,4 +671,93 @@ describe("The Inbox's items", () => {
       expect(items.every((item) => item.kind !== "ask")).toBe(true)
     })
   })
+
+  describe("a letter", () => {
+    const attention: AgentStatus = { working: true, attention: { kind: "permission", count: 1 } }
+    const told = (id = "told-1"): InboxLetter =>
+      letter({ id, content: { kind: "tell", subject: "Preview ready", body: "Open the preview." } })
+
+    it("derives whether an ask waits from the agent's current working state", () => {
+      for (const agent of ["claude", "codex", "agy"] as const) {
+        for (const working of [true, false]) {
+          const items = inboxItems(
+            inputs(workspaceOf(agentTerminal(1, { working }, agent)), {
+              letters: [letter({ agent })],
+            }),
+          )
+          expect(items[0]).toMatchObject({ kind: "ask", stopped: !working, source: { agent } })
+        }
+      }
+    })
+
+    it("keeps an unread tell after its agent exits, with its original attribution", () => {
+      const exited: TerminalMetadata = {
+        ...agentTerminal(1),
+        state: "exited",
+        exitCode: 0,
+        signal: null,
+      }
+      const items = inboxItems(inputs(workspaceOf(exited), { letters: [letter(), told()] }))
+      expect(items).toHaveLength(1)
+      expect(items[0]).toMatchObject({
+        id: "told-1",
+        kind: "update",
+        stopped: false,
+        source: { agent: "claude", handle: "moth" },
+        update: { type: "told" },
+      })
+      expect(inboxItems(inputs(workspaceOf(), { letters: [told()] }))).toEqual([])
+    })
+
+    it("keeps a current permission or plan ahead of an older stopped MCP ask", () => {
+      for (const kind of ["permission", "plan"] as const) {
+        const request = asked("gate", 8000)
+        const waiting = workspaceOf(
+          agentTerminal(1, { working: false, attention: { kind, count: 1 } }),
+        )
+        const items = inboxItems(
+          inputs(waiting, {
+            letters: [letter()],
+            requests: { "01": [{ ...request, request: { ...request.request, kind } }] },
+          }),
+        )
+        expect(items.map(({ id }) => id)).toEqual(["request:gate"])
+      }
+    })
+
+    it("keeps a gate's unread dialog grace instead of showing an MCP ask", () => {
+      const waiting = workspaceOf(agentTerminal(1, attention))
+      for (const requests of [{}, { "01": [asked("gate", 9500, null)] }]) {
+        expect(inboxItems(inputs(waiting, { letters: [letter()], requests }))).toEqual([])
+      }
+    })
+
+    it("keeps the oldest of two stopped questions", () => {
+      const question = asked("question", 8000)
+      const waiting = workspaceOf(
+        agentTerminal(1, { working: false, attention: { kind: "question", count: 1 } }),
+      )
+      const items = inboxItems(
+        inputs(waiting, {
+          letters: [letter()],
+          requests: { "01": [{ ...question, request: { ...question.request, kind: "question" } }] },
+        }),
+      )
+      expect(items.map(({ id }) => id)).toEqual(["letter-1"])
+    })
+
+    it("ignores letters for terminals outside their recorded ownership context", () => {
+      for (const change of [
+        { terminalId: "closed" },
+        { projectId: "elsewhere" },
+        { workspaceSessionId: "other" },
+        { handle: "old-handle" },
+        { agent: "codex" as const },
+      ]) {
+        expect(
+          inboxItems(inputs(workspaceOf(agentTerminal(1)), { letters: [letter(change)] })),
+        ).toEqual([])
+      }
+    })
+  })
 })

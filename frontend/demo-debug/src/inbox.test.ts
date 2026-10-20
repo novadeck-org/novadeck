@@ -1,4 +1,5 @@
-import { createDemoInbox, demoHiddenCommand, demoInboxIds } from "@novadeck/demo/inbox"
+import { createDemoInbox } from "@novadeck/demo/inbox"
+import { demoHiddenCommand, demoInboxIds } from "@novadeck/demo/inbox-fixtures"
 import { demoSeed } from "@novadeck/demo/samples"
 import { vi } from "vitest"
 
@@ -48,6 +49,18 @@ describe("the debug panel's Inbox group", () => {
     const [added] = inbox.state.getSnapshot().items
     expect(added?.kind).toBe("trouble")
     expect(added?.at).toBeGreaterThan(1_000_000_000_000)
+  })
+
+  it("adds messages held long behind a dialog, for the doorbell's trouble sheet", () => {
+    const inbox = createDemoInbox(1, [])
+    run(inbox, "Messages held long")
+    const [item] = inbox.state.getSnapshot().items
+
+    expect(item).toMatchObject({
+      id: demoInboxIds.waits,
+      kind: "trouble",
+      trouble: { type: "waits", waits: "dialog", count: 2 },
+    })
   })
 
   it("adds the next kind that is missing, until every kind is there", () => {
