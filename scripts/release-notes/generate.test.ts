@@ -250,7 +250,7 @@ describe("the notes of a promotion", () => {
     expect(generated.notes.highlights).toHaveLength(1)
   })
 
-  it("counts the fixes no line names, and covers only what is newer than the stable release", async () => {
+  it("covers only what is newer than the stable release, or everything before one exists", async () => {
     const after = sources("v0.0.150")
     await generatePromote("v0.0.152", after, answer({ highlights: [], changes: [] }), repo)
     expect(after.ranges).toEqual(["v0.0.150..v0.0.152"])

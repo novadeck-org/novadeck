@@ -46,8 +46,7 @@ speedup a person would have noticed; leave the small ones out, they are counted 
 In release mode, the changes are those of one prerelease. Answer with `highlights` empty
 and put each visible change in `changes`.
 
-In promote mode, the changes are every change since the last stable release, from several
-prereleases. Judge each one yourself. Pick one to four highlights, the changes
-a person would most want to hear about, each with a title and a line. Put everything else
-visible in `changes`, grouped by area, without repeating a highlight there. Merge changes
-that say the same thing to a person into one line.
+In promote mode, the changes are every change since the last stable release, or since the
+start when there is none. Pick one to four highlights, the changes a person would most want
+to hear about, each with a title and a line. Put everything else visible in `changes`,
+grouped by area, without repeating a highlight there.

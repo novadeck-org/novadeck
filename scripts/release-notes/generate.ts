@@ -48,8 +48,9 @@ const sorted = (tags: readonly string[]): string[] =>
   tags.filter((tag) => versionOf(tag)).toSorted(compare)
 
 /**
- * The notes for these items, as the model wrote them and the checks left them. Throws `Skip` when there is no answer
- * to use; an answer of empty lists is an answer, of a release with nothing to see.
+ * The notes for these items, as the model wrote them and the checks left them. Throws
+ * `Skip` when there is no answer to use; an answer of empty lists is an answer, of a
+ * release with nothing to see.
  */
 const compose = async (
   kind: "release" | "promote",

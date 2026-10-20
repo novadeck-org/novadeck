@@ -39,7 +39,7 @@ export const skippedSummary = (mode: string, tag: string, skip: Skip): string =>
  * `node scripts/release-notes/main.ts release <tag> <out file>`: the body for one prerelease,
  * from the commits since the release before it.
  * `node scripts/release-notes/main.ts promote <tag> <out file>`: the body for a promotion,
- * covering every release since the latest stable one.
+ * covering every change since the latest stable one.
  *
  * Whatever goes wrong with the model, its answer or `gh` writes no file and still exits 0,
  * saying why: the workflows edit a release only when the file exists, so it keeps its body.
