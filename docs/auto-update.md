@@ -534,12 +534,12 @@ launch marks nothing; an install from before the version was kept counts as upda
 data folder holds the runner's `workspace.sqlite`. The mark is settled, and the version
 recorded as `whatsNewSettled`, when the person dismisses the card or the release is read and
 has nothing to show (no block, no highlights, or GitHub's own JSON 404); nothing at or below
-a settled version is offered again. A failed read (offline, timeout, 403, 429, 5xx, or an
-answer that is not that release) keeps the mark for a later launch. A prerelease whose notes
-have no highlights yet is read at most once a day (`whatsNewCheckedAt`), as its promotion
-writes them onto the same tag. A read that fails for a reason that may pass is tried once
-more two minutes later in the same launch, and the page's one request waits for it. Builds that look for no updates (version 0.0.0, no release
-repository) never offer a card.
+a settled version is offered again. A read that fails for a reason that may pass (offline,
+timeout, 403, 429, 5xx, or an answer that is not that release) is tried once more two minutes
+later in the same launch, and the page's one request waits for it; if that fails too, the mark
+stays for a later launch. A prerelease whose notes have no highlights yet is read at most once
+a day (`whatsNewCheckedAt`), as its promotion writes them onto the same tag. Builds that look
+for no updates (version 0.0.0, no release repository) never offer a card.
 
 ## Release assets
 

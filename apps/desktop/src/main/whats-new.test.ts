@@ -260,6 +260,23 @@ describe("what is new in the version", () => {
     })
   })
 
+  context("when the block names another version", () => {
+    const other = { ...notes([highlight]), version: "0.4.2" }
+
+    it("takes it for no block and settles, as the tag matched", async () => {
+      const run = kept(async () => release(notesBlock(other)))
+      expect(await run.whatsNew()).toBeUndefined()
+      expect(run.state.pending).toBeUndefined()
+      expect(run.urls).toHaveLength(1)
+    })
+
+    it("waits for a prerelease's promotion, which may write the right one", async () => {
+      const run = kept(async () => release(notesBlock(other), 200, true))
+      expect(await run.whatsNew()).toBeUndefined()
+      expect(run.state.pending).toBe("0.5.0")
+    })
+  })
+
   context("when the release has nothing to show", () => {
     it("clears the mark for a release without highlights, without a block, or that is gone", async () => {
       const answers = [

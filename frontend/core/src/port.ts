@@ -299,7 +299,8 @@ export type BackendFields = {
   // Optional. What is new in the version the desktop app updated to. `get` is asked once,
   // after the workspace is up, and answers the release's highlights while the person has
   // not dismissed them, else undefined (also when the notes can't be read, which the host
-  // tries again on a later launch); it can take a few seconds. `dismiss` marks them seen,
+  // tries once more a couple of minutes later in the same launch, then on a later one); it
+  // can take a couple of minutes. `dismiss` marks them seen,
   // so no later launch offers them again; `openPage` opens the release page. Absent where
   // the app does not say, as in a browser.
   readonly whatsNew?: {

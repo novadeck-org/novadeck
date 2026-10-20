@@ -77,9 +77,10 @@ export type DesktopBridge = {
   /**
    * What is new in this version, once: on the launches after the app updated to a release
    * whose notes name highlights, until the person dismisses it. Undefined otherwise, and
-   * when the notes can't be read, which the host tries again on a later launch. The host
-   * reads the notes from the release page, so the answer can take a few seconds. Absent
-   * from hosts that came before it. See `WhatsNew`.
+   * when the notes can't be read, which the host tries once more two minutes later in the
+   * same launch and then on a later launch. The host reads the release from GitHub's API,
+   * so the answer can take a couple of minutes. Absent from hosts that came before it.
+   * See `WhatsNew`.
    */
   whatsNew?(): Promise<WhatsNew | undefined>
   /** Marks this version's `whatsNew` as seen, so no later launch offers it again. */

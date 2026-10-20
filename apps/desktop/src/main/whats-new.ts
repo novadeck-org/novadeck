@@ -103,7 +103,11 @@ const readRelease = async (
   const body = field("body")
   if (field("tag_name") !== `v${version}` || (typeof body !== "string" && body !== null))
     return "later"
-  const notes = typeof body === "string" ? readNotesBlock(body) : undefined
+  const block = typeof body === "string" ? readNotesBlock(body) : undefined
+  // A block that names another version, as a body copied from an earlier release would
+  // carry, is not this release's notes. It is read as no block: the tag matched, so this
+  // is the release and trying again would find the same body.
+  const notes = block?.version === version ? block : undefined
   const shown = parseWhatsNew({
     version,
     highlights: notes?.highlights.map(({ title, line }) => ({ title, line })) ?? [],

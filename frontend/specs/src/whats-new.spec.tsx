@@ -8,6 +8,7 @@ import {
   whatsNewAsked,
   whatsNewCalls,
 } from "./support/backend"
+import { findDialog, pressShortcut } from "./support/keyboard"
 import {
   commandInput,
   expectStaysAbsent,
@@ -229,6 +230,38 @@ describe("the what's-new card", () => {
       const list = card().element().querySelector(".whats-new-list")!
       expect(list.scrollHeight).toBeLessThanOrEqual(list.clientHeight)
       expect(list.hasAttribute("tabindex")).toBe(false)
+    })
+
+    it("waits while a dialog is open, and returns once it closes", async () => {
+      await openWorkspace("/?update=whatsNew")
+      await expect.element(card()).toBeVisible()
+      await pressShortcut("find")
+      await expect.element(findDialog()).toBeVisible()
+      await expect.element(card()).not.toBeInTheDocument()
+      await press("{Escape}")
+      await expect.element(findDialog()).not.toBeInTheDocument()
+      await expect.element(card()).toBeVisible()
+    })
+
+    it("waits while a portable copy's card is open, and returns once it is dismissed", async () => {
+      await openWorkspace("/?update=whatsNew&portable=no-release")
+      const portable = page.getByRole("region", { name: "Portable copy" })
+      await expect.element(portable).toBeVisible()
+      await expect.element(card()).not.toBeInTheDocument()
+      await portable.getByRole("button", { name: "Dismiss" }).click()
+      await expect.element(portable).not.toBeInTheDocument()
+      await expect.element(card()).toBeVisible()
+    })
+
+    it("is dismissed by Enter on the ×, and focus goes to the terminal", async () => {
+      await openWorkspace("/?update=whatsNew")
+      await terminalTab("Checkout review").click()
+      closeButton().element().focus()
+      await expect.element(closeButton()).toHaveFocus()
+      await press("{Enter}")
+      await expect.element(card()).not.toBeInTheDocument()
+      expect(whatsNewCalls().dismissed).toBe(1)
+      await expect.element(commandInput("Checkout review")).toHaveFocus()
     })
 
     it("gives the corner to the sandbox notice while that is open, and comes back", async () => {
