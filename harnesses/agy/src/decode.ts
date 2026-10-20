@@ -232,9 +232,13 @@ const artifact = (
     args?: Record<string, unknown>
   }
   const metadata = args?.ArtifactMetadata as { RequestFeedback?: unknown } | undefined
-  if (name !== "write_to_file" || metadata?.RequestFeedback !== true || text(payload.error))
+  if (
+    (name !== "write_file" && name !== "write_to_file") ||
+    metadata?.RequestFeedback !== true ||
+    text(payload.error)
+  )
     return []
-  const path = absolute(args?.TargetFile)
+  const path = absolute(args?.Path ?? args?.TargetFile)
   const folder = absolute(payload.artifactDirectoryPath)
   if (!path || !folder || extname(path) !== ".md") return []
   const inside = relative(folder, path)
@@ -242,12 +246,18 @@ const artifact = (
   return [{ type: "plan-observed", ...base, actor: null, plan: { kind: "file", path } }]
 }
 
-// The tools that write a file, each naming it as TargetFile in its PostToolUse (probed
-// 2026-10-15, 1.2.14 and 1.3.5: replace_file_content is its only edit tool; a model is
-// offered no multi_replace_file_content).
-const writers: ReadonlySet<string> = new Set(["write_to_file", "replace_file_content"])
+// The tools that write a file, each naming it in its PostToolUse: write_file and edit_file
+// as Path from 1.4 (probed 2026-10-20, 1.4.3), write_to_file and replace_file_content as
+// TargetFile before (probed 2026-10-15, 1.2.14 and 1.3.5: replace_file_content is its only
+// edit tool; a model is offered no multi_replace_file_content).
+const writers: ReadonlySet<string> = new Set([
+  "write_file",
+  "edit_file",
+  "write_to_file",
+  "replace_file_content",
+])
 
-// A file it wrote, as its write_to_file or replace_file_content call names it.
+// A file it wrote, as its write or edit call names it.
 const written = (
   base: { agent: "agy"; sessionId: string; instance: string | null; startedAt: number },
   payload: Report["payload"],
@@ -256,7 +266,7 @@ const written = (
     name?: unknown
     args?: Record<string, unknown>
   }
-  const path = absolute(args?.TargetFile)
+  const path = absolute(args?.Path ?? args?.TargetFile)
   if (typeof name !== "string" || !writers.has(name) || !path || text(payload.error)) return []
   return [{ type: "file-touched", ...base, actor: null, path }]
 }

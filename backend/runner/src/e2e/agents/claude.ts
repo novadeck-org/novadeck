@@ -123,10 +123,23 @@ export const claude: AgentSetup = {
     ],
     approved: /User has approved your plan/,
   },
-  // Escape before any reply came drops the turn and puts its prompt back in the box,
-  // between the box's rules, with no word of the interruption (probed 2026-10-02, 2.1.287).
+  // Escape before any reply came drops the turn. Up to 2.1.287 it put its prompt back in the
+  // box, between the box's rules, with no word of the interruption (probed 2026-10-02); from
+  // 2.1.304 the prompt stays in the chat, the box empty, and it says so under it, as
+  // Antigravity does, a no-break space after the `⎿` (seen 2026-10-20).
   interrupted: (prompt) =>
-    new RegExp(`─\\n❯\\s+${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n─`),
+    new RegExp(
+      `─\\n❯\\s+${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n─|⎿\\s+Interrupted · What should Claude do instead\\?`,
+    ),
+  // A message queued behind a running turn has its UserPromptSubmit hooks run as it is
+  // queued, one message at a time, the spinner saying "running UserPromptSubmit hook"
+  // meanwhile; "ctrl+x ctrl+s to send now" stands under the latest message through them.
+  // An Escape before then sends what is through as one turn and the rest as another
+  // (probed 2026-10-20, 2.1.304 and 2.1.287, a hook made slow).
+  queued: (prompt) =>
+    new RegExp(
+      `❯\\s+${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n\\s*ctrl\\+x ctrl\\+s to send now`,
+    ),
   // Esc-Esc opens its Rewind picker, a list with no text field, which swallows a paste
   // whole and stays as it was (probed 2026-10-02, 2.1.287). With nothing yet to go back to
   // it says so instead (seen on Windows CI, a session just interrupted).

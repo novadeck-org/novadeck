@@ -105,6 +105,50 @@ describe("A terminal's taskbar", () => {
   })
 })
 
+describe("The pane in Canvas", () => {
+  it("hangs beside its terminal's window, not clipped by it", async () => {
+    await openShowcase("canvas")
+    await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
+    const pane = companionPane("Build Studio")
+    await expect.element(pane).toBeVisible()
+    // What's drawn just inside the pane's corner is the pane, not the board under it.
+    await expect
+      .poll(() => {
+        const box = pane.element().getBoundingClientRect()
+        return pane.element().contains(document.elementFromPoint(box.left + 24, box.top + 24))
+      })
+      .toBe(true)
+  })
+
+  it("belongs to its terminal's region, for assistive technology", async () => {
+    await openShowcase("canvas")
+    await expect.element(companionPane("Build Studio")).toBeVisible()
+    const sheet = companionPane("Build Studio").element().closest(".plan-attached")!
+    expect(terminal("Build Studio").element().contains(sheet)).toBe(false)
+    expect(terminal("Build Studio").element().getAttribute("aria-owns")).toBe(sheet.id)
+  })
+})
+
+describe("Escape in the pane", () => {
+  for (const view of ["grid", "canvas"] as const)
+    it(`hides it and puts focus back on the taskbar, in ${view === "grid" ? "Grid" : "Canvas"}`, async () => {
+      await openShowcase(view)
+      if (view === "grid") await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
+      const pane = companionPane("Build Studio")
+      await expect.element(pane).toBeVisible()
+      // An open tooltip takes the first Escape to close itself: none is, with the pointer
+      // on the pane's page.
+      await userEvent.hover(pane)
+      await expect.poll(() => document.querySelector('[role="tooltip"]')).toBeNull()
+      pane.getByRole("button", { name: "Undock to its own window" }).element().focus()
+      await userEvent.keyboard("{Escape}")
+      await expect.poll(() => pane.query()).toBeNull()
+      await expect
+        .poll(() => taskbar("Build Studio").element().contains(document.activeElement))
+        .toBe(true)
+    })
+})
+
 describe("An image", () => {
   it("scrolls under its header, which stays in view", async () => {
     await openShowcase()

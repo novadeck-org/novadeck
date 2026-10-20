@@ -97,7 +97,8 @@ const variants: readonly {
 for (const setup of setups) {
   describe.skipIf(!supported || !probing)(`probe: queued message and Stop in ${setup.name}`, () => {
     const it = e2e(setup)
-    it("each variant", async ({ e2e: run }) => {
+    // Its 24 variants take minutes in all, past a test's default timeout.
+    it("each variant", { timeout: 900_000 }, async ({ e2e: run }) => {
       let held = gate()
       run.model.use(
         async (call) => {

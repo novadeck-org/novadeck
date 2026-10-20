@@ -13,7 +13,8 @@ import { gemini } from "../model/gemini.js"
 import { asked, type Call, type Reply, type Rule } from "../model/script.js"
 import { own, start } from "../scenarios.js"
 
-// PROBE, not a regression test: Antigravity's edit tool (replace_file_content), its
+// PROBE, not a regression test: Antigravity's edit tool (edit_file from 1.4,
+// replace_file_content before), its
 // "Accept this file edit?" confirmation, and the hooks it fires (does PostToolUse name the
 // file?), plus the tools the model is offered. Everything it sees goes to a folder
 // (AGY_PROBE_OUT, default <tmp>/agy-probe), one file per scenario.
@@ -267,17 +268,10 @@ const capture = async (
 }
 
 const edit = (cwd: string) =>
-  calls("Edit one", "replace_file_content", {
-    TargetFile: join(cwd, "probe.txt"),
-    TargetContent: "hello",
-    ReplacementContent: "goodbye",
-    StartLine: 1,
-    EndLine: 1,
-    AllowMultiple: false,
-    Instruction: "Change hello",
-    Description: "Change hello",
-    toolSummary: "Edit",
-    toolAction: "Editing",
+  calls("Edit one", "edit_file", {
+    Path: join(cwd, "probe.txt"),
+    Target: "hello",
+    Replacement: "goodbye",
   })
 
 describe.skipIf(!supported)("Antigravity edit tools (probe)", () => {
@@ -300,19 +294,27 @@ describe.skipIf(!supported)("Antigravity edit tools (probe)", () => {
   })
 
   // Its edit tool asks "Accept this file edit?" (probed 2026-10-15, 1.2.14 and 1.3.5), whose
-  // PostToolUse names the file as TargetFile; it offers no multi_replace_file_content.
+  // PostToolUse names the file as TargetFile; it offers no multi_replace_file_content. From
+  // 1.4 the tool is edit_file, naming the file as Path.
   it("1-replace", async ({ e2e: r }) => {
     writeFileSync(join(r.sandbox.project, "probe.txt"), "hello\n")
     r.model.use(edit(r.sandbox.project), after("Done."))
     const probe = prepare(r)
     const t1 = await start(r, agy)
     await t1.submit("Edit one")
+    let seen = false
     for (let i = 0; i < 10; i++) {
       // eslint-disable-next-line no-await-in-loop -- Polled one look after another.
       await sleep(1500)
       // eslint-disable-next-line no-await-in-loop -- As above.
       const shown = await t1.screen()
-      if (/> 1\. Yes, accept this change/.test(shown)) t1.press("1")
+      if (/> 1\. Yes, accept this change/.test(shown)) {
+        // Its confirmation, kept once, before it is answered.
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        if (!seen) await capture("1-replace", "pending", t1, probe, { sizes: false })
+        seen = true
+        t1.press("1")
+      }
       if (shown.includes("Done.")) break
     }
     await sleep(1500)

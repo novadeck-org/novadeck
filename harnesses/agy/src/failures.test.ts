@@ -82,6 +82,16 @@ describe("Antigravity's edit tools", () => {
     expect(touched("write_to_file")).toMatchObject([{ path: "/w/a.ts" }])
   })
 
+  it("name the file 1.4's write_file and edit_file wrote, as Path", () => {
+    const named = (name: string) =>
+      hook("PostToolUse", { toolCall: { name, args: { Path: "/w/b.ts" } } }).filter(
+        ({ type }) => type === "file-touched",
+      )
+    expect(named("write_file")).toMatchObject([{ path: "/w/b.ts", actor: null }])
+    expect(named("edit_file")).toMatchObject([{ path: "/w/b.ts" }])
+    expect(named("read_file")).toEqual([])
+  })
+
   it("name none for a read, a relative path or a call that failed", () => {
     expect(touched("view_file")).toEqual([])
     expect(

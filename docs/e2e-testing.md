@@ -139,9 +139,9 @@ again without it. These tests skip anywhere else. Its traces upload as
 
 | Harness     | Published as                                          | Version |
 | ----------- | ----------------------------------------------------- | ------- |
-| Claude Code | npm, `@anthropic-ai/claude-code`                      | 2.1.287 |
+| Claude Code | npm, `@anthropic-ai/claude-code`                      | 2.1.304 |
 | Codex       | npm, `@openai/codex`                                  | 0.163.0 |
-| Antigravity | an archive, by its address and SHA-512 (Linux x86-64) | 1.2.14  |
+| Antigravity | an archive, by its address and SHA-512 (Linux x86-64) | 1.4.3   |
 
 `install.ts` installs each harness into `<cache>/<harness>-<version>`, staging it first
 in a folder with a random name so an interrupted install never counts as done, and
@@ -655,7 +655,7 @@ for (const setup of setups) {
   contract test: one conversation per harness, whose prompts have the fake model call the
   harness's own tools (Claude Code: Bash, Read, Write and Novadeck's `send`; Codex:
   `exec_command` as a command and as an `apply_patch` heredoc, and `send`; Antigravity:
-  `run_command`, `view_file`, `write_to_file` and `send`), the chat allowing whatever
+  `run_command`, `read_file`, `write_file` and `send`), the chat allowing whatever
   permission each asks (`agents.answer`). Each prompt waits for its turn to be recorded
   as completed and its requests to clear. Then `t.transcript()` must hold every scripted call, its `run`
   of the kind the harness's `describe` gives (a Codex heredoc patch may read as a run or
@@ -875,6 +875,11 @@ versions it names). That's where they pay:
 
 A failed night, probes included, opens the "Nightly E2E is failing" issue or adds to it,
 and the first green night closes it (`.github/workflows/nightly.yml`, `scripts/nightly`).
+Each such report also carries a model's "Likely cause", read from the failed tests' errors
+and the harness versions each job installed, through OpenRouter as the release notes ask
+(`scripts/openrouter`). It is labelled as a model's, and without the key or an answer the
+report goes without it. A dispatch of Nightly Report with a run's id shows the report it
+would make, as a dry run.
 
 Two of them reach into the runner through casts typecheck can't see past:
 `interrupt-held-reply` wraps `bindings.applyFact`, and `agy-stop-boundary` wraps
@@ -969,8 +974,10 @@ stops going through a member a probe wraps.
     those whose first user turn holds it. The root's Stop lists it among its running
     `background_tasks`, and its end starts a turn by itself, with a task notification.
   - _Escape_: `\x1b`. Its Esc-Esc window is about 800 ms (see "Escape on its own" above).
-    Escape before any reply came drops the turn with no word of it and puts the prompt
-    back in its box, between the box's rules (`interrupted`).
+    Escape before any reply came drops the turn. To 2.1.287 it did so with no word of
+    it and put the prompt back in its box, between the box's rules; from 2.1.304 the
+    prompt stays in the chat, the box empty, with "⎿ Interrupted · What should Claude do
+    instead?" under it (`interrupted` takes either).
   - _Folder trust_: "Is this a project you created or one you trust?" with `❯ No, exit`
     selected; Down selects `❯ Yes, I trust this folder`. About 130 ms after it first
     shows, it draws the question again with `❯ No, exit` selected anew, undoing a Down
@@ -1007,6 +1014,18 @@ stops going through a member a probe wraps.
   calls go to the same endpoint, streamed. A `UserPromptSubmit` hook's
   `additionalContext` arrives as a `system` message just after the user's message, and
   the dialect folds it into that user turn.
+- **Deferred tools.** From 2.1.304, Claude Code uses tool search behind any
+  `ANTHROPIC_BASE_URL`: 2.1.287 turned it off for an address not Anthropic's own, as
+  the fake model's is. MCP tools, Novadeck's among them, and some of its own then come
+  only as names, in a reminder ("The following deferred tools are now available via
+  ToolSearch…"), until the model loads their schemas with its `ToolSearch` tool. Where a
+  call names any, the dialect first answers with one `ToolSearch` call selecting them all,
+  as a model would before calling one, without asking the rules. Claude Code answers it
+  with a `tool_reference` for each and "Tool loaded.", and offers them from then on. The
+  rules see the next call with that exchange left out, every tool offered, so a scenario
+  reads the conversation as it was before tools were deferred. A server that joins
+  later, as a scenario's own MCP server may, has its tools loaded the same way when they
+  are named.
 
 ## Codex against the fake model
 
@@ -1087,7 +1106,7 @@ stops going through a member a probe wraps.
   person resume the parent. No command line forks a conversation, so it has no
   `fork.picker`.
   `AGY_CLI_DISABLE_AUTO_UPDATE` stops it updating itself.
-- **What it calls.** 1.2.14 streams each model call from
+- **What it calls.** 1.4.3 streams each model call from
   `POST /v1beta/models/<model>:streamGenerateContent?alt=sse`; its session's title is a
   call with no tools, so `side`. MCP tools are lazy: it offers one `call_mcp_tool` and
   lists Novadeck's tools in its system prompt, so the dialect offers them by the names
@@ -1097,10 +1116,11 @@ stops going through a member a probe wraps.
   what makes it do so is unknown): its system prompt lists them under `Eager:`, it
   declares each as a tool of its own and offers no `call_mcp_tool`. A call to one then
   needs a `toolSummary` beside its arguments and no `toolAction`, which Antigravity
-  refuses as invalid arguments otherwise; the dialect reads either listing and gives
-  each call what it needs. A server's `tools` entry with `{ "eager": true }` for each of
-  its tools in its `mcp_config.json` loaded them eagerly in every run that had it, which
-  reproduces it. A `PreInvocation` hook's message arrives as a user content just after
+  refuses as invalid arguments otherwise, while a `call_mcp_tool` takes nothing but
+  `ServerName`, `ToolName` and `Arguments` (1.4.3); the dialect reads either listing and
+  gives each call what it needs. A server's `tools` entry with `{ "eager": true }` for
+  each of its tools in its `mcp_config.json` loaded them eagerly in every run that had
+  it, which reproduces it (1.2.14 and 1.4.3). A `PreInvocation` hook's message arrives as a user content just after
   the prompt.
 - **Refused tunnels.** Its feature flags (`antigravity-unleash.goog`) and telemetry
   (`play.googleapis.com`) go through the proxy, which refuses them; they are its setup's

@@ -299,7 +299,7 @@ export const fixtures: readonly Fixture[] = [
     agent: "Antigravity",
     transcripts: agy,
     tools: true,
-    count: 6,
+    count: 7,
     skipped: [],
     extract: () => vocabulary(agyVocabulary()),
   },

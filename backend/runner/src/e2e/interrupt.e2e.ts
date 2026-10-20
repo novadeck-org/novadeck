@@ -1,6 +1,8 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
+import type { AgentSetup } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
+import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, gate, latest } from "./model/script.js"
 import { own, replies, start, through } from "./scenarios.js"
@@ -8,6 +10,14 @@ import { own, replies, start, through } from "./scenarios.js"
 // The chat's Stop, `agents.interrupt`, never leaves the agent's TUI in a state the chat
 // can't recover from: it presses Escape once, only while a turn works, so no second Escape
 // opens a rewind picker over an empty box (docs/backend-api.md).
+
+// Waits until the message queued last is through what its harness runs before it can send
+// it, where its screen says (Claude Code's UserPromptSubmit hooks, over a second each on
+// Windows CI), and a second more.
+const queuedUp = async (terminal: DeckTerminal, setup: AgentSetup, prompt: string) => {
+  if (setup.queued) await terminal.until(setup.queued(prompt))
+  await sleep(1000)
+}
 
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
@@ -79,7 +89,7 @@ for (const setup of setups) {
       })
       await t1.reached("working", { after: mark })
       await t1.prompt("Queued beta")
-      await sleep(1000)
+      await queuedUp(t1, setup, "Queued beta")
       const stopped = await t1.interrupt()
       held.open()
       queuedHeld.open()
@@ -127,7 +137,7 @@ for (const setup of setups) {
       await t1.reached("working", { after: mark })
       await t1.prompt("Queued beta")
       await t1.prompt("Queued gamma")
-      await sleep(1000)
+      await queuedUp(t1, setup, "Queued gamma")
       const stopped = await t1.interrupt()
       held.open()
       queuedHeld.open()
@@ -170,8 +180,9 @@ for (const setup of setups) {
       // Let go only once the agent has taken the Escape: Antigravity and Codex take the key a
       // moment after it is written, and a reply let go before then still draws, its turn
       // finished (probes/interrupt-held-reply.e2e.ts). Their own account of the
-      // interruption says they took it; Claude Code's is the prompt gone from the screen,
-      // which the runner clears from its box before `interrupt` resolves.
+      // interruption says they took it, as Claude Code's does from 2.1.304; to 2.1.287 its
+      // account is the prompt gone from the screen, which the runner clears from its box
+      // before `interrupt` resolves.
       const account = setup.interrupted("Hold on")
       await t1.poll(
         async () => {

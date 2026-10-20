@@ -130,13 +130,17 @@ describe("Codex's exec approval", () => {
   })
 
   it("is the dialog of the call whose command it shows, never the queued one's", () => {
-    // The overlay showed the later call first (probed).
+    // The overlay shows one of the two: 0.159.3 showed the later call first, 0.163.0 either
+    // (probed). The asked one is the call whose command its `$` row shows.
     const [first, second] = [factsOf("exec-two-queued", 0), factsOf("exec-two-queued", 1)]
     expect(JSON.stringify([first.input, second.input])).toContain("echo first")
     const rows = screen("exec-two-queued")
-    const [asked, other] = String((first.input as { command: string }).command).includes("second")
-      ? [first, second]
-      : [second, first]
+    const shown = rows.find((row) => row.startsWith("  $ "))!.slice(4)
+    const [asked, other] =
+      String((first.input as { command: string }).command) === shown
+        ? [first, second]
+        : [second, first]
+    expect(String((asked.input as { command: string }).command)).toBe(shown)
     expect(read(rows, asked)).toBeDefined()
     expect(read(rows, other)).toBeUndefined()
   })
@@ -859,16 +863,26 @@ describe("Codex's answered, on positive evidence", () => {
     expect(found.answered(screen("exec-approve"))).toBe(false)
   })
 
+  // The rows up to its result line, then the dialog's from `from` on: found by what they
+  // say, as a release may draw a line more or less above them (0.163.0 has no greeting).
+  const answeredThen = (from: string) => {
+    const rows = screen("exec-approve")
+    return [
+      ...done.slice(0, done.findIndex((row) => row.includes("✔ You approved")) + 1),
+      ...rows.slice(rows.findIndex((row) => row.startsWith(from))),
+    ]
+  }
+
   it("counts a result line even while an identical command's dialog is up again", () => {
     const found = read(screen("exec-approve"), facts)!
-    const again = [...done.slice(0, 5), ...screen("exec-approve").slice(5)]
+    const again = answeredThen("  Would you like")
     expect(again.some((row) => row.includes("✔ You approved"))).toBe(true)
     expect(read(again, facts)).toBeDefined()
     expect(found.answered(again)).toBe(true)
   })
 
   it("does not take a result line that was already there", () => {
-    const rows = [...done.slice(0, 5), ...screen("exec-approve").slice(3)]
+    const rows = answeredThen("› Run the command")
     const found = read(rows, facts)!
     expect(found.answered(rows)).toBe(false)
   })
