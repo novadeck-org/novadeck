@@ -34,6 +34,7 @@ import { readyReturnMs } from "../terminals/binding/facts.js"
 import { handleWords } from "../terminals/handles.js"
 import { Terminals, type TerminalOptions } from "../terminals/index.js"
 import type { TerminalRecords } from "../terminals/records.js"
+import { createTranscriptRedactor } from "../terminals/redaction.js"
 import { describe, expect, it as base } from "../test.js"
 import { FakeDescriber } from "../testing/describer.js"
 import { WorkspaceStore } from "../workspaces/store.js"
@@ -106,6 +107,9 @@ const it = base.extend<{ shell: Fixture }>({
         mailbox: store,
         projectOf: (sessionId) => store.session(sessionId).projectId,
         items,
+        // Masks nothing: these tests are about when screens are saved, not about secrets.
+        redactor: { redact: async ({ text }) => text, close: async () => {} },
+        transcriptMs: 50,
         ...options,
       })
       resources.defer(() => terminals.shutdown())
@@ -1830,6 +1834,52 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     expect(shown.indexOf("before-reboot")).toBeLessThan(shown.indexOf("restored transcript"))
   })
 
+  it("masks a token in the transcript the real redactor saves as the runner shuts down", async ({
+    shell,
+  }) => {
+    const id = randomUUID()
+    const token = `ghp_${"aB3dE5gH7jK9mN1pQ3sT5vX7zC9eF1hJ3kL5"}`
+    // No periodic save runs: only the last pass at shutdown writes the transcript.
+    const manager = shell.manager({
+      redactor: createTranscriptRedactor(),
+      saveMs: 600_000,
+      transcriptMs: 600_000,
+      transcriptShutdownMs: 10_000,
+    })
+    await create(manager, shell, { id })
+    manager.write({ terminalId: id, data: `echo ${token} marker-after\r` }, "owner")
+    await shell.until(manager, id, /marker-after\r?\n/)
+    expect(shell.store.terminal(id)?.transcript ?? null).toBeNull()
+    await manager.shutdown()
+    const saved = shell.store.terminal(id)?.transcript
+    expect(saved).toContain("marker-after")
+    expect(saved).not.toContain(token)
+  })
+
+  it("saves a restored terminal's transcript again, masked, without a keystroke", async ({
+    shell,
+  }) => {
+    const id = randomUUID()
+    const first = shell.manager()
+    await create(first, shell, { id })
+    first.write({ terminalId: id, data: "echo before-reboot\r" }, "owner")
+    await shell.until(first, id, /before-reboot[\s\S]*\$ /)
+    await first.shutdown()
+    expect(shell.store.terminal(id)?.transcript).toContain("before-reboot")
+
+    // The saved copy is as an older build left it, unmasked.
+    const masking = {
+      redact: async ({ text }: { text: string }) => text.replaceAll("before-reboot", "*"),
+      close: async () => {},
+    }
+    const second = shell.manager({ redactor: masking, saveMs: 100 })
+    await create(second, shell, { id, restore: true })
+    await vi.waitFor(() =>
+      expect(shell.store.terminal(id)?.transcript).not.toContain("before-reboot"),
+    )
+    expect(shell.store.terminal(id)?.transcript).toContain("*")
+  })
+
   it("shows no transcript when it resumes an agent instead", async ({ shell }) => {
     const id = randomUUID()
     const first = shell.manager()
@@ -1895,11 +1945,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     refuse = true
     const error = vi.spyOn(console, "error").mockImplementation(() => {})
     manager.persist()
-    expect(error).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(error).toHaveBeenCalledOnce())
     error.mockRestore()
     expect(shell.store.terminal(id)?.transcript ?? "").not.toContain("kept")
     manager.persist()
-    expect(shell.store.terminal(id)?.transcript).toContain("kept")
+    await vi.waitFor(() => expect(shell.store.terminal(id)?.transcript).toContain("kept"))
   })
 
   it("creates no terminal it can't number, so no handle repeats", async ({ shell }) => {
@@ -1944,10 +1994,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     manager.write({ terminalId: id, data: "echo secret\r" }, "owner")
     await shell.until(manager, id, /secret\r?\n/)
     manager.persist()
-    expect(shell.store.terminal(id)?.transcript).toContain("secret")
+    await vi.waitFor(() => expect(shell.store.terminal(id)?.transcript).toContain("secret"))
     manager.keepTranscripts(false)
     expect(shell.store.terminal(id)?.transcript).toBeNull()
     manager.persist()
+    await new Promise((resolve) => setTimeout(resolve, 100))
     expect(shell.store.terminal(id)?.transcript).toBeNull()
   })
 

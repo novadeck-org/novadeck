@@ -132,8 +132,10 @@ export type Record = {
   nudges: Nudges
   /** The agent its shell was opened or restarted to run, until one binds or its startup ends. */
   expecting: AgentName | null
-  /** Unsaved changes: output, directory, or prompts. */
+  /** Unsaved changes to what restores it: its directory, program, prompts. */
   changed: boolean
+  /** Unsaved output: its transcript, saved on its own schedule. */
+  screenChanged: boolean
   /**
    * Whether a line was entered since the last prompt, or the shell resumed an agent, so
    * a program may be running.

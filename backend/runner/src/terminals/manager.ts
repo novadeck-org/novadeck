@@ -59,6 +59,7 @@ import { OpenRequests } from "./opens.js"
 import { TerminalPeers } from "./peers.js"
 import type { Record } from "./record.js"
 import { hasRun, type TerminalRecords } from "./records.js"
+import { createTranscriptRedactor, type TranscriptRedactor } from "./redaction.js"
 import { restoredSeparator } from "./restored.js"
 import { cancelResume, Claims } from "./resumes.js"
 import { agentWorking } from "./ringing.js"
@@ -110,6 +111,12 @@ export type TerminalOptions = {
   transcripts?: boolean
   /** How often changed terminals are saved, in milliseconds. */
   saveMs?: number
+  /** How often a changed terminal's transcript is saved, in milliseconds. */
+  transcriptMs?: number
+  /** How long the last transcripts get as the runner shuts down, in milliseconds. */
+  transcriptShutdownMs?: number
+  /** Masks secrets in transcripts before they are saved; a worker thread by default. */
+  redactor?: TranscriptRedactor
   /** The longest transcript kept per terminal, in characters. */
   transcriptChars?: number
   /**
@@ -268,6 +275,9 @@ export class Terminals {
       | "shims"
       | "connected"
       | "transcripts"
+      | "transcriptMs"
+      | "transcriptShutdownMs"
+      | "redactor"
       | "projectFolder"
       | "mailbox"
       | "asks"
@@ -407,8 +417,13 @@ export class Terminals {
       {
         records: this.options.records,
         saveMs: this.options.saveMs,
+        transcriptMs: positive(options.transcriptMs, 30_000),
+        shutdownMs: positive(options.transcriptShutdownMs, 1_000),
         transcriptChars: this.options.transcriptChars,
         transcripts: options.transcripts ?? true,
+        redactor: this.options.records
+          ? (options.redactor ?? createTranscriptRedactor())
+          : undefined,
       },
       {
         stopping: () => this.stopping,
@@ -742,6 +757,7 @@ export class Terminals {
         line: emptyLine,
         lineEntered: started.resumes,
         changed: false,
+        screenChanged: false,
         savedAt: 0,
         submitted: started.resumes,
         startupRuns: started.resumes,
@@ -768,12 +784,15 @@ export class Terminals {
       if (unled) this.messaging.endLead(record.summary.id)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
       const shown = saved?.transcript && !started.resumes && this.saves.transcripts
-      if (shown) this.show(record, saved.transcript!, new Date(saved.savedAt))
+      const replayed = shown
+        ? this.show(record, saved.transcript!, new Date(saved.savedAt))
+        : Promise.resolve()
       this.listen(record)
       this.announce(record)
       this.sampler.start()
-      // A restored transcript stays saved until this shell's own screen replaces it.
-      this.saves.save(record, !saved)
+      this.saves.save(record, false)
+      // Once restored, it is saved again masked (or forgotten), in case a downgrade saved it.
+      if (saved) void replayed.then(() => this.saves.restored(record))
       this.saves.start()
       return summaryOf(record)
     } finally {
@@ -1006,6 +1025,7 @@ export class Terminals {
               this.saves.transcripts && !started.resumes
                 ? transcriptOf(record.terminal.screen, this.options.transcriptChars)
                 : null
+            let shown = Promise.resolve()
             try {
               // Earlier attachments ended at the exit; any still draining are dropped, and any
               // earlier cursor gets a fresh snapshot.
@@ -1038,7 +1058,7 @@ export class Terminals {
                   lineEntered: started.resumes,
                 })
                 // The earlier shell's screen shows above the new one's.
-                if (earlier) this.show(record, earlier, null)
+                shown = earlier ? this.show(record, earlier, null) : Promise.resolve()
                 // Restarted to resume the worker's agent session, it stays led; restarted as a plain
                 // shell, there is no agent left to lead.
                 if (!started.resumes) this.bindings.endLead(record)
@@ -1051,6 +1071,8 @@ export class Terminals {
             }
             this.announce(record)
             this.sampler.start()
+            // Saved at once, once the earlier screen is on it.
+            void shown.then(() => this.saves.save(record, true))
             return summaryOf(record)
           }
         },
@@ -1434,8 +1456,8 @@ export class Terminals {
   shutdown(): Promise<void> {
     if (this.shutdownPromise) return this.shutdownPromise
     // The last save happens while every shell still runs; ending them saves nothing, so
-    // what they print on the way out cannot replace it.
-    this.persist()
+    // what they print on the way out cannot replace it. Transcripts get a short pass (`Saves.finish`).
+    const last = this.saves.shutdown()
     this.stopping = true
     this.sampler.stop()
     this.saves.stop()
@@ -1447,7 +1469,7 @@ export class Terminals {
     this.typing.close()
     this.asks.close()
     this.messaging.close()
-    this.shutdownPromise = this.stop()
+    this.shutdownPromise = Promise.all([last, this.stop()]).then(() => undefined)
     return this.shutdownPromise
   }
 
@@ -1517,7 +1539,7 @@ export class Terminals {
       this.typing.doorbellChanged(record.summary.id)
       this.typing.dialogsChanged(record.summary.id)
       // Once on the screen: a save while it was drawing may have taken the screen before.
-      record.changed = true
+      record.screenChanged = true
     })
     terminal.on("exit", () => this.exited(record))
     // Its summary's size is the terminal's own, drawn now.
@@ -1586,8 +1608,8 @@ export class Terminals {
   }
 
   /** Shows a transcript on the record's fresh screen, ahead of its shell's output. */
-  private show(record: Record, transcript: string, savedAt: Date | null): void {
-    void record.terminal.replay(transcript, restoredSeparator(savedAt))
+  private show(record: Record, transcript: string, savedAt: Date | null): Promise<void> {
+    return record.terminal.replay(transcript, restoredSeparator(savedAt))
   }
 
   /** The shell exited: the agent layer lets go of it, before its viewers read the exit. */

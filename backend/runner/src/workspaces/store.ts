@@ -639,6 +639,24 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
     this.database.exec("PRAGMA journal_mode = WAL")
     this.database.exec("PRAGMA synchronous = NORMAL")
     this.queries = this.database.createTagStore(64)
+    this.forgetUnmaskedTranscripts()
+  }
+
+  /**
+   * Forgets, once, the transcripts a runner saved before it masked their secrets (see
+   * terminals/saving.ts): a terminal that is never restored would keep its copy otherwise.
+   */
+  private forgetUnmaskedTranscripts(): void {
+    const row = this.queries.get`SELECT value FROM settings WHERE key = 'transcriptsMasked'`
+    if (row) return
+    void this.queries.run`UPDATE terminals SET transcript = NULL`
+    // Another process may have opened the file first and marked it already.
+    void this.queries.run`
+      INSERT INTO settings (key, value) VALUES ('transcriptsMasked', 'true')
+      ON CONFLICT (key) DO NOTHING
+    `
+    // Scrubbed now, not a second later: the mark stops this from running again.
+    this.scrub()
   }
 
   projects(): Project[] {

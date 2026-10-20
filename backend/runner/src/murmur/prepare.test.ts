@@ -201,7 +201,7 @@ describe("a pattern that backtracks without end", () => {
     resources.defer(() => preparer.close())
     await preparer.prepare(digest("app"))
     // The thread, to watch it end: a stuck regex cannot be interrupted from inside.
-    const worker = preparer["worker"]
+    const worker = preparer["thread"]["worker"]
     expect(worker).toBeDefined()
     const exited = new Promise<number>((resolve) => {
       worker?.once("exit", () => resolve(performance.now()))

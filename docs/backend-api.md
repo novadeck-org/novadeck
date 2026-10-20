@@ -655,7 +655,19 @@ its transcript (the serialized screen and scrollback, without the alternate scre
 capped at 256 KiB), its title, the command it was opened with and the program it last
 had in its foreground, until it is closed. The directory, agent sessions and title are
 saved as they change, the rest every five seconds when changed, when a shell exits, and
-on `persist()` and `close()`, which save before any shell ends. Closing a terminal
+on `persist()` and `close()`, which save before any shell ends. The transcript is saved
+separately, after the runner masks what looks like a secret in it (known token prefixes,
+values named like secrets, keys, long key-like runs; anything else may still be saved).
+Only a terminal whose screen changed is queued, at most every 30 seconds; one whose shell
+exits or restarts goes first in the queue. One transcript is masked at a time, for the
+whole runner. `persist()` and `close()` also give the changed screens one pass of about a
+second, written until that second is over (as the runner closes, its records close only after it); a transcript
+unfinished then keeps its last saved copy. A transcript that cannot be masked is not
+saved, and the copy saved before stays, unless an earlier runner left it, which is then
+forgotten. A result that arrives after its terminal was closed, or transcripts were
+turned off, is dropped. Transcripts saved before masking existed are forgotten once, as the
+store first opens; a database set aside as `workspace.sqlite.earlier-<time>` is not
+touched. See [transcript-redaction.md](transcript-redaction.md). Closing a terminal
 forgets it, including one from an earlier runner.
 
 - `terminals.create({ …, restore: true, resume? })` continues the saved terminal of
