@@ -31,7 +31,7 @@ const reaching = [
 
 type Process = { write: unknown; onData: unknown }
 type Inside = {
-  readonly records: Map<string, { binding: unknown; terminal: { pty: Process } }>
+  readonly records: Map<string, { bound: unknown; terminal: { pty: Process } }>
   readonly bindings: { applyFact: unknown }
   readonly reporting: { report: unknown }
   readonly messaging: { delivery(id: string): unknown; ring: unknown; ringFailed: unknown }
@@ -81,7 +81,7 @@ describe("the e2e reach-ins", () => {
   }) => {
     const { inside, id } = await running(resources)
     const record = inside.records.get(id)!
-    expect(record).toHaveProperty("binding", null)
+    expect(record).toHaveProperty("bound", null)
     expect(record.terminal.pty.write).toBeTypeOf("function")
     expect(record.terminal.pty.onData).toBeTypeOf("function")
     // The probe wraps `report` on the instance and deletes its wrapper after, which leaves the

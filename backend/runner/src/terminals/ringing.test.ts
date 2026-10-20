@@ -16,10 +16,20 @@ import { Messaging } from "../messaging/messaging.js"
 import { memoryMailbox } from "../messaging/records.js"
 import { describe, expect, it } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
-import { agentWorking, doorbellHost, profileOf, typingTarget, type RingRecord } from "./ringing.js"
+import {
+  agentWorking,
+  doorbellHost,
+  profileOf,
+  typingTarget,
+  type RingBound,
+  type RingRecord,
+} from "./ringing.js"
 
 const bound = (agent: AgentName, instance?: string) =>
   ({ agent, ...(instance && { instance }) }) as unknown as Binding
+
+/** A session bound with its fresh activity, as its first report binds it. */
+const boundTo = (binding: Binding): RingBound => ({ binding, activity: startedActivity(0) })
 
 /** A running terminal as the manager keeps it, as far as the doorbell reads it. */
 const record = (binding: Binding | null = null) => {
@@ -31,8 +41,7 @@ const record = (binding: Binding | null = null) => {
   }
   const running: RingRecord = {
     terminal: terminal as unknown as RingRecord["terminal"],
-    binding,
-    activity: null,
+    bound: binding && boundTo(binding),
   }
   return { running, written, terminal }
 }
@@ -48,7 +57,7 @@ const world = (initial: RingRecord | undefined) => {
     shownAgent: () => state.shown,
     alive: () => true,
     queued: (_: string, work: () => void) => void tasks.push(work),
-    endExited: (found: RingRecord) => void exits.push(found.binding!),
+    endExited: (found: RingRecord) => void exits.push(found.bound!.binding),
     messaging: { shownAgent: () => state.shown } as unknown as Messaging,
     working: () => false,
     stopping: () => false,
@@ -156,7 +165,7 @@ describe("the doorbell's host", () => {
     it("leaves a binding replaced before the queue got to it", () => {
       const w = gone(bound("claude", "999999999"))
       w.rings.agentGone?.("t")
-      ;(w.running as { binding: Binding | null }).binding = bound("codex", "888888888")
+      ;(w.running as { bound: RingBound | null }).bound = boundTo(bound("codex", "888888888"))
       for (const task of w.tasks.splice(0)) task()
       expect(w.exits).toEqual([])
     })
@@ -172,10 +181,10 @@ describe("the doorbell's host", () => {
     state.shown = "codex"
     expect(rings.profile("t")).toBe(harnesses.codex.box)
     // A session binds: its agent's, whatever is shown.
-    state.current = { ...running, binding: bound("claude") }
+    state.current = { ...running, bound: boundTo(bound("claude")) }
     expect(rings.profile("t")).toBe(harnesses.claude.box)
     // It unbinds: back to what is shown, then to none.
-    state.current = { ...running, binding: null }
+    state.current = { ...running, bound: null }
     expect(rings.profile("t")).toBe(harnesses.codex.box)
     state.shown = undefined
     expect(rings.profile("t")).toBeUndefined()
@@ -376,11 +385,15 @@ describe("a session stopped with background work running", () => {
       return messaging.ask("t", { agent, event, events: timed, deadline: clock.now + 3_000 })
     }
     const { running } = record(binding)
-    const terminal = { ...running, activity: null as Activity | null }
+    const terminal: { -readonly [K in keyof RingRecord]: RingRecord[K] } = { ...running }
+    /** What its activity says now. */
+    const doing = (activity: Activity) => {
+      terminal.bound = { binding, activity }
+    }
     const rings = doorbellHost({
       ...world(terminal).host,
       messaging,
-      working: (terminalId, activity) => agentWorking(messaging, terminalId, { binding, activity }),
+      working: (terminalId, session) => agentWorking(messaging, terminalId, session),
     })
     /** Its turn, then a Stop that says what it left running. */
     const turn = (background: Background) => {
@@ -398,7 +411,7 @@ describe("a session stopped with background work running", () => {
       clock.now += 1_000
       rings.emptied("t", clock.now - 500)
     }
-    return { messaging, rings, terminal, turn, send, emptied, clock }
+    return { messaging, rings, doing, turn, send, emptied, clock }
   }
 
   // What each harness's activity says runs after its Stop, as the probe saw.
@@ -417,9 +430,9 @@ describe("a session stopped with background work running", () => {
   ] as const)(
     "rings $agent at its empty box while it waits Working on its background work",
     ({ agent, said }) => {
-      const { messaging, rings, terminal, turn, send, emptied } = setup(agent)
+      const { messaging, rings, doing, turn, send, emptied } = setup(agent)
       turn(said)
-      terminal.activity = left(agent)
+      doing(left(agent))
       expect(messaging.delivery("t")).toMatchObject({ state: "working", phase: "background" })
       expect(send()).toMatchObject({
         state: "queued",
@@ -440,13 +453,13 @@ describe("a session stopped with background work running", () => {
   it.each(["claude", "codex"] as const)(
     "rings $0 at its empty box while Drafting, its activity still listing the work",
     (agent) => {
-      const { messaging, rings, terminal, turn, send, emptied } = setup(agent)
+      const { messaging, rings, doing, turn, send, emptied } = setup(agent)
       // As in #325: idle, but not Settled by its Stop alone (a key since), so the activity
       // is weighed, and it lists a background agent (Claude Code) or a subagent that runs
       // on with the root idle (Codex).
       turn({ agents: 0, tasks: 0 })
       messaging.keys("t", ["content"], false)
-      terminal.activity = left(agent)
+      doing(left(agent))
       expect(messaging.delivery("t")?.state).toBe("drafting")
       send()
       expect(rings.stalled("t")).toBe(true)
@@ -460,10 +473,10 @@ describe("a session stopped with background work running", () => {
   )
 
   it("still holds one whose turn runs, saying it is working, not that its box holds text", () => {
-    const { messaging, rings, terminal, turn, send } = setup("claude")
+    const { messaging, rings, doing, turn, send } = setup("claude")
     turn({ agents: 0, tasks: 0 })
     messaging.keys("t", ["content"], false)
-    terminal.activity = left("claude", "working")
+    doing(left("claude", "working"))
     send()
     expect(rings.stalled("t")).toBe(false)
     expect(messaging.list("t", "fox").waits).toBe("working")
@@ -471,10 +484,10 @@ describe("a session stopped with background work running", () => {
   })
 
   it("names what it saw: text in its box, a prompt queued, or its shell mode", () => {
-    const { messaging, rings, terminal, turn, send } = setup("claude")
+    const { messaging, rings, doing, turn, send } = setup("claude")
     turn({ agents: 0, tasks: 0 })
     messaging.keys("t", ["content"], false)
-    terminal.activity = left("claude")
+    doing(left("claude"))
     send()
     expect(rings.reading("t", typed)).toBe("draft")
     const box = (line: string, ...under: string[]) =>

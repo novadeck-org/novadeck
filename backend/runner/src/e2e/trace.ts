@@ -69,10 +69,12 @@ type Inside = {
 // What the trace reads of a terminal's record: its agent's activity as clients see it.
 type Traced = {
   readonly summary: { readonly id: string }
-  readonly binding: Bound | null
-  readonly activity: {
-    readonly state: string
-    readonly lastTurn: { readonly outcome: string } | null
+  readonly bound: {
+    readonly binding: Bound
+    readonly activity: {
+      readonly state: string
+      readonly lastTurn: { readonly outcome: string } | null
+    }
   } | null
 }
 // Whose a binding or a fact is: the session, by its id's start, and the agent's instance.
@@ -147,7 +149,7 @@ type Seeing = {
 }
 
 // An activity in a word or two: its state, and how its last turn ended.
-const activityOf = (activity: Traced["activity"]): string =>
+const activityOf = (activity: NonNullable<Traced["bound"]>["activity"] | undefined): string =>
   activity ? `${activity.state}${activity.lastTurn ? `/${activity.lastTurn.outcome}` : ""}` : "none"
 
 /**
@@ -176,8 +178,10 @@ export const startTrace = (name: string, model: FakeModel) => {
     const record = runner.host.records().get(probe.report.terminalId)
     return brief(
       {
-        bound: record?.binding,
-        observedAt: record?.binding?.agent ? record.agents[record.binding.agent]?.seq : undefined,
+        bound: record && (record.bound?.binding ?? null),
+        observedAt: record?.bound?.binding.agent
+          ? record.agents[record.bound.binding.agent]?.seq
+          : undefined,
         left: record?.left,
         sameRecord: record === probe.record,
         sameProcess: record?.terminal.pty === probe.child,
@@ -196,8 +200,8 @@ export const startTrace = (name: string, model: FakeModel) => {
         seq: record.titles,
         epoch: delivery?.epoch,
         state: delivery?.state,
-        bound: record.binding,
-        sameBinding: record.binding === binding,
+        bound: record.bound?.binding ?? null,
+        sameBinding: (record.bound?.binding ?? null) === binding,
         leftBinding: record.left === binding,
         sameProcess: record.terminal.pty === child,
         exitQueued: record.terminal.exiting,
@@ -306,8 +310,8 @@ export const startTrace = (name: string, model: FakeModel) => {
             probe,
             `${agent} parsed ${brief(shown, 240)}${
               shown?.sessionPrefix &&
-              probe.record.binding?.agent === agent &&
-              probe.record.binding?.sessionId?.startsWith(shown.sessionPrefix)
+              probe.record.bound?.binding.agent === agent &&
+              probe.record.bound.binding.sessionId?.startsWith(shown.sessionPrefix)
                 ? " (same bound prefix)"
                 : ""
             }`,
@@ -397,11 +401,11 @@ export const startTrace = (name: string, model: FakeModel) => {
   const launching = methods(Launcher.prototype, "Launcher", ["connected"])
   const { connected } = launching
   binding.endExited = function (record) {
-    const before = record.binding
+    const before = record.bound?.binding ?? null
     const ended = endExited.call(this, record)
     if (reports.getStore())
       add(
-        `binding ${named(record.summary.id)} endExited: ${brief(before, 240)}; ended ${ended}; after ${brief(record.binding, 240)}`,
+        `binding ${named(record.summary.id)} endExited: ${brief(before, 240)}; ended ${ended}; after ${brief(record.bound?.binding ?? null, 240)}`,
       )
     return ended
   }
@@ -411,7 +415,7 @@ export const startTrace = (name: string, model: FakeModel) => {
       delivery: (terminalId: string) => this.host.messaging().delivery(terminalId),
       record,
       child,
-      binding: record.binding,
+      binding: record.bound?.binding ?? null,
     }
     titles.run(probe, () => {
       titleLine(probe, `raw ${brief(title, 200)}; original ${titleState(probe)}`)
@@ -453,15 +457,15 @@ export const startTrace = (name: string, model: FakeModel) => {
   // Each fact told the agent's activity, and what it made of it: a turn's end, an Escape,
   // an idle, as clients read the activity. A change between two of them is a new binding's.
   binding.appliedFact = function (record, fact) {
-    const before = activityOf(record.activity)
+    const before = activityOf(record.bound?.activity)
     const applied = appliedFact.call(this, record, fact)
     // One that changed nothing names the binding it was weighed against, and its own.
     if (fact.type !== "telemetry-observed")
       add(
-        `activity ${named(record.summary.id)} ${fact.type}: ${before} → ${activityOf(record.activity)}${
+        `activity ${named(record.summary.id)} ${fact.type}: ${before} → ${activityOf(record.bound?.activity)}${
           applied
             ? ""
-            : ` (no change; bound to ${record.binding ? whose(record.binding) : "none"}, the fact ${whose(fact as Bound)})`
+            : ` (no change; bound to ${record.bound ? whose(record.bound.binding) : "none"}, the fact ${whose(fact as Bound)})`
         }`,
       )
     return applied

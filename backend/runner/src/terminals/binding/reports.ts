@@ -19,7 +19,7 @@ import type { Companion } from "../companion.js"
 import { failed } from "../failures.js"
 import type { Murmur, Reported } from "../murmur.js"
 import { atPrompt, fired, noticesAt } from "../nudges.js"
-import type { TerminalPeers } from "../peers.js"
+import { peerOf, type TerminalPeers } from "../peers.js"
 import type { Record } from "../record.js"
 import type { Typing } from "../typing.js"
 import { judgedFirst, workAfter } from "../work.js"
@@ -121,8 +121,8 @@ export class Reports {
         : await withReplies(
             decoded,
             harnesses[report.agent].transcripts?.items,
-            record.binding?.agent === report.agent
-              ? { sessionId: record.binding.sessionId, transcript: record.transcript }
+            record.bound?.binding.agent === report.agent
+              ? { sessionId: record.bound.binding.sessionId, transcript: record.transcript }
               : undefined,
           )
     // Its prompt shows before any session of its binds, as Antigravity's status line says.
@@ -146,7 +146,7 @@ export class Reports {
     // The bound agent process may have exited without the shell showing a prompt, as in
     // tmux or a nested shell: its binding ended with it, and a later process may bind.
     let changed = false
-    if (reused !== undefined && record.binding === reused) {
+    if (reused !== undefined && record.bound?.binding === reused) {
       record.left = reused
       this.host.bindings().endLead(record)
       this.host.bindings().endBinding(record)
@@ -157,8 +157,8 @@ export class Reports {
       submitted: record.submitted,
       connected,
       busy:
-        record.activity !== null &&
-        (record.activity.state === "working" || record.activity.background !== null),
+        record.bound !== null &&
+        (record.bound.activity.state === "working" || record.bound.activity.background !== null),
       platform: process.platform,
     }
     // Its prompt shows, as the agent holding the terminal tells, as for a session it names;
@@ -186,23 +186,49 @@ export class Reports {
       if (this.late(record, event)) continue
       // The bound session's transcript, from a later report when the one that bound it
       // named none, as Antigravity's status line does.
-      const { binding: bound } = record
+      const binding = record.bound?.binding
       if (
         event.transcript !== undefined &&
         record.transcript === null &&
-        bound?.agent === event.agent &&
-        bound.sessionId === event.sessionId
+        binding?.agent === event.agent &&
+        binding.sessionId === event.sessionId
       )
         record.transcript = event.transcript
       const next = observe(
-        { sessions: record.agents, binding: record.binding, cwd: record.summary.cwd },
+        {
+          sessions: record.agents,
+          binding: record.bound?.binding ?? null,
+          cwd: record.summary.cwd,
+        },
         event,
         facts,
       )
       if (!next) continue
-      const before = record.binding
+      const before = record.bound
       record.agents = next.sessions
-      record.binding = next.binding
+      // A newly bound session waits for its first prompt; one still bound keeps its activity.
+      // What its hooks told from before it bound is past, but for one fired with the hook
+      // that bound it (see `boundTogetherMs`). Whatever runs from here, as a lead ended
+      // below, sees the new binding with its own activity.
+      const same =
+        before !== null &&
+        next.binding !== null &&
+        before.binding.agent === next.binding.agent &&
+        before.binding.sessionId === next.binding.sessionId
+      record.bound =
+        next.binding === null
+          ? null
+          : before !== null && same
+            ? { ...before, binding: next.binding }
+            : {
+                binding: next.binding,
+                activity: fresh(
+                  boundSince(event),
+                  harnesses[next.binding.agent].wakes,
+                  harnesses[next.binding.agent].records,
+                ),
+                telemetry: null,
+              }
       if (next.binding !== null) {
         // After a suspended agent, a binding is that agent back from `fg`, or another the
         // person started at the prompt, which its lead never directed.
@@ -211,23 +237,7 @@ export class Reports {
         record.suspended = null
       }
       changed = true
-      // A newly bound session waits for its first prompt; one still bound keeps its activity.
-      // What its hooks told from before it bound is past, but for one fired with the hook
-      // that bound it (see `boundTogetherMs`).
-      const same =
-        before !== null &&
-        next.binding !== null &&
-        before.agent === next.binding.agent &&
-        before.sessionId === next.binding.sessionId
       if (!same) {
-        record.activity = next.binding
-          ? fresh(
-              boundSince(event),
-              harnesses[next.binding.agent].wakes,
-              harnesses[next.binding.agent].records,
-            )
-          : null
-        record.telemetry = null
         this.host.bindings().follow(record, event)
         // The plans its bar mirrored of another session go; unbinding alone keeps them.
         if (next.binding) this.host.companion().bound(record.summary.id, next.binding.sessionId)
@@ -302,11 +312,9 @@ export class Reports {
 
   /** A Stop Novadeck continued, lapsed as delivery took it, ends the agent's turn too. */
   lapsed(record: Record): void {
-    const { binding, activity } = record
+    const { bound } = record
     const event =
-      binding &&
-      activity &&
-      this.host.messaging().lapsed(record.summary.id, binding, activity.turnAt)
+      bound && this.host.messaging().lapsed(record.summary.id, bound.binding, bound.activity.turnAt)
     if (event && this.host.bindings().applyFact(record, event))
       this.host.bindings().publishAgent(record, false)
   }
@@ -381,7 +389,7 @@ export class Reports {
     // it, and only with time to spare.
     const facts =
       silent && record.nudges.baseline && inTime(driftReadMs)
-        ? await this.host.peers().facts(record)
+        ? await this.host.peers().facts(peerOf(record))
         : undefined
     // A nudge that may miss the hook's deadline is never spent: its trigger waits.
     const taken = atPrompt(record.nudges, { quiet: silent && inTime(leaseMargin), facts })
@@ -415,8 +423,9 @@ export class Reports {
     statusLine: boolean,
   ): readonly RootChange[] {
     const { id } = record.summary
-    const agent = record.binding?.agent ?? record.root?.agent
-    const { root, changes } = followRoot(record.root, record.binding, events, {
+    const binding = record.bound?.binding ?? null
+    const agent = binding?.agent ?? record.root?.agent
+    const { root, changes } = followRoot(record.root, binding, events, {
       mode: agent ? harnesses[agent].messaging.root : "binding",
       statusLine,
       awaited: (sessionId) => this.host.messaging().awaits(id, sessionId),
@@ -502,7 +511,7 @@ export class Reports {
     events: readonly HarnessEvent[],
     deadline?: number,
   ): Promise<Binding | undefined> {
-    const { binding } = record
+    const binding = record.bound?.binding
     if (this.host.platform() !== "win32" || !binding?.instance) return undefined
     if (
       !events.some(

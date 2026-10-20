@@ -1,0 +1,119 @@
+2026-10-20T07:50:24.2817730Z @novadeck/runner-adapter:test:        [32m✓[39m closes the terminal of a shell that exited cleanly[32m 114[2mms[22m[39m
+2026-10-20T07:50:24.2818620Z @novadeck/runner-adapter:test:        [32m✓[39m starts a fresh shell in the same terminal when asked to restart[32m 131[2mms[22m[39m
+2026-10-20T07:50:24.2819410Z @novadeck/runner-adapter:test:      [31m❯[39m when many saved terminals come back at once [2m(1)[22m
+2026-10-20T07:50:24.2820340Z @novadeck/runner-adapter:test: [31m       [31m×[31m starts a fresh shell for every one of them[39m[33m 1434[2mms[22m[39m
+2026-10-20T07:50:24.2821290Z @novadeck/runner-adapter:test:      [32m✓[39m when a shell exited cleanly while the app was away [2m(1)[22m
+2026-10-20T07:50:24.2822000Z @novadeck/runner-adapter:test:        [33m[2m✓[22m[39m closes what the runner kept of it[33m 308[2mms[22m[39m
+2026-10-20T07:50:24.2822690Z @novadeck/runner-adapter:test:      [32m✓[39m while the app boots [2m(1)[22m
+2026-10-20T07:50:24.2823520Z @novadeck/runner-adapter:test:        [33m[2m✓[22m[39m counts the restored session's terminals as they come back[33m 494[2mms[22m[39m
+2026-10-20T07:50:24.2825100Z @novadeck/runner-adapter:test:      [2m[90m↓[39m[22m after a terminal restarts [2m(1)[22m
+2026-10-20T07:50:24.2826070Z @novadeck/runner-adapter:test:        [2m[90m↓[39m[22m reports what its fresh shell runs, and a kill right away as killed
+2026-10-20T07:50:24.2826870Z @novadeck/runner-adapter:test:      [32m✓[39m when the runner no longer has a terminal [2m(3)[22m
+2026-10-20T07:50:24.2827820Z @novadeck/runner-adapter:test:        [32m✓[39m closes here a terminal another client closed, for good[32m 88[2mms[22m[39m
+2026-10-20T07:50:24.2828850Z @novadeck/runner-adapter:test:        [32m✓[39m starts one for a terminal a listing leaves out, as after a runner restart[32m 56[2mms[22m[39m
+2026-10-20T07:50:24.2829970Z @novadeck/runner-adapter:test:        [32m✓[39m restores saved terminals only once their session is on screen[32m 81[2mms[22m[39m
+2026-10-20T07:50:24.2830700Z @novadeck/runner-adapter:test:      [32m✓[39m with companion items [2m(3)[22m
+2026-10-20T07:50:24.2831470Z @novadeck/runner-adapter:test:        [32m✓[39m undocks one into a window the runner keeps, which the next load restores[32m 107[2mms[22m[39m
+2026-10-20T07:50:24.2832280Z @novadeck/runner-adapter:test:        [32m✓[39m renames a window and gives it its item's name again[32m 191[2mms[22m[39m
+2026-10-20T07:50:24.2833190Z @novadeck/runner-adapter:test:        [32m✓[39m keeps how the person arranged a bar across a reload[32m 131[2mms[22m[39m
+2026-10-20T07:50:24.8713310Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/items.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 905[2mms[22m[39m
+2026-10-20T07:50:25.8255300Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/seed.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+2026-10-20T07:50:26.7023140Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/messages.test.ts [2m([22m[2m18 tests[22m[2m)[22m[33m 1534[2mms[22m[39m
+2026-10-20T07:50:26.8108940Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/activity.test.ts [2m([22m[2m26 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+2026-10-20T07:50:28.5589210Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/view-options.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 604[2mms[22m[39m
+2026-10-20T07:50:28.5714380Z @novadeck/runner-adapter:test:    [32m✓[39m the runner's terminal views over a runtime [2m(5)[22m
+2026-10-20T07:50:28.5806140Z @novadeck/runner-adapter:test:      [33m[2m✓[22m[39m follows the terminal its runtime has for the key, and tells the runtime how it goes[33m 408[2mms[22m[39m
+2026-10-20T07:50:28.6716280Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/mount.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 773[2mms[22m[39m
+2026-10-20T07:50:29.7728020Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:29.8264290Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:30.1183310Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/voice.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 408[2mms[22m[39m
+2026-10-20T07:50:30.1494460Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:30.7269680Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/companions.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 439[2mms[22m[39m
+2026-10-20T07:50:30.7382700Z @novadeck/runner-adapter:test:    [32m✓[39m the runner's companion content [2m(11)[22m
+2026-10-20T07:50:30.7508470Z @novadeck/runner-adapter:test:      [32m✓[39m on a real runner [2m(1)[22m
+2026-10-20T07:50:30.7624450Z @novadeck/runner-adapter:test:        [33m[2m✓[22m[39m shows an item it doesn't have, or one deleted since, as gone[33m 408[2mms[22m[39m
+2026-10-20T07:50:31.4016750Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:31.4425060Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:31.8170280Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:31.8676340Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:32.0213710Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:32.2493220Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/requests.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 69[2mms[22m[39m
+2026-10-20T07:50:33.1887770Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/session-state.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+2026-10-20T07:50:34.2549900Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/murmur.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 171[2mms[22m[39m
+2026-10-20T07:50:35.1231440Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:35.1529640Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:35.2951360Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:35.8944200Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/quit.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 518[2mms[22m[39m
+2026-10-20T07:50:36.4617430Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/crash-loop.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4981[2mms[22m[39m
+2026-10-20T07:50:36.4747820Z @novadeck/runner-adapter:test:    [32m✓[39m a runner that crashes while shells start [2m(2)[22m
+2026-10-20T07:50:36.4849650Z @novadeck/runner-adapter:test:      [33m[2m✓[22m[39m gives up after a few restarts and leaves the terminal waiting for Enter[33m 1314[2mms[22m[39m
+2026-10-20T07:50:36.4951540Z @novadeck/runner-adapter:test:      [33m[2m✓[22m[39m starts over when asked to try again[33m 1265[2mms[22m[39m
+2026-10-20T07:50:36.5053470Z @novadeck/runner-adapter:test:    [32m✓[39m a crash loop behind the workspace store [2m(2)[22m
+2026-10-20T07:50:36.5155530Z @novadeck/runner-adapter:test:      [33m[2m✓[22m[39m lets the person switch sessions, and says why their terminals wait[33m 1093[2mms[22m[39m
+2026-10-20T07:50:36.5257560Z @novadeck/runner-adapter:test:      [33m[2m✓[22m[39m stops creating a new terminal into the crash loop[33m 1306[2mms[22m[39m
+2026-10-20T07:50:36.7124060Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/saves.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+2026-10-20T07:50:37.3618920Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:37.3856710Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:37.5252700Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/resume.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 103[2mms[22m[39m
+2026-10-20T07:50:37.7148210Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:37.7668690Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:37.9791970Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:38.2174200Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/index.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+2026-10-20T07:50:38.4662690Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/boot-progress.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+2026-10-20T07:50:39.2268480Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:39.2572830Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:39.3016810Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/switches.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+2026-10-20T07:50:40.2931710Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:40.3132870Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:40.3488040Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/failure.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+2026-10-20T07:50:41.0965280Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:41.1228270Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:41.1850490Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/rename.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 22[2mms[22m[39m
+2026-10-20T07:50:42.0655450Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:42.0986720Z @novadeck/runner-adapter:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-10-20T07:50:42.1414280Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/restarts.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+2026-10-20T07:50:42.5442250Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/contract.test.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 3126[2mms[22m[39m
+2026-10-20T07:50:42.5444950Z @novadeck/runner-adapter:test:    [32m✓[39m runner backend contract [2m(22)[22m
+2026-10-20T07:50:42.5447310Z @novadeck/runner-adapter:test:      [32m✓[39m when the far side reports terminal status [2m(1)[22m
+2026-10-20T07:50:42.5487440Z @novadeck/runner-adapter:test:        [33m[2m✓[22m[39m delivers each report once through the latest sink and nothing after stop[33m 2346[2mms[22m[39m
+2026-10-20T07:50:42.9573950Z @novadeck/runner-adapter:test:  [32m✓[39m [30m[42m unit [49m[39m src/resumable.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 6[2mms[22m[39m
+2026-10-20T07:50:42.9777830Z @novadeck/runner-adapter:test: 
+2026-10-20T07:50:42.9791040Z @novadeck/runner-adapter:test: [31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-20T07:50:42.9792190Z @novadeck/runner-adapter:test: 
+2026-10-20T07:50:42.9795320Z @novadeck/runner-adapter:test: [41m[1m FAIL [22m[49m [30m[42m unit [49m[39m src/backend.test.ts[2m > [22mrunner backend[2m > [22mwhen many saved terminals come back at once[2m > [22mstarts a fresh shell for every one of them
+2026-10-20T07:50:42.9799180Z @novadeck/runner-adapter:test: [31m[1mAssertionError[22m: expected [ { …(21) }, { …(21) }, …(37) ] to have a length of 40 but got 39[39m
+2026-10-20T07:50:42.9803110Z @novadeck/runner-adapter:test: 
+2026-10-20T07:50:42.9804390Z @novadeck/runner-adapter:test: [32m- Expected[39m
+2026-10-20T07:50:42.9805460Z @novadeck/runner-adapter:test: [31m+ Received[39m
+2026-10-20T07:50:42.9806390Z @novadeck/runner-adapter:test: 
+2026-10-20T07:50:42.9807420Z @novadeck/runner-adapter:test: [32m- 40[39m
+2026-10-20T07:50:42.9808540Z @novadeck/runner-adapter:test: [31m+ 39[39m
+2026-10-20T07:50:42.9809450Z @novadeck/runner-adapter:test: 
+2026-10-20T07:50:42.9811280Z @novadeck/runner-adapter:test: [36m [2m❯[22m src/backend.test.ts:[2m1022:67[22m[39m
+2026-10-20T07:50:42.9989890Z @novadeck/runner-adapter:test:     [90m1020|[39m       await app.idle()
+2026-10-20T07:50:42.9992670Z @novadeck/runner-adapter:test:     [90m1021|[39m       const listed = await runner.client.terminals.list({ sessionId: i…
+2026-10-20T07:50:42.9995650Z @novadeck/runner-adapter:test:     [90m1022|[39m       expect(listed.filter((terminal) => terminal.exit === null)).toHa…
+2026-10-20T07:50:42.9997580Z @novadeck/runner-adapter:test:     [90m   |[39m                                                                   [31m^[39m
+2026-10-20T07:50:42.9999410Z @novadeck/runner-adapter:test:     [90m1023|[39m       expect(
+2026-10-20T07:50:43.0000930Z @novadeck/runner-adapter:test:     [90m1024|[39m         app.received.filter((action) => "status" in action && action.s…
+2026-10-20T07:50:43.0001520Z @novadeck/runner-adapter:test: 
+2026-10-20T07:50:43.0002030Z @novadeck/runner-adapter:test: [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-10-20T07:50:43.0002510Z @novadeck/runner-adapter:test: 
+2026-10-20T07:50:43.0002820Z @novadeck/runner-adapter:test: 
+2026-10-20T07:50:43.0004370Z @novadeck/runner-adapter:test: [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m28 passed[39m[22m[90m (29)[39m
+2026-10-20T07:50:43.0010540Z @novadeck/runner-adapter:test: [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m434 passed[39m[22m[2m | [22m[33m4 skipped[39m[90m (439)[39m
+2026-10-20T07:50:43.0011360Z @novadeck/runner-adapter:test: [2m   Start at [22m 07:50:11
+2026-10-20T07:50:43.0014080Z @novadeck/runner-adapter:test: [2m   Duration [22m 31.17s[2m (tests 47%, environment 34%, import 13%, transform 6%)[22m
+2026-10-20T07:50:43.0024400Z @novadeck/runner-adapter:test: 
+2026-10-20T07:50:43.1160350Z @novadeck/runner-adapter:test: [ELIFECYCLE] Test failed. See above for more details.
+2026-10-20T07:50:43.2051680Z @novadeck/runner:test: cache miss, executing 1fde3cb94edcd9b1
+2026-10-20T07:50:43.2240440Z ##[error]command (/Users/runner/work/novadeck/novadeck/frontend/runner-adapter) /Users/runner/setup-pnpm/pnpm run test --reporter=default --reporter=hanging-process exited (1)
+2026-10-20T07:50:43.2305030Z @novadeck/runner-adapter#test:  ERROR  command (/Users/runner/work/novadeck/novadeck/frontend/runner-adapter) /Users/runner/setup-pnpm/pnpm run test --reporter=default --reporter=hanging-process exited (1)
+2026-10-20T07:50:43.2306690Z  ERROR  run failed: command  exited (1)
+2026-10-20T07:50:43.2306870Z 
+2026-10-20T07:50:43.2306960Z  Tasks:    21 successful, 23 total
+2026-10-20T07:50:43.2307430Z Cached:    0 cached, 23 total
+2026-10-20T07:50:43.2307810Z   Time:    2m4.672s 
+2026-10-20T07:50:43.2308100Z Failed:    @novadeck/runner-adapter#test
+2026-10-20T07:50:43.2308330Z 
+2026-10-20T07:50:43.3540240Z ##[error]Process completed with exit code 1.

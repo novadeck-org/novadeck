@@ -151,7 +151,9 @@ export class Typing {
 
   /** The harness of the agent bound to the terminal, or shown at its prompt, as its box reads. */
   boxOf(record: Record): BoxProfile | undefined {
-    return profileOf(record.binding, () => this.host.messaging().shownAgent(record.summary.id))
+    return profileOf(record.bound?.binding ?? null, () =>
+      this.host.messaging().shownAgent(record.summary.id),
+    )
   }
 
   /**
@@ -163,14 +165,14 @@ export class Typing {
     if (this.host.stopping()) throw new DomainError("CLOSING")
     const record = this.host.record(terminalId)
     this.host.running(record)
-    if (!record.binding && this.host.messaging().shownAgent(terminalId) === undefined)
+    if (!record.bound && this.host.messaging().shownAgent(terminalId) === undefined)
       throw new DomainError(
         "CONFLICT",
         "No agent is running in this terminal.",
         undefined,
         "no-agent",
       )
-    if ((record.activity?.pending.length ?? 0) > 0)
+    if ((record.bound?.activity.pending.length ?? 0) > 0)
       throw new DomainError(
         "CONFLICT",
         "The agent waits on the person's answer to a request.",
@@ -290,7 +292,7 @@ export class Typing {
   private astray(terminalId: string): void {
     const record = this.host.live(terminalId)
     if (!record) return
-    const asked = (record.activity?.pending.length ?? 0) > 0
+    const asked = (record.bound?.activity.pending.length ?? 0) > 0
     this.host.messaging().keys(terminalId, ["content"], asked)
   }
 
@@ -311,7 +313,7 @@ export class Typing {
       },
       bound: (terminalId) => {
         const record = this.host.live(terminalId)
-        return record === undefined || record.binding !== null
+        return record === undefined || record.bound !== null
       },
       ringing: (terminalId) => this.host.messaging().ringing(terminalId),
       screen: (terminalId) => this.screenOf(terminalId),
@@ -322,7 +324,7 @@ export class Typing {
   private interruptHost(): ConstructorParameters<typeof Interrupts>[0] {
     return {
       admit: (terminalId) => void this.promptable(terminalId),
-      working: (terminalId) => this.host.live(terminalId)?.activity?.state === "working",
+      working: (terminalId) => this.host.live(terminalId)?.bound?.activity.state === "working",
       alive: (terminalId) => this.host.live(terminalId) !== undefined,
       profile: (terminalId) => {
         const record = this.host.live(terminalId)
@@ -352,9 +354,10 @@ export class Typing {
 
   /** The request of a terminal's bound agent that a ref names, with its facts. */
   private waiting(record: Record, ref: string) {
-    const { binding, activity } = record
-    if (!binding || !activity) return undefined
-    const request = activity.pending.find((each) => requestRef(binding, each) === ref)
+    const { bound } = record
+    if (!bound) return undefined
+    const { binding } = bound
+    const request = bound.activity.pending.find((each) => requestRef(binding, each) === ref)
     return request && { binding, request }
   }
 
@@ -372,7 +375,7 @@ export class Typing {
           actor: request.actor,
           facts: this.factsOf(record, request),
           adapter: harnesses[binding.agent].dialogs,
-          others: (record.activity?.pending ?? [])
+          others: (record.bound?.activity.pending ?? [])
             .filter((each) => each !== request)
             .map((each) => ({
               ref: requestRef(binding, each),
@@ -386,9 +389,9 @@ export class Typing {
       screen: (terminalId) => this.screenOf(terminalId),
       press: (terminalId, data) => this.pressed(terminalId, data),
       prompt: (entry, terminalId, text) => this.prompts.promptIn(entry, terminalId, text),
-      working: (terminalId) => this.host.held(terminalId)?.activity?.state === "working",
+      working: (terminalId) => this.host.held(terminalId)?.bound?.activity.state === "working",
       turnStartedAt: (terminalId) => {
-        const activity = this.host.held(terminalId)?.activity
+        const activity = this.host.held(terminalId)?.bound?.activity
         return activity?.state === "working" ? activity.turnAt : undefined
       },
       closed: (terminalId, ref) => this.dialogs.closed(terminalId, ref),
@@ -421,8 +424,9 @@ export class Typing {
     return {
       pending: (terminalId) => {
         const record = this.host.live(terminalId)
-        const { binding, activity } = record ?? {}
-        if (!record || !binding || !activity) return undefined
+        const bound = record?.bound
+        if (!record || !bound) return undefined
+        const { binding, activity } = bound
         return {
           agent: binding.agent,
           requests: activity.pending.map((request) => ({
@@ -439,7 +443,7 @@ export class Typing {
       screen: (terminalId) => this.screenOf(terminalId),
       ask: (terminalId, request) => {
         const record = this.host.live(terminalId)
-        const { binding } = record ?? {}
+        const binding = record?.bound?.binding
         if (!record || !binding) return
         const { agent, sessionId, instance } = binding
         const fact: ActivityEvent = {
@@ -474,7 +478,7 @@ export class Typing {
 
   /** A request only the screen told no longer waits: its screen is gone, or it was answered. */
   private clearScreenRequest(record: Record, request: Activity["pending"][number]): void {
-    const { binding } = record
+    const binding = record.bound?.binding
     if (!binding) return
     const { agent, sessionId, instance } = binding
     const fact: ActivityEvent = {
@@ -502,11 +506,7 @@ export class Typing {
       queued: (terminalId, work) => this.host.queued(terminalId, work),
       endExited: (record) => this.host.endExited(record),
       messaging: this.host.messaging(),
-      working: (terminalId, activity) =>
-        agentWorking(this.host.messaging(), terminalId, {
-          binding: this.host.live(terminalId)?.binding ?? null,
-          activity,
-        }),
+      working: (terminalId, bound) => agentWorking(this.host.messaging(), terminalId, bound),
       stopping: () => this.host.stopping(),
     })
   }
