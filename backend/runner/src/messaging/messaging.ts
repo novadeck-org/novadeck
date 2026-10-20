@@ -1142,7 +1142,7 @@ export class Messaging {
 
   /**
    * A mark that changes with each root turn event (a delivery epoch) and each key
-   * of the person's.
+   * into the terminal, the person's or an answer's.
    */
   stamp(terminalId: string): string {
     const live = this.live.get(terminalId)
