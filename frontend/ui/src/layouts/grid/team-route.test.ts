@@ -174,8 +174,13 @@ describe("Several teams' wires", () => {
 
   it("keeps the teams on runs of their own where the grid has room", () => {
     const [a, b] = teamRoutes(boxes, crews, gap, width)
-    const taken = new Set(a!.runs.map((run) => `${run.axis}${run.x},${run.y}`))
-    expect(b!.runs.filter((run) => taken.has(`${run.axis}${run.x},${run.y}`))).toEqual([])
+    // Whether two runs on one line cover a stretch in common, not merely touch.
+    const shares = (one: Run, two: Run): boolean =>
+      one.axis === two.axis &&
+      (one.axis === "horizontal"
+        ? one.y === two.y && one.x < two.x + two.length && two.x < one.x + one.length
+        : one.x === two.x && one.y < two.y + two.length && two.y < one.y + one.length)
+    expect(b!.runs.filter((run) => a!.runs.some((other) => shares(run, other)))).toEqual([])
   })
 
   it("leaves a team out that has no lead or no worker among the tiles", () => {

@@ -753,6 +753,9 @@ Terminals:
   pending, so a finish due later doesn't bring the agent back. "Leads the others" makes the selected terminal
   lead every other live terminal of the session, for the team wire with many workers on
   the rail, in Grid and in Canvas; with "Burst of" first, part of the team scrolls out of view.
+  "Leads the next one" moves the next live terminal after the selected one into its team, out of any
+  other; done on two terminals that aren't neighbours, it makes two teams, which Grid and
+  Canvas wire side by side (on neighbours, the teams chain through the middle one).
 - **New terminals:** "Every state at once" adds one terminal per state, named after it, so
   the tabs and the windows in Grid and Canvas show attention, done, error, ended and the
   rest side by side; you stay on one that needs permission, and the done marks land on

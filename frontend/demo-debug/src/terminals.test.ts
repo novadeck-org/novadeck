@@ -15,6 +15,7 @@ import {
   failedToStart,
   killedBy,
   killedForMemory,
+  leadsNext,
   leadsOthers,
   dealKinds,
   noisyAgents,
@@ -215,6 +216,26 @@ describe("waiting agents' states", () => {
   })
 })
 
+// The workspace with one terminal's handle taken away.
+const withoutHandle = (workspace: Workspace, id: string): Workspace => ({
+  ...workspace,
+  projects: workspace.projects.map((each) => ({
+    ...each,
+    history: each.history.map((entry) => ({
+      ...entry,
+      state: {
+        ...entry.state,
+        roster: {
+          ...entry.state.roster,
+          terminals: entry.state.roster.terminals.map(({ handle, ...rest }) =>
+            rest.id === id ? rest : { ...rest, ...(handle ? { handle } : {}) },
+          ),
+        },
+      },
+    })),
+  })),
+})
+
 describe("leading the others", () => {
   it("makes every other live terminal of the session name the selected one as its lead", () => {
     const lead = terminalOf(initial, key("01"))!
@@ -226,25 +247,32 @@ describe("leading the others", () => {
   })
 
   it("does nothing for a terminal without a handle to lead by", () => {
-    const id = key("01").terminalId
-    const nameless: Workspace = {
-      ...initial,
-      projects: initial.projects.map((each) => ({
-        ...each,
-        history: each.history.map((entry) => ({
-          ...entry,
-          state: {
-            ...entry.state,
-            roster: {
-              ...entry.state.roster,
-              terminals: entry.state.roster.terminals.map(({ handle, ...rest }) =>
-                rest.id === id ? rest : { ...rest, ...(handle ? { handle } : {}) },
-              ),
-            },
-          },
-        })),
-      })),
-    }
+    const nameless = withoutHandle(initial, key("01").terminalId)
     expect(leadsOthers(nameless, key("01"))).toEqual([])
+  })
+})
+
+describe("leading the next terminal", () => {
+  it("makes the next live terminal after the selected one name it as its lead", () => {
+    const lead = terminalOf(initial, key("01"))!
+    const led = leadsNext(initial, key("01")).reduce(workspaceReducer, initial)
+    expect(terminalOf(led, key("02"))?.ledBy).toBe(lead.handle)
+    expect(terminalOf(led, key("03"))?.ledBy).toBe(terminalOf(initial, key("03"))?.ledBy)
+  })
+
+  it("passes over a terminal that has ended", () => {
+    const ended = apply(exitedWithCode(key("02"), 1), initial)
+    const led = leadsNext(ended, key("01")).reduce(workspaceReducer, ended)
+    expect(terminalOf(led, key("03"))?.ledBy).toBe(terminalOf(initial, key("01"))!.handle)
+  })
+
+  it("does nothing for the last terminal", () => {
+    const last = othersOf(initial, key("01")).at(-1)!
+    expect(last.handle).toBeDefined()
+    expect(leadsNext(initial, { ...key("01"), terminalId: last.id })).toEqual([])
+  })
+
+  it("does nothing for a terminal without a handle to lead by", () => {
+    expect(leadsNext(withoutHandle(initial, key("01").terminalId), key("01"))).toEqual([])
   })
 })

@@ -387,4 +387,22 @@ describe("Grid view's team wire", () => {
     await chooseView("Grid")
     await expect.poll(ticks).toBe(1)
   })
+
+  it("plays a team's pulse again each time one of its members is selected after another terminal", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout implementation").click()
+    await chooseView("Grid")
+    const pulsing = () =>
+      gridView().element().querySelector(".grid-team-wire-shape[data-pulsing]") !== null
+    await expect.poll(pulsing).toBe(true)
+    await expect.poll(pulsing, { timeout: 4000 }).toBe(false)
+    // Another terminal leaves the wire as it is, without a pulse.
+    await terminal("Dev server").click({ position: { x: 150, y: 150 } })
+    await expectSelected("Dev server")
+    await expectStaysTrue(() => !pulsing(), "no pulse while Dev server is selected")
+    // Back to the same member: the pulse plays again.
+    await terminal("Checkout implementation").click({ position: { x: 150, y: 150 } })
+    await expectSelected("Checkout implementation")
+    await expect.poll(pulsing).toBe(true)
+  })
 })

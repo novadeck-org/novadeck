@@ -841,6 +841,7 @@ describe("Canvas's team wire", () => {
     await expect.poll(pulsing).toBe(true)
     // It is over once played, and stays over while the selection stays.
     await expect.poll(pulsing, { timeout: 4000 }).toBe(false)
+    await expectStaysAbsent({ shown: pulsing, name: "the pulse" }, { ms: 1500 })
     await terminalTab("Dev server").click()
     await terminalTab("Checkout review").click()
     await expect.poll(pulsing).toBe(true)
