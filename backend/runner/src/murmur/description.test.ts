@@ -19,7 +19,7 @@ const title = (text: string, source?: string, project?: string | null) =>
 // at least, so a shorter text gets two small words, which are taken off again.
 const guarded = (text: string, source?: string) => {
   const padding = text.trim().split(/\s+/).length < 3 ? " for now" : ""
-  const clean = parseGist(JSON.stringify({ asks: false, gist: `${text}${padding}` }), source)?.text
+  const clean = parseGist(JSON.stringify({ gist: `${text}${padding}` }), source)?.text
   return padding && clean?.endsWith(padding) ? clean.slice(0, -padding.length) : clean
 }
 
@@ -1027,33 +1027,23 @@ describe("keys cut short, and names that begin like keys", () => {
   })
 })
 
-const gist = (text: unknown, asks: unknown = false, source?: string) =>
-  parseGist(JSON.stringify({ asks, gist: text }), source)
+const gist = (text: unknown, source?: string) => parseGist(JSON.stringify({ gist: text }), source)
 
 describe("reading the model's gist", () => {
-  it("keeps a gist that fits, with whether it asks", () => {
-    expect(gist("Checkout totals round per line", true)).toEqual({
+  it("keeps a gist that fits, tidied", () => {
+    expect(gist("Checkout totals round per line")).toEqual({
       kind: "gist",
       text: "Checkout totals round per line",
-      asks: true,
     })
     expect(gist('  "**Tests** pass now."  ')).toEqual({
       kind: "gist",
       text: "Tests pass now",
-      asks: false,
     })
-  })
-
-  it("refuses an asks that is no boolean, or none", () => {
-    expect(gist("Checkout totals round per line", "true")).toBeUndefined()
-    expect(gist("Checkout totals round per line", 1)).toBeUndefined()
-    expect(gist("Checkout totals round per line", null)).toBeUndefined()
-    expect(parseGist(JSON.stringify({ gist: "Checkout totals round per line" }))).toBeUndefined()
   })
 
   it("refuses a missing gist and replies that are no JSON", () => {
     expect(gist(7)).toBeUndefined()
-    expect(parseGist(JSON.stringify({ asks: true }))).toBeUndefined()
+    expect(parseGist(JSON.stringify({ title: "Checkout totals round per line" }))).toBeUndefined()
     expect(parseGist("Checkout totals round per line")).toBeUndefined()
   })
 
@@ -1074,9 +1064,9 @@ describe("reading the model's gist", () => {
   })
 
   it("refuses a gist that opens like a question, and keeps statements that begin alike", () => {
-    expect(gist("Should I include gossip templates", true)).toBeUndefined()
-    expect(gist("Do you want the gossip templates", true)).toBeUndefined()
-    expect(gist("Can we drop the tab tooltip", true)).toBeUndefined()
+    expect(gist("Should I include gossip templates")).toBeUndefined()
+    expect(gist("Do you want the gossip templates")).toBeUndefined()
+    expect(gist("Can we drop the tab tooltip")).toBeUndefined()
     for (const text of [
       "Did not touch the migration files",
       "Is now waiting for your approval",
@@ -1094,15 +1084,15 @@ describe("reading the model's gist", () => {
     expect(gist("结账".repeat(16))).toBeUndefined()
   })
 
-  it("refuses a gist that ends in a question, as the reply's question is in asks", () => {
-    expect(gist("Which rounding mode should I keep?", true)).toBeUndefined()
+  it("refuses a gist that ends in a question", () => {
+    expect(gist("Which rounding mode should I keep?")).toBeUndefined()
   })
 
   it("refuses chat words, and a copy of an example", () => {
     expect(gist("Thank you very much")).toBeUndefined()
     for (const example of exampleGists) expect(gist(example)).toBeUndefined()
     expect(
-      gist("Checkout totals now round per line", false, "checkout totals now round per line"),
+      gist("Checkout totals now round per line", "checkout totals now round per line"),
     ).toBeDefined()
   })
 
@@ -1126,9 +1116,7 @@ describe("reading the model's gist", () => {
   })
 
   it("refuses a provider key in the raw string even when tidying splits it", () => {
-    expect(
-      parseGist('{"asks":false,"gist":"Leaked ghp_AbC9dEf2GhI4jKl7mN0p in the log"}'),
-    ).toBeUndefined()
+    expect(parseGist('{"gist":"Leaked ghp_AbC9dEf2GhI4jKl7mN0p in the log"}')).toBeUndefined()
   })
 
   it.each([
@@ -1155,8 +1143,6 @@ describe("reading the model's gist", () => {
 
   it("refuses a key that markdown or invisible characters split", () => {
     expect(gist("Found sk-\u200BAbC9dEf2GhI4jKl7 in the file")).toBeUndefined()
-    expect(
-      parseGist('{"asks":false,"gist":"Found ghp_AbC9dEf2GhI4jKl7mN0p in the file"}'),
-    ).toBeUndefined()
+    expect(parseGist('{"gist":"Found ghp_AbC9dEf2GhI4jKl7mN0p in the file"}')).toBeUndefined()
   })
 })

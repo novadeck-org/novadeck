@@ -1711,7 +1711,6 @@ describe("writing notes", () => {
     expect(await murmur.note(reply, { terminal: "t" })).toEqual({
       kind: "gist",
       text: expect.stringMatching(/^Fake gist \d+$/),
-      asks: false,
     })
 
     const asked = await requests(directory)

@@ -335,16 +335,14 @@ describe("asking for a gist", () => {
     expect(shown).not.toContain("[…]")
   })
 
-  it("tells the model what asking is, and asks for asks first", () => {
+  it("asks for the gist alone", () => {
     const chat = messages(reply("Want me to add tests?"))
     const { responseFormat: format, maxTokens } = formats.gist
 
-    expect(chat[0]?.content).toMatch(/asking the person to pick, decide or supply something/)
-    expect(chat[0]?.content).toMatch(/false for an offer to do more/)
     expect(chat[0]?.content).toMatch(/in those words/)
     expect(format.json_schema.name).toBe("reply_gist")
-    expect(Object.keys(format.json_schema.schema.properties)).toEqual(["asks", "gist"])
-    expect(format.json_schema.schema.required).toEqual(["asks", "gist"])
+    expect(Object.keys(format.json_schema.schema.properties)).toEqual(["gist"])
+    expect(format.json_schema.schema.required).toEqual(["gist"])
     expect(maxTokens).toBe(128)
   })
 

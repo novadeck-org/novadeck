@@ -565,7 +565,7 @@ const create = (
       const subject = subjects.get(id)
       const activity = subject?.activity && withGist(subject.activity, at, gist)
       if (!activity) return
-      gisted.push(gist.text)
+      gisted.push(gist)
       subjects.set(id, { ...subject, activity })
     },
     cleared: () => {
@@ -2739,7 +2739,7 @@ describe("murmur's gists", () => {
         { kind: "reply", reply: "Fixed the rounding bug.", failed: false },
       ])
       expect(gisted).toEqual(["Gist 1"])
-      expect(subjects.get("a")!.activity!.lastTurn!.gist).toEqual({ text: "Gist 1", asks: false })
+      expect(subjects.get("a")!.activity!.lastTurn!.gist).toEqual("Gist 1")
       // Shown unread again: it has a gist already.
       murmur.replied("a", 20)
       await real()
@@ -2784,7 +2784,7 @@ describe("murmur's gists", () => {
       change({ activity: asking([]) })
       murmur.changed("a")
       expect(describer.notes[0]!.signal?.aborted).toBe(true)
-      describer.notes[0]!.answer({ kind: "gist", text: "Late", asks: false })
+      describer.notes[0]!.answer({ kind: "gist", text: "Late" })
       change({ activity: ended(40) })
       await real()
       expect(gisted).toEqual([])
@@ -2795,8 +2795,7 @@ describe("murmur's gists", () => {
       const skipped = create(
         { activity: ended(20), transcript },
         new FakeDescriber({
-          note: (_digest, call) =>
-            call === 1 ? undefined : { kind: "gist", text: "Did it", asks: false },
+          note: (_digest, call) => (call === 1 ? undefined : { kind: "gist", text: "Did it" }),
         }),
       )
       skipped.murmur.replied("a", 20)
@@ -2835,8 +2834,7 @@ describe("murmur's gists", () => {
       const { murmur, describer, gisted } = create(
         { activity: ended(20), transcript },
         new FakeDescriber({
-          note: (_digest, call) =>
-            call === 1 ? undefined : { kind: "gist", text: "Did it", asks: false },
+          note: (_digest, call) => (call === 1 ? undefined : { kind: "gist", text: "Did it" }),
         }),
         { retryMs: 150 },
       )
@@ -2855,8 +2853,7 @@ describe("murmur's gists", () => {
       const skipped = create(
         { activity: ended(20), transcript },
         new FakeDescriber({
-          note: (_digest, call) =>
-            call === 1 ? undefined : { kind: "gist", text: "Did it", asks: true },
+          note: (_digest, call) => (call === 1 ? undefined : { kind: "gist", text: "Did it" }),
         }),
         { retryMs: 150 },
       )

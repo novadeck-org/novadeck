@@ -89,13 +89,12 @@ export const responseFormat = {
   json_schema: { name: "terminal_title", strict: true, schema },
 } as const
 
-export const gistSystem = `You write one line for a developer's notification list. You get the reply an AI coding agent ended its turn with. Reply with a JSON object holding asks and a gist, in that order.
+export const gistSystem = `You write one line for a developer's notification list. You get the reply an AI coding agent ended its turn with. Reply with a JSON object holding a gist.
 
-asks: true when the reply ends by asking the person to pick, decide or supply something the agent needs to go on, with or without a question mark: "Which direction appeals to you?", "Tell me where it downloaded". false for an offer to do more, such as "Want me to add tests?", "Should I also update the docs?" or "Let me know if you need anything else".
 gist: ${gistWords.min} to ${gistWords.max} words, at most ${gistCharacters} characters, a complete phrase of about 4 to 8 words naming the result, what the agent did or found, not the topic. Never copy a sentence from the reply.
 
 Rules:
-- The gist is a statement, never a question and never the reply's own question: asks carries that. When the reply asks, the gist still says what the agent found, proposed or did ("Two rounding modes proposed"): never "question", "clarify" or "open question".
+- The gist is a statement, never a question and never the reply's own question. When the reply asks, the gist still says what the agent found, proposed or did ("Two rounding modes proposed"): never "question", "clarify" or "open question".
 - Write in the language of the reply, whatever language these instructions are in.
 - Use only facts in the reply. Never say tests pass, CI is green or something works unless the reply says so in those words.
 - When the turn ended with an error, say what failed if the reply says so.
@@ -103,20 +102,17 @@ Rules:
 
 Examples of the reply, which show the shape only: never reuse their words for another reply:
 A reply that rounds checkout totals per line and ends "Which rounding mode should I keep?" gives:
-{"asks":true,"gist":"${exampleGists[0]}"}
+{"gist":"${exampleGists[0]}"}
 A reply that adds the validation and ends "Want me to add more?" gives:
-{"asks":false,"gist":"${exampleGists[1]}"}
+{"gist":"${exampleGists[1]}"}
 A reply that ends on a build error and "Tell me which Node version CI uses" gives:
-{"asks":true,"gist":"${exampleGists[2]}"}`
+{"gist":"${exampleGists[2]}"}`
 
-// `asks` comes first because the engine's grammar writes properties in this order, so the
-// model has decided it before it writes a gist that might otherwise talk around it.
 const gistSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["asks", "gist"],
+  required: ["gist"],
   properties: {
-    asks: { type: "boolean" },
     gist: { type: "string", minLength: 3, maxLength: gistCharacters + overrun },
   },
 } as const

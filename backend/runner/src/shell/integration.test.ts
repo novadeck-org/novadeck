@@ -4144,9 +4144,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const at = activity()!.lastTurn!.at
       manager.gistWanted(terminal.id, at)
       manager.gistWanted(terminal.id, at)
-      await expect
-        .poll(() => activity()?.lastTurn?.gist, { timeout: 30_000 })
-        .toEqual({ text: "Gist 1", asks: false })
+      await expect.poll(() => activity()?.lastTurn?.gist, { timeout: 30_000 }).toEqual("Gist 1")
       expect(describer.notes[0]!.digest).toMatchObject({
         kind: "reply",
         reply: "Fixed the rounding bug.",

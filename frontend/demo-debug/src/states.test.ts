@@ -523,14 +523,13 @@ describe("demo states", () => {
       expect(
         calls
           .flatMap((call) => {
-            const gist = (call.args[1] as { gist?: { text: string; asks?: true } } | undefined)
-              ?.gist
-            return call.verb === "finish" && gist ? [[call.args[0], gist.text, gist.asks]] : []
+            const gist = (call.args[1] as { gist?: string } | undefined)?.gist
+            return call.verb === "finish" && gist ? [[call.args[0], gist]] : []
           })
           .toSorted(),
       ).toEqual([
-        ["completed", "Checkout totals round per line, tests pass", true],
-        ["failed", "Test suite no longer compiles", undefined],
+        ["completed", "Checkout totals round per line, tests pass"],
+        ["failed", "Test suite no longer compiles"],
       ])
       // The first round reads as it did before murmur: a finish without a gist.
       expect(

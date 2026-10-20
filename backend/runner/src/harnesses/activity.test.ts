@@ -1558,43 +1558,43 @@ describe("murmur's gists", () => {
 
   it("puts a gist on the end it was written for, while it is the last and none runs", () => {
     const done = stop(running, 2, { reply: "Done." })
-    expect(withGist(done, 3, { text: "Fixed it", asks: false })).toBeUndefined()
-    const gisted = withGist(done, 2, { text: "Fixed the rounding bug", asks: true })!
+    expect(withGist(done, 3, "Fixed it")).toBeUndefined()
+    const gisted = withGist(done, 2, "Fixed the rounding bug")!
     expect(summary(gisted).lastTurn).toEqual({
       outcome: "completed",
       reply: "Done.",
       at: 2,
-      gist: { text: "Fixed the rounding bug", asks: true },
+      gist: "Fixed the rounding bug",
       error: null,
       limit: null,
       files: [],
     })
     // Once only; and the outcome is never changed by it.
-    expect(withGist(gisted, 2, { text: "Other", asks: false })).toBeUndefined()
+    expect(withGist(gisted, 2, "Other")).toBeUndefined()
     // A new turn drops it, and a late gist for the old end is refused.
     const next = turn(gisted, 5)
     expect(summary(next).lastTurn).toBeNull()
-    expect(withGist(next, 2, { text: "Late", asks: false })).toBeUndefined()
+    expect(withGist(next, 2, "Late")).toBeUndefined()
     expect(summary(stop(next, 6)).lastTurn?.gist).toBeNull()
   })
 
   it("writes no gist for an interrupted turn or one that is running", () => {
-    expect(withGist(running, 1, { text: "Nothing", asks: false })).toBeUndefined()
+    expect(withGist(running, 1, "Nothing")).toBeUndefined()
     const interrupted = stop(running, 2, { outcome: "interrupted" })
-    expect(withGist(interrupted, 2, { text: "Nothing", asks: false })).toBeUndefined()
+    expect(withGist(interrupted, 2, "Nothing")).toBeUndefined()
     const failed = stop(running, 2, { outcome: "failed" })
-    expect(withGist(failed, 2, { text: "Build broke", asks: false })).toBeDefined()
+    expect(withGist(failed, 2, "Build broke")).toBeDefined()
   })
 
   it("keeps the gist when the hook's Stop fills in an end its records already told", () => {
     const recorded = stop(running, 3, { recorded: true })
-    const gisted = withGist(recorded, 3, { text: "Fixed it", asks: false })!
+    const gisted = withGist(recorded, 3, "Fixed it")!
     const filled = stop(gisted, 4, { reply: "All green." })
     expect(summary(filled).lastTurn).toEqual({
       outcome: "completed",
       reply: "All green.",
       at: 3,
-      gist: { text: "Fixed it", asks: false },
+      gist: "Fixed it",
       error: null,
       limit: null,
       files: [],
@@ -1606,7 +1606,7 @@ describe("murmur's gists", () => {
 
   it("drops the gist when the hook's Stop tells the same end another way", () => {
     const recorded = stop(running, 3, { recorded: true })
-    const gisted = withGist(recorded, 3, { text: "Fixed it", asks: false })!
+    const gisted = withGist(recorded, 3, "Fixed it")!
     const other = stop(gisted, 4, { outcome: "failed" })
     expect(summary(other).lastTurn).toMatchObject({
       outcome: "failed",
@@ -1620,7 +1620,7 @@ describe("murmur's gists", () => {
 
   it("takes the gist away when murmur is turned off, and says when it had none", () => {
     expect(withoutNotes(started(0))).toBeUndefined()
-    const gisted = withGist(stop(running, 2), 2, { text: "Fixed it", asks: false })!
+    const gisted = withGist(stop(running, 2), 2, "Fixed it")!
     expect(summary(withoutNotes(gisted)!).lastTurn?.gist).toBeNull()
     expect(withoutNotes(withoutNotes(gisted)!)).toBeUndefined()
   })

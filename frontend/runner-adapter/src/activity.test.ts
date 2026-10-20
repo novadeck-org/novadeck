@@ -205,8 +205,8 @@ describe("terminal activity", () => {
       })
     })
 
-    it("carries murmur's gist of the reply, and whether the reply asks", () => {
-      const ended = (gist: { text: string; asks: boolean }) =>
+    it("carries murmur's gist of the reply", () => {
+      const ended = (gist: string) =>
         claude({
           state: "idle",
           attention: { pending: 0, kind: null },
@@ -223,15 +223,12 @@ describe("terminal activity", () => {
             files: [],
           },
         }).status
-      expect(ended({ text: "Rounded each line", asks: false })).toEqual({
+      expect(ended("Rounded each line")).toEqual({
         state: "running",
         agent: {
           working: false,
           lastTurn: { outcome: "completed", reply: "Rounded.", at: 7, gist: "Rounded each line" },
         },
-      })
-      expect(ended({ text: "Rounded each line", asks: true })).toMatchObject({
-        agent: { lastTurn: { gist: "Rounded each line", asks: true } },
       })
     })
 

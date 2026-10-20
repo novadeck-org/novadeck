@@ -36,7 +36,7 @@ export type DemoAgentVerbs = {
     outcome: AgentTurnEnd["outcome"],
     options?: {
       readonly after?: number
-      readonly gist?: { readonly text: string; readonly asks?: true }
+      readonly gist?: string
       readonly background?: DemoBackground
     },
   ) => void

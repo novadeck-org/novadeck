@@ -91,7 +91,7 @@ export type Input = Digest | NoteDigest
  */
 export type Description = { readonly title: string; readonly changed: boolean }
 
-export type Gist = { readonly kind: "gist"; readonly text: string; readonly asks: boolean }
+export type Gist = { readonly kind: "gist"; readonly text: string }
 /** A gist for a reply; already validated. */
 export type Note = Gist
 

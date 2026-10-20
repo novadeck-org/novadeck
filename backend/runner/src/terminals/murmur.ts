@@ -590,7 +590,7 @@ export type MurmurHost = {
   /** Gives the terminal murmur's title; nothing when it is gone. */
   described(terminalId: string, description: { readonly title: string }): void
   /** Gives the terminal's turn end at `at` its gist; nothing when that is no longer its last. */
-  gisted(terminalId: string, at: number, gist: { text: string; asks: boolean }): void
+  gisted(terminalId: string, at: number, gist: string): void
   /** Murmur was turned off or removed: every terminal loses its murmur title, saved ones too, and its gists. */
   cleared(): void
 }
@@ -1196,8 +1196,7 @@ export class Murmur {
               watch.gistOwed = true
               this.retryNotes(terminalId, watch)
             }
-          } else if (outcome?.kind === "gist")
-            this.host.gisted(terminalId, at, { text: outcome.text, asks: outcome.asks })
+          } else if (outcome?.kind === "gist") this.host.gisted(terminalId, at, outcome.text)
         },
         terminalId,
       )

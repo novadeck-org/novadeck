@@ -60,7 +60,7 @@ export const replyPreviewLength = 120
 const oneLine = /^[^\x00-\x1f\x7f-\x9f]*$/
 const murmurLine = (max: number) => z.string().min(1).max(max).regex(oneLine)
 export const murmurGistLength = 96
-export const murmurGist = z.strictObject({ text: murmurLine(murmurGistLength), asks: z.boolean() })
+export const murmurGist = murmurLine(murmurGistLength)
 
 // What the agent holding a terminal's foreground is doing, as its own hooks report it:
 // working on a turn, or with its turn over while subagents it started run on, which will
@@ -107,8 +107,7 @@ export const agentActivity = z.strictObject({
       reply: z.string().min(1).max(replyPreviewLength).nullable(),
       at: z.number(),
       // Murmur's gist of the last reply, written once a client showed this end unread
-      // (`murmur.gist`), and whether the reply asks the person something. It never changes
-      // `outcome`.
+      // (`murmur.gist`). It never changes `outcome`.
       gist: murmurGist.nullable(),
       // A failed turn's error as its harness said it; null otherwise or where it gave none.
       error: z.string().min(1).max(2048).nullable(),

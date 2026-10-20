@@ -222,12 +222,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
           const lastTurn: AgentTurnEnd = {
             outcome,
             ...(reply ? { reply } : {}),
-            ...(gist
-              ? {
-                  gist: gist.text,
-                  ...(gist.asks ? { asks: true as const } : {}),
-                }
-              : {}),
+            ...(gist ? { gist } : {}),
             at: Date.now(),
           }
           // Its subagents keep it working until they finish, as the runner reports it.

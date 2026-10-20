@@ -141,7 +141,7 @@ export const murmurHost = (host: DescribingHost): MurmurHost => ({
   },
   gisted: (terminalId, at, gist) => {
     const record = host.live(terminalId)
-    const parsed = murmurGist.safeParse({ text: gist.text, asks: gist.asks })
+    const parsed = murmurGist.safeParse(gist)
     if (!record?.activity || !parsed.success) return
     const next = withGist(record.activity, at, parsed.data)
     if (!next) return

@@ -88,7 +88,7 @@ describe.skipIf(!engine || !model)("murmur with the real engine", () => {
         { terminal: "moth" },
       )
       console.info("gist", JSON.stringify(gist))
-      expect(gist).toMatchObject({ kind: "gist", asks: false })
+      expect(gist).toMatchObject({ kind: "gist" })
     },
   )
 })

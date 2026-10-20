@@ -52,7 +52,7 @@ export type AgentStatus = {
 // person (Escape, or a request they refused), or `unknown` when it only went idle, as an
 // Escape shows in Antigravity. `reply` is the start of its last reply, one line of plain
 // text; `at` tells this end from any other. `gist` is murmur's words for the reply, where
-// it wrote them, and `asks` that the reply asks the person something. `error` is a failed
+// it wrote them. `error` is a failed
 // turn's error as its harness said it. `limit` is the usage-limit window the end ran into,
 // with its length in minutes where known, and when it resets, in epoch milliseconds.
 // `files` are the absolute paths its edit tools wrote in the turn, first written first.
@@ -60,7 +60,6 @@ export type AgentTurnEnd = {
   readonly outcome: "completed" | "failed" | "interrupted" | "unknown"
   readonly reply?: string
   readonly gist?: string
-  readonly asks?: true
   readonly error?: string
   readonly limit?: { readonly minutes: number | null; readonly resetsAt: number }
   readonly files?: readonly string[]

@@ -126,7 +126,7 @@ const server = createServer(async (request, response) => {
         : `${label} ${completions}`
   const answer =
     kind === "reply_gist"
-      ? { asks: false, gist: text("Fake gist", "Checkout totals now round per line") }
+      ? { gist: text("Fake gist", "Checkout totals now round per line") }
       : {
           // An agent's title (`agent_title`) carries the verdict; a shell's has only the title.
           ...(kind === "agent_title" && { changed: !mode.includes("same") }),

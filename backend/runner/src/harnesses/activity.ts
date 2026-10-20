@@ -143,7 +143,7 @@ export type LastTurn = {
   readonly at: number
   readonly recorded: boolean
   /** Murmur's gist of the reply, for the person only; see `withGist`. */
-  readonly gist?: { readonly text: string; readonly asks: boolean }
+  readonly gist?: string
   /** Set while the person's Escape is the only word on how the turn ended. */
   readonly escaped?: Escape
   /** A failed turn's error as its harness said it. */
@@ -874,11 +874,7 @@ const asked = (
  * The activity with murmur's gist on its last turn, while that turn is still the one that
  * ended at `at`, completed or failed, and none runs; undefined otherwise.
  */
-export const withGist = (
-  activity: Activity,
-  at: number,
-  gist: { readonly text: string; readonly asks: boolean },
-): Activity | undefined => {
+export const withGist = (activity: Activity, at: number, gist: string): Activity | undefined => {
   const { lastTurn } = activity
   if (
     activity.state === "working" ||
@@ -888,7 +884,7 @@ export const withGist = (
     lastTurn.gist
   )
     return undefined
-  return { ...activity, lastTurn: { ...lastTurn, gist: { text: gist.text, asks: gist.asks } } }
+  return { ...activity, lastTurn: { ...lastTurn, gist } }
 }
 
 /**

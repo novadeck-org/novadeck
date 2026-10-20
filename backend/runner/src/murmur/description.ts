@@ -560,10 +560,10 @@ export const parseDescription = (
   return clean === undefined ? undefined : { title: clean, changed }
 }
 
-/** The gist in `raw` and whether the reply asks, or undefined when it can't be used. */
+/** The gist in `raw`, or undefined when it can't be used. */
 export const parseGist = (raw: string, source?: string): Gist | undefined => {
   const value = object(raw)
-  if (value === undefined || typeof value.asks !== "boolean") return undefined
+  if (value === undefined) return undefined
   const clean = typeof value.gist === "string" ? line(value.gist, gistLimits, source) : undefined
-  return clean === undefined ? undefined : { kind: "gist", text: clean, asks: value.asks }
+  return clean === undefined ? undefined : { kind: "gist", text: clean }
 }

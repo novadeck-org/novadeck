@@ -96,19 +96,14 @@ behind a random API key made for each launch and passed in the environment
   only the project's name is refused. A leading verb filler ("Working on", "Help with", "Review
   of", "Updating"; not "Running", which is content for `docker ps`) is taken off when real words remain ("Fixing login" is kept), and a
   title made only of chat or filler words (Help, Done, Status, Review, Working on, ...) is
-  refused. Anything else is dropped. A gist is 3 to 10 words and at most 60 characters (two lines of the sidebar), comes with a
-  boolean `asks`, and is refused if it ends in `?` or opens like an English question put to someone (`Should I`, `Do you`, `Can we`) (the question is `asks`' to carry). A gist is
+  refused. Anything else is dropped. A gist is 3 to 10 words and at most 60 characters (two lines of the sidebar), and is refused if it ends in `?` or opens like an English question put to someone (`Should I`, `Do you`, `Can we`) (the gist states what the agent did or found). A gist is
   refused like a title for chat words, a copy of a prompt example (the example itself, or a part
   of it that the digest does not say, in any inflection and by whole words: "awarie" says "Awaria", "monkey" does not say "key") and `looksSecret`. Format characters (bidi overrides,
   zero-width characters) and C1 controls are stripped first, so a title shows what it says.
-- **Asking**: `asks` is true when the reply ends by asking the person to pick, decide or supply
-  something the agent needs to go on, with or without a question mark. An offer to do more
-  ("Want me to...?", "Should I also...?") is not asking.
 - **Room in the schemas**: each schema's `maxLength` is 32 above the parser's limit. The engine's
   grammar cuts a string at the schema's length, which would turn an overrun into a cut phrase that
-  passes; with room it comes out whole and is refused. The schema puts `asks` before the gist and
-  an agent's `changed` before its title, as the engine's grammar writes properties in order: the
-  model decides before it names.
+  passes; with room it comes out whole and is refused. The schema puts an agent's `changed` before its
+  title, as the engine's grammar writes properties in order: the model decides before it names.
 - **Stability**: an agent's previous title goes in the prompt with the stage. While the name is
   `forming`, a better name may replace it, and `changed` is true when the title names different
   or clearer work. Once `settled`, the prompt shows only the latest prompt against the name, and
