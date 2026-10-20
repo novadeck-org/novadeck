@@ -40,8 +40,7 @@ One JSON object per line, in one envelope (`Entry`):
 - `verbose: true` marks a line only verbose logging writes, which may hold what a screen showed.
 
 `msg`, `err.message` and data text are cut to 500 characters, a stack to 4,000, after
-redaction; only four times that much is read, so a long text never holds up the process, and a
-text read in part is read to the last space, quote or bracket, so no secret is cut in two. A
+redaction, so a secret is never cut short before it is looked for. A
 `SyntaxError` keeps nothing from its first quote on, as JSON.parse quotes its input.
 
 ## Parts

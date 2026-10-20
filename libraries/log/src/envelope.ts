@@ -62,27 +62,6 @@ export const stackLimit = 4_000
 export const clip = (text: string, limit = textLimit): string =>
   text.length <= limit ? text : `${text.slice(0, limit - 1)}…`
 
-// Characters no token or key holds, so a text cut after one of them cuts none in two.
-const apart = /[\s"'`,;(){}[\]<>&|]/
-
-/**
- * `text` passed through `redact`, then cut to `limit` characters. Only its first `limit` × 4
- * characters are read: what lies past them would be cut anyway, and redacting a line of any
- * length would hold up the process that logs it. A text read in part is read to the last
- * character no secret holds (see `apart`), as a secret cut short may no longer look like one.
- */
-export const cleaned = (
-  text: string,
-  redact: (text: string) => string,
-  limit = textLimit,
-): string => {
-  if (text.length <= limit * 4) return clip(redact(text), limit)
-  const read = text.slice(0, limit * 4)
-  let end = read.length
-  while (end > 0 && !apart.test(read[end - 1] ?? "")) end -= 1
-  return clip(`${redact(read.slice(0, end))}…`, limit)
-}
-
 /**
  * What a syntax error may say of where it failed, without the input it quotes: JSON.parse
  * quotes the text it was given (`Unexpected token 'h', "hello" is not valid JSON`), which may
@@ -115,9 +94,9 @@ export const loggedError = (error: unknown, redact: (text: string) => string): L
   const stack = error.stack && (message === raw ? error.stack : error.stack.replace(raw, message))
   const code = codeOf(error)
   return {
-    name: cleaned(error.name, redact),
-    message: cleaned(message, redact),
-    ...(stack && { stack: cleaned(stack, redact, stackLimit) }),
-    ...(code !== undefined && { code: cleaned(code, redact, 80) }),
+    name: clip(redact(error.name)),
+    message: clip(redact(message)),
+    ...(stack && { stack: clip(redact(stack), stackLimit) }),
+    ...(code !== undefined && { code: clip(redact(code), 80) }),
   }
 }
