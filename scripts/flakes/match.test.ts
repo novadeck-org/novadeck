@@ -23,6 +23,7 @@ const fixtures: Record<string, string> = {
   "release-quality-wait-window": "macOS",
   "runner-engines-server-port-picked-again": "Test (Linux, 3/3)",
   "sandbox-reap-macos-ps-timeout": "Test (macOS)",
+  "adapter-restore-macos-shell-exited": "Test (macOS)",
 }
 
 describe("the known-flake register", () => {
