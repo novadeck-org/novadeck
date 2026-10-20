@@ -2,7 +2,8 @@
    link home), the footer (`.app-footer`, its `.footer-running` count, the
    `.footer-navigate` note while the person navigates the workspace, `.footer-status`
    and `.footer-action`, a portable copy's install chip `.footer-update` with its `.update-card`,
-   the floating `.update-progress` bar of an update downloading, and
+   the floating `.update-progress` bar of an update downloading, the `.whats-new` card of one just
+   installed, and
    the account's subscriptions, `.footer-usage`, a pill each with its `.usage-popover`), the rail of sidebar toggles (`.sidebar-tools`) and the sidebar
    (`.sidebar`), which on narrow screens opens as a `.sidebar-drawer`. Each region is a
    ground with an edge toward the workspace.
@@ -389,6 +390,54 @@
 }
 .update-card-foot > :only-child {
   margin-inline-start: auto;
+}
+/* What's new after an update (WhatsNew.tsx), on the update card's recipe: wider for a list.
+   A small uppercase label and the ×, each highlight as a bold title with its line under
+   it, and the link to the release notes closing the card, set off by a rule. Token (its
+   fallback in brackets): --whats-new-label-fg (strong). */
+.update-card.whats-new {
+  width: 20.5rem;
+  max-height: calc(100dvh - 7rem);
+  gap: 10px;
+  padding: 12px 14px 14px;
+}
+.whats-new-label {
+  color: var(--whats-new-label-fg, var(--color-strong));
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.whats-new-list {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.whats-new-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow-wrap: anywhere;
+}
+.whats-new-title {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.whats-new .update-card-foot {
+  padding-top: 9px;
+  border-top: 1px solid var(--color-line);
+}
+.button.link.whats-new-link {
+  --_fg: var(--color-ink);
+  min-height: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .footer-update-dot {
   width: 6px;

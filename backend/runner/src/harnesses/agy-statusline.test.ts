@@ -225,7 +225,7 @@ describe("Antigravity's status line, as captured", () => {
           .reduce((state, event) => applyActivity(state, binding, event) ?? state, started(0)),
       )
     const quiet = {
-      attention: { pending: 0, kind: null, headline: null },
+      attention: { pending: 0, kind: null },
       subagents: [],
       planning: false,
       background: null,
@@ -246,7 +246,7 @@ describe("Antigravity's status line, as captured", () => {
     })
     expect(run([preInvocation(1), report(confirming!, 2)])).toEqual({
       state: "working",
-      attention: { pending: 1, kind: "permission", headline: null },
+      attention: { pending: 1, kind: "permission" },
       subagents: [],
       planning: false,
       background: null,
@@ -269,7 +269,7 @@ describe("Antigravity's status line, as captured", () => {
     })
     expect(run([preInvocation(1), report(idle!, 2), report(confirming!, 3)])).toEqual({
       state: "working",
-      attention: { pending: 1, kind: "permission", headline: null },
+      attention: { pending: 1, kind: "permission" },
       subagents: [],
       planning: false,
       background: null,

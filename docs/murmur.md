@@ -1,8 +1,8 @@
 # Murmur
 
-Murmur is an opt-in local model that writes terminal titles, and two short notes for the
-notification list: a headline for a question or plan an agent is waiting on, and a gist of a
-reply the person has not seen. (Summaries are the agents' own, written with their `summarize` tool; murmur reads them as the strongest input to a title.) It runs
+Murmur is an opt-in local model that writes terminal titles, and a short gist of a
+reply the person has not seen, which the Inbox shows as the subject of that finished turn's row
+in place of the reply's start. (Summaries are the agents' own, written with their `summarize` tool; murmur reads them as the strongest input to a title.) It runs
 Qwen3.5-2B (Q4_K_M, 1.28 GB) on llama.cpp's `llama-server`, an engine of its own like
 voice input's, installed from Preferences > Addons. Without it, terminals keep their default
 titles.
@@ -35,24 +35,20 @@ Terminals ask for a description when something worth a new one happened (see
   screen is read as any screen is: procps `top`, `less -X`, and git's pager, which git runs
   with `LESS=FRX` unless `LESS` is set.
 
-Notes are handed their own digests:
-
-- a headline: the first question an agent asks, with the labels of the answers it offers (at
-  most 16), or the start of a plan it asks the person to review (at most 16 KiB);
-- a gist: the agent's last reply, whole when short, else its first and last 4000 characters.
-  The prompt strips what is no prose, after redaction (fenced code becomes `[code]`, link
-  addresses and bare URLs go, table rows become their first row and `[table]`), then budgets
-  what is left by what it costs the model in tokens, as a ceiling that does not undercount: 3100 of
-  the 4096-token window. A plain word costs 0.65 a character, other ASCII and a digit 1 (and a
-  number its leading space, each line break 1, and every word at least 1), Chinese, Japanese and Korean 2 to 2.4, other scripts 1.5 to 3, and
-  anything beyond the basic plane 4. It was measured on the engine's own tokenizer against random
-  digits, hex, base64, symbols, path lists, emoji and rare characters. That is about 2900
-  characters of English each at the start and the end, and far fewer of dense text. Fenced code
-  is a line that begins with three or more backticks, up to a line of at least as many, so a
-  stray ``` in a sentence is no fence. A request that is still too big for the context (the
-  engine answers 400 `exceed_context_size_error`) is a refusal of that job: no text, counted as a refusal for that terminal's kind, and no engine
-  failure, back-off or restart. A cut reply is shown as "The start of the agent's reply:", `[…]`, "The end of the
-  agent's reply:", so the two pieces are not read as one text.
+A gist is handed its own digest: the agent's last reply, whole when short, else its first and last 4000 characters.
+The prompt strips what is no prose, after redaction (fenced code becomes `[code]`, link
+addresses and bare URLs go, table rows become their first row and `[table]`), then budgets
+what is left by what it costs the model in tokens, as a ceiling that does not undercount: 3100 of
+the 4096-token window. A plain word costs 0.65 a character, other ASCII and a digit 1 (and a
+number its leading space, each line break 1, and every word at least 1), Chinese, Japanese and Korean 2 to 2.4, other scripts 1.5 to 3, and
+anything beyond the basic plane 4. It was measured on the engine's own tokenizer against random
+digits, hex, base64, symbols, path lists, emoji and rare characters. That is about 2900
+characters of English each at the start and the end, and far fewer of dense text. Fenced code
+is a line that begins with three or more backticks, up to a line of at least as many, so a
+stray ``` in a sentence is no fence. A request that is still too big for the context (the
+engine answers 400 `exceed_context_size_error`) is a refusal of that job: no text, counted as a refusal for that terminal's kind, and no engine
+failure, back-off or restart. A cut reply is shown as "The start of the agent's reply:", `[…]`, "The end of the
+agent's reply:", so the two pieces are not read as one text.
 
 Nothing else is read, and nothing leaves the machine: the server listens on `127.0.0.1`
 behind a random API key made for each launch and passed in the environment
@@ -89,21 +85,14 @@ behind a random API key made for each launch and passed in the environment
   only the project's name is refused. A leading verb filler ("Working on", "Help with", "Review
   of", "Updating"; not "Running", which is content for `docker ps`) is taken off when real words remain ("Fixing login" is kept), and a
   title made only of chat or filler words (Help, Done, Status, Review, Working on, ...) is
-  refused. Anything else is dropped. A headline is 2 to 10 words and at most 56
-  characters, and may end in `?`. A gist is 3 to 10 words and at most 60 characters (two lines of the sidebar), comes with a
-  boolean `asks`, and is refused if it ends in `?` or opens like an English question put to someone (`Should I`, `Do you`, `Can we`) (the question is `asks`' to carry). Notes are
-  refused like titles for chat words, a copy of a prompt example (the example itself, or a part
+  refused. Anything else is dropped. A gist is 3 to 10 words and at most 60 characters (two lines of an Inbox row), and is refused if it ends in `?` or opens like an English question put to someone (`Should I`, `Do you`, `Can we`) (the gist states what the agent did or found). A gist is
+  refused like a title for chat words, a copy of a prompt example (the example itself, or a part
   of it that the digest does not say, in any inflection and by whole words: "awarie" says "Awaria", "monkey" does not say "key") and `looksSecret`. Format characters (bidi overrides,
   zero-width characters) and C1 controls are stripped first, so a title shows what it says.
-- **Asking**: `asks` is true when the reply ends by asking the person to pick, decide or supply
-  something the agent needs to go on, with or without a question mark. An offer to do more
-  ("Want me to...?", "Should I also...?") is not asking. A headline for a question opens with
-  "Asks" and one that opens with `Should`, `Can`, `Is` and the like is refused.
 - **Room in the schemas**: each schema's `maxLength` is 32 above the parser's limit. The engine's
   grammar cuts a string at the schema's length, which would turn an overrun into a cut phrase that
-  passes; with room it comes out whole and is refused. The schema puts `asks` before the gist and
-  an agent's `changed` before its title, as the engine's grammar writes properties in order: the
-  model decides before it names.
+  passes; with room it comes out whole and is refused. The schema puts an agent's `changed` before its
+  title, as the engine's grammar writes properties in order: the model decides before it names.
 - **Stability**: an agent's previous title goes in the prompt with the stage. While the name is
   `forming`, a better name may replace it, and `changed` is true when the title names different
   or clearer work. Once `settled`, the prompt shows only the latest prompt against the name, and
@@ -146,13 +135,13 @@ behind a random API key made for each launch and passed in the environment
   differently as one is masked whole (so a neighbouring row can go with a secret). A quote left
   open across rows that did not run to the edge is not followed. Key blocks are masked from the
   first BEGIN marker to its END, or to the end of the screen.
-- An output guard backs it up (`looksSecret`). Murmur writes only short lines, and a title,
-  headline or gist is refused (as no text) if it holds a mask, if it has a provider's key in its documented shape,
+- An output guard backs it up (`looksSecret`). Murmur writes only short lines, and a title
+  or gist is refused (as no text) if it holds a mask, if it has a provider's key in its documented shape,
   if redaction masks a piece of it that looks like a key or is 12 or more characters with a
   digit, or if a piece of a word looks like a key (12 or more characters mixing letters and
   digits with no long run of lower case, or high entropy; a long hex run is one too). Lines
   with ordinary numbers ("Fix PR 131", "Upgrade to Node 26") pass.
-- Notes are for the person only: they ride on a terminal's activity to the UI and are never in
+- A gist is for the person only: it rides on a terminal's activity to the UI and is never in
   an agent-facing listing or tool.
 - Everything stays on this machine: the digest goes to a server on `127.0.0.1` behind a key
   made for the run, and nothing is sent anywhere else.
@@ -220,11 +209,11 @@ stops after three.
 ## Being polite
 
 - It loads on the first job and unloads after about two minutes idle.
-- One job at a time, never pre-empted. Jobs wait in a line served by kind: headlines first, then
-  gists, then titles, first come first served within a kind. A job whose signal aborts leaves the
-  line. A title may wait behind headlines: that is meant.
-- Gists are written only for a finish a window marks unread (the UI asks with `murmur.gist`), and
-  a headline when a question or plan is asked, so murmur does no work for text no one will read.
+- One job at a time, never pre-empted. Jobs wait in a line served by kind: gists first, then
+  titles, first come first served within a kind. A job whose signal aborts leaves the
+  line. A title may wait behind gists: that is meant.
+- Gists are written only for a finish a window marks unread (the UI asks with `murmur.gist`), so
+  murmur does no work for text no one will read.
 - Voice input has priority: while `voice.activity.busy()`, murmur aborts its request, waits,
   and retries.
 - A cold start (no model loaded) waits while the computer's free memory, or the chosen device's,
@@ -238,10 +227,10 @@ stops after three.
   seconds, doubling with each failure in a row up to eight minutes, for every kind of job. A
   digest that overruns the worker's deadline holds off only its own terminal, the same way, and so
   does a terminal whose texts keep being refused, each kind counted apart (a terminal whose
-  headlines are refused still gets titles and gists). A passing check, and turning
+  gists are refused still gets titles). A passing check, and turning
   murmur on, forget all of it.
 - A job stopped because murmur was turned off is not a failure.
-- Turning murmur off, or uninstalling it, clears the titles, headlines and gists it wrote (`watchCleared` in the
+- Turning murmur off, or uninstalling it, clears the titles and gists it wrote (`watchCleared` in the
   describer, consumed by the terminals), also from the store's files on disk, as the store does with
   anything it forgets. A failed check, a lost GPU or the runner closing do not.
 - It runs on battery.
@@ -261,7 +250,7 @@ runner; packaged, the manifest is at `resources/murmur/engine.json`.
 (`fail:<device>`, `crash`, `slow`, `hang`, `garbage`, `copy`, `device`, `project`, `same`, `overflow`,
 `late`, `log`; a mode is found anywhere in the text, so names must not contain one another); it
 reads the file again at each request, so a test can mend a running server. It answers by the
-`response_format.json_schema.name` it is asked with (`agent_title`, `terminal_title` for a shell, `request_headline`,
+`response_format.json_schema.name` it is asked with (`agent_title`, `terminal_title` for a shell,
 `reply_gist`), and `copy` copies the first example of that kind. The reply to `agent_title` also
 carries `changed` (true; `same` makes it false); a shell's has the title alone. `project` writes a
 title that opens with the project "shopdeck". The model is
@@ -269,7 +258,7 @@ installed as `models/<first 12 of its sha256>-<name>`, and other files there are
 after a model install. `testing/slow-worker.mjs` and `testing/regex-worker.mjs` stand in for the
 redaction thread (a spinning loop, and a regex that backtracks without end). `murmur/real.test.ts`
 runs the real engine when `NOVADECK_MURMUR_REAL_ENGINE` (an unpacked engine folder) and
-`NOVADECK_MURMUR_REAL_MODEL` are set; it writes a title, a headline and a gist. Title-only jobs take 2 to 6 s warm on an Arc iGPU.
+`NOVADECK_MURMUR_REAL_MODEL` are set; it writes a title and a gist. Title-only jobs take 2 to 6 s warm on an Arc iGPU.
 
 llama-server's flags are built by `serverArguments` and pinned by a test. Changing them, or the
 HTTP surface murmur uses, means bumping `engineInterface` in

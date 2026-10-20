@@ -194,7 +194,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
         program,
       )
     },
-    ask: (key, terminal, kind, count, headline) => {
+    ask: (key, terminal, kind, count) => {
       const { agent, program, began } = take(key, terminal)
       if (began) emit({ type: "begin", key })
       status(
@@ -202,7 +202,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
         {
           working: true,
           ...(kind === "plan" ? { planning: true as const } : {}),
-          attention: { kind, count, ...(headline ? { headline } : {}) },
+          attention: { kind, count },
           // What it runs beside the request keeps running.
           ...(agent?.working && agent.subagents ? { subagents: agent.subagents } : {}),
         },
@@ -222,12 +222,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
           const lastTurn: AgentTurnEnd = {
             outcome,
             ...(reply ? { reply } : {}),
-            ...(gist
-              ? {
-                  gist: gist.text,
-                  ...(gist.asks ? { asks: true as const } : {}),
-                }
-              : {}),
+            ...(gist ? { gist } : {}),
             at: Date.now(),
           }
           // Its subagents keep it working until they finish, as the runner reports it.

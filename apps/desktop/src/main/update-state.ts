@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 
-import { updateChannels, type UpdateChannel } from "@novadeck/protocol/bridge"
+import { updateChannels, updateVersionPattern, type UpdateChannel } from "@novadeck/protocol/bridge"
 
 /** What the host remembers across launches about updating. */
 export type UpdateState = {
@@ -17,13 +17,40 @@ export type UpdateState = {
    * whether it did; see `installOutcome`.
    */
   readonly installing: string | undefined
+  /** The version the app last launched as, to tell an update from a fresh install. */
+  readonly lastRunVersion: string | undefined
+  /**
+   * The version whose release notes the person has yet to be shown, until they dismiss
+   * them or the release turns out to have nothing to show; see ./whats-new.ts.
+   */
+  readonly whatsNewPending: string | undefined
+  /**
+   * The newest version whose notes were settled, shown and dismissed or found to have
+   * nothing to show. No version at or below it is offered again, so a downgrade, or a
+   * portable and an installed copy sharing this file, never bring a dismissed card back.
+   */
+  readonly whatsNewSettled: string | undefined
+  /**
+   * When (milliseconds since the epoch) a prerelease's release was last read and had no
+   * highlights yet, so that read is not repeated at every launch; see ./whats-new.ts.
+   */
+  readonly whatsNewCheckedAt: number | undefined
 }
 
 const defaults: UpdateState = {
   channel: "stable",
   installFailedOn: undefined,
   installing: undefined,
+  lastRunVersion: undefined,
+  whatsNewPending: undefined,
+  whatsNewSettled: undefined,
+  whatsNewCheckedAt: undefined,
 }
+
+// A version as a release names it, else unset: a corrupt one must not stand for a version
+// that is compared against later launches.
+const versionOf = (value: unknown): string | undefined =>
+  typeof value === "string" && updateVersionPattern.test(value) ? value : undefined
 
 /**
  * The state in a file's text. The file is the host's own, but a damaged or edited one
@@ -38,11 +65,26 @@ export const updateStateOf = (text: string): UpdateState => {
     return defaults
   }
   if (typeof kept !== "object" || kept === null) return defaults
-  const { channel, installFailedOn, installing } = kept as Record<string, unknown>
+  const {
+    channel,
+    installFailedOn,
+    installing,
+    lastRunVersion,
+    whatsNewPending,
+    whatsNewSettled,
+    whatsNewCheckedAt,
+  } = kept as Record<string, unknown>
   return {
     channel: updateChannels.find((known) => known === channel) ?? defaults.channel,
     installFailedOn: typeof installFailedOn === "string" ? installFailedOn : undefined,
     installing: typeof installing === "string" ? installing : undefined,
+    lastRunVersion: versionOf(lastRunVersion),
+    whatsNewPending: versionOf(whatsNewPending),
+    whatsNewSettled: versionOf(whatsNewSettled),
+    whatsNewCheckedAt:
+      typeof whatsNewCheckedAt === "number" && Number.isFinite(whatsNewCheckedAt)
+        ? whatsNewCheckedAt
+        : undefined,
   }
 }
 
@@ -97,5 +139,31 @@ export const keepUpdateState = (file: string) => {
     recordInstalling: (version: string): void => change({ installing: version }),
     /** Marks that a launch has seen how the install begun last ended. */
     clearInstalling: (): void => change({ installing: undefined }),
+    /** Marks the version this launch runs, and which version's notes are yet to be shown. */
+    recordLaunch: (lastRunVersion: string, whatsNewPending: string | undefined): void =>
+      change({
+        lastRunVersion,
+        whatsNewPending,
+        // A read of another version's release says nothing of this one's.
+        ...(whatsNewPending === read().whatsNewPending ? {} : { whatsNewCheckedAt: undefined }),
+      }),
+    /** Marks when a prerelease's release was read and had no highlights yet. */
+    recordWhatsNewCheck: (whatsNewCheckedAt: number): void => change({ whatsNewCheckedAt }),
+    /**
+     * Marks that the notes of `version` are settled: seen, or none to see. The newest
+     * version settled is kept, so settling an older one after a downgrade moves nothing back.
+     * `newer` tells whether its first version is newer than its second.
+     */
+    settleWhatsNew: (version: string, newer: (a: string, b: string) => boolean): void => {
+      const { whatsNewSettled } = read()
+      change({
+        whatsNewPending: undefined,
+        whatsNewCheckedAt: undefined,
+        whatsNewSettled:
+          whatsNewSettled !== undefined && newer(whatsNewSettled, version)
+            ? whatsNewSettled
+            : version,
+      })
+    },
   }
 }

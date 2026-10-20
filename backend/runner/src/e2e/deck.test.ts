@@ -167,7 +167,7 @@ describe("poll", () => {
 describe("stated", () => {
   const activity = {
     state: "working" as const,
-    attention: { pending: 1, kind: "permission" as const, headline: null },
+    attention: { pending: 1, kind: "permission" as const },
     planning: false,
     subagents: [],
     background: null,
@@ -176,9 +176,9 @@ describe("stated", () => {
 
   it("says what the agent does and what waits on the person", () => {
     expect(stated(activity)).toBe("working, 1 request waiting (permission)")
-    expect(
-      stated({ ...activity, state: "idle", attention: { pending: 0, kind: null, headline: null } }),
-    ).toBe("idle, no request waiting")
+    expect(stated({ ...activity, state: "idle", attention: { pending: 0, kind: null } })).toBe(
+      "idle, no request waiting",
+    )
   })
 
   it("says when there is no agent", () => {

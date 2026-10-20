@@ -18,7 +18,7 @@ import type { SandboxState } from "@novadeck/core/sandbox"
 import { activeProject } from "@novadeck/core/state"
 import { createStore, type MutableStore, type Store } from "@novadeck/core/store"
 import type { PreferencesValue, TerminalMetadata, Workspace } from "@novadeck/core/types"
-import type { UpdateOffer } from "@novadeck/core/update"
+import type { UpdateOffer, WhatsNew } from "@novadeck/core/update"
 
 import { writePreferences } from "../preferences/preferences-storage"
 import { noArrangement, type ProjectArrangement } from "../projects/project-arrangement"
@@ -70,6 +70,9 @@ export type UiState = {
   readonly update: UpdateOffer | null
   // Whether its notice is open, or waits to open once the footer shows.
   readonly portableCardOpen: boolean
+  // What is new in the version the app updated to, until the person dismisses it; null
+  // while the host has none to show or has not answered yet.
+  readonly whatsNew: WhatsNew | null
   // Whether the desktop app runs in its security sandbox, as the host said at startup; null
   // until then, and where it does not say.
   readonly sandbox: SandboxState | null
@@ -122,6 +125,7 @@ export const initialUi = ({
   crashLoop: 0,
   update: null,
   portableCardOpen: false,
+  whatsNew: null,
   sandbox: null,
   sandboxOpen: false,
   portable: null,
@@ -258,6 +262,31 @@ export const watchUpdates = (updates: Backend["updates"], ui: UiStore): (() => v
       portableCardOpen: current.portableCardOpen || raise,
     }))
   }) ?? (() => {})
+
+// Asks the backend once, as the workspace comes up, what is new in the version the app
+// updated to, and keeps the answer for the footer's card. Whether the card is due at all
+// (a version updated to, its notes read, not dismissed) is the host's to say: the page
+// keeps no memory of its own. A host that fails to answer has nothing to show, and it is
+// not asked again before the next launch.
+export const watchWhatsNew = (whatsNew: Backend["whatsNew"], ui: UiStore): (() => void) => {
+  let live = true
+  void whatsNew?.get().then(
+    (found) => {
+      if (live && found) ui.update((state) => ({ ...state, whatsNew: found }))
+    },
+    () => undefined,
+  )
+  return () => {
+    live = false
+  }
+}
+
+// The person dismissed the card: the host remembers, so no later launch offers it again,
+// and the card goes.
+export const dismissWhatsNew = (whatsNew: Backend["whatsNew"], ui: UiStore): void => {
+  whatsNew?.dismiss()
+  ui.update((state) => (state.whatsNew ? { ...state, whatsNew: null } : state))
+}
 
 // Notes that the portable copy's card showed, for the rest of the run.
 export const notePortableCardShown = (portable: PortableState | null): void => {

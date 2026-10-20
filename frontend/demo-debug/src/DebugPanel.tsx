@@ -28,8 +28,9 @@ import type { DemoLaunch, DemoShell } from "./with-debug"
 const connectionTone = (connection: BackendConnectionState) =>
   connection === "connected" ? undefined : connection === "reconnecting" ? "warning" : "danger"
 
-// The variants the header switches between; the welcome one is the Welcome dialog's.
-const variantItems = demoVariants.filter((variant) => variant !== "welcome")
+// The variants the header switches between; the welcome one is the Welcome dialog's, and
+// Chirp's is a one-off for a video, opened with `?demo=chirp`.
+const variantItems = demoVariants.filter((variant) => variant !== "welcome" && variant !== "chirp")
 
 // The groups opened in this tab, kept across the demo's boots, which remount the panel.
 const openedKey = "novadeck.debug-panel.opened"
