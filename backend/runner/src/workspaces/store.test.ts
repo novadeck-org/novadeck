@@ -523,6 +523,8 @@ describe("saved terminals", () => {
 
     const upgraded = store(path)
     expect(upgraded.terminal(id)?.transcript).toBeNull()
+    // Scrubbed from the file and its log at once, not a moment later.
+    expect(holds(path, "TOKEN=hunter2") || holds(`${path}-wal`, "TOKEN=hunter2")).toBe(false)
     upgraded.saveTerminal({ ...upgraded.terminal(id)!, transcript: "TOKEN=[redacted]" })
     upgraded.close()
     expect(store(path).terminal(id)?.transcript).toBe("TOKEN=[redacted]")
