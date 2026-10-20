@@ -14,6 +14,7 @@ import {
   submitWindowMs,
   transition,
   unbound,
+  waitsIn,
   type Delivery,
   type DeliveryEvent,
 } from "./delivery.js"
@@ -807,6 +808,13 @@ describe("when a message would reach an agent", () => {
     expect(route(transition(working, background), false, undefined)).toBe(
       "when its next turn starts",
     )
+    // Where its box takes a prompt while only that work runs, it is rung then.
+    expect(route(transition(working, background), false, undefined, undefined, true)).toBe(
+      "ringing it once its box reads empty",
+    )
+    expect(route(transition(working, background), false, undefined, "draft", true)).toBe(
+      "waits: there's text in its box, rung once it is empty",
+    )
     expect(route(settled, false, undefined)).toBe("ringing it now")
     for (const state of [drafting, unknown])
       expect(route(state, false, undefined)).toBe("ringing it once its box reads empty")
@@ -819,6 +827,15 @@ describe("when a message would reach an agent", () => {
     )
     expect(route(bound, false, undefined, "asking")).toBe(
       "waits: it is asking the user a question, rung once answered",
+    )
+    expect(route(unknown, false, undefined, "working")).toBe(
+      "waits: it is working, rung once its turn ends",
+    )
+    expect(route(drafting, false, undefined, "queued")).toBe(
+      "waits: a prompt is queued in it, rung once that prompt has run",
+    )
+    expect(route(drafting, false, undefined, "shell")).toBe(
+      "waits: its box is in shell mode, rung once it is back to a prompt",
     )
   })
 
@@ -1237,6 +1254,20 @@ describe("an idle agent whose screen shows its box empty", () => {
     expect(ringableSince(emptied(failed))).toBe(at + 9_000)
   })
 
+  it("is Ready while only background work runs, its box taking a prompt meanwhile (#325)", () => {
+    // Messaging lets the doorbell look only where the harness's box does (`waitsIn`).
+    const waiting = transition(working, background)
+    expect(waiting).toMatchObject({ state: "working", phase: "background" })
+    expect(waitsIn(waiting)).toBe(false)
+    expect(waitsIn(waiting, true)).toBe(true)
+    expect(waitsIn(working, true)).toBe(false)
+    expect(emptied(waiting)).toMatchObject({
+      state: "ready",
+      since: at + 9_000,
+      box: { empty: true },
+    })
+  })
+
   it("leaves a turn running and a ring under way alone", () => {
     expect(emptied(working)).toBe(working)
     expect(emptied(settled)).toBe(settled)
@@ -1320,6 +1351,13 @@ describe("the line a failed ring left in the box", () => {
     expect(
       transition(again, { type: "prompt", by: "doorbell", nonce: "k3f9", at, startedAt: at }).state,
     ).toBe("working")
+  })
+
+  it("is submitted while only background work runs too, where messaging lets the doorbell look", () => {
+    // Its turn's end, still listing the work, keeps the line Novadeck's own.
+    const waiting = transition(failed, background)
+    expect(waiting).toMatchObject({ state: "working", phase: "background", box: { ours: true } })
+    expect(transition(waiting, resume)).toMatchObject({ state: "ringing", nonce: "k3f9" })
   })
 
   it("is the person's draft once they press any key, or a turn starts", () => {

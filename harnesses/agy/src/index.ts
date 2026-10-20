@@ -64,6 +64,9 @@ const messaging: MessagingProfile = {
   reinjectPerCall: true,
   root: "status-line",
   silentOnFailure: false,
+  // A subagent running, it took a typed prompt (fixture
+  // `background-prompt.probe.json`, probed 2026-10-19, 1.2.14).
+  promptsInBackground: true,
   // `-i` submits its prompt about 0.9 s after it starts, even while its "Do you trust
   // this folder?" dialog is up, so only in a folder it already trusts.
   initialPrompt: async (line, { install, cwd }) =>

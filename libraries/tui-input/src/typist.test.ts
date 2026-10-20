@@ -352,6 +352,24 @@ describe("a delivery", () => {
       expect(enters(fake.written)).toBe(1)
     })
 
+    it("still presses Enter where the profile reads the screen without some rows above it", async () => {
+      // The profile sets the first row aside, so every row below moves up one: the ticking
+      // row, seen by its index on the screen, is still the one let be as the line lands
+      // after a tick, not the one that takes its index.
+      const fake = terminal({ tickMs: 60, landMs: 100 })
+      const profile = { ...fake.inputBox()!, still: (rows: readonly string[]) => rows.slice(1) }
+      const typist = createTypist(fake.target, {
+        profile: () => profile,
+        timing: { ...fast, ...ticking },
+      })
+      const delivered = await run(
+        typist.deliver(fake.entry, line, { calmSince: 0, start: () => true, still: () => true }),
+      )
+      fake.stop()
+      expect(delivered).toMatchObject({ entered: true })
+      expect(enters(fake.written)).toBe(1)
+    })
+
     it("still fails a paste that changed another row far from the box", async () => {
       const fake = terminal({ tickMs: 60, takes: "elsewhere" })
       const delivered = await typing(fake, ticking).deliver()
@@ -426,6 +444,21 @@ describe("a look and the gate on it", () => {
     expect(second!.calmFor).toBe(40)
     expect(second!.calmSince).toBe(first!.at)
     fake.rows[1] = "a clock ticked"
+    expect((await typist.look())?.calm).toBe(false)
+  })
+
+  it("reads the calm without what the profile says ticks by itself while idle", async () => {
+    const fake = terminal()
+    // An elapsed time counting up on its first row, which the profile reads without.
+    const profile = { ...fake.inputBox()!, still: (rows: readonly string[]) => rows.slice(1) }
+    const typist = createTypist(fake.target, { profile: () => profile, timing: fast })
+    fake.rows[0] = "agent 1s"
+    await typist.look()
+    await sleep(40)
+    fake.rows[0] = "agent 2s"
+    expect((await typist.look())?.calm).toBe(true)
+    // Any other row's change still ends the calm.
+    fake.rows[1] = "output"
     expect((await typist.look())?.calm).toBe(false)
   })
 

@@ -46,12 +46,24 @@ export type MessageThread = {
   readonly messages: readonly AgentMessage[]
 }
 
-// Why the doorbell can't wake an idle agent whose messages wait, as its screen shows: text
-// in its box (`draft`), a dialog or picker over it (`dialog`), or a question it waits on
-// the person for (`asking`). The pane says so in plain words.
-export type MailWaits = "draft" | "dialog" | "asking" | "failed" | "away"
+// Why the doorbell can't wake an idle agent whose messages wait, as it saw: a turn running
+// (`working`), a prompt queued in the agent (`queued`), its box in shell mode (`shell`),
+// text in its box (`draft`), a dialog or picker over it (`dialog`), or a question it waits
+// on the person for (`asking`). The pane says so in plain words.
+export type MailWaits =
+  | "working"
+  | "queued"
+  | "shell"
+  | "draft"
+  | "dialog"
+  | "asking"
+  | "failed"
+  | "away"
 
 export const waitsText: Readonly<Record<MailWaits, string>> = {
+  working: "It is working, so they wait. They arrive once its turn ends.",
+  queued: "A prompt is queued in it, so they wait. They arrive once that prompt has run.",
+  shell: "Its box is in shell mode, so they wait. They arrive once it's back to a prompt.",
   draft: "There's text in its box, so they wait. They arrive once the box is empty.",
   dialog: "A dialog or picker is open in its terminal, so they wait. They arrive once it closes.",
   asking: "It is asking you a question, so they wait. They arrive once you answer.",

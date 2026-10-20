@@ -17,11 +17,10 @@ import { harnesses } from "../harnesses/registry.js"
 import { Doorbell, type DoorbellOptions } from "../messaging/doorbell.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { Answers, type AnswerOptions } from "./answers.js"
-import { busy } from "./busy.js"
 import { Dialogs, type DialogsOptions } from "./dialogs.js"
 import { Interrupts, Prompts } from "./prompting.js"
 import type { Record } from "./record.js"
-import { doorbellHost, profileOf } from "./ringing.js"
+import { agentWorking, doorbellHost, profileOf } from "./ringing.js"
 
 /** How long `settleBox` looks at a screen for an empty box, in milliseconds. */
 const boxSettleMs = 5_000
@@ -200,18 +199,6 @@ export class Typing {
     const record = this.host.live(terminalId)
     if (!record) return noHold
     return record.terminal.hold(budget)
-  }
-
-  /**
-   * Whether the activity says a turn or subagents run, where that outweighs what messaging
-   * knows: a Settled or Ready terminal made so by a Stop or a session's start stands against
-   * an activity that lingers; every other, and any made so by the screen alone, does not.
-   */
-  working(terminalId: string, activity: Parameters<typeof busy>[0]): boolean {
-    const messaging = this.host.messaging()
-    const state = messaging.delivery(terminalId)?.state
-    const known = (state === "settled" || state === "ready") && !messaging.byScreen(terminalId)
-    return !known && busy(activity)
   }
 
   /**
@@ -490,7 +477,13 @@ export class Typing {
       queued: (terminalId, work) => this.host.queued(terminalId, work),
       endExited: (record) => this.host.endExited(record),
       messaging: this.host.messaging(),
-      working: (terminalId, activity) => this.working(terminalId, activity),
+      working: (terminalId, activity) =>
+        agentWorking(
+          this.host.messaging(),
+          terminalId,
+          this.host.live(terminalId)?.binding ?? null,
+          activity,
+        ),
       stopping: () => this.host.stopping(),
     })
   }
