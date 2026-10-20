@@ -7,6 +7,7 @@ import type { Murmur } from "./murmur"
 import type { PortableState } from "./portable"
 import type { SandboxState } from "./sandbox"
 import type { WorkspaceSeed } from "./seed"
+import type { Source } from "./source"
 import type { WorkspaceAction } from "./state"
 import type { Store } from "./store"
 import type { TelemetryReader } from "./telemetry"
@@ -255,6 +256,10 @@ export type BackendFields = {
   // demo's build it from the app's workspace (`bind`) and their own facts (see core's
   // `inbox-items`). Absent where the backend has none: the Inbox then lists nothing.
   readonly inbox?: Inbox
+  // Optional. Each project's files as its agents change them, for the sidebar's Source panel
+  // (see core's `source`). The panel is still being designed, so the app shows it only on a
+  // demo backend (`demo`), whatever else has this.
+  readonly source?: Source
   // Optional. Types text into a terminal as a paste, bracketed where its program asks,
   // without pressing Enter, as dictation does. Says whether it typed: false when the
   // terminal has gone or has no screen to take the text. Absent where terminals take no input.
@@ -344,6 +349,10 @@ export type BackendFields = {
   // Optional. Marks a public build for a website's visitors: the app shows it is a
   // simulation, with a call to download, and a narrow window gets a panel instead.
   readonly visitor?: true
+  // Optional. Marks a demo backend: fixtures and simulated agents, as the try demo and the
+  // previews have, never the runner. Features still being designed show only here: today the
+  // sidebar's Source panel.
+  readonly demo?: true
 }
 
 export type Backend = BackendFields & TerminalPort

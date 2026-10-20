@@ -1,3 +1,4 @@
+import type { SourceProject } from "@novadeck/core/source"
 import type { SidebarPanel as PanelId, Tile, WorkspaceSession } from "@novadeck/core/types"
 import { Plus } from "lucide-react"
 import type { ComponentProps } from "react"
@@ -6,6 +7,7 @@ import { HeldPill, InboxList, InboxMarkAll } from "../inbox/InboxList"
 import { shortcutBindings } from "../interaction/shortcuts"
 import { SessionsPanel } from "../sidebar/SessionsPanel"
 import { SidebarPanel, sidebarCreateClasses } from "../sidebar/SidebarPanel"
+import { SourcePanel } from "../sidebar/SourcePanel"
 import { TerminalTabs } from "../terminals/TerminalTabs"
 import { panelLabels } from "./panels"
 
@@ -17,6 +19,9 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   ordered: readonly Tile[]
   sidebarPanel: PanelId
   sidebarVisible: boolean
+  // Where the backend has a source: the project's tree, if it has one, and the handle of the
+  // selected terminal. Left out, there is no Source panel.
+  source: { project: SourceProject | undefined; selectedHandle: string | undefined } | undefined
   onSessionSelect: (id: string) => void
   onFresh: () => void
   onHide: () => void
@@ -30,6 +35,7 @@ export const WorkspaceSidebar = ({
   ordered,
   sidebarPanel,
   sidebarVisible,
+  source,
   onSessionSelect,
   onFresh,
   onHide,
@@ -44,6 +50,16 @@ export const WorkspaceSidebar = ({
     aria-hidden={!sidebarVisible}
     inert={!sidebarVisible}
   >
+    {source && (
+      <SourcePanel
+        key={projectId}
+        project={source.project}
+        selectedHandle={source.selectedHandle}
+        active={sidebarPanel === "source"}
+        visible={sidebarVisible}
+        onHide={onHide}
+      />
+    )}
     <SidebarPanel
       id="sessions-panel"
       title="Sessions"

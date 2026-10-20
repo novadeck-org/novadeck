@@ -5,7 +5,7 @@ import type { Bar } from "./companion-bar"
 export type SchemePreference = "system" | "light" | "dark"
 export type ViewMode = "focus" | "grid" | "canvas"
 // The sidebar's panels, each with a toggle on the rail.
-export const sidebarPanels = ["terminals", "sessions", "inbox"] as const
+export const sidebarPanels = ["terminals", "source", "sessions", "inbox"] as const
 export type SidebarPanel = (typeof sidebarPanels)[number]
 export type WindowedView = Exclude<ViewMode, "focus">
 export type PreferencesValue = {

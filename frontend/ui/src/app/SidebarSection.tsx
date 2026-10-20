@@ -1,12 +1,16 @@
 import { orderedTiles } from "@novadeck/core/roster"
+import type { SourceState } from "@novadeck/core/source"
 import { activeProject } from "@novadeck/core/state"
+import { createStore } from "@novadeck/core/store"
 import type { WorkspaceSession } from "@novadeck/core/types"
-import { memo } from "react"
+import { memo, useMemo } from "react"
 
 import { useDesktop } from "../shell/desktop"
 import { sidebarVisible } from "../shell/shell-state"
 import { WorkspaceSidebar } from "../shell/WorkspaceSidebar"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
+import { useStoreSelector } from "./controller/useStoreSelector"
+import { sourceShown } from "./routing"
 import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
 import { renderTab } from "./WorkspaceTab"
 
@@ -23,9 +27,12 @@ const sameSessions = (a: readonly WorkspaceSession[], b: readonly WorkspaceSessi
     )
   })
 
+// What a backend without a source reads in its place; its panel isn't drawn.
+const noSource = createStore<SourceState>({ projects: {} })
+
 // The sidebar wired to the workspace: terminal tabs and workspace sessions.
 export const SidebarSection = memo((): React.JSX.Element => {
-  const { commands } = useWorkspaceServices()
+  const { commands, backend } = useWorkspaceServices()
   const { switchSession, startFresh, hideSidebar, add, reorder } = commands
   const desktop = useDesktop()
   const projectId = useWorkspaceState((workspace) => workspace.activeProjectId)
@@ -38,6 +45,20 @@ export const SidebarSection = memo((): React.JSX.Element => {
     (workspace) => orderedTiles(currentState(workspace).roster),
     sameItems,
   )
+  // The Source panel shows only on a demo backend; see `sourceShown`.
+  const sourceFeed = sourceShown(backend) ? backend.source : undefined
+  const sourceProject = useStoreSelector(
+    sourceFeed?.state ?? noSource,
+    (state) => state.projects[projectId],
+  )
+  const selectedHandle = useWorkspaceState((workspace) => {
+    const { roster, selected } = currentState(workspace)
+    return roster.terminals.find((terminal) => terminal.id === selected)?.handle
+  })
+  const source = useMemo(
+    () => (sourceFeed ? { project: sourceProject, selectedHandle } : undefined),
+    [sourceFeed, sourceProject, selectedHandle],
+  )
   const sidebarPanel = useUiState((state) => state.location.route.panel)
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))
   return (
@@ -49,6 +70,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
       ordered={ordered}
       sidebarPanel={sidebarPanel}
       sidebarVisible={visible}
+      source={source}
       onSessionSelect={switchSession}
       onFresh={startFresh}
       onHide={hideSidebar}

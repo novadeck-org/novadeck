@@ -61,6 +61,7 @@
 @import "./shell/empty-state.css" layer(components);
 @import "@novadeck/toolkit/sidebar-item.css" layer(components);
 @import "./sidebar/sidebar.css" layer(components);
+@import "./sidebar/source.css" layer(components);
 @import "./inbox/inbox.css" layer(components);
 @import "./projects/project-status.css" layer(components);
 @import "./projects/workspace-switcher.css" layer(components);

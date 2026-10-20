@@ -3,7 +3,7 @@ import { appearance, workspaceFixture } from "@novadeck/core/testing"
 import type { PreferencesValue, Workspace } from "@novadeck/core/types"
 
 import { context, describe, expect, it } from "../../test"
-import { resolveRoute } from "../routing"
+import { availablePanels, resolveRoute } from "../routing"
 import { createUiStore, initialUi } from "../ui-store"
 import { createNavigator, syncLocation, type RouterNavigate } from "./navigator"
 
@@ -15,12 +15,13 @@ const preferences: PreferencesValue = {
   ligatures: false,
   chatView: false,
 }
+const panels = availablePanels(true)
 const base = "/projects/project/sessions/initial/grid"
 
 // A navigator over fresh stores, opened at `search`, recording what it asks the router for.
 const open = (search = "?terminal=01", workspace: Workspace = workspaceFixture()) => {
   const location = { pathname: base, search }
-  const resolved = resolveRoute(workspace, location, preferences, 0)
+  const resolved = resolveRoute(workspace, location, preferences, 0, panels)
   const store = createWorkspaceStore(resolved.workspace)
   const ui = createUiStore(
     initialUi({
@@ -28,7 +29,7 @@ const open = (search = "?terminal=01", workspace: Workspace = workspaceFixture()
       preferences,
     }),
   )
-  const services = { workspace: store, ui, now: () => 1 }
+  const services = { workspace: store, ui, now: () => 1, panels }
   const navigator = createNavigator(services)
   type Options = { readonly replace: boolean; readonly state: unknown } | undefined
   const calls: { to: string | number; options: Options; selected: string }[] = []

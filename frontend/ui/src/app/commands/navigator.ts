@@ -1,5 +1,6 @@
 import { activeProject } from "@novadeck/core/state"
 import type { WorkspaceStore, WorkspaceTransaction } from "@novadeck/core/store"
+import type { SidebarPanel } from "@novadeck/core/types"
 
 import { resetPresentation } from "../../shell/shell-state"
 import {
@@ -16,6 +17,8 @@ export type NavigatorServices = {
   readonly workspace: WorkspaceStore
   readonly ui: UiStore
   readonly now: () => number
+  // The sidebar panels the backend can show.
+  readonly panels: readonly SidebarPanel[]
 }
 
 // The router's navigate, reduced to what the navigator asks of it.
@@ -53,6 +56,7 @@ export const createNavigator = ({
   workspace,
   ui,
   now,
+  panels,
 }: NavigatorServices): WorkspaceNavigator & RouterBinding => {
   let navigate: RouterNavigate | undefined
   let requested = routeUrl(ui.getSnapshot().location.route)
@@ -67,6 +71,7 @@ export const createNavigator = ({
       parse(destination),
       ui.getSnapshot().preferences,
       now(),
+      panels,
     )
     workspace.transact(resolved.actions)
     const url = routeUrl(resolved.route)
@@ -135,7 +140,7 @@ export const createNavigator = ({
 // Reconciles a location the navigator did not produce, such as Back/Forward, a
 // typed URL, or a preference change, against the latest workspace.
 export const syncLocation = (
-  { workspace, ui, now }: NavigatorServices,
+  { workspace, ui, now, panels }: NavigatorServices,
   input: {
     readonly location: { readonly pathname: string; readonly search: string }
     readonly navigationType: UiLocation["navigationType"]
@@ -143,7 +148,7 @@ export const syncLocation = (
   },
 ): void => {
   const before = workspace.getSnapshot()
-  const resolved = resolveRoute(before, input.location, ui.getSnapshot().preferences, now())
+  const resolved = resolveRoute(before, input.location, ui.getSnapshot().preferences, now(), panels)
   const after = workspace.transact(resolved.actions)
   writeLocation(ui, {
     route: resolved.route,

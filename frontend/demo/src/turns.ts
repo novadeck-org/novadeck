@@ -67,6 +67,9 @@ const statusOf = (terminal: TerminalMetadata | undefined): AgentStatus | undefin
 export const demoTurns = (turnMs = demoTurnMs) => {
   let sink: BackendSink | undefined
   const watchers = new Set<(event: TurnEvent) => void>()
+  // Hears every status an agent reports, which `watch`'s events don't carry whole: whether
+  // it works, waits on the person or rests.
+  const statusWatchers = new Set<(key: TerminalKey, agent: AgentStatus) => void>()
   // What the demo agents say of their tokens and quotas, which the seeds fill and `usage`
   // sets.
   const telemetry = createTelemetryStore()
@@ -85,6 +88,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
   const status = (key: TerminalKey, agent: AgentStatus, program?: string): void => {
     const { projectId, workspaceSessionId, terminalId } = key
     const target = { projectId, workspaceSessionId }
+    statusWatchers.forEach((watcher) => watcher(key, agent))
     const actions: BackendAction[] = [
       ...(program
         ? [
@@ -300,6 +304,11 @@ export const demoTurns = (turnMs = demoTurnMs) => {
     watch: (watcher: (event: TurnEvent) => void): (() => void) => {
       watchers.add(watcher)
       return () => watchers.delete(watcher)
+    },
+    // Hears each agent status as it is reported (see `statusWatchers`).
+    watchStatus: (watcher: (key: TerminalKey, agent: AgentStatus) => void): (() => void) => {
+      statusWatchers.add(watcher)
+      return () => statusWatchers.delete(watcher)
     },
     // The turns in flight stop with the sink they report to.
     start: (next: BackendSink): (() => void) => {

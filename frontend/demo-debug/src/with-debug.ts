@@ -12,6 +12,7 @@ import type { Workspace } from "@novadeck/core/types"
 import { demoTerminalsLife } from "@novadeck/demo"
 import { isDemoInbox } from "@novadeck/demo/inbox"
 import { isDemoMurmur } from "@novadeck/demo/murmur"
+import { isDemoSource } from "@novadeck/demo/source"
 import { demoTurns } from "@novadeck/demo/turns"
 import { createDemo, type DemoVariant } from "@novadeck/demo/variants"
 import { isDemoVoice } from "@novadeck/demo/voice"
@@ -24,6 +25,7 @@ import { murmurGroups } from "./murmur"
 import { planGroups } from "./plans"
 import { createDemoPortable, type DemoPortable } from "./portable"
 import { createDemoSandbox } from "./sandbox"
+import { sourceGroups } from "./source"
 import { createDemoStates } from "./states"
 import type { DemoActionContext } from "./types"
 import { createDemoUninstall, type DemoUninstall } from "./uninstall"
@@ -225,6 +227,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           ...doorbellGroups(inner.messages),
           ...murmurGroups(isDemoMurmur(inner.murmur) ? inner.murmur : undefined),
           ...voiceGroups(isDemoVoice(inner.voice) ? inner.voice : undefined),
+          ...sourceGroups(isDemoSource(inner.source) ? inner.source : undefined),
         ],
       },
       dispatch: () => sink?.dispatch,

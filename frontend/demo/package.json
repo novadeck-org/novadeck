@@ -14,6 +14,7 @@
     "./murmur": "./src/murmur.ts",
     "./runtime": "./src/runtime.ts",
     "./samples": "./src/samples.ts",
+    "./source": "./src/source.ts",
     "./showcase/agents": "./src/showcase/agents.ts",
     "./showcase/simulation": "./src/showcase/simulation.ts",
     "./terminals": "./src/terminals.ts",

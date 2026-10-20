@@ -1,3 +1,4 @@
+import type { Backend } from "@novadeck/core/port"
 import { hasTile } from "@novadeck/core/roster"
 import {
   activeProject,
@@ -57,9 +58,18 @@ export const workspaceRoute = (workspace: Workspace): WorkspaceRoute => ({
 const sectionOf = (name: string | null): PreferencesTab =>
   preferencesTabs.find(({ id }) => id === name)?.id ?? "general"
 
-// The sidebar panel a URL names, Terminals for anything else.
-const panelOf = (name: string | null): SidebarPanel =>
-  sidebarPanels.find((panel) => panel === name) ?? "terminals"
+// The panels a backend can show: Source only where it has a source.
+// Whether the app shows the Source panel: only on a demo backend, while the panel is still
+// being designed, and only where that backend has the files to show.
+export const sourceShown = (backend: Pick<Backend, "demo" | "source">): boolean =>
+  backend.demo === true && backend.source !== undefined
+
+export const availablePanels = (hasSource: boolean): readonly SidebarPanel[] =>
+  sidebarPanels.filter((panel) => hasSource || panel !== "source")
+
+// The sidebar panel a URL names, Terminals for anything else, or for one the backend lacks.
+const panelOf = (name: string | null, panels: readonly SidebarPanel[]): SidebarPanel =>
+  panels.find((panel) => panel === name) ?? "terminals"
 
 export const routeUrl = (route: WorkspaceRoute): string => {
   const search = new URLSearchParams()
@@ -77,6 +87,7 @@ export const resolveRoute = (
   location: { pathname: string; search: string },
   preferences: PreferencesValue,
   now: number,
+  panels: readonly SidebarPanel[],
 ): { workspace: Workspace; route: WorkspaceRoute; actions: WorkspaceAction[] } => {
   const match = matchPath("/projects/:projectId/sessions/:sessionId/:view", location.pathname)
   const params = match?.params
@@ -131,7 +142,7 @@ export const resolveRoute = (
       sessionId: session.id,
       view,
       terminal,
-      panel: panelOf(search.get("panel")),
+      panel: panelOf(search.get("panel"), panels),
       dialog: dialog === "search" || dialog === "preferences" ? dialog : null,
       section: dialog === "preferences" ? sectionOf(search.get("section")) : "general",
     },

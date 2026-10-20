@@ -1,0 +1,234 @@
+/* The Source panel (SourcePanel.tsx): the project's files as a tree, each file an item (the
+   item recipe) with who changed it and how. A `.source-tree` holds `.source-row`s; a row has a
+   `.source-row-select` button (the `.source-twisty`, `.source-icon`, `.source-name` and the
+   file's marks) beside its `.source-chips`, and a `.source-guide` for each open folder it
+   sits inside. A file's marks are a `.source-cursor` for each agent writing it now, or else a
+   `.source-trail` fading from its latest write. An empty panel shows `.source-empty`.
+
+   Hooks: on a row, data-kind="modified" | "added" | "deleted" (absent: untouched),
+   data-folder, data-ignored, data-dim (an agent is lit and did not touch it), data-pulse="a" |
+   "b" (a write just landed; the two names restart the animation) and, being an item,
+   data-selected. On a chip, data-writing (it is writing that row now) and data-lit. On the
+   tree, data-lit="<handle>" while an agent is lit.
+
+   Tokens, each optional (its fallback in brackets):
+   --source-modified-fg (warning-fg), --source-added-fg (success-fg): a changed file's icon
+   and name; a deleted one's are muted. --source-guide-color (line): the guide under an
+   open folder. --source-ignored-opacity (0.5), --source-dim-opacity (0.3): ignored rows,
+   and the rows a lit agent did not touch. --source-pulse-bg (the strong colour at 14%): a
+   row as a write lands. --source-cursor-bg (strong): the cursor, its glow
+   --item-selected-indicator-shadow (none); the trail's edge follows it. --source-chip-fg
+   (muted), --source-chip-writing-fg (ink): an agent's chip, and one writing the row. */
+.source-row {
+  display: flex;
+  height: 26px;
+  flex-shrink: 0;
+  align-items: center;
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    border-color var(--motion-feedback) var(--ease-interface),
+    box-shadow var(--motion-feedback) var(--ease-interface),
+    opacity var(--motion-state) var(--ease-interface);
+}
+.source-row:focus-within {
+  --_bg: var(--item-hover-bg, var(--color-soft));
+}
+.source-row[data-ignored="true"] {
+  opacity: var(--source-ignored-opacity, 0.5);
+}
+.source-row[data-dim="true"] {
+  opacity: var(--source-dim-opacity, 0.3);
+}
+.source-row-select {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  padding-right: 4px;
+  border-radius: inherit;
+  color: inherit;
+  text-align: left;
+}
+.source-row-select:focus-visible {
+  outline-offset: -2px;
+}
+.source-guide {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 1px;
+  background-color: var(--source-guide-color, var(--color-line));
+  pointer-events: none;
+}
+.source-twisty {
+  display: inline-flex;
+  width: 12px;
+  flex: none;
+  justify-content: center;
+  color: var(--_icon-fg);
+}
+.source-twisty svg {
+  transition: transform var(--motion-feedback) var(--ease-interface);
+}
+.source-twisty svg[data-open="true"] {
+  transform: rotate(90deg);
+}
+.source-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--_icon-fg);
+}
+.source-name {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.source-row[data-kind="modified"] :is(.source-icon, .source-name) {
+  color: var(--source-modified-fg, var(--color-warning-fg));
+}
+.source-row[data-kind="added"] :is(.source-icon, .source-name) {
+  color: var(--source-added-fg, var(--color-success-fg));
+}
+.source-row[data-kind="deleted"] :is(.source-icon, .source-name) {
+  color: var(--color-muted);
+}
+.source-row[data-kind="deleted"] .source-name {
+  text-decoration: line-through;
+}
+
+/* Who worked a row, in the quiet metadata voice; the agent writing it now is in ink. */
+.source-chips {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding-right: 8px;
+}
+.source-chip {
+  border-radius: var(--radius-control, 4px);
+  color: var(--source-chip-fg, var(--color-muted));
+  opacity: 0.8;
+}
+.source-chip .handle-chip {
+  color: inherit;
+}
+.source-chip[data-writing="true"],
+.source-chip[data-lit="true"] {
+  color: var(--source-chip-writing-fg, var(--color-ink));
+  opacity: 1;
+}
+.source-more {
+  color: var(--source-chip-fg, var(--color-muted));
+  font-family: var(--window-metadata-font, var(--font-mono));
+  opacity: 0.6;
+}
+
+/* An agent writing a file shows as a terminal's cursor after its name. */
+.source-cursor {
+  width: 6px;
+  height: 13px;
+  flex: none;
+  background-color: var(--source-cursor-bg, var(--color-strong));
+  box-shadow: var(--item-selected-indicator-shadow, none);
+  animation: source-blink 1.06s infinite;
+}
+@keyframes source-blink {
+  from,
+  49.9% {
+    opacity: 1;
+  }
+  50%,
+  to {
+    opacity: 0;
+  }
+}
+
+/* Once it stops, a hollow block fades by the curve of trailOpacity (source-tree.ts), 0.7
+   down to 0.04 over --source-trail-life. The delay starts it as far along as the write is
+   old, so the page never redraws it as time passes. */
+.source-trail {
+  box-sizing: border-box;
+  width: 6px;
+  height: 13px;
+  flex: none;
+  border: 1.5px solid var(--source-cursor-bg, var(--color-strong));
+  opacity: var(--source-trail-opacity);
+  animation: source-trail var(--source-trail-life) linear var(--source-trail-delay) 1 both;
+}
+@keyframes source-trail {
+  0% {
+    opacity: 0.7;
+  }
+  12.5% {
+    opacity: 0.489;
+  }
+  25% {
+    opacity: 0.342;
+  }
+  37.5% {
+    opacity: 0.239;
+  }
+  50% {
+    opacity: 0.167;
+  }
+  62.5% {
+    opacity: 0.117;
+  }
+  75% {
+    opacity: 0.082;
+  }
+  87.5% {
+    opacity: 0.057;
+  }
+  100% {
+    opacity: 0.04;
+  }
+}
+
+/* A write lands on its row, or on the closed folder that hides it. The two names are the
+   same animation; a row switches between them to play it again while it still runs. The panel
+   clears the attribute on a timer, as a hidden panel's animation never ends. */
+.source-row[data-pulse="a"] {
+  animation: source-pulse-a 1.4s ease-out;
+}
+.source-row[data-pulse="b"] {
+  animation: source-pulse-b 1.4s ease-out;
+}
+@keyframes source-pulse-a {
+  from {
+    background-color: var(
+      --source-pulse-bg,
+      color-mix(in srgb, var(--color-strong) 14%, transparent)
+    );
+  }
+}
+@keyframes source-pulse-b {
+  from {
+    background-color: var(
+      --source-pulse-bg,
+      color-mix(in srgb, var(--color-strong) 14%, transparent)
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .source-cursor {
+    animation: none;
+  }
+  .source-trail {
+    animation: none;
+  }
+  .source-row[data-pulse] {
+    animation: none;
+  }
+}
+
+.source-empty {
+  margin: 0;
+  padding: 12px 2px;
+  color: var(--color-muted);
+}

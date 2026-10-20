@@ -1,6 +1,6 @@
 import { sidebarPanels, type SidebarPanel } from "@novadeck/core/types"
 import { ToggleGroup, ToggleGroupItem } from "@novadeck/toolkit/ToggleGroup"
-import { History, Inbox, Terminal as TerminalIcon } from "lucide-react"
+import { FolderGit2, History, Inbox, Terminal as TerminalIcon } from "lucide-react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
 import { BellCount } from "./BellCount"
@@ -12,6 +12,7 @@ export const SidebarRail = ({
   sidebarPanel,
   zen,
   badge,
+  hasSource = false,
   toggleSidebar,
   hideSidebar,
 }: {
@@ -20,6 +21,8 @@ export const SidebarRail = ({
   sidebarPanel: SidebarPanel
   zen: boolean
   badge: BellBadge | undefined
+  // Whether the backend has a Source panel to toggle.
+  hasSource?: boolean
   toggleSidebar: (panel: SidebarPanel) => void
   hideSidebar: () => void
 }): React.JSX.Element => {
@@ -39,30 +42,33 @@ export const SidebarRail = ({
       {(
         [
           { id: "terminals", label: "Terminals", icon: TerminalIcon },
+          { id: "source", label: "Source", icon: FolderGit2 },
           { id: "sessions", label: "Sessions", icon: History },
           { id: "inbox", label: "Inbox", icon: Inbox },
         ] as const
-      ).map(({ id, label, icon: Icon }) => {
-        const status = id === "inbox" ? badge : undefined
-        return (
-          <ToggleGroupItem
-            key={id}
-            tooltip={
-              id === "terminals"
-                ? `Terminals · ${shortcutBindings().terminals.display.join(" ")}`
-                : label
-            }
-            value={id}
-            id={`${mobile ? "mobile-" : ""}${id}-toggle`}
-            className="segment relative inline-flex size-8 shrink-0 items-center justify-center p-2 [&>svg]:shrink-0"
-            aria-label={status?.label ?? label}
-            data-project-status={status?.status}
-          >
-            <Icon size={16} />
-            {status && <BellCount text={status.text} />}
-          </ToggleGroupItem>
-        )
-      })}
+      )
+        .filter(({ id }) => hasSource || id !== "source")
+        .map(({ id, label, icon: Icon }) => {
+          const status = id === "inbox" ? badge : undefined
+          return (
+            <ToggleGroupItem
+              key={id}
+              tooltip={
+                id === "terminals"
+                  ? `Terminals · ${shortcutBindings().terminals.display.join(" ")}`
+                  : label
+              }
+              value={id}
+              id={`${mobile ? "mobile-" : ""}${id}-toggle`}
+              className="segment relative inline-flex size-8 shrink-0 items-center justify-center p-2 [&>svg]:shrink-0"
+              aria-label={status?.label ?? label}
+              data-project-status={status?.status}
+            >
+              <Icon size={16} />
+              {status && <BellCount text={status.text} />}
+            </ToggleGroupItem>
+          )
+        })}
     </ToggleGroup>
   )
 }

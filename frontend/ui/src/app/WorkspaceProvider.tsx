@@ -20,7 +20,7 @@ import { domEffects } from "./controller/effects"
 import { dialogDepthOf, useRouteSync } from "./controller/useRouteSync"
 import { nameFinished } from "./murmur-offer"
 import { watchPageFocus } from "./page-focus"
-import { resolveRoute } from "./routing"
+import { availablePanels, resolveRoute, sourceShown } from "./routing"
 import {
   createUiStore,
   initialUi,
@@ -57,7 +57,8 @@ const createServices = (
     windowedView: readWindowedView(),
     now: now(),
   })
-  const { workspace: initial, route } = resolveRoute(seeded, location, preferences, now())
+  const panels = availablePanels(sourceShown(backend))
+  const { workspace: initial, route } = resolveRoute(seeded, location, preferences, now(), panels)
   const workspace = createWorkspaceStore(initial, backend.commit)
   // The store only reports later commits; give the backend the starting terminals now.
   backend.commit(initial, [])
@@ -72,7 +73,7 @@ const createServices = (
     }),
   )
   const chat = createChat()
-  const { bind, settle, ...navigation } = createNavigator({ workspace, ui, now })
+  const { bind, settle, ...navigation } = createNavigator({ workspace, ui, now, panels })
   const canvas = createRef<CanvasHandle>()
   const panes =
     backend.companions &&
@@ -104,7 +105,7 @@ const createServices = (
       panes,
       drag: createDragSession(),
     },
-    sync: { workspace, ui, now, bind, settle },
+    sync: { workspace, ui, now, panels, bind, settle },
   }
 }
 
