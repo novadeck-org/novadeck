@@ -620,11 +620,30 @@ terminal escapes, controls, invisible separators and bidi marks before being sho
   3. once the request clears, a draft left by (2) makes the prompt a draft, and the
      usual rules go on from there.
 
-  A request answered with Enter alone leaves the box as it was. One navigated with
-  any other key (an arrow, Home or End, Tab, a hotkey such as Claude Code's "1" or
-  Codex's "y"), and any multi-question form, ends Drafting: its messages wait for the
-  person's next prompt, or until the screen shows the agent's own box empty (below,
-  "Idle but not Ready"), when it is rung.
+  A request answered with Enter alone leaves the box as it was. One the person navigated
+  in the terminal with any other key (an arrow, Home or End, Tab, a hotkey such as Claude
+  Code's "1" or Codex's "y"), and any multi-question form, ends Drafting: its messages wait
+  for the person's next prompt, or until the screen shows the agent's own box empty
+  (below, "Idle but not Ready"), when it is rung.
+
+  A request answered from the chat (`agents.answer`) leaves the box as it was, whatever
+  keys it pressed: those are Novadeck's own, not the person's, so a permission approved
+  from the chat ends its turn Settled and the next message rings at once, in all three
+  harnesses. The answer presses them only once it read the request's dialog on screen,
+  holding the person's keys meanwhile (see [Answer driver](harness-adapters.md#answer-driver)),
+  and tells messaging which writes are its own (`Messaging.pressing`, the delivery event
+  `pressed`): only the keys the answer itself writes, while the request waits, never
+  the person's. Their keys during the request still count as above, from whichever
+  client: typed before the answer took hold of them, or held by the answer and let go
+  because it pressed nothing (held while it pressed, they are dropped, never typed). An answer that pressed keys and then failed (`ANSWER_FAILED`) leaves a
+  possible draft, as the person's keys would: they may have landed in the box, as
+  Antigravity's artifact review types `/artifact` and the person's feedback there. An
+  answer's Escape (Codex's no, and its questions set aside to talk) ends a running turn as
+  the person's would (Unknown, below), with the box as it was: the dialog took the key, so
+  no prompt of the turn's comes back into the box. One gap remains: an answer that
+  succeeds is not checked between keys it presses back to back (a digit after arrows),
+  so a dialog that the agent closed by itself within those milliseconds, with no report,
+  would take the rest into its box unseen.
 
 - **A bare Enter** is a carriage return of its own: not Alt or Shift+Enter (`\x1b\r`,
   a newline in the box), nor one inside a bracketed paste. Nothing else submits, but

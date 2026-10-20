@@ -281,6 +281,30 @@ export class Typing {
     return true
   }
 
+  /**
+   * Presses an answer's keys into a running terminal, through what watches the person's
+   * keys, which delivery takes as Novadeck's own while a request waits: no draft of theirs.
+   */
+  private pressed(terminalId: string, data: string): boolean {
+    const record = this.host.live(terminalId)
+    if (!record) return false
+    this.host.messaging().pressing(terminalId, () => this.host.keyed(record, data))
+    record.terminal.type(data)
+    return true
+  }
+
+  /**
+   * An answer's keys that didn't go as it should have may have landed in the agent's box,
+   * as Antigravity's artifact review types into it: a possible draft, as the person's keys
+   * would leave, until a submission or the screen says otherwise.
+   */
+  private astray(terminalId: string): void {
+    const record = this.host.live(terminalId)
+    if (!record) return
+    const asked = (record.activity?.pending.length ?? 0) > 0
+    this.host.messaging().keys(terminalId, ["content"], asked)
+  }
+
   /** What prompts ask of the terminals and messaging. */
   private promptHost(): ConstructorParameters<typeof Prompts>[0] {
     return {
@@ -371,7 +395,7 @@ export class Typing {
       },
       ringing: (terminalId) => this.host.messaging().ringing(terminalId),
       screen: (terminalId) => this.screenOf(terminalId),
-      type: (terminalId, data) => this.typed(terminalId, data),
+      press: (terminalId, data) => this.pressed(terminalId, data),
       prompt: (entry, terminalId, text) => this.prompts.promptIn(entry, terminalId, text),
       working: (terminalId) => this.host.held(terminalId)?.activity?.state === "working",
       turnStartedAt: (terminalId) => {
@@ -387,6 +411,7 @@ export class Typing {
       raw: (terminalId, ref) => this.dialogs.shown(terminalId, ref)?.type === "raw",
       lock: (terminalId, ref, reason, rows) => {
         this.dialogs.lock(terminalId, ref, reason, rows)
+        if (reason === "failed") this.astray(terminalId)
       },
       done: (terminalId, ref) => {
         this.dialogs.done(terminalId, ref)
