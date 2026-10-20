@@ -15,6 +15,7 @@ export const demoVariants: readonly DemoVariant[] = [
   "messages",
   "inbox",
   "welcome",
+  "chirp",
 ]
 
 // The demo of a variant, whose agents `turns` drives where given: the debug panel's own.
