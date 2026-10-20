@@ -171,8 +171,8 @@ in the SQLite metadata file so a restored terminal can show it again. It is save
 every 30 seconds while it changes, and when a shell exits or restarts. Before it is saved,
 what looks like a secret (known token prefixes, values named like secrets, keys, long
 key-like runs) is masked in a worker thread; a transcript that cannot be masked is not
-saved, and the copy saved before stays, unless an earlier runner left it, which is then
-forgotten. Transcripts saved before masking existed are forgotten once, on the first start
+saved, and the copy saved before stays, unless it is a restored terminal's copy from before
+this runner started, which is then forgotten. Transcripts saved before masking existed are forgotten once, on the first start
 of a runner that masks them; a database set aside as `workspace.sqlite.earlier-<time>`
 keeps what it held, unmasked transcripts included, until you delete it. Anything else that
 was typed or printed may still be saved. Metadata files use owner-only permissions where

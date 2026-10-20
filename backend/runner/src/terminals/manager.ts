@@ -791,7 +791,7 @@ export class Terminals {
       this.announce(record)
       this.sampler.start()
       this.saves.save(record, false)
-      // Once shown, it is saved again masked (or forgotten), in case a downgrade saved it.
+      // Once restored, it is saved again masked (or forgotten), in case a downgrade saved it.
       if (saved) void replayed.then(() => this.saves.restored(record))
       this.saves.start()
       return summaryOf(record)
