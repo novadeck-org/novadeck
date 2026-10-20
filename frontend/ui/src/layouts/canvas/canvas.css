@@ -35,6 +35,17 @@
   .canvas-node .terminal-visibility[data-off-screen] {
     content-visibility: hidden;
   }
+  /* The companion's sheet hangs beside the window, outside its visibility (see
+     TerminalNode.tsx), so it fades with a hiding window here. */
+  .canvas-node > .plan-attached {
+    /* The window's ink, which it no longer inherits from the window. */
+    color: var(--window-fg, var(--color-ink));
+    transition: opacity 180ms var(--ease-interface);
+  }
+  .canvas-node:has(> .terminal-visibility[data-hiding="true"]) > .plan-attached {
+    opacity: 0;
+    pointer-events: none;
+  }
   .canvas-node .terminal-resize-grip {
     /* Its look is the workspace recipe's, shared with Grid's resize handle. */
     @apply absolute right-px bottom-px z-10 flex size-7 items-end justify-end p-1.5;

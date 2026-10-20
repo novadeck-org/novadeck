@@ -31,6 +31,9 @@ type NavigationProps = Pick<
   createdPositions: RefObject<Map<string, XYPosition>>
   pointerCreated: RefObject<Set<string>>
   visit: ReturnType<typeof createCanvasVisit>
+  // Hands over the sheets open as Canvas mounts, by terminal, which the first camera also
+  // has to fit; after that, a sheet opening frames itself.
+  takeEntrySheets: () => Map<string, { right: number; height: number }>
   // Flies the camera in to a terminal, as `flyOnNavigate` asks.
   flyIn: (id: string) => void
 }
@@ -51,6 +54,7 @@ export const useCanvasNavigation = ({
   createdPositions,
   pointerCreated,
   visit,
+  takeEntrySheets,
   flyIn,
 }: NavigationProps) => {
   const { fitView, getNode, getViewport, setCenter } = useReactFlow<TerminalNode>()
@@ -141,6 +145,8 @@ export const useCanvasNavigation = ({
   // session, it keeps the camera it was left with. A terminal gone to from outside the
   // canvas is flown in to from there, once its windows are measured (above).
   const initializeViewport = (instance: ReactFlowInstance<TerminalNode>) => {
+    // Taken whichever camera this sets, or keeps: from here, a sheet opening frames itself.
+    const sheets = takeEntrySheets()
     const framing = (fitOnMount && !revealOnMount) || flyOnNavigate
     if (!container.current || (initialViewport && !revealOnMount && !framing)) return
     if (initialViewport && flyOnNavigate) return
@@ -155,6 +161,14 @@ export const useCanvasNavigation = ({
     const visible = instance.getNodes().filter((node) => !node.hidden)
     if (!visible.length) return
     const bounds = getNodesBounds(target ? [target] : visible)
+    // A terminal's open sheet hangs off its right edge: the camera takes it in with the node.
+    for (const node of target ? [target] : visible) {
+      const sheet = sheets.get(node.id)
+      if (!sheet) continue
+      const own = getNodesBounds([node])
+      bounds.width = Math.max(bounds.width, own.x + own.width + sheet.right - bounds.x)
+      bounds.height = Math.max(bounds.height, own.y + sheet.height - bounds.y)
+    }
     if (!flyOnNavigate) lastNavigation.current = navigation
     // Compute the first camera before a view-transition snapshot, without waiting for paint.
     void instance.setViewport(
