@@ -287,6 +287,19 @@ describe("The Inbox's answer tracker", () => {
     })
   })
 
+  describe("what a backend sends itself", () => {
+    it("speaks to the Inbox until it is unbound or stopped", () => {
+      const { tracker } = setup()
+      const live = tracker.guard()
+      expect(live()).toBe(true)
+      tracker.reset()
+      expect(live()).toBe(false)
+      const next = tracker.guard()
+      tracker.stop()
+      expect(next()).toBe(false)
+    })
+  })
+
   describe("the state it keeps", () => {
     it("stays the same object while nothing in it changed", () => {
       const first = keepInbox(emptyInbox, { items: [trouble], answering: {}, failed: {} })
