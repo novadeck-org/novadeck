@@ -24,6 +24,56 @@ describe("the commits a release is written from", () => {
     ])
   })
 
+  it("drops the scopes of tests, dependencies and benchmarks, so their fixes are not counted", () => {
+    for (const scope of ["test", "tests", "e2e", "deps", "bench", "specs", "flakes"])
+      expect(
+        parseCommit({ sha: "a", subject: `fix(${scope}): a thing (#1)`, body: "" }),
+      ).toBeUndefined()
+  })
+
+  it("drops a commit whose subject names the chat, and the sentences of a What that do", () => {
+    expect(
+      parseCommit({ sha: "a", subject: "feat(ui): chat shows plans (#1)", body: "" }),
+    ).toBeUndefined()
+    const what = parseCommit({
+      sha: "a",
+      subject: "feat(ui): plans open beside the terminal (#2)",
+      body: "## What\n\nPlans open on their own. The chat view shows them too. They can be edited.\n- The chat renders it.\n- Notes work.\n\n## Why\n\nx",
+    })!.what
+    expect(what).toBe("Plans open on their own. They can be edited.\n- Notes work.")
+  })
+
+  it("removes a whole sentence about chats or demos from a hard-wrapped What, plurals included", () => {
+    const what = parseCommit({
+      sha: "a",
+      subject: "feat(ui): answer agents from the Inbox (#3)",
+      body: [
+        "## What",
+        "",
+        "Agents are answered from the Inbox. A permission can also be answered from the",
+        "chat box, without switching terminals. Rows clear themselves.",
+        "",
+        "- The demos show the same rows",
+        "  on a fake runner.",
+        "- Held messages wait for the agent.",
+        "1. Open the Inbox. Chats stay out of it.",
+        "",
+        "## Why",
+        "",
+        "x",
+      ].join("\n"),
+    })!.what
+    expect(what).toBe(
+      "Agents are answered from the Inbox. Rows clear themselves.\n\n- Held messages wait for the agent.\n1. Open the Inbox.",
+    )
+    expect(
+      parseCommit({ sha: "a", subject: "feat(ui): two chats side by side (#4)", body: "" }),
+    ).toBeUndefined()
+    expect(
+      parseCommit({ sha: "a", subject: "fix(ui): demos load faster (#5)", body: "" }),
+    ).toBeUndefined()
+  })
+
   it("takes the type, scope and pull request number off the subject", () => {
     expect(parseCommit(commit(330))).toMatchObject({
       type: "feat",

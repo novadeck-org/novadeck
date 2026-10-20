@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { readNotesBlock, type ReleaseNotes } from "../../contract/protocol/src/release-notes.ts"
 import { releaseBody } from "./fixtures.ts"
-import { originalOf, renderBody } from "./render.ts"
+import { fitBody, originalOf, renderBody } from "./render.ts"
 
 const repo = "novadeck-org/novadeck"
 const promote: ReleaseNotes = {
@@ -109,5 +109,15 @@ describe("a rendered body", () => {
     )
     expect(originalOf(releaseBody)).toBe(releaseBody)
     expect(originalOf(undefined)).toBe("")
+  })
+
+  it("fits the body to the limit by cutting the changelog first, then gives up", () => {
+    const big = "line of changelog\n".repeat(2_000)
+    expect(fitBody(promote, big, repo, undefined, 200_000)).toBe(renderBody(promote, big, repo))
+    const fitted = fitBody(promote, big, repo, undefined, 5_000)!
+    expect(fitted.length).toBeLessThanOrEqual(5_000)
+    expect(fitted).toContain("The rest of the changelog is cut for length.")
+    expect(readNotesBlock(fitted)).toEqual(promote)
+    expect(fitBody(promote, big, repo, undefined, 300)).toBeUndefined()
   })
 })

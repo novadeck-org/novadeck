@@ -1569,7 +1569,20 @@ the Actions tab, with a version such as `1.2.3` or none for the newest prereleas
 checks that the release is published, is a prerelease, carries every package, `latest*.yml`
 and `install.sh`, and is newer than the current stable release, then clears **Set as a
 pre-release** and sets it as the latest. No rebuild happens, and GitHub still lets those
-two flags change on an immutable release. For an interrupted release, inspect the latest
+two flags, and the notes, change on an immutable release.
+
+Release notes are written by a model through OpenRouter
+([scripts/release-notes](scripts/release-notes)). After each prerelease is published, its
+commits become short lines grouped by area; when a prerelease is promoted, its notes are
+rewritten with up to four highlights picked from everything since the last stable release,
+which the app shows once after updating to it. The `OPENROUTER_API_KEY` repository secret
+enables it, and the `RELEASE_NOTES_PRERELEASE_MODEL` and `RELEASE_NOTES_PROMOTE_MODEL`
+repository variables pick the models (by default `anthropic/claude-haiku-5.5` and `anthropic/claude-opus-5.5`).
+Without the key, or when a run fails, a release keeps the notes it has; neither step holds a
+release or a promotion. Run `node scripts/release-notes/main.ts promote v1.2.3 --dry-run` to
+see what a promotion would write without changing anything.
+
+For an interrupted release, inspect the latest
 workflow first. An unpublished draft or orphaned version tag must be cleaned up before
 rerunning the latest release workflow; published immutable releases must remain intact.
 

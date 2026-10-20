@@ -7,7 +7,7 @@ import { commitItem } from "./items.ts"
 import {
   ask,
   clientFor,
-  defaultModel,
+  defaultModels,
   parseOutput,
   responseSchema,
   withoutBounds,
@@ -70,10 +70,10 @@ describe("the model call", () => {
     expect(sent).toHaveLength(1)
     expect(sent[0]!.url).toBe("https://openrouter.ai/api/v1/chat/completions")
     expect(sent[0]!.init.method).toBe("POST")
-    expect(sent[0]!.init.headers).toMatchObject({
-      Authorization: "Bearer sk-or-test",
-      "X-Title": "Novadeck release notes",
-      "HTTP-Referer": "https://github.com/novadeck-org/novadeck",
+    expect(Object.fromEntries(new Headers(sent[0]!.init.headers))).toMatchObject({
+      authorization: "Bearer sk-or-test",
+      "x-title": "Novadeck release notes",
+      "http-referer": "https://github.com/novadeck-org/novadeck",
     })
     const body = sent[0]!.body
     expect(body).toMatchObject({
@@ -83,8 +83,9 @@ describe("the model call", () => {
         json_schema: { name: "release_notes", strict: true },
       },
       provider: { require_parameters: true },
-      reasoning: { effort: "medium" },
     })
+    // Any model on OpenRouter is allowed, and one without a reasoning setting would have no provider.
+    expect(body).not.toHaveProperty("reasoning")
     expect(body.stream).toBe(true)
     expect(body.messages.map((message: { role: string }) => message.role)).toEqual([
       "system",
@@ -104,20 +105,52 @@ describe("the model call", () => {
     expect(JSON.stringify(responseSchema)).not.toMatch(/\$schema|minimum|maximum/)
   })
 
-  it("takes the model from RELEASE_NOTES_MODEL, and the key from OPENROUTER_API_KEY", () => {
-    expect(clientFor("release", {})).toMatchObject({ model: defaultModel, apiKey: undefined })
-    expect(defaultModel).toBe("anthropic/claude-opus-5.5")
-    expect(
-      clientFor("promote", { RELEASE_NOTES_MODEL: "x/y", OPENROUTER_API_KEY: "k" }),
-    ).toMatchObject({ model: "x/y", apiKey: "k", timeout: 480_000 })
+  it("takes a model for each mode from its own variable, and the key from OPENROUTER_API_KEY", () => {
+    expect(clientFor("release", {})).toMatchObject({
+      model: "anthropic/claude-haiku-5.5",
+      apiKey: undefined,
+      timeout: 180_000,
+    })
+    expect(clientFor("promote", {})).toMatchObject({ model: defaultModels.promote })
+    expect(defaultModels.promote).toBe("anthropic/claude-opus-5.5")
+    const env = {
+      RELEASE_NOTES_PRERELEASE_MODEL: "x/cheap",
+      RELEASE_NOTES_PROMOTE_MODEL: "x/strong",
+      OPENROUTER_API_KEY: "  k\n",
+    }
+    expect(clientFor("release", env)).toMatchObject({ model: "x/cheap", apiKey: "k" })
+    expect(clientFor("promote", env)).toMatchObject({ model: "x/strong", timeout: 480_000 })
     expect(timeouts).toEqual({ release: 180_000, promote: 480_000 })
+    expect(clientFor("release", { RELEASE_NOTES_PRERELEASE_MODEL: " x/padded\n" }).model).toBe(
+      "x/padded",
+    )
+    expect(clientFor("promote", { RELEASE_NOTES_PROMOTE_MODEL: "  " }).model).toBe(
+      defaultModels.promote,
+    )
   })
 
   it("sends the chosen model", async () => {
-    const chosen = clientFor("release", { RELEASE_NOTES_MODEL: "x/y", OPENROUTER_API_KEY: "k" })
+    const chosen = clientFor("release", {
+      RELEASE_NOTES_PRERELEASE_MODEL: "x/y",
+      OPENROUTER_API_KEY: "k",
+    })
     const { fake, sent } = client(() => json(ok()), { model: chosen.model, apiKey: chosen.apiKey })
     await ask(fake, "release", "1", items)
     expect(sent[0]!.body.model).toBe("x/y")
+  })
+
+  it("never puts the key in a message: not when the request can't be built, nor when fetch fails", async () => {
+    // A key with a newline can't be a header value, and the error that says so quotes it.
+    const bad = client(() => json(ok()), { apiKey: "sk-or-secret\nmore" })
+    const built = await ask(bad.fake, "release", "1", items).catch((caught: unknown) => caught)
+    expect((built as Error).message).toBe("The request could not be built")
+    expect(bad.sent).toEqual([])
+    const leaky = client(() => Promise.reject(new TypeError("bad header Bearer sk-or-secret")), {
+      apiKey: "sk-or-secret",
+    })
+    const failed = await ask(leaky.fake, "release", "1", items).catch((caught: unknown) => caught)
+    expect((failed as Error).message).not.toContain("sk-or-secret")
+    expect((failed as Error).message).toContain("[key]")
   })
 
   it("gives the model each change's pull request, kind, subject and What", () => {

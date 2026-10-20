@@ -32,6 +32,11 @@ describe("the notes block", () => {
     expect(readNotesBlock(`## Title\n\nText\n\n${block}\n\n<details></details>`)).toEqual(notes)
   })
 
+  it("is compact JSON with the literal kind, which release.yml's jq guard matches", () => {
+    expect(notesBlock(notes)).toContain('"kind":"promote"')
+    expect(notesBlock({ ...notes, kind: "release" })).toContain('"kind":"release"')
+  })
+
   it("can't be closed early by the text it holds", () => {
     const sneaky = {
       ...notes,

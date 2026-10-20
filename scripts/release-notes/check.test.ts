@@ -12,14 +12,20 @@ const withChange = (line: string, prs = [195], area = "Voice"): ModelOutput => (
   ...good,
   changes: [{ area, line, prs }],
 })
+const check = (output: ModelOutput, kind: "release" | "promote" = "promote") =>
+  checkOutput(output, kind, allowed)
 const failure = (output: ModelOutput) => {
-  const checked = checkOutput(output, allowed)
+  const checked = check(output)
   return checked.ok ? undefined : checked.reason
+}
+const droppedFor = (output: ModelOutput) => {
+  const checked = check(output)
+  return checked.ok ? checked.dropped : undefined
 }
 
 describe("the checks on a model's answer", () => {
   it("passes a good one untouched", () => {
-    expect(checkOutput(good, allowed)).toEqual({ ok: true, output: good, dropped: [] })
+    expect(check(good)).toEqual({ ok: true, output: good, dropped: [] })
   })
 
   it("allows a promotion with no highlights, and refuses more than four", () => {
@@ -27,16 +33,30 @@ describe("the checks on a model's answer", () => {
     expect(failure({ ...good, highlights: Array(5).fill(good.highlights[0]) })).toMatch(/At most 4/)
   })
 
-  it("holds titles to 40 characters and lines to 110", () => {
+  it("ignores the highlights of a release instead of checking them", () => {
+    const wild = {
+      ...good,
+      highlights: Array.from({ length: 9 }, () => ({ title: "<b>x</b>", line: "y", prs: [1] })),
+    }
+    expect(check(wild, "release")).toEqual({
+      ok: true,
+      output: { highlights: [], changes: good.changes },
+      dropped: [],
+    })
+  })
+
+  it("drops a title over 40 characters or a line over 110, and keeps the rest", () => {
     const title = (text: string): ModelOutput => ({
       ...good,
       highlights: [{ ...good.highlights[0]!, title: text }],
     })
-    expect(failure(title("x".repeat(40)))).toBeUndefined()
-    expect(failure(title("x".repeat(41)))).toMatch(/Title/)
-    expect(failure(withChange("x".repeat(110)))).toBeUndefined()
-    expect(failure(withChange("x".repeat(111)))).toMatch(/Line/)
-    expect(failure(withChange("  "))).toMatch(/Line/)
+    expect(droppedFor(title("x".repeat(40)))).toEqual([])
+    expect(droppedFor(title("x".repeat(41)))).toHaveLength(1)
+    expect(droppedFor(withChange("x".repeat(110)))).toEqual([])
+    expect(droppedFor(withChange("x".repeat(111)))).toHaveLength(1)
+    expect(droppedFor(withChange("  "))).toHaveLength(1)
+    const checked = check(title("x".repeat(41)))
+    expect(checked).toMatchObject({ ok: true, output: { highlights: [], changes: good.changes } })
   })
 
   it("refuses what the notes' schema couldn't hold, so writing the block can't throw", () => {
@@ -46,36 +66,65 @@ describe("the checks on a model's answer", () => {
     expect(failure(withChange("Fine.", prs))).toMatch(/pull requests/)
   })
 
-  it("refuses a pull request it was not given, or none", () => {
+  it("refuses a pull request it was not given, or none, without quoting the line", () => {
     expect(failure(withChange("Fine.", [999]))).toMatch(/#999/)
     expect(failure(withChange("Fine.", [195, 999]))).toMatch(/#999/)
     expect(failure(withChange("Fine.", []))).toMatch(/pull requests/)
+    expect(failure(withChange("Secret words.", [999]))).not.toContain("Secret")
   })
 
-  it("refuses the whole answer when a line holds a link, markup or code", () => {
+  it("refuses the whole answer on a link, an image, a URL or an HTML tag", () => {
     for (const line of [
       "See [the docs](https://example.com).",
-      "Open [this] now.",
+      "Shown as ![logo](x.png).",
       "Visit https://example.com today.",
       "Visit www.example.com today.",
-      "Use <b>bold</b> text.",
-      "Run `rm -rf` now.",
-      "Shown as ![logo](x.png).",
       "Go to http://x.test.",
-      "Make it **bold**.",
-      "Cross ~~out~~ that.",
-      "Escape a \\ here.",
+      "Use <b>bold</b> text.",
+      "Close </div> early.",
+      "Hide <!-- this -->.",
     ])
       expect(failure(withChange(line)), line).toMatch(/holds/)
     const title = { ...good, highlights: [{ ...good.highlights[0]!, title: "<b>Bold</b>" }] }
     expect(failure(title)).toMatch(/holds/)
   })
 
+  it("drops a line with a stray markup character instead of failing the answer", () => {
+    for (const line of [
+      "Make it **bold**.",
+      "Cross ~~out~~ that.",
+      "Escape a \\ here.",
+      "Run `rm` now.",
+      "Open [this now.",
+      "Order a > b.",
+      "A < b here.",
+    ]) {
+      expect(droppedFor(withChange(line)), line).toEqual(["a markup character"])
+    }
+  })
+
+  it("drops a line that GitHub would link or format as a heading or a list", () => {
+    for (const line of [
+      "Mail me@example.com about it.",
+      "# Heading",
+      "1. First step",
+      "  12. Twelfth",
+    ])
+      expect(droppedFor(withChange(line)), line).toEqual(["a markup character"])
+    const title = { ...good, highlights: [{ ...good.highlights[0]!, title: "# Big" }] }
+    expect(droppedFor(title)).toEqual(["a markup character"])
+  })
+
+  it("drops chats and demos in the plural too", () => {
+    for (const line of ["Chats now stream.", "Two demos load faster."])
+      expect(droppedFor(withChange(line)), line).toHaveLength(1)
+  })
+
   it("lets a terminal's word handle through", () => {
     expect(failure(withChange("Terminals are named @moth, @fox and @owl."))).toBeUndefined()
   })
 
-  it("drops a line on an excluded topic, and says so", () => {
+  it("drops a line on an excluded topic, and says which pattern, not which line", () => {
     for (const line of [
       "A new chat view for agents.",
       "You can chat with an agent.",
@@ -85,25 +134,28 @@ describe("the checks on a model's answer", () => {
       "CI runs faster.",
       "A GitHub Action is added.",
     ]) {
-      const checked = checkOutput(withChange(line), allowed)
+      const checked = check(withChange(line))
       expect(checked, line).toMatchObject({ ok: true, output: { changes: [] } })
       expect(checked.ok && checked.dropped, line).toHaveLength(1)
+      expect(JSON.stringify(checked), line).not.toContain(line)
     }
     expect(failure(withChange("Terminals pick up a new decision."))).toBeUndefined()
   })
 
   it("drops a highlight on an excluded topic and keeps a promotion valid with none left", () => {
     const output = { ...good, highlights: [{ ...good.highlights[0]!, title: "Chat" }] }
-    expect(checkOutput(output, allowed)).toMatchObject({
+    expect(check(output)).toMatchObject({
       ok: true,
       output: { highlights: [] },
-      dropped: [expect.stringContaining("Chat")],
+      dropped: [expect.stringContaining("excluded topic")],
     })
   })
 
   it("drops a line in an area that is not ours without failing the answer", () => {
-    const checked = checkOutput(withChange("Fine.", [195], "Sharing"), allowed)
-    expect(checked).toMatchObject({ ok: true, output: { changes: [] } })
-    expect(checked.ok && checked.dropped[0]).toContain("Sharing")
+    expect(check(withChange("Fine.", [195], "Sharing"))).toMatchObject({
+      ok: true,
+      output: { changes: [] },
+      dropped: ["an area that is not one of ours"],
+    })
   })
 })
