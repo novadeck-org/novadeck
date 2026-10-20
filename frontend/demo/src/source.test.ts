@@ -1,4 +1,6 @@
 import { workspaceFromSeed } from "@novadeck/core/seed"
+import { workspaceReducer } from "@novadeck/core/state"
+import type { TerminalStatus } from "@novadeck/core/types"
 import { afterEach, vi } from "vitest"
 
 import { plainDemo } from "./index"
@@ -388,16 +390,86 @@ describe("a backend with the demo's Source", () => {
     stop()
   })
 
-  it("stops every agent when the storefront project goes", () => {
-    const { clock } = manual()
+  // The try demo's workspace, where Moth and Crow work and ask nothing.
+  const working = workspaceFromSeed(visitorSeed(now, true), {
+    view: "focus",
+    windowedView: "grid",
+    now,
+  })
+  const crowId = "storefront-initial-04"
+  const started = () => {
+    const { clock, advance } = manual()
     const turns = demoTurns()
-    const source = createDemoSource(now, clock)
+    const source = createDemoSource(now, clock, ["moth", "crow"])
     const stop = source.start(turns)
-    turns.work({ ...target, terminalId: "storefront-initial-01" }, undefined)
-    withSource(plainDemo("plain"), turns, source).commit(workspace, [
+    // Both have written by now.
+    advance(5000)
+    return { source, turns, advance, stop }
+  }
+
+  it("keeps the agents going when the storefront project is refused removal", () => {
+    const { source, stop } = started()
+    expect(Object.keys(project(source).writing).toSorted()).toEqual(["crow", "moth"])
+    withSource(plainDemo("plain"), undefined, source).commit(working, [
+      { type: "project/remove", projectId: "storefront", now },
+    ])
+    expect(Object.keys(project(source).writing).toSorted()).toEqual(["crow", "moth"])
+    stop()
+  })
+
+  it("stops every agent when the storefront project is really gone", () => {
+    const { source, turns, advance, stop } = started()
+    const gone = {
+      ...working,
+      projects: working.projects.filter((each) => each.id !== "storefront"),
+    }
+    withSource(plainDemo("plain"), turns, source).commit(gone, [
       { type: "project/remove", projectId: "storefront", now },
     ])
     expect(project(source).writing).toEqual({})
+    advance(60_000)
+    expect(project(source).writing).toEqual({})
+    stop()
+  })
+
+  // What the debug panel does to a terminal: it releases the agent and dispatches a status
+  // itself, so the turns never report it.
+  const dispatched = (status: TerminalStatus) => {
+    const action = { type: "terminal/status" as const, target, terminalId: crowId, status }
+    return { action, after: workspaceReducer(working, action) }
+  }
+
+  it("stops Crow writing once its terminal is at a prompt, however it got there", () => {
+    const { source, turns, advance, stop } = started()
+    expect(project(source).writing.crow).toBeDefined()
+    turns.release({ ...target, terminalId: crowId })
+    const { action, after } = dispatched({ state: "running" })
+    withSource(plainDemo("plain"), turns, source).commit(after, [action])
+    expect(project(source).writing.crow).toBeUndefined()
+    advance(60_000)
+    expect(project(source).writing.crow).toBeUndefined()
+    expect(project(source).writing.moth).toBeDefined()
+    stop()
+  })
+
+  it("stops Crow writing once its terminal failed, as in the crash loop", () => {
+    const { source, advance, stop } = started()
+    const { action, after } = dispatched({ state: "failed", message: "crashed" })
+    withSource(plainDemo("plain"), undefined, source).commit(after, [action])
+    expect(project(source).writing.crow).toBeUndefined()
+    advance(60_000)
+    expect(project(source).writing.crow).toBeUndefined()
+    stop()
+  })
+
+  it("has Crow write again when its agent is reported working after that", () => {
+    const { source, turns, advance, stop } = started()
+    const { action, after } = dispatched({ state: "running" })
+    withSource(plainDemo("plain"), turns, source).commit(after, [action])
+    expect(project(source).writing.crow).toBeUndefined()
+    turns.work({ ...target, terminalId: crowId }, undefined)
+    advance(8000)
+    expect(project(source).writing.crow).toBeDefined()
     stop()
   })
 })

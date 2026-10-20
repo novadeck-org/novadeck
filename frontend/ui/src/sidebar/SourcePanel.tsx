@@ -33,6 +33,7 @@ import {
   trailGone,
   trailLifeMs,
   trailOpacity,
+  trailVisible,
   visibleRows,
   writtenPaths,
   type Chips as ChipSet,
@@ -53,11 +54,15 @@ const changedIcons: Readonly<Record<SourceChange, LucideIcon>> = {
   deleted: FileMinus,
 }
 
+// The chip under the pointer: an agent's handle on one row.
+type Pointed = { readonly path: string; readonly handle: string }
+
 const noFolders: ReadonlySet<string> = new Set()
 
 // Who worked a row, as the chips on its right: two agents at most, or one where the row is too
-// narrow to keep its name whole beside two, the rest folded into a count. Pointing at a chip lights that agent across the tree; chips are no tab stops, the
-// row's label names everyone, and only the selected terminal's agent ranks first.
+// narrow to keep its name whole beside two, the rest folded into a count. Pointing at a chip
+// lights that agent across the tree; chips are no tab stops, the row's label names everyone, and
+// only the selected terminal's agent ranks first.
 const Chips = ({
   row,
   chips,
@@ -138,26 +143,51 @@ const Marks = ({
         ))}
       </>
     )
-  const latest = Math.max(0, ...Object.values(node.touched))
+  const latest = latestWrite(node)
   return latest === 0 ? null : <Trail key={`${latest}/${shownTimes}`} latest={latest} />
 }
 
 // How many marks follow a row's name (see `Marks`).
-const marksOf = (node: SourceRow["node"]): number =>
-  node.folder ? 0 : node.writing.length > 0 ? node.writing.length : hasTrail(node) ? 1 : 0
+// A trail counts only while it shows: one aged past hiding itself takes no width.
+const marksOf = (node: SourceRow["node"], now: number): number =>
+  node.folder
+    ? 0
+    : node.writing.length > 0
+      ? node.writing.length
+      : trailVisible(latestWrite(node), now)
+        ? 1
+        : 0
 
-const hasTrail = (node: SourceRow["node"]): boolean =>
-  Math.max(0, ...Object.values(node.touched)) > 0
+const latestWrite = (node: SourceRow["node"]): number => Math.max(0, ...Object.values(node.touched))
 
-// A name's width in the row's font. A canvas measures the real text; where there is none (jsdom)
-// or no font is known, a per-character estimate stands in.
-let canvas: CanvasRenderingContext2D | null | undefined
+// A name's width in the row's font. A canvas measures the text in that font (the family as loaded
+// so far: the caller measures again once the web fonts finish loading); where there is no canvas
+// (jsdom) or no font is known, a per-character estimate stands in. Widths are kept by font, and
+// forgotten when the fonts change.
+let canvas: HTMLCanvasElement | undefined
+const widths = new Map<string, number>()
+const forgetWidths = (): void => widths.clear()
 const textWidth = (name: string, font: string | undefined): number => {
   if (!font || typeof document === "undefined") return estimateNameWidth(name)
-  canvas ??= document.createElement("canvas").getContext("2d")
-  if (!canvas) return estimateNameWidth(name)
-  canvas.font = font
-  return Math.ceil(canvas.measureText(name).width)
+  const key = `${font}\n${name}`
+  const known = widths.get(key)
+  if (known !== undefined) return known
+  canvas ??= document.createElement("canvas")
+  const context = canvas.getContext("2d")
+  if (!context) return estimateNameWidth(name)
+  context.font = font
+  const width = Math.ceil(context.measureText(name).width)
+  widths.set(key, width)
+  return width
+}
+
+// The canvas font of an element, from its computed longhands: the `font` shorthand reads empty
+// in Chromium when the page sets font-feature-settings or font-variant-numeric on a parent.
+const fontOf = (element: Element): string | undefined => {
+  const { fontStyle, fontWeight, fontSize, fontFamily } = getComputedStyle(element)
+  return fontSize && fontFamily
+    ? [fontStyle, fontWeight, fontSize, fontFamily].filter(Boolean).join(" ")
+    : undefined
 }
 
 const rowLabel = (row: SourceRow, everyone: readonly string[]): string =>
@@ -188,7 +218,7 @@ const Row = ({
   shownTimes: number
   onActivate: (row: SourceRow) => void
   onFocus: (path: string) => void
-  onLight: (handle: string | undefined) => void
+  onLight: (pointed: Pointed | undefined) => void
 }): React.JSX.Element => {
   const { node, depth, open } = row
   const FileIconOf = node.kind ? changedIcons[node.kind] : plainIcons[fileIconOf(node.name)]
@@ -237,7 +267,16 @@ const Row = ({
         <span className="source-name text-body">{node.name}</span>
         <Marks row={row} shownTimes={shownTimes} />
       </button>
-      {chips && <Chips row={row} chips={chips} lit={lit} onLight={onLight} />}
+      {chips && (
+        <Chips
+          row={row}
+          chips={chips}
+          lit={lit}
+          onLight={(handle) =>
+            onLight(handle === undefined ? undefined : { path: node.path, handle })
+          }
+        />
+      )}
     </div>
   )
 }
@@ -275,15 +314,20 @@ export const SourcePanel = ({
   const open = openFolders ?? noFolders
   const rows = useMemo(() => visibleRows(tree, open), [tree, open])
   const [selected, setSelected] = useState<string | null>(null)
-  const [hovered, setHovered] = useState<string | undefined>()
-  // A chip can leave from under the pointer, folded into `+N` by another agent's write, with no
-  // pointerleave to say so: its agent stays lit only while a row still shows its chip.
+  // A chip can leave from under the pointer, folded into `+N` by another agent's write or a
+  // narrower tree, with no pointerleave to say so: the agent stays lit only while that row still
+  // shows that chip.
+  const [hovered, setHovered] = useState<Pointed | undefined>()
   const treeElement = useRef<HTMLDivElement>(null)
   // The tree's width and the name font, which decide how many chips a row has room for; the
   // sidebar is resizable, so a ResizeObserver follows the width. Unknown (nothing folds) until
   // measured, and while the panel is hidden (a width of zero).
   const [treeWidth, setTreeWidth] = useState<number | undefined>()
   const [nameFont, setNameFont] = useState<string | undefined>()
+  // When the tree was last measured, which also stands for the clock the chips fold by (a trail
+  // that has aged out takes no width). Measuring again after the web fonts load is what refolds:
+  // the name font string stays the same when one loads, but the widths measured before it did not.
+  const [measuredAt, setMeasuredAt] = useState(0)
   const [treeNode, setTreeNode] = useState<HTMLDivElement | null>(null)
   const attachTree = useCallback((element: HTMLDivElement | null): void => {
     treeElement.current = element
@@ -295,13 +339,31 @@ export const SourcePanel = ({
     const measure = (): void => {
       setTreeWidth(element.clientWidth > 0 ? element.clientWidth : undefined)
       const name = element.querySelector(".source-name")
-      if (name) setNameFont(getComputedStyle(name).font || undefined)
+      if (name) setNameFont(fontOf(name))
+      setMeasuredAt(Date.now())
     }
     measure()
-    if (typeof ResizeObserver === "undefined") return undefined
+    let current = true
+    const fontsChanged = (): void => {
+      if (!current) return
+      forgetWidths()
+      measure()
+    }
+    const fonts = typeof document === "undefined" ? undefined : document.fonts
+    void fonts?.ready.then(fontsChanged)
+    fonts?.addEventListener?.("loadingdone", fontsChanged)
+    if (typeof ResizeObserver === "undefined")
+      return () => {
+        current = false
+        fonts?.removeEventListener?.("loadingdone", fontsChanged)
+      }
     const observer = new ResizeObserver(measure)
     observer.observe(element)
-    return () => observer.disconnect()
+    return () => {
+      current = false
+      fonts?.removeEventListener?.("loadingdone", fontsChanged)
+      observer.disconnect()
+    }
   }, [treeNode])
   // The chips each row shows, folded by its room; an open folder names nobody: its files do.
   const chipsByPath = useMemo(() => {
@@ -318,16 +380,15 @@ export const SourcePanel = ({
               width: treeWidth,
               depth: row.depth,
               nameWidth: treeWidth === undefined ? 0 : textWidth(node.name, nameFont),
-              marks: marksOf(node),
+              marks: marksOf(node, measuredAt),
             }),
       )
     }
     return byPath
-  }, [rows, selectedHandle, treeWidth, nameFont])
+  }, [rows, selectedHandle, treeWidth, nameFont, measuredAt])
   const pointed =
-    hovered !== undefined &&
-    rows.some((row) => chipsByPath.get(row.node.path)?.shown.includes(hovered))
-      ? hovered
+    showing && hovered && chipsByPath.get(hovered.path)?.shown.includes(hovered.handle)
+      ? hovered.handle
       : undefined
   const lit = litHandle(project, selectedHandle, pointed)
   // The row that holds the tree's one Tab stop: the last one focused, or the first.
@@ -362,7 +423,10 @@ export const SourcePanel = ({
   if (wasShowing !== showing) {
     setWasShowing(showing)
     if (showing) setShownTimes(shownTimes + 1)
-    else if (Object.keys(pulses).length > 0) setPulses({})
+    else {
+      if (Object.keys(pulses).length > 0) setPulses({})
+      setHovered(undefined)
+    }
   }
   const timers = useRef(new Map<string, { count: number; id: ReturnType<typeof setTimeout> }>())
   useEffect(() => {
@@ -479,6 +543,7 @@ export const SourcePanel = ({
           className="source-tree mt-2.5 flex min-h-0 flex-1 flex-col overflow-y-auto pb-3"
           data-lit={lit}
           onKeyDown={onKeyDown}
+          onPointerLeave={() => setHovered(undefined)}
         >
           {rows.map((row) => (
             <Row

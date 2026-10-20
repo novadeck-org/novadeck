@@ -6,6 +6,7 @@ import { createStore } from "@novadeck/core/store"
 import { demoHandle } from "./handles"
 import { lessMotion, stillRequested } from "./motion"
 import { demoTerminalId } from "./samples"
+import { terminalOf } from "./terminals"
 import type { DemoTurns } from "./turns"
 
 // The demo's Source panel: the storefront project's files as its agents change them, from
@@ -138,6 +139,7 @@ export const writeTo = (
 
 // The project with `handle`'s turn over: it is writing nothing.
 export const endTurnIn = (project: SourceProject, handle: string): SourceProject => {
+  if (!(handle in project.writing)) return project
   const { [handle]: _, ...writing } = project.writing
   return { ...project, writing }
 }
@@ -228,6 +230,9 @@ export type DemoSource = Source & {
   readonly start: (turns?: DemoTurns) => () => void
   // Stops the agent in a terminal writing for good: its terminal closed, or its project went.
   readonly close: (terminalId: string) => void
+  // Stops the agent in a terminal writing because its terminal no longer shows it working,
+  // however that came about; it writes again when its agent is reported working.
+  readonly halt: (terminalId: string) => void
 }
 
 // Whether a backend's Source is the demo's, which the debug panel writes to.
@@ -292,6 +297,11 @@ export const createDemoSource = (
     stopWriting(slot.handle)
   }
 
+  const halt = (terminalId: string): void => {
+    const slot = slots.find((each) => each.terminalId === terminalId)
+    if (slot) stopWriting(slot.handle)
+  }
+
   const start = (turns?: DemoTurns): (() => void) => {
     // Held still or with less motion, no agent writes; the statuses are still followed, so an
     // agent that stops working loses the cursor it started with.
@@ -325,7 +335,7 @@ export const createDemoSource = (
     }
   }
 
-  return { state, write, endTurn, start, close }
+  return { state, write, endTurn, start, close, halt }
 }
 
 // A backend with the demo's Source for the storefront project.
@@ -338,13 +348,25 @@ export const withSource = (
   source,
   commit: (workspace, actions) => {
     backend.commit(workspace, actions)
-    // A closed terminal's agent writes no more, nor those of a removed storefront.
+    // A closed terminal's agent writes no more, nor those of a storefront the workspace no
+    // longer has (the reducer keeps the last project).
     for (const action of actions) {
       if (action.type === "terminal/close" && action.target.projectId === projectId)
         source.close(action.terminalId)
-      if (action.type === "project/remove" && action.projectId === projectId)
+      if (
+        action.type === "project/remove" &&
+        action.projectId === projectId &&
+        !workspace.projects.some((project) => project.id === projectId)
+      )
         slots.forEach((slot) => source.close(slot.terminalId))
     }
+    // Whatever stopped an agent, a verb or a status dispatched directly (the debug panel's
+    // terminal states, a crash), a terminal that no longer shows it working has it write no more.
+    slots.forEach((slot) => {
+      const terminal = terminalOf(workspace, { ...session, terminalId: slot.terminalId })
+      const agent = terminal?.state === "running" ? terminal.agent : undefined
+      if (!agent?.working || agent.attention) source.halt(slot.terminalId)
+    })
   },
   start: (sink) => {
     const stop = backend.start?.(sink)

@@ -57,6 +57,14 @@ const plans = [
   ["Refactor auth", 3],
 ] as const
 
+describe("the content demo", () => {
+  it("is marked as the demo, though it has no Source to show", () => {
+    const backend = createDemo("showcase", undefined, demoTurns())
+    expect(backend.demo).toBe(true)
+    expect(backend.source).toBeUndefined()
+  })
+})
+
 describe("the content demo's plans", () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())

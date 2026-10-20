@@ -186,11 +186,13 @@ export const chipsOf = (
   }
 }
 
-// The row's widths in px, from source.css and the type scale: `.source-row-select` pads 6px left
+// The row's widths in px, from source.css and the type scale: the item recipe's border is 1px a
+// side (`--border-width`), `.source-row-select` pads 6px left
 // (plus `indent` per depth) and 4px right and spaces its parts by 6px; the twisty is 12px, the
 // icon 14px; a cursor or trail mark is 6px; `.source-chips` pads 8px right, spaces by 6px and sets
 // handles in the caption size (11px) of the mono font, about 0.6em a glyph.
 export const indent = 12
+const rowBorder = 1
 const rowPadding = 6
 const rowPaddingEnd = 4
 const rowGap = 6
@@ -201,13 +203,14 @@ const chipsPaddingEnd = 8
 const chipGap = 6
 const chipGlyph = 6.6
 // The body size (13px) is proportional type, about 0.55em a glyph on average: the estimate for a
-// name where nothing can measure it. In a browser the panel measures the real text instead.
+// name where nothing can measure it (no canvas, as in jsdom, or no font known yet).
 const nameGlyph = 7.2
 
 export const estimateNameWidth = (name: string): number => name.length * nameGlyph
 
 // Everything in a row except its name and chips: indentation, twisty, icon, gaps and marks.
 const rowFixedWidth = (depth: number, marks: number): number =>
+  2 * rowBorder +
   rowPadding +
   indent * depth +
   twistyWidth +
@@ -297,3 +300,7 @@ export const trailLifeMs = trailTimeMs * Math.log(trailStart / trailGone)
 
 export const trailOpacity = (ageMs: number): number =>
   trailStart * Math.exp(-Math.max(0, ageMs) / trailTimeMs)
+
+// Whether a trail from a write at `latest` still shows at `now`, or has aged past hiding itself.
+export const trailVisible = (latest: number, now: number): boolean =>
+  latest > 0 && trailOpacity(now - latest) >= trailGone

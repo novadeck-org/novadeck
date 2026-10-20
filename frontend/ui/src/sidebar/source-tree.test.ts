@@ -14,6 +14,7 @@ import {
   trailGone,
   trailLifeMs,
   trailOpacity,
+  trailVisible,
   visibleRows,
   writtenPaths,
 } from "./source-tree"
@@ -242,6 +243,13 @@ describe("A file's trail", () => {
     expect(trailOpacity(trailLifeMs)).toBeCloseTo(trailGone)
     expect(trailLifeMs / 1000).toBeGreaterThan(420)
     expect(trailLifeMs / 1000).toBeLessThan(440)
+  })
+
+  it("shows from its write until it hides itself, and never for a file with no write", () => {
+    expect(trailVisible(1_000, 1_000)).toBe(true)
+    expect(trailVisible(1_000, 1_000 + trailLifeMs - 1)).toBe(true)
+    expect(trailVisible(1_000, 1_000 + trailLifeMs + 1)).toBe(false)
+    expect(trailVisible(0, 5)).toBe(false)
   })
 })
 

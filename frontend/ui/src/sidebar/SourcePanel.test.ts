@@ -29,7 +29,9 @@ Object.defineProperty(HTMLElement.prototype, "clientWidth", {
   },
 })
 // The panel measures names on a canvas where there is one; jsdom has none and says so loudly.
-HTMLCanvasElement.prototype.getContext = () => null
+// A test that wants one sets `measured` to the context it measures with.
+let measured: { font: string; measureText: (text: string) => { width: number } } | null = null
+HTMLCanvasElement.prototype.getContext = (() => measured) as never
 const resizeTree = (width: number): void => {
   treeWidth = width
   act(() => observers.forEach((callback) => callback()))
@@ -38,6 +40,7 @@ const resizeTree = (width: number): void => {
 afterEach(() => {
   vi.useRealTimers()
   treeWidth = 0
+  measured = null
   observers.clear()
 })
 
@@ -532,15 +535,60 @@ describe("The Source panel", () => {
       panel.view.unmount()
     })
 
+    it("measures the name on a canvas in the font of its computed longhands", async () => {
+      const fonts: string[] = []
+      measured = {
+        set font(value: string) {
+          fonts.push(value)
+        },
+        // Wide enough that two chips cannot sit beside "short.ts" at this width.
+        measureText: () => ({ width: 300 }),
+      } as never
+      const real = window.getComputedStyle.bind(window)
+      vi.spyOn(window, "getComputedStyle").mockImplementation((element, ...rest) =>
+        element.classList.contains("source-name")
+          ? ({
+              fontStyle: "normal",
+              fontWeight: "450",
+              fontSize: "13px",
+              fontFamily: "Measured Sans",
+              font: "",
+            } as CSSStyleDeclaration)
+          : real(element, ...rest),
+      )
+      treeWidth = 400
+      const panel = mount(crowded({ moth: recent, crow: recent - 1000 }))
+
+      expect(fonts).toContain("normal 450 13px Measured Sans")
+      expect(shown(panel, "short.ts")).toEqual(["@moth"])
+      expect(more(panel, "short.ts")).toBe("+1")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("does not count a trail that has aged out as a mark beside the name", async () => {
+      // "short.ts" and two chips fit in 190px without a mark, and not with one.
+      treeWidth = 190
+      const old = Date.now() - 20 * 60_000
+      const fresh = mount(crowded({ moth: recent, crow: recent - 1000 }))
+      expect(shown(fresh, "short.ts")).toHaveLength(1)
+      fresh.view.unmount()
+
+      const aged = mount(crowded({ moth: old, crow: old - 1000 }))
+      expect(shown(aged, "short.ts")).toHaveLength(2)
+      await nextFrame()
+      aged.view.unmount()
+    })
+
     it("stops lighting an agent whose chip a narrower tree folded away", async () => {
       treeWidth = 400
       const panel = mount(crowded({ moth: recent, crow: recent - 1000 }))
       const second = panel.row("CheckoutSummaryPanel.tsx").querySelectorAll(".source-chip")[1]!
       act(() => void second.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })))
-      // The short row still shows crow, so it stays lit until that goes too.
+      // The row the pointer was on folds crow away, though the short row still shows its chip.
       resizeTree(228)
-      expect(panel.view.container.querySelector("[role=tree]")?.getAttribute("data-lit")).toBe(
-        "crow",
+      expect(panel.view.container.querySelector("[role=tree]")?.hasAttribute("data-lit")).toBe(
+        false,
       )
       await nextFrame()
       panel.view.unmount()
