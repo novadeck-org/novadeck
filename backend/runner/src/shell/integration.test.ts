@@ -34,6 +34,7 @@ import { readyReturnMs } from "../terminals/binding/facts.js"
 import { handleWords } from "../terminals/handles.js"
 import { Terminals, type TerminalOptions } from "../terminals/index.js"
 import type { TerminalRecords } from "../terminals/records.js"
+import { createTranscriptRedactor } from "../terminals/redaction.js"
 import { describe, expect, it as base } from "../test.js"
 import { FakeDescriber } from "../testing/describer.js"
 import { WorkspaceStore } from "../workspaces/store.js"
@@ -1831,6 +1832,28 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     expect(restored.cwd).toBe(directory)
     const shown = await shell.until(second, id, /restored transcript[\s\S]*\$ /)
     expect(shown.indexOf("before-reboot")).toBeLessThan(shown.indexOf("restored transcript"))
+  })
+
+  it("masks a token in the transcript the real redactor saves as the runner shuts down", async ({
+    shell,
+  }) => {
+    const id = randomUUID()
+    const token = `ghp_${"aB3dE5gH7jK9mN1pQ3sT5vX7zC9eF1hJ3kL5"}`
+    // No periodic save runs: only the last pass at shutdown writes the transcript.
+    const manager = shell.manager({
+      redactor: createTranscriptRedactor(),
+      saveMs: 600_000,
+      transcriptMs: 600_000,
+      transcriptShutdownMs: 10_000,
+    })
+    await create(manager, shell, { id })
+    manager.write({ terminalId: id, data: `echo ${token} marker-after\r` }, "owner")
+    await shell.until(manager, id, /marker-after\r?\n/)
+    expect(shell.store.terminal(id)?.transcript ?? null).toBeNull()
+    await manager.shutdown()
+    const saved = shell.store.terminal(id)?.transcript
+    expect(saved).toContain("marker-after")
+    expect(saved).not.toContain(token)
   })
 
   it("saves a restored terminal's transcript again, masked, without a keystroke", async ({

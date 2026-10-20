@@ -111,8 +111,9 @@ export type TerminalOptions = {
   transcripts?: boolean
   /** How often changed terminals are saved, in milliseconds. */
   saveMs?: number
-  /** How often a changed transcript is saved, and how long the last ones get at shutdown (ms). */
+  /** How often a changed terminal's transcript is saved, in milliseconds. */
   transcriptMs?: number
+  /** How long the last transcripts get as the runner shuts down, in milliseconds. */
   transcriptShutdownMs?: number
   /** Masks secrets in transcripts before they are saved; a worker thread by default. */
   redactor?: TranscriptRedactor
@@ -756,6 +757,7 @@ export class Terminals {
         line: emptyLine,
         lineEntered: started.resumes,
         changed: false,
+        screenChanged: false,
         savedAt: 0,
         submitted: started.resumes,
         startupRuns: started.resumes,
@@ -782,13 +784,15 @@ export class Terminals {
       if (unled) this.messaging.endLead(record.summary.id)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
       const shown = saved?.transcript && !started.resumes && this.saves.transcripts
-      if (shown) void this.show(record, saved.transcript!, new Date(saved.savedAt))
+      const replayed = shown
+        ? this.show(record, saved.transcript!, new Date(saved.savedAt))
+        : Promise.resolve()
       this.listen(record)
       this.announce(record)
       this.sampler.start()
-      // Marked changed, a restored transcript saved unredacted is soon saved again masked.
       this.saves.save(record, false)
-      record.changed = Boolean(saved)
+      // Once shown, a transcript an older build saved unmasked is soon saved again masked.
+      if (saved) void replayed.then(() => this.saves.restored(record))
       this.saves.start()
       return summaryOf(record)
     } finally {
@@ -1535,7 +1539,7 @@ export class Terminals {
       this.typing.doorbellChanged(record.summary.id)
       this.typing.dialogsChanged(record.summary.id)
       // Once on the screen: a save while it was drawing may have taken the screen before.
-      record.changed = true
+      record.screenChanged = true
     })
     terminal.on("exit", () => this.exited(record))
     // Its summary's size is the terminal's own, drawn now.

@@ -27,6 +27,7 @@ export type SavedRecord = Pick<
   | "closed"
   | "terminal"
   | "changed"
+  | "screenChanged"
   | "savedAt"
 >
 
@@ -69,17 +70,20 @@ type TranscriptState = {
   failures: number
   /** Not taken again before this time, after a failure. */
   retryAt: number
+  /** Its saved copy was left by an earlier runner, so nothing says it was ever masked. */
+  earlier: boolean
 }
 
 /** A screen taken to be redacted and saved. */
 type Job = {
   readonly record: SavedRecord
-  readonly input: TranscriptInput
+  /** What the redactor is given; null for a screen with nothing on it, which is saved as none. */
+  readonly input: TranscriptInput | null
   /** The `keep` setting it was taken under; a later one makes its result stale. */
   readonly epoch: number
   readonly abort: AbortController
   /** Taken for the last pass as the runner shuts down, which may write while it stops. */
-  readonly last: boolean
+  last: boolean
 }
 
 /**
@@ -87,13 +91,17 @@ type Job = {
  * every read and write of the records goes through `persisting`, so none outlives the
  * runner's stop and a failure is logged rather than thrown.
  *
- * A terminal's other state is saved within `saveMs` of a change, as it happens. Its
- * transcript, the screen and scrollback, goes through the redactor first, which masks what
- * looks like a secret, and is saved at most every `transcriptMs`, and at once as its shell
- * exits or restarts; one redaction runs at a time, for the whole runner. A transcript is
- * never saved unredacted: when it cannot be redacted, the copy saved before stays, and the
- * next try waits longer each time. A result that arrives after its terminal was closed, the
- * transcripts were turned off or the runner stopped is dropped.
+ * A terminal keeps two marks. `changed` means its restoring state (title, directory,
+ * agents, prompt) is unsaved: that is saved within `saveMs`, a few terminals a tick.
+ * `screenChanged` means its screen is: the transcript, the screen and scrollback, goes
+ * through the redactor first, which masks what looks like a secret, and is saved at most
+ * every `transcriptMs`. A shell that exits or restarts goes first in the queue, ahead of
+ * the usual turns; one redaction runs at a time, for the whole runner. A transcript is
+ * never saved unredacted: when it cannot be redacted, the copy saved before stays (unless
+ * an earlier runner left it, which is then forgotten), and the next try waits longer each
+ * time. A result that arrives after its terminal was closed, the transcripts were turned
+ * off or the runner stopped is dropped. As the runner or the system shuts down, `finish`
+ * gives the unsaved screens one pass of `shutdownMs`, which may write until it is over.
  */
 export class Saves {
   private kept: boolean
@@ -103,7 +111,9 @@ export class Saves {
   private readonly states = new WeakMap<SavedRecord, TranscriptState>()
   // The terminals whose transcripts wait their turn, and whether each is to go first.
   private readonly waiting = new Map<SavedRecord, boolean>()
-  private flight: Job | undefined
+  // The screens taken and not yet settled: one in flight, and the last pass's.
+  private readonly taken = new Set<Job>()
+  private flight: { readonly job: Job; readonly done: Promise<void> } | undefined
   private finishing: Promise<void> | undefined
 
   constructor(
@@ -124,15 +134,21 @@ export class Saves {
    * wait for.
    */
   persist(): void {
-    for (const record of this.host.records()) if (record.changed) this.save(record, false)
+    this.flush()
     void this.finish()
   }
 
   /** Saves what `persist` does, and ends once the transcripts have had their time; then closes the redactor. */
   async shutdown(): Promise<void> {
-    for (const record of this.host.records()) if (record.changed) this.save(record, false)
+    this.flush()
     await this.finish()
     await this.options.redactor?.close()
+  }
+
+  private flush(): void {
+    for (const record of this.host.records()) {
+      if (record.changed && this.saveRow(record)) record.changed = false
+    }
   }
 
   /** Turning transcripts off forgets every saved one; turning them on saves each anew. */
@@ -140,9 +156,18 @@ export class Saves {
     this.kept = enabled
     this.epoch++
     this.waiting.clear()
-    this.flight?.abort.abort()
-    if (enabled) for (const record of this.host.records()) record.changed = true
+    for (const job of this.taken) job.abort.abort()
+    if (enabled) for (const record of this.host.records()) record.screenChanged = true
     if (!enabled) this.persisting(() => this.options.records?.clearTranscripts())
+  }
+
+  /**
+   * A terminal was restored with a transcript saved by an earlier runner, which may be
+   * unmasked: its screen is saved again soon, and the old copy goes if that cannot be done.
+   */
+  restored(record: SavedRecord): void {
+    this.state(record).earlier = true
+    record.screenChanged = true
   }
 
   /** Saves changed terminals every so often, so a runner killed at any moment loses little. */
@@ -171,16 +196,15 @@ export class Saves {
       .filter((record) => record.changed && record.savedAt <= due)
       .toSorted((a, b) => a.savedAt - b.savedAt)
     for (const record of waiting.slice(0, savesPerTick)) {
+      // A failed save leaves it changed, so a later tick tries again once `saveMs` has passed.
       record.savedAt = now
-      this.save(record, false)
-      // Without transcripts there is nothing more to wait for.
-      if (!this.kept) record.changed = false
+      if (this.saveRow(record)) record.changed = false
     }
     if (!this.kept) return
     for (const record of this.host.records()) {
       const state = this.states.get(record)
       if (
-        record.changed &&
+        record.screenChanged &&
         (!state || (now >= state.retryAt && now - state.taken >= this.options.transcriptMs))
       ) {
         this.waiting.set(record, this.waiting.get(record) ?? false)
@@ -190,23 +214,24 @@ export class Saves {
   }
 
   /**
-   * Saves what restores the terminal. With `transcript` its screen follows at once, as the
-   * shell ended or restarted; otherwise the screen is saved on its usual turn. Nothing is
-   * saved once the runner is stopping, or for a terminal that was closed.
+   * Saves what restores the terminal. With `transcript` its screen goes first in the queue
+   * to be saved too, as the shell ended or restarted; otherwise the screen is saved on its
+   * usual turn. Nothing is saved once the runner is stopping, or for a terminal that was
+   * closed.
    */
   save(record: SavedRecord, transcript: boolean): void {
+    if (!this.saveRow(record) || !transcript || !this.kept || !this.options.records) return
+    record.screenChanged = true
+    this.waiting.set(record, true)
+    this.pump()
+  }
+
+  /** Saves a terminal's restoring state alone, leaving its transcript as it is; whether it was saved. */
+  private saveRow(record: SavedRecord): boolean {
     // A closed terminal is forgotten for good: work still suspended for it, as an agent's
     // report, must not save it back. An evicted one is kept saved, and still saves.
-    if (record.closed) return
-    // The transcript is left as it is: only the redactor's result replaces it.
-    const saved = this.persisting(() => this.options.records?.saveTerminal(this.row(record)))
-    if (!transcript || !saved) return
-    if (!this.kept) record.changed = false
-    else if (this.options.records) {
-      record.changed = true
-      this.waiting.set(record, true)
-      this.pump()
-    }
+    if (record.closed) return false
+    return this.persisting(() => this.options.records?.saveTerminal(this.row(record)))
   }
 
   /** Takes the next waiting terminal's screen to redact, unless one is in flight already. */
@@ -224,81 +249,104 @@ export class Saves {
     if (!next) return
     this.waiting.delete(next)
     const job = this.take(next, false)
-    this.flight = job
-    void this.run(job).finally(() => {
+    const done = this.run(job).finally(() => {
       this.flight = undefined
       this.pump()
     })
+    this.flight = { job, done }
   }
 
   private state(record: SavedRecord): TranscriptState {
     let state = this.states.get(record)
     if (!state) {
-      state = { taken: -Infinity, failures: 0, retryAt: 0 }
+      state = { taken: -Infinity, failures: 0, retryAt: 0, earlier: false }
       this.states.set(record, state)
     }
     return state
   }
 
-  /** The screen as it is now, marked as taken: a draw after it marks the terminal changed again. */
+  /**
+   * The screen as it is now, marked as taken: a draw after it marks the terminal changed
+   * again. It is given whole, for the redactor to cut after masking: cut before, a secret's
+   * name could go while the tail of its value stayed.
+   */
   private take(record: SavedRecord, last: boolean): Job {
     const screen = record.terminal.screen
-    record.changed = false
+    record.screenChanged = false
     this.state(record).taken = performance.now()
-    return {
+    const text = transcriptOf(screen, Number.POSITIVE_INFINITY)
+    const job: Job = {
       record,
-      input: {
-        text: transcriptOf(screen, this.options.transcriptChars) ?? "",
-        cols: screen.cols,
-        rows: screen.rows,
-        lines: screen.buffer.normal.length,
-        maxChars: this.options.transcriptChars,
-      },
+      input: text
+        ? {
+            text,
+            cols: screen.cols,
+            rows: screen.rows,
+            lines: screen.buffer.normal.length,
+            maxChars: this.options.transcriptChars,
+          }
+        : null,
       epoch: this.epoch,
       abort: new AbortController(),
       last,
     }
+    this.taken.add(job)
+    return job
   }
 
-  /** Redacts a taken screen and writes it, unless it went stale on the way. */
-  private async run(job: Job): Promise<void> {
-    const { record } = job
-    let redacted: string | null | undefined
+  /** Redacts a taken screen: "" for one with nothing on it, null when it could not be, undefined when given up. */
+  private async redact(job: Job): Promise<string | null | undefined> {
+    if (!job.input) return ""
     try {
-      redacted = await this.options.redactor?.redact(job.input, job.abort.signal)
+      return await this.options.redactor?.redact(job.input, job.abort.signal)
     } catch (error) {
       log.error("terminals.redact-failed", "Novadeck could not redact a transcript", { err: error })
-      redacted = null
+      return null
     }
-    // Whatever is not written leaves the terminal changed, so a later turn takes its screen.
+  }
+
+  private async run(job: Job): Promise<void> {
+    this.settle(job, await this.redact(job))
+  }
+
+  /** Writes a redacted screen, unless it went stale on the way; whatever isn't written leaves the screen changed. */
+  private settle(job: Job, redacted: string | null | undefined): void {
+    const { record } = job
+    this.taken.delete(job)
     if (redacted === undefined || !this.current(job)) {
-      record.changed = true
+      record.screenChanged = true
       return
     }
     const state = this.state(record)
     if (redacted === null) {
-      // The screen stays unsaved, and the copy before it stays; the wait grows with each failure.
-      record.changed = true
+      // The screen stays unsaved, and the copy before it stays, unless an earlier runner
+      // left it; the wait grows with each failure.
+      record.screenChanged = true
       state.failures++
       const wait = Math.min(2 ** state.failures, longestBackoff) * this.options.transcriptMs
       state.retryAt = performance.now() + wait
       log.warn(
         "terminals.transcript-unredacted",
-        "Novadeck could not mask a transcript, so kept the earlier copy",
-        {
-          data: { terminalId: record.summary.id, retryMs: wait },
-        },
+        "Novadeck could not mask a transcript, so did not save it",
+        { data: { terminalId: record.summary.id, retryMs: wait, forgotten: state.earlier } },
       )
+      if (state.earlier) this.write(job, null)
       return
     }
     state.failures = 0
     state.retryAt = 0
-    const transcript = redacted
+    this.write(job, redacted || null)
+  }
+
+  private write(job: Job, transcript: string | null): void {
+    const { record } = job
+    // The last pass writes until it is over, which is before the records close.
     const saved = this.persisting(
       () => this.options.records?.saveTerminal({ ...this.row(record), transcript }),
-      "untilStopped",
+      job.last ? "always" : "untilStopped",
     )
-    if (!saved) record.changed = true
+    if (saved) this.state(record).earlier = false
+    else record.screenChanged = true
   }
 
   /** Whether a result is still wanted: nothing closed, turned off or stopped since it was taken. */
@@ -308,15 +356,15 @@ export class Saves {
       !job.abort.signal.aborted &&
       this.kept &&
       !job.record.closed &&
-      !this.host.stopped() &&
-      (job.last || !this.host.stopping())
+      (job.last || (!this.host.stopped() && !this.host.stopping()))
     )
   }
 
   /**
-   * Gives the changed terminals' transcripts one short pass, as the runner shuts down or
-   * the system does: screens taken now are redacted one after another for at most
-   * `shutdownMs`, and what isn't done keeps its last saved copy. Calls during a pass share it.
+   * Gives the unsaved screens' transcripts one short pass, as the runner shuts down or the
+   * system does: the one in flight is waited for, the others redacted one after another,
+   * for at most `shutdownMs` in all, and what isn't done keeps its last saved copy. Calls
+   * during a pass share it.
    */
   finish(): Promise<void> {
     this.finishing ??= this.last().finally(() => {
@@ -328,51 +376,37 @@ export class Saves {
 
   private async last(): Promise<void> {
     if (!this.kept || !this.options.records || !this.options.redactor) return
-    const redactor = this.options.redactor
-    // A redaction in flight is given up, its terminal taken again below.
-    if (this.flight) {
-      this.flight.record.changed = true
-      this.flight.abort.abort()
-    }
+    const flight = this.flight
+    // The redaction in flight goes on, and is written like the rest of the pass.
+    if (flight) flight.job.last = true
     this.waiting.clear()
     const jobs: Job[] = []
     for (const record of this.host.records()) {
-      if (record.changed && !record.closed) jobs.push(this.take(record, true))
+      if (record.screenChanged && !record.closed) jobs.push(this.take(record, true))
     }
-    if (jobs.length === 0) return
+    if (!flight && jobs.length === 0) return
     const over = new AbortController()
     const timer = setTimeout(() => over.abort(), this.options.shutdownMs)
     const ended = new Promise<undefined>((resolve) =>
       over.signal.addEventListener("abort", () => resolve(undefined), { once: true }),
     )
-    const written = new Set<Job>()
     try {
-      for (const job of jobs) {
+      for (const job of [...(flight ? [flight.job] : []), ...jobs]) {
         if (over.signal.aborted) break
         over.signal.addEventListener("abort", () => job.abort.abort(), { once: true })
-        let redacted: string | null | undefined
-        try {
+        if (job === flight?.job) {
           // eslint-disable-next-line no-await-in-loop -- One at a time: the redactor has one thread.
-          redacted = await Promise.race([redactor.redact(job.input, job.abort.signal), ended])
-        } catch (error) {
-          log.error("terminals.redact-failed", "Novadeck could not redact a transcript", {
-            err: error,
-          })
-          redacted = null
+          await Promise.race([flight.done, ended])
+          continue
         }
-        if (typeof redacted !== "string" || !this.current(job)) continue
-        const transcript = redacted
-        const saved = this.persisting(
-          () => this.options.records?.saveTerminal({ ...this.row(job.record), transcript }),
-          "untilStopped",
-        )
-        if (saved) written.add(job)
+        // eslint-disable-next-line no-await-in-loop -- One at a time: the redactor has one thread.
+        this.settle(job, await Promise.race([this.redact(job), ended]))
       }
     } finally {
       clearTimeout(timer)
       over.abort()
-      // What wasn't written is still changed, and keeps its last saved copy.
-      for (const job of jobs) if (!written.has(job)) job.record.changed = true
+      // What wasn't reached is still changed, and keeps its last saved copy.
+      for (const job of jobs) if (this.taken.delete(job)) job.record.screenChanged = true
     }
   }
 
@@ -455,6 +489,10 @@ export class Saves {
 
   /** Forgets a kept terminal; while the runner stops too, as a close then still stands. */
   remove(terminalId: string): void {
+    // A screen of it taken or waiting must not save it back.
+    for (const record of this.waiting.keys())
+      if (record.summary.id === terminalId) this.waiting.delete(record)
+    for (const job of this.taken) if (job.record.summary.id === terminalId) job.abort.abort()
     this.persisting(() => this.options.records?.removeTerminal(terminalId), "untilStopped")
   }
 
@@ -463,9 +501,18 @@ export class Saves {
    * read or removal until it has stopped; a failure is logged. True once it is done, or
    * when there are no records.
    */
-  persisting(work: () => void, until: "untilStopped" | "untilStopping" = "untilStopping"): boolean {
+  persisting(
+    work: () => void,
+    until: "always" | "untilStopped" | "untilStopping" = "untilStopping",
+  ): boolean {
     if (!this.options.records) return true
-    if (until === "untilStopping" ? this.host.stopping() : this.host.stopped()) return false
+    if (
+      until === "untilStopping"
+        ? this.host.stopping()
+        : until === "untilStopped" && this.host.stopped()
+    ) {
+      return false
+    }
     try {
       work()
       return true

@@ -657,10 +657,15 @@ had in its foreground, until it is closed. The directory, agent sessions and tit
 saved as they change, the rest every five seconds when changed, when a shell exits, and
 on `persist()` and `close()`, which save before any shell ends. The transcript is saved
 separately, after the runner masks what looks like a secret in it (known token prefixes,
-values named like secrets, keys, long key-like runs; anything else may still be saved): at
-most every 30 seconds when its screen changed, when the shell exits or restarts, and in a
-pass of about a second as `persist()` and `close()` run, whose unfinished transcripts keep
-their last saved copy. A transcript that cannot be masked is not saved. See [transcript-redaction.md](transcript-redaction.md). Closing a terminal
+values named like secrets, keys, long key-like runs; anything else may still be saved).
+Only a terminal whose screen changed is queued, at most every 30 seconds; one whose shell
+exits or restarts goes first in the queue. One transcript is masked at a time, for the
+whole runner. `persist()` and `close()` also give the changed screens one pass of about a
+second, written until that second is over (the records close after it); a transcript
+unfinished then keeps its last saved copy. A transcript that cannot be masked is not
+saved, and the copy saved before stays, unless an earlier runner left it, which is then
+forgotten. A result that arrives after its terminal was closed, or transcripts were
+turned off, is dropped. See [transcript-redaction.md](transcript-redaction.md). Closing a terminal
 forgets it, including one from an earlier runner.
 
 - `terminals.create({ …, restore: true, resume? })` continues the saved terminal of
