@@ -193,7 +193,12 @@ const qualifies = (text: string): boolean => {
   if (!/[a-z]{7}/.test(text)) return true
   // A mangled C++ or Rust name is long, mixed in case and full of words, and no key; it never
   // holds base64's `-`, `+`, `/` or `=`, which a key of this length almost always does.
-  if (/^_{1,2}(?:Z[A-Za-z0-9]|R[A-Z])/.test(text) && !/[-+/=]/.test(text)) return false
+  // A stack frame's offset may be glued on (`_ZN…E+0x1a2`, `+0x4b/0x90`).
+  if (
+    /^_{1,2}(?:Z[A-Za-z0-9]|R[A-Z])/.test(text) &&
+    !/[-+/=]/.test(text.replace(/\+0x[0-9a-f]+(?:\/0x[0-9a-f]+)?$/, ""))
+  )
+    return false
   const pieces = Math.floor(text.length / piece)
   if (pieces < 4 || digits < text.length / 20) return false
   let failing = 0

@@ -1268,6 +1268,12 @@ describe("long keys that look like something else at first", () => {
     expect(redact(`echo ${key}`)).toBe(`echo ${redacted}`)
   })
 
+  it("keeps a mangled name with a stack frame's offset glued on", () => {
+    const frame =
+      "./app(_Z34uspoof_getSkeletonUnicodeString_74PK13USpoofCheckerjRKN6icu_7413UnicodeStringERS3_P10UErrorCode+0x1a2) [0x7f3a2b1c4d5e]"
+    expect(redact(frame)).toBe(frame)
+  })
+
   it("masks a key that ends a sentence, and keeps the full stop", () => {
     const key = "wJalrXUtnFEMI9K7MDENGbPxRfiCYEXAMPLEKEY99Ab3dZ"
     expect(redact(`your key is ${key}.`)).toBe(`your key is ${redacted}.`)
