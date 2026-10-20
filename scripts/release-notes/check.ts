@@ -24,8 +24,8 @@ const steered: readonly [RegExp, string][] = [
 
 // Markup a plain line has no use for. A slip drops that line and the rest stands.
 const markup = /[*~\\`[<>]/
-// An address GitHub would turn into a link, and a line that would open as a heading or a list.
-const autolinked = /\S+@\S+\.\w+/
+// An address or an issue number GitHub would turn into a link, and a line that would open as a heading or a list.
+const autolinked = /\S+@\S+\.\w+|#\d+/
 const structural = /^\s*(?:#|\d+\. )/
 
 // What is not for the notes: the chat view ships behind a flag, early builds are for
@@ -33,7 +33,8 @@ const structural = /^\s*(?:#|\d+\. )/
 // not the app. A line that mentions one is dropped, the rest stands.
 const excluded: readonly RegExp[] = [
   chat,
-  /\bearly\b.{0,20}\b(?:builds?|channels?|releases?|updates?)\b/i,
+  /\b(?:early|beta|nightly|canary|preview)\b.{0,20}\b(?:builds?|channels?|releases?|updates?)\b/i,
+  /\bupdate channels?\b/i,
   /\bprereleases?\b/i,
   demo,
   /try\.novadeck/i,

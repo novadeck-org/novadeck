@@ -51,3 +51,6 @@ In promote mode, the changes are every change since the last stable release, or 
 start when there is none. Pick one to four highlights, the changes a person would most want
 to hear about, each with a title and a line. Put everything else visible in `changes`,
 grouped by area, without repeating a highlight there.
+
+When there is no stable release yet, this is the first one: describe what the app does now,
+not how it got there ("terminals are named by a word everywhere", "runs real shells").

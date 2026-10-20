@@ -74,6 +74,41 @@ describe("the commits a release is written from", () => {
     ).toBeUndefined()
   })
 
+  it("strips URLs from the What, and keeps the words around them", () => {
+    const what = parseCommit({
+      sha: "a",
+      subject: "feat(ui): a thing (#7)",
+      body: "## What\n\nSee https://example.com/x?y=1 and www.example.org now. It works.",
+    })!.what
+    expect(what).not.toMatch(/example|http|www/)
+    expect(what).toContain("It works.")
+  })
+
+  it("leaves out a commit and the revert that undoes it, by quoted subject, typed subject or number", () => {
+    const raw = (subject: string, body = "") => ({ sha: subject, subject, body })
+    const kept = raw("feat(ui): keep me (#1)")
+    const quoted = parseCommits([
+      raw("feat(ui): add a thing (#2)"),
+      kept,
+      raw('Revert "feat(ui): add a thing (#2)" (#3)'),
+    ])
+    expect(quoted.map((each) => each.pr)).toEqual([1])
+    const typed = parseCommits([
+      raw("fix(runner): stop a loop (#4)"),
+      kept,
+      raw("revert(runner): stop a loop (#5)"),
+    ])
+    expect(typed.map((each) => each.pr)).toEqual([1])
+    const numbered = parseCommits([
+      raw("feat: first (#6)"),
+      kept,
+      raw("revert: undo the change", "This reverts #6, which broke it."),
+    ])
+    expect(numbered.map((each) => each.pr)).toEqual([1])
+    // A revert of something outside the range cancels nothing in it.
+    expect(parseCommits([kept, raw('Revert "feat: old thing (#9)" (#10)')])).toHaveLength(1)
+  })
+
   it("takes the type, scope and pull request number off the subject", () => {
     expect(parseCommit(commit(330))).toMatchObject({
       type: "feat",

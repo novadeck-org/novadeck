@@ -56,7 +56,11 @@ export const whatOf = (body: string): string => {
   // item before cutting into sentences, then drop the sentences that name what isn't announced.
   const blocks: string[] = []
   let open = false
-  for (const line of (found?.groups?.text ?? "").replaceAll("\r", "").split("\n")) {
+  // Links are the pull request's business; a URL in what the model reads is a way to steer it.
+  const plain = (found?.groups?.text ?? "")
+    .replaceAll("\r", "")
+    .replace(/\b(?:https?:\/\/|www\.)\S+/gi, "")
+  for (const line of plain.split("\n")) {
     if (!line.trim()) {
       blocks.push("")
       open = false
@@ -103,5 +107,46 @@ export const parseCommit = (raw: RawCommit): Commit | undefined => {
   }
 }
 
-export const parseCommits = (raws: readonly RawCommit[]): Commit[] =>
-  raws.flatMap((raw) => parseCommit(raw) ?? [])
+// What a revert says it undoes: the subject it quotes and the pull requests it names.
+type Reverted = { readonly name: string | undefined; readonly prs: readonly number[] }
+
+const withoutPr = (subject: string): string =>
+  subject
+    .replace(/ \(#\d+\)$/, "")
+    .trim()
+    .toLowerCase()
+
+const revertOf = (raw: RawCommit): Reverted | undefined => {
+  const subject = raw.subject.trim()
+  const quoted = /^Revert "(?<inner>.+)"(?: \(#\d+\))?$/.exec(subject)?.groups?.["inner"]
+  const typed = /^revert(?:\([^)]*\))?!?: (?<inner>.+)$/i.exec(subject)?.groups?.["inner"]
+  const inner = quoted ?? typed
+  if (!inner) return undefined
+  // The revert's own number is the last in its subject; those inside the quote, and a body that
+  // says "reverts #12", name the work undone.
+  const named = quoted ? inner : inner.replace(/ \(#\d+\)$/, "")
+  const prs = [
+    ...[...named.matchAll(/#(\d+)/g)].map((found) => Number(found[1])),
+    ...[...raw.body.matchAll(/\breverts?\b[^\n]*?#(\d+)/gi)].map((found) => Number(found[1])),
+  ]
+  return { name: withoutPr(named), prs }
+}
+
+/**
+ * The user-visible commits of a range. A commit that a revert in the range undoes is left out
+ * along with the revert, matched by the subject the revert quotes or a pull request it names.
+ */
+export const parseCommits = (raws: readonly RawCommit[]): Commit[] => {
+  const reverts = raws.flatMap((raw) => revertOf(raw) ?? [])
+  return raws.flatMap((raw) => {
+    const commit = parseCommit(raw)
+    if (!commit) return []
+    const names = new Set([withoutPr(raw.subject), commit.subject.toLowerCase()])
+    const undone = reverts.some(
+      (revert) =>
+        (revert.name !== undefined && names.has(revert.name)) ||
+        (commit.pr !== undefined && revert.prs.includes(commit.pr)),
+    )
+    return undone ? [] : [commit]
+  })
+}

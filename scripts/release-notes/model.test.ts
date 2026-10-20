@@ -96,13 +96,13 @@ describe("the model call", () => {
     expect(sent[0]!.init.signal).toBeInstanceOf(AbortSignal)
   })
 
-  it("lets a build write 16,000 tokens and a promotion 64,000", async () => {
+  it("lets a build and a promotion write 16,000 tokens each", async () => {
     const build = client(() => json(ok()))
     await ask(build.fake, "release", "1", items)
     expect(build.sent[0]!.body.max_tokens).toBe(16_000)
     const promotion = client(() => json(ok()))
     await ask(promotion.fake, "promote", "1", items)
-    expect(promotion.sent[0]!.body.max_tokens).toBe(32_000)
+    expect(promotion.sent[0]!.body.max_tokens).toBe(16_000)
   })
 
   it("holds the area to a real enum in the schema it sends, with no bounds the providers refuse", async () => {
@@ -191,10 +191,20 @@ describe("the model call", () => {
     expect(sent).toEqual([])
   })
 
+  it("reports a 402 without the message, which says how much credit is left", async () => {
+    const { fake } = client(() =>
+      json({ error: { code: 402, message: "Insufficient credits. You have $0.12 left." } }, 402),
+    )
+    const failure = await ask(fake, "release", "1", items).catch((caught: unknown) => caught)
+    expect((failure as Error).message).toBe("OpenRouter: not enough credit on the key (402)")
+    const inBody = client(() => json({ error: { code: 402, message: "You have $0.12 left" } }))
+    const second = await ask(inBody.fake, "release", "1", items).catch((caught: unknown) => caught)
+    expect((second as Error).message).not.toContain("0.12")
+  })
+
   it("skips on an HTTP error, with the status and OpenRouter's message", async () => {
     for (const [status, message] of [
       [401, "No auth credentials found"],
-      [402, "Insufficient credits"],
       [429, "Rate limited"],
       [503, "No available providers"],
     ] as const) {
