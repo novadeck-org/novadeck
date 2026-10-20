@@ -873,6 +873,27 @@ describe("Antigravity 1.4.3's dialogs", () => {
     expect(dialogs.read(screen, permission(edited))).toBeUndefined()
   })
 
+  it("agrees with a Windows Path it draws with forward slashes", () => {
+    // Its call names C:\…\probe.txt, its screen C:/…/probe.txt (seen on Windows, 1.4.3).
+    const screen = same(
+      screens.write!.rows,
+      `${file}  +1`,
+      "C:/Users/runner/Temp/project/probe.txt  +1",
+    )
+    const windows = {
+      name: "write_file",
+      args: { Path: "C:\\Users\\runner\\Temp\\project\\probe.txt" },
+    }
+    expect(read(screen, permission(windows)).dialog).toMatchObject({
+      title: "Allow creation of this file?",
+    })
+    const other = {
+      name: "write_file",
+      args: { Path: "C:\\Users\\runner\\Temp\\project\\other.txt" },
+    }
+    expect(dialogs.read(screen, permission(other))).toBeUndefined()
+  })
+
   it("reads edit_file's confirmation, agreeing with its Path", () => {
     const screen = screens.edit!.rows
     const found = read(screen, permission(edited))

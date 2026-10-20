@@ -31,6 +31,10 @@ import type { RequestAnswer } from "@novadeck/protocol"
 
 const collapse = (text: string): string => text.replaceAll(/\s+/g, "")
 
+// A path with its separators as one: on Windows 1.4.3 draws a file's path with `/` where
+// its call names it with `\` (seen 2026-10-20, 1.4.3).
+const slashed = (path: string): string => path.replaceAll("\\", "/")
+
 // A command's rows as one line: each row trimmed, a row break read as one space, every
 // other whitespace as it is, so `> x` is not `>x` nor `a  b` `a b` within a row.
 const lined = (text: string): string =>
@@ -242,7 +246,7 @@ const matches = (read: Confirmation, input: unknown): boolean => {
   if (typeof file !== "string" || file.trim() === "" || !read.tools?.includes(call.name))
     return false
   const line = read.shown.split("\n")[0]!.replace(/\s+[+-]\d+(\s+[+-]\d+)*\s*$/, "")
-  return collapse(line) === collapse(file)
+  return slashed(collapse(line)) === slashed(collapse(file))
 }
 
 const digit = (number: number): string | undefined => (number <= 9 ? String(number) : undefined)
