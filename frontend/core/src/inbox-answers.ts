@@ -74,6 +74,9 @@ export type InboxTracker = {
   // Calls `changed` when the earliest of `waits` (milliseconds from now) is up; the ones
   // up already don't count.
   readonly wake: (waits: readonly number[]) => void
+  // Whether what is on its way now still speaks to the Inbox when it lands: false once the
+  // backend was unbound or stopped since. For the answers a backend sends itself.
+  readonly guard: () => () => boolean
   // Forgets everything, as the backend stops being bound. An answer still on its way says
   // nothing to the next binding.
   readonly reset: () => void
@@ -174,12 +177,19 @@ export const createInboxTracker = ({
       const coming = waits.filter((wait) => wait > 0)
       if (coming.length > 0) due = setTimeout(changed, Math.min(...coming))
     },
+    guard: () => {
+      const binds = round
+      return () => binds === round
+    },
     reset: () => {
       stop()
       for (const known of [seen, inFlight, submitted, failed]) known.clear()
       round += 1
     },
-    stop,
+    stop: () => {
+      stop()
+      round += 1
+    },
   }
 }
 

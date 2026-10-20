@@ -319,9 +319,11 @@ export const createRunnerInbox = (
       if (tells.length > 0) {
         tracker.submit(tells)
         recompute()
+        const live = tracker.guard()
         for (let start = 0; start < tells.length; start += 1000) {
           const batch = tells.slice(start, start + 1000)
           track(streams.asks.read(batch)).catch((error: unknown) => {
+            if (!live()) return
             for (const id of batch) tracker.fail(id, answerFailure(error))
           })
         }
