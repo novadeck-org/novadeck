@@ -1192,3 +1192,66 @@ describe("tokens longer than the window", () => {
     expect(visible(result, token.slice(4))).toBe(0)
   })
 })
+
+describe("mangled symbols are not keys", () => {
+  it.each([
+    "_ZN4llvm15ScalarEvolution18getOrCreateAddExprENS_8ArrayRefIPKNS_4SCEVEEENS2_11NoWrapFlagsE",
+    "_ZN4llvm4yaml7yamlizeISt6vectorINS0_22DebugValueSubstitutionESaIS3_EENS0_12EmptyContextEEENSt9enable_ifIXsr18has_SequenceTraitsIT_EE5valueEvE4typeERNS0_2IOERS8_bRT0_",
+    "_ZNK4llvm15ScalarEvolution31getNonTrivialDefiningScopeBoundEPKNS_4SCEVE",
+    "__ZN4core3fmt9Formatter9write_str17h0123456789abcdefE",
+    "_RNvMs0_NtNtCs9ltFPbKhVHr_4core3fmt9Formatter9write_str",
+  ])("leaves %s alone", (symbol) => {
+    const line = `    at ${symbol} (lib.so)`
+
+    expect(redact(line)).toBe(line)
+  })
+})
+
+describe("what a mask is carried on through", () => {
+  it("does not mask the words after a hash that ends where a window does", () => {
+    // Rows of 80 columns; the hash ends the row at which a window (4096 characters) ends.
+    const filler = "abcdefg hijklmn ".repeat(5)
+    const hash = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    const screen = Array.from({ length: 70 }, (_, i) =>
+      i === 52
+        ? `${"abcdefg hijklmn "}${hash}`
+        : i === 53
+          ? ".tar.gz/and/some/plain/words/here"
+          : filler,
+    )
+
+    const result = redactScreen(
+      screen,
+      screen.map((_row, i) => i < screen.length - 1),
+    )
+
+    expect(result[52]).toContain(redacted)
+    expect(result[53]).toBe(".tar.gz/and/some/plain/words/here")
+  })
+})
+
+describe("the time prefixed tokens take", () => {
+  const time = (screen: string[]): number => {
+    const started = process.threadCpuUsage()
+    maskScreen(
+      screen,
+      screen.map((_row, i) => i < screen.length - 1),
+    )
+    const { user, system } = process.threadCpuUsage(started)
+    return (user + system) / 1000
+  }
+  it.each(["sk-", "-hf_", "eyJ"])(
+    "grows with the rows, not their square, for one wrapped line of %s repeated",
+    { timeout: 60_000 },
+    (unit) => {
+      const line = (size: number): string[] =>
+        chop(unit.repeat(Math.floor(size / unit.length)), 120)
+      const small = time(line(62_500))
+      const large = time(line(250_000))
+
+      // Four times the text takes about four times as long: it took sixteen when each row went
+      // over the same run again.
+      expect(large).toBeLessThan(8 * small + 300)
+    },
+  )
+})

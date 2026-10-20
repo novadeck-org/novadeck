@@ -318,4 +318,56 @@ describe("masking the secrets in a transcript", () => {
     // The limits tried did cut where a cut first would have left the value alone.
     expect(straddled).toBeGreaterThan(0)
   })
+
+  it("keeps a cursor at the edge of the row, about to wrap, and does not grow", async () => {
+    // The last row is full and masked, and the cursor waits at its end.
+    const cols = 40
+    const output = `x\r\n${"Ab1+".repeat(10)}`
+    const screen = createScreen({ cols, rows: 5, scrollback: 1000 })
+    await written(screen, output)
+    expect(screen.buffer.normal.cursorX).toBe(cols)
+    const text = transcript(screen, Number.POSITIVE_INFINITY) ?? ""
+
+    const result = await redactTranscript({
+      text,
+      cols,
+      rows: 5,
+      lines: screen.buffer.normal.length,
+      maxChars: Number.POSITIVE_INFINITY,
+    })
+
+    expect(result).toContain("*")
+    expect(result.length).toBeLessThanOrEqual(text.length)
+    const after = createScreen({ cols, rows: 5, scrollback: 1000 })
+    await written(after, result)
+    expect(after.buffer.normal.cursorX).toBe(cols)
+  })
+
+  describe("the time it takes", () => {
+    it.each(["eyJ", "sk-", "-hf_"])(
+      "is well under the deadline for 1000 lines of scrollback of %s on 500 columns",
+      { timeout: 60_000 },
+      async (unit) => {
+        const cols = 500
+        const rows = 100
+        const screen = createScreen({ cols, rows, scrollback: 1000 })
+        await written(screen, unit.repeat(Math.floor((cols * (1000 + rows)) / unit.length)))
+        const text = transcript(screen, Number.POSITIVE_INFINITY) ?? ""
+        const started = process.cpuUsage()
+
+        const result = await redactTranscript({
+          text,
+          cols,
+          rows,
+          lines: screen.buffer.normal.length,
+          maxChars: 256 * 1024,
+        })
+
+        const { user, system } = process.cpuUsage(started)
+        expect(result.length).toBeLessThanOrEqual(256 * 1024)
+        // 1.3 s here, 5.4 s when each row went over the same run again; the deadline is 6 s.
+        expect((user + system) / 1000).toBeLessThan(4000)
+      },
+    )
+  })
 })

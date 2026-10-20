@@ -179,10 +179,25 @@ export const redactTranscript = async (input: TranscriptInput): Promise<string> 
       try {
         await written(again, drawn)
         const missing = buffer.length - again.buffer.normal.length
-        await written(
-          again,
-          `${missing > 0 ? `\x1b[${rows}B${"\r\n".repeat(missing)}` : ""}\x1b[${buffer.cursorY + 1};${buffer.cursorX + 1}H`,
-        )
+        if (missing > 0) await written(again, `\x1b[${rows}B${"\r\n".repeat(missing)}`)
+        const settled = again.buffer.normal
+        if (settled.cursorX !== buffer.cursorX || settled.cursorY !== buffer.cursorY) {
+          if (buffer.cursorX < cols)
+            await written(again, `\x1b[${buffer.cursorY + 1};${buffer.cursorX + 1}H`)
+          else {
+            // At the edge, about to wrap: no move puts a cursor there. Printing the last
+            // character of the row again does, in the pen it was printed in.
+            const line = settled.getLine(settled.baseY + buffer.cursorY)
+            const edge = line?.getCell(cols - 1)
+            const column = edge?.getWidth() === 0 ? cols - 2 : cols - 1
+            const at = line?.getCell(column)
+            if (at)
+              await written(
+                again,
+                `${penOf(at)}\x1b[${buffer.cursorY + 1};${column + 1}H${at.getChars() || " "}`,
+              )
+          }
+        }
         return transcript(again, maxChars) ?? ""
       } finally {
         again.dispose()

@@ -191,6 +191,8 @@ const qualifies = (text: string): boolean => {
   const marked = /[+/]|=$/.test(text)
   if (marked ? digits < 1 : digits < 3) return false
   if (!/[a-z]{7}/.test(text)) return true
+  // A mangled C++ or Rust name is long, mixed in case and full of words, and no key.
+  if (/^_{1,2}(?:Z[A-Za-z0-9]|R[A-Z])/.test(text)) return false
   const pieces = Math.floor(text.length / piece)
   if (pieces < 4 || digits < text.length / 20) return false
   let failing = 0
@@ -560,15 +562,18 @@ const markedRows = (
       const masked: boolean[] = Array.from({ length: text.length }, () => false)
       // A token with a prefix, longer than a window reads, at the start of a row (where the
       // rule's boundary may be hidden by the row before) or after a boundary, is masked whole.
+      // The end of the run a prefix is in is found once for all the prefixes in it.
+      let run = 0
       for (let at = 0, row = 0; row < group.length; at += group[row++]?.length ?? 0) {
-        for (let found = at; found < at + (group[row]?.length ?? 0); found += 1) {
+        for (let found = Math.max(at, run); found < at + (group[row]?.length ?? 0); found += 1) {
           if (found !== at && /\w/.test(text[found - 1] ?? "")) continue
           tokenStart.lastIndex = found
           if (!tokenStart.test(text)) continue
           let end = found
           while (end < text.length && tokenCharacter.test(text[end] ?? "")) end += 1
-          if (end - found < longToken) continue
-          for (let i = found; i < end; i += 1) masked[i] = true
+          // Short, or not: a prefix inside this run is in the same run.
+          run = end
+          if (end - found >= longToken) for (let i = found; i < end; i += 1) masked[i] = true
           found = end
         }
       }
@@ -577,8 +582,8 @@ const markedRows = (
           if (marked[i] === sentinel) masked[from + i] = true
       }
       let from = 0
-      // The run the last window's mask was carried through, so that the next is not carried over it again.
-      let covered = { from: 0, to: 0 }
+      // Where the last carry went to, so that the next does not go over the same run again.
+      let carried = 0
       for (let start = 0; start < group.length; start += 1) {
         note(mark(group[start] ?? ""), from)
         // The whole group from its first row; from each later start, a window of rows.
@@ -590,17 +595,17 @@ const markedRows = (
         }
         const marked = mark(group.slice(start, end).join(""))
         note(marked, from)
-        // A mask that runs to the window's end goes on through the rest of its run, as a
-        // value that reaches `valueCap` does: a token longer than the window is masked whole.
+        // A mask that fills most of the window and runs to its end goes on through the rest of
+        // its run, as a value that reaches `valueCap` does: a secret longer than the window is
+        // masked whole. (A short one that ends where the window does is not carried on.)
+        let length = 0
+        while (length < marked.length && marked[marked.length - 1 - length] === sentinel)
+          length += 1
         const reach = from + marked.length
-        if (
-          end < group.length &&
-          marked.endsWith(sentinel) &&
-          !(reach > covered.from && reach < covered.to)
-        ) {
+        if (end < group.length && length >= longToken && reach >= carried) {
           let at = reach
           while (at < text.length && tokenCharacter.test(text[at] ?? "")) masked[at++] = true
-          covered = { from: reach, to: at }
+          carried = at
         }
         from += (group[start] ?? "").length
       }
