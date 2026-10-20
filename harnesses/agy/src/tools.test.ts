@@ -20,6 +20,24 @@ suite("what an Antigravity tool call was", () => {
     expect(run("view_file", { AbsolutePath: "/p/c.txt" }).detail).toBe("/p/c.txt")
   })
 
+  it("reads 1.4's read_file, write_file and edit_file, which name their file as Path", () => {
+    expect(run("read_file", { Path: "/p/c.txt" })).toEqual({
+      kind: "read",
+      title: "Read",
+      detail: "/p/c.txt",
+    })
+    expect(run("write_file", { Path: "/p/n.md", Content: "# n" })).toEqual({
+      kind: "write",
+      title: "Wrote",
+      detail: "/p/n.md",
+    })
+    expect(run("edit_file", { Path: "/p/a.ts", Target: "a", Replacement: "b" })).toEqual({
+      kind: "write",
+      title: "Edited",
+      detail: "/p/a.ts",
+    })
+  })
+
   const send = { to: "fox", text: "Tests are green.\nShip it." }
   const labelled = { kind: "agent", title: "Messaged fox", detail: "Tests are green." }
   const lazy = { ServerName: "novadeck_novadeck", ToolName: "send", toolAction: "Calling send" }

@@ -396,14 +396,15 @@ surface({
   },
 })
 
-// An MCP tool with arguments, and a Write over an existing file.
+// An MCP tool with arguments, and a Write over an existing file. Novadeck's `describe` is
+// `summarize` now, its one argument the summary; the fixture's recording is `describe`'s.
 surface({
   name: "k-mcp-args",
   reply: {
     calls: [
       {
-        name: "mcp__plugin_novadeck_novadeck__describe",
-        input: { title: "My title", summary: "Doing things", asked: false },
+        name: "mcp__plugin_novadeck_novadeck__summarize",
+        input: { summary: "Doing things" },
       },
     ],
   },
@@ -444,7 +445,8 @@ surface({
   },
 })
 
-// Read, Grep, Glob outside the project, MultiEdit and NotebookEdit: their dialogs.
+// Read outside the project and NotebookEdit: their dialogs. Claude Code has no Grep, Glob or
+// MultiEdit any more (searches go through Bash, edits through Edit), so theirs are gone.
 const outside = (run: { sandbox: { root: string } }) => {
   const dir = join(run.sandbox.root, "outside")
   mkdirSync(dir, { recursive: true })
@@ -458,50 +460,6 @@ surface({
   shows: /Do you want to/,
   setup: (run) => {
     reading.calls[0]!.input.file_path = join(outside(run), "notes.txt")
-  },
-})
-const grepping = { calls: [{ name: "Grep", input: { pattern: "needle", path: "" } }] }
-surface({
-  name: "k-grep-outside",
-  reply: grepping,
-  shows: /Do you want to|Found|No matches|Error|Searched/,
-  setup: (run) => {
-    outside(run)
-    grepping.calls[0]!.input.path = "/etc"
-  },
-})
-const globbing = { calls: [{ name: "Glob", input: { pattern: "*.txt", path: "" } }] }
-surface({
-  name: "k-glob-outside",
-  reply: globbing,
-  shows: /Do you want to|Found|No files|Error|Searched/,
-  setup: (run) => {
-    outside(run)
-    globbing.calls[0]!.input.path = "/etc"
-  },
-})
-const multi = {
-  calls: [
-    {
-      name: "MultiEdit",
-      input: {
-        file_path: "",
-        edits: [
-          { old_string: "hello", new_string: "goodbye" },
-          { old_string: "world", new_string: "moon" },
-        ],
-      },
-    },
-  ],
-}
-surface({
-  name: "k-multiedit",
-  reply: multi,
-  shows: /Do you want to/,
-  setup: (run) => {
-    const file = join(run.sandbox.project, "EXISTING.txt")
-    writeFileSync(file, "hello\\nworld\\n")
-    multi.calls[0]!.input.file_path = file
   },
 })
 const notebook = {

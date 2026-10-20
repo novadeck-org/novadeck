@@ -3,16 +3,9 @@ import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import { gemini } from "../model/gemini.js"
-import { asked, type Call } from "../model/script.js"
+import { asked } from "../model/script.js"
 import { nestedRuns, own } from "../scenarios.js"
 import type { AgentSetup } from "./agent.js"
-
-// The folder its commands run in, as its system prompt names it: a command must run there.
-const workingDirectory = (call: Call): string => {
-  const folder = /^Command Working Directory: (.+)$/m.exec(call.system)?.[1]
-  if (!folder) throw new Error("Antigravity's system prompt names no command working directory")
-  return folder
-}
 
 // A nested run of its own print mode, asked `prompt`.
 const nested = (prompt: string): string => `agy -p '${prompt}'`
@@ -68,16 +61,14 @@ export const agy: AgentSetup = {
   // its first choice, running it, selected; its fourth, "No, cancel", is picked by its
   // number alone. A denial ends the turn.
   approval: {
-    request: (call) => ({
+    request: () => ({
       calls: [
         {
           name: "run_command",
           input: {
             CommandLine: "echo approved",
-            Cwd: workingDirectory(call),
             WaitMsBeforeAsync: 5000,
             toolSummary: "Echo",
-            toolAction: "Echoing",
           },
         },
       ],
@@ -99,8 +90,6 @@ export const agy: AgentSetup = {
               options: question.options.map(({ label }) => label),
               is_multi_select: question.multiSelect,
             })),
-            toolSummary: "Question",
-            toolAction: "Asking",
           },
         },
       ],
@@ -120,19 +109,16 @@ export const agy: AgentSetup = {
         return {
           calls: [
             {
-              name: "write_to_file",
+              name: "write_file",
               input: {
-                TargetFile: join(brain, newest.name, "implementation_plan.md"),
+                Path: join(brain, newest.name, "implementation_plan.md"),
                 Overwrite: true,
-                CodeContent: "# Plan\n\n1. Do the thing\n2. Test the thing\n",
-                Description: "Writes the plan",
+                Content: "# Plan\n\n1. Do the thing\n2. Test the thing\n",
                 ArtifactMetadata: {
                   Summary: "A plan to do and test the thing",
                   UserFacing: true,
                   RequestFeedback: true,
                 },
-                toolSummary: "Plan",
-                toolAction: "Planning",
               },
             },
           ],
@@ -147,16 +133,14 @@ export const agy: AgentSetup = {
   // 10 s too, probed 2026-10-03, 1.2.14), then backgrounds it; a nested run takes under a
   // second.
   shell: {
-    run: (call, command) => ({
+    run: (_call, command) => ({
       calls: [
         {
           name: "run_command",
           input: {
             CommandLine: command,
-            Cwd: workingDirectory(call),
             WaitMsBeforeAsync: 10_000,
             toolSummary: "Run a command",
-            toolAction: "Running",
           },
         },
       ],
@@ -177,11 +161,9 @@ export const agy: AgentSetup = {
         {
           name: "invoke_subagent",
           input: {
-            Subagents: [
-              { TypeName: "self", Role: "Background helper", Prompt: "Work in the background." },
-            ],
-            toolSummary: "Background helper",
-            toolAction: "Starting a helper",
+            TypeName: "self",
+            Role: "Background helper",
+            Prompt: "Work in the background.",
           },
         },
       ],
@@ -190,16 +172,14 @@ export const agy: AgentSetup = {
     // `run_command` waiting its least, 500 ms, then backgrounding the command: its Stop
     // says it isn't fully idle, its status line lists no subagent, and the command's end
     // wakes it with a message (probed 2026-10-04, 1.2.14).
-    command: (call, command) => ({
+    command: (_call, command) => ({
       calls: [
         {
           name: "run_command",
           input: {
             CommandLine: command,
-            Cwd: workingDirectory(call),
             WaitMsBeforeAsync: 500,
             toolSummary: "Run a command",
-            toolAction: "Running",
           },
         },
       ],

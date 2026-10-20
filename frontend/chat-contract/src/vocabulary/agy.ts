@@ -74,6 +74,26 @@ export const agy: readonly { name: string; records: readonly object[] }[] = [
     ),
   },
   {
+    // 1.4's file tools, which name their file as Path, and its run_command, which takes no
+    // Cwd (probed 2026-10-20, 1.4.3).
+    name: "files-1.4",
+    records: turn(
+      "Tidy the notes.",
+      "Tidying.",
+      [
+        ["run_command", { CommandLine: q("npm test"), toolSummary: q("Test run") }, "ok"],
+        ["read_file", { Path: q("/home/user/project/notes.md") }, "# notes"],
+        ["write_file", { Path: "/home/user/project/n.md", Content: "# n" }, "Created file"],
+        [
+          "edit_file",
+          { Path: "/home/user/project/notes.md", Target: "notes", Replacement: "Notes" },
+          "Edited",
+        ],
+      ],
+      0,
+    ),
+  },
+  {
     name: "unfolded-run",
     records: turn(
       "Two quick ones.",

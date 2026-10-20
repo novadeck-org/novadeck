@@ -183,6 +183,148 @@ describe("anthropic", () => {
     expect(tools.map((text) => anthropic.rejection?.test(text))).toEqual([false, false, false])
   })
 
+  // Claude Code 2.1.304's first look at a prompt: Novadeck's tools named, not offered.
+  const deferring = {
+    model: "claude-test",
+    messages: [
+      { role: "user", content: [{ type: "text", text: "Ask fox" }] },
+      {
+        role: "system",
+        content: [
+          {
+            type: "text",
+            text: 'The following deferred tools are now available via ToolSearch. Use ToolSearch with query "select:<name>[,<name>...]":\nWebFetch\nmcp__plugin_novadeck_novadeck__send\n\nAvailable agent types:',
+          },
+        ],
+      },
+    ],
+    tools: [{ name: "Bash" }, { name: "ToolSearch" }],
+  }
+  // The look after its load: the tools offered, the load's call and result after the prompt.
+  const loaded = {
+    ...deferring,
+    messages: [
+      ...deferring.messages,
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_s",
+            name: "ToolSearch",
+            input: { query: "select:WebFetch,mcp__plugin_novadeck_novadeck__send" },
+          },
+        ],
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "toolu_s",
+            content: [{ type: "tool_reference", tool_name: "mcp__plugin_novadeck_novadeck__send" }],
+          },
+          { type: "text", text: "<system-reminder>loaded</system-reminder>" },
+        ],
+      },
+    ],
+    tools: [
+      ...deferring.tools,
+      { name: "WebFetch", defer_loading: true },
+      { name: "mcp__plugin_novadeck_novadeck__send", defer_loading: true },
+    ],
+  }
+
+  it("loads the tools Claude Code defers before the rules see a call, as a model would", async () => {
+    const { response, calls } = await handle(post("/v1/messages", deferring), { text: "Sent." })
+
+    expect(calls).toEqual([])
+    expect(JSON.parse(response.body as string)).toMatchObject({
+      content: [
+        {
+          type: "tool_use",
+          name: "ToolSearch",
+          input: { query: "select:WebFetch,mcp__plugin_novadeck_novadeck__send", max_results: 2 },
+        },
+      ],
+      stop_reason: "tool_use",
+    })
+  })
+
+  it("shows the rules the call after the load as its first look, every tool offered", async () => {
+    const { calls } = await handle(post("/v1/messages", loaded), { text: "Sent." })
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0]?.turns).toEqual([
+      { role: "user", text: expect.stringMatching(/^Ask fox\n.*\n<system-reminder>loaded/s) },
+    ])
+    expect(calls[0]?.tools).toEqual([
+      "Bash",
+      "ToolSearch",
+      "WebFetch",
+      "mcp__plugin_novadeck_novadeck__send",
+    ])
+  })
+
+  it("leaves a tool's result the latest turn when a load follows it, as a server joins late", () => {
+    const call = parse({
+      model: "claude-test",
+      messages: [
+        { role: "user", content: [{ type: "text", text: "Ask now" }] },
+        {
+          role: "assistant",
+          content: [{ type: "tool_use", id: "toolu_e", name: "mcp__elicit__elicit", input: {} }],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_e",
+              content: [{ type: "text", text: "elicited" }],
+            },
+          ],
+        },
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "toolu_s", name: "ToolSearch", input: { query: "select:x" } },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_s",
+              content: [{ type: "tool_reference", tool_name: "x" }],
+            },
+            { type: "text", text: "Tool loaded." },
+          ],
+        },
+        {
+          role: "system",
+          content: [{ type: "text", text: "<total_tokens>9 left</total_tokens>" }],
+        },
+      ],
+      tools: [{ name: "ToolSearch" }, { name: "mcp__elicit__elicit" }, { name: "x" }],
+    })
+
+    expect(call.turns.at(-1)).toEqual({
+      role: "tool",
+      id: "toolu_e",
+      text: "elicited\n<total_tokens>9 left</total_tokens>",
+    })
+    expect(call.turns).toHaveLength(3)
+  })
+
+  it("asks the rules once a load left a tool deferred, rather than load it again", async () => {
+    const left = { ...loaded, tools: deferring.tools }
+    const { calls } = await handle(post("/v1/messages", left), { text: "Sent." })
+
+    expect(calls).toHaveLength(1)
+  })
+
   it("takes only the Messages and Models APIs", () => {
     expect(anthropic.matches(post("/v1/messages?beta=true", {}))).toBe(true)
     expect(anthropic.matches({ method: "GET", path: "/v1/models", headers: {}, body: "" })).toBe(

@@ -268,29 +268,22 @@ const capture = async (
 }
 
 const makeFile = (cwd: string) =>
-  calls("Make the file", "write_to_file", {
-    TargetFile: join(cwd, "probe.txt"),
+  calls("Make the file", "write_file", {
+    Path: join(cwd, "probe.txt"),
     Overwrite: false,
-    CodeContent: "hello\n",
-    Description: "Makes the file",
-    toolSummary: "Make file",
-    toolAction: "Making file",
+    Content: "hello\n",
   })
 
 const question = (options: string[], multi = false) =>
   calls("Ask me", "ask_question", {
     questions: [{ question: "Which colour?", options, is_multi_select: multi }],
-    toolSummary: "Colour question",
-    toolAction: "Asking colour",
   })
 
-const run = (cwd: string, command = "echo approved") =>
+const run = (command = "echo approved") =>
   calls("Run it", "run_command", {
     CommandLine: command,
-    Cwd: cwd,
     WaitMsBeforeAsync: 5000,
     toolSummary: "Echo",
-    toolAction: "Echoing",
   })
 
 const surfaces = process.env.AGY_PROBE_ONLY?.split(",")
@@ -309,19 +302,16 @@ const plan = (probe: Probe): Rule =>
     return {
       calls: [
         {
-          name: "write_to_file",
+          name: "write_file",
           input: {
-            TargetFile: join(dir, "implementation_plan.md"),
+            Path: join(dir, "implementation_plan.md"),
             Overwrite: true,
-            CodeContent: "# Plan\n\n1. Do the thing\n2. Test the thing\n",
-            Description: "Writes the plan",
+            Content: "# Plan\n\n1. Do the thing\n2. Test the thing\n",
             ArtifactMetadata: {
               Summary: "A plan to do and test the thing",
               UserFacing: true,
               RequestFeedback: true,
             },
-            toolSummary: "Plan",
-            toolAction: "Planning",
           },
         },
       ],
@@ -362,7 +352,7 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
   ] as const)
     probeIt(`1-command-${label}`, async (r) => {
       const name = `1-command-${label}`
-      r.model.use(run(r.sandbox.project), after(resolves))
+      r.model.use(run(), after(resolves))
       const probe = prepare(r)
       const t1 = await start(r, agy)
       await t1.submit("Run it")
@@ -375,7 +365,7 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
 
   probeIt("1-command-enter", async (r) => {
     const name = "1-command-enter"
-    r.model.use(run(r.sandbox.project), after("Made it."))
+    r.model.use(run(), after("Made it."))
     const probe = prepare(r)
     const t1 = await start(r, agy)
     await t1.submit("Run it")
@@ -390,7 +380,7 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
 
   probeIt("1-command-down-enter", async (r) => {
     const name = "1-command-down-enter"
-    r.model.use(run(r.sandbox.project), after("Made it."))
+    r.model.use(run(), after("Made it."))
     const probe = prepare(r)
     const t1 = await start(r, agy)
     await t1.submit("Run it")
@@ -402,7 +392,7 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
     await capture(name, "after", t1, probe, { sizes: false })
   })
 
-  // Surface 1b: write_to_file of a plain file.
+  // Surface 1b: write_file (write_to_file before 1.4) of a plain file.
   for (const [label, keys] of [
     ["1-digit", "1"],
     ["4-digit", "4"],
@@ -545,8 +535,6 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
           { question: "Which colour?", options: ["Red", "Green"], is_multi_select: false },
           { question: "Which size?", options: ["Small", "Large"], is_multi_select: false },
         ],
-        toolSummary: "Two questions",
-        toolAction: "Asking two",
       }),
       after("Noted."),
     )
@@ -723,7 +711,7 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
     probeIt(`8-deny-prompt-${label}`, async (r) => {
       const name = `8-deny-prompt-${label}`
       r.model.use(
-        file ? makeFile(r.sandbox.project) : run(r.sandbox.project),
+        file ? makeFile(r.sandbox.project) : run(),
         own((call) =>
           asked(call, "Use another way") ? { text: "Model saw the prompt." } : undefined,
         ),
@@ -748,7 +736,7 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
   probeIt("8-amend-submit", async (r) => {
     const name = "8-amend-submit"
     r.model.use(
-      run(r.sandbox.project),
+      run(),
       own((call) =>
         call.turns.at(-1)?.role === "tool" ? { text: "Model saw the result." } : undefined,
       ),
@@ -812,7 +800,7 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
   probeIt("8-amend", async (r) => {
     const name = "8-amend"
     r.model.use(
-      run(r.sandbox.project),
+      run(),
       own((call) =>
         call.turns.at(-1)?.role === "tool" ? { text: "Model saw the result." } : undefined,
       ),
@@ -843,7 +831,7 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
   ] as const)
     probeIt(`4-hook-command-${label}`, async (r) => {
       const name = `4-hook-command-${label}`
-      r.model.use(run(r.sandbox.project), after("Made it."))
+      r.model.use(run(), after("Made it."))
       const probe = prepare(r)
       probe.set("answer", answer)
       const t1 = await start(r, agy)
@@ -905,7 +893,7 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
   ] as const)
     probeIt(`5-hold-${label}`, async (r) => {
       const name = `5-hold-${label}`
-      r.model.use(run(r.sandbox.project), after("Made it."))
+      r.model.use(run(), after("Made it."))
       const probe = prepare(r, { timeout: 60 })
       probe.set("hold")
       const t1 = await start(r, agy)
@@ -930,7 +918,7 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
 
   probeIt("5-hold-timeout", async (r) => {
     const name = "5-hold-timeout"
-    r.model.use(run(r.sandbox.project), after("Made it."))
+    r.model.use(run(), after("Made it."))
     const probe = prepare(r, { timeout: 4 })
     probe.set("hold")
     const t1 = await start(r, agy)
@@ -974,7 +962,7 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
   ] as const)
     probeIt(`4-override-command-${label}`, async (r) => {
       const name = `4-override-command-${label}`
-      r.model.use(run(r.sandbox.project), after("Made it."))
+      r.model.use(run(), after("Made it."))
       const probe = prepare(r)
       probe.set("answer", answer)
       const t1 = await start(r, agy)
@@ -1045,7 +1033,7 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
 
   probeIt("6-command-y", async (r) => {
     const name = "6-command-y"
-    r.model.use(run(r.sandbox.project), after("Made it."))
+    r.model.use(run(), after("Made it."))
     const probe = prepare(r)
     const t1 = await start(r, agy)
     await t1.submit("Run it")
@@ -1058,7 +1046,7 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
   // The person answers in the TUI at the same moment a hook answer is released.
   probeIt("6-override-regex", async (r) => {
     const name = "6-override-regex"
-    r.model.use(run(r.sandbox.project), after("Made it."))
+    r.model.use(run(), after("Made it."))
     const probe = prepare(r)
     probe.set("answer", '{"decision":"allow","permissionOverrides":["command(*)"]}')
     const t1 = await start(r, agy)
@@ -1075,7 +1063,7 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
   probeIt("7-long-command", async (r) => {
     const name = "7-long-command"
     const long = `echo ${"abcdefghij ".repeat(30)}&& echo "second line" && printf 'x\\ny\\n'`
-    r.model.use(run(r.sandbox.project, long), after("Made it."))
+    r.model.use(run(long), after("Made it."))
     const probe = prepare(r)
     const t1 = await start(r, agy)
     await t1.submit("Run it")
@@ -1095,10 +1083,8 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
                 name: "run_command",
                 input: {
                   CommandLine,
-                  Cwd: r.sandbox.project,
                   WaitMsBeforeAsync: 3000,
                   toolSummary: "Echo",
-                  toolAction: "Echoing",
                 },
               })),
             }
@@ -1129,10 +1115,8 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
                 name: "run_command",
                 input: {
                   CommandLine,
-                  Cwd: r.sandbox.project,
                   WaitMsBeforeAsync: 3000,
                   toolSummary: "Echo",
-                  toolAction: "Echoing",
                 },
               })),
             }

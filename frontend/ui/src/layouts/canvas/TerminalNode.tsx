@@ -1,3 +1,4 @@
+import { AttachedHost } from "@novadeck/companion/TerminalCompanion"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { NodeResizeControl, type NodeProps } from "@xyflow/react"
 import {
@@ -34,6 +35,10 @@ const hideMs = 6_000
 const TerminalNodeView = ({ id, data, selected }: NodeProps<TerminalNode>): React.JSX.Element => {
   const contentOf = useContext(TerminalContent)
   const content = useRef<HTMLDivElement>(null)
+  // What the terminal's companion hangs beside it: here, outside the window's clipping and
+  // the content-visibility that hides the window off screen.
+  const [host, setHost] = useState<HTMLElement | null>(null)
+  useEffect(() => setHost(content.current), [])
   const visibility = useContext(NodeVisibilityContext)
   const reported = useSyncExternalStore(visibility.subscribe, () => visibility.onScreen(id))
   // A node the observer has not reported on has not been seen: its screen opens once it is.
@@ -66,7 +71,7 @@ const TerminalNodeView = ({ id, data, selected }: NodeProps<TerminalNode>): Reac
       data-preview={data.preview}
       inert={data.hiding}
       aria-hidden={data.hiding}
-      className={`canvas-node h-full w-full ${selected ? "selected" : ""} ${data.compactHeader ? "compact-header" : ""}`}
+      className={`canvas-node relative h-full w-full ${selected ? "selected" : ""} ${data.compactHeader ? "compact-header" : ""}`}
       onContextMenu={(event) => event.stopPropagation()}
     >
       <div
@@ -87,7 +92,7 @@ const TerminalNodeView = ({ id, data, selected }: NodeProps<TerminalNode>): Reac
             <span className="terminal-resize-pattern" />
           </Tooltip>
         </NodeResizeControl>
-        {contentOf(id, onScreen)}
+        <AttachedHost.Provider value={host}>{contentOf(id, onScreen)}</AttachedHost.Provider>
       </div>
     </div>
   )
