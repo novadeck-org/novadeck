@@ -33,13 +33,26 @@ export type PeerRecord = Pick<Record, "summary" | "naming" | "work" | "openedBy"
   readonly bound: Pick<Bound, "activity"> | null
 }
 
-/** The terminal a record is, as peers read it. */
+/**
+ * The terminal a record is, as peers read it: read through to the record, so what is read
+ * after a wait, as for its branch, is the record's then.
+ */
 export const peerOf = (record: PeerRecord): PeerTerminal => ({
-  summary: record.summary,
-  naming: record.naming,
-  work: record.work,
-  activity: record.bound?.activity ?? null,
-  openedBy: record.openedBy,
+  get summary() {
+    return record.summary
+  },
+  get naming() {
+    return record.naming
+  },
+  get work() {
+    return record.work
+  },
+  get activity() {
+    return record.bound?.activity ?? null
+  },
+  get openedBy() {
+    return record.openedBy
+  },
 })
 
 export type PeersOptions = {

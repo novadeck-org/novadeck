@@ -7,9 +7,9 @@ import { box } from "@novadeck/harness-agy/box"
 import type { Report } from "@novadeck/harness-core/report"
 import type { TranscriptItem } from "@novadeck/protocol"
 
-import type { Binding } from "../../harnesses/bindings.js"
 import type { Delivery } from "../../messaging/delivery.js"
 import type { HookAnswer } from "../../shell/reports.js"
+import type { Bound } from "../../terminals/record.js"
 import { agy } from "../agents/agy.js"
 import { describe, e2e, expect, supported } from "../fixture.js"
 import { installHarness, pins } from "../install.js"
@@ -24,7 +24,7 @@ type Process = {
   write: (data: string) => void
   onData: (listen: (data: string) => void) => { dispose: () => void }
 }
-type Record = { terminal: { pty: Process }; bound: { binding: Binding } | null }
+type Record = { terminal: { pty: Process }; bound: Pick<Bound, "binding"> | null }
 type Inside = {
   records: Map<string, Record>
   reporting: { report: (report: Report, deadline?: number) => Promise<HookAnswer> }
@@ -58,7 +58,7 @@ describe.skipIf(!enabled || !supported)("Antigravity natural Stop boundary captu
       else eventOverflow = true
     }
     const binding = (id: string) => {
-      const found = inside.records.get(id)?.bound?.binding
+      const found = inside.records.get(id)?.bound?.binding ?? null
       return found && { agent: found.agent, sessionId: found.sessionId, instance: found.instance }
     }
     const delivery = (id: string) => {

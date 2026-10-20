@@ -2174,13 +2174,21 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await shell.until(manager, ids.worker, /\nback\r?\n/)
     expect(manager.get(ids.worker).ledBy).toBe("moth")
     // What the record holds each time its detail is told of a change, read as it is told.
-    type Seen = { ledBy: string | null; agent: string | null; activity: string | null }
+    type Seen = {
+      ledBy: string | null
+      agent: string | null
+      activity: string | null
+      fresh: boolean
+    }
     const seen: Seen[] = []
     const { streams } = manager as unknown as {
       streams: {
         detailed: (record: {
           summary: { id: string; ledBy: string | null }
-          bound: { binding: { agent: string }; activity: { state: string } } | null
+          bound: {
+            binding: { agent: string }
+            activity: { state: string; turn: unknown; lastTurn: unknown }
+          } | null
         }) => void
       }
     }
@@ -2191,6 +2199,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
           ledBy: record.summary.ledBy,
           agent: record.bound?.binding.agent ?? null,
           activity: record.bound?.activity.state ?? null,
+          // As it bound: no turn yet, and none before.
+          fresh: record.bound?.activity.turn === null && record.bound.activity.lastTurn === null,
         })
       detailed(record)
     }
@@ -2201,7 +2211,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     // A report binds the session with its fresh activity, one value (`Record.bound`), so the
     // lead's end, announced as it binds, shows the new binding with its own activity.
     const ended = seen.findIndex(({ ledBy }) => ledBy === null)
-    expect(seen[ended]).toEqual({ ledBy: null, agent: "claude", activity: "idle" })
+    expect(seen[ended]).toEqual({ ledBy: null, agent: "claude", activity: "idle", fresh: true })
   })
 
   it("ends a worker's lead when its agent exits before any session bound, and its brief is gone", async ({
