@@ -112,8 +112,9 @@ const readRelease = async (
     version,
     highlights: notes?.highlights.map(({ title, line }) => ({ title, line })) ?? [],
   })
-  // A prerelease has no highlights yet: promoting it writes them onto this same tag
-  // before it turns stable, so an early user who installed it is shown them then.
+  // A prerelease with no highlights of its own may get some yet: promoting it writes
+  // them onto this same tag before it turns stable, so an early user who installed it is
+  // shown them then.
   return shown ?? (field("prerelease") === true ? "waiting" : "none")
 }
 

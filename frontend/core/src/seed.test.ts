@@ -247,7 +247,7 @@ describe("workspace from a backend seed", () => {
       expect(state.layout.canvas.geometry).toHaveProperty("w1")
       expect(state.items).toEqual([newer, older, undocked])
       expect(state.bars).toEqual({
-        "01": { order: [older.id, newer.id], hidden: [], tab: null, open: false },
+        "01": { order: [older.id, newer.id], hidden: [], stack: [], open: false },
       })
     })
 
@@ -262,15 +262,15 @@ describe("workspace from a backend seed", () => {
           "01": {
             order: [itemIdOf("gone"), newer.id, messagesKey],
             hidden: [],
-            tab: itemIdOf("gone"),
+            stack: [itemIdOf("gone")],
             open: true,
           },
-          "99": { order: [newer.id], hidden: [], tab: null, open: false },
+          "99": { order: [newer.id], hidden: [], stack: [], open: false },
         },
       })
       const state = seeded({ restored: view })
       expect(state.bars).toEqual({
-        "01": { order: [newer.id, messagesKey, older.id], hidden: [], tab: null, open: false },
+        "01": { order: [newer.id, messagesKey, older.id], hidden: [], stack: [], open: false },
       })
       expect(state.roster.windows).toEqual([window])
     })
@@ -280,7 +280,7 @@ describe("workspace from a backend seed", () => {
       const state = seeded({ windows: [], items: [older, undocked, elsewhere] })
       expect(state.items).toEqual([older, undocked, elsewhere])
       expect(state.bars).toEqual({
-        "01": { order: [older.id], hidden: [], tab: null, open: false },
+        "01": { order: [older.id], hidden: [], stack: [], open: false },
       })
     })
   })

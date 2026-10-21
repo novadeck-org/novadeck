@@ -663,12 +663,25 @@ exits or restarts goes first in the queue. One transcript is masked at a time, f
 whole runner. `persist()` and `close()` also give the changed screens one pass of about a
 second, written until that second is over (as the runner closes, its records close only after it); a transcript
 unfinished then keeps its last saved copy. A transcript that cannot be masked is not
-saved, and the copy saved before stays, unless an earlier runner left it, which is then
-forgotten. A result that arrives after its terminal was closed, or transcripts were
-turned off, is dropped. Transcripts saved before masking existed are forgotten once, as the
-store first opens; a database set aside as `workspace.sqlite.earlier-<time>` is not
-touched. See [transcript-redaction.md](transcript-redaction.md). Closing a terminal
-forgets it, including one from an earlier runner.
+saved, and the copy saved before stays. A result that arrives after its terminal was
+closed, or transcripts were turned off, is dropped. The masked text is sealed just before
+it is written: AES-256-GCM with a random nonce and the terminal's id as associated data,
+saved as `v1.` and the base64 of nonce, tag and ciphertext, which holds the time the
+transcript was saved (8 bytes) and then its text; a restored transcript's "saved" line
+shows that time. The key is the 32 bytes the host gives the runner (`transcriptKey`; the
+desktop app unwraps it from the system keychain: Keychain, DPAPI, or the Secret Service,
+which KWallet may offer too). No screen is taken before the key has come; where there is
+none (no keyring, a refused unlock, the standalone runner) transcripts are neither saved nor shown for that run, the `transcripts` setting is kept
+and the sealed copies saved before stay. At every start, before and without the key, the
+store forgets every transcript not shaped as a sealed one (`v1.`, then at least the nonce,
+tag and time in base64, and nothing else); a database set aside as
+`workspace.sqlite.earlier-<time>` is not touched. A restored terminal's transcript is
+opened before its shell starts, waiting for the key at most `transcriptKeyMs` (a few
+seconds) from the run's first restore, and is shown only if it opens for that terminal. A
+terminal whose copy went unopened because the key came later keeps that copy as it is for
+the run: its transcript is not saved again until the next start. See
+[transcript-redaction.md](transcript-redaction.md). Closing a terminal forgets it, including
+one from an earlier runner.
 
 - `terminals.create({ …, restore: true, resume? })` continues the saved terminal of
   that ID in the same session: in its last directory when that still exists, with its
@@ -1065,7 +1078,10 @@ forgets it, including one from an earlier runner.
 
 - `settings.get()` and `settings.set({ transcripts?, welcomed? })` read and change
   whether transcripts are kept (unless turned off; turning them off forgets every saved
-  transcript) and whether the person has seen the first-run choice of agents.
+  transcript) and whether the person has seen the first-run choice of agents. `get` also
+  reports `transcriptsAvailable`: false once it is known there is no key to seal
+  transcripts with, true when there is one and while it is still awaited (it waits about a
+  second for it).
 
 Typed errors include `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`, `CONFLICT`,
 `INVALID_DIRECTORY`, `INVALID_FILE`, `PLAN_UNWRITABLE` (a plan can never be saved; its data says why), `NOT_FOUND`, `TERMINAL_NOT_FOUND`, `CONTROL_REQUIRED`, `CONTROL_IN_USE`,

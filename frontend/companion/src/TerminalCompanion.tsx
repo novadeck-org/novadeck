@@ -23,7 +23,15 @@ import {
 import { createPortal } from "react-dom"
 
 import type { CompanionActions } from "./actions"
-import { barMembers, composeBar, dropOutcome, shownTab, slotKeys, type BarMember } from "./bar"
+import {
+  barMembers,
+  behindTab,
+  composeBar,
+  dropOutcome,
+  shownTab,
+  slotKeys,
+  type BarMember,
+} from "./bar"
 import { CompanionPane } from "./CompanionPane"
 import { useDrag, type BarDrag } from "./drag-session"
 import { useMail } from "./panes/messages/mail"
@@ -214,7 +222,17 @@ export const TerminalCompanion = ({
   // Open while there's something to show.
   const open = bar.open && tab !== null
   const showing = open ? tab : null
-  const member = members.find((each) => each.key === tab)
+  // What the pane last showed: as it animates out it keeps showing that, as when its only
+  // sheet was minimized, or nothing once that's gone, never what it would fall back to.
+  const [lastShown, setLastShown] = useState<BarKey | null>(showing)
+  if (showing !== null && showing !== lastShown) setLastShown(showing)
+  const paneTab = open ? tab : members.some((each) => each.key === lastShown) ? lastShown : null
+  // What's open in the pane behind what it shows, nearest first, counted against what it
+  // shows even as it hides, so its sheets stay as they were while it animates out.
+  const behind = behindTab(bar, members, paneTab)
+    .toReversed()
+    .flatMap((key) => members.filter((each) => each.key === key))
+  const member = members.find((each) => each.key === paneTab)
   // Who showed what's here, by its main plan's agent.
   const agent =
     items.find((item) => item.kind === "plan" && item.plan?.role === "root")?.plan?.agent ??
@@ -247,14 +265,16 @@ export const TerminalCompanion = ({
   }
   const actions: Omit<SlotActions, "grab"> = {
     showing,
+    stacked: bar.stack,
     mail,
     peerName,
     originOf,
     plans,
     panes,
     target,
-    // Clicking what the pane is showing hides it, as a taskbar minimizes the active window.
-    activate: (key) => (key === showing ? commands.closeBarPane(terminal) : openPicked(key)),
+    // Clicking what the pane is showing minimizes it, as a taskbar does the active window;
+    // anything else comes to the top.
+    activate: (key) => (key === showing ? commands.minimizeOnBar(terminal, key) : openPicked(key)),
     open: openPicked,
     seen: (itemIds) => commands.markSeen(itemIds),
     close: (each) => {
@@ -318,6 +338,8 @@ export const TerminalCompanion = ({
   }, [open, terminal])
   const paneView: PaneView = {
     member,
+    leaving: !open,
+    behind,
     panes,
     target,
     agent,
@@ -326,8 +348,10 @@ export const TerminalCompanion = ({
     plans,
     originOf,
     onUndock: actions.undock,
+    onMinimize: (each) => commands.minimizeOnBar(terminal, each.key),
     onHide: () => commands.closeBarPane(terminal),
     onClose: actions.close,
+    onRaise: (each) => openPicked(each.key),
   }
   return (
     <div ref={within} className="terminal-plan" data-plan-open={open}>
@@ -385,6 +409,18 @@ export const TerminalCompanion = ({
               ?.writeText(plan.eol === "\n" ? plan.text : plan.text.replaceAll("\n", plan.eol))
               .catch(() => undefined)
           commands.closeItem(item.id)
+          // Closed from the pane with something behind it: the pane, still out, takes
+          // focus, which the dialog would have put back on a button that's gone.
+          if (item.id === showing && behind.length > 0)
+            requestAnimationFrame(() => {
+              const focused = document.activeElement
+              if (focused && focused !== document.body) return
+              document
+                .querySelector<HTMLElement>(
+                  `[data-companion-of="${CSS.escape(terminal)}"] .plan-reader`,
+                )
+                ?.focus({ preventScroll: true })
+            })
         }}
         widthClassName="w-[min(360px,calc(100vw-32px))]"
       />

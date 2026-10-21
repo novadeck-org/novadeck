@@ -40,7 +40,7 @@ const settled = (layout: TerminalLayout): TerminalLayout => ({
 
 // A bar that says nothing a fresh one wouldn't.
 const isEmpty = (bar: Bar): boolean =>
-  !bar.order.length && !bar.hidden.length && bar.tab === null && !bar.open
+  !bar.order.length && !bar.hidden.length && !bar.stack.length && !bar.open
 
 // Each terminal's bar, as far as it holds what's still there: items on that bar and its
 // messages. A bar with nothing to say is left out.
@@ -127,7 +127,7 @@ const barsOf = (value: unknown): Record<string, Bar> =>
           isObject(bar) &&
           isKeys(bar.order) &&
           isKeys(bar.hidden) &&
-          (bar.tab === null || isString(bar.tab)) &&
+          isKeys(bar.stack) &&
           typeof bar.open === "boolean"
             ? [
                 [
@@ -135,7 +135,7 @@ const barsOf = (value: unknown): Record<string, Bar> =>
                   {
                     order: bar.order,
                     hidden: bar.hidden,
-                    tab: bar.tab as BarKey | null,
+                    stack: bar.stack,
                     open: bar.open,
                   },
                 ],

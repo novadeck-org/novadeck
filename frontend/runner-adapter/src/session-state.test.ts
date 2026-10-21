@@ -103,11 +103,11 @@ describe("saved session state", () => {
             "01": {
               order: [...many.map((item) => item.id), "gone" as (typeof many)[number]["id"]],
               hidden: [messagesKey],
-              tab: many[0]?.id ?? null,
+              stack: many.slice(0, 1).map((item) => item.id),
               open: true,
             },
-            "02": { order: [other.id], hidden: [], tab: null, open: false },
-            "99": { order: [other.id], hidden: [], tab: null, open: false },
+            "02": { order: [other.id], hidden: [], stack: [], open: false },
+            "99": { order: [other.id], hidden: [], stack: [], open: false },
           },
         },
       }
@@ -117,8 +117,8 @@ describe("saved session state", () => {
       const saved = decodeSession(encodeSession(withBars(2), 1))
       const ids = withBars(2).state.items.map((item) => item.id)
       expect(saved?.state.bars).toEqual({
-        "01": { order: [ids[0], ids[1]], hidden: [messagesKey], tab: ids[0], open: true },
-        "02": { order: ["other"], hidden: [], tab: null, open: false },
+        "01": { order: [ids[0], ids[1]], hidden: [messagesKey], stack: [ids[0]], open: true },
+        "02": { order: ["other"], hidden: [], stack: [], open: false },
       })
     })
 
@@ -138,7 +138,7 @@ describe("saved session state", () => {
       }
       text.state.bars["01"] = { order: "nope" }
       expect(decodeSession(JSON.stringify(text))?.state.bars).toEqual({
-        "02": { order: ["other"], hidden: [], tab: null, open: false },
+        "02": { order: ["other"], hidden: [], stack: [], open: false },
       })
     })
   })

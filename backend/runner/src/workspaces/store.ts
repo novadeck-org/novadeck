@@ -607,6 +607,9 @@ const windowOf = (row: WindowRow): WindowRecord => ({
 // The handles in rows selected for them.
 const column = (rows: unknown): string[] => (rows as { handle: string }[]).map((row) => row.handle)
 
+// How much of a sealed-looking transcript `forgetUnsealed` matches against base64's alphabet.
+const checkedChars = 1_024
+
 export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecords, ItemRecords {
   private readonly database: DatabaseSync
   private readonly queries: SQLTagStore
@@ -639,24 +642,6 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
     this.database.exec("PRAGMA journal_mode = WAL")
     this.database.exec("PRAGMA synchronous = NORMAL")
     this.queries = this.database.createTagStore(64)
-    this.forgetUnmaskedTranscripts()
-  }
-
-  /**
-   * Forgets, once, the transcripts a runner saved before it masked their secrets (see
-   * terminals/saving.ts): a terminal that is never restored would keep its copy otherwise.
-   */
-  private forgetUnmaskedTranscripts(): void {
-    const row = this.queries.get`SELECT value FROM settings WHERE key = 'transcriptsMasked'`
-    if (row) return
-    void this.queries.run`UPDATE terminals SET transcript = NULL`
-    // Another process may have opened the file first and marked it already.
-    void this.queries.run`
-      INSERT INTO settings (key, value) VALUES ('transcriptsMasked', 'true')
-      ON CONFLICT (key) DO NOTHING
-    `
-    // Scrubbed now, not a second later: the mark stops this from running again.
-    this.scrub()
   }
 
   projects(): Project[] {
@@ -909,6 +894,34 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
 
   clearTranscripts(): void {
     this.forget(() => this.queries.run`UPDATE terminals SET transcript = NULL`)
+  }
+
+  /**
+   * Forgets every transcript that is not shaped as a sealed one, `prefix` then at least
+   * `minChars` characters of base64, a multiple of four: a copy saved unsealed, which may
+   * hold what was never masked, must not outlive the start that finds it. Only the first
+   * `checkedChars` are matched against base64's alphabet, as matching all of a full
+   * transcript at every start takes about 10 ms each; plain terminal output has a space,
+   * a dot or a line break long before that. Scrubbed at once when any went, not a second
+   * later.
+   */
+  forgetUnsealed({
+    prefix,
+    minChars,
+  }: {
+    readonly prefix: string
+    readonly minChars: number
+  }): void {
+    const result = this.queries.run`
+      UPDATE terminals SET transcript = NULL
+      WHERE transcript IS NOT NULL AND NOT (
+        substr(transcript, 1, ${prefix.length}) = ${prefix}
+        AND length(transcript) >= ${prefix.length + minChars}
+        AND (length(transcript) - ${prefix.length}) % 4 = 0
+        AND substr(transcript, ${prefix.length + 1}, ${checkedChars}) NOT GLOB '*[^A-Za-z0-9+/=]*'
+      )
+    `
+    if (result.changes > 0) this.scrub()
   }
 
   /**

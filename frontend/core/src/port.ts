@@ -214,6 +214,10 @@ export type BackendFields = {
   // keeps none.
   readonly transcripts?: {
     readonly enabled: Store<boolean>
+    // Whether the backend can keep them at all, fixed once it has loaded. They are saved
+    // only encrypted, so where nothing can keep the key safe it keeps none, whatever
+    // `enabled` says.
+    readonly available: boolean
     readonly set: (enabled: boolean) => void
   }
   // Optional. The agents whose sessions resume after a restart once connected: each

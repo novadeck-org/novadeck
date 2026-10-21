@@ -39,6 +39,10 @@ export type MurmurState = {
   // Why murmur is not working, as the runner says it: an install that failed for a reason
   // that may pass (network, disk), a device that went away, an engine that keeps failing.
   readonly failure: string | null
+  // The part of `failure` that is murmur stopping while installed (its engine failing job
+  // after job, or its worker not starting), until a job succeeds. Its jobs retry by
+  // themselves, so it is news, not something to retry; null for the rest of `failure`.
+  readonly stopped: string | null
   // Why this computer can't run murmur, technical, for a details view: the host's word
   // ("host", nothing downloads and an install is refused), or a check's, which an install runs
   // again and which is kept until another passes. Not a failure to retry, and no offer.

@@ -96,30 +96,41 @@ export const composeBar = (bar: Bar, members: readonly BarMember[]): readonly Ba
 export const slotKeys = (slots: readonly BarSlot[]): readonly (readonly BarKey[])[] =>
   slots.map((slot) => slot.members.map((member) => member.key))
 
-// What the pane shows: its tab, while that's on the bar, or else the bar's first plan, or
-// else the first thing that may show unpicked, never a held one. Nothing, when null.
+// What the pane shows: the top of its stack that's on the bar, or else the bar's first
+// plan, or else the first thing that may show unpicked, never a held one. Nothing, when
+// null.
 export const shownTab = (bar: Bar, members: readonly BarMember[]): BarKey | null => {
-  const tab = members.find((member) => member.key === bar.tab)
-  if (tab) return tab.key
+  const top = bar.stack.findLast((key) => members.some((member) => member.key === key))
+  if (top !== undefined) return top
   const plan = members.find((member) => member.kind === "item" && member.item.kind === "plan")
   return (plan ?? members.find((member) => member.kind === "item" && !isHeld(member)))?.key ?? null
 }
 
+// What waits behind what the pane shows, open in it, in the stack's order: all of it while
+// the pane is hidden.
+export const behindTab = (
+  bar: Bar,
+  members: readonly BarMember[],
+  shown: BarKey | null,
+): readonly BarKey[] =>
+  bar.stack.filter((key) => key !== shown && members.some((member) => member.key === key))
+
 // Which of a stack a click opens. Of plans: the first rewritten since it was read, else
-// the one open, else the first, the root plan where it's among them. Of anything else:
-// what's new, else what's open, else the latest, a held one only when the stack holds
-// nothing else, as the click then picks it.
-export const pick = (slot: BarSlot, showing: BarKey | null): BarMember => {
-  const open = slot.members.find((member) => member.key === showing)
+// the one highest in the pane's stack, else the first, the root plan where it's among
+// them. Of anything else: what's new, else what's highest in the pane's stack, else the
+// latest, a held one only when the stack holds nothing else, as the click then picks it.
+export const pick = (slot: BarSlot, open: readonly BarKey[]): BarMember => {
+  const top = open.findLast((key) => slot.members.some((member) => member.key === key))
+  const opened = slot.members.find((member) => member.key === top)
   if (slot.stack === "plan") {
     const root = slot.members.find(
       (member) => member.kind === "item" && member.item.plan?.role === "root",
     )
-    return slot.members.find(isNew) ?? open ?? root ?? slot.members[0]!
+    return slot.members.find(isNew) ?? opened ?? root ?? slot.members[0]!
   }
   return (
     slot.members.findLast((member) => isNew(member) && !isHeld(member)) ??
-    open ??
+    opened ??
     slot.members.findLast((member) => !isHeld(member)) ??
     slot.members.at(-1)!
   )

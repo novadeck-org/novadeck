@@ -16,6 +16,7 @@ const state: MurmurState = {
   offers: 0,
   refused: null,
   failure: null,
+  stopped: null,
 }
 
 describe("murmur's card", () => {

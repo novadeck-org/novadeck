@@ -5,18 +5,23 @@ import { MURMUR_NAME, murmurChecking, type MurmurState } from "@novadeck/core/mu
 // What Murmur's footer item shows, as a plain function of the addon's state: an install's
 // progress as it goes, then how it ended. Only an install seen from here (started in this
 // run of the app, from the offer or from Addons) shows; what the runner said at the start,
-// such as a check that never passed, is Addons' to say.
+// such as a check that never passed, is Addons' to say. The exception is the runner's word
+// that an installed Murmur stopped (its engine failing again and again, its worker not
+// starting): Murmur is then off without a word, so it shows.
 
-export type FooterPhase = "idle" | "installing" | "done" | "failed" | "unavailable"
+export type FooterPhase = "idle" | "installing" | "done" | "failed" | "unavailable" | "stopped"
 
 // How long "Terminals name themselves now" stays.
 export const doneForMs = 4000
 
 // Where the item stands after `state`, given where it stood. The app's own engine update
-// (an install of origin "update") shows nothing. From rest only a refused install call shows,
-// and each refusal is an event: `handled` is the one the person last answered, and another,
-// though in the same words, is a new one. What the runner reports of itself from rest (a device
-// that went away, an engine update that failed) is Addons'. A cancel is no failure: the runner
+// (an install of origin "update") shows nothing. From rest a refused install call shows, and
+// each refusal is an event: `handled` is the one the person last answered, and another, though
+// in the same words, is a new one. So does `stopped` of an installed Murmur, once while it
+// stands, whatever its words: `seen` is that it was answered, and the caller forgets it when
+// `stopped` clears. What else the runner reports of itself from rest (a device that went away,
+// an engine update that failed) is Addons'. A stopped item goes when `stopped` clears (a
+// success, a runner restart, murmur turned off or removed). A cancel is no failure: the runner
 // leaves the files with the check owed and no failure. A failed item the runner's failure made
 // goes when that failure clears (a runner restart, an install or update, a removal); one a refusal made
 // stays until it is answered, as the refusal itself goes with the next snapshot.
@@ -29,6 +34,8 @@ export const footerPhase = (
   verdictBefore: string | null = null,
   // Whether a failed item was made by the runner's failure, not by a refusal.
   fromRunner = false,
+  // Whether the person answered the `stopped` that stands.
+  seen = false,
 ): FooterPhase => {
   if (state.installing)
     return phase === "installing" || state.installing.origin === "person" ? "installing" : phase
@@ -39,8 +46,11 @@ export const footerPhase = (
     if (state.failure !== null) return "failed"
     return state.installed && state.check !== null ? "done" : "idle"
   }
-  if (phase === "idle")
-    return state.refused?.call === "install" && state.refused !== handled ? "failed" : "idle"
+  if (phase === "idle") {
+    if (state.refused?.call === "install" && state.refused !== handled) return "failed"
+    return state.installed && state.stopped !== null && !seen ? "stopped" : "idle"
+  }
+  if (phase === "stopped") return state.installed && state.stopped !== null ? "stopped" : "idle"
   if (phase === "failed" && fromRunner && state.failure === null && state.refused === null)
     return "idle"
   return phase
@@ -62,7 +72,7 @@ export const installPercent = (state: MurmurState): number | null => {
 export const footerText = (
   phase: Exclude<FooterPhase, "idle">,
   state: MurmurState,
-  // Why it failed, as the runner or the refused call said, for a failed item.
+  // Why it failed or stopped, as the runner or the refused call said.
   failure: string | null = null,
 ): { readonly label: string; readonly summary: string } => {
   if (phase === "done")
@@ -71,6 +81,11 @@ export const footerText = (
     return {
       label: `${MURMUR_NAME} \u00b7 failed`,
       summary: `${MURMUR_NAME} couldn't turn on${failure ? `. ${failure}` : ""}`,
+    }
+  if (phase === "stopped")
+    return {
+      label: `${MURMUR_NAME} \u00b7 stopped`,
+      summary: `${MURMUR_NAME} stopped${failure ? `. ${failure}` : ""}`,
     }
   if (phase === "unavailable")
     return {

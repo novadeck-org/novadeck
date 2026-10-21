@@ -10,7 +10,9 @@
    sits under a line saying whose it is (`.placed-from`).
 
    Hooks: on the split's pane and the attached sheet, data-state="open" | "closed" as
-   they come and go; on the reader's body, data-outline="false" without headings; on an
+   they come and go; on what it shows (`.plan-sheet`), data-entry="forward" |
+   "arrive" as it comes to the top, and on a sheet behind, data-entry="tuck" as it goes
+   there; on the reader's body, data-outline="false" without headings; on an
    outline entry, data-changed="true" where the agent's changes are; on the changes
    toggle, aria-pressed="true" while the changes show.
 
@@ -22,6 +24,12 @@
    --pane-attached-border-color (line-strong), --pane-attached-shadow (shadow-floating),
    --pane-attached-radius (radius-panel): the attached sheet.
    --pane-tether-border-color (line-strong): the dashed line to its node.
+   --pane-stack-attached-border-color (line-strong): those sheets above the attached
+   sheet.
+   --pane-stack-hover-border-color (line-strong): a sheet peeking out from behind what
+   the pane shows, under the pointer.
+   --pane-stack-shadow-color (shadow, 16% in light and 55% in dark): what each sheet in
+   front casts on the one behind it.
    --spine-bg (shell), --spine-border-color (line): the outline.
    --spine-label-fg (muted): its label.
    --spine-fg (muted), --spine-hover-bg (soft), --spine-hover-fg (ink): an entry.
@@ -50,9 +58,14 @@
 }
 .plan-split-reader {
   display: flex;
-  border-left: var(--border-width) solid var(--pane-border-color, var(--color-line));
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
+}
+/* The pane's edge beside the terminal is what it shows: the sheets peeking out from behind
+   it above stand clear of the line. */
+.plan-split-reader > .plan-reader {
+  border-left: var(--border-width) solid var(--pane-border-color, var(--color-line));
 }
 /* The line between them is the pane's own edge, so it comes and goes with the pane.
    The divider is an invisible strip over that edge, the ::after, for the pointer to
@@ -92,7 +105,17 @@
   .plan-split-reader {
     --_plan-enter: 0 16px;
     border-top: var(--border-width) solid var(--pane-stacked-border-color, var(--color-line-strong));
+  }
+  .plan-split-reader > .plan-reader {
     border-left: none;
+  }
+  /* Its top edge is already the line under the terminal: room only while something's
+     behind, and an edge for what's shown only under it. */
+  .plan-split-reader > .plan-stack:empty {
+    display: none;
+  }
+  .plan-split-reader > .plan-stack:empty + .plan-reader {
+    border-top: none;
   }
 }
 
@@ -102,6 +125,7 @@
   top: 0;
   left: calc(100% + 20px);
   display: flex;
+  flex-direction: column;
   width: 720px;
   height: max(100%, 560px);
   border: var(--border-width) solid var(--pane-attached-border-color, var(--color-line-strong));
@@ -123,6 +147,147 @@
   width: 20px;
   border-top: var(--border-width) dashed var(--pane-tether-border-color, var(--color-line-strong));
 }
+/* What's open behind what the pane shows peeks out above it (`.plan-stack`): a card's
+   top edge for each of one or two (`.plan-stack-sheet`), each further back narrower and
+   fainter, as cards stacked behind one another are, the nearest last. In the split what's
+   shown sits under them, an edge of its own just clear of the window's header while
+   nothing's behind; the attached sheet has them hang above it. */
+.plan-stack {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+}
+.plan-split-reader > .plan-stack {
+  /* Clear of the window's header, with nothing behind too. */
+  padding-top: 4px;
+}
+.plan-stack-sheet {
+  --_inset: 6px;
+  --_fade: 0.8;
+  position: relative;
+  display: block;
+  width: calc(100% - 2 * var(--_inset));
+  height: 4px;
+  padding: 0;
+  /* Edged and cornered as what the pane shows is: square in the split, rounded on the
+     attached sheet. */
+  border: var(--border-width) solid var(--pane-border-color, var(--color-line));
+  border-bottom: none;
+  background-color: var(--pane-bg, var(--color-paper));
+  opacity: var(--_fade);
+  cursor: pointer;
+  transition:
+    opacity var(--motion-feedback) var(--ease-interface),
+    border-color var(--motion-feedback) var(--ease-interface);
+}
+/* Under the pointer it comes clear and its edge darkens, staying where it is. */
+.plan-stack-sheet:hover,
+.plan-attached .plan-stack-sheet:hover {
+  opacity: 1;
+  border-color: var(--pane-stack-hover-border-color, var(--color-line-strong));
+}
+/* Thin as it is, the pointer finds the furthest back a little above it too, where nothing
+   else is. */
+.plan-stack-sheet:first-child::before {
+  content: "";
+  position: absolute;
+  inset: -3px 0 0;
+}
+.plan-stack-sheet:first-child:not(:last-child) {
+  --_inset: 12px;
+  --_fade: 0.5;
+}
+.plan-stack-sheet:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: 1px;
+}
+/* What's shown covers the sheets behind it, as one tucking in slides from under it. */
+.plan-stack + .plan-reader {
+  position: relative;
+}
+.plan-split-reader > .plan-reader {
+  border-top: var(--border-width) solid var(--pane-border-color, var(--color-line));
+}
+.plan-attached > .plan-stack {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  left: 0;
+}
+.plan-attached .plan-stack-sheet {
+  --_inset: 8px;
+  /* Its own, as a theme may leave the sheet itself unedged. */
+  border-color: var(--pane-stack-attached-border-color, var(--color-line-strong));
+  border-radius: var(--pane-attached-radius, var(--radius-panel))
+    var(--pane-attached-radius, var(--radius-panel)) 0 0;
+}
+.plan-attached .plan-stack-sheet:first-child:not(:last-child) {
+  --_inset: 16px;
+}
+
+/* Each sheet casts a soft shadow up onto the one behind it, deeper in dark, where a
+   shadow shows less. */
+.plan-stack-sheet,
+.plan-split-reader > .plan-reader {
+  --_cast: var(
+    --pane-stack-shadow-color,
+    light-dark(
+      color-mix(in srgb, var(--color-shadow) 16%, transparent),
+      color-mix(in srgb, var(--color-shadow) 55%, transparent)
+    )
+  );
+}
+.plan-stack-sheet {
+  box-shadow: 0 -1px 3px -1px var(--_cast);
+}
+.plan-split-reader > .plan-stack:not(:empty) + .plan-reader {
+  box-shadow: 0 -2px 5px -2px var(--_cast);
+}
+
+/* A sheet just shown, tucking in behind what took its place: it slides up from under it
+   to its edge, as what comes forward from behind slides down over it. */
+.plan-stack-sheet[data-entry="tuck"] {
+  animation: plan-stack-tuck var(--motion-layout) var(--ease-interface);
+}
+@keyframes plan-stack-tuck {
+  from {
+    opacity: 1;
+    translate: 0 12px;
+  }
+}
+
+/* What the pane shows, as it comes to the top: forward from behind, sliding down out of
+   the stack and growing into place, or new, rising over what was shown. */
+.plan-sheet {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  transform-origin: 50% 0;
+}
+.plan-sheet[data-entry="forward"] {
+  animation: plan-sheet-forward var(--motion-layout) var(--ease-interface);
+}
+.plan-sheet[data-entry="arrive"] {
+  animation: plan-sheet-arrive var(--motion-state) var(--ease-interface);
+}
+@keyframes plan-sheet-forward {
+  from {
+    opacity: 0.4;
+    scale: 0.96;
+    translate: 0 -14px;
+  }
+}
+@keyframes plan-sheet-arrive {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+  }
+}
+
 /* The pane opens and closes on opacity and translate only, which the compositor runs
    without layout: the terminal beside a split takes its new size once, not per frame.
    It slides from where it sits: the split's from the window's right edge, or from
@@ -161,6 +326,15 @@
   min-height: 0;
   background-color: var(--pane-bg, var(--color-paper));
   container: plan-reader / inline-size;
+}
+/* It takes focus only when what it showed went from inside it, as a region does: ringed
+   inside its edge when that came from the keyboard. */
+.plan-reader:focus {
+  outline: none;
+}
+.plan-reader:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: calc(var(--focus-ring-width) * -1);
 }
 .plan-reader-body {
   display: grid;

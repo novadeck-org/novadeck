@@ -6,10 +6,12 @@ import {
   emptyBar,
   hide,
   leave,
+  minimize,
   moveSlot,
-  openTab,
+  raise,
   reopen,
   messagesKey,
+  topOf,
   type Bar,
   type BarKey,
 } from "./companion-bar"
@@ -148,9 +150,11 @@ export type WorkspaceAction =
   | { type: "item/close"; target: WorkspaceTarget; itemId: ItemId }
   // The person looked at items without opening them, as a peek shows them: no longer new.
   | { type: "item/seen"; target: WorkspaceTarget; itemIds: readonly ItemId[] }
-  // How the person arranges a terminal's bar: its pane opened to something or closed,
-  // something hidden from it, its icons reordered. The messages come and come back.
+  // How the person arranges a terminal's bar: something opened on top of its pane or
+  // minimized from it, the pane hidden, something hidden from the bar, its icons
+  // reordered. The messages come and come back.
   | { type: "bar/open"; target: WorkspaceTarget; terminalId: string; key: BarKey }
+  | { type: "bar/minimize"; target: WorkspaceTarget; terminalId: string; key: BarKey }
   | { type: "bar/close"; target: WorkspaceTarget; terminalId: string }
   | { type: "bar/hide"; target: WorkspaceTarget; terminalId: string; key: BarKey }
   | { type: "bar/arrive"; target: WorkspaceTarget; terminalId: string; key: BarKey }
@@ -344,7 +348,8 @@ const unfresh = (state: WorkspaceState, id: ItemId): WorkspaceState => {
 
 const barOf = (state: WorkspaceState, terminalId: string): Bar => state.bars[terminalId] ?? emptyBar
 
-// Changes a terminal's bar, giving one to a terminal that had none.
+// Changes a terminal's bar, giving one to a terminal that had none. What the change
+// brings to the top of an open pane, as what was behind it uncovered, is seen.
 const withBar = (
   state: WorkspaceState,
   terminalId: string,
@@ -353,7 +358,12 @@ const withBar = (
   if (!hasTerminal(state.roster, terminalId)) return state
   const bar = barOf(state, terminalId)
   const next = change(bar)
-  return next === bar ? state : { ...state, bars: { ...state.bars, [terminalId]: next } }
+  if (next === bar) return state
+  const changed = { ...state, bars: { ...state.bars, [terminalId]: next } }
+  const shown = next.open ? topOf(next) : null
+  return shown !== null && shown !== messagesKey && shown !== topOf(bar)
+    ? unfresh(changed, shown)
+    : changed
 }
 
 const barHolding = (item: CompanionItem): string | undefined =>
@@ -443,8 +453,8 @@ const undockItem = (
 }
 
 // What the backend says of an item. Something new, or shown again, comes to its bar: it
-// opens there when the person asked for it, unless it may hold secrets, and is new
-// otherwise, unless the pane is already showing it. A hidden one is back on the bar.
+// opens there on top of what's open when the person asked for it, unless it may hold
+// secrets, and is new otherwise, unless the pane is already showing it. A hidden one is back on the bar.
 const upsertItem = (state: WorkspaceState, item: CompanionItem): WorkspaceState => {
   const previous = state.items.find((each) => each.id === item.id)
   const listed = previous ? withItem(state, item) : { ...state, items: [...state.items, item] }
@@ -457,11 +467,11 @@ const upsertItem = (state: WorkspaceState, item: CompanionItem): WorkspaceState 
     const here = before === after ? bar : arrive(bar, item.id)
     if (!again) return here
     const back = reopen(here, item.id)
-    return item.asked && !item.held ? openTab(back, item.id) : back
+    return item.asked && !item.held ? raise(back, item.id) : back
   })
   if (!again) return arrived
   const bar = barOf(arrived, after)
-  return (item.asked && !item.held) || (bar.open && bar.tab === item.id)
+  return (item.asked && !item.held) || (bar.open && topOf(bar) === item.id)
     ? unfresh(arrived, item.id)
     : { ...arrived, fresh: { ...arrived.fresh, [item.id]: true } }
 }
@@ -650,7 +660,7 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
         const shown = state.items.some((item) => item.id === last)
         return action.open && last && shown
           ? unfresh(
-              withBar(moved, action.terminalId, (bar) => openTab(bar, last)),
+              withBar(moved, action.terminalId, (bar) => raise(bar, last)),
               last,
             )
           : moved
@@ -676,9 +686,13 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
       )
     case "bar/open":
       return updateTarget(workspace, action.target, (state) => {
-        const opened = withBar(state, action.terminalId, (bar) => openTab(bar, action.key))
+        const opened = withBar(state, action.terminalId, (bar) => raise(bar, action.key))
         return action.key === messagesKey ? opened : unfresh(opened, action.key)
       })
+    case "bar/minimize":
+      return updateTarget(workspace, action.target, (state) =>
+        withBar(state, action.terminalId, (bar) => minimize(bar, action.key)),
+      )
     case "bar/close":
       return updateTarget(workspace, action.target, (state) =>
         withBar(state, action.terminalId, closePane),
