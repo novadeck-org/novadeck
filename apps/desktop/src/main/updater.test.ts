@@ -26,6 +26,7 @@ import {
   developerIdSigned,
   feedUrl,
   firstCheckMs,
+  githubConfirmMs,
   retryCheckMs,
   installOnlyOnOrderlyQuit,
   portableOf,
@@ -496,12 +497,20 @@ class FakeUpdater extends EventEmitter implements Pick<Updater, "checkForUpdates
   seen: { feed: Parameters<Updater["setFeedURL"]>[0] | undefined; headers: unknown }[] = []
   /** Whether a check on this feed fails, as when the network or the website is down. */
   failFeed: (feed: Parameters<Updater["setFeedURL"]>[0] | undefined) => boolean = () => false
+  /** Whether a check that finds no release says so, as electron-updater's does. */
+  upToDate = false
+  /** The release each feed says is newest; none says there is nothing new. */
+  newest: (feed: Parameters<Updater["setFeedURL"]>[0] | undefined) => string | undefined = () =>
+    undefined
   setFeedURL(feed: Parameters<Updater["setFeedURL"]>[0]): void {
     this.feed = feed
   }
   checkForUpdates(): Promise<unknown> {
     this.checks += 1
     this.seen.push({ feed: this.feed, headers: this.requestHeaders && { ...this.requestHeaders } })
+    if (this.newest(this.feed) !== undefined)
+      this.emit("update-available", { version: this.newest(this.feed) })
+    else if (this.upToDate && !this.failFeed(this.feed)) this.emit("update-not-available")
     if (this.failFeed(this.feed)) {
       const error = new Error("unreachable")
       this.emit("error", error)
@@ -1298,7 +1307,10 @@ describe("the update feed", () => {
       "http://127.0.0.1:8787/update/early/",
     )
     expect(feedUrl("stable", "file:///tmp/updates")).toBe("https://novadeck.dev/update/stable/")
-    expect(feedUrl("stable", "https://example.test")).toBe("https://example.test/update/stable/")
+    expect(feedUrl("stable", "https://localhost:8787")).toBe(
+      "https://localhost:8787/update/stable/",
+    )
+    expect(feedUrl("stable", "https://example.test")).toBe("https://novadeck.dev/update/stable/")
     expect(feedUrl("stable", "http://localhost:8787")).toBe("http://localhost:8787/update/stable/")
     expect(feedUrl("stable", "http://[::1]:8787")).toBe("http://[::1]:8787/update/stable/")
     expect(feedUrl("stable", "http://example.test")).toBe("https://novadeck.dev/update/stable/")
@@ -1444,6 +1456,60 @@ describe("checking through novadeck.dev", () => {
     await vi.advanceTimersByTimeAsync(firstCheckMs)
     expect(updater.checks).toBe(1)
     expect(logged).not.toContain("The update check through novadeck.dev failed; trying GitHub.")
+  })
+
+  it("logs the error of a download under way, not taking it for the check's", async () => {
+    const { updater, logged } = checking()
+    await vi.advanceTimersByTimeAsync(firstCheckMs)
+    updater.downloadResult = () => new Promise(() => {})
+    updater.emit("update-available", { version: "1.5.0" })
+    let finish: () => void = () => {}
+    updater.checkForUpdates = () => new Promise<void>((resolve) => (finish = resolve))
+    await vi.advanceTimersByTimeAsync(checkIntervalMs)
+    updater.emit("error", new Error("the download broke"))
+    expect(logged).toEqual(["The update check failed."])
+    finish()
+  })
+
+  it("confirms a check that finds nothing against GitHub once a day, without the headers", async () => {
+    const { updater } = checking()
+    updater.upToDate = true
+    await vi.advanceTimersByTimeAsync(firstCheckMs)
+    expect(updater.seen.map(({ feed }) => feed)).toEqual([
+      generic("https://novadeck.dev/update/stable/"),
+      github,
+    ])
+    expect(updater.seen[1]?.headers).toBeNull()
+    // Within the day the website's word stands.
+    await vi.advanceTimersByTimeAsync(githubConfirmMs - firstCheckMs - checkIntervalMs)
+    expect(updater.seen.every(({ feed }, at) => at < 2 || feed !== github)).toBe(true)
+    const before = updater.seen.length
+    await vi.advanceTimersByTimeAsync(checkIntervalMs * 2)
+    const feeds = updater.seen.slice(before).map(({ feed }) => feed)
+    expect(feeds).toContainEqual(github)
+    // Each GitHub check is followed by novadeck.dev for the next scheduled one.
+    expect(feeds[0]).toEqual(generic("https://novadeck.dev/update/stable/"))
+  })
+
+  it("takes an update that only GitHub knows of like any GitHub-found one", async () => {
+    const { updater } = checking()
+    updater.upToDate = true
+    updater.newest = (feed) => (feed?.provider === "github" ? "1.5.0" : undefined)
+    await vi.advanceTimersByTimeAsync(firstCheckMs)
+    expect(updater.downloads).toHaveLength(1)
+  })
+
+  it("makes no confirmation once the schedule has ended", async () => {
+    const { updater, stop } = checking()
+    updater.checkForUpdates = () => {
+      updater.checks += 1
+      updater.seen.push({ feed: updater.feed, headers: null })
+      stop()
+      updater.emit("update-not-available")
+      return Promise.resolve()
+    }
+    await vi.advanceTimersByTimeAsync(firstCheckMs)
+    expect(updater.checks).toBe(1)
   })
 
   it("logs a failed novadeck.dev check once, as it falls back", async () => {

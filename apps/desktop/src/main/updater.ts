@@ -30,13 +30,17 @@ export const switchCheckMs = 2_000
 /** How long after a download failed the check that tries it again, once, waits. */
 export const retryCheckMs = 5 * 60 * 1000
 
+/** How long GitHub's word stands: a check through novadeck.dev that finds nothing is confirmed there after this. */
+export const githubConfirmMs = 24 * 60 * 60 * 1000
+
 /** Why a check runs: the launch's, the schedule's, a channel switch's or a failed download's retry. */
 export type CheckReason = "launch" | "interval" | "switch" | "retry"
 
 /**
- * What a check says of the copy making it, so the website can count active copies. It is
- * the least that does: what the app reads off the computer, such as its system or
- * language, would need the person's consent to send, and is not sent.
+ * What the app adds to a check to say what copy makes it, so the website can count active
+ * copies. It is the least that does: the app reads nothing else off the computer to send,
+ * as that would need the person's consent. (The request carries more by itself: see
+ * docs/auto-update.md.)
  */
 export type CheckFacts = {
   readonly version: string
@@ -57,9 +61,9 @@ const novadeckSite = "https://novadeck.dev"
 /**
  * The address, ending in "/", whose `latest*.yml` the channel's checks read: the website
  * counts each check and answers with GitHub's file, its downloads pinned to GitHub at that
- * release (docs/auto-update.md). `site` replaces the website's address when it is an https
- * address, or an http one on this computer (localhost, 127.0.0.1 or [::1]); anything else
- * is ignored.
+ * release (docs/auto-update.md). `site` replaces the website's address for testing, and
+ * only when it is an address on this computer (localhost, 127.0.0.1 or [::1], over http or
+ * https); anything else is ignored.
  */
 export const feedUrl = (channel: UpdateChannel, site?: string): string => {
   let origin = novadeckSite
@@ -67,7 +71,7 @@ export const feedUrl = (channel: UpdateChannel, site?: string): string => {
     try {
       const url = new URL(site)
       const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
-      if (url.protocol === "https:" || (url.protocol === "http:" && local)) origin = url.origin
+      if (local && (url.protocol === "https:" || url.protocol === "http:")) origin = url.origin
     } catch {
       // Not an address: the website stays.
     }
@@ -80,9 +84,10 @@ const plain = (value: string): string | undefined =>
   /^[\x20-\x7e]{1,64}$/.test(value) ? value : undefined
 
 /**
- * The headers of a check through novadeck.dev. They describe the check and the copy that
- * makes it, and nothing that tells one copy from another; a value that can't be known is
- * left out. The last stands in for electron-updater's per-install `x-user-staging-id`.
+ * The headers the app adds to a check through novadeck.dev: why it runs and the copy's
+ * version and build, with a constant in place of electron-updater's per-install
+ * `x-user-staging-id`, so nothing the app adds tells one copy from another. A value that
+ * can't be known is left out.
  */
 export const checkHeaders = (reason: CheckReason, facts: CheckFacts): Record<string, string> => {
   const entries: [string, string | undefined][] = [
@@ -459,7 +464,9 @@ export type Updater = {
  * whatever reason, is made again at once against GitHub's releases, and the next check
  * goes to novadeck.dev again. A download that began from a novadeck.dev check and failed
  * has its retry check go to GitHub alone, so a feed that checks well but downloads badly
- * does not fail the same way twice. Without `feed` a check uses the updater's own
+ * does not fail the same way twice. A check through novadeck.dev that finds nothing new
+ * is confirmed against GitHub at once, unless GitHub answered within `githubConfirmMs`,
+ * so a stale answer from the website hides no release for long. Without `feed` a check uses the updater's own
  * configuration.
  *
  * `logger` hears electron-updater's own messages; without one they are dropped.
@@ -550,8 +557,9 @@ export const checkForUpdates = (
     // An install fails once; an error reported after it adds nothing to log or mark.
     if (failed) return
     if (downloaded === undefined || !installing) {
-      // A check through novadeck.dev that fails is logged as it falls back to GitHub.
-      if (checking && via === "novadeck" && !ended) return
+      // A check through novadeck.dev that fails is logged as it falls back to GitHub; an
+      // error of a download under way is not that check's.
+      if (checking && via === "novadeck" && !ended && loading === undefined) return
       return log("The update check failed.", error)
     }
     log("Installing the update failed.", error)
@@ -668,6 +676,21 @@ export const checkForUpdates = (
   // Whether the next check skips novadeck.dev, as a download from it failed.
   let githubOnly = false
   let checking = false
+  // When a check last got an answer from GitHub itself, and whether the check in flight was
+  // told there is no update. The website's answer can be stale yet valid, which only
+  // GitHub's would show, so a check that finds nothing there is confirmed there, once a day.
+  let githubAnsweredAt: number | undefined
+  let nothingNew = false
+  updater.on("update-not-available", () => {
+    nothingNew = true
+  })
+  const checkGithub = async (from: UpdateFeed): Promise<void> => {
+    via = "github"
+    updater.requestHeaders = null
+    updater.setFeedURL({ provider: "github", ...from.repository })
+    await updater.checkForUpdates()
+    githubAnsweredAt = Date.now()
+  }
   const checkThroughFeed = async (reason: CheckReason, from: UpdateFeed): Promise<void> => {
     if (!githubOnly) {
       via = "novadeck"
@@ -679,20 +702,23 @@ export const checkForUpdates = (
         useMultipleRangeRequest: false,
       })
       updater.requestHeaders = checkHeaders(reason, from.facts)
+      nothingNew = false
       try {
         await updater.checkForUpdates()
-        return
       } catch (error) {
         // A quit ends the schedule; no new request starts after it.
         if (ended) throw error
         log("The update check through novadeck.dev failed; trying GitHub.", error)
+        githubOnly = false
+        return checkGithub(from)
       }
+      const unconfirmed =
+        githubAnsweredAt === undefined || Date.now() - githubAnsweredAt > githubConfirmMs
+      if (nothingNew && unconfirmed && !ended) await checkGithub(from)
+      return
     }
     githubOnly = false
-    via = "github"
-    updater.requestHeaders = null
-    updater.setFeedURL({ provider: "github", ...from.repository })
-    await updater.checkForUpdates()
+    await checkGithub(from)
   }
   const check = (reason: CheckReason): void => {
     // The updater reports a failed check through its error event, which logs it.
