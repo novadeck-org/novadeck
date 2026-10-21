@@ -21,9 +21,10 @@ hand back as `saved` to the next viewer of the same thing.
   from half its fit to 3200% and moved about. Pinch or Ctrl/⌘+scroll zooms around the
   pointer, a drag moves it at any zoom and a scroll once it's zoomed or moved (a fitted one
   leaves the wheel to the page), a double-click zooms in there and back to fit, and keys do
-  each once it's reached by Tab (after a click, typing goes on to the app). Once it's moved or zoomed, a chip over it shows how far and takes it back to fit.
-  Its zoom and the point at its centre are kept in its state, so it reopens on the same
-  view at any size; `zoom()` sets it.
+  each once it's reached by Tab (after a click, typing goes on to the app). Once it's moved
+  or zoomed, a chip over it shows how far and takes it back to fit. Its zoom and the point
+  at its centre are kept in its state, so it reopens on the same view at any size; `zoom()`
+  sets it.
 - `./image.css`: the image viewer's looks, themed through `--image-*`.
 - `./markdown`: `mountMarkdown`, a text formatted as a document and edited in place:
   formatting marks show on the lines being edited, tables edit cell by cell, task lists tick.

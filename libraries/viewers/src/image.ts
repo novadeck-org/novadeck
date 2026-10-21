@@ -5,9 +5,9 @@ import type { Mount, Viewer, ViewerState } from "./index.js"
 // zoomed from half its fit up and moved about. Pinch or Ctrl/⌘+scroll zooms around the
 // pointer, a drag moves it at any zoom and a scroll once it's zoomed or moved, a
 // double-click zooms in there and back to fit, and keys do each once the viewer is reached
-// by Tab. Once it's moved or zoomed, a chip over it says how far, and takes it back to fit. The zoom is part of its
-// state, with the point of the image at the viewer's centre, so an image shown again keeps
-// its view whatever the viewer's size. Its looks are image.css's.
+// by Tab. Once it's moved or zoomed, a chip over it says how far, and takes it back to fit.
+// The zoom is part of its state, with the point of the image at the viewer's centre, so an
+// image shown again keeps its view whatever the viewer's size. Its looks are image.css's.
 
 export type ImageContent = { readonly src: string; readonly alt: string }
 
@@ -336,15 +336,16 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     zoomTo("fit")
     root.focus({ preventScroll: true })
   }
+  // Focus moves as a Tab's own action, before the next task; any other key, or a press,
+  // ends its moment sooner, as input can come before that task.
   const onTab = (event: KeyboardEvent): void => {
-    if (event.key !== "Tab") return
-    tabbing = true
-    // Focus moves as the key's own action, before the next task.
-    setTimeout(() => (tabbing = false))
+    tabbing = event.key === "Tab"
+    if (tabbing) setTimeout(() => (tabbing = false))
   }
   // Any press, of any button and on the chip too.
   const onPress = (): void => {
     keyed = false
+    tabbing = false
   }
   // Reached by Tab, its keys are the person's; from elsewhere in the page, they aren't; back
   // from another window, or moving within itself, they stay as they were.
@@ -352,6 +353,10 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     const from = event.relatedTarget as Node | null
     if (tabbing) keyed = true
     else if (from && !root.contains(from)) keyed = false
+  }
+  // Focus let go to nothing while the window keeps it, as a click on a blank spot, ends them.
+  const onFocusOut = (event: FocusEvent): void => {
+    if (!event.relatedTarget && document.hasFocus()) keyed = false
   }
 
   const observer = new (document.defaultView?.ResizeObserver ?? ResizeObserver)(draw)
@@ -368,6 +373,7 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
   root.addEventListener("dblclick", onDoubleClick)
   root.addEventListener("keydown", onKeyDown)
   root.addEventListener("focusin", onFocusIn)
+  root.addEventListener("focusout", onFocusOut)
   document.addEventListener("keydown", onTab, { capture: true })
   chip.addEventListener("click", onChip)
 

@@ -272,13 +272,49 @@ describe("the image viewer", () => {
     expect(one()).toBe(true)
   })
 
+  it("takes no keys from a press that comes in a Tab's moment", async () => {
+    const host = hostIn()
+    const viewer = mount(large, host)
+    await loaded(host)
+    viewer.zoom(2)
+    // A Tab elsewhere, as a terminal's completion, then a click on the chip before its moment
+    // has passed.
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }))
+    chipOf(host).dispatchEvent(new PointerEvent("pointerdown", { button: 0, bubbles: true }))
+    chipOf(host).focus()
+    const event = new KeyboardEvent("keydown", { key: "1", bubbles: true, cancelable: true })
+    viewerOf(host).dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
+  it("lets its keys go when focus goes to nothing in the page", async () => {
+    const host = hostIn()
+    mount(large, host)
+    await loaded(host)
+    tabTo(viewerOf(host))
+    await new Promise((resolve) => setTimeout(resolve))
+    // A click on a blank spot: focus to the page itself, the window keeping it.
+    viewerOf(host).blur()
+    viewerOf(host).focus()
+    const event = new KeyboardEvent("keydown", { key: "1", bubbles: true, cancelable: true })
+    viewerOf(host).dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
   it("keeps its keys across a trip to another window", async () => {
     const host = hostIn()
     mount(large, host)
     await loaded(host)
     tabTo(viewerOf(host))
-    // Another window takes focus and gives it back: nothing in the page takes it between.
-    viewerOf(host).blur()
+    // Another window takes focus and gives it back: the page has no focus between.
+    const hasFocus = document.hasFocus
+    document.hasFocus = () => false
+    try {
+      viewerOf(host).blur()
+    } finally {
+      document.hasFocus = hasFocus
+    }
+    await new Promise((resolve) => setTimeout(resolve))
     viewerOf(host).focus()
     const event = new KeyboardEvent("keydown", { key: "+", bubbles: true, cancelable: true })
     viewerOf(host).dispatchEvent(event)
