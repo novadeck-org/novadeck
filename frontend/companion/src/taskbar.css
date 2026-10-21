@@ -7,8 +7,8 @@
    Hooks: on the bar, data-state="open" | "closed" as it comes and goes, and
    data-drop-target while an icon from another bar is over it; `.plan-taskbar-empty`, the
    bar a terminal with nothing to show offers as a drop target. On an icon,
-   aria-pressed="true" while the pane shows it, and data-state="new" | "open" | "seen"
-   for its mark. On a count, data-mail="held" | "paused". `.plan-tb-grabbed`, a card
+   aria-pressed="true" while the pane shows it, and data-state="new" | "open" | "behind" |
+   "seen" for its mark. On a count, data-mail="held" | "paused". `.plan-tb-grabbed`, a card
    pulled out of a peek, and data-settling as it goes back. data-drag-refused on the
    root while a dragged icon is somewhere nothing takes it.
 
@@ -165,7 +165,7 @@
   color: var(--_fg);
   box-shadow: var(--_shadow);
 }
-.plan-tb-item:is([data-state="new"], [data-state="open"]) {
+.plan-tb-item:is([data-state="new"], [data-state="open"], [data-state="behind"]) {
   --_mark-bg: var(--taskbar-mark-active-bg, var(--color-ink));
 }
 .plan-tb-item:hover {
@@ -184,7 +184,8 @@
     var(--segmented-active-shadow, var(--shadow-control))
   );
 }
-/* The mark: a dot while new, a long bar while showing, a short one once seen. */
+/* The mark: a dot while new, a long bar while showing, a strong middle one while open
+   behind it, a short faint one once seen. */
 .plan-tb-item::after {
   position: absolute;
   bottom: 3px;
@@ -207,6 +208,9 @@
 }
 .plan-tb-item[data-state="open"]::after {
   width: 22px;
+}
+.plan-tb-item[data-state="behind"]::after {
+  width: 14px;
 }
 
 /* A count is a small badge; its outline draws only for the pause mark, and lets forced

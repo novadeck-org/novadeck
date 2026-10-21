@@ -23,6 +23,8 @@ import type { Panes } from "./state"
 export type SlotActions = {
   // What the pane shows while it's open, null while it's hidden.
   readonly showing: BarKey | null
+  // What's open in the pane, the top last, shown or waiting while it's hidden.
+  readonly stacked: readonly BarKey[]
   readonly mail: MailHandle
   readonly peerName: (handle: string) => string | undefined
   // The name of the terminal something placed here came from, while it's open.
@@ -68,8 +70,18 @@ const preview = (member: BarMember, actions: SlotActions): ReactNode => {
   return <Thumb member={member} panes={panes} target={target} mail={mail} peerName={peerName} />
 }
 
-const indicator = (member: BarMember, showing: BarKey | null): Indicator =>
-  isNew(member) ? "new" : member.key === showing ? "open" : "seen"
+const indicator = (
+  member: BarMember,
+  showing: BarKey | null,
+  stacked: readonly BarKey[],
+): Indicator =>
+  isNew(member)
+    ? "new"
+    : member.key === showing
+      ? "open"
+      : stacked.includes(member.key)
+        ? "behind"
+        : "seen"
 
 // What can be done with one item, from its menu.
 const memberMenu = (member: BarMember, actions: SlotActions): ContextMenuItem[] => {
@@ -151,7 +163,7 @@ export const TaskbarSlot = ({
   // The first icon's, which focus comes back to when the pane hides.
   buttonRef: Ref<HTMLButtonElement> | undefined
 }): React.JSX.Element => {
-  const { showing } = actions
+  const { showing, stacked } = actions
   const moving: ContextMenuItem[] = [
     ...(index > 0
       ? [{ value: "move-left", label: "Move left", onSelect: () => actions.move(index, index - 1) }]
@@ -174,7 +186,7 @@ export const TaskbarSlot = ({
       name: look.name,
       icon: <Icon size={14} strokeWidth={1.5} />,
       preview: preview(member, actions),
-      state: indicator(member, showing),
+      state: indicator(member, showing, stacked),
       onOpen: () => actions.open(member.key),
       onClose: () => actions.close(member),
       // The messages stay on their terminal's bar.
@@ -188,6 +200,8 @@ export const TaskbarSlot = ({
   const Icon = look.icon
   const fresh = slot.members.some(isNew)
   const shown = slot.members.find((member) => member.key === showing)
+  const behind = !shown && slot.members.some((member) => stacked.includes(member.key))
+  const openLabel = behind ? ", in the pane" : ""
   const names = slot.stack && stackNames(slot.stack)
   const stack = stackMenu(slot.members, names ? names.one : "item", actions)
   const messages = single?.kind === "messages"
@@ -220,15 +234,15 @@ export const TaskbarSlot = ({
               <button
                 ref={buttonRef}
                 className="plan-tb-item"
-                data-state={fresh ? "new" : shown ? "open" : "seen"}
+                data-state={fresh ? "new" : shown ? "open" : behind ? "behind" : "seen"}
                 aria-label={
                   single
-                    ? `${look.label}${messages ? mailLabel : fresh ? ", new" : ""}`
-                    : `${slot.members.length} ${names!.one}s${fresh ? ", new" : ""}`
+                    ? `${look.label}${messages ? mailLabel : fresh ? ", new" : ""}${openLabel}`
+                    : `${slot.members.length} ${names!.one}s${fresh ? ", new" : ""}${openLabel}`
                 }
                 aria-pressed={Boolean(shown)}
                 aria-description="Drag to reorder, or use Move left and Move right in its menu."
-                onClick={() => actions.activate((single ?? pick(slot, showing)).key)}
+                onClick={() => actions.activate((single ?? pick(slot, stacked)).key)}
               >
                 <Icon size={20} strokeWidth={1.5} />
                 {messages ? (

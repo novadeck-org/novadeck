@@ -139,6 +139,10 @@ export const createCompanionCommands = (
       commit([
         { type: "bar/open", target: currentTarget(workspace.getSnapshot()), terminalId, key },
       ]),
+    minimizeOnBar: (terminalId, key) =>
+      commit([
+        { type: "bar/minimize", target: currentTarget(workspace.getSnapshot()), terminalId, key },
+      ]),
     closeBarPane: (terminalId) =>
       commit([{ type: "bar/close", target: currentTarget(workspace.getSnapshot()), terminalId }]),
     hideOnBar: (terminalId, key) =>

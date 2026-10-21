@@ -2,8 +2,8 @@ import { X } from "lucide-react"
 import type { ReactNode } from "react"
 
 // What a mark says, as an OS taskbar's does: new since the user last looked, showing in
-// the pane now, or seen.
-export type Indicator = "new" | "open" | "seen"
+// the pane now, open in it behind what it shows, or seen.
+export type Indicator = "new" | "open" | "behind" | "seen"
 
 export type PeekEntry = {
   readonly id: string
@@ -32,7 +32,7 @@ export const Peek = ({ entries }: { entries: readonly PeekEntry[] }): React.JSX.
         <button
           className="plan-peek-open"
           data-state={entry.state}
-          aria-label={`${entry.name}${entry.state === "new" ? ", new" : ""}`}
+          aria-label={`${entry.name}${entry.state === "new" ? ", new" : entry.state === "behind" ? ", in the pane" : ""}`}
           aria-pressed={entry.state === "open"}
           onClick={entry.onOpen}
           onPointerDown={entry.onGrab}

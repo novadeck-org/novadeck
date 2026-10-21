@@ -22,9 +22,11 @@ export type CompanionActions = {
   readonly closeItem: (itemId: ItemId) => void
   // The person looked at items without opening them, in a peek: no longer new.
   readonly markSeen: (itemIds: readonly ItemId[]) => void
-  // Opens a bar's pane to what it holds, closes it, hides what's on it, or moves an icon,
-  // which `slots` gives each by the keys it stands for.
+  // Opens what a bar holds on top of its pane, minimizes it from there, hides the pane,
+  // hides what's on the bar, or moves an icon, which `slots` gives each by the keys it
+  // stands for.
   readonly openBarTab: (terminalId: string, key: BarKey) => void
+  readonly minimizeOnBar: (terminalId: string, key: BarKey) => void
   readonly closeBarPane: (terminalId: string) => void
   readonly hideOnBar: (terminalId: string, key: BarKey) => void
   readonly moveBarSlot: (

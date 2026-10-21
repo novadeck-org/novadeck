@@ -6,7 +6,7 @@
    miniature takes the prose tokens.
 
    Hooks: on a card's button (`.plan-peek-open`), aria-pressed="true" while the pane
-   shows it, and data-state="new" | "open" | "seen" for its mark.
+   shows it, and data-state="new" | "open" | "behind" | "seen" for its mark.
 
    Tokens, each optional (its fallback in brackets):
    --peek-card-fg (muted), --peek-card-radius (radius-panel): a card's name at rest, and
@@ -69,6 +69,9 @@
 }
 .plan-peek-open[data-state="open"]::after {
   width: 22px;
+}
+.plan-peek-open[data-state="behind"]::after {
+  width: 14px;
 }
 .plan-peek-thumb {
   display: block;
