@@ -178,7 +178,24 @@ describe("the browser viewer", () => {
         viewer.update({ url: at, shown: 2, scroll: "#plans" })
         expect(calls[0]).toBe(`load ${at}`)
         expect(loads.at(-1)).toBe("ready")
-        // Nothing loads, so its scroll goes at once.
+        // Nothing loads: its scroll goes once the page has moved.
+        expect(scrolled(calls)).toEqual([])
+        where.url = at
+        fire("did-navigate-in-page")
+        expect(scrolled(calls)).toHaveLength(1)
+      })
+
+      it("loads the page again for an address without the fragment the person went to", () => {
+        const { viewer, at: where, calls, loads, fire } = shownAt({ url, shown: 1 })
+        where.url = `${url}#install`
+        fire("did-stop-loading")
+        viewer.update({ url, shown: 2, scroll: "#pricing" })
+        expect(calls).toEqual([`load ${url}`])
+        expect(loads.at(-1)).toBe("loading")
+        // Not on the page being replaced: on the one that loads.
+        expect(scrolled(calls)).toEqual([])
+        where.url = url
+        fire("did-stop-loading")
         expect(scrolled(calls)).toHaveLength(1)
       })
 

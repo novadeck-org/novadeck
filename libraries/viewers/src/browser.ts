@@ -221,6 +221,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   if (resumed !== content.url) on?.navigate?.(place)
   // Until its first load is done.
   let first = true
+  // Moving to a fragment of the page it's on, whose scroll waits for the move.
+  let moving = false
 
   const moved = (): void => {
     attached(() => {
@@ -236,8 +238,15 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     if (selector !== undefined)
       attached(() => void page.executeJavaScript(revealing(selector, scrollWaitMs)).catch(nothing))
   }
+  const movedInPage = (): void => {
+    moved()
+    if (!moving) return
+    moving = false
+    reveal()
+  }
   const stopped = (): void => {
     first = false
+    moving = false
     if (load === "loading") report("ready")
     moved()
     if (load === "ready") reveal()
@@ -263,8 +272,13 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       return true
     })
     if (!loading) page.setAttribute("src", shown.url)
-    // Within one document, it only moves to the fragment: nothing loads.
-    const moving = loading && documentOf(place.url) === documentOf(shown.url) && load === "ready"
+    // To a fragment of the document it's on, it only moves there: nothing loads. Without
+    // a fragment, the document loads again.
+    moving =
+      loading === true &&
+      load === "ready" &&
+      shown.url.includes("#") &&
+      documentOf(place.url) === documentOf(shown.url)
     place = { url: shown.url, back: place.back, forward: place.forward }
     on?.navigate?.(place)
     if (!moving) report("loading")
@@ -284,7 +298,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   const listeners: readonly (readonly [string, (event: Event) => void])[] = [
     ["dom-ready", moved],
     ["did-navigate", moved],
-    ["did-navigate-in-page", moved],
+    ["did-navigate-in-page", movedInPage],
     ["did-start-loading", started],
     ["did-stop-loading", stopped],
     ["did-fail-load", failed],
@@ -296,17 +310,17 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
 
   return {
     update: (next) => {
+      // An older show arriving late changes nothing.
+      if (showOf(next) < showing) return
       const previous = shown
       const again = showOf(next) > showing
       shown = next
-      showing = Math.max(showing, showOf(next))
+      showing = showOf(next)
       // Loaded after it attached, past the lockdown's check of its first address.
       if (!webAddress(next.url)) return
       if (again) scrollTo = next.scroll
       if (previous.url === next.url) {
-        if (!again) return
-        refresh()
-        if (load === "ready") reveal()
+        if (again) refresh()
         return
       }
       page.setAttribute("src", next.url)

@@ -449,8 +449,9 @@ with every safety check again at that time:
   item: the viewer brings the element into view once the page has loaded, waiting a few
   seconds for one a page draws later, and keeps the show it carried out with where the
   person took the page, so a viewer mounted again in the same window for the same show
-  neither reloads nor scrolls. A show that differs from where the person went only by its
-  `#fragment` moves to that fragment rather than reloading, as a browser does.
+  neither reloads nor scrolls. A show of an address with a `#fragment` in the document the
+  person is on moves to that fragment rather than reloading, as a browser does, and scrolls
+  once it has moved; one without a fragment loads the document again.
 - **Saving** would be a new authorized plan-write operation with the stamp check above,
   scoped like `present`: the caller may write only the plan the terminal's agent keeps.
   The runner doesn't offer it yet.
