@@ -25,6 +25,91 @@ export const noteAreas = [
 export const noteArea = z.enum(noteAreas)
 export type NoteArea = z.infer<typeof noteArea>
 
+/**
+ * The icons a highlight may lead with, by their Lucide names (lucide.dev/icons). Fixed, so
+ * the model picks from a set the app has drawn and can't name one it has not; the app maps
+ * each to its component, and one it does not know is no icon.
+ */
+export const highlightIcons = [
+  // Agents
+  "bot",
+  "sparkles",
+  "brain",
+  "message-square",
+  "send",
+  "wand-sparkles",
+  "users",
+  // Terminals
+  "terminal",
+  "keyboard",
+  "text-cursor-input",
+  "history",
+  "rotate-ccw",
+  "copy",
+  "search",
+  "scroll-text",
+  // Inbox & notifications
+  "inbox",
+  "bell",
+  "bell-ring",
+  "mail",
+  "check-check",
+  "circle-alert",
+  // Projects & pins
+  "folder-open",
+  "folder-git-2",
+  "pin",
+  "git-branch",
+  "git-merge",
+  "bookmark",
+  "tag",
+  // Voice
+  "mic",
+  "audio-lines",
+  "volume-2",
+  // Updates & install
+  "download",
+  "refresh-cw",
+  "package",
+  "rocket",
+  "shield-check",
+  // Look & feel
+  "palette",
+  "layout-grid",
+  "columns-2",
+  "maximize-2",
+  "focus",
+  "eye",
+  "sun-moon",
+  "image",
+  "monitor",
+  "app-window",
+  "panel-right",
+  "move",
+  "zoom-in",
+  "mouse-pointer-click",
+  // Fixes & speedups
+  "bug",
+  "wrench",
+  "zap",
+  "gauge",
+  "timer",
+  // Anything else
+  "plug",
+  "wifi",
+  "globe",
+  "lock",
+  "settings",
+  "sliders-horizontal",
+  "file-text",
+  "code",
+  "link",
+  "puzzle",
+  "gift",
+] as const
+export const highlightIcon = z.enum(highlightIcons)
+export type HighlightIcon = z.infer<typeof highlightIcon>
+
 // Generous bounds: they keep a hand-edited block from becoming a megabyte, while the pipeline's
 // own checks (scripts/release-notes/check.ts) hold the tighter limits its output keeps to.
 const prs = z.array(z.number().int().positive()).max(32)
@@ -35,8 +120,15 @@ export const releaseNotes = z.strictObject({
   version: text(64),
   /** A prerelease's own notes, or the notes of a promotion, which cover every release since the last stable one. */
   kind: z.enum(["release", "promote"]),
-  /** What to lead with: up to two in a prerelease's own notes, four in a promotion's. */
-  highlights: z.array(z.strictObject({ title: text(80), line: text(240), prs })).max(4),
+  /**
+   * What to lead with: up to two in a prerelease's own notes, four in a promotion's, each
+   * with the icon the card shows beside it. Notes written before icons have none.
+   */
+  highlights: z
+    .array(
+      z.strictObject({ title: text(80), line: text(240), prs, icon: highlightIcon.optional() }),
+    )
+    .max(4),
   changes: z.array(z.strictObject({ area: noteArea, line: text(240), prs })).max(200),
   /** How many smaller fixes and speedups the lines above leave unnamed. */
   fixes: z.number().int().min(0).max(10_000),
@@ -58,6 +150,7 @@ export const notesBlock = (notes: ReleaseNotes): string =>
 // app has no heading for it). What would break the writer's bounds is clamped so the value
 // returned is always a valid `ReleaseNotes`: an item with a too long title or line or bad
 // pull request numbers is dropped, extra highlights and changes are cut, a bad `fixes` is 0.
+// A highlight's icon the reader doesn't know, as a later set may add, is dropped, not the highlight.
 // A block whose shape it can't make sense of, or whose `kind` is new, reads as no block.
 const lenient = z.object({
   version: z.unknown(),
@@ -66,7 +159,12 @@ const lenient = z.object({
   changes: z.array(z.unknown()),
   fixes: z.unknown(),
 })
-const highlight = z.object({ title: text(80), line: text(240), prs })
+const highlight = z
+  .object({ title: text(80), line: text(240), prs, icon: z.unknown().optional() })
+  .transform(({ icon, ...rest }) => {
+    const known = highlightIcon.safeParse(icon)
+    return known.success ? { ...rest, icon: known.data } : rest
+  })
 const change = z.object({ area: noteArea, line: text(240), prs })
 const keep = <T>(items: unknown[], schema: z.ZodType<T>, max: number): T[] =>
   items

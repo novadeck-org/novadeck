@@ -75,9 +75,8 @@ export const whatsNewAsked = (): number =>
   made.reduce((sum, each) => sum + each.whatsNewCalls.asked, 0)
 
 /** What the page has asked of the host about what's new, since `forgetHostCalls`. */
-export const whatsNewCalls = (): { readonly dismissed: number; readonly pages: number } => ({
+export const whatsNewCalls = (): { readonly dismissed: number } => ({
   dismissed: made.reduce((sum, each) => sum + each.whatsNewCalls.dismissed, 0),
-  pages: made.reduce((sum, each) => sum + each.whatsNewCalls.pages, 0),
 })
 
 // Specs open the demo on a host running without its security sandbox with `?sandbox=off`,

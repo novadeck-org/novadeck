@@ -246,11 +246,10 @@ describe("desktop updates", () => {
 describe("desktop what's new", () => {
   const highlight = { title: "Word handles", line: "Talk to @moth." }
   const whatsNewHost = (answer: unknown) => {
-    const calls = { dismissed: 0, pages: 0 }
+    const calls = { dismissed: 0 }
     const bridge = {
       whatsNew: () => Promise.resolve(answer),
       dismissWhatsNew: () => void (calls.dismissed += 1),
-      openWhatsNewPage: () => void (calls.pages += 1),
     } as unknown as DesktopHost
     return { bridge, calls }
   }
@@ -266,7 +265,7 @@ describe("desktop what's new", () => {
     expect(desktopWhatsNew(undefined)).toBeUndefined()
     expect(desktopWhatsNew({} as DesktopHost)).toBeUndefined()
     const { bridge } = whatsNewHost(undefined)
-    delete (bridge as { openWhatsNewPage?: unknown }).openWhatsNewPage
+    delete (bridge as { dismissWhatsNew?: unknown }).dismissWhatsNew
     expect(desktopWhatsNew(bridge)).toBeUndefined()
   })
 
@@ -278,6 +277,27 @@ describe("desktop what's new", () => {
     expect(await desktopWhatsNew(bridge)!.get()).toEqual({
       version: "0.2.0",
       highlights: [{ title: "A <b>b</b>", line: "x" }],
+    })
+  })
+
+  it("keeps an icon named as Lucide names them, and drops another without dropping the highlight", async () => {
+    const { bridge } = whatsNewHost({
+      version: "0.2.0",
+      highlights: [
+        { title: "A", line: "a", icon: "gauge" },
+        { title: "B", line: "b", icon: "folder-git-2" },
+        { title: "C", line: "c", icon: 7 },
+        { title: "D", line: "d", icon: "-gauge" },
+      ],
+    })
+    expect(await desktopWhatsNew(bridge)!.get()).toEqual({
+      version: "0.2.0",
+      highlights: [
+        { title: "A", line: "a", icon: "gauge" },
+        { title: "B", line: "b", icon: "folder-git-2" },
+        { title: "C", line: "c" },
+        { title: "D", line: "d" },
+      ],
     })
   })
 
@@ -295,13 +315,10 @@ describe("desktop what's new", () => {
     expect(heard).toEqual(answers.map(() => undefined))
   })
 
-  it("dismisses and opens the release page through the host, once per call", () => {
+  it("dismisses through the host, once per call", () => {
     const { bridge, calls } = whatsNewHost(undefined)
-    const whatsNew = desktopWhatsNew(bridge)!
-    whatsNew.dismiss()
-    expect(calls).toEqual({ dismissed: 1, pages: 0 })
-    whatsNew.openPage()
-    expect(calls).toEqual({ dismissed: 1, pages: 1 })
+    desktopWhatsNew(bridge)!.dismiss()
+    expect(calls).toEqual({ dismissed: 1 })
   })
 })
 

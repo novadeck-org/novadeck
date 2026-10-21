@@ -27,12 +27,12 @@ export const createDemoUpdates = (
   readonly channel: () => UpdateChannel
   readonly whatsNew: DemoStates["whatsNew"]
   readonly showWhatsNew: (version: string, highlights?: WhatsNew["highlights"]) => void
-  readonly whatsNewCalls: { dismissed: number; pages: number; asked: number }
+  readonly whatsNewCalls: { dismissed: number; asked: number }
   // Has the host take this long to answer what is new.
   readonly delayWhatsNew: (ms: number) => void
 } => {
   let notes: WhatsNew | undefined
-  const whatsNewCalls = { dismissed: 0, pages: 0, asked: 0 }
+  const whatsNewCalls = { dismissed: 0, asked: 0 }
   let answerAfterMs = 0
   let waiting: UpdateOffer | undefined
   let channel: UpdateChannel = "stable"
@@ -105,7 +105,6 @@ export const createDemoUpdates = (
         whatsNewCalls.dismissed += 1
         notes = undefined
       },
-      openPage: () => void (whatsNewCalls.pages += 1),
     },
     showWhatsNew: (version, highlights = sampleHighlights) =>
       void (notes = { version, highlights }),
@@ -114,13 +113,22 @@ export const createDemoUpdates = (
   }
 }
 
-// Highlights as a release's notes name them: a short title and one plain line.
+// Highlights as a release's notes name them: a short title, one plain line and an icon.
 const sampleHighlights: WhatsNew["highlights"] = [
-  { title: "Word handles for terminals", line: 'Talk to @moth instead of "terminal 3".' },
-  { title: "Plans open beside the terminal", line: "Edit an agent's plan while it works." },
+  {
+    title: "Word handles for terminals",
+    line: 'Talk to @moth instead of "terminal 3".',
+    icon: "users",
+  },
+  {
+    title: "Plans open beside the terminal",
+    line: "Edit an agent's plan while it works.",
+    icon: "panel-right",
+  },
   {
     title: "Answer agents from the Inbox",
     line: "Reply to an agent without opening its terminal.",
+    icon: "inbox",
   },
 ]
 
