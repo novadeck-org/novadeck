@@ -46,11 +46,27 @@ export const MurmurAddon = ({
   readonly murmur: MurmurAddonValue | undefined
 }): React.JSX.Element => {
   const [confirming, setConfirming] = useState(false)
+  // What the dialog asks, kept after it closes so its words don't change while it fades: the
+  // whole uninstall, or only the model kept beside a verdict.
+  const [asking, setAsking] = useState<"uninstall" | "remove">("uninstall")
   // Set once the person confirms an uninstall, holding the failure then showing: the state
   // has no field for a removal under way, so the card waits for the engine to be gone, a
   // new failure to turn up, or the removal to settle (a repeat of the same failure).
   const [removing, setRemoving] = useState<{ readonly refused: Refusal | null } | null>(null)
-  if (removing && murmur && (!murmur.state.installed || murmur.state.refused !== removing.refused))
+  // The dialog asks about the card it opened on: a card that became another (an install
+  // elsewhere passed, or the model went) closes it, so it never confirms what it no longer is.
+  const shape = murmur ? `${murmur.state.installed}/${murmur.state.kept}` : ""
+  const [openedOn, setOpenedOn] = useState(shape)
+  if (openedOn !== shape) {
+    setOpenedOn(shape)
+    setConfirming(false)
+    setAsking("uninstall")
+  }
+  if (
+    removing &&
+    murmur &&
+    ((!murmur.state.installed && !murmur.state.kept) || murmur.state.refused !== removing.refused)
+  )
     setRemoving(null)
   if (!murmur) return <Note>{`${MURMUR_NAME} isn't available here.`}</Note>
   const { state, actions } = murmur
@@ -81,18 +97,68 @@ export const MurmurAddon = ({
   // Known not to run here, by the host or by an install: nothing to install, and why behind Details.
   // Files that stay beside the verdict (their removal failed) keep the installed card, with its
   // Uninstall; the host's word also never takes away an install that works.
+  const dialog = (
+    <ConfirmDialog
+      subject={confirming ? state : null}
+      title={() => (asking === "uninstall" ? `Uninstall ${MURMUR_NAME}?` : `Remove the model?`)}
+      description={(shown) =>
+        asking === "uninstall"
+          ? `The engine and the model are removed from this computer, freeing ${formatSize(murmurInstallSize(shown))}. You can install them again.`
+          : `The model is removed from this computer, freeing ${formatSize(shown.sizes.model)}. Checking again downloads it again.`
+      }
+      confirmLabel={asking === "uninstall" ? "Uninstall" : "Remove"}
+      cancelLabel="Cancel"
+      onConfirm={() => {
+        setConfirming(false)
+        setRemoving({ refused: state.refused })
+        void actions.uninstall().finally(() => setRemoving(null))
+      }}
+      onCancel={() => setConfirming(false)}
+      widthClassName="w-[min(380px,calc(100vw-32px))]"
+    />
+  )
   if (unsupported !== null && !installed)
     return (
-      <div className={settingsCardClasses}>
-        <div className={addonRowClasses}>
-          <span className={addonNoteClasses}>Not available on this computer</span>
+      <>
+        <div className={settingsCardClasses}>
+          <div className={addonRowClasses}>
+            <span className={addonNoteClasses}>Not available on this computer</span>
+          </div>
+          <AddonDetails
+            {...(recheck && {
+              action: {
+                label: "Check again",
+                onClick: actions.install,
+                disabled: removing !== null,
+              },
+            })}
+          >
+            {unsupported.reason}
+          </AddonDetails>
+          {state.kept && (
+            // A model downloaded earlier stays through a verdict, so it can be removed.
+            <AddonRow
+              scope="murmur"
+              id="remove-model"
+              label="Model"
+              description={`Downloaded earlier, ${formatSize(state.sizes.model)}.`}
+            >
+              <button
+                type="button"
+                className="button min-h-8 shrink-0 px-3 text-control"
+                disabled={removing !== null}
+                onClick={() => {
+                  setAsking("remove")
+                  setConfirming(true)
+                }}
+              >
+                {removing !== null ? "Removing…" : "Remove"}
+              </button>
+            </AddonRow>
+          )}
         </div>
-        <AddonDetails
-          {...(recheck && { action: { label: "Check again", onClick: actions.install } })}
-        >
-          {unsupported.reason}
-        </AddonDetails>
-      </div>
+        {dialog}
+      </>
     )
   if (!installed)
     return (
@@ -132,7 +198,9 @@ export const MurmurAddon = ({
               <span className={addonNoteClasses}>Not available on this computer</span>
             </div>
             <AddonDetails
-              {...(recheck && { action: { label: "Check again", onClick: actions.install } })}
+              {...(recheck && {
+                action: { label: "Check again", onClick: actions.install, disabled: busy },
+              })}
             >
               {unsupported?.reason ?? ""}
             </AddonDetails>
@@ -162,7 +230,10 @@ export const MurmurAddon = ({
             type="button"
             className="button min-h-8 shrink-0 px-3 text-control"
             disabled={busy}
-            onClick={() => setConfirming(true)}
+            onClick={() => {
+              setAsking("uninstall")
+              setConfirming(true)
+            }}
           >
             {busy ? "Removing…" : "Uninstall"}
           </button>
@@ -189,22 +260,7 @@ export const MurmurAddon = ({
           </div>
         )}
       </div>
-      <ConfirmDialog
-        subject={confirming ? state : null}
-        title={() => `Uninstall ${MURMUR_NAME}?`}
-        description={(shown) =>
-          `The engine and the model are removed from this computer, freeing ${formatSize(murmurInstallSize(shown))}. You can install them again.`
-        }
-        confirmLabel="Uninstall"
-        cancelLabel="Cancel"
-        onConfirm={() => {
-          setConfirming(false)
-          setRemoving({ refused: state.refused })
-          void actions.uninstall().finally(() => setRemoving(null))
-        }}
-        onCancel={() => setConfirming(false)}
-        widthClassName="w-[min(380px,calc(100vw-32px))]"
-      />
+      {dialog}
     </>
   )
 }

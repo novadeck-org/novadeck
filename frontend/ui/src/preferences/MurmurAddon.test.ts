@@ -14,6 +14,7 @@ const unchecked: MurmurState = {
   sizes: { engine: 34 * 1024 * 1024, model: 1222 * 1024 * 1024 },
   installing: null,
   check: null,
+  kept: false,
   unsupported: null,
   offers: 0,
   refused: null,
@@ -128,6 +129,90 @@ describe("murmur's card on a computer that can't run it", () => {
       source: "check" as const,
     },
   }
+
+  it("offers no Remove while no model is kept", () => {
+    const { container, unmount } = render(
+      createElement(MurmurAddon, { murmur: { state: unsupported, actions: actions() } }),
+    )
+    expect(button("Remove", container)).toBeUndefined()
+    unmount()
+  })
+
+  it("disables Check again while the kept model is being removed", async () => {
+    const removal = deferred()
+    const calls = actions()
+    calls.uninstall.mockImplementation(() => removal.promise)
+    const { container, unmount } = render(
+      createElement(MurmurAddon, {
+        murmur: { state: { ...unsupported, kept: true }, actions: calls },
+      }),
+    )
+    expect(button("Check again", container)?.disabled).toBe(false)
+    await act(async () => {
+      button("Remove", container)?.click()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      button("Remove", document.querySelector("[role=alertdialog]") ?? document)?.click()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    })
+    expect(button("Check again", container)?.disabled).toBe(true)
+    await act(async () => {
+      removal.resolve()
+      await removal.promise
+    })
+    unmount()
+  })
+
+  it("closes its dialog when the card becomes another, so it never removes a working install", async () => {
+    const calls = actions()
+    const kept = { ...unsupported, kept: true }
+    const { container, rerender, unmount } = render(
+      createElement(MurmurAddon, { murmur: { state: kept, actions: calls } }),
+    )
+    await act(async () => {
+      button("Remove", container)?.click()
+      await Promise.resolve()
+    })
+    expect(document.querySelector("[role=alertdialog]")).not.toBeNull()
+
+    // Another window's install passed: the card is the installed one now.
+    await rerender(
+      createElement(MurmurAddon, {
+        murmur: { state: { ...unchecked, enabled: true }, actions: calls },
+      }),
+    )
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    })
+
+    expect(document.querySelector("[role=alertdialog]")).toBeNull()
+    expect(calls.uninstall).not.toHaveBeenCalled()
+    unmount()
+  })
+
+  it("offers Remove for a kept model, which asks first and then uninstalls", async () => {
+    const calls = actions()
+    const { container, unmount } = render(
+      createElement(MurmurAddon, {
+        murmur: { state: { ...unsupported, kept: true }, actions: calls },
+      }),
+    )
+    // Check again stays beside it.
+    expect(container.textContent).toMatch(/Not available on this computer/)
+    await act(async () => {
+      button("Remove", container)?.click()
+      await Promise.resolve()
+    })
+    expect(calls.uninstall).not.toHaveBeenCalled()
+    const dialog = document.querySelector("[role=alertdialog]")
+    await act(async () => {
+      button("Remove", dialog ?? document)?.click()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    })
+    expect(calls.uninstall).toHaveBeenCalledOnce()
+    unmount()
+  })
 
   it("says Not available in place of Install, with the reason behind Details", () => {
     const calls = actions()

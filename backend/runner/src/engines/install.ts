@@ -55,10 +55,15 @@ export const fetchEngine = async (options: {
   await rm(archive, { force: true })
 }
 
-/** Removes everything in `directory`; the folder itself may be one the person chose. */
-export const removeContents = async (directory: string): Promise<void> => {
+/** Removes everything in `directory` but the entries named in `keep`; the folder itself may be one the person chose. */
+export const removeContents = async (
+  directory: string,
+  keep: readonly string[] = [],
+): Promise<void> => {
   const entries = await readdir(directory).catch(() => [])
   await Promise.all(
-    entries.map((entry) => rm(join(directory, entry), { recursive: true, force: true })),
+    entries
+      .filter((entry) => !keep.includes(entry))
+      .map((entry) => rm(join(directory, entry), { recursive: true, force: true })),
   )
 }
