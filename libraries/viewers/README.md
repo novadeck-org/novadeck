@@ -17,8 +17,11 @@ hand back as `saved` to the next viewer of the same thing.
   elsewhere.
 - `./code.css`: the code viewer's looks and the `.tok-*` highlighting classes. Its header
   lists the tokens a host sets to theme it (`--code-*`, `--syntax-*`).
-- `./image`: `mountImage`, an image fitted or at its actual size, its zoom kept in its
-  state with its place; `zoom()` and `onZoom` let a host draw the control.
+- `./image`: `mountImage`, an image fitted whole (never enlarged), or zoomed and moved on
+  the image itself: pinch or Ctrl+scroll zooms around the pointer, a scroll or a drag
+  moves it, a double-click goes to 100% and back, and keys do each. While it's zoomed, a
+  chip over it shows how far and takes it back to fit. Its zoom and the point at its centre
+  are kept in its state, so it reopens on the same view at any size; `zoom()` sets it.
 - `./image.css`: the image viewer's looks, themed through `--image-*`.
 - `./markdown`: `mountMarkdown`, a text formatted as a document and edited in place:
   formatting marks show on the lines being edited, tables edit cell by cell, task lists tick.
