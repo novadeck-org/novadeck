@@ -7,10 +7,12 @@ import {
   hide,
   leave,
   messagesKey,
+  minimize,
   moveSlot,
-  openTab,
+  raise,
   reopen,
   settle,
+  topOf,
   type Bar,
   type BarKey,
 } from "./companion-bar"
@@ -41,9 +43,14 @@ describe("a companion bar", () => {
   })
 
   context("when the person hides what the pane shows", () => {
-    it("closes the pane, so nothing takes its place", () => {
-      const hidden = hide(bar({ order: [plan, hero], tab: plan, open: true }), plan)
-      expect(hidden).toEqual({ order: [hero], hidden: [plan], tab: null, open: false })
+    it("closes the pane once nothing's behind it", () => {
+      const hidden = hide(bar({ order: [plan, hero], stack: [plan], open: true }), plan)
+      expect(hidden).toEqual({ order: [hero], hidden: [plan], stack: [], open: false })
+    })
+
+    it("uncovers what's open behind it", () => {
+      const hidden = hide(bar({ order: [plan, hero], stack: [hero, plan], open: true }), plan)
+      expect(hidden).toMatchObject({ stack: [hero], open: true })
     })
 
     it("comes back last when reopened", () => {
@@ -53,7 +60,7 @@ describe("a companion bar", () => {
 
   context("when something leaves", () => {
     it("goes from the order and from what's hidden, closing a pane open to it", () => {
-      expect(leave(bar({ order: [hero], tab: hero, open: true }), hero)).toEqual(emptyBar)
+      expect(leave(bar({ order: [hero], stack: [hero], open: true }), hero)).toEqual(emptyBar)
       expect(leave(bar({ hidden: [plan] }), plan).hidden).toEqual([])
     })
 
@@ -61,13 +68,43 @@ describe("a companion bar", () => {
       const before = bar({ order: [hero] })
       expect(leave(before, about)).toBe(before)
     })
+
+    it("leaves what's in front where it is when it was behind", () => {
+      const left = leave(bar({ order: [plan, hero], stack: [hero, plan], open: true }), hero)
+      expect(left).toMatchObject({ stack: [plan], open: true })
+    })
   })
 
-  it("opens and closes its pane", () => {
-    const opened = openTab(emptyBar, messagesKey)
-    expect(opened).toMatchObject({ tab: messagesKey, open: true })
-    expect(closePane(opened)).toMatchObject({ tab: messagesKey, open: false })
-    expect(closePane(emptyBar)).toBe(emptyBar)
+  context("when its pane opens to something", () => {
+    it("comes out with it on top, from wherever it was", () => {
+      const opened = raise(raise(emptyBar, plan), hero)
+      expect(opened).toMatchObject({ stack: [plan, hero], open: true })
+      expect(topOf(raise(opened, plan))).toBe(plan)
+      expect(raise(opened, hero)).toBe(opened)
+    })
+
+    it("hides, keeping what's open for when it comes back", () => {
+      const hidden = closePane(raise(raise(emptyBar, plan), hero))
+      expect(hidden).toMatchObject({ stack: [plan, hero], open: false })
+      expect(raise(hidden, hero)).toMatchObject({ stack: [plan, hero], open: true })
+      expect(closePane(emptyBar)).toBe(emptyBar)
+    })
+  })
+
+  context("when the person minimizes what the pane shows", () => {
+    it("uncovers what's behind it, keeping it on the bar", () => {
+      const opened = bar({ order: [plan, hero], stack: [plan, hero], open: true })
+      expect(minimize(opened, hero)).toEqual({ ...opened, stack: [plan] })
+    })
+
+    it("hides the pane once nothing's behind it", () => {
+      expect(minimize(raise(emptyBar, hero), hero)).toEqual({ ...emptyBar, open: false })
+    })
+
+    it("hides the pane when what it showed wasn't in its stack", () => {
+      const opened = bar({ stack: [plan], open: true })
+      expect(minimize(opened, hero)).toEqual({ ...opened, open: false })
+    })
   })
 
   context("when an icon is moved", () => {
@@ -84,16 +121,21 @@ describe("a companion bar", () => {
   })
 
   context("when settled against what's known", () => {
-    it("drops what's gone and closes a pane that showed it", () => {
+    it("drops what's gone, uncovering what was behind it", () => {
       const settled = settle(
-        bar({ order: [plan, hero], hidden: [about], tab: hero, open: true }),
+        bar({ order: [plan, hero], hidden: [about], stack: [plan, hero], open: true }),
         (key) => key === plan,
       )
-      expect(settled).toEqual({ order: [plan], hidden: [], tab: null, open: false })
+      expect(settled).toEqual({ order: [plan], hidden: [], stack: [plan], open: true })
+    })
+
+    it("closes a pane left with nothing open", () => {
+      const settled = settle(bar({ order: [hero], stack: [hero], open: true }), () => false)
+      expect(settled).toEqual(emptyBar)
     })
 
     it("keeps a bar that knows all it holds", () => {
-      const before = bar({ order: [plan], tab: plan, open: true })
+      const before = bar({ order: [plan], stack: [plan], open: true })
       expect(settle(before, () => true)).toBe(before)
     })
   })
