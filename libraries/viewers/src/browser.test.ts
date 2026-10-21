@@ -2,8 +2,12 @@ import "./browser.css"
 import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 
 import {
+  fadeMs,
+  freshenMs,
+  keepMs,
   mountBrowser,
   scrollWaitMs,
+  uncoverMs,
   type BrowserContent,
   type BrowserOptions,
   type Load,
@@ -541,6 +545,603 @@ describe("the browser viewer", () => {
       }
       viewer.restore(viewer.state())
       expect(set).toBe(0)
+    })
+  })
+
+  context("at rest", () => {
+    const url = "http://localhost:5173/"
+    const shot = "data:image/jpeg;base64,c2hvdA=="
+    const later = "data:image/jpeg;base64,bGF0ZXI="
+    // Its picture, and its page, while there is one.
+    const pictureOf = (host: HTMLElement) => host.querySelector<HTMLElement>(".browser-picture")
+    const settled = () => new Promise((resolve) => setTimeout(resolve, 0))
+    // A live page that rests as `pictures` come, each taking the next (none once they're
+    // out), attached as each of its views is made, recording what is asked of it.
+    const resting = ({
+      pictures = [shot],
+      content = { url },
+      saved,
+      awake,
+    }: {
+      pictures?: (string | undefined)[]
+      content?: BrowserContent
+      saved?: ViewerState
+      awake?: boolean
+    } = {}) => {
+      const host = hostIn()
+      // Clear of where the test's pointer rests, so it isn't under it.
+      host.style.marginTop = "400px"
+      const loads: Load[] = []
+      const places: Place[] = []
+      const calls: string[] = []
+      const at = { url: content.url, back: true, forward: false }
+      const taken: number[] = []
+      const viewer = mountBrowser(host, {
+        content,
+        label: "page",
+        live: true,
+        partition: "pages",
+        picture: async (id) => {
+          taken.push(id)
+          return pictures.shift()
+        },
+        on: { load: (load) => loads.push(load), navigate: (place) => places.push(place) },
+        ...(saved && { saved }),
+        ...(awake !== undefined && { awake }),
+      })
+      // Each view, attached as it's made, as Electron does it.
+      const ready = () => {
+        const page = pageOf(host)
+        if (!page || "getWebContentsId" in page) return page
+        attach(page, at, calls)
+        Object.assign(page, {
+          getWebContentsId: () => 7,
+          reloadIgnoringCache: () => calls.push("reload fresh"),
+          loadURL: (address: string) => {
+            calls.push(`load ${address}`)
+            return Promise.resolve()
+          },
+          executeJavaScript: (code: string) => {
+            calls.push(`run ${code}`)
+            return Promise.resolve(code === "[scrollX, scrollY]" ? [0, 640] : true)
+          },
+        })
+        return page
+      }
+      ready()
+      const fire = (type: string, fields?: Record<string, unknown>) =>
+        ready()!.dispatchEvent(event(type, fields))
+      return { host, viewer, at, calls, loads, places, taken, fire, ready }
+    }
+
+    it("takes a picture of the page and where it's scrolled, and shows it in its view's place", async () => {
+      const { host, viewer, calls, places, taken, fire } = resting()
+      fire("did-stop-loading")
+      expect(viewer.pictured()).toBe(false)
+      viewer.awake(false)
+      await settled()
+      expect(taken).toEqual([7])
+      expect(calls).toContain("run [scrollX, scrollY]")
+      expect(pageOf(host)).toBeNull()
+      expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(shot)
+      expect(pictureOf(host)!.querySelector("img")!.getAttribute("alt")).toBe("page")
+      expect(viewer.pictured()).toBe(true)
+      // Its history went with its view.
+      expect(places.at(-1)).toEqual({ url, back: false, forward: false })
+      expect(viewer.state()).toMatchObject({
+        browser: { picture: { src: shot, at: url }, scrolled: [0, 640] },
+      })
+    })
+
+    it("wakes under its picture, where it was scrolled, and lets the picture fade once there", async () => {
+      vi.useFakeTimers()
+      try {
+        const { host, viewer, calls, loads, fire, ready } = resting()
+        fire("did-stop-loading")
+        viewer.awake(false)
+        await vi.runAllTimersAsync()
+        calls.splice(0)
+        viewer.awake(true)
+        expect(pageOf(host)!.getAttribute("src")).toBe(url)
+        expect(loads.at(-1)).toBe("loading")
+        ready()
+        // Loading: the picture stays over it.
+        expect(pictureOf(host)).not.toBeNull()
+        fire("did-stop-loading")
+        expect(calls.some((call) => call.includes("scrollTo(0, 640)"))).toBe(true)
+        await vi.advanceTimersByTimeAsync(uncoverMs)
+        expect(pictureOf(host)!.hasAttribute("data-fading")).toBe(true)
+        await vi.advanceTimersByTimeAsync(fadeMs)
+        expect(pictureOf(host)).toBeNull()
+        // Woken, it's live again: back, forward and the rest work on it.
+        viewer.back()
+        expect(calls).toContain("back")
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("stays live when it can't be pictured, until a later rest can", async () => {
+      const { host, viewer, fire } = resting({ pictures: [undefined, shot] })
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      expect(pageOf(host)).not.toBeNull()
+      expect(viewer.pictured()).toBe(false)
+      viewer.awake(true)
+      viewer.awake(false)
+      await settled()
+      expect(pageOf(host)).toBeNull()
+      expect(viewer.pictured()).toBe(true)
+    })
+
+    it("rests once a load under way is done, unless a picture it has stands in", async () => {
+      const { host, viewer, taken, fire, ready } = resting({ pictures: [shot, later] })
+      // Its first load: nothing to stand in, so it rests once loaded.
+      viewer.awake(false)
+      await settled()
+      expect(taken).toEqual([])
+      expect(pageOf(host)).not.toBeNull()
+      fire("did-stop-loading")
+      await settled()
+      expect(pageOf(host)).toBeNull()
+      // Woken, then told to rest again mid-load: the picture it has stands in at once.
+      viewer.awake(true)
+      ready()
+      viewer.awake(false)
+      expect(pageOf(host)).toBeNull()
+      expect(taken).toHaveLength(1)
+      expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(shot)
+    })
+
+    it("doesn't rest as a picture taken while it's woken, or once a load began", async () => {
+      // Each rest takes one: the two it drops, and the one it rests as.
+      const { host, viewer, fire, ready } = resting({ pictures: [shot, later, later] })
+      fire("did-stop-loading")
+      viewer.awake(false)
+      viewer.awake(true)
+      await settled()
+      expect(pageOf(host)).not.toBeNull()
+      expect(viewer.pictured()).toBe(false)
+      // A show's load begins while its picture is taken: it rests once that's done.
+      viewer.awake(false)
+      viewer.update({ url, shown: 1 })
+      await settled()
+      expect(pageOf(host)).not.toBeNull()
+      ready()
+      fire("did-stop-loading")
+      await settled()
+      expect(pageOf(host)).toBeNull()
+      expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(later)
+    })
+
+    it("loads a show that came while it rested afresh once woken, then brings it into view", async () => {
+      const { host, viewer, calls, places, fire, ready } = resting()
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      viewer.update({ url, shown: 1, scroll: "#plans" })
+      // Not carried out yet: a viewer mounted for it before it wakes carries it out.
+      expect(viewer.state()).toMatchObject({ browser: { shown: 0 } })
+      expect(places.at(-1)?.url).toBe(url)
+      calls.splice(0)
+      viewer.awake(true)
+      ready()
+      fire("did-stop-loading")
+      // Past the cache, as a show again is; then the element, not where it was scrolled.
+      expect(calls).toEqual(["muted false", "reload fresh"])
+      fire("did-stop-loading")
+      expect(calls.filter((call) => call.startsWith("run "))).toHaveLength(1)
+      expect(calls.at(-1)).toContain(JSON.stringify("#plans"))
+      expect(viewer.state()).toMatchObject({ browser: { shown: 1 } })
+      expect(pageOf(host)).not.toBeNull()
+    })
+
+    it("goes to a new address it's given while it rests once woken", async () => {
+      const { host, viewer, fire } = resting()
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      viewer.update({ url: "https://example.com/" })
+      viewer.awake(true)
+      expect(pageOf(host)!.getAttribute("src")).toBe("https://example.com/")
+    })
+
+    it("reloads afresh once woken when asked to reload at rest", async () => {
+      const { viewer, calls, fire, ready } = resting()
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      viewer.reload()
+      calls.splice(0)
+      viewer.awake(true)
+      ready()
+      fire("did-stop-loading")
+      expect(calls).toContain("reload fresh")
+    })
+
+    it("starts at rest from its state, as its picture, and wakes where it was", async () => {
+      const first = resting()
+      first.at.url = `${url}work`
+      first.fire("did-navigate")
+      first.fire("did-stop-loading")
+      first.viewer.awake(false)
+      await settled()
+      const saved = first.viewer.state()
+      first.viewer.destroy()
+      const again = resting({ saved, awake: false })
+      expect(pageOf(again.host)).toBeNull()
+      expect(again.loads).toEqual(["loading", "ready"])
+      expect(again.places).toEqual([{ url: `${url}work`, back: false, forward: false }])
+      expect(pictureOf(again.host)!.querySelector("img")!.getAttribute("src")).toBe(shot)
+      again.viewer.awake(true)
+      expect(pageOf(again.host)!.getAttribute("src")).toBe(`${url}work`)
+      // Woken from the first, it's live under its picture until it's there.
+      const awake = resting({ saved })
+      expect(pageOf(awake.host)).not.toBeNull()
+      expect(pictureOf(awake.host)).not.toBeNull()
+    })
+
+    it("rests out of sight only as a picture from since the person was at it, asking for none", async () => {
+      const { host, viewer, taken, fire, ready } = resting({ pictures: [shot] })
+      fire("did-stop-loading")
+      host.style.display = "none"
+      viewer.awake(false)
+      await settled()
+      expect(taken).toEqual([])
+      expect(pageOf(host)).not.toBeNull()
+      host.style.display = "flex"
+      viewer.awake(false)
+      await settled()
+      viewer.awake(true)
+      ready()
+      // Mid-load out of sight, the person hasn't seen it live: its picture stands in.
+      viewer.awake(false)
+      expect(taken).toEqual([7])
+      expect(pageOf(host)).toBeNull()
+      expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(shot)
+      // Woken and loaded, the person may change it: a picture from before stands in for
+      // nothing, nor is it kept, until a new one is taken.
+      host.style.display = "flex"
+      viewer.awake(true)
+      ready()
+      fire("did-stop-loading")
+      expect(viewer.pictured()).toBe(false)
+      expect(viewer.state()).not.toHaveProperty("browser.picture")
+      host.style.display = "none"
+      viewer.awake(false)
+      await settled()
+      expect(pageOf(host)).not.toBeNull()
+    })
+
+    it("brings a show that came as it woke into view afresh, not where it was scrolled", async () => {
+      const { viewer, calls, fire, ready } = resting()
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      viewer.awake(true)
+      ready()
+      // Its wake's load is under way: the show's goes once it's done, past the cache.
+      viewer.update({ url, shown: 1, scroll: "#plans" })
+      calls.splice(0)
+      fire("did-stop-loading")
+      expect(calls).toContain("reload fresh")
+      fire("did-stop-loading")
+      const runs = calls.filter((call) => call.startsWith("run "))
+      expect(runs).toHaveLength(1)
+      expect(runs[0]).toContain(JSON.stringify("#plans"))
+    })
+
+    it("brings a show's element into view on waking when it rested while waiting for it", async () => {
+      const { viewer, calls, fire, ready } = resting({ content: { url, shown: 1, scroll: "#a" } })
+      // The page draws the element late: its show waits.
+      Object.assign(ready()!, {
+        executeJavaScript: (code: string) => {
+          calls.push(`run ${code}`)
+          return code === "[scrollX, scrollY]" ? Promise.resolve([0, 0]) : new Promise(() => {})
+        },
+      })
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      expect(viewer.state()).toMatchObject({ browser: { shown: 0 } })
+      viewer.awake(true)
+      ready()
+      calls.splice(0)
+      fire("did-stop-loading")
+      expect(calls.filter((call) => call.startsWith("run "))).toHaveLength(1)
+      expect(calls.at(-1)).toContain(JSON.stringify("#a"))
+    })
+
+    it("is pictured a while after each load, so it rests out of sight as it is", async () => {
+      vi.useFakeTimers()
+      try {
+        const { host, viewer, taken, fire } = resting({ pictures: [later] })
+        fire("did-stop-loading")
+        await vi.advanceTimersByTimeAsync(freshenMs)
+        expect(taken).toEqual([7])
+        host.style.display = "none"
+        viewer.awake(false)
+        await vi.advanceTimersByTimeAsync(0)
+        expect(pageOf(host)).toBeNull()
+        expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(later)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("is pictured again once an app moves within the page, and while awake", async () => {
+      vi.useFakeTimers()
+      try {
+        const { host, viewer, at, taken, fire } = resting({ pictures: [shot, later, later] })
+        fire("did-stop-loading")
+        await vi.advanceTimersByTimeAsync(freshenMs)
+        expect(taken).toHaveLength(1)
+        // An app's route: the picture is of where it was, until it's pictured again.
+        at.url = `${url}settings`
+        fire("did-navigate-in-page", { isMainFrame: true })
+        host.style.display = "none"
+        viewer.awake(false)
+        await vi.advanceTimersByTimeAsync(0)
+        expect(pageOf(host)).not.toBeNull()
+        host.style.display = "flex"
+        viewer.awake(true)
+        await vi.advanceTimersByTimeAsync(freshenMs)
+        expect(taken).toHaveLength(2)
+        await vi.advanceTimersByTimeAsync(keepMs)
+        expect(taken).toHaveLength(3)
+        host.style.display = "none"
+        viewer.awake(false)
+        await vi.advanceTimersByTimeAsync(0)
+        expect(pageOf(host)).toBeNull()
+        expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(later)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("isn't pictured while it has focus, as the person uses it", async () => {
+      vi.useFakeTimers()
+      try {
+        const { taken, fire, ready } = resting()
+        const page = ready()!
+        page.tabIndex = 0
+        page.focus()
+        fire("did-stop-loading")
+        await vi.advanceTimersByTimeAsync(freshenMs + keepMs)
+        expect(taken).toEqual([])
+        page.blur()
+        await vi.advanceTimersByTimeAsync(keepMs)
+        expect(taken).toEqual([7])
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("doesn't rest out of sight as a picture of another page", async () => {
+      const { host, viewer, at, fire, ready } = resting()
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      viewer.awake(true)
+      ready()
+      at.url = "https://example.com/"
+      fire("did-navigate")
+      host.style.display = "none"
+      viewer.awake(false)
+      expect(pageOf(host)).not.toBeNull()
+    })
+
+    it("lets its picture go over a woken page that didn't load", async () => {
+      vi.useFakeTimers()
+      try {
+        const { host, viewer, fire, ready } = resting()
+        fire("did-stop-loading")
+        viewer.awake(false)
+        await vi.advanceTimersByTimeAsync(0)
+        viewer.awake(true)
+        ready()
+        fire("did-fail-load", { errorCode: -105, isMainFrame: true })
+        viewer.awake(false)
+        fire("did-stop-loading")
+        await vi.advanceTimersByTimeAsync(uncoverMs + fadeMs)
+        expect(pictureOf(host)).toBeNull()
+        expect(pageOf(host)).not.toBeNull()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("never covers itself with a picture of another page", async () => {
+      const first = resting()
+      first.fire("did-stop-loading")
+      first.viewer.awake(false)
+      await settled()
+      const saved = first.viewer.state() as unknown as {
+        browser: { picture: { src: string; at: string } }
+      }
+      first.viewer.destroy()
+      const elsewhere = {
+        browser: { ...saved.browser, at: `${url}other`, picture: saved.browser.picture },
+      } as unknown as ViewerState
+      for (const awake of [true, false]) {
+        const again = resting({ saved: elsewhere, awake })
+        expect(pageOf(again.host)!.getAttribute("src")).toBe(`${url}other`)
+        expect(pictureOf(again.host)).toBeNull()
+      }
+    })
+
+    it("opens live after being let go while the person was at it", async () => {
+      const first = resting()
+      first.fire("did-stop-loading")
+      first.viewer.awake(false)
+      await settled()
+      first.viewer.awake(true)
+      first.ready()
+      first.fire("did-stop-loading")
+      // At it, then let go, as a view switch does, before a new picture could be taken.
+      first.host.querySelector(".browser-viewer")!.dispatchEvent(new PointerEvent("pointerenter"))
+      const saved = first.viewer.state()
+      first.viewer.destroy()
+      const again = resting({ saved, awake: false })
+      expect(pageOf(again.host)).not.toBeNull()
+      expect(pictureOf(again.host)).toBeNull()
+      expect(again.viewer.pictured()).toBe(false)
+    })
+
+    it("takes its picture down when it's shown at another address while it rests", async () => {
+      const { host, viewer, fire } = resting()
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      viewer.update({ url: "https://example.com/", shown: 1 })
+      expect(pictureOf(host)).toBeNull()
+    })
+
+    it("rests all the same when the page doesn't say where it's scrolled", async () => {
+      vi.useFakeTimers()
+      try {
+        const { host, viewer, fire, ready } = resting()
+        Object.assign(ready()!, { executeJavaScript: () => new Promise(() => {}) })
+        fire("did-stop-loading")
+        viewer.awake(false)
+        await vi.advanceTimersByTimeAsync(1_000)
+        expect(pageOf(host)).toBeNull()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("goes only once its picture has decoded, and stays for a show that came meanwhile", async () => {
+      let decoded!: () => void
+      const decode = vi
+        .spyOn(HTMLImageElement.prototype, "decode")
+        .mockImplementation(() => new Promise<void>((resolve) => (decoded = resolve)))
+      try {
+        const { host, viewer, calls, loads, fire } = resting()
+        fire("did-stop-loading")
+        viewer.awake(false)
+        await settled()
+        // Its picture is up, not yet drawn: the view is still there.
+        expect(pictureOf(host)).not.toBeNull()
+        expect(pageOf(host)).not.toBeNull()
+        viewer.update({ url, shown: 1 })
+        expect(calls).toContain("reload fresh")
+        decoded()
+        await settled()
+        // The show's load goes on, and it rests once that's done.
+        expect(pageOf(host)).not.toBeNull()
+        expect(loads.at(-1)).toBe("loading")
+      } finally {
+        decode.mockRestore()
+      }
+    })
+
+    it("keeps the picture last asked for, whatever arrives late", async () => {
+      vi.useFakeTimers()
+      try {
+        const answers: ((src: string) => void)[] = []
+        const host = hostIn()
+        host.style.marginTop = "400px"
+        const viewer = mountBrowser(host, {
+          content: { url },
+          label: "page",
+          live: true,
+          partition: "pages",
+          picture: () => new Promise((resolve) => answers.push(resolve)),
+        })
+        const page = pageOf(host)
+        attach(page, { url, back: false, forward: false })
+        Object.assign(page, {
+          getWebContentsId: () => 7,
+          executeJavaScript: () => Promise.resolve([0, 0]),
+        })
+        page.dispatchEvent(event("did-stop-loading"))
+        await vi.advanceTimersByTimeAsync(freshenMs)
+        await vi.advanceTimersByTimeAsync(keepMs)
+        expect(answers).toHaveLength(2)
+        answers[1]!(later)
+        await vi.advanceTimersByTimeAsync(0)
+        answers[0]!(shot)
+        await vi.advanceTimersByTimeAsync(0)
+        expect(viewer.state()).toMatchObject({ browser: { picture: { src: later } } })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("counts a minimized window as out of sight", async () => {
+      const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden")
+      try {
+        const { host, viewer, taken, fire } = resting()
+        fire("did-stop-loading")
+        viewer.awake(false)
+        await settled()
+        expect(taken).toEqual([])
+        expect(pageOf(host)).not.toBeNull()
+      } finally {
+        visibility.mockRestore()
+      }
+    })
+
+    it("counts focus moving into the live page as the person at it", async () => {
+      vi.useFakeTimers()
+      try {
+        const { viewer, fire, ready } = resting()
+        const page = ready()!
+        page.tabIndex = 0
+        fire("did-stop-loading")
+        // Pictured since, while the person was elsewhere.
+        await vi.advanceTimersByTimeAsync(freshenMs)
+        expect(viewer.pictured()).toBe(true)
+        page.focus()
+        expect(viewer.pictured()).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("counts focus in the live page as the person at it, and hands the picture's focus on", async () => {
+      vi.useFakeTimers()
+      try {
+        const { host, viewer, fire, ready } = resting()
+        fire("did-stop-loading")
+        viewer.awake(false)
+        await vi.advanceTimersByTimeAsync(0)
+        // Focused by keyboard at rest, it wakes, and focus goes on to the page.
+        pictureOf(host)!.focus()
+        viewer.awake(true)
+        const page = ready()!
+        page.tabIndex = 0
+        fire("did-stop-loading")
+        await vi.advanceTimersByTimeAsync(uncoverMs + fadeMs + 2_000)
+        expect(document.activeElement).toBe(page)
+        expect(viewer.pictured()).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("stays live without a way to take a picture, or when it didn't load", async () => {
+      const host = hostIn()
+      const viewer = mountBrowser(host, {
+        content: { url },
+        label: "page",
+        live: true,
+        partition: "pages",
+      })
+      attach(pageOf(host), { url, back: false, forward: false })
+      pageOf(host).dispatchEvent(event("did-stop-loading"))
+      viewer.awake(false)
+      await settled()
+      expect(pageOf(host)).not.toBeNull()
+      const failing = resting()
+      failing.fire("did-fail-load", { errorCode: -105, isMainFrame: true })
+      failing.fire("did-stop-loading")
+      failing.viewer.awake(false)
+      await settled()
+      expect(failing.taken).toEqual([])
+      expect(pageOf(failing.host)).not.toBeNull()
     })
   })
 

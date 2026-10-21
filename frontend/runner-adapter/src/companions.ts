@@ -72,8 +72,15 @@ const gone: ItemContent = { state: "unavailable", reason: "gone", size: null }
 
 export const createRunnerCompanions = (
   runner: Pick<Runner["companions"], "content" | "attach" | "save">,
-  { livePages = false }: { readonly livePages?: boolean } = {},
+  {
+    livePages = false,
+    picture,
+  }: {
+    readonly livePages?: boolean
+    readonly picture?: Companions["picture"]
+  } = {},
 ): Companions => ({
+  ...(livePages && picture ? { picture } : {}),
   follow: (_target, itemId, { reveal }, on) => {
     let stream: ReturnType<typeof runner.content> | undefined
     let stopped = false

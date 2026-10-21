@@ -3,6 +3,7 @@ import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { createLucideIcon, Minus, X } from "lucide-react"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
+import { AwakeContext, useWakeful } from "./awake"
 import type { BarMember } from "./bar"
 import type { MailHandle } from "./panes/messages/mail"
 import type { LookContext } from "./registration"
@@ -98,6 +99,41 @@ const MemberTab = ({
 
 // How many of what's behind peek out above what the pane shows.
 const peeking = 2
+
+// What the pane shows, on its sheet, which plays its entry once; awake while the person is
+// at it (see ./awake), each of its own.
+const Sheet = ({
+  entry,
+  onPlayed,
+  children,
+}: {
+  entry: Entry | undefined
+  onPlayed: () => void
+  children: ReactNode
+}): React.JSX.Element => {
+  const { awake, ref, on } = useWakeful()
+  return (
+    <div
+      className="plan-sheet"
+      data-entry={entry}
+      {...on}
+      onAnimationEnd={(event) => {
+        if (event.target === event.currentTarget) onPlayed()
+      }}
+      // Cut short, as when its terminal is hidden mid-way: done all the same.
+      ref={(element) => {
+        ref(element)
+        const undo = whenCut(onPlayed)(element)
+        return () => {
+          ref(null)
+          undo?.()
+        }
+      }}
+    >
+      <AwakeContext value={awake}>{children}</AwakeContext>
+    </div>
+  )
+}
 
 // Calls `done` when an animation on the element itself is cut short, as by its terminal
 // being hidden mid-way, which React has no prop for.
@@ -345,17 +381,8 @@ export const CompanionPane = ({
             <div className="artifact-status">Pick what to show from the taskbar.</div>
           )
         ) : (
-          <div
-            key={member.key}
-            className="plan-sheet"
-            data-entry={leaving ? undefined : entry.how}
-            // Played once: a hidden terminal shown again doesn't play it again.
-            onAnimationEnd={(event) => {
-              if (event.target === event.currentTarget) played()
-            }}
-            // Cut short, as when its terminal is hidden mid-way: done all the same.
-            ref={whenCut(played)}
-          >
+          // Played once: a hidden terminal shown again doesn't play it again.
+          <Sheet key={member.key} entry={leaving ? undefined : entry.how} onPlayed={played}>
             {member.kind === "item" && member.placed ? (
               <div className="placed-tab">
                 <p className="placed-from">From {originOf(member) ?? "another terminal"}</p>
@@ -364,7 +391,7 @@ export const CompanionPane = ({
             ) : (
               tab
             )}
-          </div>
+          </Sheet>
         )}
       </section>
     </>
