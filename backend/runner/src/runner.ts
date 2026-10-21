@@ -31,6 +31,12 @@ const log = logs.for("runner")
 export type RunnerOptions = {
   /** SQLite file for project and session metadata; in memory when omitted. */
   database?: string
+  /**
+   * The 32-byte key saved transcripts are encrypted with, or null where none can be kept
+   * safe, as the desktop app's main process unwraps it from the system's keychain. Without
+   * one no transcript is saved or shown again.
+   */
+  transcriptKey?: Promise<Uint8Array | null>
   /** Terminal limits; the number of terminals is unlimited unless `maxTerminals` is set. */
   terminals?: TerminalOptions
   /**
