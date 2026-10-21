@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
-import { devNull, tmpdir } from "node:os"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import {
@@ -990,11 +990,17 @@ describe("what the pane tells of a page", () => {
   })
 })
 
+// Windows names a folder in any case, and git may spell it otherwise than the system does.
+const folder = (path: string): string => (process.platform === "win32" ? path.toLowerCase() : path)
+
 describe.skipIf(!gitInstalled)("the changes of a repository", () => {
   /** A repository with one commit and a change on top of it, and a terminal working in it. */
   const repository = (fixture: Fixture) => {
     const root = join(fixture.directory, "work")
     mkdirSync(root)
+    // A global configuration of its own, beside the repository: git opens no null device on Windows.
+    const config = join(fixture.directory, "gitconfig")
+    writeFileSync(config, "[core]\n\tautocrlf = false\n")
     const git = (...args: string[]) =>
       execFileSync(
         "git",
@@ -1007,9 +1013,11 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
           "commit.gpgsign=false",
           ...args,
         ],
-        { cwd: root, env: { ...process.env, GIT_CONFIG_GLOBAL: devNull } },
+        { cwd: root, env: { ...process.env, GIT_CONFIG_GLOBAL: config, GIT_CONFIG_NOSYSTEM: "1" } },
       )
     git("init", "--quiet")
+    // The reader runs with the person's configuration, which may convert line endings.
+    git("config", "core.autocrlf", "false")
     writeFileSync(join(root, "a.txt"), "one\n")
     git("add", "-A")
     git("commit", "--quiet", "-m", "base")
@@ -1024,9 +1032,9 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     const first = await fixture.items.show(place, { changes: {} })
     expect(first).toMatchObject({ ok: true, kind: "changes", again: false })
     const item = fixture.items.bar(place.terminalId)[0]
+    expect(folder(item?.path ?? "")).toBe(folder(root))
     expect(item).toMatchObject({
       kind: "changes",
-      path: root,
       url: null,
       lines: null,
       name: "Changes · work",
@@ -1039,7 +1047,9 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     expect(fixture.items.bar(place.terminalId)).toMatchObject([
       { version: 2, detail: "1 file · +2 −0" },
     ])
-    expect(fixture.items.listing(place.terminalId)).toContain(`changes "My work": ${root}`)
+    expect(folder(fixture.items.listing(place.terminalId))).toContain(
+      folder(`changes "My work": ${root}`),
+    )
     await expect(fixture.items.dismiss(place, { changes: {} })).resolves.toMatchObject({
       ok: true,
       kind: "changes",
@@ -1056,7 +1066,12 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     const itemId = shown.ok ? shown.id : ""
     const stream = fixture.items.content(itemId, false)
     const first = await next(stream)
-    expect(first).toMatchObject({ state: "ready", content: { kind: "changes", root } })
+    expect(first).toMatchObject({ state: "ready", content: { kind: "changes" } })
+    expect(
+      folder(
+        first?.state === "ready" && first.content.kind === "changes" ? first.content.root : "",
+      ),
+    ).toBe(folder(root))
     expect(itemContent.parse(first)).toEqual(first)
     // Several reads pass with nothing new, and none of them yields.
     await new Promise((resolve) => setTimeout(resolve, 100))

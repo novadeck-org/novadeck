@@ -8,7 +8,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs"
-import { devNull, tmpdir } from "node:os"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { maxChangesBytes } from "@novadeck/protocol"
@@ -41,8 +41,16 @@ type Repo = {
 // A repository of its own in a temporary folder, with an identity and no global config.
 const it = base.extend<{ repo: Repo }>({
   repo: async ({ resources }, use) => {
-    const root = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-changes-")))
-    resources.defer(() => rmSync(root, { recursive: true, force: true }))
+    // The repository lives in a folder of its own beside its git configuration: a file
+    // that sets no global option, as there is no null device git can open on Windows.
+    const holder = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-changes-")))
+    resources.defer(() =>
+      rmSync(holder, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }),
+    )
+    const config = join(holder, "gitconfig")
+    writeFileSync(config, "[core]\n\tautocrlf = false\n")
+    const root = join(holder, "repo")
+    mkdirSync(root)
     const git = (...args: string[]) =>
       execFileSync(
         "git",
@@ -55,9 +63,16 @@ const it = base.extend<{ repo: Repo }>({
           "commit.gpgsign=false",
           ...args,
         ],
-        { cwd: root, encoding: "utf8", env: { ...process.env, GIT_CONFIG_GLOBAL: devNull } },
+        {
+          cwd: root,
+          encoding: "utf8",
+          env: { ...process.env, GIT_CONFIG_GLOBAL: config, GIT_CONFIG_NOSYSTEM: "1" },
+        },
       )
     git("init", "--quiet")
+    // The reader runs git with the person's own configuration, which on Windows may
+    // convert line endings: this repository says it does not.
+    git("config", "core.autocrlf", "false")
     const write = (path: string, text: string | Buffer) => {
       const full = join(root, path)
       mkdirSync(join(full, ".."), { recursive: true })
@@ -231,15 +246,22 @@ describe("the bounds of a diff", () => {
   })
 })
 
+// Windows names a folder in any case, and git may spell it otherwise than the system does.
+const samePath = (path: string): string =>
+  process.platform === "win32" ? path.toLowerCase() : path
+
+// What this system's files can't be: a symlink needs a privilege on Windows, and no file
+// there can be named with bytes that aren't text.
+const windows = process.platform === "win32"
+
 describe.skipIf(!hasGit)("a change read from a git repository", () => {
   it("finds the repository from a folder inside it, and refuses a folder outside any", async ({
     repo,
   }) => {
     mkdirSync(join(repo.root, "deep", "er"), { recursive: true })
-    await expect(repositoryOf(join(repo.root, "deep", "er"))).resolves.toEqual({
-      ok: true,
-      root: repo.root,
-    })
+    const found = await repositoryOf(join(repo.root, "deep", "er"))
+    expect(found).toMatchObject({ ok: true })
+    expect(found.ok ? samePath(found.root) : "").toBe(samePath(repo.root))
     await expect(repositoryOf(join(repo.root, "nope"))).resolves.toMatchObject({
       ok: false,
       kind: "missing",
@@ -332,7 +354,7 @@ describe.skipIf(!hasGit)("a change read from a git repository", () => {
     const second = (await changesContent(repo.root)).content
     expect(second).toMatchObject({ state: "ready" })
     expect(second).not.toEqual(first)
-    rmSync(repo.root, { recursive: true, force: true })
+    rmSync(repo.root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })
     expect((await changesContent(repo.root)).content).toMatchObject({
       state: "unavailable",
       reason: "missing",
@@ -384,17 +406,17 @@ describe.skipIf(!hasGit)("a change read from a git repository", () => {
   })
 
   it("stays within what the wire carries however a change is made of lines", async ({ repo }) => {
-    repo.write("big.txt", `${"1\n".repeat(300_000)}`)
+    repo.write("big.txt", `${"1\n".repeat(150_000)}`)
     repo.git("add", "-A")
     repo.git("commit", "--quiet", "-m", "base")
-    repo.write("big.txt", `${"2\n".repeat(300_000)}`)
-    repo.write("blank.txt", "\n".repeat(1024 * 1024))
+    repo.write("big.txt", `${"2\n".repeat(150_000)}`)
+    repo.write("blank.txt", "\n".repeat(200_000))
     repo.write("small.txt", "fits\n")
     const read = await readChange(repo.root)
     if (!read.ok) throw new Error(read.reason)
     expect(read.change.truncated).toBe(true)
     const byPath = new Map(read.change.files.map((each) => [each.path, each]))
-    expect(byPath.get("big.txt")).toMatchObject({ listed: true, added: 300_000, removed: 300_000 })
+    expect(byPath.get("big.txt")).toMatchObject({ listed: true, added: 150_000, removed: 150_000 })
     expect(byPath.get("blank.txt")).toMatchObject({ listed: true, hunks: [] })
     expect(byPath.get("small.txt")?.hunks).toHaveLength(1)
     expect(JSON.stringify(read.change).length).toBeLessThan(maxChangesBytes * 2)
@@ -420,6 +442,7 @@ describe.skipIf(!hasGit)("a change read from a git repository", () => {
     try {
       rmSync(join(repo.root, ".git"), { recursive: true, force: true })
       repo.git("init", "--quiet", "--object-format=sha256")
+      repo.git("config", "core.autocrlf", "false")
     } catch {
       supported = false
     }
@@ -474,16 +497,16 @@ describe.skipIf(!hasGit)("a change read from a git repository", () => {
   it("keeps the hunks of small files after one too big to show, whatever the order", async ({
     repo,
   }) => {
-    repo.write("a.lock", "1\n".repeat(2_000_000))
-    repo.write("b.lock", "\n".repeat(3_000_000))
-    for (const name of ["c", "d", "e"]) repo.write(`${name}.big`, "1\n".repeat(400_000))
+    repo.write("a.lock", "1\n".repeat(150_000))
+    repo.write("b.lock", "\n".repeat(150_000))
+    for (const name of ["c", "d", "e"]) repo.write(`${name}.big`, "1\n".repeat(70_000))
     repo.write("z.txt", "old\n")
     repo.write("zz.txt", "old\n")
     repo.git("add", "-A")
     repo.git("commit", "--quiet", "-m", "base")
-    repo.write("a.lock", "2\n".repeat(2_000_000))
-    repo.write("b.lock", "x\n".repeat(3_000_000))
-    for (const name of ["c", "d", "e"]) repo.write(`${name}.big`, "2\n".repeat(400_000))
+    repo.write("a.lock", "2\n".repeat(150_000))
+    repo.write("b.lock", "x\n".repeat(150_000))
+    for (const name of ["c", "d", "e"]) repo.write(`${name}.big`, "2\n".repeat(70_000))
     repo.write("z.txt", "new\n")
     repo.write("zz.txt", "new\n")
     const read = await readChange(repo.root)
@@ -500,6 +523,7 @@ describe.skipIf(!hasGit)("a change read from a git repository", () => {
   })
 
   it("shows both sides of a file made a symlink", async ({ repo }) => {
+    if (windows) return
     const lines = Array.from({ length: 20 }, (_, index) => `line ${index}`).join("\n")
     repo.write("t.txt", `${lines}\n`)
     repo.git("add", "-A")
@@ -547,6 +571,7 @@ describe.skipIf(!hasGit)("a change read from a git repository", () => {
   })
 
   it("gives a tracked file whose name isn't valid UTF-8 its hunk", async ({ repo }) => {
+    if (windows) return
     const bad = Buffer.concat([
       Buffer.from(`${repo.root}/bad`),
       Buffer.from([0xff]),

@@ -625,8 +625,10 @@ describe("the diff viewer", () => {
       const updated = performance.now()
       viewer.update(change(next))
       const update = performance.now() - updated
-      expect(state).toBeLessThan(100)
-      expect(update).toBeLessThan(150)
+      // Laying out every file took seconds here (1.3–9.5 s); the bounds catch that with room
+      // for a slow shared CI machine, where this takes 60–160 ms.
+      expect(state).toBeLessThan(500)
+      expect(update).toBeLessThan(750)
       viewer.destroy()
     })
   })
