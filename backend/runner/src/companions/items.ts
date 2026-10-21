@@ -180,6 +180,15 @@ export class CompanionItems {
   private readonly bound = new Map<string, string>()
   /** Plans the person closed, by session and key: their next version comes back quietly. */
   private readonly dismissed = new Set<string>()
+  /**
+   * The element each page's latest show brings into view, with that show's version: only
+   * that show carries it out, so it stays here rather than with the item, and goes with the
+   * next show or the item.
+   */
+  private readonly scrolls = new Map<
+    string,
+    { readonly version: number; readonly selector: string }
+  >()
   /** Plan observations, one after another, so two never add the same slot twice. */
   private observing: Promise<void> = Promise.resolve()
   private stopping = false
@@ -213,6 +222,9 @@ export class CompanionItems {
       kept = undefined
     }
     if (!kept) return failure("Novadeck couldn't show it.")
+    const scroll = "page" in request ? request.page.scroll : undefined
+    if (scroll === undefined) this.scrolls.delete(kept.item.id)
+    else this.scrolls.set(kept.item.id, { version: kept.item.version, selector: scroll })
     const moved = kept.item.terminalId !== place.terminalId
     return {
       ok: true,
@@ -641,8 +653,8 @@ export class CompanionItems {
     | { readonly ok: true; readonly pointer: Pointer; readonly tooLarge: boolean }
     | { readonly ok: false; readonly reason: string }
   > {
-    if ("url" in request) {
-      const page = pageAt(request.url)
+    if ("page" in request) {
+      const page = pageAt(request.page.url)
       if (!page.ok) return page
       const { href, host } = page.url
       return {
@@ -695,8 +707,8 @@ export class CompanionItems {
     place: TerminalPlace,
     request: DismissRequest,
   ): Promise<{ readonly ok: true; readonly key: string; readonly given: string } | PresentFailure> {
-    if ("url" in request) {
-      const page = pageAt(request.url)
+    if ("page" in request) {
+      const page = pageAt(request.page.url)
       return page.ok ? { ok: true, key: pageKey(page.url.href), given: page.url.href } : page
     }
     const key = await realPath(resolve(place.cwd, request.file.path))
@@ -815,12 +827,20 @@ export class CompanionItems {
     reveal: boolean,
     live: PlanText | undefined,
   ): Promise<ItemContent> {
-    if (item.kind === "page")
+    if (item.kind === "page") {
+      const scroll = this.scrolls.get(item.id)
       return Promise.resolve({
         state: "ready",
-        stamp: hashOf(item.url ?? ""),
-        content: { kind: "page", url: item.url ?? "" },
+        // Each show is content of its own.
+        stamp: hashOf(`${item.version} ${item.url ?? ""}`),
+        content: {
+          kind: "page",
+          url: item.url ?? "",
+          shown: item.version,
+          ...(scroll?.version === item.version && { scroll: scroll.selector }),
+        },
       })
+    }
     if (item.kind === "plan") return loadPlan(item, live)
     return loadFile(item, reveal)
   }
@@ -830,6 +850,7 @@ export class CompanionItems {
   }
 
   private removed(item: ItemRecord, window: WindowRecord | undefined): void {
+    this.scrolls.delete(item.id)
     for (const reader of this.readers.get(item.id) ?? []) reader.abort()
     this.emit(
       `item:${item.id}`,

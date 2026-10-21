@@ -84,7 +84,11 @@ describe("the runner's companion content", () => {
   it("loads a page live where the host can", async () => {
     const app = following({ livePages: true })
     app.follow()
-    app.push({ state: "ready", stamp: "1", content: { kind: "page", url: "http://localhost/" } })
+    app.push({
+      state: "ready",
+      stamp: "1",
+      content: { kind: "page", url: "http://localhost/", shown: 1 },
+    })
     await settle()
     expect(app.seen[0]).toMatchObject({ content: { kind: "page", live: true } })
   })

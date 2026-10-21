@@ -1028,7 +1028,9 @@ one from an earlier runner.
     with a reason and the file's size where known: `missing`, `unreadable`, `not-a-file`,
     `too-large` (an image over 8 MiB), `binary` (a NUL byte in its first 8 KiB), `held`
     (a file that may hold secrets, unless `reveal`), or `gone` (a plan no longer there).
-    An image is a data URL; a page its address, which the desktop app loads live. A text
+    An image is a data URL; a page its address, which the desktop app loads live, with
+    `shown`, its item's version, which each show raises and which loads it afresh, and the
+    `scroll` that show gave, a CSS selector to bring into view once it has loaded. A text
     file is the lines around those pointed at, read to the last of them and up to 4 MiB
     more to count the rest: `total` once it reached the file's end, else `truncated`;
     lines past the end are pulled back to it and marked `clamped`. A plan is its text, cut
@@ -1063,8 +1065,9 @@ one from an earlier runner.
     item's name again.
 
   An agent shows things with Novadeck's MCP `show` tool, which puts each on its own
-  terminal's bar; showing the same file or page there again updates it, with a later
-  version, while one moved elsewhere is never touched. `showing` lists what its bar holds.
+  terminal's bar; showing the same file or page again updates it, with a later version,
+  there or wherever the person moved it (a page's content carries it as `shown`, and
+  loads afresh for each). `showing` lists what its bar holds.
   Plans come from the agents' own records: Claude Code's are the Markdown files plan mode
   writes in a `plans` folder, and what `ExitPlanMode` presents (the file Claude Code
   names, or the plan's text); Codex's is the plan its Plan Mode proposes, as text;

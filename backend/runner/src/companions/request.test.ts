@@ -26,60 +26,84 @@ describe("a show request", () => {
   })
 
   it("names a page by its url, or a file, never both, and lines only inside a file", () => {
-    expect(readRequest({ url: "http://localhost:5173/", open: true })).toEqual({
+    expect(readRequest({ page: { url: "http://localhost:5173/" }, open: true })).toEqual({
       ok: true,
-      request: { url: "http://localhost:5173/", open: true },
+      request: { page: { url: "http://localhost:5173/" }, open: true },
     })
-    expect(readRequest({ url: "http://localhost:5173/", file: { path: "a.ts" } })).toEqual({
+    expect(
+      readRequest({ page: { url: "http://localhost:5173/" }, file: { path: "a.ts" } }),
+    ).toEqual({
       ok: false,
-      reason: "Give one source, file: { path } or url, not several.",
+      reason: "Give one source, file: { path } or page: { url }, not several.",
     })
-    expect(readRequest({ url: "http://a/", lines: { from: 1, to: 1 } })).toMatchObject({
+    expect(readRequest({ page: { url: "http://a/" }, lines: { from: 1, to: 1 } })).toMatchObject({
       ok: false,
       reason: 'The request\'s "lines" is not valid.',
     })
-    expect(readRequest({ url: "" })).toMatchObject({ ok: false })
+    expect(readRequest({ page: { url: "http://a/", lines: { from: 1, to: 1 } } })).toMatchObject({
+      ok: false,
+      reason: 'The request\'s "page.lines" is not valid.',
+    })
+    expect(readRequest({ page: { url: "" } })).toMatchObject({ ok: false })
     expect(readRequest({})).toEqual({
       ok: false,
-      reason: "Give one source, file: { path } or url.",
+      reason: "Give one source, file: { path } or page: { url }.",
     })
-    expect(readRequest({ path: "a.ts" })).toEqual({
-      ok: false,
-      reason: "Give one source, file: { path } or url.",
-    })
+    // The old flat address, as the old flat path, is told the shape.
+    for (const old of [{ path: "a.ts" }, { url: "http://localhost:5173/" }])
+      expect(readRequest(old)).toEqual({
+        ok: false,
+        reason: "Give one source, file: { path } or page: { url }.",
+      })
     expect(readRequest("a.ts")).toEqual({ ok: false, reason: "The request is not valid." })
-    expect(readRequest({ url: "http://a/", ['x"y'.repeat(40)]: 1 })).toEqual({
+    expect(readRequest({ page: { url: "http://a/" }, ['x"y'.repeat(40)]: 1 })).toEqual({
       ok: false,
       reason: `The request's ${JSON.stringify('x"y'.repeat(21) + "…")} is not valid.`,
     })
   })
+
+  it("takes a page's element to scroll to, trimmed, as one CSS selector", () => {
+    expect(readRequest({ page: { url: "http://a/", scroll: "  #pricing " } })).toEqual({
+      ok: true,
+      request: { page: { url: "http://a/", scroll: "#pricing" } },
+    })
+    for (const scroll of ["", "   ", "x".repeat(1025), 1])
+      expect(readRequest({ page: { url: "http://a/", scroll } })).toEqual({
+        ok: false,
+        reason: 'The request\'s "page.scroll" is not valid.',
+      })
+  })
 })
 
 describe("a close request", () => {
-  it("names the file or url given to show, and nothing else", () => {
+  it("names the file or page given to show, and nothing else", () => {
     expect(readDismissRequest({ file: { path: "a.ts" } })).toEqual({
       ok: true,
       request: { file: { path: "a.ts" } },
     })
-    expect(readDismissRequest({ url: "http://localhost:5173/" })).toEqual({
+    expect(readDismissRequest({ page: { url: "http://localhost:5173/" } })).toEqual({
       ok: true,
-      request: { url: "http://localhost:5173/" },
+      request: { page: { url: "http://localhost:5173/" } },
     })
     expect(readDismissRequest({ file: { path: "a.ts", lines: { from: 1, to: 1 } } })).toEqual({
       ok: false,
       reason: 'The request\'s "file.lines" is not valid.',
     })
+    expect(readDismissRequest({ page: { url: "http://a/", scroll: "#a" } })).toEqual({
+      ok: false,
+      reason: 'The request\'s "page.scroll" is not valid.',
+    })
     expect(readDismissRequest({ file: { path: "a.ts" }, open: true })).toEqual({
       ok: false,
       reason: 'The request\'s "open" is not valid.',
     })
-    expect(readDismissRequest({ file: { path: "a.ts" }, url: "http://a/" })).toEqual({
+    expect(readDismissRequest({ file: { path: "a.ts" }, page: { url: "http://a/" } })).toEqual({
       ok: false,
-      reason: "Give one source, file: { path } or url, not several.",
+      reason: "Give one source, file: { path } or page: { url }, not several.",
     })
     expect(readDismissRequest({})).toEqual({
       ok: false,
-      reason: "Give one source, file: { path } or url.",
+      reason: "Give one source, file: { path } or page: { url }.",
     })
   })
 })

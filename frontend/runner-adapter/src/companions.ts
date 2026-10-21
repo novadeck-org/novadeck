@@ -52,8 +52,14 @@ export const contentOf = (content: RunnerContent, livePages: boolean): ItemConte
   if (content.state === "unavailable") return content
   const { stamp } = content
   const shown = content.content
-  if (shown.kind === "page")
-    return { state: "ready", stamp, content: { ...shown, live: livePages } }
+  if (shown.kind === "page") {
+    const { scroll, ...page } = shown
+    return {
+      state: "ready",
+      stamp,
+      content: { ...page, ...(scroll !== undefined && { scroll }), live: livePages },
+    }
+  }
   if (shown.kind === "plan") {
     const { changedAt: _changed, ...plan } = shown
     return { state: "ready", stamp, content: plan }

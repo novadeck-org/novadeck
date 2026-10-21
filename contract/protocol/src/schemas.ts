@@ -563,7 +563,9 @@ export const planSaveResult = z.discriminatedUnion("saved", [
 // it. A file is the lines around the ones pointed at, numbered from `firstLine`, with
 // its line count where it was read to its end (`truncated` otherwise), and `clamped`
 // when the lines pointed at ran past its end. A page is its address, which the desktop
-// app loads live. Or why it can't be shown, with the file's size where known.
+// app loads live; `shown`, the item's version it was read at, counts the agent's shows,
+// each of which loads it afresh, and `scroll` is the element that show brings into view.
+// Or why it can't be shown, with the file's size where known.
 export const itemContent = z.discriminatedUnion("state", [
   z.strictObject({
     state: z.literal("ready"),
@@ -581,7 +583,12 @@ export const itemContent = z.discriminatedUnion("state", [
         truncated: z.boolean(),
         clamped: z.boolean(),
       }),
-      z.strictObject({ kind: z.literal("page"), url: z.string().max(8192) }),
+      z.strictObject({
+        kind: z.literal("page"),
+        url: z.string().max(8192),
+        shown: z.int().min(1),
+        scroll: z.string().max(1024).optional(),
+      }),
       z.strictObject({
         kind: z.literal("plan"),
         text: z.string().max(256 * 1024),

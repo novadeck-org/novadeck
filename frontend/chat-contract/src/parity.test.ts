@@ -229,7 +229,9 @@ const novadeckTool = (tool: string, fields: Fields | null): ToolSummary | undefi
       }
     case "show":
     case "close": {
-      const url = text("url")
+      // A page by its address under page, since show and close took pages so.
+      const page = nested(fields?.page)
+      const url = page ? oneLine(textField(page, "url")) : ""
       const file = nested(fields?.file)
       const path = file ? oneLine(textField(file, "path")) : ""
       return {
@@ -692,6 +694,8 @@ const novadeckInputs = [
   { command: "pnpm dev" },
   { title: "t", cwd: "/a/b/c/d" },
   { to: "owl" },
+  { page: { url: "http://localhost:5173/" } },
+  { page: '{"url":"http://localhost:5173/"}' },
   { url: "http://localhost:5173/" },
   { file: { path: "/a/b/c/d/mock.png" } },
   { file: '{"path":"/a/b/c/d/mock.png"}' },

@@ -106,7 +106,7 @@ describe("what an agent closes", () => {
       file: { path: "a.ts", lines: { from: 1, to: 1 } },
     })
     await fixture.items.show(moth, {
-      url: "http://localhost:5173/",
+      page: { url: "http://localhost:5173/" },
       title: "Preview",
     })
     const { seen, stop } = watching(fixture.items)
@@ -115,7 +115,9 @@ describe("what an agent closes", () => {
       name: "a.ts",
       kind: "file",
     })
-    await expect(fixture.items.dismiss(moth, { url: "http://localhost:5173" })).resolves.toEqual({
+    await expect(
+      fixture.items.dismiss(moth, { page: { url: "http://localhost:5173" } }),
+    ).resolves.toEqual({
       ok: true,
       name: "Preview",
       kind: "page",
@@ -206,11 +208,11 @@ describe("what an agent closes", () => {
       ok: false,
       reason: 'Nothing is showing beside your terminal at "c.ts"; showing lists what is.',
     })
-    await expect(fixture.items.dismiss(moth, { url: "file:///etc/passwd" })).resolves.toMatchObject(
-      {
-        ok: false,
-      },
-    )
+    await expect(
+      fixture.items.dismiss(moth, { page: { url: "file:///etc/passwd" } }),
+    ).resolves.toMatchObject({
+      ok: false,
+    })
     expect(fixture.items.bar(moth.terminalId)).toHaveLength(2)
   })
 })
@@ -281,7 +283,7 @@ describe("what an agent shows", () => {
   }) => {
     const moth = fixture.terminal("moth")
     const site = await fixture.items.show(moth, {
-      url: "http://localhost:4323/download",
+      page: { url: "http://localhost:4323/download" },
     })
     const siteId = site.ok ? site.id : ""
     for (const url of [
@@ -292,13 +294,15 @@ describe("what an agent shows", () => {
       "http://[::]:4323/docs",
     ])
       // eslint-disable-next-line no-await-in-loop -- Each show updates what the one before kept.
-      await expect(fixture.items.show(moth, { url })).resolves.toMatchObject({
+      await expect(fixture.items.show(moth, { page: { url } })).resolves.toMatchObject({
         id: siteId,
         again: true,
       })
-    const artifact = await fixture.items.show(moth, { url: "https://claude.ai/artifact/A" })
+    const artifact = await fixture.items.show(moth, {
+      page: { url: "https://claude.ai/artifact/A" },
+    })
     await expect(
-      fixture.items.show(moth, { url: "https://claude.ai/artifact/A#opt-e" }),
+      fixture.items.show(moth, { page: { url: "https://claude.ai/artifact/A#opt-e" } }),
     ).resolves.toMatchObject({ id: artifact.ok ? artifact.id : "", again: true })
     // Another port or scheme of this machine, or another route elsewhere, is another page.
     for (const url of [
@@ -308,7 +312,9 @@ describe("what an agent shows", () => {
       "https://claude.ai/artifact/A?v=2",
     ])
       // eslint-disable-next-line no-await-in-loop -- Each show adds beside the one before.
-      await expect(fixture.items.show(moth, { url })).resolves.toMatchObject({ again: false })
+      await expect(fixture.items.show(moth, { page: { url } })).resolves.toMatchObject({
+        again: false,
+      })
     expect(fixture.items.bar(moth.terminalId)).toHaveLength(6)
     expect(fixture.items.bar(moth.terminalId)[0]).toMatchObject({
       id: siteId,
@@ -316,7 +322,7 @@ describe("what an agent shows", () => {
       version: 6,
     })
     await expect(
-      fixture.items.dismiss(moth, { url: "http://127.0.0.1:4323/elsewhere" }),
+      fixture.items.dismiss(moth, { page: { url: "http://127.0.0.1:4323/elsewhere" } }),
     ).resolves.toMatchObject({ ok: true, kind: "page" })
     expect(fixture.items.bar(moth.terminalId).map(({ id }) => id)).not.toContain(siteId)
   })
@@ -392,13 +398,15 @@ describe("what an agent shows", () => {
       tooLarge: true,
     })
     await expect(
-      fixture.items.show(moth, { url: "http://localhost:5173/", title: "Preview" }),
+      fixture.items.show(moth, { page: { url: "http://localhost:5173/" }, title: "Preview" }),
     ).resolves.toMatchObject({ ok: true, kind: "page", name: "Preview" })
     await expect(fixture.items.show(moth, { file: { path: "gone.txt" } })).resolves.toEqual({
       ok: false,
       reason: "That file doesn't exist.",
     })
-    await expect(fixture.items.show(moth, { url: "file:///etc/passwd" })).resolves.toMatchObject({
+    await expect(
+      fixture.items.show(moth, { page: { url: "file:///etc/passwd" } }),
+    ).resolves.toMatchObject({
       ok: false,
     })
     expect(fixture.items.bar(moth.terminalId)).toHaveLength(74)
@@ -423,7 +431,10 @@ describe("what an agent shows", () => {
       lines: { from: 40, to: 80 },
     })
     await fixture.items.attach({ terminalId: moth.terminalId, path: ".env" })
-    const page = await fixture.items.show(fox, { url: "http://localhost:5173/", title: "Preview" })
+    const page = await fixture.items.show(fox, {
+      page: { url: "http://localhost:5173/" },
+      title: "Preview",
+    })
     fixture.items.move(page.ok ? page.id : "", moth.terminalId)
     expect(fixture.items.listing(moth.terminalId)).toBe(
       [
@@ -626,10 +637,46 @@ describe("an item's content", () => {
   }) => {
     const moth = fixture.terminal("moth")
     const url = `http://localhost:5173/${"long/".repeat(60)}`
-    const shown = await fixture.items.show(moth, { url })
+    const shown = await fixture.items.show(moth, { page: { url } })
     const content = await fixture.items.load(shown.ok ? shown.id : "", false)
     expect(content).toMatchObject({ state: "ready", content: { kind: "page", url } })
     expect(itemContent.parse(content)).toEqual(content)
+  })
+
+  it("loads a page with the show it's from, and the scroll only that show gave", async ({
+    fixture,
+  }) => {
+    const moth = fixture.terminal("moth")
+    const url = "http://localhost:5173/"
+    const shown = await fixture.items.show(moth, { page: { url, scroll: "#pricing" } })
+    const itemId = shown.ok ? shown.id : ""
+    const first = await fixture.items.load(itemId, false)
+    expect(first).toEqual({
+      state: "ready",
+      stamp: expect.any(String),
+      content: { kind: "page", url, shown: 1, scroll: "#pricing" },
+    })
+    expect(itemContent.parse(first)).toEqual(first)
+    await fixture.items.show(moth, { page: { url } })
+    const second = await fixture.items.load(itemId, false)
+    expect(second).toEqual({
+      state: "ready",
+      stamp: expect.any(String),
+      content: { kind: "page", url, shown: 2 },
+    })
+    // Each show is content of its own, at the same address.
+    expect(second.state === "ready" && second.stamp).not.toBe(
+      first.state === "ready" && first.stamp,
+    )
+    await fixture.items.show(moth, { page: { url, scroll: "[data-section=faq]" } })
+    fixture.items.close(itemId)
+    const again = await fixture.items.show(moth, { page: { url } })
+    // A new item for the same page starts over.
+    await expect(fixture.items.load(again.ok ? again.id : "", false)).resolves.toEqual({
+      state: "ready",
+      stamp: expect.any(String),
+      content: { kind: "page", url, shown: 1 },
+    })
   })
 
   it("holds a file that may hold secrets until revealed", async ({ fixture }) => {

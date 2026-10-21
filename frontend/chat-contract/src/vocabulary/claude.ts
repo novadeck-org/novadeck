@@ -157,7 +157,7 @@ export const claude: readonly { name: string; records: readonly object[] }[] = [
         [`${novadeck}open_terminal`, { command: "npm run dev", title: "dev" }, "Opened 03"],
         [`${novadeck}close_terminal`, { to: "builder" }, "Closed"],
         [`${novadeck}close_terminal`, {}, "Closed"],
-        [`${novadeck}show`, { url: "http://localhost:5173" }, "Showing"],
+        [`${novadeck}show`, { page: { url: "http://localhost:5173" } }, "Showing"],
         [`${novadeck}show`, { file: { path: "/home/user/project/docs/plan.md" } }, "Showing"],
         [`${novadeck}close`, { file: { path: "/home/user/project/docs/plan.md" } }, "Closed"],
         [`${novadeck}showing`, {}, "Nothing"],
