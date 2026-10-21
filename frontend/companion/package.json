@@ -35,7 +35,7 @@
     "@novadeck/core": "workspace:*",
     "@novadeck/toolkit": "workspace:*",
     "@novadeck/viewers": "workspace:*",
-    "lucide-react": "^1.57.0",
+    "lucide-react": "^1.59.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
