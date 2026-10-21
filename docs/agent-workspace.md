@@ -473,9 +473,11 @@ with every safety check again at that time:
   outright), in calls of at most 20; the main process passes on at most 100 failed requests
   of a page view, from each origin, for each navigation of its main frame; and best effort,
   a failed call is dropped. A page at rest as its picture has no view, so it tells nothing
-  until it wakes: an agent's show wakes it, so each show's load is watched, but what breaks
-  later on a page nobody is at (a dev server's hot reload) goes untold until it wakes
-  again. Each wake loads the page afresh and tells again, which the runner keeps once per
+  until it wakes: an agent's show wakes it once its pane is on screen, so each show's load
+  is watched then, while one shown into a pane out of sight, or that no pane shows, waits
+  for it, and what breaks later on a page nobody is at (a dev server's hot reload) goes
+  untold until it wakes again. Errors count as the page logs them, so a framework's dev
+  warnings sent to `console.error` count too. Each wake loads the page afresh and tells again, which the runner keeps once per
   show. For a page on this machine the runner tells the agent at its next prompt.
 - **Saving** would be a new authorized plan-write operation with the stamp check above,
   scoped like `present`: the caller may write only the plan the terminal's agent keeps.

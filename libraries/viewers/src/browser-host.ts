@@ -185,7 +185,7 @@ export const maxForwardedRequests = 100
 export const watchPageRequests = (
   pages: Session,
   report: (contentsId: number, failure: PageRequestFailure) => void,
-): void => {
+): { readonly forget: (contentsId: number) => void } => {
   // By page view, then origin.
   const told = new Map<number, Map<string, number>>()
   const tell = (
@@ -218,4 +218,6 @@ export const watchPageRequests = (
     navigating(details)
     if (details.error !== "net::ERR_ABORTED") tell(details, 0)
   })
+  // A page view gone, as each rest of a page drops one: its counts go with it.
+  return { forget: (contentsId) => void told.delete(contentsId) }
 }

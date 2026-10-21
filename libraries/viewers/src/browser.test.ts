@@ -1397,6 +1397,78 @@ describe("the browser viewer", () => {
       })
     })
 
+    context("across shows and rests", () => {
+      it("tells a load under way that a show took for its own with that show", () => {
+        const t = troubled()
+        t.page.dispatchEvent(event("did-start-loading"))
+        t.page.dispatchEvent(event("did-navigate"))
+        // Shown again before its first load is done: that load is the new show's.
+        t.viewer.update({ url: `${origin}/`, shown: 2 })
+        t.log()
+        expect(t.shows).toEqual([2])
+      })
+
+      it("tells, after a rest, from the view its wake makes, with the show it wakes for", async () => {
+        const host = hostIn()
+        // Clear of where the test's pointer rests, so it isn't under it.
+        host.style.marginTop = "400px"
+        const shows: number[] = []
+        const viewer = mountBrowser(host, {
+          content: { url: `${origin}/`, shown: 1 },
+          label: "page",
+          live: true,
+          partition: "pages",
+          picture: async () => "data:image/jpeg;base64,c2hvdA==",
+          on: { trouble: (_trouble, shown) => shows.push(shown) },
+        })
+        // Each view, attached as it's made, as Electron does it.
+        const ready = (): HTMLElement => {
+          const page = pageOf(host)
+          attach(page, { url: `${origin}/`, back: false, forward: false })
+          Object.assign(page, {
+            getWebContentsId: () => contentsId,
+            reloadIgnoringCache: () => undefined,
+            loadURL: () => Promise.resolve(),
+            executeJavaScript: (code: string) =>
+              Promise.resolve(code === "[scrollX, scrollY]" ? [0, 0] : true),
+          })
+          return page
+        }
+        const first = ready()
+        first.dispatchEvent(event("did-navigate"))
+        first.dispatchEvent(event("did-stop-loading"))
+        viewer.awake(false)
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(host.querySelector("webview")).toBeNull()
+        // The old view is gone: what is said of it now reaches nothing.
+        first.dispatchEvent(
+          event("console-message", {
+            level: 3,
+            message: "late",
+            line: 1,
+            sourceId: `${origin}/a.js`,
+          }),
+        )
+        expect(shows).toEqual([])
+        viewer.update({ url: `${origin}/`, shown: 2 })
+        viewer.awake(true)
+        const woken = ready()
+        expect(woken).not.toBe(first)
+        woken.dispatchEvent(event("did-start-loading"))
+        woken.dispatchEvent(event("did-navigate"))
+        woken.dispatchEvent(
+          event("console-message", {
+            level: 3,
+            message: "boom",
+            line: 1,
+            sourceId: `${origin}/a.js`,
+          }),
+        )
+        expect(shows).toEqual([2])
+        viewer.destroy()
+      })
+    })
+
     context("with a cap on each document", () => {
       it("reports at most 20 troubles of any kind, and more for the next document", () => {
         const t = troubled()
@@ -1433,9 +1505,11 @@ describe("the browser viewer", () => {
     context("with the show the document carries", () => {
       it("tells the show of the document, not of one still loading", () => {
         const t = troubled({ url: `${origin}/`, shown: 1 })
+        t.page.dispatchEvent(event("did-navigate"))
+        t.page.dispatchEvent(event("did-stop-loading"))
         t.log()
+        // Shown again once loaded: it loads again, and the old document logs till then.
         t.viewer.update({ url: `${origin}/`, shown: 2 })
-        // The old document, until the new one commits.
         t.log()
         t.page.dispatchEvent(event("did-navigate"))
         t.log()

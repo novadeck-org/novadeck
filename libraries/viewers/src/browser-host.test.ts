@@ -297,7 +297,7 @@ describe("the requests of a page view that fail", () => {
     let completed: ((details: Details & { statusCode: number }) => void) | undefined
     let errored: ((details: Details & { error: string }) => void) | undefined
     const told: [number, unknown][] = []
-    watchPageRequests(
+    const watching = watchPageRequests(
       {
         webRequest: {
           onCompleted: (listener: typeof completed) => (completed = listener),
@@ -308,6 +308,7 @@ describe("the requests of a page view that fail", () => {
     )
     return {
       told,
+      forget: watching.forget,
       completed: (statusCode: number, rest: Partial<Details> = {}) =>
         completed?.({
           url: "http://localhost/a",
@@ -390,6 +391,16 @@ describe("the requests of a page view that fail", () => {
     for (let each = 0; each < maxForwardedRequests + 10; each += 1)
       errored("net::ERR_FAILED", { url: `ws://localhost/socket-${each}` })
     expect(told).toHaveLength(2 * maxForwardedRequests + 1)
+  })
+
+  it("forget a page view once it's gone, as a rest of its page drops it", () => {
+    const { told, completed, forget } = watched()
+    for (let each = 0; each < maxForwardedRequests; each += 1) completed(500)
+    completed(500)
+    expect(told).toHaveLength(maxForwardedRequests)
+    forget(3)
+    completed(500)
+    expect(told).toHaveLength(maxForwardedRequests + 1)
   })
 
   it("are left out when no page view made them", () => {

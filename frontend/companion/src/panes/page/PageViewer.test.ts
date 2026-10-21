@@ -346,8 +346,10 @@ describe("a page beside a terminal", () => {
       const rendered = show({ kind: "page", url, shown: 1, live: true })
       const page = pageOf(rendered.container)
       attached(page)
+      fire(page, "did-navigate")
+      fire(page, "did-stop-loading")
       logs(page, "a")
-      // Shown again: the old document logs until the new one loads.
+      // Shown again once loaded: the old document logs until the new one loads.
       rendered.show({ kind: "page", url, shown: 2, live: true })
       logs(page, "old")
       fire(page, "did-navigate")

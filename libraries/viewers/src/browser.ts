@@ -576,8 +576,10 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     moving = false
     then = undefined
     if (first && load === "loading" && place.url === shown.url) {
-      // A wake's load isn't the show's: it goes again, afresh, once done.
+      // A wake's load isn't the show's: it goes again, afresh, once done. Else this load
+      // is the show's, and what goes wrong in it is told with it.
       if (woken) stale = true
+      else carried = showing
       return
     }
     // Where it is, as the page has it: an address it's on its way to isn't reloaded, as a
