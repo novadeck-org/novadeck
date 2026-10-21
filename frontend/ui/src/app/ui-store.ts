@@ -7,6 +7,7 @@ import {
   type AgentFinish,
   type SeenEnd,
 } from "@novadeck/core/agent-finish"
+import { defaultCanvasWindowSize, type WindowSize } from "@novadeck/core/layout/terminal-size"
 import type { Backend } from "@novadeck/core/port"
 import type { PortableState } from "@novadeck/core/portable"
 import {
@@ -20,6 +21,7 @@ import { createStore, type MutableStore, type Store } from "@novadeck/core/store
 import type { PreferencesValue, TerminalMetadata, Workspace } from "@novadeck/core/types"
 import type { UpdateOffer, WhatsNew } from "@novadeck/core/update"
 
+import { writeCanvasWindowSize } from "../layouts/canvas/window-size-storage"
 import { writePreferences } from "../preferences/preferences-storage"
 import { noArrangement, type ProjectArrangement } from "../projects/project-arrangement"
 import { writeProjectArrangement } from "../projects/project-arrangement-storage"
@@ -87,6 +89,8 @@ export type UiState = {
   readonly unread: Unread
   // How the person arranged the switcher's projects: their order and the pinned ones.
   readonly projectArrangement: ProjectArrangement
+  // The size the person last gave a window on Canvas, which new windows open at.
+  readonly canvasWindowSize: WindowSize
 }
 
 export type UiLocation = {
@@ -100,17 +104,19 @@ export type UiStore = MutableStore<UiState>
 
 export const createUiStore = (initial: UiState): UiStore => createStore(initial)
 
-// A fresh App's UI: only preferences and the collapsed sidebar come from storage.
+// A fresh App's UI: only the slices persisted below come from storage.
 export const initialUi = ({
   location,
   preferences,
   sidebarCollapsed = false,
   projectArrangement = noArrangement,
+  canvasWindowSize = defaultCanvasWindowSize,
 }: {
   location: UiLocation
   preferences: PreferencesValue
   sidebarCollapsed?: boolean
   projectArrangement?: ProjectArrangement
+  canvasWindowSize?: WindowSize
 }): UiState => ({
   location,
   preferences,
@@ -132,6 +138,7 @@ export const initialUi = ({
   pageFocused: true,
   unread: noUnread,
   projectArrangement,
+  canvasWindowSize,
 })
 
 export const updateShell = (ui: UiStore, change: (shell: ShellState) => ShellState): void =>
@@ -162,6 +169,7 @@ export const persistUi = (ui: Store<UiState>, workspace: Store<Workspace>): (() 
     persist(ui, (state) => state.preferences, writePreferences),
     persist(ui, (state) => state.shell.sidebarCollapsed, writeSidebarCollapsed),
     persist(ui, (state) => state.projectArrangement, writeProjectArrangement),
+    persist(ui, (state) => state.canvasWindowSize, writeCanvasWindowSize),
     persist(workspace, (snapshot) => currentState(snapshot).windowedView, writeWindowedView),
   ]
   return () => stops.forEach((stop) => stop())

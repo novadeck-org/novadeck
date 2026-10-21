@@ -1,20 +1,11 @@
 import { handleText, terminalLabel } from "@novadeck/core/handle"
 import { isWindow } from "@novadeck/core/roster"
 import { attentionText, doneText, terminalPhase, unheardText } from "@novadeck/core/terminal-ending"
-import type { Tile, WindowedView } from "@novadeck/core/types"
+import type { Tile } from "@novadeck/core/types"
 import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import {
-  Minimize2,
-  Scaling,
-  Shrink,
-  FoldHorizontal,
-  UnfoldHorizontal,
-  ArrowUpRight,
-  Mic,
-  X,
-} from "lucide-react"
+import { Minimize2, FoldHorizontal, UnfoldHorizontal, ArrowUpRight, Mic, X } from "lucide-react"
 import { useRef, type ReactNode } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
@@ -54,7 +45,7 @@ export type WindowShellProps = {
   switcher?: { onOpen: (button: HTMLButtonElement) => void }
   onFlyTo?: () => void
   onResizePreset?: (button: HTMLButtonElement) => void
-  resizeView?: WindowedView
+  // Grid's width preset: full width, or the width from before.
   large?: boolean
   windowed?: { destination: string; onOpen: () => void }
   onClose?: () => void
@@ -90,7 +81,6 @@ export const WindowShell = ({
   switcher,
   onFlyTo,
   onResizePreset,
-  resizeView = "canvas",
   large = false,
   onClose,
   windowed,
@@ -109,15 +99,8 @@ export const WindowShell = ({
   menu,
   titleExtra,
 }: WindowShellProps): React.JSX.Element => {
-  const resizeLabel = large
-    ? resizeView === "grid"
-      ? "Restore width"
-      : "Make compact"
-    : resizeView === "grid"
-      ? "Make full width"
-      : "Enlarge terminal"
-  const ResizeIcon =
-    resizeView === "grid" ? (large ? FoldHorizontal : UnfoldHorizontal) : large ? Shrink : Scaling
+  const resizeLabel = large ? "Restore width" : "Make full width"
+  const ResizeIcon = large ? FoldHorizontal : UnfoldHorizontal
   const Heading = compact ? "h2" : "h1"
   const focusHint = active ? ` · ${shortcutBindings().focus.display.join(" ")}` : ""
   const headerPress = useRef<{
@@ -325,17 +308,7 @@ export const WindowShell = ({
           </Tooltip>
         )}
         {onResizePreset && (
-          <Tooltip
-            content={
-              large
-                ? resizeView === "grid"
-                  ? "Restore width"
-                  : "Compact"
-                : resizeView === "grid"
-                  ? "Full width"
-                  : "Enlarge"
-            }
-          >
+          <Tooltip content={large ? "Restore width" : "Full width"}>
             <button
               className={`${headerActionClasses} terminal-view-action nodrag nopan`}
               aria-label={`${resizeLabel}: ${label}`}

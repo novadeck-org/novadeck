@@ -8,6 +8,7 @@ import { createRef, useEffect, useState, type ReactNode } from "react"
 import { useLocation, useNavigate, useNavigationType, type Location } from "react-router"
 
 import type { CanvasHandle } from "../layouts/canvas/types"
+import { readCanvasWindowSize } from "../layouts/canvas/window-size-storage"
 import { readPreferences } from "../preferences/preferences-storage"
 import { readProjectArrangement } from "../projects/project-arrangement-storage"
 import { readSidebarCollapsed, readWindowedView } from "../shell/shell-storage"
@@ -70,6 +71,7 @@ const createServices = (
       preferences,
       sidebarCollapsed: readSidebarCollapsed(),
       projectArrangement: readProjectArrangement(),
+      canvasWindowSize: readCanvasWindowSize(),
     }),
   )
   const chat = createChat()

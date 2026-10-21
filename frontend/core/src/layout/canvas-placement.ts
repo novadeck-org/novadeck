@@ -2,7 +2,6 @@ import type { CanvasLayout, Placed } from "../types"
 
 const gap = 60
 const defaultWidth = 550
-const newWidth = 600
 const snap = (value: number): number => Math.round(value / 24) * 24
 
 type CanvasBox = { position: { x: number; y: number }; width: number; height: number }
@@ -84,7 +83,7 @@ export const adjacentCanvasPosition = (
   active: Placed,
   terminals: readonly Placed[],
   layout: CanvasLayout,
-  height: number,
+  { width: newWidth, height }: { width: number; height: number },
 ): { x: number; y: number } => {
   const anchor = bounds(active, layout)
   const occupied = terminals.map((terminal) => bounds(terminal, layout))

@@ -1,6 +1,5 @@
 import { resetAnswering } from "@novadeck/chat/state"
 import { addCompactGridTerminal } from "@novadeck/core/layout/grid-placement"
-import { canvasNewTerminalSize } from "@novadeck/core/layout/terminal-size"
 import type { TerminalRequest } from "@novadeck/core/port"
 import { tilesOf } from "@novadeck/core/roster"
 import { activeProject, type WorkspaceAction } from "@novadeck/core/state"
@@ -386,7 +385,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
           target,
           terminal,
           gridLayouts: addCompactGridTerminal(tilesOf(roster), layout.grid, terminal),
-          canvasSize: canvasNewTerminalSize(effects.stageSize()),
+          canvasSize: ui.getSnapshot().canvasWindowSize,
         },
       ]
       navigateWorkspace(actions, { panel: "terminals" })
@@ -413,7 +412,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         target,
         terminal,
         gridLayouts: addCompactGridTerminal(tilesOf(roster), layout.grid, terminal),
-        canvasSize: canvasNewTerminalSize(effects.stageSize()),
+        canvasSize: ui.getSnapshot().canvasWindowSize,
         anchor: request.from,
         select: request.focus,
       }
