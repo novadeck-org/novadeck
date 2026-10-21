@@ -1,3 +1,7 @@
+import type { HighlightIcon } from "@novadeck/protocol/release-notes"
+
+export type { HighlightIcon }
+
 // An update the desktop app tells of. `downloading`: one the app is downloading, `percent`
 // (a whole number from 0 to 100) along, which turns `ready` once downloaded. `ready`:
 // downloaded, and installed on a restart. `retrying`: a download failed and the app tries
@@ -14,7 +18,13 @@ export type UpdateChannel = "stable" | "early"
 
 // What is new in the version the app updated to: the highlights of its release notes, each
 // a short title and one plain line. Text only: the page shows it as text, never as markup.
+// A highlight may lead with an icon, by its Lucide name (a `HighlightIcon`); the page draws a
+// name it doesn't know as its fallback.
 export type WhatsNew = {
   readonly version: string
-  readonly highlights: readonly { readonly title: string; readonly line: string }[]
+  readonly highlights: readonly {
+    readonly title: string
+    readonly line: string
+    readonly icon?: string
+  }[]
 }

@@ -11,7 +11,6 @@ import {
   noticeChannel,
   noticeClickChannel,
   dismissWhatsNewChannel,
-  openWhatsNewPageChannel,
   whatsNewChannel,
   openUpdatePageChannel,
   pagePictureChannel,
@@ -402,10 +401,9 @@ describe("what is new", () => {
     })
   })
 
-  it("tells the host of a dismissal and of opening the page, naming nothing", () => {
+  it("tells the host of a dismissal, naming nothing", () => {
     electron.exposed.dismissWhatsNew!()
-    electron.exposed.openWhatsNewPage!()
-    expect(electron.sent).toEqual([dismissWhatsNewChannel, openWhatsNewPageChannel])
+    expect(electron.sent).toEqual([dismissWhatsNewChannel])
     expect(electron.messages).toEqual([])
   })
 })

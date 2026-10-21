@@ -110,7 +110,6 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
               notes: whatsNew,
               blocked: asking || welcome || sandboxOpen || (portable && portableCardOpen),
               onDismiss: () => dismissWhatsNew(backend.whatsNew, ui),
-              onOpenPage: backend.whatsNew.openPage,
               returnFocus: () => {
                 const { selected, view } = currentState(store.getSnapshot())
                 if (!selected) return false

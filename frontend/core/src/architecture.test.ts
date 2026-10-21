@@ -9,14 +9,19 @@ import { describe, expect, it } from "./test"
 // packages reach them as `@novadeck/core/<file>`.
 
 // The files in the core that read the protocol, each through one data-only entry: its table of
-// harnesses, the key that tells pages apart, and what draws as nothing in a command. An entry
-// is added here when the core needs one; never the wire, or the runner client, which is a
-// package of its own.
+// harnesses, the key that tells pages apart, what draws as nothing in a command, and the icons
+// a release's highlight may name. An entry is added here when the core needs one; never the
+// wire, or the runner client, which is a package of its own.
 const protocolData: Record<string, string> = {
   "harnesses.ts": "@novadeck/protocol/harnesses",
   "pages.ts": "@novadeck/protocol/pages",
   "command-text.ts": "@novadeck/protocol/text",
+  "update.ts": "@novadeck/protocol/release-notes",
 }
+
+// The entries above that are schemas, not data, and so are read for their types alone: a value
+// from one would bring zod into the core and every page.
+const typesOnly = new Set(["@novadeck/protocol/release-notes"])
 
 const src = import.meta.dirname
 const all = readdirSync(src, { recursive: true, withFileTypes: true })
@@ -33,6 +38,11 @@ const importPattern =
   /(?:^(?:import|export)(\s+type)?\b[^"']*?\bfrom|^import|\bimport\()\s*(["'])([^"']+)\2/gm
 const imports = (file: string): string[] =>
   [...source(file).matchAll(importPattern)].map((match) => match[3]!)
+// The specifiers a file reads for more than types: anything but `import type` and `export type`.
+const valueImports = (file: string): string[] =>
+  [...source(file).matchAll(importPattern)]
+    .filter((match) => match[1] === undefined)
+    .map((match) => match[3]!)
 const isTest = (file: string): boolean => file.endsWith(".test.ts")
 // The Vitest re-export is every package's own, and the only file that names vitest.
 const sources = files.filter((file) => !isTest(file) && file !== "test.ts")
@@ -71,6 +81,15 @@ describe("core architecture", () => {
       imports(file)
         .filter((specifier) => Object.values(protocolData).includes(specifier))
         .filter((specifier) => protocolData[file] !== specifier)
+        .map((specifier) => `${file} -> ${specifier}`),
+    )
+    expect(found).toEqual([])
+  })
+
+  it("reads a schema entry for its types alone", () => {
+    const found = sources.flatMap((file) =>
+      valueImports(file)
+        .filter((specifier) => typesOnly.has(specifier))
         .map((specifier) => `${file} -> ${specifier}`),
     )
     expect(found).toEqual([])

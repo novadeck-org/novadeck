@@ -2,7 +2,7 @@ import { parseWhatsNew, updateVersionPattern, type WhatsNew } from "@novadeck/pr
 import { readNotesBlock, type ReleaseNotes } from "@novadeck/protocol/release-notes"
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 
-import { dismissWhatsNewChannel, openWhatsNewPageChannel, whatsNewChannel } from "../bridge.js"
+import { dismissWhatsNewChannel, whatsNewChannel } from "../bridge.js"
 import type { ReleaseRepository } from "./update-release.js"
 
 /** How long reading the release waits; the card is optional, so a slow network gives it up. */
@@ -208,11 +208,11 @@ const gather = (
   const seen = new Set<string>()
   const highlights = told
     .flatMap((release) => release.notes?.highlights ?? [])
-    .flatMap(({ title, line }) => {
+    .flatMap(({ title, line, icon }) => {
       const key = `${title}\n${line}`
       if (seen.has(key)) return []
       seen.add(key)
-      return [{ title, line }]
+      return [icon ? { title, line, icon } : { title, line }]
     })
   return parseWhatsNew({ version, highlights })
 }
@@ -355,10 +355,10 @@ type WhatsNewIpc = {
 }
 
 /**
- * Answers the app's own pages: the request for what is new, its dismissal, and the
- * request to open the release page of the running version. `window` names the window of
- * a request from the main frame of the app's own page, or undefined for any other sender,
- * which is ignored (and told there is nothing new). The page names no version or address.
+ * Answers the app's own pages: the request for what is new, and its dismissal. `window`
+ * names the window of a request from the main frame of the app's own page, or undefined for
+ * any other sender, which is ignored (and told there is nothing new). The page names no
+ * version or address.
  */
 export const registerWhatsNewIpc = <Window>(
   ipc: WhatsNewIpc,
@@ -366,12 +366,10 @@ export const registerWhatsNewIpc = <Window>(
     window,
     whatsNew,
     dismiss,
-    openPage,
   }: {
     readonly window: (event: IpcMainEvent | IpcMainInvokeEvent) => Window | undefined
     readonly whatsNew: () => Promise<WhatsNew | undefined>
     readonly dismiss: () => void
-    readonly openPage: () => void
   },
 ): void => {
   ipc.handle(whatsNewChannel, (event) =>
@@ -379,8 +377,5 @@ export const registerWhatsNewIpc = <Window>(
   )
   ipc.on(dismissWhatsNewChannel, (event) => {
     if (window(event) !== undefined) dismiss()
-  })
-  ipc.on(openWhatsNewPageChannel, (event) => {
-    if (window(event) !== undefined) openPage()
   })
 }

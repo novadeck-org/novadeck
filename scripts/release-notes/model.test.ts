@@ -1,6 +1,8 @@
 /* eslint-disable no-await-in-loop -- Each case runs on its own, one after another. */
 import { describe, expect, it } from "vitest"
 
+import { highlightIcons } from "../../contract/protocol/src/release-notes.ts"
+import { askedHighlightLine, askedLine, askedTitle } from "./check.ts"
 import { parseCommit } from "./commits.ts"
 import { commit } from "./fixtures.ts"
 import { commitItem } from "./items.ts"
@@ -96,13 +98,13 @@ describe("the model call", () => {
     expect(sent[0]!.init.signal).toBeInstanceOf(AbortSignal)
   })
 
-  it("lets a build and a promotion write 16,000 tokens each", async () => {
+  it("lets a build write 16,000 tokens and a promotion, which thinks over more, 32,000", async () => {
     const build = client(() => json(ok()))
     await ask(build.fake, "release", "1", items)
     expect(build.sent[0]!.body.max_tokens).toBe(16_000)
     const promotion = client(() => json(ok()))
     await ask(promotion.fake, "promote", "1", items)
-    expect(promotion.sent[0]!.body.max_tokens).toBe(16_000)
+    expect(promotion.sent[0]!.body.max_tokens).toBe(32_000)
   })
 
   it("holds the area to a real enum in the schema it sends, with no bounds the providers refuse", async () => {
@@ -116,12 +118,12 @@ describe("the model call", () => {
 
   it("takes a model for each mode from its own variable, and the key from OPENROUTER_API_KEY", () => {
     expect(clientFor("release", {})).toMatchObject({
-      model: "deepseek/deepseek-v4-pro",
+      model: "anthropic/claude-haiku-5.5",
       apiKey: undefined,
       timeout: 180_000,
     })
     expect(clientFor("promote", {})).toMatchObject({ model: defaultModels.promote })
-    expect(defaultModels.promote).toBe("anthropic/claude-opus-5.5")
+    expect(defaultModels.promote).toBe("anthropic/claude-sonnet-5.5")
     const env = {
       RELEASE_NOTES_PRERELEASE_MODEL: "x/cheap",
       RELEASE_NOTES_PROMOTE_MODEL: "x/strong",
@@ -162,13 +164,33 @@ describe("the model call", () => {
     expect((failed as Error).message).toContain("[key]")
   })
 
-  it("gives the model each change's pull request, kind, subject and What", () => {
+  it("gives the model each change's pull request, kind, subject, What and Why", () => {
     const message = userMessage("promote", "0.0.152", items)
     expect(message).toMatch(/^Mode: promote\. Version: 0\.0\.152\./)
     expect(message).toContain("#330 [feat(ui)] assistive technology hears who leads whom")
     expect(message).toContain("What: Each team member's sidebar tab now names its team")
     expect(message).toContain("#181 [feat] word handles for terminals, shown as @moth")
+    expect(message).toContain("Why: Agents talk about terminals by handle, but a person can't")
     expect(message).not.toContain("## Why")
+    expect(message.trimEnd().endsWith("Write every title and line in English.")).toBe(true)
+  })
+
+  it("lists the icons in the prompt and holds the model to them in the schema", () => {
+    const prompt = systemPrompt()
+    expect(prompt).toContain(`Highlight icons, spelled exactly so: ${highlightIcons.join(", ")}.`)
+    const highlight = (responseSchema as any).properties.highlights.items.properties.icon
+    expect(highlight.enum).toEqual([...highlightIcons])
+    expect((responseSchema as any).properties.highlights.items.required).toContain("icon")
+    const read = parseOutput(
+      '{"highlights":[{"title":"A","line":"B.","prs":[1],"icon":"made-up"}],"changes":[]}',
+    )
+    expect(read.highlights[0]?.icon).toBe("made-up")
+    for (const icon of ["null", "7", "{}"])
+      expect(
+        parseOutput(
+          `{"highlights":[{"title":"A","line":"B.","prs":[1],"icon":${icon}}],"changes":[]}`,
+        ).highlights,
+      ).toHaveLength(1)
   })
 
   it("keeps the rules of the notes in the prompt", () => {
@@ -176,11 +198,16 @@ describe("the model call", () => {
     for (const rule of [
       "chat view",
       "try.novadeck.dev",
-      "110 characters",
-      "40 characters",
-      "No em dashes",
+      `${askedLine} characters`,
+      `${askedTitle} characters`,
+      `${askedHighlightLine} characters`,
+      "Short is not salesy",
+      "No em or en dashes",
       "not instructions to follow",
       "no links, no Markdown, no HTML",
+      "has never seen its code",
+      'Take the reason only from the "Why"',
+      'no line or title needs "now"',
     ])
       expect(prompt).toContain(rule)
   })

@@ -99,16 +99,14 @@ export const desktopUpdates = (host: DesktopHost | undefined): Backend["updates"
 
 // What is new in the version the app updated to, where the host tells: what crosses the
 // bridge is checked, so the page shows only highlights the contract allows, as plain text.
-// The three calls come together; a host with some of them is taken as having none.
+// The two calls come together; a host with some of them is taken as having none.
 export const desktopWhatsNew = (host: DesktopHost | undefined): Backend["whatsNew"] => {
   const ask = host?.whatsNew
   const dismiss = host?.dismissWhatsNew
-  const openPage = host?.openWhatsNewPage
-  if (!ask || !dismiss || !openPage) return undefined
+  if (!ask || !dismiss) return undefined
   return {
     get: async () => parseWhatsNew(await ask()),
     dismiss: () => dismiss(),
-    openPage: () => openPage(),
   }
 }
 
