@@ -169,6 +169,33 @@ describe("Grid view", () => {
         )
         .toBe(false)
     })
+
+    it("follows the pointer between columns rather than jumping from one to the next", async () => {
+      await openGrid()
+      const from = bounds(terminal("Tests"))
+      const grip = headerGap("Tests")
+      const at = (dx: number): MouseEventInit => ({
+        clientX: from.left + grip.x + dx,
+        clientY: from.top + grip.y,
+        button: 0,
+        bubbles: true,
+      })
+      document
+        .elementFromPoint(from.left + grip.x, from.top + grip.y)!
+        .dispatchEvent(new MouseEvent("mousedown", at(0)))
+      await expect
+        .poll(() => terminal("Tests").element().closest(".react-draggable-dragging"))
+        .not.toBeNull()
+      // Past the drag's threshold, then a few pixels on: far less than a column.
+      document.dispatchEvent(new MouseEvent("mousemove", at(20)))
+      await expect.poll(() => bounds(terminal("Tests")).left).not.toBe(from.left)
+      const started = bounds(terminal("Tests")).left
+
+      document.dispatchEvent(new MouseEvent("mousemove", at(26)))
+
+      await expect.poll(() => bounds(terminal("Tests")).left).toBeCloseTo(started + 6, 0)
+      document.dispatchEvent(new MouseEvent("mouseup", at(26)))
+    })
   })
 
   context("when the terminals do not all fit on screen", () => {
