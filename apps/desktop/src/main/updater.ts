@@ -57,14 +57,16 @@ const novadeckSite = "https://novadeck.dev"
 /**
  * The address, ending in "/", whose `latest*.yml` the channel's checks read: the website
  * redirects it and the files beside it to GitHub's release assets. `site` replaces the
- * website's address when it is an http(s) address; anything else is ignored.
+ * website's address when it is an https address, or an http one on this computer (localhost, 127.0.0.1 or
+ * [::1]); anything else is ignored.
  */
 export const feedUrl = (channel: UpdateChannel, site?: string): string => {
   let origin = novadeckSite
   if (site !== undefined) {
     try {
       const url = new URL(site)
-      if (url.protocol === "https:" || url.protocol === "http:") origin = url.origin
+      const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+      if (url.protocol === "https:" || (url.protocol === "http:" && local)) origin = url.origin
     } catch {
       // Not an address: the website stays.
     }
@@ -78,8 +80,8 @@ const plain = (value: string): string | undefined =>
 
 /**
  * The headers of a check through novadeck.dev. They describe the check and the copy that
- * makes it, and nothing that tells copies on one computer or person from another; a value
- * that can't be known is left out.
+ * makes it, and nothing that tells one copy from another; a value that can't be known is
+ * left out. The last stands in for electron-updater's per-install `x-user-staging-id`.
  */
 export const checkHeaders = (reason: CheckReason, facts: CheckFacts): Record<string, string> => {
   const language = /^[A-Za-z]{2,3}(?=[-_]|$)/.exec(facts.locale)?.[0]?.toLowerCase()
@@ -90,6 +92,9 @@ export const checkHeaders = (reason: CheckReason, facts: CheckFacts): Record<str
     ["x-novadeck-os-version", plain(facts.osVersion)],
     ["x-novadeck-arch", plain(facts.arch)],
     ["x-novadeck-lang", language],
+    // electron-updater sends a per-install id for staged rollouts; this replaces it here so
+    // the website never sees it. Its own rollout decision reads the real one.
+    ["x-user-staging-id", "0"],
   ]
   return Object.fromEntries(entries.filter((entry): entry is [string, string] => !!entry[1]))
 }
@@ -543,7 +548,11 @@ export const checkForUpdates = (
   updater.on("error", (error) => {
     // An install fails once; an error reported after it adds nothing to log or mark.
     if (failed) return
-    if (downloaded === undefined || !installing) return log("The update check failed.", error)
+    if (downloaded === undefined || !installing) {
+      // A check through novadeck.dev that fails is logged as it falls back to GitHub.
+      if (checking && via === "novadeck" && !ended) return
+      return log("The update check failed.", error)
+    }
     log("Installing the update failed.", error)
     failed = true
     failedOn = downloaded.version
@@ -667,6 +676,8 @@ export const checkForUpdates = (
         await updater.checkForUpdates()
         return
       } catch (error) {
+        // A quit ends the schedule; no new request starts after it.
+        if (ended) throw error
         log("The update check through novadeck.dev failed; trying GitHub.", error)
       }
     }

@@ -71,17 +71,19 @@ the release page, the portable install and the engine downloads read them.
 Each check sends `x-novadeck-check` (`launch`, `interval`, `switch` or `retry`),
 `x-novadeck-version`, `x-novadeck-build` (`installed` or `portable`), `x-novadeck-os-version`,
 `x-novadeck-arch` and `x-novadeck-lang` (the language of the app's locale). Nothing that
-tells one copy from another is added. electron-updater itself still sends its own
-`x-user-staging-id`, which the website ignores. The headers belong to the check: they are
-cleared before the download starts.
+tells one copy from another is added: electron-updater's own `x-user-staging-id`, a
+per-install UUID, is overridden with the constant `0` on these checks (its staged-rollout
+decision reads the real one locally). The check that falls back to GitHub sends it as
+electron-updater always has. The headers belong to the check: they are cleared before the
+download starts.
 
 Updating never depends on the website. A check through it that fails for any reason is
-made again at once against GitHub with the repository from `app-update.yml`, and the next
+made again at once against GitHub (unless the app is quitting) with the repository from `app-update.yml`, and the next
 check goes to novadeck.dev again. A download that began from a novadeck.dev check and
 failed has its retry check go to GitHub alone. Portable copies check the same way. With no
 repository in `app-update.yml` there is nothing to fall back to, so checks stay on the
 updater's own configuration. `NOVADECK_UPDATE_URL` replaces `https://novadeck.dev` for
-testing, as in `NOVADECK_UPDATE_URL=http://127.0.0.1:8787`.
+testing, an https address or an http one on localhost, 127.0.0.1 or [::1], as in `NOVADECK_UPDATE_URL=http://127.0.0.1:8787`.
 
 ## Which builds update
 

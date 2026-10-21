@@ -1298,6 +1298,10 @@ describe("the update feed", () => {
       "http://127.0.0.1:8787/update/early/",
     )
     expect(feedUrl("stable", "file:///tmp/updates")).toBe("https://novadeck.dev/update/stable/")
+    expect(feedUrl("stable", "https://example.test")).toBe("https://example.test/update/stable/")
+    expect(feedUrl("stable", "http://localhost:8787")).toBe("http://localhost:8787/update/stable/")
+    expect(feedUrl("stable", "http://[::1]:8787")).toBe("http://[::1]:8787/update/stable/")
+    expect(feedUrl("stable", "http://example.test")).toBe("https://novadeck.dev/update/stable/")
     expect(feedUrl("stable", "not an address")).toBe("https://novadeck.dev/update/stable/")
   })
 
@@ -1309,6 +1313,7 @@ describe("the update feed", () => {
       "x-novadeck-os-version": "7.0.0-28-generic",
       "x-novadeck-arch": "x64",
       "x-novadeck-lang": "pl",
+      "x-user-staging-id": "0",
     })
   })
 
@@ -1319,6 +1324,7 @@ describe("the update feed", () => {
       "x-novadeck-check": "retry",
       "x-novadeck-version": "1.4.0",
       "x-novadeck-build": "installed",
+      "x-user-staging-id": "0",
     })
     expect(checkHeaders("retry", { ...facts, locale: "zh_Hans" })["x-novadeck-lang"]).toBe("zh")
   })
@@ -1395,7 +1401,7 @@ describe("checking through novadeck.dev", () => {
     )
   })
 
-  it("sends nothing that tells one copy from another", async () => {
+  it("replaces electron-updater's per-install staging id with a constant", async () => {
     const { updater } = checking()
     await vi.advanceTimersByTimeAsync(firstCheckMs)
     expect(Object.keys(updater.seen[0]?.headers as object).sort()).toEqual([
@@ -1405,7 +1411,30 @@ describe("checking through novadeck.dev", () => {
       "x-novadeck-lang",
       "x-novadeck-os-version",
       "x-novadeck-version",
+      "x-user-staging-id",
     ])
+    expect(updater.seen[0]?.headers).toEqual(expect.objectContaining({ "x-user-staging-id": "0" }))
+  })
+
+  it("starts no GitHub check when the schedule ended during the novadeck.dev one", async () => {
+    const { updater, stop, logged } = checking()
+    updater.failFeed = (feed) => typeof feed === "string"
+    updater.checkForUpdates = () => {
+      updater.checks += 1
+      stop()
+      updater.emit("error", new Error("unreachable"))
+      return Promise.reject(new Error("unreachable"))
+    }
+    await vi.advanceTimersByTimeAsync(firstCheckMs)
+    expect(updater.checks).toBe(1)
+    expect(logged).not.toContain("The update check through novadeck.dev failed; trying GitHub.")
+  })
+
+  it("logs a failed novadeck.dev check once, as it falls back", async () => {
+    const { updater, logged } = checking()
+    updater.failFeed = (feed) => typeof feed === "string"
+    await vi.advanceTimersByTimeAsync(firstCheckMs)
+    expect(logged).toEqual(["The update check through novadeck.dev failed; trying GitHub."])
   })
 
   it("makes the same check against GitHub at once when novadeck.dev fails, then returns", async () => {
