@@ -1286,6 +1286,9 @@ const facts: CheckFacts = {
 }
 const repository = { owner: "novadeck-org", repo: "novadeck" }
 const github = { provider: "github", ...repository }
+// How a check through novadeck.dev is set up: no multipart ranges, as the website sends the
+// files on to GitHub, which does not serve them.
+const generic = (url: string) => ({ provider: "generic", url, useMultipleRangeRequest: false })
 
 describe("the update feed", () => {
   it("is the channel's address on novadeck.dev, or on the site NOVADECK_UPDATE_URL names", () => {
@@ -1371,7 +1374,7 @@ describe("checking through novadeck.dev", () => {
     await vi.advanceTimersByTimeAsync(firstCheckMs)
     expect(updater.seen).toEqual([
       {
-        feed: "https://novadeck.dev/update/early/",
+        feed: generic("https://novadeck.dev/update/early/"),
         headers: expect.objectContaining({ "x-novadeck-check": "launch" }),
       },
     ])
@@ -1402,9 +1405,9 @@ describe("checking through novadeck.dev", () => {
     setChannel("stable")
     await vi.advanceTimersByTimeAsync(switchCheckMs)
     expect(updater.seen.map(({ feed }) => feed)).toEqual([
-      "https://novadeck.dev/update/stable/",
-      "https://novadeck.dev/update/early/",
-      "https://novadeck.dev/update/stable/",
+      generic("https://novadeck.dev/update/stable/"),
+      generic("https://novadeck.dev/update/early/"),
+      generic("https://novadeck.dev/update/stable/"),
     ])
   })
 
@@ -1431,7 +1434,7 @@ describe("checking through novadeck.dev", () => {
 
   it("starts no GitHub check when the schedule ended during the novadeck.dev one", async () => {
     const { updater, stop, logged } = checking()
-    updater.failFeed = (feed) => typeof feed === "string"
+    updater.failFeed = (feed) => feed?.provider === "generic"
     updater.checkForUpdates = () => {
       updater.checks += 1
       stop()
@@ -1445,17 +1448,17 @@ describe("checking through novadeck.dev", () => {
 
   it("logs a failed novadeck.dev check once, as it falls back", async () => {
     const { updater, logged } = checking()
-    updater.failFeed = (feed) => typeof feed === "string"
+    updater.failFeed = (feed) => feed?.provider === "generic"
     await vi.advanceTimersByTimeAsync(firstCheckMs)
     expect(logged).toEqual(["The update check through novadeck.dev failed; trying GitHub."])
   })
 
   it("makes the same check against GitHub at once when novadeck.dev fails, then returns", async () => {
     const { updater, logged } = checking({ channel: "early" })
-    updater.failFeed = (feed) => typeof feed === "string"
+    updater.failFeed = (feed) => feed?.provider === "generic"
     await vi.advanceTimersByTimeAsync(firstCheckMs)
     expect(updater.seen.map(({ feed }) => feed)).toEqual([
-      "https://novadeck.dev/update/early/",
+      generic("https://novadeck.dev/update/early/"),
       github,
     ])
     expect(updater.seen[1]?.headers).toBeNull()
@@ -1464,7 +1467,7 @@ describe("checking through novadeck.dev", () => {
     updater.failFeed = () => false
     await vi.advanceTimersByTimeAsync(checkIntervalMs)
     expect(updater.seen.map(({ feed }) => feed).slice(2)).toEqual([
-      "https://novadeck.dev/update/early/",
+      generic("https://novadeck.dev/update/early/"),
     ])
   })
 
@@ -1496,22 +1499,22 @@ describe("checking through novadeck.dev", () => {
     updater.emit("update-available", { version: "1.5.0" })
     await vi.advanceTimersByTimeAsync(retryCheckMs)
     expect(updater.seen.map(({ feed }) => feed)).toEqual([
-      "https://novadeck.dev/update/stable/",
+      generic("https://novadeck.dev/update/stable/"),
       github,
     ])
     await vi.advanceTimersByTimeAsync(checkIntervalMs)
-    expect(updater.seen[2]?.feed).toBe("https://novadeck.dev/update/stable/")
+    expect(updater.seen[2]?.feed).toEqual(generic("https://novadeck.dev/update/stable/"))
   })
 
   it("retries a download that failed from GitHub against novadeck.dev as before", async () => {
     const { updater } = checking()
-    updater.failFeed = (feed) => typeof feed === "string"
+    updater.failFeed = (feed) => feed?.provider === "generic"
     await vi.advanceTimersByTimeAsync(firstCheckMs)
     updater.failFeed = () => false
     updater.downloadResult = () => Promise.reject(new Error("offline"))
     updater.emit("update-available", { version: "1.5.0" })
     await vi.advanceTimersByTimeAsync(retryCheckMs)
-    expect(updater.seen.at(-1)?.feed).toBe("https://novadeck.dev/update/stable/")
+    expect(updater.seen.at(-1)?.feed).toEqual(generic("https://novadeck.dev/update/stable/"))
     expect(updater.seen.at(-1)?.headers).toEqual(
       expect.objectContaining({ "x-novadeck-check": "retry" }),
     )

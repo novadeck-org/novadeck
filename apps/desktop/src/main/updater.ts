@@ -386,8 +386,12 @@ export type Updater = {
   ): unknown
   on(event: "update-not-available", listener: () => void): unknown
   on(event: "error", listener: (error: Error) => void): unknown
-  /** Replaces where releases are looked for; a string is a generic feed's address. */
-  setFeedURL(feed: string | { readonly provider: "github"; owner: string; repo: string }): void
+  /** Replaces where releases are looked for. */
+  setFeedURL(
+    feed:
+      | { readonly provider: "github"; owner: string; repo: string }
+      | { readonly provider: "generic"; url: string; useMultipleRangeRequest: boolean },
+  ): void
   checkForUpdates(): Promise<unknown>
   downloadUpdate(): Promise<unknown>
   /** The install that quitting runs; see `checkForUpdates`. */
@@ -666,7 +670,13 @@ export const checkForUpdates = (
   const checkThroughFeed = async (reason: CheckReason, from: UpdateFeed): Promise<void> => {
     if (!githubOnly) {
       via = "novadeck"
-      updater.setFeedURL(feedUrl(following, from.site))
+      // The website sends the files on to GitHub, which does not serve multipart ranges, as
+      // GitHubProvider knows; asking for them would fail every differential download.
+      updater.setFeedURL({
+        provider: "generic",
+        url: feedUrl(following, from.site),
+        useMultipleRangeRequest: false,
+      })
       updater.requestHeaders = checkHeaders(reason, from.facts)
       try {
         await updater.checkForUpdates()

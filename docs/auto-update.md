@@ -65,7 +65,8 @@ and resolves the files it names against the same address. The website redirects 
 to the GitHub release assets, `stable` to the latest release and `early` to the newest
 including prereleases, and counts the requests for the channel files, which is how it knows
 how many copies are active. The generic provider ignores `allowPrerelease`, so the channel
-selects the address. `resources/app-update.yml` and its GitHub config stay as they are:
+selects the address, and multipart range requests are off for it, as GitHub does not serve
+them (a differential download would fail and fall back to a full one). `resources/app-update.yml` and its GitHub config stay as they are:
 the release page, the portable install and the engine downloads read them.
 
 Each check sends `x-novadeck-check` (`launch`, `interval`, `switch` or `retry`),
