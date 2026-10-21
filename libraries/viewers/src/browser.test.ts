@@ -1084,6 +1084,23 @@ describe("the browser viewer", () => {
       }
     })
 
+    it("counts focus moving into the live page as the person at it", async () => {
+      vi.useFakeTimers()
+      try {
+        const { viewer, fire, ready } = resting()
+        const page = ready()!
+        page.tabIndex = 0
+        fire("did-stop-loading")
+        // Pictured since, while the person was elsewhere.
+        await vi.advanceTimersByTimeAsync(freshenMs)
+        expect(viewer.pictured()).toBe(true)
+        page.focus()
+        expect(viewer.pictured()).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it("counts focus in the live page as the person at it, and hands the picture's focus on", async () => {
       vi.useFakeTimers()
       try {

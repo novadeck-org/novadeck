@@ -644,7 +644,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       // Again in a while, for as long as it's live.
       freshen(keepMs)
       const using = root.matches(":hover") || root.contains(document.activeElement)
-      if (load !== "ready" || !shownNow() || using) return
+      // A rest taking its own picture has the newer one coming: this one would only replace it.
+      if (load !== "ready" || !shownNow() || using || resting !== undefined) return
       void snap(view).then((taken) => {
         if (!taken || page !== view || load !== "ready") return
         picture = taken.picture
