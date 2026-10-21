@@ -555,10 +555,14 @@ export const SourcePanel = ({
   const alive = useRef(true)
   const reading = useRef(new Set<string>())
   const again = useRef(new Set<string>())
+  const timeouts = useRef(new Set<ReturnType<typeof setTimeout>>())
   useEffect(() => {
     alive.current = true
+    const pending = timeouts.current
     return () => {
       alive.current = false
+      pending.forEach(clearTimeout)
+      pending.clear()
     }
   }, [])
   const read = useCallback(
@@ -573,6 +577,7 @@ export const SourcePanel = ({
         if (settled || !alive.current) return
         settled = true
         clearTimeout(timer)
+        timeouts.current.delete(timer)
         reading.current.delete(folder)
         setListings((known) =>
           sameRead(known.get(folder), result) ? known : new Map(known).set(folder, result),
@@ -580,6 +585,7 @@ export const SourcePanel = ({
         if (again.current.delete(folder)) read(folder)
       }
       const timer = setTimeout(() => settle("failed"), readTimeoutMs)
+      timeouts.current.add(timer)
       list(folder).then(settle, () => settle("failed"))
     },
     [list],

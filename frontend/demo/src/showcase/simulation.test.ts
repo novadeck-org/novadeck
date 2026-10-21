@@ -343,7 +343,7 @@ describe("a file the person attaches", () => {
 
   it("holds a file with a secret-looking name, shown only when revealed", async () => {
     const { showcase, reported, contentOf } = running()
-    await showcase.attach!(devServer, "~/projects/studio/.env.local")
+    await showcase.attach!(devServer, "~/projects/studio/.npmrc")
     const [item] = upserts(reported)
     expect(item).toMatchObject({ held: true, by: "person", asked: true })
     expect(contentOf(item!.id)).toMatchObject({ state: "unavailable", reason: "held" })
@@ -358,19 +358,36 @@ describe("a file the person attaches", () => {
     expect(contentOf(item!.id)).toMatchObject({ content: { kind: "image" } })
   })
 
-  it("updates a whole file an agent showed, as the same item, now the person's", async () => {
+  it("updates what the bar holds for the file, whoever showed it, to the whole file", async () => {
     const { showcase, reported } = running()
     const sample = studioArtifacts.shown.find((each) => each.item.lines === null)!
     await showcase.attach!(studio, sample.item.path!)
     expect(upserts(reported)[0]).toMatchObject({
       id: sample.item.id,
-      by: "person",
+      by: "agent",
+      lines: null,
       asked: true,
       version: 2,
     })
   })
 
-  it("adds a new item, never reusing a sample's id, on another terminal or for some lines", async () => {
+  it("updates an item that was moved onto this bar, and not one moved off it", async () => {
+    const { showcase, reported, hold } = running()
+    const path = "~/projects/studio/src/cart/useCart.ts"
+    await showcase.attach!(devServer, path)
+    const first = upserts(reported)[0]!
+    hold(first.id, { terminalId: "03" })
+    await showcase.attach!(auth, path)
+    expect(upserts(reported)[1]).toMatchObject({ id: first.id, version: 2 })
+
+    hold(first.id, { windowId: "w1" })
+    await showcase.attach!(auth, path)
+    const added = upserts(reported)[2]!
+    expect(added.id).not.toBe(first.id)
+    expect(added.version).toBe(1)
+  })
+
+  it("adds a new item, with an id of its own, where no bar holds the file", async () => {
     const { showcase, reported, contentOf } = running()
     const sample = studioArtifacts.shown.find((each) => each.item.lines === null)!
     await showcase.attach!(devServer, sample.item.path!)

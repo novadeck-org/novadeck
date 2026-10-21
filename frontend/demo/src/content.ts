@@ -20,6 +20,7 @@ import { fixedIntro } from "./screen/terminal"
 import { authAgent, studioAgent, type SampleAgent } from "./showcase/agents"
 import { devServerArtifacts } from "./showcase/artifacts"
 import { createShowcase, planFaults, type PlanFault } from "./showcase/simulation"
+import { directoryOf } from "./showcase/workspace"
 import { terminalOf } from "./terminals"
 import { showcaseTranscripts } from "./transcripts"
 import { demoTurns, type DemoTurns } from "./turns"
@@ -134,6 +135,7 @@ export const contentDemo = (
   ]
   const showcase = createShowcase({
     agents,
+    directory: (key) => directoryOf(latest, key),
     shown: [
       {
         key: { ...session, terminalId: demoTerminalId(session, 2) },

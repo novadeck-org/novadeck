@@ -38,7 +38,10 @@ const within = (root: string, path: string): boolean => {
   return route === "" || (!isAbsolute(route) && route.split(sep)[0] !== "..")
 }
 
-/** The `GIT_*` variables git keeps: they only stop it looking further up for a repository. */
+/**
+ * The `GIT_*` variables git keeps: they only set how far up, and across which filesystems,
+ * it looks for the repository a folder is in, as the person set it.
+ */
 const keptGit = new Set(["GIT_CEILING_DIRECTORIES", "GIT_DISCOVERY_ACROSS_FILESYSTEM"])
 
 /**

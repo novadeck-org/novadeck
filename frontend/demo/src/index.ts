@@ -1,4 +1,3 @@
-import type { CompanionItem } from "@novadeck/core/companion"
 import type { Conversations } from "@novadeck/core/conversation"
 import type { InboxItem } from "@novadeck/core/inbox"
 import type {
@@ -39,6 +38,7 @@ import {
 } from "./samples"
 import { createShowcase } from "./showcase/simulation"
 import { storefrontArtifacts } from "./showcase/storefront"
+import { directoryOf, itemsOf } from "./showcase/workspace"
 import { withSource } from "./source"
 import { terminalOf } from "./terminals"
 import { agentTranscripts, type DemoTranscript } from "./transcripts"
@@ -358,16 +358,8 @@ export const withInbox = (
   return { ...backend, inbox }
 }
 
-// The folder of a terminal's project.
-const directoryOf = (workspace: Workspace | undefined, key: { projectId: string }) =>
-  workspace?.projects.find((project) => project.id === key.projectId)?.directory
-
-// Every item the workspace's sessions hold.
-const itemsOf = (workspace: Workspace): readonly CompanionItem[] =>
-  workspace.projects.flatMap((project) => project.history.flatMap((each) => each.state.items))
-
 // The agents demo's storefront terminals hold what their agents showed, on their bars,
-// to open, peek at and move; nothing there changes.
+// to open, peek at and move. What the person opens from the Source panel joins them.
 export const withStorefrontArtifacts = (backend: Backend): Backend => {
   let latest: Workspace | undefined
   const session = { projectId: "storefront", workspaceSessionId: "initial" }

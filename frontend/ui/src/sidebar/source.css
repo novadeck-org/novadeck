@@ -254,8 +254,13 @@
   border: 1px solid transparent;
 }
 .source-note {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
   padding-right: 8px;
   color: var(--color-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .source-strip {

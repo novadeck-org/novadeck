@@ -1129,21 +1129,23 @@ describe("The Source panel", () => {
       panel.view.unmount()
     })
 
-    it("toggles a folder once however long Enter is held", async () => {
+    it("leaves a repeated Enter on a folder unhandled by the click, so a held key toggles it once", async () => {
       const panel = await mount(undefined)
       const button = panel.row("docs").querySelector<HTMLElement>("[role=treeitem]")!
+      const enter = (repeat: boolean): KeyboardEvent => {
+        const event = new KeyboardEvent("keydown", {
+          key: "Enter",
+          repeat,
+          bubbles: true,
+          cancelable: true,
+        })
+        act(() => void button.dispatchEvent(event))
+        return event
+      }
 
-      act(() => {
-        button.focus()
-        for (const repeat of [false, true, true])
-          button.dispatchEvent(
-            new KeyboardEvent("keydown", { key: "Enter", repeat, bubbles: true, cancelable: true }),
-          )
-        button.click()
-      })
-      await panel.settle()
-
-      expect(panel.rows()).toContain("readme.md")
+      // The first Enter is the button's own click; a repeat is stopped from becoming another.
+      expect(enter(false).defaultPrevented).toBe(false)
+      expect(enter(true).defaultPrevented).toBe(true)
       await nextFrame()
       panel.view.unmount()
     })

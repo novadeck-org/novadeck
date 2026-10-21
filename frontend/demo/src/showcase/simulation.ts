@@ -3,6 +3,7 @@ import {
   itemIdOf,
   notesIn,
   PlanUnwritableError,
+  ownItemWith,
   shownItemWith,
   type CompanionItem,
   type CompanionKey,
@@ -207,6 +208,7 @@ export const createShowcase = (
   )
   // Who follows each plan, to hear when it's written.
   const following = new Map<ItemId, Set<(content: ItemContent) => void>>()
+  let attachedCount = 0
   let report: ((actions: readonly BackendAction[]) => void) | undefined
   let current: () => readonly CompanionItem[] = noItems
   let started = false
@@ -316,55 +318,56 @@ export const createShowcase = (
       return () => {}
     },
     // As the runner's `keep` does: what the person picked lands on the terminal's bar, asked
-    // for and theirs. The same whole file already there (shown by an agent or attached before,
-    // wherever it was moved since) is updated; anything else, a file an agent showed only some
-    // lines of too, is a new item beside it.
+    // for. An item that bar holds for the same file, whoever showed it and whatever lines it
+    // points at, is updated to the whole file and shown again; with none, a new item is added.
     attach: (key, path) => {
-      const same = current().find(
-        (each) =>
-          each.from.terminalId === key.terminalId &&
-          each.path === path &&
-          each.lines === null &&
-          each.kind !== "plan",
-      )
-      if (same) {
-        const item: CompanionItem = {
-          ...same,
-          version: same.version + 1,
-          by: "person",
-          asked: true,
-          shownAt: now(),
-        }
-        report?.([{ type: "item/upsert", target: key, item }])
-        return Promise.resolve()
-      }
       // The same file as an agent showed it holds the same content, all of it.
       const sample = [...samples.values()].find((each) => each.item.path === path)
       const made = attachedArtifact(path, directory?.(key))
-      const id = `attached-${key.terminalId}-${path}`
       const shownContent = sample?.content
-      const artifact: SampleArtifact = {
-        item: { ...made.item, id },
-        content:
-          shownContent?.state === "ready" && shownContent.content.kind === "file"
-            ? {
-                ...shownContent,
-                content: {
-                  ...shownContent.content,
-                  from: shownContent.content.firstLine,
-                  to: shownContent.content.firstLine + shownContent.content.lines.length - 1,
-                },
-              }
-            : (sample?.content ?? made.content),
-      }
-      samples.set(id, artifact)
+      const content: ItemContent =
+        shownContent?.state === "ready" && shownContent.content.kind === "file"
+          ? {
+              ...shownContent,
+              content: {
+                ...shownContent.content,
+                from: shownContent.content.firstLine,
+                to: shownContent.content.firstLine + shownContent.content.lines.length - 1,
+              },
+            }
+          : (sample?.content ?? made.content)
+      const own = ownItemWith(current(), key.terminalId, made.item)
       const handle =
         [...agents, ...shown].find((each) => companionKeyId(each.key) === companionKeyId(key))
           ?.handle ?? key.terminalId
-      const item: CompanionItem = {
-        ...itemOf({ key, handle }, artifact, { asked: true, shownAt: now() }),
-        by: "person",
-      }
+      const id = own?.id ?? `attached-${(attachedCount += 1)}`
+      samples.set(id, { item: { ...made.item, id }, content })
+      const { kind, name, detail, url, lines, held } = made.item
+      const item: CompanionItem = own
+        ? {
+            ...own,
+            kind,
+            name,
+            detail,
+            path,
+            url,
+            lines,
+            held,
+            version: own.version + 1,
+            asked: true,
+            shownAt: now(),
+          }
+        : {
+            ...itemOf(
+              { key, handle },
+              { item: { ...made.item, id }, content },
+              {
+                asked: true,
+                shownAt: now(),
+              },
+            ),
+            by: "person",
+          }
       report?.([{ type: "item/upsert", target: key, item }])
       return Promise.resolve()
     },
