@@ -8,7 +8,7 @@
   "lines": {
     "budget": 1674,
     "reason": "Transcript redaction: three Terminals options (transcriptMs, transcriptShutdownMs, redactor) with their Omit entries, the redactor's construction, the restart's save once the earlier screen is shown, and the restore's once its replay ends; the rest is in saving.ts. Transcript sealing: two more options (sealer, transcriptKeyMs) with their Omit entries and construction, and the restore's open before the shell starts, less the re-save once restored, which sealing makes redundant.",
-    "from": "#TBD"
+    "from": "#390"
   },
   "methods": 68,
   "slack": { "lines": 100, "methods": 5 }
