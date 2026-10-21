@@ -171,10 +171,15 @@ const aborted = -3
 export const scrollWaitMs = 5_000
 
 /**
- * How long after a load a live page is pictured, to rest as where it can't be pictured as
- * it goes, as out of sight.
+ * A live page keeps a picture of itself ready, so it can rest at once, even where it can't
+ * be pictured as it goes, as when its host hides it in the same moment: `freshenMs` after
+ * a load or a move within it, `leftMs` after the pointer leaves it, and every `keepMs`
+ * while it's awake, though never while the pointer is on it or it has focus, so taking one
+ * never comes in the way of the person using it.
  */
 export const freshenMs = 1_000
+export const leftMs = 300
+export const keepMs = 5_000
 
 /**
  * How long a woken page's picture stays over it once it has loaded, for it to draw, and
@@ -319,9 +324,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   still.append(image)
   // Its fade, under way.
   let fading: ReturnType<typeof setTimeout> | undefined
-  // Only a picture of the document it's at: one of another would show the wrong page.
+  // Only a picture taken where it is: one of anywhere else would show the wrong page.
   const cover = (): boolean => {
-    if (picture === undefined || documentOf(picture.at) !== documentOf(place.url)) return false
+    if (picture === undefined || picture.at !== place.url) return false
     clearTimeout(fading)
     fading = undefined
     image.src = picture.src
@@ -385,7 +390,10 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   // Its scroll goes once the page, not a frame in it, has moved to the shown fragment.
   const movedInPage = (event: Event): void => {
     moved()
-    if (!moving || (event as Event & { isMainFrame?: boolean }).isMainFrame === false) return
+    if ((event as Event & { isMainFrame?: boolean }).isMainFrame === false) return
+    // Moved within the page, as an app's route: its picture is of where it was.
+    freshen(freshenMs)
+    if (!moving) return
     moving = false
     reveal()
   }
@@ -430,7 +438,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     if (!wanted && load === "ready") rest()
     else {
       settle(shows)
-      freshen()
+      freshen(freshenMs)
     }
   }
   // Shown again, or at another address: let be while its first load of that address is
@@ -589,19 +597,27 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   }
   // Pictured a while after each load, so a rest that can't picture it, as out of sight,
   // rests as it is, not as it was.
-  const freshen = (): void => {
+  const freshen = (after: number): void => {
     clearTimeout(freshening)
     const view = page
-    if (!view || !take || load !== "ready") return
+    if (!view || !take) return
     freshening = setTimeout(() => {
-      if (page !== view || load !== "ready" || !shownNow()) return
+      if (page !== view) return
+      // Again in a while, for as long as it's live.
+      freshen(keepMs)
+      const using = root.matches(":hover") || root.contains(document.activeElement)
+      if (load !== "ready" || !shownNow() || using) return
       void snap(view).then((taken) => {
         if (!taken || page !== view || load !== "ready") return
         picture = taken.picture
         scrolled = taken.scrolled
+        // Its host had it rest, but it had no picture to rest as until now.
+        if (!wanted && cover()) close()
       })
-    }, freshenMs)
+    }, after)
   }
+  // The pointer gone from it: a picture of it as the person left it.
+  root.addEventListener("pointerleave", () => freshen(leftMs))
   const wake = (): void => {
     resting = undefined
     if (page) {

@@ -4,6 +4,7 @@ import { afterEach, describe as context, describe, expect, it, vi } from "vitest
 import {
   fadeMs,
   freshenMs,
+  keepMs,
   mountBrowser,
   scrollWaitMs,
   uncoverMs,
@@ -568,6 +569,8 @@ describe("the browser viewer", () => {
       awake?: boolean
     } = {}) => {
       const host = hostIn()
+      // Clear of where the test's pointer rests, so it isn't under it.
+      host.style.marginTop = "400px"
       const loads: Load[] = []
       const places: Place[] = []
       const calls: string[] = []
@@ -855,6 +858,54 @@ describe("the browser viewer", () => {
         await vi.advanceTimersByTimeAsync(0)
         expect(pageOf(host)).toBeNull()
         expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(later)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("is pictured again once an app moves within the page, and while awake", async () => {
+      vi.useFakeTimers()
+      try {
+        const { host, viewer, at, taken, fire } = resting({ pictures: [shot, later, later] })
+        fire("did-stop-loading")
+        await vi.advanceTimersByTimeAsync(freshenMs)
+        expect(taken).toHaveLength(1)
+        // An app's route: the picture is of where it was, until it's pictured again.
+        at.url = `${url}settings`
+        fire("did-navigate-in-page", { isMainFrame: true })
+        host.style.display = "none"
+        viewer.awake(false)
+        await vi.advanceTimersByTimeAsync(0)
+        expect(pageOf(host)).not.toBeNull()
+        host.style.display = "flex"
+        viewer.awake(true)
+        await vi.advanceTimersByTimeAsync(freshenMs)
+        expect(taken).toHaveLength(2)
+        await vi.advanceTimersByTimeAsync(keepMs)
+        expect(taken).toHaveLength(3)
+        host.style.display = "none"
+        viewer.awake(false)
+        await vi.advanceTimersByTimeAsync(0)
+        expect(pageOf(host)).toBeNull()
+        expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(later)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("isn't pictured while it has focus, as the person uses it", async () => {
+      vi.useFakeTimers()
+      try {
+        const { taken, fire, ready } = resting()
+        const page = ready()!
+        page.tabIndex = 0
+        page.focus()
+        fire("did-stop-loading")
+        await vi.advanceTimersByTimeAsync(freshenMs + keepMs)
+        expect(taken).toEqual([])
+        page.blur()
+        await vi.advanceTimersByTimeAsync(keepMs)
+        expect(taken).toEqual([7])
       } finally {
         vi.useRealTimers()
       }
