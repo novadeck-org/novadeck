@@ -99,6 +99,19 @@ const MemberTab = ({
 // How many of what's behind peek out above what the pane shows.
 const peeking = 2
 
+// Calls `done` when an animation on the element itself is cut short, as by its terminal
+// being hidden mid-way, which React has no prop for.
+const whenCut =
+  (done: () => void) =>
+  (element: HTMLElement | null): (() => void) | undefined => {
+    if (!element) return undefined
+    const cut = (event: AnimationEvent): void => {
+      if (event.target === element) done()
+    }
+    element.addEventListener("animationcancel", cut)
+    return () => element.removeEventListener("animationcancel", cut)
+  }
+
 // How soon after the person acts in the pane what it shows must change for the pane to
 // take focus: the change follows at once, so anything later wasn't theirs.
 const handOffMs = 1000
@@ -149,6 +162,7 @@ const BehindStack = ({
               aria-label={`Bring forward ${name}`}
               onClick={() => onRaise(each)}
               onAnimationEnd={onTucked}
+              ref={whenCut(onTucked)}
             />
           </Tooltip>
         )
@@ -243,6 +257,9 @@ export const CompanionPane = ({
           : undefined,
     })
   }
+  // The entry played, or was cut short: it isn't played again.
+  const played = (): void =>
+    setEntry((current) => (current.how ? { ...current, how: undefined } : current))
   const messages = member?.kind === "messages"
   const plan = member?.kind === "item" && member.item.kind === "plan" ? member.item : undefined
   // Minimizing or closing what it showed, or bringing forward what's behind, from the pane
@@ -322,8 +339,11 @@ export const CompanionPane = ({
         }}
       >
         {!member ? (
-          // All that's left may hold secrets, which shows only once picked.
-          <div className="artifact-status">Pick what to show from the taskbar.</div>
+          // All that's left may hold secrets, which shows only once picked; or, as the
+          // pane goes, what it showed is gone.
+          leaving ? null : (
+            <div className="artifact-status">Pick what to show from the taskbar.</div>
+          )
         ) : (
           <div
             key={member.key}
@@ -331,9 +351,10 @@ export const CompanionPane = ({
             data-entry={leaving ? undefined : entry.how}
             // Played once: a hidden terminal shown again doesn't play it again.
             onAnimationEnd={(event) => {
-              if (event.target === event.currentTarget)
-                setEntry((current) => (current.how ? { ...current, how: undefined } : current))
+              if (event.target === event.currentTarget) played()
             }}
+            // Cut short, as when its terminal is hidden mid-way: done all the same.
+            ref={whenCut(played)}
           >
             {member.kind === "item" && member.placed ? (
               <div className="placed-tab">

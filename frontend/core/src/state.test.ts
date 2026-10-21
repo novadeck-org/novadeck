@@ -58,6 +58,19 @@ describe("companion items in the workspace", () => {
       expect(state.bars["01"]).toMatchObject({ stack: [notes.id, hero.id], open: true })
     })
 
+    it("takes what the person uncovers as seen, though it was rewritten behind", () => {
+      const reading = apply(
+        shown(notes, hero),
+        { type: "bar/open", target, terminalId: "01", key: notes.id },
+        { type: "bar/open", target, terminalId: "01", key: hero.id },
+        { type: "item/upsert", target, item: { ...notes, version: notes.version + 1 } },
+      )
+      expect(stateOf(reading).fresh).toEqual({ [notes.id]: true })
+      const state = run(reading, { type: "bar/minimize", target, terminalId: "01", key: hero.id })
+      expect(state.bars["01"]).toMatchObject({ stack: [notes.id], open: true })
+      expect(state.fresh).toEqual({})
+    })
+
     it("never opens something that may hold secrets", () => {
       const state = stateOf(shown({ ...notes, asked: true, held: true }))
       expect(state.bars["01"]).toMatchObject({ stack: [], open: false })

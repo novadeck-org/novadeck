@@ -201,7 +201,7 @@ export const TaskbarSlot = ({
   const fresh = slot.members.some(isNew)
   const shown = slot.members.find((member) => member.key === showing)
   const behind = !shown && slot.members.some((member) => stacked.includes(member.key))
-  const openLabel = behind ? ", open" : ""
+  const openLabel = behind ? ", in the pane" : ""
   const names = slot.stack && stackNames(slot.stack)
   const stack = stackMenu(slot.members, names ? names.one : "item", actions)
   const messages = single?.kind === "messages"

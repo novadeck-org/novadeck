@@ -32,7 +32,7 @@ export const Peek = ({ entries }: { entries: readonly PeekEntry[] }): React.JSX.
         <button
           className="plan-peek-open"
           data-state={entry.state}
-          aria-label={`${entry.name}${entry.state === "new" ? ", new" : entry.state === "behind" ? ", open" : ""}`}
+          aria-label={`${entry.name}${entry.state === "new" ? ", new" : entry.state === "behind" ? ", in the pane" : ""}`}
           aria-pressed={entry.state === "open"}
           onClick={entry.onOpen}
           onPointerDown={entry.onGrab}

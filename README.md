@@ -655,8 +655,8 @@ quietly, and nothing opens on its own unless you asked for it. Hover an icon to 
 card per thing behind it, each a preview, its name and the same mark, with no copy. Once
 you've peeked, what was new is seen, without opening it. Click an icon or a card to open
 it on top. Click the showing icon again, or the pane's minimize button, to minimize it,
-uncovering what's behind; press Escape to hide the whole pane, which comes back as it was
-with the next click. Close from the pane's header, a card's corner button or the icon's
+uncovering what's behind; press Escape to hide the whole pane, which keeps what's open in
+it for when the pane comes back. Close from the pane's header, a card's corner button or the icon's
 right-click, which uncovers what's behind too. Closing a plan or Messages on its own terminal's bar hides it: the
 plan comes back with the agent's next version of it, Messages with the next message,
 last on the bar each time. Closing anything else deletes it, with the window it's in;

@@ -348,7 +348,8 @@ const unfresh = (state: WorkspaceState, id: ItemId): WorkspaceState => {
 
 const barOf = (state: WorkspaceState, terminalId: string): Bar => state.bars[terminalId] ?? emptyBar
 
-// Changes a terminal's bar, giving one to a terminal that had none.
+// Changes a terminal's bar, giving one to a terminal that had none. What the change
+// brings to the top of an open pane, as what was behind it uncovered, is seen.
 const withBar = (
   state: WorkspaceState,
   terminalId: string,
@@ -357,7 +358,12 @@ const withBar = (
   if (!hasTerminal(state.roster, terminalId)) return state
   const bar = barOf(state, terminalId)
   const next = change(bar)
-  return next === bar ? state : { ...state, bars: { ...state.bars, [terminalId]: next } }
+  if (next === bar) return state
+  const changed = { ...state, bars: { ...state.bars, [terminalId]: next } }
+  const shown = next.open ? topOf(next) : null
+  return shown !== null && shown !== messagesKey && shown !== topOf(bar)
+    ? unfresh(changed, shown)
+    : changed
 }
 
 const barHolding = (item: CompanionItem): string | undefined =>

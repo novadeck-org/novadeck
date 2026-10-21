@@ -222,11 +222,11 @@ export const TerminalCompanion = ({
   // Open while there's something to show.
   const open = bar.open && tab !== null
   const showing = open ? tab : null
-  // What the pane last showed: as it animates out it keeps showing that, while it's still
-  // on the bar, as when its only sheet was minimized, not what it would fall back to.
+  // What the pane last showed: as it animates out it keeps showing that, as when its only
+  // sheet was minimized, or nothing once that's gone, never what it would fall back to.
   const [lastShown, setLastShown] = useState<BarKey | null>(showing)
   if (showing !== null && showing !== lastShown) setLastShown(showing)
-  const paneTab = open || !members.some((each) => each.key === lastShown) ? tab : lastShown
+  const paneTab = open ? tab : members.some((each) => each.key === lastShown) ? lastShown : null
   // What's open in the pane behind what it shows, nearest first, counted against what it
   // shows even as it hides, so its sheets stay as they were while it animates out.
   const behind = behindTab(bar, members, paneTab)
@@ -409,6 +409,18 @@ export const TerminalCompanion = ({
               ?.writeText(plan.eol === "\n" ? plan.text : plan.text.replaceAll("\n", plan.eol))
               .catch(() => undefined)
           commands.closeItem(item.id)
+          // Closed from the pane with something behind it: the pane, still out, takes
+          // focus, which the dialog would have put back on a button that's gone.
+          if (item.id === showing && behind.length > 0)
+            requestAnimationFrame(() => {
+              const focused = document.activeElement
+              if (focused && focused !== document.body) return
+              document
+                .querySelector<HTMLElement>(
+                  `[data-companion-of="${CSS.escape(terminal)}"] .plan-reader`,
+                )
+                ?.focus({ preventScroll: true })
+            })
         }}
         widthClassName="w-[min(360px,calc(100vw-32px))]"
       />

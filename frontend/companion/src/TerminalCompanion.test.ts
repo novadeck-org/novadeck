@@ -210,6 +210,15 @@ describe("a terminal's taskbar", () => {
       expect(document.activeElement).toBe(document.body)
     })
 
+    it("hands focus to the pane when the person brings forward what peeks out behind it", async () => {
+      const { container } = renderTerminal(opened())
+      const card = container.querySelector<HTMLButtonElement>(".plan-stack-sheet")
+      card?.focus()
+      await act(async () => card?.click())
+      expect(icon(container, "hero.png")?.getAttribute("data-state")).toBe("open")
+      expect(document.activeElement).toBe(container.querySelector(".plan-reader"))
+    })
+
     it("hides the whole pane on Escape from a sheet peeking out behind it", async () => {
       const { container } = renderTerminal(opened())
       const card = container.querySelector<HTMLElement>(".plan-stack-sheet")
