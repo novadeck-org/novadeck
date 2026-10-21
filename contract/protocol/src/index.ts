@@ -1,7 +1,7 @@
 export { contract, errors, type ErrorCode, type WireClient } from "./contract.js"
 export { hasControlCharacters, normalisedText, promptRefusal, shellCommand } from "./prompts.js"
 export { harnesses, harnessIds } from "./harnesses.js"
-export { pageKey } from "./pages.js"
+export { onThisMachine, pageKey } from "./pages.js"
 export * from "./schemas.js"
 export * from "./inbox.js"
 export * from "./text.js"

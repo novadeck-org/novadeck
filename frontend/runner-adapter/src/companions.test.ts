@@ -2,8 +2,18 @@ import { mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { itemIdOf, PlanUnwritableError, type ItemContent } from "@novadeck/core/companion"
-import type { ItemContent as RunnerContent, PlanSaveResult } from "@novadeck/protocol"
+import {
+  itemIdOf,
+  pageTroublesPerCall,
+  PlanUnwritableError,
+  type ItemContent,
+} from "@novadeck/core/companion"
+import {
+  maxPageTroubles,
+  pageTrouble,
+  type ItemContent as RunnerContent,
+  type PlanSaveResult,
+} from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
@@ -40,6 +50,7 @@ const following = ({ livePages = false } = {}) => {
         attached.push(input)
         return undefined as never
       },
+      pageTrouble: async () => {},
     },
     { livePages },
   )
@@ -344,5 +355,83 @@ describe("the runner's items and windows", () => {
         titleSource: { kind: "person" },
       }),
     ).toEqual({ id: "w", itemId: "hero", name: "Hero", titleSource: { kind: "person" } })
+  })
+})
+
+describe("what a page shows wrong", () => {
+  const told = () => {
+    const calls: { itemId: string; shown: number; troubles: readonly unknown[] }[] = []
+    let failure: unknown
+    const companions = createRunnerCompanions({
+      content: () => channel<RunnerContent>().iterator,
+      save: () => Promise.reject(new Error("unused")),
+      attach: () => Promise.reject(new Error("unused")),
+      pageTrouble: async (input) => {
+        calls.push(input)
+        if (failure) throw failure
+        return undefined as never
+      },
+    })
+    return {
+      companions,
+      calls,
+      fails: (error: unknown) => {
+        failure = error
+      },
+    }
+  }
+
+  it("tells the runner, as its schema has it, what the page showed wrong", async () => {
+    const app = told()
+    app.companions.trouble(target, hero, 3, [
+      { kind: "error", text: "x".repeat(5000), source: "s".repeat(5000), line: 2.7 },
+      { kind: "request", url: "u".repeat(5000), status: 1200, what: "w".repeat(100) },
+      { kind: "load", text: "l".repeat(1000) },
+    ])
+    await settle()
+    expect(app.calls).toHaveLength(1)
+    const [call] = app.calls
+    expect(call).toMatchObject({ itemId: "hero", shown: 3 })
+    for (const trouble of call!.troubles) expect(pageTrouble.safeParse(trouble).success).toBe(true)
+    expect(call!.troubles[0]).toMatchObject({ kind: "error", line: 2 })
+    expect(call!.troubles[1]).toMatchObject({ kind: "request", status: 999 })
+  })
+
+  it("tells no more at a time than the runner takes, and nothing when there is nothing", async () => {
+    const app = told()
+    app.companions.trouble(target, hero, 1, [])
+    app.companions.trouble(
+      target,
+      hero,
+      1,
+      Array.from({ length: maxPageTroubles + 5 }, () => ({ kind: "load" as const, text: "down" })),
+    )
+    await settle()
+    expect(pageTroublesPerCall).toBe(maxPageTroubles)
+    expect(app.calls.map((call) => call.troubles.length)).toEqual([maxPageTroubles])
+  })
+
+  it("clips text without splitting a character, and takes a line that isn't a number as 0", async () => {
+    const app = told()
+    const text = `${"x".repeat(255)}\u{1F600}`
+    app.companions.trouble(target, hero, 1, [
+      { kind: "load", text },
+      { kind: "error", text: "e", source: "s", line: Infinity },
+    ])
+    await settle()
+    const [load, error] = app.calls[0]!.troubles as { text: string; line: number }[]
+    expect(load!.text).toBe("x".repeat(255))
+    expect(pageTrouble.safeParse(error).success).toBe(true)
+    expect(error!.line).toBe(0)
+  })
+
+  it("lets it go if the runner won't take it", async () => {
+    const app = told()
+    app.fails(new WireError("NOT_FOUND", "No such item"))
+    expect(() =>
+      app.companions.trouble(target, hero, 1, [{ kind: "load", text: "down" }]),
+    ).not.toThrow()
+    await settle()
+    expect(app.calls).toHaveLength(1)
   })
 })

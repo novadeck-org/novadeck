@@ -253,6 +253,28 @@ export class PlanUnwritableError extends Error {
   }
 }
 
+// What went wrong on a live page, as the pane saw it: an error the page logged or threw,
+// with the script and line it came from; a request of the page's own origin answered with an
+// HTTP error `status` (0 for no answer), the page itself being `what: "page"`; or a load that
+// failed outright.
+export type PageTrouble =
+  | {
+      readonly kind: "error"
+      readonly text: string
+      readonly source: string
+      readonly line: number
+    }
+  | {
+      readonly kind: "request"
+      readonly url: string
+      readonly status: number
+      readonly what: string
+    }
+  | { readonly kind: "load"; readonly text: string }
+
+// How many troubles one `trouble` call carries at most.
+export const pageTroublesPerCall = 20
+
 // Where the items' content comes from. The items themselves reach the workspace store
 // as the backend's seed and actions, like terminals.
 export type Companions = {
@@ -272,6 +294,15 @@ export type Companions = {
     text: string,
     basedOn: string,
   ) => Promise<PlanSaved>
+  // Tells what went wrong on a live page, which the item's show `shown` (its `version`)
+  // loaded, so the agent that showed it can hear. Best effort: it never fails, and a
+  // backend that can't tell anyone does nothing. At most `pageTroublesPerCall` at a time.
+  readonly trouble: (
+    target: WorkspaceTarget,
+    itemId: ItemId,
+    shown: number,
+    troubles: readonly PageTrouble[],
+  ) => void
   // Puts a file on the terminal's bar, as the person attached it. Absent where the
   // backend can't.
   readonly attach?: (key: CompanionKey, path: string) => Promise<void>
@@ -286,6 +317,7 @@ export type Companions = {
 export const emptyCompanions = (): Companions => ({
   follow: () => () => {},
   save: () => Promise.reject(new Error("There are no plans")),
+  trouble: () => {},
 })
 
 // A note as Novadeck writes it into the plan: an HTML comment, invisible once rendered,

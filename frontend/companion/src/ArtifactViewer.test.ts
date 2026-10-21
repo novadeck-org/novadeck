@@ -40,6 +40,7 @@ const show = () => {
       return () => {}
     },
     save: () => new Promise(() => {}),
+    trouble: () => {},
   }
   const workspace = createWorkspaceStore(
     workspaceReducer(workspaceFixture(), { type: "item/upsert", target, item }),

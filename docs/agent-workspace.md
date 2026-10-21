@@ -458,6 +458,27 @@ with every safety check again at that time:
   the show it carried out with where the person took the page, so a viewer mounted again
   in the same window for the same show opens where the person was, as a show already
   carried out, and doesn't scroll.
+  A live pane also reports what goes wrong on the page to the runner
+  (`companions.pageTrouble`, with the show of the document that had it): errors the page
+  logs or throws and a load that fails outright, which the viewer sees in the view's
+  events, and the requests of the page's own origin that fail (the page itself, a frame, a
+  script, a fetch...) with an HTTP error or no answer, which the desktop app's main
+  process sees on the pages' session and hands to the viewer through the app's preload,
+  not from the page's own performance entries, whose buffer fills and which can't tell an
+  abort from no answer. A request cancelled, as by a page that aborts its own fetch, is not
+  a failure. It reports only while the page is on the origin it was shown at, so nothing
+  from a page the person browsed to elsewhere or from another site's frame; only on the
+  desktop app, as the web version loads no page live; at most 20 troubles of any kind for
+  a document (the count starts anew when the main frame navigates or a load of it fails
+  outright), in calls of at most 20; the main process passes on at most 100 failed requests
+  of a page view, from each origin, for each navigation of its main frame; and best effort,
+  a failed call is dropped. A page at rest as its picture has no view, so it tells nothing
+  until it wakes: an agent's show wakes it once its pane is on screen, so each show's load
+  is watched then, while one shown into a pane out of sight, or that no pane shows, waits
+  for it, and what breaks later on a page nobody is at (a dev server's hot reload) goes
+  untold until it wakes again. Errors count as the page logs them, so a framework's dev
+  warnings sent to `console.error` count too. Each wake loads the page afresh and tells again, which the runner keeps once per
+  show. For a page on this machine the runner tells the agent at its next prompt.
 - **Saving** would be a new authorized plan-write operation with the stamp check above,
   scoped like `present`: the caller may write only the plan the terminal's agent keeps.
   The runner doesn't offer it yet.

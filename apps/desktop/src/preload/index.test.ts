@@ -1,6 +1,7 @@
 import type { EventEmitter } from "node:events"
 
 import { runnerPortMessage, type DesktopHost } from "@novadeck/protocol/bridge"
+import { pageRequestChannel, pageRequestMessage } from "@novadeck/viewers/browser/trouble"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import {
@@ -143,6 +144,58 @@ describe("a port to the runner", () => {
     } finally {
       vi.unstubAllGlobals()
     }
+  })
+})
+
+describe("a request a page view failed", () => {
+  const told = (...args: unknown[]) => {
+    const posted = vi.fn<(message: unknown, origin: string) => void>()
+    vi.stubGlobal("window", { postMessage: posted })
+    try {
+      electron.renderer.emit(pageRequestChannel, {}, ...args)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    return posted
+  }
+
+  it("reaches the page as a window message naming its view", () => {
+    const posted = told(7, { url: "http://localhost/a.js", status: 404, what: "script", extra: 1 })
+    expect(posted).toHaveBeenCalledExactlyOnceWith(
+      {
+        type: pageRequestMessage,
+        contentsId: 7,
+        url: "http://localhost/a.js",
+        status: 404,
+        what: "script",
+      },
+      "*",
+    )
+  })
+
+  it("is clipped to what the runner takes, not refused", () => {
+    const posted = told(7, {
+      url: `http://x/${"u".repeat(3000)}`,
+      status: 404,
+      what: "w".repeat(40),
+    })
+    const [message] = posted.mock.calls[0]!
+    expect(message).toMatchObject({ status: 404, what: "w".repeat(32) })
+    expect((message as { url: string }).url).toHaveLength(2048)
+  })
+
+  it("reaches it only if it is what the viewer reads", () => {
+    const failure = { url: "http://localhost/a.js", status: 404, what: "script" }
+    for (const bad of [
+      told("7", failure),
+      told(7, null),
+      told(7, "text"),
+      told(7, { ...failure, status: "404" }),
+      told(7, { ...failure, status: 1000 }),
+      told(7, { ...failure, status: 4.5 }),
+      told(7, { url: failure.url, status: 404 }),
+    ])
+      expect(bad).not.toHaveBeenCalled()
   })
 })
 
