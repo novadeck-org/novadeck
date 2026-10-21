@@ -95,7 +95,7 @@ jobs:
       matrix:
         include:
           # Pinned, not ubuntu-latest: the voice and murmur engines link against the image's
-          # glibc, and run only where it is at least as new. Ubuntu 26.04's 2.43 left them
+          # glibc, and may need any version up to its own. Ubuntu 26.04's 2.43 left them
           # unable to start on 24.04 and most other desktops (0.0.163 to 0.0.171).
           - name: Linux
             os: ubuntu-24.04
@@ -345,7 +345,7 @@ jobs:
           install_runtime: false
           cache: true
 
-      # Keyed on the image too, so an engine built on another one is never reused.
+      # Keyed on the runner's label too, so an engine built on ubuntu-latest is not reused.
       - name: Restore Voice Engine
         id: engine
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -389,7 +389,7 @@ jobs:
           failed=0
           while IFS= read -r -d '' file; do
             [[ "$(head -c 4 "$file")" == $'\x7fELF' ]] || continue
-            needs="$(objdump -T "$file" | { grep -o 'GLIBC_[0-9.]*' || true; } | sed 's/GLIBC_//' | sort -uV | tail -n 1)"
+            needs="$({ objdump -T "$file" 2>/dev/null || true; } | { grep -o 'GLIBC_[0-9.]*' || true; } | sed 's/GLIBC_//' | sort -uV | tail -n 1)"
             echo "${needs:-none} ${file#"$engines"/}"
             if [[ -n "$needs" && "$(printf '%s\n' "$floor" "$needs" | sort -V | tail -n 1)" != "$floor" ]]; then
               echo "::error::${file#"$engines"/} needs glibc $needs, newer than $floor."
