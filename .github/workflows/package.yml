@@ -433,24 +433,46 @@ jobs:
       # libraries than a desktop may. So on Linux they are checked in the build image's clean
       # Ubuntu (ENGINE_BUILD_BASE, without its toolchain) with only the Vulkan loader added, as
       # a desktop has it: here every file must find each library
-      # it needs (ldd also says when one needs a newer glibc), and the checks below start the
-      # servers there.
+      # it links (ldd also says when one needs a newer glibc; what an engine loads later, such as
+      # a GPU driver, is not ldd's to see), and the checks below start the servers there.
       - name: Check Engines' Libraries (Linux)
         if: matrix.target == 'linux'
         run: |
-          printf '%s\n' "FROM $ENGINE_BUILD_BASE" \
-            'RUN apt-get update && apt-get install -y --no-install-recommends libvulkan1 && rm -rf /var/lib/apt/lists/*' |
-            docker build --quiet --tag novadeck-engine-check - > /dev/null
+          # Ubuntu's mirrors and Docker Hub fail now and then: a few tries, and what the last
+          # one said when none worked.
+          for try in 1 2 3; do
+            if printf '%s\n' "FROM $ENGINE_BUILD_BASE" \
+              'RUN apt-get update && apt-get install -y --no-install-recommends libvulkan1 && rm -rf /var/lib/apt/lists/*' |
+              docker build --tag novadeck-engine-check - > "$RUNNER_TEMP/engine-check-image.txt" 2>&1; then
+              break
+            fi
+            if (( try == 3 )); then
+              tail -n 30 "$RUNNER_TEMP/engine-check-image.txt"
+              echo "::error::The clean Ubuntu image for the engine checks could not be built."
+              exit 1
+            fi
+            sleep 20
+          done
           engines="$RUNNER_TEMP/engines-glibc"
+          # Every ELF file, as the glibc check finds them; none found is a failure, not a pass.
           docker run --rm --network none -v "$engines:$engines:ro" novadeck-engine-check bash -c '
             status=0
-            for file in "$0"/*/*.so* "$0"/*/*-server; do
-              [[ -f "$file" && ! -L "$file" ]] || continue
-              if ldd "$file" | grep "not found"; then
+            count=0
+            while IFS= read -r -d "" file; do
+              [[ "$(head -c 4 "$file" | tr -d "\0")" == $'"'"'\x7fELF'"'"' ]] || continue
+              count=$((count + 1))
+              # A static file is not dynamic, and needs nothing.
+              printed="$(ldd "$file" 2>&1)" || [[ "$printed" == *"not a dynamic executable"* ]] || printed+=" (ldd failed)"
+              if grep -E "not found|ldd failed" <<< "$printed"; then
                 echo "::error::${file#"$0"/} needs a library, or a version of one, that the clean image lacks."
                 status=1
               fi
-            done
+            done < <(find "$0" -type f -print0)
+            echo "Checked $count files."
+            if (( count == 0 )); then
+              echo "::error::No engine files were found to check."
+              status=1
+            fi
             exit "$status"' "$engines"
 
       # Unpacks the engine with the tar the runner uses on this platform and runs it, so a
