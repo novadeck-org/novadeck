@@ -38,7 +38,7 @@ The descriptions you are given are written by the makers, in their words. Retell
 from where the reader sits: what they notice, and where in the app. Use the names the app
 shows, such as Focus, Grid and Canvas, the Inbox, the footer, a terminal's word handle, or a
 button's label; leave out the names that live only in code, such as verdict, engine, runner,
-harness, manager, tick, selector, schema, state or channel. If a line can't be written without
+harness, manager, tick, selector, schema or channel. If a line can't be written without
 one of them, write what the reader sees instead, or leave the change out.
 
 When the "Why" says what the reader gains and the change alone doesn't make it plain, end the
@@ -97,14 +97,15 @@ have noticed; leave the small ones out, they are counted for you.
 In release mode, the changes are those of one prerelease. Put each visible change in
 `changes`. Then pick at most two of them as highlights, the changes a person would want to
 hear about right after updating: something new they can do or see that they would miss if
-nobody told them. Most builds have none. A fix, a change to how something already there looks
-or behaves, or a smaller step on a feature they know is not a highlight. A highlight repeats
-its change, which stays in `changes` too. Leave `highlights` empty when nothing stands out.
+nobody told them. Most builds have none. A fix, a speedup, a change to how something already
+there looks or behaves, or a smaller step on a feature they know is not a highlight. A
+highlight tells one of its changes again, shorter, and that change stays in `changes` too.
+Leave `highlights` empty when nothing stands out.
 
 In promote mode, the changes are every change since the last stable release, or since the
 start when there is none. Pick one to four highlights, the changes a person would most want
 to hear about, each with a title and a short line. Put every visible change in `changes`,
 grouped by area, the highlighted ones too, with their full line.
 
-When there is no stable release yet, this is the first one: describe what the app does now,
+When there is no stable release yet, this is the first one: describe what the app does,
 not how it got there ("terminals are named by a word everywhere", "runs real shells").

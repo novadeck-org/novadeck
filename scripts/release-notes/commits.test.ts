@@ -178,6 +178,13 @@ describe("the commits a release is written from", () => {
     ).toBe("You couldn't tell which went together.")
     expect(whyOf("## What\n\nA thing.")).toBe("")
     expect(whyOf("## Why\n\nA chat view thing. A real reason.")).toBe("A real reason.")
+    expect(whyOf("## Why\n\nBuilds on #373, which split it. Closes #383. A real reason.")).toBe(
+      "A real reason.",
+    )
+    expect(whyOf("## Why\n\n<!-- Name the need or problem. -->\n\n## Impact\n\nno")).toBe("")
+    expect(whatOf("## What\n\n<!-- Describe it. -->\nLike #330, tabs name teams.")).toBe(
+      "Like #330, tabs name teams.",
+    )
     const long = whyOf(`## Why\n\n${"word ".repeat(400)}`)
     expect(long.length).toBeLessThanOrEqual(maxWhy + 3)
     expect(long.endsWith("...")).toBe(true)

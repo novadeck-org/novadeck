@@ -54,8 +54,15 @@ const unannounced = (text: string): boolean => chat.test(text) || demo.test(text
 // A list item or a numbered one starts a block of its own.
 const itemStart = /^\s*(?:[-*+]|\d+\.)\s/
 
-/** The text under a pull request body's `## <heading>`, up to the next heading, cut at `max`. */
-const sectionOf = (body: string, heading: string, max: number): string => {
+// A sentence that points at an issue or another pull request, as "Builds on #373" or "Closes
+// #383": the model would take the number for one it may cite.
+const reference = /#\d+\b/
+
+/**
+ * The text under a pull request body's `## <heading>`, up to the next heading, cut at `max`.
+ * `references` keeps the sentences that point at an issue or a pull request.
+ */
+const sectionOf = (body: string, heading: string, max: number, references = true): string => {
   const found = new RegExp(
     `^## ${heading}[ \\t]*\\r?\\n(?<text>[\\s\\S]*?)(?=^## |(?![\\s\\S]))`,
     "m",
@@ -65,8 +72,10 @@ const sectionOf = (body: string, heading: string, max: number): string => {
   const blocks: string[] = []
   let open = false
   // Links are the pull request's business; a URL in what the model reads is a way to steer it.
+  // So does the template's prompt, left in an unfilled section.
   const plain = (found?.groups?.text ?? "")
     .replaceAll("\r", "")
+    .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/\b(?:https?:\/\/|www\.)\S+/gi, "")
   for (const line of plain.split("\n")) {
     if (!line.trim()) {
@@ -83,7 +92,7 @@ const sectionOf = (body: string, heading: string, max: number): string => {
     .flatMap((block) => {
       const kept = block
         .split(/(?<=[.!?])\s+/)
-        .filter((sentence) => !unannounced(sentence))
+        .filter((sentence) => !unannounced(sentence) && (references || !reference.test(sentence)))
         .join(" ")
       // A block that was all about it goes whole; a blank line stays a blank line.
       return block && !kept ? [] : [kept]
@@ -98,7 +107,7 @@ const sectionOf = (body: string, heading: string, max: number): string => {
 export const whatOf = (body: string): string => sectionOf(body, "What", maxWhat)
 
 /** The text under its `## Why` heading, the same way. */
-export const whyOf = (body: string): string => sectionOf(body, "Why", maxWhy)
+export const whyOf = (body: string): string => sectionOf(body, "Why", maxWhy, false)
 
 /**
  * The commit, when it is a feat, fix or perf change a person could see; `undefined` for any

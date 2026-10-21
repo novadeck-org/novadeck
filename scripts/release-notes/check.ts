@@ -39,9 +39,14 @@ const steered: readonly [RegExp, string][] = [
   [/<[a-z/!]/i, "an HTML tag"],
 ]
 
-// A letter outside the Latin script: the notes are English, and a model that answered in
-// another language did so for the whole answer, so it fails, not line by line.
-const foreign = /(?!\p{Script=Latin})\p{L}/u
+// A line mostly in a script other than Latin: a model that answered in another language did so
+// for the whole answer, so it fails, not line by line. A unit such as µs or a quoted 日本語
+// stays a few letters of an English line and passes. A drift into another language written in
+// Latin letters isn't caught here.
+const letters = /\p{L}/gu
+const nonLatin = /(?!\p{Script=Latin})\p{L}/gu
+const foreign = (text: string): boolean =>
+  (text.match(nonLatin)?.length ?? 0) > (text.match(letters)?.length ?? 0) * 0.3
 
 // Markup a plain line has no use for. A slip drops that line and the rest stands.
 const markup = /[*~\\`[<>]/
@@ -114,7 +119,7 @@ export const checkOutput = (
     const text = [title, line].join("\n")
     const steer = steered.find(([pattern]) => pattern.test(text))
     if (steer) return fail(`A line holds ${steer[1]}, which plain text doesn't`)
-    if (foreign.test(text)) return fail("A line is not written in English")
+    if (foreign(text)) return fail("A line is not written in English")
     const topic = excluded.find((pattern) => pattern.test(text))
     // A citation the notes can't hold, or one the model wasn't given, costs that line only.
     const reason =
