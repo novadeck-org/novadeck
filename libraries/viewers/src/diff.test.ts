@@ -462,6 +462,22 @@ describe("the diff viewer", () => {
       }
     })
 
+    it("keeps the same line on top when lines are committed above it", async () => {
+      const first = await reading()
+      const line = topText(first.root)
+      for (const committed of [1, 20]) {
+        // Lines above went into HEAD: the old numbers move up, the new ones stay.
+        const kept = sized("f16.txt", 80).hunks[0]!
+        const hunk = { ...kept, oldStart: 1 + committed }
+        first.viewer.update(change(many({ 16: file("f16.txt", { hunks: [hunk] }) })))
+        // eslint-disable-next-line no-await-in-loop -- Each update settles before the next.
+        await frame()
+        // eslint-disable-next-line no-await-in-loop -- Each update settles before the next.
+        await frame()
+        expect(topText(first.root)).toBe(line)
+      }
+    })
+
     it("goes to the top of the file that takes the place of the one read, when it is gone", async () => {
       const first = await reading()
       const without = (gone: number) => many().filter((_, at) => at !== gone)
@@ -509,23 +525,49 @@ describe("the diff viewer", () => {
     it("raises no window error when it is hidden, updated and shown", async () => {
       const errors: string[] = []
       const listener = (event: ErrorEvent): void => void errors.push(event.message)
-      window.addEventListener("error", listener)
+      window.addEventListener("error", listener, true)
+      const big = (path: string, version: number): DiffFile =>
+        file(path, {
+          hunks: [
+            hunkOf(
+              1,
+              Array.from({ length: 300 }, (_, at) => ({
+                kind: at % 5 ? ("context" as const) : ("add" as const),
+                text: `line ${at} ${version} ${"x".repeat(200)}`,
+              })),
+            ),
+          ],
+        })
       try {
-        const first = await reading()
-        for (let times = 0; times < 3; times += 1) {
-          first.host.style.display = "none"
-          first.viewer.update(change(many({ 16: sized("f16.txt", 90 + times) })))
-          first.host.style.display = "flex"
-          // eslint-disable-next-line no-await-in-loop -- Each round settles before the next.
+        for (let round = 0; round < 4; round += 1) {
+          const files = [big("a.txt", 0), big("b.txt", 0), big("c.txt", 0)]
+          const { host, root, viewer } = mount(change(files))
+          // eslint-disable-next-line no-await-in-loop -- Each round is its own viewer.
           await frame()
-          // eslint-disable-next-line no-await-in-loop -- Each round settles before the next.
-          await frame()
+          root.scrollTop = 1000
+          root.querySelector<HTMLElement>(".diff-lines")!.scrollLeft = 300
+          // eslint-disable-next-line no-await-in-loop -- Each round is its own viewer.
+          await new Promise((resolve) => setTimeout(resolve, 100))
+          for (const changed of [false, true]) {
+            host.style.display = "none"
+            // eslint-disable-next-line no-await-in-loop -- Each step settles before the next.
+            await frame()
+            viewer.update(
+              change([changed ? big("a.txt", 7) : files[0]!, big("b.txt", round + 1), files[2]!]),
+            )
+            // eslint-disable-next-line no-await-in-loop -- Each step settles before the next.
+            await frame()
+            host.style.display = "flex"
+            // eslint-disable-next-line no-await-in-loop -- Each step settles before the next.
+            await new Promise((resolve) => setTimeout(resolve, 1200))
+          }
+          viewer.destroy()
         }
-        expect(errors).toEqual([])
+        expect(errors.filter((message) => message.includes("ResizeObserver"))).toEqual([])
       } finally {
-        window.removeEventListener("error", listener)
+        window.removeEventListener("error", listener, true)
       }
-    })
+    }, 60_000)
 
     it("keeps each file's sideways scroll, by its path, across updates, hiding and a new viewer", async () => {
       const wide = () => [

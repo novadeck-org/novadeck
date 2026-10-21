@@ -72,6 +72,9 @@ type Anchor = {
   readonly row: number
   readonly offset: number
   readonly line?: number
+  // A kept line's number on the new side, which a commit of lines above leaves as it was,
+  // as an edit of the working tree leaves `line`.
+  readonly other?: number
   readonly kind?: "context" | "add" | "remove" | "hunk"
   readonly text?: string
 }
@@ -89,6 +92,7 @@ const isDiffState = (state: unknown): state is DiffState => {
       typeof anchor.row === "number" &&
       typeof anchor.offset === "number" &&
       (anchor.line === undefined || typeof anchor.line === "number") &&
+      (anchor.other === undefined || typeof anchor.other === "number") &&
       (anchor.text === undefined || typeof anchor.text === "string"))
   )
 }
@@ -268,7 +272,12 @@ const describeStop = (
     if (before.kind !== "remove") newLine += 1
   }
   const { kind, text } = data.lines[line]!
-  return { line: kind === "add" ? newLine : oldLine, kind, text }
+  return {
+    line: kind === "add" ? newLine : oldLine,
+    ...(kind === "context" && { other: newLine }),
+    kind,
+    text,
+  }
 }
 
 // Where an anchor's line is now: that line, else the nearest one of its side, preferring
@@ -294,6 +303,14 @@ const findStop = (entry: Entry, anchor: Anchor): Stop | undefined => {
       if ((row.kind === "add") === added) {
         const distance = Math.abs((added ? newLine : oldLine) - anchor.line)
         const same = row.text === anchor.text
+        // A kept line with the anchor's text at its old number or at its new one: an edit of
+        // the working tree leaves the one, a commit of lines above leaves the other.
+        if (row.kind === "context" && anchor.kind === "context" && same) {
+          const oldSame = oldLine === anchor.line
+          const newSame = anchor.other !== undefined && newLine === anchor.other
+          if (oldSame || newSame)
+            consider({ hunk, line }, oldSame && newSame ? -3 : oldSame ? -2 : -1)
+        }
         consider(
           { hunk, line },
           added
