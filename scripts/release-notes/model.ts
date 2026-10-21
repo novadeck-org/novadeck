@@ -65,13 +65,15 @@ export const defaultModels = {
 export const timeouts = { release: 180_000, promote: 480_000 } as const
 
 /**
- * The most a mode lets the model write. A build's answer is short, and some cheap models a
- * variable may name cap a completion at 16,384. The promotion's number is low on purpose:
- * OpenRouter holds the cost of the whole limit up front, before the model writes a word, and
- * that hold has to fit what is left on a key capped at a dollar with the prereleases' spend
- * already taken out. A real promotion's answer was under 5,000 tokens.
+ * The most a mode lets the model write, its thinking included: Claude 5.5 thinks before it
+ * answers, and OpenRouter counts that as output. A build's answer is short, and some cheap
+ * models a variable may name cap a completion at 16,384. A promotion's dry run over 165 changes
+ * on Sonnet 5.5 wrote 15,076 tokens, about 3,600 of them the answer, so the promotion has room
+ * past that. OpenRouter holds the cost of the whole limit up front, before the model writes a
+ * word, and that hold has to fit what is left on a key capped at a dollar with the prereleases'
+ * spend already taken out: on Sonnet 5.5, 32,000 tokens hold about $0.32.
  */
-export const maxTokens = { release: 16_000, promote: 16_000 } as const
+export const maxTokens = { release: 16_000, promote: 32_000 } as const
 
 export const clientFor = (
   mode: "release" | "promote",

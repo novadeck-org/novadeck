@@ -98,13 +98,13 @@ describe("the model call", () => {
     expect(sent[0]!.init.signal).toBeInstanceOf(AbortSignal)
   })
 
-  it("lets a build and a promotion write 16,000 tokens each", async () => {
+  it("lets a build write 16,000 tokens and a promotion, which thinks over more, 32,000", async () => {
     const build = client(() => json(ok()))
     await ask(build.fake, "release", "1", items)
     expect(build.sent[0]!.body.max_tokens).toBe(16_000)
     const promotion = client(() => json(ok()))
     await ask(promotion.fake, "promote", "1", items)
-    expect(promotion.sent[0]!.body.max_tokens).toBe(16_000)
+    expect(promotion.sent[0]!.body.max_tokens).toBe(32_000)
   })
 
   it("holds the area to a real enum in the schema it sends, with no bounds the providers refuse", async () => {
