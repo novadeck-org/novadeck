@@ -93,10 +93,15 @@ README, "Counts".
 A site that can't be reached or fails never blocks updating: a check through it that
 fails for any reason is made again at once against GitHub (unless the app is quitting)
 with the repository from `app-update.yml`, and the next check goes to novadeck.dev
-again. A wrong answer from it would delay updates until the site is fixed; the site keeps
-that unlikely: for `stable` it relays GitHub's file live with `no-store`, and for `early`
-it trusts its own record of the newest build for 6 hours, then answers 503 so the app
-falls back. The one retry of a failed download goes to GitHub alone, so a feed that
+again. The site's answer for `stable` is GitHub's file relayed live with `no-store`; its
+answer for `early` can lag GitHub's by up to an hour (the site's own build), and the site
+distrusts its record after 6 hours and answers 503, so the app falls back. A wrong answer
+from the site, which only a bug of the site gives, can delay updates until it is fixed.
+Whichever feed answers, the app never steps back: a release older than one already
+offered (in tell mode) or taken for download on the same channel is ignored, with no
+download, no change of offer and nothing cleared, so a lagging answer cannot replace a
+newer release found through GitHub. A channel switch lifts this, as the other channel's
+release may be the older one. The one retry of a failed download goes to GitHub alone, so a feed that
 checks well but downloads badly does not fail the same way twice; a version's later
 failures do not pin the copy to GitHub. Portable copies check the same way. With no
 repository in `app-update.yml` there is nothing to fall back to, so checks stay on the

@@ -507,14 +507,14 @@ class FakeUpdater extends EventEmitter implements Pick<Updater, "checkForUpdates
   checkForUpdates(): Promise<unknown> {
     this.checks += 1
     this.seen.push({ feed: this.feed, headers: this.requestHeaders && { ...this.requestHeaders } })
-    if (this.newest(this.feed) !== undefined)
-      this.emit("update-available", { version: this.newest(this.feed) })
-    else if (this.upToDate && !this.failFeed(this.feed)) this.emit("update-not-available")
     if (this.failFeed(this.feed)) {
       const error = new Error("unreachable")
       this.emit("error", error)
       return Promise.reject(error)
     }
+    if (this.newest(this.feed) !== undefined)
+      this.emit("update-available", { version: this.newest(this.feed) })
+    else if (this.upToDate && !this.failFeed(this.feed)) this.emit("update-not-available")
     if (!this.failing) return Promise.resolve()
     const error = new Error("offline")
     this.emit("error", error)
@@ -1487,6 +1487,66 @@ describe("checking through novadeck.dev", () => {
     // The second failure of the version is not pinned to GitHub: the schedule uses the website.
     await vi.advanceTimersByTimeAsync(checkIntervalMs * 2)
     expect(updater.seen.map(({ feed }) => feed)).toEqual([site, github, site, site])
+  })
+
+  context("when the website's answer lags GitHub's", () => {
+    // The website names 1.5.0 while GitHub already has 1.6.0.
+    const lagging = (feed: Parameters<Updater["setFeedURL"]>[0] | undefined): string =>
+      feed?.provider === "generic" ? "1.5.0" : "1.6.0"
+
+    it("does not step back to the older release after taking GitHub's", async () => {
+      const { updater } = checking()
+      const taken: (string | undefined)[] = []
+      updater.downloadResult = () => {
+        taken.push(updater.newest(updater.feed))
+        return Promise.resolve()
+      }
+      updater.newest = lagging
+      updater.failFeed = (feed) => feed?.provider === "generic" && updater.checks === 1
+      await vi.advanceTimersByTimeAsync(firstCheckMs)
+      await vi.advanceTimersByTimeAsync(checkIntervalMs * 3)
+      expect(taken).toEqual(["1.6.0"])
+    })
+
+    it("does not offer the older release again in tell mode", async () => {
+      const { updater, offered } = checking({ mode: "tell" })
+      updater.newest = lagging
+      updater.failFeed = (feed) => feed?.provider === "generic" && updater.checks === 1
+      await vi.advanceTimersByTimeAsync(firstCheckMs)
+      await vi.advanceTimersByTimeAsync(checkIntervalMs * 2)
+      expect(offered).toEqual(["available 1.6.0"])
+    })
+
+    it("leaves the newer download alone when the older release was withdrawn", async () => {
+      const { updater, offered } = checking()
+      const downloads: (string | undefined)[] = []
+      updater.downloadResult = () => {
+        const version = updater.newest(updater.feed)
+        downloads.push(version)
+        return version === "1.5.0" ? Promise.reject(new Error("404")) : Promise.resolve()
+      }
+      updater.newest = lagging
+      await vi.advanceTimersByTimeAsync(firstCheckMs)
+      await vi.advanceTimersByTimeAsync(retryCheckMs)
+      await vi.advanceTimersByTimeAsync(checkIntervalMs * 3)
+      expect(downloads).toEqual(["1.5.0", "1.6.0"])
+      expect(offered.filter((offer) => offer.endsWith(" 1.5.0"))).toEqual([])
+    })
+
+    it("takes the older release of the other channel after a switch", async () => {
+      const { updater, setChannel } = checking({ channel: "early" })
+      const taken: (string | undefined)[] = []
+      updater.downloadResult = () => {
+        taken.push(updater.newest(updater.feed))
+        return Promise.resolve()
+      }
+      updater.newest = (feed) =>
+        feed === undefined ? undefined : updater.allowPrerelease ? "1.6.0" : "1.5.0"
+      await vi.advanceTimersByTimeAsync(firstCheckMs)
+      setChannel("stable")
+      await vi.advanceTimersByTimeAsync(switchCheckMs)
+      expect(taken).toEqual(["1.6.0", "1.5.0"])
+    })
   })
 
   it("makes a retry for a release that could not be prepared through the website, saying so", async () => {

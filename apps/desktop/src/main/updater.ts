@@ -18,6 +18,7 @@ import {
   updateOfferChannel,
   updateRequestChannel,
 } from "../bridge.js"
+import { isNewerVersion } from "./applications-folder.js"
 import type { ReleaseRepository } from "./update-release.js"
 
 /** How long after launch the first check waits, so it never competes with startup. */
@@ -459,8 +460,11 @@ export type Updater = {
  * which is how the website counts active copies; the headers go with that check and
  * nothing else. A site that can't be reached or fails never blocks updating: a check
  * through it that fails, for whatever reason, is made again at once against GitHub's
- * releases, and the next check goes to novadeck.dev again. (A wrong answer from it, which
- * only a bug of the site gives, delays updates until it is fixed.) The one retry of a
+ * releases, and the next check goes to novadeck.dev again. Its answer for `early` can lag
+ * GitHub's by up to an hour and is distrusted by the site after six; a wrong one, which
+ * only a bug of the site gives, delays updates until it is fixed. Whichever feed answers,
+ * a release older than one already offered or being downloaded on the same channel is
+ * ignored, so a lagging answer never steps back. The one retry of a
  * failed download goes to GitHub alone, so a feed that checks well but downloads badly
  * does not fail the same way twice. Without `feed` a check uses the updater's own
  * configuration.
@@ -537,6 +541,9 @@ export const checkForUpdates = (
   let preparing: string | undefined
   // The release not to download again: the one an install failed on, here or earlier.
   let failedOn = failedVersion
+  // The newest release offered in `tell` mode or taken for download, on the channel then
+  // followed, which no later answer may step back from.
+  let held: { readonly version: string; readonly channel: UpdateChannel } | undefined
   // Once an install has begun the app is on its way out, so the mark never goes back.
   let installing = false
   let failed = false
@@ -566,8 +573,15 @@ export const checkForUpdates = (
     offer({ kind: "available", version: downloaded.version })
   })
   updater.on("update-available", (info) => {
-    if (mode === "tell")
+    // Never a step back: the answer of a feed that lags another, as the website's does
+    // GitHub's for up to an hour, names an older release than one already offered or being
+    // fetched, and following it would replace the newer. A channel switch lifts this, as the
+    // other channel's release may be the older.
+    if (held?.channel === following && isNewerVersion(held.version, info.version)) return
+    if (mode === "tell") {
+      held = { version: info.version, channel: following }
       return offer({ kind: "available", version: info.version, ...(allow ? { allow } : {}) })
+    }
     // A release found while a download is under way waits for the next check.
     if (
       ended ||
@@ -582,6 +596,7 @@ export const checkForUpdates = (
       return
     }
     const { version } = info
+    held = { version, channel: following }
     // The headers describe the check; the download of what it found carries none.
     updater.requestHeaders = null
     // A failed download is reported through the error event, which logs it.
@@ -603,6 +618,7 @@ export const checkForUpdates = (
           else if (current.percent >= 0 || downloaded !== undefined)
             offer({ kind: "retrying", version })
           downloaded = undefined
+          if (held?.version === version) held = undefined
           if (!ended && !retried.has(version)) {
             // The one retry of a version goes to GitHub alone, so a feed that checks well
             // but downloads badly does not fail the same way twice; a copy whose downloads
@@ -668,8 +684,8 @@ export const checkForUpdates = (
     )
   })
 
-  // Where the check that found the update in flight or last looked, which tells where its
-  // download comes from.
+  // Where the check in flight or last made looked, which the error handler needs to know
+  // whether an error is a novadeck.dev check's, that falls back to GitHub.
   let via: "novadeck" | "github" = "github"
   // Whether the next check skips novadeck.dev, as a download failed and is tried again.
   let githubOnly = false
