@@ -449,6 +449,23 @@ describe("what an agent shows", () => {
 })
 
 describe("what the person attaches", () => {
+  it("takes over a held file an agent showed, and goes back to the agent when it shows it again", async ({
+    fixture,
+  }) => {
+    const moth = fixture.terminal("moth")
+    writeFileSync(join(fixture.directory, ".env"), "TOKEN=x\n")
+    await fixture.items.show(moth, { file: { path: ".env" } })
+    expect(fixture.items.bar(moth.terminalId)).toMatchObject([{ by: "agent", held: true }])
+    await fixture.items.attach({ terminalId: moth.terminalId, path: ".env" })
+    expect(fixture.items.bar(moth.terminalId)).toMatchObject([
+      { by: "person", asked: true, held: true, version: 2 },
+    ])
+    await fixture.items.show(moth, { file: { path: ".env" } })
+    expect(fixture.items.bar(moth.terminalId)).toMatchObject([
+      { by: "agent", asked: false, version: 3 },
+    ])
+  })
+
   it("is a file on a terminal's bar, refused as INVALID_FILE when it is no file", async ({
     fixture,
   }) => {

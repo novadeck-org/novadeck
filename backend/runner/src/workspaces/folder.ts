@@ -46,7 +46,7 @@ const keptGit = new Set(["GIT_CEILING_DIRECTORIES", "GIT_DISCOVERY_ACROSS_FILESY
 
 /**
  * The environment git runs in: ours, but for the `GIT_*` variables, which could point it at
- * another repository, apart from the ones that only limit how far up it looks for one.
+ * another repository, apart from the ones that only set where it looks for one.
  */
 const gitEnvironment = (): NodeJS.ProcessEnv => {
   const env: NodeJS.ProcessEnv = {}

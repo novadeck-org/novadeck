@@ -13,6 +13,7 @@ import { context, describe, expect, it } from "../test"
 import { authAgent, studioAgent } from "./agents"
 import { devServerArtifacts, studioArtifacts } from "./artifacts"
 import { createShowcase } from "./simulation"
+import { storefrontArtifacts } from "./storefront"
 
 const session = { projectId: "p", workspaceSessionId: "s" }
 const studio: CompanionKey = { ...session, terminalId: "01" }
@@ -358,13 +359,13 @@ describe("a file the person attaches", () => {
     expect(contentOf(item!.id)).toMatchObject({ content: { kind: "image" } })
   })
 
-  it("updates what the bar holds for the file, whoever showed it, to the whole file", async () => {
+  it("updates what the bar holds for the file to the whole file, as the person's", async () => {
     const { showcase, reported } = running()
     const sample = studioArtifacts.shown.find((each) => each.item.lines === null)!
     await showcase.attach!(studio, sample.item.path!)
     expect(upserts(reported)[0]).toMatchObject({
       id: sample.item.id,
-      by: "agent",
+      by: "person",
       lines: null,
       asked: true,
       version: 2,
@@ -385,6 +386,53 @@ describe("a file the person attaches", () => {
     const added = upserts(reported)[2]!
     expect(added.id).not.toBe(first.id)
     expect(added.version).toBe(1)
+  })
+
+  it("gives each new item an id of its own, though an earlier one of the file was moved away", async () => {
+    const { showcase, reported, hold } = running()
+    const path = "~/projects/studio/src/cart/useCart.ts"
+    await showcase.attach!(devServer, path)
+    const first = upserts(reported)[0]!
+    hold(first.id, { windowId: "w1" })
+    await showcase.attach!(devServer, path)
+    const second = upserts(reported)[1]!
+    expect(second.id).not.toBe(first.id)
+    expect(second.version).toBe(1)
+  })
+
+  it("tells whoever follows an item its new content when the file is attached whole", async () => {
+    const ranged = storefrontArtifacts["01"]!.find((each) => each.item.lines !== null)!
+    const showcase = createShowcase({
+      agents: [],
+      shown: [{ key: devServer, handle: "fox", artifacts: [ranged] }],
+    })
+    showcase.start(
+      () => {},
+      () => showcase.items,
+    )
+    const heard: ItemContent[] = []
+    const stop = showcase.follow(session, itemIdOf(ranged.item.id), { reveal: false }, (content) =>
+      heard.push(content),
+    )
+
+    await showcase.attach!(devServer, ranged.item.path!)
+    stop()
+
+    const range = (content: ItemContent | undefined) =>
+      content?.state === "ready" && content.content.kind === "file"
+        ? {
+            from: content.content.from,
+            to: content.content.to,
+            total: content.content.lines.length,
+          }
+        : undefined
+    expect(heard).toHaveLength(2)
+    expect(range(heard[0])).toMatchObject({ from: 6, to: 18 })
+    expect(range(heard[1])).toEqual({
+      from: 1,
+      to: range(heard[1])!.total,
+      total: range(heard[1])!.total,
+    })
   })
 
   it("adds a new item, with an id of its own, where no bar holds the file", async () => {

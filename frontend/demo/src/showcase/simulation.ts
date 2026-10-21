@@ -213,6 +213,18 @@ export const createShowcase = (
   let current: () => readonly CompanionItem[] = noItems
   let started = false
 
+  // What a sample or attached item holds, and why it can't show; its followers hear it again
+  // when the person attaches the file anew.
+  const watching = new Map<string, Set<{ on: (content: ItemContent) => void; reveal: boolean }>>()
+  const shownContent = (id: string, reveal: boolean): ItemContent => {
+    const sample = samples.get(id)
+    return !sample
+      ? { state: "unavailable", reason: "gone", size: null }
+      : sample.item.held && !reveal
+        ? { state: "unavailable", reason: "held", size: null }
+        : sample.content
+  }
+
   const written = (agent: Running): void => {
     for (const id of agent.planIds)
       for (const listener of following.get(itemIdOf(id)) ?? []) listener(contentOf(agent))
@@ -307,32 +319,29 @@ export const createShowcase = (
         on(contentOf(agent))
         return () => listeners.delete(on)
       }
-      const sample = samples.get(id)
-      on(
-        !sample
-          ? { state: "unavailable", reason: "gone", size: null }
-          : sample.item.held && !reveal
-            ? { state: "unavailable", reason: "held", size: null }
-            : sample.content,
-      )
-      return () => {}
+      const watcher = { on, reveal }
+      const watchers = watching.get(id) ?? new Set()
+      watching.set(id, watchers)
+      watchers.add(watcher)
+      on(shownContent(id, reveal))
+      return () => watchers.delete(watcher)
     },
     // As the runner's `keep` does: what the person picked lands on the terminal's bar, asked
     // for. An item that bar holds for the same file, whoever showed it and whatever lines it
-    // points at, is updated to the whole file and shown again; with none, a new item is added.
+    // points at, is updated to the whole file, as the person's, and shown again; with none, a new item is added.
     attach: (key, path) => {
       // The same file as an agent showed it holds the same content, all of it.
       const sample = [...samples.values()].find((each) => each.item.path === path)
       const made = attachedArtifact(path, directory?.(key))
-      const shownContent = sample?.content
+      const sampleContent = sample?.content
       const content: ItemContent =
-        shownContent?.state === "ready" && shownContent.content.kind === "file"
+        sampleContent?.state === "ready" && sampleContent.content.kind === "file"
           ? {
-              ...shownContent,
+              ...sampleContent,
               content: {
-                ...shownContent.content,
-                from: shownContent.content.firstLine,
-                to: shownContent.content.firstLine + shownContent.content.lines.length - 1,
+                ...sampleContent.content,
+                from: sampleContent.content.firstLine,
+                to: sampleContent.content.firstLine + sampleContent.content.lines.length - 1,
               },
             }
           : (sample?.content ?? made.content)
@@ -342,6 +351,7 @@ export const createShowcase = (
           ?.handle ?? key.terminalId
       const id = own?.id ?? `attached-${(attachedCount += 1)}`
       samples.set(id, { item: { ...made.item, id }, content })
+      for (const watcher of watching.get(id) ?? []) watcher.on(shownContent(id, watcher.reveal))
       const { kind, name, detail, url, lines, held } = made.item
       const item: CompanionItem = own
         ? {
@@ -353,6 +363,7 @@ export const createShowcase = (
             url,
             lines,
             held,
+            by: "person",
             version: own.version + 1,
             asked: true,
             shownAt: now(),

@@ -133,6 +133,7 @@ export const contentDemo = (
       sample: authAgent,
     },
   ]
+  let latest: Workspace | undefined
   const showcase = createShowcase({
     agents,
     directory: (key) => directoryOf(latest, key),
@@ -154,7 +155,6 @@ export const contentDemo = (
   const backend = demoBackend(createDemoEngine(), {
     terminals: { ...setup, introOf: (_terminal, key) => transcriptOf(key) },
   })
-  let latest: Workspace | undefined
   let reset: BackendSink["dispatch"] | undefined
   // The showcase session's items as they stand, which an agent showing something again
   // finds its own in.

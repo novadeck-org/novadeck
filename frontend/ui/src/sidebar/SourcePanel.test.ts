@@ -1,6 +1,6 @@
 import type { SourceListing, SourceProject } from "@novadeck/core/source"
 import { nextFrame, render } from "@novadeck/test-kit/render"
-import { act, createElement } from "react"
+import { act, createElement, StrictMode } from "react"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
@@ -1152,6 +1152,36 @@ describe("The Source panel", () => {
   })
 
   context("when a folder never answers", () => {
+    it("is given up on under StrictMode too, whose remount starts the reads over", async () => {
+      vi.useFakeTimers()
+      const view = render(
+        createElement(
+          StrictMode,
+          null,
+          createElement(SourcePanel, {
+            project: undefined,
+            list: () => new Promise<SourceListing>(() => {}),
+            turn: 0,
+            onOpenFile: () => Promise.resolve(),
+            selectedHandle: undefined,
+            roster: [],
+            squads: [],
+            active: true,
+            visible: true,
+            onHide: () => {},
+          }),
+        ),
+      )
+      await settle()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(readTimeoutMs + 1)
+      })
+
+      expect(view.container.textContent).toContain("Can't read this project's files.")
+      view.unmount()
+    })
+
     it("is given up on as unreadable, and can be read again", async () => {
       vi.useFakeTimers()
       let hang = true

@@ -107,6 +107,7 @@ const Note = ({ line }: { line: SourceNote }): React.JSX.Element => (
       aria-disabled="true"
       className="source-note text-caption"
       data-note={line.note}
+      title={noteTexts[line.note]}
       style={{ paddingLeft: noteIndent(line.depth) }}
     >
       {noteTexts[line.note]}
@@ -559,10 +560,15 @@ export const SourcePanel = ({
   useEffect(() => {
     alive.current = true
     const pending = timeouts.current
+    const busy = reading.current
+    const queued = again.current
     return () => {
       alive.current = false
       pending.forEach(clearTimeout)
       pending.clear()
+      // A strict remount starts its reads over, which a read out from before must not hold off.
+      busy.clear()
+      queued.clear()
     }
   }, [])
   const read = useCallback(

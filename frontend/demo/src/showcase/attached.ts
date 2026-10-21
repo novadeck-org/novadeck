@@ -44,15 +44,20 @@ const stand = (relative: string): readonly string[] => {
   return [`${relative}`, "", "A file of the project."]
 }
 
+// What the showcase gives an id to.
+export type AttachedArtifact = {
+  readonly item: Omit<SampleArtifact["item"], "id">
+  readonly content: SampleArtifact["content"]
+}
+
 // The artifact for a file the person attached by its absolute path.
-export const attachedArtifact = (path: string, directory?: string): SampleArtifact => {
+export const attachedArtifact = (path: string, directory?: string): AttachedArtifact => {
   const relative = relativeTo(path, directory)
   const name = relative.split("/").at(-1) ?? relative
-  const id = `attached-${path}`
   const held = looksSecret(path)
   if (imageTypes.test(name))
     return {
-      item: { id, kind: "image", name, detail: relative, path, url: null, lines: null, held },
+      item: { kind: "image", name, detail: relative, path, url: null, lines: null, held },
       content: ready({
         kind: "image",
         src: svg(
@@ -65,7 +70,7 @@ export const attachedArtifact = (path: string, directory?: string): SampleArtifa
     }
   const lines = stand(relative)
   return {
-    item: { id, kind: "file", name, detail: relative, path, url: null, lines: null, held },
+    item: { kind: "file", name, detail: relative, path, url: null, lines: null, held },
     content: ready(fileLines(relative, lines, { from: 1, to: lines.length })),
   }
 }

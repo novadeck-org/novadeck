@@ -752,7 +752,16 @@ export class CompanionItems {
             .barItems(place.terminalId)
             .find((item) => item.pointerKey === pointer.pointerKey)
     const item: ItemRecord = own
-      ? { ...own, ...pointer, version: own.version + 1, asked: origin.asked, shownAt: Date.now() }
+      ? {
+          ...own,
+          ...pointer,
+          // Whoever put it there last owns it: the person picking a file an agent showed
+          // makes it theirs (and a held one open), and the agent showing it again, its own.
+          by: origin.by,
+          version: own.version + 1,
+          asked: origin.asked,
+          shownAt: Date.now(),
+        }
       : {
           ...pointer,
           id: randomUUID(),

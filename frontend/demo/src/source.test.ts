@@ -628,7 +628,7 @@ describe("opening a file in the agents demo", () => {
 
     const found = state().items.filter((item) => item.path === held.path)
     expect(found).toHaveLength(1)
-    expect(found[0]).toMatchObject({ lines: null, by: "agent", version: held.version + 1 })
+    expect(found[0]).toMatchObject({ lines: null, by: "person", version: held.version + 1 })
     expect(state().bars[barOf(held)]!.stack).toContain(held.id)
     stop()
   })
@@ -640,10 +640,10 @@ describe("opening a file on the visitor demo", () => {
     const { state, attachTo, stop } = kept(backend, "storefront")
     const terminalId = state().roster.terminals[0]!.id
 
-    await attachTo(terminalId, "~/projects/storefront/README.md")
+    await attachTo(terminalId, "~/projects/storefront/src/cart/useCart.ts")
 
-    const added = state().items.find((item) => item.path?.endsWith("README.md"))!
-    expect(added).toMatchObject({ by: "person", asked: true, detail: "README.md" })
+    const added = state().items.find((item) => item.path?.endsWith("useCart.ts"))!
+    expect(added).toMatchObject({ by: "person", asked: true, detail: "src/cart/useCart.ts" })
     expect(state().bars[terminalId]).toMatchObject({ open: true })
     expect(state().bars[terminalId]!.stack).toContain(added.id)
     stop()
