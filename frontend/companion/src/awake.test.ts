@@ -119,6 +119,24 @@ describe("a pane's sheet, awake", () => {
     expect(awake()).toBe(false)
   })
 
+  it("sleeps a while after the person leaves, however long they stayed", () => {
+    const { target, awake, field } = sheet()
+    act(() => field().focus())
+    // Long at it: the while it waits is counted from when they leave, not from waking.
+    pass(graceMs * 2 - 1_000)
+    act(() => field().blur())
+    pass(1_000)
+    expect(awake()).toBe(true)
+    pass(graceMs - 1_000)
+    expect(awake()).toBe(false)
+    // The same for the pointer leaving.
+    pointer(target, "pointerdown")
+    pass(graceMs - 1_000)
+    pointer(target, "pointerout", { relatedTarget: document.body })
+    pass(1_000)
+    expect(awake()).toBe(true)
+  })
+
   it("sleeps at once out of sight, and isn't woken there", () => {
     const { target, awake, wake, show } = sheet()
     pointer(target, "pointerdown")

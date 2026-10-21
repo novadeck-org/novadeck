@@ -1012,6 +1012,99 @@ describe("the browser viewer", () => {
       }
     })
 
+    it("goes only once its picture has decoded, and stays for a show that came meanwhile", async () => {
+      let decoded!: () => void
+      const decode = vi
+        .spyOn(HTMLImageElement.prototype, "decode")
+        .mockImplementation(() => new Promise<void>((resolve) => (decoded = resolve)))
+      try {
+        const { host, viewer, calls, loads, fire } = resting()
+        fire("did-stop-loading")
+        viewer.awake(false)
+        await settled()
+        // Its picture is up, not yet drawn: the view is still there.
+        expect(pictureOf(host)).not.toBeNull()
+        expect(pageOf(host)).not.toBeNull()
+        viewer.update({ url, shown: 1 })
+        expect(calls).toContain("reload fresh")
+        decoded()
+        await settled()
+        // The show's load goes on, and it rests once that's done.
+        expect(pageOf(host)).not.toBeNull()
+        expect(loads.at(-1)).toBe("loading")
+      } finally {
+        decode.mockRestore()
+      }
+    })
+
+    it("keeps the picture last asked for, whatever arrives late", async () => {
+      vi.useFakeTimers()
+      try {
+        const answers: ((src: string) => void)[] = []
+        const host = hostIn()
+        host.style.marginTop = "400px"
+        const viewer = mountBrowser(host, {
+          content: { url },
+          label: "page",
+          live: true,
+          partition: "pages",
+          picture: () => new Promise((resolve) => answers.push(resolve)),
+        })
+        const page = pageOf(host)
+        attach(page, { url, back: false, forward: false })
+        Object.assign(page, {
+          getWebContentsId: () => 7,
+          executeJavaScript: () => Promise.resolve([0, 0]),
+        })
+        page.dispatchEvent(event("did-stop-loading"))
+        await vi.advanceTimersByTimeAsync(freshenMs)
+        await vi.advanceTimersByTimeAsync(keepMs)
+        expect(answers).toHaveLength(2)
+        answers[1]!(later)
+        await vi.advanceTimersByTimeAsync(0)
+        answers[0]!(shot)
+        await vi.advanceTimersByTimeAsync(0)
+        expect(viewer.state()).toMatchObject({ browser: { picture: { src: later } } })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("counts a minimized window as out of sight", async () => {
+      const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden")
+      try {
+        const { host, viewer, taken, fire } = resting()
+        fire("did-stop-loading")
+        viewer.awake(false)
+        await settled()
+        expect(taken).toEqual([])
+        expect(pageOf(host)).not.toBeNull()
+      } finally {
+        visibility.mockRestore()
+      }
+    })
+
+    it("counts focus in the live page as the person at it, and hands the picture's focus on", async () => {
+      vi.useFakeTimers()
+      try {
+        const { host, viewer, fire, ready } = resting()
+        fire("did-stop-loading")
+        viewer.awake(false)
+        await vi.advanceTimersByTimeAsync(0)
+        // Focused by keyboard at rest, it wakes, and focus goes on to the page.
+        pictureOf(host)!.focus()
+        viewer.awake(true)
+        const page = ready()!
+        page.tabIndex = 0
+        fire("did-stop-loading")
+        await vi.advanceTimersByTimeAsync(uncoverMs + fadeMs + 2_000)
+        expect(document.activeElement).toBe(page)
+        expect(viewer.pictured()).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it("stays live without a way to take a picture, or when it didn't load", async () => {
       const host = hostIn()
       const viewer = mountBrowser(host, {

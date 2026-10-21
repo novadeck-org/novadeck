@@ -435,7 +435,10 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     if (at === undefined || shows) return uncover()
     const run = attached(() => page!.executeJavaScript(scrolling(at)))
     if (!run) return uncover()
-    run.catch(nothing).finally(uncover)
+    // However the page answers, or if it never does, the picture goes.
+    void Promise.race([run, wait(restoreWaitMs + scrollReadMs)])
+      .catch(nothing)
+      .finally(uncover)
   }
   const stopped = (): void => {
     first = false
@@ -612,18 +615,22 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       swap(view)
     })
   }
-  // A picture of the live page as it is now, and where it's scrolled; none where it can't.
+  // The latest picture asked for: an earlier one arriving after it is of before.
+  let snapping = 0
+  // A picture of the live page as it is now, and where it's scrolled; none where it can't,
+  // or where a later one was asked for meanwhile.
   const snap = async (
     view: Webview,
   ): Promise<{ picture: Picture; scrolled: Scrolled | undefined } | undefined> => {
     const id = attached(() => view.getWebContentsId())
     if (id === undefined || !take) return undefined
     const at = place.url
+    const asked = ++snapping
     const reading = attached(() =>
       Promise.race([view.executeJavaScript(scrollRead), wait(scrollReadMs)]),
     )?.catch(() => undefined)
     const [src, where] = await Promise.all([take(id).catch(() => undefined), reading])
-    if (src === undefined) return undefined
+    if (src === undefined || asked !== snapping) return undefined
     return { picture: { src, at }, scrolled: isScrolled(where) ? where : undefined }
   }
   // Pictured a while after each load, so a rest that can't picture it, as out of sight,
@@ -654,7 +661,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     if (!cover()) return
     // Where images can't say they've decoded, as outside a browser, at once.
     void (image.decode?.() ?? Promise.resolve()).catch(nothing).then(() => {
-      if (page === view && !wanted) close()
+      // Woken meanwhile, or a load began, as a show's: it stays, and rests once it's done.
+      if (page === view && !wanted && load === "ready") close()
     })
   }
   // The person at the live page: its picture is of before. Gone from it: a picture of it as

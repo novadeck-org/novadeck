@@ -7,6 +7,7 @@ import {
   useMemo,
   useState,
   useSyncExternalStore,
+  type FocusEvent,
   type PointerEvent,
 } from "react"
 
@@ -48,6 +49,7 @@ type Handlers = {
   readonly onWheel: () => void
   readonly onKeyDown: () => void
   readonly onFocus: () => void
+  readonly onBlur: (event: FocusEvent) => void
 }
 
 type Wakeful = {
@@ -89,6 +91,11 @@ const createWakeful = (): Wakeful => {
       else set(false)
     }, graceMs)
   }
+  // The person gone from it, pointer or focus: its while starts from now, not from when it
+  // woke, which would let it sleep the moment they leave after staying long.
+  const leave = (): void => {
+    if (awake) linger()
+  }
   const wake = (): void => {
     if (!shown) return
     set(true)
@@ -128,11 +135,16 @@ const createWakeful = (): Wakeful => {
       onPointerLeave: () => {
         clearTimeout(settling)
         settling = undefined
+        leave()
       },
       onPointerDown: wake,
       onWheel: wake,
       onKeyDown: wake,
       onFocus: wake,
+      onBlur: (event) => {
+        const to = event.relatedTarget
+        if (!(to instanceof Node && element?.contains(to))) leave()
+      },
     },
     stop,
   }
