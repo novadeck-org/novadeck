@@ -2,7 +2,7 @@ import { hashOf } from "./hash.js"
 import type { Mount, Viewer, ViewerState } from "./index.js"
 
 // An image on a canvas: fitted whole and centred, never larger than its own size, or
-// zoomed from half its fit up and moved about. Pinch or Ctrl+scroll zooms around the
+// zoomed from half its fit up and moved about. Pinch or Ctrl/⌘+scroll zooms around the
 // pointer, a scroll or a drag moves it at any zoom, a double-click zooms in there and back
 // to fit, and keys do each while the viewer has focus. Once it's moved or zoomed, a chip
 // over it says how far, and takes it back to fit. The zoom is part of its state, with the
@@ -177,9 +177,9 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
   const scaleNow = (): number => (drawn ? drawn.width / image.naturalWidth : 1)
 
   // Moves the view across the image by a distance, as a scroll would, at any zoom: a fitted
-  // image moved is no longer fitted. Whether there was an image to move.
+  // image moved is no longer fitted. Whether it moved it.
   const pan = (dx: number, dy: number): boolean => {
-    if (!drawn) return false
+    if (!drawn || (!dx && !dy)) return false
     if (zoom === "fit") zoom = drawn.fit
     centre = { x: centre.x + dx / drawn.width, y: centre.y + dy / drawn.height }
     draw()
@@ -234,13 +234,13 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
         from: { x: number; y: number }
       }
     | undefined
-  // Whether a press of this click sequence moved the image, so its clicks aren't a
-  // double-click.
+  // Whether the last press went far enough to move the image: a click's jitter doesn't, and
+  // a drag's clicks aren't a double-click.
   let dragged = false
   const onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 0 || chip.contains(event.target as Node)) return
     root.focus({ preventScroll: true })
-    if (event.detail <= 1) dragged = false
+    dragged = false
     if (!drawn) return
     const from = { x: event.clientX, y: event.clientY }
     dragging = { id: event.pointerId, ...from, scale: scaleOnScreen(), from }
@@ -261,15 +261,15 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     if (event.pointerId !== dragging?.id) return
     // A press that ended out of its sight, as its capture was lost.
     if (!(event.buttons & 1)) return endDrag(event)
-    const { x, y, scale } = dragging
+    const { x, y, scale, from } = dragging
+    dragged ||= Math.hypot(event.clientX - from.x, event.clientY - from.y) > 4
+    if (!dragged) return
     pan((x - event.clientX) / scale.x, (y - event.clientY) / scale.y)
     dragging = { ...dragging, x: event.clientX, y: event.clientY }
-    dragged ||= Math.hypot(event.clientX - dragging.from.x, event.clientY - dragging.from.y) > 4
   }
 
   // A double-click zooms in there, to the image's actual size where it's fitted at half that
-  // or less, else to twice its fit, and goes back to fit from any zoom. A drag's clicks
-  // aren't one.
+  // or less, else to twice its fit, and goes back to fit from any zoom.
   const onDoubleClick = (event: MouseEvent): void => {
     if (chip.contains(event.target as Node) || !drawn || dragged) return
     if (zoom !== "fit") return zoomTo("fit")

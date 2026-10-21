@@ -93,7 +93,7 @@ describe("the image viewer", () => {
     expect(place.width).toBeCloseTo(346.67, 1)
     expect(place.x).toBe(Math.round((400 - place.width) / 2))
     expect(chipOf(host).hidden).toBe(true)
-    expect(viewerOf(host).hasAttribute("data-pannable")).toBe(false)
+    expect(viewerOf(host).hasAttribute("data-sized")).toBe(true)
   })
 
   it("never enlarges an image to fit it", async () => {
@@ -276,33 +276,32 @@ describe("the image viewer", () => {
     expect(under(screen()).y).toBeCloseTo(under(before).y, 2)
   })
 
-  it("takes no double-click from a drag and the click after it", async () => {
+  it("stays fitted through a click's jitter, and moves past it", async () => {
     const host = hostIn()
-    const viewer = mount(large, host)
+    mount(large, host)
     await loaded(host)
-    viewer.zoom(1)
-    const pointer = (type: string, x: number, detail: number) =>
-      viewerOf(host).dispatchEvent(
-        new PointerEvent(type, {
-          pointerId: 7,
-          button: 0,
-          buttons: type === "pointerup" ? 0 : 1,
-          detail,
-          bubbles: true,
-          ...at(host, x, 150),
-        }),
-      )
-    pointer("pointerdown", 200, 1)
-    pointer("pointermove", 260, 1)
-    pointer("pointermove", 200, 1)
-    pointer("pointerup", 200, 1)
-    // The second press of the sequence, where the first began.
-    pointer("pointerdown", 200, 2)
-    pointer("pointerup", 200, 2)
-    viewerOf(host).dispatchEvent(
-      new MouseEvent("dblclick", { bubbles: true, ...at(host, 200, 150) }),
-    )
-    expect(placeOf(host).width).toBe(1600)
+    const fitted = placeOf(host)
+    const pointer = drag(host)
+    pointer("pointerdown", 200, 150)
+    pointer("pointermove", 202, 151)
+    pointer("pointerup", 202, 151)
+    expect(placeOf(host)).toEqual(fitted)
+    expect(chipOf(host).hidden).toBe(true)
+    // Past it, it moves the whole way from the press.
+    pointer("pointerdown", 200, 150)
+    pointer("pointermove", 203, 150)
+    pointer("pointermove", 210, 150)
+    pointer("pointerup", 210, 150)
+    expect(placeOf(host).x).toBe(fitted.x + 10)
+    expect(chipOf(host).hidden).toBe(false)
+  })
+
+  it("takes a wheel that went nowhere as nothing", async () => {
+    const host = hostIn()
+    mount(large, host)
+    await loaded(host)
+    expect(wheel(host, { deltaX: 0, deltaY: 0 }).defaultPrevented).toBe(false)
+    expect(chipOf(host).hidden).toBe(true)
   })
 
   it("takes no zoom gesture before its image is drawn, nor gives it to the page", async () => {

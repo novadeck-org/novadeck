@@ -5,8 +5,8 @@ import { useMemo } from "react"
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
 import { useViewerSlot } from "../../ViewerSlot"
 
-// An image, zoomed and moved on the image itself, its zoom drawn over it while it's zoomed.
-// Where its viewer was, by item, its zoom and the point at its centre, is kept.
+// An image, zoomed and moved on the image itself, its zoom drawn over it once it's moved or
+// zoomed. Where its viewer was, by item, its zoom and the point at its centre, is kept.
 export const ImageViewer = ({
   item,
   content: image,
