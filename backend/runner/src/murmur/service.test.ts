@@ -1661,7 +1661,7 @@ describe("what a failed install says", () => {
       engine: (await readManifest(manifest))?.sha256 ?? "",
     })
 
-    const next = await setup(resources, { store, directory })
+    const next = await setup(resources, { store, directory, engine: manifest })
     await watchUntil(next.murmur, () => true)
     await next.murmur.settled()
 
