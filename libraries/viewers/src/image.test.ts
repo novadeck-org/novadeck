@@ -55,10 +55,15 @@ const wheel = (host: HTMLElement, init: WheelEventInit): WheelEvent => {
   return event
 }
 
-// A key on the viewer, reached by keyboard: focus put there by the page, not a click.
+// Focus put on an element by Tab: the key, then the focus it moves.
+const tabTo = (element: HTMLElement): void => {
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }))
+  element.focus()
+}
+
+// A key on the viewer, reached by Tab unless focus is in it already.
 const key = (host: HTMLElement, name: string): KeyboardEvent => {
-  if (document.activeElement !== viewerOf(host) && !viewerOf(host).contains(document.activeElement))
-    viewerOf(host).focus()
+  if (!viewerOf(host).contains(document.activeElement)) tabTo(viewerOf(host))
   const event = new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true })
   viewerOf(host).dispatchEvent(event)
   return event
@@ -172,14 +177,22 @@ describe("the image viewer", () => {
     expect(chipOf(host).textContent).toBe("3200%")
   })
 
-  it("moves a fitted image too, which is then no longer fitted", async () => {
+  it("leaves the wheel to what's around a fitted image, which a drag moves", async () => {
     const host = hostIn()
     mount(large, host)
     await loaded(host)
     const fitted = placeOf(host)
-    expect(wheel(host, { deltaY: 100 }).defaultPrevented).toBe(true)
-    expect(placeOf(host)).toMatchObject({ x: fitted.x, y: fitted.y - 100, width: fitted.width })
+    expect(wheel(host, { deltaY: 100 }).defaultPrevented).toBe(false)
+    expect(placeOf(host)).toEqual(fitted)
+    const pointer = drag(host)
+    pointer("pointerdown", 200, 150)
+    pointer("pointermove", 200, 100)
+    pointer("pointerup", 200, 100)
+    expect(placeOf(host)).toMatchObject({ x: fitted.x, y: fitted.y - 50, width: fitted.width })
     expect(chipOf(host).hidden).toBe(false)
+    // Moved, it's no longer fitted: the wheel moves it too.
+    expect(wheel(host, { deltaY: 10 }).defaultPrevented).toBe(true)
+    expect(placeOf(host).y).toBe(fitted.y - 60)
     chipOf(host).click()
     expect(placeOf(host)).toEqual(fitted)
   })
@@ -209,15 +222,15 @@ describe("the image viewer", () => {
     expect(wheel(host, { deltaY: 100 }).defaultPrevented).toBe(true)
   })
 
-  it("stays fitted for a wheel that can't move it", async () => {
+  it("stays fitted for an arrow that can't move it", async () => {
     const host = hostIn()
     mount({ src: picture(40, 30), alt: "" }, host)
     await loaded(host)
-    // Fitted at its own size, a 40 × 30 image moves no further than 15px up.
-    wheel(host, { deltaY: -15 })
-    expect(chipOf(host).hidden).toBe(false)
+    // A 40 × 30 image, fitted at its own size: up to 20px across, 15px down.
+    for (let press = 0; press < 3; press += 1) key(host, "ArrowRight")
+    expect(placeOf(host).x).toBe(200 - 40)
+    expect(key(host, "ArrowRight").defaultPrevented).toBe(false)
     key(host, "0")
-    wheel(host, { deltaX: 0.001 })
     expect(chipOf(host).hidden).toBe(true)
   })
 
@@ -233,6 +246,43 @@ describe("the image viewer", () => {
     viewerOf(host).dispatchEvent(event)
     expect(event.defaultPrevented).toBe(false)
     expect(placeOf(host)).toEqual(fitted)
+  })
+
+  it("takes its keys again only by Tab, not by a press of any button", async () => {
+    const host = hostIn()
+    mount(large, host)
+    await loaded(host)
+    const one = () => {
+      const event = new KeyboardEvent("keydown", { key: "1", bubbles: true, cancelable: true })
+      viewerOf(host).dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    tabTo(viewerOf(host))
+    viewerOf(host).dispatchEvent(new PointerEvent("pointerdown", { button: 2, bubbles: true }))
+    expect(one()).toBe(false)
+    // From elsewhere in the page, not by Tab: still the app's. A Tab's moment is a task.
+    await new Promise((resolve) => setTimeout(resolve))
+    const field = document.createElement("input")
+    host.append(field)
+    field.focus()
+    viewerOf(host).focus()
+    expect(one()).toBe(false)
+    tabTo(field)
+    tabTo(viewerOf(host))
+    expect(one()).toBe(true)
+  })
+
+  it("keeps its keys across a trip to another window", async () => {
+    const host = hostIn()
+    mount(large, host)
+    await loaded(host)
+    tabTo(viewerOf(host))
+    // Another window takes focus and gives it back: nothing in the page takes it between.
+    viewerOf(host).blur()
+    viewerOf(host).focus()
+    const event = new KeyboardEvent("keydown", { key: "+", bubbles: true, cancelable: true })
+    viewerOf(host).dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(true)
   })
 
   it("moves an edge no further than the viewer's centre", async () => {
@@ -423,7 +473,8 @@ describe("the image viewer", () => {
     const viewer = mount(large, host)
     await loaded(host)
     viewer.zoom(2)
-    chipOf(host).focus()
+    tabTo(viewerOf(host))
+    tabTo(chipOf(host))
     key(host, "0")
     expect(chipOf(host).hidden).toBe(true)
     expect(document.activeElement).toBe(viewerOf(host))

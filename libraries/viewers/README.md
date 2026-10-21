@@ -18,10 +18,10 @@ hand back as `saved` to the next viewer of the same thing.
 - `./code.css`: the code viewer's looks and the `.tok-*` highlighting classes. Its header
   lists the tokens a host sets to theme it (`--code-*`, `--syntax-*`).
 - `./image`: `mountImage`, an image on a canvas: fitted whole (never enlarged), or zoomed
-  from half its fit to 3200% and moved about at any zoom. Pinch or Ctrl/⌘+scroll zooms around
-  the pointer, a scroll or a drag moves it, a double-click zooms in there and back to fit,
-  and keys do each once it's reached by keyboard (after a click, typing goes on to the
-  app). Once it's moved or zoomed, a chip over it shows how far and takes it back to fit.
+  from half its fit to 3200% and moved about. Pinch or Ctrl/⌘+scroll zooms around the
+  pointer, a drag moves it at any zoom and a scroll once it's zoomed or moved (a fitted one
+  leaves the wheel to the page), a double-click zooms in there and back to fit, and keys do
+  each once it's reached by Tab (after a click, typing goes on to the app). Once it's moved or zoomed, a chip over it shows how far and takes it back to fit.
   Its zoom and the point at its centre are kept in its state, so it reopens on the same
   view at any size; `zoom()` sets it.
 - `./image.css`: the image viewer's looks, themed through `--image-*`.

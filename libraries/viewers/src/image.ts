@@ -3,9 +3,9 @@ import type { Mount, Viewer, ViewerState } from "./index.js"
 
 // An image on a canvas: fitted whole and centred, never larger than its own size, or
 // zoomed from half its fit up and moved about. Pinch or Ctrl/⌘+scroll zooms around the
-// pointer, a scroll or a drag moves it at any zoom, a double-click zooms in there and back
-// to fit, and keys do each once the viewer is reached by keyboard. Once it's moved or
-// zoomed, a chip over it says how far, and takes it back to fit. The zoom is part of its
+// pointer, a drag moves it at any zoom and a scroll once it's zoomed or moved, a
+// double-click zooms in there and back to fit, and keys do each once the viewer is reached
+// by Tab. Once it's moved or zoomed, a chip over it says how far, and takes it back to fit. The zoom is part of its
 // state, with the point of the image at the viewer's centre, so an image shown again keeps
 // its view whatever the viewer's size. Its looks are image.css's.
 
@@ -235,7 +235,9 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     let dy = event.deltaY * unit
     // A wheel turned with Shift moves it sideways, where the system doesn't already.
     if (event.shiftKey && !dx) [dx, dy] = [dy, 0]
-    if (pan(dx, dy)) event.preventDefault()
+    // A fitted image leaves the wheel to what's around it, as Grid scrolling past it: a drag
+    // or the arrows move it.
+    if (zoom !== "fit" && pan(dx, dy)) event.preventDefault()
   }
 
   let dragging:
@@ -247,17 +249,18 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
         from: { x: number; y: number }
       }
     | undefined
-  // Whether its keys are the person's for the image: only once they reached it by keyboard.
-  // A click leaves their typing to what's around it, as a terminal the app sends it to, where
-  // a digit may be an answer to an agent.
+  // Whether its keys are the person's for the image: only once they reached it by Tab. A
+  // press on it leaves their typing to what's around it, as a terminal the app sends it to,
+  // where a digit may be an answer to an agent.
   let keyed = false
+  // Whether a Tab is moving focus now, so focus arriving with it came by keyboard.
+  let tabbing = false
   // Whether the last press went far enough to move the image: a click's jitter doesn't, and
   // a drag's clicks aren't a double-click.
   let dragged = false
   const onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 0 || chip.contains(event.target as Node)) return
     root.focus({ preventScroll: true })
-    keyed = false
     dragged = false
     if (!drawn) return
     const from = { x: event.clientX, y: event.clientY }
@@ -329,17 +332,26 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     key()
   }
 
-  // A click on it is the pointer's, and its Enter the keyboard's.
-  const onChip = (event: MouseEvent): void => {
+  const onChip = (): void => {
     zoomTo("fit")
     root.focus({ preventScroll: true })
-    if (event.detail) keyed = false
   }
-  const onFocusIn = (): void => {
-    keyed = true
+  const onTab = (event: KeyboardEvent): void => {
+    if (event.key !== "Tab") return
+    tabbing = true
+    // Focus moves as the key's own action, before the next task.
+    setTimeout(() => (tabbing = false))
   }
-  const onFocusOut = (event: FocusEvent): void => {
-    if (!root.contains(event.relatedTarget as Node | null)) keyed = false
+  // Any press, of any button and on the chip too.
+  const onPress = (): void => {
+    keyed = false
+  }
+  // Reached by Tab, its keys are the person's; from elsewhere in the page, they aren't; back
+  // from another window, or moving within itself, they stay as they were.
+  const onFocusIn = (event: FocusEvent): void => {
+    const from = event.relatedTarget as Node | null
+    if (tabbing) keyed = true
+    else if (from && !root.contains(from)) keyed = false
   }
 
   const observer = new (document.defaultView?.ResizeObserver ?? ResizeObserver)(draw)
@@ -347,6 +359,7 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
   image.addEventListener("load", draw)
   image.addEventListener("error", draw)
   root.addEventListener("wheel", onWheel, { passive: false })
+  root.addEventListener("pointerdown", onPress, { capture: true })
   root.addEventListener("pointerdown", onPointerDown)
   root.addEventListener("pointermove", onPointerMove)
   root.addEventListener("pointerup", endDrag)
@@ -355,7 +368,7 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
   root.addEventListener("dblclick", onDoubleClick)
   root.addEventListener("keydown", onKeyDown)
   root.addEventListener("focusin", onFocusIn)
-  root.addEventListener("focusout", onFocusOut)
+  document.addEventListener("keydown", onTab, { capture: true })
   chip.addEventListener("click", onChip)
 
   // Its address's key, kept while it shows: a data URL can be megabytes to hash.
@@ -404,6 +417,7 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     zoom: (next) => zoomTo(next),
     destroy: () => {
       observer.disconnect()
+      document.removeEventListener("keydown", onTab, { capture: true })
       image.removeEventListener("load", draw)
       image.removeEventListener("error", draw)
       root.remove()
