@@ -19,8 +19,8 @@ catalogs:
       specifier: 1.15.7
       version: 1.15.7
     electron:
-      specifier: ^44.7.2
-      version: 44.7.2
+      specifier: ^44.9.0
+      version: 44.9.0
     node-pty:
       specifier: 1.2.0-beta.14
       version: 1.2.0-beta.14
@@ -77,8 +77,8 @@ importers:
         specifier: 21.1.1
         version: 21.1.1(@types/node@26.6.5)(supports-color@10.2.2)
       turbo:
-        specifier: ^2.11.8
-        version: 2.11.8
+        specifier: ^2.11.9
+        version: 2.11.9
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -151,7 +151,7 @@ importers:
         version: 10.0.6
       electron:
         specifier: 'catalog:'
-        version: 44.7.2(supports-color@10.2.2)
+        version: 44.9.0(supports-color@10.2.2)
       electron-builder:
         specifier: ^26.15.3
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)(supports-color@10.2.2)
@@ -437,8 +437,8 @@ importers:
         specifier: workspace:*
         version: link:../toolkit
       lucide-react:
-        specifier: ^1.57.0
-        version: 1.57.0(@types/react@19.3.0)(react@19.3.1)
+        specifier: ^1.59.0
+        version: 1.59.0(@types/react@19.3.0)(react@19.3.1)
       react:
         specifier: ^19.3.1
         version: 19.3.1
@@ -549,8 +549,8 @@ importers:
         specifier: workspace:*
         version: link:../../libraries/viewers
       lucide-react:
-        specifier: ^1.57.0
-        version: 1.57.0(@types/react@19.3.0)(react@19.3.1)
+        specifier: ^1.59.0
+        version: 1.59.0(@types/react@19.3.0)(react@19.3.1)
       react:
         specifier: ^19.3.1
         version: 19.3.1
@@ -663,8 +663,8 @@ importers:
         specifier: workspace:*
         version: link:../demo
       lucide-react:
-        specifier: ^1.57.0
-        version: 1.57.0(@types/react@19.3.0)(react@19.3.1)
+        specifier: ^1.59.0
+        version: 1.59.0(@types/react@19.3.0)(react@19.3.1)
       react:
         specifier: ^19.3.1
         version: 19.3.1
@@ -901,8 +901,8 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       lucide-react:
-        specifier: ^1.57.0
-        version: 1.57.0(@types/react@19.3.0)(react@19.3.1)
+        specifier: ^1.59.0
+        version: 1.59.0(@types/react@19.3.0)(react@19.3.1)
       react:
         specifier: ^19.3.1
         version: 19.3.1
@@ -980,8 +980,8 @@ importers:
         specifier: ^1.20.6
         version: 1.20.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       lucide-react:
-        specifier: ^1.57.0
-        version: 1.57.0(@types/react@19.3.0)(react@19.3.1)
+        specifier: ^1.59.0
+        version: 1.59.0(@types/react@19.3.0)(react@19.3.1)
       react:
         specifier: ^19.3.1
         version: 19.3.1
@@ -1321,7 +1321,7 @@ importers:
         version: 5.0.5(msw@3.0.3(@types/node@26.6.5)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.7(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(playwright@1.64.1)(vite@7.3.7(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))(vitest@5.0.5)
       electron:
         specifier: 'catalog:'
-        version: 44.7.2(supports-color@10.2.2)
+        version: 44.9.0(supports-color@10.2.2)
       playwright:
         specifier: ^1.64.1
         version: 1.64.1
@@ -1364,7 +1364,7 @@ importers:
         version: 8.18.2
       electron:
         specifier: 'catalog:'
-        version: 44.7.2(supports-color@10.2.2)
+        version: 44.9.0(supports-color@10.2.2)
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -1387,8 +1387,8 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       lucide-react:
-        specifier: ^1.57.0
-        version: 1.57.0(@types/react@19.3.0)(react@19.3.1)
+        specifier: ^1.59.0
+        version: 1.59.0(@types/react@19.3.0)(react@19.3.1)
       react:
         specifier: ^19.3.1
         version: 19.3.1
@@ -2876,33 +2876,33 @@ packages:
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7 || ^8
 
-  '@turbo/darwin-64@2.11.8':
-    resolution: {integrity: sha512-u+6s4C2hskRYx6MkW2uT7BCW6sESCL/+5bjHDDWUfQfQliCSJ7lAHAL6RQaw0an9WU6nJvwYgT786mEWul2kDw==}
+  '@turbo/darwin-64@2.11.9':
+    resolution: {integrity: sha512-OkW+EESJjo248CThWe9DfuUqzGcRwHe1DXKWRw9DSZ0lMkocKbbwNMjWVCiO+WNBcARDM0ibu0c9SbuIe4mw6w==}
     cpu: [x64]
     os: [darwin]
 
-  '@turbo/darwin-arm64@2.11.8':
-    resolution: {integrity: sha512-y3qpPbclA4MuzAf/pSp6ivifp2mBCiLMHyf/bVq2eAJLjTnzev9JG5eqFhM0UvDGi0b3QKRNZi2HiavPnLbEbw==}
+  '@turbo/darwin-arm64@2.11.9':
+    resolution: {integrity: sha512-NIbFEogMaIyOi2egLH7XtuW0DXmPOpydnanyB3rw/WXCPYl1OAFRPHPGixIaakGnfNLey8LMmKemgNtqtFKdcg==}
     cpu: [arm64]
     os: [darwin]
 
-  '@turbo/linux-64@2.11.8':
-    resolution: {integrity: sha512-5Pm0icIkXPjk/HxhZD2AFMCyfH8RlITgtOksoSAdeLtXHAagzAqaAkdqG+6Ebd3eGPT1k3nJZWQD4wCLlIte5g==}
+  '@turbo/linux-64@2.11.9':
+    resolution: {integrity: sha512-RkD/Atqqek2WNnYJlmPogZpXjAW+cSsPXDn7E0mufSNN86ClXCSKme/BBYMeIvPoFZ4egPJLF+JpYkuuNkMYhg==}
     cpu: [x64]
     os: [android, linux]
 
-  '@turbo/linux-arm64@2.11.8':
-    resolution: {integrity: sha512-gh/Pcg7WVLS22SpoFqNxs/4y6feU/+Qa9nkCLTOHMTLjE3ADeqMjLFulq1LVCsWD2vjQccCnaZSUOLJ/lHzBRQ==}
+  '@turbo/linux-arm64@2.11.9':
+    resolution: {integrity: sha512-iW/0YGS9D9YlgD4ad2IEEolD9PuNJGdkEI650AELLln8YaGsloiH8QyTUnajjxPufMuY/eWRWxO+PMBYsGvVlA==}
     cpu: [arm64]
     os: [android, linux]
 
-  '@turbo/windows-64@2.11.8':
-    resolution: {integrity: sha512-NnHtcWPE6PymlYsCKEuYditlY/nMeCEB3xyD4yc3cpqpxW7/4Xqdlqd5TpqvEpjS8CDazPHelGCQS/ghUIoZ6g==}
+  '@turbo/windows-64@2.11.9':
+    resolution: {integrity: sha512-rg/kuQmSm9m/z8W5HYHLMSnTbLDXBs/9liVZh9YnfkGYm0DlFj2SV9/0fQy/EpJTq81O36kMb7p8Fmt9f67ocA==}
     cpu: [x64]
     os: [win32]
 
-  '@turbo/windows-arm64@2.11.8':
-    resolution: {integrity: sha512-o8UyM/VlYCvW5Enfo2O37Pe11p3wmnEYtJrohXA2SyOlehmo5KyXpptPRKrXOMNfdmoYEulo6Nhj0tIv2UB0hA==}
+  '@turbo/windows-arm64@2.11.9':
+    resolution: {integrity: sha512-PgjBpLPW/WDsKzeBmNuw2QHtPxT/PtcloN3rHFTqVyMsqkLlyHVJbSusuhYoYFdi08lZ9Stryw66UOuPg/yW0w==}
     cpu: [arm64]
     os: [win32]
 
@@ -3962,8 +3962,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@44.7.2:
-    resolution: {integrity: sha512-u3Pbz0Hi1sSSwBMz2v8LiagsfUG4QURPUe/qphM+g4THKP8o4BYdnuboyhlLO8HIC/KfV5rvltyacbP4jEq9yw==}
+  electron@44.9.0:
+    resolution: {integrity: sha512-boP8zA5OIoMGYe3uWP4IqB1VJNoEzdHYgcBaVYnd1DBv5TogwXkbM4yJGSfNmYCzalVQ5J3TAIbaKOY+ILTnyg==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -4617,8 +4617,8 @@ packages:
     resolution: {integrity: sha512-jumlc0BIUrS3qJGgIkWZsyfAM7NCWiBcCDhnd+3NNM5KbBmLTgHVfWBcg6W+rLUsIpzpERPsvwUP7CckAQSOoA==}
     engines: {node: '>=12'}
 
-  lucide-react@1.57.0:
-    resolution: {integrity: sha512-bXFZEucYhAzLD62Jse76AbTR6LiSLTn3Tqir2f1n8rZrWAdLodYy7jnRZSPIT89dRLk/IseMOUWG82wJtTyTTw==}
+  lucide-react@1.59.0:
+    resolution: {integrity: sha512-5qgMyyCPU6OvnKpLS2t693+ZtiqA8oaSweWoUows0BLFKFf6V75m4+CptpmohZHpD5IuOVIBXHBBiv2vpLJmtw==}
     peerDependencies:
       '@types/react': '*'
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -5397,8 +5397,8 @@ packages:
     engines: {node: '>=18.0.0'}
     hasBin: true
 
-  turbo@2.11.8:
-    resolution: {integrity: sha512-OwiFs6xNO5c2XtPgYCgCXuSlkur4b5T/OeAbOKzgsHh5mmJ9Sh7m041fz2JchrvyQv8hmae+1n07HfBmvDLZRA==}
+  turbo@2.11.9:
+    resolution: {integrity: sha512-k2ev5dv9OgP2pJwaPuydkZdid+haX2U5TDGcPtpAz0gb0nbRR3eXY/cpfrlvHih52YRTxWIcRVKc0ri3C2Scrg==}
     hasBin: true
 
   type-fest@0.13.1:
@@ -7058,22 +7058,22 @@ snapshots:
       tailwindcss: 4.3.3
       vite: 7.3.7(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
 
-  '@turbo/darwin-64@2.11.8':
+  '@turbo/darwin-64@2.11.9':
     optional: true
 
-  '@turbo/darwin-arm64@2.11.8':
+  '@turbo/darwin-arm64@2.11.9':
     optional: true
 
-  '@turbo/linux-64@2.11.8':
+  '@turbo/linux-64@2.11.9':
     optional: true
 
-  '@turbo/linux-arm64@2.11.8':
+  '@turbo/linux-arm64@2.11.9':
     optional: true
 
-  '@turbo/windows-64@2.11.8':
+  '@turbo/windows-64@2.11.9':
     optional: true
 
-  '@turbo/windows-arm64@2.11.8':
+  '@turbo/windows-arm64@2.11.9':
     optional: true
 
   '@types/babel__core@7.20.5':
@@ -8541,7 +8541,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@44.7.2(supports-color@10.2.2):
+  electron@44.9.0(supports-color@10.2.2):
     dependencies:
       '@electron-internal/extract-zip': 1.0.5
       '@electron/get': 5.1.0(supports-color@10.2.2)
@@ -9175,7 +9175,7 @@ snapshots:
 
   lru-cache@7.18.3: {}
 
-  lucide-react@1.57.0(@types/react@19.3.0)(react@19.3.1):
+  lucide-react@1.59.0(@types/react@19.3.0)(react@19.3.1):
     dependencies:
       react: 19.3.1
     optionalDependencies:
@@ -9998,14 +9998,14 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.3
 
-  turbo@2.11.8:
+  turbo@2.11.9:
     optionalDependencies:
-      '@turbo/darwin-64': 2.11.8
-      '@turbo/darwin-arm64': 2.11.8
-      '@turbo/linux-64': 2.11.8
-      '@turbo/linux-arm64': 2.11.8
-      '@turbo/windows-64': 2.11.8
-      '@turbo/windows-arm64': 2.11.8
+      '@turbo/darwin-64': 2.11.9
+      '@turbo/darwin-arm64': 2.11.9
+      '@turbo/linux-64': 2.11.9
+      '@turbo/linux-arm64': 2.11.9
+      '@turbo/windows-64': 2.11.9
+      '@turbo/windows-arm64': 2.11.9
 
   type-fest@0.13.1:
     optional: true
