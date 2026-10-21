@@ -22,8 +22,9 @@ import type { ReleaseRepository } from "./update-release.js"
 
 /** How long after launch the first check waits, so it never competes with startup. */
 export const firstCheckMs = 10_000
-/** How long between checks after that: a couple of hours, as people keep the app open for days. */
-export const checkIntervalMs = 2 * 60 * 60 * 1000
+/** How long between checks after that: an hour, as people keep the app open for days. Each
+    check is counted on novadeck.dev, so an hour's checks are the copies open in it. */
+export const checkIntervalMs = 60 * 60 * 1000
 /** How long after switching channels the check on the new one waits, so a few clicks make one. */
 export const switchCheckMs = 2_000
 /** How long after a download failed the check that tries it again, once, waits. */
@@ -399,7 +400,7 @@ export type Updater = {
 }
 
 /**
- * Checks for updates shortly after launch and every couple of hours; a check that fails,
+ * Checks for updates shortly after launch and every hour; a check that fails,
  * offline, rate limited, or on a channel with no release yet, is logged and the next one
  * tries again. `channel` decides which releases count: `stable` is GitHub's latest
  * release that is not a prerelease, `early` every release. Updating never downgrades.

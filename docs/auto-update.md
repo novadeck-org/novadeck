@@ -1,8 +1,8 @@
 # Auto-update
 
 Every Novadeck build either updates itself or tells the person that a newer release
-exists and where to get it. Installed apps look on GitHub Releases shortly after launch
-and every two hours. The app never restarts on its own, and the page has no restart
+exists and where to get it. Installed apps look for one through novadeck.dev, falling back to GitHub Releases,
+shortly after launch and every hour. The app never restarts on its own, and the page has no restart
 button: a downloaded update installs when the app next quits, and the page shows only a
 progress bar while it downloads.
 
@@ -165,13 +165,13 @@ before this installs its next update through Squirrel, once.
   the page did not see downloading, as at a launch, shows nothing. One download
   is tracked at a time, and a release found while it is under way waits for the next check.
 - **A failed download** is tried again by a check five minutes later, once per release in a
-  run; after that the two-hourly checks try it. Once its progress (or an update it
+  run; after that the hourly checks try it. Once its progress (or an update it
   replaces) was offered, it is offered as `retrying` meanwhile, and the page drops the
   bar at once and shows nothing in its place: no chip either, since a copy that installs itself
   has nothing for the person to do, and the retry tries again. One that failed before any progress, with no
   update waiting, goes untold, as a failed check does. Should the early retry fail too, the
   offer turns to `available`, so a copy whose downloads keep failing (a proxy, a full disk)
-  shows the chip rather than fall behind unseen; the two-hourly checks still try it, and a
+  shows the chip rather than fall behind unseen; the hourly checks still try it, and a
   download that gets going turns it back to `downloading`. A macOS download that fails its
   checks is an install failure: the version is marked failed, is not tried again, and the
   offer turns to `available`, for the person to fetch.
@@ -629,7 +629,7 @@ full one.
 - **A channel switch does not cancel work in progress.** An `early` build that is already
   downloading a prerelease when the person switches to `stable` finishes the download and
   installs it on quit. The same switch made during an in-flight check can use the old
-  channel's answer; the next check, within two hours, corrects it.
+  channel's answer; the next check, within the hour, corrects it.
 - **Offers are not retracted.** After switching from `early` to `stable`, an `available`
   offer for an early-only release stays until a later check offers another version; the
   bridge has no way to withdraw one. A downloaded update stays `ready` as well, unless a stable release newer than the running
