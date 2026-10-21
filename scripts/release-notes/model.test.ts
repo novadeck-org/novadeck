@@ -185,6 +185,12 @@ describe("the model call", () => {
       '{"highlights":[{"title":"A","line":"B.","prs":[1],"icon":"made-up"}],"changes":[]}',
     )
     expect(read.highlights[0]?.icon).toBe("made-up")
+    for (const icon of ["null", "7", "{}"])
+      expect(
+        parseOutput(
+          `{"highlights":[{"title":"A","line":"B.","prs":[1],"icon":${icon}}],"changes":[]}`,
+        ).highlights,
+      ).toHaveLength(1)
   })
 
   it("keeps the rules of the notes in the prompt", () => {

@@ -37,7 +37,7 @@ const answer = z.object({
       title: z.string(),
       line: z.string(),
       prs: z.array(z.number().int()),
-      icon: z.string().optional(),
+      icon: z.unknown().optional(),
     }),
   ),
   changes: z.array(

@@ -109,21 +109,36 @@ describe("the checks on a model's answer", () => {
     })
   })
 
-  it("fails an answer with a line in a script other than English's", () => {
+  it("fails an answer mostly in a script other than English's, and keeps a quoted word", () => {
     const answer = {
-      ...good,
+      highlights: [
+        { title: "加密终端输出", line: "终端输出被加密存储。", prs: [181], icon: "lock" },
+      ],
       changes: [{ area: "Terminals", line: "终端输出被加密存储。", prs: [181] }],
     }
     expect(checkOutput(answer, "promote", allowed)).toEqual({
       ok: false,
-      reason: "A line is not written in English",
+      reason: "The answer is not written in English",
+    })
+    const oneLine = {
+      ...good,
+      changes: [{ area: "Terminals", line: "终端输出被加密存储。", prs: [181] }],
+    }
+    expect(checkOutput(oneLine, "promote", allowed)).toMatchObject({
+      ok: true,
+      output: { changes: [] },
+      dropped: ["a line in another script"],
     })
     const accented = {
       ...good,
       changes: [{ area: "Terminals", line: "A café's naïve résumé stays.", prs: [181] }],
     }
     expect(checkOutput(accented, "promote", allowed).ok).toBe(true)
-    for (const line of ["Startup is 300 µs faster.", "Typing 日本語 no longer moves the cursor."]) {
+    for (const line of [
+      "Startup is 300 µs faster.",
+      "Typing 日本語 no longer moves the cursor.",
+      "Opens Ελληνικά files in Grid.",
+    ]) {
       const quoted = { ...good, changes: [{ area: "Terminals", line, prs: [181] }] }
       expect(checkOutput(quoted, "promote", allowed).ok).toBe(true)
     }

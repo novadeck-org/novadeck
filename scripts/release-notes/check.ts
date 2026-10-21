@@ -39,14 +39,14 @@ const steered: readonly [RegExp, string][] = [
   [/<[a-z/!]/i, "an HTML tag"],
 ]
 
-// A line mostly in a script other than Latin: a model that answered in another language did so
-// for the whole answer, so it fails, not line by line. A unit such as µs or a quoted 日本語
-// stays a few letters of an English line and passes. A drift into another language written in
-// Latin letters isn't caught here.
+// Text whose letters are more than `share` in a script other than Latin. A model that answers in
+// another language mostly does so for the whole answer, which fails; a line of its own in one
+// is dropped. A unit such as µs or a quoted 日本語 or Ελληνικά stays a few letters of an English
+// line and passes. A drift into another language written in Latin letters isn't caught here.
 const letters = /\p{L}/gu
 const nonLatin = /(?!\p{Script=Latin})\p{L}/gu
-const foreign = (text: string): boolean =>
-  (text.match(nonLatin)?.length ?? 0) > (text.match(letters)?.length ?? 0) * 0.3
+const foreign = (text: string, share: number): boolean =>
+  (text.match(nonLatin)?.length ?? 0) > (text.match(letters)?.length ?? 0) * share
 
 // Markup a plain line has no use for. A slip drops that line and the rest stands.
 const markup = /[*~\\`[<>]/
@@ -91,11 +91,11 @@ const fail = (reason: string): Checked => ({ ok: false, reason })
 
 /**
  * Whether the model's answer can be published, and what of it. A whole-answer failure is a
- * size the notes can't hold, a sign of steering (links, URLs, HTML), or a line in a script
- * other than English's. A line that breaks a softer rule (a citation the notes can't hold or a
- * pull request that was not given, too long, markup, an excluded topic, an unknown area, a
- * release's highlight past `releaseHighlights` or citing no feature) is dropped, and `dropped`
- * says why. A highlight whose icon is missing or not in the set keeps its place with
+ * size the notes can't hold, a sign of steering (links, URLs, HTML), or an answer mostly in a
+ * script other than English's. A line that breaks a softer rule (a citation the notes can't
+ * hold or a pull request that was not given, too long, markup, an excluded topic, a line mostly
+ * in another script, an unknown area, a release's highlight past `releaseHighlights` or citing
+ * no feature) is dropped, and `dropped` says why. A highlight whose icon is missing or not in the set keeps its place with
  * "sparkles". `allowed` holds the pull requests the model was given, and `features` those of
  * them that are `feat` changes: the cheaper model a release asks makes a highlight of nearly
  * any change, fixes too, whatever it is told, so a release's highlight has to tell a feature.
@@ -110,6 +110,10 @@ export const checkOutput = (
     return fail(`At most ${maxHighlights} highlights, got ${output.highlights.length}`)
   if (output.changes.length > maxChanges)
     return fail(`At most ${maxChanges} changes, got ${output.changes.length}`)
+  const written = [...output.highlights, ...output.changes]
+    .flatMap((item) => ["title" in item ? item.title : "", item.line])
+    .join("\n")
+  if (foreign(written, 0.3)) return fail("The answer is not written in English")
   const dropped: string[] = []
   const highlights: { title: string; line: string; prs: number[]; icon: HighlightIcon }[] = []
   const changes: { area: NoteArea; line: string; prs: number[] }[] = []
@@ -119,7 +123,6 @@ export const checkOutput = (
     const text = [title, line].join("\n")
     const steer = steered.find(([pattern]) => pattern.test(text))
     if (steer) return fail(`A line holds ${steer[1]}, which plain text doesn't`)
-    if (foreign(text)) return fail("A line is not written in English")
     const topic = excluded.find((pattern) => pattern.test(text))
     // A citation the notes can't hold, or one the model wasn't given, costs that line only.
     const reason =
@@ -138,13 +141,15 @@ export const checkOutput = (
                 ? "a markup character"
                 : topic
                   ? `an excluded topic ${topic}`
-                  : title === undefined && !isArea("area" in item ? item.area : "")
-                    ? "an area that is not one of ours"
-                    : title !== undefined &&
-                        kind === "release" &&
-                        !item.prs.some((pr) => features.has(pr))
-                      ? "a release's highlight that tells no feature"
-                      : undefined
+                  : foreign(text, 0.5)
+                    ? "a line in another script"
+                    : title === undefined && !isArea("area" in item ? item.area : "")
+                      ? "an area that is not one of ours"
+                      : title !== undefined &&
+                          kind === "release" &&
+                          !item.prs.some((pr) => features.has(pr))
+                        ? "a release's highlight that tells no feature"
+                        : undefined
     if (reason) {
       dropped.push(reason)
       continue
