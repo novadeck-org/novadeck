@@ -302,7 +302,11 @@ export const scriptedRunner = ({
       gist: api.murmur.gist.handler(unplayed("murmur.gist")),
     },
     settings: {
-      get: api.settings.get.handler(() => ({ transcripts: true, welcomed: true })),
+      get: api.settings.get.handler(() => ({
+        transcripts: true,
+        transcriptsAvailable: true,
+        welcomed: true,
+      })),
       set: api.settings.set.handler(() => {}),
     },
   })

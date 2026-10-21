@@ -27,6 +27,7 @@ import {
   name,
   project,
   runnerSettings,
+  runnerSettingsState,
   startupCommand,
   terminalAttached,
   terminalChange,
@@ -429,7 +430,7 @@ export const contract = {
     gist: procedure.input(z.strictObject({ terminalId: id, at: z.number() })).output(z.void()),
   },
   settings: {
-    get: procedure.input(z.void()).output(runnerSettings),
+    get: procedure.input(z.void()).output(runnerSettingsState),
     // Changes the settings given; the others stay.
     set: procedure.input(runnerSettings.partial()).output(z.void()),
   },

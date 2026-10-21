@@ -26,6 +26,7 @@ import type { Messaging } from "../messaging/messaging.js"
 import { describe, expect, it as base } from "../test.js"
 import { ptyOptions } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
+import { plainSealer } from "../testing/sealing.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { Terminals } from "./manager.js"
 import type { Bound } from "./record.js"
@@ -41,7 +42,13 @@ const fixture = (resources: Resources) => {
   const manager = (options: ConstructorParameters<typeof Terminals>[0] = {}) => {
     // Masks nothing: no test here saves a secret.
     const redactor = { redact: async ({ text }: { text: string }) => text, close: async () => {} }
-    const instance = new Terminals({ shell: "/bin/sh", env: { PS1: "" }, redactor, ...options })
+    const instance = new Terminals({
+      shell: "/bin/sh",
+      env: { PS1: "" },
+      redactor,
+      sealer: plainSealer(),
+      ...options,
+    })
     resources.defer(() => instance.shutdown())
     return instance
   }

@@ -126,10 +126,13 @@ export const uiErrorChannel = "novadeck:ui-error"
 
 /**
  * Messages from the main process to the runner's utility process: a client's port,
- * a save of every terminal before the system session ends, or the final close.
+ * a save of every terminal before the system session ends, or the final close; and the
+ * key saved transcripts are encrypted with, base64 or null where none can be kept safe,
+ * sent here rather than in an argument or the environment, which other processes can read.
  */
 export type RunnerCommand =
   | { readonly type: "connect" }
+  | { readonly type: "transcriptKey"; readonly key: string | null }
   | { readonly type: "persist" }
   | { readonly type: "close" }
 
