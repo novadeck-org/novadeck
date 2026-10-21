@@ -93,7 +93,7 @@ describe("a peek's miniature", () => {
 
       const page = peek(
         itemFixture("web", "01", { kind: "page", name: "localhost", path: null }),
-        ready({ kind: "page", url: "http://localhost:5173/", live: false }),
+        ready({ kind: "page", url: "http://localhost:5173/", shown: 1, live: false }),
       )
       expect(page.container.querySelector(".peek-page-url")?.textContent).toBe(
         "http://localhost:5173/",
@@ -113,6 +113,7 @@ describe("a peek's miniature", () => {
         ready({
           kind: "page",
           url: "http://x/",
+          shown: 1,
           live: false,
         }),
       )

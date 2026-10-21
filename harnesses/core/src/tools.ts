@@ -147,7 +147,8 @@ export const novadeckTool = (tool: string, fields: Fields | null): ToolRun | und
       }
     case "show":
     case "close": {
-      const url = text("url")
+      const page = nested(fields?.page)
+      const url = page ? oneLine(textField(page, "url")) : ""
       const file = nested(fields?.file)
       const path = file ? oneLine(textField(file, "path")) : ""
       return {

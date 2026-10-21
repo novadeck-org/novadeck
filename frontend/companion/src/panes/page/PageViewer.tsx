@@ -29,7 +29,15 @@ const ShownPage = ({
 }): React.JSX.Element => {
   const [place, setPlace] = useState<Place>({ url: page.url, back: false, forward: false })
   const [load, setLoad] = useState<Load>("loading")
-  const content = useMemo(() => ({ url: page.url }), [page.url])
+  // Each show of it loads it afresh and brings its scroll into view, once.
+  const content = useMemo(
+    () => ({
+      url: page.url,
+      shown: page.shown,
+      ...(page.scroll !== undefined && { scroll: page.scroll }),
+    }),
+    [page.url, page.shown, page.scroll],
+  )
   const { ref, viewer } = useViewerSlot(mountBrowser, {
     id,
     content,
@@ -42,6 +50,7 @@ const ShownPage = ({
   // Kept out of sight, the page goes quiet: it stops drawing on its own, but not playing.
   const shown = useShown()
   useEffect(() => viewer?.muted(!shown), [viewer, shown])
+
   return (
     <div
       className="artifact-browser"

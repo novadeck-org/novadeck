@@ -343,11 +343,12 @@ with every safety check again at that time:
   plugin manifest (with `env_vars` naming the terminal's variables, since Codex starts
   MCP servers without the terminal's environment), `mcp_config.json` for Antigravity.
   Its first tool, `show`, takes one source under the key that names it, with that
-  source's own options inside: a `file` (its path and optional lines) or a page's
-  `url`; beside it the options every source shares, a title and `open`, which the agent
+  source's own options inside: a `file` (its path and optional lines) or a `page` (its
+  `url`, and optionally `scroll`, a CSS selector of the element to bring into view once it
+  loads); beside it the options every source shares, a title and `open`, which the agent
   sets for a deliverable it finished or one the user asked to see (`asked`). A new kind of artifact adds a source key
   of its own rather than more fields beside these. `close` takes the same `file` (its
-  path alone) or `url` and removes what the agent showed under it from its own bar, as
+  path alone) or `page` (its url alone) and removes what the agent showed under it from its own bar, as
   the person closing it would; what the person attached, moved away from it, or another
   terminal placed there is refused with a word on whose it is, and plans are never
   addressable this way. The server finds its terminal
@@ -441,7 +442,14 @@ with every safety check again at that time:
   can't open tabs on its own; a frame from another site in the page can take that one
   window, as Electron doesn't say which frame opened it
   (`apps/desktop/src/main/pages.ts`). Where the host can't, as the web version, a
-  page is a link to open in the browser.
+  page is a link to open in the browser. Each show of a page loads it afresh: the
+  page's content carries `shown`, its item's version, and a later one reloads it, or
+  takes it back to the address it was shown at if the person went elsewhere. A show's
+  `scroll` goes with that show alone, so the runner keeps it in memory, not with the
+  item: the viewer brings the element into view once the page has loaded, waiting a few
+  seconds for one a page draws later, and keeps the show it carried out with where the
+  person took the page, so a viewer mounted again for the same show neither reloads nor
+  scrolls.
 - **Saving** would be a new authorized plan-write operation with the stamp check above,
   scoped like `present`: the caller may write only the plan the terminal's agent keeps.
   The runner doesn't offer it yet.

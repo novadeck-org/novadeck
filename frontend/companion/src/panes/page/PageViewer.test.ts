@@ -71,7 +71,7 @@ const button = (container: HTMLElement, name: string) =>
 describe("a page beside a terminal", () => {
   context("where pages load live", () => {
     it("loads in the pages' session, busy until it has loaded", () => {
-      const { container } = show({ kind: "page", url, live: true })
+      const { container } = show({ kind: "page", url, shown: 1, live: true })
       expect(pageOf(container).getAttribute("partition")).toBe(pagesPartition)
       expect(pageOf(container).hasAttribute("allowpopups")).toBe(true)
       const frame = container.querySelector(".artifact-browser")!
@@ -83,7 +83,7 @@ describe("a page beside a terminal", () => {
     })
 
     it("says when it didn't load, and loads it again when asked", () => {
-      const { container } = show({ kind: "page", url, live: true })
+      const { container } = show({ kind: "page", url, shown: 1, live: true })
       const page = pageOf(container)
       let reloads = 0
       Object.assign(page, { reload: () => (reloads += 1) })
@@ -96,7 +96,7 @@ describe("a page beside a terminal", () => {
     })
 
     it("goes quiet while it's kept out of sight", () => {
-      const { container } = show({ kind: "page", url, live: true }, false)
+      const { container } = show({ kind: "page", url, shown: 1, live: true }, false)
       const page = pageOf(container)
       const muted: boolean[] = []
       Object.assign(page, {
@@ -110,7 +110,7 @@ describe("a page beside a terminal", () => {
     })
 
     it("shows a new page at its own address, not the last one's", () => {
-      const rendered = show({ kind: "page", url, live: true })
+      const rendered = show({ kind: "page", url, shown: 1, live: true })
       Object.assign(pageOf(rendered.container), {
         getURL: () => `${url}work`,
         canGoBack: () => true,
@@ -118,11 +118,40 @@ describe("a page beside a terminal", () => {
         setAudioMuted: () => undefined,
       })
       fire(pageOf(rendered.container), "did-navigate")
-      rendered.show({ kind: "page", url: "https://example.com/", live: true })
+      rendered.show({ kind: "page", url: "https://example.com/", shown: 1, live: true })
       expect(rendered.container.querySelector(".artifact-url")?.textContent).toBe(
         "https://example.com/",
       )
       expect((button(rendered.container, "Back") as HTMLButtonElement).disabled).toBe(true)
+    })
+    it("loads afresh when shown again, then brings that show's element into view", () => {
+      // An address of its own, where no earlier viewer of this item was kept.
+      const at = "http://localhost:4321/"
+      const rendered = show({ kind: "page", url: at, shown: 1, live: true })
+      const page = pageOf(rendered.container)
+      const calls: string[] = []
+      Object.assign(page, {
+        getURL: () => at,
+        canGoBack: () => false,
+        canGoForward: () => false,
+        setAudioMuted: () => undefined,
+        reload: () => calls.push("reload"),
+        executeJavaScript: (code: string) => {
+          calls.push(code.includes(JSON.stringify("#faq")) ? "scroll #faq" : "scroll")
+          return Promise.resolve(true)
+        },
+      })
+      fire(page, "did-stop-loading")
+      rendered.show({ kind: "page", url: at, shown: 2, scroll: "#faq", live: true })
+      expect(calls).toEqual(["reload"])
+      const frame = rendered.container.querySelector(".artifact-browser")!
+      expect(frame.getAttribute("aria-busy")).toBe("true")
+      fire(page, "did-stop-loading")
+      expect(calls).toEqual(["reload", "scroll #faq"])
+      // The same show read again, as after a reconnect, is carried out already.
+      rendered.show({ kind: "page", url: at, shown: 2, scroll: "#faq", live: true })
+      fire(page, "did-stop-loading")
+      expect(calls).toEqual(["reload", "scroll #faq"])
     })
   })
 
@@ -131,6 +160,7 @@ describe("a page beside a terminal", () => {
       const { container } = show({
         kind: "page",
         url,
+        shown: 1,
         live: false,
         snapshot: "data:image/png;base64,",
       })
@@ -141,7 +171,7 @@ describe("a page beside a terminal", () => {
     })
 
     it("says it opens in the browser, without a snapshot", () => {
-      const { container } = show({ kind: "page", url, live: false })
+      const { container } = show({ kind: "page", url, shown: 1, live: false })
       expect(container.textContent).toContain("This page opens in your browser.")
       expect(container.querySelector(".artifact-url")?.textContent).toBe(url)
     })

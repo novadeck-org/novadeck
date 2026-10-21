@@ -1,7 +1,15 @@
 import "./browser.css"
-import { afterEach, describe as context, describe, expect, it } from "vitest"
+import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 
-import { mountBrowser, type BrowserOptions, type Load, type Place } from "./browser.js"
+import {
+  mountBrowser,
+  scrollWaitMs,
+  type BrowserContent,
+  type BrowserOptions,
+  type Load,
+  type Place,
+} from "./browser.js"
+import type { ViewerState } from "./index.js"
 
 const hosts: HTMLElement[] = []
 afterEach(() => {
@@ -103,6 +111,139 @@ describe("the browser viewer", () => {
       viewer.reload()
       viewer.muted(false)
       expect(calls).toEqual(["muted true", "back", "forward", "reload", "muted false"])
+    })
+
+    context("shown again", () => {
+      const url = "http://localhost:5173/"
+      // A page shown at `url`, attached where `at` says, recording what is asked of it.
+      const shownAt = (content: BrowserContent, saved?: ViewerState) => {
+        const host = hostIn()
+        const loads: Load[] = []
+        const viewer = mountBrowser(host, {
+          content,
+          label: "page",
+          live: true,
+          partition: "pages",
+          on: { load: (load) => loads.push(load) },
+          ...(saved && { saved }),
+        })
+        const page = pageOf(host)
+        const at = { url, back: false, forward: false }
+        const calls: string[] = []
+        attach(page, at, calls)
+        Object.assign(page, {
+          setAudioMuted: () => undefined,
+          loadURL: (address: string) => {
+            calls.push(`load ${address}`)
+            return Promise.resolve()
+          },
+          executeJavaScript: (code: string) => {
+            calls.push(`run ${code}`)
+            return Promise.resolve(true)
+          },
+        })
+        const fire = (type: string, fields?: Record<string, unknown>) =>
+          page.dispatchEvent(event(type, fields))
+        return { viewer, page, at, calls, loads, fire }
+      }
+      const scrolled = (calls: readonly string[]) =>
+        calls.filter((call) => call.startsWith("run ")).map((call) => call.slice(4))
+
+      it("reloads, or goes back where it was shown if the person went elsewhere", () => {
+        const { viewer, at, calls, loads, fire } = shownAt({ url, shown: 1 })
+        at.url = `${url}work`
+        fire("did-stop-loading")
+        viewer.update({ url, shown: 2 })
+        expect(calls).toEqual([`load ${url}`])
+        expect(loads).toEqual(["loading", "ready", "loading"])
+        at.url = url
+        fire("did-stop-loading")
+        viewer.update({ url, shown: 3 })
+        expect(calls).toEqual([`load ${url}`, "reload"])
+        // The same show, or an older one, loads nothing.
+        fire("did-stop-loading")
+        viewer.update({ url, shown: 3 })
+        viewer.update({ url, shown: 2 })
+        expect(calls).toEqual([`load ${url}`, "reload"])
+      })
+
+      it("leaves a load of its address under way be, as its first", () => {
+        const { viewer, calls } = shownAt({ url, shown: 1 })
+        viewer.update({ url, shown: 2 })
+        expect(calls).toEqual([])
+      })
+
+      it("brings the show's element into view once the page has loaded", async () => {
+        const { viewer, calls, fire } = shownAt({ url, shown: 1, scroll: "#pricing" })
+        expect(scrolled(calls)).toEqual([])
+        fire("did-stop-loading")
+        expect(scrolled(calls)).toHaveLength(1)
+        // It runs in the page, here this one, the selector given as a string, never as code.
+        const section = document.createElement("section")
+        section.id = "pricing"
+        let revealed = 0
+        section.scrollIntoView = () => void (revealed += 1)
+        document.body.append(section)
+        try {
+          await expect(new Function(`return ${scrolled(calls)[0]!}`)()).resolves.toBe(true)
+        } finally {
+          section.remove()
+        }
+        expect(revealed).toBe(1)
+        // A failed load drops it; a later show scrolls again.
+        viewer.update({ url, shown: 2, scroll: '"]; alert(1); ["' })
+        fire("did-fail-load", { errorCode: -105, isMainFrame: true })
+        fire("did-stop-loading")
+        expect(scrolled(calls)).toHaveLength(1)
+        viewer.update({ url, shown: 3, scroll: '"]; alert(1); ["' })
+        fire("did-stop-loading")
+        expect(scrolled(calls)[1]).toContain(JSON.stringify('"]; alert(1); ["'))
+      })
+
+      it("waits a while for the element of a page that draws itself, and gives up", async () => {
+        vi.useFakeTimers()
+        try {
+          const { calls, fire } = shownAt({ url, shown: 1, scroll: "#late" })
+          fire("did-stop-loading")
+          const run = (): Promise<unknown> => new Function(`return ${scrolled(calls)[0]!}`)()
+          let revealed = 0
+          const late = run()
+          const element = document.createElement("div")
+          element.id = "late"
+          element.scrollIntoView = () => void (revealed += 1)
+          document.body.append(element)
+          await vi.advanceTimersByTimeAsync(0)
+          await expect(late).resolves.toBe(true)
+          expect(revealed).toBe(1)
+          element.remove()
+          const never = run()
+          await vi.advanceTimersByTimeAsync(scrollWaitMs)
+          await expect(never).resolves.toBe(false)
+        } finally {
+          vi.useRealTimers()
+        }
+      })
+
+      it("carries out each show once, however often a viewer mounts for it", () => {
+        const first = shownAt({ url, shown: 2, scroll: "#a" })
+        first.at.url = `${url}work`
+        first.fire("did-stop-loading")
+        expect(scrolled(first.calls)).toHaveLength(1)
+        const state = first.viewer.state()
+        first.viewer.destroy()
+
+        // The same show: where the person had taken it, and no scroll.
+        const again = shownAt({ url, shown: 2, scroll: "#a" }, state)
+        expect(again.page.getAttribute("src")).toBe(`${url}work`)
+        again.fire("did-stop-loading")
+        expect(scrolled(again.calls)).toEqual([])
+
+        // A later show, made while no viewer was there: at its address, scrolled.
+        const later = shownAt({ url, shown: 3, scroll: "#b" }, state)
+        expect(later.page.getAttribute("src")).toBe(url)
+        later.fire("did-stop-loading")
+        expect(scrolled(later.calls)).toHaveLength(1)
+      })
     })
 
     it("tells the page's title", () => {
