@@ -43,6 +43,9 @@ export type MurmurState = {
   // after job, or its worker not starting), until a job succeeds. Its jobs retry by
   // themselves, so it is news, not something to retry; null for the rest of `failure`.
   readonly stopped: string | null
+  // Whether the model is on disk though murmur isn't installed: a verdict removed the engine
+  // and kept the model of an install that had worked. Uninstalling removes it.
+  readonly kept: boolean
   // Why this computer can't run murmur, technical, for a details view: the host's word
   // ("host", nothing downloads and an install is refused), or a check's, which an install runs
   // again and which is kept until another passes. Not a failure to retry, and no offer.

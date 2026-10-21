@@ -12,9 +12,13 @@ export const murmurDescription = "Names your terminals from what they're doing, 
 // What an install downloads: the engine and the model.
 export const murmurInstallSize = ({ sizes }: MurmurState): number => sizes.engine + sizes.model
 
+// What an install still downloads: the engine alone where the model is on disk.
+export const murmurDownloadSize = (state: MurmurState): number =>
+  state.kept ? state.sizes.engine : murmurInstallSize(state)
+
 // The note under Install.
 export const murmurDownloadNote = (state: MurmurState): string =>
-  `Downloads ${formatSize(murmurInstallSize(state))} once, then works offline.`
+  `Downloads ${formatSize(murmurDownloadSize(state))} once, then works offline.`
 
 // Where murmur runs, once a check has passed.
 export const deviceText = ({ device }: NonNullable<MurmurState["check"]>): string =>

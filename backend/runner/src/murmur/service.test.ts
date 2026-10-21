@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs"
-import { chmod, readdir, readFile, writeFile } from "node:fs/promises"
+import { chmod, readdir, readFile, stat, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import type { MurmurState } from "@novadeck/protocol"
@@ -205,6 +205,7 @@ describe("installing murmur", () => {
 
     expect(murmur.state()).toMatchObject({
       installed: false,
+      kept: false,
       check: null,
       failure: null,
       unsupported: {
@@ -228,6 +229,7 @@ describe("installing murmur", () => {
 
     expect(murmur.state()).toMatchObject({
       installed: false,
+      kept: false,
       check: null,
       failure: null,
       unsupported: {
@@ -1538,6 +1540,71 @@ describe("what a failed install says", () => {
     if (process.platform === "linux")
       expect(murmur.state().unsupported?.reason).toMatch(/Vulkan driver/)
     expect(store.murmurUnsupported()).not.toBeNull()
+  })
+
+  it("keeps a model that worked before when a retry cannot load a library, and removes the engine", async ({
+    resources,
+  }) => {
+    let broken = false
+    const base = fakeLaunch([arc])
+    const failing = failingList(
+      "error while loading shared libraries: libvulkan.so.1: cannot open shared object file.",
+      127,
+    )
+    const { murmur, store, directory } = await setup(resources, {
+      launch: (program, args) => (broken ? failing(program, args) : base(program, args)),
+    })
+    await murmur.install()
+    await murmur.settled()
+    expect(murmur.state()).toMatchObject({ installed: true, kept: false })
+    const model = await modelOf(directory)
+    const before = await stat(model)
+
+    broken = true
+    await murmur.install()
+    await murmur.settled()
+
+    expect(murmur.state()).toMatchObject({
+      installed: false,
+      kept: true,
+      check: null,
+      failure: null,
+      unsupported: { source: "check" },
+    })
+    expect(store.murmurUnsupported()).not.toBeNull()
+    expect(store.murmurCheck()).toBeNull()
+    // Only the model stays: the engine is gone.
+    expect(await readdir(directory)).toEqual(["models"])
+    expect(await modelOf(directory)).toBe(model)
+
+    // Check again fetches the engine alone: the model file is the one it was.
+    broken = false
+    await murmur.install()
+    await murmur.settled()
+    expect(murmur.state()).toMatchObject({ installed: true, kept: false, unsupported: null })
+    const after = await stat(model)
+    expect(after.ino).toBe(before.ino)
+    expect(after.mtimeMs).toBe(before.mtimeMs)
+  })
+
+  it("removes a kept model when the person uninstalls in Not available", async ({ resources }) => {
+    let broken = false
+    const base = fakeLaunch([arc])
+    const failing = failingList("error while loading shared libraries: libvulkan.so.1", 127)
+    const { murmur, directory } = await setup(resources, {
+      launch: (program, args) => (broken ? failing(program, args) : base(program, args)),
+    })
+    await murmur.install()
+    await murmur.settled()
+    broken = true
+    await murmur.install()
+    await murmur.settled()
+    expect(murmur.state().kept).toBe(true)
+
+    await murmur.uninstall()
+
+    expect(murmur.state()).toMatchObject({ installed: false, kept: false })
+    expect(await readdir(directory)).toEqual([])
   })
 
   it("fails with the engine's own words, and the hint, when it cannot list the devices for another reason", async ({
