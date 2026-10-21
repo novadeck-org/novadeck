@@ -135,7 +135,7 @@ describe("a page beside a terminal", () => {
         canGoBack: () => false,
         canGoForward: () => false,
         setAudioMuted: () => undefined,
-        reload: () => calls.push("reload"),
+        reloadIgnoringCache: () => calls.push("reload"),
         executeJavaScript: (code: string) => {
           calls.push(code.includes(JSON.stringify("#faq")) ? "scroll #faq" : "scroll")
           return Promise.resolve(true)

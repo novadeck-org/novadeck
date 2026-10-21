@@ -443,13 +443,16 @@ with every safety check again at that time:
   window, as Electron doesn't say which frame opened it
   (`apps/desktop/src/main/pages.ts`). Where the host can't, as the web version, a
   page is a link to open in the browser. Each show of a page loads it afresh: the
-  page's content carries `shown`, its item's version, and a later one reloads it, or
-  loads the address it was shown at if the person went to another document. Shown at a
+  page's content carries `shown`, its item's version, and a later one reloads it, past
+  the cache so changed styles and scripts show too, or loads the address it was shown at
+  if the person went to another document. Shown at a
   `#fragment` of the document the person is on, it reloads, then goes to that fragment,
   since loading another fragment of a document only moves within what it already held.
   A show's `scroll` goes with that show alone, so the runner keeps it in memory, not
   with the item: the viewer brings the element into view once the page has loaded and
-  reached the shown fragment, waiting a few seconds for one a page draws later. It keeps
+  reached the shown fragment, waiting a few seconds for one a page draws later. A show
+  that gives none at a fragment brings the fragment's element into view instead, since a
+  reload keeps where the person had scrolled. It keeps
   the show it carried out with where the person took the page, so a viewer mounted again
   in the same window for the same show opens where the person was, as a show already
   carried out, and doesn't scroll.

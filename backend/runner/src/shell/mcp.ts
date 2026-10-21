@@ -161,8 +161,9 @@ const show: Tool<Shown> = {
             description:
               "A CSS selector of the element to bring into view once the page loads, such " +
               "as #pricing or [data-section=faq]; it waits a few seconds for a page that " +
-              "draws itself after loading. Give it with each show that should scroll: one " +
-              "without it doesn't.",
+              "draws itself after loading. Give it with each show that should scroll; " +
+              "without it, a show at a #anchor brings that anchor into view, and one without " +
+              "either doesn't scroll.",
           },
         },
         required: ["url"],

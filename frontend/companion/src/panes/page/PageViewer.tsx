@@ -50,7 +50,6 @@ const ShownPage = ({
   // Kept out of sight, the page goes quiet: it stops drawing on its own, but not playing.
   const shown = useShown()
   useEffect(() => viewer?.muted(!shown), [viewer, shown])
-
   return (
     <div
       className="artifact-browser"

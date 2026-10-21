@@ -55,6 +55,7 @@ type Webview = HTMLElement & {
   goBack(): void
   goForward(): void
   reload(): void
+  reloadIgnoringCache(): void
   loadURL(url: string): Promise<void>
   executeJavaScript(code: string): Promise<unknown>
   getURL(): string
@@ -80,6 +81,22 @@ const showOf = (content: BrowserContent): number => content.shown ?? 0
 
 // An address without its #fragment: two that differ only there are one document.
 const documentOf = (url: string): string => url.split("#")[0]!
+
+// The element an address's #fragment names, as a selector: what a show at it brings into
+// view when it names none of its own, as a reload keeps where the person had scrolled.
+const fragmentOf = (url: string): string | undefined => {
+  const at = url.indexOf("#")
+  if (at === -1 || at === url.length - 1) return undefined
+  try {
+    return `[id=${JSON.stringify(decodeURIComponent(url.slice(at + 1)))}]`
+  } catch {
+    return undefined
+  }
+}
+
+// The element a show brings into view: its own, else its fragment's.
+const scrollOf = (content: BrowserContent): string | undefined =>
+  content.scroll ?? fragmentOf(content.url)
 
 // A kept state of `content`'s page that no later show has passed: where to pick up.
 const keptOf = (state: unknown, content: BrowserContent): BrowserState["browser"] | undefined =>
@@ -158,7 +175,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   let showing = showOf(content)
   // The element a show brings into view once the load under way is done; one a viewer of
   // the same show carried out already is done.
-  let scrollTo = live && !kept ? content.scroll : undefined
+  let scrollTo = live && !kept ? scrollOf(content) : undefined
   // The shown fragment a reload of the document goes to once it has loaded.
   let then: string | undefined
   // Kept with the show it carried out: one whose move or scroll is still to come isn't yet,
@@ -288,8 +305,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     const there = at === shown.url
     // Without a fragment, the shown address is a document of its own to load.
     if ((there || shown.url.includes("#")) && documentOf(at) === documentOf(shown.url)) {
+      // Past the cache, so what the agent changed shows, its styles and scripts too.
       const reloading = attached(() => {
-        page.reload()
+        page.reloadIgnoringCache()
         return true
       })
       if (reloading) {
@@ -339,7 +357,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       // Loaded after it attached, past the lockdown's check of its first address.
       if (!webAddress(next.url)) return
       if (!again && previous.url === next.url) return
-      scrollTo = again ? next.scroll : undefined
+      scrollTo = again ? scrollOf(next) : undefined
       refresh()
     },
     state: () => state(place.url),
