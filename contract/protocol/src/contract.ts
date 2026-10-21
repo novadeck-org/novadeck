@@ -19,6 +19,8 @@ import {
   directory,
   id,
   itemContent,
+  maxPageTroubles,
+  pageTrouble,
   planSaveResult,
   maxUploadPartLength,
   maxVoicePartLength,
@@ -324,6 +326,20 @@ export const contract = {
         }),
       )
       .output(companionItem),
+    // Tells the runner what went wrong on a page item while it showed its show `shown` (its
+    // version then), as the pane saw it. The runner tells the agent that showed it, once per
+    // show, at the next prompt the person gives it, for a page served from this machine
+    // only. An unknown item, one that is no page, one not an agent's, a show other than its
+    // latest, or a page elsewhere is let be.
+    pageTrouble: procedure
+      .input(
+        z.strictObject({
+          itemId: id,
+          shown: z.int().min(1),
+          troubles: z.array(pageTrouble).min(1).max(maxPageTroubles),
+        }),
+      )
+      .output(z.void()),
     // Moves an item onto a terminal's bar, from a bar or a window, which goes with it; what
     // that bar held under the same pointer is replaced. An unknown item is NOT_FOUND, an
     // unknown terminal TERMINAL_NOT_FOUND, and one of another session a CONFLICT.

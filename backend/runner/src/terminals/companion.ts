@@ -1,4 +1,5 @@
 import type { ActivityEvent } from "@novadeck/harness-core/events"
+import type { PageTrouble } from "@novadeck/protocol"
 
 import type { PlanText } from "../companions/content.js"
 import type { CompanionItems, TerminalPlace } from "../companions/items.js"
@@ -17,6 +18,7 @@ import { callerOf } from "./callers.js"
 import { peerOf, type TerminalPeers } from "./peers.js"
 import type { Record } from "./record.js"
 import type { SavedTerminal } from "./records.js"
+import { itemGone, troubled } from "./troubles.js"
 
 export type CompanionHost = {
   /** Every terminal the runner holds, by id. */
@@ -39,7 +41,34 @@ export class Companion {
   constructor(
     private readonly items: CompanionItems | undefined,
     readonly host: CompanionHost,
-  ) {}
+  ) {
+    items?.listen({
+      troubled: (item, troubles) => this.troubled(item, troubles),
+      gone: (item) => this.untroubled(item),
+    })
+  }
+
+  /**
+   * The pane told of troubles on a page an agent showed: they wait for the terminal it was
+   * shown from, to be told at the person's next prompt there (see `Nudges`).
+   */
+  private troubled(item: ItemRecord, troubles: readonly PageTrouble[]): void {
+    const record = this.host.records().get(item.from.terminalId)
+    // A show made before the terminal's current root session began is not that session's.
+    if (!record || item.url === null || item.shownAt < record.nudges.since) return
+    const page = { itemId: item.id, version: item.version, name: item.name, url: item.url }
+    record.nudges = {
+      ...record.nudges,
+      troubles: troubled(record.nudges.troubles, page, troubles),
+    }
+  }
+
+  /** An item is gone or shown again: the troubles held of it go. */
+  private untroubled(item: ItemRecord): void {
+    const record = this.host.records().get(item.from.terminalId)
+    if (record)
+      record.nudges = { ...record.nudges, troubles: itemGone(record.nudges.troubles, item.id) }
+  }
 
   /**
    * Shows the person what an agent asked to, through Novadeck's MCP server in one of
@@ -69,7 +98,10 @@ export class Companion {
     return this.items.dismiss(place, read.request)
   }
 
-  /** What the caller's own terminal's bar holds, as its agent asked through Novadeck's MCP server. */
+  /**
+   * What the caller's own terminal's bar holds, as its agent asked through Novadeck's MCP
+   * server.
+   */
   showing(call: Call): { ok: true; text: string } | typeof unansweredCalls.showing {
     if (!callerOf(this.host.records(), call)) return unansweredCalls.showing
     if (!this.items) return unansweredCalls.showing

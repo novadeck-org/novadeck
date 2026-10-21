@@ -26,9 +26,12 @@ import {
   attachPage,
   guardPage,
   lockPagesSession,
+  pagesSession,
   picturePage,
+  watchPageRequests,
   webAddress,
 } from "@novadeck/viewers/browser/host"
+import { pageRequestChannel } from "@novadeck/viewers/browser/trouble"
 import { brokerPorts } from "@novadeck/wire/electron"
 import {
   app,
@@ -1435,19 +1438,11 @@ const launch = async (): Promise<void> => {
       }
     },
   })
-  // The page learns what is new after an update, once, and can open the release's page.
+  // The page learns what is new after an update, once.
   registerWhatsNewIpc(ipcMain, {
     window: (event) => appWindow(event)?.webContents,
     whatsNew: whatsNew.whatsNew,
     dismiss: whatsNew.dismiss,
-    openPage: () => {
-      void releaseRepository()
-        .then((repository) => {
-          const url = repository && releasePageUrl(repository, app.getVersion())
-          if (url) return shell.openExternal(url)
-        })
-        .catch((error: unknown) => console.warn("The release page did not open.", error))
-    },
   })
   // The page learns whether this is a portable copy and may install the app from it,
   // while this copy keeps running, and is told how the install goes.
@@ -1679,8 +1674,28 @@ app.whenReady().then(() => {
       : undefined,
   )
   lockPagesSession((partition) => session.fromPartition(partition), pagesPartition)
+  // The app's page hears of the requests a page in its view sees fail, to tell the agent.
+  const pageRequests = watchPageRequests(
+    session.fromPartition(pagesSession(pagesPartition)),
+    (contentsId, failure) => {
+      const host = webContents.fromId(contentsId)?.hostWebContents
+      if (!host || host.isDestroyed()) return
+      // A window closing or reloading meanwhile must not throw into the main process.
+      try {
+        host.send(pageRequestChannel, contentsId, failure)
+      } catch (error) {
+        log.warn("pages.request-send-failed", "A failed page request was not sent to its window.", {
+          err: error,
+        })
+      }
+    },
+  )
   app.on("web-contents-created", (_event, contents) => {
-    if (contents.getType() === "webview") guardPage(contents, (url) => shell.openExternal(url))
+    if (contents.getType() === "webview") {
+      guardPage(contents, (url) => shell.openExternal(url))
+      const { id } = contents
+      contents.once("destroyed", () => pageRequests.forget(id))
+    }
     if (contents.getType() === "window") watchPage(contents)
   })
 

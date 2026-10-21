@@ -3,7 +3,7 @@ import { notesBlock, type ReleaseNotes } from "@novadeck/protocol/release-notes"
 import type { IpcMainEvent } from "electron"
 import { vi } from "vitest"
 
-import { dismissWhatsNewChannel, openWhatsNewPageChannel, whatsNewChannel } from "../bridge.js"
+import { dismissWhatsNewChannel, whatsNewChannel } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 import { isNewerVersion } from "./applications-folder"
 import {
@@ -202,6 +202,23 @@ describe("what is new in the version", () => {
     expect(inits[0]?.signal.aborted).toBe(false)
     // Showing it leaves it pending, until the person dismisses it.
     expect(state.pending).toBe("0.5.0")
+  })
+
+  it("carries a highlight's icon, and drops one the reader does not know, not the highlight", async () => {
+    const written = notesBlock(
+      notes([
+        { title: "Faster Grid", line: "Opens quicker.", prs: [12], icon: "gauge" },
+        { title: "Odd", line: "Icon from a later set.", prs: [13], icon: "bug" },
+        { title: "Plain", line: "No icon.", prs: [14] },
+      ]),
+    )
+    // A later pipeline's icon, which this reader's set lacks.
+    const { whatsNew } = kept(async () => release(written.replace('"bug"', '"not-an-icon"')))
+    expect((await whatsNew())?.highlights).toEqual([
+      { title: "Faster Grid", line: "Opens quicker.", icon: "gauge" },
+      { title: "Odd", line: "Icon from a later set." },
+      { title: "Plain", line: "No icon." },
+    ])
   })
 
   it("answers a prerelease's own highlights, with no wait for its promotion", async () => {
@@ -485,7 +502,6 @@ const registered = (own: boolean) => {
         return { version: "0.5.0", highlights: [{ title: "T", line: "L" }] }
       },
       dismiss: () => void calls.push("dismiss"),
-      openPage: () => void calls.push("open page"),
     },
   )
   const send = (name: string): unknown => listeners.get(name)?.({} as IpcMainEvent)
@@ -678,22 +694,20 @@ describe("what is new since the version updated from", () => {
 })
 
 describe("taking the page's requests about what is new", () => {
-  it("answers, dismisses and opens the page for the app's own window", async () => {
+  it("answers and dismisses for the app's own window", async () => {
     const { send, calls } = registered(true)
     expect(await send(whatsNewChannel)).toEqual({
       version: "0.5.0",
       highlights: [{ title: "T", line: "L" }],
     })
     send(dismissWhatsNewChannel)
-    send(openWhatsNewPageChannel)
-    expect(calls).toEqual(["whats new", "dismiss", "open page"])
+    expect(calls).toEqual(["whats new", "dismiss"])
   })
 
   it("ignores any other sender and tells it there is nothing", async () => {
     const { send, calls } = registered(false)
     expect(await send(whatsNewChannel)).toBeUndefined()
     send(dismissWhatsNewChannel)
-    send(openWhatsNewPageChannel)
     expect(calls).toEqual([])
   })
 })

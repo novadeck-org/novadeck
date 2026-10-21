@@ -1,4 +1,4 @@
-import type { CompanionKey } from "@novadeck/core/companion"
+import { emptyCompanions, type CompanionKey } from "@novadeck/core/companion"
 import { workspaceReducer, type WorkspaceAction } from "@novadeck/core/state"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 
@@ -12,8 +12,7 @@ const hero = itemFixture("hero", "02", { kind: "image", name: "hero.png", path: 
 const open = (attach?: (key: CompanionKey, path: string) => Promise<void>, url?: string) => {
   const attached: { key: CompanionKey; path: string }[] = []
   const companions = {
-    follow: () => () => {},
-    save: () => Promise.reject(new Error("unused")),
+    ...emptyCompanions(),
     ...(attach && {
       attach: (key: CompanionKey, path: string) => (
         attached.push({ key, path }),

@@ -74,14 +74,17 @@ const compose = async (
     }
   const { text, outputTokens, model } = await ask(kind, version, given)
   const output = parseOutput(text)
-  const checked = checkOutput(output, kind, new Set(given.flatMap((item) => item.prs)))
+  const checked = checkOutput(
+    output,
+    kind,
+    new Set(given.flatMap((item) => item.prs)),
+    new Set(given.filter((item) => !item.fix).flatMap((item) => item.prs)),
+  )
   if (!checked.ok) throw new Skip(checked.reason, text)
-  const { highlights } = checked.output
-  // A change a highlight already tells is not told twice. A release's answer repeats its
-  // highlights in its changes, so a highlight the checks dropped keeps its change.
-  const told = new Set(highlights.flatMap((highlight) => highlight.prs))
-  const changes = checked.output.changes.filter((change) => !change.prs.every((pr) => told.has(pr)))
-  const cited = new Set([...told, ...changes.flatMap((change) => change.prs)])
+  // A highlight is the short telling, for the card; its change keeps the whole line, for the
+  // release's page, so both stay.
+  const { highlights, changes } = checked.output
+  const cited = new Set([...highlights, ...changes].flatMap((line) => line.prs))
   const unnamed = given.filter((item) => item.fix && !item.prs.some((pr) => cited.has(pr))).length
   return {
     notes: { version, kind, highlights, changes, fixes: unnamed },

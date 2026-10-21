@@ -392,6 +392,8 @@ export const createShowcase = (
       write(agent, text)
       return Promise.resolve({ saved: true, stamp: String(agent.writes) })
     },
+    // Demo pages are never live, so nothing goes wrong on one.
+    trouble: () => {},
     told: (key, input, revised) => {
       const agent = agentAt(key)
       if (!agent) return

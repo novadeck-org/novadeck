@@ -3,7 +3,12 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { itemContent, type CompanionChange, type ItemContent } from "@novadeck/protocol"
+import {
+  itemContent,
+  type CompanionChange,
+  type ItemContent,
+  type PageTrouble,
+} from "@novadeck/protocol"
 
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
@@ -914,5 +919,83 @@ describe("plans beside their terminal", () => {
     expect(fixture.items.listing(fox.terminalId)).toContain(
       `- plan "Live plan": ${transcript} (placed here from @moth, its agent's plan)`,
     )
+  })
+})
+
+describe("what the pane tells of a page", () => {
+  const trouble: PageTrouble[] = [{ kind: "load", text: "ERR_CONNECTION_REFUSED" }]
+
+  /** Shows a page, and collects the troubles the terminals would hear of and the items they lose. */
+  const hearing = async (fixture: Fixture, url = "http://localhost:5173/") => {
+    const heard: { itemId: string; version: number; terminalId: string }[] = []
+    const gone: string[] = []
+    fixture.items.listen({
+      troubled: (item) =>
+        heard.push({ itemId: item.id, version: item.version, terminalId: item.from.terminalId }),
+      gone: (item) => gone.push(item.id),
+    })
+    const moth = fixture.terminal("moth")
+    const shown = await fixture.items.show(moth, { page: { url } })
+    return { heard, gone, moth, id: shown.ok ? shown.id : "" }
+  }
+
+  it("goes to the terminal the page was shown from, once it is the latest show", async ({
+    fixture,
+  }) => {
+    const { heard, moth, id } = await hearing(fixture)
+    fixture.items.pageTrouble({ itemId: id, shown: 1, troubles: trouble })
+    expect(heard).toEqual([{ itemId: id, version: 1, terminalId: moth.terminalId }])
+    // Moved elsewhere, it is still told to the terminal it came from.
+    const other = fixture.terminal("fox")
+    fixture.items.move(id, other.terminalId)
+    fixture.items.pageTrouble({ itemId: id, shown: 1, troubles: trouble })
+    expect(heard.at(-1)).toMatchObject({ terminalId: moth.terminalId })
+  })
+
+  it("is let be for an unknown item, a stale show, a page elsewhere or a file", async ({
+    fixture,
+  }) => {
+    const { heard, moth, id } = await hearing(fixture)
+    await fixture.items.show(moth, { page: { url: "http://localhost:5173/" } })
+    fixture.items.pageTrouble({ itemId: id, shown: 1, troubles: trouble })
+    fixture.items.pageTrouble({ itemId: randomUUID(), shown: 1, troubles: trouble })
+    const remote = await fixture.items.show(moth, { page: { url: "https://example.com/" } })
+    fixture.items.pageTrouble({ itemId: remote.ok ? remote.id : "", shown: 1, troubles: trouble })
+    writeFileSync(join(fixture.directory, "a.ts"), "const a = 1\n")
+    const file = await fixture.items.show(moth, { file: { path: "a.ts" } })
+    fixture.items.pageTrouble({ itemId: file.ok ? file.id : "", shown: 1, troubles: trouble })
+    expect(heard).toEqual([])
+    fixture.items.pageTrouble({ itemId: id, shown: 2, troubles: trouble })
+    expect(heard).toHaveLength(1)
+  })
+
+  it("is let be for a page that is not the agent's", async ({ fixture }) => {
+    const { heard, id } = await hearing(fixture)
+    fixture.store.saveItem({ ...fixture.store.item(id)!, by: "person" })
+    fixture.items.pageTrouble({ itemId: id, shown: 1, troubles: trouble })
+    expect(heard).toEqual([])
+  })
+
+  it("is heard for a page served from this machine under any of its names", async ({ fixture }) => {
+    const { heard, moth } = await hearing(fixture)
+    for (const url of [
+      "http://127.0.0.1:1/",
+      "http://[::1]:2/",
+      "http://0.0.0.0:3/",
+      "http://[::]:4/",
+    ]) {
+      // eslint-disable-next-line no-await-in-loop -- Each page is shown before it is told of.
+      const shown = await fixture.items.show(moth, { page: { url } })
+      fixture.items.pageTrouble({ itemId: shown.ok ? shown.id : "", shown: 1, troubles: trouble })
+    }
+    expect(heard).toHaveLength(4)
+  })
+
+  it("lets its terminal know when an item is closed or shown again", async ({ fixture }) => {
+    const { gone, moth, id } = await hearing(fixture)
+    await fixture.items.show(moth, { page: { url: "http://localhost:5173/" } })
+    expect(gone).toEqual([id])
+    fixture.items.close(id)
+    expect(gone).toEqual([id, id])
   })
 })

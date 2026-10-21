@@ -1,6 +1,7 @@
 import type { Session, WebContents, WebPreferences } from "electron"
 
 import { webAddress } from "./address.js"
+import { originOf, type PageRequestFailure } from "./browser-trouble.js"
 
 export { webAddress } from "./address.js"
 
@@ -157,4 +158,66 @@ export const lockPagesSession = (
   pages.setPermissionRequestHandler((_contents, _permission, respond) => respond(false))
   pages.setDevicePermissionHandler(() => false)
   pages.on("will-download", (event) => event.preventDefault())
+}
+
+// What the pages' session calls each kind of request, as a viewer names it: Electron
+// reports fetch and XHR alike as `xhr`.
+const requestKinds: Readonly<Record<string, string>> = {
+  mainFrame: "page",
+  subFrame: "frame",
+  xhr: "fetch",
+}
+
+/** How many failures of one page view, from one origin, are told per navigation of its main frame. */
+export const maxForwardedRequests = 100
+
+/**
+ * Tells of each request of the pages' session that fails, with the page view it is for: an
+ * HTTP error answer (4xx, 5xx), or none at all (status 0), but not one cancelled, as by a
+ * page that aborts its own fetch or goes elsewhere (`net::ERR_ABORTED`). The page's own
+ * performance entries can't say as much: their buffer fills, and an abort reads as no
+ * answer. Electron keeps one listener per request event for a session, so nothing else
+ * may use these two on it. A page view that fails requests without end, as one polling a
+ * server that errors, has `maxForwardedRequests` told for each origin and navigation of its
+ * main frame and no more, so another site's beacon failing in a loop can't use up what the
+ * page's own origin has: far over what a viewer reports for a document, which it decides.
+ */
+export const watchPageRequests = (
+  pages: Session,
+  report: (contentsId: number, failure: PageRequestFailure) => void,
+): { readonly forget: (contentsId: number) => void } => {
+  // By page view, then origin.
+  const told = new Map<number, Map<string, number>>()
+  const tell = (
+    details: { url: string; resourceType: string; webContentsId?: number },
+    status: number,
+  ): void => {
+    if (details.webContentsId === undefined) return
+    const view = told.get(details.webContentsId) ?? new Map<string, number>()
+    // An address that is no web page's, as ws: or blob:, shares one count, whatever it is.
+    const origin = originOf(details.url) ?? "other"
+    const count = view.get(origin) ?? 0
+    if (count >= maxForwardedRequests) return
+    told.set(details.webContentsId, view.set(origin, count + 1))
+    report(details.webContentsId, {
+      url: details.url,
+      status,
+      what: requestKinds[details.resourceType] ?? details.resourceType,
+    })
+  }
+  // A new main-frame request is a new document, however it ends.
+  const navigating = (details: { resourceType: string; webContentsId?: number }): void => {
+    if (details.resourceType === "mainFrame" && details.webContentsId !== undefined)
+      told.delete(details.webContentsId)
+  }
+  pages.webRequest.onCompleted((details) => {
+    navigating(details)
+    if (details.statusCode >= 400) tell(details, details.statusCode)
+  })
+  pages.webRequest.onErrorOccurred((details) => {
+    navigating(details)
+    if (details.error !== "net::ERR_ABORTED") tell(details, 0)
+  })
+  // A page view gone, as each rest of a page drops one: its counts go with it.
+  return { forget: (contentsId) => void told.delete(contentsId) }
 }

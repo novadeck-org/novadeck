@@ -2,6 +2,7 @@ import type { WhatsNew as Notes } from "@novadeck/core/update"
 import { X } from "lucide-react"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
+import { highlightIcon } from "./highlight-icons"
 import { KeepFocus } from "./notice-focus"
 
 // What is new in the version the app updated to, as the card the footer raises.
@@ -12,15 +13,15 @@ export type WhatsNewProps = {
   readonly blocked: boolean
   // The person dismissed it: it is gone for good, for this version.
   readonly onDismiss: () => void
-  // Opens the release's page, leaving the card where it is.
-  readonly onOpenPage: () => void
   // Puts typing focus back in the selected terminal; false when there is none.
   readonly returnFocus: () => boolean
 }
 
 // The highlights with a key each, even when the host repeats one: the second of two equal
 // highlights is told apart by how many came before it.
-const keyed = (highlights: Notes["highlights"]): { key: string; title: string; line: string }[] => {
+const keyed = (
+  highlights: Notes["highlights"],
+): (Notes["highlights"][number] & { key: string })[] => {
   const seen = new Map<string, number>()
   return highlights.map((highlight) => {
     const text = `${highlight.title}\n${highlight.line}`
@@ -37,16 +38,16 @@ export const announcement = ({ version, highlights }: Notes): string =>
 
 // The card that tells what is new after an update, in the corner the download's bar and
 // the install notices use, as a `.floating` surface: a label, each highlight as a title
-// with its line under it, and a link to the release notes, nothing else. It is a plain
-// panel, not a dialog or a layer: it never takes focus or keys by itself, so typing in a
-// terminal goes on, and every control on it is a button the Tab key reaches. The × dismisses
-// it for good; the link opens the page and leaves it. Escape, from inside it, only gives
+// with its line under it, led by the highlight's icon (a sparkle when the release names
+// none or one this build doesn't know), nothing else. It is a plain panel, not a dialog or
+// a layer: it never takes focus or keys by itself, so typing in a terminal goes on, and
+// every control on it is a button the Tab key reaches. The × dismisses it for good. Escape, from inside it, only gives
 // focus back to the terminal. It shares the corner with the other notices by waiting
 // (`blocked`, or Zen mode, `hidden`) while one is open, and for the download's bar, which
 // has the corner from its start until it fades (WorkspaceFooter.tsx): the card can stay for
 // weeks, a download must not be hidden by it. The text is the host's and is shown as text:
 // no Markdown, no markup, no links. In a short window the card keeps to the room between
-// the header and the footer and the highlights scroll inside it, the × and the link in view.
+// the header and the footer and the highlights scroll inside it, the × in view.
 export const WhatsNew = ({
   card,
   hidden,
@@ -152,23 +153,21 @@ export const WhatsNew = ({
             tabIndex={scrolls ? 0 : undefined}
             aria-labelledby={scrolls ? titleId : undefined}
           >
-            {keyed(card.notes.highlights).map(({ key, title, line }) => (
-              <li key={key}>
-                <b className="whats-new-title">{title}</b>
-                <span>{line}</span>
-              </li>
-            ))}
+            {keyed(card.notes.highlights).map(({ key, title, line, icon }) => {
+              const Icon = highlightIcon(icon)
+              return (
+                <li key={key}>
+                  <span className="whats-new-icon">
+                    <Icon size={14} strokeWidth={1.6} aria-hidden="true" />
+                  </span>
+                  <span className="whats-new-text">
+                    <b className="whats-new-title">{title}</b>
+                    <span>{line}</span>
+                  </span>
+                </li>
+              )
+            })}
           </ul>
-          <div className="update-card-foot">
-            <button
-              type="button"
-              className="button link whats-new-link text-control"
-              onClick={card.onOpenPage}
-            >
-              Release notes
-              <span aria-hidden="true"> ↗</span>
-            </button>
-          </div>
         </section>
       )}
     </>

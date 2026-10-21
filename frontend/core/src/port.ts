@@ -309,12 +309,11 @@ export type BackendFields = {
   // not dismissed them, else undefined (also when the notes can't be read, which the host
   // tries once more a couple of minutes later in the same launch, then on a later one); it
   // can take a couple of minutes. `dismiss` marks them seen,
-  // so no later launch offers them again; `openPage` opens the release page. Absent where
+  // so no later launch offers them again. Absent where
   // the app does not say, as in a browser.
   readonly whatsNew?: {
     readonly get: () => Promise<WhatsNew | undefined>
     readonly dismiss: () => void
-    readonly openPage: () => void
   }
   // Optional. The version of the desktop app, asked once when Preferences needs it. Absent
   // in a browser and in a host that does not say.

@@ -1,4 +1,11 @@
 import { webAddress } from "./address.js"
+import {
+  maxTroubles,
+  originOf,
+  pageRequestMessage,
+  parsePageRequest,
+  type Trouble,
+} from "./browser-trouble.js"
 import type { Mount, Viewer, ViewerState } from "./index.js"
 
 // A web page. Live, it loads in Electron's <webview>, which the host's lockdown
@@ -10,6 +17,8 @@ import type { Mount, Viewer, ViewerState } from "./index.js"
 // it loads again under the picture, where the person had scrolled, and the picture fades
 // once it's there. Where live pages aren't available (a plain browser, a demo), it shows a
 // snapshot of the page, or nothing, for the host to say why. Its looks are browser.css's.
+
+export type { Trouble }
 
 /**
  * A page by its address, as its host shows it. `shown` counts the host's shows of it: a
@@ -48,6 +57,13 @@ export type BrowserOptions = {
     readonly navigate?: (place: Place) => void
     readonly load?: (load: Load) => void
     readonly title?: (title: string) => void
+    /**
+     * What goes wrong on the page while it is at the address it was shown at, or anywhere
+     * else on that origin: its errors, requests that failed (as the desktop host tells
+     * them) and a load that failed outright, with `shown`, the show its document carries.
+     * A document reports at most `maxTroubles`. Live pages only.
+     */
+    readonly trouble?: (trouble: Trouble, shown: number) => void
   }
 }
 
@@ -386,6 +402,83 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   // Moving to the shown fragment, whose scroll waits for the move.
   let moving = false
 
+  // What goes wrong, for the host to tell on, while the page is at the origin it was shown
+  // at: its errors, a load that failed outright, and the requests the desktop host sees
+  // fail. Where the page committed is its own address, else where it is going. One count
+  // per document, which the main frame's `did-navigate` starts anew, as does a load of it
+  // that fails outright, which commits nothing.
+  const reportTrouble = on?.trouble
+  let reported = 0
+  // The show the document carries: the latest one when it committed.
+  let carried = showing
+  // A failed request for the page itself, which can come before the document commits and
+  // so before the count starts anew: told once it has.
+  let held: Trouble | undefined
+  const shownOrigin = (): string | null => originOf(shown.url)
+  const atShown = (): boolean => {
+    const origin = shownOrigin()
+    return origin !== null && originOf(attached(() => page?.getURL()) ?? place.url) === origin
+  }
+  const tell = (trouble: Trouble): void => {
+    if (reported >= maxTroubles) return
+    reported += 1
+    reportTrouble?.(trouble, carried)
+  }
+  const tellHeld = (): void => {
+    const trouble = held
+    held = undefined
+    if (trouble && atShown()) tell(trouble)
+  }
+  const logged = (event: Event): void => {
+    const { level, message, line, sourceId } = event as Event & {
+      level?: number
+      message?: unknown
+      line?: unknown
+      sourceId?: unknown
+    }
+    // Errors only, from the shown origin: not Electron's own, nor a third party's frame.
+    if (level !== 3 || typeof message !== "string" || typeof sourceId !== "string") return
+    if (originOf(sourceId) !== shownOrigin() || !atShown()) return
+    tell({
+      kind: "error",
+      text: message,
+      source: sourceId,
+      line: typeof line === "number" && line >= 0 ? line : 0,
+    })
+  }
+  // The desktop host's word of a request this page's session saw fail, through the app's
+  // preload: from the app's own page, naming this view.
+  let committed = false
+  // The document is a load that failed outright, which its own told: a later word of the page
+  // getting no answer, which can come after it, is the same failure.
+  let failedLoad = false
+  const hostWindow = document.defaultView
+  const requested = (event: MessageEvent): void => {
+    const { data } = event
+    if (event.source !== hostWindow || data?.type !== pageRequestMessage) return
+    const failure = parsePageRequest(data)
+    if (!failure || failure.contentsId !== attached(() => page?.getWebContentsId())) return
+    if (originOf(failure.url) !== shownOrigin()) return
+    if (failedLoad && failure.what === "page" && failure.status === 0) return
+    const trouble: Trouble = {
+      kind: "request",
+      url: failure.url,
+      status: failure.status,
+      what: failure.what,
+    }
+    if (failure.what === "page" && !committed) held = trouble
+    else if (atShown()) tell(trouble)
+  }
+  // A new document for these purposes: its count, and the show it carries.
+  const documented = (): void => {
+    reported = 0
+    carried = showing
+    committed = true
+    failedLoad = false
+    tellHeld()
+  }
+  if (reportTrouble) hostWindow?.addEventListener("message", requested)
+
   const moved = (): void => {
     attached(() => {
       page!.setAudioMuted(muted)
@@ -397,6 +490,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   // last one isn't any more.
   const started = (): void => {
     bringing = undefined
+    held = undefined
+    committed = false
+    failedLoad = false
     report("loading")
   }
   const reveal = (): void => {
@@ -445,6 +541,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     moving = false
     if (load === "loading") report("ready")
     moved()
+    // A reload that committed no new document tells what it held.
+    tellHeld()
     // A show came while it rested: loaded again, past the cache, as a show again is.
     if (stale) {
       stale = false
@@ -478,8 +576,10 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     moving = false
     then = undefined
     if (first && load === "loading" && place.url === shown.url) {
-      // A wake's load isn't the show's: it goes again, afresh, once done.
+      // A wake's load isn't the show's: it goes again, afresh, once done. Else this load
+      // is the show's, and what goes wrong in it is told with it.
       if (woken) stale = true
+      else carried = showing
       return
     }
     // Where it is, as the page has it: an address it's on its way to isn't reloaded, as a
@@ -511,6 +611,34 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     }
     if (errorCode !== aborted && isMainFrame !== false) report("failed")
   }
+  const failedTo = (event: Event): void => {
+    failed(event)
+    const { errorCode, errorDescription, isMainFrame, validatedURL } = event as Event & {
+      errorCode?: number
+      errorDescription?: unknown
+      isMainFrame?: boolean
+      validatedURL?: unknown
+    }
+    if (!reportTrouble || errorCode === aborted || isMainFrame === false) return
+    // The server that gave no answer for the page itself is this failure, told once.
+    if (held?.kind === "request" && held.what === "page" && held.status === 0) held = undefined
+    documented()
+    failedLoad = true
+    // The address that failed: nothing was committed to say where the page was.
+    const origin = shownOrigin()
+    if (
+      origin === null ||
+      originOf(typeof validatedURL === "string" ? validatedURL : "") !== origin
+    )
+      return
+    tell({
+      kind: "load",
+      text:
+        typeof errorDescription === "string" && errorDescription
+          ? errorDescription
+          : `Error ${errorCode ?? "unknown"}`,
+    })
+  }
   const gone = (): void => {
     report("failed")
     uncover()
@@ -525,7 +653,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     ["did-navigate-in-page", movedInPage],
     ["did-start-loading", started],
     ["did-stop-loading", stopped],
-    ["did-fail-load", failed],
+    ["did-fail-load", failedTo],
+    ["did-navigate", documented],
+    ["console-message", logged],
     ["render-process-gone", gone],
     ["page-title-updated", titled],
   ]
@@ -756,6 +886,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     },
     pictured: () => picture !== undefined && !used,
     destroy: () => {
+      hostWindow?.removeEventListener("message", requested)
       clearTimeout(fading)
       clearTimeout(freshening)
       resting = undefined

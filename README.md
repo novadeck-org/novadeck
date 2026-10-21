@@ -86,7 +86,8 @@ Repeated double gestures during a flight are ignored. Going to a terminal from o
 canvas, as Show terminal on an Inbox item or a click on a desktop notification does, flies to it
 the same way, from another session's camera too; it never flies back, so a terminal already
 visited stays, and going on to another keeps the way back to where the visit began, which the
-gesture on the header returns to. The header's arrow opens Focus view.
+gesture on the header returns to. The header's maximize button opens Focus view; in Focus, its
+minimize button opens Grid or Canvas.
 
 Click **New terminal** or use its keyboard shortcut to create and select a terminal
 immediately in any view, with or without Zen, ready to type in; F2 renames it. Focus
@@ -1630,15 +1631,16 @@ two flags, and the notes, change on an immutable release.
 
 Release notes are written by a model through OpenRouter
 ([scripts/release-notes](scripts/release-notes)). After each prerelease is published, its
-commits become short lines grouped by area, led by up to two highlights; when a prerelease
-is promoted, its notes are rewritten with up to four highlights picked from everything since
-the last stable release. The app shows a release's highlights after updating to it until the
-person dismisses them. The
+commits become short lines grouped by area, led by up to two highlights of new features, each
+a short title and line for the what's-new card with an icon the model picks from a fixed set,
+its change kept in full under its area; when a prerelease is promoted, its notes are rewritten
+with up to four highlights picked from everything since the last stable release. The app
+shows a release's highlights after updating to it until the person dismisses them. The
 `OPENROUTER_API_KEY` repository secret enables it, and the `RELEASE_NOTES_PRERELEASE_MODEL`
 and `RELEASE_NOTES_PROMOTE_MODEL` repository variables pick the models (by default
-`deepseek/deepseek-v4-pro` and `anthropic/claude-opus-5.5`). Without the key, when the key is
+`anthropic/claude-haiku-5.5` and `anthropic/claude-sonnet-5.5`). Without the key, when the key is
 out of credit, or when a run fails, a release keeps the notes it has, the run page shows a
-warning, and neither step holds a release or a promotion. A promotion costs about $0.20 and a
+warning, and neither step holds a release or a promotion. A promotion costs about $0.25 and a
 prerelease well under a cent. With `OPENROUTER_API_KEY` and a `gh` login,
 `node scripts/release-notes/main.ts promote v1.2.3 --dry-run` prints what a promotion would
 write without changing any release; it asks the model, so it spends credit.

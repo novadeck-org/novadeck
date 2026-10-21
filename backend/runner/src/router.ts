@@ -219,6 +219,7 @@ export const createRouter = (options: {
         items.undock(input.itemId, input.windowId),
       ),
       close: api.companions.close.handler(({ input }) => items.close(input.itemId)),
+      pageTrouble: api.companions.pageTrouble.handler(({ input }) => items.pageTrouble(input)),
       renameWindow: api.companions.renameWindow.handler(({ input }) =>
         items.renameWindow(input.windowId, input.title),
       ),

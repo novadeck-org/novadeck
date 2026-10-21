@@ -1070,6 +1070,14 @@ one from an earlier runner.
     deletes it and its window. `companions.renameWindow({ windowId, title })` and
     `companions.resetWindowTitle({ windowId })` give a window the person's title or its
     item's name again.
+  - `companions.pageTrouble({ itemId, shown, troubles })` tells the runner what went
+    wrong on a page item while it showed its show `shown` (its `version` then), as the
+    desktop pane saw it: up to 20 `troubles`, each an `error` (text, source, line), a
+    `request` (url, status, what; status 0 for no answer) or a `load` (text). The
+    runner tells the agent that showed the page at the person's next prompt, once per show
+    (see [Agent messaging](agent-messaging.md), "Nudges"). It answers nothing, and a valid
+    call fails with nothing: an unknown item, a file, a person's item, a show other than the
+    latest, or a page not served from this machine is let be.
 
   An agent shows things with Novadeck's MCP `show` tool, which puts each on its own
   terminal's bar; showing the same file or page again updates it, with a later version,
