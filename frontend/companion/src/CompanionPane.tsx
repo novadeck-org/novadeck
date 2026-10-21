@@ -1,6 +1,6 @@
 import type { WorkspaceTarget } from "@novadeck/core/types"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { AppWindow, PanelRightClose } from "lucide-react"
+import { createLucideIcon, Minus, X } from "lucide-react"
 import type { ReactNode } from "react"
 
 import type { BarMember } from "./bar"
@@ -8,17 +8,37 @@ import type { MailHandle } from "./panes/messages/mail"
 import { registrationOf } from "./registry"
 import type { Panes, PlanPresentation } from "./state"
 
-// What the pane does with what it shows, at the end of its header: undocks it into a
-// window of its own, where it can, and minimizes the pane back to the taskbar, as Escape
-// does.
+// Windows' restore glyph, in lucide's hand: a window lifting off the one it was
+// maximized in, as an item docked in the pane lifts into a window of its own.
+const Restore = createLucideIcon("restore", [
+  ["rect", { x: "3", y: "8", width: "13", height: "13", rx: "2", key: "front" }],
+  ["path", { d: "M8 8V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3", key: "back" }],
+])
+
+// What the pane does with what it shows, at the end of its header, as a window's title
+// bar does on Windows: minimizes the pane back to the taskbar, as Escape does; undocks
+// what it shows into a window of its own, where it can; and closes it, off the taskbar,
+// as the taskbar's menu does.
 const PaneActions = ({
   onUndock,
   onHide,
+  onClose,
 }: {
   onUndock: (() => void) | undefined
   onHide: () => void
+  onClose: () => void
 }): React.JSX.Element => (
   <span className="artifact-actions">
+    <Tooltip content="Minimize to the taskbar · Esc">
+      <button
+        type="button"
+        className="icon-button"
+        aria-label="Minimize to the taskbar"
+        onClick={onHide}
+      >
+        <Minus size={14} strokeWidth={1.75} aria-hidden />
+      </button>
+    </Tooltip>
     {onUndock && (
       <Tooltip content="Undock to its own window">
         <button
@@ -27,18 +47,13 @@ const PaneActions = ({
           aria-label="Undock to its own window"
           onClick={onUndock}
         >
-          <AppWindow size={14} strokeWidth={1.75} aria-hidden />
+          <Restore size={14} strokeWidth={1.75} aria-hidden />
         </button>
       </Tooltip>
     )}
-    <Tooltip content="Minimize to the taskbar · Esc">
-      <button
-        type="button"
-        className="icon-button"
-        aria-label="Minimize to the taskbar"
-        onClick={onHide}
-      >
-        <PanelRightClose size={14} strokeWidth={1.75} aria-hidden />
+    <Tooltip content="Close">
+      <button type="button" className="icon-button" aria-label="Close" onClick={onClose}>
+        <X size={14} strokeWidth={1.75} aria-hidden />
       </button>
     </Tooltip>
   </span>
@@ -87,6 +102,7 @@ export const CompanionPane = ({
   originOf,
   onUndock,
   onHide,
+  onClose,
 }: {
   member: BarMember | undefined
   panes: Panes
@@ -100,6 +116,8 @@ export const CompanionPane = ({
   // Undocks what's shown into a window of its own.
   onUndock: (member: BarMember) => void
   onHide: () => void
+  // Closes what's shown, as the taskbar's menu does, and the pane with it.
+  onClose: (member: BarMember) => void
 }): React.JSX.Element => {
   const messages = member?.kind === "messages"
   const plan = member?.kind === "item" && member.item.kind === "plan" ? member.item : undefined
@@ -112,7 +130,7 @@ export const CompanionPane = ({
       target={target}
       mail={mail}
       peerName={peerName}
-      actions={<PaneActions onUndock={undock} onHide={onHide} />}
+      actions={<PaneActions onUndock={undock} onHide={onHide} onClose={() => onClose(member)} />}
     />
   )
   return (

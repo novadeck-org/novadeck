@@ -103,6 +103,18 @@ describe("A terminal's taskbar", () => {
       await expect.element(taskbarIcon("Refactor auth", "Messages")).toBeVisible()
     })
   })
+
+  it("closes what its pane shows, off the taskbar, and the pane with it", async () => {
+    await openShowcase()
+    const pane = companionPane("Build Studio")
+    await expect.element(pane.getByText("src/content/projects.json", { exact: true })).toBeVisible()
+
+    await pane.getByRole("button", { name: "Close", exact: true }).click()
+
+    await expect.element(pane).not.toBeInTheDocument()
+    await expect.element(taskbarIcon("Build Studio", "2 files")).not.toBeInTheDocument()
+    await expect.element(taskbarIcon("Build Studio", "Plan: A home for Studio")).toBeVisible()
+  })
 })
 
 describe("The pane in Canvas", () => {

@@ -322,6 +322,7 @@ export const TerminalCompanion = ({
     originOf,
     onUndock: actions.undock,
     onHide: () => commands.closeBarPane(terminal),
+    onClose: actions.close,
   }
   return (
     <div ref={within} className="terminal-plan" data-plan-open={open}>
