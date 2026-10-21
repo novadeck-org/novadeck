@@ -1,11 +1,13 @@
 import { describe as context, describe, expect, it } from "vitest"
-import { page } from "vitest/browser"
+import { page, userEvent } from "vitest/browser"
 
 import { layoutSettled, openWorkspace, sidebarPanel } from "./support/workspace"
 
 // The agents demo has a Source panel with the storefront's files. Specs run with reduced motion,
 // so the demo's agents write nothing while a test looks, and a row's marks and chips hold still.
 const agents = "/?demo=agents"
+// The messages demo adds a team: @moth leads @crow.
+const messages = "/?demo=messages"
 
 const skipIntro = async (): Promise<void> => {
   const skip = page.getByRole("button", { name: "Skip for now" })
@@ -39,6 +41,58 @@ describe("The Source panel", () => {
       // its name and two chips.
       expect(row.querySelectorAll(".source-chip")).toHaveLength(1)
       expect(row.querySelector(".source-more")?.textContent).toBe("+1")
+    })
+  })
+
+  context("when the demo has a team whose members both worked here", () => {
+    it("groups them in a squad track, and a click on the lead keeps both lit", async () => {
+      await openWorkspace(messages)
+      await skipIntro()
+      await sidebarPanel("Source").click()
+
+      const strip = page.getByRole("group", { name: "Light agents" })
+      const squad = strip.getByRole("group", { name: "@moth's squad" })
+      await expect.element(squad.getByRole("button", { name: "@moth" })).toBeVisible()
+      await expect.element(squad.getByRole("button", { name: "@crow" })).toBeVisible()
+
+      // Only @crow touched this test file, so it is dimmed while the selected agent is lit.
+      const crowOnly = page.getByRole("treeitem", { name: /^Checkout\.test\.tsx,/ })
+      const rowOf = (): Element | null => crowOnly.element().closest(".source-row")
+      await expect.element(crowOnly).toBeVisible()
+      await expect.poll(() => rowOf()?.getAttribute("data-dim")).toBe("true")
+
+      await squad.getByRole("button", { name: "@moth" }).click()
+
+      await expect
+        .element(squad.getByRole("button", { name: "@moth" }))
+        .toHaveAttribute("aria-pressed", "true")
+      await expect
+        .element(squad.getByRole("button", { name: "@crow" }))
+        .toHaveAttribute("aria-pressed", "true")
+      // The squad's crow lights its file, and what neither touched is still dimmed.
+      await expect.poll(() => rowOf()?.getAttribute("data-dim")).toBe("false")
+      await expect.poll(() => document.querySelector(".source-row[data-dim=true]")).not.toBeNull()
+    })
+
+    it("lets go of the kept agents on Escape after a mouse click, not sending it to the terminal", async () => {
+      await openWorkspace(messages)
+      await skipIntro()
+      await sidebarPanel("Source").click()
+      const strip = page.getByRole("group", { name: "Light agents" })
+      const crow = strip.getByRole("button", { name: "@crow" })
+
+      await crow.click()
+      await expect.element(crow).toHaveAttribute("aria-pressed", "true")
+      // Let the keyboard policy's next-frame focus handback run, as it would for a real click.
+      await layoutSettled()
+      await userEvent.keyboard("{Escape}")
+
+      await expect.element(crow).toHaveAttribute("aria-pressed", "false")
+      expect(
+        strip.element().querySelectorAll("[aria-pressed=true], [aria-pressed=mixed]"),
+      ).toHaveLength(0)
+      // Focus stayed in the strip rather than going back to the terminal.
+      expect(document.activeElement?.closest(".source-strip")).not.toBeNull()
     })
   })
 

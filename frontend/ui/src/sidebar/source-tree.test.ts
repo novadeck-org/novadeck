@@ -10,7 +10,6 @@ import {
   fileIconOf,
   foldChips,
   initialOpen,
-  litHandle,
   rowShowing,
   trailGone,
   trailLifeMs,
@@ -149,30 +148,33 @@ describe("Which row shows a write", () => {
   })
 })
 
+const none: ReadonlySet<string> = new Set()
+
 describe("The chips on a row", () => {
   const touched = { moth: 10, crow: 30, wren: 20, kite: 5 }
 
   it("name the latest writers first, two at most, and fold the rest", () => {
-    const chips = chipsOf(touched, [], undefined)
+    const chips = chipsOf(touched, [], none)
 
     expect(chips.shown).toEqual(["crow", "wren"])
     expect(chips.more).toBe(2)
     expect(chips.everyone).toEqual(["crow", "wren", "moth", "kite"])
   })
 
-  it("put the selected terminal's agent first, then whoever is writing now", () => {
-    expect(chipsOf(touched, ["moth"], undefined).shown).toEqual(["moth", "crow"])
-    expect(chipsOf(touched, ["moth"], "kite").shown).toEqual(["kite", "moth"])
+  it("put the lit agents first, then whoever is writing now", () => {
+    expect(chipsOf(touched, ["moth"], none).shown).toEqual(["moth", "crow"])
+    expect(chipsOf(touched, ["moth"], new Set(["kite"])).shown).toEqual(["kite", "moth"])
+    expect(chipsOf(touched, [], new Set(["kite", "moth"])).shown).toEqual(["moth", "kite"])
   })
 
   it("fold nothing for one or two agents", () => {
-    expect(chipsOf({ moth: 1 }, [], undefined)).toMatchObject({ shown: ["moth"], more: 0 })
-    expect(chipsOf({ moth: 1, crow: 2 }, [], undefined).more).toBe(0)
+    expect(chipsOf({ moth: 1 }, [], none)).toMatchObject({ shown: ["moth"], more: 0 })
+    expect(chipsOf({ moth: 1, crow: 2 }, [], none).more).toBe(0)
   })
 })
 
 describe("Folding a row's chips by its room", () => {
-  const two = chipsOf({ moth: 2, crow: 1, wren: 0.5 }, [], undefined)
+  const two = chipsOf({ moth: 2, crow: 1, wren: 0.5 }, [], none)
   const fit = { width: 228, depth: 0, nameWidth: 60, marks: 0 }
 
   it("keeps two chips when the name reads in full beside them", () => {
@@ -199,7 +201,7 @@ describe("Folding a row's chips by its room", () => {
   })
 
   it("leaves a row of one agent alone", () => {
-    const one = chipsOf({ moth: 1 }, [], undefined)
+    const one = chipsOf({ moth: 1 }, [], none)
 
     expect(foldChips(one, { ...fit, width: 10, nameWidth: 999 })).toBe(one)
   })
@@ -226,28 +228,6 @@ describe("Folding a row's chips by its room", () => {
 
     expect(foldChips(two, wide).shown).toHaveLength(1)
     expect(foldChips(two, { ...wide, chipWidth: () => 20 }).shown).toHaveLength(2)
-  })
-})
-
-describe("The lit agent", () => {
-  const worked = project({
-    changes: { "a.ts": { kind: "modified", touched: { moth: 1 } } },
-    writing: { crow: "b.ts" },
-  })
-
-  it("is the selected terminal's agent when it has work here", () => {
-    expect(litHandle(worked, "moth", undefined)).toBe("moth")
-    expect(litHandle(worked, "crow", undefined)).toBe("crow")
-  })
-
-  it("is nobody for an agent with no work here, or no selected agent", () => {
-    expect(litHandle(worked, "wren", undefined)).toBeUndefined()
-    expect(litHandle(worked, undefined, undefined)).toBeUndefined()
-    expect(litHandle(undefined, "moth", undefined)).toBeUndefined()
-  })
-
-  it("is the agent whose chip is pointed at, over the selected one", () => {
-    expect(litHandle(worked, "moth", "crow")).toBe("crow")
   })
 })
 
