@@ -521,23 +521,29 @@ jobs:
             Write-Output "::error::dumpbin was not found."
             exit 1
           }
-          $count = 0
           $failed = $false
           foreach ($folder in "$env:RUNNER_TEMP\voice-engine", "$env:RUNNER_TEMP\murmur-engine") {
+            $count = 0
             foreach ($file in Get-ChildItem $folder -Recurse -Include *.dll, *.exe) {
               $count++
-              $runtime = & $dumpbin /nologo /dependents $file.FullName | Select-String -Pattern '^\s+((vcruntime|msvcp|concrt|vcomp)\S*\.dll)'
+              $imports = & $dumpbin /nologo /dependents $file.FullName
+              if ($LASTEXITCODE -ne 0) {
+                Write-Output "::error::dumpbin could not read $($file.Name)."
+                $failed = $true
+                continue
+              }
+              $runtime = $imports | Select-String -Pattern '^\s+((vcruntime|msvcp|concrt|vcomp)\S*\.dll)'
               if ($runtime) {
                 $names = ($runtime | ForEach-Object { $_.Matches[0].Groups[1].Value }) -join ", "
                 Write-Output "::error::$($file.Name) needs the Visual C++ redistributable ($names)."
                 $failed = $true
               }
             }
-          }
-          Write-Output "Checked $count files."
-          if ($count -eq 0) {
-            Write-Output "::error::No engine files were found to check."
-            exit 1
+            Write-Output "Checked $count files in $folder."
+            if ($count -eq 0) {
+              Write-Output "::error::No engine files were found in $folder."
+              $failed = $true
+            }
           }
           if ($failed) { exit 1 }
 
