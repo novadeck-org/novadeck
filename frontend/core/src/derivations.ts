@@ -110,6 +110,18 @@ export const teamOf = (workspace: Workspace, terminalId: string): Team | undefin
   return lead === undefined ? undefined : { lead, workers: workers.get(lead)! }
 }
 
+// Every team of the current session's running leads, as Grid and Canvas draw them whatever
+// is selected: in the order each lead's first worker appears in the roster, which Grid
+// routes them in, the earlier ones taking the clearer gutters.
+export const allTeams = (workspace: Workspace): readonly Team[] => {
+  const { workers } = teamsOf(rosterOf(workspace))
+  return [...workers].map(([lead, led]) => ({ lead, workers: led }))
+}
+
+// Whether two lists of teams are the same teams in the same order.
+export const sameTeams = (a: readonly Team[], b: readonly Team[]): boolean =>
+  a === b || (a.length === b.length && a.every((team, index) => sameTeam(team, b[index])))
+
 // What a terminal is in the selected terminal's team: its lead, one of its workers, or
 // nothing, as no team is selected or it isn't in it.
 export const teamRole = (
@@ -132,22 +144,38 @@ const listed = (words: readonly string[], shown = 3): string => {
     : `${named.slice(0, -1).join(", ")} and ${named.at(-1)}`
 }
 
+// A terminal of the roster as its team names it: by handle, by name where it has none.
+const memberName = (roster: ReturnType<typeof rosterOf>, id: string): string => {
+  const each = roster.terminals.find((terminal) => terminal.id === id)
+  return each?.handle ? handleText(each.handle) : (each?.name ?? id)
+}
+
+// Whom a lead directs, in words: up to four named, or three and the rest counted.
+const ledWords = (roster: ReturnType<typeof rosterOf>, led: readonly string[]): string =>
+  listed([...led.slice(0, 4).map((id) => memberName(roster, id)), ...led.slice(4)])
+
 // A terminal's team in words, for its tab's description, as the rail's wire only draws it:
 // who leads it and whom it leads, by handle (by name where one has none). Nothing for a
 // terminal in no team. Unlike the wire, it holds whatever is selected.
 export const teamText = (workspace: Workspace, terminalId: string): string | undefined => {
   const roster = rosterOf(workspace)
   const { workers, leads } = teamsOf(roster)
-  const named = (id: string) => {
-    const each = roster.terminals.find((terminal) => terminal.id === id)
-    return each?.handle ? handleText(each.handle) : (each?.name ?? id)
-  }
   const lead = leads.get(terminalId)
   const led = workers.get(terminalId) ?? []
   const parts = [
-    ...(lead === undefined ? [] : [`led by ${named(lead)}`]),
-    // Only those it can say are named; the rest are counted.
-    ...(led.length ? [`leads ${listed([...led.slice(0, 4).map(named), ...led.slice(4)])}`] : []),
+    ...(lead === undefined ? [] : [`led by ${memberName(roster, lead)}`]),
+    ...(led.length ? [`leads ${ledWords(roster, led)}`] : []),
   ]
   return parts.length ? parts.join(", ") : undefined
+}
+
+// The terminals a running lead directs, for its window's header: how many, and who in
+// words ("@owl, @crow and @wren"). Nothing for a terminal that leads no one.
+export const ledTerminals = (
+  workspace: Workspace,
+  terminalId: string,
+): { readonly count: number; readonly names: string } | undefined => {
+  const roster = rosterOf(workspace)
+  const led = teamsOf(roster).workers.get(terminalId)
+  return led?.length ? { count: led.length, names: ledWords(roster, led) } : undefined
 }

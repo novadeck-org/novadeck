@@ -27,18 +27,25 @@
     background: Highlight;
     color: HighlightText;
   }
-  /* The selected terminal's team (tabs.css, team-wire.css): the wire, its cursor and ticks
-     in the highlight, and an outline in place of the tint its other tabs take. */
-  .team-wire-shape > i {
+  /* The teams' wires (tabs.css, team-wire.css; grid-team-wire.css and canvas.css in Grid
+     and Canvas): the wire, its cursor and ticks in the highlight, and an outline in place
+     of the tint the selected terminal's other tabs take. */
+  :is(.team-wire-shape, .grid-team-wire-shape, .canvas-team-wire-shape) > i {
     forced-color-adjust: none;
     box-shadow: none;
   }
   .team-wire-segment,
   .team-wire-cursor,
-  .team-wire-tap {
+  .team-wire-tap,
+  .grid-team-wire-run,
+  .grid-team-wire-cursor,
+  .grid-team-wire-tick,
+  .canvas-team-wire-line,
+  .canvas-team-wire-cursor,
+  .canvas-team-wire-tick {
     background: Highlight;
   }
-  .team-wire-pulse {
+  :is(.team-wire-pulse, .grid-team-wire-pulse, .canvas-team-wire-pulse) {
     display: none;
   }
   .terminal-tab[data-team]:not(.selected) {

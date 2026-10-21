@@ -24,6 +24,7 @@ import {
 } from "./support/canvas"
 import { escapeFrom, newTerminalName } from "./support/keyboard"
 import { overlaps } from "./support/layouts"
+import { openMessagesDemo } from "./support/messages"
 import {
   chooseView,
   commandInput,
@@ -784,5 +785,72 @@ describe("Canvas", () => {
       expect(near(filled.width, whole.width, 4) && near(filled.height, whole.height, 4)).toBe(true)
       expect(near(filled.left, 0, 3) && near(filled.top, 0, 3)).toBe(true)
     })
+  })
+})
+
+describe("Canvas's team wire", () => {
+  const wire = () => document.querySelectorAll(".canvas-team-wire-tick").length
+  const wireOpacity = () =>
+    Number(getComputedStyle(document.querySelector(".canvas-team-wire")!).opacity)
+  const opacityOf = (name: string) =>
+    Number(getComputedStyle(terminal(name).element().closest(".canvas-node")!).opacity)
+
+  it("joins the lead and its worker, who stay as bright as the selection, while one of the team is selected", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout review").click()
+    await chooseView("Canvas")
+    await expect.poll(wire).toBe(1)
+    expect(document.querySelectorAll(".canvas-team-wire-cursor")).toHaveLength(1)
+    // The wire is only drawn, and sits beneath the windows.
+    const drawn = document.querySelector(".canvas-team-wire")!
+    expect(getComputedStyle(drawn).pointerEvents).toBe("none")
+    expect(drawn.getAttribute("aria-hidden")).toBe("true")
+    const node = terminal("Checkout review").element().closest<HTMLElement>(".react-flow__node")!
+    expect(Number(getComputedStyle(drawn).zIndex)).toBeLessThan(0)
+    expect(Number(getComputedStyle(node).zIndex)).toBeGreaterThanOrEqual(0)
+    await expect.poll(() => opacityOf("Checkout implementation")).toBe(1)
+    await expect.poll(() => opacityOf("Checkout review")).toBe(1)
+    // Terminals outside the team still recede.
+    await expect.poll(() => opacityOf("Dev server")).toBeLessThan(1)
+  })
+
+  it("stays, receded with its windows, while a terminal in no team is selected", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout review").click()
+    await chooseView("Canvas")
+    await expect.poll(wire).toBe(1)
+    await expect.poll(() => wireOpacity()).toBe(1)
+    await terminalTab("Dev server").click()
+    await expect.poll(() => opacityOf("Checkout implementation")).toBeLessThan(1)
+    await expect.poll(() => wireOpacity()).toBeLessThan(1)
+    expect(wire()).toBe(1)
+    expect(document.querySelectorAll(".canvas-team-wire-cursor")).toHaveLength(1)
+    // Still beneath the windows.
+    const node = terminal("Dev server").element().closest<HTMLElement>(".react-flow__node")!
+    expect(
+      Number(getComputedStyle(document.querySelector(".canvas-team-wire")!).zIndex),
+    ).toBeLessThan(0)
+    expect(Number(getComputedStyle(node).zIndex)).toBeGreaterThanOrEqual(0)
+  })
+
+  it("plays its pulse once for each selection into the team, and again on coming back to it", async () => {
+    const pulsing = () => document.querySelector(".canvas-team-wire[data-pulsing]") !== null
+    await openMessagesDemo()
+    await terminalTab("Checkout review").click()
+    await chooseView("Canvas")
+    await expect.poll(pulsing).toBe(true)
+    // It is over once played, and stays over while the selection stays.
+    await expect.poll(pulsing, { timeout: 4000 }).toBe(false)
+    await expectStaysAbsent({ shown: pulsing, name: "the pulse" }, { ms: 1500 })
+    await terminalTab("Dev server").click()
+    await terminalTab("Checkout review").click()
+    await expect.poll(pulsing).toBe(true)
+  })
+
+  it("is drawn from the start, without any team selected", async () => {
+    await openMessagesDemo()
+    await terminalTab("Dev server").click()
+    await chooseView("Canvas")
+    await expect.poll(wire).toBe(1)
   })
 })

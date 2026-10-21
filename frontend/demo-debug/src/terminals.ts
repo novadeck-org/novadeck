@@ -43,6 +43,24 @@ export const leadsOthers = (
   }))
 }
 
+// `key`'s terminal leads the next live terminal of its session after it, so a team of its
+// own starts beside any other: done on two terminals, Grid and Canvas wire two teams.
+// Nothing while it has no handle to lead by or no terminal follows it.
+export const leadsNext = (workspace: Workspace | undefined, key: TerminalKey): BackendAction[] => {
+  const terminals =
+    workspace?.projects
+      .find((project) => project.id === key.projectId)
+      ?.history.find((session) => session.id === key.workspaceSessionId)?.state.roster.terminals ??
+    []
+  const index = terminals.findIndex((terminal) => terminal.id === key.terminalId)
+  const lead = terminals[index]
+  const next = terminals
+    .slice(index + 1)
+    .find((terminal) => terminal.state !== "exited" && terminal.state !== "failed")
+  if (!lead?.handle || !next) return []
+  return [{ type: "terminal/update", target: target(key), terminalId: next.id, ledBy: lead.handle }]
+}
+
 const setStatus = (
   key: TerminalKey,
   status: Extract<BackendAction, { type: "terminal/status" }>["status"],

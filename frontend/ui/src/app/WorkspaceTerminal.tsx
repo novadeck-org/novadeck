@@ -4,7 +4,12 @@ import { useChat } from "@novadeck/chat/use-chat"
 import { TerminalCompanion } from "@novadeck/companion/TerminalCompanion"
 import { UndockedWindow } from "@novadeck/companion/UndockedWindow"
 import { agentStats } from "@novadeck/core/agent-usage"
-import { handleNames, runningLeads, terminalOrigins } from "@novadeck/core/derivations"
+import {
+  handleNames,
+  ledTerminals,
+  runningLeads,
+  terminalOrigins,
+} from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "@novadeck/core/types"
 import { memo, useCallback, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react"
@@ -188,6 +193,10 @@ export const WorkspaceTerminal = memo(
     const terminalName = useWorkspaceState(terminalOrigins, shallowEqual)
     const names = useWorkspaceState(handleNames, shallowEqual)
     const lead = useWorkspaceState((workspace) => runningLeads(workspace)[terminalId], shallowEqual)
+    const leads = useWorkspaceState(
+      (workspace) => ledTerminals(workspace, terminalId),
+      shallowEqual,
+    )
     const { keyboardFocus } = useUiState(
       (state) => ({
         keyboardFocus:
@@ -208,6 +217,7 @@ export const WorkspaceTerminal = memo(
     const frame: Omit<WindowShellProps, "children"> = {
       ...useWindowFrame(terminal, controls),
       ...(lead ? { lead } : {}),
+      ...(leads ? { leads } : {}),
       ...(mic ? { dictation: mic } : {}),
       ...(terminal.state === "running" && terminal.agent && plainTitle(terminal)
         ? { titleExtra: <NameChip terminalId={terminalId} context={chatContext} /> }

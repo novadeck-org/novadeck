@@ -113,9 +113,12 @@ vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
 // The mocks above wait on the real module, and a second import from the same module that
 // arrives meanwhile is answered with the real one, unmocked. Slowly loading runners hit that
 // when the page imports Canvas on demand twice at once, and Canvas then goes uncounted. Load
-// them once here, alone, so every later import gets the mock.
+// them once here, alone, so every later import gets the mock. Grid, which the page
+// preloads while it idles, loads here too, so a slow runner isn't still loading it once the
+// file's environment has been torn down.
 beforeAll(async () => {
   await import("@novadeck/ui/layouts/canvas/Canvas")
+  await import("@novadeck/ui/layouts/grid/Grid")
   await import("@novadeck/ui/search/TerminalSearch")
 })
 
