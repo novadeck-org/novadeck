@@ -1,10 +1,10 @@
 /* The image viewer: an image (`.image-viewer img`) on its ground, fitted whole, or zoomed
-   in and moved about, and over it while it's zoomed, its zoom (`.image-zoom`), a chip
+   and moved about, and over it once it's moved or zoomed, its zoom (`.image-zoom`), a chip
    that takes it back to fit.
 
    Hooks: data-sized on the viewer once it and its image have sizes, when the viewer
-   places the image itself; data-pannable while the image is larger than the viewer, and
-   data-panning while it's dragged; data-pixelated from 400%, where its pixels show square.
+   places the image itself and it can be dragged; data-panning while it's dragged;
+   data-pixelated from 400%, where its pixels show square.
 
    Tokens, each optional (its fallback in brackets):
    --image-ground (none), --image-ground-size (auto): behind the image.
@@ -22,7 +22,8 @@
   padding: var(--image-padding, 20px);
   background-image: var(--image-ground, none);
   background-size: var(--image-ground-size, auto);
-  overflow: hidden;
+  /* Clipped rather than hidden, so nothing can scroll it under the image's own placing. */
+  overflow: clip;
   touch-action: none;
   user-select: none;
 }
@@ -39,7 +40,7 @@
   max-width: none;
   max-height: none;
 }
-.image-viewer[data-pannable] {
+.image-viewer[data-sized] {
   cursor: grab;
 }
 .image-viewer[data-panning] {

@@ -109,7 +109,6 @@ describe("the image viewer", () => {
     await loaded(host)
     viewer.zoom(1)
     expect(placeOf(host).width).toBe(1600)
-    expect(viewerOf(host).hasAttribute("data-pannable")).toBe(true)
     expect(chipOf(host).hidden).toBe(false)
     expect(chipOf(host).textContent).toBe("100%")
     expect(chipOf(host).getAttribute("aria-label")).toBe("Zoomed to 100%. Back to fit")
@@ -145,16 +144,15 @@ describe("the image viewer", () => {
     expect(placeOf(host).width / after.width).toBeCloseTo(Math.exp(0.05), 3)
   })
 
-  it("stops at fit zooming out, and goes back to fit there", async () => {
+  it("zooms out to half its fit, and no further", async () => {
     const host = hostIn()
-    const viewer = mount(large, host)
+    mount(large, host)
     await loaded(host)
     const fitted = placeOf(host)
-    viewer.zoom(0.3)
     for (let turn = 0; turn < 20; turn += 1) wheel(host, { deltaY: 100, ctrlKey: true })
-    expect(placeOf(host)).toEqual(fitted)
-    expect(chipOf(host).hidden).toBe(true)
-    // Zooming out at fit is still the image's, not the page's.
+    expect(placeOf(host).width).toBeCloseTo(fitted.width / 2, 1)
+    expect(chipOf(host).textContent).toBe("11%")
+    // Zooming out there is still the image's, not the page's.
     expect(wheel(host, { deltaY: 100, ctrlKey: true }).defaultPrevented).toBe(true)
   })
 
@@ -171,12 +169,22 @@ describe("the image viewer", () => {
     expect(chipOf(host).textContent).toBe("3200%")
   })
 
-  it("moves a zoomed image with the wheel, sideways with Shift, but lets a fitted one be", async () => {
+  it("moves a fitted image too, which is then no longer fitted", async () => {
+    const host = hostIn()
+    mount(large, host)
+    await loaded(host)
+    const fitted = placeOf(host)
+    expect(wheel(host, { deltaY: 100 }).defaultPrevented).toBe(true)
+    expect(placeOf(host)).toMatchObject({ x: fitted.x, y: fitted.y - 100, width: fitted.width })
+    expect(chipOf(host).hidden).toBe(false)
+    chipOf(host).click()
+    expect(placeOf(host)).toEqual(fitted)
+  })
+
+  it("moves the image with the wheel, sideways with Shift", async () => {
     const host = hostIn()
     const viewer = mount(large, host)
     await loaded(host)
-    expect(wheel(host, { deltaY: 100 }).defaultPrevented).toBe(false)
-
     viewer.zoom(1)
     const start = placeOf(host)
     expect(wheel(host, { deltaY: 100 }).defaultPrevented).toBe(true)
@@ -188,24 +196,15 @@ describe("the image viewer", () => {
     expect(placeOf(host)).toMatchObject({ x: start.x - 70, y: start.y - 60 })
   })
 
-  it("never moves an edge in past the viewer's", async () => {
+  it("moves an edge no further than the viewer's centre", async () => {
     const host = hostIn()
     const viewer = mount(large, host)
     await loaded(host)
     viewer.zoom(1)
     wheel(host, { deltaX: -5000, deltaY: -5000 })
-    expect(placeOf(host)).toMatchObject({ x: 0, y: 0 })
+    expect(placeOf(host)).toMatchObject({ x: 200, y: 150 })
     wheel(host, { deltaX: 5000, deltaY: 5000 })
-    expect(placeOf(host)).toMatchObject({ x: 400 - 1600, y: 300 - 1200 })
-  })
-
-  it("centres a zoomed image on an axis it still fits", async () => {
-    const host = hostIn()
-    const viewer = mount({ src: picture(1600, 100), alt: "" }, host)
-    await loaded(host)
-    viewer.zoom(1)
-    wheel(host, { deltaY: 500 })
-    expect(placeOf(host).y).toBe(100)
+    expect(placeOf(host)).toMatchObject({ x: 200 - 1600, y: 150 - 1200 })
   })
 
   it("moves with a drag", async () => {
@@ -277,6 +276,45 @@ describe("the image viewer", () => {
     expect(under(screen()).y).toBeCloseTo(under(before).y, 2)
   })
 
+  it("takes no double-click from a drag and the click after it", async () => {
+    const host = hostIn()
+    const viewer = mount(large, host)
+    await loaded(host)
+    viewer.zoom(1)
+    const pointer = (type: string, x: number, detail: number) =>
+      viewerOf(host).dispatchEvent(
+        new PointerEvent(type, {
+          pointerId: 7,
+          button: 0,
+          buttons: type === "pointerup" ? 0 : 1,
+          detail,
+          bubbles: true,
+          ...at(host, x, 150),
+        }),
+      )
+    pointer("pointerdown", 200, 1)
+    pointer("pointermove", 260, 1)
+    pointer("pointermove", 200, 1)
+    pointer("pointerup", 200, 1)
+    // The second press of the sequence, where the first began.
+    pointer("pointerdown", 200, 2)
+    pointer("pointerup", 200, 2)
+    viewerOf(host).dispatchEvent(
+      new MouseEvent("dblclick", { bubbles: true, ...at(host, 200, 150) }),
+    )
+    expect(placeOf(host).width).toBe(1600)
+  })
+
+  it("takes no zoom gesture before its image is drawn, nor gives it to the page", async () => {
+    const host = hostIn()
+    // An image of its own, so none is ready from before.
+    const viewer = mount({ src: picture(1601, 1201), alt: "" }, host)
+    expect(wheel(host, { deltaY: 100, ctrlKey: true }).defaultPrevented).toBe(true)
+    await loaded(host)
+    expect(chipOf(host).hidden).toBe(true)
+    expect((viewer.state() as unknown as { image: { zoom: unknown } }).image.zoom).toBe("fit")
+  })
+
   it("takes no double-click from two drags", async () => {
     const host = hostIn()
     const viewer = mount(large, host)
@@ -324,12 +362,10 @@ describe("the image viewer", () => {
     mount(large, host)
     await loaded(host)
     const fitted = placeOf(host)
-    // Nothing to move while it fits: the arrow is left to the page.
-    expect(key(host, "ArrowRight").defaultPrevented).toBe(false)
     expect(key(host, "+").defaultPrevented).toBe(true)
     expect(placeOf(host).width).toBeCloseTo(fitted.width * 1.25, 1)
     key(host, "-")
-    expect(placeOf(host)).toEqual(fitted)
+    expect(placeOf(host).width).toBeCloseTo(fitted.width, 1)
     key(host, "1")
     const actual = placeOf(host)
     expect(actual.width).toBe(1600)
@@ -358,8 +394,10 @@ describe("the image viewer", () => {
   it("says what it takes, for a reader, where nothing shows it", () => {
     const host = hostIn()
     mount(large, host)
-    expect(viewerOf(host).getAttribute("aria-description")).toMatch(/Ctrl\+scroll to zoom/)
-    expect(viewerOf(host).getAttribute("aria-keyshortcuts")).toBe("+ - 0 1")
+    expect(viewerOf(host).getAttribute("aria-description")).toMatch(
+      /scroll with Ctrl or ⌘, to zoom/,
+    )
+    expect(viewerOf(host).getAttribute("aria-description")).toMatch(/0 fits, 1 shows 100%/)
   })
 
   it("goes back to fit from its zoom", async () => {
@@ -437,6 +475,7 @@ describe("the image viewer", () => {
     const host = hostIn()
     const viewer = mount({ src: picture(10, 10), alt: "" }, host)
     viewer.zoom(1000)
+    expect((viewer.state() as unknown as { image: { zoom: unknown } }).image.zoom).toBe(32)
     await loaded(host)
     expect(placeOf(host).width).toBe(320)
   })

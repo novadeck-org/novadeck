@@ -1,13 +1,13 @@
 import { hashOf } from "./hash.js"
 import type { Mount, Viewer, ViewerState } from "./index.js"
 
-// An image, fitted whole to its viewer, never larger than its own size, or zoomed in and
-// moved about: pinch or Ctrl+scroll zooms around the pointer, a scroll or a drag moves a
-// zoomed image, a double-click zooms in there and back, and keys do each while the viewer
-// has focus. While it's zoomed, a chip over it says how far, and takes it back to
-// fit. The zoom is part of its state, with the point of the image at the viewer's centre,
-// so an image shown again keeps its view whatever the viewer's size. Its looks are
-// image.css's.
+// An image on a canvas: fitted whole and centred, never larger than its own size, or
+// zoomed from half its fit up and moved about. Pinch or Ctrl+scroll zooms around the
+// pointer, a scroll or a drag moves it at any zoom, a double-click zooms in there and back
+// to fit, and keys do each while the viewer has focus. Once it's moved or zoomed, a chip
+// over it says how far, and takes it back to fit. The zoom is part of its state, with the
+// point of the image at the viewer's centre, so an image shown again keeps its view
+// whatever the viewer's size. Its looks are image.css's.
 
 export type ImageContent = { readonly src: string; readonly alt: string }
 
@@ -29,7 +29,9 @@ type ImageState = {
   }
 }
 
-// The furthest in it zooms, and from where its pixels show square rather than smoothed.
+// The furthest out it zooms, as a share of its fit, and the furthest in; and from where its
+// pixels show square rather than smoothed.
+const least = 0.5
 const most = 32
 const pixelated = 4
 // A wheel's step: a notch zooms by about 15%, while a pinch's smaller steps zoom as far as
@@ -58,12 +60,12 @@ const isImageState = (state: unknown): state is ImageState => {
 const clamp = (value: number, low: number, high: number): number =>
   Math.min(Math.max(value, low), high)
 
-// Where the image goes on one axis: centred while it fits, else with the point at the
-// centre where asked, but never so far that ground shows past an edge.
+// Where the image goes on one axis: with the point at the centre where asked, but never so
+// far that the viewer's centre is off the image.
 const placeOn = (view: number, size: number, centre: number): number =>
-  size <= view ? (view - size) / 2 : clamp(view / 2 - centre * size, view - size, 0)
+  view / 2 - clamp(centre, 0, 1) * size
 
-const gestures = "Pinch or Ctrl+scroll to zoom, double-click to zoom in, drag to move."
+const gestures = "Pinch, or scroll with Ctrl or ⌘, to zoom; double-click to zoom in; drag to move."
 const keyHelp = "Plus and minus zoom, 0 fits, 1 shows 100%, the arrows move."
 
 export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> = (
@@ -78,8 +80,9 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
   // Focusable, so its keys reach it, which it names with its gestures.
   root.tabIndex = 0
   root.setAttribute("aria-description", `${gestures} ${keyHelp}`)
-  root.setAttribute("aria-keyshortcuts", "+ - 0 1")
   const image = document.createElement("img")
+  // A drag moves the image, rather than starting the browser's own.
+  image.draggable = false
   const chip = document.createElement("button")
   chip.type = "button"
   chip.className = "image-zoom"
@@ -128,15 +131,13 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
       image.style.removeProperty("width")
       image.style.removeProperty("height")
       image.style.removeProperty("transform")
-      root.removeAttribute("data-pannable")
       root.removeAttribute("data-pixelated")
-      image.draggable = true
       hideChip()
       return
     }
-    // A zoom that reaches fit, as the viewer grows, is fit again, and follows its size.
-    if (zoom !== "fit" && zoom <= view.fit * 1.0001) zoom = "fit"
-    const scale = zoom === "fit" ? view.fit : Math.min(zoom, most)
+    // Fitted, it's centred, and follows the viewer's size.
+    if (zoom === "fit") centre = { x: 0.5, y: 0.5 }
+    const scale = zoom === "fit" ? view.fit : clamp(zoom, view.fit * least, most)
     const width = view.naturalWidth * scale
     const height = view.naturalHeight * scale
     const x = placeOn(view.clientWidth, width, centre.x)
@@ -146,10 +147,6 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     image.style.width = `${width}px`
     image.style.height = `${height}px`
     image.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
-    const pannable = width > view.clientWidth + 0.5 || height > view.clientHeight + 0.5
-    root.toggleAttribute("data-pannable", pannable)
-    // A drag moves an image larger than the viewer, rather than starting the browser's own.
-    image.draggable = !pannable
     root.toggleAttribute("data-pixelated", scale >= pixelated)
     if (zoom === "fit") hideChip()
     else chip.hidden = false
@@ -162,11 +159,11 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
   // viewer, its centre unless given) where it is.
   const zoomTo = (next: ImageZoom, at?: { readonly x: number; readonly y: number }): void => {
     if (!drawn) {
-      zoom = next
+      zoom = next === "fit" ? next : Math.min(next, most)
       return draw()
     }
     const point = at ?? { x: root.clientWidth / 2, y: root.clientHeight / 2 }
-    const scale = next === "fit" ? drawn.fit : clamp(next, drawn.fit, most)
+    const scale = next === "fit" ? drawn.fit : clamp(next, drawn.fit * least, most)
     const under = { x: (point.x - drawn.x) / drawn.width, y: (point.y - drawn.y) / drawn.height }
     const width = image.naturalWidth * scale
     const height = image.naturalHeight * scale
@@ -177,11 +174,13 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     }
     draw()
   }
-  const scaleNow = (): number => (zoom === "fit" ? (drawn?.fit ?? 1) : zoom)
+  const scaleNow = (): number => (drawn ? drawn.width / image.naturalWidth : 1)
 
-  // Moves the view across the image by a distance, as a scroll would; whether it could.
+  // Moves the view across the image by a distance, as a scroll would, at any zoom: a fitted
+  // image moved is no longer fitted. Whether there was an image to move.
   const pan = (dx: number, dy: number): boolean => {
-    if (!drawn || !root.hasAttribute("data-pannable")) return false
+    if (!drawn) return false
+    if (zoom === "fit") zoom = drawn.fit
     centre = { x: centre.x + dx / drawn.width, y: centre.y + dy / drawn.height }
     draw()
     return true
@@ -189,14 +188,17 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
 
   // How far the page scales the viewer, as Canvas does at its zoom: a pointer's distances
   // on screen are this many of the viewer's own pixels.
-  const scaleOnScreen = (): number => root.getBoundingClientRect().width / root.offsetWidth || 1
+  const scaleOnScreen = (): { x: number; y: number } => {
+    const box = root.getBoundingClientRect()
+    return { x: box.width / root.offsetWidth || 1, y: box.height / root.offsetHeight || 1 }
+  }
 
   const pointIn = (event: MouseEvent): { x: number; y: number } => {
     const box = root.getBoundingClientRect()
     const scale = scaleOnScreen()
     return {
-      x: (event.clientX - box.left) / scale - root.clientLeft,
-      y: (event.clientY - box.top) / scale - root.clientTop,
+      x: (event.clientX - box.left) / scale.x - root.clientLeft,
+      y: (event.clientY - box.top) / scale.y - root.clientTop,
     }
   }
 
@@ -208,8 +210,10 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
           ? root.clientHeight
           : 1
     if (event.ctrlKey || event.metaKey) {
-      // Zoom gestures are the image's, never the page's.
+      // Zoom gestures are the image's, never the page's, though there's nothing to zoom
+      // until it's drawn.
       event.preventDefault()
+      if (!drawn) return
       const delta = clamp(event.deltaY * unit, -wheelNotch, wheelNotch)
       if (delta) zoomTo(scaleNow() * Math.exp(-delta * wheelStep), pointIn(event))
       return
@@ -222,15 +226,22 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
   }
 
   let dragging:
-    | { id: number; x: number; y: number; scale: number; from: { x: number; y: number } }
+    | {
+        id: number
+        x: number
+        y: number
+        scale: { x: number; y: number }
+        from: { x: number; y: number }
+      }
     | undefined
-  // Whether the last press moved the image, so its click doesn't count toward a double-click.
+  // Whether a press of this click sequence moved the image, so its clicks aren't a
+  // double-click.
   let dragged = false
   const onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 0 || chip.contains(event.target as Node)) return
     root.focus({ preventScroll: true })
-    dragged = false
-    if (!root.hasAttribute("data-pannable")) return
+    if (event.detail <= 1) dragged = false
+    if (!drawn) return
     const from = { x: event.clientX, y: event.clientY }
     dragging = { id: event.pointerId, ...from, scale: scaleOnScreen(), from }
     root.setAttribute("data-panning", "")
@@ -251,7 +262,7 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     // A press that ended out of its sight, as its capture was lost.
     if (!(event.buttons & 1)) return endDrag(event)
     const { x, y, scale } = dragging
-    pan((x - event.clientX) / scale, (y - event.clientY) / scale)
+    pan((x - event.clientX) / scale.x, (y - event.clientY) / scale.y)
     dragging = { ...dragging, x: event.clientX, y: event.clientY }
     dragged ||= Math.hypot(event.clientX - dragging.from.x, event.clientY - dragging.from.y) > 4
   }
@@ -332,7 +343,7 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
 
   const restore = (state: ViewerState): void => {
     if (!isPlace(state)) return
-    zoom = state.image.zoom
+    zoom = state.image.zoom === "fit" ? "fit" : Math.min(state.image.zoom, most)
     centre = { x: state.image.x, y: state.image.y }
     draw()
   }
