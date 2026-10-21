@@ -62,11 +62,16 @@ export const whatsNewAtLaunch = (
   // A version at or below one settled is never offered, whatever else says it was updated.
   const unsettled = settled === undefined || newer(current, settled)
   const marked = unsettled && (updated || pending === current) ? current : undefined
+  // Notes of another version still pending were not seen, so they are told with these: the
+  // notes start where its did.
+  const unseen =
+    pending !== undefined &&
+    pending !== current &&
+    (settled === undefined || newer(pending, settled))
+  const start = pending === current || unseen ? from : previous
   // Notes at or below a settled version were seen, or had nothing to see.
   const since =
-    settled !== undefined && (previous === undefined || newer(settled, previous))
-      ? settled
-      : previous
+    settled !== undefined && (start === undefined || newer(settled, start)) ? settled : start
   return {
     lastRunVersion: current,
     pending: marked,
@@ -178,21 +183,28 @@ const readSkipped = async (
 /**
  * The highlights of `version` and of the releases skipped on the way to it, newest first.
  * A promotion's notes tell every change since the stable release before it, so the notes of
- * a prerelease older than the newest promotion among them are left out: that promotion
- * tells them better. A highlight two releases share is told once.
+ * a release older than a promotion, with no stable release between, are left out: that
+ * promotion tells them better. A stable release whose notes are not a promotion's, as when
+ * writing them failed, still bounds the promotion after it. A highlight two releases share
+ * is told once.
  */
 const gather = (
   version: string,
   releases: readonly Release[],
   newer: (a: string, b: string) => boolean,
 ): WhatsNew | undefined => {
-  const promoted = releases.find((release) => release.notes?.kind === "promote")
-  const told = releases.filter(
-    (release) =>
-      promoted === undefined ||
-      release.notes?.kind === "promote" ||
-      !newer(promoted.version, release.version),
-  )
+  const promotions = releases.filter((release) => release.notes?.kind === "promote")
+  const stable = releases.filter((release) => !release.prerelease)
+  const covered = (release: Release): boolean =>
+    promotions.some(
+      (promotion) =>
+        newer(promotion.version, release.version) &&
+        !stable.some(
+          (bound) =>
+            !newer(release.version, bound.version) && newer(promotion.version, bound.version),
+        ),
+    )
+  const told = releases.filter((release) => release.notes?.kind === "promote" || !covered(release))
   const seen = new Set<string>()
   const highlights = told
     .flatMap((release) => release.notes?.highlights ?? [])

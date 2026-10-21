@@ -62,6 +62,18 @@ describe("what a launch records about what is new", () => {
     // Updated from a version that is not known, only the version's own notes are told.
     expect(launch(undefined, "0.5.0", { ranBefore: true })?.from).toBeUndefined()
     expect(launch("0.5.0", "0.5.0", { from: "0.4.2" })?.from).toBeUndefined()
+    expect(launch("0.5.0", "0.4.2", { pending: "0.5.0", from: "0.4.0" })?.from).toBeUndefined()
+  })
+
+  it("keeps the start of notes still pending for another version, which were not seen", () => {
+    expect(launch("0.4.4", "0.5.0", { pending: "0.4.4", from: "0.4.1" })?.from).toBe("0.4.1")
+    // Unless that version's notes were settled meanwhile, as by another copy.
+    expect(
+      launch("0.4.4", "0.5.0", { pending: "0.4.4", from: "0.4.1", settled: "0.4.4" })?.from,
+    ).toBe("0.4.4")
+    expect(
+      launch("0.4.4", "0.5.0", { pending: "0.4.4", from: "0.4.1", settled: "0.4.2" })?.from,
+    ).toBe("0.4.2")
   })
 
   it("marks nothing on a fresh install", () => {
@@ -557,6 +569,22 @@ describe("what is new since the version updated from", () => {
     expect(titles(await whatsNew())).toEqual(["Promoted", "Stable before"])
   })
 
+  it("tells what a stable release bounds when its own notes are not a promotion's", async () => {
+    const own = listed("0.5.0", ["Promoted"], { kind: "promote", prerelease: false })
+    const list = [
+      own,
+      listed("0.4.5", ["Told by the promotion"]),
+      listed("0.4.4", ["Stable, notes failed"], { prerelease: false }),
+      listed("0.4.3", ["Before that stable"]),
+    ]
+    const { whatsNew } = kept(answering(own, [list]), { from: "0.4.0" })
+    expect(titles(await whatsNew())).toEqual([
+      "Promoted",
+      "Stable, notes failed",
+      "Before that stable",
+    ])
+  })
+
   it("tells the skipped builds when the version's own notes have no highlights", async () => {
     const own = listed("0.5.0", [])
     const { whatsNew, state } = kept(answering(own, [[own, listed("0.4.4", ["Fourth"])]]), {
@@ -602,6 +630,21 @@ describe("what is new since the version updated from", () => {
     })
     expect(titles(await whatsNew())).toEqual(["Own", "Deep", "Last"])
     expect(urls.filter((url) => url.includes("page="))).toHaveLength(2)
+  })
+
+  it("reads three pages at most, and pages on past one whose releases are all left out", async () => {
+    const own = listed("0.5.0", ["Own"])
+    const page = (top: number, title?: string) =>
+      Array.from({ length: 100 }, (_, index) =>
+        index === 0 && title ? listed(`0.4.${top}`, [title]) : listed(`0.4.${top - index}`, []),
+      )
+    const notListed = Array.from({ length: 100 }, () => ({ tag_name: "nightly", body: "" }))
+    const { whatsNew, urls } = kept(
+      answering(own, [notListed, page(400, "Second"), page(300, "Third"), page(200, "Fourth")]),
+      { from: "0.4.1" },
+    )
+    expect(titles(await whatsNew())).toEqual(["Own", "Second", "Third"])
+    expect(urls.filter((url) => url.includes("page="))).toHaveLength(3)
   })
 
   it("tries again when the list can't be read now, or is not a list", async () => {
