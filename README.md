@@ -1024,6 +1024,13 @@ repository secret `CLOUDFLARE_API_TOKEN` and the account ID in the repository va
 only one it fails. Only releases cut with this setup can be deployed, rolled back to
 included.
 
+novadeck.dev's downloads follow each release the same way: Release's Website Downloads job
+starts the website's deploy, which links the newest release it finds. It needs the
+repository secret `WEBSITE_DEPLOY_TOKEN`, a fine-grained token with Actions: Read and write
+on novadeck-org/novadeck-website; such tokens expire, and an expired one fails the job (the
+release itself stands). Until it is set the job skips and says so, and the site catches up
+only on its own hourly schedule.
+
 It runs the agents demo's storefront and its other projects as fixtures, with no debug
 panel, chat view, voice, murmur, agent connections, notices or updates, and no Welcome
 dialog; `frontend/demo/src/visitor/` lists the backend's fields one by one, so nothing added to
