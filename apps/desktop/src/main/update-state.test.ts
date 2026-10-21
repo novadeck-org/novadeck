@@ -26,6 +26,7 @@ describe("what the host remembers about updating", () => {
       installing: undefined,
       lastRunVersion: undefined,
       whatsNewPending: undefined,
+      whatsNewFrom: undefined,
       whatsNewSettled: undefined,
       whatsNewCheckedAt: undefined,
     })
@@ -53,6 +54,7 @@ describe("what the host remembers about updating", () => {
         installing: undefined,
         lastRunVersion: undefined,
         whatsNewPending: undefined,
+        whatsNewFrom: undefined,
         whatsNewSettled: undefined,
         whatsNewCheckedAt: undefined,
       })
@@ -60,11 +62,11 @@ describe("what the host remembers about updating", () => {
 
     it("keeps when a prerelease was last read, only for the notes still pending", () => {
       const state = keepUpdateState(file)
-      state.recordLaunch("0.5.0-beta.1", "0.5.0-beta.1")
+      state.recordLaunch("0.5.0-beta.1", "0.5.0-beta.1", undefined)
       state.recordWhatsNewCheck(5)
-      state.recordLaunch("0.5.0-beta.1", "0.5.0-beta.1")
+      state.recordLaunch("0.5.0-beta.1", "0.5.0-beta.1", undefined)
       expect(state.read().whatsNewCheckedAt).toBe(5)
-      state.recordLaunch("0.5.0-beta.2", "0.5.0-beta.2")
+      state.recordLaunch("0.5.0-beta.2", "0.5.0-beta.2", undefined)
       expect(state.read().whatsNewCheckedAt).toBeUndefined()
       state.recordWhatsNewCheck(7)
       state.settleWhatsNew("0.5.0-beta.2", isNewerVersion)
@@ -86,6 +88,15 @@ describe("what the host remembers about updating", () => {
       ).toMatchObject({ whatsNewSettled: "0.5.0", lastRunVersion: "0.5.0-beta.1" })
     })
 
+    it("keeps where the pending notes start until they are settled", () => {
+      const state = keepUpdateState(file)
+      state.recordLaunch("0.5.0", "0.5.0", "0.4.2")
+      expect(state.read().whatsNewFrom).toBe("0.4.2")
+      state.settleWhatsNew("0.5.0", isNewerVersion)
+      expect(state.read().whatsNewFrom).toBeUndefined()
+      expect(updateStateOf('{"whatsNewFrom":"0.4"}').whatsNewFrom).toBeUndefined()
+    })
+
     it("keeps the newest version settled, whatever order they are settled in", () => {
       const state = keepUpdateState(file)
       state.settleWhatsNew("0.6.0", isNewerVersion)
@@ -99,7 +110,7 @@ describe("what the host remembers about updating", () => {
     it("keeps the launch's version and the notes still to show, each apart", () => {
       const state = keepUpdateState(file)
       state.setChannel("early")
-      state.recordLaunch("0.5.0", "0.5.0")
+      state.recordLaunch("0.5.0", "0.5.0", undefined)
       expect(state.read()).toMatchObject({
         channel: "early",
         lastRunVersion: "0.5.0",
