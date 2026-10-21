@@ -36,10 +36,11 @@ export type FooterMurmurProps = {
 // with it. Its words are announced in one live line that is there before it has words, and a
 // failure is said once, never as a percentage that changes. The runner's word that an installed
 // Murmur stopped (its engine failing again and again) turns the item to it from rest too, also
-// when it stands as the app opens (Murmur is off, and nothing else says so). Its sheet says the
-// runner's words as they are now, with Open Addons and Not now, and no Try again: Murmur's jobs
-// retry by themselves, and the word goes with the next that succeeds. Not now keeps it shut
-// until that word clears, whatever it says in between.
+// when it stands as the app opens (terminals stop being named, and nothing else says so). Its
+// sheet says the runner's words as they are now, with Open Addons and Not now, and no Try again:
+// Murmur's jobs retry by themselves, and the word goes with the next that succeeds. The live line
+// says the words it stopped with, once. Not now keeps it shut until that word clears, whatever it
+// says in between.
 export const FooterMurmur = ({
   murmur,
   hidden,
@@ -85,6 +86,8 @@ export const FooterMurmur = ({
       setSaid(state.refused)
       setFromRunner(state.failure !== null)
     }
+    // Said once as it stops; the sheet follows the words as they change.
+    if (next === "stopped" && state) setWhy(state.stopped ?? "")
     // What went wrong, or can't be, is said once on its own; the rest opens when asked.
     setOpen(next === "failed" || next === "unavailable" || next === "stopped")
   }
@@ -139,9 +142,7 @@ export const FooterMurmur = ({
   if (!murmur || !state) return null
   const shown = phase !== "idle"
   const { actions } = murmur
-  const text = shown
-    ? footerText(phase, state, phase === "stopped" ? (state.stopped ?? "") : why)
-    : undefined
+  const text = shown ? footerText(phase, state, why) : undefined
   const percent = installPercent(state)
   const tone =
     phase === "failed" || phase === "stopped" ? "danger" : phase === "done" ? "success" : undefined
@@ -268,6 +269,9 @@ export const FooterMurmur = ({
               </p>
               <p className="update-progress-note update-card-error footer-murmur-error">
                 {state.stopped}
+              </p>
+              <p className="update-progress-note">
+                It keeps trying on its own, and this goes once it works again.
               </p>
               <div className="update-card-foot">
                 <button type="button" className="button min-h-7 px-3" onClick={leave}>

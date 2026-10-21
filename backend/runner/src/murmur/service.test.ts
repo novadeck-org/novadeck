@@ -1366,6 +1366,31 @@ describe("a GPU that is gone", () => {
     expect(context.murmur.state()).toMatchObject({ installed: true, check: null })
     expect(context.murmur.state().failure).toMatch(/device murmur was checked on isn't there now/)
   })
+
+  it("is why murmur stopped, not the engine's failures before it", async ({ resources }) => {
+    let time = 1_000
+    let devices: FakeDevice[] = [arc]
+    const context = await installed(resources, {
+      now: () => time,
+      launch: (program, args) =>
+        fakeLaunch(args.includes("--list-devices") ? devices : [arc])(program, args),
+    })
+    await writeFile(await modelOf(context.directory), "crash")
+    const job = async () => {
+      time += 1_000_000
+      return context.murmur.describe(digest, { terminal: "t" })
+    }
+    await job()
+    await job()
+    await job()
+    expect(context.murmur.state().stopped).not.toBeNull()
+
+    devices = [nvidia]
+    await job()
+
+    expect(context.murmur.state()).toMatchObject({ check: null, stopped: null })
+    expect(context.murmur.state().failure).toMatch(/isn't there now/)
+  })
 })
 
 // What the runner's log is given while `run` goes on: the level, event and data of each line.

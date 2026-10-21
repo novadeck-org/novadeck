@@ -1186,6 +1186,8 @@ export class Murmur implements Describer {
       // check no longer stands.
       this.settings.saveMurmurCheck(null)
       this.failure = "The graphics device murmur was checked on isn't there now."
+      // The engine's failures before it are not why Murmur stopped: this is, and Addons says it.
+      this.runtimeFailure = null
       log.warn("murmur.device-missing", this.failure)
       this.changed()
       return undefined

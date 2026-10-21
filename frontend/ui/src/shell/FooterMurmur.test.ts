@@ -101,9 +101,14 @@ describe("Murmur's footer item as the runner says it stopped", () => {
     expect(sheetText()).toContain("Murmur stopped")
     expect(sheetText()).toContain("The engine failed to start.")
     expect(sheetText()).not.toContain("Try again")
+    expect(sheetText()).toContain("keeps trying on its own")
     rerender(item({ ...stopped, stopped: "The engine stopped answering." }))
     expect(sheetText()).toContain("The engine stopped answering.")
     expect(sheetText()).not.toContain("failed to start")
+    // The live line said it once, as it stopped: new words are not said again.
+    const status = document.querySelector('[role="status"]')?.textContent ?? ""
+    expect(status).toContain("failed to start")
+    expect(status).not.toContain("stopped answering")
     rerender(item(installed))
     expect(chip()).toBeNull()
     unmount()
