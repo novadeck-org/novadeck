@@ -189,8 +189,10 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     on?.navigate?.(place)
     return {
       update: (next) => {
+        // An older show arriving late changes nothing.
+        if (showOf(next) < showing) return
         shown = next
-        showing = Math.max(showing, showOf(next))
+        showing = showOf(next)
         place = { url: next.url, back: false, forward: false }
         on?.navigate?.(place)
       },
@@ -238,9 +240,10 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     if (selector !== undefined)
       attached(() => void page.executeJavaScript(revealing(selector, scrollWaitMs)).catch(nothing))
   }
+  // Its scroll goes once the page has moved to the shown address, not on another move.
   const movedInPage = (): void => {
     moved()
-    if (!moving) return
+    if (!moving || place.url !== shown.url) return
     moving = false
     reveal()
   }
@@ -252,12 +255,13 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     if (load === "ready") reveal()
     else scrollTo = undefined
   }
-  // Shown again: reloaded where it is at its address; loaded there afresh if the person
-  // went elsewhere, or anything else is loading, as their own click; let be while its
-  // first load is of that address, as that load is this show's.
+  // Shown again, or at another address: reloaded where it is at its address; loaded there
+  // afresh if the person went elsewhere, or anything else is loading, as their own click;
+  // let be while its first load of that address is under way, as that load is this show's.
   const refresh = (): void => {
+    moving = false
     const there = place.url === shown.url
-    if (there && first) return
+    if (there && first && load === "loading") return
     if (there && load !== "loading") {
       const reloading = attached(() => {
         page.reload()
@@ -318,15 +322,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       showing = showOf(next)
       // Loaded after it attached, past the lockdown's check of its first address.
       if (!webAddress(next.url)) return
-      if (again) scrollTo = next.scroll
-      if (previous.url === next.url) {
-        if (again) refresh()
-        return
-      }
-      page.setAttribute("src", next.url)
-      // Where it's going, until the page says where it went.
-      place = { url: next.url, back: place.back, forward: place.forward }
-      on?.navigate?.(place)
+      if (!again && previous.url === next.url) return
+      scrollTo = again ? next.scroll : undefined
+      refresh()
     },
     state: () => state(place.url),
     restore: (earlier) => {

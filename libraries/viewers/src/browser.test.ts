@@ -185,6 +185,21 @@ describe("the browser viewer", () => {
         expect(scrolled(calls)).toHaveLength(1)
       })
 
+      it("moves to a fragment shown at another address of the page, then scrolls", () => {
+        const { viewer, at: where, calls, fire } = shownAt({ url: `${url}#faq`, shown: 1 })
+        where.url = `${url}#faq`
+        fire("did-stop-loading")
+        viewer.update({ url: `${url}#pricing`, shown: 2, scroll: "#plans" })
+        expect(calls).toEqual([`load ${url}#pricing`])
+        // The person's own move elsewhere in the page isn't the show's.
+        where.url = `${url}#team`
+        fire("did-navigate-in-page")
+        expect(scrolled(calls)).toEqual([])
+        where.url = `${url}#pricing`
+        fire("did-navigate-in-page")
+        expect(scrolled(calls)).toHaveLength(1)
+      })
+
       it("loads the page again for an address without the fragment the person went to", () => {
         const { viewer, at: where, calls, loads, fire } = shownAt({ url, shown: 1 })
         where.url = `${url}#install`
@@ -208,9 +223,13 @@ describe("the browser viewer", () => {
       })
 
       it("leaves a load of its address under way be, as its first", () => {
-        const { viewer, calls } = shownAt({ url, shown: 1 })
+        const { viewer, calls, fire } = shownAt({ url, shown: 1 })
         viewer.update({ url, shown: 2 })
         expect(calls).toEqual([])
+        // A first load that ended in a crash, with no stop, is reloaded.
+        fire("render-process-gone")
+        viewer.update({ url, shown: 3 })
+        expect(calls).toEqual(["reload"])
       })
 
       it("brings the show's element into view once the page has loaded", async () => {
