@@ -319,13 +319,15 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   still.append(image)
   // Its fade, under way.
   let fading: ReturnType<typeof setTimeout> | undefined
-  const cover = (): void => {
-    if (picture === undefined) return
+  // Only a picture of the document it's at: one of another would show the wrong page.
+  const cover = (): boolean => {
+    if (picture === undefined || documentOf(picture.at) !== documentOf(place.url)) return false
     clearTimeout(fading)
     fading = undefined
     image.src = picture.src
     delete still.dataset.fading
     if (!still.isConnected) root.prepend(still)
+    return true
   }
   // Once the woken page has drawn, the picture fades, and goes.
   const uncover = (): void => {
@@ -363,7 +365,12 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       on?.navigate?.(place)
     })
   }
-  const started = (): void => report("loading")
+  // A new load, as the person or a redirect took it on: a show's element waited for in the
+  // last one isn't any more.
+  const started = (): void => {
+    bringing = undefined
+    report("loading")
+  }
   const reveal = (): void => {
     const selector = scrollTo
     scrollTo = undefined
@@ -530,12 +537,27 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     // where its host keeps it hidden, it draws nothing to picture: the one it has stands in.
     const hidden = !shownNow()
     if (load === "loading" || hidden) {
-      if (picture === undefined || documentOf(picture.at) !== documentOf(place.url)) return
-      if (load === "loading" && !first) stale = true
-      then = undefined
-      cover()
-      close()
-      report("ready")
+      const standIn = (): void => {
+        if (!cover()) return
+        if (load === "loading" && !first) stale = true
+        then = undefined
+        close()
+        report("ready")
+      }
+      if (picture === undefined || load === "loading") return standIn()
+      // Out of sight, where it's scrolled can still be read, for it to wake there.
+      const reading = attached(() => view.executeJavaScript(scrollRead))
+      if (!reading) return standIn()
+      const asked = {}
+      resting = asked
+      void reading
+        .catch(() => undefined)
+        .then((at) => {
+          if (resting !== asked || wanted || page !== view) return
+          resting = undefined
+          if (isScrolled(at)) scrolled = at
+          standIn()
+        })
       return
     }
     const asked = {}
@@ -550,9 +572,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
         scrolled = taken.scrolled
       }
       // Nothing to rest as: live, until a later rest can take one.
-      if (picture === undefined) return
-      cover()
-      close()
+      if (cover()) close()
     })
   }
   // A picture of the live page as it is now, and where it's scrolled; none where it can't.
@@ -594,9 +614,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
 
   root.dataset.load = load
   on?.load?.(load)
-  if (picture !== undefined && !wanted && documentOf(picture.at) === documentOf(resumed)) {
+  if (!wanted && cover()) {
     // At rest from the first: its picture until it's woken.
-    cover()
     report("ready")
   } else {
     open(resumed, false)

@@ -780,7 +780,7 @@ describe("the browser viewer", () => {
     })
 
     it("rests out of sight as the picture it has, asking for none, or else stays live", async () => {
-      const { host, viewer, taken, fire, ready } = resting({ pictures: [shot] })
+      const { host, viewer, calls, taken, fire, ready } = resting({ pictures: [shot] })
       fire("did-stop-loading")
       host.style.display = "none"
       viewer.awake(false)
@@ -794,7 +794,11 @@ describe("the browser viewer", () => {
       ready()
       fire("did-stop-loading")
       host.style.display = "none"
+      calls.splice(0)
       viewer.awake(false)
+      // Where it's scrolled is read still, for it to wake there.
+      await settled()
+      expect(calls).toContain("run [scrollX, scrollY]")
       expect(taken).toEqual([7])
       expect(pageOf(host)).toBeNull()
       expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(shot)
@@ -848,6 +852,7 @@ describe("the browser viewer", () => {
         expect(taken).toEqual([7])
         host.style.display = "none"
         viewer.awake(false)
+        await vi.advanceTimersByTimeAsync(0)
         expect(pageOf(host)).toBeNull()
         expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(later)
       } finally {
@@ -886,6 +891,25 @@ describe("the browser viewer", () => {
         expect(pageOf(host)).not.toBeNull()
       } finally {
         vi.useRealTimers()
+      }
+    })
+
+    it("never covers itself with a picture of another page", async () => {
+      const first = resting()
+      first.fire("did-stop-loading")
+      first.viewer.awake(false)
+      await settled()
+      const saved = first.viewer.state() as unknown as {
+        browser: { picture: { src: string; at: string } }
+      }
+      first.viewer.destroy()
+      const elsewhere = {
+        browser: { ...saved.browser, at: `${url}other`, picture: saved.browser.picture },
+      } as unknown as ViewerState
+      for (const awake of [true, false]) {
+        const again = resting({ saved: elsewhere, awake })
+        expect(pageOf(again.host)!.getAttribute("src")).toBe(`${url}other`)
+        expect(pictureOf(again.host)).toBeNull()
       }
     })
 
