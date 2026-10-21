@@ -398,6 +398,29 @@ jobs:
           done < <(find "$engines" -type f -print0)
           exit "$failed"
 
+      # The engines run on people's desktops, not on the image that built them, which has more
+      # libraries than a desktop may. So on Linux they are checked in a clean Ubuntu 24.04 with
+      # only the Vulkan loader added, as a desktop has it: here every file must find each library
+      # it needs (ldd also says when one needs a newer glibc), and the checks below start the
+      # servers there.
+      - name: Check Engines' Libraries (Linux)
+        if: matrix.target == 'linux'
+        run: |
+          printf '%s\n' 'FROM ubuntu:24.04' \
+            'RUN apt-get update && apt-get install -y --no-install-recommends libvulkan1 && rm -rf /var/lib/apt/lists/*' |
+            docker build --quiet --tag novadeck-engine-check - > /dev/null
+          engines="$RUNNER_TEMP/engines-glibc"
+          docker run --rm --network none -v "$engines:$engines:ro" novadeck-engine-check bash -c '
+            status=0
+            for file in "$0"/*/*.so* "$0"/*/*-server; do
+              [[ -f "$file" && ! -L "$file" ]] || continue
+              if ldd "$file" | grep "not found"; then
+                echo "::error::${file#"$0"/} needs a library, or a version of one, that a clean Ubuntu 24.04 lacks."
+                status=1
+              fi
+            done
+            exit "$status"' "$engines"
+
       # Unpacks the engine with the tar the runner uses on this platform and runs it, so a
       # missing library or backend module fails here rather than on a person's machine.
       - name: Check Voice Engine
@@ -413,7 +436,12 @@ jobs:
             tar -xzf "$archive" -C "$engine"
             server="$engine/whisper-server"
           fi
-          "$server" --help > /dev/null
+          # On Linux the server runs in the clean image (see Check Engines' Libraries).
+          run=()
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            run=(docker run --rm -i --network none -v "$engine:$engine:ro" novadeck-engine-check)
+          fi
+          "${run[@]}" "$server" --help > /dev/null
           # The flags the runner starts the server with (backend/runner/src/voice/engine.ts):
           # with a model that is not there, the server must complain of the model and exit with
           # a failure within moments, even though its stdin stays open, as the runner holds it.
@@ -425,7 +453,7 @@ jobs:
           model="$engine/absent.bin"
           if [[ "$RUNNER_OS" == "Windows" ]]; then model="$(cygpath -m "$engine")/absent.bin"; fi
           start=$(date +%s)
-          sleep 15 | { code=0; "$server" "${flags[@]}" -m "$model" -vm "$model" > "$RUNNER_TEMP/voice-flags.txt" 2>&1 || code=$?; echo "$code $(date +%s)" > "$RUNNER_TEMP/voice-end.txt"; }
+          sleep 15 | { code=0; "${run[@]}" "$server" "${flags[@]}" -m "$model" -vm "$model" > "$RUNNER_TEMP/voice-flags.txt" 2>&1 || code=$?; echo "$code $(date +%s)" > "$RUNNER_TEMP/voice-end.txt"; }
           read -r status ended < "$RUNNER_TEMP/voice-end.txt"
           tr -d '\r' < "$RUNNER_TEMP/voice-flags.txt" | tail -n 20
           if [[ "$status" == 0 ]]; then
@@ -460,8 +488,13 @@ jobs:
             tar -xzf "$archive" -C "$engine"
             server="$engine/llama-server"
           fi
-          "$server" --help > /dev/null
-          "$server" --list-devices | tr -d '\r' | tee "$RUNNER_TEMP/murmur-devices.txt"
+          # On Linux the server runs in the clean image (see Check Engines' Libraries).
+          run=()
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            run=(docker run --rm -i --network none -v "$engine:$engine:ro" novadeck-engine-check)
+          fi
+          "${run[@]}" "$server" --help > /dev/null
+          "${run[@]}" "$server" --list-devices | tr -d '\r' | tee "$RUNNER_TEMP/murmur-devices.txt"
           grep -q '^Available devices:' "$RUNNER_TEMP/murmur-devices.txt"
           # A runner without a GPU prints "  (none)", which is not a device.
           if grep -E '^  [^ (]' "$RUNNER_TEMP/murmur-devices.txt" | grep -v -E ' \[(cpu|gpu|igpu|accel)\]$'; then
@@ -479,7 +512,7 @@ jobs:
           model="$engine/absent.gguf"
           if [[ "$RUNNER_OS" == "Windows" ]]; then model="$(cygpath -m "$engine")/absent.gguf"; fi
           start=$(date +%s)
-          sleep 15 | { code=0; "$server" "${flags[@]}" -m "$model" > "$RUNNER_TEMP/murmur-flags.txt" 2>&1 || code=$?; echo "$code $(date +%s)" > "$RUNNER_TEMP/murmur-end.txt"; }
+          sleep 15 | { code=0; "${run[@]}" "$server" "${flags[@]}" -m "$model" > "$RUNNER_TEMP/murmur-flags.txt" 2>&1 || code=$?; echo "$code $(date +%s)" > "$RUNNER_TEMP/murmur-end.txt"; }
           read -r status ended < "$RUNNER_TEMP/murmur-end.txt"
           tr -d '\r' < "$RUNNER_TEMP/murmur-flags.txt" | tail -n 20
           if [[ "$status" == 0 ]]; then
@@ -501,7 +534,7 @@ jobs:
           # With stdin closed the patched server ends at once and cleanly; an unpatched one
           # rejects the flag.
           status=0
-          "$server" "${flags[@]}" -m "$model" < /dev/null > "$RUNNER_TEMP/murmur-stdin.txt" 2>&1 || status=$?
+          "${run[@]}" "$server" "${flags[@]}" -m "$model" < /dev/null > "$RUNNER_TEMP/murmur-stdin.txt" 2>&1 || status=$?
           if [[ "$status" != 0 ]]; then
             cat "$RUNNER_TEMP/murmur-stdin.txt"
             echo "::error::The server did not end cleanly when its stdin closed."
