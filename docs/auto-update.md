@@ -73,23 +73,49 @@ selects the address, and multipart range requests are off for it, as GitHub does
 them (a differential download would fail and fall back to a full one). `resources/app-update.yml` and its GitHub config stay as they are:
 the release page, the portable install and the engine downloads read them.
 
-Each check sends `x-novadeck-check` (`launch`, `interval`, `switch` or `retry`),
-`x-novadeck-version` and `x-novadeck-build` (`installed` or `portable`), and no more. What
-the app reads off the computer, such as its system, architecture or language, is not sent:
-sending it only for statistics would need the person's consent. Nothing that tells one copy
-from another is added: electron-updater's own `x-user-staging-id`, a
-per-install UUID, is overridden with the constant `0` on these checks (its staged-rollout
-decision reads the real one locally). The check that falls back to GitHub sends it as
-electron-updater always has. The headers belong to the check: they are cleared before the
-download starts.
+What the app adds to a check through the website is `x-novadeck-check` (`launch`,
+`interval`, `switch` or `retry`), `x-novadeck-version` and `x-novadeck-build` (`installed`
+or `portable`), and no more: it reads nothing else off the computer to send, as sending
+that only for statistics would need the person's consent. Nor does it add anything that
+tells one copy from another: electron-updater's own `x-user-staging-id`, a per-install
+UUID, is overridden with the constant `0` on these checks (its staged-rollout decision
+reads the real one locally). The check against GitHub sends it as electron-updater always
+has. The headers belong to the check: they are cleared before the download starts.
+
+The request itself says more, as any request does. The name of the update file it asks
+for (`latest.yml`, `latest-mac.yml`, `latest-linux.yml` or `latest-linux-arm64.yml`)
+tells the website the system and, on Linux, the architecture. It carries electron-updater's
+`User-Agent` (`electron-builder`), `Cache-Control` and a `noCache` query, and the
+website's network sees the address; whether Chromium's network stack adds an
+`Accept-Language` is not verified. What the website keeps of it is in novadeck-website's
+README, "Counts".
 
 Updating never depends on the website. A check through it that fails for any reason is
-made again at once against GitHub (unless the app is quitting) with the repository from `app-update.yml`, and the next
-check goes to novadeck.dev again. A download that began from a novadeck.dev check and
-failed has its retry check go to GitHub alone. Portable copies check the same way. With no
-repository in `app-update.yml` there is nothing to fall back to, so checks stay on the
-updater's own configuration. `NOVADECK_UPDATE_URL` replaces `https://novadeck.dev` for
-testing, an https address or an http one on localhost, 127.0.0.1 or [::1], as in `NOVADECK_UPDATE_URL=http://127.0.0.1:8787`.
+made again at once against GitHub (unless the app is quitting) with the repository from
+`app-update.yml`, and the next check goes to novadeck.dev again. A download that began
+from a novadeck.dev check and failed has its retry check go to GitHub alone. Portable
+copies check the same way. With no repository in `app-update.yml` there is nothing to fall
+back to, so checks stay on the updater's own configuration.
+
+A valid answer can be a stale one, which a failed check would not show. So a check through
+the website that finds nothing new is confirmed against GitHub at once (no
+`x-novadeck-*` headers) unless GitHub answered within the last 24 hours or the app is
+quitting; an update found there is taken like any GitHub-found one, and the next check
+goes to the website again.
+
+In Cloudflare's fail-open mode, when the website's counting does not run, it answers a
+check with a redirect to the GitHub file, and the `x-novadeck-*` headers go along to
+GitHub with the request, which is harmless.
+
+A connection the website accepts but never answers stalls checks for the run. The
+request timeout of electron-updater never arms under Electron's `net`:
+builder-util-runtime hooks `request.on("socket")` (`httpExecutor.js`), which Electron's
+`ClientRequest` lacks. That was so against GitHub before; Cloudflare ends a stuck request
+after about 100 seconds.
+
+`NOVADECK_UPDATE_URL` replaces `https://novadeck.dev` for testing, and only with an
+address on this computer: localhost, 127.0.0.1 or [::1], over http or https, as in
+`NOVADECK_UPDATE_URL=http://127.0.0.1:8787`. Any other value is ignored.
 
 ## Which builds update
 
