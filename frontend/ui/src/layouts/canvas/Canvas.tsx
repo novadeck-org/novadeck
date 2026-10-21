@@ -32,6 +32,7 @@ import {
 import { workspaceOverlayOpen, workspaceShortcutTarget } from "../../interaction/shortcuts"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
+import { CanvasTeamWire } from "./CanvasTeamWire"
 import { fitOptions, canvasStep, terminalHeaderHeight, chromeScaleAt, centerOf } from "./geometry"
 import { createNodeVisibility } from "./nodeVisibility"
 import { NodeVisibilityContext, TerminalContent, nodeTypes } from "./TerminalNode"
@@ -69,6 +70,8 @@ const TerminalCanvas = ({
   hidden,
   preview,
   selected,
+  team,
+  teams,
   keyboardFocusRequest,
   navigation,
   onSelect,
@@ -331,6 +334,12 @@ const TerminalCanvas = ({
         ariaLabel: `${terminal.name} terminal`,
         data: {
           preview: preview === terminal.id,
+          team:
+            team?.lead === terminal.id
+              ? "lead"
+              : team?.workers.includes(terminal.id)
+                ? "worker"
+                : undefined,
           focusRequest: selected === terminal.id ? keyboardFocusRequest : null,
           hiding: hidden[terminal.id] ?? false,
           compactHeader: width / chromeScale < 240,
@@ -347,6 +356,7 @@ const TerminalCanvas = ({
       preview,
       removed,
       selected,
+      team,
       keyboardFocusRequest,
     ],
   )
@@ -642,6 +652,7 @@ const TerminalCanvas = ({
               size={1.6}
               bgColor="transparent"
             />
+            <CanvasTeamWire teams={teams} team={team} selected={selected} />
             {ghost && (
               <ViewportPortal>
                 <div

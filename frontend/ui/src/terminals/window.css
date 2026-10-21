@@ -178,8 +178,9 @@
   height: 1rem;
   overflow: hidden;
 }
-/* Who directs the terminal (WindowShell.tsx): "led by @moth" beside its name, in the quiet
-   metadata voice, whole or not at all; the tooltip names the lead too. */
+/* Who directs the terminal and how many it directs (WindowShell.tsx): "led by @moth" and
+   "leads 3" beside its name, in the quiet metadata voice, whole or not at all; the tooltips
+   name them. */
 .terminal-lead {
   flex: none;
   color: var(--window-metadata-fg, var(--color-muted));

@@ -69,6 +69,7 @@ const TerminalNodeView = ({ id, data, selected }: NodeProps<TerminalNode>): Reac
       data-workspace-canvas-node
       data-node={id}
       data-preview={data.preview}
+      data-team={data.team}
       inert={data.hiding}
       aria-hidden={data.hiding}
       className={`canvas-node relative h-full w-full ${selected ? "selected" : ""} ${data.compactHeader ? "compact-header" : ""}`}

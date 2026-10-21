@@ -22,6 +22,7 @@ import {
   failedToStart,
   killedBy,
   killedForMemory,
+  leadsNext,
   leadsOthers,
   murmurGists,
   noisyAgents,
@@ -353,7 +354,7 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
         ),
         onSelected(
           "Leads the others",
-          "Every other terminal joins its team; the rail's wire joins them",
+          "Every other terminal joins its team; the wire joins them on the rail, in Grid and Canvas",
           (key, { dispatch, workspace, note }) => {
             const actions = leadsOthers(workspace(), key)
             if (!actions.length) return note("It needs a handle and other terminals to lead.")
@@ -362,6 +363,20 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
               !["idle", "running", "finished"].includes(terminalOf(workspace(), key)?.state ?? "")
             )
               note("They name it as their lead, but a lead leads only while it runs.")
+          },
+        ),
+        onSelected(
+          "Leads the next one",
+          "The next live terminal leaves any team for this one's; on two terminals apart, Grid and Canvas wire two teams",
+          (key, { dispatch, workspace, note }) => {
+            const actions = leadsNext(workspace(), key)
+            if (!actions.length)
+              return note("It needs a handle and a live terminal after it to lead.")
+            dispatch(actions)
+            if (
+              !["idle", "running", "finished"].includes(terminalOf(workspace(), key)?.state ?? "")
+            )
+              note("The next one names it as its lead, but a lead leads only while it runs.")
           },
         ),
         onSelected("Paste fails", "The next pasted file, with a notice", (key) => {

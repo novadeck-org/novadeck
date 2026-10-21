@@ -12,6 +12,7 @@ import {
   overlaps,
   sameBox,
 } from "./support/layouts"
+import { openMessagesDemo } from "./support/messages"
 import {
   chooseView,
   clickInto,
@@ -339,5 +340,69 @@ describe("Grid arrow keys", () => {
       await press("{ArrowRight}")
       await expect.element(terminalTab("Tests")).toHaveAttribute("aria-current", "true")
     })
+  })
+})
+
+describe("Grid view's team wire", () => {
+  const ticks = () => gridView().element().querySelectorAll(".grid-team-wire-tick").length
+
+  it("runs from the lead to its worker while a member of the team is selected", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout implementation").click()
+    await chooseView("Grid")
+    await expect.poll(ticks).toBe(1)
+    expect(gridView().element().querySelectorAll(".grid-team-wire-cursor")).toHaveLength(1)
+    // It runs through the gutters: no tile has a run in it, nor a tick past its border.
+    const tiles = [...gridView().element().querySelectorAll("[data-grid-terminal]")].map((tile) =>
+      tile.getBoundingClientRect(),
+    )
+    const pieces = [
+      ...gridView().element().querySelectorAll(".grid-team-wire-run, .grid-team-wire-tick"),
+    ]
+    expect(pieces.length).toBeGreaterThan(1)
+    for (const piece of pieces) {
+      const rect = piece.getBoundingClientRect()
+      const slack = piece.className.includes("tick") ? 1 : 0
+      for (const tile of tiles)
+        expect(
+          overlaps(new DOMRect(rect.left, rect.top, rect.width - slack, rect.height), tile),
+        ).toBe(false)
+    }
+  })
+
+  it("stays, without a pulse, while a terminal in no team is selected", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout implementation").click()
+    await chooseView("Grid")
+    await expect.poll(ticks).toBe(1)
+    await terminal("Dev server").click({ position: { x: 150, y: 150 } })
+    await expectSelected("Dev server")
+    await expectStaysTrue(() => ticks() === 1, "the wire stays while Dev server is selected")
+    expect(gridView().element().querySelectorAll(".grid-team-wire-pulse")).toHaveLength(0)
+  })
+
+  it("is there when the view opens with a terminal in no team selected", async () => {
+    await openMessagesDemo()
+    await terminalTab("Dev server").click()
+    await chooseView("Grid")
+    await expect.poll(ticks).toBe(1)
+  })
+
+  it("plays a team's pulse again each time one of its members is selected after another terminal", async () => {
+    await openMessagesDemo()
+    await terminalTab("Checkout implementation").click()
+    await chooseView("Grid")
+    const pulsing = () =>
+      gridView().element().querySelector(".grid-team-wire-shape[data-pulsing]") !== null
+    await expect.poll(pulsing).toBe(true)
+    await expect.poll(pulsing, { timeout: 4000 }).toBe(false)
+    // Another terminal leaves the wire as it is, without a pulse.
+    await terminal("Dev server").click({ position: { x: 150, y: 150 } })
+    await expectSelected("Dev server")
+    await expectStaysTrue(() => !pulsing(), "no pulse while Dev server is selected")
+    // Back to the same member: the pulse plays again.
+    await terminal("Checkout implementation").click({ position: { x: 150, y: 150 } })
+    await expectSelected("Checkout implementation")
+    await expect.poll(pulsing).toBe(true)
   })
 })
