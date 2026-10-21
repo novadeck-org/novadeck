@@ -53,6 +53,15 @@ export const MurmurAddon = ({
   // has no field for a removal under way, so the card waits for the engine to be gone, a
   // new failure to turn up, or the removal to settle (a repeat of the same failure).
   const [removing, setRemoving] = useState<{ readonly refused: Refusal | null } | null>(null)
+  // The dialog asks about the card it opened on: a card that became another (an install
+  // elsewhere passed, or the model went) closes it, so it never confirms what it no longer is.
+  const shape = murmur ? `${murmur.state.installed}/${murmur.state.kept}` : ""
+  const [openedOn, setOpenedOn] = useState(shape)
+  if (openedOn !== shape) {
+    setOpenedOn(shape)
+    setConfirming(false)
+    setAsking("uninstall")
+  }
   if (
     removing &&
     murmur &&
@@ -116,12 +125,18 @@ export const MurmurAddon = ({
             <span className={addonNoteClasses}>Not available on this computer</span>
           </div>
           <AddonDetails
-            {...(recheck && { action: { label: "Check again", onClick: actions.install } })}
+            {...(recheck && {
+              action: {
+                label: "Check again",
+                onClick: actions.install,
+                disabled: removing !== null,
+              },
+            })}
           >
             {unsupported.reason}
           </AddonDetails>
           {state.kept && (
-            // The model of an install that worked stays through a verdict, so it can be removed.
+            // A model downloaded earlier stays through a verdict, so it can be removed.
             <AddonRow
               scope="murmur"
               id="remove-model"
@@ -183,7 +198,9 @@ export const MurmurAddon = ({
               <span className={addonNoteClasses}>Not available on this computer</span>
             </div>
             <AddonDetails
-              {...(recheck && { action: { label: "Check again", onClick: actions.install } })}
+              {...(recheck && {
+                action: { label: "Check again", onClick: actions.install, disabled: busy },
+              })}
             >
               {unsupported?.reason ?? ""}
             </AddonDetails>

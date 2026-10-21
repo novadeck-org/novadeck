@@ -757,8 +757,9 @@ export class Murmur implements Describer {
 
   private async fetchModel(signal: AbortSignal): Promise<void> {
     const total = this.model.size
-    this.progress({ step: "model", received: 0, total }, true)
+    // A model already there is not a step: the install's percentage would go backwards.
     if (!(await exists(this.modelPath()))) {
+      this.progress({ step: "model", received: 0, total }, true)
       await download({
         from: this.model.url,
         to: this.modelPath(),
