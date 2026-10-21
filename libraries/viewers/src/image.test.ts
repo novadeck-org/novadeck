@@ -301,6 +301,31 @@ describe("the image viewer", () => {
     expect(event.defaultPrevented).toBe(false)
   })
 
+  it("keeps its keys as its zoom hides under them", async () => {
+    const host = hostIn()
+    const viewer = mount(large, host)
+    await loaded(host)
+    viewer.zoom(2)
+    tabTo(viewerOf(host))
+    tabTo(chipOf(host))
+    await new Promise((resolve) => setTimeout(resolve))
+    key(host, "0")
+    expect(chipOf(host).hidden).toBe(true)
+    expect(key(host, "+").defaultPrevented).toBe(true)
+  })
+
+  it("ends a Tab's moment at a press anywhere in the page", async () => {
+    const host = hostIn()
+    mount(large, host)
+    await loaded(host)
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }))
+    document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
+    viewerOf(host).focus()
+    const event = new KeyboardEvent("keydown", { key: "1", bubbles: true, cancelable: true })
+    viewerOf(host).dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
   it("keeps its keys across a trip to another window", async () => {
     const host = hostIn()
     mount(large, host)

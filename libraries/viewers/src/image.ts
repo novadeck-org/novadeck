@@ -117,9 +117,9 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
   // Its focus goes back to the viewer as it hides, so its keys still reach it.
   const hideChip = (): void => {
     if (chip.hidden) return
-    const focused = document.activeElement === chip
+    // Focus moves first: a hidden chip would let it go to nothing.
+    if (document.activeElement === chip) root.focus({ preventScroll: true })
     chip.hidden = true
-    if (focused) root.focus({ preventScroll: true })
   }
 
   const draw = (): void => {
@@ -342,9 +342,12 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     tabbing = event.key === "Tab"
     if (tabbing) setTimeout(() => (tabbing = false))
   }
-  // Any press, of any button and on the chip too.
+  // Any press on it, of any button and on the chip too, takes its keys back; any press in
+  // the page ends a Tab's moment.
   const onPress = (): void => {
     keyed = false
+  }
+  const onPagePress = (): void => {
     tabbing = false
   }
   // Reached by Tab, its keys are the person's; from elsewhere in the page, they aren't; back
@@ -354,9 +357,10 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     if (tabbing) keyed = true
     else if (from && !root.contains(from)) keyed = false
   }
-  // Focus let go to nothing while the window keeps it, as a click on a blank spot, ends them.
+  // Focus leaving it while the window keeps it, as for a blank spot or the page's next
+  // control, ends them; a trip to another window doesn't.
   const onFocusOut = (event: FocusEvent): void => {
-    if (!event.relatedTarget && document.hasFocus()) keyed = false
+    if (!root.contains(event.relatedTarget as Node | null) && document.hasFocus()) keyed = false
   }
 
   const observer = new (document.defaultView?.ResizeObserver ?? ResizeObserver)(draw)
@@ -375,6 +379,7 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
   root.addEventListener("focusin", onFocusIn)
   root.addEventListener("focusout", onFocusOut)
   document.addEventListener("keydown", onTab, { capture: true })
+  document.addEventListener("pointerdown", onPagePress, { capture: true })
   chip.addEventListener("click", onChip)
 
   // Its address's key, kept while it shows: a data URL can be megabytes to hash.
@@ -424,6 +429,7 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     destroy: () => {
       observer.disconnect()
       document.removeEventListener("keydown", onTab, { capture: true })
+      document.removeEventListener("pointerdown", onPagePress, { capture: true })
       image.removeEventListener("load", draw)
       image.removeEventListener("error", draw)
       root.remove()
