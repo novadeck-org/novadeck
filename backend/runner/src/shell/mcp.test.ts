@@ -464,7 +464,7 @@ describe("Novadeck's MCP server", () => {
       })
     })
 
-    it("forwards a page by its url", async () => {
+    it("forwards a page by its url, with the element to scroll to", async () => {
       calls.length = 0
       answer = { ok: true, id: "def", kind: "page", name: "localhost:5173", opened: true }
       const [, shown] = await session(terminal(), [
@@ -472,11 +472,14 @@ describe("Novadeck's MCP server", () => {
         {
           id: 3,
           method: "tools/call",
-          params: { name: "show", arguments: { url: "http://localhost:5173/", open: true } },
+          params: {
+            name: "show",
+            arguments: { page: { url: "http://localhost:5173/", scroll: "#faq" }, open: true },
+          },
         },
       ])
       expect(calls.map((call) => call.type === "present" && call.request)).toEqual([
-        { url: "http://localhost:5173/", open: true },
+        { page: { url: "http://localhost:5173/", scroll: "#faq" }, open: true },
       ])
       expect(shown?.result).toMatchObject({ isError: false })
     })
@@ -496,9 +499,13 @@ describe("Novadeck's MCP server", () => {
         return reply.result.content[0]?.text
       }
       const cases = [
-        [{ path: "a.ts" }, "Give one source, file: { path } or url."],
+        [{ path: "a.ts" }, "Give one source, file: { path } or page: { url }."],
+        [{ url: "http://a/" }, "Give one source, file: { path } or page: { url }."],
         [{ file: { path: "a.ts" }, extra: 1 }, 'The request\'s "extra" is not valid.'],
-        [{ url: "http://a/", lines: { from: 1, to: 1 } }, 'The request\'s "lines" is not valid.'],
+        [
+          { page: { url: "http://a/" }, lines: { from: 1, to: 1 } },
+          'The request\'s "lines" is not valid.',
+        ],
       ] as const
       await Promise.all(
         (["show", "close"] as const).flatMap((name) =>

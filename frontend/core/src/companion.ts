@@ -172,10 +172,14 @@ export type FileContent = {
 
 // A web page, by its http(s) address. `live` when the backend's host can load it in the
 // pane, as the desktop app does; otherwise it shows as a link to open in the browser,
-// with its `snapshot` image when the backend has one.
+// with its `snapshot` image when the backend has one. `shown` counts the agent's shows of
+// it, as its item's version: each later one loads it afresh, and brings `scroll`, a CSS
+// selector the show gave, into view.
 export type PageContent = {
   readonly kind: "page"
   readonly url: string
+  readonly shown: number
+  readonly scroll?: string
   readonly live: boolean
   readonly snapshot?: string
 }

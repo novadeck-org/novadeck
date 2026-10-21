@@ -5,9 +5,9 @@
  * the agent's hooks report to, and the answers back; outside Novadeck's terminals the
  * relay answers the handshake itself, with no tools. Its tools: `show`, which puts an
  * image, a text file or a web page in front of the user, beside the terminal the agent
- * runs in (one source per call, `file` or `url`, each with its own options inside it),
+ * runs in (one source per call, `file` or `page`, each with its own options inside it),
  * `showing`, which lists what is there now, and `close`, which takes away what the agent
- * showed, by the same file or url; `open_terminal`, which opens a
+ * showed, by the same file or page; `open_terminal`, which opens a
  * new terminal beside it, optionally starting a command there; `close_terminal`, which
  * closes another of the project's terminals by its handle; `send` and `agents`, which
  * message the agents in the project's other terminals and list them; and `summarize`,
@@ -104,7 +104,7 @@ const show: Tool<Shown> = {
   name: "show",
   description:
     "Show the user an image or a text file, or a web page, in Novadeck, " +
-    "beside the terminal they're talking to you in. Give either file or url. Show a " +
+    "beside the terminal they're talking to you in. Give either file or page. Show a " +
     "deliverable when it is done, not each file you touch: an image or screenshot, a " +
     "rendered page or a dev server's address, a report, mockup, diagram or generated " +
     "document, the lines you mean, the one file the user asked you for, or whatever they ask " +
@@ -115,7 +115,7 @@ const show: Tool<Shown> = {
     "so it opens at once; leave it off for anything supporting, which waits for them in " +
     "Novadeck, marked new. Showing the same file or page again updates it, beside you or wherever " +
     "the user moved it, so one item per deliverable; while they have it open, each save " +
-    "shows at once.",
+    "shows at once, and a page shown again reloads.",
   inputSchema: {
     type: "object",
     properties: {
@@ -143,13 +143,31 @@ const show: Tool<Shown> = {
         required: ["path"],
         additionalProperties: false,
       },
-      url: {
-        type: "string",
+      page: {
+        type: "object",
         description:
-          "Instead of file: a web page's http or https address, such as http://localhost:5173/, " +
-          "which Novadeck opens live in its browser view. A server on this machine is one " +
-          "item whatever route or #anchor you give, so showing another route navigates that " +
-          "item to it; another port is another item.",
+          "Instead of file: a web page, which Novadeck's desktop app opens live in its " +
+          "browser view, and the part of it to bring into view there.",
+        properties: {
+          url: {
+            type: "string",
+            description:
+              "Its http or https address, such as http://localhost:5173/. A server on this " +
+              "machine is one item whatever route or #anchor you give, so showing another " +
+              "route navigates that item to it; another port is another item.",
+          },
+          scroll: {
+            type: "string",
+            description:
+              "A CSS selector of the element to bring into view once the page loads, such " +
+              "as #pricing or [data-section=faq]; it waits a few seconds for a page that " +
+              "draws itself after loading. Give it with each show that should scroll; " +
+              "without it, a show at a #fragment brings the element with that id into view, " +
+              "and one without either doesn't scroll.",
+          },
+        },
+        required: ["url"],
+        additionalProperties: false,
       },
       title: {
         type: "string",
@@ -207,8 +225,8 @@ const showing: Tool<Listing> = {
 const close: Tool<Dismissed> = {
   name: "close",
   description:
-    "Close something you showed beside your terminal in Novadeck, by the same file or url " +
-    "you gave show: it leaves the taskbar and the pane. Give either file or url. Use it " +
+    "Close something you showed beside your terminal in Novadeck, by the same file or page " +
+    "you gave show: it leaves the taskbar and the pane. Give either file or page. Use it " +
     "when the user asked you to close it, or when what you showed no longer applies, as a " +
     "preview whose server you stopped or a screenshot replaced by a newer one under " +
     "another name; showing the same file or page again updates it instead. Don't close what " +
@@ -231,9 +249,14 @@ const close: Tool<Dismissed> = {
         required: ["path"],
         additionalProperties: false,
       },
-      url: {
-        type: "string",
-        description: "Instead of file: the web page's address you showed.",
+      page: {
+        type: "object",
+        description: "Instead of file: the web page you showed.",
+        properties: {
+          url: { type: "string", description: "The address you showed it at." },
+        },
+        required: ["url"],
+        additionalProperties: false,
       },
     },
     additionalProperties: false,

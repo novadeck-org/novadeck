@@ -82,7 +82,7 @@ describe("an item undocked into a window", () => {
       const { container } = await undocked(item, {
         state: "ready",
         stamp: "1",
-        content: { kind: "page", url, live: false },
+        content: { kind: "page", url, shown: 1, live: false },
       })
       expect(container.querySelector("section.plan-reader")).toBeNull()
       expect(container.querySelector(".artifact-window .artifact-url")?.textContent).toBe(url)

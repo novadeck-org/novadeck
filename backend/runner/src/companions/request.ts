@@ -6,7 +6,8 @@ import { z } from "zod"
  * that names it, with that source's own options inside it, and the options every source
  * shares beside it: a title in place of the source's name, and `open` when the person
  * asked to see it. A `file` is a path, absolute or from the terminal's directory, and
- * for a text file the lines it points at; a `url` is a page's http(s) address.
+ * for a text file the lines it points at; a `page` is its http(s) address, and the element
+ * to bring into view once it loads.
  */
 // What every request takes: a short name to show, and whether the person asked to see it.
 const shared = { title: z.string().min(1).max(256).optional(), open: z.boolean().optional() }
@@ -27,23 +28,35 @@ export const fileRequest = z.strictObject({ file: fileSource, ...shared })
 /** What the protocol takes of a page's address. */
 export const maxUrlChars = 8192
 
-/** A page to show, by its http(s) address. */
-export const pageRequest = z.strictObject({ url: z.string().min(1).max(maxUrlChars), ...shared })
+/** What a page's element to bring into view, a CSS selector, may hold. */
+export const maxScrollChars = 1024
+
+/**
+ * A page to show, by its http(s) address, and the element to bring into view as it
+ * shows: a CSS selector, which only this show carries out, so the runner keeps it in
+ * memory, never with the item.
+ */
+export const pageSource = z.strictObject({
+  url: z.string().min(1).max(maxUrlChars),
+  scroll: z.string().trim().min(1).max(maxScrollChars).optional(),
+})
+
+export const pageRequest = z.strictObject({ page: pageSource, ...shared })
 
 /** Each source `show` takes, by the key that names it. A new kind adds one here. */
-const sources = { file: fileRequest, url: pageRequest } as const
+const sources = { file: fileRequest, page: pageRequest } as const
 
 /** The keys that name a source, as `show` and `close` list them. */
 export const sourceNames = Object.keys(sources) as readonly (keyof typeof sources)[]
 
 /**
- * What `close` takes: the source alone, as `show` named it, without a file's lines,
- * since what is beside the terminal is known by its path or address, whatever lines
- * it pointed at.
+ * What `close` takes: the source alone, as `show` named it, without a file's lines or a
+ * page's scroll, since what is beside the terminal is known by its path or address,
+ * whatever it pointed at in it.
  */
 const dismissSources = {
   file: z.strictObject({ file: z.strictObject({ path: fileSource.shape.path }) }),
-  url: z.strictObject({ url: pageRequest.shape.url }),
+  page: z.strictObject({ page: z.strictObject({ url: pageSource.shape.url }) }),
 } as const
 
 export type FileRequest = z.infer<typeof fileRequest>
@@ -83,7 +96,7 @@ export type DismissAnswer =
 export const failure = (reason: string): PresentFailure => ({ ok: false, reason })
 
 // How each source is given, for an agent that gave none, or the old flat `path`.
-const shapes = { file: "file: { path }", url: "url" } as const satisfies {
+const shapes = { file: "file: { path }", page: "page: { url }" } as const satisfies {
   readonly [name in (typeof sourceNames)[number]]: string
 }
 const oneSource = `one source, ${sourceNames.map((name) => shapes[name]).join(" or ")}`
@@ -106,7 +119,7 @@ const reader =
     const parsed = schemas[given[0]!].safeParse(value)
     if (parsed.success) return { ok: true, request: parsed.data }
     const [issue] = parsed.error.issues
-    // A key no source knows is named too, as "file.open" or "lines" beside a url.
+    // A key no source knows is named too, as "file.open" or "lines" beside a page.
     const path = issue?.code === "unrecognized_keys" ? [...issue.path, issue.keys[0]] : issue?.path
     const field = path?.map(String).join(".")
     return failure(
