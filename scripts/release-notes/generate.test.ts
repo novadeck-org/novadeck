@@ -67,6 +67,37 @@ describe("the notes of a prerelease", () => {
     expect(generated.notes.changes).toEqual([released.changes[1]])
   })
 
+  it("keeps the change of a highlight past a release's two", async () => {
+    const [teams, tabs] = released.changes
+    const generated = await generateRelease(
+      "v0.0.152",
+      sources,
+      answer({
+        highlights: [
+          { title: "Teams", line: "Teams show on the rail.", prs: [328] },
+          { title: "Tabs", line: "Tabs say who leads whom.", prs: [330] },
+          { title: "Teams again", line: "Teams show on the rail.", prs: [328, 330] },
+        ],
+        changes: released.changes,
+      }),
+    )
+    expect(generated.notes.highlights.map(({ title }) => title)).toEqual(["Teams", "Tabs"])
+    expect(generated.notes.changes).toEqual([])
+    const third = await generateRelease(
+      "v0.0.152",
+      sources,
+      answer({
+        highlights: [
+          { title: "Teams", line: "Teams show on the rail.", prs: [328] },
+          { title: "Teams again", line: "Teams on the rail.", prs: [328] },
+          { title: "Tabs", line: "Tabs say who leads whom.", prs: [330] },
+        ],
+        changes: [teams, tabs],
+      }),
+    )
+    expect(third.notes.changes).toEqual([tabs])
+  })
+
   it("skips, with the model's answer to show, when the answer is broken or fails its checks", async () => {
     for (const [ask, reason] of [
       [async () => ({ text: "not json", outputTokens: 1, model: "m/test" }), /not JSON/],
