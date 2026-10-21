@@ -32,3 +32,31 @@
   width: 100%;
   height: auto;
 }
+/* A live page's picture: in its place while it rests, and over it as it wakes, until it
+   has drawn; then it fades (`data-fading`, as long as the viewer's `fadeMs`). Taken at the
+   page's width, it keeps to it. */
+.browser-viewer:has(> .browser-picture) {
+  overflow: hidden;
+  background-color: var(--browser-page-bg, white);
+}
+.browser-picture {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  outline-offset: -2px;
+  transition: opacity 150ms ease-out;
+}
+.browser-picture[data-fading] {
+  opacity: 0;
+  pointer-events: none;
+}
+.browser-picture img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .browser-picture {
+    transition: none;
+  }
+}

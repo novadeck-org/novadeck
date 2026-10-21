@@ -8,6 +8,7 @@ import { Shown } from "@novadeck/toolkit/shown"
 import { act, createElement } from "react"
 import { afterEach } from "vitest"
 
+import { AwakeContext, type Awake } from "../../awake"
 import { createPanes } from "../../state"
 import { context, describe, expect, it } from "../../test"
 import { page as registration } from "./index"
@@ -20,8 +21,13 @@ const target = { projectId: "project", workspaceSessionId: "initial" }
 const item = itemFixture("preview", "01", { kind: "page", name: "localhost:5173", path: null, url })
 
 // The page's body in the pane, as the page registration draws it, loading what `content`
-// holds; `show` reports new content for the same item, as the backend does.
-const show = (content: PageContent, shown = true) => {
+// holds; `show` reports new content for the same item, as the backend does. With `awake`,
+// the pane says whether it's awake, and `pictures` are what its host takes of the page.
+const show = (
+  content: PageContent,
+  shown = true,
+  { awake, pictures }: { awake?: Awake; pictures?: string[] } = {},
+) => {
   let stamp = 0
   const ready = (next: PageContent): ItemContent => ({
     state: "ready",
@@ -36,26 +42,32 @@ const show = (content: PageContent, shown = true) => {
       return () => {}
     },
     save: () => new Promise(() => {}),
+    ...(pictures && { picture: async () => pictures.shift() }),
   }
   const workspace = createWorkspaceStore(
     workspaceReducer(workspaceFixture(), { type: "item/upsert", target, item }),
   )
   const panes = createPanes({ companions, workspace })
   unmounts.push(panes.connect())
-  const rendered = render(
+  const view = createElement(registration.View, {
+    member: { kind: "item", key: item.id, item, placed: false, fresh: false },
+    panes,
+    target,
+    actions: undefined,
+  })
+  const tree = (pane: Awake | undefined) =>
     createElement(
       Shown.Provider,
       { value: shown },
-      createElement(registration.View, {
-        member: { kind: "item", key: item.id, item, placed: false, fresh: false },
-        panes,
-        target,
-        actions: undefined,
-      }),
-    ),
-  )
+      pane ? createElement(AwakeContext, { value: pane }, view) : view,
+    )
+  const rendered = render(tree(awake))
   unmounts.push(rendered.unmount)
-  return { ...rendered, show: (next: PageContent) => act(() => emit(ready(next))) }
+  return {
+    ...rendered,
+    show: (next: PageContent) => act(() => emit(ready(next))),
+    awake: (pane: Awake) => rendered.rerender(tree(pane)),
+  }
 }
 
 const pageOf = (container: HTMLElement): HTMLElement => container.querySelector("webview")!
@@ -152,6 +164,81 @@ describe("a page beside a terminal", () => {
       rendered.show({ kind: "page", url: at, shown: 2, scroll: "#faq", live: true })
       fire(page, "did-stop-loading")
       expect(calls).toEqual(["reload", "scroll #faq"])
+    })
+  })
+
+  context("while the pane sleeps", () => {
+    const shot = "data:image/jpeg;base64,c2hvdA=="
+    // A view attached as Electron attaches it, at `at`, recording what's asked of it.
+    const attached = (page: HTMLElement, at: string, calls: string[] = []) => {
+      Object.assign(page, {
+        getURL: () => at,
+        canGoBack: () => false,
+        canGoForward: () => false,
+        setAudioMuted: () => undefined,
+        getWebContentsId: () => 7,
+        reloadIgnoringCache: () => calls.push("reload"),
+        executeJavaScript: () => Promise.resolve([0, 0]),
+      })
+      return calls
+    }
+    const settled = () => act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+
+    it("wakes a page with no picture for a while, then rests as its picture", async () => {
+      const at = "http://localhost:4400/"
+      const wakes: string[] = []
+      const asleep: Awake = { awake: false, wake: () => wakes.push("wake") }
+      const rendered = show({ kind: "page", url: at, shown: 1, live: true }, true, {
+        awake: asleep,
+        pictures: [shot],
+      })
+      // No picture to rest as: the pane is asked to wake it.
+      expect(wakes).toEqual(["wake"])
+      rendered.awake({ awake: true, wake: () => wakes.push("wake") })
+      attached(pageOf(rendered.container), at)
+      fire(pageOf(rendered.container), "did-stop-loading")
+      rendered.awake(asleep)
+      await settled()
+      expect(rendered.container.querySelector("webview")).toBeNull()
+      expect(rendered.container.querySelector(".browser-picture img")?.getAttribute("src")).toBe(
+        shot,
+      )
+      // Woken again by the pane, it's live under its picture.
+      rendered.awake({ awake: true, wake: () => {} })
+      expect(pageOf(rendered.container).getAttribute("src")).toBe(at)
+      expect(rendered.container.querySelector(".browser-picture")).not.toBeNull()
+    })
+
+    it("wakes to show what changed when its agent shows it again", async () => {
+      const at = "http://localhost:4401/"
+      const wakes: string[] = []
+      const awake: Awake = { awake: true, wake: () => wakes.push("wake") }
+      const rendered = show({ kind: "page", url: at, shown: 1, live: true }, true, {
+        awake,
+        pictures: [shot],
+      })
+      attached(pageOf(rendered.container), at)
+      fire(pageOf(rendered.container), "did-stop-loading")
+      const asleep: Awake = { awake: false, wake: () => wakes.push("wake") }
+      rendered.awake(asleep)
+      await settled()
+      wakes.splice(0)
+      rendered.show({ kind: "page", url: at, shown: 2, live: true })
+      expect(wakes).toEqual(["wake"])
+      // The same show read again wakes nothing.
+      rendered.show({ kind: "page", url: at, shown: 2, live: true })
+      expect(wakes).toEqual(["wake"])
+    })
+
+    it("stays live where its host takes no pictures", async () => {
+      const at = "http://localhost:4402/"
+      const rendered = show({ kind: "page", url: at, shown: 1, live: true }, true, {
+        awake: { awake: false, wake: () => {} },
+      })
+      attached(pageOf(rendered.container), at)
+      fire(pageOf(rendered.container), "did-stop-loading")
+      await settled()
+      expect(pageOf(rendered.container)).not.toBeNull()
     })
   })
 

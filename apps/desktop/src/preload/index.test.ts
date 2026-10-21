@@ -13,6 +13,7 @@ import {
   openWhatsNewPageChannel,
   whatsNewChannel,
   openUpdatePageChannel,
+  pagePictureChannel,
   portableChannel,
   portableStateChannel,
   quitAppChannel,
@@ -169,6 +170,23 @@ describe("a pasted file's path", () => {
 
   it("is empty for anything Electron can't take as a file", () => {
     expect(electron.exposed.pathForFile?.({} as unknown as File)).toBe("")
+  })
+})
+
+describe("a picture of a live page", () => {
+  it("is asked for by the page's view id, and comes back as a JPEG address", async () => {
+    electron.answer = "data:image/jpeg;base64,AAAA"
+    expect(await electron.exposed.pagePicture?.(7)).toBe("data:image/jpeg;base64,AAAA")
+    expect(electron.messages).toEqual([[pagePictureChannel, 7]])
+  })
+
+  it("is nothing for anything else the main process answers", async () => {
+    const answers = [undefined, "data:text/html,<script>", "https://example.com/a.jpg", 7]
+    const pictures = answers.map((answer) => {
+      electron.answer = answer
+      return electron.exposed.pagePicture?.(7)
+    })
+    expect(await Promise.all(pictures)).toEqual(answers.map(() => undefined))
   })
 })
 

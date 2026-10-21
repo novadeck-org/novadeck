@@ -150,6 +150,13 @@ export type DesktopBridge = {
    * that came before it.
    */
   reportError?(error: PageError): void
+  /**
+   * A picture of what a live page shows now, as a JPEG `data:` address, for the page's
+   * viewer to show in its place while it rests: the page by its view's `getWebContentsId()`.
+   * Undefined for anything but a page view of the asking page, and for one that draws
+   * nothing yet. Absent from hosts that came before it.
+   */
+  pagePicture?(page: number): Promise<string | undefined>
 }
 
 /**

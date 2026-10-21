@@ -108,8 +108,10 @@ export type RunnerBackendOptions = {
   // Where the host lets the page finish its saves before its window closes or the app
   // quits; returns the undo.
   readonly beforeQuit?: (save: () => Promise<void>) => () => void
-  // Whether the host can load web pages in the pane, as the desktop app can.
+  // Whether the host can load web pages in the pane, as the desktop app can, and how it
+  // takes a picture of one, for it to rest as.
   readonly livePages?: boolean
+  readonly pagePicture?: NonNullable<Backend["companions"]>["picture"]
   readonly now?: () => number
   // Whether the runner keeps transcripts, as it said at startup; unknown when absent.
   readonly transcripts?: boolean
@@ -1465,6 +1467,7 @@ export const runnerBackend = (
     start,
     companions: createRunnerCompanions(runner.companions, {
       livePages: options.livePages === true,
+      ...(options.pagePicture ? { picture: options.pagePicture } : {}),
     }),
     messages,
     conversations,

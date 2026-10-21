@@ -2,8 +2,10 @@ import "./browser.css"
 import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 
 import {
+  fadeMs,
   mountBrowser,
   scrollWaitMs,
+  uncoverMs,
   type BrowserContent,
   type BrowserOptions,
   type Load,
@@ -541,6 +543,280 @@ describe("the browser viewer", () => {
       }
       viewer.restore(viewer.state())
       expect(set).toBe(0)
+    })
+  })
+
+  context("at rest", () => {
+    const url = "http://localhost:5173/"
+    const shot = "data:image/jpeg;base64,c2hvdA=="
+    const later = "data:image/jpeg;base64,bGF0ZXI="
+    // Its picture, and its page, while there is one.
+    const pictureOf = (host: HTMLElement) => host.querySelector<HTMLElement>(".browser-picture")
+    const settled = () => new Promise((resolve) => setTimeout(resolve, 0))
+    // A live page that rests as `pictures` come, each taking the next (none once they're
+    // out), attached as each of its views is made, recording what is asked of it.
+    const resting = ({
+      pictures = [shot],
+      content = { url },
+      saved,
+      awake,
+    }: {
+      pictures?: (string | undefined)[]
+      content?: BrowserContent
+      saved?: ViewerState
+      awake?: boolean
+    } = {}) => {
+      const host = hostIn()
+      const loads: Load[] = []
+      const places: Place[] = []
+      const calls: string[] = []
+      const at = { url: content.url, back: true, forward: false }
+      const taken: number[] = []
+      const viewer = mountBrowser(host, {
+        content,
+        label: "page",
+        live: true,
+        partition: "pages",
+        picture: async (id) => {
+          taken.push(id)
+          return pictures.shift()
+        },
+        on: { load: (load) => loads.push(load), navigate: (place) => places.push(place) },
+        ...(saved && { saved }),
+        ...(awake !== undefined && { awake }),
+      })
+      // Each view, attached as it's made, as Electron does it.
+      const ready = () => {
+        const page = pageOf(host)
+        if (!page || "getWebContentsId" in page) return page
+        attach(page, at, calls)
+        Object.assign(page, {
+          getWebContentsId: () => 7,
+          reloadIgnoringCache: () => calls.push("reload fresh"),
+          loadURL: (address: string) => {
+            calls.push(`load ${address}`)
+            return Promise.resolve()
+          },
+          executeJavaScript: (code: string) => {
+            calls.push(`run ${code}`)
+            return Promise.resolve(code === "[scrollX, scrollY]" ? [0, 640] : true)
+          },
+        })
+        return page
+      }
+      ready()
+      const fire = (type: string, fields?: Record<string, unknown>) =>
+        ready()!.dispatchEvent(event(type, fields))
+      return { host, viewer, at, calls, loads, places, taken, fire, ready }
+    }
+
+    it("takes a picture of the page and where it's scrolled, and shows it in its view's place", async () => {
+      const { host, viewer, calls, places, taken, fire } = resting()
+      fire("did-stop-loading")
+      expect(viewer.pictured()).toBe(false)
+      viewer.awake(false)
+      await settled()
+      expect(taken).toEqual([7])
+      expect(calls).toContain("run [scrollX, scrollY]")
+      expect(pageOf(host)).toBeNull()
+      expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(shot)
+      expect(pictureOf(host)!.querySelector("img")!.getAttribute("alt")).toBe("page")
+      expect(viewer.pictured()).toBe(true)
+      // Its history went with its view.
+      expect(places.at(-1)).toEqual({ url, back: false, forward: false })
+      expect(viewer.state()).toMatchObject({ browser: { picture: shot, scrolled: [0, 640] } })
+    })
+
+    it("wakes under its picture, where it was scrolled, and lets the picture fade once there", async () => {
+      vi.useFakeTimers()
+      try {
+        const { host, viewer, calls, loads, fire, ready } = resting()
+        fire("did-stop-loading")
+        viewer.awake(false)
+        await vi.runAllTimersAsync()
+        calls.splice(0)
+        viewer.awake(true)
+        expect(pageOf(host)!.getAttribute("src")).toBe(url)
+        expect(loads.at(-1)).toBe("loading")
+        ready()
+        // Loading: the picture stays over it.
+        expect(pictureOf(host)).not.toBeNull()
+        fire("did-stop-loading")
+        expect(calls).toContain("run scrollTo(0, 640)")
+        await vi.advanceTimersByTimeAsync(uncoverMs)
+        expect(pictureOf(host)!.hasAttribute("data-fading")).toBe(true)
+        await vi.advanceTimersByTimeAsync(fadeMs)
+        expect(pictureOf(host)).toBeNull()
+        // Woken, it's live again: back, forward and the rest work on it.
+        viewer.back()
+        expect(calls).toContain("back")
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("stays live when it can't be pictured, until a later rest can", async () => {
+      const { host, viewer, fire } = resting({ pictures: [undefined, shot] })
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      expect(pageOf(host)).not.toBeNull()
+      expect(viewer.pictured()).toBe(false)
+      viewer.awake(true)
+      viewer.awake(false)
+      await settled()
+      expect(pageOf(host)).toBeNull()
+      expect(viewer.pictured()).toBe(true)
+    })
+
+    it("rests once a load under way is done, unless a picture it has stands in", async () => {
+      const { host, viewer, taken, fire, ready } = resting({ pictures: [shot, later] })
+      // Its first load: nothing to stand in, so it rests once loaded.
+      viewer.awake(false)
+      await settled()
+      expect(taken).toEqual([])
+      expect(pageOf(host)).not.toBeNull()
+      fire("did-stop-loading")
+      await settled()
+      expect(pageOf(host)).toBeNull()
+      // Woken, then told to rest again mid-load: the picture it has stands in at once.
+      viewer.awake(true)
+      ready()
+      viewer.awake(false)
+      expect(pageOf(host)).toBeNull()
+      expect(taken).toHaveLength(1)
+      expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(shot)
+    })
+
+    it("doesn't rest as a picture taken while it's woken, or once a load began", async () => {
+      // Each rest takes one: the two it drops, and the one it rests as.
+      const { host, viewer, fire, ready } = resting({ pictures: [shot, later, later] })
+      fire("did-stop-loading")
+      viewer.awake(false)
+      viewer.awake(true)
+      await settled()
+      expect(pageOf(host)).not.toBeNull()
+      expect(viewer.pictured()).toBe(false)
+      // A show's load begins while its picture is taken: it rests once that's done.
+      viewer.awake(false)
+      viewer.update({ url, shown: 1 })
+      await settled()
+      expect(pageOf(host)).not.toBeNull()
+      ready()
+      fire("did-stop-loading")
+      await settled()
+      expect(pageOf(host)).toBeNull()
+      expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(later)
+    })
+
+    it("loads a show that came while it rested afresh once woken, then brings it into view", async () => {
+      const { host, viewer, calls, places, fire, ready } = resting()
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      viewer.update({ url, shown: 1, scroll: "#plans" })
+      // Not carried out yet: a viewer mounted for it before it wakes carries it out.
+      expect(viewer.state()).toMatchObject({ browser: { shown: 0 } })
+      expect(places.at(-1)?.url).toBe(url)
+      calls.splice(0)
+      viewer.awake(true)
+      ready()
+      fire("did-stop-loading")
+      // Past the cache, as a show again is; then the element, not where it was scrolled.
+      expect(calls).toEqual(["muted false", "reload fresh"])
+      fire("did-stop-loading")
+      expect(calls.filter((call) => call.startsWith("run "))).toHaveLength(1)
+      expect(calls.at(-1)).toContain(JSON.stringify("#plans"))
+      expect(viewer.state()).toMatchObject({ browser: { shown: 1 } })
+      expect(pageOf(host)).not.toBeNull()
+    })
+
+    it("goes to a new address it's given while it rests once woken", async () => {
+      const { host, viewer, fire } = resting()
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      viewer.update({ url: "https://example.com/" })
+      viewer.awake(true)
+      expect(pageOf(host)!.getAttribute("src")).toBe("https://example.com/")
+    })
+
+    it("reloads afresh once woken when asked to reload at rest", async () => {
+      const { viewer, calls, fire, ready } = resting()
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      viewer.reload()
+      calls.splice(0)
+      viewer.awake(true)
+      ready()
+      fire("did-stop-loading")
+      expect(calls).toContain("reload fresh")
+    })
+
+    it("starts at rest from its state, as its picture, and wakes where it was", async () => {
+      const first = resting()
+      first.at.url = `${url}work`
+      first.fire("did-navigate")
+      first.fire("did-stop-loading")
+      first.viewer.awake(false)
+      await settled()
+      const saved = first.viewer.state()
+      first.viewer.destroy()
+      const again = resting({ saved, awake: false })
+      expect(pageOf(again.host)).toBeNull()
+      expect(again.loads).toEqual(["loading", "ready"])
+      expect(again.places).toEqual([{ url: `${url}work`, back: false, forward: false }])
+      expect(pictureOf(again.host)!.querySelector("img")!.getAttribute("src")).toBe(shot)
+      again.viewer.awake(true)
+      expect(pageOf(again.host)!.getAttribute("src")).toBe(`${url}work`)
+      // Woken from the first, it's live under its picture until it's there.
+      const awake = resting({ saved })
+      expect(pageOf(awake.host)).not.toBeNull()
+      expect(pictureOf(awake.host)).not.toBeNull()
+    })
+
+    it("rests out of sight as the picture it has, asking for none, or else stays live", async () => {
+      const { host, viewer, taken, fire, ready } = resting({ pictures: [shot] })
+      fire("did-stop-loading")
+      host.style.display = "none"
+      viewer.awake(false)
+      await settled()
+      expect(taken).toEqual([])
+      expect(pageOf(host)).not.toBeNull()
+      host.style.display = "flex"
+      viewer.awake(false)
+      await settled()
+      viewer.awake(true)
+      ready()
+      fire("did-stop-loading")
+      host.style.display = "none"
+      viewer.awake(false)
+      expect(taken).toEqual([7])
+      expect(pageOf(host)).toBeNull()
+      expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(shot)
+    })
+
+    it("stays live without a way to take a picture, or when it didn't load", async () => {
+      const host = hostIn()
+      const viewer = mountBrowser(host, {
+        content: { url },
+        label: "page",
+        live: true,
+        partition: "pages",
+      })
+      attach(pageOf(host), { url, back: false, forward: false })
+      pageOf(host).dispatchEvent(event("did-stop-loading"))
+      viewer.awake(false)
+      await settled()
+      expect(pageOf(host)).not.toBeNull()
+      const failing = resting()
+      failing.fire("did-fail-load", { errorCode: -105, isMainFrame: true })
+      failing.fire("did-stop-loading")
+      failing.viewer.awake(false)
+      await settled()
+      expect(failing.taken).toEqual([])
+      expect(pageOf(failing.host)).not.toBeNull()
     })
   })
 

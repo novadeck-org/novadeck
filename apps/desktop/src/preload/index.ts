@@ -28,6 +28,7 @@ import {
   openLogsChannel,
   openUpdatePageChannel,
   openWhatsNewPageChannel,
+  pagePictureChannel,
   portableChannel,
   quitAppChannel,
   runnerPortChannel,
@@ -258,6 +259,13 @@ const bridge = {
       message: text(error?.message, 2_000) ?? "",
       stack: text(error?.stack, 8_000),
     })
+  },
+  // Only a JPEG picture comes back; the main process checks the page is one of this page's.
+  pagePicture: async (page) => {
+    const picture: unknown = await ipcRenderer.invoke(pagePictureChannel, page)
+    return typeof picture === "string" && picture.startsWith("data:image/jpeg;base64,")
+      ? picture
+      : undefined
   },
   pathForFile: (file) => {
     try {

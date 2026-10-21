@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events"
 
 import type { Session, WebContents, WebPreferences } from "electron"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   attachPage,
@@ -9,6 +9,9 @@ import {
   guardPage,
   lockPagesSession,
   pagesSession,
+  pictureQuality,
+  picturePage,
+  pictureWaitMs,
   webAddress,
 } from "./browser-host.js"
 
@@ -200,5 +203,88 @@ describe("the pages' session's name", () => {
     for (const partition of ["", "persist:", `persist:${pagesPartition}`])
       expect(() => pagesSession(partition)).toThrow("must be in memory")
     expect(() => lockPagesSession(() => ({}) as Session, "")).toThrow("must be in memory")
+  })
+})
+
+describe("a picture of a page", () => {
+  const host = {} as WebContents
+  // A page view of `owner`, which draws `drawn` (nothing when empty).
+  const view = ({
+    owner = host,
+    type = "webview",
+    drawn = "jpeg",
+    destroyed = false,
+  }: {
+    owner?: WebContents
+    type?: string
+    drawn?: string
+    destroyed?: boolean
+  } = {}) => {
+    const qualities: number[] = []
+    const contents = {
+      hostWebContents: owner,
+      getType: () => type,
+      isDestroyed: () => destroyed,
+      capturePage: async () => ({
+        isEmpty: () => drawn === "",
+        toJPEG: (quality: number) => {
+          qualities.push(quality)
+          return Buffer.from(drawn)
+        },
+      }),
+    } as unknown as WebContents
+    return { contents, qualities }
+  }
+  const byId =
+    (contents: WebContents) =>
+    (id: number): WebContents | undefined =>
+      id === 7 ? contents : undefined
+
+  it("is the JPEG of what a page view of the asking page shows", async () => {
+    const { contents, qualities } = view()
+    expect(await picturePage(host, 7, byId(contents))).toBe(
+      `data:image/jpeg;base64,${Buffer.from("jpeg").toString("base64")}`,
+    )
+    expect(qualities).toEqual([pictureQuality])
+  })
+
+  it("is nothing for another window's page, the app's own, or one gone", async () => {
+    const others = [
+      view({ owner: {} as WebContents }).contents,
+      view({ type: "window" }).contents,
+      view({ destroyed: true }).contents,
+    ].map((contents) => picturePage(host, 7, byId(contents)))
+    const ids = [8, "7", 7.5, undefined].map((id) => picturePage(host, id, byId(view().contents)))
+    expect(await Promise.all([...others, ...ids])).toEqual(Array(7).fill(undefined))
+  })
+
+  it("is nothing once it has waited a while for a page out of sight", async () => {
+    vi.useFakeTimers()
+    try {
+      const never = {
+        ...view().contents,
+        hostWebContents: host,
+        getType: () => "webview",
+        isDestroyed: () => false,
+        capturePage: () => new Promise(() => {}),
+      } as unknown as WebContents
+      const picture = picturePage(host, 7, byId(never))
+      await vi.advanceTimersByTimeAsync(pictureWaitMs)
+      expect(await picture).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("is nothing while the page draws nothing, or can't be taken", async () => {
+    expect(await picturePage(host, 7, byId(view({ drawn: "" }).contents))).toBeUndefined()
+    const failing = {
+      ...view().contents,
+      hostWebContents: host,
+      getType: () => "webview",
+      isDestroyed: () => false,
+      capturePage: () => Promise.reject(new Error("gone")),
+    } as unknown as WebContents
+    expect(await picturePage(host, 7, byId(failing))).toBeUndefined()
   })
 })

@@ -3,9 +3,10 @@ import { pagesPartition } from "@novadeck/core/pages"
 import { useShown } from "@novadeck/toolkit/shown"
 import { mountBrowser, type Load, type Place } from "@novadeck/viewers/browser"
 import { ArrowLeft, ArrowRight, ExternalLink, RotateCw } from "lucide-react"
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
+import { useAwake } from "../../awake"
 import { useViewerSlot } from "../../ViewerSlot"
 
 const OpenInBrowser = ({ url }: { url: string }): React.JSX.Element => (
@@ -17,15 +18,18 @@ const OpenInBrowser = ({ url }: { url: string }): React.JSX.Element => (
 )
 
 // A page in the browser viewer: live where the backend's host allows, else its snapshot.
-// Where its viewer was, by item, is kept: where the person had taken it.
+// Where its viewer was, by item, is kept: where the person had taken it, and the picture
+// of it a live page rests as while the pane sleeps, which costs nothing to draw.
 const ShownPage = ({
   id,
   content: page,
   actions,
+  picture,
 }: {
   id: string
   content: PageContent
   actions: ReactNode
+  picture: ((page: number) => Promise<string | undefined>) | undefined
 }): React.JSX.Element => {
   const [place, setPlace] = useState<Place>({ url: page.url, back: false, forward: false })
   const [load, setLoad] = useState<Load>("loading")
@@ -38,6 +42,7 @@ const ShownPage = ({
     }),
     [page.url, page.shown, page.scroll],
   )
+  const { awake, wake } = useAwake()
   const { ref, viewer } = useViewerSlot(mountBrowser, {
     id,
     content,
@@ -45,11 +50,23 @@ const ShownPage = ({
     live: page.live,
     ...(page.snapshot ? { snapshot: { src: page.snapshot, alt: `${page.url} as shown` } } : {}),
     partition: pagesPartition,
+    ...(picture ? { picture } : {}),
+    awake,
     on: { navigate: setPlace, load: setLoad },
   })
   // Kept out of sight, the page goes quiet: it stops drawing on its own, but not playing.
   const shown = useShown()
   useEffect(() => viewer?.muted(!shown), [viewer, shown])
+  useEffect(() => viewer?.awake(awake), [viewer, awake])
+  // On screen with no picture to rest as, it wakes for a while, to be pictured as it
+  // rests; shown again by its agent, as soon as it's on screen, to show what changed.
+  const show = useRef(page.shown)
+  useEffect(() => {
+    if (!viewer || !shown) return
+    const again = show.current !== page.shown
+    show.current = page.shown
+    if (again || !viewer.pictured()) wake()
+  }, [viewer, shown, page.shown, wake])
   return (
     <div
       className="artifact-browser"
@@ -106,10 +123,17 @@ export const PageViewer = ({
   item,
   content: page,
   actions,
+  panes,
 }: ArtifactBodyProps<"page">): React.JSX.Element =>
   page.live || page.snapshot ? (
     // Its own for each address: a new page starts at its own address, not the last one's.
-    <ShownPage key={page.url} id={item.id} content={page} actions={actions} />
+    <ShownPage
+      key={page.url}
+      id={item.id}
+      content={page}
+      actions={actions}
+      picture={panes.picture}
+    />
   ) : (
     <div className="artifact-browser">
       <div className="artifact-browser-bar">

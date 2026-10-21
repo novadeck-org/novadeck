@@ -9,6 +9,7 @@ import { useEffect, useState, type ComponentType, type ReactNode } from "react"
 
 import type { ItemMember } from "./bar"
 import type { ThumbProps, ViewProps } from "./registration"
+import type { Panes } from "./state"
 import { useContent } from "./use-panes"
 
 // What the artifact kinds share: the chrome around what an agent showed beside its terminal
@@ -25,6 +26,7 @@ export type ArtifactBodyProps<K extends ArtifactKind> = {
   readonly item: CompanionItem
   readonly content: Extract<ShownContent, { readonly kind: K }>
   readonly actions: ReactNode
+  readonly panes: Panes
 }
 
 // An artifact's name as the peek and menu say it, and its button reads.
@@ -156,7 +158,7 @@ export const artifactView = <K extends ArtifactKind>(
             actions={actions}
           />
         ) : content ? (
-          <Body item={item} content={content} actions={actions} />
+          <Body item={item} content={content} actions={actions} panes={panes} />
         ) : (
           // Nothing yet, or content of another kind than the item's, as while the runner
           // reclassifies a persisted item: busy until what fits it arrives.

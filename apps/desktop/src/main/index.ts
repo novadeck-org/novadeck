@@ -22,7 +22,13 @@ import { consoleLogger, logPath, openSession, type Logger, type Session } from "
 import type { UpdateChannel } from "@novadeck/protocol/bridge"
 import { pagesPartition } from "@novadeck/protocol/pages"
 import { startHttpServer, type HttpServer } from "@novadeck/runner/http"
-import { attachPage, guardPage, lockPagesSession, webAddress } from "@novadeck/viewers/browser/host"
+import {
+  attachPage,
+  guardPage,
+  lockPagesSession,
+  picturePage,
+  webAddress,
+} from "@novadeck/viewers/browser/host"
 import { brokerPorts } from "@novadeck/wire/electron"
 import {
   app,
@@ -42,12 +48,14 @@ import {
   type IpcMainEvent,
   type IpcMainInvokeEvent,
   type WebContents,
+  webContents,
 } from "electron"
 
 import {
   apiUrlArgumentPrefix,
   directoryPickerChannel,
   noticeClickChannel,
+  pagePictureChannel,
   portableStateChannel,
   runnerPortChannel,
   versionChannel,
@@ -1560,6 +1568,12 @@ const launch = async (): Promise<void> => {
     openLogs,
     log: logger.for("page", "ui"),
   })
+  // The app's page has a picture taken of one of its own page views, to show while it rests.
+  ipcMain.handle(pagePictureChannel, (event, id: unknown) =>
+    appWindow(event)
+      ? picturePage(event.sender, id, (page) => webContents.fromId(page))
+      : undefined,
+  )
   // Only the app's own pages learn the version it runs.
   ipcMain.handle(versionChannel, (event) => (appWindow(event) ? app.getVersion() : ""))
   ipcMain.handle(directoryPickerChannel, async (event) => {

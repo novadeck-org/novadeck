@@ -119,6 +119,12 @@ export const directoryPickerChannel = "novadeck:pick-directory"
 export const openLogsChannel = "novadeck:open-logs"
 
 /**
+ * Renderer-to-main request for a picture of a live page, by its view's web contents id;
+ * answers a JPEG `data:` address or undefined. See the viewers' `picturePage`.
+ */
+export const pagePictureChannel = "novadeck:page-picture"
+
+/**
  * Renderer-to-main report of an error the page didn't catch, `{ kind, name, message, stack }`,
  * which the host logs; see main/ui-errors.ts.
  */
