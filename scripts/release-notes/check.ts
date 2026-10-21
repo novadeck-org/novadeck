@@ -1,4 +1,9 @@
-import { noteAreas, type NoteArea } from "../../contract/protocol/src/release-notes.ts"
+import {
+  highlightIcon,
+  noteAreas,
+  type HighlightIcon,
+  type NoteArea,
+} from "../../contract/protocol/src/release-notes.ts"
 import { chat, demo } from "./commits.ts"
 import { type ModelOutput } from "./model.ts"
 
@@ -49,11 +54,15 @@ const excluded: readonly RegExp[] = [
 
 const isArea = (area: string): area is NoteArea => (noteAreas as readonly string[]).includes(area)
 
+// A highlight keeps its place when its icon is not one of ours: the notes always carry one,
+// and a generic icon is a small loss next to a lost highlight.
+const fallbackIcon: HighlightIcon = "sparkles"
+
 export type Checked =
   | {
       readonly ok: true
       readonly output: {
-        readonly highlights: ModelOutput["highlights"]
+        readonly highlights: { title: string; line: string; prs: number[]; icon: HighlightIcon }[]
         readonly changes: { area: NoteArea; line: string; prs: number[] }[]
       }
       /** Why each dropped line was dropped, never the line: logs and summaries are public. */
@@ -68,7 +77,8 @@ const fail = (reason: string): Checked => ({ ok: false, reason })
  * size the notes can't hold or a sign of steering (links, URLs, HTML). A line that breaks a
  * softer rule (a citation the notes can't hold or a pull request that was not given, too long,
  * markup, an excluded topic, an unknown area, a release's highlight past `releaseHighlights`)
- * is dropped, and `dropped` says why. `allowed` holds the pull requests the model was given.
+ * is dropped, and `dropped` says why. A highlight whose icon is missing or not in the set keeps
+ * its place with "sparkles". `allowed` holds the pull requests the model was given.
  */
 export const checkOutput = (
   output: ModelOutput,
@@ -80,7 +90,7 @@ export const checkOutput = (
   if (output.changes.length > maxChanges)
     return fail(`At most ${maxChanges} changes, got ${output.changes.length}`)
   const dropped: string[] = []
-  const highlights: ModelOutput["highlights"] = []
+  const highlights: { title: string; line: string; prs: number[]; icon: HighlightIcon }[] = []
   const changes: { area: NoteArea; line: string; prs: number[] }[] = []
   for (const item of [...output.highlights, ...output.changes]) {
     const title = "title" in item ? item.title.trim() : undefined
@@ -114,8 +124,10 @@ export const checkOutput = (
     }
     if (title !== undefined && kind === "release" && highlights.length === releaseHighlights)
       dropped.push(`a highlight past the ${releaseHighlights} a release leads with`)
-    else if (title !== undefined) highlights.push({ title, line, prs: item.prs })
-    else changes.push({ area: (item as { area: NoteArea }).area, line, prs: item.prs })
+    else if (title !== undefined) {
+      const icon = highlightIcon.safeParse("icon" in item ? item.icon : undefined)
+      highlights.push({ title, line, prs: item.prs, icon: icon.success ? icon.data : fallbackIcon })
+    } else changes.push({ area: (item as { area: NoteArea }).area, line, prs: item.prs })
   }
   return { ok: true, output: { highlights, changes }, dropped }
 }

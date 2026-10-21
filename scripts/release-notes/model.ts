@@ -3,7 +3,12 @@ import { join } from "node:path"
 
 import { z } from "zod"
 
-import { noteArea, noteAreas } from "../../contract/protocol/src/release-notes.ts"
+import {
+  highlightIcon,
+  highlightIcons,
+  noteArea,
+  noteAreas,
+} from "../../contract/protocol/src/release-notes.ts"
 import { ask as askModel, withoutBounds, type Answer, type Client } from "../openrouter/ask.ts"
 import { type Item } from "./items.ts"
 import { Skip } from "./skip.ts"
@@ -13,15 +18,28 @@ export { endpoint, withoutBounds, type Answer, type Client } from "../openrouter
 /** What the model is asked to return: lines and the pull requests they come from. */
 export const modelOutput = z.object({
   highlights: z.array(
-    z.object({ title: z.string(), line: z.string(), prs: z.array(z.number().int()) }),
+    z.object({
+      title: z.string(),
+      line: z.string(),
+      prs: z.array(z.number().int()),
+      icon: highlightIcon,
+    }),
   ),
   changes: z.array(z.object({ area: noteArea, line: z.string(), prs: z.array(z.number().int()) })),
 })
 
 // What is read back. The structured output holds the model to the areas, but a line in an area
-// outside them is the check's to drop, not a reason to throw the whole answer away.
+// outside them is the check's to drop, and an icon outside the set the check's to replace, not
+// reasons to throw the whole answer away.
 const answer = z.object({
-  highlights: modelOutput.shape.highlights,
+  highlights: z.array(
+    z.object({
+      title: z.string(),
+      line: z.string(),
+      prs: z.array(z.number().int()),
+      icon: z.string().optional(),
+    }),
+  ),
   changes: z.array(
     z.object({ area: z.string(), line: z.string(), prs: z.array(z.number().int()) }),
   ),
@@ -71,9 +89,10 @@ export const responseSchema = withoutBounds(z.toJSONSchema(modelOutput))
 
 const prompt = readFileSync(join(import.meta.dirname, "prompt.md"), "utf8")
 
-/** The instructions: prompt.md, which is plain prose to edit, and the areas, which are code. */
+/** The instructions: prompt.md, which is plain prose to edit, and the areas and icons: code. */
 export const systemPrompt = (): string =>
-  `${prompt.trim()}\n\nAreas, spelled exactly so: ${noteAreas.join("; ")}.\n`
+  `${prompt.trim()}\n\nAreas, spelled exactly so: ${noteAreas.join("; ")}.\n\n` +
+  `Highlight icons, spelled exactly so: ${highlightIcons.join(", ")}.\n`
 
 /** The items as the model reads them: one block each, led by the pull requests they close. */
 export const userMessage = (kind: "release" | "promote", version: string, items: readonly Item[]) =>

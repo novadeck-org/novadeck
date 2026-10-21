@@ -20,7 +20,11 @@ import {
 // The card is a region named by its label, which the CSS sets in capitals.
 const card = (): Locator => page.getByRole("region", { name: /New in Novadeck/ })
 const closeButton = (): Locator => card().getByRole("button", { name: "Dismiss" })
-const releaseNotes = (): Locator => card().getByRole("button", { name: "Release notes" })
+// The icons are Lucide's, each an svg classed by its name.
+const iconsOf = (): (string | undefined)[] =>
+  [...card().element().querySelectorAll(".whats-new-list li")].map((row) =>
+    [...(row.querySelector("svg")?.classList ?? [])].find((name) => name.startsWith("lucide-")),
+  )
 const announcer = () => page.getByRole("status").filter({ hasText: /New in Novadeck/ })
 const sandboxNotice = (): Locator =>
   page.getByRole("region", { name: "Novadeck is running without its security sandbox" })
@@ -44,11 +48,11 @@ describe("the what's-new card", () => {
     await expect.poll(whatsNewAsked).toBeGreaterThan(0)
     await expectStaysAbsent(card(), { ms: 2_500 })
     expect(cardElement()).toBeNull()
-    expect(whatsNewCalls()).toEqual({ dismissed: 0, pages: 0 })
+    expect(whatsNewCalls()).toEqual({ dismissed: 0 })
   })
 
   context("after an update with highlights", () => {
-    it("lists each as a title with its line, and links the release notes", async () => {
+    it("lists each as a title with its line, led by its icon", async () => {
       await openWorkspace("/?update=whatsNew")
       await expect.element(card()).toBeVisible()
       await expect.element(card().getByText("New in Novadeck 0.0.80")).toBeVisible()
@@ -56,10 +60,35 @@ describe("the what's-new card", () => {
       await expect.element(card().getByText('Talk to @moth instead of "terminal 3".')).toBeVisible()
       await expect.element(card().getByText("Plans open beside the terminal")).toBeVisible()
       await expect.element(card().getByText("Answer agents from the Inbox")).toBeVisible()
-      await expect.element(releaseNotes()).toBeVisible()
-      // Nothing about restarting: this card is not the download's.
+      // Nothing about restarting: this card is not the download's, and it has no link out.
       expect(card().element().textContent).not.toMatch(/restart|install/i)
-      expect(card().element().querySelectorAll("button")).toHaveLength(2)
+      expect(card().element().querySelectorAll("button")).toHaveLength(1)
+      expect(iconsOf()).toEqual(["lucide-users", "lucide-panel-right", "lucide-inbox"])
+      for (const svg of card().element().querySelectorAll(".whats-new-list svg"))
+        expect(svg.getAttribute("aria-hidden")).toBe("true")
+    })
+
+    it("leads a highlight that names no icon with a sparkle, so the rows line up", async () => {
+      await openWorkspace("/?update=whatsNewMarkup")
+      await expect.element(card()).toBeVisible()
+      expect(iconsOf()).toEqual(["lucide-sparkles"])
+    })
+
+    it("sets each title's first line level with its icon, in a column of its own", async () => {
+      await openWorkspace("/?update=whatsNew")
+      await expect.element(card()).toBeVisible()
+      const rows = [...card().element().querySelectorAll(".whats-new-list li")]
+      const lefts = rows.map((row) => row.querySelector("svg")!.getBoundingClientRect().left)
+      expect(new Set(lefts).size).toBe(1)
+      for (const row of rows) {
+        const icon = row.querySelector("svg")!.getBoundingClientRect()
+        const heading = row.querySelector(".whats-new-title")!
+        const title = heading.getBoundingClientRect()
+        const lineHeight = Number.parseFloat(getComputedStyle(heading).lineHeight)
+        expect(icon.right).toBeLessThanOrEqual(title.left)
+        // A title of two lines still has its icon beside the first.
+        expect(Math.abs(icon.top + icon.height / 2 - (title.top + lineHeight / 2))).toBeLessThan(2)
+      }
     })
 
     it("announces itself once, politely, and never takes focus", async () => {
@@ -96,18 +125,11 @@ describe("the what's-new card", () => {
       await expect.element(card()).toBeVisible()
     })
 
-    it("opens the release page from the link and stays", async () => {
-      await openWorkspace("/?update=whatsNew")
-      await releaseNotes().click()
-      expect(whatsNewCalls()).toEqual({ dismissed: 0, pages: 1 })
-      await expect.element(card()).toBeVisible()
-    })
-
     it("is dismissed by the ×, which tells the host once", async () => {
       await openWorkspace("/?update=whatsNew")
       await closeButton().click()
       await expect.element(card()).not.toBeInTheDocument()
-      expect(whatsNewCalls()).toEqual({ dismissed: 1, pages: 0 })
+      expect(whatsNewCalls()).toEqual({ dismissed: 1 })
       await expectStaysAbsent(card())
       expect(whatsNewCalls().dismissed).toBe(1)
     })
@@ -116,7 +138,7 @@ describe("the what's-new card", () => {
       await openWorkspace("/?update=whatsNew")
       await expect.element(card()).toBeVisible()
       // From the footer's start, Tab gets to the card's controls: × first, then the
-      // highlights when they scroll, then the link.
+      // highlights when they scroll.
       document.querySelector<HTMLElement>("footer")?.setAttribute("tabindex", "-1")
       document.querySelector<HTMLElement>("footer")?.focus()
       await expect
@@ -136,7 +158,6 @@ describe("the what's-new card", () => {
         await press("{Tab}")
       }
       expect(reached.has("Dismiss")).toBe(true)
-      expect(reached.has("Release notes ↗")).toBe(true)
     })
 
     it("waits out Zen mode with the footer, and is there after", async () => {
@@ -175,7 +196,7 @@ describe("the what's-new card", () => {
       await expect.element(card()).toBeVisible()
       await closeButton().click()
       await expect.element(card()).not.toBeInTheDocument()
-      expect(whatsNewCalls()).toEqual({ dismissed: 1, pages: 0 })
+      expect(whatsNewCalls()).toEqual({ dismissed: 1 })
     })
 
     it("keeps to the room between the header and the footer, scrolling its highlights", async () => {
@@ -187,7 +208,6 @@ describe("the what's-new card", () => {
         const header = document.querySelector("header")?.getBoundingClientRect()
         expect(box.top).toBeGreaterThanOrEqual(header?.bottom ?? 0)
         await expect.element(closeButton()).toBeVisible()
-        await expect.element(releaseNotes()).toBeVisible()
         const list = card().element().querySelector(".whats-new-list")!
         expect(list.scrollHeight).toBeGreaterThan(list.clientHeight)
         // Only a list that scrolls is a Tab stop.

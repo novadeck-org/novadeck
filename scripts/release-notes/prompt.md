@@ -37,6 +37,9 @@ A line is one sentence, at most 110 characters, in the present tense, about what
 does or no longer gets wrong: "Terminals keep their names after a restart." A title is a
 short noun phrase of at most 40 characters: "Word handles".
 
+Every highlight also gets an `icon`, the one from the given set that best shows what a person
+sees. Prefer the concrete over the generic: "sparkles" only when nothing else fits.
+
 Every line cites the pull requests it comes from in `prs`, using only numbers you were given.
 Fold changes that are the same thing for a person into one line and cite all their pull
 requests, but never more than 32 in one line: fold into broader lines instead. Give every line one of the areas below. Use "Fixes & speedups" only for a fix or

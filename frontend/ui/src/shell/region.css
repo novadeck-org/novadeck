@@ -393,8 +393,8 @@
 }
 /* What's new after an update (WhatsNew.tsx), on the update card's recipe: wider for a list.
    A small uppercase label and the ×, each highlight as a bold title with its line under
-   it, and the link to the release notes closing the card, set off by a rule. Token (its
-   fallback in brackets): --whats-new-label-fg (strong). */
+   it, led by its icon in a column of its own. Token (its fallback in brackets):
+   --whats-new-label-fg (strong). */
 .update-card.whats-new {
   width: 20.5rem;
   max-height: calc(100dvh - 7rem);
@@ -420,24 +420,26 @@
 }
 .whats-new-list li {
   display: flex;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+/* As tall as a line of text, so the icon centres on the title's first line. */
+.whats-new-icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 1lh;
+  color: var(--color-muted);
+}
+.whats-new-text {
+  display: flex;
   flex-direction: column;
   gap: 1px;
-  overflow-wrap: anywhere;
+  min-width: 0;
 }
 .whats-new-title {
   color: var(--color-ink);
   font-weight: 600;
-}
-.whats-new .update-card-foot {
-  padding-top: 9px;
-  border-top: 1px solid var(--color-line);
-}
-.button.link.whats-new-link {
-  --_fg: var(--color-ink);
-  min-height: 0;
-  padding: 0;
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 .footer-update-dot {
   width: 6px;

@@ -57,7 +57,12 @@ describe("the notes of a prerelease", () => {
   })
 
   it("keeps the highlights a release's answer holds, and no change that repeats one", async () => {
-    const highlight = { title: "Teams", line: "Teams show on the rail.", prs: [328] }
+    const highlight = {
+      title: "Teams",
+      line: "Teams show on the rail.",
+      prs: [328],
+      icon: "users",
+    }
     const generated = await generateRelease(
       "v0.0.152",
       sources,
@@ -65,6 +70,20 @@ describe("the notes of a prerelease", () => {
     )
     expect(generated.notes.highlights).toEqual([highlight])
     expect(generated.notes.changes).toEqual([released.changes[1]])
+  })
+
+  it("gives a highlight the generic icon when the model's is not one of ours", async () => {
+    const generated = await generateRelease(
+      "v0.0.152",
+      sources,
+      answer({
+        highlights: [{ title: "Teams", line: "Teams show on the rail.", prs: [328], icon: "nope" }],
+        changes: released.changes,
+      }),
+    )
+    expect(generated.notes.highlights).toEqual([
+      { title: "Teams", line: "Teams show on the rail.", prs: [328], icon: "sparkles" },
+    ])
   })
 
   it("keeps the change of a highlight past a release's two", async () => {

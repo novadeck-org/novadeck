@@ -1,6 +1,7 @@
 /* eslint-disable no-await-in-loop -- Each case runs on its own, one after another. */
 import { describe, expect, it } from "vitest"
 
+import { highlightIcons } from "../../contract/protocol/src/release-notes.ts"
 import { parseCommit } from "./commits.ts"
 import { commit } from "./fixtures.ts"
 import { commitItem } from "./items.ts"
@@ -169,6 +170,18 @@ describe("the model call", () => {
     expect(message).toContain("What: Each team member's sidebar tab now names its team")
     expect(message).toContain("#181 [feat] word handles for terminals, shown as @moth")
     expect(message).not.toContain("## Why")
+  })
+
+  it("lists the icons in the prompt and holds the model to them in the schema", () => {
+    const prompt = systemPrompt()
+    for (const icon of highlightIcons) expect(prompt).toContain(icon)
+    const highlight = (responseSchema as any).properties.highlights.items.properties.icon
+    expect(highlight.enum).toEqual([...highlightIcons])
+    expect((responseSchema as any).properties.highlights.items.required).toContain("icon")
+    const read = parseOutput(
+      '{"highlights":[{"title":"A","line":"B.","prs":[1],"icon":"made-up"}],"changes":[]}',
+    )
+    expect(read.highlights[0]?.icon).toBe("made-up")
   })
 
   it("keeps the rules of the notes in the prompt", () => {

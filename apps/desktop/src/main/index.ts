@@ -1438,19 +1438,11 @@ const launch = async (): Promise<void> => {
       }
     },
   })
-  // The page learns what is new after an update, once, and can open the release's page.
+  // The page learns what is new after an update, once.
   registerWhatsNewIpc(ipcMain, {
     window: (event) => appWindow(event)?.webContents,
     whatsNew: whatsNew.whatsNew,
     dismiss: whatsNew.dismiss,
-    openPage: () => {
-      void releaseRepository()
-        .then((repository) => {
-          const url = repository && releasePageUrl(repository, app.getVersion())
-          if (url) return shell.openExternal(url)
-        })
-        .catch((error: unknown) => console.warn("The release page did not open.", error))
-    },
   })
   // The page learns whether this is a portable copy and may install the app from it,
   // while this copy keeps running, and is told how the install goes.

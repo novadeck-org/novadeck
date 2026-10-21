@@ -16,6 +16,7 @@ const protocolData: Record<string, string> = {
   "harnesses.ts": "@novadeck/protocol/harnesses",
   "pages.ts": "@novadeck/protocol/pages",
   "command-text.ts": "@novadeck/protocol/text",
+  "update.ts": "@novadeck/protocol/release-notes",
 }
 
 const src = import.meta.dirname

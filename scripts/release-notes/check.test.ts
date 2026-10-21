@@ -5,7 +5,14 @@ import { type ModelOutput } from "./model.ts"
 
 const allowed = new Set([181, 195, 261])
 const good: ModelOutput = {
-  highlights: [{ title: "Word handles", line: "Terminals get a name like @moth.", prs: [181] }],
+  highlights: [
+    {
+      title: "Word handles",
+      line: "Terminals get a name like @moth.",
+      prs: [181],
+      icon: "users",
+    },
+  ],
   changes: [{ area: "Inbox & notifications", line: "Answer agents from the Inbox.", prs: [195] }],
 }
 const withChange = (line: string, prs = [195], area = "Voice"): ModelOutput => ({
@@ -31,6 +38,18 @@ describe("the checks on a model's answer", () => {
   it("allows a promotion with no highlights, and refuses more than four", () => {
     expect(failure({ ...good, highlights: [] })).toBeUndefined()
     expect(failure({ ...good, highlights: Array(5).fill(good.highlights[0]) })).toMatch(/At most 4/)
+  })
+
+  it("keeps a highlight whose icon is missing or not ours, with the generic one", () => {
+    const [highlight] = good.highlights
+    for (const icon of ["rocket-launch-9000", undefined]) {
+      const checked = check({ ...good, highlights: [{ ...highlight!, icon }] })
+      expect(checked).toMatchObject({
+        ok: true,
+        output: { highlights: [{ title: "Word handles", icon: "sparkles" }] },
+        dropped: [],
+      })
+    }
   })
 
   it("keeps a release's first two highlights and drops the rest", () => {
