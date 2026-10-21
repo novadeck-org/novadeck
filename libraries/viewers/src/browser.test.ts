@@ -12,6 +12,7 @@ import {
   type BrowserOptions,
   type Load,
   type Place,
+  type Trouble,
 } from "./browser.js"
 import type { ViewerState } from "./index.js"
 
@@ -1142,6 +1143,318 @@ describe("the browser viewer", () => {
       await settled()
       expect(failing.taken).toEqual([])
       expect(pageOf(failing.host)).not.toBeNull()
+    })
+  })
+
+  context("with troubles on the page", () => {
+    const origin = "http://localhost:5173"
+    const contentsId = 7
+
+    const failLoad = (page: HTMLElement, validatedURL: string, errorCode = -102) =>
+      page.dispatchEvent(
+        event("did-fail-load", {
+          errorCode,
+          errorDescription: errorCode === -102 ? "ERR_CONNECTION_REFUSED" : "",
+          isMainFrame: true,
+          validatedURL,
+        }),
+      )
+
+    // A live page at the shown address, what it reports, and the ways the page and the
+    // app's preload tell of what went wrong.
+    const troubled = (content: BrowserContent = { url: `${origin}/`, shown: 1 }) => {
+      const host = hostIn()
+      const troubles: Trouble[] = []
+      const shows: number[] = []
+      const viewer = mountBrowser(host, {
+        content,
+        label: "page",
+        live: true,
+        partition: "pages",
+        on: {
+          trouble: (trouble, shown) => {
+            troubles.push(trouble)
+            shows.push(shown)
+          },
+        },
+      })
+      const page = pageOf(host)
+      attach(page, { url: content.url, back: false, forward: false })
+      Object.assign(page, { getWebContentsId: () => contentsId })
+      return {
+        page,
+        viewer,
+        troubles,
+        shows,
+        goes: (url: string) => Object.assign(page, { getURL: () => url }),
+        log: (fields: Record<string, unknown> = {}) =>
+          page.dispatchEvent(
+            event("console-message", {
+              level: 3,
+              message: "boom",
+              line: 7,
+              sourceId: `${origin}/app.js`,
+              ...fields,
+            }),
+          ),
+        // A request the preload tells of, by default a missing script.
+        failed: (
+          fields: Record<string, unknown> = {},
+          source: MessageEventSource | null = window,
+        ) =>
+          window.dispatchEvent(
+            new MessageEvent("message", {
+              source,
+              data: {
+                type: "novadeck:page-request",
+                contentsId,
+                url: `${origin}/missing.js`,
+                status: 404,
+                what: "script",
+                ...fields,
+              },
+            }),
+          ),
+      }
+    }
+
+    it("reports an error the page logged, with where it came from", () => {
+      const { log, troubles } = troubled()
+      log()
+      expect(troubles).toEqual([
+        { kind: "error", text: "boom", source: `${origin}/app.js`, line: 7 },
+      ])
+    })
+
+    it("leaves out what isn't an error of the shown origin", () => {
+      const { log, troubles } = troubled()
+      log({ level: 2 })
+      log({ level: 1 })
+      log({ sourceId: "node:electron/js2c/sandbox_bundle" })
+      log({ sourceId: "" })
+      log({ sourceId: "https://ads.example.com/frame.js" })
+      expect(troubles).toEqual([])
+    })
+
+    it("reports nothing from a page the person took elsewhere, until it is back", () => {
+      const t = troubled()
+      t.goes("https://example.com/")
+      t.log({ sourceId: "https://example.com/app.js" })
+      t.log()
+      t.failed({ url: "https://example.com/x.js" })
+      t.failed()
+      expect(t.troubles).toEqual([])
+      t.goes(`${origin}/deeper/page`)
+      t.log()
+      expect(t.troubles.map((each) => each.kind)).toEqual(["error"])
+    })
+
+    it("follows the address it is shown at", () => {
+      const t = troubled()
+      t.viewer.update({ url: "https://example.com/", shown: 1 })
+      t.log()
+      expect(t.troubles).toEqual([])
+      t.goes("https://example.com/")
+      t.log({ sourceId: "https://example.com/app.js" })
+      expect(t.troubles).toHaveLength(1)
+    })
+
+    it("reports a load that failed outright, not an aborted one, a frame's or another site's", () => {
+      const { page, troubles } = troubled()
+      failLoad(page, `${origin}/`, -3)
+      page.dispatchEvent(
+        event("did-fail-load", { errorCode: -105, isMainFrame: false, validatedURL: `${origin}/` }),
+      )
+      failLoad(page, "https://example.com/")
+      expect(troubles).toEqual([])
+      failLoad(page, `${origin}/`)
+      failLoad(page, `${origin}/`, -105)
+      expect(troubles).toEqual([
+        { kind: "load", text: "ERR_CONNECTION_REFUSED" },
+        { kind: "load", text: "Error -105" },
+      ])
+    })
+
+    context("with the requests the desktop tells of", () => {
+      it("reports a request of the shown origin that failed", () => {
+        const t = troubled()
+        t.failed()
+        t.failed({ url: `${origin}/api`, status: 0, what: "fetch" })
+        expect(t.troubles).toEqual([
+          { kind: "request", url: `${origin}/missing.js`, status: 404, what: "script" },
+          { kind: "request", url: `${origin}/api`, status: 0, what: "fetch" },
+        ])
+      })
+
+      it("leaves out another view's, another window's, another site's and malformed ones", () => {
+        const t = troubled()
+        t.failed({ contentsId: contentsId + 1 })
+        t.failed({}, null)
+        const frame = document.createElement("iframe")
+        document.body.append(frame)
+        t.failed({}, frame.contentWindow)
+        frame.remove()
+        t.failed({ url: "https://cdn.example.com/x.js" })
+        t.failed({ url: "not an address" })
+        t.failed({ status: "404" })
+        t.failed({ status: 404.5 })
+        t.failed({ type: "other" })
+        expect(t.troubles).toEqual([])
+      })
+
+      it("holds a failure of the page itself until the page has committed", () => {
+        const t = troubled()
+        t.page.dispatchEvent(event("did-start-loading"))
+        t.failed({ url: `${origin}/`, status: 404, what: "page" })
+        expect(t.troubles).toEqual([])
+        t.page.dispatchEvent(event("did-navigate"))
+        expect(t.troubles).toEqual([
+          { kind: "request", url: `${origin}/`, status: 404, what: "page" },
+        ])
+        // Once committed, a failure of the page is told at once.
+        t.failed({ url: `${origin}/`, status: 500, what: "page" })
+        expect(t.troubles).toHaveLength(2)
+      })
+
+      it("drops a held failure of a load that another replaced, or of a page left", () => {
+        const t = troubled()
+        t.page.dispatchEvent(event("did-start-loading"))
+        t.failed({ url: `${origin}/`, status: 404, what: "page" })
+        t.page.dispatchEvent(event("did-start-loading"))
+        t.page.dispatchEvent(event("did-navigate"))
+        expect(t.troubles).toEqual([])
+        t.page.dispatchEvent(event("did-start-loading"))
+        t.failed({ url: `${origin}/`, status: 404, what: "page" })
+        t.goes("https://example.com/")
+        t.page.dispatchEvent(event("did-navigate"))
+        expect(t.troubles).toEqual([])
+      })
+
+      it("stops listening when the viewer goes", () => {
+        const t = troubled()
+        t.viewer.destroy()
+        t.failed()
+        expect(t.troubles).toEqual([])
+      })
+    })
+
+    context("with a load that fails outright", () => {
+      const reshown = (t: ReturnType<typeof troubled>) => {
+        t.viewer.update({ url: `${origin}/`, shown: 2 })
+        t.page.dispatchEvent(event("did-start-loading"))
+      }
+
+      it("is a new document, carrying the show being carried out", () => {
+        const t = troubled()
+        reshown(t)
+        failLoad(t.page, `${origin}/`)
+        expect(t.troubles).toEqual([{ kind: "load", text: "ERR_CONNECTION_REFUSED" }])
+        expect(t.shows).toEqual([2])
+      })
+
+      it("is told even when the document before it was capped", () => {
+        const t = troubled()
+        for (let each = 0; each < 30; each += 1) t.log()
+        expect(t.troubles).toHaveLength(20)
+        reshown(t)
+        failLoad(t.page, `${origin}/`)
+        expect(t.troubles).toHaveLength(21)
+        expect(t.shows.at(-1)).toBe(2)
+      })
+
+      it("takes the place of a failed request for the page that got no answer", () => {
+        const t = troubled()
+        reshown(t)
+        t.failed({ url: `${origin}/`, status: 0, what: "page" })
+        failLoad(t.page, `${origin}/`)
+        expect(t.troubles).toEqual([{ kind: "load", text: "ERR_CONNECTION_REFUSED" }])
+      })
+
+      it("takes the place of that request when its word comes after the failed load", () => {
+        const t = troubled()
+        reshown(t)
+        failLoad(t.page, `${origin}/`)
+        t.failed({ url: `${origin}/`, status: 0, what: "page" })
+        expect(t.troubles).toEqual([{ kind: "load", text: "ERR_CONNECTION_REFUSED" }])
+        // The page's other requests still count, and the next load starts over.
+        t.failed({ url: `${origin}/api`, status: 500, what: "fetch" })
+        expect(t.troubles).toHaveLength(2)
+        t.page.dispatchEvent(event("did-start-loading"))
+        t.page.dispatchEvent(event("did-navigate"))
+        t.failed({ url: `${origin}/`, status: 0, what: "page" })
+        expect(t.troubles).toHaveLength(3)
+      })
+
+      it("tells a failed request for the page with the show of the load", () => {
+        const t = troubled()
+        reshown(t)
+        t.failed({ url: `${origin}/`, status: 404, what: "page" })
+        failLoad(t.page, `${origin}/`, -3)
+        expect(t.troubles).toEqual([])
+        failLoad(t.page, `${origin}/`)
+        expect(t.troubles.map((each) => each.kind)).toEqual(["request", "load"])
+        expect(t.shows).toEqual([2, 2])
+      })
+    })
+
+    context("with a cap on each document", () => {
+      it("reports at most 20 troubles of any kind, and more for the next document", () => {
+        const t = troubled()
+        for (let each = 0; each < 50; each += 1) t.log({ message: `again ${each}` })
+        t.failed()
+        expect(t.troubles).toHaveLength(20)
+        t.page.dispatchEvent(event("did-navigate"))
+        t.log()
+        expect(t.troubles).toHaveLength(21)
+      })
+
+      it("holds when the document's own failure is told and more is logged after it", () => {
+        const t = troubled()
+        t.page.dispatchEvent(event("did-start-loading"))
+        t.page.dispatchEvent(event("did-navigate"))
+        for (let each = 0; each < 20; each += 1) t.log()
+        t.failed({ url: `${origin}/`, status: 404, what: "page" })
+        t.page.dispatchEvent(event("did-stop-loading"))
+        for (let each = 0; each < 30; each += 1) t.log()
+        expect(t.troubles).toHaveLength(20)
+      })
+
+      it("counts a failure of the page from before it committed in its own document", () => {
+        const t = troubled()
+        for (let each = 0; each < 20; each += 1) t.log()
+        t.page.dispatchEvent(event("did-start-loading"))
+        t.failed({ url: `${origin}/`, status: 404, what: "page" })
+        t.page.dispatchEvent(event("did-navigate"))
+        expect(t.troubles).toHaveLength(21)
+        expect(t.troubles.at(-1)).toMatchObject({ kind: "request", what: "page" })
+      })
+    })
+
+    context("with the show the document carries", () => {
+      it("tells the show of the document, not of one still loading", () => {
+        const t = troubled({ url: `${origin}/`, shown: 1 })
+        t.log()
+        t.viewer.update({ url: `${origin}/`, shown: 2 })
+        // The old document, until the new one commits.
+        t.log()
+        t.page.dispatchEvent(event("did-navigate"))
+        t.log()
+        expect(t.shows).toEqual([1, 1, 2])
+      })
+    })
+
+    it("reports nothing from a snapshot", () => {
+      const host = hostIn()
+      const troubles: Trouble[] = []
+      mountBrowser(host, {
+        content: { url: "https://example.com/" },
+        label: "page",
+        live: false,
+        partition: "pages",
+        on: { trouble: (trouble) => troubles.push(trouble) },
+      })
+      expect(host.querySelector("webview")).toBeNull()
+      expect(troubles).toEqual([])
     })
   })
 

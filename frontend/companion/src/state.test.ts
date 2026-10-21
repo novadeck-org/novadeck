@@ -74,6 +74,7 @@ const backend = () => {
         if (listeners.get(id) === on) listeners.delete(id)
       }
     },
+    trouble: () => {},
     save: (_target, _id, text, basedOn) =>
       new Promise((resolve, reject) =>
         saves.push({

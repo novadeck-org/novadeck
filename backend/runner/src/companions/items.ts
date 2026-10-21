@@ -4,13 +4,14 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { PlanSource } from "@novadeck/harness-core/events"
-import { pageKey } from "@novadeck/protocol"
+import { onThisMachine, pageKey } from "@novadeck/protocol"
 import type {
   AgentName,
   CompanionChange,
   CompanionItem,
   CompanionWindow,
   ItemContent,
+  PageTrouble,
 } from "@novadeck/protocol"
 import { KeyedChanges } from "@novadeck/wire/server"
 
@@ -72,6 +73,14 @@ export type CompanionOptions = {
   readonly livePlan?: (item: ItemRecord) => PlanText | undefined
   /** How often `content` looks at what an item points at, in milliseconds. */
   readonly pollMs?: number
+}
+
+/** Who hears of the troubles pages had and of the items that go: the terminals. */
+export type TroubleSink = {
+  /** A page an agent showed had `troubles` in the pane, in its latest show. */
+  readonly troubled: (item: ItemRecord, troubles: readonly PageTrouble[]) => void
+  /** An item is gone, or shown again: what was held of its earlier show goes. */
+  readonly gone: (item: ItemRecord) => void
 }
 
 /** What an item points at, and what it says of it, before it is kept. */
@@ -191,6 +200,7 @@ export class CompanionItems {
   >()
   /** Plan observations, one after another, so two never add the same slot twice. */
   private observing: Promise<void> = Promise.resolve()
+  private sink: TroubleSink | undefined
   private stopping = false
 
   constructor(private readonly options: CompanionOptions) {
@@ -350,6 +360,24 @@ export class CompanionItems {
       return `- ${name}: ${where} (${notes}${secrets})`
     })
     return [`Showing beside your terminal in Novadeck (${items.length}):`, ...lines].join("\n")
+  }
+
+  /** Who is told of page troubles and of items that go; the terminals, once they exist. */
+  listen(sink: TroubleSink): void {
+    this.sink = sink
+  }
+
+  /**
+   * The pane saw `troubles` on a page while it showed `shown`. Only a page an agent
+   * showed, in its latest show, served from this machine is heard, by the terminal the
+   * agent showed it from; anything else is let be.
+   */
+  pageTrouble(input: { itemId: string; shown: number; troubles: readonly PageTrouble[] }): void {
+    if (this.stopping) return
+    const item = this.records.item(input.itemId)
+    if (item?.kind !== "page" || item.by !== "agent" || item.version !== input.shown) return
+    if (item.url === null || !onThisMachine(item.url)) return
+    this.sink?.troubled(item, input.troubles)
   }
 
   /**
@@ -715,7 +743,10 @@ export class CompanionItems {
     return { ok: true, key, given: request.file.path }
   }
 
-  /** How a file is described: an image by its size and format, a text file by its path and lines. */
+  /**
+   * How a file is described: an image by its size and format, a text file by its path and
+   * lines.
+   */
   private detail(
     pointed: Pointed,
     place: TerminalPlace,
@@ -766,6 +797,8 @@ export class CompanionItems {
           observedAt: null,
         }
     this.save(item)
+    // What the pane told of its earlier show is no longer news.
+    if (own) this.sink?.gone(own)
     return { item, again: own !== undefined }
   }
 
@@ -851,6 +884,7 @@ export class CompanionItems {
 
   private removed(item: ItemRecord, window: WindowRecord | undefined): void {
     this.scrolls.delete(item.id)
+    this.sink?.gone(item)
     for (const reader of this.readers.get(item.id) ?? []) reader.abort()
     this.emit(
       `item:${item.id}`,

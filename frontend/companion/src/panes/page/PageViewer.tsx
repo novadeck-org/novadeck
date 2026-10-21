@@ -1,7 +1,7 @@
-import type { PageContent } from "@novadeck/core/companion"
+import { pageTroublesPerCall, type PageContent } from "@novadeck/core/companion"
 import { pagesPartition } from "@novadeck/core/pages"
 import { useShown } from "@novadeck/toolkit/shown"
-import { mountBrowser, type Load, type Place } from "@novadeck/viewers/browser"
+import { mountBrowser, type Load, type Place, type Trouble } from "@novadeck/viewers/browser"
 import { ArrowLeft, ArrowRight, ExternalLink, RotateCw } from "lucide-react"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
@@ -17,20 +17,69 @@ const OpenInBrowser = ({ url }: { url: string }): React.JSX.Element => (
   </a>
 )
 
+// How long troubles are gathered before they are told, so a page that logs a burst of them
+// makes one call.
+const troubleBatch = 500
+
+type Tell = ArtifactBodyProps<"page">["trouble"]
+
+// Gathers troubles, each with the show of the document the viewer says it came from, and
+// tells them a moment later, each run of one show in calls of at most what a call takes.
+const batcher = (latest: () => { readonly current: Tell }) => {
+  let gathered: { trouble: Trouble; shown: number }[] = []
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const flush = (): void => {
+    clearTimeout(timer)
+    timer = undefined
+    const all = gathered
+    gathered = []
+    for (let from = 0; from < all.length;) {
+      const shown = all[from]!.shown
+      let to = from
+      while (to < all.length && all[to]!.shown === shown && to - from < pageTroublesPerCall) to += 1
+      latest().current(
+        shown,
+        all.slice(from, to).map(({ trouble }) => trouble),
+      )
+      from = to
+    }
+  }
+  const collect = (trouble: Trouble, shown: number): void => {
+    gathered.push({ trouble, shown })
+    timer ??= setTimeout(flush, troubleBatch)
+  }
+  return { flush, collect }
+}
+
+// The troubles a live page reports, batched. Whatever is gathered when the page goes is
+// told then.
+const useTroubles = (tell: Tell): ((trouble: Trouble, shown: number) => void) => {
+  const latest = useRef(tell)
+  useEffect(() => {
+    latest.current = tell
+  })
+  const batch = useMemo(() => batcher(() => latest), [])
+  useEffect(() => batch.flush, [batch])
+  return batch.collect
+}
+
 // A page in the browser viewer: live where the backend's host allows, else its snapshot.
 // Where its viewer was, by item, is kept: where the person had taken it, and the picture
 // of it a live page rests as while the pane sleeps, which costs nothing to draw.
 const ShownPage = ({
   id,
   content: page,
+  trouble,
   actions,
   picture,
 }: {
   id: string
   content: PageContent
+  trouble: ArtifactBodyProps<"page">["trouble"]
   actions: ReactNode
   picture: ((page: number) => Promise<string | undefined>) | undefined
 }): React.JSX.Element => {
+  const collect = useTroubles(trouble)
   const [place, setPlace] = useState<Place>({ url: page.url, back: false, forward: false })
   const [load, setLoad] = useState<Load>("loading")
   // Each show of it loads it afresh and brings its scroll into view, once.
@@ -53,7 +102,7 @@ const ShownPage = ({
     // Only where it can rest: a picture nothing rests as costs for nothing.
     ...(picture && sleeps ? { picture } : {}),
     awake,
-    on: { navigate: setPlace, load: setLoad },
+    on: { navigate: setPlace, load: setLoad, ...(page.live ? { trouble: collect } : {}) },
   })
   // Kept out of sight, the page goes quiet: it stops drawing on its own, but not playing.
   const shown = useShown()
@@ -125,6 +174,7 @@ export const PageViewer = ({
   content: page,
   actions,
   panes,
+  trouble,
 }: ArtifactBodyProps<"page">): React.JSX.Element =>
   page.live || page.snapshot ? (
     // Its own for each address: a new page starts at its own address, not the last one's.
@@ -132,6 +182,7 @@ export const PageViewer = ({
       key={page.url}
       id={item.id}
       content={page}
+      trouble={trouble}
       actions={actions}
       picture={panes.picture}
     />

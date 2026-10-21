@@ -559,6 +559,32 @@ export const planSaveResult = z.discriminatedUnion("saved", [
   }),
 ])
 
+// `companions.pageTrouble` items: what went wrong on a page an agent showed, as the desktop
+// pane saw it while the page was at the address's origin it was shown at. An `error` the
+// page logged or threw, with the script and line it came from (0 when unknown); a
+// `request` of the page's own origin, the page itself or what it loaded (`what`: "page",
+// "script", "fetch", "img"…), answered with an HTTP error `status`, or 0 for none at all;
+// or a `load` of the page that failed outright, with Chromium's error, as a server that
+// isn't running.
+export const pageTrouble = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("error"),
+    text: z.string().max(1024),
+    source: z.string().max(2048),
+    line: z.int().min(0),
+  }),
+  z.strictObject({
+    kind: z.literal("request"),
+    url: z.string().max(2048),
+    status: z.int().min(0).max(999),
+    what: z.string().max(32),
+  }),
+  z.strictObject({ kind: z.literal("load"), text: z.string().max(256) }),
+])
+
+/** How many troubles one `companions.pageTrouble` call carries at most. */
+export const maxPageTroubles = 20
+
 // `companions.content`: what an item points at, read as it is now. `stamp` changes with
 // it. A file is the lines around the ones pointed at, numbered from `firstLine`, with
 // its line count where it was read to its end (`truncated` otherwise), and `clamped`
@@ -990,6 +1016,7 @@ export type CompanionItem = z.infer<typeof companionItem>
 export type CompanionWindow = z.infer<typeof companionWindow>
 export type CompanionChange = z.infer<typeof companionChange>
 export type ItemContent = z.infer<typeof itemContent>
+export type PageTrouble = z.infer<typeof pageTrouble>
 export type PlanSaveResult = z.infer<typeof planSaveResult>
 export type TerminalRequest = z.infer<typeof terminalRequest>
 export type TerminalRequestAnswer = z.infer<typeof terminalRequestAnswer>

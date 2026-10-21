@@ -8,10 +8,12 @@ import {
   gestureMs,
   guardPage,
   lockPagesSession,
+  maxForwardedRequests,
   pagesSession,
   pictureQuality,
   picturePage,
   pictureWaitMs,
+  watchPageRequests,
   webAddress,
 } from "./browser-host.js"
 
@@ -286,5 +288,114 @@ describe("a picture of a page", () => {
       capturePage: () => Promise.reject(new Error("gone")),
     } as unknown as WebContents
     expect(await picturePage(host, 7, byId(failing))).toBeUndefined()
+  })
+})
+
+describe("the requests of a page view that fail", () => {
+  type Details = { url: string; resourceType: string; webContentsId?: number | undefined }
+  const watched = () => {
+    let completed: ((details: Details & { statusCode: number }) => void) | undefined
+    let errored: ((details: Details & { error: string }) => void) | undefined
+    const told: [number, unknown][] = []
+    watchPageRequests(
+      {
+        webRequest: {
+          onCompleted: (listener: typeof completed) => (completed = listener),
+          onErrorOccurred: (listener: typeof errored) => (errored = listener),
+        },
+      } as unknown as Session,
+      (contentsId, failure) => told.push([contentsId, failure]),
+    )
+    return {
+      told,
+      completed: (statusCode: number, rest: Partial<Details> = {}) =>
+        completed?.({
+          url: "http://localhost/a",
+          resourceType: "script",
+          webContentsId: 3,
+          statusCode,
+          ...rest,
+        }),
+      errored: (error: string, rest: Partial<Details> = {}) =>
+        errored?.({
+          url: "http://localhost/a",
+          resourceType: "script",
+          webContentsId: 3,
+          error,
+          ...rest,
+        }),
+    }
+  }
+
+  it("are those answered with an HTTP error, and only those", () => {
+    const { told, completed } = watched()
+    for (const status of [200, 204, 301, 304, 399]) completed(status)
+    expect(told).toEqual([])
+    completed(400)
+    completed(404)
+    completed(503)
+    expect(told.map(([, failure]) => (failure as { status: number }).status)).toEqual([
+      400, 404, 503,
+    ])
+    expect(told[0]).toEqual([3, { url: "http://localhost/a", status: 400, what: "script" }])
+  })
+
+  it("include those that got no answer, but not those cancelled", () => {
+    const { told, errored } = watched()
+    errored("net::ERR_ABORTED")
+    expect(told).toEqual([])
+    errored("net::ERR_CONNECTION_REFUSED")
+    expect(told).toEqual([[3, { url: "http://localhost/a", status: 0, what: "script" }]])
+  })
+
+  it("are named as a viewer names them", () => {
+    const { told, completed } = watched()
+    const kinds = ["mainFrame", "subFrame", "xhr", "script", "image", "stylesheet", "font", "media"]
+    for (const resourceType of kinds) completed(404, { resourceType })
+    expect(told.map(([, failure]) => (failure as { what: string }).what)).toEqual([
+      "page",
+      "frame",
+      "fetch",
+      "script",
+      "image",
+      "stylesheet",
+      "font",
+      "media",
+    ])
+  })
+
+  it("are told up to a bound for each navigation of a page view, and each view has its own", () => {
+    const { told, completed, errored } = watched()
+    for (let each = 0; each < maxForwardedRequests + 10; each += 1) completed(500)
+    expect(told).toHaveLength(maxForwardedRequests)
+    completed(500, { webContentsId: 4 })
+    expect(told).toHaveLength(maxForwardedRequests + 1)
+    // The page view goes to a document, which ends well or not.
+    completed(200, { resourceType: "mainFrame" })
+    completed(500)
+    expect(told).toHaveLength(maxForwardedRequests + 2)
+    errored("net::ERR_CONNECTION_REFUSED", { resourceType: "mainFrame" })
+    completed(500)
+    expect(told).toHaveLength(maxForwardedRequests + 4)
+  })
+
+  it("are bound for each origin, so another site's failures leave the page's own their room", () => {
+    const { told, completed, errored } = watched()
+    for (let each = 0; each < maxForwardedRequests + 10; each += 1)
+      completed(500, { url: "https://beacon.example/hit" })
+    expect(told).toHaveLength(maxForwardedRequests)
+    completed(404)
+    expect(told).toHaveLength(maxForwardedRequests + 1)
+    // What isn't a web page's address shares one bound, however many such addresses fail.
+    for (let each = 0; each < maxForwardedRequests + 10; each += 1)
+      errored("net::ERR_FAILED", { url: `ws://localhost/socket-${each}` })
+    expect(told).toHaveLength(2 * maxForwardedRequests + 1)
+  })
+
+  it("are left out when no page view made them", () => {
+    const { told, completed, errored } = watched()
+    completed(404, { webContentsId: undefined })
+    errored("net::ERR_FAILED", { webContentsId: undefined })
+    expect(told).toEqual([])
   })
 })

@@ -1,4 +1,4 @@
-import type { Companions, ItemContent, PageContent } from "@novadeck/core/companion"
+import type { Companions, ItemContent, PageContent, PageTrouble } from "@novadeck/core/companion"
 import { pagesPartition } from "@novadeck/core/pages"
 import { workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
@@ -6,7 +6,7 @@ import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
 import { Shown } from "@novadeck/toolkit/shown"
 import { act, createElement } from "react"
-import { afterEach } from "vitest"
+import { afterEach, beforeEach, vi } from "vitest"
 
 import { AwakeContext, type Awake } from "../../awake"
 import { createPanes } from "../../state"
@@ -29,6 +29,7 @@ const show = (
   { awake, pictures }: { awake?: Awake; pictures?: string[] } = {},
 ) => {
   let stamp = 0
+  const told: { shown: number; troubles: readonly PageTrouble[] }[] = []
   const ready = (next: PageContent): ItemContent => ({
     state: "ready",
     stamp: String(++stamp),
@@ -42,6 +43,7 @@ const show = (
       return () => {}
     },
     save: () => new Promise(() => {}),
+    trouble: (_target, _id, version, troubles) => told.push({ shown: version, troubles }),
     ...(pictures && { picture: async () => pictures.shift() }),
   }
   const workspace = createWorkspaceStore(
@@ -67,6 +69,7 @@ const show = (
   unmounts.push(rendered.unmount)
   return {
     ...rendered,
+    told,
     show: (next: PageContent) => act(() => emit(ready(next))),
     awake: (next: Awake) => {
       pane = next
@@ -286,7 +289,100 @@ describe("a page beside a terminal", () => {
     })
   })
 
+  context("when a live page has troubles", () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    const logs = (page: HTMLElement, message: string): void =>
+      fire(page, "console-message", { level: 3, message, line: 3, sourceId: `${url}app.js` })
+    const attached = (page: HTMLElement): void => {
+      Object.assign(page, {
+        getURL: () => url,
+        canGoBack: () => false,
+        canGoForward: () => false,
+        setAudioMuted: () => undefined,
+      })
+    }
+
+    it("tells them together a moment later, with the show that loaded the page", () => {
+      const { container, told } = show({ kind: "page", url, shown: 1, live: true })
+      const page = pageOf(container)
+      attached(page)
+      logs(page, "one")
+      logs(page, "two")
+      expect(told).toEqual([])
+      act(() => {
+        vi.advanceTimersByTime(500)
+      })
+      expect(told).toEqual([
+        {
+          shown: 1,
+          troubles: [
+            { kind: "error", text: "one", source: `${url}app.js`, line: 3 },
+            { kind: "error", text: "two", source: `${url}app.js`, line: 3 },
+          ],
+        },
+      ])
+    })
+
+    it("tells no more than a call takes", () => {
+      const { container, told } = show({ kind: "page", url, shown: 1, live: true })
+      attached(pageOf(container))
+      // A viewer reports 20 for a document; a batch may hold some of the next's.
+      for (let each = 0; each < 20; each += 1) logs(pageOf(container), `a${each}`)
+      fire(pageOf(container), "did-navigate")
+      for (let each = 0; each < 5; each += 1) logs(pageOf(container), `b${each}`)
+      act(() => {
+        vi.advanceTimersByTime(500)
+      })
+      expect(told.map((each) => each.troubles.length)).toEqual([20, 5])
+    })
+
+    it("keeps each trouble with the show of the document it came from", () => {
+      const rendered = show({ kind: "page", url, shown: 1, live: true })
+      const page = pageOf(rendered.container)
+      attached(page)
+      logs(page, "a")
+      // Shown again: the old document logs until the new one loads.
+      rendered.show({ kind: "page", url, shown: 2, live: true })
+      logs(page, "old")
+      fire(page, "did-navigate")
+      logs(page, "b")
+      act(() => {
+        vi.advanceTimersByTime(500)
+      })
+      expect(rendered.told.map((each) => [each.shown, each.troubles.length])).toEqual([
+        [1, 2],
+        [2, 1],
+      ])
+    })
+
+    it("tells what is waiting when the page goes", () => {
+      const { container, told, unmount } = show({ kind: "page", url, shown: 1, live: true })
+      attached(pageOf(container))
+      logs(pageOf(container), "last")
+      unmount()
+      expect(told).toHaveLength(1)
+    })
+  })
+
   context("where pages can't load live", () => {
+    it("tells nothing", () => {
+      const { container, told } = show({
+        kind: "page",
+        url,
+        shown: 1,
+        live: false,
+        snapshot: "data:,",
+      })
+      expect(container.querySelector("webview")).toBeNull()
+      expect(told).toEqual([])
+    })
+
     it("shows its snapshot under its address, with nothing to go back or forward to", () => {
       const { container } = show({
         kind: "page",

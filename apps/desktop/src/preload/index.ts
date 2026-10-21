@@ -12,6 +12,11 @@ import {
   type UninstallPlan,
   type UninstallResult,
 } from "@novadeck/protocol/bridge"
+import {
+  pageRequestChannel,
+  pageRequestMessage,
+  parsePageRequest,
+} from "@novadeck/viewers/browser/trouble"
 import { relayPorts } from "@novadeck/wire/electron"
 import { contextBridge, ipcRenderer, webUtils } from "electron"
 
@@ -64,6 +69,15 @@ ipcRenderer.on(saveBeforeQuitChannel, () => {
     .then(() => beforeQuit?.())
     .catch(() => {})
     .finally(() => ipcRenderer.send(saveBeforeQuitChannel))
+})
+
+// A request a page in a view failed, as the main process tells of it: to the app's page as
+// a window message, from which its viewer of that view takes it. Only a notice that is
+// exactly what the viewer reads gets there.
+ipcRenderer.on(pageRequestChannel, (_event, contentsId: unknown, failure: unknown) => {
+  const fields = typeof failure === "object" && failure !== null ? failure : {}
+  const notice = parsePageRequest({ ...fields, contentsId })
+  if (notice) window.postMessage({ type: pageRequestMessage, ...notice }, "*")
 })
 
 // Control and format characters, which include the marks that reorder text, and the line

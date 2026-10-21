@@ -16,6 +16,7 @@ import {
   type CompanionWindow,
   type PlanSaveResult,
   type ItemContent,
+  type PageTrouble,
   type Project,
   type RunnerSettings,
   type RunnerSettingsState,
@@ -355,6 +356,12 @@ export type Runner = {
     renameWindow(windowId: string, title: string): Promise<void>
     /** Gives a window its item's name again. */
     resetWindowTitle(windowId: string): Promise<void>
+    /** What went wrong on a page item during its show `shown`, as the pane saw it. */
+    pageTrouble(input: {
+      readonly itemId: string
+      readonly shown: number
+      readonly troubles: PageTrouble[]
+    }): Promise<void>
   }
   readonly asks: {
     list(): Promise<InboxLetter[]>
@@ -692,6 +699,7 @@ export const connectRunner = async (
         call((wire) => wire.companions.renameWindow({ windowId, title })),
       resetWindowTitle: (windowId) =>
         call((wire) => wire.companions.resetWindowTitle({ windowId })),
+      pageTrouble: (input) => call((wire) => wire.companions.pageTrouble(input)),
     },
     asks: {
       list: () => call((wire) => wire.asks.list()),

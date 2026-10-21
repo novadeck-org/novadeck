@@ -1,3 +1,4 @@
+import { due, noTroubles, pageNotice, spend, type PageEntry, type Troubles } from "./troubles.js"
 import { shorten } from "./work.js"
 
 /**
@@ -25,7 +26,9 @@ export type Facts = {
  * person's prompts counted toward the backstop, the facts at the last `summarize` (null
  * before any), and those drift last fired for; and, apart from all of these, whether
  * the session has yet to hear of the bar beside its terminal (`artifactsNotice`), which
- * only its delivery clears, never a `summarize`.
+ * only its delivery clears, never a `summarize`; and the troubles the pane told of pages
+ * the session showed (`troubles.ts`), which a new root session drops and only their
+ * delivery otherwise clears.
  */
 export type Nudges = {
   readonly pending: readonly Trigger[]
@@ -33,6 +36,9 @@ export type Nudges = {
   readonly baseline: Facts | null
   readonly driftedTo: Facts | null
   readonly artifacts: boolean
+  readonly troubles: Troubles
+  /** When the current root session began, in milliseconds; only later shows are told of. */
+  readonly since: number
 }
 
 /** How many of the person's prompts since the last `summarize` nudge as a backstop. */
@@ -44,19 +50,38 @@ export const noNudges: Nudges = {
   baseline: null,
   driftedTo: null,
   artifacts: false,
+  troubles: noTroubles,
+  since: 0,
 }
 
-/** The triggers at which a session hears of its bar: when it begins, and when it lost its context. */
+/**
+ * The triggers at which a session hears of its bar: when it begins, and when it lost its
+ * context.
+ */
 const artifactsTriggers: ReadonlySet<Trigger> = new Set(["session", "compaction"])
 
-/**
- * A trigger fired; it nudges once, at the next prompt that carries nothing else. A
- * session that begins or forgot also has the bar beside it to hear of.
- */
-export const fired = (nudges: Nudges, trigger: Trigger): Nudges => ({
+const raised = (nudges: Nudges, trigger: Trigger): Nudges => ({
   ...nudges,
   pending: nudges.pending.includes(trigger) ? nudges.pending : [...nudges.pending, trigger],
   artifacts: nudges.artifacts || artifactsTriggers.has(trigger),
+})
+
+/**
+ * A trigger fired; it nudges once, at the next prompt that carries nothing else. A
+ * session that forgot also has the bar beside it to hear of. A new session is
+ * `sessionBegan`.
+ */
+export const fired = (nudges: Nudges, trigger: Exclude<Trigger, "session">): Nudges =>
+  raised(nudges, trigger)
+
+/**
+ * A new root session began, at `at` in milliseconds: it has the bar beside it to hear of,
+ * and did not show the pages the pane told of, so those go and only later shows count.
+ */
+export const sessionBegan = (nudges: Nudges, at: number): Nudges => ({
+  ...raised(nudges, "session"),
+  troubles: noTroubles,
+  since: at,
 })
 
 /** The person prompted: one more toward the backstop, which fires every `backstopPrompts`. */
@@ -94,27 +119,50 @@ export const afterSummary = (nudges: Nudges, facts: Facts): Nudges => ({
   baseline: facts,
   driftedTo: null,
   artifacts: nudges.artifacts,
+  troubles: nudges.troubles,
+  since: nudges.since,
 })
 
-/** What a prompt's answer says, if anything: of the bar, of the description, or both. */
+/** What a prompt's answer says, if anything: of the bar, of the description, of pages, or all. */
 export type Taken = {
   readonly nudge: boolean
   readonly artifacts: boolean
   readonly summarize: boolean
+  /** The pages it tells of, each once for its show. */
+  readonly pages: readonly PageEntry[]
   readonly nudges: Nudges
 }
 
 /**
  * Whether a prompt's answer nudges, and with what, and the nudges after it: only when a
- * trigger fired or the bar is yet to be told of, and never in an answer that carries
- * anything else, as messages, when they wait.
+ * trigger fired, the bar is yet to be told of or a page has troubles to tell, and never in
+ * an answer that carries anything else, as messages, when they wait. Pages go only as far
+ * as `fits` accepts the answer.
  */
-export const take = (nudges: Nudges, quiet: boolean): Taken => {
+export const take = (
+  nudges: Nudges,
+  quiet: boolean,
+  fits: (took: Pick<Taken, "artifacts" | "summarize" | "pages">) => boolean = () => true,
+): Taken => {
   const summarize = nudges.pending.length > 0
   const { artifacts } = nudges
-  return quiet && (summarize || artifacts)
-    ? { nudge: true, artifacts, summarize, nudges: { ...nudges, pending: [], artifacts: false } }
-    : { nudge: false, artifacts: false, summarize: false, nudges }
+  const silent = { nudge: false, artifacts: false, summarize: false, pages: [], nudges }
+  if (!quiet || !(summarize || artifacts || due(nudges.troubles))) return silent
+  // Pages go only as far as the answer stays within what a hook may print.
+  const { pages, troubles } = spend(
+    nudges.troubles,
+    (each) => fits({ artifacts, summarize, pages: each }),
+    (page) => fits({ artifacts: false, summarize: false, pages: [page] }),
+  )
+  if (!summarize && !artifacts && pages.length === 0)
+    return { ...silent, nudges: { ...nudges, troubles } }
+  return {
+    nudge: true,
+    artifacts,
+    summarize,
+    pages,
+    nudges: { ...nudges, pending: [], artifacts: false, troubles },
+  }
 }
 
 /**
@@ -124,10 +172,15 @@ export const take = (nudges: Nudges, quiet: boolean): Taken => {
  */
 export const atPrompt = (
   nudges: Nudges,
-  input: { readonly quiet: boolean; readonly facts?: Facts | undefined },
+  input: {
+    readonly quiet: boolean
+    readonly facts?: Facts | undefined
+    /** Whether an answer with the notices of a `Taken` stays within what a hook may print. */
+    readonly fits?: Parameters<typeof take>[2]
+  },
 ): Taken => {
   const counted = personPrompted(nudges)
-  return take(input.facts ? drifted(counted, input.facts) : counted, input.quiet)
+  return take(input.facts ? drifted(counted, input.facts) : counted, input.quiet, input.fits)
 }
 
 /**
@@ -166,14 +219,15 @@ export const artifactsNotice =
 
 /**
  * What a quiet prompt's answer says for what it `took`: the bar beside the terminal, for
- * a session that begins or forgot, and the terminal's description, each a paragraph of
- * its own.
+ * a session that begins or forgot, the terminal's description, and each page that had
+ * problems, each a paragraph of its own.
  */
 export const noticesAt = (
-  took: Pick<Taken, "artifacts" | "summarize">,
+  took: Pick<Taken, "artifacts" | "summarize" | "pages">,
   current: { readonly summary: string | null },
 ): string =>
   [
     ...(took.artifacts ? [artifactsNotice] : []),
     ...(took.summarize ? [nudgeText(current)] : []),
+    ...took.pages.map(pageNotice),
   ].join("\n\n")

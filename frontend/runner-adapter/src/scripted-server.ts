@@ -261,6 +261,7 @@ export const scriptedRunner = ({
       content: api.companions.content.handler(unplayed("companions.content")),
       save: api.companions.save.handler(unplayed("companions.save")),
       attach: api.companions.attach.handler(unplayed("companions.attach")),
+      pageTrouble: api.companions.pageTrouble.handler(unplayed("companions.pageTrouble")),
       move: api.companions.move.handler(unplayed("companions.move")),
       undock: api.companions.undock.handler(unplayed("companions.undock")),
       close: api.companions.close.handler(unplayed("companions.close")),

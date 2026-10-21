@@ -219,6 +219,8 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
         note(`rename window ${windowId}`, () => runner.companions.renameWindow(windowId, title)),
       resetWindowTitle: (windowId) =>
         note(`reset window ${windowId}`, () => runner.companions.resetWindowTitle(windowId)),
+      pageTrouble: (input) =>
+        note(`page trouble ${input.itemId}`, () => runner.companions.pageTrouble(input)),
     },
     settings: {
       get: () => runner.settings.get(),

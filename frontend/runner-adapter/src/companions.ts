@@ -4,6 +4,8 @@ import {
   PlanUnwritableError,
   type Companions,
   type ItemContent,
+  type PageTrouble,
+  pageTroublesPerCall,
 } from "@novadeck/core/companion"
 import type { CompanionWindowMeta } from "@novadeck/core/types"
 import {
@@ -12,6 +14,7 @@ import {
   type CompanionItem as RunnerItem,
   type CompanionWindow as RunnerWindow,
   type ItemContent as RunnerContent,
+  type PageTrouble as RunnerTrouble,
 } from "@novadeck/protocol"
 import { planUnwritable } from "@novadeck/protocol"
 import { hasCode, type Runner } from "@novadeck/runner-client"
@@ -70,8 +73,35 @@ export const contentOf = (content: RunnerContent, livePages: boolean): ItemConte
 // What the runner holds no more.
 const gone: ItemContent = { state: "unavailable", reason: "gone", size: null }
 
+// Cut to `max` UTF-16 units, as the schema counts them, never in a surrogate pair.
+const clip = (text: string, max: number): string => {
+  if (text.length <= max) return text
+  const last = text.charCodeAt(max - 1)
+  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max)
+}
+
+// A trouble as the runner takes it: strings within the schema's lengths, numbers whole and
+// in range, as a page that logs anything may send.
+export const troubleOf = (trouble: PageTrouble): RunnerTrouble => {
+  if (trouble.kind === "error")
+    return {
+      kind: "error",
+      text: clip(trouble.text, 1024),
+      source: clip(trouble.source, 2048),
+      line: Number.isFinite(trouble.line) ? Math.max(0, Math.trunc(trouble.line)) : 0,
+    }
+  if (trouble.kind === "request")
+    return {
+      kind: "request",
+      url: clip(trouble.url, 2048),
+      status: Math.min(999, Math.max(0, Math.trunc(trouble.status) || 0)),
+      what: clip(trouble.what, 32),
+    }
+  return { kind: "load", text: clip(trouble.text, 256) }
+}
+
 export const createRunnerCompanions = (
-  runner: Pick<Runner["companions"], "content" | "attach" | "save">,
+  runner: Pick<Runner["companions"], "content" | "attach" | "save" | "pageTrouble">,
   {
     livePages = false,
     picture,
@@ -118,6 +148,19 @@ export const createRunnerCompanions = (
       saved: false,
       current: { stamp, plan: { kind: "plan", ...plan, writable: !plan.truncated } },
     }
+  },
+  trouble: (_target, itemId, shown, troubles) => {
+    if (troubles.length === 0) return
+    // Best effort: the agent just doesn't hear of it if this fails.
+    void Promise.resolve()
+      .then(() =>
+        runner.pageTrouble({
+          itemId,
+          shown,
+          troubles: troubles.slice(0, pageTroublesPerCall).map(troubleOf),
+        }),
+      )
+      .catch(() => {})
   },
   attach: async ({ terminalId }, path) => {
     await runner.attach({ terminalId, path })
