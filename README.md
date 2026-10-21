@@ -212,7 +212,7 @@ region override left out), as Terminal.app does (`en_US.UTF-8` when the system h
 locale), so typing a character such as "ż" works in bash.
 
 In Canvas, resize a terminal by dragging its bottom-right corner. New terminals open at
-600×400 until you resize one; from then on they open at the size you last gave a terminal,
+864×576 until you resize one; from then on they open at the size you last gave a terminal,
 in every project and session. In Grid, the terminal header's resize control alternates
 between two widths: **Make full width** fills the available columns; **Restore width**
 returns to the width at each breakpoint from before that click, preserving terminal height.
