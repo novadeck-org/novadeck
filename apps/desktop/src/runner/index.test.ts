@@ -75,12 +75,11 @@ const start = (database: string, extra: readonly string[] = []) => {
     // eslint-disable-next-line unicorn/require-post-message-target-origin -- A Node worker, not a window.
     worker.postMessage({ data: { type: "persist" }, ports: [] })
   // The transcripts' key, as the host hands it over once the keychain gave it.
-  const key = (bytes: Buffer | null) =>
+  const key = (bytes: Buffer | null) => {
+    const data = { type: "transcriptKey", key: bytes?.toString("base64") ?? null }
     // eslint-disable-next-line unicorn/require-post-message-target-origin -- A Node worker, not a window.
-    worker.postMessage({
-      data: { type: "transcriptKey", key: bytes?.toString("base64") ?? null },
-      ports: [],
-    })
+    worker.postMessage({ data, ports: [] })
+  }
   const close = async () => {
     const exited = once(worker, "exit")
     // eslint-disable-next-line unicorn/require-post-message-target-origin -- A Node worker, not a window.
