@@ -364,7 +364,7 @@ with every safety check again at that time:
   Its first tool, `show`, takes one source under the key that names it, with that
   source's own options inside: a `file` (its path and optional lines), a `page` (its
   `url`, and optionally `scroll`, a CSS selector of the element to bring into view once it
-  loads) or `changes` (`{}`: the whole change in the terminal's repository, see below);
+  loads) or `changes` (`{}` or `{ path }`: the whole change in a repository, see below);
   beside it the options every source shares, a title and `open`, which the agent
   sets for a deliverable it finished or one the user asked to see (`asked`). A new kind
   of artifact adds a source key of its own rather than more fields beside these. `close`
@@ -404,15 +404,28 @@ with every safety check again at that time:
   then what it showed that the person moved elsewhere.
   The UI follows each item with `companions.content`, never by path.
 
-  A **changes item** (`show { changes: {} }`, kind `changes`) is the terminal's git
-  repository as a set of diffs: its working tree against `HEAD` (the empty tree before
+  A **changes item** (`show { changes: {} }`, kind `changes`) is a git repository as a
+  set of diffs, the terminal's by default. An agent that works in another folder or
+  worktree gives `changes: { path }`, a folder inside the repository (absolute, or from the
+  terminal's directory; a file stands for its folder), and `close` takes the same. The
+  item is keyed by the repository's root either way. It is the repository's its working tree against `HEAD` (the empty tree before
   the first commit, whatever the repository's hash), so staged, unstaged and untracked
   files, but not ignored ones, with renames found, whoever edited them. It is one item per
   repository on a bar, keyed `changes:<repository root>` and named "Changes · <folder>"
   unless a title is given; showing it again updates it. Its detail counts the files and
-  lines and follows each read the pane triggers. The content (`companions.content`) is
-  read with git at the start and again about every 2 seconds while followed, and sent
-  only when it changed.
+  lines (untracked files that are listed without being read count as files, not lines)
+  and follows each read the pane triggers. The content (`companions.content`) is read
+  with git at the start and again about every 2 seconds while followed, and sent only
+  when it changed.
+
+  Reading costs git runs, and a big repository makes each one slow: after a read that
+  took over a second, the next waits four times as long (up to 15 seconds), and the
+  usual 2 seconds again as reads get fast. A read that fails once or twice (git timing
+  out under load) keeps the last good content on screen; a third failure in a row says
+  `unreadable`, and a repository that is gone says `missing` at once. The show itself
+  keeps the 5 second timeout. Where the person's `core.fsmonitor` is git's own file
+  monitor (`true`), it is kept, which is what makes big repositories fast; a hook
+  program named there never runs.
 
   Bounds: git lists every changed file with its counts first, and at most 300 files are
   carried (`truncated` says more exist; the rest are not listed). The diff text is read up
@@ -423,9 +436,13 @@ with every safety check again at that time:
   could take) are asked of git for their diff, by literal name, so a regenerated lockfile
   takes no room from the small edits after it; the rest are listed without being read.
   The raw patch is read to at most 8 MiB, and git is ended there (its whole process group,
-  as on a timeout): a file it cut in the middle is listed too. Untracked files are read a
-  bounded amount in all (1 MiB each, 8 MiB per look); past that they are listed by name
-  with no counts. Lines are cut at 4096 characters, and names show a control or invisible
+  as on a timeout): the file it cut in the middle is listed, and the files after it are
+  asked for again without it (a few times), so one minified bundle takes no room from the
+  small edits after it. Untracked files come from `git ls-files --others`, read to 2 MiB
+  of names (only the first fit the 300 files, so the file count of a huge untracked tree
+  is a lower bound), and none where `status.showUntrackedFiles` is `no`. Their contents
+  are read a bounded amount in all (1 MiB each, 8 MiB per look); past that they are listed
+  by name with no counts. A path git lists as changed and as untracked counts once. Lines are cut at 4096 characters, and names show a control or invisible
   character as U+FFFD.
 
   A binary file and a file that may hold secrets (the rule for files, applied to the new
@@ -435,22 +452,25 @@ with every safety check again at that time:
 
   The runner finds `git` once on the PATH (absolute entries only) and runs it with a
   fixed argument list, no shell, in the repository, for at most 5 seconds, ending its
-  whole process group if it takes longer. Its environment is the person's, without any
-  `GIT_*` variable of the runner's own, with `GIT_OPTIONAL_LOCKS=0` (following never
+  whole process group if it takes longer. Its environment is the person's, without the
+  `GIT_*` variables that point git at another repository, configuration or diff
+  (`GIT_DIR`, `GIT_INDEX_FILE`, `GIT_CONFIG*`, `GIT_EXTERNAL_DIFF`, `GIT_PAGER`, trace
+  variables and the like; `GIT_CEILING_DIRECTORIES`, `GIT_EXEC_PATH` stay), with `GIT_OPTIONAL_LOCKS=0` (following never
   takes the index lock the agent's own git needs), no prompts and no network fetch of
   missing objects (`GIT_NO_LAZY_FETCH` is honoured from git 2.45; an older git ignores it).
   Its messages are English (`LC_ALL=C`), which the reader matches; names are read as bytes.
   The diff prefixes are fixed, so the person's `diff.noprefix` and
-  the like change nothing. External diff drivers, text conversion and a repository's
-  fsmonitor hook are switched off; clean filters (git-lfs, say) of files whose stat
+  the like change nothing. External diff drivers and text conversion are switched off, and so is
+  a file monitor hook program; clean filters (git-lfs, say) of files whose stat
   changed still run, as in the person's own `git diff`. Otherwise it is the person's git
   and configuration, which an agent in that terminal could use anyway. `show` is refused,
-  with a reason the agent can act on, when the terminal's folder is not in a git
-  repository, git is not installed, git refused the folder (its own words follow, as for
-  a folder another user owns) or cannot read the change; a repository that goes later
+  with a reason the agent can act on, when the folder is not in a git repository
+  (said in Novadeck's own words, with a hint to give `path`), git is not installed, or git
+  refuses the folder or cannot read the change (then git's own first line of explanation
+  follows, as for a folder another user owns); a repository that goes later
   makes the content `missing`, and any other failure `unreadable`. On a Mac without the
-  Command Line Tools, `/usr/bin/git` is Apple's installer stub, so a show can fail with its
-  message.
+  Command Line Tools, `/usr/bin/git` is Apple's installer stub, so each attempt to show
+  can fail with its message, and may bring up the installer dialog.
 
 - **New terminals** come from the same server's second tool, `open_terminal`, listed
   only inside Novadeck's terminals like `show`. It opens a terminal beside the agent's,

@@ -1,7 +1,9 @@
 import { execFileSync } from "node:child_process"
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -11,16 +13,19 @@ import {
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { maxChangesBytes } from "@novadeck/protocol"
+import { itemContent, maxChangedFiles, maxChangesBytes } from "@novadeck/protocol"
 
 import { describe, expect, it as base } from "../test.js"
 import {
   changesContent,
   describeChange,
+  gitEnv,
   parseDiff,
   parseListing,
   readChange,
   repositoryOf,
+  timing,
+  waitAfter,
 } from "./changes.js"
 
 const hasGit = (() => {
@@ -597,5 +602,192 @@ describe.skipIf(!hasGit)("a change read from a git repository", () => {
       text: "two",
     })
     expect(byPath.get("ok.txt")?.hunks).toHaveLength(1)
+  })
+
+  it("gives the small files after one too long to read their hunks, listing only that one", async ({
+    repo,
+  }) => {
+    repo.write("dist/app.min.js", `${"a".repeat(9_000_000)}\n`)
+    for (const name of ["x", "y", "z"]) repo.write(`src/${name}.ts`, "old\n")
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "base")
+    repo.write("dist/app.min.js", `${"b".repeat(9_000_000)}\n`)
+    for (const name of ["x", "y", "z"]) repo.write(`src/${name}.ts`, "new\n")
+    const read = await readChange(repo.root)
+    if (!read.ok) throw new Error(read.reason)
+    const byPath = new Map(read.change.files.map((each) => [each.path, each]))
+    expect(byPath.get("dist/app.min.js")).toMatchObject({ listed: true, hunks: [], added: 1 })
+    for (const name of ["x", "y", "z"])
+      expect(byPath.get(`src/${name}.ts`)?.hunks[0]?.lines).toEqual([
+        { kind: "remove", text: "old" },
+        { kind: "add", text: "new" },
+      ])
+    expect(read.change.truncated).toBe(true)
+  })
+
+  it("carries at most the protocol's number of files, whatever is changed", async ({ repo }) => {
+    for (let index = 0; index < 160; index += 1) repo.write(`t${index}.txt`, "1\n")
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "base")
+    for (let index = 0; index < 160; index += 1) repo.write(`t${index}.txt`, "2\n")
+    for (let index = 0; index < 160; index += 1) repo.write(`u${index}.txt`, "1\n")
+    const { content, detail } = await changesContent(repo.root)
+    expect(itemContent.parse(content)).toEqual(content)
+    if (content.state !== "ready" || content.content.kind !== "changes")
+      throw new Error("not ready")
+    expect(content.content.files).toHaveLength(maxChangedFiles)
+    expect(content.content.truncated).toBe(true)
+    // Untracked files past the file cap are counted as files, not read for lines.
+    expect(detail).toBe("320 files · +300 −160")
+  })
+
+  it("lists an untracked file past the per-file read bound without reading it", async ({
+    repo,
+  }) => {
+    repo.write("big.txt", "some words\n".repeat(150_000))
+    repo.write("small.txt", "fits\n")
+    const read = await readChange(repo.root)
+    if (!read.ok) throw new Error(read.reason)
+    const byPath = new Map(read.change.files.map((each) => [each.path, each]))
+    expect(byPath.get("big.txt")).toMatchObject({ listed: true, hunks: [], added: 0 })
+    expect(byPath.get("small.txt")?.hunks).toHaveLength(1)
+    expect(read.change.truncated).toBe(true)
+  })
+
+  it("counts a path git lists as changed and as untracked once", async ({ repo }) => {
+    repo.write("a.txt", "x\n")
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "base")
+    repo.git("rm", "--cached", "--quiet", "a.txt")
+    const read = await readChange(repo.root)
+    if (!read.ok) throw new Error(read.reason)
+    expect(read.change.files.map(({ path }) => path)).toEqual(["a.txt"])
+    expect(read.change.total.files).toBe(1)
+  })
+
+  it("shows no untracked file where status is told to show none", async ({ repo }) => {
+    repo.write("a.txt", "x\n")
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "base")
+    repo.git("config", "status.showUntrackedFiles", "no")
+    repo.write("new.txt", "y\n")
+    repo.write("a.txt", "z\n")
+    const read = await readChange(repo.root)
+    if (!read.ok) throw new Error(read.reason)
+    expect(read.change.files.map(({ path }) => path)).toEqual(["a.txt"])
+  })
+
+  it("never runs a file monitor hook program of the repository", async ({ repo }) => {
+    if (windows) return
+    const marker = join(repo.root, "..", "hook-ran")
+    const hook = join(repo.root, "..", "hook.sh")
+    writeFileSync(hook, `#!/bin/sh\necho ran > '${marker}'\n`, { mode: 0o755 })
+    repo.write("a.txt", "x\n")
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "base")
+    repo.git("config", "core.fsmonitor", hook)
+    repo.write("a.txt", "y\n")
+    const read = await readChange(repo.root)
+    expect(read.ok).toBe(true)
+    expect(existsSync(marker)).toBe(false)
+  })
+
+  // A clean filter runs for a file whose stat changed, as in the person's own git diff: a
+  // way to see what git is run with, and to hold it past its time.
+  const filtered = (repo: Repo, command: string) => {
+    repo.write(".gitattributes", "*.txt filter=probe\n")
+    repo.write("a.txt", "one\n")
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "base")
+    repo.git("config", "filter.probe.clean", command)
+    repo.write("a.txt", "two, longer\n")
+  }
+
+  it("runs git without optional locks, prompts or the runner's own GIT_ variables", async ({
+    repo,
+  }) => {
+    if (windows) return
+    const dump = join(repo.root, "..", "env.txt")
+    filtered(repo, `env > '${dump}'; cat`)
+    const saved = process.env.GIT_CEILING_DIRECTORIES
+    process.env.GIT_CEILING_DIRECTORIES = tmpdir()
+    try {
+      const read = await readChange(repo.root)
+      expect(read.ok).toBe(true)
+    } finally {
+      if (saved === undefined) delete process.env.GIT_CEILING_DIRECTORIES
+      else process.env.GIT_CEILING_DIRECTORIES = saved
+    }
+    const seen = readFileSync(dump, "utf8").split("\n")
+    for (const line of ["GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0", "LC_ALL=C"])
+      expect(seen).toContain(line)
+    expect(seen).toContain(`GIT_CEILING_DIRECTORIES=${tmpdir()}`)
+  })
+
+  it("ends git and what it started when it takes too long", async ({ repo }) => {
+    if (windows) return
+    const pids = join(repo.root, "..", "pid.txt")
+    filtered(repo, `echo $$ > '${pids}'; sleep 30`)
+    const before = timing.gitMs
+    timing.gitMs = 700
+    try {
+      const read = await readChange(repo.root)
+      expect(read).toMatchObject({ ok: false, kind: "failed" })
+      expect(read.ok ? "" : read.reason).toMatch(/too long/)
+    } finally {
+      timing.gitMs = before
+    }
+    const pid = Number(readFileSync(pids, "utf8").trim())
+    const gone = async () => {
+      for (let tries = 0; tries < 40; tries += 1) {
+        try {
+          process.kill(pid, 0)
+        } catch {
+          return true
+        }
+        // eslint-disable-next-line no-await-in-loop -- Waits for the process to be reaped.
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+      return false
+    }
+    expect(await gone()).toBe(true)
+  })
+})
+
+describe("how long a change waits to be read again", () => {
+  it("is the usual wait for fast reads, longer for slow ones, and never more than 15 s", () => {
+    expect(waitAfter(50, 2000)).toBe(2000)
+    expect(waitAfter(1000, 2000)).toBe(2000)
+    expect(waitAfter(1500, 2000)).toBe(6000)
+    expect(waitAfter(60_000, 2000)).toBe(15_000)
+  })
+})
+
+describe("the environment git runs in", () => {
+  it("drops what would point git elsewhere, and keeps the rest of the person's", () => {
+    const saved = { ...process.env }
+    Object.assign(process.env, {
+      GIT_DIR: "/elsewhere",
+      GIT_INDEX_FILE: "/x",
+      GIT_CONFIG_COUNT: "1",
+      GIT_EXTERNAL_DIFF: "/bin/true",
+      GIT_CEILING_DIRECTORIES: "/ceiling",
+      GIT_EXEC_PATH: "/exec",
+    })
+    try {
+      const env = gitEnv()
+      for (const name of ["GIT_DIR", "GIT_INDEX_FILE", "GIT_CONFIG_COUNT", "GIT_EXTERNAL_DIFF"])
+        expect(env[name]).toBeUndefined()
+      expect(env).toMatchObject({
+        GIT_CEILING_DIRECTORIES: "/ceiling",
+        GIT_EXEC_PATH: "/exec",
+        GIT_OPTIONAL_LOCKS: "0",
+        GIT_TERMINAL_PROMPT: "0",
+        GIT_LITERAL_PATHSPECS: "1",
+      })
+    } finally {
+      for (const name of Object.keys(process.env)) if (!(name in saved)) delete process.env[name]
+      Object.assign(process.env, saved)
+    }
   })
 })

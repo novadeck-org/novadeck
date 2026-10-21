@@ -371,10 +371,18 @@ describe("Novadeck's MCP server", () => {
         }
         expect(tool.inputSchema.properties.changes).toMatchObject({
           type: "object",
-          properties: {},
+          properties: { path: { type: "string" } },
           additionalProperties: false,
         })
       }
+      const shownSchema = (
+        described.find((each) => each.name === "show") as unknown as {
+          inputSchema: { properties: { changes: { description: string } } }
+        }
+      ).inputSchema.properties.changes
+      expect(shownSchema.description).toContain(
+        "give path when you work in another folder or worktree",
+      )
       expect(show.description).toContain("the file you are working on together")
       expect(show.description).toContain(
         "Set open to true for a deliverable you finish or they asked to see",
@@ -510,8 +518,11 @@ describe("Novadeck's MCP server", () => {
         return reply.result.content[0]?.text
       }
       const cases = [
-        [{ path: "a.ts" }, "Give one source, file: { path }, page: { url } or changes: {}."],
-        [{ url: "http://a/" }, "Give one source, file: { path }, page: { url } or changes: {}."],
+        [{ path: "a.ts" }, "Give one source, file: { path }, page: { url } or changes: { path? }."],
+        [
+          { url: "http://a/" },
+          "Give one source, file: { path }, page: { url } or changes: { path? }.",
+        ],
         [{ file: { path: "a.ts" }, extra: 1 }, 'The request\'s "extra" is not valid.'],
         [
           { page: { url: "http://a/" }, lines: { from: 1, to: 1 } },

@@ -44,8 +44,14 @@ export const pageSource = z.strictObject({
 
 export const pageRequest = z.strictObject({ page: pageSource, ...shared })
 
-/** The change in the terminal's repository: its working tree against HEAD. */
-export const changesRequest = z.strictObject({ changes: z.strictObject({}), ...shared })
+/**
+ * The change in a repository: its working tree against HEAD. The repository is the one
+ * the folder `path` is in (absolute, or from the terminal's directory), by default the
+ * terminal's own folder.
+ */
+export const changesSource = z.strictObject({ path: z.string().min(1).max(4096).optional() })
+
+export const changesRequest = z.strictObject({ changes: changesSource, ...shared })
 
 /** Each source `show` takes, by the key that names it. A new kind adds one here. */
 const sources = { file: fileRequest, page: pageRequest, changes: changesRequest } as const
@@ -61,7 +67,7 @@ export const sourceNames = Object.keys(sources) as readonly (keyof typeof source
 const dismissSources = {
   file: z.strictObject({ file: z.strictObject({ path: fileSource.shape.path }) }),
   page: z.strictObject({ page: z.strictObject({ url: pageSource.shape.url }) }),
-  changes: z.strictObject({ changes: z.strictObject({}) }),
+  changes: z.strictObject({ changes: changesSource }),
 } as const
 
 export type FileRequest = z.infer<typeof fileRequest>
@@ -105,7 +111,7 @@ export const failure = (reason: string): PresentFailure => ({ ok: false, reason 
 const shapes = {
   file: "file: { path }",
   page: "page: { url }",
-  changes: "changes: {}",
+  changes: "changes: { path? }",
 } as const satisfies {
   readonly [name in (typeof sourceNames)[number]]: string
 }

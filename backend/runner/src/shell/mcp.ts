@@ -176,8 +176,17 @@ const show: Tool<Shown> = {
         description:
           "Instead of file or page: the changes in this terminal's git repository, every file " +
           "that differs from HEAD (staged, unstaged and new; the user's and other agents' edits " +
-          "too), shown as diffs that update as the files change. Give {}.",
-        properties: {},
+          "too), shown as diffs that update as the files change. Give {} for the terminal's " +
+          "own folder; give path when you work in another folder or worktree than the " +
+          "terminal's.",
+        properties: {
+          path: {
+            type: "string",
+            description:
+              "A folder inside the repository, absolute or relative to the terminal's " +
+              "current directory: the working tree to show.",
+          },
+        },
         additionalProperties: false,
       },
       title: {
@@ -219,8 +228,8 @@ const show: Tool<Shown> = {
 const showing: Tool<Listing> = {
   name: "showing",
   description:
-    "List what is showing beside your terminal in Novadeck now: each image, file, page " +
-    "and plan, with where it points and whether you showed it, the user attached it, or " +
+    "List what is showing beside your terminal in Novadeck now: each image, file, page, " +
+    "changes and plan, with where it points and whether you showed it, the user attached it, or " +
     "it was placed there from another terminal, and what you showed that the user moved " +
     "into a window or beside another terminal. Check it before showing after a while, " +
     "to update what is there rather than add beside it, and to close what no longer " +
@@ -271,8 +280,12 @@ const close: Tool<Dismissed> = {
       },
       changes: {
         type: "object",
-        description: "Instead of file or page: the changes you showed. Give {}.",
-        properties: {},
+        description:
+          "Instead of file or page: the changes you showed. Give {}, or the same path you " +
+          "gave show.",
+        properties: {
+          path: { type: "string", description: "The folder you gave show, if you gave one." },
+        },
         additionalProperties: false,
       },
     },

@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process"
 import { constants, statSync } from "node:fs"
 import { lstat, open, readlink, stat } from "node:fs/promises"
-import { basename, delimiter, isAbsolute, join, resolve } from "node:path"
+import { basename, delimiter, dirname, isAbsolute, join, resolve } from "node:path"
 
 import {
   hiddenCharacter,
@@ -19,10 +19,11 @@ const emptyTrees = {
   sha1: "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
   sha256: "6ef19b41225c5369f1c104d45d8d85efa9b057b53b14b4b9b939dd74decc5321",
 } as const
-/** How long one git run may take, and how much of its output is kept. */
-const gitMs = 5_000
+/** How long one git run may take (a test shortens it), and how much of its output is kept. */
+export const timing = { gitMs: 5_000 }
 const metaBytes = 32 * 1024 * 1024
-const namesBytes = 16 * 1024 * 1024
+// Only the first names of the untracked files are shown, so only so many are read.
+const namesBytes = 2 * 1024 * 1024
 // The raw diff text read: what fits the budget needs hardly more than the budget itself.
 const patchBytes = 2 * maxChangesBytes
 // A line is cut to what the protocol takes; a text file has no NUL byte in this much of its start.
@@ -90,13 +91,19 @@ const gitPath = (): string | undefined => {
   return undefined
 }
 
-// The environment git runs in: the person's own, but for the runner's GIT_* variables
-// (GIT_DIR, GIT_INDEX_FILE, GIT_CONFIG_* and the like point git elsewhere), with optional
-// locks off so looking never takes the index lock the agent's own git needs, no prompts,
-// and no fetching of missing objects over the network.
-const gitEnv = (): NodeJS.ProcessEnv => ({
+// The variables of the person's environment that point git at another repository, another
+// configuration or another way to diff, or make it write traces: the runner may have them
+// from wherever it was started, and what it shows is this terminal's repository as the
+// person's git would show it. The rest (GIT_CEILING_DIRECTORIES, GIT_EXEC_PATH…) stay.
+const redirecting =
+  /^GIT_(DIR|WORK_TREE|INDEX_FILE|INDEX_VERSION|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|COMMON_DIR|NAMESPACE|PREFIX|CONFIG.*|EXTERNAL_DIFF|DIFF_OPTS|PAGER|EDITOR|SEQUENCE_EDITOR|.*_PATHSPECS|REPLACE_REF_BASE|NO_REPLACE_OBJECTS|SHALLOW_FILE|GRAFT_FILE|ATTR_SOURCE|TRACE.*)$/
+
+// The environment git runs in: the person's own, but for those, with optional locks off so
+// looking never takes the index lock the agent's own git needs, no prompts, and no
+// fetching of missing objects over the network.
+export const gitEnv = (): NodeJS.ProcessEnv => ({
   ...Object.fromEntries(
-    Object.entries(process.env).filter(([name]) => !name.toUpperCase().startsWith("GIT_")),
+    Object.entries(process.env).filter(([name]) => !redirecting.test(name.toUpperCase())),
   ),
   GIT_OPTIONAL_LOCKS: "0",
   GIT_TERMINAL_PROMPT: "0",
@@ -132,14 +139,14 @@ const killTree = (pid: number | undefined): void => {
 }
 
 // Runs git as the person would, with no shell, a fixed argument list and the environment
-// above. Switched off: a repository's fsmonitor hook, external diff programs, text
+// above. Switched off: a repository's fsmonitor hook program, external diff programs, text
 // conversion, a pager and prompts. Not switched off: clean filters (git-lfs, say) of
 // files whose stat changed, which run as in the person's own `git diff`. Output past
 // `cap` bytes ends the run: it is `cut` where `truncate`, else a failure.
 const git = (
   cwd: string,
   args: readonly string[],
-  limit: { readonly cap: number; readonly truncate?: boolean },
+  limit: { readonly cap: number; readonly truncate?: boolean; readonly monitor?: boolean },
 ): Promise<Run> =>
   new Promise((done) => {
     const program = gitPath()
@@ -153,7 +160,14 @@ const git = (
     }
     const child = spawn(
       program,
-      ["-c", "core.quotepath=off", "-c", "core.fsmonitor=false", ...args],
+      [
+        "-c",
+        "core.quotepath=off",
+        // A hook program named by the repository's config never runs; git's own monitor
+        // (`core.fsmonitor=true`), which big repositories rely on, may.
+        ...(limit.monitor ? [] : ["-c", "core.fsmonitor=false"]),
+        ...args,
+      ],
       {
         cwd,
         env: gitEnv(),
@@ -169,7 +183,7 @@ const git = (
     const timer = setTimeout(() => {
       killTree(child.pid)
       finish({ ok: false, kind: "timeout", status: 0, said: "" })
-    }, gitMs)
+    }, timing.gitMs)
     child.stdout?.on("data", (chunk: Buffer) => {
       if (cut) return
       if (size + chunk.length > limit.cap) {
@@ -522,7 +536,7 @@ const failure = (kind: ChangeFailure["kind"], reason: string): ChangeFailure => 
 const reasonOf = (run: Extract<Run, { ok: false }>, doing: string): string => {
   if (run.kind === "no-git") return "Git isn't installed, so changes can't be shown."
   if (run.kind === "timeout") return `Git took too long to ${doing}.`
-  if (run.kind === "big") return `There are too many changes to ${doing}.`
+  if (run.kind === "big") return `The changes are too large to ${doing}.`
   return `Git couldn't ${doing}${run.said ? `: ${JSON.stringify(run.said)}` : "."}`
 }
 
@@ -534,15 +548,21 @@ const reasonOf = (run: Extract<Run, { ok: false }>, doing: string): string => {
 export const repositoryOf = async (
   directory: string,
 ): Promise<{ readonly ok: true; readonly root: string } | ChangeFailure> => {
-  if (!(await stat(directory).catch(() => undefined)))
-    return failure("missing", "The terminal's folder no longer exists.")
-  const top = await git(directory, ["rev-parse", "--show-toplevel"], { cap: 64 * 1024 })
+  const found = await stat(directory).catch(() => undefined)
+  if (!found) return failure("missing", "That folder doesn't exist (any more).")
+  // A file stands for the folder it is in.
+  const top = await git(
+    found.isDirectory() ? directory : dirname(directory),
+    ["rev-parse", "--show-toplevel"],
+    { cap: 64 * 1024 },
+  )
   if (top.ok) return { ok: true, root: resolve(top.out.trim()) }
   if (top.kind === "no-git") return failure("no-git", reasonOf(top, "read the changes"))
   if (top.kind === "exit" && /not a git repository/i.test(top.said))
     return failure(
       "not-a-repository",
-      "This terminal's folder isn't in a git repository, so there are no changes to show.",
+      "That folder isn't in a git repository, so there are no changes to show. Give " +
+        "changes: { path } a folder inside one.",
     )
   return failure("failed", reasonOf(top, "open this folder's repository"))
 }
@@ -564,17 +584,31 @@ const diffFlags = [
 const minLineCost = lineOverhead + 2
 // How long the file names on one git command line may be in all: Windows allows 32767.
 const maxCommandChars = 16_000
+// How many times a cut patch is asked for again without the file that cut it.
+const maxPatchRuns = 4
 
 // The diff of the wanted files alone, by their literal names (the old name of a rename
 // too, or it would show as a new file), in as few runs as keep each command line short
 // enough for any system; their outputs follow one another, within `patchBytes` in all.
-const patchOf = async (root: string, base: string, wanted: readonly Entry[]): Promise<Run> => {
+// Whether a name reached us as U+FFFD, being no valid UTF-8.
+const unnamed = (entry: Entry): boolean =>
+  entry.path.includes("\uFFFD") || (entry.oldPath?.includes("\uFFFD") ?? false)
+
+const patchOf = async (
+  root: string,
+  base: string,
+  wanted: readonly Entry[],
+  monitor: boolean,
+): Promise<Run> => {
   // A name that isn't valid UTF-8 reached us as U+FFFD, which no command line can give
   // back to git (and `git diff` takes no pathspec file): the whole diff is read instead,
   // within the same cap, and its sections pair with the listing by the same decoding.
-  const named = (entry: Entry) => entry.path.includes("\uFFFD") || entry.oldPath?.includes("\uFFFD")
-  if (wanted.some(named))
-    return git(root, [...diffFlags, "-U3", base, "--"], { cap: patchBytes, truncate: true })
+  if (wanted.some(unnamed))
+    return git(root, [...diffFlags, "-U3", base, "--"], {
+      cap: patchBytes,
+      truncate: true,
+      monitor,
+    })
   const groups: string[][] = []
   let length = 0
   for (const entry of wanted) {
@@ -593,6 +627,7 @@ const patchOf = async (root: string, base: string, wanted: readonly Entry[]): Pr
     const run = await git(root, [...diffFlags, "-U3", base, "--", ...names], {
       cap: patchBytes - Buffer.byteLength(out),
       truncate: true,
+      monitor,
     })
     if (!run.ok) return run
     out += run.out
@@ -611,17 +646,38 @@ const patchOf = async (root: string, base: string, wanted: readonly Entry[]): Pr
 export const readChange = async (
   root: string,
 ): Promise<{ readonly ok: true; readonly change: Change } | ChangeFailure> => {
-  const head = await git(root, ["rev-parse", "--verify", "--quiet", "HEAD"], { cap: 4096 })
+  const configured = await git(
+    root,
+    ["config", "--get-regexp", "^(core\\.fsmonitor|status\\.showuntrackedfiles)$"],
+    { cap: 16 * 1024 },
+  )
+  // Of the person's configuration: git's own file monitor stays (a hook program does not),
+  // and untracked files are not shown where status doesn't show them.
+  const set = new Map<string, string>()
+  if (configured.ok)
+    for (const line of configured.out.split("\n")) {
+      const space = line.indexOf(" ")
+      if (space > 0) set.set(line.slice(0, space), line.slice(space + 1).trim())
+    }
+  const monitor = /^(true|yes|on|1)$/i.test(set.get("core.fsmonitor") ?? "")
+  const showUntracked = !/^(no|false|off|0)$/i.test(set.get("status.showuntrackedfiles") ?? "")
+  const head = await git(root, ["rev-parse", "--verify", "--quiet", "HEAD"], { cap: 4096, monitor })
   if (!head.ok && !(head.kind === "exit" && head.status === 1))
     return failure("failed", reasonOf(head, "read the changes"))
   let base = "HEAD"
   if (!head.ok) {
-    const format = await git(root, ["rev-parse", "--show-object-format"], { cap: 4096 })
+    const format = await git(root, ["rev-parse", "--show-object-format"], { cap: 4096, monitor })
     base = format.ok && format.out.trim() === "sha256" ? emptyTrees.sha256 : emptyTrees.sha1
   }
   const [listing, others] = await Promise.all([
-    git(root, [...diffFlags, "--raw", "--numstat", "-z", base, "--"], { cap: metaBytes }),
-    git(root, ["ls-files", "--others", "--exclude-standard", "-z"], { cap: namesBytes }),
+    git(root, [...diffFlags, "--raw", "--numstat", "-z", base, "--"], { cap: metaBytes, monitor }),
+    showUntracked
+      ? git(root, ["ls-files", "--others", "--exclude-standard", "-z"], {
+          cap: namesBytes,
+          truncate: true,
+          monitor,
+        })
+      : { ok: true as const, out: "", cut: false },
   ])
   if (!listing.ok) return failure("failed", reasonOf(listing, "read the changes"))
   if (!others.ok) return failure("failed", reasonOf(others, "read the changes"))
@@ -641,29 +697,42 @@ export const readChange = async (
     planned += least
     wanted.push(entry)
   }
-  const patch = await patchOf(root, base, wanted)
-  if (!patch.ok) return failure("failed", reasonOf(patch, "read the changes"))
   const budget: Budget = { left: maxChangesBytes }
-  // A file that may hold secrets is not even looked at in the diff: neither its new name
-  // nor the one a rename took it from.
-  const diffed = parseDiff(patch.out, { budget, skip: (file) => heldAt(file.path, file.oldPath) })
-  // Output that was cut ends in a file only partly read.
-  if (patch.cut) diffed.pop()
   // A type change (a file made a symlink, or the reverse) prints a section for each side
   // of one path: both are its hunks, the old side first.
   const parsed = new Map<string, ChangedFile>()
-  for (const file of diffed) {
-    const earlier = parsed.get(file.path)
-    parsed.set(
-      file.path,
-      earlier
-        ? {
-            ...file,
-            listed: earlier.listed || file.listed,
-            hunks: [...earlier.hunks, ...file.hunks],
-          }
-        : file,
-    )
+  // A file that may hold secrets is not even looked at in the diff: neither its new name
+  // nor the one a rename took it from.
+  const skip = (file: ChangedFile) => heldAt(file.path, file.oldPath)
+  // A patch that was cut ends in a file too big to read (one very long line, say): that
+  // file is listed, and the files after it are asked for again, so it takes none of their
+  // room. The retries are few; what is still unread then is listed too.
+  let remaining = wanted
+  for (let attempt = 0; attempt < maxPatchRuns && remaining.length > 0; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop -- Each run follows the cut of the one before.
+    const patch = await patchOf(root, base, remaining, monitor)
+    if (!patch.ok) return failure("failed", reasonOf(patch, "read the changes"))
+    const diffed = parseDiff(patch.out, { budget, skip })
+    // Output that was cut ends in a file only partly read.
+    const culprit = patch.cut ? (diffed.pop()?.path ?? remaining[0]?.path) : undefined
+    for (const file of diffed) {
+      const earlier = parsed.get(file.path)
+      parsed.set(
+        file.path,
+        earlier
+          ? {
+              ...file,
+              listed: earlier.listed || file.listed,
+              hunks: [...earlier.hunks, ...file.hunks],
+            }
+          : file,
+      )
+    }
+    // A name that isn't valid UTF-8 reads the whole diff, which can't leave a file out.
+    const whole = remaining.some(unnamed)
+    if (!patch.cut || whole) break
+    const done = new Set([...diffed.map((file) => file.path), culprit])
+    remaining = remaining.filter((entry) => !done.has(entry.path))
   }
   let truncated = entries.length > maxChangedFiles
   const files: ChangedFile[] = []
@@ -687,9 +756,14 @@ export const readChange = async (
     })
   }
 
-  const names = others.out.split("\0").filter((name) => name !== "")
+  // A path git lists both as changed and as untracked (removed from the index only) counts
+  // once; a list that was cut ends in a name only partly read.
+  const known = new Set(entries.map((entry) => entry.path))
+  const listed = others.out.split("\0")
+  if (others.cut) listed.pop()
+  const names = listed.filter((name) => name !== "" && !known.has(name))
   const slots = Math.max(0, maxChangedFiles - entries.length)
-  if (names.length > slots) truncated = true
+  if (names.length > slots || others.cut) truncated = true
   const reading = { left: untrackedReadBytes }
   for (const name of names.slice(0, slots)) {
     // eslint-disable-next-line no-await-in-loop -- Each file is read in turn, within the budget.
@@ -698,7 +772,6 @@ export const readChange = async (
     if (file.listed) truncated = true
     files.push(file)
   }
-  if (patch.cut && entries.some((entry) => entry.added + entry.removed > 0)) truncated = true
 
   const added = files.reduce((sum, file) => sum + file.added, 0)
   const removed = files.reduce((sum, file) => sum + file.removed, 0)
@@ -755,3 +828,15 @@ export const changesContent = async (
     detail: describeChange(change).detail,
   }
 }
+
+// A change read slower than this is polled less often; it is polled at most this seldom.
+const slowRead = 1_000
+const maxChangesWait = 15_000
+
+/**
+ * How long to wait before reading a change again, given how long the last read `took`
+ * and the usual `every`: after a slow read (a big repository) four times as long as it
+ * took, up to 15 seconds, and the usual wait again as reads get fast.
+ */
+export const waitAfter = (took: number, every: number): number =>
+  took > slowRead ? Math.min(maxChangesWait, Math.max(every, took * 4)) : every

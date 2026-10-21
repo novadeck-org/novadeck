@@ -1,6 +1,14 @@
 import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -1022,7 +1030,7 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     git("add", "-A")
     git("commit", "--quiet", "-m", "base")
     writeFileSync(join(root, "a.txt"), "one\ntwo\n")
-    return { root, place: { ...fixture.terminal("moth"), cwd: root } }
+    return { root, git, place: { ...fixture.terminal("moth"), cwd: root } }
   }
 
   it("is one item per repository, updated by showing again, and closed the same way", async ({
@@ -1098,5 +1106,53 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     await expect(fixture.items.dismiss(moth, { changes: {} })).resolves.toMatchObject({
       ok: false,
     })
+  })
+
+  it("shows the repository of a folder given as path, such as a worktree elsewhere", async ({
+    fixture,
+  }) => {
+    const { git, place } = repository(fixture)
+    const tree = join(fixture.directory, "wt")
+    git("worktree", "add", "--quiet", "-b", "other", tree)
+    writeFileSync(join(tree, "b.txt"), "in the worktree\n")
+    // The terminal is in a folder that is no repository.
+    const outside = { ...place, cwd: fixture.directory }
+    expect(await fixture.items.show(outside, { changes: {} })).toMatchObject({ ok: false })
+    expect(await fixture.items.show(outside, { changes: { path: "wt" } })).toMatchObject({
+      ok: true,
+      kind: "changes",
+      name: "Changes · wt",
+    })
+    const item = fixture.items.bar(place.terminalId)[0]
+    expect(folder(item?.path ?? "")).toBe(folder(tree))
+    const content = await fixture.items.load(item?.id ?? "", false)
+    expect(content).toMatchObject({
+      state: "ready",
+      content: { kind: "changes", files: [{ path: "b.txt", status: "added" }] },
+    })
+    // The same path closes it; a path in no repository names nothing.
+    await expect(fixture.items.dismiss(outside, { changes: {} })).resolves.toMatchObject({
+      ok: false,
+    })
+    await expect(
+      fixture.items.dismiss(outside, { changes: { path: join(tree, "..", "wt") } }),
+    ).resolves.toMatchObject({ ok: true, kind: "changes" })
+  })
+
+  it("tells a change unavailable once it has stayed unreadable, not at the first failure", async ({
+    fixture,
+  }) => {
+    const { root, place } = repository(fixture)
+    const shown = await fixture.items.show(place, { changes: {} })
+    const stream = fixture.items.content(shown.ok ? shown.id : "", false)
+    expect(await next(stream)).toMatchObject({ state: "ready" })
+    const head = join(root, ".git", "HEAD")
+    const good = readFileSync(head)
+    writeFileSync(head, "garbage\n")
+    // The reads that fail say nothing until the failure has stayed.
+    expect(await next(stream)).toMatchObject({ state: "unavailable", reason: "unreadable" })
+    writeFileSync(head, good)
+    expect(await next(stream)).toMatchObject({ state: "ready" })
+    fixture.items.close(shown.ok ? shown.id : "")
   })
 })

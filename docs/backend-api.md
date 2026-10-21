@@ -1044,7 +1044,8 @@ one from an earlier runner.
     `truncated` is set (it is also set where files past 300 are left out, which are not
     listed). A binary file or one that may hold secrets (`held`, judged by the new and the
     old name) has no hunks; names show invisible characters as U+FFFD. It is read with git about
-    every 2 seconds while followed, and `reveal` has no effect on it; a repository that is
+    every 2 seconds while followed (less often after slow reads, keeping the last good
+    content through a failed read or two), and `reveal` has no effect on it; a repository that is
     gone is `missing`, and a failing git `unreadable`. Every read resolves symlinks again, refuses anything but a plain
     file and never blocks on a pipe, and a file that now resolves to one that may hold
     secrets is held.

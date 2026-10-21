@@ -34,7 +34,7 @@ describe("a show request", () => {
       readRequest({ page: { url: "http://localhost:5173/" }, file: { path: "a.ts" } }),
     ).toEqual({
       ok: false,
-      reason: "Give one source, file: { path }, page: { url } or changes: {}, not several.",
+      reason: "Give one source, file: { path }, page: { url } or changes: { path? }, not several.",
     })
     expect(readRequest({ page: { url: "http://a/" }, lines: { from: 1, to: 1 } })).toMatchObject({
       ok: false,
@@ -47,13 +47,13 @@ describe("a show request", () => {
     expect(readRequest({ page: { url: "" } })).toMatchObject({ ok: false })
     expect(readRequest({})).toEqual({
       ok: false,
-      reason: "Give one source, file: { path }, page: { url } or changes: {}.",
+      reason: "Give one source, file: { path }, page: { url } or changes: { path? }.",
     })
     // The old flat address, as the old flat path, is told the shape.
     for (const old of [{ path: "a.ts" }, { url: "http://localhost:5173/" }])
       expect(readRequest(old)).toEqual({
         ok: false,
-        reason: "Give one source, file: { path }, page: { url } or changes: {}.",
+        reason: "Give one source, file: { path }, page: { url } or changes: { path? }.",
       })
     expect(readRequest("a.ts")).toEqual({ ok: false, reason: "The request is not valid." })
     expect(readRequest({ page: { url: "http://a/" }, ['x"y'.repeat(40)]: 1 })).toEqual({
@@ -99,11 +99,11 @@ describe("a close request", () => {
     })
     expect(readDismissRequest({ file: { path: "a.ts" }, page: { url: "http://a/" } })).toEqual({
       ok: false,
-      reason: "Give one source, file: { path }, page: { url } or changes: {}, not several.",
+      reason: "Give one source, file: { path }, page: { url } or changes: { path? }, not several.",
     })
     expect(readDismissRequest({})).toEqual({
       ok: false,
-      reason: "Give one source, file: { path }, page: { url } or changes: {}.",
+      reason: "Give one source, file: { path }, page: { url } or changes: { path? }.",
     })
   })
 })
@@ -115,6 +115,12 @@ describe("a request for the changes", () => {
       ok: true,
       request: { changes: {}, title: "Work", open: true },
     })
+    expect(readRequest({ changes: { path: "../wt" } })).toEqual({
+      ok: true,
+      request: { changes: { path: "../wt" } },
+    })
+    expect(readDismissRequest({ changes: { path: "../wt" } })).toMatchObject({ ok: true })
+    expect(readRequest({ changes: { path: "" } })).toMatchObject({ ok: false })
     expect(readRequest({ changes: { base: "main" } })).toEqual({
       ok: false,
       reason: 'The request\'s "changes.base" is not valid.',
