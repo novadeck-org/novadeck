@@ -90,19 +90,17 @@ website's network sees the address; whether Chromium's network stack adds an
 `Accept-Language` is not verified. What the website keeps of it is in novadeck-website's
 README, "Counts".
 
-Updating never depends on the website. A check through it that fails for any reason is
-made again at once against GitHub (unless the app is quitting) with the repository from
-`app-update.yml`, and the next check goes to novadeck.dev again. A download
-that failed, whichever feed found it, has its retry check go to GitHub alone. Portable
-copies check the same way. With no repository in `app-update.yml` there is nothing to fall
-back to, so checks stay on the updater's own configuration.
-
-A valid answer can be a stale one, which a failed check would not show. So a check through
-the website whose answer starts no download (nothing newer, the release an install failed
-on, one already downloaded, or in tell mode only an offer) is confirmed against GitHub at
-once (no `x-novadeck-*` headers) unless GitHub answered within the last 24 hours or the
-app is quitting; an update found there is taken like any GitHub-found one, and the next check
-goes to the website again.
+A site that can't be reached or fails never blocks updating: a check through it that
+fails for any reason is made again at once against GitHub (unless the app is quitting)
+with the repository from `app-update.yml`, and the next check goes to novadeck.dev
+again. A wrong answer from it would delay updates until the site is fixed; the site keeps
+that unlikely: for `stable` it relays GitHub's file live with `no-store`, and for `early`
+it trusts its own record of the newest build for 6 hours, then answers 503 so the app
+falls back. The one retry of a failed download goes to GitHub alone, so a feed that
+checks well but downloads badly does not fail the same way twice; a version's later
+failures do not pin the copy to GitHub. Portable copies check the same way. With no
+repository in `app-update.yml` there is nothing to fall back to, so checks stay on the
+updater's own configuration.
 
 In Cloudflare's fail-open mode, when the website's counting does not run, it answers a
 check with a redirect to the GitHub file, and the `x-novadeck-*` headers go along to
@@ -113,8 +111,7 @@ request timeout of electron-updater never arms under Electron's `net`:
 builder-util-runtime hooks `request.on("socket")` (`httpExecutor.js`), which Electron's
 `ClientRequest` lacks. That was so against GitHub before; Cloudflare ends a stuck request
 after about 100 seconds. The same holds for a GitHub request that hangs during the
-confirmation or the fallback: later checks stall for the run, and the website's counting
-with them.
+fallback: later checks stall for the run, and the website's counting with them.
 
 `NOVADECK_UPDATE_URL` replaces `https://novadeck.dev` for testing, and only with an
 address on this computer: localhost, 127.0.0.1 or [::1], over http or https, as in

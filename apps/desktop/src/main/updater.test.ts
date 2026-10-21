@@ -26,7 +26,6 @@ import {
   developerIdSigned,
   feedUrl,
   firstCheckMs,
-  githubConfirmMs,
   retryCheckMs,
   installOnlyOnOrderlyQuit,
   portableOf,
@@ -1478,98 +1477,37 @@ describe("checking through novadeck.dev", () => {
     finish()
   })
 
-  it("confirms a check that finds nothing against GitHub once a day, without the headers", async () => {
+  it("sends only the first retry of a version to GitHub, then checks through the website again", async () => {
     const { updater } = checking()
-    updater.upToDate = true
-    await vi.advanceTimersByTimeAsync(firstCheckMs)
-    expect(updater.seen.map(({ feed }) => feed)).toEqual([
-      generic("https://novadeck.dev/update/stable/"),
-      github,
-    ])
-    expect(updater.seen[1]?.headers).toBeNull()
-    // Within the day the website's word stands.
-    await vi.advanceTimersByTimeAsync(githubConfirmMs - firstCheckMs - checkIntervalMs)
-    expect(updater.seen.every(({ feed }, at) => at < 2 || feed !== github)).toBe(true)
-    await vi.advanceTimersByTimeAsync(checkIntervalMs * 2)
-    const feeds = updater.seen.map(({ feed }) => feed)
-    expect(feeds.filter((feed) => feed === github || feed?.provider === "github")).toHaveLength(2)
-    expect(feeds.at(-1)).toEqual(github)
-    expect(feeds.at(-2)).toEqual(generic("https://novadeck.dev/update/stable/"))
-  })
-
-  it("takes an update that only GitHub knows of like any GitHub-found one", async () => {
-    const { updater } = checking()
-    updater.upToDate = true
-    updater.newest = (feed) => (feed?.provider === "github" ? "1.5.0" : undefined)
-    const sources: unknown[] = []
-    updater.downloadResult = () => {
-      sources.push(updater.feed)
-      return Promise.resolve()
-    }
-    await vi.advanceTimersByTimeAsync(firstCheckMs)
-    expect(sources).toEqual([github])
-  })
-
-  it("tells once of an update that only GitHub knows of, in tell mode", async () => {
-    const { updater, offered } = checking({ mode: "tell" })
-    updater.upToDate = true
-    updater.newest = (feed) => (feed?.provider === "github" ? "1.5.0" : undefined)
-    await vi.advanceTimersByTimeAsync(firstCheckMs)
-    expect(updater.downloads).toHaveLength(0)
-    expect(offered).toEqual(["available 1.5.0"])
-  })
-
-  it("confirms an answer that names the release an install failed on", async () => {
-    const { updater } = checking({ failedVersion: "1.5.0" })
-    updater.newest = (feed) => (feed?.provider === "generic" ? "1.5.0" : "1.6.0")
-    await vi.advanceTimersByTimeAsync(firstCheckMs)
-    expect(updater.seen.map(({ feed }) => feed)).toEqual([
-      generic("https://novadeck.dev/update/stable/"),
-      github,
-    ])
-    expect(updater.downloads).toHaveLength(1)
-  })
-
-  it("sends the retry of a failed download from GitHub to GitHub", async () => {
-    const { updater } = checking()
-    updater.upToDate = true
-    updater.newest = (feed) => (feed?.provider === "github" ? "1.5.0" : undefined)
-    let downloads = 0
-    updater.downloadResult = () =>
-      downloads++ === 0 ? Promise.reject(new Error("offline")) : Promise.resolve()
+    updater.downloadResult = () => Promise.reject(new Error("offline"))
+    updater.newest = () => "1.5.0"
     await vi.advanceTimersByTimeAsync(firstCheckMs)
     await vi.advanceTimersByTimeAsync(retryCheckMs)
-    expect(updater.seen.map(({ feed }) => feed)).toEqual([
-      generic("https://novadeck.dev/update/stable/"),
-      github,
-      github,
-    ])
-    await vi.advanceTimersByTimeAsync(checkIntervalMs)
-    expect(updater.seen.at(-1)?.feed).toEqual(generic("https://novadeck.dev/update/stable/"))
-  })
-
-  it("logs a confirmation GitHub fails once, and makes it again no oftener than the schedule", async () => {
-    const { updater, logged } = checking()
-    updater.upToDate = true
-    updater.failFeed = (feed) => feed?.provider === "github"
-    await vi.advanceTimersByTimeAsync(firstCheckMs)
-    expect(updater.seen).toHaveLength(2)
-    expect(logged).toEqual(["The update check failed."])
+    const site = generic("https://novadeck.dev/update/stable/")
+    // The second failure of the version is not pinned to GitHub: the schedule uses the website.
     await vi.advanceTimersByTimeAsync(checkIntervalMs * 2)
-    expect(updater.seen).toHaveLength(6)
+    expect(updater.seen.map(({ feed }) => feed)).toEqual([site, github, site, site])
   })
 
-  it("makes no confirmation once the schedule has ended", async () => {
-    const { updater, stop } = checking()
-    updater.checkForUpdates = () => {
-      updater.checks += 1
-      updater.seen.push({ feed: updater.feed, headers: null })
-      stop()
-      updater.emit("update-not-available")
-      return Promise.resolve()
-    }
+  it("makes a retry for a release that could not be prepared through the website, saying so", async () => {
+    const updater = new FakeUpdater()
+    checkForUpdates(updater as unknown as Updater, {
+      mode: "install",
+      channel: "stable",
+      feed: { repository, facts },
+      prepare: () => Promise.reject(new Error("no space")),
+      rejected: () => false,
+      offer: () => {},
+      installFailed: () => {},
+      log: () => {},
+    })
     await vi.advanceTimersByTimeAsync(firstCheckMs)
-    expect(updater.checks).toBe(1)
+    updater.emit("update-downloaded", { version: "1.5.0", downloadedFile: "/tmp/update.zip" })
+    await vi.advanceTimersByTimeAsync(retryCheckMs)
+    expect(updater.seen.at(-1)?.feed).toEqual(generic("https://novadeck.dev/update/stable/"))
+    expect(updater.seen.at(-1)?.headers).toEqual(
+      expect.objectContaining({ "x-novadeck-check": "retry" }),
+    )
   })
 
   it("logs a failed novadeck.dev check once, as it falls back", async () => {
