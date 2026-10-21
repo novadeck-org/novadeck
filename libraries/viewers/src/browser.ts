@@ -193,8 +193,20 @@ const scrollRead = "[scrollX, scrollY]"
 const scrollReadMs = 500
 const wait = (ms: number): Promise<undefined> =>
   new Promise((resolve) => setTimeout(() => resolve(undefined), ms))
-// Run in the page: back where it was scrolled.
-const scrolling = ([x, y]: Scrolled): string => `scrollTo(${x}, ${y})`
+/** How long a woken page's scroll waits for a page that draws itself to be tall enough. */
+export const restoreWaitMs = 1_500
+// Run in the page: back where it was scrolled, once the page is tall enough to be, as one
+// that draws itself after loading grows, or after a while all the same.
+const scrolling = ([x, y]: Scrolled): string => `new Promise((done) => {
+  const until = Date.now() + ${restoreWaitMs}
+  const go = () => {
+    const room = document.documentElement.scrollHeight - innerHeight
+    if (room < ${y} && Date.now() < until) return requestAnimationFrame(go)
+    scrollTo(${x}, ${y})
+    done(true)
+  }
+  go()
+})`
 
 // Run in the page: brings the first element matching `selector` into view, as an #anchor
 // would, once one is there, waiting up to `ms` for a page that draws itself after loading.
@@ -256,6 +268,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   let scrolled = kept?.scrolled
   // A show came while it rested, or a reload was asked for: its next load goes afresh.
   let stale = false
+  // The person has been at the live page since its picture was taken, so the picture may
+  // not be how they left it: it stands in for nothing, and isn't kept, until a new one.
+  let used = false
   // The element a show is bringing into view, the page waiting for it to appear.
   let bringing: string | undefined
   // Kept with the show it carried out: one whose move or scroll is still to come isn't yet,
@@ -266,8 +281,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
         url: shown.url,
         at,
         shown: scrollTo === undefined && then === undefined && !stale ? showing : showing - 1,
-        ...(picture !== undefined && { picture }),
-        ...(picture !== undefined && scrolled !== undefined && { scrolled }),
+        ...(picture !== undefined && !used && { picture }),
+        ...(picture !== undefined && !used && scrolled !== undefined && { scrolled }),
       },
     }) satisfies BrowserState as unknown as ViewerState
 
@@ -327,9 +342,10 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   still.append(image)
   // Its fade, under way.
   let fading: ReturnType<typeof setTimeout> | undefined
-  // Only a picture taken where it is: one of anywhere else would show the wrong page.
+  // Only a picture taken where it is, and since the person was last at it: one of anywhere
+  // else would show the wrong page, and an older one a page they've since changed.
   const cover = (): boolean => {
-    if (picture === undefined || picture.at !== place.url) return false
+    if (picture === undefined || picture.at !== place.url || used) return false
     clearTimeout(fading)
     fading = undefined
     image.src = picture.src
@@ -344,14 +360,18 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       still.dataset.fading = ""
       fading = setTimeout(() => {
         fading = undefined
+        // Focus the person gave the picture goes on to the page.
+        const focused = still.contains(document.activeElement)
         still.remove()
         delete still.dataset.fading
+        if (focused) page?.focus({ preventScroll: true })
       }, fadeMs)
     }, uncoverMs)
   }
 
   // Whether it's drawn: not inside an element kept out of sight, as with display: none.
-  const shownNow = (): boolean => root.checkVisibility?.() !== false
+  const shownNow = (): boolean =>
+    document.visibilityState !== "hidden" && root.checkVisibility?.() !== false
   // The live page while there is one: none while it rests; and whether a wake opened it.
   let page: Webview | undefined
   let woken = false
@@ -440,6 +460,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     else reveal()
     if (!wanted && load === "ready") rest()
     else {
+      // Live and awake, the person may be at it: what it shows from here is theirs.
+      if (wanted) used = true
       settle(shows)
       freshen(freshenMs)
     }
@@ -584,9 +606,10 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       if (taken) {
         picture = taken.picture
         scrolled = taken.scrolled
+        used = false
       }
       // Nothing to rest as: live, until a later rest can take one.
-      if (cover()) close()
+      swap(view)
     })
   }
   // A picture of the live page as it is now, and where it's scrolled; none where it can't.
@@ -596,7 +619,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     const id = attached(() => view.getWebContentsId())
     if (id === undefined || !take) return undefined
     const at = place.url
-    const reading = attached(() => view.executeJavaScript(scrollRead))?.catch(() => undefined)
+    const reading = attached(() =>
+      Promise.race([view.executeJavaScript(scrollRead), wait(scrollReadMs)]),
+    )?.catch(() => undefined)
     const [src, where] = await Promise.all([take(id).catch(() => undefined), reading])
     if (src === undefined) return undefined
     return { picture: { src, at }, scrolled: isScrolled(where) ? where : undefined }
@@ -617,12 +642,28 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
         if (!taken || page !== view || load !== "ready") return
         picture = taken.picture
         scrolled = taken.scrolled
+        // At it again as it was taken: it may be out of date already.
+        used = root.matches(":hover") || root.contains(document.activeElement)
         // Its host had it rest, but it had no picture to rest as until now.
-        if (!wanted && cover()) close()
+        if (!wanted) swap(view)
       })
     }, after)
   }
-  // The pointer gone from it: a picture of it as the person left it.
+  // In its picture's place, once the picture can draw, so no frame shows neither.
+  const swap = (view: Webview): void => {
+    if (!cover()) return
+    // Where images can't say they've decoded, as outside a browser, at once.
+    void (image.decode?.() ?? Promise.resolve()).catch(nothing).then(() => {
+      if (page === view && !wanted) close()
+    })
+  }
+  // The person at the live page: its picture is of before. Gone from it: a picture of it as
+  // they left it.
+  const engaged = (): void => {
+    if (page) used = true
+  }
+  root.addEventListener("pointerenter", engaged)
+  root.addEventListener("focusin", engaged)
   root.addEventListener("pointerleave", () => freshen(leftMs))
   const wake = (): void => {
     resting = undefined
@@ -660,11 +701,12 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       if (!again && previous.url === next.url) return
       scrollTo = again ? scrollOf(next) : undefined
       if (page) return refresh()
-      // At rest: it goes there, afresh, once woken.
+      // At rest: it goes there, afresh, once woken, its picture of where it was gone.
       stale = true
       then = undefined
       scrolled = undefined
       place = { url: next.url, back: false, forward: false }
+      if (!cover()) still.remove()
       on?.navigate?.(place)
     },
     state: () => state(place.url),
@@ -673,9 +715,12 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       // Already there: setting it again would load it again.
       if (at === undefined || at === place.url || !webAddress(at)) return
       page?.setAttribute("src", at)
-      // Where it was scrolled was of where it was.
-      if (!page) scrolled = undefined
       place = { url: at, back: place.back, forward: place.forward }
+      // Where it was scrolled, and its picture, were of where it was.
+      if (!page) {
+        scrolled = undefined
+        if (!cover()) still.remove()
+      }
       on?.navigate?.(place)
     },
     // A page has no lines to jump to that the viewer can know.
@@ -700,7 +745,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       if (next) wake()
       else rest()
     },
-    pictured: () => picture !== undefined,
+    pictured: () => picture !== undefined && !used,
     destroy: () => {
       clearTimeout(fading)
       clearTimeout(freshening)

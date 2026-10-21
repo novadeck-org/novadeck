@@ -648,7 +648,7 @@ describe("the browser viewer", () => {
         // Loading: the picture stays over it.
         expect(pictureOf(host)).not.toBeNull()
         fire("did-stop-loading")
-        expect(calls).toContain("run scrollTo(0, 640)")
+        expect(calls.some((call) => call.includes("scrollTo(0, 640)"))).toBe(true)
         await vi.advanceTimersByTimeAsync(uncoverMs)
         expect(pictureOf(host)!.hasAttribute("data-fading")).toBe(true)
         await vi.advanceTimersByTimeAsync(fadeMs)
@@ -782,8 +782,8 @@ describe("the browser viewer", () => {
       expect(pictureOf(awake.host)).not.toBeNull()
     })
 
-    it("rests out of sight as the picture it has, asking for none, or else stays live", async () => {
-      const { host, viewer, calls, taken, fire, ready } = resting({ pictures: [shot] })
+    it("rests out of sight only as a picture from since the person was at it, asking for none", async () => {
+      const { host, viewer, taken, fire, ready } = resting({ pictures: [shot] })
       fire("did-stop-loading")
       host.style.display = "none"
       viewer.awake(false)
@@ -795,16 +795,23 @@ describe("the browser viewer", () => {
       await settled()
       viewer.awake(true)
       ready()
-      fire("did-stop-loading")
-      host.style.display = "none"
-      calls.splice(0)
+      // Mid-load out of sight, the person hasn't seen it live: its picture stands in.
       viewer.awake(false)
-      // Where it's scrolled is read still, for it to wake there.
-      await settled()
-      expect(calls).toContain("run [scrollX, scrollY]")
       expect(taken).toEqual([7])
       expect(pageOf(host)).toBeNull()
       expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(shot)
+      // Woken and loaded, the person may change it: a picture from before stands in for
+      // nothing, nor is it kept, until a new one is taken.
+      host.style.display = "flex"
+      viewer.awake(true)
+      ready()
+      fire("did-stop-loading")
+      expect(viewer.pictured()).toBe(false)
+      expect(viewer.state()).not.toHaveProperty("browser.picture")
+      host.style.display = "none"
+      viewer.awake(false)
+      await settled()
+      expect(pageOf(host)).not.toBeNull()
     })
 
     it("brings a show that came as it woke into view afresh, not where it was scrolled", async () => {
@@ -961,6 +968,47 @@ describe("the browser viewer", () => {
         const again = resting({ saved: elsewhere, awake })
         expect(pageOf(again.host)!.getAttribute("src")).toBe(`${url}other`)
         expect(pictureOf(again.host)).toBeNull()
+      }
+    })
+
+    it("opens live after being let go while the person was at it", async () => {
+      const first = resting()
+      first.fire("did-stop-loading")
+      first.viewer.awake(false)
+      await settled()
+      first.viewer.awake(true)
+      first.ready()
+      first.fire("did-stop-loading")
+      // At it, then let go, as a view switch does, before a new picture could be taken.
+      first.host.querySelector(".browser-viewer")!.dispatchEvent(new PointerEvent("pointerenter"))
+      const saved = first.viewer.state()
+      first.viewer.destroy()
+      const again = resting({ saved, awake: false })
+      expect(pageOf(again.host)).not.toBeNull()
+      expect(pictureOf(again.host)).toBeNull()
+      expect(again.viewer.pictured()).toBe(false)
+    })
+
+    it("takes its picture down when it's shown at another address while it rests", async () => {
+      const { host, viewer, fire } = resting()
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      viewer.update({ url: "https://example.com/", shown: 1 })
+      expect(pictureOf(host)).toBeNull()
+    })
+
+    it("rests all the same when the page doesn't say where it's scrolled", async () => {
+      vi.useFakeTimers()
+      try {
+        const { host, viewer, fire, ready } = resting()
+        Object.assign(ready()!, { executeJavaScript: () => new Promise(() => {}) })
+        fire("did-stop-loading")
+        viewer.awake(false)
+        await vi.advanceTimersByTimeAsync(1_000)
+        expect(pageOf(host)).toBeNull()
+      } finally {
+        vi.useRealTimers()
       }
     })
 
