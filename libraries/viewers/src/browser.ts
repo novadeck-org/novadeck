@@ -82,16 +82,21 @@ const showOf = (content: BrowserContent): number => content.shown ?? 0
 // An address without its #fragment: two that differ only there are one document.
 const documentOf = (url: string): string => url.split("#")[0]!
 
-// The element an address's #fragment names, as a selector: what a show at it brings into
-// view when it names none of its own, as a reload keeps where the person had scrolled.
+// The element whose id an address's #fragment is, as a selector: what a show at it brings
+// into view when it names none of its own, as a reload keeps where the person had
+// scrolled. A text fragment's directive is no id, nor a hash router's route.
 const fragmentOf = (url: string): string | undefined => {
   const at = url.indexOf("#")
-  if (at === -1 || at === url.length - 1) return undefined
+  if (at === -1) return undefined
+  const fragment = url.slice(at + 1).split(":~:")[0]!
+  if (fragment === "" || fragment.startsWith("/") || fragment.startsWith("!")) return undefined
+  let id = fragment
   try {
-    return `[id=${JSON.stringify(decodeURIComponent(url.slice(at + 1)))}]`
+    id = decodeURIComponent(fragment)
   } catch {
-    return undefined
+    // Not percent-encoding after all, as #100%: the id is as written.
   }
+  return `[id=${JSON.stringify(id)}]`
 }
 
 // The element a show brings into view: its own, else its fragment's.

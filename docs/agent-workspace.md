@@ -451,8 +451,10 @@ with every safety check again at that time:
   A show's `scroll` goes with that show alone, so the runner keeps it in memory, not
   with the item: the viewer brings the element into view once the page has loaded and
   reached the shown fragment, waiting a few seconds for one a page draws later. A show
-  that gives none at a fragment brings the fragment's element into view instead, since a
-  reload keeps where the person had scrolled. It keeps
+  that gives none at a fragment brings the element with that id into view instead (not a
+  text directive's `:~:` part or a hash router's `#/` route), since a reload keeps where
+  the person had scrolled. A show at an address the pane isn't showing builds a new view
+  of it, which loads with the normal cache. It keeps
   the show it carried out with where the person took the page, so a viewer mounted again
   in the same window for the same show opens where the person was, as a show already
   carried out, and doesn't scroll.

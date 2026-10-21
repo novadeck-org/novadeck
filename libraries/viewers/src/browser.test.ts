@@ -217,11 +217,29 @@ describe("the browser viewer", () => {
         // A reload keeps where the person had scrolled; the show is at its fragment.
         expect(scrolled(calls)).toHaveLength(2)
         expect(scrolled(calls)[1]).toContain(JSON.stringify(`[id=${JSON.stringify("pricing")}]`))
-        // An address without one scrolls nowhere.
-        viewer.update({ url, shown: 3 })
-        where.url = url
-        fire("did-stop-loading")
+        // An address without one scrolls nowhere, nor does a route or a text directive.
+        for (const [shown, address] of [
+          [3, url],
+          [4, `${url}#/settings`],
+          [5, `${url}#!/settings`],
+          [6, `${url}#:~:text=Pricing`],
+        ] as const) {
+          viewer.update({ url: address, shown })
+          where.url = address
+          fire("did-stop-loading")
+        }
         expect(scrolled(calls)).toHaveLength(2)
+        // A text directive after an id, or a % that encodes nothing, leaves the id.
+        for (const [shown, address, id] of [
+          [7, `${url}#plans:~:text=Pro`, "plans"],
+          [8, `${url}#100%`, "100%"],
+          [9, `${url}#caf%C3%A9`, "café"],
+        ] as const) {
+          viewer.update({ url: address, shown })
+          where.url = address
+          fire("did-stop-loading")
+          expect(scrolled(calls).at(-1)).toContain(JSON.stringify(`[id=${JSON.stringify(id)}]`))
+        }
       })
 
       it("starts a show over when another comes while its fragment is on the way", () => {
