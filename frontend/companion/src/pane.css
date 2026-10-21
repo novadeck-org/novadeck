@@ -218,9 +218,14 @@
   background-color: var(--pane-bg, var(--color-paper));
   container: plan-reader / inline-size;
 }
-/* It takes focus only when what it showed went from inside it, as a region does. */
+/* It takes focus only when what it showed went from inside it, as a region does: ringed
+   inside its edge when that came from the keyboard. */
 .plan-reader:focus {
   outline: none;
+}
+.plan-reader:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: calc(var(--focus-ring-width) * -1);
 }
 .plan-reader-body {
   display: grid;

@@ -228,8 +228,9 @@ export const TerminalCompanion = ({
   // Open while there's something to show.
   const open = bar.open && tab !== null
   const showing = open ? tab : null
-  // What's open in the pane behind what it shows: everything open while it's hidden.
-  const behind = behindTab(bar, members, showing)
+  // How many are open in the pane behind what it shows, counted against its tab even as
+  // it hides, so its sheets stay as they were while it animates out.
+  const behind = behindTab(bar, members, tab).length
   const member = members.find((each) => each.key === tab)
   // Who showed what's here, by its main plan's agent.
   const agent =
@@ -336,7 +337,7 @@ export const TerminalCompanion = ({
   }, [open, terminal])
   const paneView: PaneView = {
     member,
-    behind: behind.length,
+    behind,
     panes,
     target,
     agent,
