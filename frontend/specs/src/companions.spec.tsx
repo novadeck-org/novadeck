@@ -109,11 +109,19 @@ describe("A terminal's taskbar", () => {
     const pane = companionPane("Build Studio")
     await expect.element(pane.getByText("src/content/projects.json", { exact: true })).toBeVisible()
 
-    await pane.getByRole("button", { name: "Close", exact: true }).click()
+    await pane.getByRole("button", { name: /^Close / }).click()
 
     await expect.element(pane).not.toBeInTheDocument()
-    await expect.element(taskbarIcon("Build Studio", "2 files")).not.toBeInTheDocument()
-    await expect.element(taskbarIcon("Build Studio", "Plan: A home for Studio")).toBeVisible()
+    await expect
+      .poll(() => taskbarIcons("Build Studio"))
+      .toEqual(["Plan: A home for Studio, new", "2 images", "brand-voice.md", "Messages"])
+    // Focus goes back to the taskbar, not out of the page with the pane.
+    expect(taskbar("Build Studio").element().contains(document.activeElement)).toBe(true)
+
+    await taskbarIcon("Build Studio", "Messages").click()
+    await pane.getByRole("button", { name: "Close Messages" }).click()
+    await expect.element(pane).not.toBeInTheDocument()
+    await expect.element(taskbarIcon("Build Studio", "Messages")).not.toBeInTheDocument()
   })
 })
 

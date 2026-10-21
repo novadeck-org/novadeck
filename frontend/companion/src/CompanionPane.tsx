@@ -8,7 +8,7 @@ import type { MailHandle } from "./panes/messages/mail"
 import { registrationOf } from "./registry"
 import type { Panes, PlanPresentation } from "./state"
 
-// Windows' restore glyph, in lucide's hand: a window lifting off the one it was
+// Windows' restore glyph, drawn as lucide draws: a window lifting off the one it was
 // maximized in, as an item docked in the pane lifts into a window of its own.
 const Restore = createLucideIcon("restore", [
   ["rect", { x: "3", y: "8", width: "13", height: "13", rx: "2", key: "front" }],
@@ -20,10 +20,13 @@ const Restore = createLucideIcon("restore", [
 // what it shows into a window of its own, where it can; and closes it, off the taskbar,
 // as the taskbar's menu does.
 const PaneActions = ({
+  name,
   onUndock,
   onHide,
   onClose,
 }: {
+  // What the pane shows, as closing it names it.
+  name: string
   onUndock: (() => void) | undefined
   onHide: () => void
   onClose: () => void
@@ -52,7 +55,7 @@ const PaneActions = ({
       </Tooltip>
     )}
     <Tooltip content="Close">
-      <button type="button" className="icon-button" aria-label="Close" onClick={onClose}>
+      <button type="button" className="icon-button" aria-label={`Close ${name}`} onClick={onClose}>
         <X size={14} strokeWidth={1.75} aria-hidden />
       </button>
     </Tooltip>
@@ -130,7 +133,14 @@ export const CompanionPane = ({
       target={target}
       mail={mail}
       peerName={peerName}
-      actions={<PaneActions onUndock={undock} onHide={onHide} onClose={() => onClose(member)} />}
+      actions={
+        <PaneActions
+          name={member.kind === "messages" ? "Messages" : member.item.name}
+          onUndock={undock}
+          onHide={onHide}
+          onClose={() => onClose(member)}
+        />
+      }
     />
   )
   return (
