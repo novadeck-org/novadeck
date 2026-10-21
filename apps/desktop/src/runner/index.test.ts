@@ -43,14 +43,16 @@ import(workerData.entry)
 const title = /\u001b\][012];[^\u0007\u001b]*(?:\u0007|\u001b\\|\u001b?$)/g
 
 // A sealed transcript's text, as the runner seals it: `v1.` and the base64 of a 12-byte
-// nonce, the 16-byte tag and the AES-256-GCM ciphertext, with the terminal's id bound in.
+// nonce, the 16-byte tag and the AES-256-GCM ciphertext, with the terminal's id bound in;
+// the ciphertext holds the time it was saved (8 bytes) and then the text.
 const opened = (value: string, key: Buffer, terminalId: string): string => {
   if (!value.startsWith("v1.")) return ""
   const bytes = Buffer.from(value.slice(3), "base64")
   const decipher = createDecipheriv("aes-256-gcm", key, bytes.subarray(0, 12))
   decipher.setAAD(Buffer.from(terminalId))
   decipher.setAuthTag(bytes.subarray(12, 28))
-  return Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()]).toString("utf8")
+  const plain = Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()])
+  return plain.subarray(8).toString("utf8")
 }
 
 const start = (database: string, extra: readonly string[] = []) => {

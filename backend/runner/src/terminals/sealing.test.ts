@@ -13,21 +13,21 @@ describe("sealing transcripts", () => {
   it("opens what it sealed for the same terminal, and seals each time anew", async () => {
     const sealer = await sealerOf()
     const text = "$ echo hi\nhi\né\u{1f600}"
-    const sealed = sealer.seal(text, "a")!
+    const sealed = sealer.seal(text, "a", 1_700_000_000_123)!
     expect(sealed.startsWith(sealedPrefix)).toBe(true)
     expect(sealed).not.toContain("echo hi")
-    expect(sealer.open(sealed, "a")).toBe(text)
-    expect(sealer.seal(text, "a")).not.toBe(sealed)
-    expect(sealer.open(sealer.seal("", "a")!, "a")).toBe("")
+    expect(sealer.open(sealed, "a")).toEqual({ text, at: 1_700_000_000_123 })
+    expect(sealer.seal(text, "a", 1_700_000_000_123)).not.toBe(sealed)
+    expect(sealer.open(sealer.seal("", "a", 0)!, "a")).toEqual({ text: "", at: 0 })
   })
 
   it("does not open a value for another terminal, tampered, plain or of another key", async () => {
     const key = randomBytes(32)
     const sealer = await sealerOf(key)
-    const sealed = sealer.seal("secret screen", "a")!
+    const sealed = sealer.seal("secret screen", "a", 7)!
     expect(sealer.open(sealed, "b")).toBeNull()
     const bytes = Buffer.from(sealed.slice(sealedPrefix.length), "base64")
-    for (const at of [0, 12, bytes.length - 1]) {
+    for (const at of [0, 12, 28, bytes.length - 1]) {
       const copy = Buffer.from(bytes)
       copy[at] = copy[at]! ^ 1
       expect(sealer.open(sealedPrefix + copy.toString("base64"), "a")).toBeNull()
@@ -36,7 +36,7 @@ describe("sealing transcripts", () => {
     expect(sealer.open("secret screen", "a")).toBeNull()
     expect(sealer.open("", "a")).toBeNull()
     expect((await sealerOf()).open(sealed, "a")).toBeNull()
-    expect((await sealerOf(key)).open(sealed, "a")).toBe("secret screen")
+    expect((await sealerOf(key)).open(sealed, "a")).toEqual({ text: "secret screen", at: 7 })
   })
 
   it("counts a key of the wrong length, a refused one or a failed one as none", async () => {
@@ -49,7 +49,7 @@ describe("sealing transcripts", () => {
       false,
       false,
     ])
-    expect(sealers.map((sealer) => sealer.seal("text", "a"))).toEqual([null, null, null, null])
+    expect(sealers.map((sealer) => sealer.seal("text", "a", 1))).toEqual([null, null, null, null])
     const failed = createTranscriptSealer(Promise.reject(new Error("locked")))
     await expect(failed.ready).resolves.toBe(false)
     const ready = await sealerOf()

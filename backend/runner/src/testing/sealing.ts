@@ -10,7 +10,8 @@ export const plainSealer = (): TranscriptSealer => createTranscriptSealer(Promis
 
 /** The text behind a value a `plainSealer` sealed for the terminal; null for none or any other value. */
 export const unsealed = (value: string | null | undefined, terminalId: string): string | null =>
-  value ? reader.open(value, terminalId) : null
+  value ? (reader.open(value, terminalId)?.text ?? null) : null
 
-/** What a `plainSealer` seals `text` to for the terminal. */
-export const sealed = (text: string, terminalId: string): string => reader.seal(text, terminalId)!
+/** What a `plainSealer` seals `text` to for the terminal, saved at `at`. */
+export const sealed = (text: string, terminalId: string, at = 5): string =>
+  reader.seal(text, terminalId, at)!

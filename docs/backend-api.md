@@ -666,20 +666,22 @@ unfinished then keeps its last saved copy. A transcript that cannot be masked is
 saved, and the copy saved before stays. A result that arrives after its terminal was
 closed, or transcripts were turned off, is dropped. The masked text is sealed just before
 it is written: AES-256-GCM with a random nonce and the terminal's id as associated data,
-saved as `v1.` and the base64 of nonce, tag and ciphertext. The key is the 32 bytes the
-host gives the runner (`transcriptKey`; the desktop app unwraps it from the system
-keychain: Keychain, DPAPI, Secret Service or KWallet). No screen is taken before the key
-has come; where there is none (no keyring, a refused unlock, the standalone runner)
+saved as `v1.` and the base64 of nonce, tag and ciphertext, which holds the time the
+transcript was saved (8 bytes) and then its text; a restored transcript's "saved" line
+shows that time. The key is the 32 bytes the host gives the runner (`transcriptKey`; the
+desktop app unwraps it from the system keychain: Keychain, DPAPI, or the Secret Service,
+which KWallet may offer too). No screen is taken before the key has come; where there is none (no keyring, a refused unlock, the standalone runner)
 transcripts are neither saved nor shown for that run, the `transcripts` setting is kept
 and the sealed copies saved before stay. At every start, before and without the key, the
-store forgets every transcript not shaped as a sealed one (`v1.`, then at least the nonce
-and tag in base64, and nothing else); a database set aside as
+store forgets every transcript not shaped as a sealed one (`v1.`, then at least the nonce,
+tag and time in base64, and nothing else); a database set aside as
 `workspace.sqlite.earlier-<time>` is not touched. A restored terminal's transcript is
 opened before its shell starts, waiting for the key at most `transcriptKeyMs` (a few
 seconds) from the run's first restore, and is shown only if it opens for that terminal. A
 terminal whose copy went unopened because the key came later keeps that copy as it is for
-the run: its transcript is not saved again until the next start. See [transcript-redaction.md](transcript-redaction.md). Closing a terminal
-forgets it, including one from an earlier runner.
+the run: its transcript is not saved again until the next start. See
+[transcript-redaction.md](transcript-redaction.md). Closing a terminal forgets it, including
+one from an earlier runner.
 
 - `terminals.create({ …, restore: true, resume? })` continues the saved terminal of
   that ID in the same session: in its last directory when that still exists, with its

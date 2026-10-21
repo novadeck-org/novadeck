@@ -793,7 +793,7 @@ export class Terminals {
       this.register(record, expectedAgent(input.command, input.resume))
       if (unled) this.messaging.endLead(record.summary.id)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
-      if (opened && !started.resumes) void this.show(record, opened, new Date(saved!.savedAt))
+      if (opened && !started.resumes) void this.show(record, opened.text, new Date(opened.at))
       this.listen(record)
       this.announce(record)
       this.sampler.start()

@@ -10,32 +10,37 @@ export const sealedPrefix = "v1."
 const keyBytes = 32
 const nonceBytes = 12
 const tagBytes = 16
+const timeBytes = 8
 
 /**
  * The shape of a sealed value, which the store tells it by without any crypto: the prefix,
- * then at least `minChars` base64 characters (the nonce and tag alone) and nothing else.
+ * then at least `minChars` base64 characters (the nonce, tag and time alone) and nothing else.
  */
 export const sealedShape = {
   prefix: sealedPrefix,
-  minChars: 4 * Math.ceil((nonceBytes + tagBytes) / 3),
+  minChars: 4 * Math.ceil((nonceBytes + tagBytes + timeBytes) / 3),
 }
 
 export type TranscriptSealer = {
   /** Settles once the key came (true) or it is known there is none (false). */
   readonly ready: Promise<boolean>
-  /** The text sealed to its terminal; null while there is no key. */
-  seal(text: string, terminalId: string): string | null
+  /** The text sealed to its terminal with the time (ms since the epoch) it was saved; null while there is no key. */
+  seal(text: string, terminalId: string, at: number): string | null
   /**
-   * The text of a sealed value, or null for anything that is not one sealed here for this
-   * terminal: another key's, another terminal's, a tampered one, a plain one.
+   * The text of a sealed value and the time it was saved, or null for anything that is not
+   * one sealed here for this terminal: another key's, another terminal's, a tampered one, a
+   * plain one.
    */
-  open(value: string, terminalId: string): string | null
+  open(value: string, terminalId: string): { readonly text: string; readonly at: number } | null
 }
 
 /**
  * Seals with AES-256-GCM under `key`: a fresh random nonce each time, and the terminal's id
  * as associated data, so a value moved to another terminal's row does not open. The value is
- * `v1.` and the base64 of nonce, tag, then ciphertext. A key that fails to come, or is not
+ * `v1.` and the base64 of nonce (12 bytes), tag (16), then ciphertext, which holds the time
+ * the transcript was saved, in milliseconds since the epoch as 8 big-endian bytes, and then
+ * its UTF-8 text. The time is sealed with it, as the store has no column for it that stays
+ * true while the rest of a terminal saves without one. A key that fails to come, or is not
  * 32 bytes, counts as none.
  */
 export const createTranscriptSealer = (
@@ -52,12 +57,18 @@ export const createTranscriptSealer = (
   )
   return {
     ready,
-    seal(text, terminalId) {
+    seal(text, terminalId, at) {
       if (!held) return null
+      const stamp = Buffer.alloc(timeBytes)
+      stamp.writeBigUInt64BE(BigInt(Math.max(0, Math.trunc(at))))
       const nonce = randomBytes(nonceBytes)
       const cipher = createCipheriv("aes-256-gcm", held, nonce)
       cipher.setAAD(Buffer.from(terminalId))
-      const body = Buffer.concat([cipher.update(text, "utf8"), cipher.final()])
+      const body = Buffer.concat([
+        cipher.update(stamp),
+        cipher.update(text, "utf8"),
+        cipher.final(),
+      ])
       return sealedPrefix + Buffer.concat([nonce, cipher.getAuthTag(), body]).toString("base64")
     },
     open(value, terminalId) {
@@ -68,10 +79,15 @@ export const createTranscriptSealer = (
         const decipher = createDecipheriv("aes-256-gcm", held, bytes.subarray(0, nonceBytes))
         decipher.setAAD(Buffer.from(terminalId))
         decipher.setAuthTag(bytes.subarray(nonceBytes, nonceBytes + tagBytes))
-        return Buffer.concat([
+        const plain = Buffer.concat([
           decipher.update(bytes.subarray(nonceBytes + tagBytes)),
           decipher.final(),
-        ]).toString("utf8")
+        ])
+        if (plain.length < timeBytes) return null
+        return {
+          at: Number(plain.readBigUInt64BE(0)),
+          text: plain.subarray(timeBytes).toString("utf8"),
+        }
       } catch {
         return null
       }

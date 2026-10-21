@@ -77,21 +77,16 @@ export const loadTranscriptKey = async (
       return null
     }
   }
-  try {
-    if (!(await storage.isAsyncEncryptionAvailable())) {
-      log.warn(
-        "transcript-key.unavailable",
-        "Transcripts are not kept: the system cannot wrap a key.",
-      )
-      return null
-    }
-  } catch (error) {
+  let failure: unknown
+  const available = await storage.isAsyncEncryptionAvailable().catch((error: unknown) => {
+    failure = error
+    return false
+  })
+  if (!available) {
     log.warn(
       "transcript-key.unavailable",
       "Transcripts are not kept: the system cannot wrap a key.",
-      {
-        err: error,
-      },
+      failure === undefined ? undefined : { err: failure },
     )
     return null
   }

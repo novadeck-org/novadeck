@@ -423,7 +423,7 @@ describe("saving terminals", () => {
     } as unknown as SavedTerminal
     const fake = make()
     await vi.advanceTimersByTimeAsync(0)
-    await expect(fake.saves.open(saved)).resolves.toBe("old")
+    await expect(fake.saves.open(saved)).resolves.toEqual({ text: "old", at: 5 })
     await expect(
       fake.saves.open({ ...saved, transcript: "plain" } as SavedTerminal),
     ).resolves.toBeNull()
@@ -472,7 +472,7 @@ describe("saving terminals", () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(transcripts(fake).map((row) => row.transcript)).toEqual(["screen"])
     // Restored again once the key is there, it shows the copy, and its screen saves again.
-    await expect(fake.saves.open(saved("a"))).resolves.toBe("old")
+    await expect(fake.saves.open(saved("a"))).resolves.toEqual({ text: "old", at: 5 })
     fake.records = [record("a")]
     fake.saves.save(fake.records[0]!, true)
     await vi.advanceTimersByTimeAsync(0)
@@ -489,6 +489,16 @@ describe("saving terminals", () => {
     } as unknown as SavedTerminal
     const opening = fake.saves.open(saved)
     fake.saves.keep(false)
+    await expect(opening).resolves.toBeNull()
+  })
+
+  it("shows nothing when transcripts are turned off and on again while it waits for the key", async () => {
+    const fake = make({ sealer: { ...plainSealer(), ready: Promise.resolve(true) } })
+    await vi.advanceTimersByTimeAsync(0)
+    const saved = { id: "a", transcript: sealed("old", "a") } as unknown as SavedTerminal
+    const opening = fake.saves.open(saved)
+    fake.saves.keep(false)
+    fake.saves.keep(true)
     await expect(opening).resolves.toBeNull()
   })
 

@@ -401,7 +401,8 @@ agent.
   token prefix, a value named like a secret, a key, a long key-like run) is masked before
   the transcript is saved; anything else that was typed or printed may still be saved.
   The masked transcript is then encrypted with a key Novadeck keeps in your system's
-  keychain (Keychain on macOS, DPAPI on Windows, the Secret Service or KWallet on Linux).
+  keychain (Keychain on macOS, DPAPI on Windows, and on Linux the Secret Service: GNOME
+  Keyring, or KWallet where it offers the Secret Service).
   Where nothing protects that key (no keyring on Linux, an unlock you refuse or that fails,
   the standalone runner) no transcript is saved or shown, and any left unencrypted is
   forgotten at every start. Transcripts live in `workspace.sqlite`, readable by your

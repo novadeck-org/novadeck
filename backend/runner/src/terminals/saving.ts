@@ -188,18 +188,21 @@ export class Saves {
   }
 
   /**
-   * A kept terminal's transcript, opened; null when there is none, transcripts are off, the
+   * A kept terminal's transcript and when it was saved, opened; null when there is none, transcripts are off, the
    * key does not come within `keyMs` of the first restore (then its saved copy is left
    * alone for this run), or it does not open. Awaited before a restored shell starts, so
    * the replay is queued ahead of its output.
    */
-  async open(saved: SavedTerminal): Promise<string | null> {
+  async open(saved: SavedTerminal): Promise<{ text: string; at: number } | null> {
     const { sealer } = this.options
     if (!saved.transcript || !this.kept || !sealer) return null
+    const epoch = this.epoch
     this.late ??= new Promise<false>((resolve) => {
       setTimeout(() => resolve(false), this.options.keyMs).unref()
     })
     const key = await Promise.race([sealer.ready, this.late.then(() => undefined)])
+    // Turned off and on meanwhile, the copy read before is forgotten.
+    if (epoch !== this.epoch) return null
     // Without the key yet it may still come: the copy stays, unsaved over, for this run.
     if (key === undefined) this.unopened.add(saved.id)
     // Opened later, as when restored again, its new screen starts from the copy.
@@ -377,7 +380,9 @@ export class Saves {
   private write(job: Job, masked: string | null): void {
     const { record } = job
     const transcript =
-      masked === null ? null : (this.options.sealer?.seal(masked, record.summary.id) ?? undefined)
+      masked === null
+        ? null
+        : (this.options.sealer?.seal(masked, record.summary.id, Date.now()) ?? undefined)
     if (transcript === undefined) {
       record.screenChanged = true
       return

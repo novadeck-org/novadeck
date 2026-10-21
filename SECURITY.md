@@ -173,12 +173,12 @@ what looks like a secret (known token prefixes, values named like secrets, keys,
 key-like runs) is masked in a worker thread; a transcript that cannot be masked is not
 saved, and the copy saved before stays. The masked text is then encrypted (AES-256-GCM,
 bound to its terminal) with a key the desktop app keeps in the system keychain: the
-Keychain on macOS, DPAPI on Windows, the Secret Service or KWallet on Linux. Where nothing
-protects that key (no keyring on Linux, an unlock that is refused or fails, the standalone
+Keychain on macOS, DPAPI on Windows, the Secret Service on Linux (GNOME Keyring, or KWallet
+where it offers the Secret Service). Where nothing protects that key (no keyring on Linux, an unlock that is refused or fails, the standalone
 runner, which has no key) no transcript is saved or shown, and the setting stays as it is.
 A restored terminal waits a few seconds, once for the run, for the key; if it comes later,
 that terminal's saved transcript is not shown and is left as it is until the next start.
-A transcript found unencrypted is forgotten at every start, key or not, so a database set
+A transcript found unencrypted is forgotten at every start, key or not, but a database set
 aside as `workspace.sqlite.earlier-<time>` keeps what it held, plain transcripts included,
 until you delete it. The key keeps the database file, and a backup of it, from showing the
 transcripts; titles, summaries, commands, directories and Inbox content are still stored in
