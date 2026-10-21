@@ -5,6 +5,7 @@ import type { ReactNode } from "react"
 
 import type { BarMember } from "./bar"
 import type { MailHandle } from "./panes/messages/mail"
+import type { LookContext } from "./registration"
 import { registrationOf } from "./registry"
 import type { Panes, PlanPresentation } from "./state"
 
@@ -102,6 +103,7 @@ export const CompanionPane = ({
   mail,
   peerName,
   presentation,
+  plans,
   originOf,
   onUndock,
   onHide,
@@ -115,6 +117,8 @@ export const CompanionPane = ({
   mail: MailHandle
   peerName: (handle: string) => string | undefined
   presentation: PlanPresentation
+  // The bar's plans, as the taskbar names them.
+  plans: LookContext["plans"]
   originOf: (member: BarMember) => string | undefined
   // Undocks what's shown into a window of its own.
   onUndock: (member: BarMember) => void
@@ -135,7 +139,7 @@ export const CompanionPane = ({
       peerName={peerName}
       actions={
         <PaneActions
-          name={member.kind === "messages" ? "Messages" : member.item.name}
+          name={registrationOf(member).look(member, { plans }).name}
           onUndock={undock}
           onHide={onHide}
           onClose={() => onClose(member)}

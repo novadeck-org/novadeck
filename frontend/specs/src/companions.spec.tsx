@@ -109,7 +109,7 @@ describe("A terminal's taskbar", () => {
     const pane = companionPane("Build Studio")
     await expect.element(pane.getByText("src/content/projects.json", { exact: true })).toBeVisible()
 
-    await pane.getByRole("button", { name: /^Close / }).click()
+    await pane.getByRole("button", { name: "Close projects.json", exact: true }).click()
 
     await expect.element(pane).not.toBeInTheDocument()
     await expect
@@ -119,7 +119,7 @@ describe("A terminal's taskbar", () => {
     expect(taskbar("Build Studio").element().contains(document.activeElement)).toBe(true)
 
     await taskbarIcon("Build Studio", "Messages").click()
-    await pane.getByRole("button", { name: "Close Messages" }).click()
+    await pane.getByRole("button", { name: "Close Messages", exact: true }).click()
     await expect.element(pane).not.toBeInTheDocument()
     await expect.element(taskbarIcon("Build Studio", "Messages")).not.toBeInTheDocument()
   })

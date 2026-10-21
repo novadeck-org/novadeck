@@ -303,15 +303,16 @@ export const TerminalCompanion = ({
   // Opening leaves focus on the taskbar. Hiding the pane from inside it (Escape) would
   // drop focus with the pane, which stays a moment as it animates out, so it goes back
   // to the taskbar, or to the terminal once closing what it showed left the bar empty.
+  // Only focus the person had in the pane goes to the terminal, so a pane closed for them
+  // never sends what they type next there.
   useEffect(() => {
     const focused = document.activeElement
-    const lost =
-      !focused ||
-      focused === document.body ||
-      focused.closest(`[data-companion-of="${CSS.escape(terminal)}"]`) !== null
+    const inPane = focused?.closest(`[data-companion-of="${CSS.escape(terminal)}"]`) != null
+    const lost = !focused || focused === document.body || inPane
     if (!open && wasOpen.current && lost)
       (
-        trigger.current ?? within.current?.querySelector<HTMLElement>("[data-terminal-input]")
+        trigger.current ??
+        (inPane ? within.current?.querySelector<HTMLElement>("[data-terminal-input]") : null)
       )?.focus({ preventScroll: true })
     wasOpen.current = open
   }, [open, terminal])
@@ -322,6 +323,7 @@ export const TerminalCompanion = ({
     agent,
     mail,
     peerName,
+    plans,
     originOf,
     onUndock: actions.undock,
     onHide: () => commands.closeBarPane(terminal),
