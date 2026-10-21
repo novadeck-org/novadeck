@@ -69,6 +69,16 @@ export const sourceGroups = (source: DemoSource | undefined): readonly DemoActio
               run: () => source.degrade("", "fail"),
             },
             {
+              label: "The project's folder is empty",
+              hint: "Open Source, then show the panel again or end an agent's turn: the tree gives way to \"This project's folder is empty.\"",
+              run: () => source.degrade("", "empty"),
+            },
+            {
+              label: "The project lists only part",
+              hint: 'Open Source, then show the panel again or end an agent\'s turn: the root lists two entries and ends with a muted "More not shown" row',
+              run: () => source.degrade("", "truncate"),
+            },
+            {
               label: "Source reads normally again",
               hint: "Open Source, then show the panel again or end an agent's turn: every folder lists in full again",
               run: () =>

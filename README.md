@@ -836,8 +836,11 @@ Agents:
   be read", "A folder lists only part" and "The project's files can't be read" make the next
   reads of `src/cart`, of `src/components` and of the root fail, list two files, and fail (the
   panel reads again when it is shown again, so switch panels and back): a muted "Can't read this
-  folder" row, a muted "More not shown" row, and a line in place of the tree; "Source reads
-  normally again" ends them. `node_modules` is the demo's empty folder.
+  folder" row, a muted "More not shown" row, and a line in place of the tree. "The project's folder
+  is empty" and "The project lists only part" make the root hold nothing (the line "This project's
+  folder is empty.") or two entries and a "More not shown" row; "Source reads normally again"
+  ends them all. Every sample project has a small tree of its own. `node_modules` is the demo's
+  empty folder: it opens onto a muted "Empty" row.
   A strip of agent chips above the tree lists the agents with work in the project, in the
   session's roster order, each light-able by a click (any number, Escape lets them go; with
   none kept the selected terminal's agent is lit). The `messages` variant has a squad, as

@@ -43,9 +43,10 @@ export type SourceRow = {
   readonly open: boolean
 }
 
-// A quiet line at the end of an open folder, saying what its listing lacks.
+// A quiet line at the end of an open folder (or of the root), saying what its listing lacks:
+// that it couldn't be read, that it holds more, or that it holds nothing.
 export type SourceNote = {
-  readonly note: "failed" | "truncated"
+  readonly note: "failed" | "truncated" | "empty"
   // The folder it ends.
   readonly path: string
   readonly depth: number
@@ -206,10 +207,11 @@ export const initialOpen = (tree: readonly SourceNode[]): ReadonlySet<string> =>
 }
 
 // The lines on screen, top to bottom: a folder's children follow it while it is open, then a
-// note of what its listing lacks.
+// note of what its listing lacks; `rootTruncated` ends the root's with one too.
 export const visibleLines = (
   tree: readonly SourceNode[],
   open: ReadonlySet<string>,
+  rootTruncated = false,
 ): readonly SourceLine[] => {
   const lines: SourceLine[] = []
   const visit = (node: SourceNode, depth: number): void => {
@@ -219,8 +221,11 @@ export const visibleLines = (
     node.children.forEach((child) => visit(child, depth + 1))
     if (node.read === "failed") lines.push({ note: "failed", path: node.path, depth: depth + 1 })
     else if (node.truncated) lines.push({ note: "truncated", path: node.path, depth: depth + 1 })
+    else if (node.read === "read" && node.children.length === 0)
+      lines.push({ note: "empty", path: node.path, depth: depth + 1 })
   }
   tree.forEach((node) => visit(node, 0))
+  if (rootTruncated) lines.push({ note: "truncated", path: "", depth: 0 })
   return lines
 }
 
@@ -231,10 +236,9 @@ export const visibleRows = (
 ): readonly SourceRow[] =>
   visibleLines(tree, open).filter((line): line is SourceRow => !isNote(line))
 
-// Whether a folder has anything to open: one not read yet, or that couldn't be, or that lists
-// more than it shows, has; one read and empty has nothing.
-export const expandable = (node: SourceNode): boolean =>
-  node.folder && (node.read !== "read" || node.truncated || node.children.length > 0)
+// Whether a row opens: every folder does, an empty one onto a note saying so, which keeps it read
+// again with the rest, so what is written there later shows.
+export const expandable = (node: SourceNode): boolean => node.folder
 
 export type FileIcon = "code" | "json" | "text" | "file"
 

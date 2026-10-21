@@ -148,12 +148,112 @@ export const endTurnIn = (project: SourceProject, handle: string): SourceProject
 
 const trimmed = (path: string): string => (path.endsWith("/") ? path.slice(0, -1) : path)
 
-// What the storefront's `folder` lists, from the fixtures: its files, and the folders that hold
-// the paths below. Ignored folders hold only ignored files, which the panel carries down.
-const listFixture = (folder: string): readonly SourceEntry[] => {
+// A project's tree, as the fixtures hold it: an entry ending in `/` is a folder with nothing in
+// it, and `ignored` names what the project's VCS ignores.
+type Tree = { readonly entries: readonly string[]; readonly ignored: readonly string[] }
+
+const storefront: Tree = { entries, ignored }
+
+// The other sample projects' trees, small and generic to their names; a project the visitor adds
+// has the plain one.
+const trees: Readonly<Record<string, Tree>> = {
+  "api-service": {
+    entries: [
+      ".gitignore",
+      "Dockerfile",
+      "README.md",
+      "node_modules/",
+      "package.json",
+      "src/db/client.ts",
+      "src/routes/orders.ts",
+      "src/routes/users.ts",
+      "src/server.ts",
+      "test/orders.test.ts",
+    ],
+    ignored: ["node_modules/"],
+  },
+  "docs-site": {
+    entries: [
+      "README.md",
+      "astro.config.mjs",
+      "docs/getting-started.md",
+      "docs/guides/config.md",
+      "docs/guides/install.md",
+      "docs/index.md",
+      "node_modules/",
+      "package.json",
+      "public/logo.svg",
+    ],
+    ignored: ["node_modules/"],
+  },
+  "mobile-app": {
+    entries: [
+      "App.tsx",
+      "README.md",
+      "app.json",
+      "assets/icon.png",
+      "node_modules/",
+      "package.json",
+      "src/components/Button.tsx",
+      "src/screens/Home.tsx",
+      "src/screens/Profile.tsx",
+    ],
+    ignored: ["node_modules/"],
+  },
+  "design-system": {
+    entries: [
+      "README.md",
+      "node_modules/",
+      "package.json",
+      "src/Button.tsx",
+      "src/Card.tsx",
+      "src/index.ts",
+      "stories/Button.stories.tsx",
+      "tokens/colors.json",
+      "tokens/spacing.json",
+    ],
+    ignored: ["node_modules/"],
+  },
+  infra: {
+    entries: [
+      ".terraform/",
+      "README.md",
+      "envs/prod.tfvars",
+      "envs/staging.tfvars",
+      "main.tf",
+      "modules/cluster/main.tf",
+      "modules/network/main.tf",
+      "modules/network/variables.tf",
+      "variables.tf",
+    ],
+    ignored: [".terraform/"],
+  },
+  dotfiles: {
+    entries: [
+      ".config/git/ignore",
+      ".config/nvim/init.lua",
+      ".gitconfig",
+      ".zshrc",
+      "README.md",
+      "bin/setup.sh",
+    ],
+    ignored: [],
+  },
+}
+
+const plain: Tree = {
+  entries: [".gitignore", "README.md", "package.json", "src/index.ts"],
+  ignored: [],
+}
+
+const treeOf = (id: string): Tree => (id === projectId ? storefront : (trees[id] ?? plain))
+
+// What `folder` of a tree lists: its files, and the folders that hold the paths below. Ignored
+// folders hold only ignored files, which the panel carries down.
+const listFixture = (tree: Tree, folder: string): readonly SourceEntry[] => {
   const found = new Map<string, SourceEntry>()
-  const ignoredPaths = new Set(ignored.map(trimmed))
-  for (const entry of entries) {
+  const ignoredPaths = new Set(tree.ignored.map(trimmed))
+  for (const entry of tree.entries) {
     const path = trimmed(entry)
     const prefix = folder === "" ? "" : `${folder}/`
     if (!path.startsWith(prefix) || path === folder) continue
@@ -165,9 +265,9 @@ const listFixture = (folder: string): readonly SourceEntry[] => {
   return [...found.values()]
 }
 
-// How the debug panel has a folder read: it fails, or lists only some of what it holds. "" is
-// the project's root.
-export type SourceFault = "fail" | "truncate"
+// How the debug panel has a folder read: it fails, lists only some of what it holds, or (the
+// root) holds nothing. "" is the project's root; the faults apply to every project.
+export type SourceFault = "fail" | "truncate" | "empty"
 
 // What a truncated folder still lists.
 const truncatedTo = 2
@@ -305,12 +405,15 @@ export const createDemoSource = (
     else faults.delete(folder)
   }
   const list = async (id: string, folder: string): Promise<SourceListing> => {
-    if (id !== projectId) throw new Error("There is no such project")
     const fault = faults.get(folder)
     if (fault === "fail") throw new Error("This folder can't be read")
-    const known = entries.some((path) => trimmed(path) === folder || path.startsWith(`${folder}/`))
+    if (fault === "empty") return { entries: [], truncated: false }
+    const tree = treeOf(id)
+    const known = tree.entries.some(
+      (path) => trimmed(path) === folder || path.startsWith(`${folder}/`),
+    )
     if (folder !== "" && !known) throw new Error("There is no such folder")
-    const all = listFixture(folder)
+    const all = listFixture(tree, folder)
     return fault === "truncate"
       ? { entries: all.slice(0, truncatedTo), truncated: true }
       : { entries: all, truncated: false }

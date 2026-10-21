@@ -147,10 +147,26 @@ describe("the storefront's folders", () => {
     })
   })
 
-  it("refuse a folder or a project that isn't there", async () => {
+  it("give every sample project, and one the visitor adds, a tree of its own", async () => {
+    const source = createDemoSource(now)
+    const ids = ["api-service", "docs-site", "mobile-app", "design-system", "infra", "dotfiles"]
+    const roots = await Promise.all(ids.map((id) => source.list(id, "")))
+    expect(roots.every((root) => root.entries.length > 0)).toBe(true)
+    expect(names(await source.list("api-service", "src"))).toContain("server.ts")
+    expect(names(await source.list("somewhere-new", ""))).toContain("README.md")
+  })
+
+  it("hold nothing, or list only some, at the root when the debug panel says so", async () => {
+    const source = createDemoSource(now)
+    source.degrade("", "empty")
+    expect(await source.list("infra", "")).toEqual({ entries: [], truncated: false })
+    source.degrade("", "truncate")
+    expect((await source.list("infra", "")).truncated).toBe(true)
+  })
+
+  it("refuse a folder a project doesn't have", async () => {
     const source = createDemoSource(now)
     await expect(source.list("storefront", "src/gone")).rejects.toThrow()
-    await expect(source.list("other", "")).rejects.toThrow()
   })
 
   it("fail, or list only some, when the debug panel says so, until it says otherwise", async () => {

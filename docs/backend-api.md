@@ -186,9 +186,10 @@ removal is done rejects it with `CLOSING` and keeps the project, for a client to
 remove again from the next runner.
 `projects.folder({ projectId, folder })` lists one folder of the project's directory,
 `folder` being its path from the project's root with `/` between names (`""` for the
-root). Entries come sorted, folders first, never `.git`, each with `ignored` as git
-reports it (nothing is ignored outside a repository). At most 2000 are listed, and
-`truncated` says there were more. A missing project is `NOT_FOUND`; a folder that is
+root). Entries come sorted, folders first, then by name ignoring case and a leading dot
+(`.github` sits among the g's), never `.git`, each with `ignored` as git reports it
+(nothing is ignored outside a repository). At most 2000 are listed, the first in that
+order, and `truncated` says there were more. A missing project is `NOT_FOUND`; a folder that is
 missing, not a folder, or outside the project's directory is `INVALID_DIRECTORY`.
 `sessions.save({ sessionId, state })` replaces a session's `state`, a string the
 runner stores with the session without reading it, such as a UI layout. It holds only

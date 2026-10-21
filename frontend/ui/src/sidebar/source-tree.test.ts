@@ -107,10 +107,10 @@ describe("The Source tree", () => {
       expect(expandable(src!)).toBe(true)
     })
 
-    it("counts a folder read and empty as nothing to open", () => {
+    it("counts a folder read and empty as one to open, for its note", () => {
       const [src] = treeOf({ entries: [], truncated: false })
       expect(src).toMatchObject({ read: "read" })
-      expect(expandable(src!)).toBe(false)
+      expect(expandable(src!)).toBe(true)
     })
 
     it("counts a folder that could not be read as one to open, for its note", () => {
@@ -133,7 +133,22 @@ describe("The Source tree", () => {
       expect(note(treeOf({ entries: [], truncated: true }))).toEqual([
         { note: "truncated", path: "src", depth: 1 },
       ])
-      expect(note(treeOf({ entries: [], truncated: false }))).toEqual([])
+      expect(note(treeOf({ entries: [], truncated: false }))).toEqual([
+        { note: "empty", path: "src", depth: 1 },
+      ])
+      expect(
+        note(treeOf({ entries: [{ name: "a", folder: false, ignored: false }], truncated: false })),
+      ).toEqual([])
+    })
+
+    it("ends the root with a note when it lists only part", () => {
+      const tree = treeOf()
+      expect(visibleLines(tree, new Set(), true).at(-1)).toEqual({
+        note: "truncated",
+        path: "",
+        depth: 0,
+      })
+      expect(visibleLines(tree, new Set()).some((line) => "note" in line)).toBe(false)
     })
   })
 

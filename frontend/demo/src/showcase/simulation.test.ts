@@ -306,3 +306,60 @@ describe("showcase agents", () => {
     expect(reported).toEqual([])
   })
 })
+
+describe("a file the person attaches", () => {
+  const upserts = (reported: BackendAction[]) =>
+    reported.flatMap((action) => (action.type === "item/upsert" ? [action.item] : []))
+
+  it("lands on the terminal's bar as theirs, asked for, with content to read", async () => {
+    const { showcase, reported, contentOf } = running()
+    await showcase.attach!(devServer, "~/projects/studio/src/cart/useCart.ts")
+    const [item] = upserts(reported)
+    expect(item).toMatchObject({
+      kind: "file",
+      name: "useCart.ts",
+      by: "person",
+      asked: true,
+      held: false,
+      version: 1,
+      holder: { terminalId: "02" },
+    })
+    const content = contentOf(item!.id)
+    expect(content).toMatchObject({ state: "ready", content: { kind: "file" } })
+  })
+
+  it("updates the item when the same file is attached again, not adding another", async () => {
+    const { showcase, reported } = running()
+    await showcase.attach!(devServer, "~/projects/studio/package.json")
+    await showcase.attach!(devServer, "~/projects/studio/package.json")
+    const items = upserts(reported)
+    expect(items.map((item) => [item.id, item.version])).toEqual([
+      [items[0]!.id, 1],
+      [items[0]!.id, 2],
+    ])
+  })
+
+  it("holds a file with a secret-looking name, shown only when revealed", async () => {
+    const { showcase, reported, contentOf } = running()
+    await showcase.attach!(devServer, "~/projects/studio/.env.local")
+    const [item] = upserts(reported)
+    expect(item).toMatchObject({ held: true, by: "person", asked: true })
+    expect(contentOf(item!.id)).toMatchObject({ state: "unavailable", reason: "held" })
+    expect(contentOf(item!.id, true)).toMatchObject({ state: "ready" })
+  })
+
+  it("shows a picture for an image", async () => {
+    const { showcase, reported, contentOf } = running()
+    await showcase.attach!(devServer, "~/projects/studio/public/logo.png")
+    const [item] = upserts(reported)
+    expect(item).toMatchObject({ kind: "image" })
+    expect(contentOf(item!.id)).toMatchObject({ content: { kind: "image" } })
+  })
+
+  it("reuses the sample when an agent already showed that file", async () => {
+    const { showcase, reported } = running()
+    const sample = studioArtifacts.shown.find((each) => each.item.kind === "file")!
+    await showcase.attach!(devServer, sample.item.path!)
+    expect(upserts(reported)[0]?.id).toBe(sample.item.id)
+  })
+})

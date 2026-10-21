@@ -699,22 +699,25 @@ describe("The Source panel", () => {
   })
 
   context("when a folder is empty", () => {
-    it("is not expandable once read", async () => {
-      const panel = await mount(
-        work(),
-        undefined,
-        undefined,
-        backend(undefined, [...files, "dist/"]),
-      )
-      const item = panel.row("dist").querySelector("[role=treeitem]")!
-
-      expect(item.hasAttribute("aria-expanded")).toBe(true)
+    it("opens onto a note saying so, and is read again with the rest", async () => {
+      let entries = [...files, "dist/"]
+      const reads: Reads = {
+        folders: [],
+        list: (folder) => backend(undefined, entries).list(folder),
+      }
+      const panel = await mount(work(), undefined, undefined, reads)
       await panel.click("dist")
 
       expect(
-        panel.row("dist").querySelector("[role=treeitem]")!.hasAttribute("aria-expanded"),
-      ).toBe(false)
-      expect(panel.row("dist").querySelector("svg[data-open]")).toBeNull()
+        panel.row("dist").querySelector("[role=treeitem]")!.getAttribute("aria-expanded"),
+      ).toBe("true")
+      expect(panel.view.container.querySelector("[data-note=empty]")?.textContent).toBe("Empty")
+
+      entries = [...files, "dist/a.js"]
+      await panel.endTurn()
+
+      expect(panel.rows()).toContain("a.js")
+      expect(panel.view.container.querySelector("[data-note=empty]")).toBeNull()
       await nextFrame()
       panel.view.unmount()
     })
@@ -763,6 +766,32 @@ describe("The Source panel", () => {
       expect(reads.folders).toEqual([])
       expect(view.container.querySelector("[role=tree]")).toBeNull()
       view.unmount()
+    })
+
+    it("ends a root that lists only part with a muted note", async () => {
+      const reads = backend((folder, listing) =>
+        folder === "" ? { ...listing, truncated: true } : listing,
+      )
+      const panel = await mount(undefined, undefined, undefined, reads)
+
+      expect(panel.view.container.querySelector("[data-note=truncated]")?.textContent).toBe(
+        "More not shown",
+      )
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("shows a note beside a file named like it without a clash", async () => {
+      const reads = backend(
+        (folder, listing) => (folder === "" ? { ...listing, truncated: true } : listing),
+        ["truncated", "failed"],
+      )
+      const panel = await mount(undefined, undefined, undefined, reads)
+
+      expect(panel.rows()).toEqual(["failed", "truncated"])
+      expect(panel.view.container.querySelectorAll("[data-note]")).toHaveLength(1)
+      await nextFrame()
+      panel.view.unmount()
     })
 
     it("shows the plain tree where the backend tells of no changes, with nothing open", async () => {
@@ -900,22 +929,22 @@ describe("The Source panel", () => {
       panel.view.unmount()
     })
 
-    it("lets the latest read of a folder win over a slower earlier one", async () => {
+    it("reads a folder once more, not at once again, when asked while a read is out", async () => {
       const slow: ((listing: SourceListing) => void)[] = []
-      let first = true
+      let reading = 0
       const reads = backend((folder, listing) => {
         if (folder !== "docs") return listing
-        if (first) {
-          first = false
-          return new Promise<SourceListing>((resolve) => slow.push(resolve))
-        }
-        return { ...listing, entries: [{ name: "newer.md", folder: false, ignored: false }] }
+        reading += 1
+        if (reading > 1)
+          return { ...listing, entries: [{ name: "newer.md", folder: false, ignored: false }] }
+        return new Promise<SourceListing>((resolve) => slow.push(resolve))
       })
       const panel = await mount(undefined, undefined, undefined, reads)
       await panel.click("docs")
-      await panel.click("docs")
-      await panel.click("docs")
-      expect(panel.rows()).toContain("newer.md")
+      await panel.endTurn()
+      await panel.endTurn()
+      await panel.endTurn()
+      expect(reads.folders.filter((folder) => folder === "docs")).toHaveLength(1)
 
       await act(async () => {
         slow[0]!({
@@ -925,6 +954,7 @@ describe("The Source panel", () => {
       })
       await panel.settle()
 
+      expect(reads.folders.filter((folder) => folder === "docs")).toHaveLength(2)
       expect(panel.rows()).toContain("newer.md")
       expect(panel.rows()).not.toContain("older.md")
       await nextFrame()
@@ -973,6 +1003,28 @@ describe("The Source panel", () => {
       keyOn(panel, "readme.md", "Enter")
       keyOn(panel, "docs", "Enter")
       await panel.settle()
+
+      expect(opened).toEqual(["docs/readme.md"])
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("opens it once however long Enter is held", async () => {
+      const opened: string[] = []
+      const panel = await mount(undefined, undefined, undefined, backend(), (path) => {
+        opened.push(path)
+        return Promise.resolve()
+      })
+      await panel.click("docs")
+      const button = panel.row("readme.md").querySelector<HTMLElement>("[role=treeitem]")!
+
+      act(() => {
+        button.focus()
+        for (const repeat of [false, true, true])
+          button.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "Enter", repeat, bubbles: true, cancelable: true }),
+          )
+      })
 
       expect(opened).toEqual(["docs/readme.md"])
       await nextFrame()

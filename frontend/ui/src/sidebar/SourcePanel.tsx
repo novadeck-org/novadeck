@@ -83,6 +83,7 @@ const parentOf = (path: string): string => path.slice(0, Math.max(0, path.lastIn
 const noteTexts: Readonly<Record<SourceNote["note"], string>> = {
   failed: "Can't read this folder",
   truncated: "More not shown",
+  empty: "Empty",
 }
 
 // A quiet line at the end of an open folder that couldn't be read in full.
@@ -93,7 +94,8 @@ const Note = ({ line }: { line: SourceNote }): React.JSX.Element => (
     aria-disabled="true"
     className="source-note text-caption"
     data-note={line.note}
-    style={{ paddingLeft: 6 + indent * line.depth + 12 + 6 }}
+    // Under the children's names: past the row's border, padding, twisty, icon and their gaps.
+    style={{ paddingLeft: 1 + 6 + indent * line.depth + 12 + 6 + 14 + 6 }}
   >
     {noteTexts[line.note]}
   </div>
@@ -519,6 +521,7 @@ export const SourcePanel = ({
   const [listings, setListings] = useState<Listings>(noListings)
   const tree = useMemo(() => buildTree(listings, project), [listings, project])
   // The listings of a folder that vanished are dropped, to be read anew if it comes back.
+  const rootRead = listings.get("")
   const survivors = keepListings(listings, tree)
   if (survivors !== listings) setListings(survivors)
   // Folders open once, when the panel first has the project's root; after that only the
@@ -527,8 +530,8 @@ export const SourcePanel = ({
   if (openFolders === null && typeof listings.get("") === "object")
     setOpenFolders(initialOpen(tree))
   const open = openFolders ?? noFolders
-  const rootRead = listings.get("")
-  const lines = useMemo(() => visibleLines(tree, open), [tree, open])
+  const rootTruncated = typeof rootRead === "object" && rootRead.truncated
+  const lines = useMemo(() => visibleLines(tree, open, rootTruncated), [tree, open, rootTruncated])
   const rows = useMemo(() => lines.filter((line): line is SourceRow => !isNote(line)), [lines])
 
   // Each folder's latest read is the one that counts: a slower earlier read of it that comes
@@ -536,6 +539,8 @@ export const SourcePanel = ({
   const alive = useRef(true)
   const tickets = useRef(new Map<string, number>())
   const reading = useRef(new Set<string>())
+  // Folders asked for again while a read of them was out: read once more as it lands.
+  const again = useRef(new Set<string>())
   useEffect(() => {
     alive.current = true
     return () => {
@@ -543,7 +548,11 @@ export const SourcePanel = ({
     }
   }, [])
   const read = useCallback(
-    (folder: string): void => {
+    function read(folder: string): void {
+      if (reading.current.has(folder)) {
+        again.current.add(folder)
+        return
+      }
       const ticket = (tickets.current.get(folder) ?? 0) + 1
       tickets.current.set(folder, ticket)
       reading.current.add(folder)
@@ -553,6 +562,7 @@ export const SourcePanel = ({
         setListings((known) =>
           sameRead(known.get(folder), result) ? known : new Map(known).set(folder, result),
         )
+        if (again.current.delete(folder)) read(folder)
       }
       list(folder).then(settle, () => settle("failed"))
     },
@@ -830,7 +840,8 @@ export const SourcePanel = ({
           return true
         case "Enter":
           if (row.node.folder) return false
-          openFile(row)
+          // Holding the key opens the file once.
+          if (!event.repeat) openFile(row)
           return true
         case "ArrowRight":
           if (!expandable(row.node)) return true
@@ -881,7 +892,7 @@ export const SourcePanel = ({
       )}
       {rootRead === "failed" ? (
         <p className="source-empty text-control">Can't read this project's files.</p>
-      ) : rootRead === undefined ? null : tree.length === 0 ? (
+      ) : rootRead === undefined ? null : tree.length === 0 && !rootTruncated ? (
         <p className="source-empty text-control">This project's folder is empty.</p>
       ) : (
         <div
@@ -900,7 +911,7 @@ export const SourcePanel = ({
         >
           {lines.map((line) =>
             isNote(line) ? (
-              <Note key={`${line.path}/${line.note}`} line={line} />
+              <Note key={`${line.path}\0${line.note}`} line={line} />
             ) : (
               <Row
                 key={line.node.path}

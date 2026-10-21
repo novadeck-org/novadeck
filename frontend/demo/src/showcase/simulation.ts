@@ -16,6 +16,7 @@ import type { WorkspaceTarget } from "@novadeck/core/types"
 
 import type { SampleAgent } from "./agents"
 import type { SampleArtifact } from "./artifacts"
+import { attachedArtifact } from "./attached"
 import { applyEdits, removeNotes } from "./revise"
 
 // The showcase's agents at work: they answer what their terminals are told, revise their
@@ -201,6 +202,8 @@ export const createShowcase = (
   )
   // Who follows each plan, to hear when it's written.
   const following = new Map<ItemId, Set<(content: ItemContent) => void>>()
+  // What the person attached, by item id.
+  const attached = new Map<string, CompanionItem>()
   let report: ((actions: readonly BackendAction[]) => void) | undefined
   let current: () => readonly CompanionItem[] = noItems
   let started = false
@@ -307,6 +310,28 @@ export const createShowcase = (
             : sample.content,
       )
       return () => {}
+    },
+    // As the runner does: what the person picked lands on the terminal's bar, asked for and
+    // theirs, updating the same file there if it is already shown.
+    attach: (key, path) => {
+      const artifact =
+        [...samples.values()].find((each) => each.item.path === path) ?? attachedArtifact(path)
+      samples.set(artifact.item.id, artifact)
+      const handle =
+        [...agents, ...shown].find((each) => companionKeyId(each.key) === companionKeyId(key))
+          ?.handle ?? key.terminalId
+      // A session that doesn't read its items back still knows what was attached.
+      const own =
+        shownItemWith(current(), key.terminalId, artifact.item) ?? attached.get(artifact.item.id)
+      const item: CompanionItem = own
+        ? { ...own, version: own.version + 1, by: "person", asked: true, shownAt: now() }
+        : {
+            ...itemOf({ key, handle }, artifact, { asked: true, shownAt: now() }),
+            by: "person",
+          }
+      attached.set(artifact.item.id, item)
+      report?.([{ type: "item/upsert", target: key, item }])
+      return Promise.resolve()
     },
     save: (target, id, text, basedOn) => {
       const agent = planOf(target, id)

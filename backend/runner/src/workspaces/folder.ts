@@ -38,20 +38,30 @@ const within = (root: string, path: string): boolean => {
   return route === "" || (!isAbsolute(route) && route.split(sep)[0] !== "..")
 }
 
+/** The environment git runs in: ours, but for every `GIT_*` variable, which could point it at another repository. */
+const gitEnvironment = (): NodeJS.ProcessEnv => {
+  const env: NodeJS.ProcessEnv = {}
+  for (const [key, value] of Object.entries(process.env))
+    if (!key.toUpperCase().startsWith("GIT_")) env[key] = value
+  // Optional locks are off so asking never touches the repository's index.
+  env.GIT_OPTIONAL_LOCKS = "0"
+  return env
+}
+
 /**
- * Which of the entries git ignores, by name, in the repository around `root`. Only reads:
- * a folder that is no repository, no git installed, git failing or taking too long all
- * mean nothing is ignored, as a listing never fails over it.
+ * Which of the entries of `directory` git ignores, by name. Only reads: a folder that is
+ * no repository, no git installed, git failing or taking too long all mean nothing is
+ * ignored, as a listing never fails over it.
  */
-const ignoredNames = (root: string, prefix: string, entries: Found[]): Promise<Set<string>> =>
+const ignoredNames = (directory: string, entries: Found[]): Promise<Set<string>> =>
   new Promise((resolve) => {
     const none = new Set<string>()
     if (entries.length === 0) return resolve(none)
-    // A folder is named with a slash at its end, or a pattern for directories wouldn't match
-    // it; but git refuses a path that goes beyond a link, which that slash does for a link.
-    const paths = entries.map(
-      (entry) => `${prefix}${entry.name}${entry.folder && !entry.link ? "/" : ""}`,
-    )
+    // Git is run in the folder itself, so it finds the innermost repository there, as a
+    // submodule's. Each entry starts with `./`, or git would read a name such as `:!x` as
+    // pathspec magic. A folder ends with a slash, or a pattern for directories wouldn't
+    // match it; but git refuses a path that goes beyond a link, which that slash does for a link.
+    const paths = entries.map((entry) => `./${entry.name}${entry.folder && !entry.link ? "/" : ""}`)
     let finished = false
     const finish = (names: Set<string>) => {
       if (finished) return
@@ -60,13 +70,12 @@ const ignoredNames = (root: string, prefix: string, entries: Found[]): Promise<S
       resolve(names)
     }
     // The fsmonitor is off because a repository's own config can name a program for it to
-    // run, and reading a folder must never run anything a project brings along. Optional
-    // locks are off so asking never touches the repository's index.
+    // run, and reading a folder must never run anything a project brings along.
     const git = spawn(
       "git",
-      ["-c", "core.fsmonitor=false", "-C", root, "check-ignore", "-z", "--stdin"],
+      ["-c", "core.fsmonitor=false", "-C", directory, "check-ignore", "-z", "--stdin"],
       {
-        env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+        env: gitEnvironment(),
         stdio: ["pipe", "pipe", "ignore"],
         windowsHide: true,
       },
@@ -90,6 +99,18 @@ const ignoredNames = (root: string, prefix: string, entries: Found[]): Promise<S
     git.stdin.end(paths.map((path) => `${path}\0`).join(""))
   })
 
+/**
+ * Folders first, then by name without case or a leading dot, as the Source panel orders
+ * them, so `.github` sits among the g's; names alike that way go by their exact letters.
+ */
+const sortKey = (name: string): string => name.replace(/^\./, "").toLowerCase()
+const byOrder = (a: Found, b: Found): number => {
+  if (a.folder !== b.folder) return a.folder ? -1 : 1
+  const [left, right] = [sortKey(a.name), sortKey(b.name)]
+  if (left !== right) return left < right ? -1 : 1
+  return a.name < b.name ? -1 : a.name > b.name ? 1 : 0
+}
+
 /** What a directory entry is for a listing: a folder, a file, or neither (undefined). */
 const kindOf = async (directory: string, dirent: Dirent): Promise<Found | undefined> => {
   const entry = { name: dirent.name, ignored: false }
@@ -105,7 +126,7 @@ const kindOf = async (directory: string, dirent: Dirent): Promise<Found | undefi
 
 /**
  * One folder of a project's directory, `folder` being its path from the project's root
- * (`src/cart`, or "" for the root). Folders come first, then files, each by name; git's own
+ * (`src/cart`, or "" for the root). Folders come first, then files, each by name without case or a leading dot; git's own
  * `.git` is left out. `INVALID_DIRECTORY` for a path that is badly formed, a folder that is
  * missing or no folder, or one that leads out of the root, as through a link.
  */
@@ -124,14 +145,9 @@ export const listFolder = async (root: string, folder: string): Promise<FolderLi
     dirents.map((dirent) => (dirent.name === ".git" ? undefined : kindOf(directory, dirent))),
   )
   const listed = found.filter((entry) => entry !== undefined)
-  listed.sort(
-    (a, b) =>
-      Number(b.folder) - Number(a.folder) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
-  )
+  listed.sort(byOrder)
   const entries = listed.slice(0, maxFolderEntries)
-  // Named by where it really is, so a folder reached through a link in the project is too.
-  const route = relative(real, directory).split(sep).join("/")
-  const ignored = await ignoredNames(real, route === "" ? "" : `${route}/`, entries)
+  const ignored = await ignoredNames(directory, entries)
   return {
     entries: entries.map(({ name, folder: isFolder }) => ({
       name,

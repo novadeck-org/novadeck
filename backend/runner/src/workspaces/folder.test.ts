@@ -39,9 +39,9 @@ describe("a project's folder", () => {
       ["docs", true],
       ["node_modules", true],
       ["src", true],
+      ["debug.log", false],
       [".gitignore", false],
       ["README.md", false],
-      ["debug.log", false],
     ])
   })
 
@@ -57,14 +57,60 @@ describe("a project's folder", () => {
     expect(await ignored("node_modules")).toEqual(["pkg"])
   })
 
+  it("marks what a repository inside the project ignores, by its own rules", async ({
+    resources,
+  }) => {
+    const root = repository(resources)
+    const inner = join(root, "vendor")
+    mkdirSync(join(inner, "build"), { recursive: true })
+    git(inner, "init", "-q")
+    writeFileSync(join(inner, ".gitignore"), "build/\n")
+    writeFileSync(join(inner, "main.c"), "")
+    const { entries } = await listFolder(root, "vendor")
+    expect(entries.filter((entry) => entry.ignored).map(({ name }) => name)).toEqual(["build"])
+  })
+
+  it("reads a name that looks like git's pathspec magic as a name", async ({ resources }) => {
+    const root = repository(resources)
+    writeFileSync(join(root, ":!y"), "")
+    writeFileSync(join(root, ":(icase)x"), "")
+    const { entries } = await listFolder(root, "")
+    expect(entries.filter((entry) => entry.ignored).map(({ name }) => name)).toEqual([
+      "node_modules",
+      "debug.log",
+    ])
+  })
+
+  it("asks git about the project's repository, whatever GIT_DIR says", async ({ resources }) => {
+    const root = repository(resources)
+    const other = project(resources)
+    git(other, "init", "-q")
+    process.env.GIT_DIR = join(other, ".git")
+    try {
+      const { entries } = await listFolder(root, "")
+      expect(entries.find((entry) => entry.name === "node_modules")?.ignored).toBe(true)
+    } finally {
+      delete process.env.GIT_DIR
+    }
+  })
+
+  it("orders names as the Source panel does, so a cut listing drops the last ones", async ({
+    resources,
+  }) => {
+    const root = project(resources)
+    for (const name of ["b", "B", ".a", "c"]) writeFileSync(join(root, name), "")
+    const { entries } = await listFolder(root, "")
+    expect(entries.map(({ name }) => name)).toEqual([".a", "B", "b", "c"])
+  })
+
   it("marks nothing ignored outside a repository", async ({ resources }) => {
     const root = project(resources)
     writeFileSync(join(root, ".gitignore"), "*.log\n")
     writeFileSync(join(root, "debug.log"), "")
     const { entries } = await listFolder(root, "")
     expect(entries.map(({ name, ignored }) => [name, ignored])).toEqual([
-      [".gitignore", false],
       ["debug.log", false],
+      [".gitignore", false],
     ])
   })
 
