@@ -63,12 +63,12 @@ export const whatsNewAtLaunch = (
   const unsettled = settled === undefined || newer(current, settled)
   const marked = unsettled && (updated || pending === current) ? current : undefined
   // Notes of another version still pending were not seen, so they are told with these: the
-  // notes start where its did.
+  // notes start where its did, or after the version updated from when that is not known.
   const unseen =
     pending !== undefined &&
     pending !== current &&
     (settled === undefined || newer(pending, settled))
-  const start = pending === current || unseen ? from : previous
+  const start = pending === current ? from : unseen ? (from ?? previous) : previous
   // Notes at or below a settled version were seen, or had nothing to see.
   const since =
     settled !== undefined && (start === undefined || newer(settled, start)) ? settled : start

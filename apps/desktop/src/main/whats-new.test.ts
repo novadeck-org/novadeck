@@ -67,6 +67,8 @@ describe("what a launch records about what is new", () => {
 
   it("keeps the start of notes still pending for another version, which were not seen", () => {
     expect(launch("0.4.4", "0.5.0", { pending: "0.4.4", from: "0.4.1" })?.from).toBe("0.4.1")
+    // Without a known start, the notes start after the version updated from.
+    expect(launch("0.4.4", "0.5.0", { pending: "0.4.4" })?.from).toBe("0.4.4")
     // Unless that version's notes were settled meanwhile, as by another copy.
     expect(
       launch("0.4.4", "0.5.0", { pending: "0.4.4", from: "0.4.1", settled: "0.4.4" })?.from,
