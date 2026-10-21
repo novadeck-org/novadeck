@@ -85,6 +85,9 @@ type Webview = HTMLElement & {
 // A page's scroll, as `[scrollX, scrollY]`.
 type Scrolled = readonly [number, number]
 
+// A picture of the page, and the address it shows.
+type Picture = { readonly src: string; readonly at: string }
+
 // Where the person had taken the page, from the address it was shown at, and the show
 // it had carried out; and its picture, with where it was scrolled as it was taken, to
 // rest as.
@@ -93,10 +96,14 @@ type BrowserState = {
     readonly url: string
     readonly at: string
     readonly shown: number
-    readonly picture?: string
+    readonly picture?: Picture
     readonly scrolled?: Scrolled
   }
 }
+
+const isPicture = (value: unknown): value is Picture =>
+  typeof (value as Partial<Picture> | null)?.src === "string" &&
+  typeof (value as Partial<Picture>).at === "string"
 
 const isScrolled = (value: unknown): value is Scrolled =>
   Array.isArray(value) && value.length === 2 && value.every(Number.isFinite)
@@ -107,7 +114,7 @@ const isBrowserState = (state: unknown): state is BrowserState => {
     typeof browser?.url === "string" &&
     typeof browser.at === "string" &&
     typeof browser.shown === "number" &&
-    (browser.picture === undefined || typeof browser.picture === "string") &&
+    (browser.picture === undefined || isPicture(browser.picture)) &&
     (browser.scrolled === undefined || isScrolled(browser.scrolled))
   )
 }
@@ -162,6 +169,12 @@ const aborted = -3
 
 /** How long a show's scroll waits for its element to appear once the page has loaded. */
 export const scrollWaitMs = 5_000
+
+/**
+ * How long after a load a live page is pictured, to rest as where it can't be pictured as
+ * it goes, as out of sight.
+ */
+export const freshenMs = 1_000
 
 /**
  * How long a woken page's picture stays over it once it has loaded, for it to draw, and
@@ -235,6 +248,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   let scrolled = kept?.scrolled
   // A show came while it rested, or a reload was asked for: its next load goes afresh.
   let stale = false
+  // The element a show is bringing into view, the page waiting for it to appear.
+  let bringing: string | undefined
   // Kept with the show it carried out: one whose move or scroll is still to come isn't yet,
   // so a viewer mounted for it before then still carries it out.
   const state = (at: string): ViewerState =>
@@ -308,7 +323,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     if (picture === undefined) return
     clearTimeout(fading)
     fading = undefined
-    image.src = picture
+    image.src = picture.src
     delete still.dataset.fading
     if (!still.isConnected) root.prepend(still)
   }
@@ -325,8 +340,13 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     }, uncoverMs)
   }
 
-  // The live page while there is one: none while it rests.
+  // Whether it's drawn: not inside an element kept out of sight, as with display: none.
+  const shownNow = (): boolean => root.checkVisibility?.() !== false
+  // The live page while there is one: none while it rests; and whether a wake opened it.
   let page: Webview | undefined
+  let woken = false
+  // A picture of the live page under way, after its load, to rest as.
+  let freshening: ReturnType<typeof setTimeout> | undefined
   // Whether its host wants it live.
   let wanted = startAwake ?? true
   // A rest under way, waiting for its picture: a wake or a later rest drops it.
@@ -347,8 +367,13 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   const reveal = (): void => {
     const selector = scrollTo
     scrollTo = undefined
-    if (selector !== undefined)
-      attached(() => void page!.executeJavaScript(revealing(selector, scrollWaitMs)).catch(nothing))
+    if (selector === undefined) return
+    const run = attached(() => page!.executeJavaScript(revealing(selector, scrollWaitMs)))
+    if (!run) return
+    bringing = selector
+    void run.catch(nothing).finally(() => {
+      if (bringing === selector) bringing = undefined
+    })
   }
   // Its scroll goes once the page, not a frame in it, has moved to the shown fragment.
   const movedInPage = (event: Event): void => {
@@ -366,10 +391,10 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     }) === true
   // Woken, back where the person had scrolled, unless a show brings something into view;
   // then the picture goes.
-  const settle = (): void => {
+  const settle = (shows: boolean): void => {
     const at = scrolled
     scrolled = undefined
-    if (at === undefined || scrollTo !== undefined) return uncover()
+    if (at === undefined || shows) return uncover()
     const run = attached(() => page!.executeJavaScript(scrolling(at)))
     if (!run) return uncover()
     run.catch(nothing).finally(uncover)
@@ -387,13 +412,19 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     }
     const to = then
     then = undefined
+    // A show bringing an element into view, or moving to its fragment, scrolls in place of
+    // where the person had scrolled.
+    const shows = scrollTo !== undefined || to !== undefined
     // The person, or a redirect, took it to another document while it reloaded: theirs.
     const left = to !== undefined && documentOf(place.url) !== documentOf(to)
     if (load !== "ready" || left) scrollTo = undefined
     else if (to !== undefined && to !== place.url && go(to)) moving = true
     else reveal()
-    if (!wanted) rest()
-    else settle()
+    if (!wanted && load === "ready") rest()
+    else {
+      settle(shows)
+      freshen()
+    }
   }
   // Shown again, or at another address: let be while its first load of that address is
   // under way, as that load is this show's. In the document it's on, at the shown
@@ -403,7 +434,11 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   const refresh = (): void => {
     moving = false
     then = undefined
-    if (first && load === "loading" && place.url === shown.url) return
+    if (first && load === "loading" && place.url === shown.url) {
+      // A wake's load isn't the show's: it goes again, afresh, once done.
+      if (woken) stale = true
+      return
+    }
     // Where it is, as the page has it: an address it's on its way to isn't reloaded, as a
     // reload goes to the last one it reached.
     const at = attached(() => page!.getURL()) || place.url
@@ -433,7 +468,10 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     }
     if (errorCode !== aborted && isMainFrame !== false) report("failed")
   }
-  const gone = (): void => report("failed")
+  const gone = (): void => {
+    report("failed")
+    uncover()
+  }
   const titled = (event: Event): void => {
     const { title } = event as Event & { title?: string }
     if (typeof title === "string") on?.title?.(title)
@@ -453,7 +491,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   // attributes once, as the view attaches. With it, a page's new windows reach the host's
   // lockdown, which opens one in the browser right after the person's click or key. The
   // lockdown gives it the pages' session whatever it asks; it's named to match.
-  const open = (at: string): void => {
+  const open = (at: string, byWake: boolean): void => {
+    woken = byWake
     const made = document.createElement("webview") as Webview
     made.setAttribute("partition", partition)
     made.setAttribute("allowpopups", "")
@@ -467,6 +506,13 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   }
   const close = (): void => {
     if (!page) return
+    clearTimeout(freshening)
+    // A show's element the page was waiting for is brought into view on waking instead.
+    if (bringing !== undefined) {
+      scrollTo = bringing
+      bringing = undefined
+      scrolled = undefined
+    }
     for (const [type, listener] of listeners) page.removeEventListener(type, listener)
     page.remove()
     page = undefined
@@ -482,9 +528,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     // Mid-load, it's pictured once loaded, unless a picture it has stands in meanwhile; a
     // load after its first, as a show's, then goes again, afresh, on waking. Out of sight, as
     // where its host keeps it hidden, it draws nothing to picture: the one it has stands in.
-    const hidden = root.getClientRects().length === 0
+    const hidden = !shownNow()
     if (load === "loading" || hidden) {
-      if (picture === undefined) return
+      if (picture === undefined || documentOf(picture.at) !== documentOf(place.url)) return
       if (load === "loading" && !first) stale = true
       then = undefined
       cover()
@@ -492,20 +538,16 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       report("ready")
       return
     }
-    const id = attached(() => view.getWebContentsId())
-    if (id === undefined) return
     const asked = {}
     resting = asked
-    const taking = take(id).catch(() => undefined)
-    const reading = attached(() => view.executeJavaScript(scrollRead))?.catch(() => undefined)
-    void Promise.all([taking, reading]).then(([taken, at]) => {
+    void snap(view).then((taken) => {
       if (resting !== asked || wanted || page !== view) return
       resting = undefined
       // A load began meanwhile, as a show's: it rests once that's done.
       if (load !== "ready") return
-      if (taken !== undefined) {
-        picture = taken
-        scrolled = isScrolled(at) ? at : undefined
+      if (taken) {
+        picture = taken.picture
+        scrolled = taken.scrolled
       }
       // Nothing to rest as: live, until a later rest can take one.
       if (picture === undefined) return
@@ -513,20 +555,51 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       close()
     })
   }
+  // A picture of the live page as it is now, and where it's scrolled; none where it can't.
+  const snap = async (
+    view: Webview,
+  ): Promise<{ picture: Picture; scrolled: Scrolled | undefined } | undefined> => {
+    const id = attached(() => view.getWebContentsId())
+    if (id === undefined || !take) return undefined
+    const at = place.url
+    const reading = attached(() => view.executeJavaScript(scrollRead))?.catch(() => undefined)
+    const [src, where] = await Promise.all([take(id).catch(() => undefined), reading])
+    if (src === undefined) return undefined
+    return { picture: { src, at }, scrolled: isScrolled(where) ? where : undefined }
+  }
+  // Pictured a while after each load, so a rest that can't picture it, as out of sight,
+  // rests as it is, not as it was.
+  const freshen = (): void => {
+    clearTimeout(freshening)
+    const view = page
+    if (!view || !take || load !== "ready") return
+    freshening = setTimeout(() => {
+      if (page !== view || load !== "ready" || !shownNow()) return
+      void snap(view).then((taken) => {
+        if (!taken || page !== view || load !== "ready") return
+        picture = taken.picture
+        scrolled = taken.scrolled
+      })
+    }, freshenMs)
+  }
   const wake = (): void => {
     resting = undefined
-    if (page) return
-    open(place.url)
+    if (page) {
+      // Live already, as when a rest gave way: once it's there, its picture goes.
+      if (load !== "loading") uncover()
+      return
+    }
+    open(place.url, true)
   }
 
   root.dataset.load = load
   on?.load?.(load)
-  if (picture !== undefined && !wanted) {
+  if (picture !== undefined && !wanted && documentOf(picture.at) === documentOf(resumed)) {
     // At rest from the first: its picture until it's woken.
     cover()
     report("ready")
   } else {
-    open(resumed)
+    open(resumed, false)
     // Its picture until it's there.
     cover()
   }
@@ -559,6 +632,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       // Already there: setting it again would load it again.
       if (at === undefined || at === place.url || !webAddress(at)) return
       page?.setAttribute("src", at)
+      // Where it was scrolled was of where it was.
+      if (!page) scrolled = undefined
       place = { url: at, back: place.back, forward: place.forward }
       on?.navigate?.(place)
     },
@@ -587,6 +662,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     pictured: () => picture !== undefined,
     destroy: () => {
       clearTimeout(fading)
+      clearTimeout(freshening)
       resting = undefined
       if (page) for (const [type, listener] of listeners) page.removeEventListener(type, listener)
       root.remove()

@@ -55,18 +55,27 @@ const show = (
     target,
     actions: undefined,
   })
-  const tree = (pane: Awake | undefined) =>
+  let pane = awake
+  let visible = shown
+  const tree = () =>
     createElement(
       Shown.Provider,
-      { value: shown },
+      { value: visible },
       pane ? createElement(AwakeContext, { value: pane }, view) : view,
     )
-  const rendered = render(tree(awake))
+  const rendered = render(tree())
   unmounts.push(rendered.unmount)
   return {
     ...rendered,
     show: (next: PageContent) => act(() => emit(ready(next))),
-    awake: (pane: Awake) => rendered.rerender(tree(pane)),
+    awake: (next: Awake) => {
+      pane = next
+      rendered.rerender(tree())
+    },
+    visible: (next: boolean) => {
+      visible = next
+      rendered.rerender(tree())
+    },
   }
 }
 
@@ -228,6 +237,24 @@ describe("a page beside a terminal", () => {
       // The same show read again wakes nothing.
       rendered.show({ kind: "page", url: at, shown: 2, live: true })
       expect(wakes).toEqual(["wake"])
+    })
+
+    it("stays its picture when its terminal shows again, waking only for the person", async () => {
+      const at = "http://localhost:4403/"
+      const wakes: string[] = []
+      const rendered = show({ kind: "page", url: at, shown: 1, live: true }, true, {
+        awake: { awake: true, wake: () => wakes.push("wake") },
+        pictures: [shot],
+      })
+      attached(pageOf(rendered.container), at)
+      fire(pageOf(rendered.container), "did-stop-loading")
+      rendered.awake({ awake: false, wake: () => wakes.push("wake") })
+      await settled()
+      wakes.splice(0)
+      rendered.visible(false)
+      rendered.visible(true)
+      expect(wakes).toEqual([])
+      expect(rendered.container.querySelector("webview")).toBeNull()
     })
 
     it("stays live where its host takes no pictures", async () => {
