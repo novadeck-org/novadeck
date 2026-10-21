@@ -35,7 +35,7 @@ export const releaseNotes = z.strictObject({
   version: text(64),
   /** A prerelease's own notes, or the notes of a promotion, which cover every release since the last stable one. */
   kind: z.enum(["release", "promote"]),
-  /** What to lead with: up to four, only in a promotion. */
+  /** What to lead with: up to two in a prerelease's own notes, four in a promotion's. */
   highlights: z.array(z.strictObject({ title: text(80), line: text(240), prs })).max(4),
   changes: z.array(z.strictObject({ area: noteArea, line: text(240), prs })).max(200),
   /** How many smaller fixes and speedups the lines above leave unnamed. */

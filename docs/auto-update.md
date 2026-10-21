@@ -538,8 +538,9 @@ has nothing to show (no block, no highlights, or GitHub's own JSON 404); nothing
 a settled version is offered again. A read that fails for a reason that may pass (offline,
 timeout, 403, 429, 5xx, or an answer that is not that release) is tried once more two minutes
 later in the same launch, and the page's one request waits for it; if that fails too, the mark
-stays for a later launch. A prerelease whose notes have no highlights yet is read at most once
-a day (`whatsNewCheckedAt`), as its promotion writes them onto the same tag. Builds that look
+stays for a later launch. A prerelease's own notes carry up to two highlights, so early builds
+show the card too; one whose notes have none is read at most once a day (`whatsNewCheckedAt`),
+as its promotion may still write some onto the same tag. Builds that look
 for no updates (version 0.0.0, no release repository) never offer a card.
 
 ## Release assets

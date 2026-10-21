@@ -160,6 +160,17 @@ describe("what is new in the version", () => {
     expect(state.pending).toBe("0.5.0")
   })
 
+  it("answers a prerelease's own highlights, with no wait for its promotion", async () => {
+    const own = notesBlock({ ...notes([highlight]), kind: "release" })
+    const { whatsNew, state } = kept(async () => release(own, 200, true))
+    expect(await whatsNew()).toEqual({
+      version: "0.5.0",
+      highlights: [{ title: "Faster Grid", line: "Grid opens in half the time." }],
+    })
+    expect(state.pending).toBe("0.5.0")
+    expect(state.checkedAt).toBeUndefined()
+  })
+
   it("reads the release once, however often it is asked", async () => {
     const body = notesBlock(notes([highlight]))
     const { whatsNew, urls } = kept(async () => release(body))
