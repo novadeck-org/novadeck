@@ -1,15 +1,20 @@
-/* The image viewer: an image (`.image-viewer img`) on its ground, fitted, or at its actual
-   size, which scrolls when it's larger.
+/* The image viewer: an image (`.image-viewer img`) on its ground, fitted whole, or zoomed
+   and moved about, and over it once it's moved or zoomed, its zoom (`.image-zoom`), a chip
+   that takes it back to fit.
 
-   Hooks: data-actual on the viewer while the image is at its actual size.
+   Hooks: data-sized on the viewer once it and its image have sizes, when the viewer
+   places the image itself and it can be dragged; data-panning while it's dragged;
+   data-pixelated from 400%, where its pixels show square.
 
    Tokens, each optional (its fallback in brackets):
    --image-ground (none), --image-ground-size (auto): behind the image.
-   --image-padding (20px): around it.
-   --image-fit-max-width (100%): the widest it fits to.
-   --image-actual-width (its own): its width at its actual size.
-   --image-radius (0), --image-shadow (none): the image itself. */
+   --image-padding (20px): around it, fitted.
+   --image-radius (0), --image-shadow (none): the image itself.
+   --image-zoom-bg (a dark glass), --image-zoom-fg (white), --image-zoom-border (none),
+   --image-zoom-radius (6px), --image-zoom-shadow (none), --image-zoom-font (inherit),
+   --image-zoom-hover-bg (--image-zoom-bg, else a darker glass): the chip. */
 .image-viewer {
+  position: relative;
   display: grid;
   flex: 1;
   place-items: center;
@@ -17,19 +22,50 @@
   padding: var(--image-padding, 20px);
   background-image: var(--image-ground, none);
   background-size: var(--image-ground-size, auto);
-  overflow: auto;
+  /* Clipped rather than hidden, so nothing can scroll it under the image's own placing. */
+  overflow: clip;
+  touch-action: none;
+  user-select: none;
 }
 .image-viewer img {
-  width: 100%;
-  max-width: var(--image-fit-max-width, 100%);
-  height: auto;
+  max-width: 100%;
+  max-height: 100%;
   border-radius: var(--image-radius, 0);
   box-shadow: var(--image-shadow, none);
 }
-.image-viewer[data-actual] {
-  place-items: start;
-}
-.image-viewer[data-actual] img {
-  width: var(--image-actual-width, auto);
+.image-viewer[data-sized] img {
+  position: absolute;
+  top: 0;
+  left: 0;
   max-width: none;
+  max-height: none;
+}
+.image-viewer[data-sized] {
+  cursor: grab;
+}
+.image-viewer[data-panning] {
+  cursor: grabbing;
+}
+.image-viewer[data-pixelated] img {
+  image-rendering: pixelated;
+}
+.image-zoom {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 2px 8px;
+  border: var(--image-zoom-border, none);
+  border-radius: var(--image-zoom-radius, 6px);
+  background: var(--image-zoom-bg, rgb(0 0 0 / 0.6));
+  box-shadow: var(--image-zoom-shadow, none);
+  color: var(--image-zoom-fg, white);
+  font: var(--image-zoom-font, inherit);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.image-zoom:hover {
+  background: var(--image-zoom-hover-bg, var(--image-zoom-bg, rgb(0 0 0 / 0.75)));
+}
+.image-zoom[hidden] {
+  display: none;
 }
