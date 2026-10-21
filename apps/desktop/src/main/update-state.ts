@@ -25,6 +25,11 @@ export type UpdateState = {
    */
   readonly whatsNewPending: string | undefined
   /**
+   * The version the notes of the pending one start after: the one updated from, so the
+   * builds skipped on the way are told too. Unset tells only the pending version's own.
+   */
+  readonly whatsNewFrom: string | undefined
+  /**
    * The newest version whose notes were settled, shown and dismissed or found to have
    * nothing to show. No version at or below it is offered again, so a downgrade, or a
    * portable and an installed copy sharing this file, never bring a dismissed card back.
@@ -44,6 +49,7 @@ const defaults: UpdateState = {
   installing: undefined,
   lastRunVersion: undefined,
   whatsNewPending: undefined,
+  whatsNewFrom: undefined,
   whatsNewSettled: undefined,
   whatsNewCheckedAt: undefined,
 }
@@ -72,6 +78,7 @@ export const updateStateOf = (text: string): UpdateState => {
     installing,
     lastRunVersion,
     whatsNewPending,
+    whatsNewFrom,
     whatsNewSettled,
     whatsNewCheckedAt,
   } = kept as Record<string, unknown>
@@ -81,6 +88,7 @@ export const updateStateOf = (text: string): UpdateState => {
     installing: typeof installing === "string" ? installing : undefined,
     lastRunVersion: versionOf(lastRunVersion),
     whatsNewPending: versionOf(whatsNewPending),
+    whatsNewFrom: versionOf(whatsNewFrom),
     whatsNewSettled: versionOf(whatsNewSettled),
     whatsNewCheckedAt:
       typeof whatsNewCheckedAt === "number" && Number.isFinite(whatsNewCheckedAt)
@@ -140,11 +148,19 @@ export const keepUpdateState = (file: string) => {
     recordInstalling: (version: string): void => change({ installing: version }),
     /** Marks that a launch has seen how the install begun last ended. */
     clearInstalling: (): void => change({ installing: undefined }),
-    /** Marks the version this launch runs, and which version's notes are yet to be shown. */
-    recordLaunch: (lastRunVersion: string, whatsNewPending: string | undefined): void =>
+    /**
+     * Marks the version this launch runs, which version's notes are yet to be shown, and
+     * the version they start after.
+     */
+    recordLaunch: (
+      lastRunVersion: string,
+      whatsNewPending: string | undefined,
+      whatsNewFrom: string | undefined,
+    ): void =>
       change({
         lastRunVersion,
         whatsNewPending,
+        whatsNewFrom,
         // A read of another version's release says nothing of this one's.
         ...(whatsNewPending === read().whatsNewPending ? {} : { whatsNewCheckedAt: undefined }),
       }),
@@ -159,6 +175,7 @@ export const keepUpdateState = (file: string) => {
       const { whatsNewSettled } = read()
       change({
         whatsNewPending: undefined,
+        whatsNewFrom: undefined,
         whatsNewCheckedAt: undefined,
         whatsNewSettled:
           whatsNewSettled !== undefined && newer(whatsNewSettled, version)
