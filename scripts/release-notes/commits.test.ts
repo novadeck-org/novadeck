@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { parseCommit, parseCommits, whatOf } from "./commits.ts"
+import { maxWhy, parseCommit, parseCommits, whatOf, whyOf } from "./commits.ts"
 import { commit, commits } from "./fixtures.ts"
 
 describe("the commits a release is written from", () => {
@@ -167,6 +167,26 @@ describe("the commits a release is written from", () => {
     expect(whatOf("## What\n\nShort.\n")).toBe("Short.")
     const long = whatOf(`## What\n\n${"word ".repeat(400)}\n\n## Why\n\nno`)
     expect(long.length).toBeLessThan(710)
+    expect(long.endsWith("...")).toBe(true)
+  })
+
+  it("reads the Why as it reads the What: to the next heading, unwrapped, without links, cut", () => {
+    expect(
+      whyOf(
+        "## What\n\nA thing.\n\n## Why\n\nYou couldn't tell\nwhich went together. https://x.y/z\n\n## Impact\n\nno",
+      ),
+    ).toBe("You couldn't tell which went together.")
+    expect(whyOf("## What\n\nA thing.")).toBe("")
+    expect(whyOf("## Why\n\nA chat view thing. A real reason.")).toBe("A real reason.")
+    expect(whyOf("## Why\n\nBuilds on #373, which split it. Closes #383. A real reason.")).toBe(
+      "A real reason.",
+    )
+    expect(whyOf("## Why\n\n<!-- Name the need or problem. -->\n\n## Impact\n\nno")).toBe("")
+    expect(whatOf("## What\n\n<!-- Describe it. -->\nLike #330, tabs name teams.")).toBe(
+      "Like #330, tabs name teams.",
+    )
+    const long = whyOf(`## Why\n\n${"word ".repeat(400)}`)
+    expect(long.length).toBeLessThanOrEqual(maxWhy + 3)
     expect(long.endsWith("...")).toBe(true)
   })
 })

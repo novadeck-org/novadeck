@@ -5,7 +5,14 @@ import { type ModelOutput } from "./model.ts"
 
 const allowed = new Set([181, 195, 261])
 const good: ModelOutput = {
-  highlights: [{ title: "Word handles", line: "Terminals get a name like @moth.", prs: [181] }],
+  highlights: [
+    {
+      title: "Word handles",
+      line: "Terminals get a name like @moth.",
+      prs: [181],
+      icon: "users",
+    },
+  ],
   changes: [{ area: "Inbox & notifications", line: "Answer agents from the Inbox.", prs: [195] }],
 }
 const withChange = (line: string, prs = [195], area = "Voice"): ModelOutput => ({
@@ -31,6 +38,18 @@ describe("the checks on a model's answer", () => {
   it("allows a promotion with no highlights, and refuses more than four", () => {
     expect(failure({ ...good, highlights: [] })).toBeUndefined()
     expect(failure({ ...good, highlights: Array(5).fill(good.highlights[0]) })).toMatch(/At most 4/)
+  })
+
+  it("keeps a highlight whose icon is missing or not ours, with the generic one", () => {
+    const [highlight] = good.highlights
+    for (const icon of ["rocket-launch-9000", undefined]) {
+      const checked = check({ ...good, highlights: [{ ...highlight!, icon }] })
+      expect(checked).toMatchObject({
+        ok: true,
+        output: { highlights: [{ title: "Word handles", icon: "sparkles" }] },
+        dropped: [],
+      })
+    }
   })
 
   it("keeps a release's first two highlights and drops the rest", () => {
@@ -68,17 +87,92 @@ describe("the checks on a model's answer", () => {
     expect(failure({ ...good, highlights: Array(5).fill(good.highlights[0]) })).toMatch(/At most 4/)
   })
 
-  it("drops a title over 40 characters or a line over 110, and keeps the rest", () => {
+  it("drops a release's highlight that cites no feature, and keeps a promotion's", () => {
+    const features = new Set([181])
+    const fixOnly = {
+      ...good,
+      highlights: [{ ...good.highlights[0]!, prs: [195] }],
+      changes: [],
+    }
+    expect(checkOutput(fixOnly, "release", allowed, features)).toMatchObject({
+      ok: true,
+      output: { highlights: [] },
+      dropped: ["a release's highlight that tells no feature"],
+    })
+    expect(checkOutput(fixOnly, "promote", allowed, features)).toMatchObject({
+      ok: true,
+      output: { highlights: [{ prs: [195] }] },
+    })
+    const withFeature = { ...fixOnly, highlights: [{ ...good.highlights[0]!, prs: [195, 181] }] }
+    expect(checkOutput(withFeature, "release", allowed, features)).toMatchObject({
+      output: { highlights: [{ prs: [195, 181] }] },
+    })
+  })
+
+  it("fails an answer mostly in a script other than English's, and keeps a quoted word", () => {
+    const answer = {
+      highlights: [
+        { title: "加密终端输出", line: "终端输出被加密存储。", prs: [181], icon: "lock" },
+      ],
+      changes: [{ area: "Terminals", line: "终端输出被加密存储。", prs: [181] }],
+    }
+    expect(checkOutput(answer, "promote", allowed)).toEqual({
+      ok: false,
+      reason: "The answer is not written in English",
+    })
+    // A foreign highlight and its change are one change, beside an English one: only dropped.
+    const repeated = {
+      highlights: [
+        { title: "加密终端输出", line: "终端输出被加密存储。", prs: [195], icon: "lock" },
+      ],
+      changes: [
+        { area: "Terminals", line: "终端输出被加密存储。", prs: [195] },
+        ...good.changes.map((change) => ({ ...change, prs: [181] })),
+      ],
+    }
+    expect(checkOutput(repeated, "promote", allowed)).toMatchObject({ ok: true })
+    const oneLine = {
+      ...good,
+      changes: [{ area: "Terminals", line: "终端输出被加密存储。", prs: [181] }],
+    }
+    expect(checkOutput(oneLine, "promote", allowed)).toMatchObject({
+      ok: true,
+      output: { changes: [] },
+      dropped: ["a line in another script"],
+    })
+    const accented = {
+      ...good,
+      changes: [{ area: "Terminals", line: "A café's naïve résumé stays.", prs: [181] }],
+    }
+    expect(checkOutput(accented, "promote", allowed).ok).toBe(true)
+    // Each on its own, as a release with one change would answer.
+    for (const line of [
+      "Startup is 300 µs faster.",
+      "Typing 日本語 no longer moves the cursor.",
+      "Opens Ελληνικά files in Grid.",
+    ]) {
+      const quoted = { highlights: [], changes: [{ area: "Terminals", line, prs: [181] }] }
+      expect(checkOutput(quoted, "release", allowed)).toMatchObject({ ok: true, dropped: [] })
+    }
+  })
+
+  it("drops a highlight past 36/90 characters or a line past 140, and keeps the rest", () => {
     const title = (text: string): ModelOutput => ({
       ...good,
       highlights: [{ ...good.highlights[0]!, title: text }],
     })
-    expect(droppedFor(title("x".repeat(40)))).toEqual([])
-    expect(droppedFor(title("x".repeat(41)))).toHaveLength(1)
-    expect(droppedFor(withChange("x".repeat(110)))).toEqual([])
-    expect(droppedFor(withChange("x".repeat(111)))).toHaveLength(1)
+    const short = (line: string): ModelOutput => ({
+      ...good,
+      highlights: [{ ...good.highlights[0]!, line }],
+    })
+    expect(droppedFor(title("x".repeat(36)))).toEqual([])
+    expect(droppedFor(title("x".repeat(37)))).toHaveLength(1)
+    expect(droppedFor(short("x".repeat(90)))).toEqual([])
+    expect(droppedFor(short("x".repeat(91)))).toHaveLength(1)
+    expect(droppedFor(withChange("x".repeat(140)))).toEqual([])
+    expect(droppedFor(withChange("x".repeat(141)))).toHaveLength(1)
     expect(droppedFor(withChange("  "))).toHaveLength(1)
-    const checked = check(title("x".repeat(41)))
+    const checked = check(title("x".repeat(37)))
     expect(checked).toMatchObject({ ok: true, output: { highlights: [], changes: good.changes } })
   })
 

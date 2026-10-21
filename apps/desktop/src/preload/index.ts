@@ -32,7 +32,6 @@ import {
   noticeClickChannel,
   openLogsChannel,
   openUpdatePageChannel,
-  openWhatsNewPageChannel,
   pagePictureChannel,
   portableChannel,
   quitAppChannel,
@@ -224,9 +223,6 @@ const bridge = {
   whatsNew: async () => parseWhatsNew(await ipcRenderer.invoke(whatsNewChannel)),
   dismissWhatsNew: () => {
     ipcRenderer.send(dismissWhatsNewChannel)
-  },
-  openWhatsNewPage: () => {
-    ipcRenderer.send(openWhatsNewPageChannel)
   },
   version: async () => {
     const version: unknown = await ipcRenderer.invoke(versionChannel)

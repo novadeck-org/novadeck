@@ -515,7 +515,7 @@ kill the process tree and wait.
 `DesktopBridge` in `contract/protocol/src/bridge.ts` carries `onUpdate` (an
 `UpdateOffer` with `kind` (`downloading`, `ready`, `retrying` or `available`), `version` and, for `downloading`, a whole `percent`), `openUpdatePage`,
 `updateChannel` and `setUpdateChannel`. After an update the app shows one card of what is new (see
-"What is new" below), through `whatsNew`, `dismissWhatsNew` and `openWhatsNewPage`. `onPortableState`
+"What is new" below), through `whatsNew` and `dismissWhatsNew`. `onPortableState`
 pushes the `PortableState` to every window when it changes, each step of an install included.
 The preload checks every offer and portable state again, with the protocol's parsers, before the
 page sees it: a bad offer is dropped, and so is a bad pushed state; a bad answer to `portable` counts as not portable. Requests count
@@ -538,6 +538,12 @@ the stable release before it, so a prerelease older than the newest promotion am
 out. The list is read newest first, a hundred to a page, until it reaches `whatsNewFrom`, three
 pages at most; a list that can't be read, or is not one, fails the read as the release's own
 would.
+
+Each highlight may name an icon, a Lucide name from the fixed `highlightIcons` set in
+`contract/protocol/src/release-notes.ts`, which the model picks from when it writes the notes.
+The host's reader drops a name outside the set, and the preload checks only its shape, so it
+carries no schema library; the card draws a sparkle for a highlight with no icon, as those of
+releases written before icons, or with one it doesn't know.
 
 At launch the host records the version it runs in `update.json` as `lastRunVersion`, and marks
 that version `whatsNewPending` when it is newer than the one the last launch recorded. A first

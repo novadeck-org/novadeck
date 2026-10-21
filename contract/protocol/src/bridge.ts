@@ -86,11 +86,6 @@ export type DesktopBridge = {
   /** Marks this version's `whatsNew` as seen, so no later launch offers it again. */
   dismissWhatsNew?(): void
   /**
-   * Opens the release page of the app's own version in the browser. The host builds the
-   * address from its own release repository; the page never names one.
-   */
-  openWhatsNewPage?(): void
-  /**
    * The version of the app, as a release is named. Absent from hosts that came before it.
    */
   version?(): Promise<string>
@@ -368,7 +363,20 @@ export type WhatsNew = {
   readonly highlights: readonly WhatsNewHighlight[]
 }
 
-export type WhatsNewHighlight = { readonly title: string; readonly line: string }
+/**
+ * A highlight may lead with an icon, by its Lucide name from the notes' set (`highlightIcons`
+ * in release-notes.ts). Only its shape is checked here, so the preload carries no schema
+ * library: the host reads the notes with the set, and the page draws a name it doesn't know
+ * as its fallback.
+ */
+export type WhatsNewHighlight = {
+  readonly title: string
+  readonly line: string
+  readonly icon?: string
+}
+
+/** What a highlight's icon may be: a Lucide name, lowercase words and digits joined by `-`. */
+const iconName = /^(?=.{1,40}$)[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 /** The most highlights a release names. */
 export const whatsNewHighlights = 4
@@ -398,7 +406,11 @@ export const parseWhatsNew = (value: unknown): WhatsNew | undefined => {
       if (!isRecord(highlight)) return []
       const title = highlightText(highlight.title, whatsNewTitleLength)
       const line = highlightText(highlight.line, whatsNewLineLength)
-      return title && line ? [{ title, line }] : []
+      if (!title || !line) return []
+      const { icon } = highlight
+      return [
+        typeof icon === "string" && iconName.test(icon) ? { title, line, icon } : { title, line },
+      ]
     })
     .slice(0, whatsNewHighlights)
   return highlights.length > 0 ? { version: value.version, highlights } : undefined
