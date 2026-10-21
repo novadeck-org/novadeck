@@ -1,5 +1,5 @@
 import { formatSize } from "@novadeck/core/addon-format"
-import type { MurmurState } from "@novadeck/core/murmur"
+import { murmurDownloadSize, type MurmurState } from "@novadeck/core/murmur"
 
 // What an installed murmur with no passed check says, beside Try again.
 export const murmurUncheckedText =
@@ -11,10 +11,6 @@ export const murmurDescription = "Names your terminals from what they're doing, 
 
 // What an install downloads: the engine and the model.
 export const murmurInstallSize = ({ sizes }: MurmurState): number => sizes.engine + sizes.model
-
-// What an install still downloads: the engine alone where the model is on disk.
-export const murmurDownloadSize = (state: MurmurState): number =>
-  state.kept ? state.sizes.engine : murmurInstallSize(state)
 
 // The note under Install.
 export const murmurDownloadNote = (state: MurmurState): string =>

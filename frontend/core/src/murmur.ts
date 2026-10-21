@@ -44,7 +44,7 @@ export type MurmurState = {
   // themselves, so it is news, not something to retry; null for the rest of `failure`.
   readonly stopped: string | null
   // Whether the model is on disk though murmur isn't installed: a verdict removed the engine
-  // and kept the model of an install that had worked. Uninstalling removes it.
+  // and kept a model downloaded earlier. Uninstalling removes it.
   readonly kept: boolean
   // Why this computer can't run murmur, technical, for a details view: the host's word
   // ("host", nothing downloads and an install is refused), or a check's, which an install runs
@@ -62,6 +62,11 @@ export type MurmurState = {
 // the check.
 export const unchecked = (state: MurmurState): boolean =>
   state.installed && state.check === null && state.installing === null && state.unsupported === null
+
+// What an install still downloads, in bytes: the engine and the model, or the engine alone
+// where the model is on disk.
+export const murmurDownloadSize = ({ sizes, kept }: MurmurState): number =>
+  kept ? sizes.engine : sizes.engine + sizes.model
 
 // What murmur's check is called in the steps of an install.
 export const murmurChecking = "Checking this computer"

@@ -1,5 +1,5 @@
 import { formatSize } from "@novadeck/core/addon-format"
-import type { MurmurState } from "@novadeck/core/murmur"
+import { murmurDownloadSize, type MurmurState } from "@novadeck/core/murmur"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
 import type { WorkspaceServices } from "./controller/context"
@@ -51,7 +51,7 @@ export const offerText = {
   chip: "Name it for me",
   title: "Name terminals from what they do",
   body: (state: MurmurState): string =>
-    `A small model on this computer reads the agent's work and names each terminal. ${formatSize(state.sizes.engine + state.sizes.model)} once.`,
+    `A small model on this computer reads the agent's work and names each terminal. ${formatSize(murmurDownloadSize(state))} once.`,
   quiet: "It stays in Preferences → Addons.",
   accept: "Turn on",
   decline: "No thanks",

@@ -46,6 +46,9 @@ export const MurmurAddon = ({
   readonly murmur: MurmurAddonValue | undefined
 }): React.JSX.Element => {
   const [confirming, setConfirming] = useState(false)
+  // What the dialog asks, kept after it closes so its words don't change while it fades: the
+  // whole uninstall, or only the model kept beside a verdict.
+  const [asking, setAsking] = useState<"uninstall" | "remove">("uninstall")
   // Set once the person confirms an uninstall, holding the failure then showing: the state
   // has no field for a removal under way, so the card waits for the engine to be gone, a
   // new failure to turn up, or the removal to settle (a repeat of the same failure).
@@ -88,13 +91,13 @@ export const MurmurAddon = ({
   const dialog = (
     <ConfirmDialog
       subject={confirming ? state : null}
-      title={(shown) => (shown.installed ? `Uninstall ${MURMUR_NAME}?` : `Remove the model?`)}
+      title={() => (asking === "uninstall" ? `Uninstall ${MURMUR_NAME}?` : `Remove the model?`)}
       description={(shown) =>
-        shown.installed
+        asking === "uninstall"
           ? `The engine and the model are removed from this computer, freeing ${formatSize(murmurInstallSize(shown))}. You can install them again.`
-          : `The model is removed from this computer, freeing ${formatSize(shown.sizes.model)}. Installing again downloads it again.`
+          : `The model is removed from this computer, freeing ${formatSize(shown.sizes.model)}. Checking again downloads it again.`
       }
-      confirmLabel={state.installed ? "Uninstall" : "Remove"}
+      confirmLabel={asking === "uninstall" ? "Uninstall" : "Remove"}
       cancelLabel="Cancel"
       onConfirm={() => {
         setConfirming(false)
@@ -123,13 +126,16 @@ export const MurmurAddon = ({
               scope="murmur"
               id="remove-model"
               label="Model"
-              description={`Kept from before, ${formatSize(state.sizes.model)}.`}
+              description={`Downloaded earlier, ${formatSize(state.sizes.model)}.`}
             >
               <button
                 type="button"
                 className="button min-h-8 shrink-0 px-3 text-control"
                 disabled={removing !== null}
-                onClick={() => setConfirming(true)}
+                onClick={() => {
+                  setAsking("remove")
+                  setConfirming(true)
+                }}
               >
                 {removing !== null ? "Removing…" : "Remove"}
               </button>
@@ -207,7 +213,10 @@ export const MurmurAddon = ({
             type="button"
             className="button min-h-8 shrink-0 px-3 text-control"
             disabled={busy}
-            onClick={() => setConfirming(true)}
+            onClick={() => {
+              setAsking("uninstall")
+              setConfirming(true)
+            }}
           >
             {busy ? "Removing…" : "Uninstall"}
           </button>

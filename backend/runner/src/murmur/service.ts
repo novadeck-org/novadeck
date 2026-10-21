@@ -518,6 +518,8 @@ export class Murmur implements Describer {
       this.uninstalling ||
       (this.updateFailedAt !== undefined && this.clock() - this.updateFailedAt < updateRetryMs) ||
       this.engineReady ||
+      // A check's verdict stands: nothing is downloaded behind it until a check is asked for.
+      this.unsupported()?.source === "check" ||
       manifest === undefined ||
       !this.settings.murmurSettings().enabled ||
       !this.modelReady
@@ -664,7 +666,8 @@ export class Murmur implements Describer {
 
   private async run(manifest: Manifest, signal: AbortSignal, engineOnly = false): Promise<void> {
     const program = programFile("llama-server")
-    // A model on disk before this install began means murmur worked here: a verdict keeps it.
+    // A model on disk before this install began is kept by a verdict: it may pass or be fixed,
+    // and it is 1.3 GB.
     const hadModel = !engineOnly && (await exists(this.modelPath()))
     try {
       signal.throwIfAborted()
@@ -730,13 +733,16 @@ export class Murmur implements Describer {
   // This computer can't run murmur: that is kept, and what the install downloaded goes, so
   // the person is offered nothing to try again. A model that was on disk before the install
   // began stays (the failure may pass or be fixed, and it is 1.3 GB): trying again fetches
-  // the engine alone, and uninstalling removes it.
+  // the engine alone, and uninstalling removes it. It is not "on" without a check, and the
+  // engine is not fetched again by itself: the choice is reset as installing does.
   private async giveUp(reason: string, keepModel: boolean): Promise<void> {
     this.settings.saveMurmurUnsupported({
       reason: reason.slice(0, 1024),
       engine: this.manifest?.sha256 ?? "",
     })
     this.settings.saveMurmurCheck(null)
+    if (keepModel && this.settings.murmurEnabledChoice() !== false)
+      this.settings.saveMurmurSettings({ enabled: null })
     this.failure = null
     try {
       await this.whileReplacing(async () => {

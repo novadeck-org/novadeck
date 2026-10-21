@@ -1587,6 +1587,47 @@ describe("what a failed install says", () => {
     expect(after.mtimeMs).toBe(before.mtimeMs)
   })
 
+  it("fetches nothing by itself behind a verdict that kept the model, turned off until checked", async ({
+    resources,
+  }) => {
+    let broken = false
+    const base = fakeLaunch([arc])
+    const failing = failingList("error while loading shared libraries: libvulkan.so.1", 127)
+    const { murmur, store, directory, manifest } = await setup(resources, {
+      launch: (program, args) => (broken ? failing(program, args) : base(program, args)),
+    })
+    await murmur.install()
+    await murmur.settled()
+    broken = true
+    await murmur.install()
+    await murmur.settled()
+
+    await watchUntil(murmur, () => true)
+    await murmur.settled()
+
+    expect(murmur.state()).toMatchObject({
+      installing: null,
+      installed: false,
+      enabled: false,
+      kept: true,
+      check: null,
+    })
+    expect(await readdir(directory)).toEqual(["models"])
+
+    // A new build forgets the verdict, and still fetches nothing: murmur was not on.
+    await murmur.close()
+    const next = await setup(resources, {
+      store,
+      directory,
+      engine: await llamaArchive(resources, "2"),
+    })
+    await watchUntil(next.murmur, () => true)
+    await next.murmur.settled()
+    expect(manifest).toBeDefined()
+    expect(next.murmur.state()).toMatchObject({ unsupported: null, installing: null, kept: true })
+    expect(await readdir(directory)).toEqual(["models"])
+  })
+
   it("removes a kept model when the person uninstalls in Not available", async ({ resources }) => {
     let broken = false
     const base = fakeLaunch([arc])

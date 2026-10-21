@@ -765,7 +765,7 @@ export const murmurState = z.strictObject({
   // Whether the engine and the model are on disk; false until an install finishes.
   installed: z.boolean(),
   // Whether the model is on disk though murmur isn't installed (the engine is gone): a
-  // verdict kept the model of an install that had worked, so trying again fetches the engine
+  // verdict kept a model that was downloaded earlier, so trying again fetches the engine
   // alone. The person can remove it with an uninstall.
   kept: z.boolean(),
   // Whether the person turned murmur on; it needs to be installed.
