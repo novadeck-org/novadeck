@@ -7,7 +7,8 @@ import { SegmentGroup } from "@novadeck/toolkit/SegmentGroup"
 import { Select } from "@novadeck/toolkit/Select"
 import { Switch } from "@novadeck/toolkit/Switch"
 import { Tabs, TabList, Tab, TabPanel } from "@novadeck/toolkit/Tabs"
-import { LayoutGrid, PanelLeft, SquareDashedMousePointer, X } from "lucide-react"
+import { views } from "@novadeck/toolkit/views"
+import { X } from "lucide-react"
 import { useRef, useState, type ReactNode } from "react"
 
 import { shortcutGroups } from "../interaction/keymap"
@@ -34,8 +35,6 @@ const schemeItems = [
   { label: "Dark", value: "dark" },
 ] as const
 const fontSizes = [12, 13, 15].map((size) => ({ label: `${size}px`, value: String(size) }))
-const viewLabels = { focus: "Focus", grid: "Grid", canvas: "Canvas" } as const
-const viewIcons = { focus: PanelLeft, grid: LayoutGrid, canvas: SquareDashedMousePointer } as const
 
 // Section titles match the sidebar's panel titles.
 const sectionTitleClasses = "section-label m-0 text-label font-medium"
@@ -290,10 +289,9 @@ export const Preferences = ({
                 switch.
               </p>
               <div className="view-preference-options mt-2.5 grid grid-cols-3 gap-2 max-[360px]:gap-1.5">
-                {viewModes.map((mode) => {
+                {views.map(({ id: mode, label, icon: Icon }) => {
                   const checked = value.enabledViews.includes(mode)
                   const locked = checked && lastView
-                  const Icon = viewIcons[mode]
                   return (
                     <label
                       key={mode}
@@ -302,7 +300,7 @@ export const Preferences = ({
                       data-disabled={locked || undefined}
                     >
                       <Icon aria-hidden="true" className="shrink-0" size={16} strokeWidth={1.5} />
-                      <span>{viewLabels[mode]}</span>
+                      <span>{label}</span>
                       <Checkbox
                         className="absolute top-2.5 right-2.5"
                         checked={checked}

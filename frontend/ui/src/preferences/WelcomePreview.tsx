@@ -1,34 +1,26 @@
+import type { ViewMode } from "@novadeck/core/types"
 import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
-import { Check, Columns2, Grid2X2, Maximize, Plug, Terminal } from "lucide-react"
+import { views as layouts, type ViewPresentation } from "@novadeck/toolkit/views"
+import { Check, Plug, Terminal } from "lucide-react"
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react"
 
-const views = [
-  {
-    id: "focus",
-    label: "Focus",
-    icon: Columns2,
-    caption: "One terminal, full attention.",
-  },
-  {
-    id: "grid",
-    label: "Grid",
-    icon: Grid2X2,
-    caption: "Everything side by side.",
-  },
-  {
-    id: "canvas",
-    label: "Canvas",
-    icon: Maximize,
-    caption: "Spread out on a zoomable canvas.",
-  },
-] as const
+// Each layout as the app shows it, with a line on what it is for.
+const captions: Record<ViewMode, string> = {
+  focus: "One terminal, full attention.",
+  grid: "Everything side by side.",
+  canvas: "Spread out on a zoomable canvas.",
+}
 
-type View = (typeof views)[number]
+type View = ViewPresentation & { readonly caption: string }
+
+const present = (layout: ViewPresentation): View => ({ ...layout, caption: captions[layout.id] })
+const views = layouts.map(present)
+const canvas = present(layouts[2])
 
 // Until the person picks a layout, the preview shows each one in turn, once, and
 // settles back on Canvas. Hovering or focusing the preview holds the current step.
-const tour: readonly View["id"][] = ["focus", "grid", "canvas"]
+const tour: readonly ViewMode[] = ["focus", "grid", "canvas"]
 const tourStart = 3400
 const tourStep = 3200
 
@@ -87,7 +79,7 @@ export const WelcomePreview = ({
 }: {
   readonly connected: { readonly claude: boolean; readonly codex: boolean }
 }): React.JSX.Element => {
-  const [view, setView] = useState<View>(views[2])
+  const [view, setView] = useState<View>(canvas)
   const [step, setStep] = useState<number | undefined>(() => (reducedMotion() ? undefined : -1))
   const [held, setHeld] = useState(false)
   const stage = useRef<HTMLDivElement>(null)
@@ -101,7 +93,7 @@ export const WelcomePreview = ({
       () => {
         const next = step + 1
         const id = tour[next]
-        if (id) setView(views.find((item) => item.id === id) ?? views[2])
+        if (id) setView(views.find((item) => item.id === id) ?? canvas)
         setStep(next)
       },
       step === -1 ? tourStart : tourStep,

@@ -2,14 +2,8 @@ import type { Project, ViewMode } from "@novadeck/core/types"
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { SegmentGroup } from "@novadeck/toolkit/SegmentGroup"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import {
-  LayoutGrid,
-  Scan,
-  PanelLeft,
-  Search,
-  Settings2,
-  SquareDashedMousePointer,
-} from "lucide-react"
+import { views } from "@novadeck/toolkit/views"
+import { Scan, Search, Settings2 } from "lucide-react"
 import { useSyncExternalStore } from "react"
 import { Link } from "react-router"
 
@@ -25,12 +19,6 @@ const subscribe = (notify: () => void): (() => void) => {
   return () => media.removeEventListener("change", notify)
 }
 const isIconOnly = (): boolean => window.matchMedia(iconOnlyQuery).matches
-
-const views = [
-  { id: "focus", label: "Focus", icon: PanelLeft },
-  { id: "grid", label: "Grid", icon: LayoutGrid },
-  { id: "canvas", label: "Canvas", icon: SquareDashedMousePointer },
-] as const
 
 export const WorkspaceHeader = ({
   hidden = false,

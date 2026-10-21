@@ -59,12 +59,12 @@ describe("Focus view", () => {
     })
   })
 
-  context("when choosing Open in Grid from the header", () => {
+  context("when choosing Back to Grid from the header", () => {
     it("shows the terminal selected in Grid", async () => {
       await openWorkspace()
       await terminalTab("Runtime").click()
 
-      await terminal("Runtime").getByRole("button", { name: "Open in Grid" }).click()
+      await terminal("Runtime").getByRole("button", { name: "Back to Grid" }).click()
 
       await expect.element(view("Grid")).toBeChecked()
       await expect
@@ -127,13 +127,13 @@ describe("available view modes", () => {
 
     it("offers the remaining windowed view from the Focus header", async () => {
       await openWorkspace()
-      await expect.element(page.getByRole("button", { name: "Open in Grid" })).toBeVisible()
+      await expect.element(page.getByRole("button", { name: "Back to Grid" })).toBeVisible()
 
       await disableView("Grid")
 
-      await expect.element(page.getByRole("button", { name: "Open in Canvas" })).toBeVisible()
+      await expect.element(page.getByRole("button", { name: "Back to Canvas" })).toBeVisible()
       await expect
-        .element(page.getByRole("button", { name: "Open in Grid" }))
+        .element(page.getByRole("button", { name: "Back to Grid" }))
         .not.toBeInTheDocument()
     })
 
@@ -175,7 +175,7 @@ describe("available view modes", () => {
       await disableView("Canvas")
 
       await expect.element(focusView()).toBeVisible()
-      await expect.element(page.getByRole("button", { name: /^Open in / })).not.toBeInTheDocument()
+      await expect.element(page.getByRole("button", { name: /^Back to / })).not.toBeInTheDocument()
     })
 
     it("hides the view switcher, keeping Zen", async () => {
