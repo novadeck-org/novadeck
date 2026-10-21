@@ -113,11 +113,16 @@ export const checkOutput = (
     return fail(`At most ${maxHighlights} highlights, got ${output.highlights.length}`)
   if (output.changes.length > maxChanges)
     return fail(`At most ${maxChanges} changes, got ${output.changes.length}`)
-  const items = [...output.highlights, ...output.changes]
-  const foreignLines = items.filter((item) =>
-    foreign(["title" in item ? item.title : "", item.line].join("\n")),
-  ).length
-  if (foreignLines * 2 > items.length) return fail("The answer is not written in English")
+  // A highlight tells one of its changes again, so the lines are counted by the pull requests
+  // they tell: a change is foreign when every line telling it is.
+  const told = new Map<string, boolean>()
+  for (const item of [...output.highlights, ...output.changes]) {
+    const key = item.prs.toSorted((a, b) => a - b).join(",")
+    const alien = foreign(["title" in item ? item.title : "", item.line].join("\n"))
+    told.set(key, (told.get(key) ?? true) && alien)
+  }
+  const alienChanges = [...told.values()].filter(Boolean).length
+  if (alienChanges * 2 > told.size) return fail("The answer is not written in English")
   const dropped: string[] = []
   const highlights: { title: string; line: string; prs: number[]; icon: HighlightIcon }[] = []
   const changes: { area: NoteArea; line: string; prs: number[] }[] = []

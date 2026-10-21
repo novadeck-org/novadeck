@@ -120,6 +120,17 @@ describe("the checks on a model's answer", () => {
       ok: false,
       reason: "The answer is not written in English",
     })
+    // A foreign highlight and its change are one change, beside an English one: only dropped.
+    const repeated = {
+      highlights: [
+        { title: "加密终端输出", line: "终端输出被加密存储。", prs: [195], icon: "lock" },
+      ],
+      changes: [
+        { area: "Terminals", line: "终端输出被加密存储。", prs: [195] },
+        ...good.changes.map((change) => ({ ...change, prs: [181] })),
+      ],
+    }
+    expect(checkOutput(repeated, "promote", allowed)).toMatchObject({ ok: true })
     const oneLine = {
       ...good,
       changes: [{ area: "Terminals", line: "终端输出被加密存储。", prs: [181] }],

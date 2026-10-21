@@ -50,8 +50,8 @@ export type ModelOutput = z.infer<typeof answer>
  * The model a mode asks unless an environment variable says another: a cheap one for the many
  * prereleases (RELEASE_NOTES_PRERELEASE_MODEL), a strong one for the few promotions
  * (RELEASE_NOTES_PROMOTE_MODEL). Picked by dry runs over past prereleases: the cheap one keeps
- * to English and to the voice, which DeepSeek v4 Pro did not, and the strong one picks
- * highlights as well as Opus at half its price.
+ * to English and to the voice, which DeepSeek v4 Pro did not, and the strong one was the most
+ * careful of those tried about what makes a highlight, at half the price of Opus.
  */
 export const defaultModels = {
   release: "anthropic/claude-haiku-5.5",
@@ -65,8 +65,8 @@ export const defaultModels = {
 export const timeouts = { release: 180_000, promote: 480_000 } as const
 
 /**
- * The most a mode lets the model write. A build's answer is short, and some providers of the
- * cheaper models cap a completion at 16,384. The promotion's number is low on purpose:
+ * The most a mode lets the model write. A build's answer is short, and some cheap models a
+ * variable may name cap a completion at 16,384. The promotion's number is low on purpose:
  * OpenRouter holds the cost of the whole limit up front, before the model writes a word, and
  * that hold has to fit what is left on a key capped at a dollar with the prereleases' spend
  * already taken out. A real promotion's answer was under 5,000 tokens.
