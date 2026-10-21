@@ -70,16 +70,20 @@ describe("a project's folder", () => {
     expect(entries.filter((entry) => entry.ignored).map(({ name }) => name)).toEqual(["build"])
   })
 
-  it("reads a name that looks like git's pathspec magic as a name", async ({ resources }) => {
-    const root = repository(resources)
-    writeFileSync(join(root, ":!y"), "")
-    writeFileSync(join(root, ":(icase)x"), "")
-    const { entries } = await listFolder(root, "")
-    expect(entries.filter((entry) => entry.ignored).map(({ name }) => name)).toEqual([
-      "node_modules",
-      "debug.log",
-    ])
-  })
+  // Windows allows no `:` in a name, so such a name can't come up there.
+  it.skipIf(process.platform === "win32")(
+    "reads a name that looks like git's pathspec magic as a name",
+    async ({ resources }) => {
+      const root = repository(resources)
+      writeFileSync(join(root, ":!y"), "")
+      writeFileSync(join(root, ":(icase)x"), "")
+      const { entries } = await listFolder(root, "")
+      expect(entries.filter((entry) => entry.ignored).map(({ name }) => name)).toEqual([
+        "node_modules",
+        "debug.log",
+      ])
+    },
+  )
 
   it("asks git about the project's repository, whatever GIT_DIR says", async ({ resources }) => {
     const root = repository(resources)
@@ -111,9 +115,10 @@ describe("a project's folder", () => {
     resources,
   }) => {
     const root = project(resources)
-    for (const name of ["b", "B", ".a", "c"]) writeFileSync(join(root, name), "")
+    // Names that differ only by case would be one file where names ignore it, as on Windows.
+    for (const name of ["b", "C", ".a", "d"]) writeFileSync(join(root, name), "")
     const { entries } = await listFolder(root, "")
-    expect(entries.map(({ name }) => name)).toEqual([".a", "B", "b", "c"])
+    expect(entries.map(({ name }) => name)).toEqual([".a", "b", "C", "d"])
   })
 
   it("marks nothing ignored outside a repository", async ({ resources }) => {
