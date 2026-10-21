@@ -24,6 +24,7 @@ const offered: MurmurState = {
   offers: 0,
   refused: null,
   failure: null,
+  stopped: null,
 }
 
 describe("the Murmur offer's conditions", () => {

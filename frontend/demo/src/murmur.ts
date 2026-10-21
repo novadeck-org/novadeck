@@ -24,6 +24,7 @@ export const demoMurmurState: MurmurState = {
   offers: 0,
   refused: null,
   failure: null,
+  stopped: null,
 }
 
 const sampleCheck = { device: "Intel Arc Graphics", integrated: true, milliseconds: 5200 }
