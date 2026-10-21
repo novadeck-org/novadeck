@@ -355,7 +355,7 @@ export const Preferences = ({
                       description={
                         transcripts.available
                           ? "Show recent output again after a restart. Saved encrypted on this computer."
-                          : "Not available on this computer: recent output is saved only encrypted, and there's no keyring here to keep its key safe."
+                          : "Not available on this computer: recent output is saved only encrypted, and Novadeck can't keep a key safe here."
                       }
                       descriptionId="transcripts-description"
                     />

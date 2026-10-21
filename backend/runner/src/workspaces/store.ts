@@ -894,14 +894,25 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
   }
 
   /**
-   * Forgets every transcript that does not start with `prefix`, as sealed ones do: a copy
-   * saved unsealed, which may hold what was never masked, must not outlive the start that
-   * finds it. Scrubbed at once when any went, not a second later.
+   * Forgets every transcript that is not shaped as a sealed one, `prefix` then at least
+   * `minChars` characters of base64 and nothing else: a copy saved unsealed, which may hold
+   * what was never masked, must not outlive the start that finds it. Scrubbed at once when
+   * any went, not a second later.
    */
-  forgetUnsealed(prefix: string): void {
+  forgetUnsealed({
+    prefix,
+    minChars,
+  }: {
+    readonly prefix: string
+    readonly minChars: number
+  }): void {
     const result = this.queries.run`
       UPDATE terminals SET transcript = NULL
-      WHERE transcript IS NOT NULL AND substr(transcript, 1, ${prefix.length}) != ${prefix}
+      WHERE transcript IS NOT NULL AND NOT (
+        substr(transcript, 1, ${prefix.length}) = ${prefix}
+        AND length(transcript) >= ${prefix.length + minChars}
+        AND substr(transcript, ${prefix.length + 1}) NOT GLOB '*[^A-Za-z0-9+/=]*'
+      )
     `
     if (result.changes > 0) this.scrub()
   }

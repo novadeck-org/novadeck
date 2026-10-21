@@ -515,22 +515,28 @@ describe("saved terminals", () => {
     store,
   }) => {
     const path = join(directory(), "workspace.sqlite")
+    const shape = { prefix: "v1.", minChars: 8 }
+    const value = "v1.c2VhbGVkLXRleHQ="
     const first = store(path)
     const plain = keptTerminal(first, "session", "owl")
     const sealed = keptTerminal(first, "session", "fox")
     first.saveTerminal({ ...first.terminal(plain)!, transcript: "TOKEN=hunter2" })
-    first.saveTerminal({ ...first.terminal(sealed)!, transcript: "v1.c2VhbGVk" })
+    first.saveTerminal({ ...first.terminal(sealed)!, transcript: value })
+    // Plain text that only starts like a sealed value.
+    const lookalike = keptTerminal(first, "session", "elk")
+    first.saveTerminal({ ...first.terminal(lookalike)!, transcript: "v1.4.2 released\n$ " })
     first.close()
 
     const next = store(path)
-    next.forgetUnsealed("v1.")
+    next.forgetUnsealed(shape)
     expect(next.terminal(plain)?.transcript).toBeNull()
-    expect(next.terminal(sealed)?.transcript).toBe("v1.c2VhbGVk")
+    expect(next.terminal(sealed)?.transcript).toBe(value)
+    expect(next.terminal(lookalike)?.transcript).toBeNull()
     // Scrubbed from the file and its log at once, not a moment later.
     expect(holds(path, "TOKEN=hunter2") || holds(`${path}-wal`, "TOKEN=hunter2")).toBe(false)
     // Nothing left to forget.
-    next.forgetUnsealed("v1.")
-    expect(next.terminal(sealed)?.transcript).toBe("v1.c2VhbGVk")
+    next.forgetUnsealed(shape)
+    expect(next.terminal(sealed)?.transcript).toBe(value)
   })
 
   it("keep murmur's title and the agent's summary beside the person's and the opener's title", ({

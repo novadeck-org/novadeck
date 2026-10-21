@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -105,6 +105,36 @@ describe("the transcript key", () => {
       )
       expect(key).toBeNull()
       expect(await readFile(file, "utf8")).toBe("old wrapped key")
+      expect(await readdir(directory)).toEqual(["transcript-key"])
+    })
+
+    it("is null, with the file untouched and nothing wrapped, when the file cannot be read", async () => {
+      await writeFile(file, wrap("kept"))
+      let wrapped = 0
+      const key = await loadTranscriptKey(
+        {
+          storage: storeWith({
+            encryptStringAsync: async (text) => {
+              wrapped += 1
+              return wrap(text)
+            },
+          }),
+          platform: "linux",
+          file,
+          log: silent,
+        },
+        {
+          readFile: async () => {
+            throw Object.assign(new Error("denied"), { code: "EACCES" })
+          },
+          writeFile,
+          rename,
+          rm,
+        },
+      )
+      expect(key).toBeNull()
+      expect(wrapped).toBe(0)
+      expect(await readFile(file)).toEqual(wrap("kept"))
       expect(await readdir(directory)).toEqual(["transcript-key"])
     })
 

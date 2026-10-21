@@ -176,10 +176,13 @@ bound to its terminal) with a key the desktop app keeps in the system keychain: 
 Keychain on macOS, DPAPI on Windows, the Secret Service or KWallet on Linux. Where nothing
 protects that key (no keyring on Linux, an unlock that is refused or fails, the standalone
 runner, which has no key) no transcript is saved or shown, and the setting stays as it is.
-A transcript found unencrypted is forgotten at every start, so a database set aside as
-`workspace.sqlite.earlier-<time>` keeps what it held, plain transcripts included, until you
-delete it. The key keeps the database file, and a backup of it, from showing what ran in
-your terminals; it does not protect against a process of your own user, which on Windows
+A restored terminal waits a few seconds, once for the run, for the key; if it comes later,
+that terminal's saved transcript is not shown and is left as it is until the next start.
+A transcript found unencrypted is forgotten at every start, key or not, so a database set
+aside as `workspace.sqlite.earlier-<time>` keeps what it held, plain transcripts included,
+until you delete it. The key keeps the database file, and a backup of it, from showing the
+transcripts; titles, summaries, commands, directories and Inbox content are still stored in
+plain text there. It does not protect against a process of your own user, which on Windows
 and Linux can ask the system to unwrap the key as the app does. Anything else that was
 typed or printed may still be saved. Metadata files use owner-only permissions where
 supported (0600 in a 0700 directory); on Windows they live in the per-user application data

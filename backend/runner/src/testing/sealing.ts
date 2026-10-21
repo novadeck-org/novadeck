@@ -1,11 +1,16 @@
-import { sealedPrefix, type TranscriptSealer } from "../terminals/sealing.js"
+import { createTranscriptSealer, type TranscriptSealer } from "../terminals/sealing.js"
 
-/**
- * A sealer that only marks a transcript as sealed, so a test can read what was saved:
- * it is ready at once, and its values are the text behind the prefix.
- */
-export const plainSealer = (): TranscriptSealer => ({
-  ready: Promise.resolve(true),
-  seal: (text) => sealedPrefix + text,
-  open: (value) => (value.startsWith(sealedPrefix) ? value.slice(sealedPrefix.length) : null),
-})
+const key = new Uint8Array(32).fill(7)
+
+// Opens what any `plainSealer` sealed; ready long before a test reads with it.
+const reader = createTranscriptSealer(Promise.resolve(key))
+
+/** A sealer with a fixed key, ready at once, so a test can open what was saved with `unsealed`. */
+export const plainSealer = (): TranscriptSealer => createTranscriptSealer(Promise.resolve(key))
+
+/** The text behind a value a `plainSealer` sealed for the terminal; null for none or any other value. */
+export const unsealed = (value: string | null | undefined, terminalId: string): string | null =>
+  value ? reader.open(value, terminalId) : null
+
+/** What a `plainSealer` seals `text` to for the terminal. */
+export const sealed = (text: string, terminalId: string): string => reader.seal(text, terminalId)!

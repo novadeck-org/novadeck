@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
-import { plainSealer } from "../testing/sealing.js"
+import { plainSealer, sealed, unsealed } from "../testing/sealing.js"
 import type { SavedTerminal, TerminalRecords, TerminalToSave } from "./records.js"
 import type { TranscriptRedactor } from "./redaction.js"
 import { Saves, type SavedRecord, type SavesOptions } from "./saving.js"
-import { sealedPrefix, type TranscriptSealer } from "./sealing.js"
+import { sealedShape, type TranscriptSealer } from "./sealing.js"
 
 // A screen here is its text.
 vi.mock("@novadeck/emulator/headless", () => ({
@@ -22,8 +22,8 @@ type Fake = {
   /** The transcripts as saved, sealed. */
   sealed: (string | null)[]
   clears: number
-  /** The prefixes the records were told to keep. */
-  kept: string[]
+  /** How often the records were told to forget the unsealed ones, and by what shape. */
+  forgets: (typeof sealedShape)[]
   /** The redactions asked for, each settled by hand. */
   asked: {
     text: string
@@ -65,7 +65,7 @@ const make = (options: Partial<SavesOptions> = {}, mode: "now" | "manual" = "now
   const fake: Fake = {
     written: [],
     sealed: [],
-    kept: [],
+    forgets: [],
     clears: 0,
     asked: [],
     state: { stopping: false, stopped: false },
@@ -80,11 +80,11 @@ const make = (options: Partial<SavesOptions> = {}, mode: "now" | "manual" = "now
       if (typeof terminal.transcript === "string") fake.sealed.push(terminal.transcript)
       fake.written.push(
         typeof terminal.transcript === "string"
-          ? { ...terminal, transcript: terminal.transcript.slice(sealedPrefix.length) }
+          ? { ...terminal, transcript: unsealed(terminal.transcript, terminal.id) }
           : terminal,
       )
     },
-    forgetUnsealed: (prefix: string) => void fake.kept.push(prefix),
+    forgetUnsealed: (shape: typeof sealedShape) => void fake.forgets.push(shape),
     clearTranscripts: () => void fake.clears++,
   } as unknown as TerminalRecords
   const redactor: TranscriptRedactor = {
@@ -379,7 +379,7 @@ describe("saving terminals", () => {
     fake.saves.save(fake.records[0]!, true)
     fake.asked[0]!.settle("masked")
     await vi.advanceTimersByTimeAsync(0)
-    expect(fake.sealed).toEqual([`${sealedPrefix}masked`])
+    expect(fake.sealed.map((value) => unsealed(value, "a"))).toEqual(["masked"])
   })
 
   it("writes no transcript and clears none until the key comes, then saves the screen sealed", async () => {
@@ -397,9 +397,9 @@ describe("saving terminals", () => {
     expect(fake.records[0]!.screenChanged).toBe(true)
     arrive(true)
     await vi.advanceTimersByTimeAsync(saveMs + 1)
-    expect(fake.sealed).toEqual([`${sealedPrefix}screen`])
-    // Unsealed copies went as the sealer settled.
-    expect(fake.kept).toEqual([sealedPrefix])
+    expect(fake.sealed.map((value) => unsealed(value, "a"))).toEqual(["screen"])
+    // Unsealed copies went as the runner started, key or none.
+    expect(fake.forgets).toEqual([sealedShape])
   })
 
   it("saves no transcript and clears none when there is no key, and forgets the unsealed ones", async () => {
@@ -411,13 +411,16 @@ describe("saving terminals", () => {
     await vi.advanceTimersByTimeAsync(transcriptMs * 2)
     expect(transcripts(fake)).toEqual([])
     expect(fake.clears).toBe(0)
-    expect(fake.kept).toEqual([sealedPrefix])
+    expect(fake.forgets).toEqual([sealedShape])
     expect(fake.records[0]!.screenChanged).toBe(true)
     fake.saves.stop()
   })
 
   it("opens a saved transcript, and gives up on one whose key is late or missing", async () => {
-    const saved = { id: "a", transcript: `${sealedPrefix}old` } as unknown as SavedTerminal
+    const saved = {
+      id: "a",
+      transcript: sealed("old", "a"),
+    } as unknown as SavedTerminal
     const fake = make()
     await vi.advanceTimersByTimeAsync(0)
     await expect(fake.saves.open(saved)).resolves.toBe("old")
@@ -432,9 +435,53 @@ describe("saving terminals", () => {
     const none = make({ sealer: { ...plainSealer(), ready: Promise.resolve(false) } })
     await vi.advanceTimersByTimeAsync(0)
     await expect(none.saves.open(saved)).resolves.toBeNull()
-    const unsealed = make({ sealer: undefined })
+    const bare = make({ sealer: undefined })
     await vi.advanceTimersByTimeAsync(0)
-    await expect(unsealed.saves.open(saved)).resolves.toBeNull()
+    await expect(bare.saves.open(saved)).resolves.toBeNull()
+  })
+
+  it("saves nothing over a transcript left unopened because the key came late, and counts the wait once", async () => {
+    let arrive!: (key: boolean) => void
+    const sealer: TranscriptSealer = {
+      ...plainSealer(),
+      ready: new Promise<boolean>((resolve) => (arrive = resolve)),
+    }
+    const fake = make({ sealer })
+    await vi.advanceTimersByTimeAsync(0)
+    const saved = (id: string) =>
+      ({ id, transcript: sealed("old", id) }) as unknown as SavedTerminal
+    const first = fake.saves.open(saved("a"))
+    await vi.advanceTimersByTimeAsync(600)
+    // The wait is one for the run: a restore after it does not wait again.
+    const second = fake.saves.open(saved("b"))
+    await vi.advanceTimersByTimeAsync(400)
+    await expect(first).resolves.toBeNull()
+    await expect(second).resolves.toBeNull()
+    arrive(true)
+    fake.saves.start()
+    await vi.advanceTimersByTimeAsync(transcriptMs * 2)
+    expect(transcripts(fake)).toEqual([])
+    fake.saves.persist()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(transcripts(fake)).toEqual([])
+    // A terminal that was never unopened still saves.
+    fake.records = [record("c")]
+    fake.saves.save(fake.records[0]!, true)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(transcripts(fake).map((row) => row.transcript)).toEqual(["screen"])
+    fake.saves.stop()
+  })
+
+  it("shows nothing when transcripts are turned off while it waits for the key", async () => {
+    const fake = make({ sealer: { ...plainSealer(), ready: Promise.resolve(true) } })
+    await vi.advanceTimersByTimeAsync(0)
+    const saved = {
+      id: "a",
+      transcript: sealed("old", "a"),
+    } as unknown as SavedTerminal
+    const opening = fake.saves.open(saved)
+    fake.saves.keep(false)
+    await expect(opening).resolves.toBeNull()
   })
 
   it("keeps the copy saved before when a screen cannot be masked", async () => {

@@ -1,14 +1,24 @@
 // A saved transcript is masked, then sealed: encrypted with a key the host keeps in the
-// system's keychain, so the database file alone, or a backup of it, shows nothing of what a
-// terminal printed. The key is the host's to find; where it finds none, no transcript is saved.
+// system's keychain, so the database file alone, or a backup of it, shows no transcript. (The
+// rest of what it keeps, as titles, directories and commands, is not encrypted.) The key is
+// the host's to find; where it finds none, no transcript is saved.
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto"
 
-/** What every sealed transcript starts with, and no plain one does; the store tells them apart by it. */
+/** What every sealed transcript starts with. */
 export const sealedPrefix = "v1."
 
 const keyBytes = 32
 const nonceBytes = 12
 const tagBytes = 16
+
+/**
+ * The shape of a sealed value, which the store tells it by without any crypto: the prefix,
+ * then at least `minChars` base64 characters (the nonce and tag alone) and nothing else.
+ */
+export const sealedShape = {
+  prefix: sealedPrefix,
+  minChars: 4 * Math.ceil((nonceBytes + tagBytes) / 3),
+}
 
 export type TranscriptSealer = {
   /** Settles once the key came (true) or it is known there is none (false). */

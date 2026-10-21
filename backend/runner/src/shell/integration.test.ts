@@ -37,7 +37,7 @@ import type { TerminalRecords } from "../terminals/records.js"
 import { createTranscriptRedactor } from "../terminals/redaction.js"
 import { describe, expect, it as base } from "../test.js"
 import { FakeDescriber } from "../testing/describer.js"
-import { plainSealer } from "../testing/sealing.js"
+import { plainSealer, unsealed } from "../testing/sealing.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { installShellFiles } from "./install.js"
 import { unansweredCalls } from "./reports.js"
@@ -1854,7 +1854,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await shell.until(manager, id, /marker-after\r?\n/)
     expect(shell.store.terminal(id)?.transcript ?? null).toBeNull()
     await manager.shutdown()
-    const saved = shell.store.terminal(id)?.transcript
+    const saved = unsealed(shell.store.terminal(id)?.transcript, id)
     expect(saved).toContain("marker-after")
     expect(saved).not.toContain(token)
   })
@@ -1911,6 +1911,39 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     expect(await shell.until(late, id, /\$ /)).not.toContain("before-reboot")
   })
 
+  it("leaves a saved transcript alone when the key comes after the wait, and shows it next run", async ({
+    shell,
+  }) => {
+    const id = randomUUID()
+    const first = shell.manager()
+    await create(first, shell, { id })
+    first.write({ terminalId: id, data: "echo before-reboot\r" }, "owner")
+    await shell.until(first, id, /before-reboot[\s\S]*\$ /)
+    await first.shutdown()
+    const sealed = shell.store.terminal(id)?.transcript
+    expect(sealed).toMatch(/^v1\./)
+
+    let arrive!: (key: boolean) => void
+    const sealer = {
+      ...plainSealer(),
+      ready: new Promise<boolean>((resolve) => (arrive = resolve)),
+    }
+    const second = shell.manager({ sealer, transcriptKeyMs: 100, saveMs: 100 })
+    await create(second, shell, { id, restore: true })
+    expect(await shell.until(second, id, /\$ /)).not.toContain("before-reboot")
+    arrive(true)
+    second.write({ terminalId: id, data: "echo after-key\r" }, "owner")
+    await shell.until(second, id, /after-key\r?\n/)
+    second.persist()
+    await second.shutdown()
+    // Neither the new screen nor a blank one replaced it.
+    expect(shell.store.terminal(id)?.transcript).toBe(sealed)
+
+    const third = shell.manager()
+    await create(third, shell, { id, restore: true })
+    expect(await shell.until(third, id, /restored transcript[\s\S]*\$ /)).toContain("before-reboot")
+  })
+
   it("shows no transcript when it resumes an agent instead", async ({ shell }) => {
     const id = randomUUID()
     const first = shell.manager()
@@ -1943,8 +1976,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await shell.until(manager, id, /important\r?\n/)
     await manager.shutdown()
     const saved = shell.store.terminal(id)!
-    expect(saved.transcript).toContain("important")
-    expect(saved.transcript).not.toContain("wiped")
+    expect(unsealed(saved.transcript, id)).toContain("important")
+    expect(unsealed(saved.transcript, id)).not.toContain("wiped")
   })
 
   it("saves a screen again after a save of it failed", async ({ shell }) => {
@@ -1966,7 +1999,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       },
       removeTerminal: (terminalId) => shell.store.removeTerminal(terminalId),
       clearTranscripts: () => shell.store.clearTranscripts(),
-      forgetUnsealed: (prefix) => shell.store.forgetUnsealed(prefix),
+      forgetUnsealed: (sealed) => shell.store.forgetUnsealed(sealed),
       clearMurmurTitles: () => shell.store.clearMurmurTitles(),
       forgetAgent: (agent) => shell.store.forgetAgent(agent),
     }
@@ -1979,9 +2012,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     manager.persist()
     await vi.waitFor(() => expect(error).toHaveBeenCalledOnce())
     error.mockRestore()
-    expect(shell.store.terminal(id)?.transcript ?? "").not.toContain("kept")
+    expect(unsealed(shell.store.terminal(id)?.transcript, id) ?? "").not.toContain("kept")
     manager.persist()
-    await vi.waitFor(() => expect(shell.store.terminal(id)?.transcript).toContain("kept"))
+    await vi.waitFor(() =>
+      expect(unsealed(shell.store.terminal(id)?.transcript, id)).toContain("kept"),
+    )
   })
 
   it("creates no terminal it can't number, so no handle repeats", async ({ shell }) => {
@@ -2001,7 +2036,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       saveTerminal: (terminal) => shell.store.saveTerminal(terminal),
       removeTerminal: (terminalId) => shell.store.removeTerminal(terminalId),
       clearTranscripts: () => shell.store.clearTranscripts(),
-      forgetUnsealed: (prefix) => shell.store.forgetUnsealed(prefix),
+      forgetUnsealed: (sealed) => shell.store.forgetUnsealed(sealed),
       clearMurmurTitles: () => shell.store.clearMurmurTitles(),
       forgetAgent: (agent) => shell.store.forgetAgent(agent),
     }
@@ -2027,7 +2062,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     manager.write({ terminalId: id, data: "echo secret\r" }, "owner")
     await shell.until(manager, id, /secret\r?\n/)
     manager.persist()
-    await vi.waitFor(() => expect(shell.store.terminal(id)?.transcript).toContain("secret"))
+    await vi.waitFor(() =>
+      expect(unsealed(shell.store.terminal(id)?.transcript, id)).toContain("secret"),
+    )
     manager.keepTranscripts(false)
     expect(shell.store.terminal(id)?.transcript).toBeNull()
     manager.persist()

@@ -147,7 +147,7 @@ describe("Preferences", () => {
       await expect.element(transcriptsSwitch()).toBeDisabled()
       await expect
         .element(transcriptsSwitch())
-        .toHaveAccessibleDescription(/Not available on this computer.*no keyring/)
+        .toHaveAccessibleDescription(/Not available on this computer.*can.t keep a key safe/)
     })
   })
 

@@ -11,7 +11,7 @@ import type {
   TerminalToSave,
 } from "./records.js"
 import type { TranscriptRedactor } from "./redaction.js"
-import { sealedPrefix, type TranscriptSealer } from "./sealing.js"
+import { sealedShape, type TranscriptSealer } from "./sealing.js"
 import type { TranscriptInput } from "./transcriptRedaction.js"
 
 const log = logs.for("terminals")
@@ -105,7 +105,8 @@ type Job = {
  * before it is written, and none is taken before the sealer has its key: until then the
  * screens simply stay changed. When there turns out to be none, transcripts are neither
  * saved nor shown for this run, but the ones sealed before are kept. Whatever transcript is
- * saved unsealed is forgotten once the sealer settles. A result that arrives after its
+ * saved unsealed is forgotten as the runner starts. A restored terminal whose copy went
+ * unopened because the key came too late keeps it for the run. A result that arrives after its
  * terminal was closed, the transcripts were turned off or the runner stopped is dropped. As
  * the runner or the system shuts down, `finish` gives the unsaved screens one pass of
  * `shutdownMs`, which may write until it is over.
@@ -122,6 +123,11 @@ export class Saves {
   private readonly waiting = new Map<SavedRecord, boolean>()
   // The screens taken and not yet settled: one in flight, and the last pass's.
   private readonly taken = new Set<Job>()
+  // Ends the wait for the key, for every restore of this run: begun by the first.
+  private late: Promise<false> | undefined
+  // The terminals whose saved transcript went unopened as the key had not come: it stays
+  // as saved for this run, and none is saved over it.
+  private readonly unopened = new Set<string>()
   private flight: { readonly job: Job; readonly done: Promise<void> } | undefined
   private finishing: Promise<void> | undefined
 
@@ -130,10 +136,10 @@ export class Saves {
     readonly host: SavesHost,
   ) {
     this.kept = options.transcripts
+    // Whatever an earlier runner left unsealed is forgotten at once: that needs no key.
+    this.persisting(() => options.records?.forgetUnsealed(sealedShape), "untilStopped")
     void (options.sealer?.ready ?? Promise.resolve(false)).then((key) => {
       this.key = key
-      // Whatever an earlier runner left unsealed is forgotten now, key or none.
-      this.persisting(() => options.records?.forgetUnsealed(sealedPrefix), "untilStopped")
       if (key) this.pump()
     })
   }
@@ -171,6 +177,7 @@ export class Saves {
     this.kept = enabled
     this.epoch++
     this.waiting.clear()
+    this.unopened.clear()
     for (const job of this.taken) job.abort.abort()
     if (enabled) for (const record of this.host.records()) record.screenChanged = true
     if (!enabled) this.persisting(() => this.options.records?.clearTranscripts())
@@ -178,21 +185,20 @@ export class Saves {
 
   /**
    * A kept terminal's transcript, opened; null when there is none, transcripts are off, the
-   * key does not come within `keyMs`, or it does not open. Awaited before a restored shell
-   * starts, so the replay is queued ahead of its output.
+   * key does not come within `keyMs` of the first restore (then its saved copy is left
+   * alone for this run), or it does not open. Awaited before a restored shell starts, so
+   * the replay is queued ahead of its output.
    */
   async open(saved: SavedTerminal): Promise<string | null> {
     const { sealer } = this.options
     if (!saved.transcript || !this.kept || !sealer) return null
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const late = new Promise<false>((resolve) => {
-      timer = setTimeout(() => resolve(false), this.options.keyMs)
+    this.late ??= new Promise<false>((resolve) => {
+      setTimeout(() => resolve(false), this.options.keyMs).unref()
     })
-    try {
-      if (!(await Promise.race([sealer.ready, late]))) return null
-    } finally {
-      clearTimeout(timer)
-    }
+    const key = await Promise.race([sealer.ready, this.late.then(() => undefined)])
+    // Without the key yet it may still come: the copy stays, unsaved over, for this run.
+    if (key === undefined) this.unopened.add(saved.id)
+    if (!key || !this.kept) return null
     return sealer.open(saved.transcript, saved.id)
   }
 
@@ -266,7 +272,7 @@ export class Saves {
     if (this.host.stopping() || this.host.stopped()) return
     let next: SavedRecord | undefined
     for (const [record, urgent] of this.waiting) {
-      if (record.closed) this.waiting.delete(record)
+      if (record.closed || this.unopened.has(record.summary.id)) this.waiting.delete(record)
       else if (urgent) {
         next = record
         break
@@ -411,7 +417,8 @@ export class Saves {
     this.waiting.clear()
     const jobs: Job[] = []
     for (const record of this.host.records()) {
-      if (record.screenChanged && !record.closed) jobs.push(this.take(record, true))
+      if (record.screenChanged && !record.closed && !this.unopened.has(record.summary.id))
+        jobs.push(this.take(record, true))
     }
     if (!flight && jobs.length === 0) return
     const over = new AbortController()
@@ -519,6 +526,7 @@ export class Saves {
   /** Forgets a kept terminal; while the runner stops too, as a close then still stands. */
   remove(terminalId: string): void {
     // A screen of it taken or waiting must not save it back.
+    this.unopened.delete(terminalId)
     for (const record of this.waiting.keys())
       if (record.summary.id === terminalId) this.waiting.delete(record)
     for (const job of this.taken) if (job.record.summary.id === terminalId) job.abort.abort()

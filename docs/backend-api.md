@@ -671,11 +671,14 @@ host gives the runner (`transcriptKey`; the desktop app unwraps it from the syst
 keychain: Keychain, DPAPI, Secret Service or KWallet). No screen is taken before the key
 has come; where there is none (no keyring, a refused unlock, the standalone runner)
 transcripts are neither saved nor shown for that run, the `transcripts` setting is kept
-and the sealed copies saved before stay. Once the key is settled, the store forgets every
-transcript not starting with `v1.`, at every start; a database set aside as
+and the sealed copies saved before stay. At every start, before and without the key, the
+store forgets every transcript not shaped as a sealed one (`v1.`, then at least the nonce
+and tag in base64, and nothing else); a database set aside as
 `workspace.sqlite.earlier-<time>` is not touched. A restored terminal's transcript is
-opened before its shell starts, waiting a few seconds for the key at most, and is
-shown only if it opens for that terminal. See [transcript-redaction.md](transcript-redaction.md). Closing a terminal
+opened before its shell starts, waiting for the key at most `transcriptKeyMs` (a few
+seconds) from the run's first restore, and is shown only if it opens for that terminal. A
+terminal whose copy went unopened because the key came later keeps that copy as it is for
+the run: its transcript is not saved again until the next start. See [transcript-redaction.md](transcript-redaction.md). Closing a terminal
 forgets it, including one from an earlier runner.
 
 - `terminals.create({ …, restore: true, resume? })` continues the saved terminal of

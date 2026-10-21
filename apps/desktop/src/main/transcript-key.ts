@@ -110,9 +110,24 @@ export const loadTranscriptKey = async (
       throw error
     }
   }
-  let reason: string | undefined
+  // Only a missing file starts a new key: a file that cannot be read may hold the key every
+  // sealed transcript needs, so this launch keeps none and leaves it be.
+  let wrapped: Buffer | undefined
   try {
-    const wrapped = await files.readFile(file)
+    wrapped = await files.readFile(file)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      log.warn(
+        "transcript-key.read-failed",
+        "Transcripts are not kept: the wrapped key could not be read.",
+        { err: error },
+      )
+      return null
+    }
+  }
+  let reason: string | undefined = wrapped === undefined ? "missing" : undefined
+  try {
+    if (wrapped === undefined) throw new Error("No key is kept yet.")
     // A key not wrapped by the keyring is as good as in the clear: not trusted.
     if (!behindKeyring(platform, wrapped)) throw new Error("The kept key is not behind a keyring.")
     const { result, shouldReEncrypt } = await storage.decryptStringAsync(wrapped)
@@ -129,8 +144,8 @@ export const loadTranscriptKey = async (
       return result
     }
     reason = "invalid"
-  } catch (error) {
-    reason = (error as NodeJS.ErrnoException).code === "ENOENT" ? "missing" : "unreadable"
+  } catch {
+    reason ??= "unreadable"
   }
   const key = randomBytes(keyBytes).toString("base64")
   try {
