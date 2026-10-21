@@ -119,7 +119,7 @@ const reader =
     const parsed = schemas[given[0]!].safeParse(value)
     if (parsed.success) return { ok: true, request: parsed.data }
     const [issue] = parsed.error.issues
-    // A key no source knows is named too, as "file.open" or "lines" beside a url.
+    // A key no source knows is named too, as "file.open" or "lines" beside a page.
     const path = issue?.code === "unrecognized_keys" ? [...issue.path, issue.keys[0]] : issue?.path
     const field = path?.map(String).join(".")
     return failure(

@@ -165,6 +165,29 @@ describe("the browser viewer", () => {
         viewer.update({ url, shown: 3 })
         viewer.update({ url, shown: 2 })
         expect(calls).toEqual([`load ${url}`, "reload"])
+        // An older show arriving late takes nothing back: the latest, read again, is done.
+        viewer.update({ url, shown: 3 })
+        expect(calls).toEqual([`load ${url}`, "reload"])
+      })
+
+      it("moves within the page to the fragment it was shown at, loading nothing", () => {
+        const at = `${url}#pricing`
+        const { viewer, at: where, calls, loads, fire } = shownAt({ url: at, shown: 1 })
+        where.url = `${url}#faq`
+        fire("did-stop-loading")
+        viewer.update({ url: at, shown: 2, scroll: "#plans" })
+        expect(calls[0]).toBe(`load ${at}`)
+        expect(loads.at(-1)).toBe("ready")
+        // Nothing loads, so its scroll goes at once.
+        expect(scrolled(calls)).toHaveLength(1)
+      })
+
+      it("loads its address afresh when shown during a later load, as the person's click", () => {
+        const { viewer, calls, fire } = shownAt({ url, shown: 1 })
+        fire("did-stop-loading")
+        fire("did-start-loading")
+        viewer.update({ url, shown: 2 })
+        expect(calls).toEqual([`load ${url}`])
       })
 
       it("leaves a load of its address under way be, as its first", () => {
@@ -243,6 +266,14 @@ describe("the browser viewer", () => {
         expect(later.page.getAttribute("src")).toBe(url)
         later.fire("did-stop-loading")
         expect(scrolled(later.calls)).toHaveLength(1)
+
+        // A show let go before its scroll: the next viewer still scrolls for it.
+        later.viewer.update({ url, shown: 4, scroll: "#c" })
+        const early = later.viewer.state()
+        later.viewer.destroy()
+        const next = shownAt({ url, shown: 4, scroll: "#c" }, early)
+        next.fire("did-stop-loading")
+        expect(scrolled(next.calls)).toHaveLength(1)
       })
     })
 

@@ -831,7 +831,8 @@ export class CompanionItems {
       const scroll = this.scrolls.get(item.id)
       return Promise.resolve({
         state: "ready",
-        stamp: hashOf(item.url ?? ""),
+        // Each show is content of its own.
+        stamp: hashOf(`${item.version} ${item.url ?? ""}`),
         content: {
           kind: "page",
           url: item.url ?? "",

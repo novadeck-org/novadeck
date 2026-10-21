@@ -1063,9 +1063,9 @@ one from an earlier runner.
     item's name again.
 
   An agent shows things with Novadeck's MCP `show` tool, which puts each on its own
-  terminal's bar; showing the same file or page there again updates it, with a later
-  version (a page's content carries it as `shown`, and loads afresh for each), while one
-  moved elsewhere is never touched. `showing` lists what its bar holds.
+  terminal's bar; showing the same file or page again updates it, with a later version,
+  there or wherever the person moved it (a page's content carries it as `shown`, and
+  loads afresh for each). `showing` lists what its bar holds.
   Plans come from the agents' own records: Claude Code's are the Markdown files plan mode
   writes in a `plans` folder, and what `ExitPlanMode` presents (the file Claude Code
   names, or the plan's text); Codex's is the plan its Plan Mode proposes, as text;

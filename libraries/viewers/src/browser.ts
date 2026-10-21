@@ -78,6 +78,9 @@ const isBrowserState = (state: unknown): state is BrowserState => {
 
 const showOf = (content: BrowserContent): number => content.shown ?? 0
 
+// An address without its #fragment: two that differ only there are one document.
+const documentOf = (url: string): string => url.split("#")[0]!
+
 // A kept state of `content`'s page that no later show has passed: where to pick up.
 const keptOf = (state: unknown, content: BrowserContent): BrowserState["browser"] | undefined =>
   isBrowserState(state) &&
@@ -151,12 +154,16 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   let place: Place = { url: resumed, back: false, forward: false }
   let load: Load = "loading"
   let muted = false
+  // The latest show, which an older one arriving late never takes back.
+  let showing = showOf(content)
   // The element a show brings into view once the load under way is done; one a viewer of
   // the same show carried out already is done.
-  let scrollTo = kept ? undefined : content.scroll
+  let scrollTo = live && !kept ? content.scroll : undefined
+  // Kept with the show it carried out: one whose scroll is still to come isn't yet, so a
+  // viewer mounted for it before the scroll still scrolls.
   const state = (at: string): ViewerState =>
     ({
-      browser: { url: shown.url, at, shown: showOf(shown) },
+      browser: { url: shown.url, at, shown: scrollTo === undefined ? showing : showing - 1 },
     }) satisfies BrowserState as unknown as ViewerState
 
   const report = (next: Load): void => {
@@ -183,6 +190,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     return {
       update: (next) => {
         shown = next
+        showing = Math.max(showing, showOf(next))
         place = { url: next.url, back: false, forward: false }
         on?.navigate?.(place)
       },
@@ -211,6 +219,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   on?.load?.(load)
   // Where it's going, as it may not be where its host showed it, until the page says.
   if (resumed !== content.url) on?.navigate?.(place)
+  // Until its first load is done.
+  let first = true
 
   const moved = (): void => {
     attached(() => {
@@ -227,32 +237,37 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       attached(() => void page.executeJavaScript(revealing(selector, scrollWaitMs)).catch(nothing))
   }
   const stopped = (): void => {
+    first = false
     if (load === "loading") report("ready")
     moved()
     if (load === "ready") reveal()
     else scrollTo = undefined
   }
-  // Shown again: back at its address if the person went elsewhere, else reloaded, unless
-  // it's loading that address already, as its first load.
+  // Shown again: reloaded where it is at its address; loaded there afresh if the person
+  // went elsewhere, or anything else is loading, as their own click; let be while its
+  // first load is of that address, as that load is this show's.
   const refresh = (): void => {
-    if (place.url !== shown.url) {
-      // Attached, it loads the address even where its attribute already names it.
-      const loading = attached(() => {
-        void page.loadURL(shown.url).catch(nothing)
+    const there = place.url === shown.url
+    if (there && first) return
+    if (there && load !== "loading") {
+      const reloading = attached(() => {
+        page.reload()
         return true
       })
-      if (!loading) page.setAttribute("src", shown.url)
-      place = { url: shown.url, back: place.back, forward: place.forward }
-      on?.navigate?.(place)
-      report("loading")
+      if (reloading) report("loading")
       return
     }
-    if (load === "loading") return
-    const reloading = attached(() => {
-      page.reload()
+    // Attached, it loads the address even where its attribute already names it.
+    const loading = attached(() => {
+      void page.loadURL(shown.url).catch(nothing)
       return true
     })
-    if (reloading) report("loading")
+    if (!loading) page.setAttribute("src", shown.url)
+    // Within one document, it only moves to the fragment: nothing loads.
+    const moving = loading && documentOf(place.url) === documentOf(shown.url) && load === "ready"
+    place = { url: shown.url, back: place.back, forward: place.forward }
+    on?.navigate?.(place)
+    if (!moving) report("loading")
   }
   const failed = (event: Event): void => {
     const { errorCode, isMainFrame } = event as Event & {
@@ -282,10 +297,11 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   return {
     update: (next) => {
       const previous = shown
+      const again = showOf(next) > showing
       shown = next
+      showing = Math.max(showing, showOf(next))
       // Loaded after it attached, past the lockdown's check of its first address.
       if (!webAddress(next.url)) return
-      const again = showOf(next) > showOf(previous)
       if (again) scrollTo = next.scroll
       if (previous.url === next.url) {
         if (!again) return

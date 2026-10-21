@@ -146,8 +146,8 @@ const show: Tool<Shown> = {
       page: {
         type: "object",
         description:
-          "Instead of file: a web page, which Novadeck opens live in its browser view, and " +
-          "the part of it to bring into view.",
+          "Instead of file: a web page, which Novadeck's desktop app opens live in its " +
+          "browser view, and the part of it to bring into view there.",
         properties: {
           url: {
             type: "string",
@@ -161,7 +161,8 @@ const show: Tool<Shown> = {
             description:
               "A CSS selector of the element to bring into view once the page loads, such " +
               "as #pricing or [data-section=faq]; it waits a few seconds for a page that " +
-              "draws itself after loading. It scrolls once, for the show that gives it.",
+              "draws itself after loading. Give it with each show that should scroll: one " +
+              "without it doesn't.",
           },
         },
         required: ["url"],
