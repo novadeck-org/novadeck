@@ -22,8 +22,9 @@ export const workingAgents = (project: SourceProject): ReadonlySet<string> => {
 
 // The strip's items. Agents follow the session's roster order (`roster`, handles); those with no
 // terminal in it come after, alphabetically. A squad sits where its first member does, holding
-// only the members with work, and a team left with fewer than two is no squad: they are solo
-// chips. An agent belongs to the first of `squads` that names it.
+// only the members with work. It is kept only while its lead (the team's first handle) has work
+// itself and at least one member does too; otherwise those with work are solo chips. An agent in
+// two teams appears in the first squad that names it, and is solo if that squad does not stand.
 export const stripItems = (
   project: SourceProject,
   roster: readonly string[],
@@ -37,6 +38,8 @@ export const stripItems = (
   const taken = new Set<string>()
   const squadOf = new Map<string, readonly string[]>()
   for (const squad of squads) {
+    const [lead] = [...new Set(squad)]
+    if (lead === undefined || !working.has(lead) || taken.has(lead)) continue
     const members = [...new Set(squad)].filter(
       (handle) => working.has(handle) && !taken.has(handle),
     )
@@ -80,14 +83,26 @@ export const toggleSquad = (
   return next
 }
 
-// What the person has lit, before any pointing: the kept set if it holds anyone, else the
-// selected terminal's agent when it has work in this project, else nobody.
+// The kept agents that still have work in the project: one that left it lights nothing.
+export const keptWorking = (
+  project: SourceProject | undefined,
+  kept: ReadonlySet<string>,
+): ReadonlySet<string> => {
+  if (!project || kept.size === 0) return noAgents
+  const working = workingAgents(project)
+  const still = [...kept].filter((handle) => working.has(handle))
+  return still.length === kept.size ? kept : new Set(still)
+}
+
+// What the person has lit, before any pointing: the kept agents with work here if there are
+// any, else the selected terminal's agent when it has work in this project, else nobody.
 export const litSet = (
   project: SourceProject | undefined,
   kept: ReadonlySet<string>,
   selected: string | undefined,
 ): ReadonlySet<string> => {
-  if (kept.size > 0) return kept
+  const still = keptWorking(project, kept)
+  if (still.size > 0) return still
   if (!project || !selected || !workingAgents(project).has(selected)) return noAgents
   return new Set([selected])
 }

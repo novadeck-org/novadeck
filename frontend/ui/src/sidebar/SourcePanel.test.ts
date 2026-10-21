@@ -326,7 +326,8 @@ describe("The Source panel", () => {
         "true",
       )
       press(panel, "crow")
-      expect(pressed(panel)).toEqual(["@moth"])
+      expect(pressed(panel)).toEqual([])
+      expect(chip(panel, "moth").getAttribute("aria-pressed")).toBe("mixed")
       // Not every member is kept, so the lead keeps them all rather than releasing.
       press(panel, "moth")
       expect(pressed(panel)).toEqual(["@moth", "@crow"])
@@ -353,6 +354,76 @@ describe("The Source panel", () => {
 
       expect(pressed(panel)).toEqual([])
       expect(dimmed(panel)).toEqual(["readme.md", "Cart.tsx", "new.ts", "useCart.ts"])
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("leaves Escape to others while nothing is kept", async () => {
+      const panel = mountTeam()
+      const seen: boolean[] = []
+      const listen = (event: Event): void => void seen.push(event.defaultPrevented)
+      document.body.addEventListener("keydown", listen)
+
+      act(() => {
+        chip(panel, "wren").dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+        )
+      })
+      press(panel, "wren")
+      act(() => {
+        chip(panel, "wren").dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+        )
+      })
+
+      // The first Escape propagated to the body, the second (which let go) did not.
+      expect(seen).toHaveLength(1)
+      document.body.removeEventListener("keydown", listen)
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("marks a lead pressed for its squad: true when all are kept, mixed when some are", async () => {
+      const panel = mountTeam()
+      const state = (handle: string): string | null =>
+        chip(panel, handle).getAttribute("aria-pressed")
+      expect(state("moth")).toBe("false")
+
+      press(panel, "crow")
+      expect(state("moth")).toBe("mixed")
+      expect(state("crow")).toBe("true")
+      press(panel, "moth")
+      expect(state("moth")).toBe("true")
+      press(panel, "crow")
+      expect(state("moth")).toBe("mixed")
+      press(panel, "moth")
+      press(panel, "moth")
+      expect(state("moth")).toBe("false")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("lets go of a kept agent that leaves the project, so nothing stays dimmed for it", async () => {
+      const panel = mountTeam()
+      press(panel, "wren")
+      expect(dimmed(panel)).not.toEqual([])
+
+      panel.update(work())
+
+      expect(pressed(panel)).toEqual([])
+      expect(dimmed(panel)).toEqual([])
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("forgets a hover on a chip that leaves the strip", async () => {
+      const panel = mountTeam()
+      hover(chip(panel, "wren"), "pointerover")
+      expect(dimmed(panel)).not.toEqual([])
+
+      panel.update(work())
+
+      expect(dimmed(panel)).toEqual([])
       await nextFrame()
       panel.view.unmount()
     })
@@ -384,6 +455,11 @@ describe("The Source panel", () => {
       hover(chip(panel, "wren"), "pointerover")
       expect(dimmed(panel)).toEqual(["readme.md", "Cart.tsx", "new.ts", "useCart.ts"])
       hover(chip(panel, "wren"), "pointerout")
+      // A member alone would rank its chip first on a row if hover fed the ranking.
+      hover(chip(panel, "crow"), "pointerover")
+      expect(dimmed(panel)).toEqual(["Cart.tsx", "new.ts", "package.json"])
+      expect(order()).toEqual(before)
+      hover(chip(panel, "crow"), "pointerout")
       hover(chip(panel, "moth"), "pointerover")
       expect(dimmed(panel)).toEqual(["Cart.tsx", "package.json"])
       expect(order()).toEqual(before)

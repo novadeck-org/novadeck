@@ -20,6 +20,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { SidebarPanel } from "./SidebarPanel"
 import {
   dimmedBy,
+  keptWorking,
   litSet,
   namedAgents,
   noAgents,
@@ -307,6 +308,7 @@ const Row = ({
 // the whole squad, so pointing at it lights them all and a click keeps or releases them all.
 const AgentChip = ({
   handle,
+  pressed,
   kept,
   tinted,
   following,
@@ -315,6 +317,9 @@ const AgentChip = ({
   onLight,
 }: {
   handle: string
+  // What a click would undo: for a lead, the squad's state ("mixed" while only some are kept).
+  pressed: boolean | "mixed"
+  // Whether this agent itself is kept.
   kept: boolean
   // Whether the chip wears the kept tint itself, rather than the squad's track having it.
   tinted: boolean
@@ -329,7 +334,7 @@ const AgentChip = ({
     type="button"
     className="source-agent text-caption"
     title={hint}
-    aria-pressed={kept}
+    aria-pressed={pressed}
     data-kept={kept && tinted}
     data-following={following}
     onClick={onToggle}
@@ -356,13 +361,16 @@ const Strip = ({
   // The selected terminal's agent while nothing is kept and it has work here.
   selected: string | undefined
   onKeep: (next: ReadonlySet<string>) => void
-  onLight: (handles: readonly string[] | undefined) => void
+  onLight: (handle: string | undefined) => void
   onKeyDown: (event: React.KeyboardEvent) => void
 }): React.JSX.Element => (
   <div
     role="group"
     aria-label="Light agents"
     className="source-strip mt-2.5"
+    // Its keys are its own (see interaction/dom.ts): a click here keeps focus here, so Escape
+    // releases the kept agents rather than going to the terminal.
+    data-own-keys
     onKeyDown={onKeyDown}
     onPointerLeave={() => onLight(undefined)}
   >
@@ -372,15 +380,17 @@ const Strip = ({
           <AgentChip
             key={item.handle}
             handle={item.handle}
+            pressed={kept.has(item.handle)}
             kept={kept.has(item.handle)}
             tinted
             following={kept.size === 0 && selected === item.handle}
             hint={kept.has(item.handle) ? `Let @${item.handle} go` : `Keep @${item.handle} lit`}
             onToggle={() => onKeep(toggleAgent(kept, item.handle))}
-            onLight={(on) => onLight(on ? [item.handle] : undefined)}
+            onLight={(on) => onLight(on ? item.handle : undefined)}
           />
         )
       const whole = item.members.every((handle) => kept.has(handle))
+      const some = item.members.some((handle) => kept.has(handle))
       return (
         <div
           key={item.members[0]}
@@ -393,6 +403,7 @@ const Strip = ({
             <AgentChip
               key={handle}
               handle={handle}
+              pressed={index === 0 ? (whole ? true : some ? "mixed" : false) : kept.has(handle)}
               kept={kept.has(handle)}
               tinted={!whole}
               following={kept.size === 0 && selected === handle}
@@ -408,7 +419,7 @@ const Strip = ({
               onToggle={() =>
                 onKeep(index === 0 ? toggleSquad(kept, item.members) : toggleAgent(kept, handle))
               }
-              onLight={(on) => onLight(on ? (index === 0 ? item.members : [handle]) : undefined)}
+              onLight={(on) => onLight(on ? handle : undefined)}
             />
           ))}
         </div>
@@ -416,6 +427,21 @@ const Strip = ({
     })}
   </div>
 )
+
+// The agents a strip chip lights while pointed at: itself, or a lead's whole squad; nobody if
+// the chip is no longer in the strip.
+const stripHoverOf = (
+  items: readonly StripItem[],
+  handle: string | undefined,
+): readonly string[] | undefined => {
+  if (handle === undefined) return undefined
+  for (const item of items) {
+    if (item.kind === "solo" && item.handle === handle) return [handle]
+    if (item.kind === "squad" && item.members.includes(handle))
+      return item.members[0] === handle ? item.members : [handle]
+  }
+  return undefined
+}
 
 // How long a write's pulse plays; the panel clears it by this timer, not by the animation, which
 // never ends while the panel is hidden.
@@ -463,7 +489,7 @@ export const SourcePanel = ({
   // The agents the person keeps lit, any number; this panel remounts with the project, which
   // forgets them. And the strip's chip under the pointer: its agent, or a lead's whole squad.
   const [kept, setKept] = useState<ReadonlySet<string>>(noAgents)
-  const [stripHover, setStripHover] = useState<readonly string[] | undefined>()
+  const [stripHover, setStripHover] = useState<string | undefined>()
   const treeElement = useRef<HTMLDivElement>(null)
   // The tree's width and the fonts, which decide how many chips a row has room for; the
   // sidebar is resizable, so a ResizeObserver follows the width. Unknown (nothing folds) until
@@ -567,14 +593,22 @@ export const SourcePanel = ({
     showing && hovered && chipsByPath.get(hovered.path)?.shown.includes(hovered.handle)
       ? hovered.handle
       : undefined
-  const lit = useMemo(() => {
-    const pointedAt = pointed ? [pointed] : showing ? stripHover : undefined
-    return pointedAt ? new Set(pointedAt) : ranked
-  }, [pointed, showing, stripHover, ranked])
   const items = useMemo(
     () => (project ? stripItems(project, roster, squads) : []),
     [project, roster, squads],
   )
+  // The strip chip under the pointer lights its agent, or a lead's whole squad. A squad can
+  // dissolve or the strip go with no pointerleave to say so: the hover counts only while its
+  // chip is still in the strip, and is forgotten once it is not.
+  const stripPointed = stripHoverOf(items, stripHover)
+  if (stripHover !== undefined && stripPointed === undefined) setStripHover(undefined)
+  const lit = useMemo(() => {
+    const pointedAt = pointed ? [pointed] : showing ? stripPointed : undefined
+    return pointedAt ? new Set(pointedAt) : ranked
+  }, [pointed, showing, stripPointed, ranked])
+  // Kept agents that no longer have work here are let go, as nothing in the strip shows them.
+  const stillKept = useMemo(() => keptWorking(project, kept), [project, kept])
+  if (stillKept.size !== kept.size) setKept(stillKept)
   const following = kept.size === 0 && ranked.size > 0 ? [...ranked][0] : undefined
   // The row that holds the tree's one Tab stop: the last one focused, or the first.
   const [stop, setStop] = useState<string | null>(null)

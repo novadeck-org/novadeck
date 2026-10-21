@@ -3,6 +3,7 @@ import type { SourceProject } from "@novadeck/core/source"
 import { context, describe, expect, it } from "../test"
 import {
   dimmedBy,
+  keptWorking,
   litSet,
   namedAgents,
   stripItems,
@@ -70,6 +71,27 @@ describe("The strip's items", () => {
     ])
   })
 
+  it("make no squad of a team whose lead has no work, its workers standing alone", () => {
+    // owl leads moth and crow but did nothing here.
+    expect(stripItems(project(), roster, [["owl", "moth", "crow"]])).toEqual([
+      { kind: "solo", handle: "wren" },
+      { kind: "solo", handle: "moth" },
+      { kind: "solo", handle: "crow" },
+      { kind: "solo", handle: "kite" },
+    ])
+  })
+
+  it("let a worker of a leaderless team join a later squad that stands", () => {
+    const items = stripItems(project(), roster, [
+      ["owl", "crow"],
+      ["moth", "crow"],
+    ])
+
+    expect(items.filter((item) => item.kind === "squad")).toEqual([
+      { kind: "squad", members: ["moth", "crow"] },
+    ])
+  })
+
   it("keep an agent in the first squad that names it", () => {
     const items = stripItems(project(), roster, [
       ["moth", "crow"],
@@ -103,6 +125,14 @@ describe("The lit set", () => {
   context("when someone is kept", () => {
     it("is the kept set, whatever terminal is selected", () => {
       expect([...litSet(project(), new Set(["moth", "wren"]), "crow")]).toEqual(["moth", "wren"])
+    })
+  })
+
+  context("when a kept agent no longer has work here", () => {
+    it("is not lit, and the selected terminal's agent is when nobody else is kept", () => {
+      expect([...litSet(project(), new Set(["moth", "owl"]), "crow")]).toEqual(["moth"])
+      expect([...litSet(project(), new Set(["owl"]), "crow")]).toEqual(["crow"])
+      expect([...keptWorking(project(), new Set(["owl", "wren"]))]).toEqual(["wren"])
     })
   })
 

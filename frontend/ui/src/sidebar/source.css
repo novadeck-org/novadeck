@@ -26,7 +26,8 @@
    so in a squad kept whole, whose track wears it: data-kept on the `.source-squad`), and
    data-following="true" that nothing is kept and its terminal is selected: strong text only.
    Compact mono text, muted, a soft background on hover; the kept tint is the strong colour at
-   16%, with the strong colour as text. The track is the text colour at 7%. */
+   16%, with the strong colour as text. The track is --source-squad-bg (the text colour at 7% on
+   a dark sidebar, 13% on a light one). */
 .source-row {
   display: flex;
   height: 26px;
@@ -255,7 +256,13 @@
   align-items: center;
   padding: 1px;
   border-radius: var(--radius-control, 6px);
-  background-color: color-mix(in srgb, currentColor 7%, transparent);
+  background-color: var(
+    --source-squad-bg,
+    color-mix(in srgb, currentColor var(--_track, 7%), transparent)
+  );
+}
+:root[data-scheme="light"] .source-squad {
+  --_track: 13%;
 }
 .source-squad[data-kept="true"] {
   background-color: color-mix(in srgb, var(--color-strong) 16%, transparent);
@@ -275,6 +282,7 @@
   background-color: var(--color-soft);
 }
 .source-agent[data-following="true"],
+.source-agent[data-kept="true"],
 .source-agent[aria-pressed="true"] {
   color: var(--color-strong);
 }

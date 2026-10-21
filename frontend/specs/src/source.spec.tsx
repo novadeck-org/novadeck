@@ -1,5 +1,5 @@
 import { describe as context, describe, expect, it } from "vitest"
-import { page } from "vitest/browser"
+import { page, userEvent } from "vitest/browser"
 
 import { layoutSettled, openWorkspace, sidebarPanel } from "./support/workspace"
 
@@ -55,6 +55,12 @@ describe("The Source panel", () => {
       await expect.element(squad.getByRole("button", { name: "@moth" })).toBeVisible()
       await expect.element(squad.getByRole("button", { name: "@crow" })).toBeVisible()
 
+      // Only @crow touched this test file, so it is dimmed while the selected agent is lit.
+      const crowOnly = page.getByRole("treeitem", { name: /^Checkout\.test\.tsx,/ })
+      const rowOf = (): Element | null => crowOnly.element().closest(".source-row")
+      await expect.element(crowOnly).toBeVisible()
+      await expect.poll(() => rowOf()?.getAttribute("data-dim")).toBe("true")
+
       await squad.getByRole("button", { name: "@moth" }).click()
 
       await expect
@@ -63,8 +69,30 @@ describe("The Source panel", () => {
       await expect
         .element(squad.getByRole("button", { name: "@crow" }))
         .toHaveAttribute("aria-pressed", "true")
-      // Something neither of them touched is dimmed.
+      // The squad's crow lights its file, and what neither touched is still dimmed.
+      await expect.poll(() => rowOf()?.getAttribute("data-dim")).toBe("false")
       await expect.poll(() => document.querySelector(".source-row[data-dim=true]")).not.toBeNull()
+    })
+
+    it("lets go of the kept agents on Escape after a mouse click, not sending it to the terminal", async () => {
+      await openWorkspace(messages)
+      await skipIntro()
+      await sidebarPanel("Source").click()
+      const strip = page.getByRole("group", { name: "Light agents" })
+      const crow = strip.getByRole("button", { name: "@crow" })
+
+      await crow.click()
+      await expect.element(crow).toHaveAttribute("aria-pressed", "true")
+      // Let the keyboard policy's next-frame focus handback run, as it would for a real click.
+      await layoutSettled()
+      await userEvent.keyboard("{Escape}")
+
+      await expect.element(crow).toHaveAttribute("aria-pressed", "false")
+      expect(
+        strip.element().querySelectorAll("[aria-pressed=true], [aria-pressed=mixed]"),
+      ).toHaveLength(0)
+      // Focus stayed in the strip rather than going back to the terminal.
+      expect(document.activeElement?.closest(".source-strip")).not.toBeNull()
     })
   })
 
