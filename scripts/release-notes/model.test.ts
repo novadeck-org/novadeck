@@ -177,7 +177,7 @@ describe("the model call", () => {
 
   it("lists the icons in the prompt and holds the model to them in the schema", () => {
     const prompt = systemPrompt()
-    for (const icon of highlightIcons) expect(prompt).toContain(icon)
+    expect(prompt).toContain(`Highlight icons, spelled exactly so: ${highlightIcons.join(", ")}.`)
     const highlight = (responseSchema as any).properties.highlights.items.properties.icon
     expect(highlight.enum).toEqual([...highlightIcons])
     expect((responseSchema as any).properties.highlights.items.required).toContain("icon")

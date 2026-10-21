@@ -39,14 +39,15 @@ const steered: readonly [RegExp, string][] = [
   [/<[a-z/!]/i, "an HTML tag"],
 ]
 
-// Text whose letters are more than `share` in a script other than Latin. A model that answers in
-// another language mostly does so for the whole answer, which fails; a line of its own in one
-// is dropped. A unit such as µs or a quoted 日本語 or Ελληνικά stays a few letters of an English
-// line and passes. A drift into another language written in Latin letters isn't caught here.
+// A line whose letters are mostly in a script other than Latin. A model that answers in another
+// language mostly does so for the whole answer, so an answer most of whose lines are foreign
+// fails, and a foreign line among English ones is dropped. A unit such as µs or a quoted 日本語
+// or Ελληνικά stays a part of an English line and passes. Not caught: a drift into another
+// language written in Latin letters, and one that keeps enough English names to stay half Latin.
 const letters = /\p{L}/gu
 const nonLatin = /(?!\p{Script=Latin})\p{L}/gu
-const foreign = (text: string, share: number): boolean =>
-  (text.match(nonLatin)?.length ?? 0) > (text.match(letters)?.length ?? 0) * share
+const foreign = (text: string): boolean =>
+  (text.match(nonLatin)?.length ?? 0) * 2 > (text.match(letters)?.length ?? 0)
 
 // Markup a plain line has no use for. A slip drops that line and the rest stands.
 const markup = /[*~\\`[<>]/
@@ -110,10 +111,11 @@ export const checkOutput = (
     return fail(`At most ${maxHighlights} highlights, got ${output.highlights.length}`)
   if (output.changes.length > maxChanges)
     return fail(`At most ${maxChanges} changes, got ${output.changes.length}`)
-  const written = [...output.highlights, ...output.changes]
-    .flatMap((item) => ["title" in item ? item.title : "", item.line])
-    .join("\n")
-  if (foreign(written, 0.3)) return fail("The answer is not written in English")
+  const items = [...output.highlights, ...output.changes]
+  const foreignLines = items.filter((item) =>
+    foreign(["title" in item ? item.title : "", item.line].join("\n")),
+  ).length
+  if (foreignLines * 2 > items.length) return fail("The answer is not written in English")
   const dropped: string[] = []
   const highlights: { title: string; line: string; prs: number[]; icon: HighlightIcon }[] = []
   const changes: { area: NoteArea; line: string; prs: number[] }[] = []
@@ -141,7 +143,7 @@ export const checkOutput = (
                 ? "a markup character"
                 : topic
                   ? `an excluded topic ${topic}`
-                  : foreign(text, 0.5)
+                  : foreign(text)
                     ? "a line in another script"
                     : title === undefined && !isArea("area" in item ? item.area : "")
                       ? "an area that is not one of ours"

@@ -134,13 +134,14 @@ describe("the checks on a model's answer", () => {
       changes: [{ area: "Terminals", line: "A café's naïve résumé stays.", prs: [181] }],
     }
     expect(checkOutput(accented, "promote", allowed).ok).toBe(true)
+    // Each on its own, as a release with one change would answer.
     for (const line of [
       "Startup is 300 µs faster.",
       "Typing 日本語 no longer moves the cursor.",
       "Opens Ελληνικά files in Grid.",
     ]) {
-      const quoted = { ...good, changes: [{ area: "Terminals", line, prs: [181] }] }
-      expect(checkOutput(quoted, "promote", allowed).ok).toBe(true)
+      const quoted = { highlights: [], changes: [{ area: "Terminals", line, prs: [181] }] }
+      expect(checkOutput(quoted, "release", allowed)).toMatchObject({ ok: true, dropped: [] })
     }
   })
 
