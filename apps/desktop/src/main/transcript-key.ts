@@ -15,7 +15,7 @@ export type KeyStorage = {
 
 type Files = {
   readFile(path: string): Promise<Buffer>
-  writeFile(path: string, data: Buffer, options: { mode: number }): Promise<void>
+  writeFile(path: string, data: Buffer, options: { mode: number; flush: boolean }): Promise<void>
   rename(from: string, to: string): Promise<void>
   rm(path: string, options: { force: true }): Promise<void>
 }
@@ -91,15 +91,15 @@ export const loadTranscriptKey = async (
     )
     return null
   }
-  // Wrapped into a temporary file beside `file`, renamed over it, so a failed write leaves
-  // the wrapped key that was there whole.
+  // Wrapped into a temporary file beside `file`, flushed to disk and renamed over it, so a
+  // failed write or a power cut leaves the wrapped key that was there whole.
   const keep = async (key: string): Promise<void> => {
     const temporary = `${file}.${randomUUID()}.tmp`
     try {
       const wrapped = await storage.encryptStringAsync(key)
       if (!behindKeyring(platform, wrapped))
         throw new Error("The key was not wrapped by a keyring.")
-      await files.writeFile(temporary, wrapped, { mode: 0o600 })
+      await files.writeFile(temporary, wrapped, { mode: 0o600, flush: true })
       await files.rename(temporary, file)
     } catch (error) {
       await files.rm(temporary, { force: true }).catch(() => {})

@@ -531,6 +531,13 @@ describe("saved terminals", () => {
     first.saveTerminal({ ...first.terminal(lookalike)!, transcript: "v1.4.2 released\n$ " })
     const short = keptTerminal(first, "session", "ant")
     first.saveTerminal({ ...first.terminal(short)!, transcript: value.slice(0, -1) })
+    // Base64's alphabet, but not a whole number of its four-character groups.
+    const ragged = keptTerminal(first, "session", "bee")
+    first.saveTerminal({ ...first.terminal(ragged)!, transcript: `${value}A` })
+    // A full transcript's worth, sealed: kept, however long.
+    const long = keptTerminal(first, "session", "yak")
+    const longValue = sealedText("x".repeat(256 * 1024), long)
+    first.saveTerminal({ ...first.terminal(long)!, transcript: longValue })
     first.close()
 
     const next = store(path)
@@ -539,6 +546,8 @@ describe("saved terminals", () => {
     expect(next.terminal(sealed)?.transcript).toBe(value)
     expect(next.terminal(lookalike)?.transcript).toBeNull()
     expect(next.terminal(short)?.transcript).toBeNull()
+    expect(next.terminal(ragged)?.transcript).toBeNull()
+    expect(next.terminal(long)?.transcript).toBe(longValue)
     // Scrubbed from the file and its log at once, not a moment later.
     expect(holds(path, "TOKEN=hunter2") || holds(`${path}-wal`, "TOKEN=hunter2")).toBe(false)
     // Nothing left to forget.

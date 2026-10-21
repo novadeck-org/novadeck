@@ -607,6 +607,9 @@ const windowOf = (row: WindowRow): WindowRecord => ({
 // The handles in rows selected for them.
 const column = (rows: unknown): string[] => (rows as { handle: string }[]).map((row) => row.handle)
 
+// How much of a sealed-looking transcript `forgetUnsealed` matches against base64's alphabet.
+const checkedChars = 1_024
+
 export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecords, ItemRecords {
   private readonly database: DatabaseSync
   private readonly queries: SQLTagStore
@@ -895,9 +898,12 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
 
   /**
    * Forgets every transcript that is not shaped as a sealed one, `prefix` then at least
-   * `minChars` characters of base64 and nothing else: a copy saved unsealed, which may hold
-   * what was never masked, must not outlive the start that finds it. Scrubbed at once when
-   * any went, not a second later.
+   * `minChars` characters of base64, a multiple of four: a copy saved unsealed, which may
+   * hold what was never masked, must not outlive the start that finds it. Only the first
+   * `checkedChars` are matched against base64's alphabet, as matching all of a full
+   * transcript at every start takes about 10 ms each; plain terminal output has a space,
+   * a dot or a line break long before that. Scrubbed at once when any went, not a second
+   * later.
    */
   forgetUnsealed({
     prefix,
@@ -911,7 +917,8 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
       WHERE transcript IS NOT NULL AND NOT (
         substr(transcript, 1, ${prefix.length}) = ${prefix}
         AND length(transcript) >= ${prefix.length + minChars}
-        AND substr(transcript, ${prefix.length + 1}) NOT GLOB '*[^A-Za-z0-9+/=]*'
+        AND (length(transcript) - ${prefix.length}) % 4 = 0
+        AND substr(transcript, ${prefix.length + 1}, ${checkedChars}) NOT GLOB '*[^A-Za-z0-9+/=]*'
       )
     `
     if (result.changes > 0) this.scrub()
