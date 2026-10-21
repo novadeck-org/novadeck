@@ -21,11 +21,13 @@ import {
 // pointer and focus, for a while, it sleeps; kept out of sight, at once.
 export type Awake = {
   readonly awake: boolean
+  /** Whether it ever sleeps: never outside a pane, so nothing there keeps a still ready. */
+  readonly sleeps: boolean
   /** Wakes it for a while, as the person would; nothing while it's out of sight. */
   readonly wake: () => void
 }
 
-export const AwakeContext = createContext<Awake>({ awake: true, wake: () => {} })
+export const AwakeContext = createContext<Awake>({ awake: true, sleeps: false, wake: () => {} })
 
 export const useAwake = (): Awake => useContext(AwakeContext)
 
@@ -151,6 +153,6 @@ export const useWakeful = (): {
   // Before what it shows hears of it in their effects, so a view waking as it shows is.
   useLayoutEffect(() => wakeful.show(shown), [wakeful, shown])
   useEffect(() => wakeful.stop, [wakeful])
-  const state = useMemo(() => ({ awake, wake: wakeful.wake }), [awake, wakeful])
+  const state = useMemo(() => ({ awake, sleeps: true, wake: wakeful.wake }), [awake, wakeful])
   return { awake: state, ref: wakeful.attach, on: wakeful.on }
 }

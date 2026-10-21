@@ -188,8 +188,11 @@ export const keepMs = 5_000
 export const uncoverMs = 120
 export const fadeMs = 150
 
-// Run in the page: where it's scrolled.
+// Run in the page: where it's scrolled, read for at most `scrollReadMs`.
 const scrollRead = "[scrollX, scrollY]"
+const scrollReadMs = 500
+const wait = (ms: number): Promise<undefined> =>
+  new Promise((resolve) => setTimeout(() => resolve(undefined), ms))
 // Run in the page: back where it was scrolled.
 const scrolling = ([x, y]: Scrolled): string => `scrollTo(${x}, ${y})`
 
@@ -553,8 +556,11 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
         report("ready")
       }
       if (picture === undefined || load === "loading") return standIn()
-      // Out of sight, where it's scrolled can still be read, for it to wake there.
-      const reading = attached(() => view.executeJavaScript(scrollRead))
+      // Out of sight, where it's scrolled can still be read, for it to wake there, unless the
+      // page doesn't answer.
+      const reading = attached(() =>
+        Promise.race([view.executeJavaScript(scrollRead), wait(scrollReadMs)]),
+      )
       if (!reading) return standIn()
       const asked = {}
       resting = asked
@@ -700,6 +706,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       clearTimeout(freshening)
       resting = undefined
       if (page) for (const [type, listener] of listeners) page.removeEventListener(type, listener)
+      // Gone: a picture or a read arriving late finds no page of its own.
+      page = undefined
       root.remove()
     },
   }

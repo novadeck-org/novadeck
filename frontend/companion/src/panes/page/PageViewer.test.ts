@@ -196,14 +196,14 @@ describe("a page beside a terminal", () => {
     it("wakes a page with no picture for a while, then rests as its picture", async () => {
       const at = "http://localhost:4400/"
       const wakes: string[] = []
-      const asleep: Awake = { awake: false, wake: () => wakes.push("wake") }
+      const asleep: Awake = { awake: false, sleeps: true, wake: () => wakes.push("wake") }
       const rendered = show({ kind: "page", url: at, shown: 1, live: true }, true, {
         awake: asleep,
         pictures: [shot],
       })
       // No picture to rest as: the pane is asked to wake it.
       expect(wakes).toEqual(["wake"])
-      rendered.awake({ awake: true, wake: () => wakes.push("wake") })
+      rendered.awake({ awake: true, sleeps: true, wake: () => wakes.push("wake") })
       attached(pageOf(rendered.container), at)
       fire(pageOf(rendered.container), "did-stop-loading")
       rendered.awake(asleep)
@@ -213,7 +213,7 @@ describe("a page beside a terminal", () => {
         shot,
       )
       // Woken again by the pane, it's live under its picture.
-      rendered.awake({ awake: true, wake: () => {} })
+      rendered.awake({ awake: true, sleeps: true, wake: () => {} })
       expect(pageOf(rendered.container).getAttribute("src")).toBe(at)
       expect(rendered.container.querySelector(".browser-picture")).not.toBeNull()
     })
@@ -221,14 +221,14 @@ describe("a page beside a terminal", () => {
     it("wakes to show what changed when its agent shows it again", async () => {
       const at = "http://localhost:4401/"
       const wakes: string[] = []
-      const awake: Awake = { awake: true, wake: () => wakes.push("wake") }
+      const awake: Awake = { awake: true, sleeps: true, wake: () => wakes.push("wake") }
       const rendered = show({ kind: "page", url: at, shown: 1, live: true }, true, {
         awake,
         pictures: [shot],
       })
       attached(pageOf(rendered.container), at)
       fire(pageOf(rendered.container), "did-stop-loading")
-      const asleep: Awake = { awake: false, wake: () => wakes.push("wake") }
+      const asleep: Awake = { awake: false, sleeps: true, wake: () => wakes.push("wake") }
       rendered.awake(asleep)
       await settled()
       wakes.splice(0)
@@ -243,12 +243,12 @@ describe("a page beside a terminal", () => {
       const at = "http://localhost:4403/"
       const wakes: string[] = []
       const rendered = show({ kind: "page", url: at, shown: 1, live: true }, true, {
-        awake: { awake: true, wake: () => wakes.push("wake") },
+        awake: { awake: true, sleeps: true, wake: () => wakes.push("wake") },
         pictures: [shot],
       })
       attached(pageOf(rendered.container), at)
       fire(pageOf(rendered.container), "did-stop-loading")
-      rendered.awake({ awake: false, wake: () => wakes.push("wake") })
+      rendered.awake({ awake: false, sleeps: true, wake: () => wakes.push("wake") })
       await settled()
       wakes.splice(0)
       rendered.visible(false)
@@ -257,10 +257,27 @@ describe("a page beside a terminal", () => {
       expect(rendered.container.querySelector("webview")).toBeNull()
     })
 
+    it("isn't pictured outside a pane, where it never rests", async () => {
+      const at = "http://localhost:4404/"
+      const asked: string[] = []
+      const rendered = show({ kind: "page", url: at, shown: 1, live: true }, true, {
+        pictures: new Proxy([shot], {
+          get: (list, key, receiver) => {
+            if (key === "shift") asked.push("picture")
+            return Reflect.get(list, key, receiver) as unknown
+          },
+        }),
+      })
+      attached(pageOf(rendered.container), at)
+      fire(pageOf(rendered.container), "did-stop-loading")
+      await act(() => new Promise((resolve) => setTimeout(resolve, 1_200)))
+      expect(asked).toEqual([])
+    })
+
     it("stays live where its host takes no pictures", async () => {
       const at = "http://localhost:4402/"
       const rendered = show({ kind: "page", url: at, shown: 1, live: true }, true, {
-        awake: { awake: false, wake: () => {} },
+        awake: { awake: false, sleeps: true, wake: () => {} },
       })
       attached(pageOf(rendered.container), at)
       fire(pageOf(rendered.container), "did-stop-loading")

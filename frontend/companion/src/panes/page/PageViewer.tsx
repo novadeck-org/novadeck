@@ -42,7 +42,7 @@ const ShownPage = ({
     }),
     [page.url, page.shown, page.scroll],
   )
-  const { awake, wake } = useAwake()
+  const { awake, sleeps, wake } = useAwake()
   const { ref, viewer } = useViewerSlot(mountBrowser, {
     id,
     content,
@@ -50,7 +50,8 @@ const ShownPage = ({
     live: page.live,
     ...(page.snapshot ? { snapshot: { src: page.snapshot, alt: `${page.url} as shown` } } : {}),
     partition: pagesPartition,
-    ...(picture ? { picture } : {}),
+    // Only where it can rest: a picture nothing rests as costs for nothing.
+    ...(picture && sleeps ? { picture } : {}),
     awake,
     on: { navigate: setPlace, load: setLoad },
   })
