@@ -20,6 +20,7 @@ export const demoMurmurState: MurmurState = {
   sizes: downloadSizes,
   installing: null,
   check: null,
+  kept: false,
   unsupported: null,
   offers: 0,
   refused: null,

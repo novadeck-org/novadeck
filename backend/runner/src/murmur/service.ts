@@ -389,6 +389,7 @@ export class Murmur implements Describer {
     return {
       available: this.manifest !== undefined,
       installed,
+      kept: this.modelReady && !installed,
       enabled: this.settings.murmurSettings().enabled && installed,
       wanted: this.settings.murmurEnabledChoice() !== false,
       sizes: { engine: this.manifest?.size ?? 0, model: this.model.size },
@@ -517,6 +518,8 @@ export class Murmur implements Describer {
       this.uninstalling ||
       (this.updateFailedAt !== undefined && this.clock() - this.updateFailedAt < updateRetryMs) ||
       this.engineReady ||
+      // A check's verdict stands: nothing is downloaded behind it until a check is asked for.
+      this.unsupported()?.source === "check" ||
       manifest === undefined ||
       !this.settings.murmurSettings().enabled ||
       !this.modelReady
@@ -663,6 +666,9 @@ export class Murmur implements Describer {
 
   private async run(manifest: Manifest, signal: AbortSignal, engineOnly = false): Promise<void> {
     const program = programFile("llama-server")
+    // A model on disk before this install began is kept by a verdict: it may pass or be fixed,
+    // and it is 1.3 GB.
+    const hadModel = !engineOnly && (await exists(this.modelPath()))
     try {
       signal.throwIfAborted()
       if (!(await exists(join(engineFolder(this.directory, manifest.sha256), program)))) {
@@ -703,7 +709,8 @@ export class Murmur implements Describer {
       this.settings.saveMurmurSettings({ enabled: this.settings.murmurEnabledChoice() !== false })
       await this.refresh()
     } catch (error) {
-      if (error instanceof Unsupported && !signal.aborted) await this.giveUp(error.message)
+      if (error instanceof Unsupported && !signal.aborted)
+        await this.giveUp(error.message, hadModel)
       // Cancelling is the person's choice, not a failure.
       else if (!signal.aborted && !aborted(error)) {
         this.failure = explain(error).slice(0, 1024)
@@ -724,16 +731,25 @@ export class Murmur implements Describer {
   }
 
   // This computer can't run murmur: that is kept, and what the install downloaded goes, so
-  // the person is offered nothing to try again.
-  private async giveUp(reason: string): Promise<void> {
+  // the person is offered nothing to try again. A model that was on disk before the install
+  // began stays (the failure may pass or be fixed, and it is 1.3 GB): trying again fetches
+  // the engine alone, and uninstalling removes it. It is not "on" without a check, and the
+  // engine is not fetched again by itself: the choice is reset as installing does.
+  private async giveUp(reason: string, keepModel: boolean): Promise<void> {
     this.settings.saveMurmurUnsupported({
       reason: reason.slice(0, 1024),
       engine: this.manifest?.sha256 ?? "",
     })
     this.settings.saveMurmurCheck(null)
+    if (keepModel && this.settings.murmurEnabledChoice() !== false)
+      this.settings.saveMurmurSettings({ enabled: null })
     this.failure = null
     try {
-      await this.whileReplacing(() => removeContents(this.directory))
+      await this.whileReplacing(async () => {
+        await removeContents(this.directory, keepModel ? ["models"] : [])
+        // Models of an earlier pin, and downloads that never finished, go with the rest.
+        if (keepModel) await pruneModels(this.directory, [this.modelPath()])
+      })
     } catch {
       // Left behind, it only takes room; the verdict stands.
     }
@@ -741,8 +757,9 @@ export class Murmur implements Describer {
 
   private async fetchModel(signal: AbortSignal): Promise<void> {
     const total = this.model.size
-    this.progress({ step: "model", received: 0, total }, true)
+    // A model already there is not a step: the install's percentage would go backwards.
     if (!(await exists(this.modelPath()))) {
+      this.progress({ step: "model", received: 0, total }, true)
       await download({
         from: this.model.url,
         to: this.modelPath(),

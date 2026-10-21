@@ -93,13 +93,22 @@ export const AddonDetails = ({
 }: {
   readonly children: string
   // A quiet action under the reason, as "Check again".
-  readonly action?: { readonly label: string; readonly onClick: () => void }
+  readonly action?: {
+    readonly label: string
+    readonly onClick: () => void
+    readonly disabled?: boolean
+  }
 }): React.JSX.Element => (
   <details className={`${addonNoteClasses} px-4 pb-3`}>
     <summary className="cursor-pointer select-none">Details</summary>
     <p className="m-0 mt-1 break-words">{children}</p>
     {action && (
-      <button type="button" className="button link addon-action" onClick={action.onClick}>
+      <button
+        type="button"
+        className="button link addon-action"
+        disabled={action.disabled ?? false}
+        onClick={action.onClick}
+      >
         {action.label}
       </button>
     )}

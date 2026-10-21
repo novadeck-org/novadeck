@@ -1,5 +1,5 @@
 import { formatSize } from "@novadeck/core/addon-format"
-import type { MurmurState } from "@novadeck/core/murmur"
+import { murmurDownloadSize, type MurmurState } from "@novadeck/core/murmur"
 
 // What an installed murmur with no passed check says, beside Try again.
 export const murmurUncheckedText =
@@ -14,7 +14,7 @@ export const murmurInstallSize = ({ sizes }: MurmurState): number => sizes.engin
 
 // The note under Install.
 export const murmurDownloadNote = (state: MurmurState): string =>
-  `Downloads ${formatSize(murmurInstallSize(state))} once, then works offline.`
+  `Downloads ${formatSize(murmurDownloadSize(state))} once, then works offline.`
 
 // Where murmur runs, once a check has passed.
 export const deviceText = ({ device }: NonNullable<MurmurState["check"]>): string =>

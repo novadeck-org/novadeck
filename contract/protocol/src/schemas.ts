@@ -764,6 +764,10 @@ export const murmurState = z.strictObject({
   available: z.boolean(),
   // Whether the engine and the model are on disk; false until an install finishes.
   installed: z.boolean(),
+  // Whether the model is on disk though murmur isn't installed (the engine is gone): a
+  // verdict kept a model that was downloaded earlier, so trying again fetches the engine
+  // alone. The person can remove it with an uninstall.
+  kept: z.boolean(),
   // Whether the person turned murmur on; it needs to be installed.
   enabled: z.boolean(),
   // Whether the person wants murmur, installed or not: until they turn it off, the app
@@ -777,7 +781,8 @@ export const murmurState = z.strictObject({
   // Why this computer can't run murmur, technical and for a details view, once it is known:
   // the host saw only software rendering (`source: "host"`), or an install found no graphics
   // device that runs the model, or the engine could not load a library it needs
-  // (`source: "check"`; the downloads are then removed). Null while nothing says it can't. It
+  // (`source: "check"`; the engine and the downloads are then removed, but a model that was
+  // on disk before that install began stays, see `kept`). Null while nothing says it can't. It
   // is no failure to try again. An install is refused while the host's word holds; a check's
   // verdict stands until another check passes, which installing again runs, and an engine of
   // another build forgets it.
