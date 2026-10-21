@@ -407,11 +407,13 @@ with every safety check again at that time:
   A **changes item** (`show { changes: {} }`, kind `changes`) is a git repository as a
   set of diffs, the terminal's by default. An agent that works in another folder or
   worktree gives `changes: { path }`, a folder inside the repository (absolute, or from the
-  terminal's directory; a file stands for its folder), and `close` takes the same. The
-  item is keyed by the repository's root either way. It is the repository's its working tree against `HEAD` (the empty tree before
-  the first commit, whatever the repository's hash), so staged, unstaged and untracked
-  files, but not ignored ones, with renames found, whoever edited them. It is one item per
-  repository on a bar, keyed `changes:<repository root>` and named "Changes · <folder>"
+  terminal's directory; a file stands for its folder), and `close` takes the same, even
+  once that folder is gone (a worktree removed): the item shown from it is found by where
+  it was shown from. The item is the repository's working tree against `HEAD` (the empty
+  tree before the first commit, whatever the repository's hash), so staged, unstaged and
+  untracked files, but not ignored ones, with renames found, whoever edited them. It is
+  one item per repository on a bar, keyed `changes:<repository root>` (folded to lower
+  case on Windows) and named "Changes · <folder>"
   unless a title is given; showing it again updates it. Its detail counts the files and
   lines (untracked files that are listed without being read count as files, not lines)
   and follows each read the pane triggers. The content (`companions.content`) is read
@@ -438,7 +440,9 @@ with every safety check again at that time:
   The raw patch is read to at most 8 MiB, and git is ended there (its whole process group,
   as on a timeout): the file it cut in the middle is listed, and the files after it are
   asked for again without it (a few times), so one minified bundle takes no room from the
-  small edits after it. Untracked files come from `git ls-files --others`, read to 2 MiB
+  small edits after it (the file named is the last one read at the cut, so when many medium
+  files add up to the cap it can be one that would have fitted; the retries stop once the
+  diff budget is spent). Untracked files come from `git ls-files --others`, read to 2 MiB
   of names (only the first fit the 300 files, so the file count of a huge untracked tree
   is a lower bound), and none where `status.showUntrackedFiles` is `no`. Their contents
   are read a bounded amount in all (1 MiB each, 8 MiB per look); past that they are listed
@@ -468,7 +472,8 @@ with every safety check again at that time:
   (said in Novadeck's own words, with a hint to give `path`), git is not installed, or git
   refuses the folder or cannot read the change (then git's own first line of explanation
   follows, as for a folder another user owns); a repository that goes later
-  makes the content `missing`, and any other failure `unreadable`. On a Mac without the
+  makes the content `missing`, as does one whose own `.git` went and which is now a
+  folder of another repository; any other failure is `unreadable`. On a Mac without the
   Command Line Tools, `/usr/bin/git` is Apple's installer stub, so each attempt to show
   can fail with its message, and may bring up the installer dialog.
 

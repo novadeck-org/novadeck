@@ -25,6 +25,7 @@ import {
   displayed,
   readChange,
   repositoryOf,
+  samePlace,
   waitAfter,
 } from "./changes.js"
 import {
@@ -131,7 +132,8 @@ const inside = (folder: string, path: string): boolean => {
 const changesFailures = 2
 
 /** What keys the change of a repository on a bar: one item per repository. */
-const changesKey = (root: string): string => `changes:${root}`
+const changesKey = (root: string): string =>
+  `changes:${process.platform === "win32" ? root.toLowerCase() : root}`
 
 const planKey = (slot: Pick<PlanSlot, "agentSession" | "actor">): string =>
   `plan:${slot.agentSession}:${slot.actor ?? ""}`
@@ -812,8 +814,21 @@ export class CompanionItems {
       return page.ok ? { ok: true, key: pageKey(page.url.href), given: page.url.href } : page
     }
     if ("changes" in request) {
-      const root = await repositoryOf(resolve(place.cwd, request.changes.path ?? "."))
-      return root.ok ? { ok: true, key: changesKey(root.root), given: root.root } : root
+      const folder = resolve(place.cwd, request.changes.path ?? ".")
+      const root = await repositoryOf(folder)
+      if (root.ok) return { ok: true, key: changesKey(root.root), given: root.root }
+      if (root.kind !== "missing") return root
+      // The folder is gone (a worktree removed): the change shown from it is still on the
+      // bar, found by where it was shown from, as a file's is by the folders that remain.
+      const shown = this.records
+        .barItems(place.terminalId)
+        .find(
+          (item) =>
+            item.kind === "changes" &&
+            item.path !== null &&
+            (samePlace(item.path, folder) || inside(item.path, folder)),
+        )
+      return shown ? { ok: true, key: shown.pointerKey, given: shown.path ?? folder } : root
     }
     const key = await realPath(resolve(place.cwd, request.file.path))
     return { ok: true, key, given: request.file.path }

@@ -20,7 +20,13 @@ const emptyTrees = {
   sha256: "6ef19b41225c5369f1c104d45d8d85efa9b057b53b14b4b9b939dd74decc5321",
 } as const
 /** How long one git run may take (a test shortens it), and how much of its output is kept. */
-export const timing = { gitMs: 5_000 }
+export const timing = {
+  gitMs: 5_000,
+  /** A read slower than this makes the next wait longer (a test shortens it). */
+  slowMs: 1_000,
+  /** Called with the arguments of each git run (a test looks at them). */
+  saw: undefined as ((args: readonly string[]) => void) | undefined,
+}
 const metaBytes = 32 * 1024 * 1024
 // Only the first names of the untracked files are shown, so only so many are read.
 const namesBytes = 2 * 1024 * 1024
@@ -139,8 +145,8 @@ const killTree = (pid: number | undefined): void => {
 }
 
 // Runs git as the person would, with no shell, a fixed argument list and the environment
-// above. Switched off: a repository's fsmonitor hook program, external diff programs, text
-// conversion, a pager and prompts. Not switched off: clean filters (git-lfs, say) of
+// above. Switched off: a repository's file monitor hook program (git's own monitor stays,
+// as `limit.monitor` says), external diff programs, text conversion, a pager and prompts. Not switched off: clean filters (git-lfs, say) of
 // files whose stat changed, which run as in the person's own `git diff`. Output past
 // `cap` bytes ends the run: it is `cut` where `truncate`, else a failure.
 const git = (
@@ -158,24 +164,22 @@ const git = (
       clearTimeout(timer)
       done(run)
     }
-    const child = spawn(
-      program,
-      [
-        "-c",
-        "core.quotepath=off",
-        // A hook program named by the repository's config never runs; git's own monitor
-        // (`core.fsmonitor=true`), which big repositories rely on, may.
-        ...(limit.monitor ? [] : ["-c", "core.fsmonitor=false"]),
-        ...args,
-      ],
-      {
-        cwd,
-        env: gitEnv(),
-        detached: process.platform !== "win32",
-        windowsHide: true,
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    )
+    const full = [
+      "-c",
+      "core.quotepath=off",
+      // A hook program named by the repository's config never runs; git's own monitor
+      // (`core.fsmonitor=true`), which big repositories rely on, stays.
+      ...(limit.monitor ? [] : ["-c", "core.fsmonitor=false"]),
+      ...args,
+    ]
+    timing.saw?.(full)
+    const child = spawn(program, full, {
+      cwd,
+      env: gitEnv(),
+      detached: process.platform !== "win32",
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    })
     const chunks: Buffer[] = []
     let size = 0
     let cut = false
@@ -536,7 +540,7 @@ const failure = (kind: ChangeFailure["kind"], reason: string): ChangeFailure => 
 const reasonOf = (run: Extract<Run, { ok: false }>, doing: string): string => {
   if (run.kind === "no-git") return "Git isn't installed, so changes can't be shown."
   if (run.kind === "timeout") return `Git took too long to ${doing}.`
-  if (run.kind === "big") return `The changes are too large to ${doing}.`
+  if (run.kind === "big") return "The changes are too large to show."
   return `Git couldn't ${doing}${run.said ? `: ${JSON.stringify(run.said)}` : "."}`
 }
 
@@ -649,10 +653,13 @@ export const readChange = async (
   const configured = await git(
     root,
     ["config", "--get-regexp", "^(core\\.fsmonitor|status\\.showuntrackedfiles)$"],
-    { cap: 16 * 1024 },
+    // Reading the configuration never consults a file monitor; and it must not be told it is
+    // off, as git lists what is set on its command line last.
+    { cap: 16 * 1024, monitor: true },
   )
-  // Of the person's configuration: git's own file monitor stays (a hook program does not),
-  // and untracked files are not shown where status doesn't show them.
+  // Of the person's configuration: git's own file monitor stays (`core.fsmonitor=true`; a
+  // hook program named there never runs), and untracked files are not shown where status
+  // doesn't show them.
   const set = new Map<string, string>()
   if (configured.ok)
     for (const line of configured.out.split("\n")) {
@@ -708,7 +715,11 @@ export const readChange = async (
   // file is listed, and the files after it are asked for again, so it takes none of their
   // room. The retries are few; what is still unread then is listed too.
   let remaining = wanted
-  for (let attempt = 0; attempt < maxPatchRuns && remaining.length > 0; attempt += 1) {
+  for (
+    let attempt = 0;
+    attempt < maxPatchRuns && remaining.length > 0 && budget.left >= minLineCost;
+    attempt += 1
+  ) {
     // eslint-disable-next-line no-await-in-loop -- Each run follows the cut of the one before.
     const patch = await patchOf(root, base, remaining, monitor)
     if (!patch.ok) return failure("failed", reasonOf(patch, "read the changes"))
@@ -765,10 +776,12 @@ export const readChange = async (
   const slots = Math.max(0, maxChangedFiles - entries.length)
   if (names.length > slots || others.cut) truncated = true
   const reading = { left: untrackedReadBytes }
+  let kept = 0
   for (const name of names.slice(0, slots)) {
     // eslint-disable-next-line no-await-in-loop -- Each file is read in turn, within the budget.
     const file = await untracked(root, name, budget, reading)
     if (!file) continue
+    kept += 1
     if (file.listed) truncated = true
     files.push(file)
   }
@@ -786,7 +799,7 @@ export const readChange = async (
         oldPath: file.oldPath === null ? null : displayed(file.oldPath),
       })),
       truncated,
-      total: { files: entries.length + names.length, added, removed },
+      total: { files: entries.length + kept + Math.max(0, names.length - slots), added, removed },
     },
   }
 }
@@ -798,6 +811,12 @@ export const describeChange = (change: Change): { name: string; detail: string }
     `${change.total.files} ${change.total.files === 1 ? "file" : "files"}` +
     ` · +${change.total.added} −${change.total.removed}`,
 })
+
+/** Whether two paths name one folder; Windows folds case. */
+export const samePlace = (a: string, b: string): boolean =>
+  process.platform === "win32"
+    ? resolve(a).toLowerCase() === resolve(b).toLowerCase()
+    : resolve(a) === resolve(b)
 
 const unavailable = (reason: "missing" | "unreadable") => ({
   content: { state: "unavailable" as const, reason, size: null },
@@ -813,6 +832,8 @@ export const changesContent = async (
   if (root === null) return unavailable("missing")
   const found = await repositoryOf(root)
   if (!found.ok) return unavailable(found.kind === "missing" ? "missing" : "unreadable")
+  // A repository that lost its own .git is now a folder of another: that is not its change.
+  if (!samePlace(found.root, root)) return unavailable("missing")
   const read = await readChange(found.root)
   if (!read.ok) return unavailable("unreadable")
   const { change } = read
@@ -830,7 +851,6 @@ export const changesContent = async (
 }
 
 // A change read slower than this is polled less often; it is polled at most this seldom.
-const slowRead = 1_000
 const maxChangesWait = 15_000
 
 /**
@@ -839,4 +859,4 @@ const maxChangesWait = 15_000
  * took, up to 15 seconds, and the usual wait again as reads get fast.
  */
 export const waitAfter = (took: number, every: number): number =>
-  took > slowRead ? Math.min(maxChangesWait, Math.max(every, took * 4)) : every
+  took > timing.slowMs ? Math.min(maxChangesWait, Math.max(every, took * 4)) : every

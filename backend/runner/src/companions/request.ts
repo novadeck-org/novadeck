@@ -7,8 +7,8 @@ import { z } from "zod"
  * shares beside it: a title in place of the source's name, and `open` when the person
  * asked to see it. A `file` is a path, absolute or from the terminal's directory, and
  * for a text file the lines it points at; a `page` is its http(s) address, and the element
- * to bring into view once it loads; `changes` is the whole change in the terminal's
- * repository, with no options yet.
+ * to bring into view once it loads; `changes` is the whole change in a repository, the
+ * terminal's unless it gives the folder `path`.
  */
 // What every request takes: a short name to show, and whether the person asked to see it.
 const shared = { title: z.string().min(1).max(256).optional(), open: z.boolean().optional() }

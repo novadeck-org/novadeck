@@ -752,6 +752,71 @@ describe.skipIf(!hasGit)("a change read from a git repository", () => {
     }
     expect(await gone()).toBe(true)
   })
+
+  it("keeps git's own file monitor on, and forces a hook program off", async ({ repo }) => {
+    if (windows) return
+    repo.write("a.txt", "x\n")
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "base")
+    repo.write("a.txt", "y\n")
+    const runs = async (setting: string) => {
+      repo.git("config", "core.fsmonitor", setting)
+      const seen: (readonly string[])[] = []
+      timing.saw = (args) => seen.push(args)
+      try {
+        await readChange(repo.root)
+      } finally {
+        timing.saw = undefined
+      }
+      // The configuration read is never told the monitor is off: it would hide the setting.
+      return seen
+        .filter((args) => !args.includes("--get-regexp"))
+        .map((args) => args.includes("core.fsmonitor=false"))
+    }
+    const hook = join(repo.root, "..", "hook.sh")
+    writeFileSync(hook, "#!/bin/sh\n", { mode: 0o755 })
+    expect((await runs(hook)).every(Boolean)).toBe(true)
+    try {
+      const builtin = await runs("true")
+      expect(builtin.length).toBeGreaterThan(3)
+      expect(builtin.some(Boolean)).toBe(false)
+    } finally {
+      // The built-in monitor starts a daemon of its own for the repository.
+      try {
+        repo.git("fsmonitor--daemon", "stop")
+      } catch {
+        // None was started.
+      }
+    }
+  })
+
+  it("is not the change of a repository that lost its own .git and sits in another", async ({
+    repo,
+  }) => {
+    repo.write("outer.txt", "x\n")
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "base")
+    const inner = join(repo.root, "inner")
+    mkdirSync(inner)
+    execFileSync("git", ["init", "--quiet"], { cwd: inner })
+    expect((await changesContent(inner)).content).toMatchObject({ state: "ready" })
+    rmSync(join(inner, ".git"), { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })
+    expect((await changesContent(inner)).content).toMatchObject({
+      state: "unavailable",
+      reason: "missing",
+    })
+  })
+
+  it("counts only the untracked files it keeps", async ({ repo }) => {
+    repo.write("a.txt", "x\n")
+    const nested = join(repo.root, "nested")
+    mkdirSync(nested)
+    execFileSync("git", ["init", "--quiet"], { cwd: nested })
+    const read = await readChange(repo.root)
+    if (!read.ok) throw new Error(read.reason)
+    expect(read.change.files.map(({ path }) => path)).toEqual(["a.txt"])
+    expect(read.change.total.files).toBe(1)
+  })
 })
 
 describe("how long a change waits to be read again", () => {

@@ -109,7 +109,7 @@ describe("a close request", () => {
 })
 
 describe("a request for the changes", () => {
-  it("is changes {} with the shared title and open, and takes no option yet", () => {
+  it("is changes {} with the shared title and open, and takes only a folder", () => {
     expect(readRequest({ changes: {} })).toEqual({ ok: true, request: { changes: {} } })
     expect(readRequest({ changes: {}, title: "Work", open: true })).toEqual({
       ok: true,

@@ -21,6 +21,7 @@ import {
 
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
+import { timing } from "./changes.js"
 import type { PlanText } from "./content.js"
 import { CompanionItems, type TerminalPlace } from "./items.js"
 
@@ -1139,20 +1140,92 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     ).resolves.toMatchObject({ ok: true, kind: "changes" })
   })
 
-  it("tells a change unavailable once it has stayed unreadable, not at the first failure", async ({
+  it("closes a change by the folder it was shown from after that folder is gone", async ({
     fixture,
   }) => {
+    const { git, place } = repository(fixture)
+    const tree = join(fixture.directory, "wt")
+    git("worktree", "add", "--quiet", "-b", "other", tree)
+    const outside = { ...place, cwd: fixture.directory }
+    expect(await fixture.items.show(outside, { changes: { path: "wt" } })).toMatchObject({
+      ok: true,
+    })
+    git("worktree", "remove", "--force", tree)
+    await expect(
+      fixture.items.dismiss(outside, { changes: { path: "wt" } }),
+    ).resolves.toMatchObject({ ok: true, kind: "changes" })
+    expect(fixture.items.bar(place.terminalId)).toEqual([])
+  })
+
+  // Reads of a change that fail, a number in a row, then succeed with something new: the
+  // repository's HEAD is garbage until the read after the `failures`th starts.
+  const afterFailures = async (fixture: Fixture, failures: number, again = false) => {
     const { root, place } = repository(fixture)
     const shown = await fixture.items.show(place, { changes: {} })
-    const stream = fixture.items.content(shown.ok ? shown.id : "", false)
+    const itemId = shown.ok ? shown.id : ""
+    const stream = fixture.items.content(itemId, false)
     expect(await next(stream)).toMatchObject({ state: "ready" })
     const head = join(root, ".git", "HEAD")
     const good = readFileSync(head)
     writeFileSync(head, "garbage\n")
-    // The reads that fail say nothing until the failure has stayed.
-    expect(await next(stream)).toMatchObject({ state: "unavailable", reason: "unreadable" })
-    writeFileSync(head, good)
-    expect(await next(stream)).toMatchObject({ state: "ready" })
-    fixture.items.close(shown.ok ? shown.id : "")
+    let reads = 0
+    timing.saw = (args) => {
+      if (!args.includes("--show-toplevel")) return
+      reads += 1
+      if (reads === failures + 1) {
+        writeFileSync(head, good)
+        writeFileSync(join(root, "a.txt"), "one\ntwo\nrecovered\n")
+      }
+    }
+    try {
+      const first = await next(stream)
+      return { first, second: again ? await next(stream) : undefined }
+    } finally {
+      timing.saw = undefined
+      fixture.items.close(itemId)
+    }
+  }
+
+  it("keeps the last good change through one failed read", async ({ fixture }) => {
+    expect((await afterFailures(fixture, 1)).first).toMatchObject({ state: "ready" })
+  })
+
+  it("keeps the last good change through two failed reads in a row", async ({ fixture }) => {
+    expect((await afterFailures(fixture, 2)).first).toMatchObject({ state: "ready" })
+  })
+
+  it("says a change is unreadable at the third failed read in a row", async ({ fixture }) => {
+    const third = await afterFailures(fixture, 3, true)
+    expect(third.first).toMatchObject({ state: "unavailable", reason: "unreadable" })
+    expect(third.second).toMatchObject({ state: "ready" })
+  })
+
+  it("waits longer to read a change again after a slow read", async ({ fixture }) => {
+    if (process.platform === "win32") return
+    const { root, place, git } = repository(fixture)
+    writeFileSync(join(root, ".gitattributes"), "*.txt filter=slow\n")
+    git("add", "-A")
+    git("commit", "--quiet", "-m", "attributes")
+    git("config", "filter.slow.clean", "sleep 0.3; cat")
+    writeFileSync(join(root, "a.txt"), "one\ntwo\nthree\n")
+    const shown = await fixture.items.show(place, { changes: {} })
+    const stream = fixture.items.content(shown.ok ? shown.id : "", false)
+    const starts: number[] = []
+    timing.slowMs = 100
+    timing.saw = (args) => {
+      if (args.includes("--show-toplevel")) starts.push(Date.now())
+    }
+    try {
+      await next(stream)
+      writeFileSync(join(root, "b.txt"), "later\n")
+      await next(stream)
+    } finally {
+      timing.slowMs = 1_000
+      timing.saw = undefined
+      fixture.items.close(shown.ok ? shown.id : "")
+    }
+    // The usual wait is 10 ms here; a read of 0.3 s waits four times as long.
+    expect(starts.length).toBeGreaterThanOrEqual(2)
+    expect((starts.at(-1) ?? 0) - (starts.at(-2) ?? 0)).toBeGreaterThan(900)
   })
 })
