@@ -1,3 +1,4 @@
+import { viewModes } from "@novadeck/core/state"
 import type { ViewMode } from "@novadeck/core/types"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { views } from "@novadeck/toolkit/views"
@@ -101,20 +102,23 @@ export const ZenDock = ({
                 role="group"
                 aria-label="Workspace layout"
               >
-                {views
-                  .filter(({ id }) => enabledViews.includes(id))
-                  .map(({ id, label, icon: Icon }) => (
-                    <Tooltip key={id} content={label}>
-                      <button
-                        className="icon-button"
-                        aria-label={`${label} view`}
-                        aria-pressed={view === id}
-                        onClick={() => onViewChange(id)}
-                      >
-                        <Icon size={16} strokeWidth={1.6} />
-                      </button>
-                    </Tooltip>
-                  ))}
+                {viewModes
+                  .filter((id) => enabledViews.includes(id))
+                  .map((id) => {
+                    const { label, icon: Icon } = views[id]
+                    return (
+                      <Tooltip key={id} content={label}>
+                        <button
+                          className="icon-button"
+                          aria-label={`${label} view`}
+                          aria-pressed={view === id}
+                          onClick={() => onViewChange(id)}
+                        >
+                          <Icon size={16} strokeWidth={1.6} />
+                        </button>
+                      </Tooltip>
+                    )
+                  })}
               </div>
 
               <div className="separator mx-0.5 h-3 w-px" aria-hidden="true" />

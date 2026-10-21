@@ -686,7 +686,7 @@ describe("Canvas", () => {
         .click()
       await expect.element(view("Focus")).toBeChecked()
 
-      await page.getByRole("button", { name: "Back to Canvas" }).click()
+      await page.getByRole("button", { name: "Open in Canvas" }).click()
       await expect.element(view("Canvas")).toBeChecked()
       const back = await settled(() => boxOf(terminal("Checkout implementation")))
       expect(fillsView(back)).toBe(false)

@@ -39,7 +39,7 @@ describe("process windows", () => {
       await expect.element(terminal(name)).toHaveAttribute("data-process-window", program)
       await expect.element(headerName(name)).toBeVisible()
       await expect.poll(() => draftOf(name)).toBe(`Draft for ${program}`)
-      await expect.element(headerAction(name, "Back to Canvas")).toBeVisible()
+      await expect.element(headerAction(name, "Open in Canvas")).toBeVisible()
     },
   )
 })

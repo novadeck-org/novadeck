@@ -337,10 +337,10 @@ export const WindowShell = ({
           </Tooltip>
         )}
         {windowed && (
-          <Tooltip content={`Back to ${windowed.destination}${focusHint}`}>
+          <Tooltip content={`Open in ${windowed.destination}${focusHint}`}>
             <button
               className={`${headerActionClasses} terminal-view-action`}
-              aria-label={`Back to ${windowed.destination}`}
+              aria-label={`Open in ${windowed.destination}`}
               onClick={windowed.onOpen}
             >
               <Minimize2 size={12} />

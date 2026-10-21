@@ -289,7 +289,8 @@ export const Preferences = ({
                 switch.
               </p>
               <div className="view-preference-options mt-2.5 grid grid-cols-3 gap-2 max-[360px]:gap-1.5">
-                {views.map(({ id: mode, label, icon: Icon }) => {
+                {viewModes.map((mode) => {
+                  const { label, icon: Icon } = views[mode]
                   const checked = value.enabledViews.includes(mode)
                   const locked = checked && lastView
                   return (

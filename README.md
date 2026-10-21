@@ -87,7 +87,7 @@ canvas, as Show terminal on an Inbox item or a click on a desktop notification d
 the same way, from another session's camera too; it never flies back, so a terminal already
 visited stays, and going on to another keeps the way back to where the visit began, which the
 gesture on the header returns to. The header's maximize button opens Focus view; in Focus, its
-minimize button goes back to Grid or Canvas.
+minimize button opens Grid or Canvas.
 
 Click **New terminal** or use its keyboard shortcut to create and select a terminal
 immediately in any view, with or without Zen, ready to type in; F2 renames it. Focus

@@ -1,3 +1,4 @@
+import { viewModes } from "@novadeck/core/state"
 import type { ViewMode } from "@novadeck/core/types"
 import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
@@ -12,11 +13,11 @@ const captions: Record<ViewMode, string> = {
   canvas: "Spread out on a zoomable canvas.",
 }
 
-type View = ViewPresentation & { readonly caption: string }
+type View = ViewPresentation & { readonly id: ViewMode; readonly caption: string }
 
-const present = (layout: ViewPresentation): View => ({ ...layout, caption: captions[layout.id] })
-const views = layouts.map(present)
-const canvas = present(layouts[2])
+const present = (id: ViewMode): View => ({ id, ...layouts[id], caption: captions[id] })
+const views = viewModes.map(present)
+const canvas = present("canvas")
 
 // Until the person picks a layout, the preview shows each one in turn, once, and
 // settles back on Canvas. Hovering or focusing the preview holds the current step.
