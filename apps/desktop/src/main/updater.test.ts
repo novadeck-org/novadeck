@@ -1318,15 +1318,39 @@ describe("the update feed", () => {
   })
 
   it("leaves out what is not known or not plain text", () => {
-    expect(
-      checkHeaders("retry", { ...facts, osVersion: "", arch: "x\ny", locale: "" }),
-    ).toEqual({
+    expect(checkHeaders("retry", { ...facts, osVersion: "", arch: "x\ny", locale: "" })).toEqual({
       "x-novadeck-check": "retry",
       "x-novadeck-version": "1.4.0",
       "x-novadeck-build": "installed",
       "x-user-staging-id": "0",
     })
     expect(checkHeaders("retry", { ...facts, locale: "zh_Hans" })["x-novadeck-lang"]).toBe("zh")
+  })
+
+  // The library's own per-copy ID is replaced only because its headers go over the ones it
+  // makes for a check; the real library is asked, so an update to it that changes this
+  // fails here rather than sending the ID to novadeck.dev again.
+  it("replaces the update library's per-copy ID, as the library merges a check's headers", () => {
+    const require = createRequire(import.meta.url)
+    const out = dirname(require.resolve("electron-updater"))
+    const { AppUpdater } = require(join(out, "AppUpdater.js")) as {
+      AppUpdater: {
+        prototype: {
+          computeFinalHeaders(this: unknown, headers: Record<string, string>): unknown
+          getUpdateInfoAndProvider(): unknown
+        }
+      }
+    }
+    const merged = AppUpdater.prototype.computeFinalHeaders.call(
+      { requestHeaders: checkHeaders("launch", facts) },
+      { "x-user-staging-id": "6c1f5e1e-1111-4222-8333-944455556666" },
+    )
+
+    expect(merged).toEqual(checkHeaders("launch", facts))
+    // The check's own headers, which the library makes here: the ID, under this name.
+    expect(String(AppUpdater.prototype.getUpdateInfoAndProvider)).toMatch(
+      /computeFinalHeaders\(\{\s*"x-user-staging-id": stagingUserId\s*\}\)/,
+    )
   })
 })
 
@@ -1516,4 +1540,3 @@ describe("checking through novadeck.dev", () => {
     finish()
   })
 })
-
