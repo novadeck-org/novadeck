@@ -1474,8 +1474,38 @@ describe("checking through novadeck.dev", () => {
     updater.checkForUpdates = () => new Promise<void>((resolve) => (finish = resolve))
     await vi.advanceTimersByTimeAsync(checkIntervalMs)
     updater.emit("error", new Error("the download broke"))
-    expect(logged).toEqual(["The update check failed."])
     finish()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(logged).toEqual(["The update check failed."])
+  })
+
+  it("logs only the fallback line when a check through novadeck.dev fails during a download", async () => {
+    const { updater, logged } = checking()
+    await vi.advanceTimersByTimeAsync(firstCheckMs)
+    updater.downloadResult = () => new Promise(() => {})
+    updater.emit("update-available", { version: "1.5.0" })
+    updater.failFeed = (feed) => feed?.provider === "generic"
+    await vi.advanceTimersByTimeAsync(checkIntervalMs)
+    expect(logged).toEqual(["The update check through novadeck.dev failed; trying GitHub."])
+  })
+
+  it("checks the new channel at once when it was switched to during a check", async () => {
+    const { updater, offered, setChannel } = checking({ mode: "tell", channel: "stable" })
+    updater.checkForUpdates = () => {
+      updater.checks += 1
+      const early = updater.allowPrerelease
+      return new Promise((resolve) =>
+        setTimeout(() => {
+          updater.emit("update-available", { version: early ? "1.6.0" : "1.5.0" })
+          resolve(undefined)
+        }, 3000),
+      )
+    }
+    await vi.advanceTimersByTimeAsync(firstCheckMs + 100)
+    setChannel("early")
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(offered).toEqual(["available 1.6.0"])
+    expect(updater.checks).toBe(2)
   })
 
   it("sends only the first retry of a version to GitHub, then checks through the website again", async () => {

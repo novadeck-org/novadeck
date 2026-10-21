@@ -472,9 +472,11 @@ export type Updater = {
  * an `early` answer from the website that names a release older than one offered or taken
  * for download within `earlyTrustMs` is ignored, so a lagging answer never steps back
  * (per run, in memory); GitHub's answers and the stable channel's are taken as they are,
- * and an answer for a channel left during the check is dropped. The one retry of a
- * failed download goes to GitHub alone, so a feed that checks well but downloads badly
- * does not fail the same way twice. Without `feed` a check uses the updater's own
+ * and an answer for a channel left during the check is dropped, the channel's check
+ * then made again at once. The hold lasts while the newer release is offered or ready, not
+ * after its download failed. The check after a failed download's first failure, whichever
+ * that is, goes to GitHub alone, so a feed that checks well but downloads badly does not
+ * fail the same way twice. Without `feed` a check uses the updater's own
  * configuration.
  *
  * `logger` hears electron-updater's own messages; without one they are dropped.
@@ -550,11 +552,14 @@ export const checkForUpdates = (
   // The release not to download again: the one an install failed on, here or earlier.
   let failedOn = failedVersion
   // The release last offered in `tell` mode or taken for download, on the channel then
-  // followed and when, which an older answer from the website does not replace; see
-  // `earlyTrustMs`.
+  // followed and when (by the monotonic clock, so a clock change moves nothing), which an
+  // older answer from the website does not replace; see `earlyTrustMs`. Held on `stable`,
+  // it does not protect after a switch to `early`: the guard is for `early` alone.
   let held:
     | { readonly version: string; readonly channel: UpdateChannel; readonly at: number }
     | undefined
+  // Errors reported while a check through novadeck.dev is in flight, not yet logged.
+  const deferred: unknown[] = []
   // The channel the check in flight was made for.
   let checkedChannel = channel
   // Once an install has begun the app is on its way out, so the mark never goes back.
@@ -573,9 +578,10 @@ export const checkForUpdates = (
     // An install fails once; an error reported after it adds nothing to log or mark.
     if (failed) return
     if (downloaded === undefined || !installing) {
-      // A check through novadeck.dev that fails is logged as it falls back to GitHub; an
-      // error of a download under way is not that check's.
-      if (checking && via === "novadeck" && !ended && loading === undefined) return
+      // A check through novadeck.dev that fails is logged as it falls back to GitHub. Which
+      // error is the check's is known when it rejects, so the others, a download's, wait
+      // for that and are logged then.
+      if (checking && via === "novadeck" && !ended) return void deferred.push(error)
       return log("The update check failed.", error)
     }
     log("Installing the update failed.", error)
@@ -597,12 +603,12 @@ export const checkForUpdates = (
       via === "novadeck" &&
       following === "early" &&
       held?.channel === following &&
-      Date.now() - held.at < earlyTrustMs &&
+      performance.now() - held.at < earlyTrustMs &&
       isNewerVersion(held.version, info.version)
     )
       return
     if (mode === "tell") {
-      held = { version: info.version, channel: following, at: Date.now() }
+      held = { version: info.version, channel: following, at: performance.now() }
       return offer({ kind: "available", version: info.version, ...(allow ? { allow } : {}) })
     }
     // A release found while a download is under way waits for the next check.
@@ -619,7 +625,7 @@ export const checkForUpdates = (
       return
     }
     const { version } = info
-    held = { version, channel: following, at: Date.now() }
+    held = { version, channel: following, at: performance.now() }
     // The headers describe the check; the download of what it found carries none.
     updater.requestHeaders = null
     // A failed download is reported through the error event, which logs it.
@@ -730,6 +736,8 @@ export const checkForUpdates = (
       } catch (error) {
         // A quit ends the schedule; no new request starts after it.
         if (ended) throw error
+        const own = deferred.indexOf(error)
+        if (own >= 0) deferred.splice(own, 1)
         log("The update check through novadeck.dev failed; trying GitHub.", error)
       }
     }
@@ -753,6 +761,10 @@ export const checkForUpdates = (
       .finally(() => {
         checking = false
         updater.requestHeaders = null
+        for (const error of deferred.splice(0)) log("The update check failed.", error)
+        // A channel switched meanwhile found its check turned away, and the answer of this
+        // one was dropped: check again at once.
+        if (!ended && checkedChannel !== following) check("switch")
       })
   }
   let ended = false

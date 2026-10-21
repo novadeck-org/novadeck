@@ -98,13 +98,16 @@ answer for `early` can lag GitHub's by up to an hour (the site's own build), and
 distrusts its record after 6 hours and answers 503, so the app falls back. A wrong answer
 from the site, which only a bug of the site gives, can delay updates until it is fixed.
 The app does not step back to an older `early` release the website names within 6 hours
-of having offered or taken a newer one (kept per run, in memory): the answer is ignored,
+of having offered or taken a newer one (kept per run, in memory, on a monotonic clock, and
+only while that release is offered or ready: a failed download of it clears the hold): the answer is ignored,
 with no download, no change of offer and nothing cleared, so a lagging answer cannot
 replace a newer release found through GitHub. After 6 hours the older answer is taken, as
 the release may have been withdrawn or, on macOS, rejected. GitHub's answers and the
 `stable` site's are taken as they are, and the answer of a check made for a channel the
-person has left meanwhile is dropped. The one retry of a failed download goes to GitHub alone, so a feed that checks well but downloads badly does not fail the same way twice; a version's later
-failures do not pin the copy to GitHub. Portable copies check the same way. With no
+person has left meanwhile is dropped. The check that follows a version's first failed download, whichever it is (the retry, a
+switch's or the hourly one), goes to GitHub alone, so a feed that checks well but
+downloads badly does not fail the same way twice; the retry after a macOS prepare failure
+goes through the site, and a version's later failures do not pin the copy to GitHub. Portable copies check the same way. With no
 repository in `app-update.yml` there is nothing to fall back to, so checks stay on the
 updater's own configuration.
 
@@ -666,8 +669,8 @@ full one.
   it in System Settings, and the page offers the release as "Update available".
 - **A channel switch does not cancel work in progress.** An `early` build that is already
   downloading a prerelease when the person switches to `stable` finishes the download and
-  installs it on quit. The same switch made during an in-flight check can use the old
-  channel's answer; the next check, within the hour, corrects it.
+  installs it on quit. The same switch made during an in-flight check drops that
+  check's answer, and the new channel is checked at once when it ends.
 - **Offers are not retracted.** After switching from `early` to `stable`, an `available`
   offer for an early-only release stays until a later check offers another version; the
   bridge has no way to withdraw one. A downloaded update stays `ready` as well, unless a stable release newer than the running
