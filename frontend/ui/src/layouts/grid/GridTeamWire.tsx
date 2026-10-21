@@ -59,8 +59,8 @@ export const GridTeamWire = ({
   }, [geometry])
   // The routes are worked out again each time the tiles come to rest, by the timer or by
   // landing back where they were, and when a team changes: not on every frame of a resize,
-  // while they are hidden anyway, nor on every update of the roster that hands over the
-  // same boxes anew.
+  // while they are hidden anyway (only once, as the tiles start to move), nor on every
+  // update of the roster that hands over the same boxes anew.
   const resting = still === geometry ? geometry : "moving"
   const routes = useMemo(
     () => teamRoutes(boxes, teams, gap, width),

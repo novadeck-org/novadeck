@@ -125,7 +125,8 @@
      screen pixels at any zoom. Beneath the windows (their z-index is never below 0), and it
      takes no pointer. The recipe is the sidebar's (team-wire.css), with its tokens:
      --team-wire-fg (strong), --team-wire-glow (item-selected-indicator-shadow, then none),
-     --team-wire-pulse-fg (strong-hover, then strong). Lines appear as they are; only the
+     --team-wire-pulse-fg (strong-hover, then strong), and its --team-wire-blink hook (how
+     long the cursor blinks before the pulse leaves it). Lines appear as they are; only the
      cursor's blink and the pulse of a selection move. A wire recedes with its team's windows
      unless its team is the selected one, as they do. */
   .canvas-team-wire {
