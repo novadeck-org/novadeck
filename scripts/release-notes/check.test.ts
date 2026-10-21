@@ -125,17 +125,23 @@ describe("the checks on a model's answer", () => {
     expect(checkOutput(accented, "promote", allowed).ok).toBe(true)
   })
 
-  it("drops a title over 48 characters or a line over 140, and keeps the rest", () => {
+  it("drops a highlight past 36/90 characters or a line past 140, and keeps the rest", () => {
     const title = (text: string): ModelOutput => ({
       ...good,
       highlights: [{ ...good.highlights[0]!, title: text }],
     })
-    expect(droppedFor(title("x".repeat(48)))).toEqual([])
-    expect(droppedFor(title("x".repeat(49)))).toHaveLength(1)
+    const short = (line: string): ModelOutput => ({
+      ...good,
+      highlights: [{ ...good.highlights[0]!, line }],
+    })
+    expect(droppedFor(title("x".repeat(36)))).toEqual([])
+    expect(droppedFor(title("x".repeat(37)))).toHaveLength(1)
+    expect(droppedFor(short("x".repeat(90)))).toEqual([])
+    expect(droppedFor(short("x".repeat(91)))).toHaveLength(1)
     expect(droppedFor(withChange("x".repeat(140)))).toEqual([])
     expect(droppedFor(withChange("x".repeat(141)))).toHaveLength(1)
     expect(droppedFor(withChange("  "))).toHaveLength(1)
-    const checked = check(title("x".repeat(49)))
+    const checked = check(title("x".repeat(37)))
     expect(checked).toMatchObject({ ok: true, output: { highlights: [], changes: good.changes } })
   })
 

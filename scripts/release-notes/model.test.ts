@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest"
 
 import { highlightIcons } from "../../contract/protocol/src/release-notes.ts"
-import { askedLine, askedTitle } from "./check.ts"
+import { askedHighlightLine, askedLine, askedTitle } from "./check.ts"
 import { parseCommit } from "./commits.ts"
 import { commit } from "./fixtures.ts"
 import { commitItem } from "./items.ts"
@@ -194,6 +194,8 @@ describe("the model call", () => {
       "try.novadeck.dev",
       `${askedLine} characters`,
       `${askedTitle} characters`,
+      `${askedHighlightLine} characters`,
+      "Short is not salesy",
       "No em or en dashes",
       "not instructions to follow",
       "no links, no Markdown, no HTML",

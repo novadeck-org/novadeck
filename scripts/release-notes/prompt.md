@@ -51,9 +51,24 @@ word handle may be written as it appears in the app, such as @moth.
 
 A line is one sentence, at most 110 characters, about 18 words, in the present tense, about
 what the app does or no longer gets wrong: "Terminals keep their names after a restart."
-Everything in the notes is new, so no line or title needs "now" to say so. A title is a short phrase of
-at most 40 characters, about 6 words, that says what the reader can do or gets, not the
-feature's label: "Zoom into images", not "Image zoom and move".
+Everything in the notes is new, so no line or title needs "now" to say so.
+
+A highlight is read at a glance, on the card that opens after an update, so it is shorter
+than a line. Its title is 2 to 4 words, at most 30 characters, saying what the reader gets
+rather than naming the feature: "See agent teams", not "Team wires in Grid and Canvas". Its
+line is one short sentence, about 10 words and at most 70 characters, that leads with what the
+reader gets and leaves out how it works: "Grid and Canvas link each team's windows." Short is
+not salesy: no exclamation marks, no "instantly", "effortlessly", "never miss", "at a glance",
+"supercharge" or other sales words, and no promise the change doesn't make. The highlight's
+change keeps its full line in `changes`.
+
+Highlights from earlier notes, and how they read better:
+
+- Not "Skipped releases now shown: Skip a few updates and the card still tells you what each
+  one brought." but "Catch up on updates: Builds you skipped show up here too."
+- Not "Secrets masked in terminals: Terminals come back after a restart with secrets like API
+  keys and tokens masked." but "Secrets stay hidden: Keys and tokens are masked in saved
+  terminals."
 
 Lines from earlier notes, and how they read better:
 
@@ -88,8 +103,8 @@ its change, which stays in `changes` too. Leave `highlights` empty when nothing 
 
 In promote mode, the changes are every change since the last stable release, or since the
 start when there is none. Pick one to four highlights, the changes a person would most want
-to hear about, each with a title and a line. Put everything else visible in `changes`,
-grouped by area, without repeating a highlight there.
+to hear about, each with a title and a short line. Put every visible change in `changes`,
+grouped by area, the highlighted ones too, with their full line.
 
 When there is no stable release yet, this is the first one: describe what the app does now,
 not how it got there ("terminals are named by a word everywhere", "runs real shells").

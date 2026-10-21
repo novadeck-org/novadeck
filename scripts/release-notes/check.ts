@@ -10,11 +10,13 @@ import { type ModelOutput } from "./model.ts"
 // What the prompt asks for, and the most the check takes. The cheaper model runs past the asked
 // length about a quarter of the time, by the clause that says what a change is for, and those
 // are often its best lines; a line this long is still three lines on the card. Past these, the
-// line is dropped.
-export const askedTitle = 40
+// line is dropped. A highlight is read at a glance on the card, so its line is shorter.
+export const askedTitle = 30
 export const askedLine = 110
-export const maxTitle = 48
+export const askedHighlightLine = 70
+export const maxTitle = 36
 export const maxLine = 140
+export const maxHighlightLine = 90
 // The most the notes' schema holds (contract/protocol/src/release-notes.ts): an answer past
 // these would pass here and throw when the block is written.
 export const maxHighlights = 4
@@ -120,23 +122,24 @@ export const checkOutput = (
         ? `a line citing no pull request or more than ${maxPrs}`
         : item.prs.some((pr) => !allowed.has(pr))
           ? "a line citing a pull request that was not given"
-          : (title !== undefined && (!title || title.length > maxTitle)) ||
-              !line ||
-              line.length > maxLine
-            ? `a title or line outside 1 to ${maxTitle}/${maxLine} characters`
-            : markup.test(text) ||
-                autolinked.test(text) ||
-                [title, line].some((part) => part !== undefined && structural.test(part))
-              ? "a markup character"
-              : topic
-                ? `an excluded topic ${topic}`
-                : title === undefined && !isArea("area" in item ? item.area : "")
-                  ? "an area that is not one of ours"
-                  : title !== undefined &&
-                      kind === "release" &&
-                      !item.prs.some((pr) => features.has(pr))
-                    ? "a release's highlight that tells no feature"
-                    : undefined
+          : title !== undefined &&
+              (!title || title.length > maxTitle || !line || line.length > maxHighlightLine)
+            ? `a highlight's title or line outside 1 to ${maxTitle}/${maxHighlightLine} characters`
+            : !line || line.length > maxLine
+              ? `a line outside 1 to ${maxLine} characters`
+              : markup.test(text) ||
+                  autolinked.test(text) ||
+                  [title, line].some((part) => part !== undefined && structural.test(part))
+                ? "a markup character"
+                : topic
+                  ? `an excluded topic ${topic}`
+                  : title === undefined && !isArea("area" in item ? item.area : "")
+                    ? "an area that is not one of ours"
+                    : title !== undefined &&
+                        kind === "release" &&
+                        !item.prs.some((pr) => features.has(pr))
+                      ? "a release's highlight that tells no feature"
+                      : undefined
     if (reason) {
       dropped.push(reason)
       continue
