@@ -55,7 +55,25 @@ export type DiffContent = {
 type Place = {
   readonly top: number
   readonly lefts: Readonly<Record<string, number>>
-  readonly anchor?: { readonly file: string; readonly row: number; readonly offset: number }
+  readonly anchor?: Anchor
+}
+
+/**
+ * The row at the top: its file, and its line there with its kind and text, which find it
+ * again when lines come or go above it; and its place among the file's rows, which is where
+ * it is when the line is no more nor anything near it. A `row` of -1 is the file itself.
+ * The line is the old side's number for a row that is, or was, in the base (a kept or
+ * removed line, a hunk's start for its header), which an edit of the working tree leaves
+ * as it was, and the new side's for an added line, which edits above move: those are found
+ * by their text first.
+ */
+type Anchor = {
+  readonly file: string
+  readonly row: number
+  readonly offset: number
+  readonly line?: number
+  readonly kind?: "context" | "add" | "remove" | "hunk"
+  readonly text?: string
 }
 
 type DiffState = { readonly diff: Place }
@@ -69,7 +87,9 @@ const isDiffState = (state: unknown): state is DiffState => {
     anchor === undefined ||
     (typeof anchor.file === "string" &&
       typeof anchor.row === "number" &&
-      typeof anchor.offset === "number")
+      typeof anchor.offset === "number" &&
+      (anchor.line === undefined || typeof anchor.line === "number") &&
+      (anchor.text === undefined || typeof anchor.text === "string"))
   )
 }
 
@@ -217,6 +237,77 @@ type Entry = {
 const complete = (entry: Entry): boolean =>
   entry.drawn.every((each) => each.next >= each.hunk.lines.length)
 
+// A part of a file as it is drawn: a hunk's header (`line` -1) or one of its rows.
+type Stop = { readonly hunk: number; readonly line: number }
+
+// The part of the file at an index among its drawn headers and rows.
+const stopAt = (entry: Entry, index: number): Stop | undefined => {
+  let at = 0
+  for (const [hunk, each] of entry.drawn.entries()) {
+    const count = 1 + each.rows.length
+    if (index < at + count) return { hunk, line: index - at - 1 }
+    at += count
+  }
+  return undefined
+}
+
+const elementOf = (entry: Entry, { hunk, line }: Stop): Element | undefined =>
+  line < 0 ? entry.drawn[hunk]?.body.firstElementChild || undefined : entry.drawn[hunk]?.rows[line]
+
+// What a stop is, to find it again: its line, kind and text.
+const describeStop = (
+  entry: Entry,
+  { hunk, line }: Stop,
+): Omit<Anchor, "file" | "row" | "offset"> => {
+  const { hunk: data } = entry.drawn[hunk]!
+  if (line < 0) return { line: data.oldStart, kind: "hunk", text: "" }
+  let oldLine = data.oldStart
+  let newLine = data.newStart
+  for (const before of data.lines.slice(0, line)) {
+    if (before.kind !== "add") oldLine += 1
+    if (before.kind !== "remove") newLine += 1
+  }
+  const { kind, text } = data.lines[line]!
+  return { line: kind === "add" ? newLine : oldLine, kind, text }
+}
+
+// Where an anchor's line is now: that line, else the nearest one of its side, preferring
+// the same kind and text; an added line is found by its text first.
+const findStop = (entry: Entry, anchor: Anchor): Stop | undefined => {
+  if (anchor.line === undefined || anchor.kind === undefined) return undefined
+  let best: Stop | undefined
+  let bestScore = Infinity
+  const consider = (stop: Stop, score: number): void => {
+    if (score >= bestScore) return
+    best = stop
+    bestScore = score
+  }
+  for (const [hunk, each] of entry.drawn.entries()) {
+    if (anchor.kind === "hunk") {
+      consider({ hunk, line: -1 }, Math.abs(each.hunk.oldStart - anchor.line))
+      continue
+    }
+    let oldLine = each.hunk.oldStart
+    let newLine = each.hunk.newStart
+    for (const [line, row] of each.hunk.lines.entries()) {
+      const added = anchor.kind === "add"
+      if ((row.kind === "add") === added) {
+        const distance = Math.abs((added ? newLine : oldLine) - anchor.line)
+        const same = row.text === anchor.text
+        consider(
+          { hunk, line },
+          added
+            ? (same ? 0 : 1_000_000) + distance
+            : distance * 4 + (row.kind === anchor.kind ? 0 : 2) + (same ? 0 : 1),
+        )
+      }
+      if (row.kind !== "add") oldLine += 1
+      if (row.kind !== "remove") newLine += 1
+    }
+  }
+  return best
+}
+
 export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }) => {
   const document = element.ownerDocument
   const root = document.createElement("div")
@@ -234,6 +325,8 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
   // The files as drawn, by path and in order.
   let entries = new Map<string, Entry>()
   let order: Entry[] = []
+  // The files' keys as they were before the latest change.
+  let previousKeys: string[] = []
   // How far each file's lines are scrolled sideways, by key, as their scrolling says: never
   // read back from the page, where a file out of sight has no layout to ask.
   const lefts = new Map<string, number>()
@@ -354,9 +447,8 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
   const topOf = (part: Element): number =>
     part.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop
 
-  const stopsOf = (entry: Entry): Element[] => [
-    ...entry.section.querySelectorAll(".diff-hunk-head, .diff-line"),
-  ]
+  const stopsOf = (entry: Entry): NodeListOf<Element> =>
+    entry.section.querySelectorAll(".diff-hunk-head, .diff-line")
 
   // What the sideways scrolls are, for the files that are scrolled.
   const leftsNow = (): Record<string, number> =>
@@ -381,10 +473,16 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
     const stops = stopsOf(entry)
     const row = Math.min(firstBelow(stops, base), Math.max(stops.length - 1, 0))
     const at = stops[row] ?? entry.section
+    const stop = stopAt(entry, row)
     return {
       top: root.scrollTop,
       lefts: leftsNow(),
-      anchor: { file: entry.key, row, offset: at.getBoundingClientRect().top - base },
+      anchor: {
+        file: entry.key,
+        row,
+        offset: at.getBoundingClientRect().top - base,
+        ...(stop && describeStop(entry, stop)),
+      },
     }
   }
 
@@ -393,8 +491,16 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
   const apply = (place: Place): void => {
     const entry = place.anchor && entries.get(place.anchor.file)
     if (entry && place.anchor) {
-      const stops = stopsOf(entry)
-      const at = stops[Math.min(place.anchor.row, stops.length - 1)] ?? entry.section
+      // The line it was at, else the row it was at, else the file.
+      let at: Element | undefined = entry.section
+      if (place.anchor.row >= 0) {
+        const found = findStop(entry, place.anchor)
+        const stops = stopsOf(entry)
+        at =
+          (found && elementOf(entry, found)) ||
+          stops[Math.min(place.anchor.row, stops.length - 1)] ||
+          entry.section
+      }
       root.scrollTop = topOf(at) - place.anchor.offset
     } else root.scrollTop = place.top
   }
@@ -421,10 +527,25 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
     },
   )
 
+  // A place whose file is gone goes to the top of the file that took its place: the next
+  // in order, else the one before.
+  const settled = (place: Place): Place => {
+    const gone = place.anchor?.file
+    if (gone === undefined || entries.has(gone)) return place
+    const at = previousKeys.indexOf(gone)
+    const near = [...previousKeys.slice(at + 1), ...previousKeys.slice(0, at).toReversed()].find(
+      (key) => entries.has(key),
+    )
+    if (at < 0 || near === undefined) return { top: place.top, lefts: place.lefts }
+    return { ...place, anchor: { file: near, row: -1, offset: 0 } }
+  }
+
   // Goes to a place now, or when the viewer next has a size.
-  const goTo = (place: Place): void => {
+  const goTo = (asked: Place): void => {
+    const place = settled(asked)
     lastPlace = place
-    for (const [key, left] of Object.entries(place.lefts)) lefts.set(key, left)
+    for (const [key, left] of Object.entries(place.lefts))
+      if (entries.has(key)) lefts.set(key, left)
     if (root.clientHeight) {
       pending = undefined
       hold(() => apply(place))
@@ -561,6 +682,7 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
     clearTimeout(timer)
     // A file that is as it was keeps its rows, with their colours and what is left to draw.
     const before = entries
+    previousKeys = order.map((entry) => entry.key)
     entries = new Map()
     const keys = keysOf(shown.files)
     order = shown.files.map((file, index) => {
@@ -570,6 +692,7 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
       entries.set(key, entry)
       return entry
     })
+    for (const key of lefts.keys()) if (!entries.has(key)) lefts.delete(key)
     for (const gone of before.values())
       if (entries.get(gone.key) !== gone) {
         if (gone.scroller) {
@@ -665,12 +788,18 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
     : undefined
 
   // The place a viewer without a size was to go back to, once it has one.
+  let wakeFrame: number | undefined
   const wake = view?.ResizeObserver
     ? new view.ResizeObserver(() => {
-        if (!pending || !root.clientHeight) return
-        const place = pending
-        pending = undefined
-        hold(() => apply(place))
+        if (!pending || !root.clientHeight || wakeFrame !== undefined) return
+        // Not in the observer's own callback, which would resize what it watches.
+        wakeFrame = view.requestAnimationFrame(() => {
+          wakeFrame = undefined
+          if (!alive || !pending || !root.clientHeight) return
+          const place = pending
+          pending = undefined
+          hold(() => apply(place))
+        })
       })
     : undefined
   wake?.observe(root)
@@ -697,6 +826,7 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
       clearTimeout(timer)
       if (frame !== undefined) view?.cancelAnimationFrame(frame)
       root.removeEventListener("scroll", scrolled, { capture: true })
+      if (wakeFrame !== undefined) view?.cancelAnimationFrame(wakeFrame)
       visible?.disconnect()
       wake?.disconnect()
       sizes?.disconnect()

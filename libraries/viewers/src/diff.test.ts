@@ -111,6 +111,16 @@ const topRow = (root: HTMLElement): string => {
   )
 }
 
+// The text of the line at the top of the viewer, without its numbers.
+const topText = (root: HTMLElement): string => {
+  const base = root.getBoundingClientRect().top
+  return (
+    [...root.querySelectorAll(".diff-line")]
+      .find((row) => row.getBoundingClientRect().bottom > base + 1)
+      ?.querySelector(".diff-text")?.textContent ?? ""
+  )
+}
+
 // Many files of different sizes, alternating long and short; `edits` replace some by index.
 const many = (edits: Record<number, DiffFile> = {}): DiffFile[] =>
   Array.from({ length: 60 }, (_, at) => edits[at] ?? sized(`f${at}.txt`, at % 2 === 0 ? 80 : 2))
@@ -128,6 +138,10 @@ const withLines = (path: string, count: number, extra: number, at: number): Diff
   ]
   return file(path, { hunks: [hunkOf(1, lines)] })
 }
+
+// A file like `sized`, from which the first `drop` lines are gone.
+const withoutFirst = (path: string, count: number, drop: number): DiffFile =>
+  file(path, { hunks: [hunkOf(drop + 1, sized(path, count).hunks[0]!.lines.slice(drop))] })
 
 describe("the diff viewer", () => {
   context("what it shows", () => {
@@ -430,16 +444,52 @@ describe("the diff viewer", () => {
       }
     })
 
-    it("stays in the file read when rows above the row are added or taken away", async () => {
+    it("keeps the same line on top when lines come or go above it in the file read", async () => {
       const first = await reading()
-      for (const read of [withLines("f16.txt", 80, 6, 10), sized("f16.txt", 40)]) {
+      const line = topText(first.root)
+      expect(line).toContain("f16.txt line 3")
+      for (const read of [
+        withLines("f16.txt", 80, 10, 10),
+        withoutFirst("f16.txt", 80, 12),
+        withLines("f16.txt", 80, 3, 0),
+      ]) {
         first.viewer.update(change(many({ 16: read })))
         // eslint-disable-next-line no-await-in-loop -- Each update settles before the next.
         await frame()
         // eslint-disable-next-line no-await-in-loop -- Each update settles before the next.
         await frame()
-        expect(topRow(first.root)).toContain("f16.txt")
+        expect(topText(first.root)).toBe(line)
       }
+    })
+
+    it("goes to the top of the file that takes the place of the one read, when it is gone", async () => {
+      const first = await reading()
+      const without = (gone: number) => many().filter((_, at) => at !== gone)
+      first.viewer.update(change(without(16)))
+      await frame()
+      await frame()
+      // The next file in order, whose top is on show.
+      expect(topRow(first.root)).toContain("f17.txt")
+      first.viewer.update(change(many()))
+      await frame()
+      // None after it now: the one before.
+      first.viewer.update(change(many().slice(0, 17)))
+      await frame()
+      await frame()
+      expect(topRow(first.root)).toContain("f16.txt")
+    })
+
+    it("starts a file at the left again when it comes back by the same path", async () => {
+      const wide = sized("a.txt", 40, ` ${"x".repeat(400)}`)
+      const first = mount(change([wide, sized("b.txt", 5)]))
+      await frame()
+      first.root.querySelector<HTMLElement>(".diff-lines")!.scrollLeft = 200
+      await frame()
+      first.viewer.update(change([sized("b.txt", 5)]))
+      first.viewer.update(change([wide, sized("b.txt", 5)]))
+      await frame()
+      await frame()
+      expect(first.root.querySelector<HTMLElement>(".diff-lines")!.scrollLeft).toBe(0)
     })
 
     it("is kept by an update while the viewer has no size, the file read changing", async () => {
@@ -454,6 +504,27 @@ describe("the diff viewer", () => {
       await frame()
       await frame()
       expect(topRow(first.root)).toBe(first.row)
+    })
+
+    it("raises no window error when it is hidden, updated and shown", async () => {
+      const errors: string[] = []
+      const listener = (event: ErrorEvent): void => void errors.push(event.message)
+      window.addEventListener("error", listener)
+      try {
+        const first = await reading()
+        for (let times = 0; times < 3; times += 1) {
+          first.host.style.display = "none"
+          first.viewer.update(change(many({ 16: sized("f16.txt", 90 + times) })))
+          first.host.style.display = "flex"
+          // eslint-disable-next-line no-await-in-loop -- Each round settles before the next.
+          await frame()
+          // eslint-disable-next-line no-await-in-loop -- Each round settles before the next.
+          await frame()
+        }
+        expect(errors).toEqual([])
+      } finally {
+        window.removeEventListener("error", listener)
+      }
     })
 
     it("keeps each file's sideways scroll, by its path, across updates, hiding and a new viewer", async () => {
