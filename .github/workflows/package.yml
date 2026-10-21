@@ -597,6 +597,45 @@ jobs:
             exit 1
           fi
 
+      # The engines carry the C runtime inside them (engines/ggml-build): one that imports it
+      # needs the Visual C++ redistributable, which a computer may lack or have older than the
+      # build's. The checks above ran on a runner that has it, so they could not tell.
+      - name: Check Engines' C Runtime (Windows)
+        if: matrix.target == 'win'
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+          $dumpbin = & $vswhere -latest -products * -find "VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe" | Select-Object -First 1
+          if (-not $dumpbin) {
+            Write-Output "::error::dumpbin was not found."
+            exit 1
+          }
+          $failed = $false
+          foreach ($folder in "$env:RUNNER_TEMP\voice-engine", "$env:RUNNER_TEMP\murmur-engine") {
+            $count = 0
+            foreach ($file in Get-ChildItem $folder -Recurse -Include *.dll, *.exe) {
+              $count++
+              $imports = & $dumpbin /nologo /dependents $file.FullName
+              if ($LASTEXITCODE -ne 0) {
+                Write-Output "::error::dumpbin could not read $($file.Name)."
+                $failed = $true
+                continue
+              }
+              $runtime = $imports | Select-String -Pattern '^\s+((vcruntime|msvcp|concrt|vcomp)\S*\.dll)'
+              if ($runtime) {
+                $names = ($runtime | ForEach-Object { $_.Matches[0].Groups[1].Value }) -join ", "
+                Write-Output "::error::$($file.Name) needs the Visual C++ redistributable ($names)."
+                $failed = $true
+              }
+            }
+            Write-Output "Checked $count files in $folder."
+            if ($count -eq 0) {
+              Write-Output "::error::No engine files were found in $folder."
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
+
       # The relay is built with the Rust its rust-toolchain.toml names; on macOS as one
       # binary for both architectures. macOS signs with the keychain's identity on its own;
       # Windows signs when given the Azure account, which goes to electron-builder through

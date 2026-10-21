@@ -1,7 +1,7 @@
 import type { WorkspaceTarget } from "@novadeck/core/types"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { createLucideIcon, Minus, X } from "lucide-react"
-import type { ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import type { BarMember } from "./bar"
 import type { MailHandle } from "./panes/messages/mail"
@@ -17,28 +17,32 @@ const Restore = createLucideIcon("restore", [
 ])
 
 // What the pane does with what it shows, at the end of its header, as a window's title
-// bar does on Windows: minimizes the pane back to the taskbar, as Escape does; undocks
-// what it shows into a window of its own, where it can; and closes it, off the taskbar,
-// as the taskbar's menu does.
+// bar does on Windows: minimizes it back to the taskbar, uncovering what's open behind
+// it; undocks it into a window of its own, where it can; and closes it, off the taskbar,
+// as the taskbar's menu does. Escape hides the whole pane, which is the same as
+// minimizing while nothing's behind.
 const PaneActions = ({
   name,
+  behind,
   onUndock,
-  onHide,
+  onMinimize,
   onClose,
 }: {
   // What the pane shows, as closing it names it.
   name: string
+  // Whether something's open behind it.
+  behind: boolean
   onUndock: (() => void) | undefined
-  onHide: () => void
+  onMinimize: () => void
   onClose: () => void
 }): React.JSX.Element => (
   <span className="artifact-actions">
-    <Tooltip content="Minimize to the taskbar · Esc">
+    <Tooltip content={behind ? "Minimize · Esc hides the pane" : "Minimize to the taskbar · Esc"}>
       <button
         type="button"
         className="icon-button"
         aria-label="Minimize to the taskbar"
-        onClick={onHide}
+        onClick={onMinimize}
       >
         <Minus size={14} strokeWidth={1.75} aria-hidden />
       </button>
@@ -92,11 +96,101 @@ const MemberTab = ({
   )
 }
 
+// How many of what's behind peek out above what the pane shows.
+const peeking = 2
+
+// Calls `done` when an animation on the element itself is cut short, as by its terminal
+// being hidden mid-way, which React has no prop for.
+const whenCut =
+  (done: () => void) =>
+  (element: HTMLElement | null): (() => void) | undefined => {
+    if (!element) return undefined
+    const cut = (event: AnimationEvent): void => {
+      if (event.target === element) done()
+    }
+    element.addEventListener("animationcancel", cut)
+    return () => element.removeEventListener("animationcancel", cut)
+  }
+
+// How soon after the person acts in the pane what it shows must change for the pane to
+// take focus: the change follows at once, so anything later wasn't theirs.
+const handOffMs = 1000
+
+// The sheets open behind what the pane shows, peeking out above it as cards stacked
+// behind one another do: each further back narrower and fainter, the nearest last. Each
+// names itself on hover and comes forward when clicked. One that was just shown tucks in
+// behind what took its place, so the two read as swapped. Escape hides the pane from
+// here too, as from what it shows.
+const BehindStack = ({
+  behind,
+  tucked,
+  plans,
+  onRaise,
+  onTucked,
+  onHide,
+}: {
+  // Nearest first.
+  behind: readonly BarMember[]
+  tucked: string | undefined
+  plans: LookContext["plans"]
+  onRaise: (member: BarMember) => void
+  // The tuck played: it isn't played again, as when a hidden terminal shows again.
+  onTucked: () => void
+  onHide: () => void
+}): React.JSX.Element => (
+  <div
+    className="plan-stack nodrag nopan"
+    data-workspace-companion
+    onKeyDown={(event) => {
+      if (event.key === "Escape") {
+        event.stopPropagation()
+        onHide()
+      }
+    }}
+  >
+    {behind
+      .slice(0, peeking)
+      .toReversed()
+      .map((each) => {
+        const { name } = registrationOf(each).look(each, { plans })
+        return (
+          <Tooltip key={each.key} content={name}>
+            <button
+              type="button"
+              className="plan-stack-sheet"
+              data-entry={each.key === tucked ? "tuck" : undefined}
+              aria-label={`Bring forward ${name}`}
+              onClick={() => onRaise(each)}
+              onAnimationEnd={onTucked}
+              ref={whenCut(onTucked)}
+            />
+          </Tooltip>
+        )
+      })}
+  </div>
+)
+
+// How what the pane shows came to the top: forward from behind, or new over it. Nothing
+// as the pane itself comes out, which animates on its own.
+type Entry = "forward" | "arrive" | undefined
+
+// What the pane last showed, and what was behind it, to tell how what it shows now came:
+// `how` it came to the top, and what it `tucked` behind it, as what it showed before.
+type Shown = {
+  readonly key: string | undefined
+  readonly behind: string
+  readonly how: Entry
+  readonly tucked: string | undefined
+}
+
 // A terminal's companion pane, wherever it is presented: what it shows of the terminal's
 // taskbar, `member`: a plan, edited where it's read, something an agent showed, its
-// messages, or another terminal's item placed here, under a line saying whose it is.
+// messages, or another terminal's item placed here, under a line saying whose it is. It's
+// the top of what's open in the pane; the rest waits behind it.
 export const CompanionPane = ({
   member,
+  leaving,
+  behind,
   panes,
   target,
   agent,
@@ -106,10 +200,16 @@ export const CompanionPane = ({
   plans,
   originOf,
   onUndock,
+  onMinimize,
   onHide,
   onClose,
+  onRaise,
 }: {
   member: BarMember | undefined
+  // The pane is going: what it shows as it fades plays no entry of its own.
+  leaving: boolean
+  // What's open behind it, nearest first.
+  behind: readonly BarMember[]
   panes: Panes
   target: WorkspaceTarget
   // Who showed what's here, as the pane's label names them.
@@ -122,12 +222,69 @@ export const CompanionPane = ({
   originOf: (member: BarMember) => string | undefined
   // Undocks what's shown into a window of its own.
   onUndock: (member: BarMember) => void
+  // Minimizes what's shown, uncovering what's behind; hides the whole pane, as Escape does.
+  onMinimize: (member: BarMember) => void
   onHide: () => void
-  // Closes what's shown, as the taskbar's menu does, and the pane with it.
+  // Closes what's shown, as the taskbar's menu does, uncovering what's behind.
   onClose: (member: BarMember) => void
+  // Brings what's behind to the top.
+  onRaise: (member: BarMember) => void
 }): React.JSX.Element => {
+  // A new top comes forward when it was behind, and over what was shown when it's new.
+  const behindKeys = behind.map((each) => each.key).join("\n")
+  const [entry, setEntry] = useState<Shown>({
+    key: member?.key,
+    behind: behindKeys,
+    how: undefined,
+    tucked: undefined,
+  })
+  if (entry.key !== member?.key || entry.behind !== behindKeys) {
+    const swapped = entry.key !== member?.key && entry.key !== undefined && member !== undefined
+    setEntry({
+      key: member?.key,
+      behind: behindKeys,
+      how: !swapped
+        ? entry.key === member?.key
+          ? entry.how
+          : undefined
+        : entry.behind.split("\n").includes(member.key)
+          ? "forward"
+          : "arrive",
+      tucked: !swapped
+        ? entry.tucked
+        : behind.some((each) => each.key === entry.key)
+          ? entry.key
+          : undefined,
+    })
+  }
+  // The entry played, or was cut short: it isn't played again.
+  const played = (): void =>
+    setEntry((current) => (current.how ? { ...current, how: undefined } : current))
   const messages = member?.kind === "messages"
   const plan = member?.kind === "item" && member.item.kind === "plan" ? member.item : undefined
+  // Minimizing or closing what it showed, or bringing forward what's behind, from the pane
+  // drops focus with what went: the pane takes it, as the window uncovered takes focus on
+  // a desktop. Only then: a change the person didn't make here, as an agent's, takes no
+  // focus, and focus the person has elsewhere stays there.
+  const section = useRef<HTMLElement>(null)
+  const shown = useRef(member?.key)
+  const handedAt = useRef(-Infinity)
+  const handOff =
+    <Args extends unknown[]>(act: (...args: Args) => void) =>
+    (...args: Args): void => {
+      handedAt.current = performance.now()
+      act(...args)
+    }
+  useEffect(() => {
+    const before = shown.current
+    shown.current = member?.key
+    if (before === undefined || before === member?.key) return
+    const handed = performance.now() - handedAt.current < handOffMs
+    handedAt.current = -Infinity
+    const focused = document.activeElement
+    if (handed && (!focused || focused === document.body))
+      section.current?.focus({ preventScroll: true })
+  }, [member?.key])
   const undock = member?.kind === "item" && !member.placed ? () => onUndock(member) : undefined
   const tab = member && (
     <MemberTab
@@ -140,42 +297,76 @@ export const CompanionPane = ({
       actions={
         <PaneActions
           name={registrationOf(member).look(member, { plans }).name}
+          behind={behind.length > 0}
           onUndock={undock}
-          onHide={onHide}
-          onClose={() => onClose(member)}
+          onMinimize={handOff(() => onMinimize(member))}
+          onClose={handOff(() => onClose(member))}
         />
       }
     />
   )
   return (
-    <section
-      className="plan-reader"
-      data-workspace-companion
-      data-presentation={presentation}
-      aria-label={messages ? "Messages" : `What ${agent} showed you`}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.stopPropagation()
-          onHide()
+    <>
+      {/* There while nothing's behind too: the split keeps what it shows clear of the
+          window's header. */}
+      <BehindStack
+        behind={behind}
+        tucked={entry.tucked}
+        plans={plans}
+        onRaise={handOff(onRaise)}
+        onTucked={() =>
+          setEntry((current) => (current.tucked ? { ...current, tucked: undefined } : current))
         }
-      }}
-      // Leaving the plan saves it at once, so an agent told to re-read it finds the edits.
-      onBlur={(event) => {
-        if (plan && !event.currentTarget.contains(event.relatedTarget))
-          panes.plan(target, plan.id).flush()
-      }}
-    >
-      {!member ? (
-        // All that's left may hold secrets, which shows only once picked.
-        <div className="artifact-status">Pick what to show from the taskbar.</div>
-      ) : member.kind === "item" && member.placed ? (
-        <div className="placed-tab">
-          <p className="placed-from">From {originOf(member) ?? "another terminal"}</p>
-          {tab}
-        </div>
-      ) : (
-        tab
-      )}
-    </section>
+        onHide={onHide}
+      />
+      <section
+        ref={section}
+        tabIndex={-1}
+        className="plan-reader"
+        data-workspace-companion
+        data-presentation={presentation}
+        aria-label={messages ? "Messages" : `What ${agent} showed you`}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.stopPropagation()
+            onHide()
+          }
+        }}
+        // Leaving the plan saves it at once, so an agent told to re-read it finds the edits.
+        onBlur={(event) => {
+          if (plan && !event.currentTarget.contains(event.relatedTarget))
+            panes.plan(target, plan.id).flush()
+        }}
+      >
+        {!member ? (
+          // All that's left may hold secrets, which shows only once picked; or, as the
+          // pane goes, what it showed is gone.
+          leaving ? null : (
+            <div className="artifact-status">Pick what to show from the taskbar.</div>
+          )
+        ) : (
+          <div
+            key={member.key}
+            className="plan-sheet"
+            data-entry={leaving ? undefined : entry.how}
+            // Played once: a hidden terminal shown again doesn't play it again.
+            onAnimationEnd={(event) => {
+              if (event.target === event.currentTarget) played()
+            }}
+            // Cut short, as when its terminal is hidden mid-way: done all the same.
+            ref={whenCut(played)}
+          >
+            {member.kind === "item" && member.placed ? (
+              <div className="placed-tab">
+                <p className="placed-from">From {originOf(member) ?? "another terminal"}</p>
+                {tab}
+              </div>
+            ) : (
+              tab
+            )}
+          </div>
+        )}
+      </section>
+    </>
   )
 }

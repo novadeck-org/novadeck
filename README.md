@@ -652,13 +652,18 @@ moves through it. Each gets an icon in the taskbar, as an OS taskbar has, with
 several of a kind (images, files, pages, or plans) stacked under one; only Messages
 never stack. A markdown file the agent shows reads as a document, formatted like a plan
 with its outline, but read-only: it's the agent's file, not a plan to edit or note (the
-demo's Codex has shown `docs/brand-voice.md`). The mark under an icon says whether it's
-new, showing, or seen: something new gets a dot, quietly, and nothing opens on its own
-unless you asked for it. Hover an icon to peek: a card per thing behind it, each a
-preview, its name and the same mark, with no copy. Once you've peeked, what was new is
-seen, without opening it. Click an icon or a card to open it, click the icon
-again (or press Escape) to hide the pane, and close from a card's corner button or the
-icon's right-click. Closing a plan or Messages on its own terminal's bar hides it: the
+demo's Codex has shown `docs/brand-voice.md`). The pane stacks what's open as a desktop
+stacks windows: it shows the last thing opened, by you or by the agent when you asked
+for it, and the rest wait behind it, the nearest two peeking out above it: click one to bring it
+forward. The mark under
+an icon says whether it's new, showing, open behind, or seen: something new gets a dot,
+quietly, and nothing opens on its own unless you asked for it. Hover an icon to peek: a
+card per thing behind it, each a preview, its name and the same mark, with no copy. Once
+you've peeked, what was new is seen, without opening it. Click an icon or a card to open
+it on top. Click the showing icon again, or the pane's minimize button, to minimize it,
+uncovering what's behind; press Escape to hide the whole pane, which keeps what's open in
+it for when the pane comes back. Close from the pane's header, a card's corner button or the icon's
+right-click, which uncovers what's behind too. Closing a plan or Messages on its own terminal's bar hides it: the
 plan comes back with the agent's next version of it, Messages with the next message,
 last on the bar each time. Closing anything else deletes it, with the window it's in;
 nothing keeps a history, so ask the agent to show it again. Icons line up in the order they came,
@@ -1616,9 +1621,10 @@ two flags, and the notes, change on an immutable release.
 
 Release notes are written by a model through OpenRouter
 ([scripts/release-notes](scripts/release-notes)). After each prerelease is published, its
-commits become short lines grouped by area; when a prerelease is promoted, its notes are
-rewritten with up to four highlights picked from everything since the last stable release,
-which the app shows after updating to it until the person dismisses them. The
+commits become short lines grouped by area, led by up to two highlights; when a prerelease
+is promoted, its notes are rewritten with up to four highlights picked from everything since
+the last stable release. The app shows a release's highlights after updating to it until the
+person dismisses them. The
 `OPENROUTER_API_KEY` repository secret enables it, and the `RELEASE_NOTES_PRERELEASE_MODEL`
 and `RELEASE_NOTES_PROMOTE_MODEL` repository variables pick the models (by default
 `deepseek/deepseek-v4-pro` and `anthropic/claude-opus-5.5`). Without the key, when the key is

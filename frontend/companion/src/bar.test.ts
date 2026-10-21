@@ -4,6 +4,7 @@ import { itemFixture } from "@novadeck/core/testing"
 
 import {
   barMembers,
+  behindTab,
   composeBar,
   dropOutcome,
   pick,
@@ -48,8 +49,12 @@ const barOf = (items: readonly CompanionItem[], options?: Parameters<typeof memb
 const keys = (slots: readonly BarSlot[]): string[] => slots.map((slot) => slot.key)
 const memberKeys = (slot: BarSlot): BarKey[] => slot.members.map((member) => member.key)
 
-// A bar with its pane open to `tab`.
-const open = (tab: BarKey | null): Bar => ({ ...emptyBar, tab, open: true })
+// A bar with its pane open to `tab`, on top of what's behind it.
+const open = (tab: BarKey | null, behind: readonly BarKey[] = []): Bar => ({
+  ...emptyBar,
+  stack: tab === null ? behind : [...behind, tab],
+  open: true,
+})
 
 // A stack of `members`, of their kind.
 const stack = (members: readonly BarMember[]): BarSlot => ({
@@ -139,30 +144,48 @@ describe("a terminal's taskbar", () => {
       expect(shownTab(open(null), membersOf([held, home]))).toBe(home.id)
       expect(shownTab(open(null), membersOf([held]))).toBeNull()
     })
+
+    it("shows the top of what's open that's still on the bar, the rest waiting behind it", () => {
+      const members = membersOf([root, home, preview])
+      expect(shownTab(open("gone" as ItemId, [preview.id, home.id]), members)).toBe(home.id)
+      expect(behindTab(open(home.id, [root.id, preview.id]), members, home.id)).toEqual([
+        root.id,
+        preview.id,
+      ])
+    })
+
+    it("counts everything open as behind while the pane is hidden", () => {
+      const hidden = { ...open(home.id, [root.id]), open: false }
+      expect(behindTab(hidden, membersOf([root, home]), null)).toEqual([root.id, home.id])
+    })
   })
 
   context("when a stack's icon is clicked", () => {
     it("opens what's new, else what's open, else the latest", () => {
       const images = [image("hero"), image("about"), image("mobile")]
-      expect(pick(stack(membersOf(images, { fresh: [images[0]!.id] })), null).key).toBe("hero")
-      expect(pick(stack(membersOf(images)), images[1]!.id).key).toBe("about")
-      expect(pick(stack(membersOf(images)), null).key).toBe("mobile")
+      expect(pick(stack(membersOf(images, { fresh: [images[0]!.id] })), []).key).toBe("hero")
+      expect(pick(stack(membersOf(images)), [images[1]!.id]).key).toBe("about")
+      expect(pick(stack(membersOf(images)), []).key).toBe("mobile")
+    })
+
+    it("opens the one highest in the pane's stack", () => {
+      const images = [image("hero"), image("about"), image("mobile")]
+      const opened = [images[0]!.id, home.id, images[1]!.id]
+      expect(pick(stack(membersOf(images)), opened).key).toBe("about")
     })
 
     it("opens a stack of plans to the one rewritten since it was read, else the root plan", () => {
       const helper = plan("helper", "subagent")
-      expect(pick(stack(membersOf([helper, root], { fresh: [helper.id] })), null).key).toBe(
-        "helper",
-      )
-      expect(pick(stack(membersOf([helper, root])), null).key).toBe("root")
+      expect(pick(stack(membersOf([helper, root], { fresh: [helper.id] })), []).key).toBe("helper")
+      expect(pick(stack(membersOf([helper, root])), []).key).toBe("root")
     })
 
     it("opens something that may hold secrets only when the stack holds nothing else", () => {
       const secret = image("secret", { held: true })
-      expect(
-        pick(stack(membersOf([image("hero"), secret], { fresh: [secret.id] })), null).key,
-      ).toBe("hero")
-      expect(pick(stack(membersOf([secret])), null).key).toBe("secret")
+      expect(pick(stack(membersOf([image("hero"), secret], { fresh: [secret.id] })), []).key).toBe(
+        "hero",
+      )
+      expect(pick(stack(membersOf([secret])), []).key).toBe("secret")
     })
   })
 

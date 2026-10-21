@@ -47,16 +47,14 @@ export const renderBody = (
           : ""
       }`,
   )
+  const highlights = notes.highlights
+    .map(
+      (highlight) =>
+        `- **${plain(highlight.title)}**: ${plain(highlight.line)}${links(highlight.prs, repo)}`,
+    )
+    .join("\n")
   if (notes.kind === "promote") {
-    if (notes.highlights.length > 0)
-      sections.push(
-        `## Highlights\n\n${notes.highlights
-          .map(
-            (highlight) =>
-              `- **${plain(highlight.title)}**: ${plain(highlight.line)}${links(highlight.prs, repo)}`,
-          )
-          .join("\n")}`,
-      )
+    if (notes.highlights.length > 0) sections.push(`## Highlights\n\n${highlights}`)
     if (areas.length > 0) sections.push(`## What's new\n\n${areas.join("\n\n")}`)
     if (notes.fixes > 0 && !fixesIn)
       sections.push(
@@ -65,10 +63,12 @@ export const renderBody = (
     if (sections.length === 0)
       sections.push("Nothing in this build changes what you see in the app.")
   } else {
+    // A release's areas are its top headings, so its highlights lead as one of them.
+    if (notes.highlights.length > 0) sections.push(`### Highlights\n\n${highlights}`)
     sections.push(...areas)
     if (notes.fixes > 0 && !fixesIn)
       sections.push(
-        `${areas.length > 0 ? "Plus " : ""}${notes.fixes} smaller ${notes.fixes === 1 ? "fix or speedup" : "fixes and speedups"}.`,
+        `${notes.highlights.length + areas.length > 0 ? "Plus " : ""}${notes.fixes} smaller ${notes.fixes === 1 ? "fix or speedup" : "fixes and speedups"}.`,
       )
     if (sections.length === 0)
       sections.push("Nothing in this build changes what you see in the app.")

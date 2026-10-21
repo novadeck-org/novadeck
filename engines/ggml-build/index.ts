@@ -213,7 +213,13 @@ const platformOptions = (): string[] => {
   ]
   if (windows) {
     // The C runtime inside the executable and modules, so no redistributable is needed.
-    return [...modules, "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded"]
+    // whisper.cpp asks for CMake 3.5, which would leave policy CMP0091 off and the runtime
+    // setting unread: the policy is turned on for every project.
+    return [
+      ...modules,
+      "-DCMAKE_POLICY_DEFAULT_CMP0091=NEW",
+      "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded",
+    ]
   }
   return [
     ...modules,

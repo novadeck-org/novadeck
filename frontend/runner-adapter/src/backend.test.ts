@@ -1383,7 +1383,7 @@ describe("runner backend", () => {
       expect(reloaded.bars[terminal.id]).toEqual({
         order: [item.id, messagesKey],
         hidden: [],
-        tab: item.id,
+        stack: [item.id],
         open: true,
       })
     })
