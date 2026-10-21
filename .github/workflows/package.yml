@@ -362,18 +362,31 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: engines/whisper/dist
-          key: whisper-engine-${{ matrix.os }}-${{ matrix.target == 'linux' && env.ENGINE_BUILD_BASE || '' }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('engines/ggml-build/index.ts', 'engines/ggml-build/Dockerfile', 'engines/ggml-build/package.json', 'engines/whisper/scripts/**', 'engines/whisper/patches/**', 'engines/whisper/package.json') }}
+          key: whisper-engine-${{ matrix.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('engines/ggml-build/index.ts', 'engines/ggml-build/package.json', 'engines/whisper/scripts/**', 'engines/whisper/patches/**', 'engines/whisper/package.json') }}${{ matrix.target == 'linux' && format('-{0}-{1}', env.ENGINE_BUILD_BASE, hashFiles('engines/ggml-build/Dockerfile')) || '' }}
 
       - name: Restore Murmur Engine
         id: murmur
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: engines/murmur/dist
-          key: murmur-engine-${{ matrix.os }}-${{ matrix.target == 'linux' && env.ENGINE_BUILD_BASE || '' }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('engines/ggml-build/index.ts', 'engines/ggml-build/Dockerfile', 'engines/ggml-build/package.json', 'engines/murmur/scripts/**', 'engines/murmur/patches/**', 'engines/murmur/package.json') }}
+          key: murmur-engine-${{ matrix.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('engines/ggml-build/index.ts', 'engines/ggml-build/package.json', 'engines/murmur/scripts/**', 'engines/murmur/patches/**', 'engines/murmur/package.json') }}${{ matrix.target == 'linux' && format('-{0}-{1}', env.ENGINE_BUILD_BASE, hashFiles('engines/ggml-build/Dockerfile')) || '' }}
 
       - name: Build Engine Image (Linux)
         if: matrix.target == 'linux' && (steps.engine.outputs.cache-hit != 'true' || steps.murmur.outputs.cache-hit != 'true')
-        run: docker build --build-arg "BASE=$ENGINE_BUILD_BASE" --tag novadeck-engine-build engines/ggml-build
+        run: |
+          # Docker Hub, Ubuntu's mirrors and the SDK's and Node's downloads fail now and then:
+          # a few tries, and what the last one said when none worked.
+          for try in 1 2 3; do
+            if docker build --build-arg "BASE=$ENGINE_BUILD_BASE" --tag novadeck-engine-build engines/ggml-build > "$RUNNER_TEMP/engine-build-image.txt" 2>&1; then
+              break
+            fi
+            if (( try == 3 )); then
+              tail -n 40 "$RUNNER_TEMP/engine-build-image.txt"
+              echo "::error::The image the Linux engines are built in could not be built."
+              exit 1
+            fi
+            sleep 30
+          done
 
       - name: Build Voice Engine
         shell: bash
