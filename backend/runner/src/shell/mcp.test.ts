@@ -364,7 +364,7 @@ describe("Novadeck's MCP server", () => {
         "Show a deliverable when it is done, not each file you touch",
       )
       expect(show.description).toContain("the files a change touches on the way aren't")
-      expect(show.description).toContain("show the change itself with changes")
+      expect(show.description).toContain("show the changes themselves with changes")
       for (const name of ["show", "close"]) {
         const tool = described.find((each) => each.name === name) as unknown as {
           inputSchema: { properties: { changes: unknown } }

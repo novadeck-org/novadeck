@@ -19,7 +19,7 @@ import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
 import { agentLabel } from "../messaging/mailbox.js"
 import { mention } from "../terminals/handles.js"
-import { changesContent, describeChange, readChange, repositoryOf } from "./changes.js"
+import { changesContent, describeChange, displayed, readChange, repositoryOf } from "./changes.js"
 import {
   hashOf,
   loadFile,
@@ -343,7 +343,9 @@ export class CompanionItems {
     const lines = items.map((item) => {
       const own = item.from.terminalId === terminalId
       const range = item.lines ? ` lines ${item.lines.from}–${item.lines.to}` : ""
-      const where = item.url ?? item.path ?? ""
+      // A repository's folder is named by the repository: shown without invisible characters.
+      const where =
+        item.kind === "changes" ? displayed(item.path ?? "") : (item.url ?? item.path ?? "")
       const placed =
         item.terminalId !== terminalId
           ? `moved by the user ${this.whereMoved(item)}`
@@ -362,7 +364,8 @@ export class CompanionItems {
             : "attached by the user"
       const notes = [placed, whose].filter(Boolean).join(", ")
       const secrets = item.held ? "; may hold secrets" : ""
-      const name = `${item.kind} ${JSON.stringify(item.name)}${range}`
+      const title = item.kind === "changes" ? displayed(item.name) : item.name
+      const name = `${item.kind} ${JSON.stringify(title)}${range}`
       // A plan it presents as text is in its own conversation.
       if (own && item.plan?.format === "text") return `- ${name} (in your conversation)`
       return `- ${name}: ${where} (${notes}${secrets})`
@@ -894,12 +897,22 @@ export class CompanionItems {
     return item.plan?.format === "text" ? this.options.livePlan?.(item) : undefined
   }
 
+  // A change, read afresh; its item's detail follows the totals it finds, unless the item
+  // went or was shown again meanwhile.
+  private async readChange(item: ItemRecord): Promise<ItemContent> {
+    const { content, detail } = await changesContent(item.path)
+    const now = this.records.item(item.id)
+    if (detail !== undefined && now && now.version === item.version && now.detail !== detail)
+      this.save({ ...now, detail })
+    return content
+  }
+
   private read(
     item: ItemRecord,
     reveal: boolean,
     live: PlanText | undefined,
   ): Promise<ItemContent> {
-    if (item.kind === "changes") return changesContent(item.path)
+    if (item.kind === "changes") return this.readChange(item)
     if (item.kind === "page") {
       const scroll = this.scrolls.get(item.id)
       return Promise.resolve({

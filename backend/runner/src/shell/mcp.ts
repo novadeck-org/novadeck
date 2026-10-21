@@ -104,7 +104,7 @@ const picked = (args: Arguments, names: readonly string[]): Arguments =>
 const show: Tool<Shown> = {
   name: "show",
   description:
-    "Show the user an image or a text file, a web page, or your changes, in Novadeck, " +
+    "Show the user an image or a text file, a web page, or the working tree's changes, in Novadeck, " +
     "beside the terminal they're talking to you in. Give one of file, page or changes. Show a " +
     "deliverable when it is done, not each file you touch: an image or screenshot, a " +
     "rendered page or a dev server's address, a report, mockup, diagram or generated " +
@@ -112,7 +112,7 @@ const show: Tool<Shown> = {
     "to see. A source file is " +
     "one too while it is the file you are working on together, so show it and keep it " +
     "shown; the files a change touches on the way aren't: once a piece of work is done, " +
-    "show the change itself with changes, the repository's working tree against HEAD as " +
+    "show the changes themselves with changes, the repository's working tree against HEAD as " +
     "diffs, instead of each file. Set open to true for a deliverable you finish or they asked to see, " +
     "so it opens at once; leave it off for anything supporting, which waits for them in " +
     "Novadeck, marked new. Showing the same file or page again updates it, beside you or wherever " +
@@ -174,9 +174,9 @@ const show: Tool<Shown> = {
       changes: {
         type: "object",
         description:
-          "Instead of file or page: your change, every file in this terminal's git " +
-          "repository that differs from HEAD (staged, unstaged and new), shown as diffs " +
-          "that update as the files change. Give {}.",
+          "Instead of file or page: the changes in this terminal's git repository, every file " +
+          "that differs from HEAD (staged, unstaged and new; the user's and other agents' edits " +
+          "too), shown as diffs that update as the files change. Give {}.",
         properties: {},
         additionalProperties: false,
       },

@@ -3,14 +3,14 @@ import { mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSync
 import { devNull, tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { maxChangedFiles, maxChangesBytes, type ChangedFile } from "@novadeck/protocol"
+import { maxChangesBytes } from "@novadeck/protocol"
 
 import { describe, expect, it as base } from "../test.js"
 import {
-  bounded,
   changesContent,
   describeChange,
   parseDiff,
+  parseListing,
   readChange,
   repositoryOf,
 } from "./changes.js"
@@ -57,19 +57,6 @@ const it = base.extend<{ repo: Repo }>({
     }
     await use({ root, git, write })
   },
-})
-
-const file = (path: string, over: Partial<ChangedFile> = {}): ChangedFile => ({
-  path,
-  oldPath: null,
-  status: "modified",
-  added: 0,
-  removed: 0,
-  binary: false,
-  held: false,
-  listed: false,
-  hunks: [],
-  ...over,
 })
 
 describe("a unified diff, parsed", () => {
@@ -168,57 +155,70 @@ describe("a unified diff, parsed", () => {
   })
 })
 
-describe("the bounds of a change", () => {
-  const lines = (count: number, width: number) => [
-    {
-      oldStart: 0,
-      oldCount: 0,
-      newStart: 1,
-      newCount: count,
-      lines: Array.from({ length: count }, () => ({
-        kind: "add" as const,
-        text: "x".repeat(width),
-      })),
-    },
-  ]
+describe("the bounds of a diff", () => {
+  const diffOf = (name: string, count: number, width: number) =>
+    [
+      `diff --git a/${name} b/${name}`,
+      `--- a/${name}`,
+      `+++ b/${name}`,
+      `@@ -0,0 +1,${count} @@`,
+      ...Array.from({ length: count }, () => `+${"x".repeat(width)}`),
+      "",
+    ].join("\n")
 
-  it("lists the files past the diff text budget, by name and counts, and says so", () => {
-    const big = file("big.txt", { added: 600, hunks: lines(600, 4000) })
-    const small = file("small.txt", { added: 1, hunks: lines(1, 3) })
-    const { files, truncated } = bounded([big, big, small], "/r")
-    expect(truncated).toBe(true)
-    expect(files[0]?.hunks.length).toBe(1)
-    expect(files[1]).toMatchObject({ listed: true, hunks: [], added: 600 })
-    // Later files that fit still show.
-    expect(files[2]?.hunks.length).toBe(1)
-    const text = files.flatMap((each) => each.hunks.flatMap((hunk) => hunk.lines))
-    expect(text.reduce((sum, line) => sum + line.text.length, 0)).toBeLessThanOrEqual(
-      maxChangesBytes,
-    )
+  it("lists a file whose lines would pass the budget, and leaves its room to the files after", () => {
+    const budget = { left: 10_000 }
+    const files = parseDiff([diffOf("big.txt", 500, 100), diffOf("small.txt", 3, 5)].join(""), {
+      budget,
+    })
+    expect(files[0]).toMatchObject({ path: "big.txt", listed: true, hunks: [] })
+    expect(files[1]?.hunks[0]?.lines).toHaveLength(3)
+    expect(budget.left).toBeGreaterThan(9_000)
   })
 
-  it("keeps at most the protocol's number of files", () => {
-    const many = Array.from({ length: maxChangedFiles + 5 }, (_, index) => file(`f${index}.txt`))
-    const { files, truncated } = bounded(many, "/r")
-    expect(files).toHaveLength(maxChangedFiles)
-    expect(truncated).toBe(true)
+  it("counts what encoding adds to a line, so lines of nothing are not free", () => {
+    const budget = { left: maxChangesBytes }
+    const [file] = parseDiff(diffOf("blank.txt", 200_000, 0), { budget })
+    expect(file?.listed).toBe(true)
+    expect(budget.left).toBe(maxChangesBytes)
   })
 
-  it("never carries the diff of a file that may hold secrets, or a binary one", () => {
-    const { files } = bounded(
-      [
-        file(".env", { added: 1, hunks: lines(1, 5) }),
-        file("keys/id_rsa", { added: 1, hunks: lines(1, 5) }),
-        file("a.bin", { binary: true, hunks: lines(1, 5) }),
-        file("ok.txt", { added: 1, hunks: lines(1, 5) }),
-      ],
-      "/r",
-    )
-    expect(files.map(({ held, hunks }) => [held, hunks.length])).toEqual([
-      [true, 0],
-      [true, 0],
-      [false, 0],
-      [false, 1],
+  it("does not read the body of a file it is told to skip", () => {
+    const [file] = parseDiff(diffOf(".env", 3, 5), { skip: () => true })
+    expect(file).toMatchObject({ path: ".env", hunks: [], added: 0 })
+  })
+
+  it("cuts a line without splitting a surrogate pair", () => {
+    const [file] = parseDiff(diffOf("e.txt", 1, 0).replace("+\n", `+${"a".repeat(4095)}😀\n`))
+    const text = file?.hunks[0]?.lines[0]?.text ?? ""
+    expect(text.length).toBe(4095)
+    expect(text.endsWith("a")).toBe(true)
+  })
+
+  it("reads git's raw and numstat listings together, with renames and binary files", () => {
+    const out = [
+      ":100644 100644 aaa bbb M",
+      "a.txt",
+      ":100644 000000 aaa 000 D",
+      "g.txt",
+      ":100644 100644 aaa bbb R085",
+      "r.txt",
+      "q.txt",
+      ":100644 100644 aaa bbb M",
+      "img.png",
+      "1\t1\ta.txt",
+      "0\t1\tg.txt",
+      "2\t0\t",
+      "r.txt",
+      "q.txt",
+      "-\t-\timg.png",
+      "",
+    ].join("\0")
+    expect(parseListing(out)).toEqual([
+      { status: "modified", path: "a.txt", oldPath: null, added: 1, removed: 1, binary: false },
+      { status: "deleted", path: "g.txt", oldPath: null, added: 0, removed: 1, binary: false },
+      { status: "renamed", path: "q.txt", oldPath: "r.txt", added: 2, removed: 0, binary: false },
+      { status: "modified", path: "img.png", oldPath: null, added: 0, removed: 0, binary: true },
     ])
   })
 })
@@ -318,16 +318,148 @@ describe.skipIf(!hasGit)("a change read from a git repository", () => {
     repo.git("add", "-A")
     repo.git("commit", "--quiet", "-m", "base")
     repo.write("a.txt", "2\n")
-    const first = await changesContent(repo.root)
-    expect(await changesContent(repo.root)).toEqual(first)
+    const first = (await changesContent(repo.root)).content
+    expect((await changesContent(repo.root)).content).toEqual(first)
     repo.write("a.txt", "3\n")
-    const second = await changesContent(repo.root)
+    const second = (await changesContent(repo.root)).content
     expect(second).toMatchObject({ state: "ready" })
     expect(second).not.toEqual(first)
     rmSync(repo.root, { recursive: true, force: true })
-    await expect(changesContent(repo.root)).resolves.toMatchObject({
+    expect((await changesContent(repo.root)).content).toMatchObject({
       state: "unavailable",
       reason: "missing",
     })
+  })
+
+  it("is not fooled by a person's own diff configuration, naming files and holding secrets", async ({
+    repo,
+  }) => {
+    repo.write(".env", "TOKEN=SECRET_ONE\n")
+    repo.write("src/a.ts", "one\n")
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "base")
+    repo.write(".env", "TOKEN=SECRET_TWO\n")
+    repo.write("src/a.ts", "two\n")
+    for (const setting of [
+      ["diff.noprefix", "true"],
+      ["diff.mnemonicPrefix", "true"],
+      ["diff.srcPrefix", "x/"],
+      ["diff.dstPrefix", "y/"],
+    ] as const) {
+      repo.git("config", ...setting)
+      // eslint-disable-next-line no-await-in-loop -- Each setting is tried on top of the last.
+      const read = await readChange(repo.root)
+      if (!read.ok) throw new Error(read.reason)
+      expect(JSON.stringify(read.change)).not.toContain("SECRET")
+      expect(read.change.files.map(({ path, held }) => [path, held])).toEqual([
+        [".env", true],
+        ["src/a.ts", false],
+      ])
+      expect(read.change.files[1]?.hunks[0]?.lines).toContainEqual({ kind: "add", text: "two" })
+    }
+  })
+
+  it("holds a secret file renamed to a plain name, in either direction of detection", async ({
+    repo,
+  }) => {
+    repo.write(".env", "A=SECRET_1\nB=SECRET_2\nC=SECRET_3\nD=SECRET_4\n")
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "base")
+    repo.git("mv", ".env", "notes.txt")
+    repo.write("notes.txt", "A=SECRET_1\nB=SECRET_2\nC=SECRET_3\nD=SECRET_4\nE=SECRET_5\n")
+    const read = await readChange(repo.root)
+    if (!read.ok) throw new Error(read.reason)
+    expect(JSON.stringify(read.change)).not.toContain("SECRET")
+    expect(read.change.files).toMatchObject([
+      { path: "notes.txt", oldPath: ".env", status: "renamed", held: true, hunks: [] },
+    ])
+  })
+
+  it("stays within what the wire carries however a change is made of lines", async ({ repo }) => {
+    repo.write("big.txt", `${"1\n".repeat(300_000)}`)
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "base")
+    repo.write("big.txt", `${"2\n".repeat(300_000)}`)
+    repo.write("blank.txt", "\n".repeat(1024 * 1024))
+    repo.write("small.txt", "fits\n")
+    const read = await readChange(repo.root)
+    if (!read.ok) throw new Error(read.reason)
+    expect(read.change.truncated).toBe(true)
+    const byPath = new Map(read.change.files.map((each) => [each.path, each]))
+    expect(byPath.get("big.txt")).toMatchObject({ listed: true, added: 300_000, removed: 300_000 })
+    expect(byPath.get("blank.txt")).toMatchObject({ listed: true, hunks: [] })
+    expect(byPath.get("small.txt")?.hunks).toHaveLength(1)
+    expect(JSON.stringify(read.change).length).toBeLessThan(maxChangesBytes * 2)
+  })
+
+  it("stops reading untracked files once their budget is spent, listing the rest by name", async ({
+    repo,
+  }) => {
+    const text = "some words on a line\n".repeat(30_000)
+    for (let index = 0; index < 20; index += 1) repo.write(`u${index}.txt`, text)
+    const read = await readChange(repo.root)
+    if (!read.ok) throw new Error(read.reason)
+    const shown = read.change.files.filter((each) => each.hunks.length > 0)
+    expect(shown.length).toBeGreaterThan(0)
+    expect(shown.length).toBeLessThan(10)
+    expect(read.change.files).toHaveLength(20)
+    expect(read.change.truncated).toBe(true)
+    expect(JSON.stringify(read.change).length).toBeLessThan(maxChangesBytes * 2)
+  })
+
+  it("diffs an empty SHA-256 repository against its own empty tree", async ({ repo }) => {
+    let supported = true
+    try {
+      rmSync(join(repo.root, ".git"), { recursive: true, force: true })
+      repo.git("init", "--quiet", "--object-format=sha256")
+    } catch {
+      supported = false
+    }
+    if (!supported) return
+    repo.write("a.txt", "hello\n")
+    repo.git("add", "a.txt")
+    const read = await readChange(repo.root)
+    if (!read.ok) throw new Error(read.reason)
+    expect(read.change.files).toMatchObject([{ path: "a.txt", status: "added", added: 1 }])
+  })
+
+  it("fails, rather than diffing against nothing, for a HEAD git can't read", async ({ repo }) => {
+    repo.write("a.txt", "x\n")
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "base")
+    writeFileSync(join(repo.root, ".git", "HEAD"), "garbage\n")
+    const read = await readChange(repo.root)
+    expect(read.ok).toBe(false)
+  })
+
+  it("ignores the runner's own GIT_ variables", async ({ repo }) => {
+    repo.write("a.txt", "x\n")
+    repo.git("add", "-A")
+    const saved = process.env.GIT_DIR
+    process.env.GIT_DIR = join(tmpdir(), "no-such-git-dir")
+    try {
+      const read = await readChange(repo.root)
+      if (!read.ok) throw new Error(read.reason)
+      expect(read.change.files.map(({ path }) => path)).toEqual(["a.txt"])
+    } finally {
+      if (saved === undefined) delete process.env.GIT_DIR
+      else process.env.GIT_DIR = saved
+    }
+  })
+
+  it("says what git said when it refuses a folder, not only its first words", async ({ repo }) => {
+    const broken = join(repo.root, "broken")
+    mkdirSync(broken)
+    writeFileSync(join(broken, ".git"), "garbage\n")
+    const found = await repositoryOf(broken)
+    expect(found).toMatchObject({ ok: false, kind: "failed" })
+    expect(found.ok ? "" : found.reason).toMatch(/invalid gitfile format/)
+  })
+
+  it("shows invisible characters in a name as U+FFFD", async ({ repo }) => {
+    repo.write("a\u202eb.txt", "x\n")
+    const read = await readChange(repo.root)
+    if (!read.ok) throw new Error(read.reason)
+    expect(read.change.files.map(({ path }) => path)).toEqual(["a\uFFFDb.txt"])
   })
 })

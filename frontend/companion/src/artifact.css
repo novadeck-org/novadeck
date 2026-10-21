@@ -176,6 +176,7 @@
   --diff-remove-fg: var(--artifact-diff-remove-fg, var(--color-danger-fg));
   --diff-head-bg: var(--artifact-diff-head-bg, var(--color-soft));
   --diff-head-bg-solid: var(--artifact-diff-head-bg, var(--color-soft));
+  --diff-gutter-bg: var(--color-paper);
   --diff-line-color: var(--color-line);
 }
 

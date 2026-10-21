@@ -1066,6 +1066,8 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     expect(second).toMatchObject({
       content: { files: [{ path: "a.txt" }, { path: "b.txt", status: "added" }] },
     })
+    // The item's detail follows what the reads find.
+    expect(fixture.items.bar(place.terminalId)[0]?.detail).toBe("2 files · +2 −0")
     // A repository that goes is unavailable.
     rmSync(root, { recursive: true, force: true })
     await expect(next(stream)).resolves.toMatchObject({ state: "unavailable", reason: "missing" })

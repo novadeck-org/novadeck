@@ -1,9 +1,10 @@
-import { execFile } from "node:child_process"
-import { constants } from "node:fs"
+import { spawn } from "node:child_process"
+import { constants, statSync } from "node:fs"
 import { lstat, open, readlink, stat } from "node:fs/promises"
-import { basename, join, resolve } from "node:path"
+import { basename, delimiter, isAbsolute, join, resolve } from "node:path"
 
 import {
+  hiddenCharacter,
   maxChangedFiles,
   maxChangesBytes,
   type ChangedFile,
@@ -13,16 +14,25 @@ import {
 import { hashOf } from "./content.js"
 import { secret } from "./secrets.js"
 
-/** The empty tree, which a repository with no commit yet is diffed against. */
-const emptyTree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-/** What one git run may take, and print, before it is given up on. */
+/** The empty tree, which a repository with no commit yet is diffed against, by object format. */
+const emptyTrees = {
+  sha1: "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+  sha256: "6ef19b41225c5369f1c104d45d8d85efa9b057b53b14b4b9b939dd74decc5321",
+} as const
+/** How long one git run may take, and how much of its output is kept. */
 const gitMs = 5_000
-const gitBytes = 64 * 1024 * 1024
+const metaBytes = 32 * 1024 * 1024
+const namesBytes = 16 * 1024 * 1024
+// The raw diff text read: what fits the budget needs hardly more than the budget itself.
+const patchBytes = 2 * maxChangesBytes
 // A line is cut to what the protocol takes; a text file has no NUL byte in this much of its start.
 const maxLineChars = 4096
 const sniffBytes = 8 * 1024
-// The largest untracked file read to show as added; a larger one is listed by name.
+// Untracked files: the largest one read, and how much all of them are read in one look.
 const maxUntrackedBytes = 1024 * 1024
+const untrackedReadBytes = 8 * 1024 * 1024
+// What a line of a change costs beyond its text, once encoded: its kind and punctuation.
+const lineOverhead = 30
 
 /** A change as read: what `companions.content` carries, and its whole size before bounds. */
 export type Change = {
@@ -42,42 +52,157 @@ export type ChangeFailure = {
 }
 
 type Run =
-  | { readonly ok: true; readonly out: string }
-  | { readonly ok: false; readonly code: string }
+  | { readonly ok: true; readonly out: string; readonly cut: boolean }
+  | {
+      readonly ok: false
+      readonly kind: "no-git" | "timeout" | "big" | "exit"
+      readonly status: number
+      readonly said: string
+    }
 
-// Runs git as the person would, with no shell and a fixed argument list; optional locks are
-// off so looking never takes the index lock the agent's own git needs, and nothing prompts.
-// A repository's `core.fsmonitor` hook is switched off: reading must not run programs.
-const git = (cwd: string, args: readonly string[]): Promise<Run> =>
+// What a page, a file or git supplies, shown as one line without invisible characters.
+const hidden = new RegExp(hiddenCharacter.source, "gu")
+const oneLine = (text: string, max: number): string => {
+  const line = text.replaceAll(hidden, " ").replaceAll(/\s+/g, " ").trim()
+  return line.length <= max ? line : `${line.slice(0, max - 1)}…`
+}
+/** A name for display: each invisible or control character shows as U+FFFD, the rest as it is. */
+export const displayed = (text: string): string =>
+  text.replaceAll(hidden, "\uFFFD").replaceAll(/[\t\n]/g, "\uFFFD")
+
+// Git, found once on the PATH by an absolute entry, so a program of that name in the
+// repository the child runs in (as Windows searches its working folder first) never runs.
+let gitProgram: string | undefined
+const gitPath = (): string | undefined => {
+  if (gitProgram) return gitProgram
+  const names = process.platform === "win32" ? ["git.exe"] : ["git"]
+  for (const folder of (process.env.PATH ?? process.env.Path ?? "").split(delimiter)) {
+    if (folder === "" || !isAbsolute(folder)) continue
+    for (const name of names) {
+      const candidate = join(folder, name)
+      try {
+        if (statSync(candidate).isFile()) return (gitProgram = candidate)
+      } catch {
+        // Not here.
+      }
+    }
+  }
+  return undefined
+}
+
+// The environment git runs in: the person's own, but for the runner's GIT_* variables
+// (GIT_DIR, GIT_INDEX_FILE, GIT_CONFIG_* and the like point git elsewhere), with optional
+// locks off so looking never takes the index lock the agent's own git needs, no prompts,
+// and no fetching of missing objects over the network.
+const gitEnv = (): NodeJS.ProcessEnv => ({
+  ...Object.fromEntries(
+    Object.entries(process.env).filter(([name]) => !name.toUpperCase().startsWith("GIT_")),
+  ),
+  GIT_OPTIONAL_LOCKS: "0",
+  GIT_TERMINAL_PROMPT: "0",
+  GIT_NO_LAZY_FETCH: "1",
+})
+
+// Ends git and what it started (a filter's program, a credential helper): its whole group
+// on POSIX, its tree on Windows.
+const killTree = (pid: number | undefined): void => {
+  if (pid === undefined) return
+  if (process.platform === "win32") {
+    const taskkill = `${process.env.SystemRoot ?? "C:\\Windows"}\\System32\\taskkill.exe`
+    spawn(taskkill, ["/pid", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true })
+      .on("error", () => {})
+      .unref()
+    return
+  }
+  try {
+    process.kill(-pid, "SIGKILL")
+  } catch {
+    try {
+      process.kill(pid, "SIGKILL")
+    } catch {
+      // Already gone.
+    }
+  }
+}
+
+// Runs git as the person would, with no shell, a fixed argument list and the environment
+// above. Switched off: a repository's fsmonitor hook, external diff programs, text
+// conversion, a pager and prompts. Not switched off: clean filters (git-lfs, say) of
+// files whose stat changed, which run as in the person's own `git diff`. Output past
+// `cap` bytes ends the run: it is `cut` where `truncate`, else a failure.
+const git = (
+  cwd: string,
+  args: readonly string[],
+  limit: { readonly cap: number; readonly truncate?: boolean },
+): Promise<Run> =>
   new Promise((done) => {
-    execFile(
-      "git",
+    const program = gitPath()
+    if (!program) return done({ ok: false, kind: "no-git", status: 0, said: "" })
+    let settled = false
+    const finish = (run: Run) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      done(run)
+    }
+    const child = spawn(
+      program,
       ["-c", "core.quotepath=off", "-c", "core.fsmonitor=false", ...args],
       {
         cwd,
-        timeout: gitMs,
-        killSignal: "SIGKILL",
-        maxBuffer: gitBytes,
-        encoding: "utf8",
+        env: gitEnv(),
+        detached: process.platform !== "win32",
         windowsHide: true,
-        env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", GIT_TERMINAL_PROMPT: "0" },
-      },
-      (error, stdout, stderr) => {
-        if (!error) return done({ ok: true, out: stdout })
-        const code = (error as NodeJS.ErrnoException).code
-        if (code === "ENOENT") return done({ ok: false, code: "ENOENT" })
-        if (error.killed) return done({ ok: false, code: "timeout" })
-        if (code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") return done({ ok: false, code: "big" })
-        const said = stderr.split("\n")[0]?.trim() ?? ""
-        done({
-          ok: false,
-          code: `exit:${typeof code === "number" ? code : "?"}:${said.slice(0, 200)}`,
-        })
+        stdio: ["ignore", "pipe", "pipe"],
       },
     )
+    const chunks: Buffer[] = []
+    let size = 0
+    let cut = false
+    let errors = Buffer.alloc(0)
+    const timer = setTimeout(() => {
+      killTree(child.pid)
+      finish({ ok: false, kind: "timeout", status: 0, said: "" })
+    }, gitMs)
+    child.stdout.on("data", (chunk: Buffer) => {
+      if (cut) return
+      if (size + chunk.length > limit.cap) {
+        cut = true
+        chunks.push(chunk.subarray(0, limit.cap - size))
+        killTree(child.pid)
+        return
+      }
+      size += chunk.length
+      chunks.push(chunk)
+    })
+    child.stderr.on("data", (chunk: Buffer) => {
+      if (errors.length < 4096) errors = Buffer.concat([errors, chunk])
+    })
+    child.on("error", (error: NodeJS.ErrnoException) => {
+      // A folder gone since is not git gone.
+      const folder = error.code !== "ENOENT" || statSync(cwd, { throwIfNoEntry: false })
+      finish({
+        ok: false,
+        kind: folder ? (error.code === "ENOENT" ? "no-git" : "exit") : "exit",
+        status: -1,
+        said: folder ? oneLine(error.message, 200) : "the folder is gone",
+      })
+    })
+    child.on("close", (code) => {
+      const out = Buffer.concat(chunks).toString("utf8")
+      if (cut)
+        return finish(
+          limit.truncate
+            ? { ok: true, out, cut: true }
+            : { ok: false, kind: "big", status: 0, said: "" },
+        )
+      if (code === 0) return finish({ ok: true, out, cut: false })
+      const said = oneLine(errors.toString("utf8").split("\n")[0] ?? "", 200)
+      finish({ ok: false, kind: "exit", status: code ?? -1, said })
+    })
   })
 
-// One line of git's C-style quoting undone: `"a\tb\303\251"` is a name with a tab and bytes.
+// One quoted name of git undone: `"a\tb\303\251"` is a name with a tab and bytes.
 const unquote = (text: string): string => {
   if (!text.startsWith('"')) return text
   const bytes: number[] = []
@@ -102,13 +227,24 @@ const unquote = (text: string): string => {
   return Buffer.from(bytes).toString("utf8")
 }
 
-// The two names in a `diff --git` line, for a change that names no rename: `a/P b/P`.
+// The name in a `diff --git` line of a change that names no rename: `a/P b/P`, with the
+// prefixes this reader asks git for.
 const namesIn = (rest: string): string => {
   if (rest.startsWith('"')) return unquote(/^"(?:[^"\\]|\\.)*"/.exec(rest)?.[0] ?? rest).slice(2)
   return rest.slice(2, 2 + (rest.length - 5) / 2)
 }
 
-const clipLine = (text: string): string => text.slice(0, maxLineChars)
+// Cut to what the protocol takes, never in the middle of a surrogate pair.
+const clipLine = (text: string): string => {
+  if (text.length <= maxLineChars) return text
+  const last = text.charCodeAt(maxLineChars - 1)
+  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? maxLineChars - 1 : maxLineChars)
+}
+
+/** What is left of the diff text a change may carry, as encoded: shared by its files. */
+export type Budget = { left: number }
+
+const costOf = (text: string): number => Buffer.byteLength(JSON.stringify(text)) + lineOverhead
 
 const emptyFile = (path: string): ChangedFile => ({
   path,
@@ -123,21 +259,46 @@ const emptyFile = (path: string): ChangedFile => ({
 })
 
 /**
- * The files of a unified diff as git prints it (`diff --git` headers, extended headers,
- * hunks): each with its status, rename source, counts and hunks; a binary file with none.
- * A hunk ends by the counts of its header, so a removed line that reads `-- x` is no header.
+ * The files of a unified diff as git prints it with `--src-prefix=a/ --dst-prefix=b/`
+ * (`diff --git` headers, extended headers, hunks): each with its status, rename source,
+ * counts and hunks; a binary file with none. A hunk ends by the counts of its header, so a
+ * removed line that reads `-- x` is no header. With a `budget`, a file whose lines would
+ * pass what is left is `listed` without hunks; `skip` says a file is not wanted (its body
+ * is not read at all).
  */
-export const parseDiff = (text: string): ChangedFile[] => {
+export const parseDiff = (
+  text: string,
+  options: { readonly budget?: Budget; readonly skip?: (file: ChangedFile) => boolean } = {},
+): ChangedFile[] => {
+  const { budget, skip } = options
   const files: ChangedFile[] = []
   let file: ChangedFile | undefined
-  const lines = text.split("\n")
-  const push = () => {
-    if (file) files.push(file)
+  let spent = 0
+  let position = 0
+  const next = (): string | undefined => {
+    if (position >= text.length) return undefined
+    const found = text.indexOf("\n", position)
+    const end = found < 0 ? text.length : found
+    const line = text.slice(position, end)
+    position = end + 1
+    return line
   }
-  for (let at = 0; at < lines.length; at += 1) {
-    const line = lines[at]!
+  // To the start of the next file's header: a body line always carries a prefix character.
+  const skipBody = () => {
+    if (text.startsWith("diff --git ", position)) return
+    const found = text.indexOf("\ndiff --git ", position)
+    position = found < 0 ? text.length : found + 1
+  }
+  const finish = () => {
+    if (!file) return
+    if (budget) budget.left -= spent
+    files.push(file)
+    file = undefined
+    spent = 0
+  }
+  for (let line = next(); line !== undefined; line = next()) {
     if (line.startsWith("diff --git ")) {
-      push()
+      finish()
       file = emptyFile(namesIn(line.slice("diff --git ".length)))
     } else if (!file) {
       continue
@@ -154,98 +315,178 @@ export const parseDiff = (text: string): ChangedFile[] => {
     } else if (line.startsWith("@@ ")) {
       const header = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line)
       if (!header) continue
-      const oldStart = Number(header[1])
+      if (skip?.(file)) {
+        skipBody()
+        continue
+      }
       const oldCount = header[2] === undefined ? 1 : Number(header[2])
-      const newStart = Number(header[3])
       const newCount = header[4] === undefined ? 1 : Number(header[4])
       const hunk = {
-        oldStart,
+        oldStart: Number(header[1]),
         oldCount,
-        newStart,
+        newStart: Number(header[3]),
         newCount,
         lines: [] as { kind: "context" | "add" | "remove"; text: string }[],
       }
       let old = oldCount
+      let now = newCount
       let added = 0
       let removed = 0
-      let now = newCount
-      while ((old > 0 || now > 0) && at + 1 < lines.length) {
-        at += 1
-        const body = lines[at]!
+      let over = false
+      for (let body = next(); body !== undefined; body = next()) {
         const mark = body[0]
-        if (mark === "+") {
-          hunk.lines.push({ kind: "add", text: clipLine(body.slice(1)) })
-          now -= 1
-          added += 1
-        } else if (mark === "-") {
-          hunk.lines.push({ kind: "remove", text: clipLine(body.slice(1)) })
-          old -= 1
-          removed += 1
-        } else if (mark === "\\") {
+        if (mark === "\\") {
           // "\ No newline at end of file": not a line.
         } else {
-          hunk.lines.push({ kind: "context", text: clipLine(body.slice(1)) })
-          old -= 1
-          now -= 1
+          const kind = mark === "+" ? "add" : mark === "-" ? "remove" : "context"
+          const content = clipLine(body.slice(1))
+          if (budget) {
+            spent += costOf(content)
+            if (spent > budget.left) {
+              over = true
+              break
+            }
+          }
+          hunk.lines.push({ kind, text: content })
+          if (kind !== "remove") now -= 1
+          if (kind !== "add") old -= 1
+          if (kind === "add") added += 1
+          if (kind === "remove") removed += 1
         }
+        if (old <= 0 && now <= 0) break
+      }
+      if (over) {
+        // It does not fit: listed by name; what it took goes back for the files after it.
+        file = { ...file, listed: true, hunks: [] }
+        spent = 0
+        skipBody()
+        continue
       }
       file = {
         ...file,
         added: file.added + added,
         removed: file.removed + removed,
-        hunks: [...file.hunks, hunk],
+        hunks: file.listed ? [] : [...file.hunks, hunk],
       }
     }
   }
-  push()
+  finish()
   return files
 }
 
-/** A new file as all-added lines, as git would diff it against nothing. */
-const addedFile = (path: string, text: string): ChangedFile => {
+/** One changed file as git's raw and numstat listings give it. */
+type Entry = {
+  readonly path: string
+  readonly oldPath: string | null
+  readonly status: ChangedFile["status"]
+  readonly added: number
+  readonly removed: number
+  readonly binary: boolean
+}
+
+const statusOf = (letter: string): ChangedFile["status"] =>
+  letter === "A" ? "added" : letter === "D" ? "deleted" : letter === "R" ? "renamed" : "modified"
+
+/**
+ * The files of `git diff --raw --numstat -z`: git prints every file's raw record (its
+ * status and names), then every file's counts (`-` for a binary file), in the same order.
+ */
+export const parseListing = (out: string): Entry[] => {
+  const tokens = out.split("\0")
+  const raws: { status: ChangedFile["status"]; path: string; oldPath: string | null }[] = []
+  const counts = new Map<string, { added: number; removed: number; binary: boolean }>()
+  for (let at = 0; at < tokens.length;) {
+    const token = tokens[at]!
+    if (token.startsWith(":")) {
+      const letter = token.split(" ").at(-1)?.[0] ?? "M"
+      if (letter === "R" || letter === "C") {
+        raws.push({
+          status: statusOf(letter),
+          oldPath: tokens[at + 1] ?? "",
+          path: tokens[at + 2] ?? "",
+        })
+        at += 3
+      } else {
+        raws.push({ status: statusOf(letter), oldPath: null, path: tokens[at + 1] ?? "" })
+        at += 2
+      }
+      continue
+    }
+    const numbers = /^(\d+|-)\t(\d+|-)\t([^]*)$/.exec(token)
+    if (!numbers) {
+      at += 1
+      continue
+    }
+    const renamed = numbers[3] === ""
+    counts.set(renamed ? (tokens[at + 2] ?? "") : numbers[3]!, {
+      added: numbers[1] === "-" ? 0 : Number(numbers[1]),
+      removed: numbers[2] === "-" ? 0 : Number(numbers[2]),
+      binary: numbers[1] === "-",
+    })
+    at += renamed ? 3 : 1
+  }
+  return raws.map((raw) => ({
+    ...raw,
+    ...(counts.get(raw.path) ?? { added: 0, removed: 0, binary: false }),
+  }))
+}
+
+/** A new file's text as all-added lines, as git would diff it against nothing. */
+const addedFile = (path: string, text: string, budget: Budget): ChangedFile => {
   const lines = text === "" ? [] : text.split("\n")
   // A final newline ends the last line rather than starting another.
   if (lines.at(-1) === "") lines.pop()
+  const base: ChangedFile = { ...emptyFile(path), status: "added", added: lines.length }
+  const shown = lines.map(clipLine)
+  let cost = 0
+  for (const line of shown) {
+    cost += costOf(line)
+    if (cost > budget.left) return { ...base, listed: true }
+  }
+  budget.left -= cost
+  if (shown.length === 0) return base
   return {
-    ...emptyFile(path),
-    status: "added",
-    added: lines.length,
-    hunks:
-      lines.length === 0
-        ? []
-        : [
-            {
-              oldStart: 0,
-              oldCount: 0,
-              newStart: 1,
-              newCount: lines.length,
-              lines: lines.map((each) => ({ kind: "add" as const, text: clipLine(each) })),
-            },
-          ],
+    ...base,
+    hunks: [
+      {
+        oldStart: 0,
+        oldCount: 0,
+        newStart: 1,
+        newCount: shown.length,
+        lines: shown.map((line) => ({ kind: "add" as const, text: line })),
+      },
+    ],
   }
 }
 
 // An untracked file as git would show it new: held when it may hold secrets, never read
-// then; a symlink by its target; a binary file, or one too large, by name.
-const untracked = async (root: string, path: string): Promise<ChangedFile | undefined> => {
+// then; a symlink by its target; a binary file, or one too large to read, by name.
+const untracked = async (
+  root: string,
+  path: string,
+  budget: Budget,
+  reading: { left: number },
+): Promise<ChangedFile | undefined> => {
   const full = join(root, path)
   const base = { ...emptyFile(path), status: "added" as const }
   if (secret(full)) return { ...base, held: true }
+  // Once the diff text or the reading is spent, the rest are listed without a look.
+  if (budget.left <= 0 || reading.left <= 0) return { ...base, listed: true }
   const stats = await lstat(full).catch(() => undefined)
   if (!stats) return undefined
   if (stats.isSymbolicLink()) {
     const target = await readlink(full).catch(() => undefined)
-    return target === undefined ? undefined : addedFile(path, target)
+    return target === undefined ? undefined : addedFile(path, target, budget)
   }
   if (!stats.isFile()) return undefined
-  if (stats.size > maxUntrackedBytes) return { ...base, listed: true }
+  if (stats.size > maxUntrackedBytes || stats.size > reading.left) return { ...base, listed: true }
   try {
     const handle = await open(
       full,
       constants.O_RDONLY | (constants.O_NONBLOCK ?? 0) | (constants.O_NOFOLLOW ?? 0),
     )
     try {
-      const bytes = Buffer.alloc(Math.min(stats.size, maxUntrackedBytes))
+      const bytes = Buffer.alloc(stats.size)
       let read = 0
       while (read < bytes.length) {
         // eslint-disable-next-line no-await-in-loop -- One chunk after another.
@@ -253,9 +494,10 @@ const untracked = async (root: string, path: string): Promise<ChangedFile | unde
         if (bytesRead === 0) break
         read += bytesRead
       }
+      reading.left -= read
       const got = bytes.subarray(0, read)
       if (got.subarray(0, sniffBytes).includes(0)) return { ...base, binary: true }
-      return addedFile(path, got.toString("utf8"))
+      return addedFile(path, got.toString("utf8"), budget)
     } finally {
       await handle.close().catch(() => {})
     }
@@ -264,150 +506,168 @@ const untracked = async (root: string, path: string): Promise<ChangedFile | unde
   }
 }
 
-/**
- * Files within the protocol's bounds: held and binary ones without hunks, and past
- * `maxChangesBytes` of line text, or `maxChangedFiles` files, the rest listed by name and
- * counts, or not at all; `truncated` says either happened.
- */
-export const bounded = (
-  files: readonly ChangedFile[],
-  root: string,
-): { files: ChangedFile[]; truncated: boolean } => {
-  const kept: ChangedFile[] = []
-  let bytes = 0
-  let truncated = files.length > maxChangedFiles
-  for (const each of files.slice(0, maxChangedFiles)) {
-    const held = each.held || secret(join(root, each.path))
-    if (held || each.binary) {
-      kept.push({ ...each, held, hunks: [] })
-      continue
-    }
-    const size = each.hunks.reduce(
-      (sum, hunk) => sum + hunk.lines.reduce((lines, line) => lines + line.text.length, 0),
-      0,
-    )
-    if (bytes + size > maxChangesBytes) {
-      kept.push({ ...each, listed: true, hunks: [] })
-      truncated = true
-      continue
-    }
-    bytes += size
-    kept.push(each)
-  }
-  return { files: kept, truncated }
-}
-
 const failure = (kind: ChangeFailure["kind"], reason: string): ChangeFailure => ({
   ok: false,
   kind,
   reason,
 })
 
+/** Why a git run failed, in a sentence: git's own first line where it said one. */
+const reasonOf = (run: Extract<Run, { ok: false }>, doing: string): string => {
+  if (run.kind === "no-git") return "Git isn't installed, so changes can't be shown."
+  if (run.kind === "timeout") return `Git took too long to ${doing}.`
+  if (run.kind === "big") return `There are too many changes to ${doing}.`
+  return `Git couldn't ${doing}${run.said ? `: ${JSON.stringify(run.said)}` : "."}`
+}
+
 /**
  * The repository's folder a directory belongs to, or why not: git isn't installed, the
- * directory is gone, or it isn't in a work tree.
+ * directory is gone, it isn't in a work tree, or git refused it (as for a folder another
+ * user owns), in git's own words.
  */
 export const repositoryOf = async (
   directory: string,
 ): Promise<{ readonly ok: true; readonly root: string } | ChangeFailure> => {
   if (!(await stat(directory).catch(() => undefined)))
     return failure("missing", "The terminal's folder no longer exists.")
-  const top = await git(directory, ["rev-parse", "--show-toplevel"])
+  const top = await git(directory, ["rev-parse", "--show-toplevel"], { cap: 64 * 1024 })
   if (top.ok) return { ok: true, root: resolve(top.out.trim()) }
-  if (top.code === "ENOENT")
-    return failure("no-git", "Git isn't installed, so changes can't be shown.")
-  if (top.code === "timeout") return failure("failed", "Git took too long to answer.")
-  return failure(
-    "not-a-repository",
-    "This terminal's folder isn't in a git repository, so there are no changes to show.",
-  )
+  if (top.kind === "no-git") return failure("no-git", reasonOf(top, "read the changes"))
+  if (top.kind === "exit" && /not a git repository/i.test(top.said))
+    return failure(
+      "not-a-repository",
+      "This terminal's folder isn't in a git repository, so there are no changes to show.",
+    )
+  return failure("failed", reasonOf(top, "open this folder's repository"))
 }
+
+// What every diff of a change is asked: the prefixes are fixed whatever the person's
+// diff.noprefix, diff.mnemonicPrefix or diff.srcPrefix say, as the parser relies on them.
+const diffFlags = [
+  "diff",
+  "--no-ext-diff",
+  "--no-textconv",
+  "--no-color",
+  "--find-renames",
+  "--submodule=short",
+  "--src-prefix=a/",
+  "--dst-prefix=b/",
+] as const
 
 /**
  * A repository's working tree against `HEAD` (the empty tree before its first commit):
- * staged, unstaged and untracked files, but not ignored ones, within the protocol's bounds.
- * Run as the person running `git diff` there would, but never prompting or taking a lock.
+ * staged, unstaged and untracked files, but not ignored ones. Files are listed with their
+ * counts by git alone, then diffed as far as the encoded diff text fits `maxChangesBytes`,
+ * and at most `maxChangedFiles` are carried. Run as `git diff` by the person would, but
+ * never prompting or taking a lock.
  */
 export const readChange = async (
   root: string,
 ): Promise<{ readonly ok: true; readonly change: Change } | ChangeFailure> => {
-  const head = await git(root, ["rev-parse", "--verify", "--quiet", "HEAD"])
-  const base = head.ok ? "HEAD" : emptyTree
-  if (!head.ok && !head.code.startsWith("exit:1")) return failure("failed", gitFailed(head.code))
-  const diff = await git(root, [
-    "diff",
-    "--no-ext-diff",
-    "--no-textconv",
-    "--no-color",
-    "--find-renames",
-    "-U3",
-    base,
-    "--",
+  const head = await git(root, ["rev-parse", "--verify", "--quiet", "HEAD"], { cap: 4096 })
+  if (!head.ok && !(head.kind === "exit" && head.status === 1))
+    return failure("failed", reasonOf(head, "read the changes"))
+  let base = "HEAD"
+  if (!head.ok) {
+    const format = await git(root, ["rev-parse", "--show-object-format"], { cap: 4096 })
+    base = format.ok && format.out.trim() === "sha256" ? emptyTrees.sha256 : emptyTrees.sha1
+  }
+  const [listing, patch, others] = await Promise.all([
+    git(root, [...diffFlags, "--raw", "--numstat", "-z", base, "--"], { cap: metaBytes }),
+    git(root, [...diffFlags, "-U3", base, "--"], { cap: patchBytes, truncate: true }),
+    git(root, ["ls-files", "--others", "--exclude-standard", "-z"], { cap: namesBytes }),
   ])
-  if (!diff.ok) return failure("failed", gitFailed(diff.code))
-  const others = await git(root, ["ls-files", "--others", "--exclude-standard", "-z"])
-  if (!others.ok) return failure("failed", gitFailed(others.code))
-  const tracked = parseDiff(diff.out)
+  if (!listing.ok) return failure("failed", reasonOf(listing, "read the changes"))
+  if (!patch.ok) return failure("failed", reasonOf(patch, "read the changes"))
+  if (!others.ok) return failure("failed", reasonOf(others, "read the changes"))
+
+  const entries = parseListing(listing.out)
+  const heldAt = (path: string, oldPath: string | null) =>
+    secret(join(root, path)) || (oldPath !== null && secret(join(root, oldPath)))
+  const budget: Budget = { left: maxChangesBytes }
+  // A file that may hold secrets is not even looked at in the diff: neither its new name
+  // nor the one a rename took it from.
+  const diffed = parseDiff(patch.out, { budget, skip: (file) => heldAt(file.path, file.oldPath) })
+  // Output that was cut ends in a file only partly read.
+  if (patch.cut) diffed.pop()
+  const parsed = new Map(diffed.map((file) => [file.path, file]))
+  let truncated = entries.length > maxChangedFiles
+  const files: ChangedFile[] = []
+  for (const entry of entries.slice(0, maxChangedFiles)) {
+    const held = heldAt(entry.path, entry.oldPath)
+    const lines = entry.added + entry.removed > 0
+    const own = parsed.get(entry.path)
+    const hunks = !held && !entry.binary && lines && own && !own.listed ? own.hunks : undefined
+    const listed = !held && !entry.binary && lines && hunks === undefined
+    if (listed) truncated = true
+    files.push({
+      ...emptyFile(entry.path),
+      oldPath: entry.oldPath,
+      status: entry.status,
+      added: entry.added,
+      removed: entry.removed,
+      binary: entry.binary,
+      held,
+      listed,
+      hunks: hunks ?? [],
+    })
+  }
+
   const names = others.out.split("\0").filter((name) => name !== "")
-  const fresh: ChangedFile[] = []
-  // Only as many untracked files are read as can be shown.
-  const readable = Math.max(0, maxChangedFiles - tracked.length)
-  for (const name of names.slice(0, readable)) {
-    // eslint-disable-next-line no-await-in-loop -- Each file is read in turn.
-    const file = await untracked(root, name)
-    if (file) fresh.push(file)
+  const slots = Math.max(0, maxChangedFiles - entries.length)
+  if (names.length > slots) truncated = true
+  const reading = { left: untrackedReadBytes }
+  for (const name of names.slice(0, slots)) {
+    // eslint-disable-next-line no-await-in-loop -- Each file is read in turn, within the budget.
+    const file = await untracked(root, name, budget, reading)
+    if (!file) continue
+    if (file.listed) truncated = true
+    files.push(file)
   }
-  const all = [...tracked, ...fresh]
-  const { files, truncated } = bounded(all, root)
-  const total = {
-    files: tracked.length + names.length,
-    added: all.reduce((sum, file) => sum + file.added, 0),
-    removed: all.reduce((sum, file) => sum + file.removed, 0),
-  }
+  if (patch.cut && entries.some((entry) => entry.added + entry.removed > 0)) truncated = true
+
+  const added = files.reduce((sum, file) => sum + file.added, 0)
+  const removed = files.reduce((sum, file) => sum + file.removed, 0)
   return {
     ok: true,
     change: {
       root,
       base: head.ok ? "HEAD" : "HEAD (no commits yet)",
-      files,
-      truncated: truncated || names.length > readable,
-      total,
+      files: files.map((file) => ({
+        ...file,
+        path: displayed(file.path),
+        oldPath: file.oldPath === null ? null : displayed(file.oldPath),
+      })),
+      truncated,
+      total: { files: entries.length + names.length, added, removed },
     },
   }
 }
 
-const gitFailed = (code: string): string =>
-  code === "timeout"
-    ? "Git took too long to read the changes."
-    : code === "big"
-      ? "The changes are too large to read."
-      : code === "ENOENT"
-        ? "Git isn't installed, so changes can't be shown."
-        : `Git couldn't read the changes${code.split(":")[2] ? `: ${JSON.stringify(code.split(":")[2])}` : "."}`
-
-/** A change's name and one-line detail, as its item shows them. */
+/** A change's name and one-line detail, as its item shows them; the folder's name is cleaned. */
 export const describeChange = (change: Change): { name: string; detail: string } => ({
-  name: `Changes · ${basename(change.root)}`,
+  name: `Changes · ${oneLine(basename(change.root), 200)}`,
   detail:
     `${change.total.files} ${change.total.files === 1 ? "file" : "files"}` +
     ` · +${change.total.added} −${change.total.removed}`,
 })
 
+const unavailable = (reason: "missing" | "unreadable") => ({
+  content: { state: "unavailable" as const, reason, size: null },
+})
+
 /**
- * A changes item's content as it is now: the repository's change, stamped by a digest of
- * it; a repository gone is `missing`, any other failure `unreadable`.
+ * A changes item's content as it is now, stamped by a digest of it, with the detail its
+ * item should carry; a repository gone is `missing`, any other failure `unreadable`.
  */
-export const changesContent = async (root: string | null): Promise<ItemContent> => {
-  if (root === null) return { state: "unavailable", reason: "missing", size: null }
+export const changesContent = async (
+  root: string | null,
+): Promise<{ readonly content: ItemContent; readonly detail?: string }> => {
+  if (root === null) return unavailable("missing")
   const found = await repositoryOf(root)
-  if (!found.ok)
-    return {
-      state: "unavailable",
-      reason: found.kind === "missing" ? "missing" : "unreadable",
-      size: null,
-    }
+  if (!found.ok) return unavailable(found.kind === "missing" ? "missing" : "unreadable")
   const read = await readChange(found.root)
-  if (!read.ok) return { state: "unavailable", reason: "unreadable", size: null }
+  if (!read.ok) return unavailable("unreadable")
   const { change } = read
   const content = {
     kind: "changes" as const,
@@ -416,5 +676,8 @@ export const changesContent = async (root: string | null): Promise<ItemContent> 
     files: [...change.files],
     truncated: change.truncated,
   }
-  return { state: "ready", stamp: hashOf(JSON.stringify(content)), content }
+  return {
+    content: { state: "ready", stamp: hashOf(JSON.stringify(content)), content },
+    detail: describeChange(change).detail,
+  }
 }

@@ -13,6 +13,19 @@ const context = (text: string): Line => ({ kind: "context", text })
 const add = (text: string): Line => ({ kind: "add", text })
 const remove = (text: string): Line => ({ kind: "remove", text })
 
+// A hunk from the line it starts at on each side, its counts those of its lines.
+const hunk = (
+  oldStart: number,
+  newStart: number,
+  lines: readonly Line[],
+): ChangedFile["hunks"][number] => ({
+  oldStart,
+  oldCount: lines.filter((line) => line.kind !== "add").length,
+  newStart,
+  newCount: lines.filter((line) => line.kind !== "remove").length,
+  lines,
+})
+
 const file = (
   path: string,
   status: ChangedFile["status"],
@@ -22,9 +35,9 @@ const file = (
   path,
   oldPath: null,
   status,
-  added: hunks.reduce((sum, hunk) => sum + hunk.lines.filter((l) => l.kind === "add").length, 0),
+  added: hunks.reduce((sum, each) => sum + each.lines.filter((l) => l.kind === "add").length, 0),
   removed: hunks.reduce(
-    (sum, hunk) => sum + hunk.lines.filter((l) => l.kind === "remove").length,
+    (sum, each) => sum + each.lines.filter((l) => l.kind === "remove").length,
     0,
   ),
   binary: false,
@@ -61,98 +74,78 @@ const sample = (
 })
 
 const header = file("src/components/Header.tsx", "modified", [
-  {
-    oldStart: 4,
-    oldCount: 8,
-    newStart: 4,
-    newCount: 10,
-    lines: [
-      context("export const Header = () => ("),
-      context('  <header className="site-header">'),
-      remove('    <a href="/">Studio</a>'),
-      add('    <a href="/" aria-label="Studio, home">'),
-      add("      Studio"),
-      add("    </a>"),
-      context("    <nav>"),
-      context('      <a href="/work">Work</a>'),
-      context('      <a href="/about">About</a>'),
-      context("    </nav>"),
-    ],
-  },
-  {
-    oldStart: 30,
-    oldCount: 3,
-    newStart: 32,
-    newCount: 3,
-    lines: [
-      context("export default Header"),
-      remove("// TODO: mobile menu"),
-      add("// The mobile menu is the nav, folded."),
-      context(""),
-    ],
-  },
+  hunk(4, 4, [
+    context("export const Header = () => ("),
+    context('  <header className="site-header">'),
+    remove('    <a href="/">Studio</a>'),
+    add('    <a href="/" aria-label="Studio, home">'),
+    add("      Studio"),
+    add("    </a>"),
+    context("    <nav>"),
+    context('      <a href="/work">Work</a>'),
+    context('      <a href="/about">About</a>'),
+    context("    </nav>"),
+  ]),
+  hunk(30, 32, [
+    context("export default Header"),
+    remove("// TODO: mobile menu"),
+    add("// The mobile menu is the nav, folded."),
+    context(""),
+  ]),
 ])
 
 const styles = file("src/styles/site.css", "modified", [
-  {
-    oldStart: 12,
-    oldCount: 4,
-    newStart: 12,
-    newCount: 7,
-    lines: [
-      context(".site-header {"),
-      context("  display: flex;"),
-      add("  position: sticky;"),
-      add("  top: 0;"),
-      add("  background: var(--ivory);"),
-      context("}"),
-    ],
-  },
+  hunk(12, 12, [
+    context(".site-header {"),
+    context("  display: flex;"),
+    add("  position: sticky;"),
+    add("  top: 0;"),
+    add("  background: var(--ivory);"),
+    context("}"),
+  ]),
 ])
 
 const readme = file("README.md", "added", [
-  {
-    oldStart: 0,
-    oldCount: 0,
-    newStart: 1,
-    newCount: 3,
-    lines: [add("# Studio"), add(""), add("An independent design practice's site.")],
-  },
+  hunk(0, 1, [add("# Studio"), add(""), add("An independent design practice's site.")]),
 ])
 
 export const changesArtifacts: readonly SampleArtifact[] = [
   sample("change", "Changes", "Working tree against HEAD · 3 files", {
     files: [header, styles, readme],
   }),
-  sample("change-moves", "Renamed, deleted and added", "Working tree against HEAD · 3 files", {
+  sample("change-moves", "Renamed, deleted and added", "Working tree against HEAD · 4 files", {
     files: [
       file(
         "src/pages/Work.tsx",
         "renamed",
         [
-          {
-            oldStart: 1,
-            oldCount: 2,
-            newStart: 1,
-            newCount: 2,
-            lines: [
-              remove("export const Projects = () => null"),
-              add("export const Work = () => null"),
-            ],
-          },
+          hunk(1, 1, [
+            remove("export const Projects = () => null"),
+            add("export const Work = () => null"),
+          ]),
         ],
         { oldPath: "src/pages/Projects.tsx" },
       ),
       file("src/legacy.js", "deleted", [
-        {
-          oldStart: 1,
-          oldCount: 2,
-          newStart: 0,
-          newCount: 0,
-          lines: [remove("// Old build script"), remove("module.exports = {}")],
-        },
+        hunk(1, 0, [remove("// Old build script"), remove("module.exports = {}")]),
       ]),
+      file("src/pages/Studio.tsx", "renamed", [], { oldPath: "src/pages/About.tsx" }),
       readme,
+    ],
+  }),
+  sample("change-long", "A change with long lines", "Working tree against HEAD · 2 files", {
+    files: [
+      file("src/content/credits.json", "modified", [
+        hunk(8, 8, [
+          context("  {"),
+          remove('    "credits": "Wayfinding with Hollis & Reyes Architects."'),
+          add(
+            '    "credits": "Wayfinding with Hollis & Reyes Architects; signage fabricated by Northfield Metalworks; photography by Ana Lindqvist; additional illustration by the studio team over two seasons of site visits, with thanks to the neighbours who let us measure their doors.",',
+          ),
+          context("  }"),
+        ]),
+      ]),
+      styles,
     ],
   }),
   sample("change-binary", "A binary file", "Working tree against HEAD · 2 files", {
@@ -164,7 +157,7 @@ export const changesArtifacts: readonly SampleArtifact[] = [
   sample(
     "change-truncated",
     "A change past what is shown",
-    "Working tree against HEAD · 302 files",
+    "Working tree against HEAD · more than is shown",
     {
       files: [
         header,

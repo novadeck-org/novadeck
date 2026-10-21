@@ -296,11 +296,18 @@ A change (the `changes` item kind) shows in the diff viewer (`libraries/viewers/
 read-only: a list of the changed files at the top, each scrolling to its section, then a
 section per file with its path (and old path when renamed), how it changed and its added and
 removed counts, over its hunks with the old and new line numbers in two gutters, added and
-removed lines tinted and the text highlighted by the file's language. A binary file, one that
+removed lines tinted and the text highlighted by the file's language (a hunk's old and new
+side parsed apart; a file past 4,000 diff lines, or one whose parser fails, stays plain). A
+line wider than the pane scrolls its own file sideways (the pane scrolls only down), the file
+list, the headers and the line numbers staying in view; each file's sideways scroll is kept by
+its path. A binary file, one that
 may hold secrets and one past the change's size show their header with a note, an empty
 change says "No changes against HEAD", and a truncated one says it is larger than shown.
 The rows of a long change are made a few at a time, and the sections off screen are not laid
-out, so a change of the full 4 MB opens without freezing the pane.
+out, so a change of the full 4 MB opens without freezing the pane. A new content for the same
+change, as the agent edits, keeps the rows and colours of every file that didn't change, and
+the place the person was at (the file and row at the top, not pixels), also while the pane is
+out of sight.
 
 ### Plans are edited in their file
 
@@ -397,24 +404,42 @@ with every safety check again at that time:
 
   A **changes item** (`show { changes: {} }`, kind `changes`) is the terminal's git
   repository as a set of diffs: its working tree against `HEAD` (the empty tree before
-  the first commit), so staged, unstaged and untracked files, but not ignored ones, with
-  renames found. It is one item per repository on a bar, keyed `changes:<repository root>`
-  and named "Changes · <folder>" unless a title is given; showing it again updates it,
-  and its detail counts the files and lines. Its content (`companions.content`) is read
-  with git at the start and again about every 2 seconds while followed, and sent only
-  when it changed. At most 300 files and 4 MiB of diff text are carried; past that,
-  files are listed by name and counts, without hunks, and `truncated` says so. A binary
-  file, and one that may hold secrets (the same rule as for files, tracked or not), is
-  listed by name: its diff is never read into the item, and v1 has no way to reveal it.
-  The runner runs `git` with a fixed argument list and no shell, in the repository, for
-  at most 5 seconds and a bounded output, with `GIT_OPTIONAL_LOCKS=0` (so following never
-  takes the index lock the agent's own git needs) and no prompts, external diff drivers
-  and text conversion off, and a repository's fsmonitor hook off. Otherwise it runs
-  as the person would: their git and its configuration, which an agent in that terminal
-  could use anyway. `show` is refused, with a reason the agent can act on, when the
-  terminal's folder is not in a git repository, git is not installed, or it cannot read
-  the change; a repository that goes later makes the content `missing`, and any other
-  failure `unreadable`.
+  the first commit, whatever the repository's hash), so staged, unstaged and untracked
+  files, but not ignored ones, with renames found, whoever edited them. It is one item per
+  repository on a bar, keyed `changes:<repository root>` and named "Changes · <folder>"
+  unless a title is given; showing it again updates it. Its detail counts the files and
+  lines and follows each read the pane triggers. The content (`companions.content`) is
+  read with git at the start and again about every 2 seconds while followed, and sent
+  only when it changed.
+
+  Bounds: git lists every changed file with its counts first, and at most 300 files are
+  carried (`truncated` says more exist; the rest are not listed). The diff text is read up
+  to a budget of 4 MiB as encoded, each line counting its text and its encoding, so
+  blank lines are not free; a file whose diff would pass what is left is `listed`: name,
+  status and counts, without hunks, and `truncated` is set. Untracked files are read a
+  bounded amount in all (1 MiB each, 8 MiB per look); past that they are listed by name
+  with no counts. Lines are cut at 4096 characters, and names show a control or invisible
+  character as U+FFFD.
+
+  A binary file and a file that may hold secrets (the rule for files, applied to the new
+  name and the old one of a rename, tracked or not) carry no hunks: a held file's diff
+  text is skipped by the reader, and an untracked one is never opened. v1 has no way to
+  reveal either.
+
+  The runner finds `git` once on the PATH (absolute entries only) and runs it with a
+  fixed argument list, no shell, in the repository, for at most 5 seconds, ending its
+  whole process group if it takes longer. Its environment is the person's, without any
+  `GIT_*` variable of the runner's own, with `GIT_OPTIONAL_LOCKS=0` (following never
+  takes the index lock the agent's own git needs), no prompts and no network fetch of
+  missing objects. The diff prefixes are fixed, so the person's `diff.noprefix` and
+  the like change nothing. External diff drivers, text conversion and a repository's
+  fsmonitor hook are switched off; clean filters (git-lfs, say) of files whose stat
+  changed still run, as in the person's own `git diff`. Otherwise it is the person's git
+  and configuration, which an agent in that terminal could use anyway. `show` is refused,
+  with a reason the agent can act on, when the terminal's folder is not in a git
+  repository, git is not installed, git refused the folder (its own words follow, as for
+  a folder another user owns) or cannot read the change; a repository that goes later
+  makes the content `missing`, and any other failure `unreadable`.
 
 - **New terminals** come from the same server's second tool, `open_terminal`, listed
   only inside Novadeck's terminals like `show`. It opens a terminal beside the agent's,

@@ -86,8 +86,8 @@ export const windowOfItem = (item: CompanionItem): string | undefined =>
 // What each kind of item means as data, apart from how it looks. A new kind adds its line.
 export type KindRule = {
   // What the kind points at, so showing the same thing again finds it: a file by its path, a
-  // page by the runner's own key for its address. A plan has none here: which agent's plan
-  // slot it fills is the backend's to know.
+  // page by the runner's own key for its address, a change by its repository's folder. A
+  // plan has none here: which agent's plan slot it fills is the backend's to know.
   readonly pointer: "none" | "file" | "page" | "changes"
   // How long the pane follows its content: a plan is followed whether shown or not, anything
   // else only while something shows it.
@@ -107,8 +107,8 @@ export const kindRules: Record<ItemKind, KindRule> = {
 
 type Pointer = Pick<CompanionItem, "kind" | "path" | "url">
 
-// What a file or page item points at, so showing the same thing again finds it: a page
-// by the runner's own key for it.
+// What a file, page or change item points at, so showing the same thing again finds it: a
+// page by the runner's own key for it, a change by its folder.
 export const pointerOf = (item: Pointer): string | null => {
   switch (kindRules[item.kind].pointer) {
     case "none":

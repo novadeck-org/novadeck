@@ -29,6 +29,19 @@ describe("the sample changes", () => {
       }
   })
 
+  it("have hunk headers that count the lines the hunk holds", () => {
+    for (const content of contents.values())
+      for (const file of content!.files)
+        for (const hunk of file.hunks) {
+          expect(hunk.oldCount, file.path).toBe(
+            hunk.lines.filter((line) => line.kind !== "add").length,
+          )
+          expect(hunk.newCount, file.path).toBe(
+            hunk.lines.filter((line) => line.kind !== "remove").length,
+          )
+        }
+  })
+
   it("show an ordinary change, files moved, deleted and added, a binary file, a held one, a truncated change and none", () => {
     expect(changeOf("change").files.map((file) => file.status)).toEqual([
       "modified",
@@ -36,7 +49,8 @@ describe("the sample changes", () => {
       "added",
     ])
     const moves = changeOf("change-moves").files
-    expect(moves.map((file) => file.status)).toEqual(["renamed", "deleted", "added"])
+    expect(moves.map((file) => file.status)).toEqual(["renamed", "deleted", "renamed", "added"])
+    expect(moves[2]!.hunks).toEqual([])
     expect(moves[0]!.oldPath).toBe("src/pages/Projects.tsx")
     expect(changeOf("change-binary").files.some((file) => file.binary)).toBe(true)
     expect(changeOf("change-held").files.some((file) => file.held)).toBe(true)
@@ -44,5 +58,7 @@ describe("the sample changes", () => {
     expect(truncated.truncated).toBe(true)
     expect(truncated.files.some((file) => file.listed)).toBe(true)
     expect(changeOf("change-none").files).toEqual([])
+    const long = changeOf("change-long").files[0]!.hunks[0]!.lines
+    expect(Math.max(...long.map((line) => line.text.length))).toBeGreaterThan(200)
   })
 })

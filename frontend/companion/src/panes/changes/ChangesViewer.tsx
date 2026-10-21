@@ -31,7 +31,7 @@ export const ChangesViewer = ({
         <span>
           {count === 0
             ? `no changes against ${change.base}`
-            : `${count} ${count === 1 ? "file" : "files"} · +${added} −${removed} · against ${change.base}`}{" "}
+            : `${count} ${count === 1 ? "file" : "files"}${change.truncated ? ", more than shown" : ""} · +${added} −${removed} · against ${change.base}`}{" "}
           · read-only
         </span>
         {actions && <span className="artifact-meta-push" />}
@@ -51,7 +51,7 @@ export const ChangesThumb = ({ content }: { content: ChangesContent }): React.JS
       <span>
         {content.files.length === 0
           ? "No changes"
-          : `${content.files.length} ${content.files.length === 1 ? "file" : "files"}  +${added} −${removed}`}
+          : `${content.files.length} ${content.files.length === 1 ? "file" : "files"}${content.truncated ? "+" : ""}  +${added} −${removed}`}
       </span>
       {paths.map((file) => (
         <span key={file.path} data-status={file.status}>

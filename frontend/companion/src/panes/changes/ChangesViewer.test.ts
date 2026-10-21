@@ -105,6 +105,9 @@ describe("a change beside a terminal", () => {
     it("says so", () => {
       const { container } = show(change({ files: [] }))
       expect(container.querySelector(".diff-empty")?.textContent).toBe("No changes against HEAD")
+      expect(container.querySelector(".artifact-meta")?.textContent).toContain(
+        "no changes against HEAD · read-only",
+      )
     })
   })
 
@@ -112,6 +115,9 @@ describe("a change beside a terminal", () => {
     it("says so", () => {
       const { container } = show(change({ truncated: true }))
       expect(container.querySelector(".diff-truncated")).not.toBeNull()
+      expect(container.querySelector(".artifact-meta")?.textContent).toContain(
+        "2 files, more than shown · +2 −1",
+      )
     })
   })
 })
