@@ -49,9 +49,9 @@ transcript is styled text with line breaks, not rows:
 regexes, and a thread that overruns its deadline is ended. A transcript that is not masked
 (too slow, failed, no thread) is not kept: the result is null. One transcript at a time.
 What is masked is then sealed (`terminals/sealing.ts`) before it is saved, and not taken at
-all until the key has come. The
-desktop build adds the worker as the `redactionWorker` bundle entry beside `murmurWorker`, and
-`apps/desktop/scripts/smoke.mjs` starts it from the packaged app.
+all until the key has come. The desktop build adds the worker as the `redactionWorker`
+bundle entry beside `murmurWorker`, and `apps/desktop/scripts/smoke.mjs` starts it from the
+packaged app.
 
 ## What it masks, and what it does not
 

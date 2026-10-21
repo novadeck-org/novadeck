@@ -22,6 +22,8 @@ type Fake = {
   /** The transcripts as saved, sealed. */
   sealed: (string | null)[]
   clears: number
+  /** The kept terminals the records give back, by id. */
+  kept: Map<string, SavedTerminal>
   /** How often the records were told to forget the unsealed ones, and by what shape. */
   forgets: (typeof sealedShape)[]
   /** The redactions asked for, each settled by hand. */
@@ -67,6 +69,7 @@ const make = (options: Partial<SavesOptions> = {}, mode: "now" | "manual" = "now
     sealed: [],
     forgets: [],
     clears: 0,
+    kept: new Map(),
     asked: [],
     state: { stopping: false, stopped: false },
     records: [record("a")],
@@ -85,6 +88,7 @@ const make = (options: Partial<SavesOptions> = {}, mode: "now" | "manual" = "now
       )
     },
     forgetUnsealed: (shape: typeof sealedShape) => void fake.forgets.push(shape),
+    terminal: (id: string) => fake.kept.get(id),
     clearTranscripts: () => void fake.clears++,
   } as unknown as TerminalRecords
   const redactor: TranscriptRedactor = {
@@ -500,6 +504,19 @@ describe("saving terminals", () => {
     fake.saves.keep(false)
     fake.saves.keep(true)
     await expect(opening).resolves.toBeNull()
+  })
+
+  it("shows nothing when transcripts are turned off and on again after the copy was read", async () => {
+    const fake = make({ sealer: { ...plainSealer(), ready: Promise.resolve(true) } })
+    await vi.advanceTimersByTimeAsync(0)
+    fake.kept.set("a", { id: "a", transcript: sealed("old", "a") } as unknown as SavedTerminal)
+    // Read as the restore starts, then turned off and on while it waits for its shell's setup.
+    const saved = fake.saves.saved("a")!
+    fake.saves.keep(false)
+    fake.saves.keep(true)
+    await expect(fake.saves.open(saved)).resolves.toBeNull()
+    // Read again, it opens.
+    await expect(fake.saves.open(fake.saves.saved("a")!)).resolves.toMatchObject({ text: "old" })
   })
 
   it("keeps the copy saved before when a screen cannot be masked", async () => {

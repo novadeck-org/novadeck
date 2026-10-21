@@ -60,7 +60,7 @@ export const createTranscriptSealer = (
     seal(text, terminalId, at) {
       if (!held) return null
       const stamp = Buffer.alloc(timeBytes)
-      stamp.writeBigUInt64BE(BigInt(Math.max(0, Math.trunc(at))))
+      stamp.writeBigUInt64BE(BigInt(Number.isFinite(at) ? Math.max(0, Math.trunc(at)) : 0))
       const nonce = randomBytes(nonceBytes)
       const cipher = createCipheriv("aes-256-gcm", held, nonce)
       cipher.setAAD(Buffer.from(terminalId))

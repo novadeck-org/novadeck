@@ -670,8 +670,8 @@ saved as `v1.` and the base64 of nonce, tag and ciphertext, which holds the time
 transcript was saved (8 bytes) and then its text; a restored transcript's "saved" line
 shows that time. The key is the 32 bytes the host gives the runner (`transcriptKey`; the
 desktop app unwraps it from the system keychain: Keychain, DPAPI, or the Secret Service,
-which KWallet may offer too). No screen is taken before the key has come; where there is none (no keyring, a refused unlock, the standalone runner)
-transcripts are neither saved nor shown for that run, the `transcripts` setting is kept
+which KWallet may offer too). No screen is taken before the key has come; where there is
+none (no keyring, a refused unlock, the standalone runner) transcripts are neither saved nor shown for that run, the `transcripts` setting is kept
 and the sealed copies saved before stay. At every start, before and without the key, the
 store forgets every transcript not shaped as a sealed one (`v1.`, then at least the nonce,
 tag and time in base64, and nothing else); a database set aside as

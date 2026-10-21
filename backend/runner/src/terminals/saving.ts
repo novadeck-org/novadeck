@@ -128,6 +128,8 @@ export class Saves {
   // The terminals whose saved transcript went unopened as the key had not come: it stays
   // as saved for this run, and none is saved over it.
   private readonly unopened = new Set<string>()
+  // The `keep` change each kept terminal was read under, so a copy forgotten since is not shown.
+  private readonly read = new WeakMap<SavedTerminal, number>()
   private flight: { readonly job: Job; readonly done: Promise<void> } | undefined
   private finishing: Promise<void> | undefined
 
@@ -196,12 +198,12 @@ export class Saves {
   async open(saved: SavedTerminal): Promise<{ text: string; at: number } | null> {
     const { sealer } = this.options
     if (!saved.transcript || !this.kept || !sealer) return null
-    const epoch = this.epoch
+    const epoch = this.read.get(saved) ?? this.epoch
     this.late ??= new Promise<false>((resolve) => {
       setTimeout(() => resolve(false), this.options.keyMs).unref()
     })
     const key = await Promise.race([sealer.ready, this.late.then(() => undefined)])
-    // Turned off and on meanwhile, the copy read before is forgotten.
+    // Turned off and on since it was read, the copy is forgotten.
     if (epoch !== this.epoch) return null
     // Without the key yet it may still come: the copy stays, unsaved over, for this run.
     if (key === undefined) this.unopened.add(saved.id)
@@ -481,7 +483,9 @@ export class Saves {
     this.persisting(() => {
       saved = this.options.records?.terminal(terminalId)
     }, "untilStopped")
-    return saved && (sessionId === undefined || saved.sessionId === sessionId) ? saved : undefined
+    if (!saved || (sessionId !== undefined && saved.sessionId !== sessionId)) return undefined
+    this.read.set(saved, this.epoch)
+    return saved
   }
 
   /** A kept terminal's handle, title and who gave it, read alone. */

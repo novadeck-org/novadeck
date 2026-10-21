@@ -675,8 +675,8 @@ export class Terminals {
       const shell = await this.launcher.executable(cwd, environment)
       const integration = await this.launcher.shellIntegration()
       const connected = await this.launcher.connected(input.resume)
-      const opened = saved ? await this.saves.open(saved) : null
       const env = await environment
+      const opened = saved ? await this.saves.open(saved) : null
       if (this.stopping) throw new DomainError("CLOSING")
       // Closed, even while it was being restored, as from another window, or its project is
       // going: it stays closed, and none starts there.
