@@ -45,7 +45,13 @@ export const ChangesViewer = ({
 // A change in miniature: how many files and lines it touches, over the first few paths.
 export const ChangesThumb = ({ content }: { content: ChangesContent }): React.JSX.Element => {
   const { added, removed } = totals(content)
-  const paths = content.files.slice(0, 5)
+  // Two files can share a path, as one removed from the index and one untracked.
+  const seen = new Map<string, number>()
+  const paths = content.files.slice(0, 5).map((file) => {
+    const count = seen.get(file.path) ?? 0
+    seen.set(file.path, count + 1)
+    return { file, key: `${file.path}#${count}` }
+  })
   return (
     <code className="peek-changes">
       <span>
@@ -53,8 +59,8 @@ export const ChangesThumb = ({ content }: { content: ChangesContent }): React.JS
           ? "No changes"
           : `${content.files.length} ${content.files.length === 1 ? "file" : "files"}${content.truncated ? "+" : ""}  +${added} −${removed}`}
       </span>
-      {paths.map((file) => (
-        <span key={file.path} data-status={file.status}>
+      {paths.map(({ file, key }) => (
+        <span key={key} data-status={file.status}>
           {file.path}
         </span>
       ))}

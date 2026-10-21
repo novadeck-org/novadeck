@@ -101,6 +101,12 @@ const gitEnv = (): NodeJS.ProcessEnv => ({
   GIT_OPTIONAL_LOCKS: "0",
   GIT_TERMINAL_PROMPT: "0",
   GIT_NO_LAZY_FETCH: "1",
+  // Pathspecs are file names, not patterns.
+  GIT_LITERAL_PATHSPECS: "1",
+  // Git's messages are read for "not a git repository", so they are English whatever the
+  // system's locale; names travel as bytes (-z, quotepath off), which the locale never touches.
+  LC_ALL: "C",
+  LANGUAGE: "C",
 })
 
 // Ends git and what it started (a filter's program, a credential helper): its whole group
@@ -164,7 +170,7 @@ const git = (
       killTree(child.pid)
       finish({ ok: false, kind: "timeout", status: 0, said: "" })
     }, gitMs)
-    child.stdout.on("data", (chunk: Buffer) => {
+    child.stdout?.on("data", (chunk: Buffer) => {
       if (cut) return
       if (size + chunk.length > limit.cap) {
         cut = true
@@ -175,7 +181,7 @@ const git = (
       size += chunk.length
       chunks.push(chunk)
     })
-    child.stderr.on("data", (chunk: Buffer) => {
+    child.stderr?.on("data", (chunk: Buffer) => {
       if (errors.length < 4096) errors = Buffer.concat([errors, chunk])
     })
     child.on("error", (error: NodeJS.ErrnoException) => {
@@ -554,6 +560,47 @@ const diffFlags = [
   "--dst-prefix=b/",
 ] as const
 
+// The least a changed line costs, as encoded: two quotes of its text and its overhead.
+const minLineCost = lineOverhead + 2
+// How long the file names on one git command line may be in all: Windows allows 32767.
+const maxCommandChars = 16_000
+
+// The diff of the wanted files alone, by their literal names (the old name of a rename
+// too, or it would show as a new file), in as few runs as keep each command line short
+// enough for any system; their outputs follow one another, within `patchBytes` in all.
+const patchOf = async (root: string, base: string, wanted: readonly Entry[]): Promise<Run> => {
+  // A name that isn't valid UTF-8 reached us as U+FFFD, which no command line can give
+  // back to git (and `git diff` takes no pathspec file): the whole diff is read instead,
+  // within the same cap, and its sections pair with the listing by the same decoding.
+  const named = (entry: Entry) => entry.path.includes("\uFFFD") || entry.oldPath?.includes("\uFFFD")
+  if (wanted.some(named))
+    return git(root, [...diffFlags, "-U3", base, "--"], { cap: patchBytes, truncate: true })
+  const groups: string[][] = []
+  let length = 0
+  for (const entry of wanted) {
+    const names = entry.oldPath === null ? [entry.path] : [entry.oldPath, entry.path]
+    const size = names.reduce((sum, name) => sum + name.length + 1, 0)
+    if (groups.length === 0 || length + size > maxCommandChars) {
+      groups.push([])
+      length = 0
+    }
+    groups.at(-1)!.push(...names)
+    length += size
+  }
+  let out = ""
+  for (const names of groups) {
+    // eslint-disable-next-line no-await-in-loop -- Each run takes what the one before left.
+    const run = await git(root, [...diffFlags, "-U3", base, "--", ...names], {
+      cap: patchBytes - Buffer.byteLength(out),
+      truncate: true,
+    })
+    if (!run.ok) return run
+    out += run.out
+    if (run.cut) return { ok: true, out, cut: true }
+  }
+  return { ok: true, out, cut: false }
+}
+
 /**
  * A repository's working tree against `HEAD` (the empty tree before its first commit):
  * staged, unstaged and untracked files, but not ignored ones. Files are listed with their
@@ -572,25 +619,52 @@ export const readChange = async (
     const format = await git(root, ["rev-parse", "--show-object-format"], { cap: 4096 })
     base = format.ok && format.out.trim() === "sha256" ? emptyTrees.sha256 : emptyTrees.sha1
   }
-  const [listing, patch, others] = await Promise.all([
+  const [listing, others] = await Promise.all([
     git(root, [...diffFlags, "--raw", "--numstat", "-z", base, "--"], { cap: metaBytes }),
-    git(root, [...diffFlags, "-U3", base, "--"], { cap: patchBytes, truncate: true }),
     git(root, ["ls-files", "--others", "--exclude-standard", "-z"], { cap: namesBytes }),
   ])
   if (!listing.ok) return failure("failed", reasonOf(listing, "read the changes"))
-  if (!patch.ok) return failure("failed", reasonOf(patch, "read the changes"))
   if (!others.ok) return failure("failed", reasonOf(others, "read the changes"))
 
   const entries = parseListing(listing.out)
   const heldAt = (path: string, oldPath: string | null) =>
     secret(join(root, path)) || (oldPath !== null && secret(join(root, oldPath)))
+  // Only files that can fit are diffed, so one that can't (a regenerated lockfile) takes
+  // none of the patch's room from those after it: each changed line costs at least
+  // `minLineCost`, and a file is wanted while the files wanted so far and it still could.
+  const wanted: Entry[] = []
+  let planned = 0
+  for (const entry of entries.slice(0, maxChangedFiles)) {
+    const least = (entry.added + entry.removed) * minLineCost
+    if (heldAt(entry.path, entry.oldPath) || entry.binary || least === 0) continue
+    if (planned + least > maxChangesBytes) continue
+    planned += least
+    wanted.push(entry)
+  }
+  const patch = await patchOf(root, base, wanted)
+  if (!patch.ok) return failure("failed", reasonOf(patch, "read the changes"))
   const budget: Budget = { left: maxChangesBytes }
   // A file that may hold secrets is not even looked at in the diff: neither its new name
   // nor the one a rename took it from.
   const diffed = parseDiff(patch.out, { budget, skip: (file) => heldAt(file.path, file.oldPath) })
   // Output that was cut ends in a file only partly read.
   if (patch.cut) diffed.pop()
-  const parsed = new Map(diffed.map((file) => [file.path, file]))
+  // A type change (a file made a symlink, or the reverse) prints a section for each side
+  // of one path: both are its hunks, the old side first.
+  const parsed = new Map<string, ChangedFile>()
+  for (const file of diffed) {
+    const earlier = parsed.get(file.path)
+    parsed.set(
+      file.path,
+      earlier
+        ? {
+            ...file,
+            listed: earlier.listed || file.listed,
+            hunks: [...earlier.hunks, ...file.hunks],
+          }
+        : file,
+    )
+  }
   let truncated = entries.length > maxChangedFiles
   const files: ChangedFile[] = []
   for (const entry of entries.slice(0, maxChangedFiles)) {

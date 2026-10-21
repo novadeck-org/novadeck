@@ -299,15 +299,17 @@ removed counts, over its hunks with the old and new line numbers in two gutters,
 removed lines tinted and the text highlighted by the file's language (a hunk's old and new
 side parsed apart; a file past 4,000 diff lines, or one whose parser fails, stays plain). A
 line wider than the pane scrolls its own file sideways (the pane scrolls only down), the file
-list, the headers and the line numbers staying in view; each file's sideways scroll is kept by
-its path. A binary file, one that
+list, the headers and the line numbers (with the marker of each line's kind) staying in view; a
+file's lines are a tab stop only while they overflow, and its sideways scroll is kept by its
+path, put back as the file comes into view. A binary file, one that
 may hold secrets and one past the change's size show their header with a note, an empty
 change says "No changes against HEAD", and a truncated one says it is larger than shown.
 The rows of a long change are made a few at a time, and the sections off screen are not laid
 out, so a change of the full 4 MB opens without freezing the pane. A new content for the same
 change, as the agent edits, keeps the rows and colours of every file that didn't change, and
-the place the person was at (the file and row at the top, not pixels), also while the pane is
-out of sight.
+the place the person was at (the file and row at the top, not pixels, whichever file changed),
+also while the pane is out of sight, where it goes back to once the pane has a size. Nothing
+asks the page to lay out a file that is off screen.
 
 ### Plans are edited in their file
 
@@ -416,7 +418,12 @@ with every safety check again at that time:
   carried (`truncated` says more exist; the rest are not listed). The diff text is read up
   to a budget of 4 MiB as encoded, each line counting its text and its encoding, so
   blank lines are not free; a file whose diff would pass what is left is `listed`: name,
-  status and counts, without hunks, and `truncated` is set. Untracked files are read a
+  status and counts, without hunks, and `truncated` is set. Only files that could fit
+  (each changed line costs at least 32 bytes, against what the files before already
+  could take) are asked of git for their diff, by literal name, so a regenerated lockfile
+  takes no room from the small edits after it; the rest are listed without being read.
+  The raw patch is read to at most 8 MiB, and git is ended there (its whole process group,
+  as on a timeout): a file it cut in the middle is listed too. Untracked files are read a
   bounded amount in all (1 MiB each, 8 MiB per look); past that they are listed by name
   with no counts. Lines are cut at 4096 characters, and names show a control or invisible
   character as U+FFFD.
@@ -431,7 +438,9 @@ with every safety check again at that time:
   whole process group if it takes longer. Its environment is the person's, without any
   `GIT_*` variable of the runner's own, with `GIT_OPTIONAL_LOCKS=0` (following never
   takes the index lock the agent's own git needs), no prompts and no network fetch of
-  missing objects. The diff prefixes are fixed, so the person's `diff.noprefix` and
+  missing objects (`GIT_NO_LAZY_FETCH` is honoured from git 2.45; an older git ignores it).
+  Its messages are English (`LC_ALL=C`), which the reader matches; names are read as bytes.
+  The diff prefixes are fixed, so the person's `diff.noprefix` and
   the like change nothing. External diff drivers, text conversion and a repository's
   fsmonitor hook are switched off; clean filters (git-lfs, say) of files whose stat
   changed still run, as in the person's own `git diff`. Otherwise it is the person's git
@@ -439,7 +448,9 @@ with every safety check again at that time:
   with a reason the agent can act on, when the terminal's folder is not in a git
   repository, git is not installed, git refused the folder (its own words follow, as for
   a folder another user owns) or cannot read the change; a repository that goes later
-  makes the content `missing`, and any other failure `unreadable`.
+  makes the content `missing`, and any other failure `unreadable`. On a Mac without the
+  Command Line Tools, `/usr/bin/git` is Apple's installer stub, so a show can fail with its
+  message.
 
 - **New terminals** come from the same server's second tool, `open_terminal`, listed
   only inside Novadeck's terminals like `show`. It opens a terminal beside the agent's,

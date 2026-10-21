@@ -111,11 +111,23 @@ const topRow = (root: HTMLElement): string => {
   )
 }
 
-// Many files of different sizes, alternating long and short.
-const many = (changed = ""): DiffFile[] =>
-  Array.from({ length: 60 }, (_, at) =>
-    sized(`f${at}.txt`, at % 2 === 0 ? 80 : 2, at === 59 ? changed : ""),
-  )
+// Many files of different sizes, alternating long and short; `edits` replace some by index.
+const many = (edits: Record<number, DiffFile> = {}): DiffFile[] =>
+  Array.from({ length: 60 }, (_, at) => edits[at] ?? sized(`f${at}.txt`, at % 2 === 0 ? 80 : 2))
+
+// A file of `count` lines like `sized`, with `extra` lines of its own at `at`.
+const withLines = (path: string, count: number, extra: number, at: number): DiffFile => {
+  const base = sized(path, count).hunks[0]!.lines
+  const lines = [
+    ...base.slice(0, at),
+    ...Array.from({ length: extra }, (_, each) => ({
+      kind: "add" as const,
+      text: `${path} new ${each}`,
+    })),
+    ...base.slice(at),
+  ]
+  return file(path, { hunks: [hunkOf(1, lines)] })
+}
 
 describe("the diff viewer", () => {
   context("what it shows", () => {
@@ -206,6 +218,19 @@ describe("the diff viewer", () => {
       expect(root.querySelector(".diff-truncated")!.textContent).toBe(
         "This change is larger than shown.",
       )
+    })
+  })
+
+  context("with two files of one path", () => {
+    it("shows and highlights both, and keeps them apart across an update", async () => {
+      const one = file("a.json", { hunks: [hunkOf(1, [{ kind: "add", text: '{ "one": 1 }' }])] })
+      const two = file("a.json", { hunks: [hunkOf(1, [{ kind: "add", text: '{ "two": 2 }' }])] })
+      const { host, viewer } = mount(change([one, two]))
+      await expect.poll(() => host.querySelectorAll(".tok-propertyName").length).toBe(2)
+      viewer.update(change([one, two, sized("b.txt", 2)]))
+      expect(
+        [...host.querySelectorAll(".tok-propertyName")].map((each) => each.textContent),
+      ).toEqual(['"one"', '"two"'])
     })
   })
 
@@ -335,29 +360,49 @@ describe("the diff viewer", () => {
       expect(first!.getBoundingClientRect().width).toBeGreaterThan(root.clientWidth)
     })
 
-    it("can be focused to scroll it by keyboard", () => {
+    it("is a tab stop only for a file whose lines overflow, to scroll it by keyboard", async () => {
       const { root } = mount(wide())
-      const [long] = scrollers(root)
-      expect(long.tabIndex).toBe(0)
+      const [long, short] = scrollers(root)
+      await expect.poll(() => long.getAttribute("tabindex")).toBe("0")
+      expect(short.hasAttribute("tabindex")).toBe(false)
+    })
+
+    it("pins each line's marker with its numbers", async () => {
+      const added = file("a.txt", {
+        hunks: [hunkOf(1, [{ kind: "add", text: "y".repeat(500) }])],
+      })
+      const { root } = mount(change([added]))
+      await frame()
+      const mark = root.querySelectorAll<HTMLElement>(".diff-number")[1]!
+      expect(getComputedStyle(mark, "::after").content).toBe('"+"')
+      const before = mark.getBoundingClientRect().left
+      root.querySelector<HTMLElement>(".diff-lines")!.scrollLeft = 300
+      await frame()
+      expect(mark.getBoundingClientRect().left).toBe(before)
     })
   })
 
   context("keeping its place", () => {
-    // At line 4 of file f16, among files of 80 and 2 lines.
-    const scrolled = async (content = change(many())) => {
+    const rowHeight = (root: HTMLElement): number => {
+      const [one, two] = root.querySelectorAll(".diff-line")
+      return two!.getBoundingClientRect().top - one!.getBoundingClientRect().top
+    }
+
+    // Around line 34 of file f16, among files of 80 and 2 lines.
+    const reading = async (content = change(many())) => {
       const shown = mount(content)
       await frame()
-      const link = shown.host.querySelectorAll<HTMLButtonElement>(".diff-file-link")[16]!
-      link.click()
+      shown.host.querySelectorAll<HTMLButtonElement>(".diff-file-link")[16]!.click()
       await expect.poll(() => topRow(shown.root)).toContain("f16.txt line 1")
-      shown.root.scrollTop += 3 * 22
+      shown.root.scrollTop += 33 * rowHeight(shown.root)
+      await frame()
       await frame()
       return { ...shown, row: topRow(shown.root) }
     }
 
     it("is where it was in a new viewer for the same change, among files of other sizes", async () => {
-      const first = await scrolled()
-      expect(first.row).toContain("f16.txt")
+      const first = await reading()
+      expect(first.row).toContain("f16.txt line 3")
       const state = first.viewer.state()
       first.viewer.destroy()
       const host = hostIn()
@@ -366,42 +411,110 @@ describe("the diff viewer", () => {
       await expect.poll(() => topRow(root)).toBe(first.row)
     })
 
-    it("stays at the same file and row when the change is updated, a later file changing", async () => {
-      const first = await scrolled()
-      first.viewer.update(change(many(" changed")))
-      await frame()
-      expect(topRow(first.root)).toBe(first.row)
-      first.viewer.update(change(many(" changed again")))
-      await frame()
-      expect(topRow(first.root)).toBe(first.row)
+    it("stays at the row when files above and below change, and the file read grows or shrinks", async () => {
+      const first = await reading()
+      const versions: DiffFile[] = [
+        sized("f16.txt", 120),
+        sized("f16.txt", 50),
+        withLines("f16.txt", 80, 5, 60),
+      ]
+      for (const read of versions) {
+        first.viewer.update(
+          change(many({ 3: sized("f3.txt", 90), 16: read, 40: sized("f40.txt", 10) })),
+        )
+        // eslint-disable-next-line no-await-in-loop -- Each update settles before the next.
+        await frame()
+        // eslint-disable-next-line no-await-in-loop -- Each update settles before the next.
+        await frame()
+        expect(topRow(first.root)).toBe(first.row)
+      }
     })
 
-    it("is kept by an update while the viewer has no size", async () => {
-      const first = await scrolled()
+    it("stays in the file read when rows above the row are added or taken away", async () => {
+      const first = await reading()
+      for (const read of [withLines("f16.txt", 80, 6, 10), sized("f16.txt", 40)]) {
+        first.viewer.update(change(many({ 16: read })))
+        // eslint-disable-next-line no-await-in-loop -- Each update settles before the next.
+        await frame()
+        // eslint-disable-next-line no-await-in-loop -- Each update settles before the next.
+        await frame()
+        expect(topRow(first.root)).toContain("f16.txt")
+      }
+    })
+
+    it("is kept by an update while the viewer has no size, the file read changing", async () => {
+      const first = await reading()
       // The scroll event that records where it is comes a frame later.
       await frame()
       first.host.style.display = "none"
-      first.viewer.update(change(many(" changed")))
+      first.viewer.update(change(many({ 16: sized("f16.txt", 120), 2: sized("f2.txt", 70) })))
+      first.viewer.update(change(many({ 16: sized("f16.txt", 130), 2: sized("f2.txt", 70) })))
       first.host.style.display = "flex"
       await expect.poll(() => topRow(first.root)).toBe(first.row)
+      await frame()
+      await frame()
+      expect(topRow(first.root)).toBe(first.row)
     })
 
-    it("keeps each file's sideways scroll, by its path", async () => {
-      const content = change([sized("a.txt", 40, ` ${"x".repeat(400)}`), sized("b.txt", 40)])
-      const first = mount(content)
+    it("keeps each file's sideways scroll, by its path, across updates, hiding and a new viewer", async () => {
+      const wide = () => [
+        sized("a.txt", 40, ` ${"x".repeat(400)}`),
+        sized("b.txt", 40),
+        sized("a.txt", 40, ` ${"y".repeat(400)}`),
+      ]
+      const first = mount(change(wide()))
       await frame()
-      const scroller = first.root.querySelector<HTMLElement>(".diff-lines")!
-      scroller.scrollLeft = 200
+      const [one, , other] = first.root.querySelectorAll<HTMLElement>(".diff-lines")
+      one!.scrollLeft = 200
+      other!.scrollLeft = 120
+      await frame()
+      first.host.style.display = "none"
+      first.viewer.update(change([...wide(), sized("c.txt", 3)]))
       const state = first.viewer.state()
-      // An update keeps it too.
-      first.viewer.update(change([sized("a.txt", 40, ` ${"x".repeat(400)}`), sized("b.txt", 41)]))
-      await frame()
-      expect(scroller.scrollLeft).toBe(200)
+      first.host.style.display = "flex"
+      await expect
+        .poll(() =>
+          [...first.root.querySelectorAll<HTMLElement>(".diff-lines")].map(
+            (each) => each.scrollLeft,
+          ),
+        )
+        .toEqual([200, 0, 120, 0])
       first.viewer.destroy()
       const host = hostIn()
-      mountDiff(host, { content, label: "Changes", saved: state })
+      mountDiff(host, { content: change(wide()), label: "Changes", saved: state })
       const root = host.querySelector<HTMLElement>(".diff-viewer")!
+      // A file's sideways scroll is put back as it comes into view.
       await expect.poll(() => root.querySelector<HTMLElement>(".diff-lines")!.scrollLeft).toBe(200)
+      root.scrollTop = root.scrollHeight
+      await expect
+        .poll(() =>
+          [...root.querySelectorAll<HTMLElement>(".diff-lines")].map((each) => each.scrollLeft),
+        )
+        .toEqual([200, 0, 120])
+    })
+  })
+
+  context("with many files", () => {
+    it("updates and reports its place without laying out the files out of sight", async () => {
+      const files = Array.from({ length: 100 }, (_, at) => sized(`f${at}.txt`, 1_000))
+      const { host, viewer } = mount(change(files))
+      await expect
+        .poll(() => host.querySelectorAll(".diff-line").length, { timeout: 30_000 })
+        .toBe(100_000)
+      await frame()
+      host.querySelector<HTMLElement>(".diff-viewer")!.scrollTop = 50_000
+      await frame()
+      const measured = performance.now()
+      viewer.state()
+      const state = performance.now() - measured
+      const next = [...files]
+      next[70] = sized("f70.txt", 1_001)
+      const updated = performance.now()
+      viewer.update(change(next))
+      const update = performance.now() - updated
+      expect(state).toBeLessThan(100)
+      expect(update).toBeLessThan(150)
+      viewer.destroy()
     })
   })
 

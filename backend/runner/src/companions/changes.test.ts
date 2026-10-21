@@ -1,5 +1,13 @@
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs"
 import { devNull, tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -461,5 +469,108 @@ describe.skipIf(!hasGit)("a change read from a git repository", () => {
     const read = await readChange(repo.root)
     if (!read.ok) throw new Error(read.reason)
     expect(read.change.files.map(({ path }) => path)).toEqual(["a\uFFFDb.txt"])
+  })
+
+  it("keeps the hunks of small files after one too big to show, whatever the order", async ({
+    repo,
+  }) => {
+    repo.write("a.lock", "1\n".repeat(2_000_000))
+    repo.write("b.lock", "\n".repeat(3_000_000))
+    for (const name of ["c", "d", "e"]) repo.write(`${name}.big`, "1\n".repeat(400_000))
+    repo.write("z.txt", "old\n")
+    repo.write("zz.txt", "old\n")
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "base")
+    repo.write("a.lock", "2\n".repeat(2_000_000))
+    repo.write("b.lock", "x\n".repeat(3_000_000))
+    for (const name of ["c", "d", "e"]) repo.write(`${name}.big`, "2\n".repeat(400_000))
+    repo.write("z.txt", "new\n")
+    repo.write("zz.txt", "new\n")
+    const read = await readChange(repo.root)
+    if (!read.ok) throw new Error(read.reason)
+    const byPath = new Map(read.change.files.map((each) => [each.path, each]))
+    expect(byPath.get("a.lock")).toMatchObject({ listed: true, hunks: [] })
+    expect(byPath.get("e.big")).toMatchObject({ listed: true, hunks: [] })
+    for (const name of ["z.txt", "zz.txt"])
+      expect(byPath.get(name)?.hunks[0]?.lines).toEqual([
+        { kind: "remove", text: "old" },
+        { kind: "add", text: "new" },
+      ])
+    expect(read.change.truncated).toBe(true)
+  })
+
+  it("shows both sides of a file made a symlink", async ({ repo }) => {
+    const lines = Array.from({ length: 20 }, (_, index) => `line ${index}`).join("\n")
+    repo.write("t.txt", `${lines}\n`)
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "base")
+    rmSync(join(repo.root, "t.txt"))
+    symlinkSync("/etc/hostname", join(repo.root, "t.txt"))
+    const read = await readChange(repo.root)
+    if (!read.ok) throw new Error(read.reason)
+    const [file] = read.change.files
+    expect(file).toMatchObject({ path: "t.txt", added: 1, removed: 20 })
+    const kinds = file?.hunks.flatMap((hunk) => hunk.lines.map((line) => line.kind)) ?? []
+    expect(kinds.filter((kind) => kind === "remove")).toHaveLength(20)
+    expect(file?.hunks.flatMap((hunk) => hunk.lines)).toContainEqual({
+      kind: "add",
+      text: "/etc/hostname",
+    })
+  })
+
+  it("names unicode files and reads English git messages whatever the locale", async ({ repo }) => {
+    repo.write("zażółć/gęślą.txt", "jaźń\n")
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "base")
+    repo.write("zażółć/gęślą.txt", "jaźń\nżółw\n")
+    repo.write("nowy-żółty.txt", "x\n")
+    const saved = process.env.LC_ALL
+    process.env.LC_ALL = "pl_PL.UTF-8"
+    try {
+      const read = await readChange(repo.root)
+      if (!read.ok) throw new Error(read.reason)
+      expect(read.change.files.map(({ path }) => path).toSorted()).toEqual([
+        "nowy-żółty.txt",
+        "zażółć/gęślą.txt",
+      ])
+      expect(
+        read.change.files.find((each) => each.path.endsWith("gęślą.txt"))?.hunks[0]?.lines,
+      ).toContainEqual({
+        kind: "add",
+        text: "żółw",
+      })
+      await expect(repositoryOf(tmpdir())).resolves.toMatchObject({ kind: "not-a-repository" })
+    } finally {
+      if (saved === undefined) delete process.env.LC_ALL
+      else process.env.LC_ALL = saved
+    }
+  })
+
+  it("gives a tracked file whose name isn't valid UTF-8 its hunk", async ({ repo }) => {
+    const bad = Buffer.concat([
+      Buffer.from(`${repo.root}/bad`),
+      Buffer.from([0xff]),
+      Buffer.from("name.txt"),
+    ])
+    try {
+      writeFileSync(bad, "one\n")
+    } catch {
+      // This system's files can't be named so.
+      return
+    }
+    repo.write("ok.txt", "one\n")
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "base")
+    writeFileSync(bad, "two\n")
+    repo.write("ok.txt", "two\n")
+    const read = await readChange(repo.root)
+    if (!read.ok) throw new Error(read.reason)
+    expect(read.change.truncated).toBe(false)
+    const byPath = new Map(read.change.files.map((each) => [each.path, each]))
+    expect(byPath.get("bad\uFFFDname.txt")?.hunks[0]?.lines).toContainEqual({
+      kind: "add",
+      text: "two",
+    })
+    expect(byPath.get("ok.txt")?.hunks).toHaveLength(1)
   })
 })

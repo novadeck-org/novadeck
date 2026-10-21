@@ -137,8 +137,9 @@
 }
 .diff-line {
   display: grid;
+  /* The old and the new number, the new one with the line's marker after it. */
   grid-template-columns:
-    calc(var(--diff-digits, 3) * 1ch + 14px) calc(var(--diff-digits, 3) * 1ch + 14px)
+    calc(var(--diff-digits, 3) * 1ch + 14px) calc(var(--diff-digits, 3) * 1ch + 2ch + 14px)
     1fr;
   padding-right: 16px;
   white-space: pre;
@@ -158,24 +159,31 @@
 }
 .diff-number + .diff-number {
   left: calc(var(--diff-digits, 3) * 1ch + 14px);
+  padding-right: calc(2ch + 10px);
 }
-.diff-text::before {
-  display: inline-block;
+/* The marker of a line's kind, pinned with the numbers: the cue that isn't a colour. */
+.diff-number + .diff-number::after {
+  position: absolute;
+  top: 0;
+  right: 6px;
   width: 2ch;
-  user-select: none;
-  content: " ";
+  text-align: center;
+  content: "";
+}
+.diff-text {
+  padding-left: 1ch;
 }
 .diff-line[data-kind="add"] {
   --diff-row: var(--diff-add-bg, color-mix(in srgb, currentColor 10%, transparent));
   background: var(--diff-add-bg, color-mix(in srgb, currentColor 10%, transparent));
 }
-.diff-line[data-kind="add"] .diff-text::before {
+.diff-line[data-kind="add"] .diff-number + .diff-number::after {
   content: "+";
 }
 .diff-line[data-kind="remove"] {
   --diff-row: var(--diff-remove-bg, color-mix(in srgb, currentColor 5%, transparent));
   background: var(--diff-remove-bg, color-mix(in srgb, currentColor 5%, transparent));
 }
-.diff-line[data-kind="remove"] .diff-text::before {
+.diff-line[data-kind="remove"] .diff-number + .diff-number::after {
   content: "−";
 }

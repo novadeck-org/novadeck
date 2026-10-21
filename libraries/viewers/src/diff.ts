@@ -2,7 +2,6 @@ import { hashOf } from "./hash.js"
 import type { HighlightedLine } from "./highlight.js"
 import { createHold } from "./hold.js"
 import type { Mount, ViewerState } from "./index.js"
-import { createKept } from "./kept.js"
 import { languageOf } from "./languages.js"
 
 // A read-only change: a repository's files against a base, each a section under a header
@@ -49,13 +48,14 @@ export type DiffContent = {
 }
 
 /**
- * Where the viewer was: the row at its top, by file, and the pixels as a fallback; and how
- * far each file's lines were scrolled sideways, by path, for those that were.
+ * Where the viewer was: the row at its top, by file (its key: its path, and which of the
+ * files of that path it is), and the pixels as a fallback; and how far each file's lines
+ * were scrolled sideways, for those that were.
  */
 type Place = {
   readonly top: number
   readonly lefts: Readonly<Record<string, number>>
-  readonly anchor?: { readonly path: string; readonly row: number; readonly offset: number }
+  readonly anchor?: { readonly file: string; readonly row: number; readonly offset: number }
 }
 
 type DiffState = { readonly diff: Place }
@@ -67,7 +67,7 @@ const isDiffState = (state: unknown): state is DiffState => {
   const { anchor } = diff
   return (
     anchor === undefined ||
-    (typeof anchor.path === "string" &&
+    (typeof anchor.file === "string" &&
       typeof anchor.row === "number" &&
       typeof anchor.offset === "number")
   )
@@ -80,9 +80,43 @@ const batchMs = 12
 const highlightedLines = 4_000
 
 // Hunks lately highlighted, by language and a hash of their text, so one shown again, as
-// by a new viewer of the same change, shows highlighted at once.
-const highlighted = createKept<readonly HighlightedLine[]>(256)
-const keptSize = 100_000
+// by a new viewer of the same change, shows highlighted at once. Kept by the size of the
+// text they were parsed from, the one used longest ago going first.
+const keptChars = 2_000_000
+const highlighted = new Map<string, { runs: readonly HighlightedLine[]; size: number }>()
+let highlightedChars = 0
+
+const knownRuns = (key: string): readonly HighlightedLine[] | undefined => {
+  const known = highlighted.get(key)
+  if (!known) return undefined
+  highlighted.delete(key)
+  highlighted.set(key, known)
+  return known.runs
+}
+
+const keepRuns = (key: string, runs: readonly HighlightedLine[], size: number): void => {
+  if (size > keptChars / 4) return
+  highlighted.set(key, { runs, size })
+  highlightedChars += size
+  for (const [oldest, each] of highlighted) {
+    if (highlightedChars <= keptChars) break
+    highlighted.delete(oldest)
+    highlightedChars -= each.size
+  }
+}
+
+const keyOf = (language: string, text: string): string =>
+  `${language}\n${text.length}:${hashOf(text)}`
+
+// The files' keys: a file's path, and for each more with the same path, which it is.
+const keysOf = (files: readonly DiffFile[]): string[] => {
+  const seen = new Map<string, number>()
+  return files.map((file) => {
+    const count = seen.get(file.path) ?? 0
+    seen.set(file.path, count + 1)
+    return count === 0 ? file.path : `${file.path}\u0000${count}`
+  })
+}
 
 const statusNames = {
   added: "Added",
@@ -132,6 +166,8 @@ type Drawn = {
   next: number
   oldLine: number
   newLine: number
+  // Highlighted from what was kept, or left plain.
+  painted: boolean
 }
 
 // The runs of lines in a language, from what was kept or from parsing them.
@@ -140,16 +176,34 @@ const runsOf = async (
   lines: readonly string[],
 ): Promise<{ runs: readonly HighlightedLine[] | null; fresh: boolean }> => {
   const text = lines.join("\n")
-  const key = text.length > keptSize ? null : `${language}\n${text.length}:${hashOf(text)}`
-  const known = key === null ? undefined : highlighted.get(key)
+  const key = keyOf(language, text)
+  const known = knownRuns(key)
   if (known) return { runs: known, fresh: false }
   const { highlightLines } = await import("./highlight.js")
   const runs = await highlightLines(language, lines)
-  if (runs && key !== null) highlighted.keep(key, runs)
+  if (runs) keepRuns(key, runs, text.length)
   return { runs, fresh: true }
 }
 
+// The first of `parts`, which run down in order, with something below `base`.
+const firstBelow = (parts: ArrayLike<Element>, base: number): number => {
+  let low = 0
+  let high = parts.length
+  while (low < high) {
+    const middle = (low + high) >> 1
+    if (parts[middle]!.getBoundingClientRect().bottom > base + 1) high = middle
+    else low = middle + 1
+  }
+  return low
+}
+
+const sidesOf = (work: Drawn) => ({
+  old: work.hunk.lines.filter((line) => line.kind !== "add").map((line) => line.text),
+  now: work.hunk.lines.filter((line) => line.kind !== "remove").map((line) => line.text),
+})
+
 type Entry = {
+  readonly key: string
   readonly file: DiffFile
   readonly signature: string
   readonly section: HTMLElement
@@ -180,6 +234,11 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
   // The files as drawn, by path and in order.
   let entries = new Map<string, Entry>()
   let order: Entry[] = []
+  // How far each file's lines are scrolled sideways, by key, as their scrolling says: never
+  // read back from the page, where a file out of sight has no layout to ask.
+  const lefts = new Map<string, number>()
+  const byScroller = new WeakMap<Element, Entry>()
+  const bySection = new WeakMap<Element, Entry>()
 
   const el = (tag: string, className: string, text?: string): HTMLElement => {
     const made = document.createElement(tag)
@@ -213,7 +272,21 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
     return row
   }
 
-  const entryOf = (file: DiffFile): Entry => {
+  // A file's lines are a tab stop only while they overflow sideways: known as their layout
+  // is, so a file out of sight, with no layout, costs none.
+  const view = document.defaultView
+  const sizes = view?.ResizeObserver
+    ? new view.ResizeObserver((changes) => {
+        for (const { target } of changes) {
+          const scroller = target.classList.contains("diff-lines") ? target : target.parentElement
+          if (!scroller) continue
+          if (scroller.scrollWidth > scroller.clientWidth) scroller.setAttribute("tabindex", "0")
+          else scroller.removeAttribute("tabindex")
+        }
+      })
+    : undefined
+
+  const entryOf = (file: DiffFile, key: string): Entry => {
     const section = el("section", "diff-file")
     section.dataset.status = file.status
     const head = el("header", "diff-file-head")
@@ -232,8 +305,6 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
     let lines: HTMLElement | null = null
     if (file.hunks.length > 0) {
       scroller = el("div", "diff-lines")
-      // Focusable, so its overflow can be scrolled by keyboard.
-      scroller.tabIndex = 0
       scroller.setAttribute("role", "region")
       scroller.setAttribute("aria-label", `${file.path}, changed lines`)
       lines = el("div", "diff-lines-body")
@@ -250,9 +321,33 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
         ),
       )
       lines!.append(body)
-      return { hunk, body, rows: [], next: 0, oldLine: hunk.oldStart, newLine: hunk.newStart }
+      return {
+        hunk,
+        body,
+        rows: [],
+        next: 0,
+        oldLine: hunk.oldStart,
+        newLine: hunk.newStart,
+        painted: false,
+      }
     })
-    return { file, signature: signatureOf(file), section, scroller, drawn, highlighted: false }
+    const entry: Entry = {
+      key,
+      file,
+      signature: signatureOf(file),
+      section,
+      scroller,
+      drawn,
+      highlighted: false,
+    }
+    bySection.set(section, entry)
+    visible?.observe(section)
+    if (scroller) {
+      byScroller.set(scroller, entry)
+      sizes?.observe(scroller)
+      if (scroller.firstElementChild) sizes?.observe(scroller.firstElementChild)
+    }
+    return entry
   }
 
   // Where a part of the viewer is in what it scrolls.
@@ -263,61 +358,81 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
     ...entry.section.querySelectorAll(".diff-hunk-head, .diff-line"),
   ]
 
-  // The row at the top, by its file and its place among the file's rows.
-  const measure = (): Place => {
-    const base = root.getBoundingClientRect().top
-    const lefts = Object.fromEntries(
+  // What the sideways scrolls are, for the files that are scrolled.
+  const leftsNow = (): Record<string, number> =>
+    Object.fromEntries(
       order.flatMap((entry) =>
-        entry.scroller && entry.scroller.scrollLeft > 0
-          ? [[entry.file.path, entry.scroller.scrollLeft] as const]
-          : [],
+        lefts.get(entry.key) ? [[entry.key, lefts.get(entry.key)!] as const] : [],
       ),
     )
-    // The first file with something below the top: they run down in order.
-    let low = 0
-    let high = order.length
-    while (low < high) {
-      const middle = (low + high) >> 1
-      if (order[middle]!.section.getBoundingClientRect().bottom > base + 1) high = middle
-      else low = middle + 1
-    }
-    const entry = order[low]
-    if (!entry) return { top: root.scrollTop, lefts }
+
+  // The row at the top, by its file and its place among the file's rows, found by halving:
+  // only the parts on screen are measured, never a file out of sight.
+  const measure = (): Place => {
+    const base = root.getBoundingClientRect().top
+    const entry =
+      order[
+        firstBelow(
+          order.map((each) => each.section),
+          base,
+        )
+      ]
+    if (!entry) return { top: root.scrollTop, lefts: leftsNow() }
     const stops = stopsOf(entry)
-    const found = stops.findIndex((stop) => stop.getBoundingClientRect().bottom > base + 1)
-    const row = Math.max(found, 0)
+    const row = Math.min(firstBelow(stops, base), Math.max(stops.length - 1, 0))
     const at = stops[row] ?? entry.section
     return {
       top: root.scrollTop,
-      lefts,
-      anchor: { path: entry.file.path, row, offset: at.getBoundingClientRect().top - base },
+      lefts: leftsNow(),
+      anchor: { file: entry.key, row, offset: at.getBoundingClientRect().top - base },
     }
   }
 
-  // Puts the viewer at a place; the row and file it names, if they are still there.
+  // Puts the viewer at a place, down to the row and file it names, if they are still there.
+  // The sideways scrolls are put back as their files come into view.
   const apply = (place: Place): void => {
-    const entry = place.anchor && entries.get(place.anchor.path)
+    const entry = place.anchor && entries.get(place.anchor.file)
     if (entry && place.anchor) {
       const stops = stopsOf(entry)
       const at = stops[Math.min(place.anchor.row, stops.length - 1)] ?? entry.section
       root.scrollTop = topOf(at) - place.anchor.offset
     } else root.scrollTop = place.top
-    for (const each of order)
-      if (each.scroller) each.scroller.scrollLeft = place.lefts[each.file.path] ?? 0
   }
 
   // The latest place measured, which is what it was while the viewer has no size.
   let lastPlace: Place | undefined
+  // A place to go back to once the viewer has a size again.
+  let pending: Place | undefined
   const placeNow = (): Place =>
-    root.clientHeight ? measure() : (lastPlace ?? { top: 0, lefts: {} })
+    pending ??
+    (root.clientHeight ? measure() : { top: lastPlace?.top ?? 0, ...lastPlace, lefts: leftsNow() })
 
   // The sections change size as their rows come and as the page works out which are on
   // screen, so a place is set again as they do.
+  // Held with the browser's own scroll anchoring off, which would otherwise move the place
+  // as a file's rows change, and pass for the person's scroll.
   const { hold, release } = createHold(
     root,
     () => order.map((entry) => entry.section),
     () => rendered,
+    {
+      start: () => root.style.setProperty("overflow-anchor", "none"),
+      stop: () => root.style.removeProperty("overflow-anchor"),
+    },
   )
+
+  // Goes to a place now, or when the viewer next has a size.
+  const goTo = (place: Place): void => {
+    lastPlace = place
+    for (const [key, left] of Object.entries(place.lefts)) lefts.set(key, left)
+    if (root.clientHeight) {
+      pending = undefined
+      hold(() => apply(place))
+    } else {
+      release()
+      pending = place
+    }
+  }
 
   const paint = (rows: readonly HTMLElement[], lines: readonly (HighlightedLine | undefined)[]) => {
     rows.forEach((row, index) => {
@@ -340,28 +455,32 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
 
   // A hunk's old side (context and removed lines) and new side (context and added) are
   // parsed apart, so a string or comment opened on one doesn't colour the other.
-  const highlightHunk = async (language: string, work: Drawn): Promise<boolean> => {
-    const { lines } = work.hunk
-    const old = lines.filter((line) => line.kind !== "add")
-    const now = lines.filter((line) => line.kind !== "remove")
-    const before = await runsOf(
-      language,
-      old.map((line) => line.text),
-    )
-    const after = await runsOf(
-      language,
-      now.map((line) => line.text),
-    )
+  // Puts runs of the two sides on a hunk's rows: a removed line takes the old side's, any
+  // other the new side's.
+  const paintHunk = (
+    work: Drawn,
+    before: readonly HighlightedLine[] | null,
+    after: readonly HighlightedLine[] | null,
+  ): void => {
     let oldAt = 0
     let newAt = 0
-    const runs = lines.map((line) => {
-      const fromOld = line.kind === "remove"
-      const found = fromOld ? before.runs?.[oldAt] : after.runs?.[newAt]
-      if (line.kind !== "add") oldAt += 1
-      if (line.kind !== "remove") newAt += 1
-      return found
-    })
-    paint(work.rows, runs)
+    paint(
+      work.rows,
+      work.hunk.lines.map((line) => {
+        const found = line.kind === "remove" ? before?.[oldAt] : after?.[newAt]
+        if (line.kind !== "add") oldAt += 1
+        if (line.kind !== "remove") newAt += 1
+        return found
+      }),
+    )
+  }
+
+  const highlightHunk = async (language: string, work: Drawn): Promise<boolean> => {
+    const { old, now } = sidesOf(work)
+    const before = await runsOf(language, old)
+    const after = await runsOf(language, now)
+    paintHunk(work, before.runs, after.runs)
+    work.painted = true
     return before.fresh || after.fresh
   }
 
@@ -372,8 +491,19 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
     const total = entry.file.hunks.reduce((sum, hunk) => sum + hunk.lines.length, 0)
     try {
       if (!language || total > highlightedLines) return
+      // The hunks seen before first, as a changed file's unchanged ones are.
       for (const work of entry.drawn) {
-        if (!alive || entries.get(entry.file.path) !== entry) return
+        const { old, now } = sidesOf(work)
+        const before = knownRuns(keyOf(language, old.join("\n")))
+        const after = knownRuns(keyOf(language, now.join("\n")))
+        if (before && after) {
+          paintHunk(work, before, after)
+          work.painted = true
+        }
+      }
+      for (const work of entry.drawn) {
+        if (work.painted) continue
+        if (!alive || entries.get(entry.key) !== entry) return
         // eslint-disable-next-line no-await-in-loop -- One hunk at a time, so the pane keeps drawing.
         const parsed = await highlightHunk(language, work)
         // eslint-disable-next-line no-await-in-loop -- Lets the pane draw between hunks.
@@ -432,12 +562,22 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
     // A file that is as it was keeps its rows, with their colours and what is left to draw.
     const before = entries
     entries = new Map()
-    order = shown.files.map((file) => {
-      const known = before.get(file.path)
-      const entry = known && known.signature === signatureOf(file) ? known : entryOf(file)
-      entries.set(file.path, entry)
+    const keys = keysOf(shown.files)
+    order = shown.files.map((file, index) => {
+      const key = keys[index]!
+      const known = before.get(key)
+      const entry = known && known.signature === signatureOf(file) ? known : entryOf(file, key)
+      entries.set(key, entry)
       return entry
     })
+    for (const gone of before.values())
+      if (entries.get(gone.key) !== gone) {
+        if (gone.scroller) {
+          sizes?.unobserve(gone.scroller)
+          if (gone.scroller.firstElementChild) sizes?.unobserve(gone.scroller.firstElementChild)
+        }
+        visible?.unobserve(gone.section)
+      }
 
     // The widest line number, which the gutters are as wide as.
     const digits = Math.max(
@@ -477,30 +617,63 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
     }
     if (shown.truncated)
       parts.push(el("p", "diff-note diff-truncated", "This change is larger than shown."))
-    root.replaceChildren(...parts)
+    // Only what changed is put in or taken out: a file that stays is not detached, which
+    // would lose where its lines are scrolled and lay it out again.
+    const wanted = new Set<Element>(parts)
+    for (let at = root.children.length - 1; at >= 0; at--)
+      if (!wanted.has(root.children[at]!)) root.children[at]!.remove()
+    parts.forEach((part, index) => {
+      if (root.children[index] !== part) root.insertBefore(part, root.children[index] ?? null)
+    })
     rendered = false
     step()
   }
 
   const restore = (state: ViewerState): void => {
-    if (!isDiffState(state)) return
-    const place = state.diff
-    lastPlace = place
-    hold(() => apply(place))
+    if (isDiffState(state)) goTo(state.diff)
   }
 
-  // The place the person is at, as they scroll, for a viewer that has no size to measure.
+  // The place the person is at, as they scroll, for a viewer that has no size to measure,
+  // and how far each file is scrolled sideways: from their scroll events, which don't
+  // bubble, so caught on the way down.
   let frame: number | undefined
-  const view = document.defaultView
-  const scrolled = (): void => {
+  const scrolled = (event: Event): void => {
+    const entry = byScroller.get(event.target as Element)
+    if (entry) lefts.set(entry.key, (event.target as HTMLElement).scrollLeft)
     if (frame !== undefined || !root.clientHeight) return
     frame = view?.requestAnimationFrame(() => {
       frame = undefined
       if (alive && root.clientHeight) lastPlace = measure()
     })
   }
-  // A file's lines scrolling sideways don't bubble: caught on the way down.
   root.addEventListener("scroll", scrolled, { passive: true, capture: true })
+
+  // A file's sideways scroll is put back as it comes into view, never before: a file out of
+  // sight has no layout, and asking for one costs the layout of all of them.
+  const visible = view?.IntersectionObserver
+    ? new view.IntersectionObserver(
+        (changes) => {
+          for (const { target, isIntersecting } of changes) {
+            const entry = bySection.get(target)
+            const left = entry && lefts.get(entry.key)
+            if (isIntersecting && entry?.scroller && left && entry.scroller.scrollLeft !== left)
+              entry.scroller.scrollLeft = left
+          }
+        },
+        { root, rootMargin: "200px 0px" },
+      )
+    : undefined
+
+  // The place a viewer without a size was to go back to, once it has one.
+  const wake = view?.ResizeObserver
+    ? new view.ResizeObserver(() => {
+        if (!pending || !root.clientHeight) return
+        const place = pending
+        pending = undefined
+        hold(() => apply(place))
+      })
+    : undefined
+  wake?.observe(root)
 
   build()
   if (isDiffState(saved)) restore(saved)
@@ -511,10 +684,8 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
       shown = next
       // The new rows keep where the person was: the same file and row, where they still are.
       const place = placeNow()
-      lastPlace = place
-      release()
       build()
-      hold(() => apply(place))
+      goTo(place)
     },
     state: () => ({ diff: placeNow() }) satisfies DiffState as unknown as ViewerState,
     restore,
@@ -526,6 +697,9 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
       clearTimeout(timer)
       if (frame !== undefined) view?.cancelAnimationFrame(frame)
       root.removeEventListener("scroll", scrolled, { capture: true })
+      visible?.disconnect()
+      wake?.disconnect()
+      sizes?.disconnect()
       release()
       root.remove()
     },
