@@ -113,7 +113,7 @@ const layout = (value: unknown): TerminalLayout | undefined => {
   if (!isObject(value) || !layoutKeys.every((key) => isObject(value[key]))) return undefined
   const { canvas, sizePresets } = value as Json & { canvas: Json; sizePresets: Json }
   if (!isObject(canvas.geometry)) return undefined
-  if (!isObject(sizePresets.canvas) || !isObject(sizePresets.grid)) return undefined
+  if (!isObject(sizePresets.grid)) return undefined
   return value as TerminalLayout
 }
 

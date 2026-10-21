@@ -113,7 +113,7 @@ describe("workspace commands", () => {
     expect(added.roster.terminals).toHaveLength(before.roster.terminals.length + 1)
     expect(added.layout.canvas.geometry["02"]!.position).toEqual({ x: 900, y: 500 })
     expect(added.layout.grid.desktop!.map((item) => item.i)).toEqual(["02"])
-    expect(added.layout.sizePresets).toEqual({ canvas: { "02": "small" }, grid: { "02": "small" } })
+    expect(added.layout.sizePresets).toEqual({ grid: { "02": "small" } })
     expect(added.layout).toMatchObject({ hidden: {}, gridRestoreWidths: {} })
   })
 
@@ -141,7 +141,7 @@ describe("workspace commands", () => {
         grid,
         hidden: { "01": true },
         gridRestoreWidths: { "01": { desktop: 3 } },
-        sizePresets: { canvas: { "01": "large" }, grid: { "01": "large" } },
+        sizePresets: { grid: { "01": "large" } },
       },
     }
     const closed = workspaceReducer(workspace, { type: "terminal/close", target, terminalId: "01" })
@@ -154,7 +154,7 @@ describe("workspace commands", () => {
         grid: { desktop: [] },
         hidden: {},
         gridRestoreWidths: {},
-        sizePresets: { canvas: {}, grid: {} },
+        sizePresets: { grid: {} },
       },
     })
     const delayed = workspaceReducer(closed, { type: "grid/layouts", target, layouts: grid })
@@ -167,7 +167,12 @@ describe("workspace commands", () => {
     expect(state(delayedCanvas).layout.canvas).toEqual({ geometry: {} })
     const late: WorkspaceAction[] = [
       { type: "terminal/visibility", target, terminalId: "01", hidden: true },
-      { type: "terminal/size-preset", target, terminalId: "01", view: "grid", preset: "large" },
+      {
+        type: "grid/size-toggle",
+        target,
+        terminalId: "01",
+        change: { layouts: grid, restoreWidths: { desktop: 6 } },
+      },
     ]
     for (const action of late) expect(workspaceReducer(delayedCanvas, action)).toBe(delayedCanvas)
   })

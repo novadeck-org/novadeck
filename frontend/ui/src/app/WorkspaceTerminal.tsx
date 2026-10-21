@@ -59,7 +59,7 @@ const useWindowFrame = (
       view: state.view,
       windowedView: state.windowedView,
       active: state.selected === id,
-      large: state.view !== "focus" && state.layout.sizePresets[state.view][id] === "large",
+      large: state.view === "grid" && state.layout.sizePresets.grid[id] === "large",
     }
   }, shallowEqual)
   const { fresh, rename, enabledViews, unread } = useUiState(
@@ -102,7 +102,6 @@ const useWindowFrame = (
             setSelected(id)
             onResizePreset(button)
           },
-          resizeView: view === "grid" ? ("grid" as const) : ("canvas" as const),
         }
       : {}),
     large,

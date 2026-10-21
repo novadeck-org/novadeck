@@ -253,11 +253,10 @@ describe("runner backend", () => {
           }),
         },
         {
-          type: "terminal/size-preset",
+          type: "grid/size-toggle",
           target,
           terminalId: first.id,
-          view: "grid",
-          preset: "large",
+          change: { layouts: {}, restoreWidths: { desktop: 6 } },
         },
         { type: "terminal/visibility", target, terminalId: second.id, hidden: true },
         {

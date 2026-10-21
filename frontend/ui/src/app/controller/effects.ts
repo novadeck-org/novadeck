@@ -4,7 +4,6 @@ import {
   focusTerminalInput,
   focusTerminalTab,
   tileRects,
-  workspaceArea,
   focusWorkspaceViewport,
   focusZenCreate,
   focusZenEnter,
@@ -37,10 +36,4 @@ export const domEffects: CommandEffects = {
   desktop: isDesktop,
   now: () => Date.now(),
   newId: () => crypto.randomUUID(),
-  stageSize: () => {
-    const rect = workspaceArea()?.getBoundingClientRect()
-    return rect && rect.width > 0 && rect.height > 0
-      ? { width: rect.width, height: rect.height }
-      : undefined
-  },
 }

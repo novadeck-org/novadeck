@@ -1,7 +1,6 @@
 import "./canvas.css"
 import { useDrag, useDragSession } from "@novadeck/companion/drag-session"
 import { canvasPointPosition, viewportCanvasPosition } from "@novadeck/core/layout/canvas-placement"
-import { canvasNewTerminalSize, canvasPresetSize } from "@novadeck/core/layout/terminal-size"
 import { isWindow } from "@novadeck/core/roster"
 import type { Tile, CanvasLayout } from "@novadeck/core/types"
 import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
@@ -33,7 +32,7 @@ import { workspaceOverlayOpen, workspaceShortcutTarget } from "../../interaction
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
 import { CanvasTeamWire } from "./CanvasTeamWire"
-import { fitOptions, canvasStep, terminalHeaderHeight, chromeScaleAt, centerOf } from "./geometry"
+import { fitOptions, canvasStep, terminalHeaderHeight, chromeScaleAt } from "./geometry"
 import { createNodeVisibility } from "./nodeVisibility"
 import { NodeVisibilityContext, TerminalContent, nodeTypes } from "./TerminalNode"
 import type {
@@ -58,8 +57,8 @@ const settleMs = 160
 const samePoint = (a: XYPosition, b: XYPosition): boolean => a.x === b.x && a.y === b.y
 
 const TerminalCanvas = ({
-  presets,
-  onPresetChange,
+  windowSize,
+  onWindowResize,
   layout,
   revealOnMount,
   fitOnMount,
@@ -108,8 +107,6 @@ const TerminalCanvas = ({
   const maxZoom = Math.max(1.5, layout.viewport?.zoom ?? 1, fitZoom)
   const container = useRef<HTMLDivElement>(null)
   const [visibility] = useState(createNodeVisibility)
-  // A new window's size: in the viewport's ratio, as a dropped window's ghost previews it.
-  const newWindowSize = useCallback(() => canvasNewTerminalSize(viewportSize()), [viewportSize])
   const [initialViewport] = useState(layout.viewport)
   const { visit, animateVisit } = useCanvasVisit(handleRef)
   const persistence = useCanvasPersistence({ layout, terminals, onLayoutChange })
@@ -195,10 +192,11 @@ const TerminalCanvas = ({
         if (!overPane || overNode) return null
         // Its window would open with its header under the pointer, at a new window's size.
         const point = screenToFlowPosition({ x, y })
-        const { width } = newWindowSize()
-        return { canvas: { x: point.x - width / 2, y: point.y - terminalHeaderHeight / 2 } }
+        return {
+          canvas: { x: point.x - windowSize.width / 2, y: point.y - terminalHeaderHeight / 2 },
+        }
       }),
-    [session, screenToFlowPosition, newWindowSize],
+    [session, screenToFlowPosition, windowSize.width],
   )
   const ghost = useDrag((drag) =>
     drag?.place && "canvas" in drag.place ? drag.place.canvas : null,
@@ -278,28 +276,10 @@ const TerminalCanvas = ({
         .map((terminal) => ({ id: terminal.id })),
     })
   }, [fitView, terminals, hidden, visit])
-  const { beginResize, finishResize, onNodesChange } = useCanvasGeometry(persistence, onSelect)
-
-  const resizeToViewport = useCallback(
-    (id: string) => {
-      const node = getNode(id)
-      const viewport = viewportSize()
-      if (!node || !viewport.width || !viewport.height) return
-      const preset = presets[id] === "large" ? "small" : "large"
-      const { width, height } = canvasPresetSize(preset, viewport)
-      const center = centerOf(node)
-      const next = {
-        position: { x: center.x - width / 2, y: center.y - height / 2 },
-        width,
-        height,
-      }
-      onLayoutChange((previous) => ({
-        ...previous,
-        geometry: { ...previous.geometry, [id]: next },
-      }))
-      onPresetChange(id, preset)
-    },
-    [getNode, onLayoutChange, viewportSize, presets, onPresetChange],
+  const { beginResize, finishResize, onNodesChange } = useCanvasGeometry(
+    persistence,
+    onSelect,
+    onWindowResize,
   )
 
   const flyTo = useCallback(
@@ -368,7 +348,6 @@ const TerminalCanvas = ({
       return render(terminal, {
         onScreen,
         onFlyTo: () => flyTo(terminal),
-        onResizePreset: () => resizeToViewport(id),
         onReveal: ({ right, height }) => {
           // A sheet already open as Canvas mounts waits for the first camera, which fits it.
           if (entrySheets.current) {
@@ -389,7 +368,7 @@ const TerminalCanvas = ({
         },
       })
     },
-    [fitBounds, flyTo, getNode, render, resizeToViewport, terminals],
+    [fitBounds, flyTo, getNode, render, terminals],
   )
 
   // XYFlow owns pointer-time geometry so dragging does not rerender the application or terminals.
@@ -426,10 +405,10 @@ const TerminalCanvas = ({
         })
       for (const terminal of created) {
         const saved = geometryRef.current[terminal.id]
-        const size = canvasNewTerminalSize(
-          { width: viewportWidth, height: viewportHeight },
-          { width: saved?.width ?? 600, height: saved?.height ?? 400 },
-        )
+        const size = {
+          width: saved?.width ?? windowSize.width,
+          height: saved?.height ?? windowSize.height,
+        }
         // Dropped from a taskbar where the ghost was, its window opens exactly there, then
         // settles onto the place it was given.
         const ghostAt =
@@ -536,6 +515,7 @@ const TerminalCanvas = ({
     updateNode,
     viewportSize,
     measured,
+    windowSize,
   ])
 
   const canvas = (
@@ -660,7 +640,8 @@ const TerminalCanvas = ({
                   aria-hidden="true"
                   style={{
                     transform: `translate(${ghost.x}px, ${ghost.y}px)`,
-                    ...newWindowSize(),
+                    width: windowSize.width,
+                    height: windowSize.height,
                   }}
                 >
                   <span className="drop-ghost-header">{ghostName}</span>

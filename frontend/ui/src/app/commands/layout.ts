@@ -1,10 +1,9 @@
+import type { WindowSize } from "@novadeck/core/layout/terminal-size"
 import type { ValueUpdate } from "@novadeck/core/state"
 import type {
   CanvasLayout,
   GridLayouts,
   GridRestoreWidths,
-  SizePreset,
-  WindowedView,
   WorkspaceTarget,
 } from "@novadeck/core/types"
 
@@ -21,12 +20,8 @@ export type LayoutCommands = {
     terminalId: string,
     change: { layouts: GridLayouts; restoreWidths: GridRestoreWidths | null },
   ) => void
-  readonly setSizePreset: (
-    target: WorkspaceTarget,
-    terminalId: string,
-    view: WindowedView,
-    preset: SizePreset,
-  ) => void
+  // A window resized on Canvas: new windows open at its size from now on, in every session.
+  readonly rememberCanvasWindowSize: (size: WindowSize) => void
   readonly setVisibility: (target: WorkspaceTarget, terminalId: string, hidden: boolean) => void
   readonly showAll: (target: WorkspaceTarget, terminalIds: readonly string[]) => void
   readonly reorder: (target: WorkspaceTarget, tabOrder: string[]) => void
@@ -34,15 +29,20 @@ export type LayoutCommands = {
 
 export const createLayoutCommands = ({
   workspace,
-}: Pick<CommandContext, "workspace">): LayoutCommands => ({
+  ui,
+}: Pick<CommandContext, "workspace" | "ui">): LayoutCommands => ({
   setCanvasLayout: (target, layout) =>
     void workspace.dispatch({ type: "canvas/layout", target, layout }),
   setGridLayouts: (target, layouts) =>
     void workspace.dispatch({ type: "grid/layouts", target, layouts }),
   toggleGridWidth: (target, terminalId, change) =>
     void workspace.dispatch({ type: "grid/size-toggle", target, terminalId, change }),
-  setSizePreset: (target, terminalId, view, preset) =>
-    void workspace.dispatch({ type: "terminal/size-preset", target, terminalId, view, preset }),
+  rememberCanvasWindowSize: (size) =>
+    void ui.update((state) =>
+      state.canvasWindowSize.width === size.width && state.canvasWindowSize.height === size.height
+        ? state
+        : { ...state, canvasWindowSize: { width: size.width, height: size.height } },
+    ),
   setVisibility: (target, terminalId, hidden) =>
     void workspace.dispatch({ type: "terminal/visibility", target, terminalId, hidden }),
   showAll: (target, terminalIds) =>

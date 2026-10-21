@@ -1,7 +1,7 @@
 import "./grid.css"
 import { useDrag, useDragSession } from "@novadeck/companion/drag-session"
 import type { Team } from "@novadeck/core/derivations"
-import { canvasPresetSize, gridPresetWidth } from "@novadeck/core/layout/terminal-size"
+import { defaultCanvasWindowSize, gridPresetWidth } from "@novadeck/core/layout/terminal-size"
 import { dropOnGrid, type WindowPlace } from "@novadeck/core/layout/window-place"
 import type {
   SizePreset,
@@ -157,7 +157,7 @@ export const Grid = ({
         const columns = gridColumns[breakpoint]
         const columnWidth = (width - gridMargin * (columns - 1)) / columns
         const w = gridPresetWidth(columns, "small")
-        const h = Math.ceil((canvasPresetSize("small").height + gridMargin) / gridRow)
+        const h = Math.ceil((defaultCanvasWindowSize.height + gridMargin) / gridRow)
         // Centred on the pointer across, its header on the pointer's row.
         const dropped = dropLayout(
           current[breakpoint] ?? [],

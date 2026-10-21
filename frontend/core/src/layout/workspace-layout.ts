@@ -1,6 +1,6 @@
 import type { CanvasLayout, GridLayouts, GridRestoreWidths, Placed, TerminalLayout } from "../types"
 import { adjacentCanvasPosition } from "./canvas-placement"
-import { canvasPresetSize } from "./terminal-size"
+import { defaultCanvasWindowSize } from "./terminal-size"
 
 export type CanvasGeometry = CanvasLayout["geometry"][string]
 
@@ -10,7 +10,7 @@ export const emptyLayout = (
   canvas: initial.canvas ?? { geometry: {} },
   grid: initial.grid ?? {},
   gridRestoreWidths: {},
-  sizePresets: { grid: {}, canvas: {} },
+  sizePresets: { grid: {} },
   hidden: {},
 })
 
@@ -70,8 +70,8 @@ export type TerminalPlacement = {
   readonly anchor: Placed | undefined
   readonly gridLayouts?: GridLayouts | undefined
   readonly canvasGeometry?: CanvasGeometry | undefined
-  // Its size on Canvas, where the caller measured the stage: a new window's, in the
-  // stage's ratio. The compact preset's otherwise.
+  // Its size on Canvas: the person's preferred size for a new window, where the caller
+  // knows it. The default size otherwise.
   readonly canvasSize?: { readonly width: number; readonly height: number } | undefined
 }
 
@@ -81,7 +81,7 @@ export const placeTerminal = (
   layout: TerminalLayout,
   { terminal, terminals, anchor, gridLayouts, canvasGeometry, canvasSize }: TerminalPlacement,
 ): TerminalLayout => {
-  const size = canvasSize ?? canvasPresetSize("small")
+  const size = canvasSize ?? defaultCanvasWindowSize
   const position = anchor
     ? adjacentCanvasPosition(anchor, terminals, layout.canvas, size.height)
     : { x: 80, y: 80 }
@@ -95,10 +95,7 @@ export const placeTerminal = (
       },
     },
     grid: gridLayouts ? pruneGridLayouts(gridLayouts, [...terminals, terminal]) : layout.grid,
-    sizePresets: {
-      canvas: { ...layout.sizePresets.canvas, [terminal.id]: "small" },
-      grid: { ...layout.sizePresets.grid, [terminal.id]: "small" },
-    },
+    sizePresets: { grid: { ...layout.sizePresets.grid, [terminal.id]: "small" } },
   }
 }
 
@@ -110,10 +107,7 @@ export const removeFromLayout = (layout: TerminalLayout, terminalId: string): Te
     canvas: geometry === layout.canvas.geometry ? layout.canvas : { ...layout.canvas, geometry },
     grid: withoutGridItem(layout.grid, terminalId),
     gridRestoreWidths: withoutKey(layout.gridRestoreWidths, terminalId),
-    sizePresets: {
-      grid: withoutKey(layout.sizePresets.grid, terminalId),
-      canvas: withoutKey(layout.sizePresets.canvas, terminalId),
-    },
+    sizePresets: { grid: withoutKey(layout.sizePresets.grid, terminalId) },
     hidden: withoutKey(layout.hidden, terminalId),
   }
 }
@@ -134,7 +128,6 @@ export const resizeGridTerminal = (
         ? withoutKey(layout.gridRestoreWidths, terminalId)
         : { ...layout.gridRestoreWidths, [terminalId]: widths },
     sizePresets: {
-      ...layout.sizePresets,
       grid: { ...layout.sizePresets.grid, [terminalId]: widths === null ? "small" : "large" },
     },
   }

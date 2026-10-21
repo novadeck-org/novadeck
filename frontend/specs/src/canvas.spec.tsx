@@ -1,5 +1,5 @@
 import { describe as context, describe, expect, it, onTestFinished } from "vitest"
-import { page, type Locator } from "vitest/browser"
+import { page } from "vitest/browser"
 
 import {
   boxesOf,
@@ -9,6 +9,7 @@ import {
   doubleClickHeader,
   dragBackground,
   dragBy,
+  dragCorner,
   dragHeader,
   fillsView,
   insideView,
@@ -19,7 +20,6 @@ import {
   scrollOver,
   settled,
   terminalAt,
-  viewBox,
   type Box,
 } from "./support/canvas"
 import { escapeFrom, newTerminalName } from "./support/keyboard"
@@ -51,7 +51,6 @@ const allTerminals = [
   "Build",
 ]
 const allInView = (): boolean => allTerminals.every((name) => insideView(boxOf(terminal(name))))
-const area = (box: Box): number => box.width * box.height
 const ratio = (box: Box): number => box.width / box.height
 
 const openCanvas = async (): Promise<void> => {
@@ -106,10 +105,19 @@ const overlapDevServerOnCheckout = async (): Promise<{ x: number; y: number }> =
   return overlap
 }
 
-const enlarge = (name: string): Locator =>
-  terminal(name).getByRole("button", { name: labelled("Enlarge terminal: ", name) })
-const compact = (name: string): Locator =>
-  terminal(name).getByRole("button", { name: labelled("Make compact: ", name) })
+/** The terminal's size on screen, which a new terminal shares while the zoom holds. */
+const sameSize = (actual: Box, expected: Box): boolean =>
+  near(actual.width, expected.width) && near(actual.height, expected.height)
+
+/** Resizes Checkout implementation by its corner, and gives back its new box. */
+const resizeCheckout = async (): Promise<Box> => {
+  const before = boxOf(terminal("Checkout implementation"))
+  await dragCorner("Checkout implementation", { x: 120, y: 90 })
+  await expect
+    .poll(() => boxOf(terminal("Checkout implementation")).width)
+    .toBeGreaterThan(before.width + 60)
+  return settled(() => boxOf(terminal("Checkout implementation")))
+}
 
 describe("Canvas", () => {
   context("when opened", () => {
@@ -381,60 +389,28 @@ describe("Canvas", () => {
     })
   })
 
-  context("when using the header resize control", () => {
-    it("enlarges to the view's aspect ratio at four times the compact area, around its centre", async () => {
-      // A tall window gives the view a portrait shape, far from the compact 3:2.
-      await page.viewport(1440, 1600)
-      onTestFinished(() => page.viewport(1440, 900))
+  context("when resizing a terminal by its corner", () => {
+    it("offers no other resize control in its header", async () => {
       await openCanvas()
-      const original = boxOf(terminal("Checkout implementation"))
-      const others = boxesOf(["Dev server", "Checkout review"])
-
-      await enlarge("Checkout implementation").click()
 
       await expect
-        .element(compact("Checkout implementation"))
-        .toHaveAttribute("aria-pressed", "true")
-      const enlarged = await settled(() => boxOf(terminal("Checkout implementation")))
-      const shape = viewBox()
-      expect(shape.width / shape.height).toBeLessThan(1)
-      expect(ratio(enlarged)).toBeCloseTo(shape.width / shape.height, 1)
-      expect(
-        near(enlarged.centerX, original.centerX, 13) &&
-          near(enlarged.centerY, original.centerY, 13),
-      ).toBe(true)
-      for (const [name, box] of Object.entries(others))
-        expect(sameBox(boxOf(terminal(name)), box)).toBe(true)
-
-      await compact("Checkout implementation").click()
-
-      await expect
-        .element(enlarge("Checkout implementation"))
-        .toHaveAttribute("aria-pressed", "false")
-      const compacted = await settled(() => boxOf(terminal("Checkout implementation")))
-      // Compact takes the view's shape too, as a new terminal does.
-      expect(ratio(compacted)).toBeCloseTo(shape.width / shape.height, 1)
-      expect(area(enlarged) / area(compacted)).toBeCloseTo(4, 1)
+        .element(
+          terminal("Checkout implementation").getByRole("button", {
+            name: /Enlarge|compact|width/,
+          }),
+        )
+        .not.toBeInTheDocument()
     })
 
-    it("enlarges to the same canvas size at any zoom", async () => {
+    it("opens the next new terminal at the size it was given", async () => {
       await openCanvas()
-      const relativeArea = async (): Promise<number> => {
-        await enlarge("Checkout implementation").click()
-        await expect.element(compact("Checkout implementation")).toBeInTheDocument()
-        const boxes = await settled(() => boxesOf(["Checkout implementation", "Dev server"]))
-        return area(boxes["Checkout implementation"]!) / area(boxes["Dev server"]!)
-      }
-      const atStart = await relativeArea()
-      await compact("Checkout implementation").click()
-      await clickBackground({ x: 150, y: 100 })
-      const width = (await settled(() => boxOf(terminal("Dev server")))).width
-      await press("-")
-      await expect.poll(() => boxOf(terminal("Dev server")).width).toBeLessThan(width - 20)
+      const resized = await resizeCheckout()
 
-      const zoomedOut = await relativeArea()
+      await page.getByRole("button", { name: "New terminal", exact: true }).click()
 
-      expect(zoomedOut / atStart).toBeCloseTo(1, 1)
+      await expect.element(terminal(newTerminalName)).toBeVisible()
+      const created = await settled(() => boxOf(terminal(newTerminalName)))
+      expect(sameSize(created, resized)).toBe(true)
     })
   })
 
@@ -457,8 +433,8 @@ describe("Canvas", () => {
   })
 
   context("when a terminal is added in another view", () => {
-    it("opens it in Canvas in the viewport's ratio, as one added there", async () => {
-      // A tall window gives the view a portrait shape, far from the compact 3:2.
+    it("opens it in Canvas at a new terminal's 3:2, whatever the view's shape", async () => {
+      // A tall window gives the view a portrait shape, far from a new terminal's 3:2.
       await page.viewport(1440, 1600)
       onTestFinished(() => page.viewport(1440, 900))
       await openWorkspace()
@@ -469,7 +445,7 @@ describe("Canvas", () => {
       await chooseView("Canvas")
 
       const created = await settled(() => boxOf(terminal(newTerminalName)))
-      expect(near(ratio(created), ratio(viewBox()), 0.05)).toBe(true)
+      expect(near(ratio(created), 3 / 2, 0.05)).toBe(true)
     })
   })
 
@@ -490,15 +466,16 @@ describe("Canvas", () => {
       for (const name of names) expect(sameBox(boxOf(terminal(name)), before[name]!)).toBe(true)
     })
 
-    it("opens it in the viewport's ratio, as Enlarge sizes a terminal", async () => {
+    it("opens it at the size a terminal was last given", async () => {
       await openCanvas()
+      const resized = await resizeCheckout()
       await rightClickBackground({ x: 100, y: 120 })
 
       await canvasMenu().getByRole("menuitem", { name: "Terminal" }).click()
 
       await expect.element(terminal(newTerminalName)).toBeVisible()
       const created = await settled(() => boxOf(terminal(newTerminalName)))
-      expect(near(ratio(created), ratio(viewBox()), 0.05)).toBe(true)
+      expect(sameSize(created, resized)).toBe(true)
     })
 
     it("focuses the new terminal instead of renaming it", async () => {
@@ -768,22 +745,6 @@ describe("Canvas", () => {
         expect(sameBox(after[name]!, before[name]!)).toBe(true)
         expect(overlaps(asRect(created), asRect(after[name]!))).toBe(false)
       }
-    })
-  })
-
-  context("when double-clicking an enlarged terminal's header", () => {
-    it("fills the whole view with the terminal", async () => {
-      await openCanvas()
-      await enlarge("Checkout implementation").click()
-      await expect.element(compact("Checkout implementation")).toBeInTheDocument()
-      await settled(() => boxOf(terminal("Checkout implementation")))
-
-      await doubleClickHeader("Checkout implementation")
-
-      const filled = await settled(() => boxOf(terminal("Checkout implementation")))
-      const whole = viewBox()
-      expect(near(filled.width, whole.width, 4) && near(filled.height, whole.height, 4)).toBe(true)
-      expect(near(filled.left, 0, 3) && near(filled.top, 0, 3)).toBe(true)
     })
   })
 })

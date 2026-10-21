@@ -1,5 +1,6 @@
 import type { Team } from "@novadeck/core/derivations"
-import type { SizePreset, Tile, CanvasLayout } from "@novadeck/core/types"
+import type { WindowSize } from "@novadeck/core/layout/terminal-size"
+import type { Tile, CanvasLayout } from "@novadeck/core/types"
 import type { Node } from "@xyflow/react"
 import type { Dispatch, SetStateAction, Ref, ReactNode } from "react"
 
@@ -20,8 +21,10 @@ export type TerminalNode = Node<
   "terminal"
 >
 export type CanvasProps = {
-  presets: Record<string, SizePreset>
-  onPresetChange: (id: string, preset: SizePreset) => void
+  // The size a new window opens at, and where a window the person resized says its size,
+  // which new windows open at from then on.
+  windowSize: WindowSize
+  onWindowResize: (size: WindowSize) => void
   layout: CanvasLayout
   revealOnMount: boolean
   // Opened from another view: it frames every visible window as it mounts.

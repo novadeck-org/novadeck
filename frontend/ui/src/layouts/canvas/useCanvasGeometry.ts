@@ -8,6 +8,7 @@ import type { CanvasPersistence } from "./useCanvasPersistence"
 export const useCanvasGeometry = (
   { geometryRef, dirtyGeometry, resizing, commitGeometry }: CanvasPersistence,
   onSelect: CanvasProps["onSelect"],
+  onWindowResize: CanvasProps["onWindowResize"],
 ) => {
   const { getNode, setNodes } = useReactFlow<TerminalNode>()
   const updateNode = useCallback(
@@ -55,8 +56,9 @@ export const useCanvasGeometry = (
         className: "",
       }))
       commitGeometry([id])
+      onWindowResize({ width: next.width, height: next.height })
     },
-    [commitGeometry, getNode, updateNode, geometryRef, dirtyGeometry, resizing],
+    [commitGeometry, getNode, updateNode, geometryRef, dirtyGeometry, resizing, onWindowResize],
   )
 
   const onNodesChange: OnNodesChange<TerminalNode> = useCallback(

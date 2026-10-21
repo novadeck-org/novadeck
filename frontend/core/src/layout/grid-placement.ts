@@ -1,5 +1,5 @@
 import type { CanvasLayout, GridBreakpoint, GridLayouts, Placed } from "../types"
-import { canvasPresetSize, gridPresetWidth } from "./terminal-size"
+import { defaultCanvasWindowSize, gridPresetWidth } from "./terminal-size"
 
 export const gridColumns = { wide: 16, desktop: 12, tablet: 8, mobile: 4 }
 
@@ -33,7 +33,7 @@ export const addCompactGridTerminal = (
   for (const breakpoint of Object.keys(gridColumns) as GridBreakpoint[]) {
     const existing = layouts[breakpoint] ?? current[breakpoint] ?? []
     const width = gridPresetWidth(gridColumns[breakpoint], "small")
-    const height = Math.ceil((canvasPresetSize("small").height + 16) / 24)
+    const height = Math.ceil((defaultCanvasWindowSize.height + 16) / 24)
     const rows = [0, ...existing.map((item) => item.y + item.h)]
     let position = { x: 0, y: Math.max(...rows) }
     for (const y of rows) {
