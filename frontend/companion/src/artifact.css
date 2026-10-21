@@ -1,8 +1,8 @@
 /* The artifact recipe: the viewers for what an agent shows beside its terminal
    (`.artifact-viewer`), each under a header (`.artifact-meta`): an image on a checker
-   (`.artifact-image`, holding the image viewer, @novadeck/viewers/image.css) with its
-   zoom, a segmented control (`.artifact-zoom`); a file's lines (`.artifact-code`,
-   holding the code viewer, @novadeck/viewers/code.css); a page in a browser frame
+   (`.artifact-image`, holding the image viewer, @novadeck/viewers/image.css, its zoom a
+   chip over it); a file's lines (`.artifact-code`, holding the code viewer,
+   @novadeck/viewers/code.css); a page in a browser frame
    (`.artifact-browser`, its bar `.artifact-browser-bar` with `.icon-button`s, its
    address `.artifact-url` and a link to open it, `.artifact-open`, and the page in
    `.artifact-page-frame`, holding the browser viewer, with `.artifact-page-failed`
@@ -23,7 +23,7 @@
    --artifact-image-image (a checker of soft and paper),
    --artifact-image-radius (radius-panel), --artifact-image-shadow (shadow-floating):
    the ground behind an image, and the image on it, as the image viewer's --image-ground,
-   --image-radius and --image-shadow.
+   --image-radius and --image-shadow; its zoom chip is a control on paper.
    --artifact-code-number-fg (muted), --artifact-code-pointed-bg (soft): a file's line
    numbers, and the lines the agent pointed at, as the code viewer's --code-number-fg and
    --code-emphasis-bg.
@@ -120,17 +120,6 @@
   padding: 0;
 }
 
-/* The zoom is a segmented control, as tall as the header's line. */
-.artifact-zoom {
-  display: flex;
-  gap: 2px;
-  padding: 1px;
-}
-.artifact-zoom .segment {
-  padding: 0 7px;
-  line-height: 16px;
-  font-size: var(--text-control);
-}
 .artifact-image {
   display: flex;
   flex: 1;
@@ -141,10 +130,15 @@
     repeating-conic-gradient(var(--color-soft) 0 25%, var(--color-paper) 0 50%)
   );
   --image-ground-size: 16px 16px;
-  --image-fit-max-width: 620px;
-  --image-actual-width: 800px;
   --image-radius: var(--artifact-image-radius, var(--radius-panel));
   --image-shadow: var(--artifact-image-shadow, var(--shadow-floating));
+  --image-zoom-bg: var(--color-paper);
+  --image-zoom-hover-bg: var(--color-soft);
+  --image-zoom-fg: var(--color-ink);
+  --image-zoom-border: 1px solid var(--color-line);
+  --image-zoom-radius: var(--radius-control);
+  --image-zoom-shadow: var(--shadow-control);
+  --image-zoom-font: var(--text-control) / var(--text-control--line-height) var(--font-sans);
 }
 
 .artifact-code {

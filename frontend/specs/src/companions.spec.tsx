@@ -176,31 +176,62 @@ describe("Escape in the pane", () => {
 })
 
 describe("An image", () => {
-  it("scrolls under its header, which stays in view", async () => {
+  // Where the image is drawn in its viewer.
+  const placeOf = (image: Element) => {
+    const viewer = image.closest(".image-viewer")!.getBoundingClientRect()
+    const box = image.getBoundingClientRect()
+    return { x: box.left - viewer.left, y: box.top - viewer.top, width: box.width }
+  }
+
+  // The viewer takes the pointer: Grid's layout leaves its images none.
+  const viewerOf = (pane: ReturnType<typeof companionPane>) =>
+    pane.getByRole("region", { name: pane.getByRole("img").element().getAttribute("alt")! })
+
+  it("zooms and moves under its header, which stays in view", async () => {
     await openShowcase()
     await taskbarIcon("Build Studio", "2 images").click()
     const pane = companionPane("Build Studio")
-    await pane.getByRole("button", { name: "100%", exact: true }).click()
-    const area = pane.getByRole("img").element().parentElement!
-    await expect.poll(() => area.scrollHeight).toBeGreaterThan(area.clientHeight)
+    const image = pane.getByRole("img")
+    await expect.element(image).toBeVisible()
+    await expect.poll(() => image.element().closest("[data-sized]")).not.toBeNull()
+    // Fitted, it has no zoom to show.
+    expect(pane.getByRole("button", { name: /^Zoomed to/ }).query()).toBeNull()
 
-    area.scrollTop = area.scrollHeight
+    await viewerOf(pane).dblClick()
+    const zoom = pane.getByRole("button", { name: "Zoomed to 100%. Back to fit" })
+    await expect.element(zoom).toBeVisible()
+    await expect.poll(() => placeOf(image.element()).width).toBe(1600)
 
-    await expect.poll(() => area.scrollTop).toBeGreaterThan(0)
-    const viewer = area.parentElement!
-    expect(viewer.scrollHeight).toBe(viewer.clientHeight)
-    await expect.element(pane.getByRole("button", { name: "Fit", exact: true })).toBeInViewport()
+    const before = placeOf(image.element())
+    const viewer = image.element().closest(".image-viewer")!
+    viewer.dispatchEvent(new WheelEvent("wheel", { deltaX: 120, bubbles: true, cancelable: true }))
+    await expect.poll(() => placeOf(image.element()).x).toBeLessThan(before.x)
+
+    const area = viewer.parentElement!
+    expect(area.scrollHeight).toBe(area.clientHeight)
+    await expect
+      .element(pane.getByText(image.element().getAttribute("alt")!, { exact: true }))
+      .toBeInViewport()
+
+    await zoom.click()
+    await expect.poll(() => zoom.query()).toBeNull()
+    expect(placeOf(image.element()).width).toBeLessThan(1600)
   })
 
-  it("opens as it was left, zoomed and scrolled, after the pane showed something else", async () => {
+  it("opens as it was left, zoomed and moved, after the pane showed something else", async () => {
     await openShowcase()
     await taskbarIcon("Build Studio", "2 images").click()
     const pane = companionPane("Build Studio")
-    await pane.getByRole("button", { name: "100%", exact: true }).click()
-    const area = pane.getByRole("img").element().parentElement!
-    await expect.poll(() => area.scrollHeight).toBeGreaterThan(area.clientHeight + 40)
-    area.scrollTop = 40
-    await expect.poll(() => area.scrollTop).toBe(40)
+    const image = pane.getByRole("img")
+    await expect.element(image).toBeVisible()
+    await expect.poll(() => image.element().closest("[data-sized]")).not.toBeNull()
+    await viewerOf(pane).dblClick()
+    await expect.poll(() => placeOf(image.element()).width).toBe(1600)
+    const viewer = image.element().closest(".image-viewer")!
+    viewer.dispatchEvent(new WheelEvent("wheel", { deltaX: 40, bubbles: true, cancelable: true }))
+    const first = image.element()
+    await expect.poll(() => placeOf(first).x).toBeLessThan(0)
+    const left = placeOf(first)
 
     await taskbarIcon("Build Studio", "2 files").click()
     await expect
@@ -209,11 +240,11 @@ describe("An image", () => {
     await taskbarIcon("Build Studio", "2 images").click()
 
     await expect
-      .element(pane.getByRole("button", { name: "100%", exact: true }))
-      .toHaveAttribute("aria-pressed", "true")
-    const again = pane.getByRole("img").element().parentElement!
-    expect(again).not.toBe(area)
-    await expect.poll(() => again.scrollTop).toBe(40)
+      .element(pane.getByRole("button", { name: "Zoomed to 100%. Back to fit" }))
+      .toBeVisible()
+    const again = pane.getByRole("img").element()
+    expect(again).not.toBe(first)
+    await expect.poll(() => placeOf(again)).toEqual(left)
   })
 })
 
@@ -275,7 +306,7 @@ describe("A viewer's header", () => {
     const besideFile = await settled(offset)
 
     await taskbarIcon("Build Studio", "2 images").click()
-    await expect.element(pane.getByRole("button", { name: "Fit", exact: true })).toBeVisible()
+    await expect.element(pane.getByRole("img")).toBeVisible()
     expect(await settled(offset)).toBe(besideFile)
 
     // A plan has the same header across the pane, its outline and document under it.
