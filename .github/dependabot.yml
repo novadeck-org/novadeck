@@ -32,6 +32,11 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "@vitejs/plugin-react"
         update-types: ["version-update:semver-major"]
+      # 2.3.0 memoizes GridItem without the drag position, so a window dragged in
+      # Grid jumps cell to cell instead of following the pointer. Held at 2.2.4;
+      # lift once a release fixes it.
+      - dependency-name: "react-grid-layout"
+        versions: [">=2.3.0"]
     commit-message:
       prefix: "build"
       include: "scope"
