@@ -1,7 +1,7 @@
 import type { WorkspaceTarget } from "@novadeck/core/types"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { createLucideIcon, Minus, X } from "lucide-react"
-import type { ReactNode } from "react"
+import { useEffect, useRef, type ReactNode } from "react"
 
 import type { BarMember } from "./bar"
 import type { MailHandle } from "./panes/messages/mail"
@@ -17,28 +17,32 @@ const Restore = createLucideIcon("restore", [
 ])
 
 // What the pane does with what it shows, at the end of its header, as a window's title
-// bar does on Windows: minimizes the pane back to the taskbar, as Escape does; undocks
-// what it shows into a window of its own, where it can; and closes it, off the taskbar,
-// as the taskbar's menu does.
+// bar does on Windows: minimizes it back to the taskbar, uncovering what's open behind
+// it; undocks it into a window of its own, where it can; and closes it, off the taskbar,
+// as the taskbar's menu does. Escape hides the whole pane, which is the same as
+// minimizing while nothing's behind.
 const PaneActions = ({
   name,
+  behind,
   onUndock,
-  onHide,
+  onMinimize,
   onClose,
 }: {
   // What the pane shows, as closing it names it.
   name: string
+  // Whether something's open behind it.
+  behind: boolean
   onUndock: (() => void) | undefined
-  onHide: () => void
+  onMinimize: () => void
   onClose: () => void
 }): React.JSX.Element => (
   <span className="artifact-actions">
-    <Tooltip content="Minimize to the taskbar · Esc">
+    <Tooltip content={behind ? "Minimize · Esc hides the pane" : "Minimize to the taskbar · Esc"}>
       <button
         type="button"
         className="icon-button"
         aria-label="Minimize to the taskbar"
-        onClick={onHide}
+        onClick={onMinimize}
       >
         <Minus size={14} strokeWidth={1.75} aria-hidden />
       </button>
@@ -94,9 +98,11 @@ const MemberTab = ({
 
 // A terminal's companion pane, wherever it is presented: what it shows of the terminal's
 // taskbar, `member`: a plan, edited where it's read, something an agent showed, its
-// messages, or another terminal's item placed here, under a line saying whose it is.
+// messages, or another terminal's item placed here, under a line saying whose it is. It's
+// the top of what's open in the pane; the rest waits behind it.
 export const CompanionPane = ({
   member,
+  behind,
   panes,
   target,
   agent,
@@ -106,10 +112,13 @@ export const CompanionPane = ({
   plans,
   originOf,
   onUndock,
+  onMinimize,
   onHide,
   onClose,
 }: {
   member: BarMember | undefined
+  // How many are open behind it.
+  behind: number
   panes: Panes
   target: WorkspaceTarget
   // Who showed what's here, as the pane's label names them.
@@ -122,12 +131,26 @@ export const CompanionPane = ({
   originOf: (member: BarMember) => string | undefined
   // Undocks what's shown into a window of its own.
   onUndock: (member: BarMember) => void
+  // Minimizes what's shown, uncovering what's behind; hides the whole pane, as Escape does.
+  onMinimize: (member: BarMember) => void
   onHide: () => void
-  // Closes what's shown, as the taskbar's menu does, and the pane with it.
+  // Closes what's shown, as the taskbar's menu does, uncovering what's behind.
   onClose: (member: BarMember) => void
 }): React.JSX.Element => {
   const messages = member?.kind === "messages"
   const plan = member?.kind === "item" && member.item.kind === "plan" ? member.item : undefined
+  // Minimizing or closing what it showed from inside it drops focus with it: the pane
+  // takes it, as the window uncovered takes focus on a desktop. Focus the person has
+  // elsewhere stays there.
+  const section = useRef<HTMLElement>(null)
+  const shown = useRef(member?.key)
+  useEffect(() => {
+    const before = shown.current
+    shown.current = member?.key
+    if (before === undefined || before === member?.key) return
+    const focused = document.activeElement
+    if (!focused || focused === document.body) section.current?.focus({ preventScroll: true })
+  }, [member?.key])
   const undock = member?.kind === "item" && !member.placed ? () => onUndock(member) : undefined
   const tab = member && (
     <MemberTab
@@ -140,8 +163,9 @@ export const CompanionPane = ({
       actions={
         <PaneActions
           name={registrationOf(member).look(member, { plans }).name}
+          behind={behind > 0}
           onUndock={undock}
-          onHide={onHide}
+          onMinimize={() => onMinimize(member)}
           onClose={() => onClose(member)}
         />
       }
@@ -149,6 +173,8 @@ export const CompanionPane = ({
   )
   return (
     <section
+      ref={section}
+      tabIndex={-1}
       className="plan-reader"
       data-workspace-companion
       data-presentation={presentation}

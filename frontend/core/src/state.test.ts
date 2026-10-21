@@ -35,7 +35,7 @@ describe("companion items in the workspace", () => {
       expect(state.bars["01"]).toEqual({
         order: [notes.id, hero.id],
         hidden: [],
-        tab: null,
+        stack: [],
         open: false,
       })
       expect(state.fresh).toEqual({ [notes.id]: true, [hero.id]: true })
@@ -43,13 +43,19 @@ describe("companion items in the workspace", () => {
 
     it("opens when the person asked for it, and isn't new", () => {
       const state = stateOf(shown({ ...hero, asked: true }))
-      expect(state.bars["01"]).toMatchObject({ tab: hero.id, open: true })
+      expect(state.bars["01"]).toMatchObject({ stack: [hero.id], open: true })
       expect(state.fresh).toEqual({})
+    })
+
+    it("opens on top of what the person has open, which waits behind it", () => {
+      const reading = apply(shown(notes), { type: "bar/open", target, terminalId: "01", key: notes.id })
+      const state = run(reading, { type: "item/upsert", target, item: { ...hero, asked: true } })
+      expect(state.bars["01"]).toMatchObject({ stack: [notes.id, hero.id], open: true })
     })
 
     it("never opens something that may hold secrets", () => {
       const state = stateOf(shown({ ...notes, asked: true, held: true }))
-      expect(state.bars["01"]).toMatchObject({ tab: null, open: false })
+      expect(state.bars["01"]).toMatchObject({ stack: [], open: false })
       expect(state.fresh).toEqual({ [notes.id]: true })
     })
   })
@@ -163,7 +169,7 @@ describe("companion items in the workspace", () => {
         terminalId: "02",
         open: true,
       })
-      expect(state.bars["02"]).toMatchObject({ tab: notes.id, open: true })
+      expect(state.bars["02"]).toMatchObject({ stack: [notes.id], open: true })
       expect(state.fresh).toEqual({})
     })
 
@@ -323,7 +329,7 @@ describe("companion items in the workspace", () => {
   context("when the person arranges a bar", () => {
     it("opens what they pick, which is no longer new", () => {
       const state = run(shown(notes), { type: "bar/open", target, terminalId: "01", key: notes.id })
-      expect(state.bars["01"]).toMatchObject({ tab: notes.id, open: true })
+      expect(state.bars["01"]).toMatchObject({ stack: [notes.id], open: true })
       expect(state.fresh).toEqual({})
     })
 

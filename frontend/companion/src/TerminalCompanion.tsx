@@ -23,7 +23,15 @@ import {
 import { createPortal } from "react-dom"
 
 import type { CompanionActions } from "./actions"
-import { barMembers, composeBar, dropOutcome, shownTab, slotKeys, type BarMember } from "./bar"
+import {
+  barMembers,
+  behindTab,
+  composeBar,
+  dropOutcome,
+  shownTab,
+  slotKeys,
+  type BarMember,
+} from "./bar"
 import { CompanionPane } from "./CompanionPane"
 import { useDrag, type BarDrag } from "./drag-session"
 import { useMail } from "./panes/messages/mail"
@@ -47,6 +55,10 @@ const clamp = (value: number): number => Math.min(0.7, Math.max(0.22, value))
 
 // What the pane shows, wherever it's presented.
 type PaneView = Omit<Parameters<typeof CompanionPane>[0], "presentation">
+
+// How many sheets the pane draws behind what it shows: one or two, however many wait.
+const behindMark = (behind: number): "1" | "2" | undefined =>
+  behind === 0 ? undefined : behind === 1 ? "1" : "2"
 
 // Terminal left, pane right, inside the terminal's own window. The divider drags.
 const SplitPane = ({
@@ -103,6 +115,7 @@ const SplitPane = ({
         {...presence.props}
         className="plan-split-reader nodrag nopan nowheel"
         data-companion-of={owner}
+        data-behind={behindMark(shown.behind)}
       >
         <CompanionPane {...shown} presentation="split" />
       </div>
@@ -152,6 +165,7 @@ const AttachedPane = ({
       id={id}
       className="plan-attached nodrag nopan nowheel"
       data-companion-of={owner}
+      data-behind={behindMark(shown.behind)}
     >
       <CompanionPane {...shown} presentation="attached" />
     </div>
@@ -214,6 +228,8 @@ export const TerminalCompanion = ({
   // Open while there's something to show.
   const open = bar.open && tab !== null
   const showing = open ? tab : null
+  // What's open in the pane behind what it shows: everything open while it's hidden.
+  const behind = behindTab(bar, members, showing)
   const member = members.find((each) => each.key === tab)
   // Who showed what's here, by its main plan's agent.
   const agent =
@@ -247,14 +263,17 @@ export const TerminalCompanion = ({
   }
   const actions: Omit<SlotActions, "grab"> = {
     showing,
+    stacked: bar.stack,
     mail,
     peerName,
     originOf,
     plans,
     panes,
     target,
-    // Clicking what the pane is showing hides it, as a taskbar minimizes the active window.
-    activate: (key) => (key === showing ? commands.closeBarPane(terminal) : openPicked(key)),
+    // Clicking what the pane is showing minimizes it, as a taskbar does the active window;
+    // anything else comes to the top.
+    activate: (key) =>
+      key === showing ? commands.minimizeOnBar(terminal, key) : openPicked(key),
     open: openPicked,
     seen: (itemIds) => commands.markSeen(itemIds),
     close: (each) => {
@@ -318,6 +337,7 @@ export const TerminalCompanion = ({
   }, [open, terminal])
   const paneView: PaneView = {
     member,
+    behind: behind.length,
     panes,
     target,
     agent,
@@ -326,6 +346,7 @@ export const TerminalCompanion = ({
     plans,
     originOf,
     onUndock: actions.undock,
+    onMinimize: (each) => commands.minimizeOnBar(terminal, each.key),
     onHide: () => commands.closeBarPane(terminal),
     onClose: actions.close,
   }

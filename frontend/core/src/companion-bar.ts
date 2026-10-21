@@ -1,8 +1,10 @@
 import type { ItemId } from "./companion"
 
 // A terminal's companion bar as the person arranged it: the order of what's on it, what
-// they hid from it, and what its pane shows. The items themselves are the backend's; a
-// bar keeps only their ids, and the terminal's messages, which never leave it.
+// they hid from it, and what its pane holds open. The pane stacks what's open as a desktop
+// stacks windows: it shows the top one, and minimizing or closing that uncovers the one
+// behind. The items themselves are the backend's; a bar keeps only their ids, and the
+// terminal's messages, which never leave it.
 
 export const messagesKey = "messages"
 
@@ -14,12 +16,16 @@ export type Bar = {
   // Plans and the messages the person closed, which stay off the bar until they come
   // back: a plan rewritten, a message arriving.
   readonly hidden: readonly BarKey[]
-  // What the pane shows while it's open.
-  readonly tab: BarKey | null
+  // What's open in the pane, the one it shows last: the rest wait behind it.
+  readonly stack: readonly BarKey[]
+  // Whether the pane is out. Hiding it keeps the stack, which comes back with it.
   readonly open: boolean
 }
 
-export const emptyBar: Bar = { order: [], hidden: [], tab: null, open: false }
+export const emptyBar: Bar = { order: [], hidden: [], stack: [], open: false }
+
+// What the pane shows while it's out: the top of its stack.
+export const topOf = (bar: Bar): BarKey | null => bar.stack.at(-1) ?? null
 
 const without = (keys: readonly BarKey[], key: BarKey): readonly BarKey[] =>
   keys.includes(key) ? keys.filter((each) => each !== key) : keys
@@ -35,10 +41,13 @@ export const arriveLast = (bar: Bar, key: BarKey): Bar =>
     ? bar
     : { ...bar, order: [...without(bar.order, key), key], hidden: without(bar.hidden, key) }
 
-// The pane opened to it, or hiding it, closes: nothing takes its place, and nothing opens
-// on its own when it comes back.
-const unshow = (bar: Bar, key: BarKey): Bar =>
-  bar.tab === key ? { ...bar, tab: null, open: false } : bar
+// It's no longer open in the pane: what was behind it shows, and the pane hides once
+// nothing's left. Nothing opens on its own when it comes back.
+const unshow = (bar: Bar, key: BarKey): Bar => {
+  if (!bar.stack.includes(key)) return bar
+  const stack = without(bar.stack, key)
+  return { ...bar, stack, open: bar.open && stack.length > 0 }
+}
 
 // The person closed a plan or the messages from the bar: off it until they come back.
 export const hide = (bar: Bar, key: BarKey): Bar =>
@@ -60,9 +69,18 @@ export const leave = (bar: Bar, key: BarKey): Bar => {
   return unshow(left, key)
 }
 
-export const openTab = (bar: Bar, key: BarKey): Bar =>
-  bar.tab === key && bar.open ? bar : { ...bar, tab: key, open: true }
+// The pane comes out with it on top, from wherever it was in the stack.
+export const raise = (bar: Bar, key: BarKey): Bar =>
+  topOf(bar) === key && bar.open
+    ? bar
+    : { ...bar, stack: [...without(bar.stack, key), key], open: true }
 
+// The person minimized it: back to the taskbar, uncovering what was behind it. One the
+// stack doesn't hold, as what the pane falls back to showing, takes the pane with it.
+export const minimize = (bar: Bar, key: BarKey): Bar =>
+  bar.stack.includes(key) ? unshow(bar, key) : closePane(bar)
+
+// The pane hides, keeping what's open in it for when it comes back.
 export const closePane = (bar: Bar): Bar => (bar.open ? { ...bar, open: false } : bar)
 
 // The bar's icons as `slots` group its keys, the one at `from` moved to `to`: its keys
@@ -90,12 +108,12 @@ export const moveSlot = (
 export const settle = (bar: Bar, known: (key: BarKey) => boolean): Bar => {
   const order = bar.order.filter(known)
   const hidden = bar.hidden.filter(known)
-  const tab = bar.tab !== null && known(bar.tab) ? bar.tab : null
-  const open = bar.open && tab !== null
+  const stack = bar.stack.filter(known)
+  const open = bar.open && stack.length > 0
   return order.length === bar.order.length &&
     hidden.length === bar.hidden.length &&
-    tab === bar.tab &&
+    stack.length === bar.stack.length &&
     open === bar.open
     ? bar
-    : { order, hidden, tab, open }
+    : { order, hidden, stack, open }
 }

@@ -99,7 +99,7 @@ describe("companion commands", () => {
       app.commands.dock("session-1")
       expect(app.windows()).toEqual([])
       expect(app.item(plan.id)!.holder).toEqual({ terminalId: "01" })
-      expect(app.bar("01")).toMatchObject({ order: [hero.id, plan.id], tab: plan.id, open: true })
+      expect(app.bar("01")).toMatchObject({ order: [hero.id, plan.id], stack: [plan.id], open: true })
       expect(app.state().selected).toBe("01")
     })
 
@@ -160,10 +160,21 @@ describe("companion commands", () => {
     it("opens its pane to what they pick, and hides it again", () => {
       const app = open()
       app.commands.openBarTab("01", hero.id)
-      expect(app.bar("01")).toMatchObject({ tab: hero.id, open: true })
+      expect(app.bar("01")).toMatchObject({ stack: [hero.id], open: true })
       expect(app.state().fresh).not.toHaveProperty(hero.id)
       app.commands.closeBarPane("01")
-      expect(app.bar("01")).toMatchObject({ open: false })
+      expect(app.bar("01")).toMatchObject({ stack: [hero.id], open: false })
+    })
+
+    it("opens each pick on top, and minimizing the top uncovers the one behind", () => {
+      const app = open()
+      app.commands.openBarTab("01", plan.id)
+      app.commands.openBarTab("01", hero.id)
+      expect(app.bar("01")).toMatchObject({ stack: [plan.id, hero.id], open: true })
+      app.commands.minimizeOnBar("01", hero.id)
+      expect(app.bar("01")).toMatchObject({ stack: [plan.id], open: true })
+      app.commands.minimizeOnBar("01", plan.id)
+      expect(app.bar("01")).toMatchObject({ stack: [], open: false })
     })
 
     it("takes what they peeked at as seen, leaving the pane as it was", () => {
