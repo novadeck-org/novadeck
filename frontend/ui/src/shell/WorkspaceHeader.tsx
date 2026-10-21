@@ -1,15 +1,10 @@
+import { viewModes } from "@novadeck/core/state"
 import type { Project, ViewMode } from "@novadeck/core/types"
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { SegmentGroup } from "@novadeck/toolkit/SegmentGroup"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import {
-  LayoutGrid,
-  Scan,
-  PanelLeft,
-  Search,
-  Settings2,
-  SquareDashedMousePointer,
-} from "lucide-react"
+import { views } from "@novadeck/toolkit/views"
+import { Scan, Search, Settings2 } from "lucide-react"
 import { useSyncExternalStore } from "react"
 import { Link } from "react-router"
 
@@ -25,12 +20,6 @@ const subscribe = (notify: () => void): (() => void) => {
   return () => media.removeEventListener("change", notify)
 }
 const isIconOnly = (): boolean => window.matchMedia(iconOnlyQuery).matches
-
-const views = [
-  { id: "focus", label: "Focus", icon: PanelLeft },
-  { id: "grid", label: "Grid", icon: LayoutGrid },
-  { id: "canvas", label: "Canvas", icon: SquareDashedMousePointer },
-] as const
 
 export const WorkspaceHeader = ({
   hidden = false,
@@ -130,13 +119,16 @@ export const WorkspaceHeader = ({
               tooltips={iconOnly}
               className="view-switch max-[701px]:gap-0 flex shrink-0 gap-1"
               itemClassName="flex h-8 min-w-22 items-center justify-center gap-2 px-3 text-control max-[701px]:min-w-0 max-[701px]:w-8 max-[701px]:px-2 max-[701px]:gap-0 max-[701px]:text-caption [&>span]:max-[701px]:hidden"
-              items={views
-                .filter(({ id }) => enabledViews.includes(id))
-                .map(({ id, label, icon: Icon }) => ({
-                  value: id,
-                  label,
-                  icon: <Icon size={14} strokeWidth={1.6} aria-hidden="true" />,
-                }))}
+              items={viewModes
+                .filter((id) => enabledViews.includes(id))
+                .map((id) => {
+                  const { label, icon: Icon } = views[id]
+                  return {
+                    value: id,
+                    label,
+                    icon: <Icon size={14} strokeWidth={1.6} aria-hidden="true" />,
+                  }
+                })}
               indicatorClassName="view-switch-indicator"
               value={view}
               onValueChange={(value) => {
