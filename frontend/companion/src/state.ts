@@ -74,6 +74,8 @@ export type Panes = {
   readonly plan: (target: WorkspaceTarget, itemId: ItemId) => PlanActions
   // Follows every plan in the workspace and the messages from here on; returns the stop.
   readonly connect: () => () => void
+  // Takes a picture of a live page for it to rest as: the backend's, where it has one.
+  readonly picture?: Companions["picture"]
 }
 
 type Followed = {
@@ -664,5 +666,6 @@ export const createPanes = ({
       for (const id of session.followed.keys()) unfollow(session, id)
     }
   }
-  return { store: session.panes, watch, reveal, plan, connect }
+  const { picture } = companions
+  return { store: session.panes, watch, reveal, plan, connect, ...(picture && { picture }) }
 }

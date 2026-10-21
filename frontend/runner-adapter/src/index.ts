@@ -165,6 +165,7 @@ export const connectRunnerBackend = async (
     const whatsNew = desktopWhatsNew(desktopHost())
     const version = desktopVersion(desktopHost())
     const openLogs = desktopHost()?.openLogs
+    const pagePicture = desktopHost()?.pagePicture
     const sandbox = desktopSandbox(desktopHost())
     const portable = desktopPortable(desktopHost())
     const uninstall = desktopUninstall(desktopHost())
@@ -188,6 +189,7 @@ export const connectRunnerBackend = async (
           ...(portable ? { portable } : {}),
           ...(uninstall ? { uninstall } : {}),
           livePages: desktopHost()?.livePages === true,
+          ...(pagePicture ? { pagePicture: (page) => pagePicture(page) } : {}),
           transcripts,
           transcriptsAvailable,
           agents,

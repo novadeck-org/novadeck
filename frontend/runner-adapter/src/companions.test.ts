@@ -65,6 +65,22 @@ const following = ({ livePages = false } = {}) => {
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
 
+describe("a picture of a live page", () => {
+  // Never asked here: only the picture is.
+  const runner = {} as Parameters<typeof createRunnerCompanions>[0]
+  const picture = async (page: number) => `data:image/jpeg;base64,${page}`
+
+  it("is the host's to take, where pages load live", async () => {
+    const companions = createRunnerCompanions(runner, { livePages: true, picture })
+    expect(await companions.picture?.(7)).toBe("data:image/jpeg;base64,7")
+  })
+
+  it("is none where pages don't load live, or the host takes none", () => {
+    expect(createRunnerCompanions(runner, { picture }).picture).toBeUndefined()
+    expect(createRunnerCompanions(runner, { livePages: true }).picture).toBeUndefined()
+  })
+})
+
 describe("the runner's companion content", () => {
   it("follows what an item holds, revealed only when asked", async () => {
     const app = following()

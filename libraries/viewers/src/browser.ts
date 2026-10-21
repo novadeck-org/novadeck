@@ -5,7 +5,10 @@ import type { Mount, Viewer, ViewerState } from "./index.js"
 // (./browser-host.ts) keeps to http(s), in memory, with no Node and no permissions; the
 // viewer reports where it is and how its load went, and goes back, forward or reloads
 // when asked. Shown again, it loads afresh and brings the element the show names into
-// view. Where live pages aren't available (a plain browser, a demo), it shows a
+// view. A live page can rest, as its host says while the person isn't at it: it shows a
+// picture of itself in its place, and its view goes, so drawing it costs nothing; woken,
+// it loads again under the picture, where the person had scrolled, and the picture fades
+// once it's there. Where live pages aren't available (a plain browser, a demo), it shows a
 // snapshot of the page, or nothing, for the host to say why. Its looks are browser.css's.
 
 /**
@@ -33,6 +36,14 @@ export type BrowserOptions = {
   readonly snapshot?: { readonly src: string; readonly alt: string }
   /** The pages' session, the one the host's lockdown names. */
   readonly partition: string
+  /**
+   * Takes a picture of what the live page shows now, by its view's web contents id, for
+   * the viewer to show while the page rests; undefined when it can't. Without it, a live
+   * page never rests.
+   */
+  readonly picture?: (page: number) => Promise<string | undefined>
+  /** Whether a live page starts awake, as it does unless told; it rests only as a picture. */
+  readonly awake?: boolean
   readonly on?: {
     readonly navigate?: (place: Place) => void
     readonly load?: (load: Load) => void
@@ -46,6 +57,14 @@ export type BrowserViewer = Viewer<BrowserContent> & {
   readonly reload: () => void
   /** Quiet while kept out of sight: it stops drawing on its own, but not playing. */
   readonly muted: (muted: boolean) => void
+  /**
+   * Live, or resting as a picture of itself, its view gone: a page with no picture yet
+   * stays live until a rest can take one, and one loading rests once it's done, unless an
+   * older picture can stand in for it.
+   */
+  readonly awake: (awake: boolean) => void
+  /** Whether it has a picture to rest as. */
+  readonly pictured: () => boolean
 }
 
 // Electron's <webview>: its methods work once it's attached, and throw until then.
@@ -59,21 +78,44 @@ type Webview = HTMLElement & {
   loadURL(url: string): Promise<void>
   executeJavaScript(code: string): Promise<unknown>
   getURL(): string
+  getWebContentsId(): number
   setAudioMuted(muted: boolean): void
 }
 
+// A page's scroll, as `[scrollX, scrollY]`.
+type Scrolled = readonly [number, number]
+
+// A picture of the page, and the address it shows.
+type Picture = { readonly src: string; readonly at: string }
+
 // Where the person had taken the page, from the address it was shown at, and the show
-// it had carried out.
+// it had carried out; and its picture, with where it was scrolled as it was taken, to
+// rest as.
 type BrowserState = {
-  readonly browser: { readonly url: string; readonly at: string; readonly shown: number }
+  readonly browser: {
+    readonly url: string
+    readonly at: string
+    readonly shown: number
+    readonly picture?: Picture
+    readonly scrolled?: Scrolled
+  }
 }
+
+const isPicture = (value: unknown): value is Picture =>
+  typeof (value as Partial<Picture> | null)?.src === "string" &&
+  typeof (value as Partial<Picture>).at === "string"
+
+const isScrolled = (value: unknown): value is Scrolled =>
+  Array.isArray(value) && value.length === 2 && value.every(Number.isFinite)
 
 const isBrowserState = (state: unknown): state is BrowserState => {
   const browser = (state as Partial<BrowserState> | null)?.browser
   return (
     typeof browser?.url === "string" &&
     typeof browser.at === "string" &&
-    typeof browser.shown === "number"
+    typeof browser.shown === "number" &&
+    (browser.picture === undefined || isPicture(browser.picture)) &&
+    (browser.scrolled === undefined || isScrolled(browser.scrolled))
   )
 }
 
@@ -128,6 +170,44 @@ const aborted = -3
 /** How long a show's scroll waits for its element to appear once the page has loaded. */
 export const scrollWaitMs = 5_000
 
+/**
+ * A live page keeps a picture of itself ready, so it can rest at once, even where it can't
+ * be pictured as it goes, as when its host hides it in the same moment: `freshenMs` after
+ * a load or a move within it, `leftMs` after the pointer leaves it, and every `keepMs`
+ * while it's awake, though never while the pointer is on it or it has focus, so taking one
+ * never comes in the way of the person using it.
+ */
+export const freshenMs = 1_000
+export const leftMs = 300
+export const keepMs = 5_000
+
+/**
+ * How long a woken page's picture stays over it once it has loaded, for it to draw, and
+ * then fades for; browser.css's fade matches.
+ */
+export const uncoverMs = 120
+export const fadeMs = 150
+
+// Run in the page: where it's scrolled, read for at most `scrollReadMs`.
+const scrollRead = "[scrollX, scrollY]"
+const scrollReadMs = 500
+const wait = (ms: number): Promise<undefined> =>
+  new Promise((resolve) => setTimeout(() => resolve(undefined), ms))
+/** How long a woken page's scroll waits for a page that draws itself to be tall enough. */
+export const restoreWaitMs = 1_500
+// Run in the page: back where it was scrolled, once the page is tall enough to be, as one
+// that draws itself after loading grows, or after a while all the same.
+const scrolling = ([x, y]: Scrolled): string => `new Promise((done) => {
+  const until = Date.now() + ${restoreWaitMs}
+  const go = () => {
+    const room = document.documentElement.scrollHeight - innerHeight
+    if (room < ${y} && Date.now() < until) return requestAnimationFrame(go)
+    scrollTo(${x}, ${y})
+    done(true)
+  }
+  go()
+})`
+
 // Run in the page: brings the first element matching `selector` into view, as an #anchor
 // would, once one is there, waiting up to `ms` for a page that draws itself after loading.
 // A selector the page can't read finds nothing.
@@ -161,7 +241,7 @@ const revealing = (selector: string, ms: number): string => `new Promise((done) 
 
 export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> = (
   element,
-  { content, label, saved, live, snapshot, partition, on },
+  { content, label, saved, live, snapshot, partition, picture: take, awake: startAwake, on },
 ) => {
   const document = element.ownerDocument
   const root = document.createElement("div")
@@ -183,6 +263,16 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   let scrollTo = live && !kept ? scrollOf(content) : undefined
   // The shown fragment a reload of the document goes to once it has loaded.
   let then: string | undefined
+  // The picture it rests as, and where the page was scrolled as it was taken.
+  let picture = kept?.picture
+  let scrolled = kept?.scrolled
+  // A show came while it rested, or a reload was asked for: its next load goes afresh.
+  let stale = false
+  // The person has been at the live page since its picture was taken, so the picture may
+  // not be how they left it: it stands in for nothing, and isn't kept, until a new one.
+  let used = false
+  // The element a show is bringing into view, the page waiting for it to appear.
+  let bringing: string | undefined
   // Kept with the show it carried out: one whose move or scroll is still to come isn't yet,
   // so a viewer mounted for it before then still carries it out.
   const state = (at: string): ViewerState =>
@@ -190,7 +280,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       browser: {
         url: shown.url,
         at,
-        shown: scrollTo === undefined && then === undefined ? showing : showing - 1,
+        shown: scrollTo === undefined && then === undefined && !stale ? showing : showing - 1,
+        ...(picture !== undefined && !used && { picture }),
+        ...(picture !== undefined && !used && scrolled !== undefined && { scrolled }),
       },
     }) satisfies BrowserState as unknown as ViewerState
 
@@ -233,22 +325,62 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       forward: nothing,
       reload: nothing,
       muted: nothing,
+      // A snapshot is its picture already.
+      awake: nothing,
+      pictured: () => true,
       destroy: () => root.remove(),
     }
   }
 
-  // Made here, not by a framework that may leave `allowpopups` off: Electron reads the
-  // attributes once, as the view attaches. With it, a page's new windows reach the host's
-  // lockdown, which opens one in the browser right after the person's click or key. The
-  // lockdown gives it the pages' session whatever it asks; it's named to match.
-  const page = document.createElement("webview") as Webview
-  page.setAttribute("partition", partition)
-  page.setAttribute("allowpopups", "")
-  page.setAttribute("src", resumed)
-  root.dataset.load = load
-  on?.load?.(load)
-  // Where it's going, as it may not be where its host showed it, until the page says.
-  if (resumed !== content.url) on?.navigate?.(place)
+  // The picture, over where the page is, or in its place while it rests. Focusable, so
+  // the person can reach it by keyboard, which wakes it where its host listens.
+  const still = document.createElement("div")
+  still.className = "browser-picture"
+  still.tabIndex = 0
+  const image = document.createElement("img")
+  image.alt = label
+  still.append(image)
+  // Its fade, under way.
+  let fading: ReturnType<typeof setTimeout> | undefined
+  // Only a picture taken where it is, and since the person was last at it: one of anywhere
+  // else would show the wrong page, and an older one a page they've since changed.
+  const cover = (): boolean => {
+    if (picture === undefined || picture.at !== place.url || used) return false
+    clearTimeout(fading)
+    fading = undefined
+    image.src = picture.src
+    delete still.dataset.fading
+    if (!still.isConnected) root.prepend(still)
+    return true
+  }
+  // Once the woken page has drawn, the picture fades, and goes.
+  const uncover = (): void => {
+    if (!still.isConnected || fading !== undefined) return
+    fading = setTimeout(() => {
+      still.dataset.fading = ""
+      fading = setTimeout(() => {
+        fading = undefined
+        // Focus the person gave the picture goes on to the page.
+        const focused = still.contains(document.activeElement)
+        still.remove()
+        delete still.dataset.fading
+        if (focused) page?.focus({ preventScroll: true })
+      }, fadeMs)
+    }, uncoverMs)
+  }
+
+  // Whether it's drawn: not inside an element kept out of sight, as with display: none.
+  const shownNow = (): boolean =>
+    document.visibilityState !== "hidden" && root.checkVisibility?.() !== false
+  // The live page while there is one: none while it rests; and whether a wake opened it.
+  let page: Webview | undefined
+  let woken = false
+  // A picture of the live page under way, after its load, to rest as.
+  let freshening: ReturnType<typeof setTimeout> | undefined
+  // Whether its host wants it live.
+  let wanted = startAwake ?? true
+  // A rest under way, waiting for its picture: a wake or a later rest drops it.
+  let resting: object | undefined
   // Until its first load is done.
   let first = true
   // Moving to the shown fragment, whose scroll waits for the move.
@@ -256,22 +388,35 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
 
   const moved = (): void => {
     attached(() => {
-      page.setAudioMuted(muted)
-      place = { url: page.getURL(), back: page.canGoBack(), forward: page.canGoForward() }
+      page!.setAudioMuted(muted)
+      place = { url: page!.getURL(), back: page!.canGoBack(), forward: page!.canGoForward() }
       on?.navigate?.(place)
     })
   }
-  const started = (): void => report("loading")
+  // A new load, as the person or a redirect took it on: a show's element waited for in the
+  // last one isn't any more.
+  const started = (): void => {
+    bringing = undefined
+    report("loading")
+  }
   const reveal = (): void => {
     const selector = scrollTo
     scrollTo = undefined
-    if (selector !== undefined)
-      attached(() => void page.executeJavaScript(revealing(selector, scrollWaitMs)).catch(nothing))
+    if (selector === undefined) return
+    const run = attached(() => page!.executeJavaScript(revealing(selector, scrollWaitMs)))
+    if (!run) return
+    bringing = selector
+    void run.catch(nothing).finally(() => {
+      if (bringing === selector) bringing = undefined
+    })
   }
   // Its scroll goes once the page, not a frame in it, has moved to the shown fragment.
   const movedInPage = (event: Event): void => {
     moved()
-    if (!moving || (event as Event & { isMainFrame?: boolean }).isMainFrame === false) return
+    if ((event as Event & { isMainFrame?: boolean }).isMainFrame === false) return
+    // Moved within the page, as an app's route: its picture is of where it was.
+    freshen(freshenMs)
+    if (!moving) return
     moving = false
     reveal()
   }
@@ -279,21 +424,50 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   // fragment of the document it's on only moves within it, as a link to it would.
   const go = (to: string): boolean =>
     attached(() => {
-      void page.loadURL(to).catch(nothing)
+      void page!.loadURL(to).catch(nothing)
       return true
     }) === true
+  // Woken, back where the person had scrolled, unless a show brings something into view;
+  // then the picture goes.
+  const settle = (shows: boolean): void => {
+    const at = scrolled
+    scrolled = undefined
+    if (at === undefined || shows) return uncover()
+    const run = attached(() => page!.executeJavaScript(scrolling(at)))
+    if (!run) return uncover()
+    // However the page answers, or if it never does, the picture goes.
+    void Promise.race([run, wait(restoreWaitMs + scrollReadMs)])
+      .catch(nothing)
+      .finally(uncover)
+  }
   const stopped = (): void => {
     first = false
     moving = false
     if (load === "loading") report("ready")
     moved()
+    // A show came while it rested: loaded again, past the cache, as a show again is.
+    if (stale) {
+      stale = false
+      refresh()
+      return
+    }
     const to = then
     then = undefined
+    // A show bringing an element into view, or moving to its fragment, scrolls in place of
+    // where the person had scrolled.
+    const shows = scrollTo !== undefined || to !== undefined
     // The person, or a redirect, took it to another document while it reloaded: theirs.
     const left = to !== undefined && documentOf(place.url) !== documentOf(to)
     if (load !== "ready" || left) scrollTo = undefined
     else if (to !== undefined && to !== place.url && go(to)) moving = true
     else reveal()
+    if (!wanted && load === "ready") rest()
+    else {
+      // Live and awake, the person may be at it: what it shows from here is theirs.
+      if (wanted) used = true
+      settle(shows)
+      freshen(freshenMs)
+    }
   }
   // Shown again, or at another address: let be while its first load of that address is
   // under way, as that load is this show's. In the document it's on, at the shown
@@ -303,16 +477,20 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   const refresh = (): void => {
     moving = false
     then = undefined
-    if (first && load === "loading" && place.url === shown.url) return
+    if (first && load === "loading" && place.url === shown.url) {
+      // A wake's load isn't the show's: it goes again, afresh, once done.
+      if (woken) stale = true
+      return
+    }
     // Where it is, as the page has it: an address it's on its way to isn't reloaded, as a
     // reload goes to the last one it reached.
-    const at = attached(() => page.getURL()) || place.url
+    const at = attached(() => page!.getURL()) || place.url
     const there = at === shown.url
     // Without a fragment, the shown address is a document of its own to load.
     if ((there || shown.url.includes("#")) && documentOf(at) === documentOf(shown.url)) {
       // Past the cache, so what the agent changed shows, its styles and scripts too.
       const reloading = attached(() => {
-        page.reloadIgnoringCache()
+        page!.reloadIgnoringCache()
         return true
       })
       if (reloading) {
@@ -321,7 +499,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
         return
       }
     }
-    if (!go(shown.url)) page.setAttribute("src", shown.url)
+    if (!go(shown.url)) page!.setAttribute("src", shown.url)
     place = { url: shown.url, back: place.back, forward: place.forward }
     on?.navigate?.(place)
     report("loading")
@@ -333,7 +511,10 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     }
     if (errorCode !== aborted && isMainFrame !== false) report("failed")
   }
-  const gone = (): void => report("failed")
+  const gone = (): void => {
+    report("failed")
+    uncover()
+  }
   const titled = (event: Event): void => {
     const { title } = event as Event & { title?: string }
     if (typeof title === "string") on?.title?.(title)
@@ -348,8 +529,173 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     ["render-process-gone", gone],
     ["page-title-updated", titled],
   ]
-  for (const [type, listener] of listeners) page.addEventListener(type, listener)
-  root.append(page)
+
+  // Made here, not by a framework that may leave `allowpopups` off: Electron reads the
+  // attributes once, as the view attaches. With it, a page's new windows reach the host's
+  // lockdown, which opens one in the browser right after the person's click or key. The
+  // lockdown gives it the pages' session whatever it asks; it's named to match.
+  const open = (at: string, byWake: boolean): void => {
+    woken = byWake
+    const made = document.createElement("webview") as Webview
+    made.setAttribute("partition", partition)
+    made.setAttribute("allowpopups", "")
+    made.setAttribute("src", at)
+    page = made
+    first = true
+    moving = false
+    for (const [type, listener] of listeners) made.addEventListener(type, listener)
+    root.append(made)
+    report("loading")
+  }
+  const close = (): void => {
+    if (!page) return
+    clearTimeout(freshening)
+    // A show's element the page was waiting for is brought into view on waking instead.
+    if (bringing !== undefined) {
+      scrollTo = bringing
+      bringing = undefined
+      scrolled = undefined
+    }
+    for (const [type, listener] of listeners) page.removeEventListener(type, listener)
+    page.remove()
+    page = undefined
+    // Its history went with its view.
+    place = { url: place.url, back: false, forward: false }
+    on?.navigate?.(place)
+  }
+  // In its picture's place: a fresh one where it can take one, else the one it has. One
+  // that didn't load stays, to say so.
+  const rest = (): void => {
+    const view = page
+    if (!view || !take || load === "failed") return
+    // Mid-load, it's pictured once loaded, unless a picture it has stands in meanwhile; a
+    // load after its first, as a show's, then goes again, afresh, on waking. Out of sight, as
+    // where its host keeps it hidden, it draws nothing to picture: the one it has stands in.
+    const hidden = !shownNow()
+    if (load === "loading" || hidden) {
+      const standIn = (): void => {
+        if (!cover()) return
+        if (load === "loading" && !first) stale = true
+        then = undefined
+        close()
+        report("ready")
+      }
+      if (picture === undefined || load === "loading") return standIn()
+      // Out of sight, where it's scrolled can still be read, for it to wake there, unless the
+      // page doesn't answer.
+      const reading = attached(() =>
+        Promise.race([view.executeJavaScript(scrollRead), wait(scrollReadMs)]),
+      )
+      if (!reading) return standIn()
+      const asked = {}
+      resting = asked
+      void reading
+        .catch(() => undefined)
+        .then((at) => {
+          if (resting !== asked || wanted || page !== view) return
+          resting = undefined
+          if (isScrolled(at)) scrolled = at
+          standIn()
+        })
+      return
+    }
+    const asked = {}
+    resting = asked
+    void snap(view).then((taken) => {
+      if (resting !== asked || wanted || page !== view) return
+      resting = undefined
+      // A load began meanwhile, as a show's: it rests once that's done.
+      if (load !== "ready") return
+      if (taken) {
+        picture = taken.picture
+        scrolled = taken.scrolled
+        used = false
+      }
+      // Nothing to rest as: live, until a later rest can take one.
+      swap(view)
+    })
+  }
+  // The latest picture asked for: an earlier one arriving after it is of before.
+  let snapping = 0
+  // A picture of the live page as it is now, and where it's scrolled; none where it can't,
+  // or where a later one was asked for meanwhile.
+  const snap = async (
+    view: Webview,
+  ): Promise<{ picture: Picture; scrolled: Scrolled | undefined } | undefined> => {
+    const id = attached(() => view.getWebContentsId())
+    if (id === undefined || !take) return undefined
+    const at = place.url
+    const asked = ++snapping
+    const reading = attached(() =>
+      Promise.race([view.executeJavaScript(scrollRead), wait(scrollReadMs)]),
+    )?.catch(() => undefined)
+    const [src, where] = await Promise.all([take(id).catch(() => undefined), reading])
+    if (src === undefined || asked !== snapping) return undefined
+    return { picture: { src, at }, scrolled: isScrolled(where) ? where : undefined }
+  }
+  // Pictured a while after each load, so a rest that can't picture it, as out of sight,
+  // rests as it is, not as it was.
+  const freshen = (after: number): void => {
+    clearTimeout(freshening)
+    const view = page
+    if (!view || !take) return
+    freshening = setTimeout(() => {
+      if (page !== view) return
+      // Again in a while, for as long as it's live.
+      freshen(keepMs)
+      const using = root.matches(":hover") || root.contains(document.activeElement)
+      // A rest taking its own picture has the newer one coming: this one would only replace it.
+      if (load !== "ready" || !shownNow() || using || resting !== undefined) return
+      void snap(view).then((taken) => {
+        if (!taken || page !== view || load !== "ready") return
+        picture = taken.picture
+        scrolled = taken.scrolled
+        // At it again as it was taken: it may be out of date already.
+        used = root.matches(":hover") || root.contains(document.activeElement)
+        // Its host had it rest, but it had no picture to rest as until now.
+        if (!wanted) swap(view)
+      })
+    }, after)
+  }
+  // In its picture's place, once the picture can draw, so no frame shows neither.
+  const swap = (view: Webview): void => {
+    if (!cover()) return
+    // Where images can't say they've decoded, as outside a browser, at once.
+    void (image.decode?.() ?? Promise.resolve()).catch(nothing).then(() => {
+      // Woken meanwhile, or a load began, as a show's: it stays, and rests once it's done.
+      if (page === view && !wanted && load === "ready") close()
+    })
+  }
+  // The person at the live page: its picture is of before. Gone from it: a picture of it as
+  // they left it.
+  const engaged = (): void => {
+    if (page) used = true
+  }
+  root.addEventListener("pointerenter", engaged)
+  root.addEventListener("focusin", engaged)
+  root.addEventListener("pointerleave", () => freshen(leftMs))
+  const wake = (): void => {
+    resting = undefined
+    if (page) {
+      // Live already, as when a rest gave way: once it's there, its picture goes.
+      if (load !== "loading") uncover()
+      return
+    }
+    open(place.url, true)
+  }
+
+  root.dataset.load = load
+  on?.load?.(load)
+  if (!wanted && cover()) {
+    // At rest from the first: its picture until it's woken.
+    report("ready")
+  } else {
+    open(resumed, false)
+    // Its picture until it's there.
+    cover()
+  }
+  // Where it's going, as it may not be where its host showed it, until the page says.
+  if (resumed !== content.url || !page) on?.navigate?.(place)
 
   return {
     update: (next) => {
@@ -363,29 +709,59 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       if (!webAddress(next.url)) return
       if (!again && previous.url === next.url) return
       scrollTo = again ? scrollOf(next) : undefined
-      refresh()
+      if (page) return refresh()
+      // At rest: it goes there, afresh, once woken, its picture of where it was gone.
+      stale = true
+      then = undefined
+      scrolled = undefined
+      place = { url: next.url, back: false, forward: false }
+      if (!cover()) still.remove()
+      on?.navigate?.(place)
     },
     state: () => state(place.url),
     restore: (earlier) => {
       const at = keptOf(earlier, shown)?.at
       // Already there: setting it again would load it again.
       if (at === undefined || at === place.url || !webAddress(at)) return
-      page.setAttribute("src", at)
+      page?.setAttribute("src", at)
       place = { url: at, back: place.back, forward: place.forward }
+      // Where it was scrolled, and its picture, were of where it was.
+      if (!page) {
+        scrolled = undefined
+        if (!cover()) still.remove()
+      }
       on?.navigate?.(place)
     },
     // A page has no lines to jump to that the viewer can know.
     jumpTo: () => undefined,
-    focus: () => page.focus({ preventScroll: true }),
-    back: () => attached(() => page.goBack()),
-    forward: () => attached(() => page.goForward()),
-    reload: () => attached(() => page.reload()),
+    focus: () => (page ?? still).focus({ preventScroll: true }),
+    back: () => attached(() => page!.goBack()),
+    forward: () => attached(() => page!.goForward()),
+    // At rest, or before it's attached, its next load goes afresh.
+    reload: () => {
+      const reloading = attached(() => {
+        page!.reload()
+        return true
+      })
+      if (!reloading) stale = true
+    },
     muted: (next) => {
       muted = next
-      attached(() => page.setAudioMuted(muted))
+      attached(() => page!.setAudioMuted(muted))
     },
+    awake: (next) => {
+      wanted = next
+      if (next) wake()
+      else rest()
+    },
+    pictured: () => picture !== undefined && !used,
     destroy: () => {
-      for (const [type, listener] of listeners) page.removeEventListener(type, listener)
+      clearTimeout(fading)
+      clearTimeout(freshening)
+      resting = undefined
+      if (page) for (const [type, listener] of listeners) page.removeEventListener(type, listener)
+      // Gone: a picture or a read arriving late finds no page of its own.
+      page = undefined
       root.remove()
     },
   }

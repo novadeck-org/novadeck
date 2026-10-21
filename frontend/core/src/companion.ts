@@ -275,6 +275,10 @@ export type Companions = {
   // Puts a file on the terminal's bar, as the person attached it. Absent where the
   // backend can't.
   readonly attach?: (key: CompanionKey, path: string) => Promise<void>
+  // A picture of what a live page shows now, by its view's web contents id, which the
+  // pane shows in its place while the person isn't at it; undefined when there's none to
+  // take. Absent where pages don't load live, or the host can't picture them: they stay live.
+  readonly picture?: (page: number) => Promise<string | undefined>
 }
 
 // Companions with nothing to show, for a backend whose terminals have only their messages

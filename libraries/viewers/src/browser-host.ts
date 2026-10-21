@@ -104,6 +104,43 @@ export const guardPage = (
   })
 }
 
+// How a picture of a page is encoded: JPEG, which a page's text survives at this quality.
+export const pictureQuality = 85
+// How long a picture may take: one of a view out of sight never comes, as Chromium draws it
+// no frame, and fails only half a minute later.
+export const pictureWaitMs = 2_000
+
+// What `promise` comes to within `ms`, else undefined, as when it fails.
+const within = <T>(promise: Promise<T>, ms: number): Promise<T | undefined> =>
+  new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(undefined), ms)
+    const done = (value: T | undefined): void => {
+      clearTimeout(timer)
+      resolve(value)
+    }
+    promise.then(done, () => done(undefined))
+  })
+
+/**
+ * A picture of what the page view `id` shows now, as a JPEG `data:` address, for the
+ * viewer to show in its place while the page rests. Undefined unless `id` is a page view
+ * of `host`, the app's page that asks, so a page can't be asked for another window's, and
+ * when the page draws nothing yet. `fromId` is Electron's `webContents.fromId`.
+ */
+export const picturePage = async (
+  host: WebContents,
+  id: unknown,
+  fromId: (id: number) => WebContents | undefined,
+): Promise<string | undefined> => {
+  if (typeof id !== "number" || !Number.isSafeInteger(id)) return undefined
+  const page = fromId(id)
+  if (!page || page.isDestroyed() || page.getType() !== "webview" || page.hostWebContents !== host)
+    return undefined
+  const image = await within(page.capturePage(), pictureWaitMs)
+  if (!image || image.isEmpty()) return undefined
+  return `data:image/jpeg;base64,${image.toJPEG(pictureQuality).toString("base64")}`
+}
+
 /**
  * Refuses the pages' session every permission, every download, and every file, which
  * the app's own page could otherwise point a view at. By its name, the one `attachPage`
