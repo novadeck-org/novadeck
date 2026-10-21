@@ -60,11 +60,15 @@ releases feed. `stable` sets it false and `early` true.
 ## Checks through novadeck.dev
 
 Checks read `https://novadeck.dev/update/<channel>/` (`stable` or `early`), a generic
-feed: electron-updater fetches `latest.yml`, `latest-mac.yml` or `latest-linux.yml` there
-and resolves the files it names against the same address. The website redirects all of it
-to the GitHub release assets, `stable` to the latest release and `early` to the newest
-including prereleases, and counts the requests for the channel files, which is how it knows
-how many copies are active. The generic provider ignores `allowPrerelease`, so the channel
+feed: electron-updater fetches `latest.yml`, `latest-mac.yml` or `latest-linux.yml` there.
+The website counts the request, which is how it knows how many copies are open and
+launched, and answers with that file from GitHub: `stable` the latest release's, `early`
+the newest release the website links, prereleases included. It rewrites the file's
+download addresses to the whole GitHub address at that release, so the update itself
+downloads from GitHub directly. Should the website not know the newest release for
+`early`, or not answer at all, the check fails and the app checks GitHub itself (below);
+should its counting not run, it redirects the checks to GitHub uncounted (novadeck-website,
+README "Counts"). The generic provider ignores `allowPrerelease`, so the channel
 selects the address, and multipart range requests are off for it, as GitHub does not serve
 them (a differential download would fail and fall back to a full one). `resources/app-update.yml` and its GitHub config stay as they are:
 the release page, the portable install and the engine downloads read them.

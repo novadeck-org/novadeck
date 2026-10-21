@@ -56,9 +56,10 @@ const novadeckSite = "https://novadeck.dev"
 
 /**
  * The address, ending in "/", whose `latest*.yml` the channel's checks read: the website
- * redirects it and the files beside it to GitHub's release assets. `site` replaces the
- * website's address when it is an https address, or an http one on this computer (localhost, 127.0.0.1 or
- * [::1]); anything else is ignored.
+ * counts each check and answers with GitHub's file, its downloads pinned to GitHub at that
+ * release (docs/auto-update.md). `site` replaces the website's address when it is an https
+ * address, or an http one on this computer (localhost, 127.0.0.1 or [::1]); anything else
+ * is ignored.
  */
 export const feedUrl = (channel: UpdateChannel, site?: string): string => {
   let origin = novadeckSite
