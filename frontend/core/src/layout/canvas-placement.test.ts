@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { canvasPointPosition, viewportCanvasPosition } from "./canvas-placement"
+import {
+  adjacentCanvasPosition,
+  canvasPointPosition,
+  viewportCanvasPosition,
+} from "./canvas-placement"
 
 const viewport = { x: 0, y: 0, zoom: 1 }
 const screen = { width: 2000, height: 1400 }
@@ -38,5 +42,23 @@ describe("new Canvas terminal placement", () => {
     expect(Math.abs(position.y - point.y)).toBeLessThanOrEqual(12)
     expect(position.x % 24).toBe(-0)
     expect(position.y % 24).toBe(0)
+  })
+
+  it("keeps a wide terminal placed beside the active one clear of its other neighbours", () => {
+    const layout = {
+      geometry: {
+        a: { position: { x: 80, y: 80 }, width: 864, height: 576 },
+        b: { position: { x: 1700, y: 80 }, width: 864, height: 576 },
+      },
+    }
+    const wide = { width: 864, height: 576 }
+    const position = adjacentCanvasPosition({ id: "a" }, [{ id: "a" }, { id: "b" }], layout, wide)
+    const b = layout.geometry.b
+    const separated =
+      position.x + wide.width + 60 <= b.position.x ||
+      b.position.x + b.width + 60 <= position.x ||
+      position.y + wide.height + 60 <= b.position.y ||
+      b.position.y + b.height + 60 <= position.y
+    expect(separated).toBe(true)
   })
 })

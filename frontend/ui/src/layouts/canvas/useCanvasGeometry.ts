@@ -18,16 +18,19 @@ export const useCanvasGeometry = (
     [setNodes],
   )
 
-  // Each resize's starting size, as Canvas snapped it.
-  const started = useRef(
-    new Map<string, { width: number | undefined; height: number | undefined }>(),
-  )
+  // Each resize's starting size, as its end would snap it, so a press that moves nothing
+  // ends where it began.
+  const started = useRef(new Map<string, { width: number; height: number }>())
 
   const beginResize = useCallback(
     (id: string) => {
       resizing.current.add(id)
       const currentNode = getNode(id)
-      started.current.set(id, { width: currentNode?.width, height: currentNode?.height })
+      if (currentNode?.width && currentNode.height)
+        started.current.set(id, {
+          width: Math.max(336, snap(currentNode.width)),
+          height: Math.max(216, snap(currentNode.height)),
+        })
       if (currentNode) {
         geometryRef.current[id] = {
           ...geometryRef.current[id],

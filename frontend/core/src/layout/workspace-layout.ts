@@ -71,7 +71,7 @@ export type TerminalPlacement = {
   readonly gridLayouts?: GridLayouts | undefined
   readonly canvasGeometry?: CanvasGeometry | undefined
   // Its size on Canvas: the person's preferred size for a new window, where the caller
-  // knows it. Left out otherwise, for Canvas to give it that size when it shows it.
+  // knows it. The default size otherwise.
   readonly canvasSize?: { readonly width: number; readonly height: number } | undefined
 }
 
@@ -81,13 +81,9 @@ export const placeTerminal = (
   layout: TerminalLayout,
   { terminal, terminals, anchor, gridLayouts, canvasGeometry, canvasSize }: TerminalPlacement,
 ): TerminalLayout => {
+  const size = canvasSize ?? defaultCanvasWindowSize
   const position = anchor
-    ? adjacentCanvasPosition(
-        anchor,
-        terminals,
-        layout.canvas,
-        (canvasSize ?? defaultCanvasWindowSize).height,
-      )
+    ? adjacentCanvasPosition(anchor, terminals, layout.canvas, size)
     : { x: 80, y: 80 }
   return {
     ...layout,
@@ -95,10 +91,7 @@ export const placeTerminal = (
       ...layout.canvas,
       geometry: {
         ...layout.canvas.geometry,
-        [terminal.id]: canvasGeometry ?? {
-          position,
-          ...(canvasSize ? { width: canvasSize.width, height: canvasSize.height } : {}),
-        },
+        [terminal.id]: canvasGeometry ?? { position, width: size.width, height: size.height },
       },
     },
     grid: gridLayouts ? pruneGridLayouts(gridLayouts, [...terminals, terminal]) : layout.grid,

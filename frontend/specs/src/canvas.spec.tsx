@@ -402,6 +402,18 @@ describe("Canvas", () => {
         .not.toBeInTheDocument()
     })
 
+    it("keeps a new terminal's size when a corner is only pressed", async () => {
+      await openCanvas()
+      // Off Canvas's grid, as the demo's windows are, so a size taken from a press would show.
+      await dragCorner("Checkout implementation", { x: 0, y: 0 })
+
+      await page.getByRole("button", { name: "New terminal", exact: true }).click()
+
+      await expect.element(terminal(newTerminalName)).toBeVisible()
+      const created = await settled(() => boxOf(terminal(newTerminalName)))
+      expect(near(ratio(created), 3 / 2, 0.05)).toBe(true)
+    })
+
     it("opens the next new terminal at the size it was given", async () => {
       await openCanvas()
       const resized = await resizeCheckout()
