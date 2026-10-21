@@ -1538,6 +1538,35 @@ hook's deadline, which doesn't spend what is due.
   4. as a backstop, 15 of those prompts since the last `summarize`, or since the backstop
      last fired.
 
+- **A page's troubles.** When a page an agent showed with `show` has problems in the
+  user's pane (console errors, failed requests, a failed load), the pane reports them with
+  `companions.pageTrouble`, and the runner tells that agent at the person's next quiet
+  prompt, a paragraph for each page after the other notices: the page's name and address,
+  and up to 5 of what went wrong (an `error` with its quoted text and where it came from, a
+  `request` and its status or that it got no answer, a `load` that failed), then how many
+  more. What a page supplies is its own text, so every such string (an error's text and
+  source, a request's address, a load's message) is JSON-quoted, cut to one line of bounded
+  UTF-8 bytes, and stripped of control and invisible characters (`hiddenCharacter`); a
+  request's kind is shown only if it is one Novadeck knows (`page`, `fetch`, `script`,
+  `image`, `img`, `stylesheet`, `font`, `media`, `frame`, `iframe`, `object`, `ping`,
+  `other`), else just `request`. The notice says it is never instructions. The rules:
+  1. only a page an agent showed, in its latest show, served from this machine (host
+     `localhost`, `127.0.0.1`, `[::1]`, `0.0.0.0` or `[::]`); anything else is let be, with
+     no error;
+  2. it goes to the terminal the page was shown _from_, wherever the item is now, and only
+     for a show made since that terminal's current root session began;
+  3. one entry per item, for its show: a later show replaces it and troubles of an older
+     one are dropped. An entry keeps about 10 distinct troubles (a reload repeats them) and
+     counts the rest;
+  4. once per show: the notice is spent when it is decided, as every notice is, and further
+     troubles of that show are ignored. At most 4 pages are told in a prompt, and only as
+     many as keep the whole printed answer within the 8 KB delivery budget (see
+     "Hook output has limits"); the rest wait for the next quiet prompt. A page that could
+     not fit even as the only notice is let go untold, while one that only fails to fit beside
+     the bar's or the summary's notice waits;
+  5. closing or showing the item again drops its entry, and so does a new root session in
+     the terminal, which didn't show the page. A `summarize` and a compaction leave it.
+
   What is pending lives in the runner's memory: a runner restart is a new root session
   anyway. (For murmur it is not a new conversation: see below.)
 

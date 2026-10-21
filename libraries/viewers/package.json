@@ -51,6 +51,11 @@
       "types": "./dist/browser.d.ts",
       "default": "./dist/browser.js"
     },
+    "./browser/trouble": {
+      "development": "./src/browser-trouble.ts",
+      "types": "./dist/browser-trouble.d.ts",
+      "default": "./dist/browser-trouble.js"
+    },
     "./browser.css": "./src/browser.css",
     "./browser/host": {
       "node": {

@@ -20,6 +20,15 @@ export const pageKey = (address: string): string => {
 
 const local = new Set(["localhost", "127.0.0.1", "[::1]", "0.0.0.0", "[::]"])
 
+/** Whether a page is served from this machine, by any of its names: as an agent's dev server is. */
+export const onThisMachine = (address: string): boolean => {
+  try {
+    return local.has(new URL(address).hostname)
+  } catch {
+    return false
+  }
+}
+
 /**
  * The session live pages load in, named once for both halves of the browser viewer: the
  * UI's page views ask for it, and the desktop app's lockdown keeps them to it, in memory.

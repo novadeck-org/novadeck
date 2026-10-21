@@ -7,6 +7,7 @@ import {
   type Companions,
   type ItemContent,
   type ItemId,
+  type PageTrouble,
   type PlanUnwritableReason,
   type PlanVersion,
 } from "@novadeck/core/companion"
@@ -72,6 +73,13 @@ export type Panes = {
   // The person asked to see an item that may hold secrets.
   readonly reveal: (itemId: ItemId) => void
   readonly plan: (target: WorkspaceTarget, itemId: ItemId) => PlanActions
+  // Tells what went wrong on a live page that show `shown` of the item loaded.
+  readonly trouble: (
+    target: WorkspaceTarget,
+    itemId: ItemId,
+    shown: number,
+    troubles: readonly PageTrouble[],
+  ) => void
   // Follows every plan in the workspace and the messages from here on; returns the stop.
   readonly connect: () => () => void
   // Takes a picture of a live page for it to rest as: the backend's, where it has one.
@@ -667,5 +675,15 @@ export const createPanes = ({
     }
   }
   const { picture } = companions
-  return { store: session.panes, watch, reveal, plan, connect, ...(picture && { picture }) }
+  const trouble: Panes["trouble"] = (target, itemId, shown, troubles) =>
+    session.companions.trouble(target, itemId, shown, troubles)
+  return {
+    store: session.panes,
+    watch,
+    reveal,
+    plan,
+    trouble,
+    connect,
+    ...(picture && { picture }),
+  }
 }

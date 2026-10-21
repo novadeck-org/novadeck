@@ -4550,6 +4550,107 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })
       expect(manager.get(terminal.id).title).toBe("Terminal")
     })
+
+    it("tells the agent once, at the person's next prompt, of a page it showed that had problems", async ({
+      shell,
+    }) => {
+      const bin = standIn(shell.home)
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      })
+      const terminal = await create(manager, shell)
+      const { start, step } = driver(shell, manager)
+      await start(terminal.id, "claude", "s-1")
+      const prompt = async (text: string) =>
+        context(
+          await step(terminal.id, {
+            hook: "UserPromptSubmit",
+            payload: { session_id: "s-1", prompt: text },
+          }),
+        )
+      // The first prompt of the session carries the bar's notice and the summary's.
+      await prompt("Build the page")
+      const items = shell.items(manager)
+      const shown = await items.show(manager.place(terminal.id)!, {
+        page: { url: "http://localhost:5173/app" },
+      })
+      const itemId = shown.ok ? shown.id : ""
+      const troubles = [
+        {
+          kind: "error" as const,
+          text: "x is undefined",
+          source: "http://localhost:5173/a.js",
+          line: 3,
+        },
+      ]
+      items.pageTrouble({ itemId, shown: 1, troubles })
+      // A doorbell's line is not the person's prompt: the notice waits.
+      expect(
+        await prompt("[Novadeck: automatic notice, agent messages waiting, abc123]"),
+      ).not.toContain("the page you showed")
+      const told = await prompt("How does it look?")
+      expect(told).toMatch(/^Novadeck: automatic notice, not from the user: the page you showed, /)
+      expect(told).toContain('error "x is undefined" at "/a.js:3".')
+      // Told once for that show, however often the page repeats itself.
+      items.pageTrouble({ itemId, shown: 1, troubles })
+      await expect(prompt("And now?")).resolves.toBe("")
+      // A new show starts over.
+      await items.show(manager.place(terminal.id)!, { page: { url: "http://localhost:5173/app" } })
+      items.pageTrouble({ itemId, shown: 2, troubles })
+      await expect(prompt("Again?")).resolves.toContain("the page you showed")
+    })
+
+    it("drops what a page had when its item is closed or shown again, and with a new session", async ({
+      shell,
+    }) => {
+      const bin = standIn(shell.home)
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      })
+      const terminal = await create(manager, shell)
+      const { start, step } = driver(shell, manager)
+      await start(terminal.id, "claude", "s-1")
+      const prompt = async (session: string, text: string) =>
+        context(
+          await step(terminal.id, {
+            hook: "UserPromptSubmit",
+            payload: { session_id: session, prompt: text },
+          }),
+        )
+      await prompt("s-1", "Build the page")
+      const items = shell.items(manager)
+      const place = manager.place(terminal.id)!
+      const troubles = [{ kind: "load" as const, text: "ERR_CONNECTION_REFUSED" }]
+      const show = async (url: string) => {
+        const shown = await items.show(place, { page: { url } })
+        return shown.ok ? shown.id : ""
+      }
+      const first = await show("http://localhost:5173/")
+      const second = await show("http://localhost:5174/")
+      // A closed item, and one shown again since, have nothing left to tell.
+      items.pageTrouble({ itemId: first, shown: shell.store.item(first)!.version, troubles })
+      items.pageTrouble({ itemId: second, shown: shell.store.item(second)!.version, troubles })
+      items.close(first)
+      await show("http://localhost:5174/")
+      await expect(prompt("s-1", "Anything?")).resolves.toBe("")
+      // A new root session did not show the page, though the pane repeats itself after it.
+      const third = await show("http://localhost:5175/")
+      items.pageTrouble({ itemId: third, shown: 1, troubles })
+      await step(terminal.id, {
+        hook: "SessionStart",
+        payload: { session_id: "s-2", source: "clear", cwd: shell.home },
+      })
+      await expect
+        .poll(() => manager.messages(terminal.id).delivery, { timeout: 10_000 })
+        .toBe("ready")
+      await prompt("s-2", "Hello")
+      items.pageTrouble({ itemId: third, shown: shell.store.item(third)!.version, troubles })
+      await expect(prompt("s-2", "Still?")).resolves.toBe("")
+      // A show of the new session is told (its latest version).
+      await show("http://localhost:5175/")
+      items.pageTrouble({ itemId: third, shown: shell.store.item(third)!.version, troubles })
+      await expect(prompt("s-2", "And?")).resolves.toContain("the page you showed")
+    })
   },
 )
 

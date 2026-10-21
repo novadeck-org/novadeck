@@ -11,6 +11,7 @@ import { unreplied, withReplies } from "../../harnesses/replies.js"
 import { followRoot, rootedIn, type RootChange } from "../../harnesses/roots.js"
 import { transcriptWaitMs, typedPromptStart } from "../../harnesses/typed-prompts.js"
 import type { Asks } from "../../messaging/asks.js"
+import { byteLength, maxDeliveryBytes } from "../../messaging/mailbox.js"
 import { leaseMargin, type Messaging } from "../../messaging/messaging.js"
 import type { HookAnswer } from "../../shell/reports.js"
 import { sameToken } from "../callers.js"
@@ -18,7 +19,7 @@ import { promptIn } from "../commands.js"
 import type { Companion } from "../companion.js"
 import { failed } from "../failures.js"
 import type { Murmur, Reported } from "../murmur.js"
-import { atPrompt, fired, noticesAt } from "../nudges.js"
+import { atPrompt, fired, noticesAt, sessionBegan } from "../nudges.js"
 import { peerOf, type TerminalPeers } from "../peers.js"
 import type { Record } from "../record.js"
 import type { Typing } from "../typing.js"
@@ -392,13 +393,18 @@ export class Reports {
         ? await this.host.peers().facts(peerOf(record))
         : undefined
     // A nudge that may miss the hook's deadline is never spent: its trigger waits.
-    const taken = atPrompt(record.nudges, { quiet: silent && inTime(leaseMargin), facts })
+    const current = { summary: record.naming.summary }
+    const printed = (took: Parameters<typeof noticesAt>[0]) =>
+      messaging.prompt(noticesAt(took, current))
+    const taken = atPrompt(record.nudges, {
+      quiet: silent && inTime(leaseMargin),
+      facts,
+      // Pages the hook may not print in full wait for the next prompt.
+      fits: (took) => byteLength(printed(took)) <= maxDeliveryBytes,
+    })
     record.nudges = taken.nudges
     if (!taken.nudge) return answer
-    return {
-      leaseId: null,
-      stdout: messaging.prompt(noticesAt(taken, { summary: record.naming.summary })),
-    }
+    return { leaseId: null, stdout: printed(taken) }
   }
 
   /**
@@ -438,7 +444,7 @@ export class Reports {
     }
     // A new root session has yet to hear of the bar beside its terminal.
     if (changes.some((change) => change.type === "new"))
-      record.nudges = fired(record.nudges, "session")
+      record.nudges = sessionBegan(record.nudges, Date.now())
     return changes
   }
 

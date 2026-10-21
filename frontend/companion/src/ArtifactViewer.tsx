@@ -2,6 +2,7 @@ import {
   pathOf,
   type ArtifactKind,
   type CompanionItem,
+  type PageTrouble,
   type ShownContent,
   type UnavailableReason,
 } from "@novadeck/core/companion"
@@ -27,6 +28,8 @@ export type ArtifactBodyProps<K extends ArtifactKind> = {
   readonly content: Extract<ShownContent, { readonly kind: K }>
   readonly actions: ReactNode
   readonly panes: Panes
+  // Tells what went wrong on a live page, from the item's show `shown`.
+  readonly trouble: (shown: number, troubles: readonly PageTrouble[]) => void
 }
 
 // An artifact's name as the peek and menu say it, and its button reads.
@@ -158,7 +161,13 @@ export const artifactView = <K extends ArtifactKind>(
             actions={actions}
           />
         ) : content ? (
-          <Body item={item} content={content} actions={actions} panes={panes} />
+          <Body
+            item={item}
+            content={content}
+            actions={actions}
+            panes={panes}
+            trouble={(shown, troubles) => panes.trouble(target, item.id, shown, troubles)}
+          />
         ) : (
           // Nothing yet, or content of another kind than the item's, as while the runner
           // reclassifies a persisted item: busy until what fits it arrives.

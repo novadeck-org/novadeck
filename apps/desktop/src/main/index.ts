@@ -26,9 +26,12 @@ import {
   attachPage,
   guardPage,
   lockPagesSession,
+  pagesSession,
   picturePage,
+  watchPageRequests,
   webAddress,
 } from "@novadeck/viewers/browser/host"
+import { pageRequestChannel } from "@novadeck/viewers/browser/trouble"
 import { brokerPorts } from "@novadeck/wire/electron"
 import {
   app,
@@ -1679,8 +1682,28 @@ app.whenReady().then(() => {
       : undefined,
   )
   lockPagesSession((partition) => session.fromPartition(partition), pagesPartition)
+  // The app's page hears of the requests a page in its view sees fail, to tell the agent.
+  const pageRequests = watchPageRequests(
+    session.fromPartition(pagesSession(pagesPartition)),
+    (contentsId, failure) => {
+      const host = webContents.fromId(contentsId)?.hostWebContents
+      if (!host || host.isDestroyed()) return
+      // A window closing or reloading meanwhile must not throw into the main process.
+      try {
+        host.send(pageRequestChannel, contentsId, failure)
+      } catch (error) {
+        log.warn("pages.request-send-failed", "A failed page request was not sent to its window.", {
+          err: error,
+        })
+      }
+    },
+  )
   app.on("web-contents-created", (_event, contents) => {
-    if (contents.getType() === "webview") guardPage(contents, (url) => shell.openExternal(url))
+    if (contents.getType() === "webview") {
+      guardPage(contents, (url) => shell.openExternal(url))
+      const { id } = contents
+      contents.once("destroyed", () => pageRequests.forget(id))
+    }
     if (contents.getType() === "window") watchPage(contents)
   })
 

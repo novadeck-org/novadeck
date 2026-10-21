@@ -213,6 +213,16 @@ describe("compiled desktop host", () => {
       expect(preload).toContain("showAppearance")
     })
 
+    it("tells the app's page of the requests a page in its view sees fail", async () => {
+      const main = await read("main/index.js")
+      const preload = await read("preload/index.cjs")
+
+      // What it reports and skips is covered in the viewers' browser-host.test.ts.
+      expect(main).toContain("watchPageRequests(")
+      expect(main).toContain("novadeck:page-request")
+      expect(preload).toContain("novadeck:page-request")
+    })
+
     it("blocks renderer navigation and denies permissions but the app page's clipboard and microphone", async () => {
       const main = await read("main/index.js")
 

@@ -8,15 +8,22 @@ import {
   fired,
   noNudges,
   noticesAt,
+  sessionBegan,
   nudgeText,
   personPrompted,
   take,
   type Facts,
   type Nudges,
+  type Trigger,
 } from "./nudges.js"
+import { noTroubles } from "./troubles.js"
 import { busiestFolders, tallied, type Work } from "./work.js"
 
 const facts: Facts = { plan: "Pagination", folder: "/w/src/api", branch: "feat/paging" }
+
+/** A trigger firing, a session beginning at the epoch. */
+const raise = (nudges: Nudges, trigger: Trigger): Nudges =>
+  trigger === "session" ? sessionBegan(nudges, 0) : fired(nudges, trigger)
 
 /** Whether the next quiet prompt nudges, and the nudges after it. */
 const quietly = (nudges: Nudges) => take(nudges, true)
@@ -27,6 +34,7 @@ describe("nudges to describe a terminal", () => {
       nudge: false,
       artifacts: false,
       summarize: false,
+      pages: [],
       nudges: noNudges,
     })
     expect(quietly(personPrompted(afterSummary(noNudges, facts)))).toMatchObject({ nudge: false })
@@ -34,22 +42,28 @@ describe("nudges to describe a terminal", () => {
 
   it("nudge once for each trigger, then wait for the next", () => {
     for (const trigger of ["session", "compaction", "drift", "prompts"] as const) {
-      const first = quietly(fired(noNudges, trigger))
+      const first = quietly(raise(noNudges, trigger))
       expect(first.nudge).toBe(true)
       // Ignored: nothing more until another trigger fires.
       expect(quietly(first.nudges).nudge).toBe(false)
-      expect(quietly(fired(first.nudges, trigger)).nudge).toBe(true)
+      expect(quietly(raise(first.nudges, trigger)).nudge).toBe(true)
     }
     // Triggers that fire together nudge once.
-    const both = quietly(fired(fired(noNudges, "session"), "compaction"))
+    const both = quietly(fired(sessionBegan(noNudges, 0), "compaction"))
     expect(both.nudge).toBe(true)
     expect(quietly(both.nudges).nudge).toBe(false)
   })
 
   it("never ride along with messages: the trigger waits for an answer that has nothing else", () => {
-    const pending = fired(noNudges, "session")
+    const pending = sessionBegan(noNudges, 0)
     const busy = take(pending, false)
-    expect(busy).toEqual({ nudge: false, artifacts: false, summarize: false, nudges: pending })
+    expect(busy).toEqual({
+      nudge: false,
+      artifacts: false,
+      summarize: false,
+      pages: [],
+      nudges: pending,
+    })
     expect(quietly(busy.nudges).nudge).toBe(true)
   })
 
@@ -61,6 +75,8 @@ describe("nudges to describe a terminal", () => {
       baseline: facts,
       driftedTo: null,
       artifacts: false,
+      troubles: noTroubles,
+      since: 0,
     })
     expect(quietly(drifted(after, facts)).nudge).toBe(false)
   })
@@ -151,13 +167,13 @@ describe("a nudge", () => {
   it("tells a session of the bar beside it when it begins or forgot, then only of the description", () => {
     const current = { summary: null }
     for (const trigger of ["session", "compaction"] as const) {
-      const taken = quietly(fired(noNudges, trigger))
+      const taken = quietly(raise(noNudges, trigger))
       expect(taken).toMatchObject({ nudge: true, artifacts: true, summarize: true })
       expect(noticesAt(taken, current).split("\n\n")).toEqual([artifactsNotice, nudgeText(current)])
       expect(quietly(taken.nudges).nudge).toBe(false)
     }
     for (const trigger of ["drift", "prompts"] as const) {
-      const taken = quietly(fired(noNudges, trigger))
+      const taken = quietly(raise(noNudges, trigger))
       expect(taken).toMatchObject({ artifacts: false, summarize: true })
       expect(noticesAt(taken, current)).toBe(nudgeText(current))
     }
@@ -177,7 +193,7 @@ describe("a nudge", () => {
   it("still tells of the bar after a describe came before the first quiet prompt", () => {
     const current = { summary: "Builds the API." }
     // The session's first prompt carried a message, then the agent afterSummary itself.
-    const busy = take(fired(noNudges, "session"), false)
+    const busy = take(sessionBegan(noNudges, 0), false)
     const after = afterSummary(busy.nudges, facts)
     expect(after.pending).toEqual([])
     const taken = quietly(after)
