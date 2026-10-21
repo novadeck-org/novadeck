@@ -1,6 +1,13 @@
 import type { Backend } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
-import type { Source, SourceFile, SourceProject, SourceState } from "@novadeck/core/source"
+import type {
+  Source,
+  SourceEntry,
+  SourceFile,
+  SourceListing,
+  SourceProject,
+  SourceState,
+} from "@novadeck/core/source"
 import { createStore } from "@novadeck/core/store"
 
 import { demoHandle } from "./handles"
@@ -9,8 +16,8 @@ import { demoTerminalId } from "./samples"
 import { terminalOf } from "./terminals"
 import type { DemoTurns } from "./turns"
 
-// The demo's Source panel: the storefront project's files as its agents change them, from
-// fixtures. Each agent notionally works in its own worktree, so every write is its handle's.
+// The demo's Source panel: the storefront project's files, listed a folder at a time from
+// fixtures, as its agents change them. Each agent notionally works in its own worktree, so every write is its handle's.
 // Moth's changes are history, from the plan it waits on. An agent writes only while it
 // works: its terminal's agent status says it works and asks nothing of the person. Then it
 // writes while the page is in view, a file every few seconds, now and then resting between
@@ -56,7 +63,8 @@ export const sourcePaths = {
   payments: "src/api/payments.ts",
 } as const
 
-// The storefront's tree before any agent's work.
+// The storefront's tree before any agent's work, which `list` serves a folder at a time. An
+// entry ending in `/` is a folder with nothing in it.
 const entries: readonly string[] = [
   ".env.local",
   ".github/workflows/ci.yml",
@@ -109,8 +117,6 @@ export const storefrontSource = (
   now: number,
   working: readonly string[] = [crow],
 ): SourceProject => ({
-  entries,
-  ignored,
   changes: history(now),
   writing: working.includes(crow) ? { [crow]: sourcePaths.checkoutTest } : {},
 })
@@ -125,11 +131,7 @@ export const writeTo = (
 ): SourceProject => {
   const was = project.changes[path]
   const kind =
-    was && was.kind !== "deleted"
-      ? was.kind
-      : project.entries.includes(path) || was
-        ? "modified"
-        : "added"
+    was && was.kind !== "deleted" ? was.kind : entries.includes(path) || was ? "modified" : "added"
   return {
     ...project,
     changes: { ...project.changes, [path]: file(kind, { ...was?.touched, [handle]: at }) },
@@ -143,6 +145,32 @@ export const endTurnIn = (project: SourceProject, handle: string): SourceProject
   const { [handle]: _, ...writing } = project.writing
   return { ...project, writing }
 }
+
+const trimmed = (path: string): string => (path.endsWith("/") ? path.slice(0, -1) : path)
+
+// What the storefront's `folder` lists, from the fixtures: its files, and the folders that hold
+// the paths below. Ignored folders hold only ignored files, which the panel carries down.
+const listFixture = (folder: string): readonly SourceEntry[] => {
+  const found = new Map<string, SourceEntry>()
+  const ignoredPaths = new Set(ignored.map(trimmed))
+  for (const entry of entries) {
+    const path = trimmed(entry)
+    const prefix = folder === "" ? "" : `${folder}/`
+    if (!path.startsWith(prefix) || path === folder) continue
+    const [name = ""] = path.slice(prefix.length).split("/")
+    const full = `${prefix}${name}`
+    const isFolder = full !== path || entry.endsWith("/")
+    found.set(name, { name, folder: isFolder, ignored: ignoredPaths.has(full) })
+  }
+  return [...found.values()]
+}
+
+// How the debug panel has a folder read: it fails, or lists only some of what it holds. "" is
+// the project's root.
+export type SourceFault = "fail" | "truncate"
+
+// What a truncated folder still lists.
+const truncatedTo = 2
 
 // What an agent writes: the files it keeps coming back to, and ones it creates, each the
 // first time only.
@@ -218,6 +246,9 @@ const between = (range: { min: number; max: number }, roll: number): number =>
   range.min + Math.floor(roll * (range.max - range.min + 1))
 
 export type DemoSource = Source & {
+  // Has the next reads of `folder` go as `fault` says, or normally for none. The panel reads
+  // a folder again when it is shown again or an agent's turn ends.
+  readonly degrade: (folder: string, fault: SourceFault | undefined) => void
   // Has `handle` write a file now, `path` or else the one it would next, as its turn goes on.
   readonly write: (handle: string, path?: string) => void
   // Drops `handle`'s cursor: it is writing nothing until it writes again. Its agent's turn
@@ -267,6 +298,23 @@ export const createDemoSource = (
       ),
     )
   const endTurn = (handle: string): void => change((project) => endTurnIn(project, handle))
+
+  const faults = new Map<string, SourceFault>()
+  const degrade = (folder: string, fault: SourceFault | undefined): void => {
+    if (fault) faults.set(folder, fault)
+    else faults.delete(folder)
+  }
+  const list = async (id: string, folder: string): Promise<SourceListing> => {
+    if (id !== projectId) throw new Error("There is no such project")
+    const fault = faults.get(folder)
+    if (fault === "fail") throw new Error("This folder can't be read")
+    const known = entries.some((path) => trimmed(path) === folder || path.startsWith(`${folder}/`))
+    if (folder !== "" && !known) throw new Error("There is no such folder")
+    const all = listFixture(folder)
+    return fault === "truncate"
+      ? { entries: all.slice(0, truncatedTo), truncated: true }
+      : { entries: all, truncated: false }
+  }
 
   // One agent's turns, a write every few seconds and a rest between them, until stopped.
   const work = (handle: string): (() => void) => {
@@ -339,7 +387,7 @@ export const createDemoSource = (
     }
   }
 
-  return { state, write, endTurn, start, close, halt }
+  return { state, list, degrade, write, endTurn, start, close, halt }
 }
 
 // A backend with the demo's Source for the storefront project.

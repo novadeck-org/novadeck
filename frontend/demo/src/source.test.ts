@@ -108,6 +108,68 @@ describe("who works as the demo opens", () => {
   })
 })
 
+describe("the storefront's folders", () => {
+  const names = (listing: { entries: readonly { name: string }[] }): string[] =>
+    listing.entries.map((entry) => entry.name)
+
+  it("list the root's files and the folders holding the rest", async () => {
+    const listing = await createDemoSource(now).list("storefront", "")
+    expect(listing.truncated).toBe(false)
+    expect(names(listing)).toEqual(
+      expect.arrayContaining([".github", "node_modules", "src", "package.json", ".env.local"]),
+    )
+    expect(listing.entries.find((entry) => entry.name === "src")).toEqual({
+      name: "src",
+      folder: true,
+      ignored: false,
+    })
+  })
+
+  it("list a folder's own entries only, without the files an agent changed", async () => {
+    const listing = await createDemoSource(now).list("storefront", "src/checkout")
+    expect(names(listing)).toEqual(
+      expect.arrayContaining(["AddressForm.tsx", "Checkout.tsx", "PaymentStep.tsx"]),
+    )
+    expect(names(listing)).not.toContain("OrderSummary.tsx")
+    expect(names(listing)).not.toContain("src")
+  })
+
+  it("mark what the project ignores", async () => {
+    const root = await createDemoSource(now).list("storefront", "")
+    const ignored = root.entries.filter((entry) => entry.ignored).map((entry) => entry.name)
+    expect(ignored.toSorted()).toEqual([".env.local", "node_modules"])
+  })
+
+  it("list an empty folder as nothing", async () => {
+    expect(await createDemoSource(now).list("storefront", "node_modules")).toEqual({
+      entries: [],
+      truncated: false,
+    })
+  })
+
+  it("refuse a folder or a project that isn't there", async () => {
+    const source = createDemoSource(now)
+    await expect(source.list("storefront", "src/gone")).rejects.toThrow()
+    await expect(source.list("other", "")).rejects.toThrow()
+  })
+
+  it("fail, or list only some, when the debug panel says so, until it says otherwise", async () => {
+    const source = createDemoSource(now)
+    source.degrade("src/cart", "fail")
+    source.degrade("src/components", "truncate")
+    source.degrade("", "fail")
+    await expect(source.list("storefront", "src/cart")).rejects.toThrow()
+    await expect(source.list("storefront", "")).rejects.toThrow()
+    const partial = await source.list("storefront", "src/components")
+    expect(partial.truncated).toBe(true)
+    expect(partial.entries).toHaveLength(2)
+    source.degrade("src/cart", undefined)
+    source.degrade("", undefined)
+    expect((await source.list("storefront", "src/cart")).entries).not.toHaveLength(0)
+    expect((await source.list("storefront", "")).truncated).toBe(false)
+  })
+})
+
 describe("a write to the project", () => {
   it("moves the agent's time on and makes the file the one it writes", () => {
     const after = writeTo(storefrontSource(now), "crow", sourcePaths.checkoutTest, now + 5)
@@ -175,7 +237,9 @@ describe("the demo source", () => {
 
   it("is the demo's, which the debug panel writes to", () => {
     expect(isDemoSource(createDemoSource(now))).toBe(true)
-    expect(isDemoSource({ state: createDemoSource(now).state })).toBe(false)
+    expect(
+      isDemoSource({ state: createDemoSource(now).state, list: createDemoSource(now).list }),
+    ).toBe(false)
   })
 
   it("has the storefront and no other project", () => {

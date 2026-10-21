@@ -1,9 +1,10 @@
-import type { SourceProject } from "@novadeck/core/source"
+import type { SourceListing, SourceProject } from "@novadeck/core/source"
 import { nextFrame, render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
+import { folderListings } from "../test/source"
 import { pulseMs, SourcePanel } from "./SourcePanel"
 
 // jsdom has no layout and no ResizeObserver, which the header's tooltip and the tree's chip
@@ -47,8 +48,6 @@ afterEach(() => {
 const recent = Date.now() - 1000
 
 const work = (parts: Partial<SourceProject> = {}): SourceProject => ({
-  entries: ["src/cart/useCart.ts", "src/cart/Cart.tsx", "docs/readme.md", "package.json"],
-  ignored: ["node_modules/"],
   changes: {
     "src/cart/useCart.ts": { kind: "modified", touched: { moth: recent, crow: recent - 5000 } },
     "src/cart/new.ts": { kind: "added", touched: { moth: recent } },
@@ -57,14 +56,58 @@ const work = (parts: Partial<SourceProject> = {}): SourceProject => ({
   ...parts,
 })
 
-const mount = (
+const files = ["src/cart/useCart.ts", "src/cart/Cart.tsx", "docs/readme.md", "package.json"]
+
+// The backend a test gives the panel: the folders of `files` unless a test says otherwise. Every
+// read it gets is recorded, and `answer` can hold one back until the test lets it go.
+type Reads = {
+  readonly folders: string[]
+  readonly list: (folder: string) => Promise<SourceListing>
+}
+
+const backend = (
+  answer: (folder: string, listing: SourceListing) => Promise<SourceListing> | SourceListing = (
+    _,
+    listing,
+  ) => listing,
+  entries: readonly string[] = files,
+): Reads => {
+  const listings = folderListings(entries)
+  const folders: string[] = []
+  return {
+    folders,
+    list: async (folder) => {
+      folders.push(folder)
+      const listing = listings.get(folder)
+      if (!listing && folder !== "") throw new Error("There is no such folder")
+      return answer(folder, listing ?? { entries: [], truncated: false })
+    },
+  }
+}
+
+// Lets reads that were asked for come back, and the reads they ask for in turn.
+const settle = async (): Promise<void> => {
+  for (let round = 0; round < 6; round++)
+    // eslint-disable-next-line no-await-in-loop -- One round of reads after another.
+    await act(async () => {
+      await Promise.resolve()
+    })
+}
+
+const mount = async (
   project: SourceProject | undefined,
   selectedHandle?: string,
   agents: { roster: string[]; squads: string[][] } = { roster: [], squads: [] },
+  reads: Reads = backend(),
+  onOpenFile: (path: string) => Promise<void> = () => Promise.resolve(),
 ) => {
   let visible = true
+  let turn = 0
   const props = (next: SourceProject | undefined, handle: string | undefined) => ({
     project: next,
+    list: reads.list,
+    turn,
+    onOpenFile,
     selectedHandle: handle,
     roster: agents.roster,
     squads: agents.squads,
@@ -73,49 +116,50 @@ const mount = (
     onHide: () => {},
   })
   const view = render(createElement(SourcePanel, props(project, selectedHandle)))
+  await settle()
   const rows = (): string[] =>
     Array.from(view.container.querySelectorAll(".source-name")).map((el) => el.textContent ?? "")
   const row = (name: string): HTMLElement =>
     Array.from(view.container.querySelectorAll<HTMLElement>(".source-row")).find(
       (el) => el.querySelector(".source-name")?.textContent === name,
     )!
-  const click = (name: string): void =>
+  const click = async (name: string): Promise<void> => {
     act(() => row(name).querySelector<HTMLElement>(".source-row-select")!.click())
-  const update = (next: SourceProject): void =>
-    view.rerender(createElement(SourcePanel, props(next, selectedHandle)))
+    await settle()
+  }
   let latest = project
-  const show = (next: boolean): void => {
-    visible = next
+  const redraw = async (): Promise<void> => {
     view.rerender(createElement(SourcePanel, props(latest, selectedHandle)))
+    await settle()
+  }
+  const show = async (next: boolean): Promise<void> => {
+    visible = next
+    await redraw()
   }
   return {
     view,
+    reads,
     rows,
     row,
     click,
-    update: (next: SourceProject): void => {
+    settle,
+    update: async (next: SourceProject): Promise<void> => {
       latest = next
-      update(next)
+      await redraw()
     },
     show,
+    // An agent's turn ends in the project.
+    endTurn: async (): Promise<void> => {
+      turn += 1
+      await redraw()
+    },
   }
 }
 
 describe("The Source panel", () => {
-  context("when no agent has changed anything in the project", () => {
-    it("says so in one plain line", async () => {
-      const panel = mount(undefined)
-
-      expect(panel.view.container.textContent).toContain("No agent has changed anything here yet.")
-      expect(panel.view.container.querySelector("[role=tree]")).toBeNull()
-      await nextFrame()
-      panel.view.unmount()
-    })
-  })
-
   context("when it first shows a project", () => {
     it("opens the folders with a changed file and leaves the rest shut", async () => {
-      const panel = mount(work())
+      const panel = await mount(work())
 
       expect(panel.rows()).toEqual([
         "docs",
@@ -137,8 +181,8 @@ describe("The Source panel", () => {
     })
 
     it("does not open or close anything when later changes arrive", async () => {
-      const panel = mount(work())
-      panel.update(
+      const panel = await mount(work())
+      await panel.update(
         work({
           changes: {
             ...work().changes,
@@ -155,10 +199,10 @@ describe("The Source panel", () => {
 
   context("when the person clicks", () => {
     it("toggles a folder, and the collapse button shuts them all", async () => {
-      const panel = mount(work())
-      panel.click("docs")
+      const panel = await mount(work())
+      await panel.click("docs")
       expect(panel.rows()).toContain("readme.md")
-      panel.click("docs")
+      await panel.click("docs")
       expect(panel.rows()).not.toContain("readme.md")
 
       act(() =>
@@ -171,8 +215,8 @@ describe("The Source panel", () => {
     })
 
     it("selects a file", async () => {
-      const panel = mount(work())
-      panel.click("package.json")
+      const panel = await mount(work())
+      await panel.click("package.json")
 
       expect(panel.row("package.json").getAttribute("data-selected")).toBe("true")
       await nextFrame()
@@ -182,7 +226,7 @@ describe("The Source panel", () => {
 
   context("when agents have worked on files", () => {
     it("shows how each changed and who did it", async () => {
-      const panel = mount(work())
+      const panel = await mount(work())
 
       expect(panel.row("useCart.ts").getAttribute("data-kind")).toBe("modified")
       expect(panel.row("new.ts").getAttribute("data-kind")).toBe("added")
@@ -193,7 +237,7 @@ describe("The Source panel", () => {
     })
 
     it("draws a cursor for a file being written and a trail for the other changed ones", async () => {
-      const panel = mount(work())
+      const panel = await mount(work())
 
       expect(panel.row("useCart.ts").querySelectorAll(".source-cursor")).toHaveLength(1)
       expect(panel.row("useCart.ts").querySelector(".source-trail")).toBeNull()
@@ -203,8 +247,8 @@ describe("The Source panel", () => {
     })
 
     it("draws no cursor for a file hidden in a closed folder, and names the agents on the folder", async () => {
-      const panel = mount(work())
-      panel.click("src")
+      const panel = await mount(work())
+      await panel.click("src")
 
       expect(panel.view.container.querySelector(".source-cursor")).toBeNull()
       expect(panel.row("src").querySelector(".source-chips")?.textContent).toContain("@moth")
@@ -215,7 +259,7 @@ describe("The Source panel", () => {
 
   context("when an agent is lit", () => {
     it("dims the rows it did not touch", async () => {
-      const panel = mount(
+      const panel = await mount(
         work({
           changes: {
             ...work().changes,
@@ -233,7 +277,7 @@ describe("The Source panel", () => {
     })
 
     it("dims nothing when the selected agent has no work here", async () => {
-      const panel = mount(work(), "wren")
+      const panel = await mount(work(), "wren")
 
       expect(panel.row("package.json").getAttribute("data-dim")).toBe("false")
       await nextFrame()
@@ -253,17 +297,17 @@ describe("The Source panel", () => {
       })
     const agents = { roster: ["wren", "moth", "crow"], squads: [["moth", "crow"]] }
     const mountTeam = (selected?: string) => mount(team(), selected, agents)
-    const chip = (panel: ReturnType<typeof mount>, handle: string): HTMLElement =>
+    const chip = (panel: Awaited<ReturnType<typeof mount>>, handle: string): HTMLElement =>
       Array.from(
         panel.view.container.querySelectorAll<HTMLElement>(".source-strip .source-agent"),
       ).find((el) => el.textContent === `@${handle}`)!
-    const press = (panel: ReturnType<typeof mount>, handle: string): void =>
+    const press = (panel: Awaited<ReturnType<typeof mount>>, handle: string): void =>
       act(() => chip(panel, handle).click())
-    const pressed = (panel: ReturnType<typeof mount>): string[] =>
+    const pressed = (panel: Awaited<ReturnType<typeof mount>>): string[] =>
       Array.from(panel.view.container.querySelectorAll(".source-agent[aria-pressed=true]")).map(
         (el) => el.textContent ?? "",
       )
-    const dimmed = (panel: ReturnType<typeof mount>): string[] =>
+    const dimmed = (panel: Awaited<ReturnType<typeof mount>>): string[] =>
       Array.from(
         panel.view.container.querySelectorAll(".source-row[data-dim=true][data-folder=false]"),
       ).map((el) => el.querySelector(".source-name")?.textContent ?? "")
@@ -271,7 +315,7 @@ describe("The Source panel", () => {
       act(() => void el.dispatchEvent(new MouseEvent(type, { bubbles: true })))
 
     it("shows a chip for each, a squad in a labelled track with its lead first", async () => {
-      const panel = mountTeam()
+      const panel = await mountTeam()
 
       const strip = panel.view.container.querySelector("[aria-label='Light agents']")!
       expect(strip.getAttribute("role")).toBe("group")
@@ -288,7 +332,7 @@ describe("The Source panel", () => {
     })
 
     it("has no strip while nobody has worked here", async () => {
-      const panel = mount(work({ changes: {}, writing: {} }), undefined, agents)
+      const panel = await mount(work({ changes: {}, writing: {} }), undefined, agents)
 
       expect(panel.view.container.querySelector(".source-strip")).toBeNull()
       await nextFrame()
@@ -296,7 +340,7 @@ describe("The Source panel", () => {
     })
 
     it("lights the union of the agents kept, and releases one on a second click", async () => {
-      const panel = mountTeam()
+      const panel = await mountTeam()
 
       press(panel, "wren")
       expect(dimmed(panel)).toEqual(["readme.md", "Cart.tsx", "new.ts", "useCart.ts"])
@@ -314,7 +358,7 @@ describe("The Source panel", () => {
     })
 
     it("keeps or releases the whole squad from its lead, and one member from the member", async () => {
-      const panel = mountTeam()
+      const panel = await mountTeam()
 
       // Nothing marks a lead, so its hint names the squad.
       expect(chip(panel, "moth").getAttribute("title")).toBe("Keep @moth's squad lit")
@@ -338,7 +382,7 @@ describe("The Source panel", () => {
     })
 
     it("follows the selected terminal's agent until something is kept, and again after Escape", async () => {
-      const panel = mountTeam("wren")
+      const panel = await mountTeam("wren")
 
       expect(chip(panel, "wren").getAttribute("data-following")).toBe("true")
       expect(dimmed(panel)).toEqual(["readme.md", "Cart.tsx", "new.ts", "useCart.ts"])
@@ -359,7 +403,7 @@ describe("The Source panel", () => {
     })
 
     it("leaves Escape to others while nothing is kept", async () => {
-      const panel = mountTeam()
+      const panel = await mountTeam()
       const seen: boolean[] = []
       const listen = (event: Event): void => void seen.push(event.defaultPrevented)
       document.body.addEventListener("keydown", listen)
@@ -384,7 +428,7 @@ describe("The Source panel", () => {
     })
 
     it("marks a lead pressed for its squad: true when all are kept, mixed when some are", async () => {
-      const panel = mountTeam()
+      const panel = await mountTeam()
       const state = (handle: string): string | null =>
         chip(panel, handle).getAttribute("aria-pressed")
       expect(state("moth")).toBe("false")
@@ -404,11 +448,11 @@ describe("The Source panel", () => {
     })
 
     it("lets go of a kept agent that leaves the project, so nothing stays dimmed for it", async () => {
-      const panel = mountTeam()
+      const panel = await mountTeam()
       press(panel, "wren")
       expect(dimmed(panel)).not.toEqual([])
 
-      panel.update(work())
+      await panel.update(work())
 
       expect(pressed(panel)).toEqual([])
       expect(dimmed(panel)).toEqual([])
@@ -417,11 +461,11 @@ describe("The Source panel", () => {
     })
 
     it("forgets a hover on a chip that leaves the strip", async () => {
-      const panel = mountTeam()
+      const panel = await mountTeam()
       hover(chip(panel, "wren"), "pointerover")
       expect(dimmed(panel)).not.toEqual([])
 
-      panel.update(work())
+      await panel.update(work())
 
       expect(dimmed(panel)).toEqual([])
       await nextFrame()
@@ -429,7 +473,7 @@ describe("The Source panel", () => {
     })
 
     it("clears what is kept on Escape in the tree too", async () => {
-      const panel = mountTeam()
+      const panel = await mountTeam()
       press(panel, "wren")
 
       act(() => {
@@ -445,7 +489,7 @@ describe("The Source panel", () => {
     })
 
     it("lights an agent while its chip is pointed at, its whole squad for a lead, without reordering", async () => {
-      const panel = mountTeam()
+      const panel = await mountTeam()
       const order = (): string[] =>
         Array.from(panel.row("useCart.ts").querySelectorAll(".source-chip")).map(
           (el) => el.textContent ?? "",
@@ -471,7 +515,7 @@ describe("The Source panel", () => {
     })
 
     it("puts the kept agents first on a row's chips", async () => {
-      const panel = mountTeam()
+      const panel = await mountTeam()
       const shown = (): string[] =>
         Array.from(panel.row("useCart.ts").querySelectorAll(".source-chip")).map(
           (el) => el.textContent ?? "",
@@ -488,10 +532,10 @@ describe("The Source panel", () => {
 
   context("when an agent writes again", () => {
     it("pulses the file's row, or the closed folder hiding it, but not on first mount", async () => {
-      const panel = mount(work())
+      const panel = await mount(work())
       expect(panel.view.container.querySelector("[data-pulse]")).toBeNull()
 
-      panel.update(
+      await panel.update(
         work({
           changes: {
             ...work().changes,
@@ -501,8 +545,8 @@ describe("The Source panel", () => {
       )
       expect(panel.row("new.ts").getAttribute("data-pulse")).toBe("a")
 
-      panel.click("src")
-      panel.update(
+      await panel.click("src")
+      await panel.update(
         work({
           changes: {
             ...work().changes,
@@ -525,10 +569,10 @@ describe("The Source panel", () => {
       })
 
     it("does not pulse it, now or when the panel comes back", async () => {
-      const panel = mount(work())
-      panel.show(false)
-      panel.update(written(recent + 500))
-      panel.show(true)
+      const panel = await mount(work())
+      await panel.show(false)
+      await panel.update(written(recent + 500))
+      await panel.show(true)
 
       expect(panel.view.container.querySelector("[data-pulse]")).toBeNull()
       await nextFrame()
@@ -536,10 +580,10 @@ describe("The Source panel", () => {
     })
 
     it("starts the trails over when the panel is shown again", async () => {
-      const panel = mount(work())
+      const panel = await mount(work())
       const before = panel.row("new.ts").querySelector(".source-trail")
-      panel.show(false)
-      panel.show(true)
+      await panel.show(false)
+      await panel.show(true)
 
       expect(panel.row("new.ts").querySelector(".source-trail")).not.toBe(before)
       await nextFrame()
@@ -548,10 +592,10 @@ describe("The Source panel", () => {
   })
 
   context("when a pulse has played", () => {
-    it("forgets it on a timer, with no animation to end", () => {
+    it("forgets it on a timer, with no animation to end", async () => {
       vi.useFakeTimers()
-      const panel = mount(work())
-      panel.update(
+      const panel = await mount(work())
+      await panel.update(
         work({
           changes: {
             ...work().changes,
@@ -570,7 +614,7 @@ describe("The Source panel", () => {
 
   context("when the pointer is over a chip", () => {
     it("lights the agent without reordering the chips", async () => {
-      const panel = mount(
+      const panel = await mount(
         work({
           changes: {
             "src/cart/useCart.ts": {
@@ -597,7 +641,7 @@ describe("The Source panel", () => {
     })
 
     it("stops lighting the agent once a write folds its chip away from the pointer", async () => {
-      const panel = mount(
+      const panel = await mount(
         work({
           changes: {
             "src/cart/useCart.ts": {
@@ -612,7 +656,7 @@ describe("The Source panel", () => {
       expect(panel.view.container.querySelector("[data-lit]")?.getAttribute("data-lit")).toBe(
         "crow",
       )
-      panel.update(
+      await panel.update(
         work({
           changes: {
             "src/cart/useCart.ts": {
@@ -631,7 +675,7 @@ describe("The Source panel", () => {
     })
 
     it("leaves the chips out of the tab order and names everyone on the row", async () => {
-      const panel = mount(
+      const panel = await mount(
         work({
           changes: {
             "src/cart/useCart.ts": {
@@ -654,20 +698,306 @@ describe("The Source panel", () => {
     })
   })
 
-  context("when a folder's contents are not listed", () => {
-    it("is not expandable", async () => {
-      const panel = mount(work({ entries: [...work().entries, "node_modules/"] }))
-      const item = panel.row("node_modules").querySelector("[role=treeitem]")!
+  context("when a folder is empty", () => {
+    it("is not expandable once read", async () => {
+      const panel = await mount(
+        work(),
+        undefined,
+        undefined,
+        backend(undefined, [...files, "dist/"]),
+      )
+      const item = panel.row("dist").querySelector("[role=treeitem]")!
 
-      expect(item.hasAttribute("aria-expanded")).toBe(false)
-      expect(panel.row("node_modules").querySelector("svg[data-open]")).toBeNull()
+      expect(item.hasAttribute("aria-expanded")).toBe(true)
+      await panel.click("dist")
+
+      expect(
+        panel.row("dist").querySelector("[role=treeitem]")!.hasAttribute("aria-expanded"),
+      ).toBe(false)
+      expect(panel.row("dist").querySelector("svg[data-open]")).toBeNull()
+      await nextFrame()
+      panel.view.unmount()
+    })
+  })
+
+  context("when the project's root is read", () => {
+    it("says plainly that it can't be, in place of the tree", async () => {
+      const reads = backend((folder, listing) => {
+        if (folder === "") throw new Error("gone")
+        return listing
+      })
+      const panel = await mount(undefined, undefined, undefined, reads)
+
+      expect(panel.view.container.textContent).toContain("Can't read this project's files.")
+      expect(panel.view.container.querySelector("[role=tree]")).toBeNull()
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("says plainly that it is empty", async () => {
+      const panel = await mount(undefined, undefined, undefined, backend(undefined, []))
+
+      expect(panel.view.container.textContent).toContain("This project's folder is empty.")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("lists nothing until it is read, and reads nothing while the panel is hidden", async () => {
+      const reads = backend()
+      const view = render(
+        createElement(SourcePanel, {
+          project: undefined,
+          list: reads.list,
+          turn: 0,
+          onOpenFile: () => Promise.resolve(),
+          selectedHandle: undefined,
+          roster: [],
+          squads: [],
+          active: false,
+          visible: true,
+          onHide: () => {},
+        }),
+      )
+      await settle()
+
+      expect(reads.folders).toEqual([])
+      expect(view.container.querySelector("[role=tree]")).toBeNull()
+      view.unmount()
+    })
+
+    it("shows the plain tree where the backend tells of no changes, with nothing open", async () => {
+      const panel = await mount(undefined)
+
+      expect(panel.rows()).toEqual(["docs", "src", "package.json"])
+      expect(panel.view.container.querySelector(".source-strip")).toBeNull()
+      await nextFrame()
+      panel.view.unmount()
+    })
+  })
+
+  context("when a folder is read", () => {
+    it("reads it as it opens, and shows what it lists", async () => {
+      const reads = backend()
+      const panel = await mount(undefined, undefined, undefined, reads)
+      expect(reads.folders).toEqual([""])
+
+      await panel.click("docs")
+
+      expect(reads.folders).toEqual(["", "docs"])
+      expect(panel.rows()).toContain("readme.md")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("shows a muted row in a folder that can't be read, and reads it again on reopening", async () => {
+      let broken = true
+      const reads = backend((folder, listing) => {
+        if (folder === "docs" && broken) throw new Error("denied")
+        return listing
+      })
+      const panel = await mount(undefined, undefined, undefined, reads)
+      await panel.click("docs")
+
+      const note = panel.view.container.querySelector("[data-note=failed]")
+      expect(note?.textContent).toBe("Can't read this folder")
+      expect(panel.rows()).not.toContain("readme.md")
+
+      broken = false
+      await panel.click("docs")
+      await panel.click("docs")
+
+      expect(panel.view.container.querySelector("[data-note=failed]")).toBeNull()
+      expect(panel.rows()).toContain("readme.md")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("says what a folder that lists only part lacks", async () => {
+      const reads = backend((folder, listing) =>
+        folder === "docs" ? { ...listing, truncated: true } : listing,
+      )
+      const panel = await mount(undefined, undefined, undefined, reads)
+      await panel.click("docs")
+
+      expect(panel.view.container.querySelector("[data-note=truncated]")?.textContent).toBe(
+        "More not shown",
+      )
+      expect(panel.rows()).toContain("readme.md")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("reads the folders opened for the changes in them", async () => {
+      const reads = backend()
+      await mount(work(), undefined, undefined, reads)
+
+      expect(reads.folders.toSorted()).toEqual(["", "src", "src/cart"])
+    })
+
+    it("lists a file an agent added that its folder's listing lacks", async () => {
+      const panel = await mount(work())
+
+      expect(panel.rows()).toContain("new.ts")
+    })
+  })
+
+  context("when the folders are read again", () => {
+    it("does so when the panel is shown again, for the root and the open folders only", async () => {
+      const reads = backend()
+      const panel = await mount(undefined, undefined, undefined, reads)
+      await panel.click("docs")
+      reads.folders.length = 0
+
+      await panel.show(false)
+      expect(reads.folders).toEqual([])
+      await panel.show(true)
+
+      expect(reads.folders.toSorted()).toEqual(["", "docs"])
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("does so when an agent's turn ends, and not when it ends while the panel is hidden", async () => {
+      const reads = backend()
+      const panel = await mount(undefined, undefined, undefined, reads)
+      reads.folders.length = 0
+
+      await panel.endTurn()
+      expect(reads.folders).toEqual([""])
+      await panel.show(false)
+      reads.folders.length = 0
+      await panel.endTurn()
+      expect(reads.folders).toEqual([])
+      await panel.show(true)
+
+      expect(reads.folders).toEqual([""])
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("shows a file that appeared, and drops the folder that vanished with its listing", async () => {
+      let entries = files
+      const reads: Reads = {
+        folders: [],
+        list: (folder) => backend(undefined, entries).list(folder),
+      }
+      const panel = await mount(undefined, undefined, undefined, reads)
+      await panel.click("docs")
+      expect(panel.rows()).toContain("readme.md")
+
+      entries = [...files, "docs/new.md"]
+      await panel.endTurn()
+      expect(panel.rows()).toContain("new.md")
+
+      entries = ["package.json"]
+      await panel.endTurn()
+      expect(panel.rows()).toEqual(["package.json"])
+
+      entries = files
+      await panel.endTurn()
+      expect(panel.rows()).toContain("readme.md")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("lets the latest read of a folder win over a slower earlier one", async () => {
+      const slow: ((listing: SourceListing) => void)[] = []
+      let first = true
+      const reads = backend((folder, listing) => {
+        if (folder !== "docs") return listing
+        if (first) {
+          first = false
+          return new Promise<SourceListing>((resolve) => slow.push(resolve))
+        }
+        return { ...listing, entries: [{ name: "newer.md", folder: false, ignored: false }] }
+      })
+      const panel = await mount(undefined, undefined, undefined, reads)
+      await panel.click("docs")
+      await panel.click("docs")
+      await panel.click("docs")
+      expect(panel.rows()).toContain("newer.md")
+
+      await act(async () => {
+        slow[0]!({
+          entries: [{ name: "older.md", folder: false, ignored: false }],
+          truncated: false,
+        })
+      })
+      await panel.settle()
+
+      expect(panel.rows()).toContain("newer.md")
+      expect(panel.rows()).not.toContain("older.md")
+      await nextFrame()
+      panel.view.unmount()
+    })
+  })
+
+  context("when the person opens a file", () => {
+    const keyOn = (panel: Awaited<ReturnType<typeof mount>>, name: string, key: string): void =>
+      act(() => {
+        const button = panel.row(name).querySelector<HTMLElement>("[role=treeitem]")!
+        button.focus()
+        button.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }))
+      })
+
+    it("opens it on a double click, and only selects it on a single one", async () => {
+      const opened: string[] = []
+      const panel = await mount(undefined, undefined, undefined, backend(), (path) => {
+        opened.push(path)
+        return Promise.resolve()
+      })
+      await panel.click("package.json")
+      expect(opened).toEqual([])
+
+      act(() =>
+        panel
+          .row("package.json")
+          .querySelector<HTMLElement>("[role=treeitem]")!
+          .dispatchEvent(new MouseEvent("dblclick", { bubbles: true })),
+      )
+
+      expect(opened).toEqual(["package.json"])
+      expect(panel.row("package.json").getAttribute("data-selected")).toBe("true")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("opens it on Enter, by its path from the root, and a folder on Enter only toggles", async () => {
+      const opened: string[] = []
+      const panel = await mount(undefined, undefined, undefined, backend(), (path) => {
+        opened.push(path)
+        return Promise.resolve()
+      })
+      await panel.click("docs")
+
+      keyOn(panel, "readme.md", "Enter")
+      keyOn(panel, "docs", "Enter")
+      await panel.settle()
+
+      expect(opened).toEqual(["docs/readme.md"])
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("reads its folder again when it can't be opened", async () => {
+      const reads = backend()
+      const panel = await mount(undefined, undefined, undefined, reads, () =>
+        Promise.reject(new Error("gone")),
+      )
+      await panel.click("docs")
+      reads.folders.length = 0
+
+      keyOn(panel, "readme.md", "Enter")
+      await panel.settle()
+
+      expect(reads.folders).toEqual(["docs"])
       await nextFrame()
       panel.view.unmount()
     })
   })
 
   context("when the person uses the keyboard", () => {
-    const press = (panel: ReturnType<typeof mount>, name: string, key: string): void => {
+    const press = (panel: Awaited<ReturnType<typeof mount>>, name: string, key: string): void => {
       const button = panel.row(name).querySelector<HTMLElement>("[role=treeitem]")!
       act(() => {
         button.focus()
@@ -679,7 +1009,7 @@ describe("The Source panel", () => {
       null
 
     it("keeps one tab stop and moves through the rows with the arrows", async () => {
-      const panel = mount(work())
+      const panel = await mount(work())
       document.body.append(panel.view.container)
       const stops = panel.view.container.querySelectorAll("[role=treeitem][tabindex='0']")
       expect(stops).toHaveLength(1)
@@ -696,10 +1026,11 @@ describe("The Source panel", () => {
     })
 
     it("opens and closes folders and walks to the parent with Right and Left", async () => {
-      const panel = mount(work())
+      const panel = await mount(work())
       document.body.append(panel.view.container)
 
       press(panel, "docs", "ArrowRight")
+      await panel.settle()
       expect(panel.rows()).toContain("readme.md")
       press(panel, "docs", "ArrowRight")
       expect(focused()).toBe("readme.md")
@@ -715,19 +1046,17 @@ describe("The Source panel", () => {
   context("when a row is too narrow for its name beside two chips", () => {
     const deep = "a/b/c/CheckoutSummaryPanel.tsx"
     const crowded = (touched: Record<string, number>): SourceProject => ({
-      entries: [],
-      ignored: [],
       changes: { [deep]: { kind: "modified", touched }, "short.ts": { kind: "modified", touched } },
       writing: {},
     })
-    const shown = (panel: ReturnType<typeof mount>, name: string): string[] =>
+    const shown = (panel: Awaited<ReturnType<typeof mount>>, name: string): string[] =>
       Array.from(panel.row(name).querySelectorAll(".source-chip")).map((el) => el.textContent ?? "")
-    const more = (panel: ReturnType<typeof mount>, name: string): string | undefined =>
+    const more = (panel: Awaited<ReturnType<typeof mount>>, name: string): string | undefined =>
       panel.row(name).querySelector(".source-more")?.textContent ?? undefined
 
     it("folds a long deep name to one chip and a count when the tree is narrow", async () => {
       treeWidth = 260
-      const panel = mount(crowded({ moth: recent, crow: recent - 1000, wren: recent - 2000 }))
+      const panel = await mount(crowded({ moth: recent, crow: recent - 1000, wren: recent - 2000 }))
 
       expect(shown(panel, "CheckoutSummaryPanel.tsx")).toEqual(["@moth"])
       expect(more(panel, "CheckoutSummaryPanel.tsx")).toBe("+2")
@@ -743,7 +1072,7 @@ describe("The Source panel", () => {
 
     it("keeps two chips on the same row when the tree is wide", async () => {
       treeWidth = 400
-      const panel = mount(crowded({ moth: recent, crow: recent - 1000, wren: recent - 2000 }))
+      const panel = await mount(crowded({ moth: recent, crow: recent - 1000, wren: recent - 2000 }))
 
       expect(shown(panel, "CheckoutSummaryPanel.tsx")).toEqual(["@moth", "@crow"])
       expect(more(panel, "CheckoutSummaryPanel.tsx")).toBe("+1")
@@ -753,7 +1082,7 @@ describe("The Source panel", () => {
 
     it("keeps two chips on a short name even when the tree is narrow", async () => {
       treeWidth = 228
-      const panel = mount(crowded({ moth: recent, crow: recent - 1000 }))
+      const panel = await mount(crowded({ moth: recent, crow: recent - 1000 }))
 
       expect(shown(panel, "short.ts")).toEqual(["@moth", "@crow"])
       expect(more(panel, "short.ts")).toBeUndefined()
@@ -763,7 +1092,7 @@ describe("The Source panel", () => {
 
     it("folds and unfolds as the sidebar is resized", async () => {
       treeWidth = 400
-      const panel = mount(crowded({ moth: recent, crow: recent - 1000 }))
+      const panel = await mount(crowded({ moth: recent, crow: recent - 1000 }))
       expect(shown(panel, "CheckoutSummaryPanel.tsx")).toHaveLength(2)
 
       resizeTree(228)
@@ -778,7 +1107,7 @@ describe("The Source panel", () => {
 
     it("never changes a row with one agent", async () => {
       treeWidth = 120
-      const panel = mount(crowded({ moth: recent }))
+      const panel = await mount(crowded({ moth: recent }))
 
       expect(shown(panel, "CheckoutSummaryPanel.tsx")).toEqual(["@moth"])
       expect(more(panel, "CheckoutSummaryPanel.tsx")).toBeUndefined()
@@ -811,7 +1140,7 @@ describe("The Source panel", () => {
             : real(element, ...rest),
       )
       treeWidth = 400
-      const panel = mount(crowded({ moth: recent, crow: recent - 1000 }))
+      const panel = await mount(crowded({ moth: recent, crow: recent - 1000 }))
 
       expect(fonts).toContain("normal 450 13px Measured Sans")
       expect(shown(panel, "short.ts")).toEqual(["@moth"])
@@ -824,12 +1153,12 @@ describe("The Source panel", () => {
       // "short.ts" and two chips fit in 190px without a mark, and not with one.
       treeWidth = 190
       const old = Date.now() - 20 * 60_000
-      const fresh = mount(crowded({ moth: recent, crow: recent - 1000 }))
-      const aged = mount(crowded({ moth: old, crow: old - 1000 }))
+      const fresh = await mount(crowded({ moth: recent, crow: recent - 1000 }))
+      const aged = await mount(crowded({ moth: old, crow: old - 1000 }))
 
       expect(shown(fresh, "short.ts")).toHaveLength(1)
       expect(shown(aged, "short.ts")).toHaveLength(1)
-      const trail = (panel: ReturnType<typeof mount>) =>
+      const trail = (panel: Awaited<ReturnType<typeof mount>>) =>
         panel.row("short.ts").querySelector<HTMLElement>(".source-trail")!
       expect(trail(fresh).style.visibility).toBe("")
       expect(trail(aged).style.visibility).toBe("hidden")
@@ -879,7 +1208,7 @@ describe("The Source panel", () => {
         measureFonts()
         family = "Wide Mono"
         treeWidth = 220
-        const panel = mount(crowded({ moth: recent, crow: recent - 1000 }))
+        const panel = await mount(crowded({ moth: recent, crow: recent - 1000 }))
 
         // The estimate (6.6px a glyph) would keep both chips of "short.ts" here.
         expect(shown(panel, "short.ts")).toEqual(["@moth"])
@@ -890,7 +1219,7 @@ describe("The Source panel", () => {
       it("folds again when a theme changes the fonts", async () => {
         measureFonts()
         treeWidth = 220
-        const panel = mount(crowded({ moth: recent, crow: recent - 1000 }))
+        const panel = await mount(crowded({ moth: recent, crow: recent - 1000 }))
         expect(shown(panel, "short.ts")).toHaveLength(2)
 
         family = "Wide Mono"
@@ -913,7 +1242,7 @@ describe("The Source panel", () => {
 
     it("stops lighting an agent whose chip a narrower tree folded away", async () => {
       treeWidth = 400
-      const panel = mount(crowded({ moth: recent, crow: recent - 1000 }))
+      const panel = await mount(crowded({ moth: recent, crow: recent - 1000 }))
       const second = panel.row("CheckoutSummaryPanel.tsx").querySelectorAll(".source-chip")[1]!
       act(() => void second.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })))
       // The row the pointer was on folds crow away, though the short row still shows its chip.

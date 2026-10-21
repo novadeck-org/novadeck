@@ -456,7 +456,7 @@ describe("what the person attaches", () => {
     writeFileSync(join(fixture.directory, "notes.md"), "# Notes\n")
     await expect(
       fixture.items.attach({ terminalId: moth.terminalId, path: "notes.md", title: "Notes" }),
-    ).resolves.toMatchObject({ name: "Notes", by: "person", asked: false, version: 1 })
+    ).resolves.toMatchObject({ name: "Notes", by: "person", asked: true, version: 1 })
     await expect(
       fixture.items.attach({ terminalId: moth.terminalId, path: "." }),
     ).rejects.toMatchObject({

@@ -281,8 +281,9 @@ export class CompanionItems {
 
   /**
    * Attaches a file the person picked to a terminal's bar, as an agent's show would, by
-   * a path from the terminal's directory. TERMINAL_NOT_FOUND for a terminal not kept,
-   * INVALID_FILE, saying why, for a path that is no file.
+   * a path from the terminal's directory. They asked to see it, so it asks to open, a
+   * file that may hold secrets too, which opens onto its gate. TERMINAL_NOT_FOUND for a
+   * terminal not kept, INVALID_FILE, saying why, for a path that is no file.
    */
   async attach(input: {
     readonly terminalId: string
@@ -299,7 +300,7 @@ export class CompanionItems {
     if (!pointed.ok) throw new DomainError("INVALID_FILE", pointed.reason)
     const kept = this.keep(this.place(input.terminalId), pointed.pointer, {
       by: "person",
-      asked: false,
+      asked: true,
     })
     if (!kept) throw new DomainError("TERMINAL_NOT_FOUND")
     return wireItem(kept.item)

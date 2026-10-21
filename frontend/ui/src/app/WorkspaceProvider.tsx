@@ -91,6 +91,7 @@ const createServices = (
     resetTitle: backend.resetTitle,
     murmur: backend.murmur,
     conversations: backend.conversations,
+    companions: backend.companions,
     panes,
     canvas,
     effects: domEffects,

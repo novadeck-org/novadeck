@@ -1,4 +1,4 @@
-import type { SourceChange, SourceProject } from "@novadeck/core/source"
+import type { SourceChange, SourceListing, SourceProject } from "@novadeck/core/source"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import {
@@ -40,16 +40,22 @@ import {
   foldChips,
   indent,
   initialOpen,
+  isNote,
+  keepListings,
   latestWrite,
   marksOf,
   rowShowing,
+  sameRead,
   trailGone,
   trailLifeMs,
   trailOpacity,
-  visibleRows,
+  visibleLines,
   writtenPaths,
   type Chips as ChipSet,
   type FileIcon,
+  type FolderRead,
+  type Listings,
+  type SourceNote,
   type SourceRow,
 } from "./source-tree"
 
@@ -70,6 +76,28 @@ const changedIcons: Readonly<Record<SourceChange, LucideIcon>> = {
 type Pointed = { readonly path: string; readonly handle: string }
 
 const noFolders: ReadonlySet<string> = new Set()
+const noListings: Listings = new Map()
+
+const parentOf = (path: string): string => path.slice(0, Math.max(0, path.lastIndexOf("/")))
+
+const noteTexts: Readonly<Record<SourceNote["note"], string>> = {
+  failed: "Can't read this folder",
+  truncated: "More not shown",
+}
+
+// A quiet line at the end of an open folder that couldn't be read in full.
+const Note = ({ line }: { line: SourceNote }): React.JSX.Element => (
+  <div
+    role="treeitem"
+    aria-level={line.depth + 1}
+    aria-disabled="true"
+    className="source-note text-caption"
+    data-note={line.note}
+    style={{ paddingLeft: 6 + indent * line.depth + 12 + 6 }}
+  >
+    {noteTexts[line.note]}
+  </div>
+)
 
 // Who worked a row, as the chips on its right: two agents at most, or one where the row is too
 // narrow to keep its name whole beside two, the rest folded into a count. Pointing at a chip
@@ -227,6 +255,7 @@ const Row = ({
   pulse,
   shownTimes,
   onActivate,
+  onOpenFile,
   onFocus,
   onLight,
 }: {
@@ -240,6 +269,7 @@ const Row = ({
   pulse: number | undefined
   shownTimes: number
   onActivate: (row: SourceRow) => void
+  onOpenFile: (row: SourceRow) => void
   onFocus: (path: string) => void
   onLight: (pointed: Pointed | undefined) => void
 }): React.JSX.Element => {
@@ -279,6 +309,7 @@ const Row = ({
         aria-selected={node.folder ? undefined : selected}
         aria-label={rowLabel(row, everyone)}
         onClick={() => onActivate(row)}
+        onDoubleClick={() => onOpenFile(row)}
         onFocus={() => onFocus(node.path)}
       >
         <span className="source-twisty" aria-hidden="true">
@@ -447,12 +478,16 @@ const stripHoverOf = (
 // never ends while the panel is hidden.
 export const pulseMs = 1400
 
-// The project's files with every live agent's work in them: who owns each file, what they
-// did and which one they are writing now. It shows only what the agents do, and picks
-// nothing: lighting an agent, by selecting its terminal, keeping its chip in the strip or
-// pointing at a chip, only dims the rest.
+// The project's files, a folder read when the person opens it, and read again when the panel is
+// shown again or an agent's turn ends. Where the backend tells what its agents changed (the
+// demo), every live agent's work is in them: who owns each file, what they did and which one they
+// are writing now. That only shows what the agents do, and picks nothing: lighting an agent, by
+// selecting its terminal, keeping its chip in the strip or pointing at a chip, only dims the rest.
 export const SourcePanel = ({
   project,
+  list,
+  turn,
+  onOpenFile,
   selectedHandle,
   roster,
   squads,
@@ -460,7 +495,14 @@ export const SourcePanel = ({
   visible,
   onHide,
 }: {
+  // What the demo's agents changed in the project, laid over its files; a runner has none.
   project: SourceProject | undefined
+  // Reads a folder of the project, by its path from the project's root.
+  list: (folder: string) => Promise<SourceListing>
+  // When an agent's turn last ended in the project, which has the folders read again.
+  turn: number
+  // Opens a file of the project, by its path from the root; rejects if it can't be opened.
+  onOpenFile: (path: string) => Promise<void>
   // The handle of the workspace's selected terminal.
   selectedHandle: string | undefined
   // The handles of the session's terminals in roster order, and its teams as handles, each lead
@@ -474,13 +516,68 @@ export const SourcePanel = ({
   onHide: () => void
 }): React.JSX.Element => {
   const showing = active && visible
-  const tree = useMemo(() => (project ? buildTree(project) : []), [project])
-  // Folders open once, when the panel first shows the project; after that only the person's
-  // clicks open or close one.
+  const [listings, setListings] = useState<Listings>(noListings)
+  const tree = useMemo(() => buildTree(listings, project), [listings, project])
+  // The listings of a folder that vanished are dropped, to be read anew if it comes back.
+  const survivors = keepListings(listings, tree)
+  if (survivors !== listings) setListings(survivors)
+  // Folders open once, when the panel first has the project's root; after that only the
+  // person's clicks open or close one.
   const [openFolders, setOpenFolders] = useState<ReadonlySet<string> | null>(null)
-  if (openFolders === null && active && project) setOpenFolders(initialOpen(tree))
+  if (openFolders === null && typeof listings.get("") === "object")
+    setOpenFolders(initialOpen(tree))
   const open = openFolders ?? noFolders
-  const rows = useMemo(() => visibleRows(tree, open), [tree, open])
+  const rootRead = listings.get("")
+  const lines = useMemo(() => visibleLines(tree, open), [tree, open])
+  const rows = useMemo(() => lines.filter((line): line is SourceRow => !isNote(line)), [lines])
+
+  // Each folder's latest read is the one that counts: a slower earlier read of it that comes
+  // back last is ignored, as is any that comes back after the panel is gone.
+  const alive = useRef(true)
+  const tickets = useRef(new Map<string, number>())
+  const reading = useRef(new Set<string>())
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+    }
+  }, [])
+  const read = useCallback(
+    (folder: string): void => {
+      const ticket = (tickets.current.get(folder) ?? 0) + 1
+      tickets.current.set(folder, ticket)
+      reading.current.add(folder)
+      const settle = (result: FolderRead): void => {
+        if (!alive.current || tickets.current.get(folder) !== ticket) return
+        reading.current.delete(folder)
+        setListings((known) =>
+          sameRead(known.get(folder), result) ? known : new Map(known).set(folder, result),
+        )
+      }
+      list(folder).then(settle, () => settle("failed"))
+    },
+    [list],
+  )
+  // The root and the open folders on screen: what the panel keeps read while it is shown.
+  const wanted = useMemo(
+    () => ["", ...rows.filter((row) => row.node.folder && row.open).map((row) => row.node.path)],
+    [rows],
+  )
+  const wantedNow = useRef(wanted)
+  useLayoutEffect(() => {
+    wantedNow.current = wanted
+  }, [wanted])
+  // Shown, or shown again, or an agent's turn ended: everything on screen is read again.
+  useEffect(() => {
+    if (showing) wantedNow.current.forEach(read)
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A turn's end has it read again.
+  }, [showing, turn, read])
+  // A folder that opens, as the first ones do, is read once if nothing has.
+  useEffect(() => {
+    if (!showing) return
+    for (const folder of wanted)
+      if (!listings.has(folder) && !reading.current.has(folder)) read(folder)
+  }, [showing, wanted, listings, read])
   const [selected, setSelected] = useState<string | null>(null)
   // A chip can leave from under the pointer, folded into `+N` by another agent's write or a
   // narrower tree, with no pointerleave to say so: the agent stays lit only while that row still
@@ -677,13 +774,22 @@ export const SourcePanel = ({
 
   const toggle = (path: string, to?: boolean): void => {
     const next = new Set(open)
-    if (to ?? !next.has(path)) next.add(path)
-    else next.delete(path)
+    if (to ?? !next.has(path)) {
+      next.add(path)
+      // Opening shows the folder as it is now, whatever was read before.
+      read(path)
+    } else next.delete(path)
     setOpenFolders(next)
   }
   const activate = (row: SourceRow): void => {
     if (!row.node.folder) setSelected(row.node.path)
     else if (expandable(row.node)) toggle(row.node.path)
+  }
+  // A file that can't be opened may be gone: its folder is read again.
+  const openFile = (row: SourceRow): void => {
+    if (row.node.folder) return
+    setSelected(row.node.path)
+    onOpenFile(row.node.path).catch(() => read(parentOf(row.node.path)))
   }
   const focusRow = (row: SourceRow | undefined): void => {
     if (!row) return
@@ -699,7 +805,8 @@ export const SourcePanel = ({
     event.stopPropagation()
     setKept(noAgents)
   }
-  // The tree keyboard pattern; Enter and Space are the buttons' own click.
+  // The tree keyboard pattern; Space and a folder's Enter are the buttons' own click, a file's
+  // Enter opens it.
   const onKeyDown = (event: React.KeyboardEvent): void => {
     onEscape(event)
     if (event.altKey || event.ctrlKey || event.metaKey) return
@@ -720,6 +827,10 @@ export const SourcePanel = ({
           return true
         case "End":
           focusRow(rows[rows.length - 1])
+          return true
+        case "Enter":
+          if (row.node.folder) return false
+          openFile(row)
           return true
         case "ArrowRight":
           if (!expandable(row.node)) return true
@@ -758,7 +869,7 @@ export const SourcePanel = ({
         </Tooltip>
       }
     >
-      {project && items.length > 0 && (
+      {items.length > 0 && (
         <Strip
           items={items}
           kept={kept}
@@ -768,7 +879,11 @@ export const SourcePanel = ({
           onKeyDown={onEscape}
         />
       )}
-      {project ? (
+      {rootRead === "failed" ? (
+        <p className="source-empty text-control">Can't read this project's files.</p>
+      ) : rootRead === undefined ? null : tree.length === 0 ? (
+        <p className="source-empty text-control">This project's folder is empty.</p>
+      ) : (
         <div
           ref={attachTree}
           role="tree"
@@ -783,24 +898,27 @@ export const SourcePanel = ({
           onKeyDown={onKeyDown}
           onPointerLeave={() => setHovered(undefined)}
         >
-          {rows.map((row) => (
-            <Row
-              key={row.node.path}
-              row={row}
-              chips={chipsByPath.get(row.node.path)}
-              lit={lit}
-              selected={selected === row.node.path}
-              tabStop={tabStop === row.node.path}
-              pulse={pulses[row.node.path]}
-              shownTimes={shownTimes}
-              onActivate={activate}
-              onFocus={setStop}
-              onLight={setHovered}
-            />
-          ))}
+          {lines.map((line) =>
+            isNote(line) ? (
+              <Note key={`${line.path}/${line.note}`} line={line} />
+            ) : (
+              <Row
+                key={line.node.path}
+                row={line}
+                chips={chipsByPath.get(line.node.path)}
+                lit={lit}
+                selected={selected === line.node.path}
+                tabStop={tabStop === line.node.path}
+                pulse={pulses[line.node.path]}
+                shownTimes={shownTimes}
+                onActivate={activate}
+                onOpenFile={openFile}
+                onFocus={setStop}
+                onLight={setHovered}
+              />
+            ),
+          )}
         </div>
-      ) : (
-        <p className="source-empty text-control">No agent has changed anything here yet.</p>
       )}
     </SidebarPanel>
   )

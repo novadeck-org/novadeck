@@ -63,6 +63,7 @@ import {
   terminalRuns,
   type RunnerListing,
 } from "./seed"
+import { createRunnerSource } from "./source"
 import { viewOptions } from "./view-options"
 import { createRunnerVoice } from "./voice"
 
@@ -1472,6 +1473,7 @@ export const runnerBackend = (
     messages,
     conversations,
     inbox,
+    source: createRunnerSource(runner.projects),
     resetTitle: (key) => {
       const { terminalId } = key
       if (items.holdsWindow(target(key), terminalId))

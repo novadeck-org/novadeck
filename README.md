@@ -818,10 +818,11 @@ Agents:
   failing" shows "Not saved yet. Trying again." and, after five failures in a row
   (about 30 s), Retry; "Plan back to normal" lets saves work again. Specs open the showcase
   with `&planFault=` `transcript`, `gone`, `folder`, `too-large` or `failing`.
-- **Source:** the Source panel is still being designed, so the app shows it only on a demo
-  backend (`demo: true` on the port, which the runner never sets). In the `agents`, `messages`
-  and `inbox` variants (and the try demo), the Source panel shows the storefront project's
-  files with what its agents changed: Moth's work as history, and Moth and Crow writing on
+- **Source:** the Source panel shows the current project's files, read one folder at a time as
+  folders open, and read again when the panel is shown again or an agent's turn ends in the
+  project. The runner has no changes to tell yet, so there the panel is the plain tree. In the
+  `agents`, `messages` and `inbox` variants (and the try demo), the Source panel shows the
+  storefront project's files with what its agents changed: Moth's work as history, and Moth and Crow writing on
   their own, a file every 3 to 7 s, resting 10 to 20 s between turns, only while their
   terminal's agent works and asks nothing of the person (a permission, question or plan stops
   the writing and its cursor; nothing moves under `?still` or reduced motion). The `plain` and
@@ -831,7 +832,12 @@ Agents:
   clears the cursor, and the agent's turn is ended with the Agent group's states. "Third agent
   edits Checkout.tsx" adds the storefront's third terminal's agent (`owl`) to a row that
   already shows Moth and Crow, folding the chips into "+1". "Agent creates a file in a folder"
-  adds `src/api/payments.ts`, so a folded `src/api` pulses and shows Crow's chip.
+  adds `src/api/payments.ts`, so a folded `src/api` pulses and shows Crow's chip. "A folder can't
+  be read", "A folder lists only part" and "The project's files can't be read" make the next
+  reads of `src/cart`, of `src/components` and of the root fail, list two files, and fail (the
+  panel reads again when it is shown again, so switch panels and back): a muted "Can't read this
+  folder" row, a muted "More not shown" row, and a line in place of the tree; "Source reads
+  normally again" ends them. `node_modules` is the demo's empty folder.
   A strip of agent chips above the tree lists the agents with work in the project, in the
   session's roster order, each light-able by a click (any number, Escape lets them go; with
   none kept the selected terminal's agent is lit). The `messages` variant has a squad, as
@@ -1161,7 +1167,7 @@ folder of `frontend/ui/src/`:
 | `frontend/core/src/messages.ts`                                 | The contract for agents' messages: threads, states, the pause, and a tab's count.                                              |
 | `frontend/core/src/conversation.ts`                             | The contract for an agent's conversation: transcript items, requests, the port.                                                |
 | `frontend/core/src/inbox.ts`                                    | The contract for the Inbox: items by source, their type and urgency, answers, the port.                                        |
-| `frontend/core/src/source.ts`                                   | The contract for the Source panel: a project's files, what its agents changed, who writes what.                                |
+| `frontend/core/src/source.ts`                                   | The contract for the Source panel: a project's folders, listed one at a time, and what its agents changed.                     |
 | `frontend/core/src/answers.ts`                                  | What the person has picked and written for a dialog's questions, and the answer it makes.                                      |
 | `frontend/core/src/conversation-turns.ts`                       | A conversation grouped into blocks, the turn's status.                                                                         |
 | `frontend/core/src/roster.ts`                                   | A session's terminals and undocked windows, laid out as tiles, their order and status.                                         |

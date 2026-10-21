@@ -1,8 +1,13 @@
 import type { SourceProject } from "@novadeck/core/source"
 
 import { context, describe, expect, it } from "../test"
+import { folderListings } from "../test/source"
 import {
   buildTree,
+  expandable,
+  keepListings,
+  sameRead,
+  visibleLines,
   chipsOf,
   chipsWidth,
   marksOf,
@@ -19,8 +24,6 @@ import {
 } from "./source-tree"
 
 const project = (parts: Partial<SourceProject> = {}): SourceProject => ({
-  entries: [],
-  ignored: [],
   changes: {},
   writing: {},
   ...parts,
@@ -29,13 +32,11 @@ const project = (parts: Partial<SourceProject> = {}): SourceProject => ({
 const paths = (rows: ReturnType<typeof visibleRows>): string[] => rows.map(({ node }) => node.path)
 
 describe("The Source tree", () => {
-  context("when entries and changed paths are joined", () => {
+  context("when listings and changed paths are joined", () => {
     it("lists folders before files, by name without case or a leading dot", () => {
       const tree = buildTree(
-        project({
-          entries: ["zeta.ts", "src/b.ts", "Alpha.ts", ".github/ci.yml", ".beta"],
-          changes: { "src/a.ts": { kind: "added", touched: { moth: 1 } } },
-        }),
+        folderListings(["zeta.ts", "src/b.ts", "Alpha.ts", ".github/ci.yml", ".beta"]),
+        project({ changes: { "src/a.ts": { kind: "added", touched: { moth: 1 } } } }),
       )
 
       expect(tree.map((node) => node.path)).toEqual([
@@ -48,22 +49,26 @@ describe("The Source tree", () => {
       expect(tree[1]!.children.map((node) => node.path)).toEqual(["src/a.ts", "src/b.ts"])
     })
 
-    it("includes a file an agent added although it was never an entry", () => {
+    it("includes a file an agent added although no listing has it", () => {
       const tree = buildTree(
+        new Map(),
         project({ changes: { "src/new.ts": { kind: "added", touched: { moth: 1 } } } }),
       )
 
       expect(tree[0]!.children[0]).toMatchObject({ path: "src/new.ts", kind: "added" })
     })
 
-    it("treats an entry ending in a slash as a folder with nothing listed", () => {
-      const tree = buildTree(project({ entries: ["node_modules/"] }))
+    it("shows a file listed and changed once", () => {
+      const tree = buildTree(
+        folderListings(["src/a.ts"]),
+        project({ changes: { "src/a.ts": { kind: "modified", touched: { moth: 1 } } } }),
+      )
 
-      expect(tree).toMatchObject([{ path: "node_modules", folder: true, children: [] }])
+      expect(tree[0]!.children).toMatchObject([{ path: "src/a.ts", kind: "modified" }])
     })
 
     it("marks ignored entries and everything inside them", () => {
-      const tree = buildTree(project({ entries: ["dist/a.js", "src/a.ts"], ignored: ["dist/"] }))
+      const tree = buildTree(folderListings(["dist/a.js", "src/a.ts"], ["dist"]))
 
       expect(tree.map((node) => [node.path, node.ignored])).toEqual([
         ["dist", true],
@@ -71,10 +76,117 @@ describe("The Source tree", () => {
       ])
       expect(tree[0]!.children[0]!.ignored).toBe(true)
     })
+
+    it("builds from the listings alone where there are no changes", () => {
+      expect(buildTree(folderListings(["a.ts"]))).toMatchObject([{ path: "a.ts", changed: false }])
+    })
+  })
+
+  context("when a folder has been read, or not", () => {
+    const root = {
+      entries: [{ name: "src", folder: true, ignored: false }],
+      truncated: false,
+    }
+    const treeOf = (
+      src?: Parameters<typeof buildTree>[0] extends ReadonlyMap<string, infer V> ? V : never,
+    ) =>
+      buildTree(
+        new Map(
+          src
+            ? [
+                ["", root],
+                ["src", src],
+              ]
+            : [["", root]],
+        ),
+      )
+
+    it("counts a folder not read yet as one to open", () => {
+      const [src] = treeOf()
+      expect(src).toMatchObject({ read: "unread", children: [] })
+      expect(expandable(src!)).toBe(true)
+    })
+
+    it("counts a folder read and empty as nothing to open", () => {
+      const [src] = treeOf({ entries: [], truncated: false })
+      expect(src).toMatchObject({ read: "read" })
+      expect(expandable(src!)).toBe(false)
+    })
+
+    it("counts a folder that could not be read as one to open, for its note", () => {
+      const [src] = treeOf("failed")
+      expect(src).toMatchObject({ read: "failed" })
+      expect(expandable(src!)).toBe(true)
+    })
+
+    it("counts a folder that lists part of its entries as one to open, though it lists none", () => {
+      const [src] = treeOf({ entries: [], truncated: true })
+      expect(src).toMatchObject({ truncated: true })
+      expect(expandable(src!)).toBe(true)
+    })
+
+    it("ends an open folder with a note of what it lacks", () => {
+      const open = new Set(["src"])
+      const note = (tree: ReturnType<typeof treeOf>) =>
+        visibleLines(tree, open).filter((line) => "note" in line)
+      expect(note(treeOf("failed"))).toEqual([{ note: "failed", path: "src", depth: 1 }])
+      expect(note(treeOf({ entries: [], truncated: true }))).toEqual([
+        { note: "truncated", path: "src", depth: 1 },
+      ])
+      expect(note(treeOf({ entries: [], truncated: false }))).toEqual([])
+    })
+  })
+
+  context("when keeping the listings of the folders still there", () => {
+    const listing = (names: string[]) => ({
+      entries: names.map((name) => ({ name, folder: true, ignored: false })),
+      truncated: false,
+    })
+
+    it("drops those of a folder that vanished", () => {
+      const listings = new Map([
+        ["", listing(["a"])],
+        ["a", listing([])],
+        ["gone", listing([])],
+      ])
+
+      expect([...keepListings(listings, buildTree(listings)).keys()]).toEqual(["", "a"])
+    })
+
+    it("returns the same listings where nothing vanished", () => {
+      const listings = new Map([["", listing(["a"])]])
+
+      expect(keepListings(listings, buildTree(listings))).toBe(listings)
+    })
+  })
+
+  context("when comparing two readings of a folder", () => {
+    const entry = { name: "a", folder: false, ignored: false }
+
+    it("finds the same entries the same, and any difference not", () => {
+      expect(
+        sameRead(
+          { entries: [entry], truncated: false },
+          { entries: [{ ...entry }], truncated: false },
+        ),
+      ).toBe(true)
+      expect(
+        sameRead({ entries: [entry], truncated: false }, { entries: [entry], truncated: true }),
+      ).toBe(false)
+      expect(
+        sameRead(
+          { entries: [entry], truncated: false },
+          { entries: [{ ...entry, ignored: true }], truncated: false },
+        ),
+      ).toBe(false)
+      expect(sameRead("failed", "failed")).toBe(true)
+      expect(sameRead("failed", { entries: [], truncated: false })).toBe(false)
+    })
   })
 
   context("when folders roll up their files", () => {
     const tree = buildTree(
+      new Map(),
       project({
         changes: {
           "src/a.ts": { kind: "modified", touched: { moth: 10, crow: 50 } },
@@ -96,9 +208,8 @@ describe("The Source tree", () => {
   context("when choosing the folders that start open", () => {
     it("opens those with a changed file inside, leaving ignored and untouched ones shut", () => {
       const tree = buildTree(
+        folderListings(["docs/readme.md", "node_modules/x/y.js"], ["node_modules"]),
         project({
-          entries: ["docs/readme.md", "node_modules/x/y.js"],
-          ignored: ["node_modules/"],
           changes: {
             "src/deep/b.ts": { kind: "modified", touched: { moth: 1 } },
             "node_modules/x/z.js": { kind: "added", touched: { moth: 1 } },
@@ -108,10 +219,14 @@ describe("The Source tree", () => {
 
       expect([...initialOpen(tree)].toSorted()).toEqual(["src", "src/deep"])
     })
+
+    it("opens nothing where there are no changes", () => {
+      expect(initialOpen(buildTree(folderListings(["a/b.ts"])))).toEqual(new Set())
+    })
   })
 
   context("when listing the rows on screen", () => {
-    const tree = buildTree(project({ entries: ["a/b/c.ts", "a/d.ts", "e.ts"] }))
+    const tree = buildTree(folderListings(["a/b/c.ts", "a/d.ts", "e.ts"]))
 
     it("follows an open folder with its children and hides a closed one's", () => {
       expect(paths(visibleRows(tree, new Set(["a"])))).toEqual(["a", "a/b", "a/d.ts", "e.ts"])
@@ -247,6 +362,7 @@ describe("A file's trail", () => {
 describe("The marks after a file's name", () => {
   const file = (touched: Record<string, number>, writing: string[] = []) =>
     buildTree(
+      new Map(),
       project({
         changes: { "a.ts": { kind: "modified", touched } },
         writing: Object.fromEntries(writing.map((handle) => [handle, "a.ts"])),
@@ -260,10 +376,11 @@ describe("The marks after a file's name", () => {
   })
 
   it("are none for a file nobody changed, or a folder", () => {
-    expect(marksOf(buildTree(project({ entries: ["a.ts", "src/"] }))[0]!)).toBe(0)
+    expect(marksOf(buildTree(folderListings(["a.ts", "src/"]))[0]!)).toBe(0)
     expect(
       marksOf(
         buildTree(
+          new Map(),
           project({ changes: { "src/a.ts": { kind: "added", touched: { moth: 1 } } } }),
         )[0]!,
       ),
