@@ -5,7 +5,7 @@ import { fileLines, ready, svg, type SampleArtifact } from "./artifacts"
 
 const imageTypes = /\.(png|jpe?g|gif|webp|svg)$/i
 
-// The runner's secret-looking names that the demo's storefront could hold; such a file is held,
+// The runner's secret-looking names that a demo project could hold; such a file is held,
 // so the pane asks before it shows it.
 const secretNames = [/^\.env(\..*)?$/i, /\.env$/i, /^\.npmrc$/i, /\.(pem|key)$/i]
 
@@ -14,8 +14,18 @@ export const looksSecret = (path: string): boolean => {
   return secretNames.some((pattern) => pattern.test(name))
 }
 
-// The path below the project's folder, as the Source panel names it.
-const relativeTo = (path: string): string => path.replace(/^~\/projects\/[^/]+\//, "")
+// The path below the project's folder, as the Source panel names it; the file's own name where
+// the folder isn't known.
+const relativeTo = (path: string, directory: string | undefined): string =>
+  directory && path.startsWith(`${directory}/`)
+    ? path.slice(directory.length + 1)
+    : (path.split("/").at(-1) ?? path)
+
+// A name that is a valid identifier: other characters become `_`, and a digit can't lead.
+const identifierOf = (name: string): string => {
+  const plain = name.replace(/\W+/g, "_")
+  return /^\d/.test(plain) ? `_${plain}` : plain
+}
 
 const stand = (relative: string): readonly string[] => {
   const name = relative.split("/").at(-1) ?? relative
@@ -24,19 +34,19 @@ const stand = (relative: string): readonly string[] => {
     return [
       `// ${relative}`,
       "",
-      `export const ${base.replace(/\W+/g, "_")} = () => {`,
+      `export const ${identifierOf(base)} = () => {`,
       "  // Nothing to see here yet.",
       "}",
     ]
   if (name.endsWith(".json")) return ["{", `  "name": "${base}"`, "}"]
-  if (name.endsWith(".md")) return [`# ${base}`, "", "Notes for this part of the storefront."]
+  if (name.endsWith(".md")) return [`# ${base}`, "", "Notes for this part of the project."]
   if (name.startsWith(".env")) return ["API_URL=http://localhost:3000"]
-  return [`${relative}`, "", "A file of the storefront."]
+  return [`${relative}`, "", "A file of the project."]
 }
 
 // The artifact for a file the person attached by its absolute path.
-export const attachedArtifact = (path: string): SampleArtifact => {
-  const relative = relativeTo(path)
+export const attachedArtifact = (path: string, directory?: string): SampleArtifact => {
+  const relative = relativeTo(path, directory)
   const name = relative.split("/").at(-1) ?? relative
   const id = `attached-${path}`
   const held = looksSecret(path)

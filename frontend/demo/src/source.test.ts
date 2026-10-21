@@ -1,5 +1,6 @@
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { workspaceReducer } from "@novadeck/core/state"
+import { createWorkspaceStore } from "@novadeck/core/store"
 import type { TerminalStatus } from "@novadeck/core/types"
 import { afterEach, vi } from "vitest"
 
@@ -566,6 +567,65 @@ describe("a backend with the demo's Source", () => {
     turns.work({ ...target, terminalId: crowId }, undefined)
     advance(8000)
     expect(project(source).writing.crow).toBeDefined()
+    stop()
+  })
+})
+
+describe("opening a file in the agents demo", () => {
+  const open = () => {
+    const backend = plainDemo("agents")
+    const store = createWorkspaceStore(
+      workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 0 }),
+      backend.commit,
+    )
+    backend.commit(store.getSnapshot(), [])
+    const stop = backend.start!({
+      dispatch: (actions) => store.transact(actions as never),
+      open: () => {},
+    })
+    const state = () =>
+      store.getSnapshot().projects.find((each) => each.id === "storefront")!.history[0]!.state
+    const attach = (item: { holder: unknown; path: string | null }) => {
+      const terminalId = (item.holder as { terminalId: string }).terminalId
+      return backend.companions!.attach!(
+        { projectId: "storefront", workspaceSessionId: "initial", terminalId },
+        item.path!,
+      )
+    }
+    return { state, attach, stop }
+  }
+
+  it("raises a whole file the terminal already held, as the same item", async () => {
+    const { state, attach, stop } = open()
+    const held = state().items.find((item) => item.path?.endsWith("checkout-copy.md"))!
+    const bar = (held.holder as { terminalId: string }).terminalId
+
+    await attach(held)
+
+    const same = state().items.filter((item) => item.id === held.id)
+    expect(same).toHaveLength(1)
+    expect(same[0]).toMatchObject({ by: "person", asked: true, version: held.version + 1 })
+    expect(state().bars[bar]).toMatchObject({ open: true })
+    expect(state().bars[bar]!.stack).toContain(held.id)
+    stop()
+  })
+
+  it("adds a file an agent showed only some lines of beside it, raised", async () => {
+    const { state, attach, stop } = open()
+    const held = state().items.find((item) => item.path?.endsWith("OrderSummary.tsx"))!
+    const bar = (held.holder as { terminalId: string }).terminalId
+
+    await attach(held)
+
+    const found = state().items.filter((item) => item.path === held.path)
+    expect(found).toHaveLength(2)
+    const added = found.find((item) => item.id !== held.id)!
+    expect(added).toMatchObject({ by: "person", lines: null })
+    expect(found.find((item) => item.id === held.id)).toMatchObject({
+      by: "agent",
+      lines: held.lines,
+    })
+    expect(state().bars[bar]!.stack).toContain(added.id)
     stop()
   })
 })

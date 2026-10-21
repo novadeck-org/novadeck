@@ -94,6 +94,19 @@ describe("a project's folder", () => {
     }
   })
 
+  it("stops looking for a repository where GIT_CEILING_DIRECTORIES says", async ({ resources }) => {
+    const root = repository(resources)
+    const inner = join(root, "docs")
+    writeFileSync(join(inner, "notes.log"), "")
+    process.env.GIT_CEILING_DIRECTORIES = root
+    try {
+      const { entries } = await listFolder(inner, "")
+      expect(entries).toEqual([{ name: "notes.log", folder: false, ignored: false }])
+    } finally {
+      delete process.env.GIT_CEILING_DIRECTORIES
+    }
+  })
+
   it("orders names as the Source panel does, so a cut listing drops the last ones", async ({
     resources,
   }) => {

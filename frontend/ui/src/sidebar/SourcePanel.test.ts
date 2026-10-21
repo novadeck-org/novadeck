@@ -5,7 +5,7 @@ import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { folderListings } from "../test/source"
-import { pulseMs, SourcePanel } from "./SourcePanel"
+import { pulseMs, readTimeoutMs, SourcePanel } from "./SourcePanel"
 
 // jsdom has no layout and no ResizeObserver, which the header's tooltip and the tree's chip
 // folding both watch with. The stub lets a test set the tree's width and resize it.
@@ -745,6 +745,15 @@ describe("The Source panel", () => {
       panel.view.unmount()
     })
 
+    it("says it is empty though agents are said to have changed files in it", async () => {
+      const panel = await mount(work(), undefined, undefined, backend(undefined, []))
+
+      expect(panel.view.container.textContent).toContain("This project's folder is empty.")
+      expect(panel.view.container.querySelector("[role=tree]")).toBeNull()
+      await nextFrame()
+      panel.view.unmount()
+    })
+
     it("lists nothing until it is read, and reads nothing while the panel is hidden", async () => {
       const reads = backend()
       const view = render(
@@ -1091,6 +1100,74 @@ describe("The Source panel", () => {
       press(panel, "docs", "ArrowLeft")
       expect(panel.rows()).not.toContain("readme.md")
       await nextFrame()
+      panel.view.unmount()
+    })
+  })
+
+  context("when the keyboard meets a folder with no rows inside", () => {
+    it("keeps ArrowRight on an open empty folder where it is", async () => {
+      const panel = await mount(
+        undefined,
+        undefined,
+        undefined,
+        backend(undefined, [...files, "dist/"]),
+      )
+      document.body.append(panel.view.container)
+      await panel.click("dist")
+      const button = panel.row("dist").querySelector<HTMLElement>("[role=treeitem]")!
+
+      act(() => {
+        button.focus()
+        for (const _ of [1, 2])
+          button.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }),
+          )
+      })
+
+      expect(document.activeElement).toBe(button)
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("toggles a folder once however long Enter is held", async () => {
+      const panel = await mount(undefined)
+      const button = panel.row("docs").querySelector<HTMLElement>("[role=treeitem]")!
+
+      act(() => {
+        button.focus()
+        for (const repeat of [false, true, true])
+          button.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "Enter", repeat, bubbles: true, cancelable: true }),
+          )
+        button.click()
+      })
+      await panel.settle()
+
+      expect(panel.rows()).toContain("readme.md")
+      await nextFrame()
+      panel.view.unmount()
+    })
+  })
+
+  context("when a folder never answers", () => {
+    it("is given up on as unreadable, and can be read again", async () => {
+      vi.useFakeTimers()
+      let hang = true
+      const reads = backend((folder, listing) =>
+        folder === "docs" && hang ? new Promise<SourceListing>(() => {}) : listing,
+      )
+      const panel = await mount(undefined, undefined, undefined, reads)
+      await panel.click("docs")
+      expect(panel.view.container.querySelector("[data-note=failed]")).toBeNull()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(readTimeoutMs + 1)
+      })
+      expect(panel.view.container.querySelector("[data-note=failed]")).not.toBeNull()
+
+      hang = false
+      await panel.endTurn()
+      expect(panel.rows()).toContain("readme.md")
       panel.view.unmount()
     })
   })

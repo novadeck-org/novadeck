@@ -44,6 +44,7 @@ import {
   keepListings,
   latestWrite,
   marksOf,
+  noteIndent,
   rowShowing,
   sameRead,
   trailGone,
@@ -75,6 +76,9 @@ const changedIcons: Readonly<Record<SourceChange, LucideIcon>> = {
 // The chip under the pointer: an agent's handle on one row.
 type Pointed = { readonly path: string; readonly handle: string }
 
+// How long a folder may take to read before the panel says it can't.
+export const readTimeoutMs = 15_000
+
 const noFolders: ReadonlySet<string> = new Set()
 const noListings: Listings = new Map()
 
@@ -88,16 +92,25 @@ const noteTexts: Readonly<Record<SourceNote["note"], string>> = {
 
 // A quiet line at the end of an open folder that couldn't be read in full.
 const Note = ({ line }: { line: SourceNote }): React.JSX.Element => (
-  <div
-    role="treeitem"
-    aria-level={line.depth + 1}
-    aria-disabled="true"
-    className="source-note text-caption"
-    data-note={line.note}
-    // Under the children's names: past the row's border, padding, twisty, icon and their gaps.
-    style={{ paddingLeft: 1 + 6 + indent * line.depth + 12 + 6 + 14 + 6 }}
-  >
-    {noteTexts[line.note]}
+  <div role="none" className="source-note-row">
+    {Array.from({ length: line.depth }, (_, level) => (
+      <span
+        key={level}
+        className="source-guide"
+        aria-hidden="true"
+        style={{ left: 12 + indent * level }}
+      />
+    ))}
+    <div
+      role="treeitem"
+      aria-level={line.depth + 1}
+      aria-disabled="true"
+      className="source-note text-caption"
+      data-note={line.note}
+      style={{ paddingLeft: noteIndent(line.depth) }}
+    >
+      {noteTexts[line.note]}
+    </div>
   </div>
 )
 
@@ -530,16 +543,17 @@ export const SourcePanel = ({
   if (openFolders === null && typeof listings.get("") === "object")
     setOpenFolders(initialOpen(tree))
   const open = openFolders ?? noFolders
+  // A root that lists nothing is empty, whatever an agent is said to have changed in it.
+  const rootEmpty =
+    typeof rootRead === "object" && rootRead.entries.length === 0 && !rootRead.truncated
   const rootTruncated = typeof rootRead === "object" && rootRead.truncated
   const lines = useMemo(() => visibleLines(tree, open, rootTruncated), [tree, open, rootTruncated])
   const rows = useMemo(() => lines.filter((line): line is SourceRow => !isNote(line)), [lines])
 
-  // Each folder's latest read is the one that counts: a slower earlier read of it that comes
-  // back last is ignored, as is any that comes back after the panel is gone.
+  // One read of a folder at a time: asked again while one is out, it runs once more as that
+  // lands. A read that never answers is given up on, so its folder isn't stuck.
   const alive = useRef(true)
-  const tickets = useRef(new Map<string, number>())
   const reading = useRef(new Set<string>())
-  // Folders asked for again while a read of them was out: read once more as it lands.
   const again = useRef(new Set<string>())
   useEffect(() => {
     alive.current = true
@@ -553,17 +567,19 @@ export const SourcePanel = ({
         again.current.add(folder)
         return
       }
-      const ticket = (tickets.current.get(folder) ?? 0) + 1
-      tickets.current.set(folder, ticket)
       reading.current.add(folder)
+      let settled = false
       const settle = (result: FolderRead): void => {
-        if (!alive.current || tickets.current.get(folder) !== ticket) return
+        if (settled || !alive.current) return
+        settled = true
+        clearTimeout(timer)
         reading.current.delete(folder)
         setListings((known) =>
           sameRead(known.get(folder), result) ? known : new Map(known).set(folder, result),
         )
         if (again.current.delete(folder)) read(folder)
       }
+      const timer = setTimeout(() => settle("failed"), readTimeoutMs)
       list(folder).then(settle, () => settle("failed"))
     },
     [list],
@@ -839,14 +855,14 @@ export const SourcePanel = ({
           focusRow(rows[rows.length - 1])
           return true
         case "Enter":
-          if (row.node.folder) return false
+          if (row.node.folder) return event.repeat
           // Holding the key opens the file once.
           if (!event.repeat) openFile(row)
           return true
         case "ArrowRight":
           if (!expandable(row.node)) return true
           if (!row.open) toggle(row.node.path, true)
-          else focusRow(rows[index + 1])
+          else if ((rows[index + 1]?.depth ?? 0) > row.depth) focusRow(rows[index + 1])
           return true
         case "ArrowLeft":
           if (row.open) toggle(row.node.path, false)
@@ -892,7 +908,7 @@ export const SourcePanel = ({
       )}
       {rootRead === "failed" ? (
         <p className="source-empty text-control">Can't read this project's files.</p>
-      ) : rootRead === undefined ? null : tree.length === 0 && !rootTruncated ? (
+      ) : rootRead === undefined ? null : rootEmpty ? (
         <p className="source-empty text-control">This project's folder is empty.</p>
       ) : (
         <div

@@ -320,6 +320,11 @@ const rowFixedWidth = (depth: number, marks: number): number =>
   marks * (rowGap + markWidth) +
   rowPaddingEnd
 
+// Where a note's text starts, from the row's left edge inside its border: under the names of the
+// folder's children, past the padding, twisty, icon and their gaps.
+export const noteIndent = (depth: number): number =>
+  rowPadding + indent * depth + twistyWidth + rowGap + iconWidth + rowGap
+
 export const estimateChipWidth = (text: string): number => text.length * chipGlyph
 
 // A chip's text: `@handle`, and `+N` for the count.

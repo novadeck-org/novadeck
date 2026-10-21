@@ -38,11 +38,19 @@ const within = (root: string, path: string): boolean => {
   return route === "" || (!isAbsolute(route) && route.split(sep)[0] !== "..")
 }
 
-/** The environment git runs in: ours, but for every `GIT_*` variable, which could point it at another repository. */
+/** The `GIT_*` variables git keeps: they only stop it looking further up for a repository. */
+const keptGit = new Set(["GIT_CEILING_DIRECTORIES", "GIT_DISCOVERY_ACROSS_FILESYSTEM"])
+
+/**
+ * The environment git runs in: ours, but for the `GIT_*` variables, which could point it at
+ * another repository, apart from the ones that only limit how far up it looks for one.
+ */
 const gitEnvironment = (): NodeJS.ProcessEnv => {
   const env: NodeJS.ProcessEnv = {}
-  for (const [key, value] of Object.entries(process.env))
-    if (!key.toUpperCase().startsWith("GIT_")) env[key] = value
+  for (const [key, value] of Object.entries(process.env)) {
+    const name = key.toUpperCase()
+    if (!name.startsWith("GIT_") || keptGit.has(name)) env[key] = value
+  }
   // Optional locks are off so asking never touches the repository's index.
   env.GIT_OPTIONAL_LOCKS = "0"
   return env

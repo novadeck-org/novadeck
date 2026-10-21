@@ -4,7 +4,8 @@
    file's marks) beside its `.source-chips`, and a `.source-guide` for each open folder it
    sits inside. A file's marks are a `.source-cursor` for each agent writing it now, or else a
    `.source-trail` fading from its latest write. A panel with no tree shows `.source-empty`; an open folder
-   that could not be read in full ends with a `.source-note`.
+   that could not be read in full, or holds nothing, ends with a `.source-note` (in a
+   `.source-note-row`, which carries the guides).
 
    Hooks: on a row, data-kind="modified" | "added" | "deleted" (absent: untouched),
    data-folder, data-ignored, data-dim (an agent is lit and did not touch it), data-pulse="a" |
@@ -244,8 +245,15 @@
   color: var(--color-muted);
 }
 
+.source-note-row {
+  position: relative;
+  display: flex;
+  height: 26px;
+  flex-shrink: 0;
+  align-items: center;
+  border: 1px solid transparent;
+}
 .source-note {
-  padding-block: 4px;
   padding-right: 8px;
   color: var(--color-muted);
 }

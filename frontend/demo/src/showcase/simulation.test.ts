@@ -6,6 +6,8 @@ import {
   type ItemContent,
 } from "@novadeck/core/companion"
 import type { BackendAction } from "@novadeck/core/port"
+import { activeSession, workspaceReducer } from "@novadeck/core/state"
+import { workspaceFixture } from "@novadeck/core/testing"
 
 import { context, describe, expect, it } from "../test"
 import { authAgent, studioAgent } from "./agents"
@@ -356,10 +358,78 @@ describe("a file the person attaches", () => {
     expect(contentOf(item!.id)).toMatchObject({ content: { kind: "image" } })
   })
 
-  it("reuses the sample when an agent already showed that file", async () => {
+  it("updates a whole file an agent showed, as the same item, now the person's", async () => {
     const { showcase, reported } = running()
-    const sample = studioArtifacts.shown.find((each) => each.item.kind === "file")!
+    const sample = studioArtifacts.shown.find((each) => each.item.lines === null)!
+    await showcase.attach!(studio, sample.item.path!)
+    expect(upserts(reported)[0]).toMatchObject({
+      id: sample.item.id,
+      by: "person",
+      asked: true,
+      version: 2,
+    })
+  })
+
+  it("adds a new item, never reusing a sample's id, on another terminal or for some lines", async () => {
+    const { showcase, reported, contentOf } = running()
+    const sample = studioArtifacts.shown.find((each) => each.item.lines === null)!
     await showcase.attach!(devServer, sample.item.path!)
-    expect(upserts(reported)[0]?.id).toBe(sample.item.id)
+    await showcase.attach!(auth, sample.item.path!)
+    const [first, second] = upserts(reported)
+    expect(first!.id).not.toBe(sample.item.id)
+    expect(second!.id).not.toBe(first!.id)
+    expect(first).toMatchObject({ lines: null, by: "person", holder: { terminalId: "02" } })
+    expect(contentOf(first!.id)).toMatchObject({ state: "ready" })
+  })
+
+  it("names the file from its project's folder, in text that fits any project", async () => {
+    const showcase = createShowcase({ agents: [], directory: () => "~/work/shop" })
+    const reported: BackendAction[] = []
+    showcase.start(
+      (actions) => reported.push(...actions),
+      () => [],
+    )
+    await showcase.attach!(devServer, "~/work/shop/src/404.ts")
+    const item = upserts(reported)[0]!
+    expect(item.detail).toBe("src/404.ts")
+    let text = ""
+    showcase.follow(session, item.id, { reveal: false }, (content) => {
+      if (content.state === "ready" && content.content.kind === "file")
+        text = content.content.lines.join("\n")
+    })()
+    expect(text).toContain("export const _404 = ")
+    expect(text).not.toContain("storefront")
+  })
+
+  it("has no plans to fault where no agent has one", () => {
+    expect(createShowcase({ agents: [] }).plans).toBe(false)
+    expect(running().showcase.plans).toBe(true)
+  })
+
+  it("raises an item the terminal already held, in the workspace it reports to", async () => {
+    const target = { projectId: "project", workspaceSessionId: "initial" }
+    const key: CompanionKey = { ...target, terminalId: "01" }
+    const sample = studioArtifacts.shown[0]!
+    const showcase = createShowcase({
+      agents: [],
+      shown: [{ key, handle: "moth", artifacts: [sample] }],
+    })
+    let workspace = showcase.items.reduce(
+      (kept, item) => workspaceReducer(kept, { type: "item/upsert", target, item }),
+      workspaceFixture(),
+    )
+    const state = () => activeSession(workspace)!.state
+    showcase.start(
+      (actions) => {
+        workspace = actions.reduce(workspaceReducer, workspace)
+      },
+      () => state().items,
+    )
+    expect(state().bars["01"]).toMatchObject({ open: false })
+
+    await showcase.attach!(key, sample.item.path!)
+
+    expect(state().items.filter((item) => item.id === sample.item.id)).toHaveLength(1)
+    expect(state().bars["01"]).toMatchObject({ open: true, stack: [sample.item.id] })
   })
 })

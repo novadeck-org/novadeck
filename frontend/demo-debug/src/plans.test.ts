@@ -28,6 +28,10 @@ const showcase = () =>
   createShowcase({ agents: [{ key, handle: "moth", sample: studioAgent }] }, (_delay, go) => go())
 
 describe("the debug panel's Plan group", () => {
+  it("is absent where the showcase has no agent with a plan", () => {
+    expect(planGroups(createShowcase({ agents: [] }))).toEqual([])
+  })
+
   it("is absent where the demo has no showcase", () => {
     expect(planGroups(undefined)).toEqual([])
   })

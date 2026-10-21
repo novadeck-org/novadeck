@@ -38,6 +38,8 @@ export const planFaults: readonly PlanFault[] = [
 ]
 
 export type Showcase = Companions & {
+  // Whether any agent here has a plan, which can go wrong.
+  readonly plans: boolean
   // What the terminals held before the demo started, for the seed.
   readonly items: readonly CompanionItem[]
   // Reports what the agents do from here on, reading the session's items as they stand
@@ -158,10 +160,13 @@ export const createShowcase = (
   {
     agents,
     shown = [],
+    directory,
   }: {
     readonly agents: readonly (Holder & { readonly sample: SampleAgent })[]
     // Terminals without an agent, and what they hold.
     readonly shown?: readonly (Holder & { readonly artifacts: readonly SampleArtifact[] })[]
+    // The folder of the project a terminal is in, which a file the person attaches is named from.
+    readonly directory?: (key: CompanionKey) => string | undefined
   },
   later: (delay: number, run: () => void) => void = (delay, run) => {
     setTimeout(run, delay)
@@ -202,8 +207,6 @@ export const createShowcase = (
   )
   // Who follows each plan, to hear when it's written.
   const following = new Map<ItemId, Set<(content: ItemContent) => void>>()
-  // What the person attached, by item id.
-  const attached = new Map<string, CompanionItem>()
   let report: ((actions: readonly BackendAction[]) => void) | undefined
   let current: () => readonly CompanionItem[] = noItems
   let started = false
@@ -277,6 +280,7 @@ export const createShowcase = (
 
   return {
     items,
+    plans: agents.length > 0,
     start: (next, read) => {
       report = next
       current = read
@@ -311,25 +315,56 @@ export const createShowcase = (
       )
       return () => {}
     },
-    // As the runner does: what the person picked lands on the terminal's bar, asked for and
-    // theirs, updating the same file there if it is already shown.
+    // As the runner's `keep` does: what the person picked lands on the terminal's bar, asked
+    // for and theirs. The same whole file already there (shown by an agent or attached before,
+    // wherever it was moved since) is updated; anything else, a file an agent showed only some
+    // lines of too, is a new item beside it.
     attach: (key, path) => {
-      const artifact =
-        [...samples.values()].find((each) => each.item.path === path) ?? attachedArtifact(path)
-      samples.set(artifact.item.id, artifact)
+      const same = current().find(
+        (each) =>
+          each.from.terminalId === key.terminalId &&
+          each.path === path &&
+          each.lines === null &&
+          each.kind !== "plan",
+      )
+      if (same) {
+        const item: CompanionItem = {
+          ...same,
+          version: same.version + 1,
+          by: "person",
+          asked: true,
+          shownAt: now(),
+        }
+        report?.([{ type: "item/upsert", target: key, item }])
+        return Promise.resolve()
+      }
+      // The same file as an agent showed it holds the same content, all of it.
+      const sample = [...samples.values()].find((each) => each.item.path === path)
+      const made = attachedArtifact(path, directory?.(key))
+      const id = `attached-${key.terminalId}-${path}`
+      const shownContent = sample?.content
+      const artifact: SampleArtifact = {
+        item: { ...made.item, id },
+        content:
+          shownContent?.state === "ready" && shownContent.content.kind === "file"
+            ? {
+                ...shownContent,
+                content: {
+                  ...shownContent.content,
+                  from: shownContent.content.firstLine,
+                  to: shownContent.content.firstLine + shownContent.content.lines.length - 1,
+                },
+              }
+            : (sample?.content ?? made.content),
+      }
+      samples.set(id, artifact)
       const handle =
         [...agents, ...shown].find((each) => companionKeyId(each.key) === companionKeyId(key))
           ?.handle ?? key.terminalId
-      // A session that doesn't read its items back still knows what was attached.
-      const own =
-        shownItemWith(current(), key.terminalId, artifact.item) ?? attached.get(artifact.item.id)
-      const item: CompanionItem = own
-        ? { ...own, version: own.version + 1, by: "person", asked: true, shownAt: now() }
-        : {
-            ...itemOf({ key, handle }, artifact, { asked: true, shownAt: now() }),
-            by: "person",
-          }
-      attached.set(artifact.item.id, item)
+      const item: CompanionItem = {
+        ...itemOf({ key, handle }, artifact, { asked: true, shownAt: now() }),
+        by: "person",
+      }
       report?.([{ type: "item/upsert", target: key, item }])
       return Promise.resolve()
     },

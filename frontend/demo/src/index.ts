@@ -1,3 +1,4 @@
+import type { CompanionItem } from "@novadeck/core/companion"
 import type { Conversations } from "@novadeck/core/conversation"
 import type { InboxItem } from "@novadeck/core/inbox"
 import type {
@@ -235,7 +236,7 @@ export const withMessages = (backend: Backend, now: number): Backend => {
   }))
   let sink: BackendSink | undefined
   let latest: Workspace | undefined
-  const showcase = createShowcase({ agents: [] })
+  const showcase = createShowcase({ agents: [], directory: (key) => directoryOf(latest, key) })
   return {
     ...backend,
     seed,
@@ -268,11 +269,7 @@ export const withMessages = (backend: Backend, now: number): Backend => {
     start: (next) => {
       sink = next
       const stop = backend.start?.(next)
-      const stopShowcase = showcase.start(next.dispatch, () =>
-        (latest?.projects ?? []).flatMap((project) =>
-          project.history.flatMap((session) => session.state.items),
-        ),
-      )
+      const stopShowcase = showcase.start(next.dispatch, () => (latest ? itemsOf(latest) : []))
       return () => {
         stop?.()
         stopShowcase()
@@ -361,9 +358,18 @@ export const withInbox = (
   return { ...backend, inbox }
 }
 
+// The folder of a terminal's project.
+const directoryOf = (workspace: Workspace | undefined, key: { projectId: string }) =>
+  workspace?.projects.find((project) => project.id === key.projectId)?.directory
+
+// Every item the workspace's sessions hold.
+const itemsOf = (workspace: Workspace): readonly CompanionItem[] =>
+  workspace.projects.flatMap((project) => project.history.flatMap((each) => each.state.items))
+
 // The agents demo's storefront terminals hold what their agents showed, on their bars,
 // to open, peek at and move; nothing there changes.
 export const withStorefrontArtifacts = (backend: Backend): Backend => {
+  let latest: Workspace | undefined
   const session = { projectId: "storefront", workspaceSessionId: "initial" }
   const showcase = createShowcase({
     agents: [],
@@ -372,10 +378,15 @@ export const withStorefrontArtifacts = (backend: Backend): Backend => {
       handle: demoHandle(Number(slot)),
       artifacts,
     })),
+    directory: (key) => directoryOf(latest, key),
   })
   return {
     ...backend,
     companions: showcase,
+    commit: (workspace, actions) => {
+      latest = workspace
+      backend.commit(workspace, actions)
+    },
     seed: {
       ...backend.seed,
       projects: backend.seed.projects.map((project) =>
@@ -391,7 +402,9 @@ export const withStorefrontArtifacts = (backend: Backend): Backend => {
     },
     start: (sink) => {
       const stop = backend.start?.(sink)
-      const stopShowcase = showcase.start(sink.dispatch, () => [])
+      const stopShowcase = showcase.start(sink.dispatch, () =>
+        latest ? itemsOf(latest) : showcase.items,
+      )
       return () => {
         stop?.()
         stopShowcase()
