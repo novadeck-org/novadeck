@@ -117,11 +117,12 @@ describe("workspace commands", () => {
     expect(added.layout).toMatchObject({ hidden: {}, gridRestoreWidths: {} })
   })
 
-  it("places a terminal added without geometry beside the selected one on Canvas", () => {
+  it("places a terminal added without geometry beside the selected one on Canvas, sized there", () => {
     const store = createWorkspaceStore(initial())
     store.dispatch({ type: "terminal/add", target, terminal: terminalFixture(2, "~/project") })
     const { layout } = state(store.getSnapshot())
-    expect(layout.canvas.geometry["02"]).toMatchObject({ width: 600, height: 400 })
+    expect(layout.canvas.geometry["02"]).not.toHaveProperty("width")
+    expect(layout.canvas.geometry["02"]).not.toHaveProperty("height")
     expect(layout.canvas.geometry["02"]!.position.x).toBeGreaterThan(0)
     expect(layout.grid).toEqual({})
   })

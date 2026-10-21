@@ -1,5 +1,5 @@
 import { useReactFlow, type OnNodesChange } from "@xyflow/react"
-import { useCallback } from "react"
+import { useCallback, useRef } from "react"
 
 import { snap } from "./geometry"
 import type { CanvasProps, TerminalNode } from "./types"
@@ -18,10 +18,16 @@ export const useCanvasGeometry = (
     [setNodes],
   )
 
+  // Each resize's starting size, as Canvas snapped it.
+  const started = useRef(
+    new Map<string, { width: number | undefined; height: number | undefined }>(),
+  )
+
   const beginResize = useCallback(
     (id: string) => {
       resizing.current.add(id)
       const currentNode = getNode(id)
+      started.current.set(id, { width: currentNode?.width, height: currentNode?.height })
       if (currentNode) {
         geometryRef.current[id] = {
           ...geometryRef.current[id],
@@ -41,6 +47,8 @@ export const useCanvasGeometry = (
       const currentNode = getNode(id)
       if (!currentNode) return
       resizing.current.delete(id)
+      const before = started.current.get(id)
+      started.current.delete(id)
       const next = {
         ...geometryRef.current[id],
         position: currentNode.position,
@@ -56,7 +64,9 @@ export const useCanvasGeometry = (
         className: "",
       }))
       commitGeometry([id])
-      onWindowResize({ width: next.width, height: next.height })
+      // A press on the corner that changed nothing says nothing of the size wanted.
+      if (before?.width !== next.width || before.height !== next.height)
+        onWindowResize({ width: next.width, height: next.height })
     },
     [commitGeometry, getNode, updateNode, geometryRef, dirtyGeometry, resizing, onWindowResize],
   )

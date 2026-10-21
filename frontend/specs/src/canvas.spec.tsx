@@ -447,6 +447,19 @@ describe("Canvas", () => {
       const created = await settled(() => boxOf(terminal(newTerminalName)))
       expect(near(ratio(created), 3 / 2, 0.05)).toBe(true)
     })
+
+    it("opens it in Canvas at the size a terminal was last given there", async () => {
+      await openCanvas()
+      await resizeCheckout()
+      await chooseView("Grid")
+      await page.getByRole("button", { name: "New terminal" }).click()
+      await expect.element(terminal(newTerminalName)).toBeVisible()
+
+      await chooseView("Canvas")
+
+      const boxes = await settled(() => boxesOf(["Checkout implementation", newTerminalName]))
+      expect(sameSize(boxes[newTerminalName]!, boxes["Checkout implementation"]!)).toBe(true)
+    })
   })
 
   context("when choosing Terminal from the background context menu", () => {

@@ -382,12 +382,24 @@ const TerminalCanvas = ({
         resizing.current.delete(id)
       }
     }
+    // A window placed without a size, as one another app window or the runner opened, takes
+    // a new window's size once Canvas shows it.
+    const unsized: string[] = []
     for (const terminal of terminals) {
-      if (!dirtyGeometry.current.has(terminal.id))
-        geometryRef.current[terminal.id] = geometry[terminal.id] ?? {
-          position: { x: 80, y: 80 },
-        }
+      if (dirtyGeometry.current.has(terminal.id)) continue
+      const saved = geometry[terminal.id] ?? { position: { x: 80, y: 80 } }
+      if (saved.width !== undefined && saved.height !== undefined) {
+        geometryRef.current[terminal.id] = saved
+        continue
+      }
+      geometryRef.current[terminal.id] = {
+        ...saved,
+        width: saved.width ?? windowSize.width,
+        height: saved.height ?? windowSize.height,
+      }
+      unsized.push(terminal.id)
     }
+    if (unsized.length) commitGeometry(unsized)
     const created = terminals.filter((terminal) => !knownTerminals.current.has(terminal.id))
     const { width: viewportWidth, height: viewportHeight } = viewportSize()
     if (created.length && measured) {
