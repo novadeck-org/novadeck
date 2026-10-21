@@ -1616,9 +1616,10 @@ two flags, and the notes, change on an immutable release.
 
 Release notes are written by a model through OpenRouter
 ([scripts/release-notes](scripts/release-notes)). After each prerelease is published, its
-commits become short lines grouped by area; when a prerelease is promoted, its notes are
-rewritten with up to four highlights picked from everything since the last stable release,
-which the app shows after updating to it until the person dismisses them. The
+commits become short lines grouped by area, led by up to two highlights; when a prerelease
+is promoted, its notes are rewritten with up to four highlights picked from everything since
+the last stable release. The app shows a release's highlights after updating to it until the
+person dismisses them. The
 `OPENROUTER_API_KEY` repository secret enables it, and the `RELEASE_NOTES_PRERELEASE_MODEL`
 and `RELEASE_NOTES_PROMOTE_MODEL` repository variables pick the models (by default
 `deepseek/deepseek-v4-pro` and `anthropic/claude-opus-5.5`). Without the key, when the key is

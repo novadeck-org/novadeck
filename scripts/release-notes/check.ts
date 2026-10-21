@@ -7,6 +7,9 @@ export const maxLine = 110
 // The most the notes' schema holds (contract/protocol/src/release-notes.ts): an answer past
 // these would pass here and throw when the block is written.
 export const maxHighlights = 4
+// A prerelease's card leads with fewer, early builds coming several a day. Past these the
+// highlights are dropped, not the answer.
+export const releaseHighlights = 2
 export const maxChanges = 200
 export const maxPrs = 32
 
@@ -63,23 +66,22 @@ const fail = (reason: string): Checked => ({ ok: false, reason })
  * Whether the model's answer can be published, and what of it. A whole-answer failure is a
  * size the notes can't hold or a sign of steering (links, URLs, HTML). A line that breaks a
  * softer rule (a citation the notes can't hold or a pull request that was not given, too long,
- * markup, an excluded topic, an unknown area) is dropped, and `dropped` says why. A release has no highlights, so the model's
- * are ignored. `allowed` holds the pull requests the model was given.
+ * markup, an excluded topic, an unknown area, a release's highlight past `releaseHighlights`)
+ * is dropped, and `dropped` says why. `allowed` holds the pull requests the model was given.
  */
 export const checkOutput = (
   output: ModelOutput,
   kind: "release" | "promote",
   allowed: ReadonlySet<number>,
 ): Checked => {
-  const given = kind === "promote" ? output.highlights : []
-  if (given.length > maxHighlights)
-    return fail(`At most ${maxHighlights} highlights, got ${given.length}`)
+  if (output.highlights.length > maxHighlights)
+    return fail(`At most ${maxHighlights} highlights, got ${output.highlights.length}`)
   if (output.changes.length > maxChanges)
     return fail(`At most ${maxChanges} changes, got ${output.changes.length}`)
   const dropped: string[] = []
   const highlights: ModelOutput["highlights"] = []
   const changes: { area: NoteArea; line: string; prs: number[] }[] = []
-  for (const item of [...given, ...output.changes]) {
+  for (const item of [...output.highlights, ...output.changes]) {
     const title = "title" in item ? item.title.trim() : undefined
     const line = item.line.trim()
     const text = [title, line].join("\n")
@@ -109,7 +111,9 @@ export const checkOutput = (
       dropped.push(reason)
       continue
     }
-    if (title !== undefined) highlights.push({ title, line, prs: item.prs })
+    if (title !== undefined && kind === "release" && highlights.length === releaseHighlights)
+      dropped.push(`a highlight past the ${releaseHighlights} a release leads with`)
+    else if (title !== undefined) highlights.push({ title, line, prs: item.prs })
     else changes.push({ area: (item as { area: NoteArea }).area, line, prs: item.prs })
   }
   return { ok: true, output: { highlights, changes }, dropped }

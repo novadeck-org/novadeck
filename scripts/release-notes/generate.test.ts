@@ -56,16 +56,15 @@ describe("the notes of a prerelease", () => {
     expect(generated.compare).toBeUndefined()
   })
 
-  it("keeps no highlight a release's answer holds", async () => {
+  it("keeps the highlights a release's answer holds, and no change that repeats one", async () => {
+    const highlight = { title: "Teams", line: "Teams show on the rail.", prs: [328] }
     const generated = await generateRelease(
       "v0.0.152",
       sources,
-      answer({
-        highlights: [{ title: "Teams", line: "Teams show on the rail.", prs: [328] }],
-        changes: released.changes,
-      }),
+      answer({ highlights: [highlight], changes: released.changes }),
     )
-    expect(generated.notes.highlights).toEqual([])
+    expect(generated.notes.highlights).toEqual([highlight])
+    expect(generated.notes.changes).toEqual([released.changes[1]])
   })
 
   it("skips, with the model's answer to show, when the answer is broken or fails its checks", async () => {

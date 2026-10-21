@@ -33,16 +33,31 @@ describe("the checks on a model's answer", () => {
     expect(failure({ ...good, highlights: Array(5).fill(good.highlights[0]) })).toMatch(/At most 4/)
   })
 
-  it("ignores the highlights of a release instead of checking them", () => {
-    const wild = {
+  it("keeps a release's first two highlights and drops the rest", () => {
+    const three = {
       ...good,
-      highlights: Array.from({ length: 9 }, () => ({ title: "<b>x</b>", line: "y", prs: [1] })),
+      highlights: ["One", "Two", "Three"].map((title) => ({ ...good.highlights[0]!, title })),
     }
-    expect(check(wild, "release")).toEqual({
-      ok: true,
-      output: { highlights: [], changes: good.changes },
-      dropped: [],
-    })
+    const checked = check(three, "release")
+    expect(checked).toMatchObject({ ok: true, output: { changes: good.changes } })
+    if (!checked.ok) return
+    expect(checked.output.highlights.map(({ title }) => title)).toEqual(["One", "Two"])
+    expect(checked.dropped).toEqual(["a highlight past the 2 a release leads with"])
+    // A highlight dropped for its own sake does not take one of the two places.
+    const marked = {
+      ...three,
+      highlights: [{ ...three.highlights[0]!, title: "*x*" }, ...three.highlights.slice(1)],
+    }
+    const after = check(marked, "release")
+    if (!after.ok) throw new Error("expected the answer to pass")
+    expect(after.output.highlights.map(({ title }) => title)).toEqual(["Two", "Three"])
+  })
+
+  it("checks a release's highlights as a promotion's", () => {
+    const wild = { ...good, highlights: [{ title: "<b>x</b>", line: "y", prs: [181] }] }
+    const checked = check(wild, "release")
+    expect(checked.ok ? undefined : checked.reason).toMatch(/HTML tag/)
+    expect(failure({ ...good, highlights: Array(5).fill(good.highlights[0]) })).toMatch(/At most 4/)
   })
 
   it("drops a title over 40 characters or a line over 110, and keeps the rest", () => {

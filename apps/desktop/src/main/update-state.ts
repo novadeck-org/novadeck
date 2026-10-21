@@ -32,7 +32,8 @@ export type UpdateState = {
   readonly whatsNewSettled: string | undefined
   /**
    * When (milliseconds since the epoch) a prerelease's release was last read and had no
-   * highlights yet, so that read is not repeated at every launch; see ./whats-new.ts.
+   * highlights, which its promotion may still write, so that read is not repeated at every
+   * launch; see ./whats-new.ts.
    */
   readonly whatsNewCheckedAt: number | undefined
 }
