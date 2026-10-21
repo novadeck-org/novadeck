@@ -1,3 +1,4 @@
+import { allTeams, sameTeams } from "@novadeck/core/derivations"
 import { orderedTiles } from "@novadeck/core/roster"
 import type { SourceState } from "@novadeck/core/source"
 import { activeProject } from "@novadeck/core/state"
@@ -27,6 +28,9 @@ const sameSessions = (a: readonly WorkspaceSession[], b: readonly WorkspaceSessi
     )
   })
 
+const sameHandles = (a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean =>
+  a.size === b.size && [...a].every(([id, handle]) => b.get(id) === handle)
+
 // What a backend without a source reads in its place; its panel isn't drawn.
 const noSource = createStore<SourceState>({ projects: {} })
 
@@ -55,9 +59,34 @@ export const SidebarSection = memo((): React.JSX.Element => {
     const { roster, selected } = currentState(workspace)
     return roster.terminals.find((terminal) => terminal.id === selected)?.handle
   })
+  // The agents strip's order and squads, by handle (a terminal with none has no agent here).
+  const roster = useWorkspaceState(
+    (workspace) =>
+      currentState(workspace).roster.terminals.flatMap((terminal) =>
+        terminal.handle ? [terminal.handle] : [],
+      ),
+    sameItems,
+  )
+  const teams = useWorkspaceState(allTeams, sameTeams)
+  const handles = useWorkspaceState(
+    (workspace) =>
+      new Map(
+        currentState(workspace).roster.terminals.flatMap((terminal) =>
+          terminal.handle ? [[terminal.id, terminal.handle] as const] : [],
+        ),
+      ),
+    sameHandles,
+  )
+  const squads = useMemo(
+    () =>
+      teams.map(({ lead, workers }) =>
+        [lead, ...workers].flatMap((id) => (handles.has(id) ? [handles.get(id)!] : [])),
+      ),
+    [teams, handles],
+  )
   const source = useMemo(
-    () => (sourceFeed ? { project: sourceProject, selectedHandle } : undefined),
-    [sourceFeed, sourceProject, selectedHandle],
+    () => (sourceFeed ? { project: sourceProject, selectedHandle, roster, squads } : undefined),
+    [sourceFeed, sourceProject, selectedHandle, roster, squads],
   )
   const sidebarPanel = useUiState((state) => state.location.route.panel)
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))

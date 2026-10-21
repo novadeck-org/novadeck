@@ -19,9 +19,17 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   ordered: readonly Tile[]
   sidebarPanel: PanelId
   sidebarVisible: boolean
-  // Where the backend has a source: the project's tree, if it has one, and the handle of the
-  // selected terminal. Left out, there is no Source panel.
-  source: { project: SourceProject | undefined; selectedHandle: string | undefined } | undefined
+  // Where the backend has a source: the project's tree, if it has one, the handle of the
+  // selected terminal, and the session's agents for the strip: every terminal's handle in roster
+  // order, and the teams as handles, each lead first. Left out, there is no Source panel.
+  source:
+    | {
+        project: SourceProject | undefined
+        selectedHandle: string | undefined
+        roster: readonly string[]
+        squads: readonly (readonly string[])[]
+      }
+    | undefined
   onSessionSelect: (id: string) => void
   onFresh: () => void
   onHide: () => void
@@ -55,6 +63,8 @@ export const WorkspaceSidebar = ({
         key={projectId}
         project={source.project}
         selectedHandle={source.selectedHandle}
+        roster={source.roster}
+        squads={source.squads}
         active={sidebarPanel === "source"}
         visible={sidebarVisible}
         onHide={onHide}

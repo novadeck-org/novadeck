@@ -18,7 +18,16 @@
    and the rows a lit agent did not touch. --source-pulse-bg (the strong colour at 14%): a
    row as a write lands. --source-cursor-bg (strong): the cursor, its glow
    --item-selected-indicator-shadow (none); the trail's edge follows it. --source-chip-fg
-   (muted), --source-chip-writing-fg (ink): an agent's chip, and one writing the row. */
+   (muted), --source-chip-writing-fg (ink): an agent's chip, and one writing the row.
+
+   The agents strip above the tree is a `.source-strip` of `.source-agent` buttons, wrapping onto
+   as many lines as it needs. A squad's buttons sit together in a `.source-squad` track. On a
+   button, aria-pressed="true" is kept, data-kept="true" that it wears the kept tint itself (not
+   so in a squad kept whole, whose track wears it: data-kept on the `.source-squad`), and
+   data-following="true" that nothing is kept and its terminal is selected: strong text only.
+   Compact mono text, muted, a soft background on hover; the kept tint is the strong colour at
+   16%, with the strong colour as text. The track is --source-squad-bg (the text colour at 7% on
+   a dark sidebar, 13% on a light one). */
 .source-row {
   display: flex;
   height: 26px;
@@ -232,4 +241,55 @@
   margin: 0;
   padding: 12px 2px;
   color: var(--color-muted);
+}
+
+.source-strip {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+.source-squad {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 1px;
+  border-radius: var(--radius-control, 6px);
+  background-color: var(
+    --source-squad-bg,
+    color-mix(in srgb, currentColor var(--_track, 7%), transparent)
+  );
+}
+:root[data-scheme="light"] .source-squad {
+  --_track: 13%;
+}
+.source-squad[data-kept="true"] {
+  background-color: color-mix(in srgb, var(--color-strong) 16%, transparent);
+}
+.source-agent {
+  height: 24px;
+  padding: 0 6px;
+  border-radius: var(--radius-control, 4px);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    color var(--motion-feedback) var(--ease-interface);
+}
+.source-agent:hover {
+  background-color: var(--color-soft);
+}
+.source-agent[data-following="true"],
+.source-agent[data-kept="true"],
+.source-agent[aria-pressed="true"] {
+  color: var(--color-strong);
+}
+.source-agent[data-kept="true"] {
+  background-color: color-mix(in srgb, var(--color-strong) 16%, transparent);
+}
+.source-agent:focus-visible {
+  outline: 2px solid var(--color-strong);
+  outline-offset: -2px;
 }

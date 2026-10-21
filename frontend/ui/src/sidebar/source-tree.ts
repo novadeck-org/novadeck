@@ -165,19 +165,19 @@ export type Chips = {
   readonly everyone: readonly string[]
 }
 
-// The agents a row names: the selected terminal's agent first, then any writing this row now,
-// then the most recent writer; past two, the rest fold into a count. Only the selection ranks,
-// never the agent under the pointer, or the chips would shuffle beneath it.
+// The agents a row names: the lit agents first (the kept ones, else the selected terminal's),
+// then any writing this row now, then the most recent writer; past two, the rest fold into a
+// count. Only what is kept or selected ranks, never the agent under the pointer, or the chips
+// would shuffle beneath it.
 export const chipsOf = (
   touched: Readonly<Record<string, number>>,
   writing: readonly string[],
-  selected: string | undefined,
+  lit: ReadonlySet<string>,
 ): Chips => {
   const at = (handle: string): number => touched[handle] ?? 0
   const latest = (a: string, b: string): number => at(b) - at(a) || (a < b ? -1 : 1)
   const everyone = [...new Set([...Object.keys(touched), ...writing])].toSorted(latest)
-  const rank = (handle: string): number =>
-    handle === selected ? 0 : writing.includes(handle) ? 1 : 2
+  const rank = (handle: string): number => (lit.has(handle) ? 0 : writing.includes(handle) ? 1 : 2)
   const ordered = everyone.toSorted((a, b) => rank(a) - rank(b) || latest(a, b))
   return {
     shown: ordered.slice(0, chipLimit),
@@ -259,25 +259,6 @@ export const foldChips = (chips: Chips, fit: RowFit): Chips => {
   const room = fit.width - rowFixedWidth(fit.depth, fit.marks) - fit.nameWidth
   if (chipsWidth(chips.shown, chips.more, fit.chipWidth) <= room) return chips
   return { ...chips, shown: chips.shown.slice(0, 1), more: chips.more + chips.shown.length - 1 }
-}
-
-// Whether the agent changed or is writing this row, or anything inside it.
-export const touchedBy = (node: SourceNode, handle: string): boolean =>
-  handle in node.touched || node.writing.includes(handle)
-
-// The agent to light: the one whose chip is under the pointer, else the selected terminal's agent
-// when it has work in this project. Nothing otherwise.
-export const litHandle = (
-  project: SourceProject | undefined,
-  selected: string | undefined,
-  hovered: string | undefined,
-): string | undefined => {
-  if (hovered) return hovered
-  if (!project || !selected) return undefined
-  const worked =
-    Object.values(project.changes).some((change) => selected in change.touched) ||
-    selected in project.writing
-  return worked ? selected : undefined
 }
 
 // The paths where an agent wrote since `before`: a later time than it had, or a new file.
