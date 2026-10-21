@@ -246,10 +246,10 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     if (selector !== undefined)
       attached(() => void page.executeJavaScript(revealing(selector, scrollWaitMs)).catch(nothing))
   }
-  // Its scroll goes once the page has moved to the shown fragment.
-  const movedInPage = (): void => {
+  // Its scroll goes once the page, not a frame in it, has moved to the shown fragment.
+  const movedInPage = (event: Event): void => {
     moved()
-    if (!moving) return
+    if (!moving || (event as Event & { isMainFrame?: boolean }).isMainFrame === false) return
     moving = false
     reveal()
   }
@@ -267,7 +267,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     moved()
     const to = then
     then = undefined
-    if (load !== "ready") scrollTo = undefined
+    // The person, or a redirect, took it to another document while it reloaded: theirs.
+    const left = to !== undefined && documentOf(place.url) !== documentOf(to)
+    if (load !== "ready" || left) scrollTo = undefined
     else if (to !== undefined && to !== place.url && go(to)) moving = true
     else reveal()
   }
@@ -279,10 +281,13 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   const refresh = (): void => {
     moving = false
     then = undefined
-    const there = place.url === shown.url
-    if (there && first && load === "loading") return
+    if (first && load === "loading" && place.url === shown.url) return
+    // Where it is, as the page has it: an address it's on its way to isn't reloaded, as a
+    // reload goes to the last one it reached.
+    const at = attached(() => page.getURL()) || place.url
+    const there = at === shown.url
     // Without a fragment, the shown address is a document of its own to load.
-    if ((there || shown.url.includes("#")) && documentOf(place.url) === documentOf(shown.url)) {
+    if ((there || shown.url.includes("#")) && documentOf(at) === documentOf(shown.url)) {
       const reloading = attached(() => {
         page.reload()
         return true

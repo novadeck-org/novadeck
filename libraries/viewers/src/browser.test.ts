@@ -228,6 +228,43 @@ describe("the browser viewer", () => {
         expect(scrolled(calls)).toHaveLength(1)
       })
 
+      it("loads the shown address again when shown before its last show's load got there", () => {
+        const { viewer, at: where, calls, fire } = shownAt({ url, shown: 1 })
+        where.url = `${url}other`
+        fire("did-stop-loading")
+        viewer.update({ url, shown: 2 })
+        fire("did-start-loading")
+        // Still where the person went: a reload would go back there.
+        viewer.update({ url, shown: 3, scroll: "#a" })
+        expect(calls).toEqual([`load ${url}`, `load ${url}`])
+      })
+
+      it("lets a fragment go when the person leaves its document while it reloads", () => {
+        const at = `${url}#pricing`
+        const { viewer, at: where, calls, fire } = shownAt({ url: at, shown: 1 })
+        where.url = `${url}#faq`
+        fire("did-stop-loading")
+        viewer.update({ url: at, shown: 2, scroll: "#plans" })
+        where.url = `${url}docs`
+        fire("did-stop-loading")
+        expect(calls).toEqual(["reload"])
+        expect(viewer.state()).toMatchObject({ browser: { shown: 2 } })
+      })
+
+      it("scrolls once the page itself, not a frame in it, reaches the shown fragment", () => {
+        const at = `${url}#pricing`
+        const { viewer, at: where, calls, fire } = shownAt({ url: at, shown: 1 })
+        where.url = `${url}#faq`
+        fire("did-stop-loading")
+        viewer.update({ url: at, shown: 2, scroll: "#plans" })
+        fire("did-stop-loading")
+        fire("did-navigate-in-page", { isMainFrame: false })
+        expect(scrolled(calls)).toEqual([])
+        where.url = at
+        fire("did-navigate-in-page", { isMainFrame: true })
+        expect(scrolled(calls)).toHaveLength(1)
+      })
+
       it("reloads when shown during a later load, as the person's click", () => {
         const { viewer, calls, fire } = shownAt({ url, shown: 1 })
         fire("did-stop-loading")
