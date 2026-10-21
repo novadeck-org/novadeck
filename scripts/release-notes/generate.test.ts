@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest"
 
 import { notesBlock } from "../../contract/protocol/src/release-notes.ts"
+import { maxLine } from "./check.ts"
 import { commit, commits, fakeSources, releaseBody } from "./fixtures.ts"
 import { generatePromote, generateRelease, type Ask } from "./generate.ts"
 import { renderBody } from "./render.ts"
@@ -137,7 +138,7 @@ describe("the notes of a prerelease", () => {
   })
 
   it("drops a too long line and keeps the rest, saying why but not what", async () => {
-    const long = "x".repeat(111)
+    const long = "x".repeat(maxLine + 1)
     const generated = await generateRelease(
       "v0.0.152",
       sources,

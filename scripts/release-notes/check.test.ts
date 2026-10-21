@@ -87,17 +87,55 @@ describe("the checks on a model's answer", () => {
     expect(failure({ ...good, highlights: Array(5).fill(good.highlights[0]) })).toMatch(/At most 4/)
   })
 
-  it("drops a title over 40 characters or a line over 110, and keeps the rest", () => {
+  it("drops a release's highlight that cites no feature, and keeps a promotion's", () => {
+    const features = new Set([181])
+    const fixOnly = {
+      ...good,
+      highlights: [{ ...good.highlights[0]!, prs: [195] }],
+      changes: [],
+    }
+    expect(checkOutput(fixOnly, "release", allowed, features)).toMatchObject({
+      ok: true,
+      output: { highlights: [] },
+      dropped: ["a release's highlight that tells no feature"],
+    })
+    expect(checkOutput(fixOnly, "promote", allowed, features)).toMatchObject({
+      ok: true,
+      output: { highlights: [{ prs: [195] }] },
+    })
+    const withFeature = { ...fixOnly, highlights: [{ ...good.highlights[0]!, prs: [195, 181] }] }
+    expect(checkOutput(withFeature, "release", allowed, features)).toMatchObject({
+      output: { highlights: [{ prs: [195, 181] }] },
+    })
+  })
+
+  it("fails an answer with a line in a script other than English's", () => {
+    const answer = {
+      ...good,
+      changes: [{ area: "Terminals", line: "终端输出被加密存储。", prs: [181] }],
+    }
+    expect(checkOutput(answer, "promote", allowed)).toEqual({
+      ok: false,
+      reason: "A line is not written in English",
+    })
+    const accented = {
+      ...good,
+      changes: [{ area: "Terminals", line: "A café's naïve résumé stays.", prs: [181] }],
+    }
+    expect(checkOutput(accented, "promote", allowed).ok).toBe(true)
+  })
+
+  it("drops a title over 48 characters or a line over 140, and keeps the rest", () => {
     const title = (text: string): ModelOutput => ({
       ...good,
       highlights: [{ ...good.highlights[0]!, title: text }],
     })
-    expect(droppedFor(title("x".repeat(40)))).toEqual([])
-    expect(droppedFor(title("x".repeat(41)))).toHaveLength(1)
-    expect(droppedFor(withChange("x".repeat(110)))).toEqual([])
-    expect(droppedFor(withChange("x".repeat(111)))).toHaveLength(1)
+    expect(droppedFor(title("x".repeat(48)))).toEqual([])
+    expect(droppedFor(title("x".repeat(49)))).toHaveLength(1)
+    expect(droppedFor(withChange("x".repeat(140)))).toEqual([])
+    expect(droppedFor(withChange("x".repeat(141)))).toHaveLength(1)
     expect(droppedFor(withChange("  "))).toHaveLength(1)
-    const checked = check(title("x".repeat(41)))
+    const checked = check(title("x".repeat(49)))
     expect(checked).toMatchObject({ ok: true, output: { highlights: [], changes: good.changes } })
   })
 

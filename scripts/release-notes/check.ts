@@ -7,8 +7,14 @@ import {
 import { chat, demo } from "./commits.ts"
 import { type ModelOutput } from "./model.ts"
 
-export const maxTitle = 40
-export const maxLine = 110
+// What the prompt asks for, and the most the check takes. The cheaper model runs past the asked
+// length about a quarter of the time, by the clause that says what a change is for, and those
+// are often its best lines; a line this long is still three lines on the card. Past these, the
+// line is dropped.
+export const askedTitle = 40
+export const askedLine = 110
+export const maxTitle = 48
+export const maxLine = 140
 // The most the notes' schema holds (contract/protocol/src/release-notes.ts): an answer past
 // these would pass here and throw when the block is written.
 export const maxHighlights = 4
@@ -30,6 +36,10 @@ const steered: readonly [RegExp, string][] = [
   [/\bwww\./i, "a URL"],
   [/<[a-z/!]/i, "an HTML tag"],
 ]
+
+// A letter outside the Latin script: the notes are English, and a model that answered in
+// another language did so for the whole answer, so it fails, not line by line.
+const foreign = /(?!\p{Script=Latin})\p{L}/u
 
 // Markup a plain line has no use for. A slip drops that line and the rest stands.
 const markup = /[*~\\`[<>]/
@@ -74,16 +84,20 @@ const fail = (reason: string): Checked => ({ ok: false, reason })
 
 /**
  * Whether the model's answer can be published, and what of it. A whole-answer failure is a
- * size the notes can't hold or a sign of steering (links, URLs, HTML). A line that breaks a
- * softer rule (a citation the notes can't hold or a pull request that was not given, too long,
- * markup, an excluded topic, an unknown area, a release's highlight past `releaseHighlights`)
- * is dropped, and `dropped` says why. A highlight whose icon is missing or not in the set keeps
- * its place with "sparkles". `allowed` holds the pull requests the model was given.
+ * size the notes can't hold, a sign of steering (links, URLs, HTML), or a line in a script
+ * other than English's. A line that breaks a softer rule (a citation the notes can't hold or a
+ * pull request that was not given, too long, markup, an excluded topic, an unknown area, a
+ * release's highlight past `releaseHighlights` or citing no feature) is dropped, and `dropped`
+ * says why. A highlight whose icon is missing or not in the set keeps its place with
+ * "sparkles". `allowed` holds the pull requests the model was given, and `features` those of
+ * them that are `feat` changes: the cheaper model a release asks makes a highlight of nearly
+ * any change, fixes too, whatever it is told, so a release's highlight has to tell a feature.
  */
 export const checkOutput = (
   output: ModelOutput,
   kind: "release" | "promote",
   allowed: ReadonlySet<number>,
+  features: ReadonlySet<number> = allowed,
 ): Checked => {
   if (kind === "promote" && output.highlights.length > maxHighlights)
     return fail(`At most ${maxHighlights} highlights, got ${output.highlights.length}`)
@@ -98,6 +112,7 @@ export const checkOutput = (
     const text = [title, line].join("\n")
     const steer = steered.find(([pattern]) => pattern.test(text))
     if (steer) return fail(`A line holds ${steer[1]}, which plain text doesn't`)
+    if (foreign.test(text)) return fail("A line is not written in English")
     const topic = excluded.find((pattern) => pattern.test(text))
     // A citation the notes can't hold, or one the model wasn't given, costs that line only.
     const reason =
@@ -117,7 +132,11 @@ export const checkOutput = (
                 ? `an excluded topic ${topic}`
                 : title === undefined && !isArea("area" in item ? item.area : "")
                   ? "an area that is not one of ours"
-                  : undefined
+                  : title !== undefined &&
+                      kind === "release" &&
+                      !item.prs.some((pr) => features.has(pr))
+                    ? "a release's highlight that tells no feature"
+                    : undefined
     if (reason) {
       dropped.push(reason)
       continue

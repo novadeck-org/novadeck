@@ -74,7 +74,12 @@ const compose = async (
     }
   const { text, outputTokens, model } = await ask(kind, version, given)
   const output = parseOutput(text)
-  const checked = checkOutput(output, kind, new Set(given.flatMap((item) => item.prs)))
+  const checked = checkOutput(
+    output,
+    kind,
+    new Set(given.flatMap((item) => item.prs)),
+    new Set(given.filter((item) => !item.fix).flatMap((item) => item.prs)),
+  )
   if (!checked.ok) throw new Skip(checked.reason, text)
   const { highlights } = checked.output
   // A change a highlight already tells is not told twice. A release's answer repeats its

@@ -105,6 +105,8 @@ export const userMessage = (kind: "release" | "promote", version: string, items:
       ...(item.reason ? [`Why: ${item.reason.replaceAll("\n", "\n  ")}`] : []),
       "",
     ]),
+    // The material above may be in any language, and one model drifted into another with it.
+    "Write every title and line in English.",
   ].join("\n")
 
 /**

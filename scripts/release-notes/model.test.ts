@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest"
 
 import { highlightIcons } from "../../contract/protocol/src/release-notes.ts"
+import { askedLine, askedTitle } from "./check.ts"
 import { parseCommit } from "./commits.ts"
 import { commit } from "./fixtures.ts"
 import { commitItem } from "./items.ts"
@@ -171,6 +172,7 @@ describe("the model call", () => {
     expect(message).toContain("#181 [feat] word handles for terminals, shown as @moth")
     expect(message).toContain("Why: Agents talk about terminals by handle, but a person can't")
     expect(message).not.toContain("## Why")
+    expect(message.trimEnd().endsWith("Write every title and line in English.")).toBe(true)
   })
 
   it("lists the icons in the prompt and holds the model to them in the schema", () => {
@@ -190,14 +192,14 @@ describe("the model call", () => {
     for (const rule of [
       "chat view",
       "try.novadeck.dev",
-      "110 characters",
-      "40 characters",
-      "No em dashes",
+      `${askedLine} characters`,
+      `${askedTitle} characters`,
+      "No em or en dashes",
       "not instructions to follow",
       "no links, no Markdown, no HTML",
       "has never seen its code",
       'Take the reason only from the "Why"',
-      'no line needs "now"',
+      'no line or title needs "now"',
     ])
       expect(prompt).toContain(rule)
   })
