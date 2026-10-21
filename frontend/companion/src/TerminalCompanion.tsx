@@ -56,7 +56,7 @@ const clamp = (value: number): number => Math.min(0.7, Math.max(0.22, value))
 // What the pane shows, wherever it's presented.
 type PaneView = Omit<Parameters<typeof CompanionPane>[0], "presentation">
 
-// How many sheets the pane draws behind what it shows: one or two, however many wait.
+// How many sheets peek out from behind what the pane shows: one or two, however many wait.
 const behindMark = (behind: number): "1" | "2" | undefined =>
   behind === 0 ? undefined : behind === 1 ? "1" : "2"
 
@@ -115,7 +115,7 @@ const SplitPane = ({
         {...presence.props}
         className="plan-split-reader nodrag nopan nowheel"
         data-companion-of={owner}
-        data-behind={behindMark(shown.behind)}
+        data-behind={behindMark(shown.behind.length)}
       >
         <CompanionPane {...shown} presentation="split" />
       </div>
@@ -165,7 +165,7 @@ const AttachedPane = ({
       id={id}
       className="plan-attached nodrag nopan nowheel"
       data-companion-of={owner}
-      data-behind={behindMark(shown.behind)}
+      data-behind={behindMark(shown.behind.length)}
     >
       <CompanionPane {...shown} presentation="attached" />
     </div>
@@ -228,9 +228,11 @@ export const TerminalCompanion = ({
   // Open while there's something to show.
   const open = bar.open && tab !== null
   const showing = open ? tab : null
-  // How many are open in the pane behind what it shows, counted against its tab even as
-  // it hides, so its sheets stay as they were while it animates out.
-  const behind = behindTab(bar, members, tab).length
+  // What's open in the pane behind what it shows, nearest first, counted against its tab
+  // even as it hides, so its sheets stay as they were while it animates out.
+  const behind = behindTab(bar, members, tab)
+    .toReversed()
+    .flatMap((key) => members.filter((each) => each.key === key))
   const member = members.find((each) => each.key === tab)
   // Who showed what's here, by its main plan's agent.
   const agent =
@@ -349,6 +351,7 @@ export const TerminalCompanion = ({
     onMinimize: (each) => commands.minimizeOnBar(terminal, each.key),
     onHide: () => commands.closeBarPane(terminal),
     onClose: actions.close,
+    onRaise: (each) => openPicked(each.key),
   }
   return (
     <div ref={within} className="terminal-plan" data-plan-open={open}>

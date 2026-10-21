@@ -648,7 +648,8 @@ never stack. A markdown file the agent shows reads as a document, formatted like
 with its outline, but read-only: it's the agent's file, not a plan to edit or note (the
 demo's Codex has shown `docs/brand-voice.md`). The pane stacks what's open as a desktop
 stacks windows: it shows the last thing opened, by you or by the agent when you asked
-for it, and the rest wait behind it, their edges drawn at the pane's side. The mark under
+for it, and the rest wait behind it, the nearest two peeking out above it: click one to bring it
+forward. The mark under
 an icon says whether it's new, showing, open behind, or seen: something new gets a dot,
 quietly, and nothing opens on its own unless you asked for it. Hover an icon to peek: a
 card per thing behind it, each a preview, its name and the same mark, with no copy. Once
