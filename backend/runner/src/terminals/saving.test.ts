@@ -458,6 +458,8 @@ describe("saving terminals", () => {
     await expect(first).resolves.toBeNull()
     await expect(second).resolves.toBeNull()
     arrive(true)
+    // Turned on while already on, as a second window may ask, nothing is saved anew.
+    fake.saves.keep(true)
     fake.saves.start()
     await vi.advanceTimersByTimeAsync(transcriptMs * 2)
     expect(transcripts(fake)).toEqual([])
@@ -469,6 +471,12 @@ describe("saving terminals", () => {
     fake.saves.save(fake.records[0]!, true)
     await vi.advanceTimersByTimeAsync(0)
     expect(transcripts(fake).map((row) => row.transcript)).toEqual(["screen"])
+    // Restored again once the key is there, it shows the copy, and its screen saves again.
+    await expect(fake.saves.open(saved("a"))).resolves.toBe("old")
+    fake.records = [record("a")]
+    fake.saves.save(fake.records[0]!, true)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(transcripts(fake).map((row) => row.transcript)).toEqual(["screen", "screen"])
     fake.saves.stop()
   })
 

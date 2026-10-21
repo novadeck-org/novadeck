@@ -21,7 +21,9 @@ import type { ItemRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
 import type { Message, Thread } from "../messaging/mailbox.js"
 import { handleWords } from "../terminals/handles.js"
+import { sealedShape } from "../terminals/sealing.js"
 import { describe, expect, it as base } from "../test.js"
+import { sealed as sealedText } from "../testing/sealing.js"
 import {
   EarlierWorkspaceError,
   setAsideWorkspace,
@@ -515,16 +517,20 @@ describe("saved terminals", () => {
     store,
   }) => {
     const path = join(directory(), "workspace.sqlite")
-    const shape = { prefix: "v1.", minChars: 8 }
-    const value = "v1.c2VhbGVkLXRleHQ="
+    const shape = sealedShape
     const first = store(path)
     const plain = keptTerminal(first, "session", "owl")
     const sealed = keptTerminal(first, "session", "fox")
+    // The shortest a real sealed value is, an empty screen's.
+    const value = sealedText("", sealed)
+    expect(value).toHaveLength(shape.prefix.length + shape.minChars)
     first.saveTerminal({ ...first.terminal(plain)!, transcript: "TOKEN=hunter2" })
     first.saveTerminal({ ...first.terminal(sealed)!, transcript: value })
-    // Plain text that only starts like a sealed value.
+    // Plain text that only starts like a sealed value, and one a character too short.
     const lookalike = keptTerminal(first, "session", "elk")
     first.saveTerminal({ ...first.terminal(lookalike)!, transcript: "v1.4.2 released\n$ " })
+    const short = keptTerminal(first, "session", "ant")
+    first.saveTerminal({ ...first.terminal(short)!, transcript: value.slice(0, -1) })
     first.close()
 
     const next = store(path)
@@ -532,6 +538,7 @@ describe("saved terminals", () => {
     expect(next.terminal(plain)?.transcript).toBeNull()
     expect(next.terminal(sealed)?.transcript).toBe(value)
     expect(next.terminal(lookalike)?.transcript).toBeNull()
+    expect(next.terminal(short)?.transcript).toBeNull()
     // Scrubbed from the file and its log at once, not a moment later.
     expect(holds(path, "TOKEN=hunter2") || holds(`${path}-wal`, "TOKEN=hunter2")).toBe(false)
     // Nothing left to forget.

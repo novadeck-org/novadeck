@@ -172,8 +172,12 @@ export class Saves {
     }
   }
 
-  /** Turning transcripts off forgets every saved one; turning them on saves each anew. */
+  /**
+   * Turning transcripts off forgets every saved one; turning them on saves each anew. Asked
+   * for what is already so, nothing changes: a copy left alone is not saved over.
+   */
   keep(enabled: boolean): void {
+    if (enabled === this.kept) return
     this.kept = enabled
     this.epoch++
     this.waiting.clear()
@@ -198,6 +202,8 @@ export class Saves {
     const key = await Promise.race([sealer.ready, this.late.then(() => undefined)])
     // Without the key yet it may still come: the copy stays, unsaved over, for this run.
     if (key === undefined) this.unopened.add(saved.id)
+    // Opened later, as when restored again, its new screen starts from the copy.
+    else if (key) this.unopened.delete(saved.id)
     if (!key || !this.kept) return null
     return sealer.open(saved.transcript, saved.id)
   }
