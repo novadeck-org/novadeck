@@ -33,15 +33,14 @@ export const retryCheckMs = 5 * 60 * 1000
 /** Why a check runs: the launch's, the schedule's, a channel switch's or a failed download's retry. */
 export type CheckReason = "launch" | "interval" | "switch" | "retry"
 
-/** What a check says of the copy making it, so the website can count active copies. */
+/**
+ * What a check says of the copy making it, so the website can count active copies. It is
+ * the least that does: what the app reads off the computer, such as its system or
+ * language, would need the person's consent to send, and is not sent.
+ */
 export type CheckFacts = {
   readonly version: string
   readonly build: "installed" | "portable"
-  /** The operating system's own version, `os.release()`. */
-  readonly osVersion: string
-  readonly arch: string
-  /** The app's locale, such as `en-US`; only its language is sent. */
-  readonly locale: string
 }
 
 /** Where updates are looked for through novadeck.dev, and what a check says there. */
@@ -85,14 +84,10 @@ const plain = (value: string): string | undefined =>
  * left out. The last stands in for electron-updater's per-install `x-user-staging-id`.
  */
 export const checkHeaders = (reason: CheckReason, facts: CheckFacts): Record<string, string> => {
-  const language = /^[A-Za-z]{2,3}(?=[-_]|$)/.exec(facts.locale)?.[0]?.toLowerCase()
   const entries: [string, string | undefined][] = [
     ["x-novadeck-check", reason],
     ["x-novadeck-version", plain(facts.version)],
     ["x-novadeck-build", facts.build],
-    ["x-novadeck-os-version", plain(facts.osVersion)],
-    ["x-novadeck-arch", plain(facts.arch)],
-    ["x-novadeck-lang", language],
     // electron-updater sends a per-install id for staged rollouts; this replaces it here so
     // the website never sees it. Its own rollout decision reads the real one.
     ["x-user-staging-id", "0"],

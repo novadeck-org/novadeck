@@ -705,9 +705,6 @@ const startUpdates = async (): Promise<void> => {
       facts: {
         version: app.getVersion(),
         build: portableOf({ ...(await baseBuild()), signed: false }) ? "portable" : "installed",
-        osVersion: release(),
-        arch: process.arch,
-        locale: app.getLocale(),
       },
     },
     // macOS updates are put in place by the host as the app quits; the others install

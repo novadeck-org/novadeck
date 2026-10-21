@@ -1283,9 +1283,6 @@ describe("electron-updater's download folder", () => {
 const facts: CheckFacts = {
   version: "1.4.0",
   build: "installed",
-  osVersion: "7.0.0-28-generic",
-  arch: "x64",
-  locale: "pl-PL",
 }
 const repository = { owner: "novadeck-org", repo: "novadeck" }
 const github = { provider: "github", ...repository }
@@ -1310,21 +1307,16 @@ describe("the update feed", () => {
       "x-novadeck-check": "launch",
       "x-novadeck-version": "1.4.0",
       "x-novadeck-build": "installed",
-      "x-novadeck-os-version": "7.0.0-28-generic",
-      "x-novadeck-arch": "x64",
-      "x-novadeck-lang": "pl",
       "x-user-staging-id": "0",
     })
   })
 
-  it("leaves out what is not known or not plain text", () => {
-    expect(checkHeaders("retry", { ...facts, osVersion: "", arch: "x\ny", locale: "" })).toEqual({
+  it("leaves out a version that is not plain text", () => {
+    expect(checkHeaders("retry", { ...facts, version: "1.4.0\ny" })).toEqual({
       "x-novadeck-check": "retry",
-      "x-novadeck-version": "1.4.0",
       "x-novadeck-build": "installed",
       "x-user-staging-id": "0",
     })
-    expect(checkHeaders("retry", { ...facts, locale: "zh_Hans" })["x-novadeck-lang"]).toBe("zh")
   })
 
   // The library's own per-copy ID is replaced only because its headers go over the ones it
@@ -1429,11 +1421,8 @@ describe("checking through novadeck.dev", () => {
     const { updater } = checking()
     await vi.advanceTimersByTimeAsync(firstCheckMs)
     expect(Object.keys(updater.seen[0]?.headers as object).sort()).toEqual([
-      "x-novadeck-arch",
       "x-novadeck-build",
       "x-novadeck-check",
-      "x-novadeck-lang",
-      "x-novadeck-os-version",
       "x-novadeck-version",
       "x-user-staging-id",
     ])

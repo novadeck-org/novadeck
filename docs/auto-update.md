@@ -69,9 +69,10 @@ selects the address. `resources/app-update.yml` and its GitHub config stay as th
 the release page, the portable install and the engine downloads read them.
 
 Each check sends `x-novadeck-check` (`launch`, `interval`, `switch` or `retry`),
-`x-novadeck-version`, `x-novadeck-build` (`installed` or `portable`), `x-novadeck-os-version`,
-`x-novadeck-arch` and `x-novadeck-lang` (the language of the app's locale). Nothing that
-tells one copy from another is added: electron-updater's own `x-user-staging-id`, a
+`x-novadeck-version` and `x-novadeck-build` (`installed` or `portable`), and no more. What
+the app reads off the computer, such as its system, architecture or language, is not sent:
+sending it only for statistics would need the person's consent. Nothing that tells one copy
+from another is added: electron-updater's own `x-user-staging-id`, a
 per-install UUID, is overridden with the constant `0` on these checks (its staged-rollout
 decision reads the real one locally). The check that falls back to GitHub sends it as
 electron-updater always has. The headers belong to the check: they are cleared before the
