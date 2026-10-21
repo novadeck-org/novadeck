@@ -124,16 +124,30 @@ describe("Preferences' version", () => {
 
 describe("Preferences", () => {
   context("when choosing whether terminals keep transcripts", () => {
-    it("keeps them by default, says they may hold secrets, and turns them off", async () => {
+    it("keeps them by default, says they are saved encrypted, and turns them off", async () => {
       await openWorkspace()
       await openPreferences()
       await expect.element(transcriptsSwitch()).toHaveAttribute("aria-checked", "true")
-      await expect.element(transcriptsSwitch()).toHaveAccessibleDescription(/secrets/)
+      await expect
+        .element(transcriptsSwitch())
+        .toHaveAccessibleDescription(/Saved encrypted on this computer/)
       await transcriptsSwitch().click()
       await expect.element(transcriptsSwitch()).toHaveAttribute("aria-checked", "false")
       await closePreferences()
       await openPreferences()
       await expect.element(transcriptsSwitch()).toHaveAttribute("aria-checked", "false")
+    })
+  })
+
+  context("when the host cannot keep transcripts encrypted", () => {
+    it("shows the switch off and disabled, and says why", async () => {
+      await openWorkspace("/?transcripts=unavailable")
+      await openPreferences()
+      await expect.element(transcriptsSwitch()).toHaveAttribute("aria-checked", "false")
+      await expect.element(transcriptsSwitch()).toBeDisabled()
+      await expect
+        .element(transcriptsSwitch())
+        .toHaveAccessibleDescription(/Not available on this computer.*no keyring/)
     })
   })
 

@@ -57,6 +57,8 @@ export const createRouter = (options: {
   uploads: Uploads
   voice: Voice
   murmur: Murmur
+  /** Whether transcripts can be kept: not once it is known there is no key to seal them with. */
+  transcriptsAvailable: () => Promise<boolean>
   /** Whether the runner is shutting down. */
   closing: () => boolean
 }) => {
@@ -267,7 +269,10 @@ export const createRouter = (options: {
     },
     // The store keeps the settings; the terminals apply the transcript switch.
     settings: {
-      get: api.settings.get.handler(() => store.settings()),
+      get: api.settings.get.handler(async () => ({
+        ...store.settings(),
+        transcriptsAvailable: await options.transcriptsAvailable(),
+      })),
       set: api.settings.set.handler(({ input }) => {
         if (options.closing()) throw new DomainError("CLOSING")
         store.saveSettings(input)

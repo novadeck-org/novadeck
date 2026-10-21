@@ -143,6 +143,7 @@ export const demoBackend = (
     typeInto: terminals.typeInto,
     transcripts: {
       enabled: transcripts,
+      available: true,
       set: (enabled) => transcripts.update(() => enabled),
     },
     agents: {

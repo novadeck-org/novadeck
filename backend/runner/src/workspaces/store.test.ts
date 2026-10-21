@@ -510,24 +510,27 @@ describe("saved terminals", () => {
     expect(reopened.terminal(terminal.id)).toBeUndefined()
   })
 
-  it("forgets, once, the transcripts saved before they were masked", ({ directory, store }) => {
+  it("forgets every transcript that is not sealed, scrubbing the file and its log", ({
+    directory,
+    store,
+  }) => {
     const path = join(directory(), "workspace.sqlite")
     const first = store(path)
-    const id = keptTerminal(first, "session", "owl")
-    first.saveTerminal({ ...first.terminal(id)!, transcript: "TOKEN=hunter2" })
+    const plain = keptTerminal(first, "session", "owl")
+    const sealed = keptTerminal(first, "session", "fox")
+    first.saveTerminal({ ...first.terminal(plain)!, transcript: "TOKEN=hunter2" })
+    first.saveTerminal({ ...first.terminal(sealed)!, transcript: "v1.c2VhbGVk" })
     first.close()
-    // A file an older runner wrote, with no mark that its transcripts were masked.
-    const older = new DatabaseSync(path)
-    older.exec("DELETE FROM settings WHERE key = 'transcriptsMasked'")
-    older.close()
 
-    const upgraded = store(path)
-    expect(upgraded.terminal(id)?.transcript).toBeNull()
+    const next = store(path)
+    next.forgetUnsealed("v1.")
+    expect(next.terminal(plain)?.transcript).toBeNull()
+    expect(next.terminal(sealed)?.transcript).toBe("v1.c2VhbGVk")
     // Scrubbed from the file and its log at once, not a moment later.
     expect(holds(path, "TOKEN=hunter2") || holds(`${path}-wal`, "TOKEN=hunter2")).toBe(false)
-    upgraded.saveTerminal({ ...upgraded.terminal(id)!, transcript: "TOKEN=[redacted]" })
-    upgraded.close()
-    expect(store(path).terminal(id)?.transcript).toBe("TOKEN=[redacted]")
+    // Nothing left to forget.
+    next.forgetUnsealed("v1.")
+    expect(next.terminal(sealed)?.transcript).toBe("v1.c2VhbGVk")
   })
 
   it("keep murmur's title and the agent's summary beside the person's and the opener's title", ({

@@ -132,6 +132,7 @@ export const scripted = ({
   content = () => channel<never>().iterator,
   createSession = unused,
   apply = false,
+  transcriptsAvailable = true,
 }: {
   shown: readonly Saved[]
   background?: readonly Saved[]
@@ -148,6 +149,8 @@ export const scripted = ({
   createSession?: () => Promise<unknown>
   // Whether what the backend reports reaches the workspace it sees, as in the app.
   apply?: boolean
+  // Whether the runner can keep transcripts encrypted.
+  transcriptsAvailable?: boolean
 }) => {
   const changes = channel<TerminalWatchItem>()
   const items = channel<CompanionWatchItem>()
@@ -240,6 +243,7 @@ export const scripted = ({
     theme: noTheme,
     saveDelay: 10,
     transcripts: true,
+    transcriptsAvailable,
     agents: [
       { agent: "claude", available: true, connected: false },
       { agent: "agy", available: false, connected: false },

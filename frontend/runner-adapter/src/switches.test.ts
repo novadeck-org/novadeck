@@ -15,6 +15,15 @@ describe("the transcript setting", () => {
     app.stop()
   })
 
+  it("is available unless the runner said it cannot keep them encrypted", () => {
+    const kept = scripted({ shown: [] })
+    expect(kept.backend.transcripts!.available).toBe(true)
+    kept.stop()
+    const unkept = scripted({ shown: [], transcriptsAvailable: false })
+    expect(unkept.backend.transcripts!.available).toBe(false)
+    unkept.stop()
+  })
+
   it("goes back when the runner could not change it", async () => {
     const app = scripted({
       shown: [],

@@ -62,6 +62,12 @@ export const startRunner = (options: {
   murmurSource: string
   /** The host saw only software rendering, so murmur can't run and voice input installs its small model. */
   softwareGraphics?: boolean
+  /**
+   * The key saved transcripts are encrypted with, base64, or null where none can be kept
+   * safe. Sent to each runner once known; the launch doesn't wait for it, as a keyring's
+   * unlock may wait on the person.
+   */
+  transcriptKey: Promise<string | null>
   /** How start `run` writes its log: the argument after `logArgumentPrefix`, if it keeps one. */
   log?: (run: number) => string
   events?: RunnerEvents
@@ -91,6 +97,11 @@ export const startRunner = (options: {
       { serviceName: "Novadeck Runner", stdio: "pipe" },
     )
     events.spawned?.(run)
+    // A runner started again after a crash is given it too; one that never hears of it
+    // saves no transcripts.
+    void options.transcriptKey.then((key) => {
+      if (child === worker) send(worker, { type: "transcriptKey", key })
+    })
     for (const stream of ["stdout", "stderr"] as const)
       eachLine(
         worker[stream],

@@ -663,11 +663,19 @@ exits or restarts goes first in the queue. One transcript is masked at a time, f
 whole runner. `persist()` and `close()` also give the changed screens one pass of about a
 second, written until that second is over (as the runner closes, its records close only after it); a transcript
 unfinished then keeps its last saved copy. A transcript that cannot be masked is not
-saved, and the copy saved before stays, unless an earlier runner left it, which is then
-forgotten. A result that arrives after its terminal was closed, or transcripts were
-turned off, is dropped. Transcripts saved before masking existed are forgotten once, as the
-store first opens; a database set aside as `workspace.sqlite.earlier-<time>` is not
-touched. See [transcript-redaction.md](transcript-redaction.md). Closing a terminal
+saved, and the copy saved before stays. A result that arrives after its terminal was
+closed, or transcripts were turned off, is dropped. The masked text is sealed just before
+it is written: AES-256-GCM with a random nonce and the terminal's id as associated data,
+saved as `v1.` and the base64 of nonce, tag and ciphertext. The key is the 32 bytes the
+host gives the runner (`transcriptKey`; the desktop app unwraps it from the system
+keychain: Keychain, DPAPI, Secret Service or KWallet). No screen is taken before the key
+has come; where there is none (no keyring, a refused unlock, the standalone runner)
+transcripts are neither saved nor shown for that run, the `transcripts` setting is kept
+and the sealed copies saved before stay. Once the key is settled, the store forgets every
+transcript not starting with `v1.`, at every start; a database set aside as
+`workspace.sqlite.earlier-<time>` is not touched. A restored terminal's transcript is
+opened before its shell starts, waiting a few seconds for the key at most, and is
+shown only if it opens for that terminal. See [transcript-redaction.md](transcript-redaction.md). Closing a terminal
 forgets it, including one from an earlier runner.
 
 - `terminals.create({ …, restore: true, resume? })` continues the saved terminal of
@@ -1065,7 +1073,10 @@ forgets it, including one from an earlier runner.
 
 - `settings.get()` and `settings.set({ transcripts?, welcomed? })` read and change
   whether transcripts are kept (unless turned off; turning them off forgets every saved
-  transcript) and whether the person has seen the first-run choice of agents.
+  transcript) and whether the person has seen the first-run choice of agents. `get` also
+  reports `transcriptsAvailable`: false once it is known there is no key to seal
+  transcripts with, true when there is one and while it is still awaited (it waits about a
+  second for it).
 
 Typed errors include `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`, `CONFLICT`,
 `INVALID_DIRECTORY`, `INVALID_FILE`, `PLAN_UNWRITABLE` (a plan can never be saved; its data says why), `NOT_FOUND`, `TERMINAL_NOT_FOUND`, `CONTROL_REQUIRED`, `CONTROL_IN_USE`,

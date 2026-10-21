@@ -171,11 +171,17 @@ in the SQLite metadata file so a restored terminal can show it again. It is save
 every 30 seconds while it changes, and when a shell exits or restarts. Before it is saved,
 what looks like a secret (known token prefixes, values named like secrets, keys, long
 key-like runs) is masked in a worker thread; a transcript that cannot be masked is not
-saved, and the copy saved before stays, unless it is a restored terminal's copy from before
-this runner started, which is then forgotten. Transcripts saved before masking existed are forgotten once, on the first start
-of a runner that masks them; a database set aside as `workspace.sqlite.earlier-<time>`
-keeps what it held, unmasked transcripts included, until you delete it. Anything else that
-was typed or printed may still be saved. Metadata files use owner-only permissions where
+saved, and the copy saved before stays. The masked text is then encrypted (AES-256-GCM,
+bound to its terminal) with a key the desktop app keeps in the system keychain: the
+Keychain on macOS, DPAPI on Windows, the Secret Service or KWallet on Linux. Where nothing
+protects that key (no keyring on Linux, an unlock that is refused or fails, the standalone
+runner, which has no key) no transcript is saved or shown, and the setting stays as it is.
+A transcript found unencrypted is forgotten at every start, so a database set aside as
+`workspace.sqlite.earlier-<time>` keeps what it held, plain transcripts included, until you
+delete it. The key keeps the database file, and a backup of it, from showing what ran in
+your terminals; it does not protect against a process of your own user, which on Windows
+and Linux can ask the system to unwrap the key as the app does. Anything else that was
+typed or printed may still be saved. Metadata files use owner-only permissions where
 supported (0600 in a 0700 directory); on Windows they live in the per-user application data
 folder. Nothing is logged.
 

@@ -11,6 +11,7 @@ import type {
   TerminalToSave,
 } from "./records.js"
 import type { TranscriptRedactor } from "./redaction.js"
+import { sealedPrefix, type TranscriptSealer } from "./sealing.js"
 import type { TranscriptInput } from "./transcriptRedaction.js"
 
 const log = logs.for("terminals")
@@ -46,6 +47,10 @@ export type SavesOptions = {
   readonly transcripts: boolean
   /** Masks the secrets in every transcript before it is saved; none is saved without it. */
   readonly redactor: TranscriptRedactor | undefined
+  /** Seals every masked transcript before it is saved; none is saved or shown without it. */
+  readonly sealer: TranscriptSealer | undefined
+  /** The longest a restored terminal waits for the sealer's key, in milliseconds. */
+  readonly keyMs: number
 }
 
 export type SavesHost = {
@@ -70,8 +75,6 @@ type TranscriptState = {
   failures: number
   /** Not taken again before this time, after a failure. */
   retryAt: number
-  /** Its saved copy was left by an earlier runner, so nothing says it was ever masked. */
-  earlier: boolean
 }
 
 /** A screen taken to be redacted and saved. */
@@ -97,14 +100,20 @@ type Job = {
  * through the redactor first, which masks what looks like a secret, and is saved at most
  * every `transcriptMs`. A shell that exits or restarts goes first in the queue, ahead of
  * the usual turns; one redaction runs at a time, for the whole runner. A transcript is
- * never saved unredacted: when it cannot be redacted, the copy saved before stays (unless
- * an earlier runner left it, which is then forgotten), and the next try waits longer each
- * time. A result that arrives after its terminal was closed, the transcripts were turned
- * off or the runner stopped is dropped. As the runner or the system shuts down, `finish`
- * gives the unsaved screens one pass of `shutdownMs`, which may write until it is over.
+ * never saved unredacted: when it cannot be redacted, the copy saved before stays, and the
+ * next try waits longer each time. A masked transcript is sealed (see sealing.ts) just
+ * before it is written, and none is taken before the sealer has its key: until then the
+ * screens simply stay changed. When there turns out to be none, transcripts are neither
+ * saved nor shown for this run, but the ones sealed before are kept. Whatever transcript is
+ * saved unsealed is forgotten once the sealer settles. A result that arrives after its
+ * terminal was closed, the transcripts were turned off or the runner stopped is dropped. As
+ * the runner or the system shuts down, `finish` gives the unsaved screens one pass of
+ * `shutdownMs`, which may write until it is over.
  */
 export class Saves {
   private kept: boolean
+  // Whether the sealer has its key; undefined while that is awaited.
+  private key: boolean | undefined
   private saver: ReturnType<typeof setInterval> | undefined
   // Counts the changes of `keep`, so a redaction begun before one is not written after it.
   private epoch = 0
@@ -121,6 +130,12 @@ export class Saves {
     readonly host: SavesHost,
   ) {
     this.kept = options.transcripts
+    void (options.sealer?.ready ?? Promise.resolve(false)).then((key) => {
+      this.key = key
+      // Whatever an earlier runner left unsealed is forgotten now, key or none.
+      this.persisting(() => options.records?.forgetUnsealed(sealedPrefix), "untilStopped")
+      if (key) this.pump()
+    })
   }
 
   /** Whether terminals' transcripts are kept, until `keep` changes it. */
@@ -162,12 +177,23 @@ export class Saves {
   }
 
   /**
-   * A terminal was restored with a transcript saved by an earlier runner, which may be
-   * unmasked: its screen is saved again soon, and the old copy goes if that cannot be done.
+   * A kept terminal's transcript, opened; null when there is none, transcripts are off, the
+   * key does not come within `keyMs`, or it does not open. Awaited before a restored shell
+   * starts, so the replay is queued ahead of its output.
    */
-  restored(record: SavedRecord): void {
-    this.state(record).earlier = true
-    record.screenChanged = true
+  async open(saved: SavedTerminal): Promise<string | null> {
+    const { sealer } = this.options
+    if (!saved.transcript || !this.kept || !sealer) return null
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const late = new Promise<false>((resolve) => {
+      timer = setTimeout(() => resolve(false), this.options.keyMs)
+    })
+    try {
+      if (!(await Promise.race([sealer.ready, late]))) return null
+    } finally {
+      clearTimeout(timer)
+    }
+    return sealer.open(saved.transcript, saved.id)
   }
 
   /** Saves changed terminals every so often, so a runner killed at any moment loses little. */
@@ -200,7 +226,7 @@ export class Saves {
       record.savedAt = now
       if (this.saveRow(record)) record.changed = false
     }
-    if (!this.kept) return
+    if (!this.kept || !this.key) return
     for (const record of this.host.records()) {
       const state = this.states.get(record)
       if (
@@ -236,7 +262,7 @@ export class Saves {
 
   /** Takes the next waiting terminal's screen to redact, unless one is in flight already. */
   private pump(): void {
-    if (this.flight || this.finishing || !this.kept || !this.options.redactor) return
+    if (this.flight || this.finishing || !this.kept || !this.key || !this.options.redactor) return
     if (this.host.stopping() || this.host.stopped()) return
     let next: SavedRecord | undefined
     for (const [record, urgent] of this.waiting) {
@@ -259,7 +285,7 @@ export class Saves {
   private state(record: SavedRecord): TranscriptState {
     let state = this.states.get(record)
     if (!state) {
-      state = { taken: -Infinity, failures: 0, retryAt: 0, earlier: false }
+      state = { taken: -Infinity, failures: 0, retryAt: 0 }
       this.states.set(record, state)
     }
     return state
@@ -319,8 +345,7 @@ export class Saves {
     }
     const state = this.state(record)
     if (redacted === null) {
-      // The screen stays unsaved, and the copy before it stays, unless an earlier runner
-      // left it; the wait grows with each failure.
+      // The screen stays unsaved, and the copy before it stays; the wait grows with each failure.
       record.screenChanged = true
       state.failures++
       const wait = Math.min(2 ** state.failures, longestBackoff) * this.options.transcriptMs
@@ -328,9 +353,8 @@ export class Saves {
       log.warn(
         "terminals.transcript-unredacted",
         "Novadeck could not mask a transcript, so did not save it",
-        { data: { terminalId: record.summary.id, retryMs: wait, forgotten: state.earlier } },
+        { data: { terminalId: record.summary.id, retryMs: wait } },
       )
-      if (state.earlier) this.write(job, null)
       return
     }
     state.failures = 0
@@ -338,15 +362,20 @@ export class Saves {
     this.write(job, redacted || null)
   }
 
-  private write(job: Job, transcript: string | null): void {
+  private write(job: Job, masked: string | null): void {
     const { record } = job
+    const transcript =
+      masked === null ? null : (this.options.sealer?.seal(masked, record.summary.id) ?? undefined)
+    if (transcript === undefined) {
+      record.screenChanged = true
+      return
+    }
     // The last pass writes until it is over, which is before the records close.
     const saved = this.persisting(
       () => this.options.records?.saveTerminal({ ...this.row(record), transcript }),
       job.last ? "always" : "untilStopped",
     )
-    if (saved) this.state(record).earlier = false
-    else record.screenChanged = true
+    if (!saved) record.screenChanged = true
   }
 
   /** Whether a result is still wanted: nothing closed, turned off or stopped since it was taken. */
@@ -375,7 +404,7 @@ export class Saves {
   }
 
   private async last(): Promise<void> {
-    if (!this.kept || !this.options.records || !this.options.redactor) return
+    if (!this.kept || !this.key || !this.options.records || !this.options.redactor) return
     const flight = this.flight
     // The redaction in flight goes on, and is written like the rest of the pass.
     if (flight) flight.job.last = true

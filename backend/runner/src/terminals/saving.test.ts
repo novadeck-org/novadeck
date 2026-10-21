@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
-import type { TerminalRecords, TerminalToSave } from "./records.js"
+import { plainSealer } from "../testing/sealing.js"
+import type { SavedTerminal, TerminalRecords, TerminalToSave } from "./records.js"
 import type { TranscriptRedactor } from "./redaction.js"
 import { Saves, type SavedRecord, type SavesOptions } from "./saving.js"
+import { sealedPrefix, type TranscriptSealer } from "./sealing.js"
 
 // A screen here is its text.
 vi.mock("@novadeck/emulator/headless", () => ({
@@ -15,8 +17,13 @@ const transcriptMs = 10_000
 
 type Fake = {
   saves: Saves
+  /** What was saved, its transcript unsealed. */
   written: TerminalToSave[]
+  /** The transcripts as saved, sealed. */
+  sealed: (string | null)[]
   clears: number
+  /** The prefixes the records were told to keep. */
+  kept: string[]
   /** The redactions asked for, each settled by hand. */
   asked: {
     text: string
@@ -57,6 +64,8 @@ const record = (id: string, text = "screen"): SavedRecord =>
 const make = (options: Partial<SavesOptions> = {}, mode: "now" | "manual" = "now"): Fake => {
   const fake: Fake = {
     written: [],
+    sealed: [],
+    kept: [],
     clears: 0,
     asked: [],
     state: { stopping: false, stopped: false },
@@ -68,8 +77,14 @@ const make = (options: Partial<SavesOptions> = {}, mode: "now" | "manual" = "now
   const records = {
     saveTerminal: (terminal: TerminalToSave) => {
       if (fake.refuse && terminal.transcript === undefined) throw new Error("disk full")
-      fake.written.push(terminal)
+      if (typeof terminal.transcript === "string") fake.sealed.push(terminal.transcript)
+      fake.written.push(
+        typeof terminal.transcript === "string"
+          ? { ...terminal, transcript: terminal.transcript.slice(sealedPrefix.length) }
+          : terminal,
+      )
     },
+    forgetUnsealed: (prefix: string) => void fake.kept.push(prefix),
     clearTranscripts: () => void fake.clears++,
   } as unknown as TerminalRecords
   const redactor: TranscriptRedactor = {
@@ -90,6 +105,8 @@ const make = (options: Partial<SavesOptions> = {}, mode: "now" | "manual" = "now
       transcriptChars: 1000,
       transcripts: true,
       redactor,
+      sealer: plainSealer(),
+      keyMs: 1000,
       ...options,
     },
     {
@@ -113,6 +130,7 @@ describe("saving terminals", () => {
 
   it("saves everything but the transcript as soon as saveMs has passed, the transcript on its own turn", async () => {
     const fake = make()
+    await vi.advanceTimersByTimeAsync(0)
     fake.saves.start()
     await vi.advanceTimersByTimeAsync(saveMs + 1)
     // The first screen goes soon: nothing has been saved of it yet.
@@ -136,6 +154,7 @@ describe("saving terminals", () => {
 
   it("saves nothing unredacted: a screen that could not be redacted keeps the copy before it, and is tried again later and later", async () => {
     const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
     fake.saves.start()
     await vi.advanceTimersByTimeAsync(saveMs + 1)
     fake.asked[0]!.settle("first")
@@ -163,6 +182,7 @@ describe("saving terminals", () => {
 
   it("redacts one screen at a time", async () => {
     const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
     fake.records = [record("a"), record("b")]
     fake.saves.start()
     await vi.advanceTimersByTimeAsync(saveMs + 1)
@@ -175,6 +195,7 @@ describe("saving terminals", () => {
 
   it("saves a screen at once as its shell ends", async () => {
     const fake = make()
+    await vi.advanceTimersByTimeAsync(0)
     fake.records[0]!.screenChanged = false
     fake.saves.save(fake.records[0]!, true)
     await vi.advanceTimersByTimeAsync(0)
@@ -183,6 +204,7 @@ describe("saving terminals", () => {
 
   it("drops a result that arrives after the terminal was closed", async () => {
     const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
     fake.saves.save(fake.records[0]!, true)
     fake.records[0]!.closed = true
     fake.asked[0]!.settle("late")
@@ -192,6 +214,7 @@ describe("saving terminals", () => {
 
   it("drops a result that arrives after transcripts were turned off, even if turned on again", async () => {
     const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
     fake.saves.save(fake.records[0]!, true)
     fake.saves.keep(false)
     expect(fake.clears).toBe(1)
@@ -204,6 +227,7 @@ describe("saving terminals", () => {
 
   it("drops a result that arrives once the runner is stopping", async () => {
     const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
     fake.saves.save(fake.records[0]!, true)
     fake.state.stopping = true
     fake.asked[0]!.settle("late")
@@ -213,6 +237,7 @@ describe("saving terminals", () => {
 
   it("saves no transcript while they are off", async () => {
     const fake = make({ transcripts: false })
+    await vi.advanceTimersByTimeAsync(0)
     fake.saves.start()
     await vi.advanceTimersByTimeAsync(saveMs * 3)
     expect(transcripts(fake)).toEqual([])
@@ -224,6 +249,7 @@ describe("saving terminals", () => {
 
   it("gives the transcripts a pass as it shuts down, then closes the redactor", async () => {
     const fake = make()
+    await vi.advanceTimersByTimeAsync(0)
     fake.records = [record("a", "one secret"), record("b", "two")]
     const done = fake.saves.shutdown()
     await vi.advanceTimersByTimeAsync(0)
@@ -234,6 +260,7 @@ describe("saving terminals", () => {
 
   it("writes the last pass while the runner is stopping, but not past its budget", async () => {
     const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
     fake.records = [record("a"), record("b")]
     const done = fake.saves.shutdown()
     fake.state.stopping = true
@@ -250,6 +277,7 @@ describe("saving terminals", () => {
 
   it("starts the same pass without waiting when the system is shutting down", async () => {
     const fake = make()
+    await vi.advanceTimersByTimeAsync(0)
     fake.saves.persist()
     // Other state is written before persist returns.
     expect(fake.written.filter((row) => row.transcript === undefined)).toHaveLength(1)
@@ -260,6 +288,7 @@ describe("saving terminals", () => {
 
   it("keeps a terminal's other state marked changed while saving it fails, with transcripts off", async () => {
     const fake = make({ transcripts: false })
+    await vi.advanceTimersByTimeAsync(0)
     fake.records[0]!.changed = true
     fake.refuse = true
     const error = vi.spyOn(console, "error").mockImplementation(() => {})
@@ -275,6 +304,7 @@ describe("saving terminals", () => {
 
   it("redacts nothing for a change of its other state alone", async () => {
     const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
     fake.records[0]!.screenChanged = false
     fake.saves.start()
     await vi.advanceTimersByTimeAsync(saveMs * 3)
@@ -285,6 +315,7 @@ describe("saving terminals", () => {
 
   it("writes the last pass although the runner has stopped meanwhile, until the pass is over", async () => {
     const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
     const done = fake.saves.shutdown()
     fake.state.stopping = true
     fake.state.stopped = true
@@ -296,6 +327,7 @@ describe("saving terminals", () => {
 
   it("waits for the redaction in flight as the system shuts down, redacting that screen once", async () => {
     const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
     fake.saves.save(fake.records[0]!, true)
     expect(fake.asked).toHaveLength(1)
     fake.saves.persist()
@@ -311,6 +343,7 @@ describe("saving terminals", () => {
 
   it("does not save back a terminal removed while its screen was taken or waiting", async () => {
     const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
     fake.records = [record("a"), record("b")]
     fake.saves.save(fake.records[0]!, true)
     fake.saves.save(fake.records[1]!, true)
@@ -324,6 +357,7 @@ describe("saving terminals", () => {
 
   it("saves a screen with nothing on it as no transcript, without the redactor", async () => {
     const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
     ;(fake.records[0]!.terminal.screen as unknown as { text: string }).text = ""
     fake.saves.save(fake.records[0]!, true)
     await vi.advanceTimersByTimeAsync(0)
@@ -333,30 +367,87 @@ describe("saving terminals", () => {
 
   it("hands the redactor the whole screen to cut after masking", async () => {
     const fake = make({ transcriptChars: 5 }, "manual")
+    await vi.advanceTimersByTimeAsync(0)
     ;(fake.records[0]!.terminal.screen as unknown as { text: string }).text = "a long screen"
     fake.saves.save(fake.records[0]!, true)
     expect(fake.asked[0]!.text).toBe("a long screen")
   })
 
-  it("forgets a copy an earlier runner left once the screen cannot be masked, and keeps one it saved itself", async () => {
+  it("seals the masked transcript just before it is written", async () => {
     const fake = make({}, "manual")
-    fake.saves.restored(fake.records[0]!)
+    await vi.advanceTimersByTimeAsync(0)
+    fake.saves.save(fake.records[0]!, true)
+    fake.asked[0]!.settle("masked")
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fake.sealed).toEqual([`${sealedPrefix}masked`])
+  })
+
+  it("writes no transcript and clears none until the key comes, then saves the screen sealed", async () => {
+    let arrive!: (key: boolean) => void
+    const sealer: TranscriptSealer = {
+      ...plainSealer(),
+      ready: new Promise<boolean>((resolve) => (arrive = resolve)),
+    }
+    const fake = make({ sealer })
+    await vi.advanceTimersByTimeAsync(0)
     fake.saves.start()
+    await vi.advanceTimersByTimeAsync(saveMs * 3)
+    expect(transcripts(fake)).toEqual([])
+    expect(fake.clears).toBe(0)
+    expect(fake.records[0]!.screenChanged).toBe(true)
+    arrive(true)
     await vi.advanceTimersByTimeAsync(saveMs + 1)
-    fake.asked[0]!.settle(null)
+    expect(fake.sealed).toEqual([`${sealedPrefix}screen`])
+    // Unsealed copies went as the sealer settled.
+    expect(fake.kept).toEqual([sealedPrefix])
+  })
+
+  it("saves no transcript and clears none when there is no key, and forgets the unsealed ones", async () => {
+    const fake = make({ sealer: { ...plainSealer(), ready: Promise.resolve(false) } })
     await vi.advanceTimersByTimeAsync(0)
-    expect(transcripts(fake).map((row) => row.transcript)).toEqual([null])
-    // Now the copy is its own: a later failure leaves it.
+    fake.saves.start()
+    fake.saves.save(fake.records[0]!, true)
+    fake.saves.persist()
+    await vi.advanceTimersByTimeAsync(transcriptMs * 2)
+    expect(transcripts(fake)).toEqual([])
+    expect(fake.clears).toBe(0)
+    expect(fake.kept).toEqual([sealedPrefix])
+    expect(fake.records[0]!.screenChanged).toBe(true)
+    fake.saves.stop()
+  })
+
+  it("opens a saved transcript, and gives up on one whose key is late or missing", async () => {
+    const saved = { id: "a", transcript: `${sealedPrefix}old` } as unknown as SavedTerminal
+    const fake = make()
+    await vi.advanceTimersByTimeAsync(0)
+    await expect(fake.saves.open(saved)).resolves.toBe("old")
+    await expect(
+      fake.saves.open({ ...saved, transcript: "plain" } as SavedTerminal),
+    ).resolves.toBeNull()
+    const late = make({ sealer: { ...plainSealer(), ready: new Promise(() => {}) } })
+    await vi.advanceTimersByTimeAsync(0)
+    const waiting = late.saves.open(saved)
+    await vi.advanceTimersByTimeAsync(1000)
+    await expect(waiting).resolves.toBeNull()
+    const none = make({ sealer: { ...plainSealer(), ready: Promise.resolve(false) } })
+    await vi.advanceTimersByTimeAsync(0)
+    await expect(none.saves.open(saved)).resolves.toBeNull()
+    const unsealed = make({ sealer: undefined })
+    await vi.advanceTimersByTimeAsync(0)
+    await expect(unsealed.saves.open(saved)).resolves.toBeNull()
+  })
+
+  it("keeps the copy saved before when a screen cannot be masked", async () => {
+    const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
+    fake.saves.save(fake.records[0]!, true)
+    fake.asked[0]!.settle("mine")
+    await vi.advanceTimersByTimeAsync(0)
     fake.records[0]!.screenChanged = true
     fake.saves.save(fake.records[0]!, true)
+    fake.asked[1]!.settle(null)
     await vi.advanceTimersByTimeAsync(0)
-    fake.asked[1]!.settle("mine")
-    await vi.advanceTimersByTimeAsync(0)
-    fake.records[0]!.screenChanged = true
-    fake.saves.save(fake.records[0]!, true)
-    fake.asked[2]!.settle(null)
-    await vi.advanceTimersByTimeAsync(0)
-    expect(transcripts(fake).map((row) => row.transcript)).toEqual([null, "mine"])
+    expect(transcripts(fake).map((row) => row.transcript)).toEqual(["mine"])
     fake.saves.stop()
   })
 })

@@ -122,6 +122,8 @@ export const Preferences = ({
   // the backend keeps none.
   transcripts?: {
     readonly enabled: boolean
+    // False where nothing can keep them encrypted: the switch shows off and cannot change.
+    readonly available: boolean
     readonly onChange: (enabled: boolean) => void
   }
   // Whether the page can show desktop notifications, as the desktop app can.
@@ -350,14 +352,19 @@ export const Preferences = ({
                     <SettingText
                       id="transcripts-label"
                       label="Transcripts"
-                      description="Show recent output again after a restart. Saved on this computer, so it can include secrets."
+                      description={
+                        transcripts.available
+                          ? "Show recent output again after a restart. Saved encrypted on this computer."
+                          : "Not available on this computer: recent output is saved only encrypted, and there's no keyring here to keep its key safe."
+                      }
                       descriptionId="transcripts-description"
                     />
                     <Switch
-                      checked={transcripts.enabled}
+                      checked={transcripts.available && transcripts.enabled}
                       onChange={transcripts.onChange}
                       labelledBy="transcripts-label"
                       describedBy="transcripts-description"
+                      disabled={!transcripts.available}
                     />
                   </div>
                 )}

@@ -16,6 +16,7 @@ import { Murmur } from "./murmur/service.js"
 import { apiError, createRouter } from "./router.js"
 import { installShellFiles } from "./shell/install.js"
 import { Terminals, type TerminalOptions } from "./terminals/index.js"
+import { createTranscriptSealer, transcriptsAvailable } from "./terminals/sealing.js"
 import { Uploads } from "./terminals/uploads.js"
 import { Voice } from "./voice/service.js"
 import { Projects } from "./workspaces/projects.js"
@@ -204,8 +205,11 @@ export const wire = (options: RunnerOptions) => {
   // On Linux each shell runs in a systemd scope of its own, so one killed for memory
   // takes down its terminal, not the app.
   const scopes = userScopes()
+  // Without a key from the host no transcript is saved or shown.
+  const sealer = createTranscriptSealer(options.transcriptKey)
   const terminals = new Terminals({
     records: store,
+    sealer,
     shellFiles,
     ...relay,
     // Codex runs through Novadeck's shim while it is connected; see `posixCodexShim`.
@@ -227,7 +231,7 @@ export const wire = (options: RunnerOptions) => {
   })
   const projects = new Projects(store, terminals, items)
   const uploads = new Uploads(options.uploads)
-  return { store, shellFiles, agents, terminals, items, projects, uploads, voice, murmur }
+  return { store, shellFiles, agents, terminals, items, projects, uploads, voice, murmur, sealer }
 }
 
 /**
@@ -287,7 +291,8 @@ const logFailure = (path: readonly string[], error: unknown): void => {
 }
 
 const startRunner = (options: RunnerOptions): Runner => {
-  const { store, terminals, items, agents, projects, uploads, voice, murmur } = wire(options)
+  const { store, terminals, items, agents, projects, uploads, voice, murmur, sealer } =
+    wire(options)
   let closing: Promise<void> | undefined
   return {
     sessions: createSessions({
@@ -301,6 +306,7 @@ const startRunner = (options: RunnerOptions): Runner => {
         uploads,
         voice,
         murmur,
+        transcriptsAvailable: () => transcriptsAvailable(sealer),
         closing: () => closing !== undefined,
       }),
       error: apiError,
