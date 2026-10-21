@@ -633,24 +633,27 @@ const settleWhatsNewLaunch = (): Promise<void> =>
         previous: state.lastRunVersion,
         current: app.getVersion(),
         pending: state.whatsNewPending,
+        from: state.whatsNewFrom,
         settled: state.whatsNewSettled,
         ranBefore,
         offerable: repository !== undefined,
       },
       isNewerVersion,
     )
-    if (settled) updateState.recordLaunch(settled.lastRunVersion, settled.pending)
+    if (settled) updateState.recordLaunch(settled.lastRunVersion, settled.pending, settled.from)
   })().catch((error: unknown) => updateWarning("The launch was not recorded.", error)))
 const whatsNew = keepWhatsNew({
   version: app.getVersion(),
   launched: settleWhatsNewLaunch,
   pending: () => updateState.read().whatsNewPending,
+  from: () => updateState.read().whatsNewFrom,
   clear: () => updateState.settleWhatsNew(app.getVersion(), isNewerVersion),
   checkedAt: () => updateState.read().whatsNewCheckedAt,
   recordCheck: (time) => updateState.recordWhatsNewCheck(time),
   now: Date.now,
   repository: releaseRepository,
   fetch: (url, init) => net.fetch(url, init),
+  newer: isNewerVersion,
   log: updateWarning,
 })
 

@@ -31,8 +31,8 @@ the same validated owner and repository from that file (`update-release.ts`).
 
 A build follows one channel, which the person picks in Preferences and the host keeps
 across launches in `update.json` in the data folder. The same file keeps what the card of what is
-new needs (see "What is new"): `lastRunVersion`, `whatsNewPending`, `whatsNewSettled` and
-`whatsNewCheckedAt`.
+new needs (see "What is new"): `lastRunVersion`, `whatsNewPending`, `whatsNewFrom`,
+`whatsNewSettled` and `whatsNewCheckedAt`.
 
 | Channel  | Follows                                          |
 | -------- | ------------------------------------------------ |
@@ -523,11 +523,21 @@ only from the main frame of the app's own page.
 
 ## What is new
 
-The app tells of an update in one place, a card of highlights for the version it updated to,
-shown at each launch until the person dismisses it or the release turns out to have none. The notes come from the release
-itself: the promotion of a stable release writes a hidden `<!-- novadeck:notes {json} -->` block
-in its body, before the "All commits" details (`scripts/release-notes`), and the host reads it with `readNotesBlock`
-from the release page's API (`/releases/tags/v{version}`), never from the page.
+The app tells of an update in one place, a card of highlights for the version it updated to and
+the releases it skipped on the way, shown at each launch until the person dismisses it or the
+releases turn out to have none. The notes come from the releases themselves: each prerelease, and
+again its promotion to stable, writes a hidden `<!-- novadeck:notes {json} -->` block in its body,
+before the "All commits" details (`scripts/release-notes`), and the host reads it with
+`readNotesBlock` from the release API (`/releases/tags/v{version}`, then `/releases` for the
+skipped ones), never from the page.
+
+The card gathers the highlights of the version's own release and of every release after
+`whatsNewFrom` (the version updated from, or the newest settled when that is newer), newest first,
+at most four, a highlight two releases share told once. A promotion's notes tell everything since
+the stable release before it, so a prerelease older than the newest promotion among them is left
+out. The list is read newest first, a hundred to a page, until it reaches `whatsNewFrom`, three
+pages at most; a list that can't be read, or is not one, fails the read as the release's own
+would.
 
 At launch the host records the version it runs in `update.json` as `lastRunVersion`, and marks
 that version `whatsNewPending` when it is newer than the one the last launch recorded. A first
@@ -539,8 +549,9 @@ a settled version is offered again. A read that fails for a reason that may pass
 timeout, 403, 429, 5xx, or an answer that is not that release) is tried once more two minutes
 later in the same launch, and the page's one request waits for it; if that fails too, the mark
 stays for a later launch. A prerelease's own notes carry up to two highlights, so early builds
-show the card too; one whose notes have none is read at most once a day (`whatsNewCheckedAt`),
-as its promotion may still write some onto the same tag. Builds that look
+show the card too. A prerelease whose notes are not written yet, or that gathers no highlights,
+is read at most once a day (`whatsNewCheckedAt`), as its notes or its promotion may still write
+some onto the same tag. Builds that look
 for no updates (version 0.0.0, no release repository) never offer a card.
 
 ## Release assets
