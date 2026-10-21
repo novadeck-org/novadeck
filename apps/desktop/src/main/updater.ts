@@ -31,6 +31,12 @@ export const switchCheckMs = 2_000
 /** How long after a download failed the check that tries it again, once, waits. */
 export const retryCheckMs = 5 * 60 * 1000
 
+/**
+ * How long the website's `early` answer is trusted, as the website itself counts it: the
+ * app holds a release against an older answer from the website for this long.
+ */
+export const earlyTrustMs = 6 * 60 * 60 * 1000
+
 /** Why a check runs: the launch's, the schedule's, a channel switch's or a failed download's retry. */
 export type CheckReason = "launch" | "interval" | "switch" | "retry"
 
@@ -463,8 +469,10 @@ export type Updater = {
  * releases, and the next check goes to novadeck.dev again. Its answer for `early` can lag
  * GitHub's by up to an hour and is distrusted by the site after six; a wrong one, which
  * only a bug of the site gives, delays updates until it is fixed. Whichever feed answers,
- * a release older than one already offered or being downloaded on the same channel is
- * ignored, so a lagging answer never steps back. The one retry of a
+ * an `early` answer from the website that names a release older than one offered or taken
+ * for download within `earlyTrustMs` is ignored, so a lagging answer never steps back
+ * (per run, in memory); GitHub's answers and the stable channel's are taken as they are,
+ * and an answer for a channel left during the check is dropped. The one retry of a
  * failed download goes to GitHub alone, so a feed that checks well but downloads badly
  * does not fail the same way twice. Without `feed` a check uses the updater's own
  * configuration.
@@ -541,9 +549,14 @@ export const checkForUpdates = (
   let preparing: string | undefined
   // The release not to download again: the one an install failed on, here or earlier.
   let failedOn = failedVersion
-  // The newest release offered in `tell` mode or taken for download, on the channel then
-  // followed, which no later answer may step back from.
-  let held: { readonly version: string; readonly channel: UpdateChannel } | undefined
+  // The release last offered in `tell` mode or taken for download, on the channel then
+  // followed and when, which an older answer from the website does not replace; see
+  // `earlyTrustMs`.
+  let held:
+    | { readonly version: string; readonly channel: UpdateChannel; readonly at: number }
+    | undefined
+  // The channel the check in flight was made for.
+  let checkedChannel = channel
   // Once an install has begun the app is on its way out, so the mark never goes back.
   let installing = false
   let failed = false
@@ -573,13 +586,23 @@ export const checkForUpdates = (
     offer({ kind: "available", version: downloaded.version })
   })
   updater.on("update-available", (info) => {
-    // Never a step back: the answer of a feed that lags another, as the website's does
-    // GitHub's for up to an hour, names an older release than one already offered or being
-    // fetched, and following it would replace the newer. A channel switch lifts this, as the
-    // other channel's release may be the older.
-    if (held?.channel === following && isNewerVersion(held.version, info.version)) return
+    // The answer of a check made for a channel the person has since left is dropped.
+    if (checkedChannel !== following) return
+    // Never a step back to an older early release the website names: its `early` answer can
+    // lag GitHub's by up to an hour, and following it would replace a newer release already
+    // offered or fetched. This holds for `earlyTrustMs`, after which a withdrawn release
+    // can give way. GitHub's answers and the stable channel's are taken as they are.
+    // (isNewerVersion compares prerelease tags as text; the releases' versions have none.)
+    if (
+      via === "novadeck" &&
+      following === "early" &&
+      held?.channel === following &&
+      Date.now() - held.at < earlyTrustMs &&
+      isNewerVersion(held.version, info.version)
+    )
+      return
     if (mode === "tell") {
-      held = { version: info.version, channel: following }
+      held = { version: info.version, channel: following, at: Date.now() }
       return offer({ kind: "available", version: info.version, ...(allow ? { allow } : {}) })
     }
     // A release found while a download is under way waits for the next check.
@@ -596,7 +619,7 @@ export const checkForUpdates = (
       return
     }
     const { version } = info
-    held = { version, channel: following }
+    held = { version, channel: following, at: Date.now() }
     // The headers describe the check; the download of what it found carries none.
     updater.requestHeaders = null
     // A failed download is reported through the error event, which logs it.
@@ -718,9 +741,13 @@ export const checkForUpdates = (
   }
   const check = (reason: CheckReason): void => {
     // The updater reports a failed check through its error event, which logs it.
-    if (feed === undefined) return void updater.checkForUpdates().catch(() => {})
+    if (feed === undefined) {
+      checkedChannel = following
+      return void updater.checkForUpdates().catch(() => {})
+    }
     if (checking) return
     checking = true
+    checkedChannel = following
     checkThroughFeed(reason, feed)
       .catch(() => {})
       .finally(() => {

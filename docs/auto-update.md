@@ -97,12 +97,13 @@ again. The site's answer for `stable` is GitHub's file relayed live with `no-sto
 answer for `early` can lag GitHub's by up to an hour (the site's own build), and the site
 distrusts its record after 6 hours and answers 503, so the app falls back. A wrong answer
 from the site, which only a bug of the site gives, can delay updates until it is fixed.
-Whichever feed answers, the app never steps back: a release older than one already
-offered (in tell mode) or taken for download on the same channel is ignored, with no
-download, no change of offer and nothing cleared, so a lagging answer cannot replace a
-newer release found through GitHub. A channel switch lifts this, as the other channel's
-release may be the older one. The one retry of a failed download goes to GitHub alone, so a feed that
-checks well but downloads badly does not fail the same way twice; a version's later
+The app does not step back to an older `early` release the website names within 6 hours
+of having offered or taken a newer one (kept per run, in memory): the answer is ignored,
+with no download, no change of offer and nothing cleared, so a lagging answer cannot
+replace a newer release found through GitHub. After 6 hours the older answer is taken, as
+the release may have been withdrawn or, on macOS, rejected. GitHub's answers and the
+`stable` site's are taken as they are, and the answer of a check made for a channel the
+person has left meanwhile is dropped. The one retry of a failed download goes to GitHub alone, so a feed that checks well but downloads badly does not fail the same way twice; a version's later
 failures do not pin the copy to GitHub. Portable copies check the same way. With no
 repository in `app-update.yml` there is nothing to fall back to, so checks stay on the
 updater's own configuration.

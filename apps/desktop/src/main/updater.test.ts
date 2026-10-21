@@ -25,6 +25,7 @@ import {
   checkIntervalMs,
   developerIdSigned,
   feedUrl,
+  earlyTrustMs,
   firstCheckMs,
   retryCheckMs,
   installOnlyOnOrderlyQuit,
@@ -1495,7 +1496,7 @@ describe("checking through novadeck.dev", () => {
       feed?.provider === "generic" ? "1.5.0" : "1.6.0"
 
     it("does not step back to the older release after taking GitHub's", async () => {
-      const { updater } = checking()
+      const { updater } = checking({ channel: "early" })
       const taken: (string | undefined)[] = []
       updater.downloadResult = () => {
         taken.push(updater.newest(updater.feed))
@@ -1509,7 +1510,7 @@ describe("checking through novadeck.dev", () => {
     })
 
     it("does not offer the older release again in tell mode", async () => {
-      const { updater, offered } = checking({ mode: "tell" })
+      const { updater, offered } = checking({ mode: "tell", channel: "early" })
       updater.newest = lagging
       updater.failFeed = (feed) => feed?.provider === "generic" && updater.checks === 1
       await vi.advanceTimersByTimeAsync(firstCheckMs)
@@ -1518,7 +1519,7 @@ describe("checking through novadeck.dev", () => {
     })
 
     it("leaves the newer download alone when the older release was withdrawn", async () => {
-      const { updater, offered } = checking()
+      const { updater, offered } = checking({ channel: "early" })
       const downloads: (string | undefined)[] = []
       updater.downloadResult = () => {
         const version = updater.newest(updater.feed)
@@ -1531,6 +1532,72 @@ describe("checking through novadeck.dev", () => {
       await vi.advanceTimersByTimeAsync(checkIntervalMs * 3)
       expect(downloads).toEqual(["1.5.0", "1.6.0"])
       expect(offered.filter((offer) => offer.endsWith(" 1.5.0"))).toEqual([])
+    })
+
+    it("takes an older answer from the stable site, which relays GitHub's file live", async () => {
+      const { updater } = checking()
+      const taken: (string | undefined)[] = []
+      updater.downloadResult = () => {
+        taken.push(updater.newest(updater.feed))
+        return Promise.resolve()
+      }
+      let version = "1.6.0"
+      updater.newest = () => version
+      await vi.advanceTimersByTimeAsync(firstCheckMs)
+      version = "1.5.0"
+      await vi.advanceTimersByTimeAsync(checkIntervalMs)
+      expect(taken).toEqual(["1.6.0", "1.5.0"])
+    })
+
+    it("takes an older answer from GitHub, as a withdrawn release leaves it", async () => {
+      const { updater } = checking({ channel: "early" })
+      const taken: (string | undefined)[] = []
+      updater.downloadResult = () => {
+        taken.push(updater.newest(updater.feed))
+        return Promise.resolve()
+      }
+      let version = "1.6.0"
+      updater.newest = () => version
+      await vi.advanceTimersByTimeAsync(firstCheckMs)
+      version = "1.5.0"
+      updater.failFeed = (feed) => feed?.provider === "generic"
+      await vi.advanceTimersByTimeAsync(checkIntervalMs)
+      expect(taken).toEqual(["1.6.0", "1.5.0"])
+    })
+
+    it("takes the site's older early answer once its trust window has passed", async () => {
+      const { updater } = checking({ channel: "early" })
+      const taken: (string | undefined)[] = []
+      updater.downloadResult = () => {
+        taken.push(updater.newest(updater.feed))
+        return Promise.resolve()
+      }
+      let version = "1.6.0"
+      updater.newest = () => version
+      await vi.advanceTimersByTimeAsync(firstCheckMs)
+      version = "1.5.0"
+      await vi.advanceTimersByTimeAsync(earlyTrustMs - checkIntervalMs * 2)
+      expect(taken).toEqual(["1.6.0"])
+      await vi.advanceTimersByTimeAsync(checkIntervalMs * 3)
+      expect(taken).toEqual(["1.6.0", "1.5.0"])
+    })
+
+    it("drops the answer of a check made for a channel left meanwhile", async () => {
+      const { updater, offered, setChannel } = checking({ mode: "tell", channel: "early" })
+      updater.checkForUpdates = () => {
+        updater.checks += 1
+        const early = updater.allowPrerelease
+        return new Promise((resolve) =>
+          setTimeout(() => {
+            updater.emit("update-available", { version: early ? "1.6.0" : "1.5.0" })
+            resolve(undefined)
+          }, 1000),
+        )
+      }
+      await vi.advanceTimersByTimeAsync(firstCheckMs + 500)
+      setChannel("stable")
+      await vi.advanceTimersByTimeAsync(500)
+      expect(offered).toEqual([])
     })
 
     it("takes the older release of the other channel after a switch", async () => {
