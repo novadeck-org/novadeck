@@ -22,6 +22,8 @@ export type FooterMurmurProps = {
   readonly blocked: boolean
   // Puts typing focus back in the selected terminal, for a sheet that goes with focus in it.
   readonly returnFocus: () => void
+  // Opens Preferences at Addons, where Murmur's own card is.
+  readonly openAddons: () => void
 }
 
 // Murmur's install, as a small item in the footer's right end: a ring and "Murmur 42%" while it
@@ -32,10 +34,12 @@ export type FooterMurmurProps = {
 // is open), with the step and Cancel. A failure that may pass turns the item to the danger
 // tone and opens the sheet once, with Try again and Not now (which only hides it); a computer that can't run Murmur says so there, and the item leaves
 // with it. Its words are announced in one live line that is there before it has words, and a
-// failure is said once, never as a percentage that changes. The same goes for the runner's
-// failure of an installed Murmur (its engine would not run): the item turns to it from rest,
-// also when it stands as the app opens (Murmur is off, and nothing else says so), once for each
-// time it appears; Not now keeps it shut until the failure clears and another comes.
+// failure is said once, never as a percentage that changes. The runner's word that an installed
+// Murmur stopped (its engine failing again and again) turns the item to it from rest too, also
+// when it stands as the app opens (Murmur is off, and nothing else says so). Its sheet says the
+// runner's words as they are now, with Open Addons and Not now, and no Try again: Murmur's jobs
+// retry by themselves, and the word goes with the next that succeeds. Not now keeps it shut
+// until that word clears, whatever it says in between.
 export const FooterMurmur = ({
   murmur,
   hidden,
@@ -56,8 +60,8 @@ export const FooterMurmur = ({
   // The refusal the item last said, and whether the runner's failure (not a refusal) made it.
   const [said, setSaid] = useState<Refusal | null>(null)
   const [fromRunner, setFromRunner] = useState(false)
-  // The runner's failure the person last answered, kept while it stands.
-  const [handledFailure, setHandledFailure] = useState<string | null>(null)
+  // Whether the person answered the runner's word that Murmur stopped, while it stands.
+  const [seen, setSeen] = useState(false)
   const [open, setOpen] = useState(false)
   const chip = useRef<HTMLButtonElement>(null)
   const panel = useRef<HTMLElement>(null)
@@ -69,13 +73,11 @@ export const FooterMurmur = ({
   const panelId = useId()
   // The verdict that stood as the install began.
   const [before, setBefore] = useState<string | null>(null)
-  const next = state
-    ? footerPhase(phase, state, handled, before, fromRunner, handledFailure)
-    : "idle"
+  const next = state ? footerPhase(phase, state, handled, before, fromRunner, seen) : "idle"
   if (next === "installing" && phase !== "installing" && state)
     setBefore(state.unsupported?.reason ?? null)
-  // A failure that cleared is forgotten, so the next one, in whatever words, is news.
-  if (state?.failure === null && handledFailure !== null) setHandledFailure(null)
+  // A word that cleared is forgotten, so the next one is news.
+  if (state?.stopped === null && seen) setSeen(false)
   if (next !== phase) {
     setPhase(next)
     if (next === "failed" && state) {
@@ -84,7 +86,7 @@ export const FooterMurmur = ({
       setFromRunner(state.failure !== null)
     }
     // What went wrong, or can't be, is said once on its own; the rest opens when asked.
-    setOpen(next === "failed" || next === "unavailable")
+    setOpen(next === "failed" || next === "unavailable" || next === "stopped")
   }
   // Another refusal while it is failed (a Try again refused again) is said too, and opens the
   // sheet again.
@@ -137,16 +139,22 @@ export const FooterMurmur = ({
   if (!murmur || !state) return null
   const shown = phase !== "idle"
   const { actions } = murmur
-  const text = shown ? footerText(phase, state, why) : undefined
+  const text = shown
+    ? footerText(phase, state, phase === "stopped" ? (state.stopped ?? "") : why)
+    : undefined
   const percent = installPercent(state)
-  const tone = phase === "failed" ? "danger" : phase === "done" ? "success" : undefined
+  const tone =
+    phase === "failed" || phase === "stopped" ? "danger" : phase === "done" ? "success" : undefined
   const leave = (): void => {
     const inside = panel.current?.contains(document.activeElement) === true
     asked.current = false
     setOpen(false)
     if (phase === "unavailable" || phase === "failed") {
       setHandled(state.refused)
-      setHandledFailure(state.failure)
+      setPhase("idle")
+    }
+    if (phase === "stopped") {
+      setSeen(true)
       setPhase("idle")
     }
     if (inside) chip.current?.focus()
@@ -157,7 +165,7 @@ export const FooterMurmur = ({
           alone, not again by its sheet. */}
       <span
         role="status"
-        aria-live={phase === "failed" ? "assertive" : "polite"}
+        aria-live={phase === "failed" || phase === "stopped" ? "assertive" : "polite"}
         className="sr-only"
       >
         {text?.summary}
@@ -243,11 +251,37 @@ export const FooterMurmur = ({
                   onClick={() => {
                     setOpen(false)
                     setHandled(state.refused)
-                    setHandledFailure(state.failure)
                     void actions.install()
                   }}
                 >
                   Try again
+                </button>
+              </div>
+            </>
+          )}
+          {phase === "stopped" && (
+            <>
+              <p className="update-progress-head">
+                <span id={titleId} className="update-progress-title">
+                  {MURMUR_NAME} stopped
+                </span>
+              </p>
+              <p className="update-progress-note update-card-error footer-murmur-error">
+                {state.stopped}
+              </p>
+              <div className="update-card-foot">
+                <button type="button" className="button min-h-7 px-3" onClick={leave}>
+                  Not now
+                </button>
+                <button
+                  type="button"
+                  className="button primary min-h-7 px-3"
+                  onClick={() => {
+                    leave()
+                    murmur.openAddons()
+                  }}
+                >
+                  Open Addons
                 </button>
               </div>
             </>

@@ -924,6 +924,21 @@ describe("transcribing a recording", () => {
     ])
   })
 
+  it("does not log the clip a closing runner cut short", async ({ resources }) => {
+    const { voice, directory } = await installed(resources)
+    await writeFile(await modelOf(directory, "ggml-small.bin"), "small slow")
+    await voice.record("owner", "clip", 0, pcm(3200))
+
+    const lines = await logged(async () => {
+      const clip = voice.transcribe("owner", "clip").catch(() => {})
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      await voice.close()
+      await clip
+    })
+
+    expect(lines).toEqual([])
+  })
+
   it("fails with the reason when the engine does, and recovers on the next clip", async ({
     resources,
   }) => {

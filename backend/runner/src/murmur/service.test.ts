@@ -1425,14 +1425,33 @@ describe("an engine that keeps failing", () => {
     await job()
     await job()
     expect(context.murmur.state().failure).toBeNull()
+    expect(context.murmur.state().stopped).toBeNull()
     await job()
 
     expect(context.murmur.state().failure).toMatch(/engine/i)
+    // The same words, apart as what stopped it, for the footer.
+    expect(context.murmur.state().stopped).toBe(context.murmur.state().failure)
     // The check stands: murmur is still on, and tries again.
     expect(context.murmur.state()).toMatchObject({ enabled: true, check: { integrated: true } })
     await writeFile(await modelOf(context.directory), "plain")
     expect(await job()).toBeDefined()
     expect(context.murmur.state().failure).toBeNull()
+    expect(context.murmur.state().stopped).toBeNull()
+  })
+
+  it("leaves stopped null for a failed engine update", async ({ resources }) => {
+    const first = await installed(resources)
+    await first.murmur.close()
+    // The next build's engine cannot be fetched: the old one keeps serving, and Addons says why.
+    const next = await setup(resources, {
+      store: first.store,
+      directory: first.directory,
+      engine: await llamaArchive(resources, "2"),
+      source: "",
+    })
+    await watchUntil(next.murmur, (state) => state.failure !== null)
+    expect(next.murmur.state().failure).not.toBeNull()
+    expect(next.murmur.state()).toMatchObject({ installed: true, stopped: null })
   })
 })
 

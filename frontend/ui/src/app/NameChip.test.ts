@@ -24,6 +24,7 @@ const offered: MurmurState = {
   offers: 0,
   refused: null,
   failure: null,
+  stopped: null,
 }
 
 const target = { projectId: "project", workspaceSessionId: "initial" }

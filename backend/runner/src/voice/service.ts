@@ -457,10 +457,12 @@ export class Voice {
       return result
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      log.warn("voice.transcribe-failed", "Voice input could not transcribe a clip.", {
-        data: { reason: message.slice(0, 1024) },
-        err: error,
-      })
+      // Closing ends the engine under a clip in flight: that is no failure to log.
+      if (!this.closed)
+        log.warn("voice.transcribe-failed", "Voice input could not transcribe a clip.", {
+          data: { reason: message.slice(0, 1024) },
+          err: error,
+        })
       // The engine may be what went wrong with a first clip; keep the clip for another try.
       // Only the caller hears of it: the shared failure is for the install and the engine.
       throw new DomainError("VOICE_FAILED", message.slice(0, 1024))

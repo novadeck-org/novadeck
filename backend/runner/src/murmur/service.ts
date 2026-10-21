@@ -397,6 +397,7 @@ export class Murmur implements Describer {
       unsupported: this.unsupported(),
       offers: this.settings.murmurOffers(),
       failure: this.failure ?? this.runtimeFailure,
+      stopped: this.runtimeFailure,
     }
   }
 
