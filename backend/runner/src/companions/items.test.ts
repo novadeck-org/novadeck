@@ -1,6 +1,7 @@
+import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { devNull, tmpdir } from "node:os"
 import { join } from "node:path"
 
 import {
@@ -14,6 +15,15 @@ import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import type { PlanText } from "./content.js"
 import { CompanionItems, type TerminalPlace } from "./items.js"
+
+const gitInstalled = (() => {
+  try {
+    execFileSync("git", ["--version"], { stdio: "ignore" })
+    return true
+  } catch {
+    return false
+  }
+})()
 
 type Fixture = {
   directory: string
@@ -43,6 +53,7 @@ const it = base.extend<{ fixture: Fixture }>({
       terminal: (terminalId) => places.get(terminalId),
       livePlan: (item) => live.get(item.id),
       pollMs: 10,
+      changesMs: 10,
     })
     resources.defer(() => items.shutdown())
     const terminal = (handle: string, sessionId = session.id): TerminalPlace => {
@@ -976,5 +987,99 @@ describe("what the pane tells of a page", () => {
     expect(gone).toEqual([id])
     fixture.items.close(id)
     expect(gone).toEqual([id, id])
+  })
+})
+
+describe.skipIf(!gitInstalled)("the changes of a repository", () => {
+  /** A repository with one commit and a change on top of it, and a terminal working in it. */
+  const repository = (fixture: Fixture) => {
+    const root = join(fixture.directory, "work")
+    mkdirSync(root)
+    const git = (...args: string[]) =>
+      execFileSync(
+        "git",
+        [
+          "-c",
+          "user.name=T",
+          "-c",
+          "user.email=t@example.com",
+          "-c",
+          "commit.gpgsign=false",
+          ...args,
+        ],
+        { cwd: root, env: { ...process.env, GIT_CONFIG_GLOBAL: devNull } },
+      )
+    git("init", "--quiet")
+    writeFileSync(join(root, "a.txt"), "one\n")
+    git("add", "-A")
+    git("commit", "--quiet", "-m", "base")
+    writeFileSync(join(root, "a.txt"), "one\ntwo\n")
+    return { root, place: { ...fixture.terminal("moth"), cwd: root } }
+  }
+
+  it("is one item per repository, updated by showing again, and closed the same way", async ({
+    fixture,
+  }) => {
+    const { root, place } = repository(fixture)
+    const first = await fixture.items.show(place, { changes: {} })
+    expect(first).toMatchObject({ ok: true, kind: "changes", again: false })
+    const item = fixture.items.bar(place.terminalId)[0]
+    expect(item).toMatchObject({
+      kind: "changes",
+      path: root,
+      url: null,
+      lines: null,
+      name: "Changes · work",
+      detail: "1 file · +1 −0",
+      version: 1,
+    })
+    writeFileSync(join(root, "a.txt"), "one\ntwo\nthree\n")
+    const again = await fixture.items.show(place, { changes: {}, title: "My work" })
+    expect(again).toMatchObject({ ok: true, again: true, name: "My work" })
+    expect(fixture.items.bar(place.terminalId)).toMatchObject([
+      { version: 2, detail: "1 file · +2 −0" },
+    ])
+    expect(fixture.items.listing(place.terminalId)).toContain(`changes "My work": ${root}`)
+    await expect(fixture.items.dismiss(place, { changes: {} })).resolves.toMatchObject({
+      ok: true,
+      kind: "changes",
+    })
+    expect(fixture.items.bar(place.terminalId)).toEqual([])
+    await expect(fixture.items.dismiss(place, { changes: {} })).resolves.toMatchObject({
+      ok: false,
+    })
+  })
+
+  it("yields its content when the change changes, and not otherwise", async ({ fixture }) => {
+    const { root, place } = repository(fixture)
+    const shown = await fixture.items.show(place, { changes: {} })
+    const itemId = shown.ok ? shown.id : ""
+    const stream = fixture.items.content(itemId, false)
+    const first = await next(stream)
+    expect(first).toMatchObject({ state: "ready", content: { kind: "changes", root } })
+    expect(itemContent.parse(first)).toEqual(first)
+    // Several reads pass with nothing new, and none of them yields.
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    writeFileSync(join(root, "b.txt"), "new\n")
+    const second = await next(stream)
+    expect(second).not.toMatchObject({ stamp: first && "stamp" in first ? first.stamp : "" })
+    expect(second).toMatchObject({
+      content: { files: [{ path: "a.txt" }, { path: "b.txt", status: "added" }] },
+    })
+    // A repository that goes is unavailable.
+    rmSync(root, { recursive: true, force: true })
+    await expect(next(stream)).resolves.toMatchObject({ state: "unavailable", reason: "missing" })
+    fixture.items.close(itemId)
+  })
+
+  it("is refused, saying why, for a folder outside any repository", async ({ fixture }) => {
+    const moth = fixture.terminal("moth")
+    const refused = await fixture.items.show(moth, { changes: {} })
+    expect(refused).toMatchObject({ ok: false })
+    expect(refused.ok ? "" : refused.reason).toMatch(/git/)
+    expect(fixture.items.bar(moth.terminalId)).toEqual([])
+    await expect(fixture.items.dismiss(moth, { changes: {} })).resolves.toMatchObject({
+      ok: false,
+    })
   })
 })

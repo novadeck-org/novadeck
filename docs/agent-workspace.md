@@ -292,6 +292,16 @@ port's optional `companions` capability (`frontend/core/src/companion.ts`):
 | `save(target, itemId, text, basedOn)`    | The user's edit written to the plan file, unless it changed since stamp `basedOn` |
 | `attach?(key, path)`                     | A file the person picked, put on a terminal's bar; absent where the backend can't |
 
+A change (the `changes` item kind) shows in the diff viewer (`libraries/viewers/src/diff.ts`),
+read-only: a list of the changed files at the top, each scrolling to its section, then a
+section per file with its path (and old path when renamed), how it changed and its added and
+removed counts, over its hunks with the old and new line numbers in two gutters, added and
+removed lines tinted and the text highlighted by the file's language. A binary file, one that
+may hold secrets and one past the change's size show their header with a note, an empty
+change says "No changes against HEAD", and a truncated one says it is larger than shown.
+The rows of a long change are made a few at a time, and the sections off screen are not laid
+out, so a change of the full 4 MB opens without freezing the pane.
+
 ### Plans are edited in their file
 
 Unlike the read-only `document` presentation, a plan opens editable. The user's
@@ -343,12 +353,13 @@ with every safety check again at that time:
   plugin manifest (with `env_vars` naming the terminal's variables, since Codex starts
   MCP servers without the terminal's environment), `mcp_config.json` for Antigravity.
   Its first tool, `show`, takes one source under the key that names it, with that
-  source's own options inside: a `file` (its path and optional lines) or a `page` (its
+  source's own options inside: a `file` (its path and optional lines), a `page` (its
   `url`, and optionally `scroll`, a CSS selector of the element to bring into view once it
-  loads); beside it the options every source shares, a title and `open`, which the agent
+  loads) or `changes` (`{}`: the whole change in the terminal's repository, see below);
+  beside it the options every source shares, a title and `open`, which the agent
   sets for a deliverable it finished or one the user asked to see (`asked`). A new kind
   of artifact adds a source key of its own rather than more fields beside these. `close`
-  takes the same `file` (its path alone) or `page` (its url alone) and removes what the
+  takes the same `file` (its path alone), `page` (its url alone) or `changes` and removes what the
   agent showed under it from its own bar, as the person closing it would; what the person attached, moved away from it, or another
   terminal placed there is refused with a word on whose it is, and plans are never
   addressable this way. The server finds its terminal
@@ -383,6 +394,28 @@ with every safety check again at that time:
   what the agent's bar holds now, with where each item points and who put it there,
   then what it showed that the person moved elsewhere.
   The UI follows each item with `companions.content`, never by path.
+
+  A **changes item** (`show { changes: {} }`, kind `changes`) is the terminal's git
+  repository as a set of diffs: its working tree against `HEAD` (the empty tree before
+  the first commit), so staged, unstaged and untracked files, but not ignored ones, with
+  renames found. It is one item per repository on a bar, keyed `changes:<repository root>`
+  and named "Changes · <folder>" unless a title is given; showing it again updates it,
+  and its detail counts the files and lines. Its content (`companions.content`) is read
+  with git at the start and again about every 2 seconds while followed, and sent only
+  when it changed. At most 300 files and 4 MiB of diff text are carried; past that,
+  files are listed by name and counts, without hunks, and `truncated` says so. A binary
+  file, and one that may hold secrets (the same rule as for files, tracked or not), is
+  listed by name: its diff is never read into the item, and v1 has no way to reveal it.
+  The runner runs `git` with a fixed argument list and no shell, in the repository, for
+  at most 5 seconds and a bounded output, with `GIT_OPTIONAL_LOCKS=0` (so following never
+  takes the index lock the agent's own git needs) and no prompts, external diff drivers
+  and text conversion off, and a repository's fsmonitor hook off. Otherwise it runs
+  as the person would: their git and its configuration, which an agent in that terminal
+  could use anyway. `show` is refused, with a reason the agent can act on, when the
+  terminal's folder is not in a git repository, git is not installed, or it cannot read
+  the change; a repository that goes later makes the content `missing`, and any other
+  failure `unreadable`.
+
 - **New terminals** come from the same server's second tool, `open_terminal`, listed
   only inside Novadeck's terminals like `show`. It opens a terminal beside the agent's,
   in `cwd` (absolute, or from the terminal's directory, which is the default), named

@@ -34,7 +34,7 @@ describe("a show request", () => {
       readRequest({ page: { url: "http://localhost:5173/" }, file: { path: "a.ts" } }),
     ).toEqual({
       ok: false,
-      reason: "Give one source, file: { path } or page: { url }, not several.",
+      reason: "Give one source, file: { path }, page: { url } or changes: {}, not several.",
     })
     expect(readRequest({ page: { url: "http://a/" }, lines: { from: 1, to: 1 } })).toMatchObject({
       ok: false,
@@ -47,13 +47,13 @@ describe("a show request", () => {
     expect(readRequest({ page: { url: "" } })).toMatchObject({ ok: false })
     expect(readRequest({})).toEqual({
       ok: false,
-      reason: "Give one source, file: { path } or page: { url }.",
+      reason: "Give one source, file: { path }, page: { url } or changes: {}.",
     })
     // The old flat address, as the old flat path, is told the shape.
     for (const old of [{ path: "a.ts" }, { url: "http://localhost:5173/" }])
       expect(readRequest(old)).toEqual({
         ok: false,
-        reason: "Give one source, file: { path } or page: { url }.",
+        reason: "Give one source, file: { path }, page: { url } or changes: {}.",
       })
     expect(readRequest("a.ts")).toEqual({ ok: false, reason: "The request is not valid." })
     expect(readRequest({ page: { url: "http://a/" }, ['x"y'.repeat(40)]: 1 })).toEqual({
@@ -99,11 +99,28 @@ describe("a close request", () => {
     })
     expect(readDismissRequest({ file: { path: "a.ts" }, page: { url: "http://a/" } })).toEqual({
       ok: false,
-      reason: "Give one source, file: { path } or page: { url }, not several.",
+      reason: "Give one source, file: { path }, page: { url } or changes: {}, not several.",
     })
     expect(readDismissRequest({})).toEqual({
       ok: false,
-      reason: "Give one source, file: { path } or page: { url }.",
+      reason: "Give one source, file: { path }, page: { url } or changes: {}.",
     })
+  })
+})
+
+describe("a request for the changes", () => {
+  it("is changes {} with the shared title and open, and takes no option yet", () => {
+    expect(readRequest({ changes: {} })).toEqual({ ok: true, request: { changes: {} } })
+    expect(readRequest({ changes: {}, title: "Work", open: true })).toEqual({
+      ok: true,
+      request: { changes: {}, title: "Work", open: true },
+    })
+    expect(readRequest({ changes: { base: "main" } })).toEqual({
+      ok: false,
+      reason: 'The request\'s "changes.base" is not valid.',
+    })
+    expect(readRequest({ changes: {}, file: { path: "a.ts" } })).toMatchObject({ ok: false })
+    expect(readDismissRequest({ changes: {} })).toEqual({ ok: true, request: { changes: {} } })
+    expect(readDismissRequest({ changes: { paths: [] } })).toMatchObject({ ok: false })
   })
 })

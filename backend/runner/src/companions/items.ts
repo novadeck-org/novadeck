@@ -19,6 +19,7 @@ import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
 import { agentLabel } from "../messaging/mailbox.js"
 import { mention } from "../terminals/handles.js"
+import { changesContent, describeChange, readChange, repositoryOf } from "./changes.js"
 import {
   hashOf,
   loadFile,
@@ -73,6 +74,8 @@ export type CompanionOptions = {
   readonly livePlan?: (item: ItemRecord) => PlanText | undefined
   /** How often `content` looks at what an item points at, in milliseconds. */
   readonly pollMs?: number
+  /** How often `content` reads a change again, in milliseconds: git runs each time. */
+  readonly changesMs?: number
 }
 
 /** Who hears of the troubles pages had and of the items that go: the terminals. */
@@ -116,6 +119,9 @@ const inside = (folder: string, path: string): boolean => {
   const route = relative(folder, path)
   return route !== "" && !isAbsolute(route) && route.split(sep)[0] !== ".."
 }
+
+/** What keys the change of a repository on a bar: one item per repository. */
+const changesKey = (root: string): string => `changes:${root}`
 
 const planKey = (slot: Pick<PlanSlot, "agentSession" | "actor">): string =>
   `plan:${slot.agentSession}:${slot.actor ?? ""}`
@@ -178,6 +184,7 @@ const LIVE_PLAN_MS = 60_000
 export class CompanionItems {
   private readonly records: ItemRecords
   private readonly pollMs: number
+  private readonly changesMs: number
   /** Each `watch` stream and the owner whose release ends it. */
   private readonly watchers = new Map<KeyedChanges<string, CompanionChange>, string>()
   /** Each item's `content` readers, which end once it is deleted. */
@@ -206,6 +213,7 @@ export class CompanionItems {
   constructor(private readonly options: CompanionOptions) {
     this.records = options.records
     this.pollMs = options.pollMs ?? 500
+    this.changesMs = options.changesMs ?? 2000
   }
 
   /**
@@ -518,8 +526,11 @@ export class CompanionItems {
         if (!item) return
         const live = this.live(item)
         const lines = item.lines ? `${item.lines.from}-${item.lines.to}` : ""
+        // A change has no one file to stat: it is read afresh each time.
+        const probing = item.kind !== "changes"
         // eslint-disable-next-line no-await-in-loop -- Each look follows the one before.
-        const now = `${item.version}|${item.path}|${lines}|${await probe(item, live)}`
+        const stamp = probing ? await probe(item, live) : String(Date.now())
+        const now = probing ? `${item.version}|${item.path}|${lines}|${stamp}` : stamp
         if (now !== probed) {
           // eslint-disable-next-line no-await-in-loop -- As above.
           const content = await this.read(item, reveal, live)
@@ -532,7 +543,9 @@ export class CompanionItems {
           }
         }
         // eslint-disable-next-line no-await-in-loop -- As above.
-        await sleep(this.pollMs, undefined, { signal: reader.signal }).catch(() => {})
+        await sleep(item.kind === "changes" ? this.changesMs : this.pollMs, undefined, {
+          signal: reader.signal,
+        }).catch(() => {})
       }
     } finally {
       signal?.removeEventListener("abort", abort)
@@ -701,6 +714,28 @@ export class CompanionItems {
         },
       }
     }
+    if ("changes" in request) {
+      const root = await repositoryOf(place.cwd)
+      if (!root.ok) return root
+      const read = await readChange(root.root)
+      if (!read.ok) return read
+      const { name, detail } = describeChange(read.change)
+      return {
+        ok: true,
+        tooLarge: false,
+        pointer: {
+          pointerKey: changesKey(root.root),
+          kind: "changes",
+          path: root.root,
+          url: null,
+          lines: null,
+          plan: null,
+          name: clip(request.title ?? name, 256),
+          detail: clip(detail, 512),
+          held: false,
+        },
+      }
+    }
     const { path, lines } = request.file
     const pointed = await pointAt(path, place.cwd)
     if (!pointed.ok) return pointed
@@ -738,6 +773,10 @@ export class CompanionItems {
     if ("page" in request) {
       const page = pageAt(request.page.url)
       return page.ok ? { ok: true, key: pageKey(page.url.href), given: page.url.href } : page
+    }
+    if ("changes" in request) {
+      const root = await repositoryOf(place.cwd)
+      return root.ok ? { ok: true, key: changesKey(root.root), given: root.root } : root
     }
     const key = await realPath(resolve(place.cwd, request.file.path))
     return { ok: true, key, given: request.file.path }
@@ -860,6 +899,7 @@ export class CompanionItems {
     reveal: boolean,
     live: PlanText | undefined,
   ): Promise<ItemContent> {
+    if (item.kind === "changes") return changesContent(item.path)
     if (item.kind === "page") {
       const scroll = this.scrolls.get(item.id)
       return Promise.resolve({

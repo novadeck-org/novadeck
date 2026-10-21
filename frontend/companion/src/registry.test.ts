@@ -6,6 +6,7 @@ import {
   FileCode2,
   FileStack,
   FileText,
+  GitCompare,
   Globe,
   Image,
   MessagesSquare,
@@ -24,6 +25,7 @@ const oldKindIcons: Record<ArtifactKind, LucideIcon> = {
   image: Image,
   file: FileCode2,
   page: Globe,
+  changes: GitCompare,
 }
 const oldIsMarkdown = (path: string): boolean => /\.(md|markdown)$/i.test(path)
 const oldIconOf = (artifact: { kind: ArtifactKind; name: string }): LucideIcon =>
@@ -47,6 +49,7 @@ const oldStackNames: Record<StackKind, { one: string; many: string }> = {
   image: { one: "image", many: "Images" },
   file: { one: "file", many: "Files" },
   page: { one: "page", many: "Pages" },
+  changes: { one: "change", many: "Changes" },
 }
 const oldTitleOf = (path: string, text: string): string =>
   /^# (.+)$/m.exec(text)?.[1]?.trim() ?? path.split("/").at(-1) ?? path
@@ -95,6 +98,7 @@ const upper = itemFixture("readme", "01", { kind: "file", name: "README.MARKDOWN
 const code = itemFixture("app", "01", { kind: "file", name: "App.tsx" })
 const picture = itemFixture("hero", "01", { kind: "image", name: "hero.png" })
 const web = itemFixture("web", "01", { kind: "page", name: "localhost:5173", path: null })
+const change = itemFixture("change", "01", { kind: "changes", name: "Changes", path: "/repo" })
 const messages: BarMember = { kind: "messages", key: messagesKey }
 
 const shapes: Record<string, BarMember> = {
@@ -105,6 +109,7 @@ const shapes: Record<string, BarMember> = {
   "code file": itemMember(code),
   image: itemMember(picture),
   page: itemMember(web),
+  changes: itemMember(change),
   messages,
   "placed plan": itemMember(plan, true),
   "placed markdown file": itemMember(markdown, true),
@@ -117,6 +122,7 @@ describe("the registry", () => {
         image: true,
         file: true,
         page: true,
+        changes: true,
         plan: true,
         messages: true,
       }
@@ -134,6 +140,7 @@ describe("the registry", () => {
         "file",
         "image",
         "page",
+        "changes",
         "messages",
         "plan",
         "file",
@@ -167,6 +174,7 @@ describe("the registry", () => {
         file: [shapes["markdown file"]!, shapes["markdown file, upper case"]!],
         image: [shapes.image!, shapes.image!],
         page: [shapes.page!, shapes.page!],
+        changes: [shapes.changes!, shapes.changes!],
       }
       for (const [stack, members] of Object.entries(stacks) as [StackKind, BarMember[]][]) {
         const slot: BarSlot = { key: `stack-${stack}`, stack, members }

@@ -364,6 +364,17 @@ describe("Novadeck's MCP server", () => {
         "Show a deliverable when it is done, not each file you touch",
       )
       expect(show.description).toContain("the files a change touches on the way aren't")
+      expect(show.description).toContain("show the change itself with changes")
+      for (const name of ["show", "close"]) {
+        const tool = described.find((each) => each.name === name) as unknown as {
+          inputSchema: { properties: { changes: unknown } }
+        }
+        expect(tool.inputSchema.properties.changes).toMatchObject({
+          type: "object",
+          properties: {},
+          additionalProperties: false,
+        })
+      }
       expect(show.description).toContain("the file you are working on together")
       expect(show.description).toContain(
         "Set open to true for a deliverable you finish or they asked to see",
@@ -499,8 +510,8 @@ describe("Novadeck's MCP server", () => {
         return reply.result.content[0]?.text
       }
       const cases = [
-        [{ path: "a.ts" }, "Give one source, file: { path } or page: { url }."],
-        [{ url: "http://a/" }, "Give one source, file: { path } or page: { url }."],
+        [{ path: "a.ts" }, "Give one source, file: { path }, page: { url } or changes: {}."],
+        [{ url: "http://a/" }, "Give one source, file: { path }, page: { url } or changes: {}."],
         [{ file: { path: "a.ts" }, extra: 1 }, 'The request\'s "extra" is not valid.'],
         [
           { page: { url: "http://a/" }, lines: { from: 1, to: 1 } },

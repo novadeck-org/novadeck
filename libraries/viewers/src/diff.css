@@ -1,0 +1,140 @@
+/* The diff viewer: a change (`.diff-viewer`) as a list of its files (`.diff-files`, each a
+   `.diff-file-link` that scrolls to its section) over a section per file (`.diff-file`,
+   with data-status: added, modified, deleted, renamed) under a header (`.diff-file-head`:
+   `.diff-status`, `.diff-path` with `.diff-old-path` and `.diff-new-path`, `.diff-stats`
+   with `.diff-added` and `.diff-removed`). A file's hunks (`.diff-hunk`) have a header
+   (`.diff-hunk-head`) over rows (`.diff-line`, with data-kind: context, add, remove), each
+   with two line numbers (`.diff-number`) and its text (`.diff-text`). `.diff-note` says
+   what a file or the change itself can't show. The `.tok-*` classes of code.css colour the
+   text once highlighted.
+
+   Tokens, each optional (its fallback in brackets):
+   --code-font (monospace), --code-font-size (inherit), --code-line-height (1.6): the type.
+   --code-number-fg (the text, faded): line numbers and the hunk headers.
+   --diff-add-bg (green, faintly), --diff-add-fg (green), --diff-remove-bg (red, faintly),
+   --diff-remove-fg (red): added and removed lines, and the counts of each.
+   --diff-head-bg (the text, faintly), --diff-line-color (the text, faded): a file's
+   header, and the lines between sections. */
+.diff-viewer {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: 0 0 10px;
+  overflow: auto;
+  font-family: var(--code-font, monospace);
+  font-size: var(--code-font-size, inherit);
+  font-weight: normal;
+  font-style: normal;
+  line-height: var(--code-line-height, 1.6);
+  user-select: text;
+}
+.diff-files {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--diff-line-color, color-mix(in srgb, currentColor 18%, transparent));
+}
+.diff-file-link {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 1px 4px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: 0;
+}
+.diff-file-link:hover {
+  background: var(--diff-head-bg, color-mix(in srgb, currentColor 8%, transparent));
+}
+.diff-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.diff-file {
+  /* A long change draws only what is on screen. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 300px;
+  border-bottom: 1px solid var(--diff-line-color, color-mix(in srgb, currentColor 18%, transparent));
+}
+.diff-file-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 4px 12px;
+  background: var(--diff-head-bg-solid, var(--diff-head-bg, Canvas));
+  border-bottom: 1px solid var(--diff-line-color, color-mix(in srgb, currentColor 18%, transparent));
+}
+.diff-path {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.diff-status {
+  font-size: 0.85em;
+  color: var(--code-number-fg, color-mix(in srgb, currentColor 55%, transparent));
+}
+.diff-file[data-status="added"] .diff-status,
+.diff-added {
+  color: var(--diff-add-fg, #2e8b57);
+}
+.diff-file[data-status="deleted"] .diff-status,
+.diff-removed {
+  color: var(--diff-remove-fg, #c0392b);
+}
+.diff-stats {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+.diff-note {
+  margin: 0;
+  padding: 6px 12px;
+  color: var(--code-number-fg, color-mix(in srgb, currentColor 55%, transparent));
+}
+.diff-hunk-head {
+  padding: 2px 12px;
+  color: var(--code-number-fg, color-mix(in srgb, currentColor 55%, transparent));
+  white-space: pre;
+  background: var(--diff-head-bg, color-mix(in srgb, currentColor 6%, transparent));
+}
+.diff-line {
+  display: grid;
+  grid-template-columns: 48px 48px 1fr;
+  padding-right: 16px;
+  white-space: pre;
+}
+.diff-number {
+  padding-right: 10px;
+  text-align: right;
+  color: var(--code-number-fg, color-mix(in srgb, currentColor 55%, transparent));
+  user-select: none;
+}
+.diff-text::before {
+  display: inline-block;
+  width: 2ch;
+  user-select: none;
+  content: " ";
+}
+.diff-line[data-kind="add"] {
+  background: var(--diff-add-bg, color-mix(in srgb, #2e8b57 16%, transparent));
+}
+.diff-line[data-kind="add"] .diff-text::before {
+  content: "+";
+}
+.diff-line[data-kind="remove"] {
+  background: var(--diff-remove-bg, color-mix(in srgb, #c0392b 16%, transparent));
+}
+.diff-line[data-kind="remove"] .diff-text::before {
+  content: "−";
+}

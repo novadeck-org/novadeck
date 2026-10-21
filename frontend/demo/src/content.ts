@@ -19,6 +19,7 @@ import { defaultName, demoTerminalId } from "./samples"
 import { fixedIntro } from "./screen/terminal"
 import { authAgent, studioAgent, type SampleAgent } from "./showcase/agents"
 import { devServerArtifacts } from "./showcase/artifacts"
+import { changesArtifacts } from "./showcase/changes"
 import { createShowcase, planFaults, type PlanFault } from "./showcase/simulation"
 import { terminalOf } from "./terminals"
 import { showcaseTranscripts } from "./transcripts"
@@ -119,7 +120,7 @@ export const contentDemo = (
   // The sample agents run in the first two terminals of the showcase's own session:
   // they open with their own transcripts, answer what they're told, and report their
   // plans and what they show. The dev server's terminal holds what can't show, one of
-  // each reason.
+  // each reason, and a change in each shape.
   const agents = [
     {
       key: { ...session, terminalId: demoTerminalId(session, 1) },
@@ -138,7 +139,7 @@ export const contentDemo = (
       {
         key: { ...session, terminalId: demoTerminalId(session, 2) },
         handle: "fox",
-        artifacts: devServerArtifacts,
+        artifacts: [...devServerArtifacts, ...changesArtifacts],
       },
     ],
   })

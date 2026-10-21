@@ -2,6 +2,7 @@ import type { ArtifactKind } from "@novadeck/core/companion"
 import type { LucideIcon } from "lucide-react"
 
 import type { BarMember, BarSlot } from "./bar"
+import { changes } from "./panes/changes"
 import { file } from "./panes/file"
 import { image } from "./panes/image"
 import { messages } from "./panes/messages"
@@ -12,7 +13,7 @@ import type { Drawing, PaneKind, Registry } from "./registration"
 // Every kind of thing on a terminal's bar, by its registration. A new artifact
 // type is one folder in `panes/` and one line here, with its data parts in core; a kind that core adds without one
 // fails to compile, since `Registry` maps every `PaneKind`.
-export const registry = { image, file, page, plan, messages } satisfies Registry
+export const registry = { image, file, page, changes, plan, messages } satisfies Registry
 
 // The registry's kind for a bar's member.
 export const kindOf = (member: BarMember): PaneKind =>

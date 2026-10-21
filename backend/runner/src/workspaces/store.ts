@@ -70,7 +70,8 @@ export type SettingsChange = {
 // it doesn't know, on a database of its own version, as a newer build's; an added table,
 // index or constraint goes unseen.
 // 2: word handles, given once per session (session_handles), each unique in its session.
-const schemaVersion = 2
+// 3: changes items, a kind the kind CHECK must allow.
+const schemaVersion = 3
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -204,7 +205,7 @@ const extras = `
     window_id TEXT UNIQUE REFERENCES companion_windows(id) ON DELETE CASCADE,
     -- A file's resolved path, a page's pageKey, or a plan's slot, unique on one bar.
     pointer_key TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('image', 'file', 'page', 'plan')),
+    kind TEXT NOT NULL CHECK (kind IN ('image', 'file', 'page', 'plan', 'changes')),
     path TEXT,
     url TEXT,
     lines_from INTEGER,
