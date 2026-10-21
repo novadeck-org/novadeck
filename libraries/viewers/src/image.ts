@@ -4,10 +4,10 @@ import type { Mount, Viewer, ViewerState } from "./index.js"
 // An image on a canvas: fitted whole and centred, never larger than its own size, or
 // zoomed from half its fit up and moved about. Pinch or Ctrl/⌘+scroll zooms around the
 // pointer, a scroll or a drag moves it at any zoom, a double-click zooms in there and back
-// to fit, and keys do each while the viewer has focus. Once it's moved or zoomed, a chip
-// over it says how far, and takes it back to fit. The zoom is part of its state, with the
-// point of the image at the viewer's centre, so an image shown again keeps its view
-// whatever the viewer's size. Its looks are image.css's.
+// to fit, and keys do each once the viewer is reached by keyboard. Once it's moved or
+// zoomed, a chip over it says how far, and takes it back to fit. The zoom is part of its
+// state, with the point of the image at the viewer's centre, so an image shown again keeps
+// its view whatever the viewer's size. Its looks are image.css's.
 
 export type ImageContent = { readonly src: string; readonly alt: string }
 
@@ -66,7 +66,7 @@ const placeOn = (view: number, size: number, centre: number): number =>
   view / 2 - clamp(centre, 0, 1) * size
 
 const gestures = "Pinch, or scroll with Ctrl or ⌘, to zoom; double-click to zoom in; drag to move."
-const keyHelp = "Plus and minus zoom, 0 fits, 1 shows 100%, the arrows move."
+const keyHelp = "Reached by Tab: plus and minus zoom, 0 fits, 1 shows 100%, the arrows move."
 
 export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> = (
   element,
@@ -103,7 +103,7 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     const { naturalWidth, naturalHeight } = image
     const { clientWidth, clientHeight } = root
     if (!naturalWidth || !naturalHeight || !clientWidth || !clientHeight) return undefined
-    const style = getComputedStyle(root)
+    const style = (document.defaultView ?? window).getComputedStyle(root)
     const across = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
     const down = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
     const fit = Math.min(
@@ -158,6 +158,7 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
   // Zooms to a scale, or to fit, keeping the image's point under `at` (a point in the
   // viewer, its centre unless given) where it is.
   const zoomTo = (next: ImageZoom, at?: { readonly x: number; readonly y: number }): void => {
+    if (!isZoom(next)) return
     if (!drawn) {
       zoom = next === "fit" ? next : Math.min(next, most)
       return draw()
@@ -177,13 +178,23 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
   const scaleNow = (): number => (drawn ? drawn.width / image.naturalWidth : 1)
 
   // Moves the view across the image by a distance, as a scroll would, at any zoom: a fitted
-  // image moved is no longer fitted. Whether it moved it.
+  // image moved is no longer fitted. Whether it moved, as one held at its limit doesn't, so a
+  // wheel there can scroll what's around it instead.
   const pan = (dx: number, dy: number): boolean => {
     if (!drawn || (!dx && !dy)) return false
-    if (zoom === "fit") zoom = drawn.fit
+    const before = drawn
+    const fitted = zoom === "fit"
+    if (fitted) zoom = drawn.fit
     centre = { x: centre.x + dx / drawn.width, y: centre.y + dy / drawn.height }
     draw()
-    return true
+    const moved =
+      Math.abs((drawn?.x ?? before.x) - before.x) > 0.01 ||
+      Math.abs((drawn?.y ?? before.y) - before.y) > 0.01
+    if (!moved && fitted) {
+      zoom = "fit"
+      draw()
+    }
+    return moved
   }
 
   // How far the page scales the viewer, as Canvas does at its zoom: a pointer's distances
@@ -218,7 +229,9 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
       if (delta) zoomTo(scaleNow() * Math.exp(-delta * wheelStep), pointIn(event))
       return
     }
-    let dx = event.deltaX * unit
+    // A page across is the viewer's width.
+    let dx =
+      event.deltaX * (event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? root.clientWidth : unit)
     let dy = event.deltaY * unit
     // A wheel turned with Shift moves it sideways, where the system doesn't already.
     if (event.shiftKey && !dx) [dx, dy] = [dy, 0]
@@ -234,12 +247,17 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
         from: { x: number; y: number }
       }
     | undefined
+  // Whether its keys are the person's for the image: only once they reached it by keyboard.
+  // A click leaves their typing to what's around it, as a terminal the app sends it to, where
+  // a digit may be an answer to an agent.
+  let keyed = false
   // Whether the last press went far enough to move the image: a click's jitter doesn't, and
   // a drag's clicks aren't a double-click.
   let dragged = false
   const onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 0 || chip.contains(event.target as Node)) return
     root.focus({ preventScroll: true })
+    keyed = false
     dragged = false
     if (!drawn) return
     const from = { x: event.clientX, y: event.clientY }
@@ -278,6 +296,7 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
 
   const onKeyDown = (event: KeyboardEvent): void => {
     if (
+      !keyed ||
       event.defaultPrevented ||
       event.isComposing ||
       event.ctrlKey ||
@@ -310,9 +329,17 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     key()
   }
 
-  const onChip = (): void => {
+  // A click on it is the pointer's, and its Enter the keyboard's.
+  const onChip = (event: MouseEvent): void => {
     zoomTo("fit")
     root.focus({ preventScroll: true })
+    if (event.detail) keyed = false
+  }
+  const onFocusIn = (): void => {
+    keyed = true
+  }
+  const onFocusOut = (event: FocusEvent): void => {
+    if (!root.contains(event.relatedTarget as Node | null)) keyed = false
   }
 
   const observer = new (document.defaultView?.ResizeObserver ?? ResizeObserver)(draw)
@@ -327,6 +354,8 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
   root.addEventListener("lostpointercapture", endDrag)
   root.addEventListener("dblclick", onDoubleClick)
   root.addEventListener("keydown", onKeyDown)
+  root.addEventListener("focusin", onFocusIn)
+  root.addEventListener("focusout", onFocusOut)
   chip.addEventListener("click", onChip)
 
   // Its address's key, kept while it shows: a data URL can be megabytes to hash.

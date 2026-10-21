@@ -55,7 +55,10 @@ const wheel = (host: HTMLElement, init: WheelEventInit): WheelEvent => {
   return event
 }
 
+// A key on the viewer, reached by keyboard: focus put there by the page, not a click.
 const key = (host: HTMLElement, name: string): KeyboardEvent => {
+  if (document.activeElement !== viewerOf(host) && !viewerOf(host).contains(document.activeElement))
+    viewerOf(host).focus()
   const event = new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true })
   viewerOf(host).dispatchEvent(event)
   return event
@@ -194,6 +197,42 @@ describe("the image viewer", () => {
     // A trackpad moves it both ways at once.
     wheel(host, { deltaX: -30, deltaY: -40 })
     expect(placeOf(host)).toMatchObject({ x: start.x - 70, y: start.y - 60 })
+  })
+
+  it("leaves a wheel past its limit to what's around it", async () => {
+    const host = hostIn()
+    const viewer = mount(large, host)
+    await loaded(host)
+    viewer.zoom(1)
+    wheel(host, { deltaY: -5000 })
+    expect(wheel(host, { deltaY: -100 }).defaultPrevented).toBe(false)
+    expect(wheel(host, { deltaY: 100 }).defaultPrevented).toBe(true)
+  })
+
+  it("stays fitted for a wheel that can't move it", async () => {
+    const host = hostIn()
+    mount({ src: picture(40, 30), alt: "" }, host)
+    await loaded(host)
+    // Fitted at its own size, a 40 × 30 image moves no further than 15px up.
+    wheel(host, { deltaY: -15 })
+    expect(chipOf(host).hidden).toBe(false)
+    key(host, "0")
+    wheel(host, { deltaX: 0.001 })
+    expect(chipOf(host).hidden).toBe(true)
+  })
+
+  it("leaves its keys to the app after a click, as typing for a terminal", async () => {
+    const host = hostIn()
+    mount(large, host)
+    await loaded(host)
+    const fitted = placeOf(host)
+    drag(host)("pointerdown", 200, 150)
+    drag(host)("pointerup", 200, 150)
+    expect(document.activeElement).toBe(viewerOf(host))
+    const event = new KeyboardEvent("keydown", { key: "1", bubbles: true, cancelable: true })
+    viewerOf(host).dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(placeOf(host)).toEqual(fitted)
   })
 
   it("moves an edge no further than the viewer's centre", async () => {
