@@ -44,8 +44,11 @@ speedup a person would have noticed; leave the small ones out, they are counted 
 
 ## Modes
 
-In release mode, the changes are those of one prerelease. Answer with `highlights` empty
-and put each visible change in `changes`.
+In release mode, the changes are those of one prerelease. Put each visible change in
+`changes`. Then pick at most two of them as highlights, the changes a person would want to
+hear about right after updating: something new they can do or see. A fix is a highlight only
+when it was big enough to be missed. A highlight repeats its change, which stays in `changes`
+too. Leave `highlights` empty when nothing stands out, as in a build of small fixes.
 
 In promote mode, the changes are every change since the last stable release, or since the
 start when there is none. Pick one to four highlights, the changes a person would most want
