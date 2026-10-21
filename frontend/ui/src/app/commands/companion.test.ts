@@ -99,7 +99,11 @@ describe("companion commands", () => {
       app.commands.dock("session-1")
       expect(app.windows()).toEqual([])
       expect(app.item(plan.id)!.holder).toEqual({ terminalId: "01" })
-      expect(app.bar("01")).toMatchObject({ order: [hero.id, plan.id], stack: [plan.id], open: true })
+      expect(app.bar("01")).toMatchObject({
+        order: [hero.id, plan.id],
+        stack: [plan.id],
+        open: true,
+      })
       expect(app.state().selected).toBe("01")
     })
 

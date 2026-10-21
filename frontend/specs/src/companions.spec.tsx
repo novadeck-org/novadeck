@@ -89,10 +89,9 @@ describe("A terminal's taskbar", () => {
 
     await taskbarIcon("Build Studio", "Messages").click()
     await expect.element(pane.getByText("Pause all agents' messages")).toBeVisible()
-    await expect.element(taskbarIcon("Build Studio", "2 files")).toHaveAttribute(
-      "data-state",
-      "behind",
-    )
+    await expect
+      .element(taskbarIcon("Build Studio", "2 files"))
+      .toHaveAttribute("data-state", "behind")
     // Minimizing the messages uncovers the file open behind them, and then the pane goes.
     await pane.getByRole("button", { name: "Minimize to the taskbar" }).click()
     await expect.element(file).toBeVisible()

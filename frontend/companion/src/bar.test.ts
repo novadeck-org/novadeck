@@ -176,17 +176,15 @@ describe("a terminal's taskbar", () => {
 
     it("opens a stack of plans to the one rewritten since it was read, else the root plan", () => {
       const helper = plan("helper", "subagent")
-      expect(pick(stack(membersOf([helper, root], { fresh: [helper.id] })), []).key).toBe(
-        "helper",
-      )
+      expect(pick(stack(membersOf([helper, root], { fresh: [helper.id] })), []).key).toBe("helper")
       expect(pick(stack(membersOf([helper, root])), []).key).toBe("root")
     })
 
     it("opens something that may hold secrets only when the stack holds nothing else", () => {
       const secret = image("secret", { held: true })
-      expect(
-        pick(stack(membersOf([image("hero"), secret], { fresh: [secret.id] })), []).key,
-      ).toBe("hero")
+      expect(pick(stack(membersOf([image("hero"), secret], { fresh: [secret.id] })), []).key).toBe(
+        "hero",
+      )
       expect(pick(stack(membersOf([secret])), []).key).toBe("secret")
     })
   })

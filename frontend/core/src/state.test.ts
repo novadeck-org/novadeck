@@ -48,7 +48,12 @@ describe("companion items in the workspace", () => {
     })
 
     it("opens on top of what the person has open, which waits behind it", () => {
-      const reading = apply(shown(notes), { type: "bar/open", target, terminalId: "01", key: notes.id })
+      const reading = apply(shown(notes), {
+        type: "bar/open",
+        target,
+        terminalId: "01",
+        key: notes.id,
+      })
       const state = run(reading, { type: "item/upsert", target, item: { ...hero, asked: true } })
       expect(state.bars["01"]).toMatchObject({ stack: [notes.id, hero.id], open: true })
     })

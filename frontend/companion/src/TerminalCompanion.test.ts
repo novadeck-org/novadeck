@@ -31,7 +31,12 @@ const key = { ...target, terminalId: "01" }
 const hero = itemFixture("hero", "01", { kind: "image", name: "hero.png", path: "/p/hero.png" })
 const shown = (item = hero): WorkspaceAction => ({ type: "item/upsert", target, item })
 
-const notes = itemFixture("notes", "01", { kind: "page", name: "notes", path: null, url: "http://x/" })
+const notes = itemFixture("notes", "01", {
+  kind: "page",
+  name: "notes",
+  path: null,
+  url: "http://x/",
+})
 
 // What a terminal does with its bar, as the app's commands would, here only opening,
 // minimizing and hiding.
@@ -172,12 +177,12 @@ describe("a terminal's taskbar", () => {
 
     it("uncovers the one behind when the person minimizes the top from its icon", async () => {
       const { container } = renderTerminal(opened())
-      await act(async () => icon(container, "notes")?.dispatchEvent(new MouseEvent("click", { bubbles: true })))
+      await act(async () =>
+        icon(container, "notes")?.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      )
       expect(icon(container, "hero.png")?.getAttribute("data-state")).toBe("open")
       expect(icon(container, "notes")?.getAttribute("data-state")).toBe("seen")
-      expect(container.querySelector(".plan-split-reader")?.hasAttribute("data-behind")).toBe(
-        false,
-      )
+      expect(container.querySelector(".plan-split-reader")?.hasAttribute("data-behind")).toBe(false)
     })
 
     it("hides the whole pane on Escape, marking everything open as waiting", async () => {

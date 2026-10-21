@@ -272,8 +272,7 @@ export const TerminalCompanion = ({
     target,
     // Clicking what the pane is showing minimizes it, as a taskbar does the active window;
     // anything else comes to the top.
-    activate: (key) =>
-      key === showing ? commands.minimizeOnBar(terminal, key) : openPicked(key),
+    activate: (key) => (key === showing ? commands.minimizeOnBar(terminal, key) : openPicked(key)),
     open: openPicked,
     seen: (itemIds) => commands.markSeen(itemIds),
     close: (each) => {
