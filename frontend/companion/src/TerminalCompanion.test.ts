@@ -198,6 +198,27 @@ describe("a terminal's taskbar", () => {
       expect(icon(container, "hero.png")?.getAttribute("data-state")).toBe("behind")
       expect(icon(container, "notes")?.getAttribute("data-state")).toBe("behind")
     })
+
+    it("leaves focus where it was when something else comes to the top, as an agent's does", async () => {
+      const { container, workspace } = renderTerminal(opened())
+      ;(document.activeElement as HTMLElement | null)?.blur()
+      await act(
+        async () =>
+          void workspace.dispatch({ type: "bar/open", target, terminalId: "01", key: hero.id }),
+      )
+      expect(icon(container, "hero.png")?.getAttribute("data-state")).toBe("open")
+      expect(document.activeElement).toBe(document.body)
+    })
+
+    it("hides the whole pane on Escape from a sheet peeking out behind it", async () => {
+      const { container } = renderTerminal(opened())
+      const card = container.querySelector<HTMLElement>(".plan-stack-sheet")
+      await act(async () =>
+        card?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
+      )
+      expect(icon(container, "hero.png")?.getAttribute("data-state")).toBe("behind")
+      expect(icon(container, "notes")?.getAttribute("data-state")).toBe("behind")
+    })
   })
 
   context("when the person closed the messages", () => {

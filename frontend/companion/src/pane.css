@@ -24,6 +24,8 @@
    --pane-attached-border-color (line-strong), --pane-attached-shadow (shadow-floating),
    --pane-attached-radius (radius-panel): the attached sheet.
    --pane-tether-border-color (line-strong): the dashed line to its node.
+   --pane-stack-attached-border-color (line-strong): those sheets above the attached
+   sheet.
    --pane-stack-hover-border-color (line-strong): a sheet peeking out from behind what
    the pane shows, under the pointer.
    --pane-stack-shadow-color (shadow, 16% in light and 55% in dark): what each sheet in
@@ -216,7 +218,8 @@
 }
 .plan-attached .plan-stack-sheet {
   --_inset: 8px;
-  border-color: var(--pane-attached-border-color, var(--color-line-strong));
+  /* Its own, as a theme may leave the sheet itself unedged. */
+  border-color: var(--pane-stack-attached-border-color, var(--color-line-strong));
   border-radius: var(--pane-attached-radius, var(--radius-panel))
     var(--pane-attached-radius, var(--radius-panel)) 0 0;
 }

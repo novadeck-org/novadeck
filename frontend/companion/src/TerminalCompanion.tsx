@@ -222,12 +222,17 @@ export const TerminalCompanion = ({
   // Open while there's something to show.
   const open = bar.open && tab !== null
   const showing = open ? tab : null
-  // What's open in the pane behind what it shows, nearest first, counted against its tab
-  // even as it hides, so its sheets stay as they were while it animates out.
-  const behind = behindTab(bar, members, tab)
+  // What the pane last showed: as it animates out it keeps showing that, while it's still
+  // on the bar, as when its only sheet was minimized, not what it would fall back to.
+  const [lastShown, setLastShown] = useState<BarKey | null>(showing)
+  if (showing !== null && showing !== lastShown) setLastShown(showing)
+  const paneTab = open || !members.some((each) => each.key === lastShown) ? tab : lastShown
+  // What's open in the pane behind what it shows, nearest first, counted against what it
+  // shows even as it hides, so its sheets stay as they were while it animates out.
+  const behind = behindTab(bar, members, paneTab)
     .toReversed()
     .flatMap((key) => members.filter((each) => each.key === key))
-  const member = members.find((each) => each.key === tab)
+  const member = members.find((each) => each.key === paneTab)
   // Who showed what's here, by its main plan's agent.
   const agent =
     items.find((item) => item.kind === "plan" && item.plan?.role === "root")?.plan?.agent ??
@@ -333,6 +338,7 @@ export const TerminalCompanion = ({
   }, [open, terminal])
   const paneView: PaneView = {
     member,
+    leaving: !open,
     behind,
     panes,
     target,

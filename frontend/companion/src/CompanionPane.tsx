@@ -99,23 +99,42 @@ const MemberTab = ({
 // How many of what's behind peek out above what the pane shows.
 const peeking = 2
 
+// How soon after the person acts in the pane what it shows must change for the pane to
+// take focus: the change follows at once, so anything later wasn't theirs.
+const handOffMs = 1000
+
 // The sheets open behind what the pane shows, peeking out above it as cards stacked
 // behind one another do: each further back narrower and fainter, the nearest last. Each
 // names itself on hover and comes forward when clicked. One that was just shown tucks in
-// behind what took its place, so the two read as swapped.
+// behind what took its place, so the two read as swapped. Escape hides the pane from
+// here too, as from what it shows.
 const BehindStack = ({
   behind,
   tucked,
   plans,
   onRaise,
+  onTucked,
+  onHide,
 }: {
   // Nearest first.
   behind: readonly BarMember[]
   tucked: string | undefined
   plans: LookContext["plans"]
   onRaise: (member: BarMember) => void
+  // The tuck played: it isn't played again, as when a hidden terminal shows again.
+  onTucked: () => void
+  onHide: () => void
 }): React.JSX.Element => (
-  <div className="plan-stack nodrag nopan">
+  <div
+    className="plan-stack nodrag nopan"
+    data-workspace-companion
+    onKeyDown={(event) => {
+      if (event.key === "Escape") {
+        event.stopPropagation()
+        onHide()
+      }
+    }}
+  >
     {behind
       .slice(0, peeking)
       .toReversed()
@@ -129,6 +148,7 @@ const BehindStack = ({
               data-entry={each.key === tucked ? "tuck" : undefined}
               aria-label={`Bring forward ${name}`}
               onClick={() => onRaise(each)}
+              onAnimationEnd={onTucked}
             />
           </Tooltip>
         )
@@ -155,6 +175,7 @@ type Shown = {
 // the top of what's open in the pane; the rest waits behind it.
 export const CompanionPane = ({
   member,
+  leaving,
   behind,
   panes,
   target,
@@ -171,6 +192,8 @@ export const CompanionPane = ({
   onRaise,
 }: {
   member: BarMember | undefined
+  // The pane is going: what it shows as it fades plays no entry of its own.
+  leaving: boolean
   // What's open behind it, nearest first.
   behind: readonly BarMember[]
   panes: Panes
@@ -222,17 +245,28 @@ export const CompanionPane = ({
   }
   const messages = member?.kind === "messages"
   const plan = member?.kind === "item" && member.item.kind === "plan" ? member.item : undefined
-  // Minimizing or closing what it showed from inside it drops focus with it: the pane
-  // takes it, as the window uncovered takes focus on a desktop. Focus the person has
-  // elsewhere stays there.
+  // Minimizing or closing what it showed, or bringing forward what's behind, from the pane
+  // drops focus with what went: the pane takes it, as the window uncovered takes focus on
+  // a desktop. Only then: a change the person didn't make here, as an agent's, takes no
+  // focus, and focus the person has elsewhere stays there.
   const section = useRef<HTMLElement>(null)
   const shown = useRef(member?.key)
+  const handedAt = useRef(-Infinity)
+  const handOff =
+    <Args extends unknown[]>(act: (...args: Args) => void) =>
+    (...args: Args): void => {
+      handedAt.current = performance.now()
+      act(...args)
+    }
   useEffect(() => {
     const before = shown.current
     shown.current = member?.key
     if (before === undefined || before === member?.key) return
+    const handed = performance.now() - handedAt.current < handOffMs
+    handedAt.current = -Infinity
     const focused = document.activeElement
-    if (!focused || focused === document.body) section.current?.focus({ preventScroll: true })
+    if (handed && (!focused || focused === document.body))
+      section.current?.focus({ preventScroll: true })
   }, [member?.key])
   const undock = member?.kind === "item" && !member.placed ? () => onUndock(member) : undefined
   const tab = member && (
@@ -248,8 +282,8 @@ export const CompanionPane = ({
           name={registrationOf(member).look(member, { plans }).name}
           behind={behind.length > 0}
           onUndock={undock}
-          onMinimize={() => onMinimize(member)}
-          onClose={() => onClose(member)}
+          onMinimize={handOff(() => onMinimize(member))}
+          onClose={handOff(() => onClose(member))}
         />
       }
     />
@@ -258,7 +292,16 @@ export const CompanionPane = ({
     <>
       {/* There while nothing's behind too: the split keeps what it shows clear of the
           window's header. */}
-      <BehindStack behind={behind} tucked={entry.tucked} plans={plans} onRaise={onRaise} />
+      <BehindStack
+        behind={behind}
+        tucked={entry.tucked}
+        plans={plans}
+        onRaise={handOff(onRaise)}
+        onTucked={() =>
+          setEntry((current) => (current.tucked ? { ...current, tucked: undefined } : current))
+        }
+        onHide={onHide}
+      />
       <section
         ref={section}
         tabIndex={-1}
@@ -282,7 +325,16 @@ export const CompanionPane = ({
           // All that's left may hold secrets, which shows only once picked.
           <div className="artifact-status">Pick what to show from the taskbar.</div>
         ) : (
-          <div key={member.key} className="plan-sheet" data-entry={entry.how}>
+          <div
+            key={member.key}
+            className="plan-sheet"
+            data-entry={leaving ? undefined : entry.how}
+            // Played once: a hidden terminal shown again doesn't play it again.
+            onAnimationEnd={(event) => {
+              if (event.target === event.currentTarget)
+                setEntry((current) => (current.how ? { ...current, how: undefined } : current))
+            }}
+          >
             {member.kind === "item" && member.placed ? (
               <div className="placed-tab">
                 <p className="placed-from">From {originOf(member) ?? "another terminal"}</p>
