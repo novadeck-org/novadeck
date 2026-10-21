@@ -7,8 +7,9 @@ export const maxLine = 110
 // The most the notes' schema holds (contract/protocol/src/release-notes.ts): an answer past
 // these would pass here and throw when the block is written.
 export const maxHighlights = 4
-// A prerelease's card leads with fewer, early builds coming several a day. Past these the
-// highlights are dropped, not the answer.
+// A prerelease's card leads with fewer, early builds coming several a day. A release's
+// highlights repeat lines of its changes, so past these they are dropped, not the answer,
+// and the changes still tell them.
 export const releaseHighlights = 2
 export const maxChanges = 200
 export const maxPrs = 32
@@ -74,7 +75,7 @@ export const checkOutput = (
   kind: "release" | "promote",
   allowed: ReadonlySet<number>,
 ): Checked => {
-  if (output.highlights.length > maxHighlights)
+  if (kind === "promote" && output.highlights.length > maxHighlights)
     return fail(`At most ${maxHighlights} highlights, got ${output.highlights.length}`)
   if (output.changes.length > maxChanges)
     return fail(`At most ${maxChanges} changes, got ${output.changes.length}`)

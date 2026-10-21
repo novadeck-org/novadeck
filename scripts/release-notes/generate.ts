@@ -77,7 +77,8 @@ const compose = async (
   const checked = checkOutput(output, kind, new Set(given.flatMap((item) => item.prs)))
   if (!checked.ok) throw new Skip(checked.reason, text)
   const { highlights } = checked.output
-  // A change a highlight already tells is not told twice.
+  // A change a highlight already tells is not told twice. A release's answer repeats its
+  // highlights in its changes, so a highlight the checks dropped keeps its change.
   const told = new Set(highlights.flatMap((highlight) => highlight.prs))
   const changes = checked.output.changes.filter((change) => !change.prs.every((pr) => told.has(pr)))
   const cited = new Set([...told, ...changes.flatMap((change) => change.prs)])

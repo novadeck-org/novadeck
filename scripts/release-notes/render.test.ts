@@ -68,6 +68,19 @@ describe("a rendered body", () => {
     expect(body).toContain("Plus 1 smaller fix or speedup.")
   })
 
+  it("leads a release with its highlights, and says no more when they are all it has", () => {
+    const highlights = [{ title: "Teams", line: "Teams show on the rail.", prs: [328] }]
+    const body = renderBody(
+      { version: "0.0.1", kind: "release", highlights, changes: [], fixes: 1 },
+      "",
+      repo,
+    )
+    expect(body).toMatch(/^### Highlights\n\n- \*\*Teams\*\*: Teams show on the rail\. \(\[#328\]/)
+    expect(body).toContain("Plus 1 smaller fix or speedup.")
+    expect(body).not.toContain("Nothing in this build")
+    expect(body).not.toMatch(/^## Highlights/m)
+  })
+
   it("says so when a release changes nothing a person sees, and still carries the block", () => {
     const body = renderBody(
       {

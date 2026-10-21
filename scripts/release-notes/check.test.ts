@@ -53,6 +53,14 @@ describe("the checks on a model's answer", () => {
     expect(after.output.highlights.map(({ title }) => title)).toEqual(["Two", "Three"])
   })
 
+  it("cuts a release's highlights past the schema's four to two, not failing the answer", () => {
+    const five = { ...good, highlights: Array(5).fill(good.highlights[0]) }
+    const checked = check(five, "release")
+    if (!checked.ok) throw new Error("expected the answer to pass")
+    expect(checked.output.highlights).toHaveLength(2)
+    expect(checked.dropped).toHaveLength(3)
+  })
+
   it("checks a release's highlights as a promotion's", () => {
     const wild = { ...good, highlights: [{ title: "<b>x</b>", line: "y", prs: [181] }] }
     const checked = check(wild, "release")
