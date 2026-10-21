@@ -21,7 +21,7 @@ const useConnection = (connection: Backend["connection"]): BackendConnectionStat
 // The footer wired to the workspace's counts, the account's subscriptions and the
 // backend's link.
 export const WorkspaceFooter = memo((): React.JSX.Element => {
-  const { backend, commands, ui, workspace: store } = useWorkspaceServices()
+  const { backend, commands, navigation, ui, workspace: store } = useWorkspaceServices()
   const { updates, portable: portableHost } = backend
   const connection = useConnection(backend.connection)
   const crashes = useUiState((state) => state.crashLoop)
@@ -163,6 +163,7 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
                 const { selected, view } = currentState(store.getSnapshot())
                 if (selected) commands.setKeyboardFocus({ id: selected, view })
               },
+              openAddons: () => navigation.go({ dialog: "preferences", section: "addons" }),
             }
           : undefined
       }

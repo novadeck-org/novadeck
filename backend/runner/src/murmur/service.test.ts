@@ -8,6 +8,7 @@ import { vi } from "vitest"
 import { ActivityTracker } from "../engines/activity.js"
 import { readManifest } from "../engines/manifest.js"
 import type { Launch } from "../engines/server.js"
+import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
 import {
   arc,
@@ -1365,9 +1366,76 @@ describe("a GPU that is gone", () => {
     expect(context.murmur.state()).toMatchObject({ installed: true, check: null })
     expect(context.murmur.state().failure).toMatch(/device murmur was checked on isn't there now/)
   })
+
+  it("is why murmur stopped, not the engine's failures before it", async ({ resources }) => {
+    let time = 1_000
+    let devices: FakeDevice[] = [arc]
+    const context = await installed(resources, {
+      now: () => time,
+      launch: (program, args) =>
+        fakeLaunch(args.includes("--list-devices") ? devices : [arc])(program, args),
+    })
+    await writeFile(await modelOf(context.directory), "crash")
+    const job = async () => {
+      time += 1_000_000
+      return context.murmur.describe(digest, { terminal: "t" })
+    }
+    await job()
+    await job()
+    await job()
+    expect(context.murmur.state().stopped).not.toBeNull()
+
+    devices = [nvidia]
+    await job()
+
+    expect(context.murmur.state()).toMatchObject({ check: null, stopped: null })
+    expect(context.murmur.state().failure).toMatch(/isn't there now/)
+  })
 })
 
+// What the runner's log is given while `run` goes on: the level, event and data of each line.
+type Logged = { level: string; evt: string; data?: unknown }
+const logged = async (run: () => Promise<void>): Promise<Logged[]> => {
+  const lines: Logged[] = []
+  const before = logs.current()
+  const note = (level: string) => (evt: string, _msg?: string, detail?: { data?: unknown }) => {
+    lines.push({ level, evt, data: detail?.data })
+  }
+  useLogger({
+    for: () => ({
+      debug: note("debug"),
+      info: note("info"),
+      warn: note("warn"),
+      error: note("error"),
+      fatal: note("fatal"),
+    }),
+    flush: () => {},
+    close: () => {},
+  })
+  try {
+    await run()
+  } finally {
+    useLogger(before)
+  }
+  return lines
+}
+
 describe("an engine that keeps failing", () => {
+  it("writes each failure to the log, with what the engine said", async ({ resources }) => {
+    let time = 1_000
+    const context = await installed(resources, { now: () => time })
+    await writeFile(await modelOf(context.directory), "crash")
+    time += 1_000_000
+
+    const lines = await logged(async () => {
+      await context.murmur.describe(digest, { terminal: "t" })
+    })
+
+    expect(lines).toEqual([
+      { level: "warn", evt: "murmur.engine-failed", data: { reason: expect.any(String) } },
+    ])
+  })
+
   it("shows the third failure in a row, and clears it on the next success", async ({
     resources,
   }) => {
@@ -1382,14 +1450,33 @@ describe("an engine that keeps failing", () => {
     await job()
     await job()
     expect(context.murmur.state().failure).toBeNull()
+    expect(context.murmur.state().stopped).toBeNull()
     await job()
 
     expect(context.murmur.state().failure).toMatch(/engine/i)
+    // The same words, apart as what stopped it, for the footer.
+    expect(context.murmur.state().stopped).toBe(context.murmur.state().failure)
     // The check stands: murmur is still on, and tries again.
     expect(context.murmur.state()).toMatchObject({ enabled: true, check: { integrated: true } })
     await writeFile(await modelOf(context.directory), "plain")
     expect(await job()).toBeDefined()
     expect(context.murmur.state().failure).toBeNull()
+    expect(context.murmur.state().stopped).toBeNull()
+  })
+
+  it("leaves stopped null for a failed engine update", async ({ resources }) => {
+    const first = await installed(resources)
+    await first.murmur.close()
+    // The next build's engine cannot be fetched: the old one keeps serving, and Addons says why.
+    const next = await setup(resources, {
+      store: first.store,
+      directory: first.directory,
+      engine: await llamaArchive(resources, "2"),
+      source: "",
+    })
+    await watchUntil(next.murmur, (state) => state.failure !== null)
+    expect(next.murmur.state().failure).not.toBeNull()
+    expect(next.murmur.state()).toMatchObject({ installed: true, stopped: null })
   })
 })
 

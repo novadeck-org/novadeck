@@ -31,6 +31,7 @@ export const noMurmur: MurmurState = {
   offers: 0,
   refused: null,
   failure: null,
+  stopped: null,
 }
 
 const reason = (error: unknown): string =>

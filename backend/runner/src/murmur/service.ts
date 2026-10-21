@@ -20,6 +20,7 @@ import {
 } from "../engines/server.js"
 import { EngineError, engineFolder, exists, programFile } from "../engines/unpack.js"
 import { DomainError } from "../errors.js"
+import { logs } from "../log.js"
 import type { MurmurSettingsChange, MurmurVerdict } from "../workspaces/store.js"
 import type { Description, Describer, Digest, Gist, Input, Note, NoteDigest } from "./describer.js"
 import { parseDescription, parseGist, sharesContentWord } from "./description.js"
@@ -116,6 +117,8 @@ const missingLibrary = (
 ): boolean =>
   run.code === 0xc0_00_01_35 ||
   /error while loading shared libraries|cannot open shared object file/i.test(printed ?? "")
+
+const log = logs.for("murmur")
 
 const unavailable = (message: string): DomainError => new DomainError("CONFLICT", message)
 
@@ -394,6 +397,7 @@ export class Murmur implements Describer {
       unsupported: this.unsupported(),
       offers: this.settings.murmurOffers(),
       failure: this.failure ?? this.runtimeFailure,
+      stopped: this.runtimeFailure,
     }
   }
 
@@ -704,6 +708,11 @@ export class Murmur implements Describer {
       else if (!signal.aborted && !aborted(error)) {
         this.failure = explain(error).slice(0, 1024)
         this.updateFailedAt = engineOnly ? this.clock() : undefined
+        // The card shows it until the next try; the log keeps it after that.
+        log.warn("murmur.install-failed", "Murmur's install failed.", {
+          data: { reason: this.failure },
+          err: error,
+        })
       }
       // What finished stays: a model that downloaded is not downloaded again.
       await this.refresh().catch(() => {})
@@ -1050,6 +1059,7 @@ export class Murmur implements Describer {
       if (chat === "unavailable") {
         this.failed()
         this.runtimeFailure = "Murmur's worker could not start."
+        log.warn("murmur.worker-unavailable", this.runtimeFailure)
         this.changed()
       }
       return undefined
@@ -1106,6 +1116,12 @@ export class Murmur implements Describer {
         // Stopped by voice, not by a failure: wait and run again.
         if (controller.signal.aborted) continue
         this.failed()
+        // Every failure is logged, as only the third in a row reaches the card; the line
+        // carries what the engine last said, never the text it was asked about.
+        log.warn("murmur.engine-failed", "Murmur's engine failed.", {
+          data: { reason: error instanceof EngineError ? error.message : "no answer" },
+          err: error,
+        })
         // Three in a row are shown on the card, though the check stands.
         this.engineStrikes += 1
         if (this.engineStrikes >= 3) {
@@ -1170,6 +1186,9 @@ export class Murmur implements Describer {
       // check no longer stands.
       this.settings.saveMurmurCheck(null)
       this.failure = "The graphics device murmur was checked on isn't there now."
+      // The engine's failures before it are not why Murmur stopped: this is, and Addons says it.
+      this.runtimeFailure = null
+      log.warn("murmur.device-missing", this.failure)
       this.changed()
       return undefined
     }

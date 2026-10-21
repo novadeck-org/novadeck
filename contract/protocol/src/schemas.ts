@@ -793,6 +793,11 @@ export const murmurState = z.strictObject({
   // worker that would not start; or the engine failing three jobs in a row (the check stands)
   // until a job succeeds. Turning murmur on clears the last two.
   failure: z.string().max(1024).nullable(),
+  // The part of `failure` that is murmur stopping while installed: the engine failing three
+  // jobs in a row, or its worker not starting, until a job succeeds. Null otherwise, also
+  // for an install or update that failed and for a device that went away. Murmur's jobs
+  // retry by themselves, so there is nothing to retry.
+  stopped: z.string().max(1024).nullable(),
 })
 
 export const murmurSettings = z.strictObject({
