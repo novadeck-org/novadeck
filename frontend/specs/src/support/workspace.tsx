@@ -142,6 +142,22 @@ export const recordChanges = <T,>(
   }
 }
 
+/**
+ * Whether anything matching `selector` has been on the page since this was called, looked for
+ * at every change under the body: a state that comes and goes quicker than a check can poll for
+ * it, such as a pulse that plays as a view opens on a slow machine, is still seen.
+ */
+export const recordAppearance = (selector: string): (() => boolean) => {
+  let seen = document.querySelector(selector) !== null
+  const observer = new MutationObserver(() => {
+    if (seen || document.querySelector(selector) === null) return
+    seen = true
+    observer.disconnect()
+  })
+  if (!seen) observer.observe(document.body, { subtree: true, childList: true, attributes: true })
+  return () => seen
+}
+
 /** Reloads the app at its current address: in-memory work starts over, stored preferences stay. */
 export const reloadWorkspace = async (): Promise<void> => {
   const route = window.location.hash.replace(/^#/, "")

@@ -39,6 +39,7 @@ import {
   terminalTab,
   view,
   labelled,
+  recordAppearance,
 } from "./support/workspace"
 
 const names = ["Checkout implementation", "Dev server", "Checkout review", "Runtime"]
@@ -820,17 +821,22 @@ describe("Canvas's team wire", () => {
   })
 
   it("plays its pulse once for each selection into the team, and again on coming back to it", async () => {
-    const pulsing = () => document.querySelector(".canvas-team-wire[data-pulsing]") !== null
+    const pulse = ".canvas-team-wire[data-pulsing]"
+    const pulsing = () => document.querySelector(pulse) !== null
     await openMessagesDemo()
     await terminalTab("Checkout review").click()
+    // The pulse plays for about a second and a half from when the view opens, which a slow
+    // machine can spend before a first look: it is noted from before the view is chosen.
+    const played = recordAppearance(pulse)
     await chooseView("Canvas")
-    await expect.poll(pulsing).toBe(true)
+    await expect.poll(played).toBe(true)
     // It is over once played, and stays over while the selection stays.
     await expect.poll(pulsing, { timeout: 4000 }).toBe(false)
     await expectStaysAbsent({ shown: pulsing, name: "the pulse" }, { ms: 1500 })
     await terminalTab("Dev server").click()
+    const again = recordAppearance(pulse)
     await terminalTab("Checkout review").click()
-    await expect.poll(pulsing).toBe(true)
+    await expect.poll(again).toBe(true)
   })
 
   it("is drawn from the start, without any team selected", async () => {

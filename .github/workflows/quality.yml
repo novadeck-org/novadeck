@@ -56,11 +56,13 @@ jobs:
             os: ubuntu-latest
             shard: 3
             command: npm run test:shard3
-          # Whole, it took 18m 41s on #292 and ran past 20 minutes on #296.
+          # Whole, it took 18m 41s on #292 and ran past 20 minutes on #296. By #405 pull
+          # requests took 17 to 27 minutes, and on #407 a runner slower at everything, builds
+          # too, ran the tests out of 27 with none failing.
           - name: Test (macOS)
             os: macos-latest
             browser: true
-            timeout: 30
+            timeout: 40
             command: npm run test
           - name: Test (Windows, 1/3)
             os: windows-latest
@@ -161,7 +163,7 @@ jobs:
       # failures' upload below still runs, rather than the whole job being cancelled.
       - name: Run ${{ matrix.name }}
         run: ${{ matrix.command }}
-        timeout-minutes: ${{ matrix.timeout && 27 || (matrix.browser || matrix.shard) && 17 || 7 }}
+        timeout-minutes: ${{ matrix.timeout && 37 || (matrix.browser || matrix.shard) && 17 || 7 }}
         env:
           # A re-run with debug logging records Playwright traces of failed UI specs.
           NOVADECK_UI_TRACE: ${{ runner.debug == '1' && '1' || '' }}
