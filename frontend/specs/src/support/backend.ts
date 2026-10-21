@@ -151,6 +151,16 @@ const requestedVersion = (
   return rest
 }
 
+// `&transcripts=unavailable` makes the host one that cannot keep transcripts encrypted.
+const requestedTranscripts = (
+  backend: ReturnType<typeof createDemoBackend>,
+): ReturnType<typeof createDemoBackend> => {
+  const asked = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("transcripts")
+  return asked === "unavailable" && backend.transcripts
+    ? { ...backend, transcripts: { ...backend.transcripts, available: false } }
+    : backend
+}
+
 // Specs open the demo as a visitor's, with `?visitor=on`: what the app shows for one.
 // `&turnMs=` and `&nudgeMs=` shorten its agents' turns and the wait before Codex asks;
 // `&readingMs=` has Claude Code read that long before its plan comes, and none without. What
@@ -183,8 +193,8 @@ export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   const update = requestedUpdate()
   const sandbox = requestedSandbox()
   const portable = requestedPortable()
-  const demo = requestedVersion(
-    demoWithUpdate(update, portable, createDemoBackend({ theme: pageTheme })),
+  const demo = requestedTranscripts(
+    requestedVersion(demoWithUpdate(update, portable, createDemoBackend({ theme: pageTheme }))),
   )
   const uninstall = requestedUninstall()
   const withSandbox = sandbox ? { ...demo, sandbox: createDemoSandbox(sandbox) } : demo

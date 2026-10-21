@@ -18,6 +18,7 @@ import {
   type ItemContent,
   type Project,
   type RunnerSettings,
+  type RunnerSettingsState,
   type TerminalAttached,
   type TerminalChange,
   type TerminalEvent,
@@ -432,7 +433,7 @@ export type Runner = {
     gist(terminalId: string, at: number): Promise<void>
   }
   readonly settings: {
-    get(): Promise<RunnerSettings>
+    get(): Promise<RunnerSettingsState>
     /** Changes the settings given; the others stay. */
     set(settings: Partial<RunnerSettings>): Promise<void>
   }

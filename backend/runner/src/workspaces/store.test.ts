@@ -21,7 +21,9 @@ import type { ItemRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
 import type { Message, Thread } from "../messaging/mailbox.js"
 import { handleWords } from "../terminals/handles.js"
+import { sealedShape } from "../terminals/sealing.js"
 import { describe, expect, it as base } from "../test.js"
+import { sealed as sealedText } from "../testing/sealing.js"
 import {
   EarlierWorkspaceError,
   setAsideWorkspace,
@@ -510,24 +512,47 @@ describe("saved terminals", () => {
     expect(reopened.terminal(terminal.id)).toBeUndefined()
   })
 
-  it("forgets, once, the transcripts saved before they were masked", ({ directory, store }) => {
+  it("forgets every transcript that is not sealed, scrubbing the file and its log", ({
+    directory,
+    store,
+  }) => {
     const path = join(directory(), "workspace.sqlite")
+    const shape = sealedShape
     const first = store(path)
-    const id = keptTerminal(first, "session", "owl")
-    first.saveTerminal({ ...first.terminal(id)!, transcript: "TOKEN=hunter2" })
+    const plain = keptTerminal(first, "session", "owl")
+    const sealed = keptTerminal(first, "session", "fox")
+    // The shortest a real sealed value is, an empty screen's.
+    const value = sealedText("", sealed)
+    expect(value).toHaveLength(shape.prefix.length + shape.minChars)
+    first.saveTerminal({ ...first.terminal(plain)!, transcript: "TOKEN=hunter2" })
+    first.saveTerminal({ ...first.terminal(sealed)!, transcript: value })
+    // Plain text that only starts like a sealed value, and one a character too short.
+    const lookalike = keptTerminal(first, "session", "elk")
+    first.saveTerminal({ ...first.terminal(lookalike)!, transcript: "v1.4.2 released\n$ " })
+    const short = keptTerminal(first, "session", "ant")
+    first.saveTerminal({ ...first.terminal(short)!, transcript: value.slice(0, -1) })
+    // Base64's alphabet, but not a whole number of its four-character groups.
+    const ragged = keptTerminal(first, "session", "bee")
+    first.saveTerminal({ ...first.terminal(ragged)!, transcript: `${value}A` })
+    // A full transcript's worth, sealed: kept, however long.
+    const long = keptTerminal(first, "session", "yak")
+    const longValue = sealedText("x".repeat(256 * 1024), long)
+    first.saveTerminal({ ...first.terminal(long)!, transcript: longValue })
     first.close()
-    // A file an older runner wrote, with no mark that its transcripts were masked.
-    const older = new DatabaseSync(path)
-    older.exec("DELETE FROM settings WHERE key = 'transcriptsMasked'")
-    older.close()
 
-    const upgraded = store(path)
-    expect(upgraded.terminal(id)?.transcript).toBeNull()
+    const next = store(path)
+    next.forgetUnsealed(shape)
+    expect(next.terminal(plain)?.transcript).toBeNull()
+    expect(next.terminal(sealed)?.transcript).toBe(value)
+    expect(next.terminal(lookalike)?.transcript).toBeNull()
+    expect(next.terminal(short)?.transcript).toBeNull()
+    expect(next.terminal(ragged)?.transcript).toBeNull()
+    expect(next.terminal(long)?.transcript).toBe(longValue)
     // Scrubbed from the file and its log at once, not a moment later.
     expect(holds(path, "TOKEN=hunter2") || holds(`${path}-wal`, "TOKEN=hunter2")).toBe(false)
-    upgraded.saveTerminal({ ...upgraded.terminal(id)!, transcript: "TOKEN=[redacted]" })
-    upgraded.close()
-    expect(store(path).terminal(id)?.transcript).toBe("TOKEN=[redacted]")
+    // Nothing left to forget.
+    next.forgetUnsealed(shape)
+    expect(next.terminal(sealed)?.transcript).toBe(value)
   })
 
   it("keep murmur's title and the agent's summary beside the person's and the opener's title", ({

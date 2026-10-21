@@ -35,6 +35,7 @@ import {
   net,
   Notification,
   powerMonitor,
+  safeStorage,
   session,
   shell,
   systemPreferences,
@@ -124,6 +125,7 @@ import {
 import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
 import { startRunner, type RunnerEvents, type RunnerHost } from "./runner.js"
 import { registerSandboxIpc, sandboxState } from "./sandbox.js"
+import { loadTranscriptKey } from "./transcript-key.js"
 import { registerUninstallIpc, startRemovalAfterExit, uninstaller } from "./uninstall.js"
 import {
   releaseDownloadsUrl,
@@ -1268,6 +1270,21 @@ const openLogs = (): void => {
     )
 }
 
+// The key saved transcripts are encrypted with, asked for as the app is ready and never
+// waited on: a Linux keyring may ask the person to unlock it, and neither the window nor
+// the runner holds back for that. Null where none can be kept safe.
+const loadKey = (): Promise<string | null> =>
+  loadTranscriptKey({
+    storage: safeStorage,
+    platform: process.platform,
+    file: join(app.getPath("userData"), "transcript-key"),
+    log: logger.for("transcript-key"),
+  }).catch((error: unknown) => {
+    log.warn("transcript-key.failed", "The transcript key could not be loaded.", { err: error })
+    return null
+  })
+let transcriptKey: Promise<string | null> = Promise.resolve(null)
+
 const launch = async (): Promise<void> => {
   // The signature is not asked here: it takes a moment, and a portable copy is told
   // without it.
@@ -1336,6 +1353,7 @@ const launch = async (): Promise<void> => {
   // launch that dies in between must not make the next one look like an update.
   await settleWhatsNewLaunch()
   runner = startRunner({
+    transcriptKey,
     entry: join(currentDirectory, "runner.js"),
     database: join(app.getPath("userData"), "workspace.sqlite"),
     relay: relayPath(),
@@ -1618,6 +1636,7 @@ app.on("second-instance", () => {
 
 app.whenReady().then(() => {
   if (!primaryInstance) return
+  transcriptKey = loadKey()
   // A system shutdown quits, which saves every page and terminal before the shells end.
   quitOnShutdown(powerMonitor, quitOnSessionEnd)
   // Ctrl+Q and the menu's Quit are the person's quit, which installs a waiting update; a

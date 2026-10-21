@@ -52,12 +52,18 @@ const always = (): (() => void) => () => {}
 // The backend's transcript setting, for Preferences; undefined where it keeps none.
 const useTranscripts = (
   transcripts: Backend["transcripts"],
-): { readonly enabled: boolean; readonly onChange: (enabled: boolean) => void } | undefined => {
+):
+  | {
+      readonly enabled: boolean
+      readonly available: boolean
+      readonly onChange: (enabled: boolean) => void
+    }
+  | undefined => {
   const enabled = useSyncExternalStore(
     transcripts?.enabled.subscribe ?? always,
     () => transcripts?.enabled.getSnapshot() ?? false,
   )
-  return transcripts && { enabled, onChange: transcripts.set }
+  return transcripts && { enabled, available: transcripts.available, onChange: transcripts.set }
 }
 
 const noAgents: readonly never[] = []

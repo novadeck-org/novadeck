@@ -113,6 +113,9 @@ export type RunnerBackendOptions = {
   readonly now?: () => number
   // Whether the runner keeps transcripts, as it said at startup; unknown when absent.
   readonly transcripts?: boolean
+  // Whether it can keep them at all, as it said at startup: they are saved only
+  // encrypted, and with nothing to keep the key safe it keeps none. Available when absent.
+  readonly transcriptsAvailable?: boolean
   // The agents the runner can connect, and whether the person has seen the first-run
   // choice, as it said at startup; agents are not offered when absent.
   readonly agents?: readonly AgentIntegration[]
@@ -1487,6 +1490,7 @@ export const runnerBackend = (
       ? {
           transcripts: {
             enabled: transcripts,
+            available: options.transcriptsAvailable ?? true,
             set: (enabled) => {
               const before = transcripts.getSnapshot()
               transcripts.update(() => enabled)
