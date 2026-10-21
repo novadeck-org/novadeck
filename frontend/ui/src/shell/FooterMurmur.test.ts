@@ -14,6 +14,7 @@ const idle: MurmurState = {
   sizes: { engine: 100, model: 300 },
   installing: null,
   check: null,
+  kept: false,
   unsupported: null,
   offers: 1,
   refused: null,

@@ -12,6 +12,7 @@ const state: MurmurState = {
   sizes: { engine: 34 * 1024 * 1024, model: 1222 * 1024 * 1024 },
   installing: null,
   check: null,
+  kept: false,
   unsupported: null,
   offers: 0,
   refused: null,
@@ -26,6 +27,12 @@ describe("murmur's card", () => {
 
   it("says what an install downloads, and that it then works offline", () => {
     expect(murmurDownloadNote(state)).toBe("Downloads 1.2 GB once, then works offline.")
+  })
+
+  it("counts only the engine where the model is on disk", () => {
+    expect(murmurDownloadNote({ ...state, kept: true })).toBe(
+      "Downloads 34 MB once, then works offline.",
+    )
   })
 
   it("never says GPU to the person", () => {

@@ -1,6 +1,11 @@
 import type { Refusal } from "@novadeck/core/addon"
 import { formatSize, stepLabel } from "@novadeck/core/addon-format"
-import { MURMUR_NAME, murmurChecking, type MurmurState } from "@novadeck/core/murmur"
+import {
+  MURMUR_NAME,
+  murmurChecking,
+  murmurDownloadSize,
+  type MurmurState,
+} from "@novadeck/core/murmur"
 
 // What Murmur's footer item shows, as a plain function of the addon's state: an install's
 // progress as it goes, then how it ended. Only an install seen from here (started in this
@@ -61,7 +66,7 @@ export const footerPhase = (
 export const installPercent = (state: MurmurState): number | null => {
   const { installing, sizes } = state
   if (!installing || installing.step === "check") return null
-  const total = sizes.engine + sizes.model
+  const total = murmurDownloadSize(state)
   if (total <= 0) return 0
   const before = installing.step === "model" ? sizes.engine : 0
   return Math.min(100, Math.round(((before + installing.received) / total) * 100))

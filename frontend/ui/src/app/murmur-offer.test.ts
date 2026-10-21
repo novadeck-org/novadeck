@@ -20,6 +20,7 @@ const offered: MurmurState = {
   sizes: { engine: 34 * 1024 * 1024, model: 1222 * 1024 * 1024 },
   installing: null,
   check: null,
+  kept: false,
   unsupported: null,
   offers: 0,
   refused: null,
