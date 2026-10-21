@@ -58,18 +58,26 @@ export const WorkspaceStage = memo(
       sizePresets,
       hidden,
     } = layout
-    const { zen, revealCanvas, canvasKeyboardFocus, shellNavigation, focusPreview, navigate } =
-      useUiState(
-        ({ shell }) => ({
-          zen: Boolean(shell.zen),
-          navigate: shell.navigate,
-          revealCanvas: shell.revealCanvas,
-          canvasKeyboardFocus: shell.canvasKeyboardFocus,
-          shellNavigation: shell.navigation,
-          focusPreview: shell.focusPreview,
-        }),
-        shallowEqual,
-      )
+    const {
+      zen,
+      revealCanvas,
+      canvasKeyboardFocus,
+      shellNavigation,
+      focusPreview,
+      navigate,
+      canvasWindowSize,
+    } = useUiState(
+      ({ shell, canvasWindowSize: windowSize }) => ({
+        zen: Boolean(shell.zen),
+        navigate: shell.navigate,
+        revealCanvas: shell.revealCanvas,
+        canvasKeyboardFocus: shell.canvasKeyboardFocus,
+        shellNavigation: shell.navigation,
+        focusPreview: shell.focusPreview,
+        canvasWindowSize: windowSize,
+      }),
+      shallowEqual,
+    )
     // Whether Canvas opened from another view, which frames every window; returning to a
     // session already in Canvas keeps the camera it was left with. The stage outlives each
     // session's view, so it sees the view change.
@@ -97,7 +105,7 @@ export const WorkspaceStage = memo(
       setCanvasLayout: saveCanvasLayout,
       setGridLayouts: saveGridLayouts,
       toggleGridWidth,
-      setSizePreset,
+      rememberCanvasWindowSize,
       showAll,
     } = commands
     const preview = hidden[selected] ? selected : ""
@@ -165,10 +173,8 @@ export const WorkspaceStage = memo(
               ref={canvas}
               hidden={layoutHidden}
               preview={preview}
-              presets={sizePresets.canvas}
-              onPresetChange={(terminalId, preset) =>
-                setSizePreset(target, terminalId, "canvas", preset)
-              }
+              windowSize={canvasWindowSize}
+              onWindowResize={rememberCanvasWindowSize}
               layout={canvasLayout}
               revealOnMount={revealCanvas}
               fitOnMount={opened.fromOtherView}

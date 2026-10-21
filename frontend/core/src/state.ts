@@ -51,7 +51,6 @@ import type {
   TerminalMetadata,
   TerminalStatus,
   TitleSource,
-  SizePreset,
   ViewMode,
   WindowedView,
   Workspace,
@@ -196,13 +195,6 @@ export type WorkspaceAction =
       target: WorkspaceTarget
       terminalId: string
       change: { layouts: GridLayouts; restoreWidths: GridRestoreWidths | null }
-    }
-  | {
-      type: "terminal/size-preset"
-      target: WorkspaceTarget
-      terminalId: string
-      view: WindowedView
-      preset: SizePreset
     }
 
 export const createWorkspaceSession = (
@@ -779,21 +771,6 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
           ? updateLayout(state, (layout) =>
               resizeGridTerminal(layout, action.terminalId, action.change, tilesOf(state.roster)),
             )
-          : state,
-      )
-    case "terminal/size-preset":
-      return updateTarget(workspace, action.target, (state) =>
-        hasTile(state.roster, action.terminalId)
-          ? updateLayout(state, (layout) => ({
-              ...layout,
-              sizePresets: {
-                ...layout.sizePresets,
-                [action.view]: {
-                  ...layout.sizePresets[action.view],
-                  [action.terminalId]: action.preset,
-                },
-              },
-            }))
           : state,
       )
   }

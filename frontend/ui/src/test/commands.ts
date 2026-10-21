@@ -115,7 +115,6 @@ export const openCommands = ({
     desktop: () => screen.desktop,
     now: () => Date.UTC(2026, 8, 26, 14, 5),
     newId: () => `session-${++ids}`,
-    stageSize: () => undefined,
   }
   const {
     bind,

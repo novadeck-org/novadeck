@@ -1,5 +1,5 @@
 import { useReactFlow, type OnNodesChange } from "@xyflow/react"
-import { useCallback } from "react"
+import { useCallback, useRef } from "react"
 
 import { snap } from "./geometry"
 import type { CanvasProps, TerminalNode } from "./types"
@@ -8,6 +8,7 @@ import type { CanvasPersistence } from "./useCanvasPersistence"
 export const useCanvasGeometry = (
   { geometryRef, dirtyGeometry, resizing, commitGeometry }: CanvasPersistence,
   onSelect: CanvasProps["onSelect"],
+  onWindowResize: CanvasProps["onWindowResize"],
 ) => {
   const { getNode, setNodes } = useReactFlow<TerminalNode>()
   const updateNode = useCallback(
@@ -17,10 +18,19 @@ export const useCanvasGeometry = (
     [setNodes],
   )
 
+  // Each resize's starting size, as its end would snap it, so a press that moves nothing
+  // ends where it began.
+  const started = useRef(new Map<string, { width: number; height: number }>())
+
   const beginResize = useCallback(
     (id: string) => {
       resizing.current.add(id)
       const currentNode = getNode(id)
+      if (currentNode?.width && currentNode.height)
+        started.current.set(id, {
+          width: Math.max(336, snap(currentNode.width)),
+          height: Math.max(216, snap(currentNode.height)),
+        })
       if (currentNode) {
         geometryRef.current[id] = {
           ...geometryRef.current[id],
@@ -40,6 +50,8 @@ export const useCanvasGeometry = (
       const currentNode = getNode(id)
       if (!currentNode) return
       resizing.current.delete(id)
+      const before = started.current.get(id)
+      started.current.delete(id)
       const next = {
         ...geometryRef.current[id],
         position: currentNode.position,
@@ -55,8 +67,11 @@ export const useCanvasGeometry = (
         className: "",
       }))
       commitGeometry([id])
+      // A press on the corner that changed nothing says nothing of the size wanted.
+      if (before?.width !== next.width || before.height !== next.height)
+        onWindowResize({ width: next.width, height: next.height })
     },
-    [commitGeometry, getNode, updateNode, geometryRef, dirtyGeometry, resizing],
+    [commitGeometry, getNode, updateNode, geometryRef, dirtyGeometry, resizing, onWindowResize],
   )
 
   const onNodesChange: OnNodesChange<TerminalNode> = useCallback(

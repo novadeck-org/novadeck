@@ -136,6 +136,15 @@ export const dragHeader = async (name: string, by: Point): Promise<void> => {
   await dragBy(terminal(name), by, besideName(name))
 }
 
+/** Drags a terminal's resize corner, at its bottom right, by `by`. */
+export const dragCorner = async (name: string, by: Point): Promise<void> => {
+  const grip = terminal(name)
+    .element()
+    .closest("[data-workspace-canvas-node]")!
+    .querySelector(".terminal-resize-grip")!
+  await dragBy(page.elementLocator(grip), by)
+}
+
 /** Scrolls the mouse wheel with the pointer over the middle of `target`. */
 export const scrollOver = async (target: Locator, deltaY: number): Promise<void> => {
   await userEvent.wheel(target, { delta: { y: deltaY } })

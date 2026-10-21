@@ -200,7 +200,8 @@ export type TerminalLayout = {
   readonly canvas: CanvasLayout
   readonly grid: GridLayouts
   readonly gridRestoreWidths: Record<string, GridRestoreWidths>
-  readonly sizePresets: Record<WindowedView, Record<string, SizePreset>>
+  // Grid's width presets; Canvas windows keep whatever size they were given.
+  readonly sizePresets: { readonly grid: Record<string, SizePreset> }
   readonly hidden: Record<string, boolean>
 }
 export type WorkspaceState = {

@@ -211,16 +211,13 @@ shells `LANG` for the system's language and country in UTF-8 (`AppleLocale`, its
 region override left out), as Terminal.app does (`en_US.UTF-8` when the system has no such
 locale), so typing a character such as "ż" works in bash.
 
-Use the terminal header's resize control to alternate between two sizes. In Canvas,
-**Enlarge** matches the current Canvas viewport aspect ratio at a fixed area equivalent
-to 1200×800, independent of zoom. **Compact** sets 600×400. Extreme ratios respect the
-minimum terminal dimensions. Double-click the enlarged terminal header to fill more
-of the viewport. Canvas grows or shrinks around the terminal's center
-without changing the camera. In Grid, **Make full width** fills the available columns;
-**Restore width** returns to the width at each breakpoint from before that click,
-preserving terminal height.
-Preset choices are remembered per terminal, session, and view. New terminals start
-compact: 600×400 in Canvas and compact column width in Grid, with no placement preview.
+In Canvas, resize a terminal by dragging its bottom-right corner. New terminals open at
+864×576 until you resize one; from then on they open at the size you last gave a terminal,
+in every project and session. In Grid, the terminal header's resize control alternates
+between two widths: **Make full width** fills the available columns; **Restore width**
+returns to the width at each breakpoint from before that click, preserving terminal height.
+That choice is remembered per terminal and session. New Grid terminals start at compact
+column width, with no placement preview.
 
 In Grid, selecting a terminal from its tab smoothly scrolls it into view. With
 reduced motion enabled, it scrolls immediately.

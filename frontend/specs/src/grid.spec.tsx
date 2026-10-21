@@ -102,16 +102,15 @@ describe("Grid view", () => {
         .toBeGreaterThan(0.9)
     })
 
-    it("keeps the choice to Grid, leaving the terminal compact in Canvas", async () => {
+    it("keeps the choice to Grid, where Canvas offers no width control", async () => {
       await openGrid()
       await resizeButton("Make full width", "Tests").click()
       await expect.element(resizeButton("Restore width", "Tests")).toBeInTheDocument()
 
       await chooseView("Canvas")
 
-      await expect
-        .element(page.getByRole("button", { name: labelled("Enlarge terminal: ", "Tests") }))
-        .toHaveAttribute("aria-pressed", "false")
+      await expect.element(terminal("Tests")).toBeVisible()
+      await expect.element(resizeButton("Restore width", "Tests")).not.toBeInTheDocument()
     })
   })
 
