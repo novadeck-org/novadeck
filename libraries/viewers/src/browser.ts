@@ -159,11 +159,17 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   // The element a show brings into view once the load under way is done; one a viewer of
   // the same show carried out already is done.
   let scrollTo = live && !kept ? content.scroll : undefined
-  // Kept with the show it carried out: one whose scroll is still to come isn't yet, so a
-  // viewer mounted for it before the scroll still scrolls.
+  // The shown fragment a reload of the document goes to once it has loaded.
+  let then: string | undefined
+  // Kept with the show it carried out: one whose move or scroll is still to come isn't yet,
+  // so a viewer mounted for it before then still carries it out.
   const state = (at: string): ViewerState =>
     ({
-      browser: { url: shown.url, at, shown: scrollTo === undefined ? showing : showing - 1 },
+      browser: {
+        url: shown.url,
+        at,
+        shown: scrollTo === undefined && then === undefined ? showing : showing - 1,
+      },
     }) satisfies BrowserState as unknown as ViewerState
 
   const report = (next: Load): void => {
@@ -223,7 +229,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   if (resumed !== content.url) on?.navigate?.(place)
   // Until its first load is done.
   let first = true
-  // Moving to a fragment of the page it's on, whose scroll waits for the move.
+  // Moving to the shown fragment, whose scroll waits for the move.
   let moving = false
 
   const moved = (): void => {
@@ -240,52 +246,57 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     if (selector !== undefined)
       attached(() => void page.executeJavaScript(revealing(selector, scrollWaitMs)).catch(nothing))
   }
-  // Its scroll goes once the page has moved to the shown address, not on another move.
+  // Its scroll goes once the page has moved to the shown fragment.
   const movedInPage = (): void => {
     moved()
-    if (!moving || place.url !== shown.url) return
+    if (!moving) return
     moving = false
     reveal()
   }
+  // Loads an address, once attached, even where its attribute already names it; another
+  // fragment of the document it's on only moves within it, as a link to it would.
+  const go = (to: string): boolean =>
+    attached(() => {
+      void page.loadURL(to).catch(nothing)
+      return true
+    }) === true
   const stopped = (): void => {
     first = false
     moving = false
     if (load === "loading") report("ready")
     moved()
-    if (load === "ready") reveal()
-    else scrollTo = undefined
+    const to = then
+    then = undefined
+    if (load !== "ready") scrollTo = undefined
+    else if (to !== undefined && to !== place.url && go(to)) moving = true
+    else reveal()
   }
-  // Shown again, or at another address: reloaded where it is at its address; loaded there
-  // afresh if the person went elsewhere, or anything else is loading, as their own click;
-  // let be while its first load of that address is under way, as that load is this show's.
+  // Shown again, or at another address: let be while its first load of that address is
+  // under way, as that load is this show's. In the document it's on, at the shown
+  // fragment or another, it reloads, then moves to the shown one: loading another fragment
+  // of a document only moves within it, which would show what it held before. Anywhere
+  // else, as a redirect took it or the person went, it loads the shown address afresh.
   const refresh = (): void => {
     moving = false
+    then = undefined
     const there = place.url === shown.url
     if (there && first && load === "loading") return
-    if (there && load !== "loading") {
+    // Without a fragment, the shown address is a document of its own to load.
+    if ((there || shown.url.includes("#")) && documentOf(place.url) === documentOf(shown.url)) {
       const reloading = attached(() => {
         page.reload()
         return true
       })
-      if (reloading) report("loading")
-      return
+      if (reloading) {
+        if (!there) then = shown.url
+        report("loading")
+        return
+      }
     }
-    // Attached, it loads the address even where its attribute already names it.
-    const loading = attached(() => {
-      void page.loadURL(shown.url).catch(nothing)
-      return true
-    })
-    if (!loading) page.setAttribute("src", shown.url)
-    // To a fragment of the document it's on, it only moves there: nothing loads. Without
-    // a fragment, the document loads again.
-    moving =
-      loading === true &&
-      load === "ready" &&
-      shown.url.includes("#") &&
-      documentOf(place.url) === documentOf(shown.url)
+    if (!go(shown.url)) page.setAttribute("src", shown.url)
     place = { url: shown.url, back: place.back, forward: place.forward }
     on?.navigate?.(place)
-    if (!moving) report("loading")
+    report("loading")
   }
   const failed = (event: Event): void => {
     const { errorCode, isMainFrame } = event as Event & {

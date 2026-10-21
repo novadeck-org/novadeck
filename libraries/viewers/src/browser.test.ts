@@ -170,33 +170,47 @@ describe("the browser viewer", () => {
         expect(calls).toEqual([`load ${url}`, "reload"])
       })
 
-      it("moves within the page to the fragment it was shown at, loading nothing", () => {
+      it("reloads the document the person moved within, then goes to the shown fragment", () => {
         const at = `${url}#pricing`
         const { viewer, at: where, calls, loads, fire } = shownAt({ url: at, shown: 1 })
         where.url = `${url}#faq`
         fire("did-stop-loading")
         viewer.update({ url: at, shown: 2, scroll: "#plans" })
-        expect(calls[0]).toBe(`load ${at}`)
-        expect(loads.at(-1)).toBe("ready")
-        // Nothing loads: its scroll goes once the page has moved.
+        // Loading another fragment would only move within what the page held before.
+        expect(calls).toEqual(["reload"])
+        expect(loads.at(-1)).toBe("loading")
+        // Not carried out until it's at the fragment and scrolled.
+        expect(viewer.state()).toMatchObject({ browser: { shown: 1 } })
+        fire("did-stop-loading")
+        expect(calls).toEqual(["reload", `load ${at}`])
         expect(scrolled(calls)).toEqual([])
         where.url = at
         fire("did-navigate-in-page")
         expect(scrolled(calls)).toHaveLength(1)
+        expect(viewer.state()).toMatchObject({ browser: { shown: 2 } })
       })
 
-      it("moves to a fragment shown at another address of the page, then scrolls", () => {
-        const { viewer, at: where, calls, fire } = shownAt({ url: `${url}#faq`, shown: 1 })
-        where.url = `${url}#faq`
+      it("reloads at the fragment it was shown at, going nowhere after", () => {
+        const at = `${url}#pricing`
+        const { viewer, at: where, calls, fire } = shownAt({ url: at, shown: 1 })
+        where.url = at
         fire("did-stop-loading")
-        viewer.update({ url: `${url}#pricing`, shown: 2, scroll: "#plans" })
-        expect(calls).toEqual([`load ${url}#pricing`])
-        // The person's own move elsewhere in the page isn't the show's.
-        where.url = `${url}#team`
-        fire("did-navigate-in-page")
-        expect(scrolled(calls)).toEqual([])
-        where.url = `${url}#pricing`
-        fire("did-navigate-in-page")
+        viewer.update({ url: at, shown: 2, scroll: "#plans" })
+        fire("did-stop-loading")
+        expect(calls.filter((call) => !call.startsWith("run "))).toEqual(["reload"])
+        expect(scrolled(calls)).toHaveLength(1)
+      })
+
+      it("loads a fragment shown in another document afresh, and scrolls once it has loaded", () => {
+        const at = `${url}#pricing`
+        const { viewer, at: where, calls, loads, fire } = shownAt({ url: at, shown: 1 })
+        where.url = `${url}other`
+        fire("did-stop-loading")
+        viewer.update({ url: at, shown: 2, scroll: "#plans" })
+        expect(calls).toEqual([`load ${at}`])
+        expect(loads.at(-1)).toBe("loading")
+        where.url = at
+        fire("did-stop-loading")
         expect(scrolled(calls)).toHaveLength(1)
       })
 
@@ -214,12 +228,12 @@ describe("the browser viewer", () => {
         expect(scrolled(calls)).toHaveLength(1)
       })
 
-      it("loads its address afresh when shown during a later load, as the person's click", () => {
+      it("reloads when shown during a later load, as the person's click", () => {
         const { viewer, calls, fire } = shownAt({ url, shown: 1 })
         fire("did-stop-loading")
         fire("did-start-loading")
         viewer.update({ url, shown: 2 })
-        expect(calls).toEqual([`load ${url}`])
+        expect(calls).toEqual(["reload"])
       })
 
       it("leaves a load of its address under way be, as its first", () => {

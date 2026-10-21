@@ -346,10 +346,10 @@ with every safety check again at that time:
   source's own options inside: a `file` (its path and optional lines) or a `page` (its
   `url`, and optionally `scroll`, a CSS selector of the element to bring into view once it
   loads); beside it the options every source shares, a title and `open`, which the agent
-  sets for a deliverable it finished or one the user asked to see (`asked`). A new kind of artifact adds a source key
-  of its own rather than more fields beside these. `close` takes the same `file` (its
-  path alone) or `page` (its url alone) and removes what the agent showed under it from its own bar, as
-  the person closing it would; what the person attached, moved away from it, or another
+  sets for a deliverable it finished or one the user asked to see (`asked`). A new kind
+  of artifact adds a source key of its own rather than more fields beside these. `close`
+  takes the same `file` (its path alone) or `page` (its url alone) and removes what the
+  agent showed under it from its own bar, as the person closing it would; what the person attached, moved away from it, or another
   terminal placed there is refused with a word on whose it is, and plans are never
   addressable this way. The server finds its terminal
   from `NOVADECK_TERMINAL_ID`, `NOVADECK_REPORT` and `NOVADECK_REPORT_TOKEN`. Like
@@ -444,14 +444,15 @@ with every safety check again at that time:
   (`apps/desktop/src/main/pages.ts`). Where the host can't, as the web version, a
   page is a link to open in the browser. Each show of a page loads it afresh: the
   page's content carries `shown`, its item's version, and a later one reloads it, or
-  takes it back to the address it was shown at if the person went elsewhere. A show's
-  `scroll` goes with that show alone, so the runner keeps it in memory, not with the
-  item: the viewer brings the element into view once the page has loaded, waiting a few
-  seconds for one a page draws later, and keeps the show it carried out with where the
-  person took the page, so a viewer mounted again in the same window for the same show
-  neither reloads nor scrolls. A show of an address with a `#fragment` in the document the
-  person is on moves to that fragment rather than reloading, as a browser does, and scrolls
-  once it has moved; one without a fragment loads the document again.
+  loads the address it was shown at if the person went to another document. Shown at a
+  `#fragment` of the document the person is on, it reloads, then goes to that fragment,
+  since loading another fragment of a document only moves within what it already held.
+  A show's `scroll` goes with that show alone, so the runner keeps it in memory, not
+  with the item: the viewer brings the element into view once the page has loaded and
+  reached the shown fragment, waiting a few seconds for one a page draws later. It keeps
+  the show it carried out with where the person took the page, so a viewer mounted again
+  in the same window for the same show opens where the person was, as a show already
+  carried out, and doesn't scroll.
 - **Saving** would be a new authorized plan-write operation with the stamp check above,
   scoped like `present`: the caller may write only the plan the terminal's agent keeps.
   The runner doesn't offer it yet.

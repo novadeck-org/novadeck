@@ -1028,7 +1028,9 @@ one from an earlier runner.
     with a reason and the file's size where known: `missing`, `unreadable`, `not-a-file`,
     `too-large` (an image over 8 MiB), `binary` (a NUL byte in its first 8 KiB), `held`
     (a file that may hold secrets, unless `reveal`), or `gone` (a plan no longer there).
-    An image is a data URL; a page its address, which the desktop app loads live. A text
+    An image is a data URL; a page its address, which the desktop app loads live, with
+    `shown`, its item's version, which each show raises and which loads it afresh, and the
+    `scroll` that show gave, a CSS selector to bring into view once it has loaded. A text
     file is the lines around those pointed at, read to the last of them and up to 4 MiB
     more to count the rest: `total` once it reached the file's end, else `truncated`;
     lines past the end are pulled back to it and marked `clamped`. A plan is its text, cut

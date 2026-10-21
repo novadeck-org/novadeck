@@ -148,7 +148,7 @@ describe("a page beside a terminal", () => {
       expect(frame.getAttribute("aria-busy")).toBe("true")
       fire(page, "did-stop-loading")
       expect(calls).toEqual(["reload", "scroll #faq"])
-      // The same show read again, as after a reconnect, is carried out already.
+      // The same show read again, as after a reconnect, gives the viewer nothing new.
       rendered.show({ kind: "page", url: at, shown: 2, scroll: "#faq", live: true })
       fire(page, "did-stop-loading")
       expect(calls).toEqual(["reload", "scroll #faq"])

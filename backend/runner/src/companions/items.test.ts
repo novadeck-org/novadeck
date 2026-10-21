@@ -658,16 +658,23 @@ describe("an item's content", () => {
     })
     expect(itemContent.parse(first)).toEqual(first)
     await fixture.items.show(moth, { page: { url } })
-    await expect(fixture.items.load(itemId, false)).resolves.toEqual({
+    const second = await fixture.items.load(itemId, false)
+    expect(second).toEqual({
       state: "ready",
       stamp: expect.any(String),
       content: { kind: "page", url, shown: 2 },
     })
+    // Each show is content of its own, at the same address.
+    expect(second.state === "ready" && second.stamp).not.toBe(
+      first.state === "ready" && first.stamp,
+    )
     await fixture.items.show(moth, { page: { url, scroll: "[data-section=faq]" } })
     fixture.items.close(itemId)
     const again = await fixture.items.show(moth, { page: { url } })
-    // A new item for the same page starts over, with no scroll from the one closed.
-    await expect(fixture.items.load(again.ok ? again.id : "", false)).resolves.toMatchObject({
+    // A new item for the same page starts over.
+    await expect(fixture.items.load(again.ok ? again.id : "", false)).resolves.toEqual({
+      state: "ready",
+      stamp: expect.any(String),
       content: { kind: "page", url, shown: 1 },
     })
   })
