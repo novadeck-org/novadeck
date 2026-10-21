@@ -10,8 +10,7 @@
    sits under a line saying whose it is (`.placed-from`).
 
    Hooks: on the split's pane and the attached sheet, data-state="open" | "closed" as
-   they come and go, and data-behind="1" | "2" while that many sheets (or more) are open
-   behind what it shows; on what it shows (`.plan-sheet`), data-entry="forward" |
+   they come and go; on what it shows (`.plan-sheet`), data-entry="forward" |
    "arrive" as it comes to the top, and on a sheet behind, data-entry="tuck" as it goes
    there; on the reader's body, data-outline="false" without headings; on an
    outline entry, data-changed="true" where the agent's changes are; on the changes
@@ -27,6 +26,8 @@
    --pane-tether-border-color (line-strong): the dashed line to its node.
    --pane-stack-hover-border-color (line-strong): a sheet peeking out from behind what
    the pane shows, under the pointer.
+   --pane-stack-shadow-color (shadow, 16% in light and 55% in dark): what each sheet in
+   front casts on the one behind it.
    --spine-bg (shell), --spine-border-color (line): the outline.
    --spine-label-fg (muted): its label.
    --spine-fg (muted), --spine-hover-bg (soft), --spine-hover-fg (ink): an entry.
@@ -221,6 +222,25 @@
 }
 .plan-attached .plan-stack-sheet:first-child:not(:last-child) {
   --_inset: 16px;
+}
+
+/* Each sheet casts a soft shadow up onto the one behind it, deeper in dark, where a
+   shadow shows less. */
+.plan-stack-sheet,
+.plan-split-reader > .plan-reader {
+  --_cast: var(
+    --pane-stack-shadow-color,
+    light-dark(
+      color-mix(in srgb, var(--color-shadow) 16%, transparent),
+      color-mix(in srgb, var(--color-shadow) 55%, transparent)
+    )
+  );
+}
+.plan-stack-sheet {
+  box-shadow: 0 -1px 3px -1px var(--_cast);
+}
+.plan-split-reader > .plan-stack:not(:empty) + .plan-reader {
+  box-shadow: 0 -2px 5px -2px var(--_cast);
 }
 
 /* A sheet just shown, tucking in behind what took its place: it slides up from under it

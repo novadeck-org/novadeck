@@ -168,11 +168,15 @@ describe("a terminal's taskbar", () => {
         workspaceFixture(),
       )
 
-    it("shows the last opened, marking the one behind it and drawing its edge", () => {
+    it("shows the last opened, marking the one behind it, which peeks out above it", () => {
       const { container } = renderTerminal(opened())
       expect(icon(container, "notes")?.getAttribute("data-state")).toBe("open")
       expect(icon(container, "hero.png")?.getAttribute("data-state")).toBe("behind")
-      expect(container.querySelector(".plan-split-reader")?.getAttribute("data-behind")).toBe("1")
+      expect(
+        [...container.querySelectorAll(".plan-stack-sheet")].map((each) =>
+          each.getAttribute("aria-label"),
+        ),
+      ).toEqual(["Bring forward hero.png"])
     })
 
     it("uncovers the one behind when the person minimizes the top from its icon", async () => {
@@ -182,7 +186,7 @@ describe("a terminal's taskbar", () => {
       )
       expect(icon(container, "hero.png")?.getAttribute("data-state")).toBe("open")
       expect(icon(container, "notes")?.getAttribute("data-state")).toBe("seen")
-      expect(container.querySelector(".plan-split-reader")?.hasAttribute("data-behind")).toBe(false)
+      expect(container.querySelectorAll(".plan-stack-sheet")).toHaveLength(0)
     })
 
     it("hides the whole pane on Escape, marking everything open as waiting", async () => {

@@ -56,10 +56,6 @@ const clamp = (value: number): number => Math.min(0.7, Math.max(0.22, value))
 // What the pane shows, wherever it's presented.
 type PaneView = Omit<Parameters<typeof CompanionPane>[0], "presentation">
 
-// How many sheets peek out from behind what the pane shows: one or two, however many wait.
-const behindMark = (behind: number): "1" | "2" | undefined =>
-  behind === 0 ? undefined : behind === 1 ? "1" : "2"
-
 // Terminal left, pane right, inside the terminal's own window. The divider drags.
 const SplitPane = ({
   view: shown,
@@ -115,7 +111,6 @@ const SplitPane = ({
         {...presence.props}
         className="plan-split-reader nodrag nopan nowheel"
         data-companion-of={owner}
-        data-behind={behindMark(shown.behind.length)}
       >
         <CompanionPane {...shown} presentation="split" />
       </div>
@@ -165,7 +160,6 @@ const AttachedPane = ({
       id={id}
       className="plan-attached nodrag nopan nowheel"
       data-companion-of={owner}
-      data-behind={behindMark(shown.behind.length)}
     >
       <CompanionPane {...shown} presentation="attached" />
     </div>
