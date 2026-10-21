@@ -5,7 +5,9 @@ popovers, selects, tabs, tooltips and the rest), the recipes that give them thei
 `cn` class-name helper, the sidebar item and `Markdown`, which draws an agent's text (read by
 `@novadeck/viewers/markdown-blocks`, highlighted by `@novadeck/viewers/code`) for the chat and the
 inbox alike. A feature composes them and owns its content and
-state; nothing here knows about a terminal, a project or an agent.
+state; nothing here knows about a terminal, a project or an agent. The one piece of the app's
+vocabulary it holds is `./views`, the layouts' names and icons: the shell and two features
+(Preferences and the welcome preview) all show them, and a feature can't import the shell.
 
 ## Contract
 
