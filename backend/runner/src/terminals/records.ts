@@ -78,6 +78,11 @@ export type TerminalRecords = {
   saveTerminal(terminal: TerminalToSave): void
   removeTerminal(terminalId: string): void
   clearTranscripts(): void
+  /**
+   * Forgets every transcript that is not shaped as a sealed one: `prefix`, then at least
+   * `minChars` characters of base64, and nothing else.
+   */
+  forgetUnsealed(sealed: { readonly prefix: string; readonly minChars: number }): void
   /** Takes murmur's title from every kept terminal, as once murmur is turned off or removed; the ids it took it from. */
   clearMurmurTitles(): readonly string[]
   /** Forgets every session the agent reported, as once it is disconnected. */

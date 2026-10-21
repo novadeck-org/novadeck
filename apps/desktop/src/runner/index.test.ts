@@ -1,3 +1,4 @@
+import { createDecipheriv, randomBytes } from "node:crypto"
 import { on, once } from "node:events"
 import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -41,6 +42,19 @@ import(workerData.entry)
 // eslint-disable-next-line no-control-regex -- Terminal escape sequences.
 const title = /\u001b\][012];[^\u0007\u001b]*(?:\u0007|\u001b\\|\u001b?$)/g
 
+// A sealed transcript's text, as the runner seals it: `v1.` and the base64 of a 12-byte
+// nonce, the 16-byte tag and the AES-256-GCM ciphertext, with the terminal's id bound in;
+// the ciphertext holds the time it was saved (8 bytes) and then the text.
+const opened = (value: string, key: Buffer, terminalId: string): string => {
+  if (!value.startsWith("v1.")) return ""
+  const bytes = Buffer.from(value.slice(3), "base64")
+  const decipher = createDecipheriv("aes-256-gcm", key, bytes.subarray(0, 12))
+  decipher.setAAD(Buffer.from(terminalId))
+  decipher.setAuthTag(bytes.subarray(12, 28))
+  const plain = Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()])
+  return plain.subarray(8).toString("utf8")
+}
+
 const start = (database: string, extra: readonly string[] = []) => {
   const worker = new Worker(utility, {
     eval: true,
@@ -62,13 +76,19 @@ const start = (database: string, extra: readonly string[] = []) => {
   const persist = () =>
     // eslint-disable-next-line unicorn/require-post-message-target-origin -- A Node worker, not a window.
     worker.postMessage({ data: { type: "persist" }, ports: [] })
+  // The transcripts' key, as the host hands it over once the keychain gave it.
+  const key = (bytes: Buffer | null) => {
+    const data = { type: "transcriptKey", key: bytes?.toString("base64") ?? null }
+    // eslint-disable-next-line unicorn/require-post-message-target-origin -- A Node worker, not a window.
+    worker.postMessage({ data, ports: [] })
+  }
   const close = async () => {
     const exited = once(worker, "exit")
     // eslint-disable-next-line unicorn/require-post-message-target-origin -- A Node worker, not a window.
     worker.postMessage({ data: { type: "close" }, ports: [] })
     await exited
   }
-  return { worker, connect, persist, close }
+  return { worker, connect, persist, key, close }
 }
 
 describe("compiled desktop runner", () => {
@@ -77,6 +97,8 @@ describe("compiled desktop runner", () => {
       const directory = await mkdtemp(join(tmpdir(), "novadeck-host-runner-"))
       const database = join(directory, "workspace.sqlite")
       const runner = start(database)
+      const transcriptKey = randomBytes(32)
+      runner.key(transcriptKey)
       try {
         const client = await runner.connect()
         const project = await client.projects.create({
@@ -112,20 +134,18 @@ describe("compiled desktop runner", () => {
         )
         await reading
         // Asked to before the system session ends, it saves the terminal's screen, as it
-        // stands then; asked again each time, the latest ask counts.
+        // stands then, sealed with the key the host gave; asked again each time, the latest
+        // ask counts.
         const saved = new DatabaseSync(database, { readOnly: true })
         try {
           await expect
             .poll(
               () => {
                 runner.persist()
-                return (
-                  (
-                    saved
-                      .prepare("SELECT transcript FROM terminals WHERE id = ?")
-                      .get(created.id) as { transcript: string | null } | undefined
-                  )?.transcript ?? ""
-                )
+                const row = saved
+                  .prepare("SELECT transcript FROM terminals WHERE id = ?")
+                  .get(created.id) as { transcript: string | null } | undefined
+                return opened(row?.transcript ?? "", transcriptKey, created.id)
               },
               { timeout: 15_000, interval: 200 },
             )

@@ -23,6 +23,7 @@ import { modelFile, pruneModels } from "../engines/models.js"
 import type { Launch } from "../engines/server.js"
 import { EngineError, engineFolder, exists } from "../engines/unpack.js"
 import { DomainError } from "../errors.js"
+import { logs } from "../log.js"
 import type { VoiceSettingsChange } from "../workspaces/store.js"
 import { catalog as pinned, recommend, type Catalog } from "./catalog.js"
 import { Clips } from "./clips.js"
@@ -73,6 +74,8 @@ type Checked = { readonly check: VoiceCheck; readonly recommended: VoiceModel }
 
 const unavailable = (reason: VoiceUnavailable["reason"], message: string): DomainError =>
   new DomainError("VOICE_UNAVAILABLE", message, { reason })
+
+const log = logs.for("voice")
 
 const explain = (error: unknown): string => {
   if (error instanceof DownloadError || error instanceof EngineError) return error.message
@@ -454,6 +457,12 @@ export class Voice {
       return result
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      // Closing ends the engine under a clip in flight: that is no failure to log.
+      if (!this.closed)
+        log.warn("voice.transcribe-failed", "Voice input could not transcribe a clip.", {
+          data: { reason: message.slice(0, 1024) },
+          err: error,
+        })
       // The engine may be what went wrong with a first clip; keep the clip for another try.
       // Only the caller hears of it: the shared failure is for the install and the engine.
       throw new DomainError("VOICE_FAILED", message.slice(0, 1024))
@@ -658,6 +667,11 @@ export class Voice {
       if (!signal.aborted && !aborted(error)) {
         this.failure = explain(error).slice(0, 1024)
         this.updateFailedAt = engineOnly ? this.clock() : undefined
+        // The card shows it until the next try; the log keeps it after that.
+        log.warn("voice.install-failed", "Voice input's install failed.", {
+          data: { reason: this.failure },
+          err: error,
+        })
       }
       // What finished stays: a model that downloaded shows as installed, to turn on or
       // check again, rather than looking as if it had to download again.

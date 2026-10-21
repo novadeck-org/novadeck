@@ -16,6 +16,7 @@ const idle: MurmurState = {
   offers: 1,
   refused: null,
   failure: null,
+  stopped: null,
 }
 const installing = (
   step: "engine" | "model" | "check",
@@ -76,12 +77,29 @@ describe("Murmur's footer item", () => {
     expect(footerPhase("idle", again, first.refused)).toBe("failed")
   })
 
-  it("leaves what the runner says of itself from rest to Addons", () => {
+  it("leaves what the runner says of itself from rest to Addons, except that it stopped", () => {
     for (const state of [
       { ...checked, check: null, failure: "The graphics device went away." },
+      { ...checked, failure: "The download stopped: the connection dropped." },
       { ...idle, failure: "The download stopped: the connection dropped." },
+      // Not installed: nothing is there to have stopped.
+      { ...idle, stopped: "The engine failed to start." },
     ])
       expect(footerPhase("idle", state, null)).toBe("idle")
+  })
+
+  it("shows that an installed Murmur stopped from rest, once while it stands", () => {
+    const stopped = { ...checked, stopped: "The engine failed to start." }
+    expect(footerPhase("idle", stopped, null)).toBe("stopped")
+    expect(footerPhase("stopped", stopped, null)).toBe("stopped")
+    // Answered with Not now: shut while it stands, whatever its words.
+    expect(footerPhase("idle", stopped, null, null, false, true)).toBe("idle")
+    expect(
+      footerPhase("idle", { ...stopped, stopped: "Another answer." }, null, null, false, true),
+    ).toBe("idle")
+    // Cleared, the item goes; the caller forgets the answer, so a new one shows.
+    expect(footerPhase("stopped", checked, null)).toBe("idle")
+    expect(footerPhase("idle", stopped, null, null, false, false)).toBe("stopped")
   })
 
   it.each(["uninstall", "cancel", "set"] as const)("leaves a refused %s to Addons", (call) => {

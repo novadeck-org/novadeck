@@ -64,6 +64,14 @@ const murmurEngine = argument(murmurEngineArgumentPrefix)
 const murmurSource = argument(murmurSourceArgumentPrefix)
 const softwareGraphics = argument(graphicsArgumentPrefix) === "software"
 
+// The key saved transcripts are encrypted with arrives from the host over the parent port
+// once it has it, which may wait on the person; null where none can be kept safe. The
+// runner starts at once and saves and shows no transcript until it settles.
+let giveTranscriptKey: (key: Uint8Array | null) => void = () => {}
+const transcriptKey = new Promise<Uint8Array | null>((resolve) => {
+  giveTranscriptKey = resolve
+})
+
 // Without `maxTerminals`, the desktop runner starts as many terminals as the user opens.
 // Its shell integration and pasted files live beside the database, in the app's own data
 // directory.
@@ -86,6 +94,7 @@ const runner = createRunner({
   },
   // Told only when the host saw no graphics hardware; otherwise the installs' checks decide.
   ...(softwareGraphics && { softwareGraphics }),
+  transcriptKey,
 })
 
 // The host times the runner's start up to here: it can serve.
@@ -99,6 +108,9 @@ process.parentPort.on(
   "message",
   ({ data, ports }: { data: RunnerCommand; ports: MessagePortMain[] }) => {
     if (data.type === "connect" && ports[0]) servePort(runner.sessions, ports[0])
+    // Only the first settles it; the host sends one per start.
+    if (data.type === "transcriptKey")
+      giveTranscriptKey(data.key === null ? null : Buffer.from(data.key, "base64"))
     if (data.type === "persist") runner.persist()
     if (data.type === "close") void runner.close().finally(() => process.exit(0))
   },

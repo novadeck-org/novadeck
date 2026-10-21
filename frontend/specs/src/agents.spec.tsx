@@ -416,7 +416,7 @@ describe("Connecting agents", () => {
       await openWorkspace("/?demo=welcome")
       const choice = welcome().getByRole("checkbox", { name: "Transcripts" })
       await expect.element(choice).toBeChecked()
-      await expect.element(choice).toHaveAccessibleDescription(/secrets/)
+      await expect.element(choice).toHaveAccessibleDescription(/Saved encrypted on this computer/)
       await choice.click()
       await welcome().getByRole("button", { name: "Let’s build something" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()
@@ -424,6 +424,12 @@ describe("Connecting agents", () => {
       await expect
         .element(preferencesDialog().getByRole("switch", { name: "Transcripts" }))
         .toHaveAttribute("aria-checked", "false")
+    })
+
+    it("leaves the transcripts choice out where they cannot be kept encrypted", async () => {
+      await openWorkspace("/?demo=welcome&transcripts=unavailable")
+      await expect.element(welcome()).toBeVisible()
+      expect(welcome().getByRole("checkbox", { name: "Transcripts" }).query()).toBeNull()
     })
 
     it("leaves transcripts as they were when skipped", async () => {

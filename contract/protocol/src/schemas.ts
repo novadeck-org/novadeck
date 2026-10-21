@@ -667,6 +667,13 @@ export const runnerSettings = z.strictObject({
   welcomed: z.boolean(),
 })
 
+// The settings as the runner reports them, with what it can do whatever they say.
+export const runnerSettingsState = runnerSettings.extend({
+  // Whether transcripts can be kept here at all: they are kept only encrypted, so not where
+  // nothing protects their key, as a Linux desktop with no keyring or a runner on its own.
+  transcriptsAvailable: z.boolean(),
+})
+
 // Voice input: speech typed into terminals, transcribed on this machine by an engine and
 // a model the person installs from Preferences. `turbo` is accurate in many languages but
 // wants a GPU; `small` is quicker on a CPU and less accurate.
@@ -786,6 +793,11 @@ export const murmurState = z.strictObject({
   // worker that would not start; or the engine failing three jobs in a row (the check stands)
   // until a job succeeds. Turning murmur on clears the last two.
   failure: z.string().max(1024).nullable(),
+  // The part of `failure` that is murmur stopping while installed: the engine failing three
+  // jobs in a row, or its worker not starting, until a job succeeds. Null otherwise, also
+  // for an install or update that failed and for a device that went away. Murmur's jobs
+  // retry by themselves, so there is nothing to retry.
+  stopped: z.string().max(1024).nullable(),
 })
 
 export const murmurSettings = z.strictObject({
@@ -983,6 +995,7 @@ export type RequestAnswer = z.infer<typeof requestAnswer>
 export type TranscriptChange = z.infer<typeof transcriptChange>
 export type AgentIntegration = z.infer<typeof agentIntegration>
 export type RunnerSettings = z.infer<typeof runnerSettings>
+export type RunnerSettingsState = z.infer<typeof runnerSettingsState>
 export type VoiceModel = z.infer<typeof voiceModel>
 export type VoiceInstall = z.infer<typeof voiceInstall>
 export type InstallOrigin = z.infer<typeof installOrigin>

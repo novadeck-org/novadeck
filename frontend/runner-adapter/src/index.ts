@@ -153,7 +153,7 @@ export const connectRunnerBackend = async (
   progress("loading")
   try {
     const listing = await loadListing(runner, newId, Date.now)
-    const [{ transcripts, welcomed }, agents] = await Promise.all([
+    const [{ transcripts, transcriptsAvailable, welcomed }, agents] = await Promise.all([
       runner.settings.get(),
       runner.agents.list(),
     ])
@@ -189,6 +189,7 @@ export const connectRunnerBackend = async (
           ...(uninstall ? { uninstall } : {}),
           livePages: desktopHost()?.livePages === true,
           transcripts,
+          transcriptsAvailable,
           agents,
           welcomed,
         })

@@ -20,6 +20,8 @@ const choicesFrom = (agents: readonly AgentSwitch[]): Choices =>
 
 export type TranscriptsSetting = {
   readonly enabled: boolean
+  // False where nothing can keep them encrypted; the choice is left out.
+  readonly available: boolean
   readonly onChange: (enabled: boolean) => void
 }
 
@@ -115,6 +117,7 @@ const WelcomeForm = ({
   const [choices, setChoices] = useState<Choices>(() => choicesFrom(agents))
   // Transcripts start on; the person opts out.
   const [keepTranscripts, setKeepTranscripts] = useState(true)
+  const offerTranscripts = transcripts?.available === true
 
   const submit = (): void => {
     for (const item of agents) {
@@ -123,7 +126,7 @@ const WelcomeForm = ({
         onChange(item.agent, connected)
       }
     }
-    if (transcripts && keepTranscripts !== transcripts.enabled)
+    if (transcripts?.available && keepTranscripts !== transcripts.enabled)
       transcripts.onChange(keepTranscripts)
     onDone()
   }
@@ -221,7 +224,7 @@ const WelcomeForm = ({
           </fieldset>
 
           <p
-            className={`modal-description welcome-enter mt-3 min-h-[2lh] text-caption leading-[1.65] ${transcripts ? "mb-5" : "mb-8"}`}
+            className={`modal-description welcome-enter mt-3 min-h-[2lh] text-caption leading-[1.65] ${offerTranscripts ? "mb-5" : "mb-8"}`}
             style={at(850)}
           >
             {pluginNote(
@@ -231,7 +234,7 @@ const WelcomeForm = ({
             )}
           </p>
 
-          {transcripts && (
+          {offerTranscripts && (
             <fieldset
               className="settings-fieldset welcome-enter m-0 mb-8 min-w-0 p-0"
               style={at(900)}
@@ -240,7 +243,7 @@ const WelcomeForm = ({
               <ChoiceCard
                 icon={ScrollText}
                 label="Transcripts"
-                note="Show recent output again after a restart. Saved on this computer, so it can include secrets."
+                note="Show recent output again after a restart. Saved encrypted on this computer."
                 noteId="welcome-transcripts-description"
                 name="transcripts"
                 value="on"

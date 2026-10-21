@@ -397,8 +397,14 @@ agent.
   30 seconds, and when its shell exits or restarts. What looks like a secret (a known
   token prefix, a value named like a secret, a key, a long key-like run) is masked before
   the transcript is saved; anything else that was typed or printed may still be saved.
-  Transcripts live in `workspace.sqlite`, readable by your account only, with up to
-  256 KiB kept per terminal.
+  The masked transcript is then encrypted with a key Novadeck keeps in your system's
+  keychain (Keychain on macOS, DPAPI on Windows, and on Linux the Secret Service: GNOME
+  Keyring, or KWallet where it offers the Secret Service).
+  Where nothing protects that key (no keyring on Linux, an unlock you refuse or that fails,
+  the standalone runner) no transcript is saved or shown, and any left unencrypted is
+  forgotten at every start. Transcripts live in `workspace.sqlite`, readable by your
+  account only, with up to 256 KiB kept per terminal; the key keeps the file alone from
+  showing them, not other programs running as you on Windows or Linux.
 
 Codex may ask you to review Novadeck's hook ("Hooks need review") and records the
 answer itself; it asks again only when Novadeck changes how its hook is registered, as

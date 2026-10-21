@@ -65,6 +65,7 @@ import { cancelResume, Claims } from "./resumes.js"
 import { agentWorking } from "./ringing.js"
 import { Sampler, shellProcess } from "./sampling.js"
 import { Saves } from "./saving.js"
+import type { TranscriptSealer } from "./sealing.js"
 import { Streams } from "./streams.js"
 import { savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
 import { transcriptChanges } from "./transcripts.js"
@@ -117,6 +118,10 @@ export type TerminalOptions = {
   transcriptShutdownMs?: number
   /** Masks secrets in transcripts before they are saved; a worker thread by default. */
   redactor?: TranscriptRedactor
+  /** Seals transcripts to save and opens them; none is saved or shown without it. */
+  sealer?: TranscriptSealer
+  /** How long a restored terminal waits for the sealer's key, in milliseconds. */
+  transcriptKeyMs?: number
   /** The longest transcript kept per terminal, in characters. */
   transcriptChars?: number
   /**
@@ -278,6 +283,8 @@ export class Terminals {
       | "transcriptMs"
       | "transcriptShutdownMs"
       | "redactor"
+      | "sealer"
+      | "transcriptKeyMs"
       | "projectFolder"
       | "mailbox"
       | "asks"
@@ -424,6 +431,8 @@ export class Terminals {
         redactor: this.options.records
           ? (options.redactor ?? createTranscriptRedactor())
           : undefined,
+        sealer: options.sealer,
+        keyMs: positive(options.transcriptKeyMs, 5_000),
       },
       {
         stopping: () => this.stopping,
@@ -667,6 +676,7 @@ export class Terminals {
       const integration = await this.launcher.shellIntegration()
       const connected = await this.launcher.connected(input.resume)
       const env = await environment
+      const opened = saved ? await this.saves.open(saved) : null
       if (this.stopping) throw new DomainError("CLOSING")
       // Closed, even while it was being restored, as from another window, or its project is
       // going: it stays closed, and none starts there.
@@ -783,16 +793,11 @@ export class Terminals {
       this.register(record, expectedAgent(input.command, input.resume))
       if (unled) this.messaging.endLead(record.summary.id)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
-      const shown = saved?.transcript && !started.resumes && this.saves.transcripts
-      const replayed = shown
-        ? this.show(record, saved.transcript!, new Date(saved.savedAt))
-        : Promise.resolve()
+      if (opened && !started.resumes) void this.show(record, opened.text, new Date(opened.at))
       this.listen(record)
       this.announce(record)
       this.sampler.start()
       this.saves.save(record, false)
-      // Once restored, it is saved again masked (or forgotten), in case a downgrade saved it.
-      if (saved) void replayed.then(() => this.saves.restored(record))
       this.saves.start()
       return summaryOf(record)
     } finally {

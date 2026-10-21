@@ -18,6 +18,7 @@ const unchecked: MurmurState = {
   offers: 0,
   refused: null,
   failure: null,
+  stopped: null,
 }
 
 const actions = () => ({
