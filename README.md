@@ -824,6 +824,11 @@ Agents:
   edits Checkout.tsx" adds the storefront's third terminal's agent (`owl`) to a row that
   already shows Moth and Crow, folding the chips into "+1". "Agent creates a file in a folder"
   adds `src/api/payments.ts`, so a folded `src/api` pulses and shows Crow's chip.
+  A strip of agent chips above the tree lists the agents with work in the project, in the
+  session's roster order, each light-able by a click (any number, Escape lets them go; with
+  none kept the selected terminal's agent is lit). The `messages` variant has a squad, as
+  Moth leads Crow there: the two share one track, and a click on `@moth` keeps both. The
+  `agents`, `inbox` and try demos have no team, so their strips are solo chips.
 - **Agent connections:** make the next connect in Preferences fail, refresh the agents, or
   connect Antigravity with the note Preferences shows where its own status line keeps
   Novadeck's out, as on Windows.

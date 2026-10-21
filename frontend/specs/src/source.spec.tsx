@@ -6,6 +6,8 @@ import { layoutSettled, openWorkspace, sidebarPanel } from "./support/workspace"
 // The agents demo has a Source panel with the storefront's files. Specs run with reduced motion,
 // so the demo's agents write nothing while a test looks, and a row's marks and chips hold still.
 const agents = "/?demo=agents"
+// The messages demo adds a team: @moth leads @crow.
+const messages = "/?demo=messages"
 
 const skipIntro = async (): Promise<void> => {
   const skip = page.getByRole("button", { name: "Skip for now" })
@@ -39,6 +41,30 @@ describe("The Source panel", () => {
       // its name and two chips.
       expect(row.querySelectorAll(".source-chip")).toHaveLength(1)
       expect(row.querySelector(".source-more")?.textContent).toBe("+1")
+    })
+  })
+
+  context("when the demo has a team whose members both worked here", () => {
+    it("groups them in a squad track, and a click on the lead keeps both lit", async () => {
+      await openWorkspace(messages)
+      await skipIntro()
+      await sidebarPanel("Source").click()
+
+      const strip = page.getByRole("group", { name: "Light agents" })
+      const squad = strip.getByRole("group", { name: "@moth's squad" })
+      await expect.element(squad.getByRole("button", { name: "@moth" })).toBeVisible()
+      await expect.element(squad.getByRole("button", { name: "@crow" })).toBeVisible()
+
+      await squad.getByRole("button", { name: "@moth" }).click()
+
+      await expect
+        .element(squad.getByRole("button", { name: "@moth" }))
+        .toHaveAttribute("aria-pressed", "true")
+      await expect
+        .element(squad.getByRole("button", { name: "@crow" }))
+        .toHaveAttribute("aria-pressed", "true")
+      // Something neither of them touched is dimmed.
+      await expect.poll(() => document.querySelector(".source-row[data-dim=true]")).not.toBeNull()
     })
   })
 

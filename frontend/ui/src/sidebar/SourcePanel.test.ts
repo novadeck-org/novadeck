@@ -57,11 +57,17 @@ const work = (parts: Partial<SourceProject> = {}): SourceProject => ({
   ...parts,
 })
 
-const mount = (project: SourceProject | undefined, selectedHandle?: string) => {
+const mount = (
+  project: SourceProject | undefined,
+  selectedHandle?: string,
+  agents: { roster: string[]; squads: string[][] } = { roster: [], squads: [] },
+) => {
   let visible = true
   const props = (next: SourceProject | undefined, handle: string | undefined) => ({
     project: next,
     selectedHandle: handle,
+    roster: agents.roster,
+    squads: agents.squads,
     active: true,
     visible,
     onHide: () => {},
@@ -230,6 +236,175 @@ describe("The Source panel", () => {
       const panel = mount(work(), "wren")
 
       expect(panel.row("package.json").getAttribute("data-dim")).toBe("false")
+      await nextFrame()
+      panel.view.unmount()
+    })
+  })
+
+  context("when agents have work here", () => {
+    // moth leads crow; wren works alone. Everyone changed a file of their own.
+    const team = (): SourceProject =>
+      work({
+        changes: {
+          ...work().changes,
+          "docs/readme.md": { kind: "modified", touched: { crow: recent } },
+          "package.json": { kind: "modified", touched: { wren: recent } },
+        },
+      })
+    const agents = { roster: ["wren", "moth", "crow"], squads: [["moth", "crow"]] }
+    const mountTeam = (selected?: string) => mount(team(), selected, agents)
+    const chip = (panel: ReturnType<typeof mount>, handle: string): HTMLElement =>
+      Array.from(
+        panel.view.container.querySelectorAll<HTMLElement>(".source-strip .source-agent"),
+      ).find((el) => el.textContent === `@${handle}`)!
+    const press = (panel: ReturnType<typeof mount>, handle: string): void =>
+      act(() => chip(panel, handle).click())
+    const pressed = (panel: ReturnType<typeof mount>): string[] =>
+      Array.from(panel.view.container.querySelectorAll(".source-agent[aria-pressed=true]")).map(
+        (el) => el.textContent ?? "",
+      )
+    const dimmed = (panel: ReturnType<typeof mount>): string[] =>
+      Array.from(
+        panel.view.container.querySelectorAll(".source-row[data-dim=true][data-folder=false]"),
+      ).map((el) => el.querySelector(".source-name")?.textContent ?? "")
+    const hover = (el: Element, type: "pointerover" | "pointerout"): void =>
+      act(() => void el.dispatchEvent(new MouseEvent(type, { bubbles: true })))
+
+    it("shows a chip for each, a squad in a labelled track with its lead first", async () => {
+      const panel = mountTeam()
+
+      const strip = panel.view.container.querySelector("[aria-label='Light agents']")!
+      expect(strip.getAttribute("role")).toBe("group")
+      expect(
+        Array.from(strip.querySelectorAll(".source-agent")).map((el) => el.textContent),
+      ).toEqual(["@wren", "@moth", "@crow"])
+      const squad = strip.querySelector('[aria-label="@moth\'s squad"]')!
+      expect(Array.from(squad.querySelectorAll("button")).map((el) => el.textContent)).toEqual([
+        "@moth",
+        "@crow",
+      ])
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("has no strip while nobody has worked here", async () => {
+      const panel = mount(work({ changes: {}, writing: {} }), undefined, agents)
+
+      expect(panel.view.container.querySelector(".source-strip")).toBeNull()
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("lights the union of the agents kept, and releases one on a second click", async () => {
+      const panel = mountTeam()
+
+      press(panel, "wren")
+      expect(dimmed(panel)).toEqual(["readme.md", "Cart.tsx", "new.ts", "useCart.ts"])
+      press(panel, "crow")
+
+      expect(pressed(panel)).toEqual(["@wren", "@crow"])
+      expect(dimmed(panel)).toEqual(["Cart.tsx", "new.ts"])
+      expect(
+        panel.view.container.querySelector("[role=tree]")?.getAttribute("aria-description"),
+      ).toBe("The work of @wren and @crow is lit; files and folders they did not touch are dimmed.")
+      press(panel, "wren")
+      expect(pressed(panel)).toEqual(["@crow"])
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("keeps or releases the whole squad from its lead, and one member from the member", async () => {
+      const panel = mountTeam()
+
+      // Nothing marks a lead, so its hint names the squad.
+      expect(chip(panel, "moth").getAttribute("title")).toBe("Keep @moth's squad lit")
+      expect(chip(panel, "crow").getAttribute("title")).toBe("Keep @crow lit")
+      press(panel, "moth")
+      expect(chip(panel, "moth").getAttribute("title")).toBe("Let @moth's squad go")
+      expect(pressed(panel)).toEqual(["@moth", "@crow"])
+      expect(panel.view.container.querySelector(".source-squad")?.getAttribute("data-kept")).toBe(
+        "true",
+      )
+      press(panel, "crow")
+      expect(pressed(panel)).toEqual(["@moth"])
+      // Not every member is kept, so the lead keeps them all rather than releasing.
+      press(panel, "moth")
+      expect(pressed(panel)).toEqual(["@moth", "@crow"])
+      press(panel, "moth")
+      expect(pressed(panel)).toEqual([])
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("follows the selected terminal's agent until something is kept, and again after Escape", async () => {
+      const panel = mountTeam("wren")
+
+      expect(chip(panel, "wren").getAttribute("data-following")).toBe("true")
+      expect(dimmed(panel)).toEqual(["readme.md", "Cart.tsx", "new.ts", "useCart.ts"])
+      press(panel, "crow")
+      expect(chip(panel, "wren").getAttribute("data-following")).toBe("false")
+      expect(dimmed(panel)).toEqual(["Cart.tsx", "new.ts", "package.json"])
+
+      act(() => {
+        chip(panel, "crow").dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+        )
+      })
+
+      expect(pressed(panel)).toEqual([])
+      expect(dimmed(panel)).toEqual(["readme.md", "Cart.tsx", "new.ts", "useCart.ts"])
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("clears what is kept on Escape in the tree too", async () => {
+      const panel = mountTeam()
+      press(panel, "wren")
+
+      act(() => {
+        panel
+          .row("package.json")
+          .querySelector("[role=treeitem]")!
+          .dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+      })
+
+      expect(pressed(panel)).toEqual([])
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("lights an agent while its chip is pointed at, its whole squad for a lead, without reordering", async () => {
+      const panel = mountTeam()
+      const order = (): string[] =>
+        Array.from(panel.row("useCart.ts").querySelectorAll(".source-chip")).map(
+          (el) => el.textContent ?? "",
+        )
+      const before = order()
+
+      hover(chip(panel, "wren"), "pointerover")
+      expect(dimmed(panel)).toEqual(["readme.md", "Cart.tsx", "new.ts", "useCart.ts"])
+      hover(chip(panel, "wren"), "pointerout")
+      hover(chip(panel, "moth"), "pointerover")
+      expect(dimmed(panel)).toEqual(["Cart.tsx", "package.json"])
+      expect(order()).toEqual(before)
+      hover(chip(panel, "moth"), "pointerout")
+
+      expect(dimmed(panel)).toEqual([])
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("puts the kept agents first on a row's chips", async () => {
+      const panel = mountTeam()
+      const shown = (): string[] =>
+        Array.from(panel.row("useCart.ts").querySelectorAll(".source-chip")).map(
+          (el) => el.textContent ?? "",
+        )
+      expect(shown()).toEqual(["@moth", "@crow"])
+
+      press(panel, "crow")
+
+      expect(shown()).toEqual(["@crow", "@moth"])
       await nextFrame()
       panel.view.unmount()
     })
