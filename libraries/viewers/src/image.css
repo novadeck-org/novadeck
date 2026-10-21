@@ -12,7 +12,7 @@
    --image-radius (0), --image-shadow (none): the image itself.
    --image-zoom-bg (a dark glass), --image-zoom-fg (white), --image-zoom-border (none),
    --image-zoom-radius (6px), --image-zoom-shadow (none), --image-zoom-font (inherit),
-   --image-zoom-hover-bg (--image-zoom-bg): the chip. */
+   --image-zoom-hover-bg (--image-zoom-bg, else a darker glass): the chip. */
 .image-viewer {
   position: relative;
   display: grid;

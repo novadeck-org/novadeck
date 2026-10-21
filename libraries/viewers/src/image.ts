@@ -3,8 +3,8 @@ import type { Mount, Viewer, ViewerState } from "./index.js"
 
 // An image, fitted whole to its viewer, never larger than its own size, or zoomed in and
 // moved about: pinch or Ctrl+scroll zooms around the pointer, a scroll or a drag moves a
-// zoomed image, a double-click goes to its actual size and back, and keys do each while the
-// viewer has focus. While it's zoomed, a chip over it says how far, and takes it back to
+// zoomed image, a double-click zooms in there and back, and keys do each while the viewer
+// has focus. While it's zoomed, a chip over it says how far, and takes it back to
 // fit. The zoom is part of its state, with the point of the image at the viewer's centre,
 // so an image shown again keeps its view whatever the viewer's size. Its looks are
 // image.css's.
@@ -50,8 +50,8 @@ const isImageState = (state: unknown): state is ImageState => {
   return (
     typeof image?.src === "string" &&
     isZoom(image.zoom) &&
-    typeof image.x === "number" &&
-    typeof image.y === "number"
+    Number.isFinite(image.x) &&
+    Number.isFinite(image.y)
   )
 }
 
@@ -63,7 +63,8 @@ const clamp = (value: number, low: number, high: number): number =>
 const placeOn = (view: number, size: number, centre: number): number =>
   size <= view ? (view - size) / 2 : clamp(view / 2 - centre * size, view - size, 0)
 
-const gestures = "Pinch or Ctrl+scroll to zoom, double-click for 100%, drag to move."
+const gestures = "Pinch or Ctrl+scroll to zoom, double-click to zoom in, drag to move."
+const keyHelp = "Plus and minus zoom, 0 fits, 1 shows 100%, the arrows move."
 
 export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> = (
   element,
@@ -74,11 +75,11 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
   root.className = "image-viewer"
   root.setAttribute("role", "region")
   root.setAttribute("aria-label", label)
-  // Focusable, so its keys reach it.
+  // Focusable, so its keys reach it, which it names with its gestures.
   root.tabIndex = 0
+  root.setAttribute("aria-description", `${gestures} ${keyHelp}`)
+  root.setAttribute("aria-keyshortcuts", "+ - 0 1")
   const image = document.createElement("img")
-  // A drag moves the image, rather than starting the browser's own.
-  image.draggable = false
   const chip = document.createElement("button")
   chip.type = "button"
   chip.className = "image-zoom"
@@ -110,6 +111,14 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     return { naturalWidth, naturalHeight, clientWidth, clientHeight, fit }
   }
 
+  // Its focus goes back to the viewer as it hides, so its keys still reach it.
+  const hideChip = (): void => {
+    if (chip.hidden) return
+    const focused = document.activeElement === chip
+    chip.hidden = true
+    if (focused) root.focus({ preventScroll: true })
+  }
+
   const draw = (): void => {
     const view = measure()
     root.toggleAttribute("data-sized", Boolean(view))
@@ -121,12 +130,13 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
       image.style.removeProperty("transform")
       root.removeAttribute("data-pannable")
       root.removeAttribute("data-pixelated")
-      chip.hidden = true
+      image.draggable = true
+      hideChip()
       return
     }
     // A zoom that reaches fit, as the viewer grows, is fit again, and follows its size.
     if (zoom !== "fit" && zoom <= view.fit * 1.0001) zoom = "fit"
-    const scale = zoom === "fit" ? view.fit : zoom
+    const scale = zoom === "fit" ? view.fit : Math.min(zoom, most)
     const width = view.naturalWidth * scale
     const height = view.naturalHeight * scale
     const x = placeOn(view.clientWidth, width, centre.x)
@@ -136,12 +146,13 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     image.style.width = `${width}px`
     image.style.height = `${height}px`
     image.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
-    root.toggleAttribute(
-      "data-pannable",
-      width > view.clientWidth + 0.5 || height > view.clientHeight + 0.5,
-    )
+    const pannable = width > view.clientWidth + 0.5 || height > view.clientHeight + 0.5
+    root.toggleAttribute("data-pannable", pannable)
+    // A drag moves an image larger than the viewer, rather than starting the browser's own.
+    image.draggable = !pannable
     root.toggleAttribute("data-pixelated", scale >= pixelated)
-    chip.hidden = zoom === "fit"
+    if (zoom === "fit") hideChip()
+    else chip.hidden = false
     const percent = `${Math.round(scale * 100)}%`
     chip.textContent = percent
     chip.setAttribute("aria-label", `Zoomed to ${percent}. Back to fit`)
@@ -176,11 +187,16 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     return true
   }
 
+  // How far the page scales the viewer, as Canvas does at its zoom: a pointer's distances
+  // on screen are this many of the viewer's own pixels.
+  const scaleOnScreen = (): number => root.getBoundingClientRect().width / root.offsetWidth || 1
+
   const pointIn = (event: MouseEvent): { x: number; y: number } => {
     const box = root.getBoundingClientRect()
+    const scale = scaleOnScreen()
     return {
-      x: event.clientX - box.left - root.clientLeft,
-      y: event.clientY - box.top - root.clientTop,
+      x: (event.clientX - box.left) / scale - root.clientLeft,
+      y: (event.clientY - box.top) / scale - root.clientTop,
     }
   }
 
@@ -205,12 +221,18 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     if (pan(dx, dy)) event.preventDefault()
   }
 
-  let dragging: { id: number; x: number; y: number } | undefined
+  let dragging:
+    | { id: number; x: number; y: number; scale: number; from: { x: number; y: number } }
+    | undefined
+  // Whether the last press moved the image, so its click doesn't count toward a double-click.
+  let dragged = false
   const onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 0 || chip.contains(event.target as Node)) return
     root.focus({ preventScroll: true })
+    dragged = false
     if (!root.hasAttribute("data-pannable")) return
-    dragging = { id: event.pointerId, x: event.clientX, y: event.clientY }
+    const from = { x: event.clientX, y: event.clientY }
+    dragging = { id: event.pointerId, ...from, scale: scaleOnScreen(), from }
     root.setAttribute("data-panning", "")
     try {
       root.setPointerCapture(event.pointerId)
@@ -219,23 +241,28 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
       // it's over the viewer.
     }
   }
-  const onPointerMove = (event: PointerEvent): void => {
-    if (event.pointerId !== dragging?.id) return
-    pan(dragging.x - event.clientX, dragging.y - event.clientY)
-    dragging = { ...dragging, x: event.clientX, y: event.clientY }
-  }
-  const onPointerUp = (event: PointerEvent): void => {
+  const endDrag = (event: PointerEvent): void => {
     if (event.pointerId !== dragging?.id) return
     dragging = undefined
     root.removeAttribute("data-panning")
   }
+  const onPointerMove = (event: PointerEvent): void => {
+    if (event.pointerId !== dragging?.id) return
+    // A press that ended out of its sight, as its capture was lost.
+    if (!(event.buttons & 1)) return endDrag(event)
+    const { x, y, scale } = dragging
+    pan((x - event.clientX) / scale, (y - event.clientY) / scale)
+    dragging = { ...dragging, x: event.clientX, y: event.clientY }
+    dragged ||= Math.hypot(event.clientX - dragging.from.x, event.clientY - dragging.from.y) > 4
+  }
 
-  // A double-click goes to the image's actual size there, or twice it for one that fits at
-  // its own size, and back to fit from any zoom.
+  // A double-click zooms in there, to the image's actual size where it's fitted at half that
+  // or less, else to twice its fit, and goes back to fit from any zoom. A drag's clicks
+  // aren't one.
   const onDoubleClick = (event: MouseEvent): void => {
-    if (chip.contains(event.target as Node) || !drawn) return
+    if (chip.contains(event.target as Node) || !drawn || dragged) return
     if (zoom !== "fit") return zoomTo("fit")
-    zoomTo(drawn.fit < 1 ? 1 : 2, pointIn(event))
+    zoomTo(drawn.fit <= 0.5 ? 1 : drawn.fit * 2, pointIn(event))
   }
 
   const onKeyDown = (event: KeyboardEvent): void => {
@@ -266,7 +293,8 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
       "1": () => zoomTo(1),
     }
     const key = keys[event.key]
-    if (!key) return
+    // Nothing to zoom until it's drawn.
+    if (!key || !drawn) return
     event.preventDefault()
     key()
   }
@@ -283,8 +311,9 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
   root.addEventListener("wheel", onWheel, { passive: false })
   root.addEventListener("pointerdown", onPointerDown)
   root.addEventListener("pointermove", onPointerMove)
-  root.addEventListener("pointerup", onPointerUp)
-  root.addEventListener("pointercancel", onPointerUp)
+  root.addEventListener("pointerup", endDrag)
+  root.addEventListener("pointercancel", endDrag)
+  root.addEventListener("lostpointercapture", endDrag)
   root.addEventListener("dblclick", onDoubleClick)
   root.addEventListener("keydown", onKeyDown)
   chip.addEventListener("click", onChip)

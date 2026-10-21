@@ -19,7 +19,7 @@ hand back as `saved` to the next viewer of the same thing.
   lists the tokens a host sets to theme it (`--code-*`, `--syntax-*`).
 - `./image`: `mountImage`, an image fitted whole (never enlarged), or zoomed and moved on
   the image itself: pinch or Ctrl+scroll zooms around the pointer, a scroll or a drag
-  moves it, a double-click goes to 100% and back, and keys do each. While it's zoomed, a
+  moves it, a double-click zooms in there and back, and keys do each. While it's zoomed, a
   chip over it shows how far and takes it back to fit. Its zoom and the point at its centre
   are kept in its state, so it reopens on the same view at any size; `zoom()` sets it.
 - `./image.css`: the image viewer's looks, themed through `--image-*`.

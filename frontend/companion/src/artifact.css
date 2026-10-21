@@ -1,8 +1,8 @@
 /* The artifact recipe: the viewers for what an agent shows beside its terminal
    (`.artifact-viewer`), each under a header (`.artifact-meta`): an image on a checker
    (`.artifact-image`, holding the image viewer, @novadeck/viewers/image.css, its zoom a
-   chip over it); a file's lines (`.artifact-code`,
-   holding the code viewer, @novadeck/viewers/code.css); a page in a browser frame
+   chip over it); a file's lines (`.artifact-code`, holding the code viewer,
+   @novadeck/viewers/code.css); a page in a browser frame
    (`.artifact-browser`, its bar `.artifact-browser-bar` with `.icon-button`s, its
    address `.artifact-url` and a link to open it, `.artifact-open`, and the page in
    `.artifact-page-frame`, holding the browser viewer, with `.artifact-page-failed`

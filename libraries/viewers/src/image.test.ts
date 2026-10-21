@@ -61,6 +61,22 @@ const key = (host: HTMLElement, name: string): KeyboardEvent => {
   return event
 }
 
+// A pointer on the viewer, its button held from its press until its release.
+const drag =
+  (host: HTMLElement) =>
+  (type: string, x: number, y: number): void => {
+    const buttons = type === "pointerup" ? 0 : 1
+    viewerOf(host).dispatchEvent(
+      new PointerEvent(type, {
+        pointerId: 7,
+        button: 0,
+        buttons,
+        bubbles: true,
+        ...at(host, x, y),
+      }),
+    )
+  }
+
 const mount = (content: ImageContent, host = hostIn()) =>
   mountImage(host, { content, label: "screenshot.png" })
 
@@ -198,10 +214,7 @@ describe("the image viewer", () => {
     await loaded(host)
     viewer.zoom(1)
     const start = placeOf(host)
-    const pointer = (type: string, x: number, y: number) =>
-      viewerOf(host).dispatchEvent(
-        new PointerEvent(type, { pointerId: 7, button: 0, bubbles: true, ...at(host, x, y) }),
-      )
+    const pointer = drag(host)
     pointer("pointerdown", 200, 150)
     expect(viewerOf(host).hasAttribute("data-panning")).toBe(true)
     pointer("pointermove", 230, 110)
@@ -214,7 +227,72 @@ describe("the image viewer", () => {
     expect(document.activeElement).toBe(viewerOf(host))
   })
 
-  it("goes to 100% where double-clicked, and back to fit", async () => {
+  it("lets go of a drag whose release it never saw", async () => {
+    const host = hostIn()
+    const viewer = mount(large, host)
+    await loaded(host)
+    viewer.zoom(1)
+    const pointer = drag(host)
+    pointer("pointerdown", 200, 150)
+    pointer("pointermove", 220, 150)
+    const left = placeOf(host)
+    // The pointer moves on with no button held: hovering, not dragging.
+    viewerOf(host).dispatchEvent(
+      new PointerEvent("pointermove", {
+        pointerId: 7,
+        buttons: 0,
+        bubbles: true,
+        ...at(host, 300, 200),
+      }),
+    )
+    expect(placeOf(host)).toEqual(left)
+    expect(viewerOf(host).hasAttribute("data-panning")).toBe(false)
+  })
+
+  it("follows the pointer where the page scales it, as Canvas does", async () => {
+    const host = hostIn()
+    host.style.transform = "scale(0.5)"
+    host.style.transformOrigin = "0 0"
+    const viewer = mount(large, host)
+    await loaded(host)
+    viewer.zoom(0.5)
+    const pointer = drag(host)
+    // Points on screen: half the viewer's own pixels.
+    pointer("pointerdown", 100, 75)
+    pointer("pointermove", 110, 65)
+    pointer("pointerup", 110, 65)
+    const image = imageOf(host).style.transform
+    expect(image).toBe(`translate(${200 - 400 + 20}px, ${150 - 300 - 20}px)`)
+
+    // The image's point under the pointer stays under it as it zooms.
+    const screen = () => imageOf(host).getBoundingClientRect()
+    const before = screen()
+    const target = { x: 60, y: 40 }
+    const under = (box: DOMRect) => {
+      const { clientX, clientY } = at(host, target.x, target.y)
+      return { x: (clientX - box.left) / box.width, y: (clientY - box.top) / box.height }
+    }
+    wheel(host, { deltaY: -100, ctrlKey: true, ...at(host, target.x, target.y) })
+    expect(under(screen()).x).toBeCloseTo(under(before).x, 2)
+    expect(under(screen()).y).toBeCloseTo(under(before).y, 2)
+  })
+
+  it("takes no double-click from two drags", async () => {
+    const host = hostIn()
+    const viewer = mount(large, host)
+    await loaded(host)
+    viewer.zoom(1)
+    const pointer = drag(host)
+    pointer("pointerdown", 200, 150)
+    pointer("pointermove", 240, 150)
+    pointer("pointerup", 240, 150)
+    viewerOf(host).dispatchEvent(
+      new MouseEvent("dblclick", { bubbles: true, ...at(host, 240, 150) }),
+    )
+    expect(placeOf(host).width).toBe(1600)
+  })
+
+  it("goes to 100% where double-clicked, fitted at half its size or less, and back to fit", async () => {
     const host = hostIn()
     mount(large, host)
     await loaded(host)
@@ -231,7 +309,7 @@ describe("the image viewer", () => {
     expect(placeOf(host)).toEqual(fitted)
   })
 
-  it("doubles an image that fits at its own size, double-clicked", async () => {
+  it("doubles its fit, double-clicked, fitted at more than half its size", async () => {
     const host = hostIn()
     mount({ src: picture(40, 30), alt: "" }, host)
     await loaded(host)
@@ -264,6 +342,24 @@ describe("the image viewer", () => {
     viewerOf(host).dispatchEvent(shortcut)
     expect(shortcut.defaultPrevented).toBe(false)
     expect(placeOf(host)).toEqual(fitted)
+  })
+
+  it("keeps focus as its zoom goes, from the zoom itself", async () => {
+    const host = hostIn()
+    const viewer = mount(large, host)
+    await loaded(host)
+    viewer.zoom(2)
+    chipOf(host).focus()
+    key(host, "0")
+    expect(chipOf(host).hidden).toBe(true)
+    expect(document.activeElement).toBe(viewerOf(host))
+  })
+
+  it("says what it takes, for a reader, where nothing shows it", () => {
+    const host = hostIn()
+    mount(large, host)
+    expect(viewerOf(host).getAttribute("aria-description")).toMatch(/Ctrl\+scroll to zoom/)
+    expect(viewerOf(host).getAttribute("aria-keyshortcuts")).toBe("+ - 0 1")
   })
 
   it("goes back to fit from its zoom", async () => {
@@ -335,6 +431,27 @@ describe("the image viewer", () => {
     hidden.style.display = "flex"
     await loaded(hidden)
     expect(placeOf(hidden)).toEqual(left)
+  })
+
+  it("holds a zoom given before its image loads to 3200%", async () => {
+    const host = hostIn()
+    const viewer = mount({ src: picture(10, 10), alt: "" }, host)
+    viewer.zoom(1000)
+    await loaded(host)
+    expect(placeOf(host).width).toBe(320)
+  })
+
+  it("takes no view that isn't one", async () => {
+    const first = hostIn()
+    const viewer = mount(large, first)
+    await loaded(first)
+    const state = viewer.state() as unknown as { image: object }
+    viewer.destroy()
+    const host = hostIn()
+    const broken = { image: { ...state.image, zoom: 1, x: Number.NaN } }
+    mountImage(host, { content: large, label: "x", saved: broken as never })
+    await loaded(host)
+    expect(chipOf(host).hidden).toBe(true)
   })
 
   it("takes no zoom or view from another image's state", async () => {
