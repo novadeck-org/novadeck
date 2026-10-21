@@ -895,6 +895,25 @@ describe("The Source panel", () => {
       panel.view.unmount()
     })
 
+    it("does so for the folders left open inside one opened again", async () => {
+      let entries = files
+      const reads: Reads = {
+        folders: [],
+        list: (folder) => backend(undefined, entries).list(folder),
+      }
+      const panel = await mount(undefined, undefined, undefined, reads)
+      await panel.click("src")
+      await panel.click("cart")
+      await panel.click("src")
+
+      entries = [...files, "src/cart/total.ts"]
+      await panel.click("src")
+
+      expect(panel.rows()).toContain("total.ts")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
     it("does so when an agent's turn ends, and not when it ends while the panel is hidden", async () => {
       const reads = backend()
       const panel = await mount(undefined, undefined, undefined, reads)

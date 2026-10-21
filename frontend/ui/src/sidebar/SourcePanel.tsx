@@ -814,8 +814,10 @@ export const SourcePanel = ({
     const next = new Set(open)
     if (to ?? !next.has(path)) {
       next.add(path)
-      // Opening shows the folder as it is now, whatever was read before.
+      // Opening shows the folder as it is now, whatever was read before, and so the folders
+      // left open inside it, which show again with it.
       read(path)
+      for (const inner of open) if (inner.startsWith(`${path}/`)) read(inner)
     } else next.delete(path)
     setOpenFolders(next)
   }

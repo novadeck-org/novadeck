@@ -755,9 +755,9 @@ export class CompanionItems {
       ? {
           ...own,
           ...pointer,
-          // Whoever put it there last owns it: the person picking a file an agent showed
-          // makes it theirs (and a held one open), and the agent showing it again, its own.
-          by: origin.by,
+          // The person picking a file an agent showed makes it theirs (and a held one open);
+          // an agent showing what the person picked leaves it theirs, so it can't close it.
+          by: origin.by === "person" ? "person" : own.by,
           version: own.version + 1,
           asked: origin.asked,
           shownAt: Date.now(),
