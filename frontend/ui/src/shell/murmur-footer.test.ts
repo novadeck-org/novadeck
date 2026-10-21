@@ -76,12 +76,24 @@ describe("Murmur's footer item", () => {
     expect(footerPhase("idle", again, first.refused)).toBe("failed")
   })
 
-  it("leaves what the runner says of itself from rest to Addons", () => {
-    for (const state of [
-      { ...checked, check: null, failure: "The graphics device went away." },
-      { ...idle, failure: "The download stopped: the connection dropped." },
-    ])
-      expect(footerPhase("idle", state, null)).toBe("idle")
+  it("leaves the failure of a Murmur that isn't installed to Addons", () => {
+    expect(
+      footerPhase(
+        "idle",
+        { ...idle, failure: "The download stopped: the connection dropped." },
+        null,
+      ),
+    ).toBe("idle")
+  })
+
+  it("shows the runner's failure of an installed Murmur from rest, once while it stands", () => {
+    const failing = { ...checked, failure: "The engine failed to start." }
+    expect(footerPhase("idle", failing, null)).toBe("failed")
+    // Answered with Not now: it stays shut while the same failure stands.
+    expect(footerPhase("idle", failing, null, null, false, failing.failure)).toBe("idle")
+    // Cleared, the failed item it made goes; the caller forgets the answer, so a new one shows.
+    expect(footerPhase("failed", checked, null, null, true, failing.failure)).toBe("idle")
+    expect(footerPhase("idle", failing, null, null, false, null)).toBe("failed")
   })
 
   it.each(["uninstall", "cancel", "set"] as const)("leaves a refused %s to Addons", (call) => {

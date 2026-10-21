@@ -7,6 +7,7 @@ import { maxVoiceSeconds, voiceSampleRate } from "@novadeck/protocol"
 import { vi } from "vitest"
 
 import { engineInterface } from "../engines/unpack.js"
+import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
 import type { Resources } from "../testing/resources.js"
 import { engineArchive, fakeLaunch, folder, modelCatalog } from "../testing/voice.js"
@@ -93,6 +94,33 @@ const installed = async (resources: Resources, hint?: VoiceOptions["hint"]) => {
   await context.voice.install()
   await context.voice.settled()
   return context
+}
+
+// What the runner's log is given while `run` goes on: the level, event and data of each line.
+type Logged = { level: string; evt: string; data?: unknown }
+const logged = async (run: () => Promise<void>): Promise<Logged[]> => {
+  const lines: Logged[] = []
+  const before = logs.current()
+  const note = (level: string) => (evt: string, _msg?: string, detail?: { data?: unknown }) => {
+    lines.push({ level, evt, data: detail?.data })
+  }
+  useLogger({
+    for: () => ({
+      debug: note("debug"),
+      info: note("info"),
+      warn: note("warn"),
+      error: note("error"),
+      fatal: note("fatal"),
+    }),
+    flush: () => {},
+    close: () => {},
+  })
+  try {
+    await run()
+  } finally {
+    useLogger(before)
+  }
+  return lines
 }
 
 describe("voice input without an engine", () => {
@@ -876,6 +904,24 @@ describe("transcribing a recording", () => {
       code: "VOICE_UNAVAILABLE",
       data: { reason: "off" },
     })
+  })
+
+  it("writes the engine's failure to the log", async ({ resources }) => {
+    const { voice, directory } = await installed(resources)
+    await writeFile(await modelOf(directory, "ggml-small.bin"), "small crash")
+    await voice.record("owner", "clip", 0, pcm(3200))
+
+    const lines = await logged(async () => {
+      await voice.transcribe("owner", "clip").catch(() => {})
+    })
+
+    expect(lines).toEqual([
+      {
+        level: "warn",
+        evt: "voice.transcribe-failed",
+        data: { reason: expect.stringContaining("out of memory") },
+      },
+    ])
   })
 
   it("fails with the reason when the engine does, and recovers on the next clip", async ({

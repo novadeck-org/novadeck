@@ -5,7 +5,8 @@ import { MURMUR_NAME, murmurChecking, type MurmurState } from "@novadeck/core/mu
 // What Murmur's footer item shows, as a plain function of the addon's state: an install's
 // progress as it goes, then how it ended. Only an install seen from here (started in this
 // run of the app, from the offer or from Addons) shows; what the runner said at the start,
-// such as a check that never passed, is Addons' to say.
+// such as a check that never passed, is Addons' to say. The exception is a failure of an
+// installed Murmur (its engine would not run): Murmur is then off without a word, so it shows.
 
 export type FooterPhase = "idle" | "installing" | "done" | "failed" | "unavailable"
 
@@ -13,10 +14,12 @@ export type FooterPhase = "idle" | "installing" | "done" | "failed" | "unavailab
 export const doneForMs = 4000
 
 // Where the item stands after `state`, given where it stood. The app's own engine update
-// (an install of origin "update") shows nothing. From rest only a refused install call shows,
-// and each refusal is an event: `handled` is the one the person last answered, and another,
-// though in the same words, is a new one. What the runner reports of itself from rest (a device
-// that went away, an engine update that failed) is Addons'. A cancel is no failure: the runner
+// (an install of origin "update") shows nothing. From rest a refused install call shows, and
+// each refusal is an event: `handled` is the one the person last answered, and another, though
+// in the same words, is a new one. So does the runner's failure of an installed Murmur (the engine
+// failing again and again, a device that went away); one not installed is Addons' to say. The
+// failure that stands is one appearance: `handledFailure` is the one the person last answered,
+// and it is forgotten by the caller once the failure clears, so a new one shows. A cancel is no failure: the runner
 // leaves the files with the check owed and no failure. A failed item the runner's failure made
 // goes when that failure clears (a runner restart, an install or update, a removal); one a refusal made
 // stays until it is answered, as the refusal itself goes with the next snapshot.
@@ -29,6 +32,8 @@ export const footerPhase = (
   verdictBefore: string | null = null,
   // Whether a failed item was made by the runner's failure, not by a refusal.
   fromRunner = false,
+  // The runner's failure the person last answered, while it still stands.
+  handledFailure: string | null = null,
 ): FooterPhase => {
   if (state.installing)
     return phase === "installing" || state.installing.origin === "person" ? "installing" : phase
@@ -39,8 +44,12 @@ export const footerPhase = (
     if (state.failure !== null) return "failed"
     return state.installed && state.check !== null ? "done" : "idle"
   }
-  if (phase === "idle")
-    return state.refused?.call === "install" && state.refused !== handled ? "failed" : "idle"
+  if (phase === "idle") {
+    if (state.refused?.call === "install" && state.refused !== handled) return "failed"
+    return state.installed && state.failure !== null && state.failure !== handledFailure
+      ? "failed"
+      : "idle"
+  }
   if (phase === "failed" && fromRunner && state.failure === null && state.refused === null)
     return "idle"
   return phase

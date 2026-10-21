@@ -80,3 +80,46 @@ describe("Murmur's footer item as it mounts and as refusals come", () => {
     refused.unmount()
   })
 })
+
+describe("Murmur's footer item as the runner's failure comes", () => {
+  const installed: MurmurState = { ...idle, installed: true, enabled: true }
+  const failing = { ...installed, failure: "The engine failed to start." }
+  const notNow = (): void =>
+    act(() => {
+      for (const button of document.querySelectorAll<HTMLButtonElement>(
+        ".footer-murmur-sheet .button",
+      ))
+        if (button.textContent === "Not now") button.click()
+    })
+
+  it("turns to failed and opens the sheet when the failure comes, and back when it clears", () => {
+    const { rerender, unmount } = render(item(installed))
+    expect(chip()).toBeNull()
+    rerender(item(failing))
+    expect(chip()?.textContent).toBe("Murmur · failed")
+    expect(sheetText()).toContain("The engine failed to start.")
+    rerender(item(installed))
+    expect(chip()).toBeNull()
+    unmount()
+  })
+
+  it("shows a failure that stands as it mounts", () => {
+    const { unmount } = render(item(failing))
+    expect(chip()?.textContent).toBe("Murmur · failed")
+    expect(sheetText()).toContain("The engine failed to start.")
+    unmount()
+  })
+
+  it("stays shut after Not now while the failure stands, and shows a new one after it clears", () => {
+    const { rerender, unmount } = render(item(failing))
+    notNow()
+    expect(chip()).toBeNull()
+    rerender(item({ ...failing }))
+    expect(chip()).toBeNull()
+    rerender(item(installed))
+    rerender(item(failing))
+    expect(chip()?.textContent).toBe("Murmur · failed")
+    expect(sheetText()).toContain("The engine failed to start.")
+    unmount()
+  })
+})

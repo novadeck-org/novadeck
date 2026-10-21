@@ -8,6 +8,7 @@ import { vi } from "vitest"
 import { ActivityTracker } from "../engines/activity.js"
 import { readManifest } from "../engines/manifest.js"
 import type { Launch } from "../engines/server.js"
+import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
 import {
   arc,
@@ -1367,7 +1368,49 @@ describe("a GPU that is gone", () => {
   })
 })
 
+// What the runner's log is given while `run` goes on: the level, event and data of each line.
+type Logged = { level: string; evt: string; data?: unknown }
+const logged = async (run: () => Promise<void>): Promise<Logged[]> => {
+  const lines: Logged[] = []
+  const before = logs.current()
+  const note = (level: string) => (evt: string, _msg?: string, detail?: { data?: unknown }) => {
+    lines.push({ level, evt, data: detail?.data })
+  }
+  useLogger({
+    for: () => ({
+      debug: note("debug"),
+      info: note("info"),
+      warn: note("warn"),
+      error: note("error"),
+      fatal: note("fatal"),
+    }),
+    flush: () => {},
+    close: () => {},
+  })
+  try {
+    await run()
+  } finally {
+    useLogger(before)
+  }
+  return lines
+}
+
 describe("an engine that keeps failing", () => {
+  it("writes each failure to the log, with what the engine said", async ({ resources }) => {
+    let time = 1_000
+    const context = await installed(resources, { now: () => time })
+    await writeFile(await modelOf(context.directory), "crash")
+    time += 1_000_000
+
+    const lines = await logged(async () => {
+      await context.murmur.describe(digest, { terminal: "t" })
+    })
+
+    expect(lines).toEqual([
+      { level: "warn", evt: "murmur.engine-failed", data: { reason: expect.any(String) } },
+    ])
+  })
+
   it("shows the third failure in a row, and clears it on the next success", async ({
     resources,
   }) => {

@@ -32,7 +32,10 @@ export type FooterMurmurProps = {
 // is open), with the step and Cancel. A failure that may pass turns the item to the danger
 // tone and opens the sheet once, with Try again and Not now (which only hides it); a computer that can't run Murmur says so there, and the item leaves
 // with it. Its words are announced in one live line that is there before it has words, and a
-// failure is said once, never as a percentage that changes.
+// failure is said once, never as a percentage that changes. The same goes for the runner's
+// failure of an installed Murmur (its engine would not run): the item turns to it from rest,
+// also when it stands as the app opens (Murmur is off, and nothing else says so), once for each
+// time it appears; Not now keeps it shut until the failure clears and another comes.
 export const FooterMurmur = ({
   murmur,
   hidden,
@@ -53,6 +56,8 @@ export const FooterMurmur = ({
   // The refusal the item last said, and whether the runner's failure (not a refusal) made it.
   const [said, setSaid] = useState<Refusal | null>(null)
   const [fromRunner, setFromRunner] = useState(false)
+  // The runner's failure the person last answered, kept while it stands.
+  const [handledFailure, setHandledFailure] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const chip = useRef<HTMLButtonElement>(null)
   const panel = useRef<HTMLElement>(null)
@@ -64,9 +69,13 @@ export const FooterMurmur = ({
   const panelId = useId()
   // The verdict that stood as the install began.
   const [before, setBefore] = useState<string | null>(null)
-  const next = state ? footerPhase(phase, state, handled, before, fromRunner) : "idle"
+  const next = state
+    ? footerPhase(phase, state, handled, before, fromRunner, handledFailure)
+    : "idle"
   if (next === "installing" && phase !== "installing" && state)
     setBefore(state.unsupported?.reason ?? null)
+  // A failure that cleared is forgotten, so the next one, in whatever words, is news.
+  if (state?.failure === null && handledFailure !== null) setHandledFailure(null)
   if (next !== phase) {
     setPhase(next)
     if (next === "failed" && state) {
@@ -137,6 +146,7 @@ export const FooterMurmur = ({
     setOpen(false)
     if (phase === "unavailable" || phase === "failed") {
       setHandled(state.refused)
+      setHandledFailure(state.failure)
       setPhase("idle")
     }
     if (inside) chip.current?.focus()
@@ -233,6 +243,7 @@ export const FooterMurmur = ({
                   onClick={() => {
                     setOpen(false)
                     setHandled(state.refused)
+                    setHandledFailure(state.failure)
                     void actions.install()
                   }}
                 >
