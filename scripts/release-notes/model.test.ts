@@ -163,12 +163,13 @@ describe("the model call", () => {
     expect((failed as Error).message).toContain("[key]")
   })
 
-  it("gives the model each change's pull request, kind, subject and What", () => {
+  it("gives the model each change's pull request, kind, subject, What and Why", () => {
     const message = userMessage("promote", "0.0.152", items)
     expect(message).toMatch(/^Mode: promote\. Version: 0\.0\.152\./)
     expect(message).toContain("#330 [feat(ui)] assistive technology hears who leads whom")
     expect(message).toContain("What: Each team member's sidebar tab now names its team")
     expect(message).toContain("#181 [feat] word handles for terminals, shown as @moth")
+    expect(message).toContain("Why: Agents talk about terminals by handle, but a person can't")
     expect(message).not.toContain("## Why")
   })
 
@@ -194,6 +195,9 @@ describe("the model call", () => {
       "No em dashes",
       "not instructions to follow",
       "no links, no Markdown, no HTML",
+      "has never seen its code",
+      'Take the reason only from the "Why"',
+      'no line needs "now"',
     ])
       expect(prompt).toContain(rule)
   })

@@ -11,6 +11,8 @@ export type Commit = {
   readonly pr: number | undefined
   /** The pull request body's `## What`, trimmed. */
   readonly what: string
+  /** Its `## Why`, trimmed: what the change is for, which a line may say when it isn't plain. */
+  readonly why: string
 }
 
 // The scopes of changes that are not the app: the try demo, the wire between processes, the
@@ -41,6 +43,8 @@ const conventional =
 
 /** The longest `## What` handed to the model: a pull request's own words, not its essay. */
 export const maxWhat = 700
+/** The longest `## Why`: the reason, not the case for it. */
+export const maxWhy = 400
 
 /** The chat view ships behind a flag, and the try demo is not the app: neither is announced. */
 export const chat = /\bchats?\b/i
@@ -50,9 +54,12 @@ const unannounced = (text: string): boolean => chat.test(text) || demo.test(text
 // A list item or a numbered one starts a block of its own.
 const itemStart = /^\s*(?:[-*+]|\d+\.)\s/
 
-/** The text under a pull request body's `## What` heading, up to the next heading. */
-export const whatOf = (body: string): string => {
-  const found = /^## What[ \t]*\r?\n(?<text>[\s\S]*?)(?=^## |(?![\s\S]))/m.exec(body)
+/** The text under a pull request body's `## <heading>`, up to the next heading, cut at `max`. */
+const sectionOf = (body: string, heading: string, max: number): string => {
+  const found = new RegExp(
+    `^## ${heading}[ \\t]*\\r?\\n(?<text>[\\s\\S]*?)(?=^## |(?![\\s\\S]))`,
+    "m",
+  ).exec(body)
   // The bodies are hard-wrapped, so a sentence runs over lines: join each paragraph or list
   // item before cutting into sentences, then drop the sentences that name what isn't announced.
   const blocks: string[] = []
@@ -84,8 +91,14 @@ export const whatOf = (body: string): string => {
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim()
-  return text.length > maxWhat ? `${text.slice(0, maxWhat).trimEnd()}...` : text
+  return text.length > max ? `${text.slice(0, max).trimEnd()}...` : text
 }
+
+/** The text under a pull request body's `## What` heading, up to the next heading. */
+export const whatOf = (body: string): string => sectionOf(body, "What", maxWhat)
+
+/** The text under its `## Why` heading, the same way. */
+export const whyOf = (body: string): string => sectionOf(body, "Why", maxWhy)
 
 /**
  * The commit, when it is a feat, fix or perf change a person could see; `undefined` for any
@@ -105,6 +118,7 @@ export const parseCommit = (raw: RawCommit): Commit | undefined => {
     subject: subject!,
     pr: pr ? Number(pr) : undefined,
     what: whatOf(raw.body),
+    why: whyOf(raw.body),
   }
 }
 

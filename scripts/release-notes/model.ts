@@ -102,6 +102,7 @@ export const userMessage = (kind: "release" | "promote", version: string, items:
     ...items.flatMap((item) => [
       `${item.prs.map((pr) => `#${pr}`).join(" ")} [${item.label}] ${item.line}`,
       ...(item.detail ? [`What: ${item.detail.replaceAll("\n", "\n  ")}`] : []),
+      ...(item.reason ? [`Why: ${item.reason.replaceAll("\n", "\n  ")}`] : []),
       "",
     ]),
   ].join("\n")
