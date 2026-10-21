@@ -1423,7 +1423,7 @@ describe("checking through novadeck.dev", () => {
   it("replaces electron-updater's per-install staging id with a constant", async () => {
     const { updater } = checking()
     await vi.advanceTimersByTimeAsync(firstCheckMs)
-    expect(Object.keys(updater.seen[0]?.headers as object).sort()).toEqual([
+    expect(Object.keys(updater.seen[0]?.headers as object).toSorted()).toEqual([
       "x-novadeck-build",
       "x-novadeck-check",
       "x-novadeck-version",
