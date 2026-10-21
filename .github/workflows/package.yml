@@ -376,6 +376,7 @@ jobs:
         run: docker build --build-arg "BASE=$ENGINE_BUILD_BASE" --tag novadeck-engine-build engines/ggml-build
 
       - name: Build Voice Engine
+        shell: bash
         if: steps.engine.outputs.cache-hit != 'true'
         env:
           AZURE_TENANT_ID: ${{ matrix.target == 'win' && steps.signing.outputs.signed == 'true' && secrets.AZURE_TENANT_ID || '' }}
@@ -392,6 +393,7 @@ jobs:
           fi
 
       - name: Build Murmur Engine
+        shell: bash
         if: steps.murmur.outputs.cache-hit != 'true'
         env:
           AZURE_TENANT_ID: ${{ matrix.target == 'win' && steps.signing.outputs.signed == 'true' && secrets.AZURE_TENANT_ID || '' }}
