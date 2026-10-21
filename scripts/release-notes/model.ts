@@ -49,11 +49,13 @@ export type ModelOutput = z.infer<typeof answer>
 /**
  * The model a mode asks unless an environment variable says another: a cheap one for the many
  * prereleases (RELEASE_NOTES_PRERELEASE_MODEL), a strong one for the few promotions
- * (RELEASE_NOTES_PROMOTE_MODEL).
+ * (RELEASE_NOTES_PROMOTE_MODEL). Picked by dry runs over past prereleases: the cheap one keeps
+ * to English and to the voice, which DeepSeek v4 Pro did not, and the strong one picks
+ * highlights as well as Opus at half its price.
  */
 export const defaultModels = {
-  release: "deepseek/deepseek-v4-pro",
-  promote: "anthropic/claude-opus-5.5",
+  release: "anthropic/claude-haiku-5.5",
+  promote: "anthropic/claude-sonnet-5.5",
 } as const
 
 /**

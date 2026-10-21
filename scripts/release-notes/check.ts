@@ -7,10 +7,11 @@ import {
 import { chat, demo } from "./commits.ts"
 import { type ModelOutput } from "./model.ts"
 
-// What the prompt asks for, and the most the check takes. The cheaper model runs past the asked
-// length about a quarter of the time, by the clause that says what a change is for, and those
-// are often its best lines; a line this long is still three lines on the card. Past these, the
-// line is dropped. A highlight is read at a glance on the card, so its line is shorter.
+// What the prompt asks for, and the most the check takes. A model can run past the asked length
+// by the clause that says what a change is for (DeepSeek v4 Pro did on about a quarter of its
+// lines), and those are often its best lines; a line this long is still three lines on the
+// card. Past these, the line is dropped. A highlight is read at a glance on the card, so its
+// line is shorter.
 export const askedTitle = 30
 export const askedLine = 110
 export const askedHighlightLine = 70
@@ -96,10 +97,11 @@ const fail = (reason: string): Checked => ({ ok: false, reason })
  * script other than English's. A line that breaks a softer rule (a citation the notes can't
  * hold or a pull request that was not given, too long, markup, an excluded topic, a line mostly
  * in another script, an unknown area, a release's highlight past `releaseHighlights` or citing
- * no feature) is dropped, and `dropped` says why. A highlight whose icon is missing or not in the set keeps its place with
- * "sparkles". `allowed` holds the pull requests the model was given, and `features` those of
- * them that are `feat` changes: the cheaper model a release asks makes a highlight of nearly
- * any change, fixes too, whatever it is told, so a release's highlight has to tell a feature.
+ * no feature) is dropped, and `dropped` says why. A highlight whose icon is missing or not in
+ * the set keeps its place with "sparkles". `allowed` holds the pull requests the model was
+ * given, and `features` those of them that are `feat` changes: a cheap model can make a
+ * highlight of nearly any change, fixes too, whatever it is told (DeepSeek v4 Pro did), so a
+ * release's highlight has to tell a feature.
  */
 export const checkOutput = (
   output: ModelOutput,

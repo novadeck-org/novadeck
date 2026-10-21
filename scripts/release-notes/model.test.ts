@@ -118,12 +118,12 @@ describe("the model call", () => {
 
   it("takes a model for each mode from its own variable, and the key from OPENROUTER_API_KEY", () => {
     expect(clientFor("release", {})).toMatchObject({
-      model: "deepseek/deepseek-v4-pro",
+      model: "anthropic/claude-haiku-5.5",
       apiKey: undefined,
       timeout: 180_000,
     })
     expect(clientFor("promote", {})).toMatchObject({ model: defaultModels.promote })
-    expect(defaultModels.promote).toBe("anthropic/claude-opus-5.5")
+    expect(defaultModels.promote).toBe("anthropic/claude-sonnet-5.5")
     const env = {
       RELEASE_NOTES_PRERELEASE_MODEL: "x/cheap",
       RELEASE_NOTES_PROMOTE_MODEL: "x/strong",
