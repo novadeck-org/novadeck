@@ -128,7 +128,8 @@ export class Saves {
   // The terminals whose saved transcript went unopened as the key had not come: it stays
   // as saved for this run, and none is saved over it.
   private readonly unopened = new Set<string>()
-  // The `keep` change each kept terminal was read under, so a copy forgotten since is not shown.
+  // The `keep` change each kept terminal was read under, so a copy forgotten since is not
+  // shown; the records give a fresh object on each read, so each read keeps its own.
   private readonly read = new WeakMap<SavedTerminal, number>()
   private flight: { readonly job: Job; readonly done: Promise<void> } | undefined
   private finishing: Promise<void> | undefined

@@ -34,9 +34,10 @@ const keyBytes = 32
 // password when the keyring fails (no service, an unlock prompt dismissed), while
 // `isAsyncEncryptionAvailable()` stays true and the backend still names the keyring. The
 // only sign is the tag at the start of the ciphertext: `v10` from that fallback, `v11` from
-// the Secret Service (GNOME Keyring, or KWallet where it offers the Secret Service). This rests on Chromium's internal provider tags, so it
-// must be checked again whenever Electron is upgraded. Elsewhere `v10` is the real
-// Keychain or DPAPI key, and the tag says nothing.
+// the Secret Service (GNOME Keyring, or KWallet where it offers the Secret Service). This
+// rests on Chromium's internal provider tags, so it must be checked again whenever
+// Electron is upgraded. Elsewhere `v10` is the real Keychain or DPAPI key, and the tag
+// says nothing.
 const keyringTag = Buffer.from("v11")
 const behindKeyring = (platform: NodeJS.Platform, wrapped: Buffer): boolean =>
   platform !== "linux" || wrapped.subarray(0, keyringTag.length).equals(keyringTag)
