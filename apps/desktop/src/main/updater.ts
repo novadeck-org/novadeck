@@ -30,7 +30,7 @@ export const switchCheckMs = 2_000
 /** How long after a download failed the check that tries it again, once, waits. */
 export const retryCheckMs = 5 * 60 * 1000
 
-/** How long GitHub's word stands: a check through novadeck.dev that finds nothing is confirmed there after this. */
+/** How long GitHub's word stands: an answer from novadeck.dev that starts no download is confirmed there after this. */
 export const githubConfirmMs = 24 * 60 * 60 * 1000
 
 /** Why a check runs: the launch's, the schedule's, a channel switch's or a failed download's retry. */
@@ -462,10 +462,10 @@ export type Updater = {
  * which is how the website counts active copies; the headers go with that check and
  * nothing else. Updating never depends on that site: a check through it that fails, for
  * whatever reason, is made again at once against GitHub's releases, and the next check
- * goes to novadeck.dev again. A download that began from a novadeck.dev check and failed
- * has its retry check go to GitHub alone, so a feed that checks well but downloads badly
- * does not fail the same way twice. A check through novadeck.dev that finds nothing new
- * is confirmed against GitHub at once, unless GitHub answered within `githubConfirmMs`,
+ * goes to novadeck.dev again. A download that failed, from whichever feed found it,
+ * has its retry check go to GitHub alone, so a feed that checks well but downloads badly,
+ * or an answer the website had stale, does not fail the same way twice. A check through novadeck.dev whose answer starts no
+ * download is confirmed against GitHub at once, unless GitHub answered within `githubConfirmMs`,
  * so a stale answer from the website hides no release for long. Without `feed` a check uses the updater's own
  * configuration.
  *
@@ -570,6 +570,7 @@ export const checkForUpdates = (
     offer({ kind: "available", version: downloaded.version })
   })
   updater.on("update-available", (info) => {
+    answered = true
     if (mode === "tell")
       return offer({ kind: "available", version: info.version, ...(allow ? { allow } : {}) })
     // A release found while a download is under way waits for the next check.
@@ -588,7 +589,7 @@ export const checkForUpdates = (
     const { version } = info
     // The headers describe the check; the download of what it found carries none.
     updater.requestHeaders = null
-    const source = via
+    started = true
     // A failed download is reported through the error event, which logs it.
     const current = {
       version,
@@ -608,7 +609,7 @@ export const checkForUpdates = (
           else if (current.percent >= 0 || downloaded !== undefined)
             offer({ kind: "retrying", version })
           downloaded = undefined
-          if (source === "novadeck") githubOnly = true
+          githubOnly = true
           if (!ended && !retried.has(version)) {
             retried.add(version)
             clearTimeout(retry)
@@ -677,12 +678,14 @@ export const checkForUpdates = (
   let githubOnly = false
   let checking = false
   // When a check last got an answer from GitHub itself, and whether the check in flight was
-  // told there is no update. The website's answer can be stale yet valid, which only
-  // GitHub's would show, so a check that finds nothing there is confirmed there, once a day.
+  // answered and started a download. The website's answer can be stale yet valid, which only
+  // GitHub's would show, so an answer that led to no download (none newer, or one skipped as
+  // failed or already downloaded, or only told of) is confirmed there, once a day.
   let githubAnsweredAt: number | undefined
-  let nothingNew = false
+  let answered = false
+  let started = false
   updater.on("update-not-available", () => {
-    nothingNew = true
+    answered = true
   })
   const checkGithub = async (from: UpdateFeed): Promise<void> => {
     via = "github"
@@ -702,7 +705,8 @@ export const checkForUpdates = (
         useMultipleRangeRequest: false,
       })
       updater.requestHeaders = checkHeaders(reason, from.facts)
-      nothingNew = false
+      answered = false
+      started = false
       try {
         await updater.checkForUpdates()
       } catch (error) {
@@ -714,7 +718,7 @@ export const checkForUpdates = (
       }
       const unconfirmed =
         githubAnsweredAt === undefined || Date.now() - githubAnsweredAt > githubConfirmMs
-      if (nothingNew && unconfirmed && !ended) await checkGithub(from)
+      if (answered && !started && unconfirmed && !ended) await checkGithub(from)
       return
     }
     githubOnly = false

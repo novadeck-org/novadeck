@@ -92,15 +92,16 @@ README, "Counts".
 
 Updating never depends on the website. A check through it that fails for any reason is
 made again at once against GitHub (unless the app is quitting) with the repository from
-`app-update.yml`, and the next check goes to novadeck.dev again. A download that began
-from a novadeck.dev check and failed has its retry check go to GitHub alone. Portable
+`app-update.yml`, and the next check goes to novadeck.dev again. A download
+that failed, whichever feed found it, has its retry check go to GitHub alone. Portable
 copies check the same way. With no repository in `app-update.yml` there is nothing to fall
 back to, so checks stay on the updater's own configuration.
 
 A valid answer can be a stale one, which a failed check would not show. So a check through
-the website that finds nothing new is confirmed against GitHub at once (no
-`x-novadeck-*` headers) unless GitHub answered within the last 24 hours or the app is
-quitting; an update found there is taken like any GitHub-found one, and the next check
+the website whose answer starts no download (nothing newer, the release an install failed
+on, one already downloaded, or in tell mode only an offer) is confirmed against GitHub at
+once (no `x-novadeck-*` headers) unless GitHub answered within the last 24 hours or the
+app is quitting; an update found there is taken like any GitHub-found one, and the next check
 goes to the website again.
 
 In Cloudflare's fail-open mode, when the website's counting does not run, it answers a
@@ -111,7 +112,9 @@ A connection the website accepts but never answers stalls checks for the run. Th
 request timeout of electron-updater never arms under Electron's `net`:
 builder-util-runtime hooks `request.on("socket")` (`httpExecutor.js`), which Electron's
 `ClientRequest` lacks. That was so against GitHub before; Cloudflare ends a stuck request
-after about 100 seconds.
+after about 100 seconds. The same holds for a GitHub request that hangs during the
+confirmation or the fallback: later checks stall for the run, and the website's counting
+with them.
 
 `NOVADECK_UPDATE_URL` replaces `https://novadeck.dev` for testing, and only with an
 address on this computer: localhost, 127.0.0.1 or [::1], over http or https, as in
