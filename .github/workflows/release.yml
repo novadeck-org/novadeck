@@ -296,3 +296,27 @@ jobs:
       tag: v${{ needs.prepare.outputs.version }}
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  # novadeck.dev's downloads link the newest release, which the site looks up when it
+  # builds, so each release redeploys it. The site's hourly schedule alone falls hours
+  # behind, as GitHub drops most of its runs. GITHUB_TOKEN can't start another repository's
+  # workflow, so this takes WEBSITE_DEPLOY_TOKEN: a fine-grained token with Actions read and
+  # write on novadeck-org/novadeck-website. Without it, it skips and says so.
+  website:
+    name: Website Downloads
+    if: >-
+      !cancelled() && needs.prepare.outputs.package == 'true' &&
+      needs.release.result == 'success'
+    needs: [prepare, release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Deploy novadeck.dev
+        env:
+          GH_TOKEN: ${{ secrets.WEBSITE_DEPLOY_TOKEN }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::notice::WEBSITE_DEPLOY_TOKEN isn't set, so novadeck.dev catches up on its own schedule."
+            exit 0
+          fi
+          gh workflow run deploy.yml --repo novadeck-org/novadeck-website --ref main
