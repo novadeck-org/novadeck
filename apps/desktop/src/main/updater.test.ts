@@ -21,8 +21,10 @@ import { context, describe, expect, it } from "../test"
 import {
   bundleOf,
   checkForUpdates,
+  checkHeaders,
   checkIntervalMs,
   developerIdSigned,
+  feedUrl,
   firstCheckMs,
   retryCheckMs,
   installOnlyOnOrderlyQuit,
@@ -32,6 +34,7 @@ import {
   switchCheckMs,
   trackOffer,
   updatePlan,
+  type CheckFacts,
   type Updater,
   type UpdateBuild,
   type UpdateMode,
@@ -484,11 +487,26 @@ class FakeUpdater extends EventEmitter implements Pick<Updater, "checkForUpdates
   autoDownload = false
   autoInstallOnAppQuit = false
   allowPrerelease = false
+  requestHeaders: Record<string, string> | null = null
   logger: Updater["logger"] = null
   checks = 0
   failing = false
+  feed: Parameters<Updater["setFeedURL"]>[0] | undefined
+  /** The feed and headers each check was made with. */
+  seen: { feed: Parameters<Updater["setFeedURL"]>[0] | undefined; headers: unknown }[] = []
+  /** Whether a check on this feed fails, as when the network or the website is down. */
+  failFeed: (feed: Parameters<Updater["setFeedURL"]>[0] | undefined) => boolean = () => false
+  setFeedURL(feed: Parameters<Updater["setFeedURL"]>[0]): void {
+    this.feed = feed
+  }
   checkForUpdates(): Promise<unknown> {
     this.checks += 1
+    this.seen.push({ feed: this.feed, headers: this.requestHeaders && { ...this.requestHeaders } })
+    if (this.failFeed(this.feed)) {
+      const error = new Error("unreachable")
+      this.emit("error", error)
+      return Promise.reject(error)
+    }
     if (!this.failing) return Promise.resolve()
     const error = new Error("offline")
     this.emit("error", error)
@@ -508,6 +526,7 @@ describe("checking for updates", () => {
       rejected?: (error: unknown) => boolean
       failedVersion?: string
       allow?: boolean
+      feed?: Parameters<typeof checkForUpdates>[1]["feed"]
     } = {},
   ) => {
     const updater = new FakeUpdater()
@@ -521,6 +540,7 @@ describe("checking for updates", () => {
       channel: options.channel ?? "stable",
       failedVersion: options.failedVersion,
       allow: options.allow,
+      feed: options.feed,
       prepare: options.prepare,
       rejected: options.rejected,
       offer: (offer) => {
@@ -1259,3 +1279,212 @@ describe("electron-updater's download folder", () => {
     }
   })
 })
+
+const facts: CheckFacts = {
+  version: "1.4.0",
+  build: "installed",
+  osVersion: "7.0.0-28-generic",
+  arch: "x64",
+  locale: "pl-PL",
+}
+const repository = { owner: "novadeck-org", repo: "novadeck" }
+const github = { provider: "github", ...repository }
+
+describe("the update feed", () => {
+  it("is the channel's address on novadeck.dev, or on the site NOVADECK_UPDATE_URL names", () => {
+    expect(feedUrl("stable")).toBe("https://novadeck.dev/update/stable/")
+    expect(feedUrl("early")).toBe("https://novadeck.dev/update/early/")
+    expect(feedUrl("early", "http://127.0.0.1:8787/ignored")).toBe(
+      "http://127.0.0.1:8787/update/early/",
+    )
+    expect(feedUrl("stable", "file:///tmp/updates")).toBe("https://novadeck.dev/update/stable/")
+    expect(feedUrl("stable", "not an address")).toBe("https://novadeck.dev/update/stable/")
+  })
+
+  it("says why the check runs and what copy makes it, and nothing else", () => {
+    expect(checkHeaders("launch", facts)).toEqual({
+      "x-novadeck-check": "launch",
+      "x-novadeck-version": "1.4.0",
+      "x-novadeck-build": "installed",
+      "x-novadeck-os-version": "7.0.0-28-generic",
+      "x-novadeck-arch": "x64",
+      "x-novadeck-lang": "pl",
+    })
+  })
+
+  it("leaves out what is not known or not plain text", () => {
+    expect(
+      checkHeaders("retry", { ...facts, osVersion: "", arch: "x\ny", locale: "" }),
+    ).toEqual({
+      "x-novadeck-check": "retry",
+      "x-novadeck-version": "1.4.0",
+      "x-novadeck-build": "installed",
+    })
+    expect(checkHeaders("retry", { ...facts, locale: "zh_Hans" })["x-novadeck-lang"]).toBe("zh")
+  })
+})
+
+describe("checking through novadeck.dev", () => {
+  beforeEach(() => void vi.useFakeTimers())
+  afterEach(() => void vi.useRealTimers())
+
+  const checking = (
+    options: { channel?: UpdateChannel; mode?: UpdateMode; build?: CheckFacts["build"] } = {},
+  ) => {
+    const updater = new FakeUpdater()
+    const logged: string[] = []
+    const checks = checkForUpdates(updater as unknown as Updater, {
+      mode: options.mode ?? "install",
+      channel: options.channel ?? "stable",
+      feed: { repository, facts: { ...facts, build: options.build ?? "installed" } },
+      offer: () => {},
+      installFailed: () => {},
+      log: (message) => void logged.push(message),
+    })
+    return { updater, logged, ...checks }
+  }
+
+  it("checks the channel's address, saying it is the launch's check", async () => {
+    const { updater } = checking({ channel: "early" })
+    await vi.advanceTimersByTimeAsync(firstCheckMs)
+    expect(updater.seen).toEqual([
+      {
+        feed: "https://novadeck.dev/update/early/",
+        headers: expect.objectContaining({ "x-novadeck-check": "launch" }),
+      },
+    ])
+  })
+
+  it("names the trigger of each check: launch, schedule and channel switch", async () => {
+    const { updater, setChannel } = checking()
+    const reasons = (): (string | undefined)[] =>
+      updater.seen.map(
+        ({ headers }) => (headers as Record<string, string> | null)?.["x-novadeck-check"],
+      )
+    await vi.advanceTimersByTimeAsync(firstCheckMs)
+    await vi.advanceTimersByTimeAsync(checkIntervalMs)
+    setChannel("early")
+    await vi.advanceTimersByTimeAsync(switchCheckMs)
+    updater.downloadResult = () => Promise.reject(new Error("disk full"))
+    updater.emit("update-available", { version: "1.5.0" })
+    await vi.advanceTimersByTimeAsync(retryCheckMs)
+    // The retry is for a download from novadeck.dev, so it goes to GitHub, without headers.
+    expect(reasons()).toEqual(["launch", "interval", "switch", undefined])
+  })
+
+  it("follows a channel switch with the new channel's address", async () => {
+    const { updater, setChannel } = checking()
+    await vi.advanceTimersByTimeAsync(firstCheckMs)
+    setChannel("early")
+    await vi.advanceTimersByTimeAsync(switchCheckMs)
+    setChannel("stable")
+    await vi.advanceTimersByTimeAsync(switchCheckMs)
+    expect(updater.seen.map(({ feed }) => feed)).toEqual([
+      "https://novadeck.dev/update/stable/",
+      "https://novadeck.dev/update/early/",
+      "https://novadeck.dev/update/stable/",
+    ])
+  })
+
+  it("checks a portable copy the same way, saying it is portable", async () => {
+    const { updater } = checking({ mode: "tell", build: "portable" })
+    await vi.advanceTimersByTimeAsync(firstCheckMs)
+    expect(updater.seen).toHaveLength(1)
+    expect(updater.seen[0]?.headers).toEqual(
+      expect.objectContaining({ "x-novadeck-build": "portable" }),
+    )
+  })
+
+  it("sends nothing that tells one copy from another", async () => {
+    const { updater } = checking()
+    await vi.advanceTimersByTimeAsync(firstCheckMs)
+    expect(Object.keys(updater.seen[0]?.headers as object).sort()).toEqual([
+      "x-novadeck-arch",
+      "x-novadeck-build",
+      "x-novadeck-check",
+      "x-novadeck-lang",
+      "x-novadeck-os-version",
+      "x-novadeck-version",
+    ])
+  })
+
+  it("makes the same check against GitHub at once when novadeck.dev fails, then returns", async () => {
+    const { updater, logged } = checking({ channel: "early" })
+    updater.failFeed = (feed) => typeof feed === "string"
+    await vi.advanceTimersByTimeAsync(firstCheckMs)
+    expect(updater.seen.map(({ feed }) => feed)).toEqual([
+      "https://novadeck.dev/update/early/",
+      github,
+    ])
+    expect(updater.seen[1]?.headers).toBeNull()
+    expect(updater.allowPrerelease).toBe(true)
+    expect(logged).toContain("The update check through novadeck.dev failed; trying GitHub.")
+    updater.failFeed = () => false
+    await vi.advanceTimersByTimeAsync(checkIntervalMs)
+    expect(updater.seen.map(({ feed }) => feed).slice(2)).toEqual([
+      "https://novadeck.dev/update/early/",
+    ])
+  })
+
+  it("keeps no headers on the updater once a check is done", async () => {
+    const { updater } = checking()
+    await vi.advanceTimersByTimeAsync(firstCheckMs)
+    expect(updater.requestHeaders).toBeNull()
+  })
+
+  it("sends a download's headers to no one", async () => {
+    const { updater } = checking()
+    let headers: unknown = "unset"
+    updater.downloadResult = () => {
+      headers = updater.requestHeaders
+      return Promise.resolve()
+    }
+    updater.checkForUpdates = () => {
+      updater.emit("update-available", { version: "1.5.0" })
+      return Promise.resolve()
+    }
+    await vi.advanceTimersByTimeAsync(firstCheckMs)
+    expect(headers).toBeNull()
+  })
+
+  it("retries a download that failed from novadeck.dev against GitHub, then returns", async () => {
+    const { updater } = checking()
+    await vi.advanceTimersByTimeAsync(firstCheckMs)
+    updater.downloadResult = () => Promise.reject(new Error("redirect broke"))
+    updater.emit("update-available", { version: "1.5.0" })
+    await vi.advanceTimersByTimeAsync(retryCheckMs)
+    expect(updater.seen.map(({ feed }) => feed)).toEqual([
+      "https://novadeck.dev/update/stable/",
+      github,
+    ])
+    await vi.advanceTimersByTimeAsync(checkIntervalMs)
+    expect(updater.seen[2]?.feed).toBe("https://novadeck.dev/update/stable/")
+  })
+
+  it("retries a download that failed from GitHub against novadeck.dev as before", async () => {
+    const { updater } = checking()
+    updater.failFeed = (feed) => typeof feed === "string"
+    await vi.advanceTimersByTimeAsync(firstCheckMs)
+    updater.failFeed = () => false
+    updater.downloadResult = () => Promise.reject(new Error("offline"))
+    updater.emit("update-available", { version: "1.5.0" })
+    await vi.advanceTimersByTimeAsync(retryCheckMs)
+    expect(updater.seen.at(-1)?.feed).toBe("https://novadeck.dev/update/stable/")
+    expect(updater.seen.at(-1)?.headers).toEqual(
+      expect.objectContaining({ "x-novadeck-check": "retry" }),
+    )
+  })
+
+  it("makes only one check at a time", async () => {
+    const { updater } = checking()
+    let finish: () => void = () => {}
+    updater.checkForUpdates = () => {
+      updater.checks += 1
+      return new Promise<void>((resolve) => (finish = resolve))
+    }
+    await vi.advanceTimersByTimeAsync(firstCheckMs + checkIntervalMs)
+    expect(updater.checks).toBe(1)
+    finish()
+  })
+})
+

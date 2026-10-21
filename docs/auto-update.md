@@ -57,6 +57,32 @@ electron-updater decides the release in `GitHubProvider.getLatestVersion`. With
 non-prerelease (a 404 when there is none); with it true it takes the newest entry of the
 releases feed. `stable` sets it false and `early` true.
 
+## Checks through novadeck.dev
+
+Checks read `https://novadeck.dev/update/<channel>/` (`stable` or `early`), a generic
+feed: electron-updater fetches `latest.yml`, `latest-mac.yml` or `latest-linux.yml` there
+and resolves the files it names against the same address. The website redirects all of it
+to the GitHub release assets, `stable` to the latest release and `early` to the newest
+including prereleases, and counts the requests for the channel files, which is how it knows
+how many copies are active. The generic provider ignores `allowPrerelease`, so the channel
+selects the address. `resources/app-update.yml` and its GitHub config stay as they are:
+the release page, the portable install and the engine downloads read them.
+
+Each check sends `x-novadeck-check` (`launch`, `interval`, `switch` or `retry`),
+`x-novadeck-version`, `x-novadeck-build` (`installed` or `portable`), `x-novadeck-os-version`,
+`x-novadeck-arch` and `x-novadeck-lang` (the language of the app's locale). Nothing that
+tells one copy from another is added. electron-updater itself still sends its own
+`x-user-staging-id`, which the website ignores. The headers belong to the check: they are
+cleared before the download starts.
+
+Updating never depends on the website. A check through it that fails for any reason is
+made again at once against GitHub with the repository from `app-update.yml`, and the next
+check goes to novadeck.dev again. A download that began from a novadeck.dev check and
+failed has its retry check go to GitHub alone. Portable copies check the same way. With no
+repository in `app-update.yml` there is nothing to fall back to, so checks stay on the
+updater's own configuration. `NOVADECK_UPDATE_URL` replaces `https://novadeck.dev` for
+testing, as in `NOVADECK_UPDATE_URL=http://127.0.0.1:8787`.
+
 ## Which builds update
 
 | Build                            | Mode                                                                              |

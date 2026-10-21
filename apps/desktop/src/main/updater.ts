@@ -1,3 +1,4 @@
+import type { OutgoingHttpHeaders } from "node:http"
 import { dirname } from "node:path"
 import { isAbsolute, relative } from "node:path/posix"
 
@@ -17,6 +18,7 @@ import {
   updateOfferChannel,
   updateRequestChannel,
 } from "../bridge.js"
+import type { ReleaseRepository } from "./update-release.js"
 
 /** How long after launch the first check waits, so it never competes with startup. */
 export const firstCheckMs = 10_000
@@ -26,6 +28,71 @@ export const checkIntervalMs = 2 * 60 * 60 * 1000
 export const switchCheckMs = 2_000
 /** How long after a download failed the check that tries it again, once, waits. */
 export const retryCheckMs = 5 * 60 * 1000
+
+/** Why a check runs: the launch's, the schedule's, a channel switch's or a failed download's retry. */
+export type CheckReason = "launch" | "interval" | "switch" | "retry"
+
+/** What a check says of the copy making it, so the website can count active copies. */
+export type CheckFacts = {
+  readonly version: string
+  readonly build: "installed" | "portable"
+  /** The operating system's own version, `os.release()`. */
+  readonly osVersion: string
+  readonly arch: string
+  /** The app's locale, such as `en-US`; only its language is sent. */
+  readonly locale: string
+}
+
+/** Where updates are looked for through novadeck.dev, and what a check says there. */
+export type UpdateFeed = {
+  /** The GitHub repository a check falls back to when novadeck.dev fails. */
+  readonly repository: ReleaseRepository
+  readonly facts: CheckFacts
+  /** Another site to check, as `NOVADECK_UPDATE_URL` gives for testing; see `feedUrl`. */
+  readonly site?: string | undefined
+}
+
+const novadeckSite = "https://novadeck.dev"
+
+/**
+ * The address, ending in "/", whose `latest*.yml` the channel's checks read: the website
+ * redirects it and the files beside it to GitHub's release assets. `site` replaces the
+ * website's address when it is an http(s) address; anything else is ignored.
+ */
+export const feedUrl = (channel: UpdateChannel, site?: string): string => {
+  let origin = novadeckSite
+  if (site !== undefined) {
+    try {
+      const url = new URL(site)
+      if (url.protocol === "https:" || url.protocol === "http:") origin = url.origin
+    } catch {
+      // Not an address: the website stays.
+    }
+  }
+  return `${origin}/update/${channel}/`
+}
+
+// A header value only when it is short printable ASCII, so nothing odd reaches the wire.
+const plain = (value: string): string | undefined =>
+  /^[\x20-\x7e]{1,64}$/.test(value) ? value : undefined
+
+/**
+ * The headers of a check through novadeck.dev. They describe the check and the copy that
+ * makes it, and nothing that tells copies on one computer or person from another; a value
+ * that can't be known is left out.
+ */
+export const checkHeaders = (reason: CheckReason, facts: CheckFacts): Record<string, string> => {
+  const language = /^[A-Za-z]{2,3}(?=[-_]|$)/.exec(facts.locale)?.[0]?.toLowerCase()
+  const entries: [string, string | undefined][] = [
+    ["x-novadeck-check", reason],
+    ["x-novadeck-version", plain(facts.version)],
+    ["x-novadeck-build", facts.build],
+    ["x-novadeck-os-version", plain(facts.osVersion)],
+    ["x-novadeck-arch", plain(facts.arch)],
+    ["x-novadeck-lang", language],
+  ]
+  return Object.fromEntries(entries.filter((entry): entry is [string, string] => !!entry[1]))
+}
 
 /** What decides whether and how a build updates itself. */
 export type UpdateBuild = {
@@ -300,6 +367,8 @@ export type Updater = {
   autoDownload: boolean
   autoInstallOnAppQuit: boolean
   allowPrerelease: boolean
+  /** Headers sent with the requests of checks and downloads. */
+  requestHeaders: OutgoingHttpHeaders | null
   logger: {
     info(message?: unknown): void
     warn(message?: unknown): void
@@ -316,6 +385,8 @@ export type Updater = {
   ): unknown
   on(event: "update-not-available", listener: () => void): unknown
   on(event: "error", listener: (error: Error) => void): unknown
+  /** Replaces where releases are looked for; a string is a generic feed's address. */
+  setFeedURL(feed: string | { readonly provider: "github"; owner: string; repo: string }): void
   checkForUpdates(): Promise<unknown>
   downloadUpdate(): Promise<unknown>
   /** The install that quitting runs; see `checkForUpdates`. */
@@ -375,6 +446,16 @@ export type Updater = {
  * than this build is `available`, saying so (`allow`) when an administrator can let the
  * copy install updates itself; the schedule goes on, so a newer release replaces the offer.
  *
+ * Where a check looks depends on `feed`. With one, a check reads the channel's address on
+ * novadeck.dev (`feedUrl`), saying why it runs and what copy makes it (`checkHeaders`),
+ * which is how the website counts active copies; the headers go with that check and
+ * nothing else. Updating never depends on that site: a check through it that fails, for
+ * whatever reason, is made again at once against GitHub's releases, and the next check
+ * goes to novadeck.dev again. A download that began from a novadeck.dev check and failed
+ * has its retry check go to GitHub alone, so a feed that checks well but downloads badly
+ * does not fail the same way twice. Without `feed` a check uses the updater's own
+ * configuration.
+ *
  * `logger` hears electron-updater's own messages; without one they are dropped.
  *
  * `setChannel` follows another channel from the next check, and makes one soon, unless the
@@ -388,6 +469,7 @@ export const checkForUpdates = (
     channel,
     failedVersion,
     allow = false,
+    feed,
     prepare,
     rejected = () => true,
     offer,
@@ -402,6 +484,8 @@ export const checkForUpdates = (
     readonly failedVersion?: string | undefined
     /** Whether an administrator can let a copy in `tell` mode install updates itself. */
     readonly allow?: boolean | undefined
+    /** Checks through novadeck.dev, falling back to GitHub; see above. */
+    readonly feed?: UpdateFeed | undefined
     /** On macOS, makes a download ready for the host to put in place on quitting. */
     readonly prepare?:
       | ((update: { readonly version: string; readonly file: string }) => Promise<void>)
@@ -425,6 +509,9 @@ export const checkForUpdates = (
   // updater hands a download to Squirrel.Mac only while this is on.
   updater.autoInstallOnAppQuit = mode === "install" && prepare === undefined
   updater.allowPrerelease = channel === "early"
+  // The channel the next check follows, which the generic feed needs: it has no notion of
+  // prereleases, so the address itself names the channel.
+  let following = channel
   updater.logger = logger ?? { info: () => {}, warn: () => {}, error: () => {} }
 
   let downloaded: { readonly version: string } | undefined
@@ -481,6 +568,9 @@ export const checkForUpdates = (
       return
     }
     const { version } = info
+    // The headers describe the check; the download of what it found carries none.
+    updater.requestHeaders = null
+    const source = via
     // A failed download is reported through the error event, which logs it.
     const current = {
       version,
@@ -500,10 +590,11 @@ export const checkForUpdates = (
           else if (current.percent >= 0 || downloaded !== undefined)
             offer({ kind: "retrying", version })
           downloaded = undefined
+          if (source === "novadeck") githubOnly = true
           if (!ended && !retried.has(version)) {
             retried.add(version)
             clearTimeout(retry)
-            retry = setTimeout(check, retryCheckMs)
+            retry = setTimeout(() => check("retry"), retryCheckMs)
           }
           return false
         },
@@ -555,19 +646,51 @@ export const checkForUpdates = (
         if (!ended && !retried.has(version)) {
           retried.add(version)
           clearTimeout(retry)
-          retry = setTimeout(check, retryCheckMs)
+          retry = setTimeout(() => check("retry"), retryCheckMs)
         }
       },
     )
   })
 
-  const check = (): void => {
+  // Where the check that found the update in flight or last looked, which tells where its
+  // download comes from.
+  let via: "novadeck" | "github" = "github"
+  // Whether the next check skips novadeck.dev, as a download from it failed.
+  let githubOnly = false
+  let checking = false
+  const checkThroughFeed = async (reason: CheckReason, from: UpdateFeed): Promise<void> => {
+    if (!githubOnly) {
+      via = "novadeck"
+      updater.setFeedURL(feedUrl(following, from.site))
+      updater.requestHeaders = checkHeaders(reason, from.facts)
+      try {
+        await updater.checkForUpdates()
+        return
+      } catch (error) {
+        log("The update check through novadeck.dev failed; trying GitHub.", error)
+      }
+    }
+    githubOnly = false
+    via = "github"
+    updater.requestHeaders = null
+    updater.setFeedURL({ provider: "github", ...from.repository })
+    await updater.checkForUpdates()
+  }
+  const check = (reason: CheckReason): void => {
     // The updater reports a failed check through its error event, which logs it.
-    updater.checkForUpdates().catch(() => {})
+    if (feed === undefined) return void updater.checkForUpdates().catch(() => {})
+    if (checking) return
+    checking = true
+    checkThroughFeed(reason, feed)
+      .catch(() => {})
+      .finally(() => {
+        checking = false
+        updater.requestHeaders = null
+      })
   }
   let ended = false
-  let first = setTimeout(check, firstCheckMs)
-  const every = setInterval(check, checkIntervalMs)
+  let first = setTimeout(() => check("launch"), firstCheckMs)
+  const every = setInterval(() => check("interval"), checkIntervalMs)
   // The check that tries a failed download again, and the releases it has been for.
   let retry: ReturnType<typeof setTimeout> | undefined
   const retried = new Set<string>()
@@ -580,9 +703,10 @@ export const checkForUpdates = (
   return {
     setChannel: (next) => {
       updater.allowPrerelease = next === "early"
+      following = next
       if (ended) return
       clearTimeout(first)
-      first = setTimeout(check, switchCheckMs)
+      first = setTimeout(() => check("switch"), switchCheckMs)
     },
     stop,
   }
