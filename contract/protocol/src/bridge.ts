@@ -376,7 +376,7 @@ export type WhatsNewHighlight = {
 }
 
 /** What a highlight's icon may be: a Lucide name, lowercase words and digits joined by `-`. */
-const iconName = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+const iconName = /^(?=.{1,40}$)[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 /** The most highlights a release names. */
 export const whatsNewHighlights = 4

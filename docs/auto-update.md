@@ -539,6 +539,12 @@ out. The list is read newest first, a hundred to a page, until it reaches `whats
 pages at most; a list that can't be read, or is not one, fails the read as the release's own
 would.
 
+Each highlight may name an icon, a Lucide name from the fixed `highlightIcons` set in
+`contract/protocol/src/release-notes.ts`, which the model picks from when it writes the notes.
+The host's reader drops a name outside the set, and the preload checks only its shape, so it
+carries no schema library; the card draws a sparkle for a highlight with no icon, as those of
+releases written before icons, or with one it doesn't know.
+
 At launch the host records the version it runs in `update.json` as `lastRunVersion`, and marks
 that version `whatsNewPending` when it is newer than the one the last launch recorded. A first
 launch marks nothing; an install from before the version was kept counts as updated when the
