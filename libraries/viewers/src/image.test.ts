@@ -311,6 +311,7 @@ describe("the image viewer", () => {
     await new Promise((resolve) => setTimeout(resolve))
     key(host, "0")
     expect(chipOf(host).hidden).toBe(true)
+    expect(document.activeElement).toBe(viewerOf(host))
     expect(key(host, "+").defaultPrevented).toBe(true)
   })
 
@@ -320,6 +321,23 @@ describe("the image viewer", () => {
     await loaded(host)
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }))
     document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
+    viewerOf(host).focus()
+    const event = new KeyboardEvent("keydown", { key: "1", bubbles: true, cancelable: true })
+    viewerOf(host).dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
+  it("lets its keys go as focus leaves it for the page's next control", async () => {
+    const host = hostIn()
+    mount(large, host)
+    await loaded(host)
+    const field = document.createElement("input")
+    host.append(field)
+    tabTo(viewerOf(host))
+    tabTo(field)
+    await new Promise((resolve) => setTimeout(resolve))
+    // On to a blank spot, then back to the image with nothing to say where focus came from.
+    field.blur()
     viewerOf(host).focus()
     const event = new KeyboardEvent("keydown", { key: "1", bubbles: true, cancelable: true })
     viewerOf(host).dispatchEvent(event)
