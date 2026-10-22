@@ -1,7 +1,15 @@
 import type { ChatItem, ChatRequest } from "@novadeck/core/conversation"
 import { describe, expect, it } from "vitest"
 
-import { agentTail, askLines, inputLines, itemBlock, resultBlock, shellTail } from "./agent"
+import {
+  agentTail,
+  agyBlocks,
+  askLines,
+  inputLines,
+  itemBlock,
+  resultBlock,
+  shellTail,
+} from "./agent"
 import { banner, openingBlocks } from "./openings"
 import { commandBlock, sampleBlocks } from "./samples"
 import type { Block } from "./screen"
@@ -139,27 +147,60 @@ describe("Antigravity's screens", () => {
     ])
   })
 
-  it("show a person's turn behind `> `, a call as `● Ran (command)` and what it says indented", () => {
-    expect(read(itemBlock(item({ role: "user", text: "Fix it" }), "agy")(40))).toBe("\n> Fix it\n")
-    // As the demo's Antigravity agents write it: its own `run_command` tool, with the command
-    // in a JSON input.
-    const call = item({
+  // As the demo's Antigravity agents write them: its own tools, with the command in a JSON input.
+  const run = (id: string, command: string, fields: Partial<ChatItem> = {}) =>
+    item({
+      id,
       kind: "tool-call",
       tool: "run_command",
-      text: '{"CommandLine":"\\"pnpm test\\"","Cwd":"\\"/home/nyx\\""}',
-      run: { kind: "run", title: "Ran", detail: "pnpm test" },
+      call: id,
+      text: JSON.stringify({ CommandLine: JSON.stringify(command) }),
+      run: { kind: "run", title: "Ran", detail: command },
+      ...fields,
     })
-    // An earlier call is plain; the latest expands. No blank row comes before a call, so
-    // consecutive calls follow each other (the person's turn leaves its own).
-    expect(read(itemBlock(call, "agy")(60))).toBe("● Ran (pnpm test)")
-    expect(read(itemBlock(call, "agy", true)(60))).toBe("● Ran (pnpm test) (ctrl+o to expand)")
+  const screen = (items: ChatItem[]) => read(agyBlocks(items).flatMap((block) => block(60)))
+
+  it("show a person's turn behind `> `, and what it says indented", () => {
+    expect(read(itemBlock(item({ role: "user", text: "Fix it" }), "agy")(40))).toBe("\n> Fix it\n")
     expect(read(itemBlock(item({ text: "All done." }), "agy")(40))).toBe("\n  All done.")
   })
 
-  it("show no output under a tool call, only under a slash command", () => {
-    const result = item({ kind: "tool-result", role: "tool", text: "a\nb" })
-    expect(itemBlock(result, "agy")(40)).toEqual([])
-    expect(itemBlock(result, "agy", true)(40)).toEqual([])
+  it("draw a call as `● Ran (command)`, the latest alone marked, with no output under any", () => {
+    const result = item({ kind: "tool-result", role: "tool", call: "a", text: "ok" })
+    expect(screen([run("a", "pnpm build"), result, run("b", "pnpm test")])).toBe(
+      "● Ran (pnpm build)\n● Ran (pnpm test) (ctrl+o to expand)",
+    )
+  })
+
+  it("leave the blank row before a call only where it follows the agent's text", () => {
+    const said = item({ text: "Checking." })
+    expect(screen([said, run("a", "ls"), run("b", "pwd")])).toBe(
+      "\n  Checking.\n\n● Ran (ls)\n● Ran (pwd) (ctrl+o to expand)",
+    )
+    // The person's turn leaves its own blank row, so a call after it adds none.
+    expect(screen([item({ role: "user", text: "Go" }), run("a", "ls")])).toBe(
+      "\n> Go\n\n● Ran (ls) (ctrl+o to expand)",
+    )
+  })
+
+  it("fold the same command run twice in a row, and word a file edit as Antigravity does", () => {
+    expect(screen([run("a", "echo same"), run("b", "echo same")])).toBe(
+      "● Ran 2 commands (echo same ×2) (ctrl+o to expand)",
+    )
+    const edit = run("c", "probe.txt", {
+      run: { kind: "write", title: "Wrote", detail: "probe.txt" },
+    })
+    expect(screen([edit])).toBe("● Edited 1 file (probe.txt) (ctrl+o to expand)")
+    // A kind its probes don't show reads as the tool's own name and what it was called on.
+    const find = run("d", "x", {
+      tool: "grep_search",
+      text: '{"query":"cart"}',
+      run: { kind: "search", title: "Searched", detail: "cart" },
+    })
+    expect(screen([find])).toBe("● grep_search (cart) (ctrl+o to expand)")
+  })
+
+  it("show output only under a slash command", () => {
     expect(read(resultBlock(["Review submitted"], "agy")(40))).toBe("  ⎿  Review submitted")
   })
 })

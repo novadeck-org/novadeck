@@ -170,11 +170,13 @@ export type DemoMessages = Messages & {
     text: string,
     delivered?: () => void,
     // Called instead if the message is dropped before it lands: the person stops the thread,
-    // or a terminal of it closed. The runner tells a sender so with its next tool answer, and
+    // or its recipient closed. The runner tells a sender so with its next tool answer, and
     // adds nothing to the thread.
     stopped?: () => void,
-    // False where the thread was stopped: a send on it is refused, as the runner refuses it.
+    // False where the thread was stopped or the recipient closed: the runner refuses the send.
   ) => boolean
+  // Looks again at what waits, as a terminal may have closed since: a message for one is gone.
+  readonly refresh: () => void
 }
 
 // Whether a backend's messages are the demo's, which keep a record of what the person answered.
@@ -192,8 +194,9 @@ type Ring = {
   readonly stopped: (() => void) | undefined
 }
 
-// What of the workspace the demo's messages can't know: whether a terminal still exists. One
-// closed holds no more mail, and a message to it is gone, as the runner marks it.
+// What of the workspace the demo's messages can't know: whether a terminal still exists. A send
+// to one closed is refused, and a message queued for one that closes is gone, as in the runner;
+// what a closed terminal sent still lands.
 export type MailExists = (target: WorkspaceTarget, terminalId: string) => boolean
 
 export const createDemoMessages = (
@@ -224,9 +227,9 @@ export const createDemoMessages = (
         continue
       }
       const recipient = box.terminals.find((each) => each.handle === ring.to)
-      const sender = box.terminals.find((each) => each.handle === message.from)
-      // A terminal of the thread closed: the message is gone, as the runner marks it.
-      if ([recipient, sender].some((each) => each && !exists(ring.target, each.terminalId))) {
+      // The recipient closed since: the message is gone, as the runner marks it. A closed
+      // sender's message still lands.
+      if (recipient && !exists(ring.target, recipient.terminalId)) {
         rings.splice(rings.indexOf(ring), 1)
         lost.push(ring)
         continue
@@ -378,6 +381,8 @@ export const createDemoMessages = (
         (each) => each.between.includes(from) && each.between.includes(to),
       )
       if (thread && stopBlocks(thread)) return false
+      const peer = box.terminals.find((each) => each.handle === to)
+      if (peer && !exists(target, peer.terminalId)) return false
       const id = thread?.id ?? `t-${[from, to].toSorted().join("-")}`
       const hop = (thread?.messages.length ?? 0) + 1
       const led = box.terminals.some(
@@ -431,6 +436,7 @@ export const createDemoMessages = (
       }, rungMs)
       return true
     },
+    refresh: land,
     pause: (next) => {
       state.update((current) => ({ ...current, pending: true }))
       setTimeout(() => {

@@ -388,20 +388,32 @@ describe("the Babcia demo", () => {
       dialog: `${permission}:d`,
       option: "3",
     })
-    const keepPlanning = chat.answer(key(babcia.plan), `${plan}:plan`, {
-      type: "choice",
-      dialog: `${plan}:d`,
-      option: "3",
-    })
+    // The plan dialog takes no answer the real one refuses: words need option 3, which needs them.
+    await expect(
+      chat.answer(key(babcia.plan), `${plan}:plan`, {
+        type: "choice",
+        dialog: `${plan}:d`,
+        option: "3",
+      }),
+    ).rejects.toThrow()
+    await expect(
+      chat.answer(key(babcia.plan), `${plan}:plan`, {
+        type: "choice",
+        dialog: `${plan}:d`,
+        option: "1",
+        text: "and add a rollback step",
+      }),
+    ).rejects.toThrow()
     await vi.advanceTimersByTimeAsync(answerMs + answeredMs + 500)
-    await Promise.all([noPermission, keepPlanning])
-    expect(items().filter((item) => item.kind === "request")).toHaveLength(1)
+    await noPermission
+    // The plan still waits, with its request, and cue 6 leaves it open.
+    expect(items().filter((item) => item.kind === "request")).toHaveLength(2)
     cues.finishAll()
     await vi.advanceTimersByTimeAsync(5000)
-    // Told no, they wait at their prompts with nothing claimed; the failed one stays failed.
-    for (const number of [babcia.permission, babcia.plan])
-      expect(agent(number)).toMatchObject({ working: false })
+    // Told no, it waits at its prompt with nothing claimed; the failed one stays failed.
+    expect(agent(babcia.permission)).toMatchObject({ working: false })
     expect(agent(babcia.permission)?.lastTurn).toBeUndefined()
+    expect(agent(babcia.plan)).toMatchObject({ attention: { count: 1 } })
     expect(agent(babcia.plan)?.lastTurn).toBeUndefined()
     expect(agent(babcia.failing)).toMatchObject({ working: false, lastTurn: { outcome: "failed" } })
     const said = chat
@@ -704,22 +716,36 @@ describe("the Babcia demo", () => {
     expect(messages.send(target, demoHandle(1), demoHandle(2), "Hi again")).toBe(true)
   })
 
-  it("marks a message gone when a terminal of the thread closed", async () => {
+  it("handles a closed terminal as the runner does: gone if queued for it, refused after, delivered from it", async () => {
     const { backend, cues, store } = open()
     cues.helpers()
     const { messages } = backend
     if (!isDemoMessages(messages)) throw new Error("the demo's messages")
     const target = { projectId: bar.projectId, workspaceSessionId: bar.workspaceSessionId }
-    store.transact([
-      { type: "terminal/close", target: bar, terminalId: key(babcia.lead).terminalId },
-    ] as never)
+    const close = (number: number) =>
+      store.transact([
+        { type: "terminal/close", target: bar, terminalId: key(number).terminalId },
+      ] as never)
+    // Queued for the lead, which closes before the doorbell rang: gone at once, its sender told.
     const stopped = vi.fn<() => void>()
     const delivered = vi.fn<() => void>()
-    messages.send(target, asking, lead, "Hi", delivered, stopped)
-    await vi.advanceTimersByTimeAsync(rungMs + 50)
+    expect(messages.send(target, asking, lead, "Hi", delivered, stopped)).toBe(true)
+    close(babcia.lead)
     expect(mail(backend).map((each) => each.state)).toEqual(["gone"])
     expect(stopped).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(rungMs + 50)
     expect(delivered).not.toHaveBeenCalled()
+    // A send to it now is refused, and leaves nothing in the thread.
+    expect(messages.send(target, asking, lead, "Hello?")).toBe(false)
+    expect(mail(backend)).toHaveLength(1)
+    // What a closed sender wrote still reaches its recipient.
+    const arrived = vi.fn<() => void>()
+    expect(
+      messages.send(target, demoHandle(babcia.asking + 0), demoHandle(1), "Bye", arrived),
+    ).toBe(true)
+    close(babcia.asking)
+    await vi.advanceTimersByTimeAsync(rungMs + 50)
+    expect(arrived).toHaveBeenCalledOnce()
   })
 
   it("shows a page in the pane beside the seasonal-specials window", () => {

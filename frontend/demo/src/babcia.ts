@@ -376,9 +376,8 @@ const runCall = (job: Job, call: string) =>
           { kind: "run", title: "Ran", detail: job.command },
         )
 
-// What answering a request that is declined (No, or Tell Claude what to change with nothing
-// written) leaves: the agent waits for what Nyx says next. So does a chat about a question with
-// no words.
+// What answering a request that is declined (No) leaves: the agent waits for what Nyx says
+// next. So does a chat about a question with no words.
 const declined = (answer: ChatAnswer): boolean =>
   (answer.type === "choice" && answer.option === "3" && !answer.text) ||
   (answer.type === "chat" && !answer.text)
@@ -796,7 +795,8 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
         // Cue 6 leaves it as it is from now, though its turn ends only after a moment.
         declinedIds.add(found.id)
         // As Codex records a turn the API cut short: its `task_complete` carries the error, and
-        // the agent said nothing (harnesses/codex's own fixture has this message).
+        // the agent said nothing. The message is the one harnesses/codex/src/failures.test.ts
+        // uses for such a turn.
         turns.finish(key, found, "failed", { after: finishesAfterMs, error: "stream disconnected" })
       })
     },
@@ -917,7 +917,7 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
       ? `Nyx's answer: "${said}"${/[.!?…]$/.test(said) ? "" : "."}`
       : "Nyx had nothing to add."
     const leadKey = keyOf(babcia.lead)
-    messages.send(
+    const sent = messages.send(
       target,
       helper,
       lead,
@@ -950,6 +950,8 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
         exchanged = true
       },
     )
+    // Refused, as the lead closed: nothing is on its way to wait for.
+    if (!sent) exchanged = true
   }
   const answerLetter = `answer:${helperAskId}`
   messages.state.subscribe(() => {
@@ -987,6 +989,8 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
       commit: (workspace, actions) => {
         latest = workspace
         backend.commit(workspace, actions)
+        // A terminal that closed turns what waits for it into gone messages.
+        messages.refresh()
       },
       start: (next) => {
         sink = next
@@ -1008,6 +1012,13 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
         work(key)
       },
       answer: async (key, request, answer) => {
+        // Claude Code's plan dialog takes words only in its third option, which needs them
+        // (harnesses/claude's dialogs refuse the others, as dialogs.test.ts has it).
+        if (request === `${slot(babcia.plan)}:plan` && answer.type === "choice") {
+          const words = (answer.text ?? "").trim() !== ""
+          if (answer.option === "3" ? !words : words)
+            throw new Error("Couldn't answer that here. Answer it in the terminal.")
+        }
         await conversations.answer(key, request, answer)
         // Told no, or chatting about a question without words: it waits for the person's next
         // words, and no cue ends a turn for it.
