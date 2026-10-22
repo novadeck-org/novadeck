@@ -22,7 +22,7 @@ export const companionKeyOf = (id: string): CompanionKey => {
   return { projectId, workspaceSessionId, terminalId }
 }
 
-export type ArtifactKind = "image" | "file" | "page"
+export type ArtifactKind = "image" | "file" | "page" | "changes"
 
 // What an agent showed or the person attached, as the backend keeps it: a pointer to a
 // file or page, never a copy, held by exactly one terminal's bar or one undocked window.
@@ -86,9 +86,9 @@ export const windowOfItem = (item: CompanionItem): string | undefined =>
 // What each kind of item means as data, apart from how it looks. A new kind adds its line.
 export type KindRule = {
   // What the kind points at, so showing the same thing again finds it: a file by its path, a
-  // page by the runner's own key for its address. A plan has none here: which agent's plan
-  // slot it fills is the backend's to know.
-  readonly pointer: "none" | "file" | "page"
+  // page by the runner's own key for its address, a change by its repository's folder. A
+  // plan has none here: which agent's plan slot it fills is the backend's to know.
+  readonly pointer: "none" | "file" | "page" | "changes"
   // How long the pane follows its content: a plan is followed whether shown or not, anything
   // else only while something shows it.
   readonly follow: "always" | "shown"
@@ -101,13 +101,14 @@ export const kindRules: Record<ItemKind, KindRule> = {
   image: { pointer: "file", follow: "shown", close: "remove" },
   file: { pointer: "file", follow: "shown", close: "remove" },
   page: { pointer: "page", follow: "shown", close: "remove" },
+  changes: { pointer: "changes", follow: "shown", close: "remove" },
   plan: { pointer: "none", follow: "always", close: "hide" },
 }
 
 type Pointer = Pick<CompanionItem, "kind" | "path" | "url">
 
-// What a file or page item points at, so showing the same thing again finds it: a page
-// by the runner's own key for it.
+// What a file, page or change item points at, so showing the same thing again finds it: a
+// page by the runner's own key for it, a change by its folder.
 export const pointerOf = (item: Pointer): string | null => {
   switch (kindRules[item.kind].pointer) {
     case "none":
@@ -116,6 +117,8 @@ export const pointerOf = (item: Pointer): string | null => {
       return `page:${pageKey(item.url ?? "")}`
     case "file":
       return `file:${item.path}`
+    case "changes":
+      return `changes:${item.path}`
   }
 }
 
@@ -184,7 +187,42 @@ export type PageContent = {
   readonly snapshot?: string
 }
 
-export type ShownContent = ImageContent | FileContent | PageContent
+// One file of a change: how it changed and its diff as hunks of lines. A `binary` file, one
+// that may hold secrets (`held`), or one past the change's bounds (`listed`) has no hunks and
+// is listed by name. A hunk's line numbers count from its `oldStart` and `newStart`.
+export type ChangedFile = {
+  readonly path: string
+  readonly oldPath: string | null
+  readonly status: "added" | "modified" | "deleted" | "renamed"
+  readonly added: number
+  readonly removed: number
+  readonly binary: boolean
+  readonly held: boolean
+  readonly listed: boolean
+  readonly hunks: readonly {
+    readonly oldStart: number
+    readonly oldCount: number
+    readonly newStart: number
+    readonly newCount: number
+    readonly lines: readonly {
+      readonly kind: "context" | "add" | "remove"
+      readonly text: string
+    }[]
+  }[]
+}
+
+// An agent's whole change: the repository's working tree against `base`, file by file, up
+// to the backend's bounds, past which files are only listed and `truncated` says so. `root`
+// is the repository's folder, which the paths are from.
+export type ChangesContent = {
+  readonly kind: "changes"
+  readonly root: string
+  readonly base: string
+  readonly files: readonly ChangedFile[]
+  readonly truncated: boolean
+}
+
+export type ShownContent = ImageContent | FileContent | PageContent | ChangesContent
 
 // A plan's text as it stands. `writable` when `save` can write it: a plan that lives only
 // in the agent's messages, or a backend that can't write plans yet, leaves it read-only.

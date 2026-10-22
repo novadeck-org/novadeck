@@ -4,10 +4,11 @@
  * JSON-RPC message per line, to the runner of the terminal it runs in, over the endpoint
  * the agent's hooks report to, and the answers back; outside Novadeck's terminals the
  * relay answers the handshake itself, with no tools. Its tools: `show`, which puts an
- * image, a text file or a web page in front of the user, beside the terminal the agent
- * runs in (one source per call, `file` or `page`, each with its own options inside it),
+ * image, a text file, a web page or the agent's changes in front of the user, beside the
+ * terminal the agent runs in (one source per call, `file`, `page` or `changes`, each with
+ * its own options inside it),
  * `showing`, which lists what is there now, and `close`, which takes away what the agent
- * showed, by the same file or page; `open_terminal`, which opens a
+ * showed, by the same source; `open_terminal`, which opens a
  * new terminal beside it, optionally starting a command there; `close_terminal`, which
  * closes another of the project's terminals by its handle; `send` and `agents`, which
  * message the agents in the project's other terminals and list them; and `summarize`,
@@ -103,15 +104,16 @@ const picked = (args: Arguments, names: readonly string[]): Arguments =>
 const show: Tool<Shown> = {
   name: "show",
   description:
-    "Show the user an image or a text file, or a web page, in Novadeck, " +
-    "beside the terminal they're talking to you in. Give either file or page. Show a " +
+    "Show the user an image or a text file, a web page, or the working tree's changes, in Novadeck, " +
+    "beside the terminal they're talking to you in. Give one of file, page or changes. Show a " +
     "deliverable when it is done, not each file you touch: an image or screenshot, a " +
     "rendered page or a dev server's address, a report, mockup, diagram or generated " +
     "document, the lines you mean, the one file the user asked you for, or whatever they ask " +
     "to see. A source file is " +
     "one too while it is the file you are working on together, so show it and keep it " +
-    "shown; the files a change touches on the way aren't, and the user reads those in the " +
-    "diff. Set open to true for a deliverable you finish or they asked to see, " +
+    "shown; the files a change touches on the way aren't: once a piece of work is done, " +
+    "show the changes themselves with changes, the repository's working tree against HEAD as " +
+    "diffs, instead of each file. Set open to true for a deliverable you finish or they asked to see, " +
     "so it opens at once; leave it off for anything supporting, which waits for them in " +
     "Novadeck, marked new. Showing the same file or page again updates it, beside you or wherever " +
     "the user moved it, so one item per deliverable; while they have it open, each save " +
@@ -169,9 +171,27 @@ const show: Tool<Shown> = {
         required: ["url"],
         additionalProperties: false,
       },
+      changes: {
+        type: "object",
+        description:
+          "Instead of file or page: the changes in this terminal's git repository, every file " +
+          "that differs from HEAD (staged, unstaged and new; the user's and other agents' edits " +
+          "too), shown as diffs that update as the files change. Give {} for the terminal's " +
+          "own folder; give path when you work in another folder or worktree than the " +
+          "terminal's.",
+        properties: {
+          path: {
+            type: "string",
+            description:
+              "A folder inside the repository, absolute or relative to the terminal's " +
+              "current directory: the working tree to show.",
+          },
+        },
+        additionalProperties: false,
+      },
       title: {
         type: "string",
-        description: "A short name to show instead of the file's or page's.",
+        description: "A short name to show instead of the file's, page's or change's.",
       },
       open: {
         type: "boolean",
@@ -208,8 +228,8 @@ const show: Tool<Shown> = {
 const showing: Tool<Listing> = {
   name: "showing",
   description:
-    "List what is showing beside your terminal in Novadeck now: each image, file, page " +
-    "and plan, with where it points and whether you showed it, the user attached it, or " +
+    "List what is showing beside your terminal in Novadeck now: each image, file, page, " +
+    "changes and plan, with where it points and whether you showed it, the user attached it, or " +
     "it was placed there from another terminal, and what you showed that the user moved " +
     "into a window or beside another terminal. Check it before showing after a while, " +
     "to update what is there rather than add beside it, and to close what no longer " +
@@ -225,8 +245,8 @@ const showing: Tool<Listing> = {
 const close: Tool<Dismissed> = {
   name: "close",
   description:
-    "Close something you showed beside your terminal in Novadeck, by the same file or page " +
-    "you gave show: it leaves the taskbar and the pane. Give either file or page. Use it " +
+    "Close something you showed beside your terminal in Novadeck, by the same file, page " +
+    "or changes you gave show: it leaves the taskbar and the pane. Give one of them. Use it " +
     "when the user asked you to close it, or when what you showed no longer applies, as a " +
     "preview whose server you stopped or a screenshot replaced by a newer one under " +
     "another name; showing the same file or page again updates it instead. Don't close what " +
@@ -256,6 +276,16 @@ const close: Tool<Dismissed> = {
           url: { type: "string", description: "The address you showed it at." },
         },
         required: ["url"],
+        additionalProperties: false,
+      },
+      changes: {
+        type: "object",
+        description:
+          "Instead of file or page: the changes you showed. Give {}, or the same path you " +
+          "gave show.",
+        properties: {
+          path: { type: "string", description: "The folder you gave show, if you gave one." },
+        },
         additionalProperties: false,
       },
     },

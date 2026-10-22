@@ -1,12 +1,25 @@
 import type { ArtifactKind, CompanionItem } from "@novadeck/core/companion"
 import { itemFixture } from "@novadeck/core/testing"
-import { BookText, FileCode2, FileText, Globe, Image, type LucideIcon } from "lucide-react"
+import {
+  BookText,
+  FileCode2,
+  FileText,
+  GitCompare,
+  Globe,
+  Image,
+  type LucideIcon,
+} from "lucide-react"
 
 import { context, describe, expect, it } from "../../test"
 import { windowProfile } from "./profiles"
 
 // What a window's icon was before it read the companion's registry.
-const kindIcons: Record<ArtifactKind, LucideIcon> = { image: Image, file: FileCode2, page: Globe }
+const kindIcons: Record<ArtifactKind, LucideIcon> = {
+  image: Image,
+  file: FileCode2,
+  page: Globe,
+  changes: GitCompare,
+}
 const oldWindowIcon = (item: Pick<CompanionItem, "kind" | "name"> | undefined): LucideIcon =>
   !item || item.kind === "plan"
     ? FileText

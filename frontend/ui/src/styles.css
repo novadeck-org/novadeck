@@ -78,6 +78,7 @@
 @import "./shell/bell-count.css" layer(components);
 @import "./shell/zen-dock.css" layer(components);
 @import "@novadeck/viewers/code.css" layer(components);
+@import "@novadeck/viewers/diff.css" layer(components);
 @import "@novadeck/viewers/image.css" layer(components);
 @import "@novadeck/viewers/browser.css" layer(components);
 @import "@novadeck/viewers/markdown.css" layer(components);

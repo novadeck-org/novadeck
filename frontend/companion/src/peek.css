@@ -131,6 +131,30 @@
   color: var(--prose-fg, var(--color-ink));
   white-space: pre;
 }
+.peek-changes {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 7px 8px;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.55;
+  color: var(--prose-fg, var(--color-ink));
+  white-space: pre;
+}
+.peek-changes > :first-child {
+  margin-bottom: 3px;
+  color: var(--color-muted);
+}
+.peek-changes > [data-status="added"] {
+  color: var(--color-success-fg);
+}
+.peek-changes > [data-status="deleted"] {
+  color: var(--color-danger-fg);
+}
 .peek-plan {
   display: flex;
   flex-direction: column;

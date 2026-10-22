@@ -20,6 +20,15 @@ import { logs } from "../log.js"
 import { agentLabel } from "../messaging/mailbox.js"
 import { mention } from "../terminals/handles.js"
 import {
+  changesContent,
+  describeChange,
+  displayed,
+  readChange,
+  repositoryOf,
+  samePlace,
+  waitAfter,
+} from "./changes.js"
+import {
   hashOf,
   loadFile,
   loadPlan,
@@ -73,6 +82,8 @@ export type CompanionOptions = {
   readonly livePlan?: (item: ItemRecord) => PlanText | undefined
   /** How often `content` looks at what an item points at, in milliseconds. */
   readonly pollMs?: number
+  /** How often `content` reads a change again, in milliseconds: git runs each time. */
+  readonly changesMs?: number
 }
 
 /** Who hears of the troubles pages had and of the items that go: the terminals. */
@@ -116,6 +127,13 @@ const inside = (folder: string, path: string): boolean => {
   const route = relative(folder, path)
   return route !== "" && !isAbsolute(route) && route.split(sep)[0] !== ".."
 }
+
+// How many failed reads in a row a change keeps its last good content through.
+const changesFailures = 2
+
+/** What keys the change of a repository on a bar: one item per repository. */
+const changesKey = (root: string): string =>
+  `changes:${process.platform === "win32" ? root.toLowerCase() : root}`
 
 const planKey = (slot: Pick<PlanSlot, "agentSession" | "actor">): string =>
   `plan:${slot.agentSession}:${slot.actor ?? ""}`
@@ -178,6 +196,7 @@ const LIVE_PLAN_MS = 60_000
 export class CompanionItems {
   private readonly records: ItemRecords
   private readonly pollMs: number
+  private readonly changesMs: number
   /** Each `watch` stream and the owner whose release ends it. */
   private readonly watchers = new Map<KeyedChanges<string, CompanionChange>, string>()
   /** Each item's `content` readers, which end once it is deleted. */
@@ -206,6 +225,7 @@ export class CompanionItems {
   constructor(private readonly options: CompanionOptions) {
     this.records = options.records
     this.pollMs = options.pollMs ?? 500
+    this.changesMs = options.changesMs ?? 2000
   }
 
   /**
@@ -336,7 +356,9 @@ export class CompanionItems {
     const lines = items.map((item) => {
       const own = item.from.terminalId === terminalId
       const range = item.lines ? ` lines ${item.lines.from}–${item.lines.to}` : ""
-      const where = item.url ?? item.path ?? ""
+      // A repository's folder is named by the repository: shown without invisible characters.
+      const where =
+        item.kind === "changes" ? displayed(item.path ?? "") : (item.url ?? item.path ?? "")
       const placed =
         item.terminalId !== terminalId
           ? `moved by the user ${this.whereMoved(item)}`
@@ -355,7 +377,8 @@ export class CompanionItems {
             : "attached by the user"
       const notes = [placed, whose].filter(Boolean).join(", ")
       const secrets = item.held ? "; may hold secrets" : ""
-      const name = `${item.kind} ${JSON.stringify(item.name)}${range}`
+      const title = item.kind === "changes" ? displayed(item.name) : item.name
+      const name = `${item.kind} ${JSON.stringify(title)}${range}`
       // A plan it presents as text is in its own conversation.
       if (own && item.plan?.format === "text") return `- ${name} (in your conversation)`
       return `- ${name}: ${where} (${notes}${secrets})`
@@ -514,18 +537,41 @@ export class CompanionItems {
     try {
       let probed: string | undefined
       let sent: string | undefined
+      // How long a change's last read took, which sets the wait for the next, and how many
+      // reads in a row failed to read it (one that fails now and then keeps the last good).
+      let took = 0
+      let failed = 0
       while (!reader.signal.aborted) {
         const item = this.records.item(itemId)
         if (!item) return
         const live = this.live(item)
         const lines = item.lines ? `${item.lines.from}-${item.lines.to}` : ""
+        // A change has no one file to stat: it is read afresh each time.
+        const probing = item.kind !== "changes"
         // eslint-disable-next-line no-await-in-loop -- Each look follows the one before.
-        const now = `${item.version}|${item.path}|${lines}|${await probe(item, live)}`
+        const stamp = probing ? await probe(item, live) : String(Date.now())
+        const now = probing ? `${item.version}|${item.path}|${lines}|${stamp}` : stamp
         if (now !== probed) {
+          const began = Date.now()
           // eslint-disable-next-line no-await-in-loop -- As above.
           const content = await this.read(item, reveal, live)
           if (reader.signal.aborted) return
+          took = Date.now() - began
           probed = now
+          // A change that could not be read once or twice (git timed out under load) is not
+          // told as unavailable while an earlier read stands; a repository gone, or a third
+          // failure, is.
+          if (item.kind === "changes") {
+            const fails = content.state === "unavailable" && content.reason === "unreadable"
+            failed = fails ? failed + 1 : 0
+            if (fails && failed <= changesFailures && sent !== undefined) {
+              // eslint-disable-next-line no-await-in-loop -- As above.
+              await sleep(this.changesWait(took), undefined, { signal: reader.signal }).catch(
+                () => {},
+              )
+              continue
+            }
+          }
           const key = `${item.version}|${keyOf(content)}`
           if (key !== sent) {
             sent = key
@@ -533,7 +579,9 @@ export class CompanionItems {
           }
         }
         // eslint-disable-next-line no-await-in-loop -- As above.
-        await sleep(this.pollMs, undefined, { signal: reader.signal }).catch(() => {})
+        await sleep(item.kind === "changes" ? this.changesWait(took) : this.pollMs, undefined, {
+          signal: reader.signal,
+        }).catch(() => {})
       }
     } finally {
       signal?.removeEventListener("abort", abort)
@@ -541,6 +589,10 @@ export class CompanionItems {
       readers.delete(reader)
       if (readers.size === 0 && this.readers.get(itemId) === readers) this.readers.delete(itemId)
     }
+  }
+
+  private changesWait(took: number): number {
+    return waitAfter(took, this.changesMs)
   }
 
   /**
@@ -702,6 +754,28 @@ export class CompanionItems {
         },
       }
     }
+    if ("changes" in request) {
+      const root = await repositoryOf(resolve(place.cwd, request.changes.path ?? "."))
+      if (!root.ok) return root
+      const read = await readChange(root.root)
+      if (!read.ok) return read
+      const { name, detail } = describeChange(read.change)
+      return {
+        ok: true,
+        tooLarge: false,
+        pointer: {
+          pointerKey: changesKey(root.root),
+          kind: "changes",
+          path: root.root,
+          url: null,
+          lines: null,
+          plan: null,
+          name: clip(request.title ?? name, 256),
+          detail: clip(detail, 512),
+          held: false,
+        },
+      }
+    }
     const { path, lines } = request.file
     const pointed = await pointAt(path, place.cwd)
     if (!pointed.ok) return pointed
@@ -739,6 +813,23 @@ export class CompanionItems {
     if ("page" in request) {
       const page = pageAt(request.page.url)
       return page.ok ? { ok: true, key: pageKey(page.url.href), given: page.url.href } : page
+    }
+    if ("changes" in request) {
+      const folder = resolve(place.cwd, request.changes.path ?? ".")
+      const root = await repositoryOf(folder)
+      if (root.ok) return { ok: true, key: changesKey(root.root), given: root.root }
+      if (root.kind !== "missing") return root
+      // The folder is gone (a worktree removed): the change shown from it is still on the
+      // bar, found by where it was shown from, as a file's is by the folders that remain.
+      const shown = this.records
+        .barItems(place.terminalId)
+        .find(
+          (item) =>
+            item.kind === "changes" &&
+            item.path !== null &&
+            (samePlace(item.path, folder) || inside(item.path, folder)),
+        )
+      return shown ? { ok: true, key: shown.pointerKey, given: shown.path ?? folder } : root
     }
     const key = await realPath(resolve(place.cwd, request.file.path))
     return { ok: true, key, given: request.file.path }
@@ -865,11 +956,22 @@ export class CompanionItems {
     return item.plan?.format === "text" ? this.options.livePlan?.(item) : undefined
   }
 
+  // A change, read afresh; its item's detail follows the totals it finds, unless the item
+  // went or was shown again meanwhile.
+  private async readChange(item: ItemRecord): Promise<ItemContent> {
+    const { content, detail } = await changesContent(item.path)
+    const now = this.records.item(item.id)
+    if (detail !== undefined && now && now.version === item.version && now.detail !== detail)
+      this.save({ ...now, detail })
+    return content
+  }
+
   private read(
     item: ItemRecord,
     reveal: boolean,
     live: PlanText | undefined,
   ): Promise<ItemContent> {
+    if (item.kind === "changes") return this.readChange(item)
     if (item.kind === "page") {
       const scroll = this.scrolls.get(item.id)
       return Promise.resolve({

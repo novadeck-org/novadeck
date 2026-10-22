@@ -1,5 +1,14 @@
+import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -12,8 +21,18 @@ import {
 
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
+import { timing } from "./changes.js"
 import type { PlanText } from "./content.js"
 import { CompanionItems, type TerminalPlace } from "./items.js"
+
+const gitInstalled = (() => {
+  try {
+    execFileSync("git", ["--version"], { stdio: "ignore" })
+    return true
+  } catch {
+    return false
+  }
+})()
 
 type Fixture = {
   directory: string
@@ -43,6 +62,7 @@ const it = base.extend<{ fixture: Fixture }>({
       terminal: (terminalId) => places.get(terminalId),
       livePlan: (item) => live.get(item.id),
       pollMs: 10,
+      changesMs: 10,
     })
     resources.defer(() => items.shutdown())
     const terminal = (handle: string, sessionId = session.id): TerminalPlace => {
@@ -997,5 +1017,236 @@ describe("what the pane tells of a page", () => {
     expect(gone).toEqual([id])
     fixture.items.close(id)
     expect(gone).toEqual([id, id])
+  })
+})
+
+// Windows names a folder in any case, and git may spell it otherwise than the system does.
+const folder = (path: string): string => (process.platform === "win32" ? path.toLowerCase() : path)
+
+describe.skipIf(!gitInstalled)("the changes of a repository", () => {
+  /** A repository with one commit and a change on top of it, and a terminal working in it. */
+  const repository = (fixture: Fixture) => {
+    const root = join(fixture.directory, "work")
+    mkdirSync(root)
+    // A global configuration of its own, beside the repository: git opens no null device on Windows.
+    const config = join(fixture.directory, "gitconfig")
+    writeFileSync(config, "[core]\n\tautocrlf = false\n")
+    const git = (...args: string[]) =>
+      execFileSync(
+        "git",
+        [
+          "-c",
+          "user.name=T",
+          "-c",
+          "user.email=t@example.com",
+          "-c",
+          "commit.gpgsign=false",
+          ...args,
+        ],
+        { cwd: root, env: { ...process.env, GIT_CONFIG_GLOBAL: config, GIT_CONFIG_NOSYSTEM: "1" } },
+      )
+    git("init", "--quiet")
+    // The reader runs with the person's configuration, which may convert line endings.
+    git("config", "core.autocrlf", "false")
+    writeFileSync(join(root, "a.txt"), "one\n")
+    git("add", "-A")
+    git("commit", "--quiet", "-m", "base")
+    writeFileSync(join(root, "a.txt"), "one\ntwo\n")
+    return { root, git, place: { ...fixture.terminal("moth"), cwd: root } }
+  }
+
+  it("is one item per repository, updated by showing again, and closed the same way", async ({
+    fixture,
+  }) => {
+    const { root, place } = repository(fixture)
+    const first = await fixture.items.show(place, { changes: {} })
+    expect(first).toMatchObject({ ok: true, kind: "changes", again: false })
+    const item = fixture.items.bar(place.terminalId)[0]
+    expect(folder(item?.path ?? "")).toBe(folder(root))
+    expect(item).toMatchObject({
+      kind: "changes",
+      url: null,
+      lines: null,
+      name: "Changes · work",
+      detail: "1 file · +1 −0",
+      version: 1,
+    })
+    writeFileSync(join(root, "a.txt"), "one\ntwo\nthree\n")
+    const again = await fixture.items.show(place, { changes: {}, title: "My work" })
+    expect(again).toMatchObject({ ok: true, again: true, name: "My work" })
+    expect(fixture.items.bar(place.terminalId)).toMatchObject([
+      { version: 2, detail: "1 file · +2 −0" },
+    ])
+    expect(folder(fixture.items.listing(place.terminalId))).toContain(
+      folder(`changes "My work": ${root}`),
+    )
+    await expect(fixture.items.dismiss(place, { changes: {} })).resolves.toMatchObject({
+      ok: true,
+      kind: "changes",
+    })
+    expect(fixture.items.bar(place.terminalId)).toEqual([])
+    await expect(fixture.items.dismiss(place, { changes: {} })).resolves.toMatchObject({
+      ok: false,
+    })
+  })
+
+  it("yields its content when the change changes, and not otherwise", async ({ fixture }) => {
+    const { root, place } = repository(fixture)
+    const shown = await fixture.items.show(place, { changes: {} })
+    const itemId = shown.ok ? shown.id : ""
+    const stream = fixture.items.content(itemId, false)
+    const first = await next(stream)
+    expect(first).toMatchObject({ state: "ready", content: { kind: "changes" } })
+    expect(
+      folder(
+        first?.state === "ready" && first.content.kind === "changes" ? first.content.root : "",
+      ),
+    ).toBe(folder(root))
+    expect(itemContent.parse(first)).toEqual(first)
+    // Several reads pass with nothing new, and none of them yields.
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    writeFileSync(join(root, "b.txt"), "new\n")
+    const second = await next(stream)
+    expect(second).not.toMatchObject({ stamp: first && "stamp" in first ? first.stamp : "" })
+    expect(second).toMatchObject({
+      content: { files: [{ path: "a.txt" }, { path: "b.txt", status: "added" }] },
+    })
+    // The item's detail follows what the reads find.
+    expect(fixture.items.bar(place.terminalId)[0]?.detail).toBe("2 files · +2 −0")
+    // A repository that goes is unavailable.
+    rmSync(root, { recursive: true, force: true })
+    await expect(next(stream)).resolves.toMatchObject({ state: "unavailable", reason: "missing" })
+    fixture.items.close(itemId)
+  })
+
+  it("is refused, saying why, for a folder outside any repository", async ({ fixture }) => {
+    const moth = fixture.terminal("moth")
+    const refused = await fixture.items.show(moth, { changes: {} })
+    expect(refused).toMatchObject({ ok: false })
+    expect(refused.ok ? "" : refused.reason).toMatch(/git/)
+    expect(fixture.items.bar(moth.terminalId)).toEqual([])
+    await expect(fixture.items.dismiss(moth, { changes: {} })).resolves.toMatchObject({
+      ok: false,
+    })
+  })
+
+  it("shows the repository of a folder given as path, such as a worktree elsewhere", async ({
+    fixture,
+  }) => {
+    const { git, place } = repository(fixture)
+    const tree = join(fixture.directory, "wt")
+    git("worktree", "add", "--quiet", "-b", "other", tree)
+    writeFileSync(join(tree, "b.txt"), "in the worktree\n")
+    // The terminal is in a folder that is no repository.
+    const outside = { ...place, cwd: fixture.directory }
+    expect(await fixture.items.show(outside, { changes: {} })).toMatchObject({ ok: false })
+    expect(await fixture.items.show(outside, { changes: { path: "wt" } })).toMatchObject({
+      ok: true,
+      kind: "changes",
+      name: "Changes · wt",
+    })
+    const item = fixture.items.bar(place.terminalId)[0]
+    expect(folder(item?.path ?? "")).toBe(folder(tree))
+    const content = await fixture.items.load(item?.id ?? "", false)
+    expect(content).toMatchObject({
+      state: "ready",
+      content: { kind: "changes", files: [{ path: "b.txt", status: "added" }] },
+    })
+    // The same path closes it; a path in no repository names nothing.
+    await expect(fixture.items.dismiss(outside, { changes: {} })).resolves.toMatchObject({
+      ok: false,
+    })
+    await expect(
+      fixture.items.dismiss(outside, { changes: { path: join(tree, "..", "wt") } }),
+    ).resolves.toMatchObject({ ok: true, kind: "changes" })
+  })
+
+  it("closes a change by the folder it was shown from after that folder is gone", async ({
+    fixture,
+  }) => {
+    const { git, place } = repository(fixture)
+    const tree = join(fixture.directory, "wt")
+    git("worktree", "add", "--quiet", "-b", "other", tree)
+    const outside = { ...place, cwd: fixture.directory }
+    expect(await fixture.items.show(outside, { changes: { path: "wt" } })).toMatchObject({
+      ok: true,
+    })
+    git("worktree", "remove", "--force", tree)
+    await expect(
+      fixture.items.dismiss(outside, { changes: { path: "wt" } }),
+    ).resolves.toMatchObject({ ok: true, kind: "changes" })
+    expect(fixture.items.bar(place.terminalId)).toEqual([])
+  })
+
+  // Reads of a change that fail, a number in a row, then succeed with something new: the
+  // repository's HEAD is garbage until the read after the `failures`th starts.
+  const afterFailures = async (fixture: Fixture, failures: number, again = false) => {
+    const { root, place } = repository(fixture)
+    const shown = await fixture.items.show(place, { changes: {} })
+    const itemId = shown.ok ? shown.id : ""
+    const stream = fixture.items.content(itemId, false)
+    expect(await next(stream)).toMatchObject({ state: "ready" })
+    const head = join(root, ".git", "HEAD")
+    const good = readFileSync(head)
+    writeFileSync(head, "garbage\n")
+    let reads = 0
+    timing.saw = (args) => {
+      if (!args.includes("--show-toplevel")) return
+      reads += 1
+      if (reads === failures + 1) {
+        writeFileSync(head, good)
+        writeFileSync(join(root, "a.txt"), "one\ntwo\nrecovered\n")
+      }
+    }
+    try {
+      const first = await next(stream)
+      return { first, second: again ? await next(stream) : undefined }
+    } finally {
+      timing.saw = undefined
+      fixture.items.close(itemId)
+    }
+  }
+
+  it("keeps the last good change through one failed read", async ({ fixture }) => {
+    expect((await afterFailures(fixture, 1)).first).toMatchObject({ state: "ready" })
+  })
+
+  it("keeps the last good change through two failed reads in a row", async ({ fixture }) => {
+    expect((await afterFailures(fixture, 2)).first).toMatchObject({ state: "ready" })
+  })
+
+  it("says a change is unreadable at the third failed read in a row", async ({ fixture }) => {
+    const third = await afterFailures(fixture, 3, true)
+    expect(third.first).toMatchObject({ state: "unavailable", reason: "unreadable" })
+    expect(third.second).toMatchObject({ state: "ready" })
+  })
+
+  it("waits longer to read a change again after a slow read", async ({ fixture }) => {
+    if (process.platform === "win32") return
+    const { root, place, git } = repository(fixture)
+    writeFileSync(join(root, ".gitattributes"), "*.txt filter=slow\n")
+    git("add", "-A")
+    git("commit", "--quiet", "-m", "attributes")
+    git("config", "filter.slow.clean", "sleep 0.3; cat")
+    writeFileSync(join(root, "a.txt"), "one\ntwo\nthree\n")
+    const shown = await fixture.items.show(place, { changes: {} })
+    const stream = fixture.items.content(shown.ok ? shown.id : "", false)
+    const starts: number[] = []
+    timing.slowMs = 100
+    timing.saw = (args) => {
+      if (args.includes("--show-toplevel")) starts.push(Date.now())
+    }
+    try {
+      await next(stream)
+      writeFileSync(join(root, "b.txt"), "later\n")
+      await next(stream)
+    } finally {
+      timing.slowMs = 1_000
+      timing.saw = undefined
+      fixture.items.close(shown.ok ? shown.id : "")
+    }
+    // The usual wait is 10 ms here; a read of 0.3 s waits four times as long.
+    expect(starts.length).toBeGreaterThanOrEqual(2)
+    expect((starts.at(-1) ?? 0) - (starts.at(-2) ?? 0)).toBeGreaterThan(900)
   })
 })

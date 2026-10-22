@@ -1011,7 +1011,7 @@ one from an earlier runner.
   terminal's bar or one undocked window. Items and windows live in the runner's database,
   so they survive restarts; an item goes when it is closed, with the terminal whose bar
   holds it, or with its session, and a window goes with its item. Nothing caps how many
-  there are. An item has a runner-issued id, its `kind` (`image`, `file`, `page`,
+  there are. An item has a runner-issued id, its `kind` (`image`, `file`, `page`, `changes`,
   `plan`), a name and a one-line `detail`, its `path` or `url`, the `lines` it points at,
   `held` for a file that may hold secrets, `by` (`agent` or `person`), `from` (the
   terminal and handle it was shown in), `version` (counts its shows), `asked` (the latest
@@ -1043,7 +1043,17 @@ one from an earlier runner.
     lines past the end are pulled back to it and marked `clamped`. A plan is its text, cut
     short past 256 KiB (`truncated`), with `writable` (a plan in a file that is not cut
     short, which `companions.save` can write) and `skill` (Novadeck's plugin is installed
-    for its agent). Every read resolves symlinks again, refuses anything but a plain
+    for its agent). A `changes` item is its repository's working tree against `HEAD`
+    (staged, unstaged and untracked files, not ignored ones): `root`, `base`, and `files`,
+    each with its `path`, `oldPath` (renames), `status`, `added` and `removed` counts and
+    `hunks` of context, add and remove lines; at most 300 files and 4 MiB of diff text,
+    past the diff text budget files are `listed` by name and counts without hunks, and
+    `truncated` is set (it is also set where files past 300 are left out, which are not
+    listed). A binary file or one that may hold secrets (`held`, judged by the new and the
+    old name) has no hunks; names show invisible characters as U+FFFD. It is read with git about
+    every 2 seconds while followed (less often after slow reads, keeping the last good
+    content through a failed read or two), and `reveal` has no effect on it; a repository that is
+    gone is `missing`, and a failing git `unreadable`. Every read resolves symlinks again, refuses anything but a plain
     file and never blocks on a pipe, and a file that now resolves to one that may hold
     secrets is held.
   - `companions.save({ itemId, text, basedOn })` writes the person's edit to a plan kept in

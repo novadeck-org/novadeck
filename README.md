@@ -819,6 +819,14 @@ Agents:
   failing" shows "Not saved yet. Trying again." and, after five failures in a row
   (about 30 s), Retry; "Plan back to normal" lets saves work again. Specs open the showcase
   with `&planFault=` `transcript`, `gone`, `folder`, `too-large` or `failing`.
+- **Changes:** only in the `showcase` variant, no action needed: the dev server's terminal
+  (`@fox`, the third) holds its items on the bar beside those that can't show, seven of them
+  changes, one in each shape the diff viewer draws: an ordinary change (modified and added
+  files), a file renamed with one deleted and one added, a change with very long lines, a
+  binary file, a file that may hold
+  secrets, a change past what the runner reads (files listed by name, and "This change is
+  larger than shown"), and one with no changes ("No changes against HEAD"). Their data is
+  `frontend/demo/src/showcase/changes.ts`.
 - **Source:** the Source panel shows the current project's files, read one folder at a time as
   folders open, and read again when the panel is shown again or an agent's turn ends in the
   project. The runner has no changes to tell yet, so there the panel is the plain tree. In the
