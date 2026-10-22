@@ -693,12 +693,23 @@ const startUpdates = async (): Promise<void> => {
   if (plan.kind === "mac")
     await removeMacUpdates({ bundle: bundleOf(app.getPath("exe")), olderThanMs: preparedForMs })
   const current = await loadUpdater(plan.kind)
+  const repository = await releaseRepository()
   updater = current
   updates = checkForUpdates(current, {
     mode: plan.mode,
     channel,
     failedVersion: state.installFailedOn,
     allow: plan.allow,
+    // Checks go through novadeck.dev, which counts active copies, and fall back to GitHub.
+    // Without a repository to fall back to they stay on the updater's own configuration.
+    feed: repository && {
+      repository,
+      site: process.env.NOVADECK_UPDATE_URL,
+      facts: {
+        version: app.getVersion(),
+        build: portableOf({ ...(await baseBuild()), signed: false }) ? "portable" : "installed",
+      },
+    },
     // macOS updates are put in place by the host as the app quits; the others install
     // from electron-updater's file.
     prepare:

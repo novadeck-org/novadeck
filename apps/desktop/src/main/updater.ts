@@ -1,3 +1,4 @@
+import type { OutgoingHttpHeaders } from "node:http"
 import { dirname } from "node:path"
 import { isAbsolute, relative } from "node:path/posix"
 
@@ -17,15 +18,92 @@ import {
   updateOfferChannel,
   updateRequestChannel,
 } from "../bridge.js"
+import { isNewerVersion } from "./applications-folder.js"
+import type { ReleaseRepository } from "./update-release.js"
 
 /** How long after launch the first check waits, so it never competes with startup. */
 export const firstCheckMs = 10_000
-/** How long between checks after that: a couple of hours, as people keep the app open for days. */
-export const checkIntervalMs = 2 * 60 * 60 * 1000
+/** How long between checks after that: an hour, as people keep the app open for days. Each
+    check is counted on novadeck.dev, so an hour's checks are the copies open in it. */
+export const checkIntervalMs = 60 * 60 * 1000
 /** How long after switching channels the check on the new one waits, so a few clicks make one. */
 export const switchCheckMs = 2_000
 /** How long after a download failed the check that tries it again, once, waits. */
 export const retryCheckMs = 5 * 60 * 1000
+
+/**
+ * How long the website's `early` answer is trusted, as the website itself counts it: the
+ * app holds a release against an older answer from the website for this long.
+ */
+export const earlyTrustMs = 6 * 60 * 60 * 1000
+
+/** Why a check runs: the launch's, the schedule's, a channel switch's or a failed download's retry. */
+export type CheckReason = "launch" | "interval" | "switch" | "retry"
+
+/**
+ * What the app adds to a check to say what copy makes it, so the website can count active
+ * copies. It is the least that does: the app reads nothing else off the computer to send,
+ * as that would need the person's consent. (The request carries more by itself: see
+ * docs/auto-update.md.)
+ */
+export type CheckFacts = {
+  readonly version: string
+  readonly build: "installed" | "portable"
+}
+
+/** Where updates are looked for through novadeck.dev, and what a check says there. */
+export type UpdateFeed = {
+  /** The GitHub repository a check falls back to when novadeck.dev fails. */
+  readonly repository: ReleaseRepository
+  readonly facts: CheckFacts
+  /** Another site to check, as `NOVADECK_UPDATE_URL` gives for testing; see `feedUrl`. */
+  readonly site?: string | undefined
+}
+
+const novadeckSite = "https://novadeck.dev"
+
+/**
+ * The address, ending in "/", whose `latest*.yml` the channel's checks read: the website
+ * counts each check and answers with GitHub's file, its downloads pinned to GitHub at that
+ * release (docs/auto-update.md). `site` replaces the website's address for testing, and
+ * only when it is an address on this computer (localhost, 127.0.0.1 or [::1], over http or
+ * https); anything else is ignored.
+ */
+export const feedUrl = (channel: UpdateChannel, site?: string): string => {
+  let origin = novadeckSite
+  if (site !== undefined) {
+    try {
+      const url = new URL(site)
+      const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+      if (local && (url.protocol === "https:" || url.protocol === "http:")) origin = url.origin
+    } catch {
+      // Not an address: the website stays.
+    }
+  }
+  return `${origin}/update/${channel}/`
+}
+
+// A header value only when it is short printable ASCII, so nothing odd reaches the wire.
+const plain = (value: string): string | undefined =>
+  /^[\x20-\x7e]{1,64}$/.test(value) ? value : undefined
+
+/**
+ * The headers the app adds to a check through novadeck.dev: why it runs and the copy's
+ * version and build, with a constant in place of electron-updater's per-install
+ * `x-user-staging-id`, so nothing the app adds tells one copy from another. A value that
+ * can't be known is left out.
+ */
+export const checkHeaders = (reason: CheckReason, facts: CheckFacts): Record<string, string> => {
+  const entries: [string, string | undefined][] = [
+    ["x-novadeck-check", reason],
+    ["x-novadeck-version", plain(facts.version)],
+    ["x-novadeck-build", facts.build],
+    // electron-updater sends a per-install id for staged rollouts; this replaces it here so
+    // the website never sees it. Its own rollout decision reads the real one.
+    ["x-user-staging-id", "0"],
+  ]
+  return Object.fromEntries(entries.filter((entry): entry is [string, string] => !!entry[1]))
+}
 
 /** What decides whether and how a build updates itself. */
 export type UpdateBuild = {
@@ -300,6 +378,8 @@ export type Updater = {
   autoDownload: boolean
   autoInstallOnAppQuit: boolean
   allowPrerelease: boolean
+  /** Headers sent with the requests of checks and downloads. */
+  requestHeaders: OutgoingHttpHeaders | null
   logger: {
     info(message?: unknown): void
     warn(message?: unknown): void
@@ -316,6 +396,12 @@ export type Updater = {
   ): unknown
   on(event: "update-not-available", listener: () => void): unknown
   on(event: "error", listener: (error: Error) => void): unknown
+  /** Replaces where releases are looked for. */
+  setFeedURL(
+    feed:
+      | { readonly provider: "github"; owner: string; repo: string }
+      | { readonly provider: "generic"; url: string; useMultipleRangeRequest: boolean },
+  ): void
   checkForUpdates(): Promise<unknown>
   downloadUpdate(): Promise<unknown>
   /** The install that quitting runs; see `checkForUpdates`. */
@@ -323,7 +409,7 @@ export type Updater = {
 }
 
 /**
- * Checks for updates shortly after launch and every couple of hours; a check that fails,
+ * Checks for updates shortly after launch and every hour; a check that fails,
  * offline, rate limited, or on a channel with no release yet, is logged and the next one
  * tries again. `channel` decides which releases count: `stable` is GitHub's latest
  * release that is not a prerelease, `early` every release. Updating never downgrades.
@@ -375,6 +461,24 @@ export type Updater = {
  * than this build is `available`, saying so (`allow`) when an administrator can let the
  * copy install updates itself; the schedule goes on, so a newer release replaces the offer.
  *
+ * Where a check looks depends on `feed`. With one, a check reads the channel's address on
+ * novadeck.dev (`feedUrl`), saying why it runs and what copy makes it (`checkHeaders`),
+ * which is how the website counts active copies; the headers go with that check and
+ * nothing else. A site that can't be reached or fails never blocks updating: a check
+ * through it that fails, for whatever reason, is made again at once against GitHub's
+ * releases, and the next check goes to novadeck.dev again. Its answer for `early` can lag
+ * GitHub's by up to an hour and is distrusted by the site after six; a wrong one, which
+ * only a bug of the site gives, delays updates until it is fixed. Whichever feed answers,
+ * an `early` answer from the website that names a release older than one offered or taken
+ * for download within `earlyTrustMs` is ignored, so a lagging answer never steps back
+ * (per run, in memory); GitHub's answers and the stable channel's are taken as they are,
+ * and an answer for a channel left during the check is dropped, the channel's check
+ * then made again at once. The hold lasts while the newer release is offered or ready, not
+ * after its download failed. The check after a failed download's first failure, whichever
+ * that is, goes to GitHub alone, so a feed that checks well but downloads badly does not
+ * fail the same way twice. Without `feed` a check uses the updater's own
+ * configuration.
+ *
  * `logger` hears electron-updater's own messages; without one they are dropped.
  *
  * `setChannel` follows another channel from the next check, and makes one soon, unless the
@@ -388,6 +492,7 @@ export const checkForUpdates = (
     channel,
     failedVersion,
     allow = false,
+    feed,
     prepare,
     rejected = () => true,
     offer,
@@ -402,6 +507,8 @@ export const checkForUpdates = (
     readonly failedVersion?: string | undefined
     /** Whether an administrator can let a copy in `tell` mode install updates itself. */
     readonly allow?: boolean | undefined
+    /** Checks through novadeck.dev, falling back to GitHub; see above. */
+    readonly feed?: UpdateFeed | undefined
     /** On macOS, makes a download ready for the host to put in place on quitting. */
     readonly prepare?:
       | ((update: { readonly version: string; readonly file: string }) => Promise<void>)
@@ -425,6 +532,9 @@ export const checkForUpdates = (
   // updater hands a download to Squirrel.Mac only while this is on.
   updater.autoInstallOnAppQuit = mode === "install" && prepare === undefined
   updater.allowPrerelease = channel === "early"
+  // The channel the next check follows, which the generic feed needs: it has no notion of
+  // prereleases, so the address itself names the channel.
+  let following = channel
   updater.logger = logger ?? { info: () => {}, warn: () => {}, error: () => {} }
 
   let downloaded: { readonly version: string } | undefined
@@ -441,6 +551,17 @@ export const checkForUpdates = (
   let preparing: string | undefined
   // The release not to download again: the one an install failed on, here or earlier.
   let failedOn = failedVersion
+  // The release last offered in `tell` mode or taken for download, on the channel then
+  // followed and when (by the monotonic clock, so a clock change moves nothing), which an
+  // older answer from the website does not replace; see `earlyTrustMs`. Held on `stable`,
+  // it does not protect after a switch to `early`: the guard is for `early` alone.
+  let held:
+    | { readonly version: string; readonly channel: UpdateChannel; readonly at: number }
+    | undefined
+  // Errors reported while a check through novadeck.dev is in flight, not yet logged.
+  const deferred: unknown[] = []
+  // The channel the check in flight was made for.
+  let checkedChannel = channel
   // Once an install has begun the app is on its way out, so the mark never goes back.
   let installing = false
   let failed = false
@@ -456,7 +577,13 @@ export const checkForUpdates = (
   updater.on("error", (error) => {
     // An install fails once; an error reported after it adds nothing to log or mark.
     if (failed) return
-    if (downloaded === undefined || !installing) return log("The update check failed.", error)
+    if (downloaded === undefined || !installing) {
+      // A check through novadeck.dev that fails is logged as it falls back to GitHub. Which
+      // error is the check's is known when it rejects, so the others, a download's, wait
+      // for that and are logged then.
+      if (checking && via === "novadeck" && !ended) return void deferred.push(error)
+      return log("The update check failed.", error)
+    }
     log("Installing the update failed.", error)
     failed = true
     failedOn = downloaded.version
@@ -465,8 +592,25 @@ export const checkForUpdates = (
     offer({ kind: "available", version: downloaded.version })
   })
   updater.on("update-available", (info) => {
-    if (mode === "tell")
+    // The answer of a check made for a channel the person has since left is dropped.
+    if (checkedChannel !== following) return
+    // Never a step back to an older early release the website names: its `early` answer can
+    // lag GitHub's by up to an hour, and following it would replace a newer release already
+    // offered or fetched. This holds for `earlyTrustMs`, after which a withdrawn release
+    // can give way. GitHub's answers and the stable channel's are taken as they are.
+    // (isNewerVersion compares prerelease tags as text; the releases' versions have none.)
+    if (
+      via === "novadeck" &&
+      following === "early" &&
+      held?.channel === following &&
+      performance.now() - held.at < earlyTrustMs &&
+      isNewerVersion(held.version, info.version)
+    )
+      return
+    if (mode === "tell") {
+      held = { version: info.version, channel: following, at: performance.now() }
       return offer({ kind: "available", version: info.version, ...(allow ? { allow } : {}) })
+    }
     // A release found while a download is under way waits for the next check.
     if (
       ended ||
@@ -481,6 +625,9 @@ export const checkForUpdates = (
       return
     }
     const { version } = info
+    held = { version, channel: following, at: performance.now() }
+    // The headers describe the check; the download of what it found carries none.
+    updater.requestHeaders = null
     // A failed download is reported through the error event, which logs it.
     const current = {
       version,
@@ -500,10 +647,15 @@ export const checkForUpdates = (
           else if (current.percent >= 0 || downloaded !== undefined)
             offer({ kind: "retrying", version })
           downloaded = undefined
+          if (held?.version === version) held = undefined
           if (!ended && !retried.has(version)) {
+            // The one retry of a version goes to GitHub alone, so a feed that checks well
+            // but downloads badly does not fail the same way twice; a copy whose downloads
+            // keep failing goes back to the website afterwards.
+            githubOnly = true
             retried.add(version)
             clearTimeout(retry)
-            retry = setTimeout(check, retryCheckMs)
+            retry = setTimeout(() => check("retry"), retryCheckMs)
           }
           return false
         },
@@ -555,19 +707,69 @@ export const checkForUpdates = (
         if (!ended && !retried.has(version)) {
           retried.add(version)
           clearTimeout(retry)
-          retry = setTimeout(check, retryCheckMs)
+          retry = setTimeout(() => check("retry"), retryCheckMs)
         }
       },
     )
   })
 
-  const check = (): void => {
+  // Where the check in flight or last made looked, which the error handler needs to know
+  // whether an error is a novadeck.dev check's, that falls back to GitHub.
+  let via: "novadeck" | "github" = "github"
+  // Whether the next check skips novadeck.dev, as a download failed and is tried again.
+  let githubOnly = false
+  let checking = false
+  const checkThroughFeed = async (reason: CheckReason, from: UpdateFeed): Promise<void> => {
+    if (!githubOnly) {
+      via = "novadeck"
+      // The website sends the files on to GitHub, which does not serve multipart ranges, as
+      // GitHubProvider knows; asking for them would fail every differential download.
+      updater.setFeedURL({
+        provider: "generic",
+        url: feedUrl(following, from.site),
+        useMultipleRangeRequest: false,
+      })
+      updater.requestHeaders = checkHeaders(reason, from.facts)
+      try {
+        await updater.checkForUpdates()
+        return
+      } catch (error) {
+        // A quit ends the schedule; no new request starts after it.
+        if (ended) throw error
+        const own = deferred.indexOf(error)
+        if (own >= 0) deferred.splice(own, 1)
+        log("The update check through novadeck.dev failed; trying GitHub.", error)
+      }
+    }
+    githubOnly = false
+    via = "github"
+    updater.requestHeaders = null
+    updater.setFeedURL({ provider: "github", ...from.repository })
+    await updater.checkForUpdates()
+  }
+  const check = (reason: CheckReason): void => {
     // The updater reports a failed check through its error event, which logs it.
-    updater.checkForUpdates().catch(() => {})
+    if (feed === undefined) {
+      checkedChannel = following
+      return void updater.checkForUpdates().catch(() => {})
+    }
+    if (checking) return
+    checking = true
+    checkedChannel = following
+    checkThroughFeed(reason, feed)
+      .catch(() => {})
+      .finally(() => {
+        checking = false
+        updater.requestHeaders = null
+        for (const error of deferred.splice(0)) log("The update check failed.", error)
+        // A channel switched meanwhile found its check turned away, and the answer of this
+        // one was dropped: check again at once.
+        if (!ended && checkedChannel !== following) check("switch")
+      })
   }
   let ended = false
-  let first = setTimeout(check, firstCheckMs)
-  const every = setInterval(check, checkIntervalMs)
+  let first = setTimeout(() => check("launch"), firstCheckMs)
+  const every = setInterval(() => check("interval"), checkIntervalMs)
   // The check that tries a failed download again, and the releases it has been for.
   let retry: ReturnType<typeof setTimeout> | undefined
   const retried = new Set<string>()
@@ -580,9 +782,10 @@ export const checkForUpdates = (
   return {
     setChannel: (next) => {
       updater.allowPrerelease = next === "early"
+      following = next
       if (ended) return
       clearTimeout(first)
-      first = setTimeout(check, switchCheckMs)
+      first = setTimeout(() => check("switch"), switchCheckMs)
     },
     stop,
   }

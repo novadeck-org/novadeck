@@ -1,8 +1,8 @@
 # Auto-update
 
 Every Novadeck build either updates itself or tells the person that a newer release
-exists and where to get it. Installed apps look on GitHub Releases shortly after launch
-and every two hours. The app never restarts on its own, and the page has no restart
+exists and where to get it. Installed apps look for one through novadeck.dev, falling back to GitHub Releases,
+shortly after launch and every hour. The app never restarts on its own, and the page has no restart
 button: a downloaded update installs when the app next quits, and the page shows only a
 progress bar while it downloads.
 
@@ -56,6 +56,75 @@ electron-updater decides the release in `GitHubProvider.getLatestVersion`. With
 `allowPrerelease` false it asks `/releases/latest`, which GitHub answers with the latest
 non-prerelease (a 404 when there is none); with it true it takes the newest entry of the
 releases feed. `stable` sets it false and `early` true.
+
+## Checks through novadeck.dev
+
+Checks read `https://novadeck.dev/update/<channel>/` (`stable` or `early`), a generic
+feed: electron-updater fetches `latest.yml`, `latest-mac.yml` or `latest-linux.yml` there.
+The website counts the request, which is how it knows how many copies are open and
+launched, and answers with that file from GitHub: `stable` the latest release's, `early`
+the newest release the website links, prereleases included. It rewrites the file's
+download addresses to the whole GitHub address at that release, so the update itself
+downloads from GitHub directly. Should the website not know the newest release for
+`early`, or not answer at all, the check fails and the app checks GitHub itself (below);
+should its counting not run, it redirects the checks to GitHub uncounted (novadeck-website,
+README "Counts"). The generic provider ignores `allowPrerelease`, so the channel
+selects the address, and multipart range requests are off for it, as GitHub does not serve
+them (a differential download would fail and fall back to a full one). `resources/app-update.yml` and its GitHub config stay as they are:
+the release page, the portable install and the engine downloads read them.
+
+What the app adds to a check through the website is `x-novadeck-check` (`launch`,
+`interval`, `switch` or `retry`), `x-novadeck-version` and `x-novadeck-build` (`installed`
+or `portable`), and no more: it reads nothing else off the computer to send, as sending
+that only for statistics would need the person's consent. Nor does it add anything that
+tells one copy from another: electron-updater's own `x-user-staging-id`, a per-install
+UUID, is overridden with the constant `0` on these checks (its staged-rollout decision
+reads the real one locally). The check against GitHub sends it as electron-updater always
+has. The headers belong to the check: they are cleared before the download starts.
+
+The request itself says more, as any request does. The name of the update file it asks
+for (`latest.yml`, `latest-mac.yml`, `latest-linux.yml` or `latest-linux-arm64.yml`)
+tells the website the system and, on Linux, the architecture. It carries electron-updater's
+`User-Agent` (`electron-builder`), `Cache-Control` and a `noCache` query, and the
+website's network sees the address; whether Chromium's network stack adds an
+`Accept-Language` is not verified. What the website keeps of it is in novadeck-website's
+README, "Counts".
+
+A site that can't be reached or fails never blocks updating: a check through it that
+fails for any reason is made again at once against GitHub (unless the app is quitting)
+with the repository from `app-update.yml`, and the next check goes to novadeck.dev
+again. The site's answer for `stable` is GitHub's file relayed live with `no-store`; its
+answer for `early` can lag GitHub's by up to an hour (the site's own build), and the site
+distrusts its record after 6 hours and answers 503, so the app falls back. A wrong answer
+from the site, which only a bug of the site gives, can delay updates until it is fixed.
+The app does not step back to an older `early` release the website names within 6 hours
+of having offered or taken a newer one (kept per run, in memory, on a monotonic clock, and
+only while that release is offered or ready: a failed download of it clears the hold): the answer is ignored,
+with no download, no change of offer and nothing cleared, so a lagging answer cannot
+replace a newer release found through GitHub. After 6 hours the older answer is taken, as
+the release may have been withdrawn or, on macOS, rejected. GitHub's answers and the
+`stable` site's are taken as they are, and the answer of a check made for a channel the
+person has left meanwhile is dropped. The check that follows a version's first failed download, whichever it is (the retry, a
+switch's or the hourly one), goes to GitHub alone, so a feed that checks well but
+downloads badly does not fail the same way twice; the retry after a macOS prepare failure
+goes through the site, and a version's later failures do not pin the copy to GitHub. Portable copies check the same way. With no
+repository in `app-update.yml` there is nothing to fall back to, so checks stay on the
+updater's own configuration.
+
+In Cloudflare's fail-open mode, when the website's counting does not run, it answers a
+check with a redirect to the GitHub file, and the `x-novadeck-*` headers go along to
+GitHub with the request, which is harmless.
+
+A connection the website accepts but never answers stalls checks for the run. The
+request timeout of electron-updater never arms under Electron's `net`:
+builder-util-runtime hooks `request.on("socket")` (`httpExecutor.js`), which Electron's
+`ClientRequest` lacks. That was so against GitHub before; Cloudflare ends a stuck request
+after about 100 seconds. The same holds for a GitHub request that hangs during the
+fallback: later checks stall for the run, and the website's counting with them.
+
+`NOVADECK_UPDATE_URL` replaces `https://novadeck.dev` for testing, and only with an
+address on this computer: localhost, 127.0.0.1 or [::1], over http or https, as in
+`NOVADECK_UPDATE_URL=http://127.0.0.1:8787`. Any other value is ignored.
 
 ## Which builds update
 
@@ -137,13 +206,13 @@ before this installs its next update through Squirrel, once.
   the page did not see downloading, as at a launch, shows nothing. One download
   is tracked at a time, and a release found while it is under way waits for the next check.
 - **A failed download** is tried again by a check five minutes later, once per release in a
-  run; after that the two-hourly checks try it. Once its progress (or an update it
+  run; after that the hourly checks try it. Once its progress (or an update it
   replaces) was offered, it is offered as `retrying` meanwhile, and the page drops the
   bar at once and shows nothing in its place: no chip either, since a copy that installs itself
   has nothing for the person to do, and the retry tries again. One that failed before any progress, with no
   update waiting, goes untold, as a failed check does. Should the early retry fail too, the
   offer turns to `available`, so a copy whose downloads keep failing (a proxy, a full disk)
-  shows the chip rather than fall behind unseen; the two-hourly checks still try it, and a
+  shows the chip rather than fall behind unseen; the hourly checks still try it, and a
   download that gets going turns it back to `downloading`. A macOS download that fails its
   checks is an install failure: the version is marked failed, is not tried again, and the
   offer turns to `available`, for the person to fetch.
@@ -606,8 +675,8 @@ full one.
   it in System Settings, and the page offers the release as "Update available".
 - **A channel switch does not cancel work in progress.** An `early` build that is already
   downloading a prerelease when the person switches to `stable` finishes the download and
-  installs it on quit. The same switch made during an in-flight check can use the old
-  channel's answer; the next check, within two hours, corrects it.
+  installs it on quit. The same switch made during an in-flight check drops that
+  check's answer, and the new channel is checked at once when it ends.
 - **Offers are not retracted.** After switching from `early` to `stable`, an `available`
   offer for an early-only release stays until a later check offers another version; the
   bridge has no way to withdraw one. A downloaded update stays `ready` as well, unless a stable release newer than the running
