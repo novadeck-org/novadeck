@@ -3,8 +3,8 @@ import { mountCode, type CodeContent } from "@novadeck/viewers/code"
 import { useMemo } from "react"
 
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
+import { OutlineThumb } from "../../document/OutlineThumb"
 import { useViewerSlot } from "../../ViewerSlot"
-import { OutlineThumb } from "../plan/PlanThumb"
 import { DocumentViewer } from "./DocumentViewer"
 import { isMarkdown } from "./markdown"
 

@@ -12,6 +12,7 @@ import { afterEach, vi } from "vitest"
 import { createDragSession, DragSessionContext } from "../../drag-session"
 import { createItemStore, type ItemStore } from "../../state"
 import { context, describe, expect, it } from "../../test"
+import { followMail } from "./messages/mail"
 import { TerminalCompanion, type ItemCommands } from "./TerminalCompanion"
 
 // jsdom has no layout and no resizes; the taskbar's drag-to-reorder asks for them.
@@ -84,14 +85,14 @@ const Terminal = ({
   return createElement(TerminalCompanion, props)
 }
 
-// Renders the terminal as the app does: its item store made first, following the backend only
-// once it has mounted.
+// Renders the terminal as the app does: its item store made first, following the backend and
+// the mail only once it has mounted.
 const renderTerminal = (
   initial: Workspace,
   messages?: Messages,
 ): { container: HTMLElement; workspace: WorkspaceStore } => {
   const workspace = createWorkspaceStore(initial)
-  const itemStore = createItemStore({ companions: emptyCompanions(), workspace, messages })
+  const itemStore = createItemStore({ companions: emptyCompanions(), workspace })
   const { container, unmount } = render(
     createElement(
       DragSessionContext,
@@ -100,12 +101,11 @@ const renderTerminal = (
     ),
   )
   unmounts.push(unmount)
-  // Connecting tells the terminal its messages: a render of its own, inside act.
-  let disconnect = (): void => {}
+  // Following the mail tells the terminal its messages: a render of its own, inside act.
   act(() => {
-    disconnect = itemStore.connect()
+    unmounts.push(itemStore.connect())
+    if (messages) unmounts.push(followMail(workspace, messages))
   })
-  unmounts.push(disconnect)
   return { container, workspace }
 }
 
@@ -227,6 +227,40 @@ describe("a terminal's taskbar", () => {
       )
       expect(icon(container, "hero.png")?.getAttribute("data-state")).toBe("behind")
       expect(icon(container, "notes")?.getAttribute("data-state")).toBe("behind")
+    })
+  })
+
+  context("the messages' icon", () => {
+    // The terminal with `mail`, and its messages' icon.
+    const messagesWith = (mail: MailState) => {
+      const { container } = renderTerminal(workspaceFixture(), {
+        state: createStore(mail),
+        pause: () => {},
+        release: () => {},
+        stop: () => {},
+      })
+      return icon(container, "Messages")!
+    }
+    const waiting = { ...message("m2"), state: "queued" } as const
+
+    it("says nothing more while nothing waits and messaging runs", () => {
+      const button = messagesWith(mailOf([message("m1")]))
+      expect(button.getAttribute("aria-label")).toBe("Messages")
+      expect(button.querySelector(".plan-tb-count")).toBeNull()
+    })
+
+    it("counts what waits for the agent, and says so", () => {
+      const button = messagesWith(mailOf([message("m1"), waiting]))
+      expect(button.getAttribute("aria-label")).toBe("Messages, 1 message waiting")
+      const count = button.querySelector(".plan-tb-count")
+      expect(count?.getAttribute("data-mail")).toBe("waiting")
+      expect(count?.textContent).toBe("1")
+    })
+
+    it("marks messaging paused while nothing waits", () => {
+      const button = messagesWith({ ...mailOf([message("m1")]), paused: true })
+      expect(button.getAttribute("aria-label")).toBe("Messages, messaging paused")
+      expect(button.querySelector(".plan-tb-count")?.getAttribute("data-mail")).toBe("paused")
     })
   })
 

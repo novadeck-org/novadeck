@@ -253,16 +253,33 @@ describe("the package graph", () => {
     expect(leaving).toEqual([])
   })
 
-  it("keeps CodeMirror in the items package's plan editor, where it loads lazily", () => {
-    // The plan's and the markdown document's views reach the editor through `lazy()`; a
-    // static import of CodeMirror anywhere else would pull it into the first chunk.
+  it("keeps CodeMirror in the items package's editors, where it loads lazily", () => {
+    // A Markdown document's editor and the plan's, around it, load through `lazy()`, and
+    // the plans' merge through `import()`; a static import of CodeMirror, of the markdown
+    // viewer, of the merge or of either editor anywhere else would pull CodeMirror into the
+    // first chunk.
     const src = join(root, "frontend", "items", "src")
+    const editors = ["document/editor/", "kinds/plan/plan-editor/"]
     const files = (readdirSync(src, { recursive: true }) as string[])
       .map((file) => file.split("\\").join("/"))
-      .filter((file) => /\.tsx?$/.test(file) && !file.startsWith("kinds/plan/plan-editor/"))
+      .filter((file) => /\.tsx?$/.test(file) && !editors.some((folder) => file.startsWith(folder)))
     expect(files.length).toBeGreaterThan(10)
+    // Each static import or re-export, but those of types alone, by what it names.
+    const imports = /^(?:import|export)\s+(?!type\s)(?:[^"']*?\s+from\s+)?["']([^"']+)["']/gm
+    const eager = (file: string, target: string): boolean =>
+      target.startsWith("@codemirror/") ||
+      target === "@novadeck/viewers/markdown" ||
+      target === "@novadeck/viewers/sync" ||
+      (target.startsWith(".") &&
+        editors.some((folder) =>
+          posix.normalize(posix.join(posix.dirname(file), target)).startsWith(folder),
+        ))
     expect(
-      files.filter((file) => /["']@codemirror\//.test(readFileSync(join(src, file), "utf8"))),
+      files.flatMap((file) =>
+        [...readFileSync(join(src, file), "utf8").matchAll(imports)]
+          .filter(([, target]) => eager(file, target!))
+          .map(([, target]) => `${file} -> ${target}`),
+      ),
     ).toEqual([])
   })
 

@@ -1,8 +1,7 @@
 import { BookText, FileCode2 } from "lucide-react"
 
 import { artifactLook, artifactThumb, artifactView } from "../../ArtifactViewer"
-import type { ItemMember } from "../../bar"
-import type { PaneRegistration } from "../../registration"
+import type { ItemRegistration } from "../../registration"
 import { FileThumb, FileViewer } from "./FileViewer"
 import { isMarkdown } from "./markdown"
 
@@ -11,10 +10,9 @@ import { isMarkdown } from "./markdown"
 export const file = {
   kind: "file",
   names: { one: "file", many: "Files" },
-  icon: ({ item }: { readonly item: { readonly name: string } }) =>
-    isMarkdown(item.name) ? BookText : FileCode2,
+  icon: (item: { readonly name: string }) => (isMarkdown(item.name) ? BookText : FileCode2),
   stackIcon: FileCode2,
   look: artifactLook,
   Thumb: artifactThumb("file", FileThumb),
   View: artifactView("file", FileViewer, (content) => isMarkdown(content.path)),
-} satisfies PaneRegistration<ItemMember, "file">
+} satisfies ItemRegistration<"file">

@@ -8,8 +8,7 @@ import {
 } from "@novadeck/core/items"
 import { useEffect, useState, type ComponentType, type ReactNode } from "react"
 
-import type { ItemMember } from "./bar"
-import type { ThumbProps, ViewProps } from "./registration"
+import type { ItemProps, ViewProps } from "./registration"
 import type { ItemStore } from "./state"
 import { useContent } from "./use-item-store"
 
@@ -33,11 +32,9 @@ export type ArtifactBodyProps<K extends ArtifactKind> = {
 }
 
 // An artifact's name as the peek and menu say it, and its button reads.
-export const artifactLook = ({
-  item,
-}: {
-  readonly item: Pick<Item, "name">
-}): { readonly name: string; readonly label: string } => ({ name: item.name, label: item.name })
+export const artifactLook = (
+  item: Pick<Item, "name">,
+): { readonly name: string; readonly label: string } => ({ name: item.name, label: item.name })
 
 // A size in bytes as a person reads it.
 const sizeText = (bytes: number): string =>
@@ -139,14 +136,8 @@ export const artifactView = <K extends ArtifactKind>(
   kind: K,
   Body: ComponentType<ArtifactBodyProps<K>>,
   document?: (content: Extract<ShownContent, { readonly kind: K }>) => boolean,
-): ComponentType<ViewProps<ItemMember>> => {
-  const View = ({
-    member,
-    itemStore,
-    target,
-    actions,
-  }: ViewProps<ItemMember>): React.JSX.Element => {
-    const { item } = member
+): ComponentType<ViewProps> => {
+  const View = ({ item, itemStore, target, actions }: ViewProps): React.JSX.Element => {
     const load = useContent(itemStore, target, item)
     const ready = load?.state === "ready" ? load.content : undefined
     const content =
@@ -191,11 +182,11 @@ type ThumbBody<K extends ArtifactKind> = ComponentType<{
 const LoadedThumb = <K extends ArtifactKind>({
   kind,
   Body,
-  member,
+  item,
   itemStore,
   target,
-}: ThumbProps<ItemMember> & { kind: K; Body: ThumbBody<K> }): React.JSX.Element | null => {
-  const load = useContent(itemStore, target, member.item)
+}: ItemProps & { kind: K; Body: ThumbBody<K> }): React.JSX.Element | null => {
+  const load = useContent(itemStore, target, item)
   if (!load) return null
   if (load.state === "unavailable")
     return <span className="peek-held">{shortReasons[load.reason]}</span>
@@ -206,10 +197,10 @@ const LoadedThumb = <K extends ArtifactKind>({
 }
 
 const ArtifactThumb = <K extends ArtifactKind>(
-  props: ThumbProps<ItemMember> & { kind: K; Body: ThumbBody<K> },
+  props: ItemProps & { kind: K; Body: ThumbBody<K> },
 ): React.JSX.Element | null =>
   // A held one is never loaded for a peek, which a passing pointer opens.
-  props.member.item.held ? (
+  props.item.held ? (
     <span className="peek-held">May hold secrets. Click to open.</span>
   ) : (
     <LoadedThumb {...props} />
@@ -220,8 +211,8 @@ const ArtifactThumb = <K extends ArtifactKind>(
 export const artifactThumb = <K extends ArtifactKind>(
   kind: K,
   Body: ThumbBody<K>,
-): ComponentType<ThumbProps<ItemMember>> => {
-  const Thumb = (props: ThumbProps<ItemMember>): React.JSX.Element | null => (
+): ComponentType<ItemProps> => {
+  const Thumb = (props: ItemProps): React.JSX.Element | null => (
     <ArtifactThumb {...props} kind={kind} Body={Body} />
   )
   return Thumb

@@ -1,8 +1,7 @@
 import { GitCompare } from "lucide-react"
 
 import { artifactLook, artifactThumb, artifactView } from "../../ArtifactViewer"
-import type { ItemMember } from "../../bar"
-import type { PaneRegistration } from "../../registration"
+import type { ItemRegistration } from "../../registration"
 import { ChangesThumb, ChangesViewer } from "./ChangesViewer"
 
 // An agent's whole change, its working tree against HEAD file by file, shown with the diff
@@ -15,4 +14,4 @@ export const changes = {
   look: artifactLook,
   Thumb: artifactThumb("changes", ChangesThumb),
   View: artifactView("changes", ChangesViewer),
-} satisfies PaneRegistration<ItemMember, "changes">
+} satisfies ItemRegistration<"changes">

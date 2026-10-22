@@ -6,8 +6,6 @@ import { render } from "@novadeck/test-kit/render"
 import { createElement } from "react"
 import { afterEach } from "vitest"
 
-import type { BarMember } from "./bar"
-import type { MailHandle } from "./kinds/messages/mail"
 import { registrationOf } from "./registry"
 import { createItemStore } from "./state"
 import { context, describe, expect, it } from "./test"
@@ -16,7 +14,6 @@ const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
-const mail = { mail: undefined } as unknown as MailHandle
 
 // A peek's miniature of `item`, which loads `load` once followed; `followed` counts the
 // follows.
@@ -36,11 +33,8 @@ const peek = (item: Item, load: ItemContent) => {
   )
   const itemStore = createItemStore({ companions, workspace })
   unmounts.push(itemStore.connect())
-  const member: BarMember = { kind: "item", key: item.id, item, placed: false, fresh: false }
-  const { Thumb } = registrationOf(member)
-  const rendered = render(
-    createElement(Thumb, { member, itemStore, target, mail, peerName: () => undefined }),
-  )
+  const { Thumb } = registrationOf(item)
+  const rendered = render(createElement(Thumb, { item, itemStore, target }))
   unmounts.push(rendered.unmount)
   return { ...rendered, followed }
 }

@@ -1,42 +1,39 @@
-import type { ArtifactKind } from "@novadeck/core/items"
+import type { ArtifactKind, Item, ItemKind } from "@novadeck/core/items"
 import type { LucideIcon } from "lucide-react"
 
-import type { BarMember, BarSlot } from "./bar"
 import { changes } from "./kinds/changes"
 import { file } from "./kinds/file"
 import { image } from "./kinds/image"
-import { messages } from "./kinds/messages"
 import { page } from "./kinds/page"
 import { plan } from "./kinds/plan"
-import type { Drawing, PaneKind, Registry } from "./registration"
+import type { ItemRegistration, LookContext, Registry } from "./registration"
 
-// Every kind of thing on a terminal's bar, by its registration. A new artifact
-// type is one folder in `kinds/` and one line here, with its data parts in core; a kind that core adds without one
-// fails to compile, since `Registry` maps every `PaneKind`.
-export const registry = { image, file, page, changes, plan, messages } satisfies Registry
+// Every kind of item, by its registration. A new artifact type is one folder in `kinds/`
+// and one line here, with its data parts in core; a kind that core adds without one fails
+// to compile, since `Registry` maps every `ItemKind`.
+export const registry = { image, file, page, changes, plan } satisfies Registry
 
-// The registry's kind for a bar's member.
-export const kindOf = (member: BarMember): PaneKind =>
-  member.kind === "messages" ? "messages" : member.item.kind
-
-// The registration that draws `member`. A member's kind picks its registration, which takes
-// that kind of member: the one place that is cast.
-export const registrationOf = (member: BarMember): Drawing =>
-  registry[kindOf(member)] as unknown as Drawing
+// The registration that draws `item`.
+export const registrationOf = (item: Pick<Item, "kind">): ItemRegistration => registry[item.kind]
 
 // An artifact's icon: its kind's, or a document's for a markdown file.
 export const iconOf = (artifact: {
   readonly kind: ArtifactKind
   readonly name: string
-}): LucideIcon => registry[artifact.kind].icon({ item: artifact })
+}): LucideIcon => registry[artifact.kind].icon(artifact)
 
-// What a bar's member shows as, on the taskbar and on its terminal's tab.
-export const memberIcon = (member: BarMember): LucideIcon => registrationOf(member).icon(member)
+// How an item looks: its icon, its name as a peek and a menu say it, and how its button
+// reads to assistive technology.
+export type Look = { readonly icon: LucideIcon; readonly name: string; readonly label: string }
 
-// An icon on the bar: its one member's, or its stack's kind, whatever the members are.
-export const slotIcon = (slot: BarSlot): LucideIcon =>
-  slot.stack ? registry[slot.stack].stackIcon : memberIcon(slot.members[0]!)
+export const itemLook = (item: Item, context: LookContext): Look => {
+  const registration = registrationOf(item)
+  return { icon: registration.icon(item), ...registration.look(item, context) }
+}
+
+// A stack's icon, its kind's whatever its items are.
+export const stackIcon = (kind: ItemKind): LucideIcon => registry[kind].stackIcon
 
 // A stack's name, as its menu and its count say it.
-export const stackNames = (stack: PaneKind): { readonly one: string; readonly many: string } =>
-  registry[stack].names
+export const stackNames = (kind: ItemKind): { readonly one: string; readonly many: string } =>
+  registry[kind].names

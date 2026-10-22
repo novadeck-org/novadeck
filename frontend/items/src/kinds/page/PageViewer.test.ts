@@ -52,7 +52,7 @@ const show = (
   const itemStore = createItemStore({ companions, workspace })
   unmounts.push(itemStore.connect())
   const view = createElement(registration.View, {
-    member: { kind: "item", key: item.id, item, placed: false, fresh: false },
+    item,
     itemStore,
     target,
     actions: undefined,
