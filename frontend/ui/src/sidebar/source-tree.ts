@@ -1,7 +1,19 @@
-import type { SourceChange, SourceProject } from "@novadeck/core/source"
+import type { SourceChange, SourceListing, SourceProject } from "@novadeck/core/source"
 
-// The Source panel's rules, apart from how it draws: the tree an agent's work grows in, which
-// agents a row names, which row a write lights up, and how long a trail lasts.
+// The Source panel's rules, apart from how it draws: the tree the project's folders and an
+// agent's work grow in, which agents a row names, which row a write lights up, and how long a
+// trail lasts.
+
+// What reading a folder gave: its listing, or that it couldn't be read.
+export type FolderRead = SourceListing | "failed"
+
+// The folders read so far, by path from the project's root ("" for the root).
+export type Listings = ReadonlyMap<string, FolderRead>
+
+// What the demo's agents changed, laid over the listings; a runner has none.
+export type Overlay = Pick<SourceProject, "changes" | "writing">
+
+export const noOverlay: Overlay = { changes: {}, writing: {} }
 
 export type SourceNode = {
   // Slash-separated from the project root, with no trailing slash.
@@ -18,6 +30,10 @@ export type SourceNode = {
   readonly writing: readonly string[]
   // A file an agent changed, or a folder with one inside.
   readonly changed: boolean
+  // A folder's reading: not yet, read, or it couldn't be. Files have none.
+  readonly read: "unread" | "read" | "failed" | undefined
+  // The folder holds more than it lists.
+  readonly truncated: boolean
   readonly children: readonly SourceNode[]
 }
 
@@ -27,12 +43,18 @@ export type SourceRow = {
   readonly open: boolean
 }
 
-const parentOf = (path: string): string => {
-  const slash = path.lastIndexOf("/")
-  return slash < 0 ? "" : path.slice(0, slash)
+// A quiet line at the end of an open folder (or of the root), saying what its listing lacks:
+// that it couldn't be read, that it holds more, or that it holds nothing.
+export type SourceNote = {
+  readonly note: "failed" | "truncated" | "empty"
+  // The folder it ends.
+  readonly path: string
+  readonly depth: number
 }
 
-const trimmed = (path: string): string => (path.endsWith("/") ? path.slice(0, -1) : path)
+export type SourceLine = SourceRow | SourceNote
+
+export const isNote = (line: SourceLine): line is SourceNote => "note" in line
 
 // Folders first, then by name without case or a leading dot, so `.github` sits among the g's.
 const sortKey = (name: string): string => name.replace(/^\./, "").toLowerCase()
@@ -52,37 +74,36 @@ const latestPerAgent = (nodes: readonly SourceNode[]): Readonly<Record<string, n
   return latest
 }
 
-// The union of the project's entries and the paths agents changed, as one tree. An entry
-// ending in `/` is a folder whose contents aren't listed.
-export const buildTree = (project: SourceProject): readonly SourceNode[] => {
-  const folders = new Set<string>()
-  const files = new Set<string>()
-  const register = (path: string, folder: boolean): void => {
-    for (let parent = parentOf(path); parent !== ""; parent = parentOf(parent)) folders.add(parent)
-    ;(folder ? folders : files).add(path)
-  }
-  for (const entry of project.entries) register(trimmed(entry), entry.endsWith("/"))
-  for (const path of Object.keys(project.changes)) register(path, false)
-  // A path that is both is a folder: something is inside it.
-  for (const path of folders) files.delete(path)
+const childOf = (parent: string, name: string): string =>
+  parent === "" ? name : `${parent}/${name}`
 
-  const children = new Map<string, string[]>()
-  for (const path of [...folders, ...files]) {
-    const siblings = children.get(parentOf(path)) ?? []
-    siblings.push(path)
-    children.set(parentOf(path), siblings)
+// The root's tree: each folder's listing, if read, with the paths agents changed joined in (a
+// changed file shows in its folder whether or not the listing has it). A folder not read yet
+// has only what agents changed inside it.
+export const buildTree = (
+  listings: Listings,
+  { changes, writing: writingBy }: Overlay = noOverlay,
+): readonly SourceNode[] => {
+  // The names agents changed under each folder: folders for paths with something below.
+  const changed = new Map<string, Map<string, boolean>>()
+  const note = (parent: string, name: string, folder: boolean): void => {
+    const names = changed.get(parent) ?? new Map<string, boolean>()
+    names.set(name, (names.get(name) ?? false) || folder)
+    changed.set(parent, names)
   }
-  const ignored = new Set(project.ignored.map(trimmed))
+  for (const path of Object.keys(changes)) {
+    const parts = path.split("/")
+    parts.forEach((name, index) =>
+      note(parts.slice(0, index).join("/"), name, index < parts.length - 1),
+    )
+  }
   const writing = new Map<string, string[]>()
-  for (const [handle, path] of Object.entries(project.writing))
+  for (const [handle, path] of Object.entries(writingBy))
     writing.set(path, [...(writing.get(path) ?? []), handle])
 
-  const make = (path: string, inherited: boolean): SourceNode => {
-    const folder = folders.has(path)
-    const hidden = inherited || ignored.has(path)
-    const name = path.slice(path.lastIndexOf("/") + 1)
+  const make = (path: string, name: string, folder: boolean, hidden: boolean): SourceNode => {
     if (!folder) {
-      const change = project.changes[path]
+      const change = changes[path]
       return {
         path,
         name,
@@ -92,10 +113,13 @@ export const buildTree = (project: SourceProject): readonly SourceNode[] => {
         touched: change?.touched ?? {},
         writing: writing.get(path) ?? [],
         changed: change !== undefined,
+        read: undefined,
+        truncated: false,
         children: [],
       }
     }
-    const inside = (children.get(path) ?? []).map((child) => make(child, hidden)).toSorted(byOrder)
+    const inside = childrenOf(path, hidden)
+    const listing = listings.get(path)
     return {
       path,
       name,
@@ -105,10 +129,69 @@ export const buildTree = (project: SourceProject): readonly SourceNode[] => {
       touched: latestPerAgent(inside),
       writing: [...new Set(inside.flatMap((child) => child.writing))],
       changed: inside.some((child) => child.changed),
+      read: listing === undefined ? "unread" : listing === "failed" ? "failed" : "read",
+      truncated: typeof listing === "object" && listing.truncated,
       children: inside,
     }
   }
-  return (children.get("") ?? []).map((path) => make(path, false)).toSorted(byOrder)
+  const childrenOf = (folder: string, hidden: boolean): readonly SourceNode[] => {
+    const listing = listings.get(folder)
+    // A name both listed and changed is one node; a path with something below it is a folder.
+    const names = new Map<string, { folder: boolean; ignored: boolean }>()
+    for (const entry of typeof listing === "object" ? listing.entries : [])
+      names.set(entry.name, { folder: entry.folder, ignored: entry.ignored })
+    for (const [name, isFolder] of changed.get(folder) ?? []) {
+      const known = names.get(name)
+      names.set(name, {
+        folder: isFolder || (known?.folder ?? false),
+        ignored: known?.ignored ?? false,
+      })
+    }
+    return [...names]
+      .map(([name, entry]) =>
+        make(childOf(folder, name), name, entry.folder, hidden || entry.ignored),
+      )
+      .toSorted(byOrder)
+  }
+  return childrenOf("", false)
+}
+
+// Whether two readings of a folder say the same, so reading it again changes nothing on screen.
+export const sameRead = (a: FolderRead | undefined, b: FolderRead | undefined): boolean => {
+  if (a === undefined || b === undefined || typeof a === "string" || typeof b === "string")
+    return a === b
+  return (
+    a.truncated === b.truncated &&
+    a.entries.length === b.entries.length &&
+    a.entries.every((entry, index) => {
+      const other = b.entries[index]!
+      return (
+        entry.name === other.name &&
+        entry.folder === other.folder &&
+        entry.ignored === other.ignored
+      )
+    })
+  )
+}
+
+// The paths of every folder in the tree.
+export const folderPaths = (tree: readonly SourceNode[]): ReadonlySet<string> => {
+  const paths = new Set<string>()
+  const visit = (node: SourceNode): void => {
+    if (!node.folder) return
+    paths.add(node.path)
+    node.children.forEach(visit)
+  }
+  tree.forEach(visit)
+  return paths
+}
+
+// The listings of the folders the tree still has, which are the only ones it uses: those of
+// a folder that vanished are dropped, to be read anew if it comes back.
+export const keepListings = (listings: Listings, tree: readonly SourceNode[]): Listings => {
+  const folders = folderPaths(tree)
+  const kept = new Map([...listings].filter(([path]) => path === "" || folders.has(path)))
+  return kept.size === listings.size ? listings : kept
 }
 
 // The folders that start open: those with a changed file inside, unless ignored.
@@ -123,23 +206,39 @@ export const initialOpen = (tree: readonly SourceNode[]): ReadonlySet<string> =>
   return open
 }
 
-// The rows on screen, top to bottom: a folder's children follow it while it is open.
+// The lines on screen, top to bottom: a folder's children follow it while it is open, then a
+// note of what its listing lacks; `rootTruncated` ends the root's with one too.
+export const visibleLines = (
+  tree: readonly SourceNode[],
+  open: ReadonlySet<string>,
+  rootTruncated = false,
+): readonly SourceLine[] => {
+  const lines: SourceLine[] = []
+  const visit = (node: SourceNode, depth: number): void => {
+    const isOpen = expandable(node) && open.has(node.path)
+    lines.push({ node, depth, open: isOpen })
+    if (!isOpen) return
+    node.children.forEach((child) => visit(child, depth + 1))
+    if (node.read === "failed") lines.push({ note: "failed", path: node.path, depth: depth + 1 })
+    else if (node.truncated) lines.push({ note: "truncated", path: node.path, depth: depth + 1 })
+    else if (node.read === "read" && node.children.length === 0)
+      lines.push({ note: "empty", path: node.path, depth: depth + 1 })
+  }
+  tree.forEach((node) => visit(node, 0))
+  if (rootTruncated) lines.push({ note: "truncated", path: "", depth: 0 })
+  return lines
+}
+
+// The rows on screen, without the notes between them.
 export const visibleRows = (
   tree: readonly SourceNode[],
   open: ReadonlySet<string>,
-): readonly SourceRow[] => {
-  const rows: SourceRow[] = []
-  const visit = (node: SourceNode, depth: number): void => {
-    const isOpen = expandable(node) && open.has(node.path)
-    rows.push({ node, depth, open: isOpen })
-    if (isOpen) node.children.forEach((child) => visit(child, depth + 1))
-  }
-  tree.forEach((node) => visit(node, 0))
-  return rows
-}
+): readonly SourceRow[] =>
+  visibleLines(tree, open).filter((line): line is SourceRow => !isNote(line))
 
-// Whether a folder lists anything inside it: one whose contents aren't listed has nothing to open.
-export const expandable = (node: SourceNode): boolean => node.folder && node.children.length > 0
+// Whether a row opens: every folder does, an empty one onto a note saying so, which keeps it read
+// again with the rest, so what is written there later shows.
+export const expandable = (node: SourceNode): boolean => node.folder
 
 export type FileIcon = "code" | "json" | "text" | "file"
 
@@ -220,6 +319,11 @@ const rowFixedWidth = (depth: number, marks: number): number =>
   rowGap +
   marks * (rowGap + markWidth) +
   rowPaddingEnd
+
+// Where a note's text starts, from the row's left edge inside its border: under the names of the
+// folder's children, past the padding, twisty, icon and their gaps.
+export const noteIndent = (depth: number): number =>
+  rowPadding + indent * depth + twistyWidth + rowGap + iconWidth + rowGap
 
 export const estimateChipWidth = (text: string): number => text.length * chipGlyph
 

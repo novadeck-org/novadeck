@@ -71,10 +71,16 @@ describe("companion items in the workspace", () => {
       expect(state.fresh).toEqual({})
     })
 
-    it("never opens something that may hold secrets", () => {
-      const state = stateOf(shown({ ...notes, asked: true, held: true }))
+    it("never opens something an agent showed that may hold secrets", () => {
+      const state = stateOf(shown({ ...notes, asked: true, held: true, by: "agent" }))
       expect(state.bars["01"]).toMatchObject({ stack: [], open: false })
       expect(state.fresh).toEqual({ [notes.id]: true })
+    })
+
+    it("opens something the person attached though it may hold secrets, for its pane to gate", () => {
+      const state = stateOf(shown({ ...notes, asked: true, held: true, by: "person" }))
+      expect(state.bars["01"]).toMatchObject({ stack: [notes.id], open: true })
+      expect(state.fresh).toEqual({})
     })
   })
 

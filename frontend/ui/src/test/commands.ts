@@ -36,6 +36,8 @@ export type CommandsOptions = {
   readonly resetTitle?: Backend["resetTitle"]
   // Every terminal's companion pane, when the backend has companions.
   readonly panes?: CommandContext["panes"]
+  // The backend's companions, when it has them.
+  readonly companions?: CommandContext["companions"]
   // The agents' conversations, when the backend reads them.
   readonly conversations?: CommandContext["conversations"]
   // Murmur, when the backend has it.
@@ -62,6 +64,7 @@ export const openCommands = ({
   crashLoop,
   resetTitle,
   panes,
+  companions,
   conversations,
   murmur,
 }: CommandsOptions = {}) => {
@@ -163,6 +166,7 @@ export const openCommands = ({
     crashLoop,
     resetTitle,
     panes,
+    companions,
     conversations,
     murmur,
   }

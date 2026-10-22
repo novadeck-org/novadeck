@@ -111,18 +111,17 @@ describe("route reconciliation", () => {
   })
 
   describe("deciding whether the app shows the Source panel", () => {
-    const source = { state: createStore({ projects: {} }) }
+    const source = {
+      state: createStore({ projects: {} }),
+      list: () => Promise.resolve({ entries: [], truncated: false }),
+    }
 
-    it("shows it on a demo backend that has a source", () => {
-      expect(sourceShown({ demo: true, source })).toBe(true)
+    it("shows it on a backend that has a source", () => {
+      expect(sourceShown({ source })).toBe(true)
     })
 
-    it("hides it on any other backend, even one that has a source", () => {
-      expect(sourceShown({ source })).toBe(false)
-    })
-
-    it("hides it on a demo backend without a source", () => {
-      expect(sourceShown({ demo: true })).toBe(false)
+    it("hides it on a backend without one", () => {
+      expect(sourceShown({})).toBe(false)
     })
   })
 

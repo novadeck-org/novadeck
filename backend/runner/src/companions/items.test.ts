@@ -454,6 +454,27 @@ describe("what an agent shows", () => {
 })
 
 describe("what the person attaches", () => {
+  it("takes over a held file an agent showed, and keeps it when the agent shows it again", async ({
+    fixture,
+  }) => {
+    const moth = fixture.terminal("moth")
+    writeFileSync(join(fixture.directory, ".env"), "TOKEN=x\n")
+    await fixture.items.show(moth, { file: { path: ".env" } })
+    expect(fixture.items.bar(moth.terminalId)).toMatchObject([{ by: "agent", held: true }])
+    await fixture.items.attach({ terminalId: moth.terminalId, path: ".env" })
+    expect(fixture.items.bar(moth.terminalId)).toMatchObject([
+      { by: "person", asked: true, held: true, version: 2 },
+    ])
+    await fixture.items.show(moth, { file: { path: ".env" } })
+    expect(fixture.items.bar(moth.terminalId)).toMatchObject([
+      { by: "person", asked: false, version: 3 },
+    ])
+    await expect(fixture.items.dismiss(moth, { file: { path: ".env" } })).resolves.toMatchObject({
+      ok: false,
+    })
+    expect(fixture.items.bar(moth.terminalId)).toHaveLength(1)
+  })
+
   it("is a file on a terminal's bar, refused as INVALID_FILE when it is no file", async ({
     fixture,
   }) => {
@@ -461,7 +482,7 @@ describe("what the person attaches", () => {
     writeFileSync(join(fixture.directory, "notes.md"), "# Notes\n")
     await expect(
       fixture.items.attach({ terminalId: moth.terminalId, path: "notes.md", title: "Notes" }),
-    ).resolves.toMatchObject({ name: "Notes", by: "person", asked: false, version: 1 })
+    ).resolves.toMatchObject({ name: "Notes", by: "person", asked: true, version: 1 })
     await expect(
       fixture.items.attach({ terminalId: moth.terminalId, path: "." }),
     ).rejects.toMatchObject({

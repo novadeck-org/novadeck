@@ -37,6 +37,7 @@ import { createRecentCommands, type RecentCommands } from "./recent"
 import { createRenameCommands, type RenameCommands } from "./rename"
 import { folderProject, newWorkspaceSession } from "./sessions"
 import { createShellCommands, shellEdits, type ShellCommands } from "./shell"
+import { createSourceCommands, type SourceCommands } from "./source"
 
 export type AddTerminalOptions = { fromKeyboard?: boolean }
 
@@ -44,6 +45,7 @@ export type AddTerminalOptions = { fromKeyboard?: boolean }
 // latest stores when it runs, so several in one event keep one another's changes.
 export type WorkspaceCommands = ShellCommands &
   CompanionCommands &
+  SourceCommands &
   ChatCommands &
   RenameCommands &
   RecentCommands &
@@ -216,6 +218,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     ...finishes,
     ...createLayoutCommands(ctx),
     ...createChatCommands(ctx),
+    ...createSourceCommands(ctx),
     ...createCompanionCommands(ctx, {
       select,
       setSelected,

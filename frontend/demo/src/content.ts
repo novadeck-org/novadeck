@@ -20,6 +20,7 @@ import { fixedIntro } from "./screen/terminal"
 import { authAgent, studioAgent, type SampleAgent } from "./showcase/agents"
 import { devServerArtifacts } from "./showcase/artifacts"
 import { createShowcase, planFaults, type PlanFault } from "./showcase/simulation"
+import { directoryOf } from "./showcase/workspace"
 import { terminalOf } from "./terminals"
 import { showcaseTranscripts } from "./transcripts"
 import { demoTurns, type DemoTurns } from "./turns"
@@ -132,8 +133,10 @@ export const contentDemo = (
       sample: authAgent,
     },
   ]
+  let latest: Workspace | undefined
   const showcase = createShowcase({
     agents,
+    directory: (key) => directoryOf(latest, key),
     shown: [
       {
         key: { ...session, terminalId: demoTerminalId(session, 2) },
@@ -152,7 +155,6 @@ export const contentDemo = (
   const backend = demoBackend(createDemoEngine(), {
     terminals: { ...setup, introOf: (_terminal, key) => transcriptOf(key) },
   })
-  let latest: Workspace | undefined
   let reset: BackendSink["dispatch"] | undefined
   // The showcase session's items as they stand, which an agent showing something again
   // finds its own in.
