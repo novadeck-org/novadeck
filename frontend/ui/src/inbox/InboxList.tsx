@@ -113,7 +113,7 @@ export const InboxMarkAll = (): React.JSX.Element | null => {
 
 // Everything across the workspace that asks for the person, one row each.
 export const InboxList = (): React.JSX.Element => {
-  const { shown, view } = useInboxContext()
+  const { shown, view, working } = useInboxContext()
   return (
     <div
       className="inbox-panel flex min-h-0 min-w-0 w-full flex-1 flex-col"
@@ -124,7 +124,9 @@ export const InboxList = (): React.JSX.Element => {
           <NovaMark size={28} />
           <h3 className="text-body">Nothing needs you</h3>
           <p className="text-control">
-            Your agents are working. When one needs you, it shows up here.
+            {working
+              ? "Your agents are working. When one needs you, it shows up here."
+              : "When an agent needs you, it shows up here."}
           </p>
         </div>
       ) : (
