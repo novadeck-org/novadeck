@@ -128,6 +128,34 @@ describe("demo turns", () => {
       })
     })
 
+    it("says the reply it is given, rather than the outcome's own", async () => {
+      const { turns, held, agent, chat } = open()
+      turns.finish(key("06"), held(key("06")), "failed", {
+        after: 10,
+        reply: "The prices table fails to compile.",
+      })
+      await vi.advanceTimersByTimeAsync(10)
+      expect(agent(key("06"))?.lastTurn).toMatchObject({
+        outcome: "failed",
+        reply: "The prices table fails to compile.",
+      })
+      expect(chat.conversation(key("06")).getSnapshot().items.at(-1)?.text).toBe(
+        "The prices table fails to compile.",
+      )
+    })
+
+    it("ends a failed turn in the harness's error, with no reply of the agent's", async () => {
+      const { turns, held, agent } = open()
+      turns.finish(key("06"), held(key("06")), "failed", {
+        after: 10,
+        error: "stream disconnected",
+      })
+      await vi.advanceTimersByTimeAsync(10)
+      const lastTurn = agent(key("06"))?.lastTurn
+      expect(lastTurn).toMatchObject({ outcome: "failed", error: "stream disconnected" })
+      expect(lastTurn?.reply).toBeUndefined()
+    })
+
     it("gives each outcome the reply it has, and unknown none", async () => {
       const { turns, held, agent } = open()
       for (const outcome of ["failed", "interrupted", "unknown"] as const) {

@@ -10,6 +10,7 @@ import type { SandboxState } from "@novadeck/core/sandbox"
 import { createStore, type MutableStore } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
 import { demoTerminalsLife } from "@novadeck/demo"
+import { babciaCuesOf } from "@novadeck/demo/babcia"
 import { isDemoInbox } from "@novadeck/demo/inbox"
 import { isDemoMurmur } from "@novadeck/demo/murmur"
 import { isDemoSource } from "@novadeck/demo/source"
@@ -17,6 +18,7 @@ import { demoTurns } from "@novadeck/demo/turns"
 import { createDemo, type DemoVariant } from "@novadeck/demo/variants"
 import { isDemoVoice } from "@novadeck/demo/voice"
 
+import { babciaGroups } from "./babcia"
 import type { BootRehearsals } from "./boot-rehearsal"
 import { createDebugPanel, type DebugPanel } from "./DebugPanel"
 import { doorbellGroups } from "./doorbell"
@@ -224,6 +226,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           updatesGroup(launch, states.updateControls),
           ...inboxGroups(isDemoInbox(inner.inbox) ? inner.inbox : undefined, inner.seed),
           ...planGroups(inner.companions),
+          ...babciaGroups(babciaCuesOf(inner)),
           ...doorbellGroups(inner.messages),
           ...murmurGroups(isDemoMurmur(inner.murmur) ? inner.murmur : undefined),
           ...voiceGroups(isDemoVoice(inner.voice) ? inner.voice : undefined),

@@ -66,8 +66,11 @@ export const statusLines = (
 }
 
 // The glyph a person's request and a tool call start with, in each agent's TUI.
-const promptGlyph = (agent: ChatAgent): string => (agent === "claude" ? "❯" : "›")
-const callGlyph = (agent: ChatAgent): string => (agent === "claude" ? "●" : "•")
+// Antigravity's are from harnesses/agy's probes: `> ` for the person's turn, `● Tool(subject)`
+// for a call, and `  ⎿  ` before a result.
+const promptGlyph = (agent: ChatAgent): string =>
+  agent === "claude" ? "❯" : agent === "agy" ? ">" : "›"
+const callGlyph = (agent: ChatAgent): string => (agent === "codex" ? "•" : "●")
 
 const gap: Line = []
 
@@ -83,27 +86,40 @@ export const requestBlock =
     gap,
   ]
 
-// A tool call: its name and what it was called on, after a blank row.
+// A tool call: its name and what it was called on, after a blank row. Antigravity's reads
+// `● Ran (command)`, and the blank row before a call is left out where the call follows
+// another call or the person's turn (`joined`: that one has its own, as harnesses/agy's probes
+// show in ask.probe.1.3.0.json and ask.probe.1.4.3.json), and its latest call is the one marked `(ctrl+o to expand)`
+// (`expandable`).
 export const callBlock =
-  (agent: ChatAgent, tool: string, subject = ""): Block =>
+  (agent: ChatAgent, tool: string, subject = "", expandable = false, joined = false): Block =>
   (width) => [
-    gap,
-    ...wrap([span(tool, "bold"), ...(subject ? [span(` ${subject}`)] : [])], width, {
-      first: [span(`${callGlyph(agent)} `)],
-      rest: [span("  ")],
-    }),
+    ...(agent === "agy" && joined ? [] : [gap]),
+    ...wrap(
+      [
+        span(tool, "bold"),
+        ...(subject ? [span(agent === "agy" ? ` (${subject})` : ` ${subject}`)] : []),
+        ...(agent === "agy" && expandable ? [span(" (ctrl+o to expand)", "muted")] : []),
+      ],
+      width,
+      {
+        first: [span(`${callGlyph(agent)} `)],
+        rest: [span("  ")],
+      },
+    ),
   ]
 
 // A tool's result under its call, muted, the first line marked as its answer.
 export const resultBlock =
-  (lines: readonly string[]): Block =>
+  (lines: readonly string[], agent?: ChatAgent): Block =>
   (width) =>
-    lines.flatMap((line, index) =>
-      wrap([span(line, "muted")], width, {
-        first: [span(index ? "    " : "  └ ", "muted")],
-        rest: [span("    ")],
-      }),
-    )
+    lines.flatMap((line, index) => {
+      const indent = agent === "agy" ? "     " : "    "
+      return wrap([span(line, "muted")], width, {
+        first: [span(index ? indent : agent === "agy" ? "  ⎿  " : "  └ ", "muted")],
+        rest: [span(indent)],
+      })
+    })
 
 // Text the agent says, after a blank row.
 export const textBlock =
@@ -131,15 +147,75 @@ export const dividerBlock =
   (width) => [gap, rule(width, note, "muted")]
 
 // One record of the conversation, as the agent's TUI shows it.
+// Antigravity's own words for a call where its probes show them: `Ran (echo approved)`,
+// `Ran 2 commands (echo same ×2)` for the same command run twice in a row, and
+// `Edited 1 file (probe.txt)` for a file written or edited. Any other kind of call has no probe,
+// so it reads as it did before: the tool's name and what it was called on.
+const agyCall = (item: ChatItem, times: number): { tool: string; subject: string } => {
+  const detail = clip(item.run?.detail.split("\n")[0] ?? "", 90)
+  if (item.run?.kind === "run")
+    return times > 1
+      ? { tool: `${item.run.title} ${times} commands`, subject: `${detail} ×${times}` }
+      : { tool: item.run.title, subject: detail }
+  if (item.run?.kind === "write") return { tool: "Edited 1 file", subject: detail }
+  return { tool: item.tool ?? "Tool", subject: summary(item.text) }
+}
+
+// Antigravity's screen of a conversation: calls that follow one another without a blank row,
+// the same command run twice in a row as one call, no output under a call (it has some only
+// under its slash commands), and only the latest call marked as one that expands.
+export const agyBlocks = (items: readonly ChatItem[]): Block[] => {
+  const visible = items.filter((item) => item.kind !== "tool-result")
+  const latest = visible.findLast((item) => item.kind === "tool-call")
+  const blocks: Block[] = []
+  let previous: ChatItem | undefined
+  for (let index = 0; index < visible.length; index += 1) {
+    const item = visible[index]!
+    if (item.kind !== "tool-call") {
+      blocks.push(itemBlock(item, "agy"))
+      previous = item
+      continue
+    }
+    const repeats = (other: ChatItem | undefined): boolean =>
+      other?.kind === "tool-call" &&
+      item.run?.kind === "run" &&
+      other.run?.kind === "run" &&
+      other.run.detail === item.run.detail
+    let times = 1
+    while (repeats(visible[index + times])) times += 1
+    const last = visible[index + times - 1]!
+    index += times - 1
+    const { tool, subject } = agyCall(item, times)
+    // Only text of the agent's leaves its blank row before a call.
+    const joined = !(previous && previous.kind === "text" && previous.role !== "user")
+    blocks.push(callBlock("agy", tool, subject, last === latest, joined))
+    previous = last
+  }
+  return blocks
+}
+
+// One record of the conversation, as the agent's TUI shows it. Antigravity's calls are laid out
+// together (`agyBlocks`); alone, one is drawn as the latest and as following text.
 export const itemBlock = (item: ChatItem, agent: ChatAgent): Block => {
+  if (item.kind === "tool-call" && agent === "agy") {
+    const { tool, subject } = agyCall(item, 1)
+    return callBlock(agent, tool, subject, true, false)
+  }
   if (item.kind === "tool-call") return callBlock(agent, item.tool ?? "Tool", summary(item.text))
-  if (item.kind === "tool-result") return resultBlock(resultLines(item))
+  if (item.kind === "tool-result" && agent === "agy") return () => []
+  if (item.kind === "tool-result") return resultBlock(resultLines(item), agent)
   if (item.role === "user") {
     const asked = requestBlock(agent, item.text)
     return (width) => [gap, ...asked(width)]
   }
   if (item.role === "agent")
     return textBlock(`↳ ${item.author ? `${item.author}: ` : ""}${clip(item.text, 300)}`, "muted")
+  // Antigravity indents what it says by two columns.
+  if (agent === "agy")
+    return (width) => [
+      gap,
+      ...wrap([span(item.text)], width, { first: [span("  ")], rest: [span("  ")] }),
+    ]
   return textBlock(item.text)
 }
 
