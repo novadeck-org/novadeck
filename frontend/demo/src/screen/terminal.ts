@@ -9,7 +9,7 @@ import type { DemoEngine, Entry } from "../engine"
 import { editLine, restoreLine, withReturnedWords } from "../line-editor"
 import { lessMotion, stillRequested } from "../motion"
 import { chatAgent, demoAgent, sampleOutput } from "../samples"
-import { agentTail, inputLines, itemBlock, shellTail, statusLines } from "./agent"
+import { agentTail, agyBlocks, inputLines, itemBlock, shellTail, statusLines } from "./agent"
 import { openingBlocks, readingAt } from "./openings"
 import { commandBlock, sampleBlocks } from "./samples"
 import { createDemoScreen, type Block, type ScreenSize, type TailOf } from "./screen"
@@ -158,17 +158,16 @@ export const createDemoTerminalScreen = ({
     })
     const agent = chatAgent(terminal)
     const store = conversation()
-    const said =
-      agent && store
-        ? store
-            .getSnapshot()
-            .items.slice(link()!.opening(key))
-            .map((item) => {
-              const made = items.get(item) ?? itemBlock(item, agent)
-              items.set(item, made)
-              return made
-            })
-        : []
+    const shown = agent && store ? store.getSnapshot().items.slice(link()!.opening(key)) : []
+    const said = !agent
+      ? []
+      : agent === "agy"
+        ? agyBlocks(shown)
+        : shown.map((item) => {
+            const made = items.get(item) ?? itemBlock(item, agent)
+            items.set(item, made)
+            return made
+          })
     return [...start, ...commands, ...said]
   }
 

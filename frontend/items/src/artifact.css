@@ -7,6 +7,8 @@
    address `.artifact-url` and a link to open it, `.artifact-open`, and the page in
    `.artifact-page-frame`, holding the browser viewer, with `.artifact-page-failed`
    over it when it didn't load); and a markdown document, which the prose recipe formats.
+   The header holds what it shows and what's known about it (`.artifact-meta-info`, its
+   name `.artifact-meta-name`, or `.artifact-meta-path` for a path), then what's at its end.
    `.artifact-status` says when there's nothing to show yet; `.artifact-unavailable`
    says why something can't show, over `.artifact-unavailable-actions`, what can be done
    about it. `.artifact-actions` holds what the place showing it offers, as
@@ -87,12 +89,12 @@
   overflow: hidden;
 }
 /* Each line of the header is as tall as the controls it may hold, so a header is one
-   height with them or without, and what sits at its end stays put. */
+   height with them or without, and what sits at its end stays put: on its first line,
+   however long what it shows is named, while what's known about it wraps beside them. */
 .artifact-meta {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px 12px;
+  align-items: flex-start;
+  gap: 12px;
   padding: 8px 14px;
   border-bottom: var(--border-width) solid var(--artifact-meta-border-color, var(--color-line));
   font-size: var(--text-control);
@@ -107,16 +109,37 @@
   line-height: normal;
   color: var(--artifact-meta-code-fg, var(--color-ink));
 }
-.artifact-meta-push {
+.artifact-meta-info {
+  display: flex;
   flex: 1;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  min-width: 0;
+}
+/* Nothing in it runs under what's at the header's end. */
+.artifact-meta-info > * {
+  max-width: 100%;
+}
+/* What it shows, too long for the header, gives up its end, or a path its start, so its
+   file's name stays. */
+.artifact-meta-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.artifact-meta-path {
+  direction: rtl;
 }
 /* What the place showing an artifact offers for it, at the end of the viewer's header:
-   centred on the header's text, and as tall as its line. */
+   centred on the header's first line, and as tall as it. */
 .artifact-actions {
   display: flex;
-  align-self: stretch;
+  flex-shrink: 0;
   align-items: center;
   gap: 2px;
+  height: 22px;
 }
 .artifact-actions .icon-button {
   width: 24px;

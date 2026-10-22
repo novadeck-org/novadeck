@@ -75,6 +75,28 @@ const reasonText = (reason: UnavailableReason, name: string, size: number | null
   }
 }
 
+// The header every viewer has: what it shows and what's known about it, wrapping onto more
+// lines as it must, then `actions`, which stay at the end of its first line however long
+// what it shows is named.
+export const ArtifactMeta = ({
+  className,
+  children,
+  actions,
+}: Actions & { className?: string; children: ReactNode }): React.JSX.Element => (
+  <div className={className ? `artifact-meta ${className}` : "artifact-meta"}>
+    <div className="artifact-meta-info">{children}</div>
+    {actions}
+  </div>
+)
+
+// A path at the start of a viewer's header, whole on hover: too long for the header, it
+// gives up its start, so its file's name stays.
+export const MetaPath = ({ path }: { path: string }): React.JSX.Element => (
+  <code className="artifact-meta-name artifact-meta-path" title={path}>
+    <bdi dir="ltr">{path}</bdi>
+  </code>
+)
+
 // A button that puts `text` on the clipboard, and says so for a moment.
 export const CopyText = ({ text, label }: { text: string; label: string }): React.JSX.Element => {
   const [result, setResult] = useState<"copied" | "failed" | null>(null)

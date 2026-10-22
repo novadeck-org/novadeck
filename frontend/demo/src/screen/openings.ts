@@ -1,4 +1,4 @@
-import type { DemoAgent } from "../samples"
+import type { ChatAgent, DemoAgent } from "../samples"
 import { callBlock, diffBlock, dividerBlock, requestBlock, resultBlock, textBlock } from "./agent"
 import type { Block } from "./screen"
 import { box, span, wrap, type Line } from "./vt"
@@ -32,10 +32,31 @@ export const readingAt = (
 
 const gap: Line = []
 
-// The agent's name and where it runs: Claude Code's on a line, Codex's in a box.
+// Antigravity's mark beside what its CLI says of itself, row for row as harnesses/agy's
+// input-box.probe.json shows it at 1.3.1, the newest probed banner (ask.probe.1.4.3.json has
+// calls, but its banner was cut): its name and version, how it is signed in, the model, and the
+// folder. The mark's last row has nothing beside it.
+const antigravityRows = (directory: string): readonly (readonly [string, string])[] => [
+  ["      ▄▀▀▄        ", "Antigravity CLI 1.3.1"],
+  ["     ▀▀▀▀▀▀       ", "Gemini API key"],
+  ["    ▀▀▀▀▀▀▀▀      ", "Gemini 3.1 Pro (Low)"],
+  ["   ▄▀▀    ▀▀▄     ", directory],
+  ["  ▄▀▀      ▀▀▄", ""],
+]
+
+// The agent's name and where it runs: Claude Code's on a line, Codex's in a box, Antigravity's
+// beside its mark.
 export const banner =
-  (agent: DemoAgent, directory: string): Block =>
+  (agent: ChatAgent, directory: string): Block =>
   (width) => {
+    if (agent === "agy")
+      return [
+        ...antigravityRows(directory).map(([mark, text], index): Line => [
+          span(mark, "muted"),
+          ...(text ? [span(text, index === 0 ? "bold" : "muted")] : []),
+        ]),
+        gap,
+      ]
     if (agent === "claude")
       return [...wrap([span("✳ Claude Code", "bold"), span(`  ${directory}`, "muted")], width), gap]
     const name: Line = [span(">_ Codex", "bold")]

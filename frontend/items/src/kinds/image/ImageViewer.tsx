@@ -2,7 +2,7 @@ import type { ImageContent } from "@novadeck/core/items"
 import { mountImage, type ImageContent as Image } from "@novadeck/viewers/image"
 import { useMemo } from "react"
 
-import type { ArtifactBodyProps } from "../../ArtifactViewer"
+import { ArtifactMeta, type ArtifactBodyProps } from "../../ArtifactViewer"
 import { useViewerSlot } from "../../ViewerSlot"
 
 // An image, zoomed and moved on the image itself, its zoom drawn over it once it's moved or
@@ -16,12 +16,12 @@ export const ImageViewer = ({
   const { ref } = useViewerSlot(mountImage, { id: item.id, content, label: item.name })
   return (
     <>
-      <div className="artifact-meta">
-        <code>{item.name}</code>
+      <ArtifactMeta actions={actions}>
+        <code className="artifact-meta-name" title={item.name}>
+          {item.name}
+        </code>
         <span>{item.detail}</span>
-        <span className="artifact-meta-push" />
-        {actions}
-      </div>
+      </ArtifactMeta>
       <div ref={ref} className="artifact-image" />
     </>
   )

@@ -24,6 +24,9 @@ const hopsPerRelease = 12
 // A message as the demo keeps it: where it was before any hold.
 export type DemoMessage = Omit<AgentMessage, "state" | "held"> & {
   readonly state: "queued" | "leased" | "delivered" | "gone"
+  // Between a terminal and its own lead: the person chose that pairing, so its length never
+  // holds it for release.
+  readonly lead?: true
 }
 
 export type DemoThread = {
@@ -33,7 +36,17 @@ export type DemoThread = {
   readonly hops: number
   readonly allowed: number
   readonly messages: readonly DemoMessage[]
+  // When the person stopped it: what waited is gone, and a send on it is refused for as long
+  // as a thread lasts (`threadMs`) from its latest message or the stop, or until a release.
+  readonly stoppedAt?: number | undefined
 }
+
+// How long after its latest message a thread is continued, as the runner has it.
+const threadMs = 10 * 60_000
+
+const stopBlocks = (thread: DemoThread): boolean =>
+  thread.stoppedAt !== undefined &&
+  Date.now() - Math.max(thread.messages.at(-1)?.sentAt ?? 0, thread.stoppedAt) <= threadMs
 
 // A session's terminals that take part: each by id, with its handle and whether an agent
 // is there to take messages.
@@ -43,6 +56,8 @@ export type DemoMailbox = {
     readonly terminalId: string
     readonly handle: string
     readonly agent: boolean
+    // The handle of the terminal that leads it, where one does.
+    readonly ledBy?: string
     // Why the doorbell can't ring it, where the debug panel put it so.
     readonly waits?: MailWaits | null
   }[]
@@ -54,7 +69,7 @@ export type DemoMailbox = {
 const shown = (message: DemoMessage, thread: DemoThread, paused: boolean): AgentMessage => {
   const hold = message.inbox
     ? null
-    : message.hop > thread.allowed
+    : message.hop > thread.allowed && !message.lead
       ? "release"
       : paused
         ? "paused"
@@ -108,6 +123,9 @@ const stateOf = (boxes: readonly DemoMailbox[], paused: boolean): MailState => (
 const pauseMs = 150
 export const deliveryMs = 2000
 
+// How long the doorbell takes to land a message `send` queued.
+export const rungMs = 800
+
 // The plain-text record retains the choices and details after the Inbox sheet clears.
 const askText = (ask: AgentAsk): string => {
   const { shape } = ask
@@ -141,20 +159,111 @@ const askText = (ask: AgentAsk): string => {
 
 export type DemoMessages = Messages & {
   readonly record: (item: InboxItem, answer?: InboxAnswer, outcome?: InboxHistory) => void
+  // An agent's message to another of a session, by handle: queued at first, and delivered once
+  // the doorbell has rung (`rungMs` later), nothing holds it (a pause, the hops its thread is
+  // allowed, a recipient the doorbell can't ring) and its thread wasn't stopped; `delivered`
+  // is called then.
+  readonly send: (
+    target: WorkspaceTarget,
+    from: string,
+    to: string,
+    text: string,
+    delivered?: () => void,
+    // Called instead if the message is dropped before it lands: the person stops the thread,
+    // or its recipient closed. The runner tells a sender so with its next tool answer, and
+    // adds nothing to the thread.
+    stopped?: () => void,
+    // False where the thread was stopped or the recipient closed: the runner refuses the send.
+  ) => boolean
+  // Looks again at what waits, as a terminal may have closed since: a message for one is gone.
+  readonly refresh: () => void
 }
 
 // Whether a backend's messages are the demo's, which keep a record of what the person answered.
 export const isDemoMessages = (messages: Messages | undefined): messages is DemoMessages =>
   messages !== undefined && "record" in messages
 
+type Ring = {
+  readonly target: WorkspaceTarget
+  readonly thread: string
+  readonly message: string
+  // The recipient's handle.
+  readonly to: string
+  rung: boolean
+  readonly delivered: (() => void) | undefined
+  readonly stopped: (() => void) | undefined
+}
+
+// What of the workspace the demo's messages can't know: whether a terminal still exists. A send
+// to one closed is refused, and a message queued for one that closes is gone, as in the runner;
+// what a closed terminal sent still lands.
+export type MailExists = (target: WorkspaceTarget, terminalId: string) => boolean
+
 export const createDemoMessages = (
   initial: readonly DemoMailbox[],
   paused = false,
+  exists: MailExists = () => true,
 ): DemoMessages => {
   let boxes = initial
   let isPaused = paused
   const state = createStore(stateOf(boxes, isPaused))
   const publish = (): void => void state.update(() => stateOf(boxes, isPaused))
+  // The messages `send` queued: see `DemoMessages.send`. A held one lands when what held it is
+  // lifted; a stopped one never does.
+  const rings: Ring[] = []
+  const land = (): void => {
+    const landed: Ring[] = []
+    const lost: Ring[] = []
+    for (const ring of rings.toReversed()) {
+      const box = boxes.find(
+        (each) =>
+          each.target.projectId === ring.target.projectId &&
+          each.target.workspaceSessionId === ring.target.workspaceSessionId,
+      )
+      const thread = box?.threads.find((each) => each.id === ring.thread)
+      const message = thread?.messages.find((each) => each.id === ring.message)
+      if (!box || !thread || message?.state !== "queued") {
+        rings.splice(rings.indexOf(ring), 1)
+        continue
+      }
+      const recipient = box.terminals.find((each) => each.handle === ring.to)
+      // The recipient closed since: the message is gone, as the runner marks it. A closed
+      // sender's message still lands.
+      if (recipient && !exists(ring.target, recipient.terminalId)) {
+        rings.splice(rings.indexOf(ring), 1)
+        lost.push(ring)
+        continue
+      }
+      if (
+        !ring.rung ||
+        shown(message, thread, isPaused).held ||
+        !recipient?.agent ||
+        recipient.waits
+      )
+        continue
+      rings.splice(rings.indexOf(ring), 1)
+      landed.push(ring)
+    }
+    if (landed.length === 0 && lost.length === 0) return
+    const is = (group: readonly Ring[], thread: DemoThread, message: DemoMessage): boolean =>
+      group.some((ring) => ring.thread === thread.id && ring.message === message.id)
+    boxes = boxes.map((box) => ({
+      ...box,
+      threads: box.threads.map((thread) => ({
+        ...thread,
+        messages: thread.messages.map((message) =>
+          is(landed, thread, message)
+            ? { ...message, state: "delivered" as const, deliveredAt: Date.now() }
+            : is(lost, thread, message)
+              ? { ...message, state: "gone" as const }
+              : message,
+        ),
+      })),
+    }))
+    publish()
+    for (const ring of landed.toReversed()) ring.delivered?.()
+    for (const ring of lost.toReversed()) ring.stopped?.()
+  }
   return {
     state,
     record: (item, answer, outcome) => {
@@ -260,11 +369,80 @@ export const createDemoMessages = (
           publish()
         }, deliveryMs)
     },
+    send: (target, from, to, text, delivered, stopped) => {
+      const index = boxes.findIndex(
+        (box) =>
+          box.target.projectId === target.projectId &&
+          box.target.workspaceSessionId === target.workspaceSessionId,
+      )
+      const box = boxes[index]
+      if (!box) return false
+      const thread = box.threads.find(
+        (each) => each.between.includes(from) && each.between.includes(to),
+      )
+      if (thread && stopBlocks(thread)) return false
+      const peer = box.terminals.find((each) => each.handle === to)
+      if (peer && !exists(target, peer.terminalId)) return false
+      const id = thread?.id ?? `t-${[from, to].toSorted().join("-")}`
+      const hop = (thread?.messages.length ?? 0) + 1
+      const led = box.terminals.some(
+        (each) =>
+          (each.handle === from && each.ledBy === to) ||
+          (each.handle === to && each.ledBy === from),
+      )
+      const sent: DemoMessage = {
+        id: `${id}-${hop}`,
+        hop,
+        ...(led ? { lead: true as const } : {}),
+        from,
+        to,
+        text,
+        sentAt: Date.now(),
+        state: "queued",
+        deliveredAt: null,
+      }
+      const messages = [...(thread?.messages ?? []), sent]
+      boxes = boxes.map((each, at) =>
+        at !== index
+          ? each
+          : {
+              ...each,
+              threads: [
+                ...each.threads.filter((current) => current.id !== id),
+                {
+                  id,
+                  between: [from, to],
+                  hops: messages.length,
+                  allowed: thread?.allowed ?? hopsPerRelease,
+                  messages,
+                },
+              ],
+            },
+      )
+      publish()
+      const ring: Ring = {
+        target,
+        thread: id,
+        message: sent.id,
+        to,
+        rung: false,
+        delivered,
+        stopped,
+      }
+      rings.push(ring)
+      setTimeout(() => {
+        ring.rung = true
+        land()
+      }, rungMs)
+      return true
+    },
+    refresh: land,
     pause: (next) => {
       state.update((current) => ({ ...current, pending: true }))
       setTimeout(() => {
         isPaused = next
         publish()
+        land()
       }, pauseMs)
     },
     waits: (key, waits) => {
@@ -278,7 +456,10 @@ export const createDemoMessages = (
           return { ...each, waits }
         }),
       }))
-      if (found) publish()
+      if (found) {
+        publish()
+        land()
+      }
       return found
     },
     // Thread ids are the demo's own, unique across its mailboxes.
@@ -286,18 +467,24 @@ export const createDemoMessages = (
       boxes = boxes.map((box) => ({
         ...box,
         threads: box.threads.map((each) =>
-          each.id === thread ? { ...each, allowed: each.hops + hopsPerRelease } : each,
+          each.id === thread
+            ? { ...each, allowed: each.hops + hopsPerRelease, stoppedAt: undefined }
+            : each,
         ),
       }))
       publish()
+      land()
     },
     stop: (thread) => {
+      // What `send` queued in the thread, which the stop drops and its sender is told of.
+      const dropped = rings.filter((ring) => ring.thread === thread)
       boxes = boxes.map((box) => ({
         ...box,
         threads: box.threads.map((each) =>
           each.id === thread
             ? {
                 ...each,
+                stoppedAt: Date.now(),
                 messages: each.messages.map((message) =>
                   message.state === "queued" ? { ...message, state: "gone" as const } : message,
                 ),
@@ -306,6 +493,8 @@ export const createDemoMessages = (
         ),
       }))
       publish()
+      land()
+      for (const ring of dropped) ring.stopped?.()
     },
   }
 }
