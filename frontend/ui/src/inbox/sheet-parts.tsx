@@ -275,6 +275,7 @@ export const ReplyBox = ({
   autoFocus,
   minRows = 1,
   onCancel,
+  required,
 }: {
   readonly value: string
   readonly onChange: (text: string) => void
@@ -287,6 +288,7 @@ export const ReplyBox = ({
   readonly minRows?: number
   // What Esc does in the box, where it can be given up on; else Esc leaves the box.
   readonly onCancel?: () => void
+  readonly required?: boolean
 }): React.JSX.Element => {
   const field = useRef<HTMLTextAreaElement>(null)
   const limit = useId()
@@ -318,6 +320,7 @@ export const ReplyBox = ({
           value={value}
           placeholder={placeholder}
           aria-label={label}
+          aria-required={required || undefined}
           onChange={(event) => {
             fit(event.target)
             onChange(event.target.value)

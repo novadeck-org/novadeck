@@ -167,6 +167,28 @@ export const inboxGroups = (
           },
         },
         {
+          label: "Plan with a change field",
+          hint: "Approve row with Claude Code 2.1.287's plan: Deny opens a note that must say what to change",
+          run: () => {
+            const item = fresh(demoInboxIds.plan)
+            if (item?.kind !== "request" || item.request.dialog?.type !== "choices") return
+            inbox.add({
+              ...item,
+              request: {
+                ...item.request,
+                dialog: {
+                  ...item.request.dialog,
+                  options: [
+                    { id: "1", label: "Yes, auto-accept edits", text: null },
+                    { id: "2", label: "Yes, manually approve edits", text: null },
+                    { id: "3", label: "Tell Claude what to change", text: "field" },
+                  ],
+                },
+              },
+            })
+          },
+        },
+        {
           label: "Usage limit, reset passed",
           hint: "Trouble row for a 5-hour limit that has reset and Novadeck can't resume, offering Continue now",
           run: () => {

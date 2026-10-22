@@ -4,7 +4,15 @@ import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Terminal } from "lucide-react"
 import { useState } from "react"
 
-import { agentName, actionOf, choicesOf, setsStanding, type Choices } from "./inbox-text"
+import {
+  agentName,
+  actionOf,
+  choicesOf,
+  needsWords,
+  refusedWords,
+  setsStanding,
+  type Choices,
+} from "./inbox-text"
 import { Lead, Page, type SheetContentProps } from "./Page"
 import { CommandCard, Failure, QuietLink, ReplyBox, Sent, Text } from "./sheet-parts"
 
@@ -12,8 +20,12 @@ import { CommandCard, Failure, QuietLink, ReplyBox, Sent, Text } from "./sheet-p
 // dialog's own options; the harness's standing yes ("don't ask again") is a quiet link in
 // its own words.
 
+// A field takes one line, so the words' line breaks (and other control characters) go as
+// spaces.
 const choiceAnswer = (dialog: string, option: ChatDialogOption, text?: string): ChatAnswer => {
-  const words = text?.trim()
+  // eslint-disable-next-line no-control-regex -- These are the characters a field refuses.
+  const typed = option.text === "field" ? text?.replace(/[\x00-\x1f\x7f]+/g, " ") : text
+  const words = typed?.trim()
   return { type: "choice", dialog, option: option.id, ...(words ? { text: words } : {}) }
 }
 
@@ -31,16 +43,21 @@ const Permission = (
   const [words, setWords] = useState("")
   const answer = (option: ChatDialogOption, note: string, text?: string): void =>
     submit({ kind: "request", answer: choiceAnswer(dialog, option, text) }, note)
-  // The words go with the no that takes them; with none, the plain no does.
+  // The words go with the no that takes them; with none, the plain no does. Where the only
+  // way back is the person's words (Claude's plan's "Tell Claude what to change"), it
+  // needs them.
+  const wordsNeeded = choices.plain === null && choices.note !== null && needsWords(choices.note)
+  const refused = choices.note ? refusedWords(item.source.agent, choices.note, words) : null
   const deny = (text: string): void => {
     const given = text.trim() !== "" && choices.note !== null
     const option = given ? choices.note : (choices.plain ?? choices.note)
-    if (!option) return
-    answer(
-      option,
-      given ? `Denied. ${agent} has your note.` : `Denied. ${agent} won't go ahead.`,
-      given ? text : undefined,
-    )
+    if (!option || (wordsNeeded && !given) || (given && refused)) return
+    const note = !given
+      ? `Denied. ${agent} won't go ahead.`
+      : plan
+        ? `Sent back. ${agent} has what to change.`
+        : `Denied. ${agent} has your note.`
+    answer(option, note, given ? text : undefined)
   }
   const canDeny = choices.note !== null || choices.plain !== null
   return (
@@ -94,14 +111,20 @@ const Permission = (
             value={words}
             onChange={setWords}
             onSend={() => deny(words)}
-            placeholder={`Tell ${agent} what to do instead (optional)`}
-            label={`What ${agent} should do instead`}
-            canSend={!answering}
+            placeholder={
+              wordsNeeded
+                ? `Tell ${agent} what to change`
+                : `Tell ${agent} what to do instead (optional)`
+            }
+            label={wordsNeeded ? `What ${agent} should change` : `What ${agent} should do instead`}
+            required={wordsNeeded}
+            canSend={!answering && !refused && (!wordsNeeded || words.trim() !== "")}
             onCancel={() => setDenying(false)}
             sendLabel="Deny"
             autoFocus
             minRows={2}
           />
+          {refused && <p className="inbox-aside">{refused}</p>}
           <div className="inbox-quiet-links">
             <QuietLink onClick={() => setDenying(false)}>Cancel</QuietLink>
           </div>

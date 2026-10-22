@@ -8,7 +8,9 @@ import {
   codeParts,
   labelOf,
   limitWindow,
+  needsWords,
   readLabel,
+  refusedWords,
   recommended,
   resumesLabel,
   standingOf,
@@ -248,6 +250,52 @@ describe("A permission's options", () => {
       expect(choices?.standing.map(({ id }) => id)).toEqual(["1"])
       expect(choices?.plain?.id).toBe("3")
     })
+
+    // As the runner reads Claude Code 2.1.287's (harnesses/claude's plan-file probe).
+    it("sends it back with the field that tells Claude what to change", () => {
+      const choices = choicesOf([
+        option("1", "Yes, auto-accept edits"),
+        option("2", "Yes, manually approve edits"),
+        option("3", "Tell Claude what to change", "field"),
+      ])
+
+      expect(choices?.allow?.id).toBe("2")
+      expect(choices?.standing.map(({ id }) => id)).toEqual(["1"])
+      expect(choices?.note?.id).toBe("3")
+      expect(choices?.plain).toBeNull()
+      expect(needsWords(choices!.note!)).toBe(true)
+    })
+  })
+
+  context("with Antigravity's review", () => {
+    const choices = choicesOf([
+      option("approve", "Approve"),
+      option("reject", "Reject"),
+      option("feedback", "Tell it what to change", "field"),
+    ])
+
+    it("approves, rejects plainly, and sends words back with the field", () => {
+      expect(choices?.allow?.id).toBe("approve")
+      expect(choices?.plain?.id).toBe("reject")
+      expect(choices?.note?.id).toBe("feedback")
+    })
+  })
+
+  it("takes no words back from an option that can't carry them", () => {
+    const choices = choicesOf([option("1", "Yes"), option("2", "Tell Claude what to change")])
+
+    expect(choices?.note).toBeNull()
+    expect(choices?.plain).toBeNull()
+  })
+
+  it("takes an agent's name of more than one word", () => {
+    expect(needsWords(option("3", "Tell Claude Code what to change", "field"))).toBe(true)
+  })
+
+  it("needs no words for a no that says so itself", () => {
+    expect(needsWords(option("3", "No, and tell Claude what to do differently", "prompt"))).toBe(
+      false,
+    )
   })
 
   context("with Claude's own words", () => {
@@ -376,5 +424,21 @@ describe("A limit's window", () => {
     expect(limitWindow(0)).toBe("usage")
     expect(limitWindow(10_080)).toBe("weekly")
     expect(limitWindow(1440)).toBe("daily")
+  })
+})
+
+describe("Words a field won't take", () => {
+  const feedback = option("feedback", "Tell it what to change", "field")
+
+  it.each(["/compact", "  ?", "!ls", "see @notes.md"])("are said for Antigravity: %s", (words) => {
+    expect(refusedWords("agy", feedback, words)).toBe(
+      "Antigravity can't take words that start with /, ? or !, or that have an @.",
+    )
+  })
+
+  it("are none for plain words, nor for other agents", () => {
+    expect(refusedWords("agy", feedback, "Split the second step, then ask?")).toBeNull()
+    expect(refusedWords("claude", feedback, "/compact")).toBeNull()
+    expect(refusedWords("agy", option("n", "No", "prompt"), "/compact")).toBeNull()
   })
 })

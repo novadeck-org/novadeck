@@ -27,6 +27,7 @@ Object.assign(globalThis, {
 const item = (
   options: readonly ChatDialogOption[],
   kind: "permission" | "plan" = "permission",
+  agent: InboxItem["source"]["agent"] = "codex",
 ): InboxItem => ({
   id: "i",
   source: {
@@ -34,7 +35,7 @@ const item = (
     workspaceSessionId: "s",
     terminalId: "t",
     handle: "moth",
-    agent: "codex",
+    agent,
     title: "Title",
     projectName: "Project",
   },
@@ -71,9 +72,14 @@ const mount = (
   {
     kind = "permission",
     failing = false,
-  }: { kind?: "permission" | "plan"; failing?: boolean } = {},
+    agent = "codex",
+  }: {
+    kind?: "permission" | "plan"
+    failing?: boolean
+    agent?: InboxItem["source"]["agent"]
+  } = {},
 ) => {
-  const state = createStore<InboxState>({ ...emptyInbox, items: [item(options, kind)] })
+  const state = createStore<InboxState>({ ...emptyInbox, items: [item(options, kind, agent)] })
   const sent: InboxAnswer[] = []
   const inbox: Inbox = {
     state,
@@ -207,6 +213,138 @@ describe("A plan's sheet", () => {
     await nextFrame()
     sheet.view.unmount()
   })
+
+  it("keeps planning by the plain no, as older Claude Code words it", async () => {
+    const sheet = mount(
+      [
+        { id: "1", label: "Yes, and auto-accept edits", text: null },
+        { id: "2", label: "Yes, and manually approve edits", text: null },
+        { id: "3", label: "No, keep planning", text: null },
+      ],
+      { kind: "plan" },
+    )
+    sheet.press("Deny")
+
+    expect(sheet.sent).toEqual([
+      { kind: "request", answer: { type: "choice", dialog: "d", option: "3" } },
+    ])
+    await nextFrame()
+    sheet.view.unmount()
+  })
+
+  // As the runner reads Claude Code 2.1.287's (harnesses/claude's plan-file probe), where
+  // the only way back is the field, which takes words and none of the yeses do.
+  const field: readonly ChatDialogOption[] = [
+    { id: "1", label: "Yes, auto-accept edits", text: null },
+    { id: "2", label: "Yes, manually approve edits", text: null },
+    { id: "3", label: "Tell Claude what to change", text: "field" },
+  ]
+
+  it("approves with the manual yes, without words", async () => {
+    const sheet = mount(field, { kind: "plan" })
+    sheet.press("Approve")
+
+    expect(sheet.sent).toEqual([
+      { kind: "request", answer: { type: "choice", dialog: "d", option: "2" } },
+    ])
+    await nextFrame()
+    sheet.view.unmount()
+  })
+
+  const send = (): HTMLButtonElement =>
+    document.querySelector<HTMLButtonElement>(".inbox-sheet .inbox-send")!
+
+  it("sends it back with the person's words, and not without them", async () => {
+    const sheet = mount(field, { kind: "plan", agent: "claude" })
+    sheet.press("Deny")
+    const box = document.querySelector<HTMLTextAreaElement>(".inbox-sheet textarea")!
+
+    expect(box.getAttribute("aria-label")).toBe("What Claude should change")
+    expect(box.getAttribute("aria-required")).toBe("true")
+    expect(send().disabled).toBe(true)
+    sheet.type("   ")
+    expect(send().disabled).toBe(true)
+    sheet.type("Add a rollback step")
+    expect(send().disabled).toBe(false)
+    act(() => send().click())
+    expect(sheet.sent).toEqual([
+      {
+        kind: "request",
+        answer: { type: "choice", dialog: "d", option: "3", text: "Add a rollback step" },
+      },
+    ])
+    sheet.confirm()
+    expect(document.querySelector(".inbox-sent")?.textContent).toContain(
+      "Sent back. Claude has what to change.",
+    )
+    await nextFrame()
+    sheet.view.unmount()
+  })
+
+  it("sends the field's words on one line, as it takes them", async () => {
+    const sheet = mount(field, { kind: "plan", agent: "claude" })
+    sheet.press("Deny")
+    sheet.type("Add a rollback step\n\nand a test\t")
+    act(() => send().click())
+
+    expect(sheet.sent).toEqual([
+      {
+        kind: "request",
+        answer: {
+          type: "choice",
+          dialog: "d",
+          option: "3",
+          text: "Add a rollback step and a test",
+        },
+      },
+    ])
+    await nextFrame()
+    sheet.view.unmount()
+  })
+})
+
+describe("Antigravity's review", () => {
+  const review: readonly ChatDialogOption[] = [
+    { id: "approve", label: "Approve", text: null },
+    { id: "reject", label: "Reject", text: null },
+    { id: "feedback", label: "Tell it what to change", text: "field" },
+  ]
+  const send = (): HTMLButtonElement =>
+    document.querySelector<HTMLButtonElement>(".inbox-sheet .inbox-send")!
+
+  it("rejects plainly without words, and sends words back with the field", async () => {
+    const sheet = mount(review, { kind: "plan", agent: "agy" })
+    sheet.press("Deny")
+    act(() => send().click())
+    sheet.press("Deny")
+    sheet.type("Split the second step")
+    act(() => send().click())
+
+    expect(sheet.sent).toEqual([
+      { kind: "request", answer: { type: "choice", dialog: "d", option: "reject" } },
+    ])
+    await nextFrame()
+    sheet.view.unmount()
+  })
+
+  it.each(["/compact", "? help", "!ls", "see @notes.md"])(
+    "says before Send that it can't take %s",
+    async (words) => {
+      const sheet = mount(review, { kind: "plan", agent: "agy" })
+      sheet.press("Deny")
+      sheet.type(words)
+
+      expect(send().disabled).toBe(true)
+      expect(document.querySelector(".inbox-sheet .inbox-aside")?.textContent).toBe(
+        "Antigravity can't take words that start with /, ? or !, or that have an @.",
+      )
+      sheet.type("Split the second step")
+      expect(send().disabled).toBe(false)
+      expect(document.querySelector(".inbox-sheet .inbox-aside")).toBeNull()
+      await nextFrame()
+      sheet.view.unmount()
+    },
+  )
 })
 
 describe("An answer that does not take", () => {
