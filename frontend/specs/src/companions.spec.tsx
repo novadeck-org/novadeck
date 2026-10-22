@@ -335,6 +335,21 @@ describe("A viewer's header", () => {
     expect(box(text).left).toBeLessThan(box(code).left)
     expect(Math.round(box(text).right)).toBeLessThanOrEqual(Math.round(box(code).right))
   })
+
+  it("puts the messages' pause under their name when the pane is narrow", async () => {
+    await openShowcase()
+    await taskbarIcon("Build Studio", "Messages").click()
+    const pane = companionPane("Build Studio")
+    const pause = pane.getByText("Pause all agents' messages")
+    await expect.element(pause).toBeVisible()
+    const name = pane.getByText("Messages", { exact: true }).element()
+    const header = name.closest<HTMLElement>(".artifact-meta")!
+    header.style.width = "300px"
+    const box = (element: Element): DOMRect => element.getBoundingClientRect()
+    const minimize = pane.getByRole("button", { name: "Minimize to the taskbar" }).element()
+    expect(box(pause.element()).top).toBeGreaterThanOrEqual(box(name).bottom)
+    expect(box(minimize).bottom).toBeLessThanOrEqual(box(pause.element()).top)
+  })
 })
 
 describe("A plan", () => {

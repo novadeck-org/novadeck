@@ -93,7 +93,7 @@ export const ArtifactMeta = ({
 // gives up its start, so its file's name stays.
 export const MetaPath = ({ path }: { path: string }): React.JSX.Element => (
   <code className="artifact-meta-name artifact-meta-path" title={path}>
-    <bdi>{path}</bdi>
+    <bdi dir="ltr">{path}</bdi>
   </code>
 )
 

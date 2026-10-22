@@ -23,9 +23,11 @@
   flex-direction: column;
   min-height: 0;
 }
-/* The switch centred on its label, the pair on the header's baseline by the label's. */
+/* The switch centred on its label, the pair on the header's baseline by the label's: at
+   the end of the header's first line while there's room, else under what's before it. */
 .mail-pause {
   display: flex;
+  margin-left: auto;
   align-items: center;
   gap: 12px;
 }

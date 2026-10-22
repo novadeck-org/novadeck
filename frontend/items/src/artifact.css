@@ -117,6 +117,10 @@
   gap: 6px 12px;
   min-width: 0;
 }
+/* Nothing in it runs under what's at the header's end. */
+.artifact-meta-info > * {
+  max-width: 100%;
+}
 /* What it shows, too long for the header, gives up its end, or a path its start, so its
    file's name stays. */
 .artifact-meta-name {

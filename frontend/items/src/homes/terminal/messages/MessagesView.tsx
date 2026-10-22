@@ -204,32 +204,25 @@ export const MessagesView = ({
   const threads = mail.mail?.threads ?? []
   return (
     <div className="mail-view">
-      <ArtifactMeta
-        className="mail-meta"
-        actions={
-          <>
-            <span className="mail-pause">
-              <span id={label} className="mail-pause-label">
-                Pause all agents' messages
-              </span>
-              <span id={hint} className="sr-only">
-                Between agents in every project and session, until you resume. Your replies still go
-                through.
-              </span>
-              <Switch
-                checked={mail.paused}
-                onChange={mail.pause}
-                labelledBy={label}
-                describedBy={hint}
-                pending={mail.pending}
-              />
-            </span>
-            {actions}
-          </>
-        }
-      >
+      <ArtifactMeta className="mail-meta" actions={actions}>
         <code>Messages</code>
         {mail.mail && <span>{handleText(mail.mail.handle)}</span>}
+        <span className="mail-pause">
+          <span id={label} className="mail-pause-label">
+            Pause all agents' messages
+          </span>
+          <span id={hint} className="sr-only">
+            Between agents in every project and session, until you resume. Your replies still go
+            through.
+          </span>
+          <Switch
+            checked={mail.paused}
+            onChange={mail.pause}
+            labelledBy={label}
+            describedBy={hint}
+            pending={mail.pending}
+          />
+        </span>
       </ArtifactMeta>
       {mail.error && (
         <p className="mail-error" data-tone="danger" role="alert">
