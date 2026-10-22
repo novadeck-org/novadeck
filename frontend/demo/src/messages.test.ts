@@ -299,4 +299,43 @@ describe("the demo's sent messages", () => {
     expect(delivered).toHaveBeenCalledOnce()
     vi.useRealTimers()
   })
+
+  it("joins a seeded thread between the pair, and holds to its own hops", async () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    // The first session's moth and crow already have `t-review`, four messages in.
+    messages.send(storefront, "crow", "moth", "Thanks, looks right now.")
+    const thread = () =>
+      Object.values(messages.state.getSnapshot().terminals)
+        .flatMap((mail) => mail.threads)
+        .find((each) => each.id === "t-review")!
+    expect(thread().messages.at(-1)).toMatchObject({ hop: 5, state: "queued" })
+    expect(thread().hops).toBe(5)
+    // No second thread opened between the pair.
+    const ids = Object.values(messages.state.getSnapshot().terminals)
+      .flatMap((mail) => mail.threads)
+      .map((each) => each.id)
+    expect(ids).not.toContain("t-crow-moth")
+    await vi.advanceTimersByTimeAsync(rungMs)
+    expect(thread().messages.at(-1)).toMatchObject({ state: "delivered" })
+    vi.useRealTimers()
+  })
+
+  it("tells the sender when a stop drops its message", async () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    const stopped = vi.fn<() => void>()
+    const delivered = vi.fn<() => void>()
+    messages.send(elsewhere, "moth", "crow", "Hello", delivered, stopped)
+    messages.stop("t-crow-moth")
+    expect(stopped).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(rungMs * 3)
+    expect(delivered).not.toHaveBeenCalled()
+    const notes = Object.values(messages.state.getSnapshot().terminals)
+      .flatMap((mail) => mail.threads)
+      .flatMap((thread) => thread.messages)
+      .find((message) => message.from === "you" && message.to === "moth")
+    expect(notes?.text).toContain("stopped")
+    vi.useRealTimers()
+  })
 })

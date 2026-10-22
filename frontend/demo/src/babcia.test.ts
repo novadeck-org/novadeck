@@ -228,21 +228,177 @@ describe("the Babcia demo", () => {
     expect(mail(backend)).toEqual([])
   })
 
-  it("lets the helper's answer through once, however often the Inbox is answered", async () => {
+  it("relays the helper's answer once, however often its mail changes after it", async () => {
     const { backend, cues, inbox, items } = open()
     cues.helpers()
     cues.helperAsks()
-    const id = items()[0]!.id
-    const answer = {
-      kind: "ask" as const,
-      answer: { type: "reply" as const, option: null, text: typed },
-    }
-    inbox.answer(id, answer)
-    inbox.answer(id, answer)
+    inbox.answer(items()[0]!.id, {
+      kind: "ask",
+      answer: { type: "reply", option: null, text: typed },
+    })
     await vi.advanceTimersByTimeAsync(10_000)
-    inbox.answer(id, answer)
+    const { messages } = backend
+    if (!isDemoMessages(messages)) throw new Error("the demo's messages")
+    // The mail changes again, as a pause or a release changes it: the delivered answer is still
+    // there to be found, and must not be relayed again.
+    messages.pause(true)
+    await vi.advanceTimersByTimeAsync(300)
+    messages.pause(false)
     await vi.advanceTimersByTimeAsync(10_000)
     expect(mail(backend).filter((each) => each.from === asking)).toHaveLength(1)
+  })
+
+  it("words the helper's message to its lead for an empty or unpunctuated reply", async () => {
+    const texts: string[] = []
+    for (const reply of ["", "ask the lead", "Who knows?"]) {
+      const { backend, cues, inbox, items } = open()
+      cues.helpers()
+      cues.helperAsks()
+      inbox.answer(items()[0]!.id, {
+        kind: "ask",
+        answer: { type: "reply", option: null, text: reply },
+      })
+      // eslint-disable-next-line no-await-in-loop -- Each demo runs on its own.
+      await vi.advanceTimersByTimeAsync(5000)
+      texts.push(mail(backend).find((each) => each.from === asking)!.text)
+    }
+    expect(texts).toEqual([
+      "Nyx had nothing to add. Do you know which API the site calls? I need it for the orders route.",
+      'Nyx\'s answer: "ask the lead". Do you know which API the site calls? I need it for the orders route.',
+      'Nyx\'s answer: "Who knows?" Do you know which API the site calls? I need it for the orders route.',
+    ])
+  })
+
+  it("tells the helper the person stopped its message to the lead, and goes no further", async () => {
+    const { backend, cues, inbox, items, agent } = open()
+    cues.helpers()
+    cues.helperAsks()
+    inbox.answer(items()[0]!.id, {
+      kind: "ask",
+      answer: { type: "reply", option: null, text: typed },
+    })
+    // The answer lands at about 2.6 s, then the message waits on the doorbell for 0.8 s.
+    await vi.advanceTimersByTimeAsync(3000)
+    const { messages } = backend
+    if (!isDemoMessages(messages)) throw new Error("the demo's messages")
+    const thread = Object.values(messages.state.getSnapshot().terminals)
+      .flatMap((each) => each.threads)
+      .find((each) => each.messages.some((one) => one.from === asking))!
+    messages.stop!(thread.id)
+    await vi.advanceTimersByTimeAsync(10_000)
+    const notice = Object.values(messages.state.getSnapshot().terminals)
+      .flatMap((each) => each.threads)
+      .flatMap((each) => each.messages)
+      .find((one) => one.from === "you" && one.to === asking && one.text.includes("stopped"))
+    expect(notice).toMatchObject({ state: "delivered" })
+    expect(mail(backend).filter((each) => each.from === lead)).toEqual([])
+    expect(agent(babcia.lead)).toMatchObject({ working: false })
+  })
+
+  it("does not end the turn of an agent the person told no, nor of a failed one", async () => {
+    const { backend, cues, agent, items } = open()
+    cues.asks()
+    cues.fail()
+    const chat = backend.conversations!
+    const permission = String(babcia.permission).padStart(2, "0")
+    const plan = String(babcia.plan).padStart(2, "0")
+    const noPermission = chat.answer(key(babcia.permission), `${permission}:permission`, {
+      type: "choice",
+      dialog: `${permission}:d`,
+      option: "3",
+    })
+    const keepPlanning = chat.answer(key(babcia.plan), `${plan}:plan`, {
+      type: "choice",
+      dialog: `${plan}:d`,
+      option: "keep",
+    })
+    await vi.advanceTimersByTimeAsync(answerMs + answeredMs + 500)
+    await Promise.all([noPermission, keepPlanning])
+    expect(items().filter((item) => item.kind === "request")).toHaveLength(1)
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(5000)
+    // Told no, they wait at their prompts with nothing claimed; the failed one stays failed.
+    for (const number of [babcia.permission, babcia.plan])
+      expect(agent(number)).toMatchObject({ working: false })
+    expect(agent(babcia.permission)?.lastTurn).toBeUndefined()
+    expect(agent(babcia.plan)?.lastTurn).toBeUndefined()
+    expect(agent(babcia.failing)).toMatchObject({ working: false, lastTurn: { outcome: "failed" } })
+    const said = chat
+      .conversation(key(babcia.permission))
+      .getSnapshot()
+      .items.map((each) => each.text)
+      .join("\n")
+    expect(said).not.toContain("tests pass")
+    // Prompted again, the failed one is at work, and the next cue 6 ends its turn.
+    await chat.send(key(babcia.failing), "Try again, kochanie.")
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(agent(babcia.failing)).toMatchObject({ working: true })
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(agent(babcia.failing)).toMatchObject({
+      working: false,
+      lastTurn: { outcome: "completed" },
+    })
+    expect(agent(babcia.permission)?.lastTurn).toBeUndefined()
+  })
+
+  it("lets cue 6 end the turns of agents answered after it was rung", async () => {
+    const { backend, cues, agent } = open()
+    cues.asks()
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(agent(babcia.permission)).toMatchObject({ attention: { count: 1 } })
+    const id = String(babcia.permission).padStart(2, "0")
+    const answering = backend.conversations!.answer(key(babcia.permission), `${id}:permission`, {
+      type: "choice",
+      dialog: `${id}:d`,
+      option: "1",
+    })
+    await vi.advanceTimersByTimeAsync(answerMs + answeredMs + 500)
+    await answering
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(agent(babcia.permission)).toMatchObject({ working: true })
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(agent(babcia.permission)).toMatchObject({
+      working: false,
+      lastTurn: { outcome: "completed" },
+    })
+  })
+
+  it("holds the helper and its lead while the helper's answer is on its way, and ends them after", async () => {
+    const { cues, items, inbox, agent } = open()
+    cues.helpers()
+    cues.helperAsks()
+    inbox.answer(items()[0]!.id, {
+      kind: "ask",
+      answer: { type: "reply", option: null, text: typed },
+    })
+    // The answer is in flight: neither end of the exchange ends its turn.
+    await vi.advanceTimersByTimeAsync(1500)
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(agent(babcia.asking)?.lastTurn).toBeUndefined()
+    expect(agent(babcia.lead)?.lastTurn).toBeUndefined()
+    // The exchange runs out: the lead was rung and answered, the helper works on.
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(agent(babcia.lead)).toMatchObject({ working: true })
+    expect(agent(babcia.asking)).toMatchObject({ working: true })
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(5000)
+    for (const number of [babcia.lead, babcia.asking])
+      expect(agent(number)).toMatchObject({ working: false, lastTurn: { outcome: "completed" } })
+  })
+
+  it("marks a cue's kind used only when its agent is there to ask", () => {
+    const { cues, items, store } = open()
+    // No agent to ask yet: the workspace holds none of the demo's terminals.
+    store.transact([
+      { type: "terminal/close", target: bar, terminalId: key(babcia.permission).terminalId },
+    ] as never)
+    cues.permission()
+    expect(items()).toEqual([])
+    expect(activeSession(store.getSnapshot())!.state.roster.terminals).toHaveLength(11)
   })
 
   it("does nothing twice, nor before it can", async () => {
@@ -317,7 +473,7 @@ describe("the Babcia demo", () => {
   })
 
   it("leaves the agents still waiting on the person waiting when everyone finishes", async () => {
-    const { cues, items, inbox, store, agent } = open()
+    const { cues, items, agent } = open()
     cues.asks()
     cues.helpers()
     cues.helperAsks()
@@ -333,8 +489,6 @@ describe("the Babcia demo", () => {
       working: false,
       lastTurn: { outcome: "completed" },
     })
-    expect(inbox).toBeDefined()
-    expect(store).toBeDefined()
   })
 
   it("ends with the Inbox empty of asks once they are answered: nothing is left to answer", async () => {

@@ -154,6 +154,8 @@ export type DemoMessages = Messages & {
     to: string,
     text: string,
     delivered?: () => void,
+    // Called instead if the person stops the thread first, which tells the sender so.
+    stopped?: () => void,
   ) => void
 }
 
@@ -169,6 +171,7 @@ type Ring = {
   readonly to: string
   rung: boolean
   readonly delivered: (() => void) | undefined
+  readonly stopped: (() => void) | undefined
 }
 
 export const createDemoMessages = (
@@ -327,7 +330,7 @@ export const createDemoMessages = (
           publish()
         }, deliveryMs)
     },
-    send: (target, from, to, text, delivered) => {
+    send: (target, from, to, text, delivered, stopped) => {
       const index = boxes.findIndex(
         (box) =>
           box.target.projectId === target.projectId &&
@@ -369,7 +372,15 @@ export const createDemoMessages = (
             },
       )
       publish()
-      const ring: Ring = { target, thread: id, message: sent.id, to, rung: false, delivered }
+      const ring: Ring = {
+        target,
+        thread: id,
+        message: sent.id,
+        to,
+        rung: false,
+        delivered,
+        stopped,
+      }
       rings.push(ring)
       setTimeout(() => {
         ring.rung = true
@@ -413,21 +424,43 @@ export const createDemoMessages = (
       land()
     },
     stop: (thread) => {
+      // What `send` queued in the thread, which the stop drops and its sender is told of.
+      const dropped = rings.filter((ring) => ring.thread === thread)
       boxes = boxes.map((box) => ({
         ...box,
         threads: box.threads.map((each) =>
           each.id === thread
             ? {
                 ...each,
-                messages: each.messages.map((message) =>
-                  message.state === "queued" ? { ...message, state: "gone" as const } : message,
-                ),
+                messages: [
+                  ...each.messages.map((message) =>
+                    message.state === "queued" ? { ...message, state: "gone" as const } : message,
+                  ),
+                  ...dropped.flatMap((ring) => {
+                    const message = each.messages.find((one) => one.id === ring.message)
+                    return message?.state === "queued"
+                      ? [
+                          {
+                            id: `stopped:${message.id}`,
+                            hop: message.hop,
+                            from: "you",
+                            to: message.from,
+                            text: `The person stopped this thread: your message to @${ring.to} was not delivered.`,
+                            sentAt: Date.now(),
+                            state: "delivered" as const,
+                            deliveredAt: Date.now(),
+                          },
+                        ]
+                      : []
+                  }),
+                ],
               }
             : each,
         ),
       }))
       publish()
       land()
+      for (const ring of dropped) ring.stopped?.()
     },
   }
 }

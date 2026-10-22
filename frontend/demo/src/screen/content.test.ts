@@ -141,14 +141,17 @@ describe("Antigravity's screens", () => {
 
   it("show a person's turn behind `> `, a call as `● Tool(subject)` and a result behind `⎿`", () => {
     expect(read(itemBlock(item({ role: "user", text: "Fix it" }), "agy")(40))).toBe("\n> Fix it\n")
+    // As the demo's Antigravity agents write it: its own `run_command` tool, with the command
+    // in a JSON input.
     const call = item({
       kind: "tool-call",
-      tool: "Bash",
-      text: '{"command":"pnpm test"}',
+      tool: "run_command",
+      text: '{"CommandLine":"\\"pnpm test\\"","Cwd":"\\"/home/nyx\\""}',
       run: { kind: "run", title: "Ran", detail: "pnpm test" },
     })
     const result = item({ kind: "tool-result", role: "tool", text: "a\nb" })
-    expect(read(itemBlock(call, "agy")(40))).toBe("\n● Bash(pnpm test)")
+    expect(read(itemBlock(call, "agy")(60))).toBe("\n● Bash(pnpm test) (ctrl+o to expand)")
+    expect(read(itemBlock(item({ text: "All done." }), "agy")(40))).toBe("\n  All done.")
     expect(read(itemBlock(result, "agy")(40))).toBe("  ⎿  a\n     b")
   })
 })

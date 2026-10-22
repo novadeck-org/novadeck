@@ -53,7 +53,7 @@ export const babciaGroups = (cues: BabciaCues | undefined): readonly DemoActionG
             },
             {
               label: "6 · Everyone finishes",
-              hint: "Every agent of both projects ends its turn in a ripple: lines go green. Agents still waiting on the person (an unanswered ask) stay waiting, so answer those first",
+              hint: "Every agent of both projects ends its turn in a ripple: lines go green. Agents still waiting on the person stay as they are: an unanswered ask, one told No, a failed turn (until it is prompted again), and the helper and its lead while the helper's answer is on its way. Press again to end whoever is working by then",
               run: () => cues.finishAll(),
             },
           ],

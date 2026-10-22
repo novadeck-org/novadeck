@@ -752,7 +752,8 @@ on the Canvas, all working, beside a second project, setlist; its beats are the 
 "Babcia" group, one cue each, fired by a capture plan: 1 three asks (a permission to run
 `pnpm test`, a plan, a question with its own pick), 2 a failed turn, 3 the lead Site API opens
 three helpers, 4 a helper's free-text question, whose answer reaches its lead through a message
-and the doorbell, 5 a page shown in the pane, 6 every agent finishes; answered or told, an agent
+and the doorbell, 5 a page shown in the pane, 6 every agent finishes but those waiting on the person (an open ask, one told No, a failed turn
+until prompted again), which a second press ends once they work; answered or told, an agent
 works until cue 6; `frontend/demo/src/babcia.ts`). Every variant's Inbox
 lists what its agents wait on, built as the runner's is. The switcher in the panel's header,
 which leaves out `welcome`, `chirp` and `babcia`, changes between them without reloading (pressing the

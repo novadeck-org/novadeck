@@ -656,8 +656,9 @@ const preview: SampleArtifact = {
 }
 
 // The question the asking helper puts to the person: only its lead can answer it.
+const helperAskId = "babcia-helper-ask"
 const helperAsk = (helper: number, now: number): InboxItem => ({
-  id: "babcia-helper-ask",
+  id: helperAskId,
   source: {
     projectId: bar,
     workspaceSessionId: session,
@@ -754,15 +755,22 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
   const asks = new Set<string>()
   const ask = (number: number, kind: "permission" | "plan" | "question"): void => {
     if (asks.has(kind)) return
-    asks.add(kind)
-    on(number, (key, found) => turns.ask(key, found, kind, 1))
+    on(number, (key, found) => {
+      asks.add(kind)
+      turns.ask(key, found, kind, 1)
+    })
   }
+  // The agents the person told no, or whose words they took without going on: they wait at
+  // their prompt for the person's next words, and no cue ends a turn for them.
+  const declinedIds = new Set<string>()
   let opened = false
   let asked = false
   let answered = false
   let failed = false
   let shown = false
-  let finished = false
+  // Whether the helper and its lead have had their exchange out: the lead's reply landed, or
+  // a stop ended it.
+  let exchanged = false
 
   const cues: BabciaCues = {
     permission: () => ask(babcia.permission, "permission"),
@@ -834,20 +842,18 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
       sink.dispatch([{ type: "item/upsert", target: holder, item }])
     },
     finishAll: () => {
-      if (finished || !latest) return
-      finished = true
+      if (!latest) return
       let count = 0
       for (const each of latest.projects)
         for (const history of each.history)
           for (const found of history.state.roster.terminals) {
+            if (found.state !== "running") continue
             const key = {
               projectId: each.id,
               workspaceSessionId: history.id,
               terminalId: found.id,
             }
-            // An agent that waits on the person ends no turn: its dialog is open.
-            if (found.state === "running" && found.agent?.attention) continue
-            if (found.id === keyOf(babcia.asking).terminalId && asked && !answered) continue
+            if (waitsOnPerson(found)) continue
             const job = each.id === bar ? allJobs[Number(terminalSlot(found.id)) - 1] : undefined
             turns.finish(key, found, "completed", {
               after: finishesAfterMs + count * rippleMs,
@@ -865,6 +871,25 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
     return isDemoInbox(inbox) ? inbox : undefined
   }
 
+  // Whether cue 6 leaves an agent as it is: it ended its turn already (a failed one stays failed
+  // until the person prompts it again, which takes it back to work), it waits on a request, was
+  // told no, or is the helper whose ask is open or whose answer is on its way, or the lead it
+  // is to write to.
+  const waitsOnPerson = (found: TerminalMetadata): boolean => {
+    if (found.state !== "running") return true
+    const { agent } = found
+    if (agent?.attention || declinedIds.has(found.id)) return true
+    if (agent?.lastTurn && !agent.working) return true
+    if (!asked || exchanged) return false
+    if (found.id === keyOf(babcia.asking).terminalId) return true
+    // The lead is rung by the helper's message, once the answer has reached it; until the person
+    // answers it ends its turn like any other.
+    const inbox = backendInbox()?.state.getSnapshot()
+    const open = inbox?.items.some((item) => item.id === helperAskId) ?? false
+    const answering = inbox?.answering[helperAskId] ?? false
+    return found.id === keyOf(babcia.lead).terminalId && (answered || answering || !open)
+  }
+
   // The helper's answer reaches the helper, which the Inbox's record of it says: only then does
   // the helper write to its lead, of what it was told. The idle lead, rung awake, works, and
   // answers.
@@ -872,26 +897,40 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
     const target = { projectId: bar, workspaceSessionId: session }
     const helper = demoHandle(babcia.asking)
     const lead = demoHandle(babcia.lead)
+    const said = told.trim()
+    const quoted = said
+      ? `Nyx's answer: "${said}"${/[.!?…]$/.test(said) ? "" : "."}`
+      : "Nyx had nothing to add."
     messages.send(
       target,
       helper,
       lead,
-      `Nyx says: "${told}" Do you know which API the site calls? I need it for the orders route.`,
+      `${quoted} Do you know which API the site calls? I need it for the orders route.`,
       () => {
-        if (!finished) work(keyOf(babcia.lead))
-        setTimeout(() => {
-          if (finished) return
-          messages.send(
-            target,
-            lead,
-            helper,
-            "The site calls the new API, on port 8787. The old one is retired.",
-          )
-        }, answersMs)
+        work(keyOf(babcia.lead))
+        setTimeout(
+          () =>
+            messages.send(
+              target,
+              lead,
+              helper,
+              "The site calls the new API, on port 8787. The old one is retired.",
+              () => {
+                exchanged = true
+              },
+              () => {
+                exchanged = true
+              },
+            ),
+          answersMs,
+        )
+      },
+      () => {
+        exchanged = true
       },
     )
   }
-  const answerLetter = "answer:babcia-helper-ask"
+  const answerLetter = `answer:${helperAskId}`
   messages.state.subscribe(() => {
     if (answered) return
     const letter = Object.values(messages.state.getSnapshot().terminals)
@@ -930,13 +969,22 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
       ...conversations,
       send: async (key, text) => {
         await conversations.send(key, text)
+        // Prompted again, it is at work, and cue 6 ends its turn like any other's.
+        declinedIds.delete(key.terminalId)
         work(key)
       },
       answer: async (key, request, answer) => {
         await conversations.answer(key, request, answer)
-        if (answer.type === "choice" && declined(answer.option)) return
-        // Chatting about a question with no words leaves the agent waiting for them.
-        if (answer.type === "chat" && !answer.text) return
+        // Told no, or chatting about a question without words: it waits for the person's next
+        // words, and no cue ends a turn for it.
+        if (
+          (answer.type === "choice" && declined(answer.option)) ||
+          (answer.type === "chat" && !answer.text)
+        ) {
+          declinedIds.add(key.terminalId)
+          return
+        }
+        declinedIds.delete(key.terminalId)
         work(key)
       },
     }),

@@ -95,6 +95,7 @@ export const callBlock =
       [
         span(tool, "bold"),
         ...(subject ? [span(agent === "agy" ? `(${subject})` : ` ${subject}`)] : []),
+        ...(agent === "agy" && subject ? [span(" (ctrl+o to expand)", "muted")] : []),
       ],
       width,
       {
@@ -143,6 +144,9 @@ export const dividerBlock =
 
 // One record of the conversation, as the agent's TUI shows it.
 export const itemBlock = (item: ChatItem, agent: ChatAgent): Block => {
+  // Antigravity names a command it ran `Bash`, whatever its own tool is called, and shows it.
+  if (item.kind === "tool-call" && agent === "agy" && item.run?.kind === "run")
+    return callBlock(agent, "Bash", clip(item.run.detail.split("\n")[0] ?? "", 90))
   if (item.kind === "tool-call") return callBlock(agent, item.tool ?? "Tool", summary(item.text))
   if (item.kind === "tool-result") return resultBlock(resultLines(item), agent)
   if (item.role === "user") {
@@ -151,6 +155,12 @@ export const itemBlock = (item: ChatItem, agent: ChatAgent): Block => {
   }
   if (item.role === "agent")
     return textBlock(`↳ ${item.author ? `${item.author}: ` : ""}${clip(item.text, 300)}`, "muted")
+  // Antigravity indents what it says by two columns.
+  if (agent === "agy")
+    return (width) => [
+      gap,
+      ...wrap([span(item.text)], width, { first: [span("  ")], rest: [span("  ")] }),
+    ]
   return textBlock(item.text)
 }
 
