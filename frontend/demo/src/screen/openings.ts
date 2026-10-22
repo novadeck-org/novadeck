@@ -32,13 +32,15 @@ export const readingAt = (
 
 const gap: Line = []
 
-// The top of Antigravity's mark beside its name, model and folder, as its CLI draws them
-// (harnesses/agy's probes); the mark's lower rows are left off so the banner takes no more room
-// than Codex's box in a small window.
-const antigravityMark = [
-  "      ▄▀▀▄        Antigravity CLI 1.2.14",
-  "     ▀▀▀▀▀▀       Gemini 3.1 Pro (Low)",
-  "    ▀▀▀▀▀▀▀▀      ",
+// Antigravity's mark beside what its CLI says of itself, row for row as harnesses/agy's probes
+// show it (input-box.probe.json): its name and version, how it is signed in, the model, and
+// the folder. The mark's last row has nothing beside it.
+const antigravityRows = (directory: string): readonly (readonly [string, string])[] => [
+  ["      ▄▀▀▄        ", "Antigravity CLI 1.2.14"],
+  ["     ▀▀▀▀▀▀       ", "Gemini API key"],
+  ["    ▀▀▀▀▀▀▀▀      ", "Gemini 3.1 Pro (Low)"],
+  ["   ▄▀▀    ▀▀▄     ", directory],
+  ["  ▄▀▀      ▀▀▄", ""],
 ]
 
 // The agent's name and where it runs: Claude Code's on a line, Codex's in a box, Antigravity's
@@ -48,8 +50,9 @@ export const banner =
   (width) => {
     if (agent === "agy")
       return [
-        ...antigravityMark.map((row, index): Line => [
-          span(index === 2 ? `${row}${directory}` : row, index === 0 ? "bold" : "muted"),
+        ...antigravityRows(directory).map(([mark, text], index): Line => [
+          span(mark, "muted"),
+          ...(text ? [span(text, index === 0 ? "bold" : "muted")] : []),
         ]),
         gap,
       ]

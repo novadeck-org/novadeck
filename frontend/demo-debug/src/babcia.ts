@@ -38,12 +38,12 @@ export const babciaGroups = (cues: BabciaCues | undefined): readonly DemoActionG
             },
             {
               label: "3 · Lead opens helpers",
-              hint: "Site API opens three helper windows beside it and rests: the team wire draws to them",
+              hint: "Site API opens three helper windows to its right and under it, in the same frame, and rests: the team wire draws to them",
               run: () => cues.helpers(),
             },
             {
               label: "4 · Helper asks its lead's question",
-              hint: "Orders endpoint asks which API the site calls: a free-text Ask row. Answered, it writes to Site API, which wakes, works and answers",
+              hint: "Orders endpoint asks which API the site calls: a free-text Ask row. Run 3 first. Once the person's answer has reached it, it writes to Site API, which wakes, works and answers",
               run: () => cues.helperAsks(),
             },
             {
@@ -53,7 +53,7 @@ export const babciaGroups = (cues: BabciaCues | undefined): readonly DemoActionG
             },
             {
               label: "6 · Everyone finishes",
-              hint: "Every agent of both projects ends its turn in a ripple: lines go green, the badge is empty",
+              hint: "Every agent of both projects ends its turn in a ripple: lines go green. Agents still waiting on the person (an unanswered ask) stay waiting, so answer those first",
               run: () => cues.finishAll(),
             },
           ],

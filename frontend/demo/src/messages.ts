@@ -144,8 +144,10 @@ const askText = (ask: AgentAsk): string => {
 
 export type DemoMessages = Messages & {
   readonly record: (item: InboxItem, answer?: InboxAnswer, outcome?: InboxHistory) => void
-  // An agent's message to another of a session, by handle: queued at first, and, as the
-  // doorbell lands it, delivered `rungMs` later, when `delivered` is called.
+  // An agent's message to another of a session, by handle: queued at first, and delivered once
+  // the doorbell has rung (`rungMs` later), nothing holds it (a pause, the hops its thread is
+  // allowed, a recipient the doorbell can't ring) and its thread wasn't stopped; `delivered`
+  // is called then.
   readonly send: (
     target: WorkspaceTarget,
     from: string,
@@ -159,6 +161,16 @@ export type DemoMessages = Messages & {
 export const isDemoMessages = (messages: Messages | undefined): messages is DemoMessages =>
   messages !== undefined && "record" in messages
 
+type Ring = {
+  readonly target: WorkspaceTarget
+  readonly thread: string
+  readonly message: string
+  // The recipient's handle.
+  readonly to: string
+  rung: boolean
+  readonly delivered: (() => void) | undefined
+}
+
 export const createDemoMessages = (
   initial: readonly DemoMailbox[],
   paused = false,
@@ -167,6 +179,49 @@ export const createDemoMessages = (
   let isPaused = paused
   const state = createStore(stateOf(boxes, isPaused))
   const publish = (): void => void state.update(() => stateOf(boxes, isPaused))
+  // The messages `send` queued: see `DemoMessages.send`. A held one lands when what held it is
+  // lifted; a stopped one never does.
+  const rings: Ring[] = []
+  const land = (): void => {
+    const landed: Ring[] = []
+    for (const ring of rings.toReversed()) {
+      const box = boxes.find(
+        (each) =>
+          each.target.projectId === ring.target.projectId &&
+          each.target.workspaceSessionId === ring.target.workspaceSessionId,
+      )
+      const thread = box?.threads.find((each) => each.id === ring.thread)
+      const message = thread?.messages.find((each) => each.id === ring.message)
+      if (!box || !thread || message?.state !== "queued") {
+        rings.splice(rings.indexOf(ring), 1)
+        continue
+      }
+      const recipient = box.terminals.find((each) => each.handle === ring.to)
+      if (
+        !ring.rung ||
+        shown(message, thread, isPaused).held ||
+        !recipient?.agent ||
+        recipient.waits
+      )
+        continue
+      rings.splice(rings.indexOf(ring), 1)
+      landed.push(ring)
+    }
+    if (landed.length === 0) return
+    boxes = boxes.map((box) => ({
+      ...box,
+      threads: box.threads.map((thread) => ({
+        ...thread,
+        messages: thread.messages.map((message) =>
+          landed.some((ring) => ring.thread === thread.id && ring.message === message.id)
+            ? { ...message, state: "delivered" as const, deliveredAt: Date.now() }
+            : message,
+        ),
+      })),
+    }))
+    publish()
+    for (const ring of landed.toReversed()) ring.delivered?.()
+  }
   return {
     state,
     record: (item, answer, outcome) => {
@@ -280,8 +335,10 @@ export const createDemoMessages = (
       )
       const box = boxes[index]
       if (!box) return
-      const id = `t-${[from, to].toSorted().join("-")}`
-      const thread = box.threads.find((each) => each.id === id)
+      const thread = box.threads.find(
+        (each) => each.between.includes(from) && each.between.includes(to),
+      )
+      const id = thread?.id ?? `t-${[from, to].toSorted().join("-")}`
       const hop = (thread?.messages.length ?? 0) + 1
       const sent: DemoMessage = {
         id: `${id}-${hop}`,
@@ -305,27 +362,18 @@ export const createDemoMessages = (
                   id,
                   between: [from, to],
                   hops: messages.length,
-                  allowed: hopsPerRelease,
+                  allowed: thread?.allowed ?? hopsPerRelease,
                   messages,
                 },
               ],
             },
       )
       publish()
+      const ring: Ring = { target, thread: id, message: sent.id, to, rung: false, delivered }
+      rings.push(ring)
       setTimeout(() => {
-        boxes = boxes.map((each) => ({
-          ...each,
-          threads: each.threads.map((current) => ({
-            ...current,
-            messages: current.messages.map((message) =>
-              message.id === sent.id && current.id === id
-                ? { ...message, state: "delivered" as const, deliveredAt: Date.now() }
-                : message,
-            ),
-          })),
-        }))
-        publish()
-        delivered?.()
+        ring.rung = true
+        land()
       }, rungMs)
     },
     pause: (next) => {
@@ -333,6 +381,7 @@ export const createDemoMessages = (
       setTimeout(() => {
         isPaused = next
         publish()
+        land()
       }, pauseMs)
     },
     waits: (key, waits) => {
@@ -346,7 +395,10 @@ export const createDemoMessages = (
           return { ...each, waits }
         }),
       }))
-      if (found) publish()
+      if (found) {
+        publish()
+        land()
+      }
       return found
     },
     // Thread ids are the demo's own, unique across its mailboxes.
@@ -358,6 +410,7 @@ export const createDemoMessages = (
         ),
       }))
       publish()
+      land()
     },
     stop: (thread) => {
       boxes = boxes.map((box) => ({
@@ -374,6 +427,7 @@ export const createDemoMessages = (
         ),
       }))
       publish()
+      land()
     },
   }
 }

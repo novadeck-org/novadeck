@@ -66,8 +66,11 @@ export const statusLines = (
 }
 
 // The glyph a person's request and a tool call start with, in each agent's TUI.
-const promptGlyph = (agent: ChatAgent): string => (agent === "claude" ? "❯" : "›")
-const callGlyph = (agent: ChatAgent): string => (agent === "claude" ? "●" : "•")
+// Antigravity's are from harnesses/agy's probes: `> ` for the person's turn, `● Tool(subject)`
+// for a call, and `  ⎿  ` before a result.
+const promptGlyph = (agent: ChatAgent): string =>
+  agent === "claude" ? "❯" : agent === "agy" ? ">" : "›"
+const callGlyph = (agent: ChatAgent): string => (agent === "codex" ? "•" : "●")
 
 const gap: Line = []
 
@@ -88,22 +91,30 @@ export const callBlock =
   (agent: ChatAgent, tool: string, subject = ""): Block =>
   (width) => [
     gap,
-    ...wrap([span(tool, "bold"), ...(subject ? [span(` ${subject}`)] : [])], width, {
-      first: [span(`${callGlyph(agent)} `)],
-      rest: [span("  ")],
-    }),
+    ...wrap(
+      [
+        span(tool, "bold"),
+        ...(subject ? [span(agent === "agy" ? `(${subject})` : ` ${subject}`)] : []),
+      ],
+      width,
+      {
+        first: [span(`${callGlyph(agent)} `)],
+        rest: [span("  ")],
+      },
+    ),
   ]
 
 // A tool's result under its call, muted, the first line marked as its answer.
 export const resultBlock =
-  (lines: readonly string[]): Block =>
+  (lines: readonly string[], agent?: ChatAgent): Block =>
   (width) =>
-    lines.flatMap((line, index) =>
-      wrap([span(line, "muted")], width, {
-        first: [span(index ? "    " : "  └ ", "muted")],
-        rest: [span("    ")],
-      }),
-    )
+    lines.flatMap((line, index) => {
+      const indent = agent === "agy" ? "     " : "    "
+      return wrap([span(line, "muted")], width, {
+        first: [span(index ? indent : agent === "agy" ? "  ⎿  " : "  └ ", "muted")],
+        rest: [span(indent)],
+      })
+    })
 
 // Text the agent says, after a blank row.
 export const textBlock =
@@ -133,7 +144,7 @@ export const dividerBlock =
 // One record of the conversation, as the agent's TUI shows it.
 export const itemBlock = (item: ChatItem, agent: ChatAgent): Block => {
   if (item.kind === "tool-call") return callBlock(agent, item.tool ?? "Tool", summary(item.text))
-  if (item.kind === "tool-result") return resultBlock(resultLines(item))
+  if (item.kind === "tool-result") return resultBlock(resultLines(item), agent)
   if (item.role === "user") {
     const asked = requestBlock(agent, item.text)
     return (width) => [gap, ...asked(width)]

@@ -4,7 +4,7 @@ import { vi } from "vitest"
 
 import { createDemoInbox } from "./inbox"
 import { demoInboxIds, demoInboxItems } from "./inbox-fixtures"
-import { checkoutMailboxes, createDemoMessages } from "./messages"
+import { checkoutMailboxes, createDemoMessages, rungMs } from "./messages"
 import { demoTerminalId } from "./samples"
 import { describe, expect, it } from "./test"
 
@@ -201,4 +201,102 @@ it("marks told history read when updates are read together", () => {
     mail.threads.flatMap((thread) => thread.messages),
   )
   expect(history.find((message) => message.id === demoInboxIds.told)?.inboxState).toBe("read")
+})
+
+describe("the demo's sent messages", () => {
+  const hop = (messages: ReturnType<typeof demo>, from: string, to: string) =>
+    Object.values(messages.state.getSnapshot().terminals)
+      .flatMap((mail) => mail.threads)
+      .flatMap((thread) => thread.messages)
+      .filter((message) => message.from === from && message.to === to)
+      .map((message) => message.state)
+
+  // Sends moth's message to crow, two agents of the first session.
+  const sent = (messages: ReturnType<typeof demo>, text = "Hello", delivered?: () => void) =>
+    messages.send(elsewhere, "moth", "crow", text, delivered)
+
+  it("queues a message, then delivers it once the doorbell rang, and calls back", async () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    const delivered = vi.fn<() => void>()
+    sent(messages, "Hello", delivered)
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("queued")
+    expect(delivered).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(rungMs)
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("delivered")
+    expect(delivered).toHaveBeenCalledOnce()
+    vi.useRealTimers()
+  })
+
+  it("delivers in the order sent", async () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    const order: string[] = []
+    sent(messages, "one", () => order.push("one"))
+    sent(messages, "two", () => order.push("two"))
+    await vi.advanceTimersByTimeAsync(rungMs)
+    expect(order).toEqual(["one", "two"])
+    vi.useRealTimers()
+  })
+
+  it("holds a message while paused, and delivers it once resumed", async () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    messages.pause(true)
+    await vi.advanceTimersByTimeAsync(200)
+    const delivered = vi.fn<() => void>()
+    sent(messages, "Hello", delivered)
+    await vi.advanceTimersByTimeAsync(rungMs * 3)
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("held")
+    expect(delivered).not.toHaveBeenCalled()
+    messages.pause(false)
+    await vi.advanceTimersByTimeAsync(200)
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("delivered")
+    expect(delivered).toHaveBeenCalledOnce()
+    vi.useRealTimers()
+  })
+
+  it("waits for a recipient the doorbell can't ring, and delivers once it can", async () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    const crow = { ...elsewhere, terminalId: demoTerminalId(elsewhere, 4) }
+    messages.waits!(crow, "working")
+    const delivered = vi.fn<() => void>()
+    sent(messages, "Hello", delivered)
+    await vi.advanceTimersByTimeAsync(rungMs * 3)
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("queued")
+    expect(delivered).not.toHaveBeenCalled()
+    messages.waits!(crow, null)
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("delivered")
+    expect(delivered).toHaveBeenCalledOnce()
+    vi.useRealTimers()
+  })
+
+  it("never delivers a message its thread's stop dropped", async () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    const delivered = vi.fn<() => void>()
+    sent(messages, "Hello", delivered)
+    messages.stop("t-crow-moth")
+    await vi.advanceTimersByTimeAsync(rungMs * 3)
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("gone")
+    expect(delivered).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it("holds a message past the hops its thread is allowed, until the person releases it", async () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    const delivered = vi.fn<() => void>()
+    for (let index = 0; index < 12; index += 1) sent(messages, `Round ${index}`)
+    await vi.advanceTimersByTimeAsync(rungMs)
+    sent(messages, "One too many", delivered)
+    await vi.advanceTimersByTimeAsync(rungMs * 3)
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("held")
+    expect(delivered).not.toHaveBeenCalled()
+    messages.release("t-crow-moth")
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("delivered")
+    expect(delivered).toHaveBeenCalledOnce()
+    vi.useRealTimers()
+  })
 })

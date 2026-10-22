@@ -2,7 +2,7 @@ import type { ChatItem, ChatRequest } from "@novadeck/core/conversation"
 import { describe, expect, it } from "vitest"
 
 import { agentTail, askLines, inputLines, itemBlock, shellTail } from "./agent"
-import { openingBlocks } from "./openings"
+import { banner, openingBlocks } from "./openings"
 import { commandBlock, sampleBlocks } from "./samples"
 import type { Block } from "./screen"
 import { plain, span, widthOf, type Line } from "./vt"
@@ -124,6 +124,32 @@ describe("an agent's opening", () => {
     expect(read(openingBlocks("codex", "~/shop")[0]!(80))).toBe(
       "╭──────────╮\n│ >_ Codex │\n│ ~/shop   │\n╰──────────╯\n",
     )
+  })
+})
+
+describe("Antigravity's screens", () => {
+  it("pair its mark's rows with its name, sign-in, model and folder, as its probes show", () => {
+    const rowsOf = read(banner("agy", "~/shop")(80)).split("\n")
+    expect(rowsOf.slice(0, 5)).toEqual([
+      "      ▄▀▀▄        Antigravity CLI 1.2.14",
+      "     ▀▀▀▀▀▀       Gemini API key",
+      "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+      "   ▄▀▀    ▀▀▄     ~/shop",
+      "  ▄▀▀      ▀▀▄",
+    ])
+  })
+
+  it("show a person's turn behind `> `, a call as `● Tool(subject)` and a result behind `⎿`", () => {
+    expect(read(itemBlock(item({ role: "user", text: "Fix it" }), "agy")(40))).toBe("\n> Fix it\n")
+    const call = item({
+      kind: "tool-call",
+      tool: "Bash",
+      text: '{"command":"pnpm test"}',
+      run: { kind: "run", title: "Ran", detail: "pnpm test" },
+    })
+    const result = item({ kind: "tool-result", role: "tool", text: "a\nb" })
+    expect(read(itemBlock(call, "agy")(40))).toBe("\n● Bash(pnpm test)")
+    expect(read(itemBlock(result, "agy")(40))).toBe("  ⎿  a\n     b")
   })
 })
 

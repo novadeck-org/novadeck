@@ -253,10 +253,9 @@ const keyOf = (number: number, projectId = bar): TerminalKey => ({
 })
 
 // The Canvas: windows on a grid four across and four down, each a little off the line as windows
-// end up when moved by hand. Eleven fill the first three rows but the fourth place of the
-// third; the twelfth sits at the start of the fourth, so the Canvas's fit, which frames the
-// windows there are, has the empty places beside it in frame: the lead (the tenth) sits above
-// them, and its helpers' places are laid out here too, so their windows land under it.
+// end up when moved by hand. The twelve fill the first three rows but two places of the third,
+// and the first of the fourth, which the camera's fit takes in: the lead (the tenth) has its
+// right and the row below it empty for its three helpers, whose places `helpers` gives them.
 // Each window's column and row, by its place in the list.
 const cells = [
   [0, 0],
@@ -271,6 +270,10 @@ const cells = [
   [2, 2],
   [1, 2],
   [0, 3],
+  // The helpers: beside the lead, and under it.
+  [3, 2],
+  [2, 3],
+  [3, 3],
 ] as const
 const nudges = [
   [0, 10],
@@ -285,9 +288,12 @@ const nudges = [
   [-5, 20],
   [15, 10],
   [-10, -15],
+  [5, 5],
+  [-5, 10],
+  [10, -5],
 ] as const
 const place = (index: number) => {
-  const [dx, dy] = nudges[index % nudges.length]!
+  const [dx, dy] = nudges[index]!
   const [column, row] = cells[index]!
   return {
     position: { x: column * 610 + dx, y: row * 440 + dy },
@@ -531,16 +537,31 @@ export const babciaTranscripts = (now: number): Readonly<Record<string, DemoTran
             requests: [request],
             outcomes: {
               [request.id]: (answer, dialog) => {
-                const picked =
-                  answer.type === "questions" && dialog.type === "questions"
-                    ? dialog.questions[0]?.options.find(
-                        (option) => option.id === answer.answers[0]?.options[0],
-                      )?.label
-                    : undefined
-                return {
-                  items: [],
-                  reply: `Going with: ${(picked ?? "one line per soup").replace(/ \(Recommended\)$/, "").toLowerCase()}. ${job.done}`,
-                }
+                // Chatting about the question instead picks nothing: the agent takes the
+                // person's words as its next prompt, or waits for them.
+                if (answer.type === "chat")
+                  return answer.text
+                    ? { items: [], prompt: answer.text }
+                    : { items: [], waits: true }
+                const labels = new Map(
+                  dialog.type === "questions"
+                    ? dialog.questions.flatMap((each) =>
+                        each.options.map((option) => [option.id, option.label] as const),
+                      )
+                    : [],
+                )
+                const said =
+                  answer.type === "questions"
+                    ? answer.answers
+                        .flatMap((each) => [
+                          ...each.options.map((option) => labels.get(option) ?? option),
+                          ...(each.text ? [each.text] : []),
+                        ])
+                        .join(", ")
+                        .replace(/ \(Recommended\)/g, "")
+                        .toLowerCase()
+                    : ""
+                return { items: [], reply: `Going with: ${said}. ${job.done}` }
               },
             },
           },
@@ -560,12 +581,18 @@ export const babciaIntroOf = (
   if (key.projectId !== bar) return undefined
   const job = allJobs[Number(terminalSlot(terminal.id)) - 1]
   if (!job) return undefined
-  const tool = job.agent === "claude" ? "Bash" : "Ran"
+  const tool = job.agent === "codex" ? "Ran" : "Bash"
   return fixedIntro([
     banner(job.agent, terminal.directory),
     requestBlock(job.agent, job.ask),
-    callBlock(job.agent, tool, job.command),
-    ...(job.progress ? [resultBlock([job.progress])] : []),
+    // Antigravity's banner is five rows tall, so what it ran stays off its small window: its
+    // name and model, which the banner is for, would scroll out of sight under it.
+    ...(job.agent === "agy"
+      ? []
+      : [
+          callBlock(job.agent, tool, job.command),
+          ...(job.progress ? [resultBlock([job.progress], job.agent)] : []),
+        ]),
   ])
 }
 
@@ -636,7 +663,7 @@ const helperAsk = (helper: number, now: number): InboxItem => ({
     workspaceSessionId: session,
     terminalId: demoTerminalId({ projectId: bar, workspaceSessionId: session }, helper),
     handle: demoHandle(helper),
-    agent: "claude",
+    agent: helpers[helper - jobs.length - 1]!.agent,
     title: helpers[helper - jobs.length - 1]!.name,
     projectName: bar,
   },
@@ -653,9 +680,7 @@ const helperAsk = (helper: number, now: number): InboxItem => ({
   },
 })
 
-// How long after the person's answer the helper writes to its lead, and how long the lead takes
-// to answer once the doorbell rang it awake.
-const writesMs = 700
+// How long the lead takes to answer its helper once the doorbell rang it awake.
 const answersMs = 1500
 
 // How far apart the agents finish, so the Canvas turns green in a ripple.
@@ -663,7 +688,10 @@ const rippleMs = 60
 const finishesAfterMs = 200
 
 // The video's beats, one cue each, for the debug panel's "Babcia" group to fire at the frame
-// a capture wants (see `babciaGroups`). Each does nothing twice, nor before it can.
+// a capture wants (see `babciaGroups`). Each does nothing twice, nor before it can: a cue
+// already fired, or one whose ground isn't there yet (the helper's ask before the helpers
+// open), is ignored. `finishAll` leaves an agent waiting on the person to wait, as it would:
+// the cues that make it ask are for the person to answer first.
 export type BabciaCues = {
   // A permission ("Run `pnpm test`?"), a plan to approve and a question with the agent's pick:
   // the Inbox's badge reads 3. Each can be rung alone.
@@ -681,7 +709,8 @@ export type BabciaCues = {
   readonly helperAsks: () => void
   // The seasonal-specials agent shows its page in the pane beside its window.
   readonly show: () => void
-  // Every agent of both projects ends its turn, one after another.
+  // Every agent of both projects ends its turn, one after another, but the ones still waiting
+  // on the person: an unanswered request or a helper's unanswered ask.
   readonly finishAll: () => void
 }
 
@@ -693,7 +722,8 @@ export const babciaCuesOf = (backend: Backend): BabciaCues | undefined => cuesOf
 // The Babcia demo's parts, for `plainDemo` to put round the demo's own: `under` the
 // conversations (the seed, its mail, its pane, and a view of the workspace and the sink), `wrap`
 // round them (an agent that is answered or told goes back to work, and works until it finishes),
-// and `over` the whole (the helper's ask, answered, goes on to its lead; and the cues).
+// and `over` the whole (the cues). The helper's ask, once the person's answer reaches it, goes
+// on to its lead.
 export const createBabcia = (turns: DemoTurns, now: number) => {
   const messages = createDemoMessages([mailbox()])
   const showcase = createShowcase({
@@ -729,6 +759,9 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
   }
   let opened = false
   let asked = false
+  let answered = false
+  let failed = false
+  let shown = false
   let finished = false
 
   const cues: BabciaCues = {
@@ -740,13 +773,16 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
       cues.plan()
       cues.question()
     },
-    fail: () =>
-      on(babcia.failing, (key, found) =>
+    fail: () => {
+      if (failed) return
+      on(babcia.failing, (key, found) => {
+        failed = true
         turns.finish(key, found, "failed", {
           after: finishesAfterMs,
           reply: "I could not finish: the prices table fails to compile.",
-        }),
-      ),
+        })
+      })
+    },
     helpers: () => {
       if (opened || !sink) return
       opened = true
@@ -756,20 +792,26 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
           type: "terminal/add" as const,
           target: { projectId: bar, workspaceSessionId: session },
           terminal: agentTerminal(bar, jobs.length + index + 1, job.name, job.agent, working, lead),
+          // At the desk's window size, in the places beside and under the lead, wherever the
+          // person's selection is.
+          canvasGeometry: place(jobs.length + index),
+          anchor: keyOf(babcia.lead).terminalId,
           select: false,
         })),
       )
       on(babcia.lead, (key, found) => turns.rest(key, found))
     },
     helperAsks: () => {
-      if (asked) return
+      // Its helper has to be there to ask.
+      if (asked || !opened) return
       const inbox = backendInbox()
       if (!inbox) return
       asked = true
       inbox.add(helperAsk(babcia.asking, Date.now()))
     },
     show: () => {
-      if (!sink) return
+      if (shown || !sink) return
+      shown = true
       const holder = keyOf(babcia.shows)
       const item: Item = {
         id: itemIdOf(preview.item.id),
@@ -803,6 +845,9 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
               workspaceSessionId: history.id,
               terminalId: found.id,
             }
+            // An agent that waits on the person ends no turn: its dialog is open.
+            if (found.state === "running" && found.agent?.attention) continue
+            if (found.id === keyOf(babcia.asking).terminalId && asked && !answered) continue
             const job = each.id === bar ? allJobs[Number(terminalSlot(found.id)) - 1] : undefined
             turns.finish(key, found, "completed", {
               after: finishesAfterMs + count * rippleMs,
@@ -820,34 +865,43 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
     return isDemoInbox(inbox) ? inbox : undefined
   }
 
-  // The helper's answer reaches its lead: the helper writes, the doorbell rings the idle lead
-  // awake, and the lead works and writes back.
-  const answered = (): void => {
+  // The helper's answer reaches the helper, which the Inbox's record of it says: only then does
+  // the helper write to its lead, of what it was told. The idle lead, rung awake, works, and
+  // answers.
+  const relay = (told: string): void => {
     const target = { projectId: bar, workspaceSessionId: session }
     const helper = demoHandle(babcia.asking)
     const lead = demoHandle(babcia.lead)
-    setTimeout(() => {
-      messages.send(
-        target,
-        helper,
-        lead,
-        "Nyx doesn't know which API the site calls. Do you? I need it for the orders route.",
-        () => {
-          work(keyOf(babcia.lead))
-          setTimeout(
-            () =>
-              messages.send(
-                target,
-                lead,
-                helper,
-                "The site calls the new API, on port 8787. The old one is retired.",
-              ),
-            answersMs,
+    messages.send(
+      target,
+      helper,
+      lead,
+      `Nyx says: "${told}" Do you know which API the site calls? I need it for the orders route.`,
+      () => {
+        if (!finished) work(keyOf(babcia.lead))
+        setTimeout(() => {
+          if (finished) return
+          messages.send(
+            target,
+            lead,
+            helper,
+            "The site calls the new API, on port 8787. The old one is retired.",
           )
-        },
-      )
-    }, writesMs)
+        }, answersMs)
+      },
+    )
   }
+  const answerLetter = "answer:babcia-helper-ask"
+  messages.state.subscribe(() => {
+    if (answered) return
+    const letter = Object.values(messages.state.getSnapshot().terminals)
+      .flatMap((each) => each.threads)
+      .flatMap((thread) => thread.messages)
+      .find((each) => each.id === answerLetter && each.state === "delivered")
+    if (!letter) return
+    answered = true
+    relay(letter.text)
+  })
 
   return {
     transcripts: babciaTranscripts(now),
@@ -881,25 +935,14 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
       answer: async (key, request, answer) => {
         await conversations.answer(key, request, answer)
         if (answer.type === "choice" && declined(answer.option)) return
+        // Chatting about a question with no words leaves the agent waiting for them.
+        if (answer.type === "chat" && !answer.text) return
         work(key)
       },
     }),
-    // The Inbox's answer to the helper's ask goes on to its lead; the cues belong to the
-    // backend returned.
+    // The cues belong to the backend returned, and add to its Inbox.
     over: (backend: Backend): Backend => {
-      const { inbox } = backend
-      const wrapped: Backend = isDemoInbox(inbox)
-        ? {
-            ...backend,
-            inbox: {
-              ...inbox,
-              answer: (id, answer) => {
-                inbox.answer(id, answer)
-                if (id === "babcia-helper-ask" && answer.kind === "ask") answered()
-              },
-            },
-          }
-        : backend
+      const wrapped = backend
       inboxOf = () => wrapped.inbox
       cuesOf.set(wrapped, cues)
       return wrapped
