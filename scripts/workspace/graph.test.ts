@@ -263,8 +263,8 @@ describe("the package graph", () => {
       .map((file) => file.split("\\").join("/"))
       .filter((file) => /\.tsx?$/.test(file) && !editors.some((folder) => file.startsWith(folder)))
     expect(files.length).toBeGreaterThan(10)
-    // Each static import, but those of types alone, by what it names.
-    const imports = /^import\s+(?!type\s)(?:[^"']*?\s+from\s+)?["']([^"']+)["']/gm
+    // Each static import or re-export, but those of types alone, by what it names.
+    const imports = /^(?:import|export)\s+(?!type\s)(?:[^"']*?\s+from\s+)?["']([^"']+)["']/gm
     const eager = (file: string, target: string): boolean =>
       target.startsWith("@codemirror/") ||
       target === "@novadeck/viewers/markdown" ||

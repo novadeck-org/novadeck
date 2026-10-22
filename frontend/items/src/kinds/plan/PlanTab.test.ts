@@ -87,3 +87,11 @@ describe("a plan whose file can't be read for now", () => {
     })
   })
 })
+
+describe("a plan in its editor", () => {
+  it("is a Markdown document with the plan's notes", async () => {
+    const { container } = await shown()
+    expect(container.querySelector(".plan-editor .cm-editor")).not.toBeNull()
+    expect(container.querySelector(".plan-editor .cm-plan-note-gutter")).not.toBeNull()
+  })
+})

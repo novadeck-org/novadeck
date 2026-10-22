@@ -230,6 +230,40 @@ describe("a terminal's taskbar", () => {
     })
   })
 
+  context("the messages' icon", () => {
+    // The terminal with `mail`, and its messages' icon.
+    const messagesWith = (mail: MailState) => {
+      const { container } = renderTerminal(workspaceFixture(), {
+        state: createStore(mail),
+        pause: () => {},
+        release: () => {},
+        stop: () => {},
+      })
+      return icon(container, "Messages")!
+    }
+    const waiting = { ...message("m2"), state: "queued" } as const
+
+    it("says nothing more while nothing waits and messaging runs", () => {
+      const button = messagesWith(mailOf([message("m1")]))
+      expect(button.getAttribute("aria-label")).toBe("Messages")
+      expect(button.querySelector(".plan-tb-count")).toBeNull()
+    })
+
+    it("counts what waits for the agent, and says so", () => {
+      const button = messagesWith(mailOf([message("m1"), waiting]))
+      expect(button.getAttribute("aria-label")).toBe("Messages, 1 message waiting")
+      const count = button.querySelector(".plan-tb-count")
+      expect(count?.getAttribute("data-mail")).toBe("waiting")
+      expect(count?.textContent).toBe("1")
+    })
+
+    it("marks messaging paused while nothing waits", () => {
+      const button = messagesWith({ ...mailOf([message("m1")]), paused: true })
+      expect(button.getAttribute("aria-label")).toBe("Messages, messaging paused")
+      expect(button.querySelector(".plan-tb-count")?.getAttribute("data-mail")).toBe("paused")
+    })
+  })
+
   context("when the person closed the messages", () => {
     it("brings them back with the next message", async () => {
       const state = createStore(mailOf([message("m1")]))

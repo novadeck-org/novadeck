@@ -23,7 +23,8 @@ export type BarDrawing = {
   // Its peek's miniature.
   readonly preview: (member: BarMember) => ReactNode
   // What the home adds to its icon, as a terminal its messages' count, and what its
-  // button's label says of it. None, for an item.
+  // button's label says of it, in place of the count and the "new" a slot otherwise has,
+  // even while both are empty. None, for an item.
   readonly badge: (
     member: BarMember,
   ) => { readonly mark: ReactNode; readonly label: string } | undefined

@@ -52,7 +52,7 @@ which puts messages on a terminal's bar), how the pane presents beside its termi
   adds the plan's notes to it as extensions. `state.ts` loads `@novadeck/viewers/sync` and
   `./kinds/plan/plan-editor/notes` with `import()`. A change that imports them statically pulls
   the editor into every window and can break the try build's first-load budget; compare the
-  builds' chunk lists when touching either. The graph test keeps static imports of
+  builds' chunk lists when touching either. The graph test keeps static imports and re-exports of
   `@codemirror/*`, `@novadeck/viewers/markdown` and either editor inside
   `src/document/editor/` and `src/kinds/plan/plan-editor/`.
 - **Viewers mount through `ViewerSlot.ts`.** A registration shows an image, code or a page by
