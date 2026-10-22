@@ -1,6 +1,4 @@
-import { messagesKey } from "@novadeck/core/companion-bar"
 import {
-  companionKeyOf,
   kindRules,
   notesIn,
   planVersionOf,
@@ -12,15 +10,13 @@ import {
   type PlanUnwritableReason,
   type PlanVersion,
 } from "@novadeck/core/items"
-import { hasMail, type MailState, type Messages, type TerminalMail } from "@novadeck/core/messages"
-import type { WorkspaceAction } from "@novadeck/core/state"
 import {
   createStore,
   type MutableStore,
   type Store,
   type WorkspaceStore,
 } from "@novadeck/core/store"
-import type { ViewMode, Workspace, WorkspaceTarget } from "@novadeck/core/types"
+import type { Workspace, WorkspaceTarget } from "@novadeck/core/types"
 
 import { currentMarks, docOf, eolOf, lf, type Mark, type PlanDoc } from "./kinds/plan/plan-doc"
 
@@ -29,14 +25,6 @@ import { currentMarks, docOf, eolOf, lf, type Mark, type PlanDoc } from "./kinds
 // it, what each item last loaded, and which items that may hold secrets the person chose
 // to see. Every plan is followed for as long as it exists; anything else only while
 // something shows it. Components read it through ./use-item-store.ts.
-
-// Where the pane opens: beside the terminal inside its window, or hanging off a canvas
-// node.
-export type PlanPresentation = "split" | "attached"
-
-// Beside the terminal, or on the canvas, attached to the terminal's node.
-export const presentationOf = (view: ViewMode): PlanPresentation =>
-  view === "canvas" ? "attached" : "split"
 
 export type ItemStoreState = {
   // Each plan once its first version came, by its item.
@@ -80,7 +68,7 @@ export type ItemStore = {
     shown: number,
     troubles: readonly PageTrouble[],
   ) => void
-  // Follows every plan in the workspace and the messages from here on; returns the stop.
+  // Follows every plan in the workspace from here on; returns the stop.
   readonly connect: () => () => void
   // Takes a picture of a live page for it to rest as: the backend's, where it has one.
   readonly picture?: Companions["picture"]
@@ -522,38 +510,12 @@ const reconcile = (session: Session, workspace: Workspace): void => {
 const itemsOf = (workspace: Workspace) =>
   workspace.projects.flatMap((project) => project.history.map((each) => each.state.items))
 
-// How many messages a terminal's threads hold.
-const messageCount = (mail: TerminalMail | undefined): number =>
-  (mail?.threads ?? []).reduce((count, thread) => count + thread.messages.length, 0)
-
-// The messages join a terminal's bar when it first has them, after what came before, and
-// come back once hidden with the next message, whether or not the terminal is on screen.
-const mailFollower = (session: Session) => {
-  const counts = new Map<string, number>()
-  return (state: MailState): void => {
-    const actions: WorkspaceAction[] = []
-    for (const [id, mail] of Object.entries(state.terminals)) {
-      const count = messageCount(mail)
-      const more = count > (counts.get(id) ?? count)
-      counts.set(id, count)
-      if (!hasMail(mail)) continue
-      // A terminal closed since its mail came takes nothing: the bar's actions pass it by.
-      const { terminalId, ...target } = companionKeyOf(id)
-      actions.push({ type: "bar/arrive", target, terminalId, key: messagesKey })
-      if (more) actions.push({ type: "bar/reopen", target, terminalId, key: messagesKey })
-    }
-    if (actions.length) session.workspace.transact(actions)
-  }
-}
-
 export const createItemStore = ({
   companions,
   workspace,
-  messages,
 }: {
   readonly companions: Companions
   readonly workspace: WorkspaceStore
-  readonly messages?: Messages | undefined
 }): ItemStore => {
   const session: Session = {
     companions,
@@ -639,9 +601,7 @@ export const createItemStore = ({
     },
   })
   const connect = (): (() => void) => {
-    const noteMail = mailFollower(session)
     reconcile(session, workspace.getSnapshot())
-    if (messages) noteMail(messages.state.getSnapshot())
     // Items change far less often than the workspace: only a session's items changing
     // asks for a look.
     let seen = workspace.getSnapshot()
@@ -653,24 +613,8 @@ export const createItemStore = ({
       if (before.length !== after.length || after.some((items, index) => items !== before[index]))
         reconcile(session, next)
     })
-    // Heard once the turn is over, as mail may change inside a workspace commit, which
-    // can't take this transaction: a closed terminal's mail goes as the backend commits
-    // its close. What changed meanwhile is read then, once.
-    let heard = false
-    let connected = true
-    const stopMail =
-      messages?.state.subscribe(() => {
-        if (heard) return
-        heard = true
-        queueMicrotask(() => {
-          heard = false
-          if (connected) noteMail(messages.state.getSnapshot())
-        })
-      }) ?? (() => {})
     return () => {
-      connected = false
       stopWorkspace()
-      stopMail()
       for (const id of session.followed.keys()) unfollow(session, id)
     }
   }

@@ -3,6 +3,7 @@ import type { CreateBackend } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createWorkspaceStore, type Store } from "@novadeck/core/store"
 import { createDragSession, DragSessionContext } from "@novadeck/items/drag-session"
+import { followMail } from "@novadeck/items/mail"
 import { createItemStore } from "@novadeck/items/state"
 import { createRef, useEffect, useState, type ReactNode } from "react"
 import { useLocation, useNavigate, useNavigationType, type Location } from "react-router"
@@ -78,8 +79,7 @@ const createServices = (
   const { bind, settle, ...navigation } = createNavigator({ workspace, ui, now, panels })
   const canvas = createRef<CanvasHandle>()
   const itemStore =
-    backend.companions &&
-    createItemStore({ companions: backend.companions, workspace, messages: backend.messages })
+    backend.companions && createItemStore({ companions: backend.companions, workspace })
   const commands = createWorkspaceCommands({
     workspace,
     ui,
@@ -147,6 +147,11 @@ export const WorkspaceProvider = ({
     [services],
   )
   useEffect(() => services.itemStore?.connect(), [services])
+  // Messages join their terminal's bar, which a backend with items draws.
+  useEffect(() => {
+    const { itemStore, backend, workspace } = services
+    return itemStore && backend.messages ? followMail(workspace, backend.messages) : undefined
+  }, [services])
   useEffect(() => persistUi(services.ui, services.workspace), [services])
   useEffect(() => watchAppearance(services.ui, window, services.backend.showAppearance), [services])
   useEffect(

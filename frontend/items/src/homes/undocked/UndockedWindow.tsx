@@ -1,9 +1,7 @@
 import type { Item } from "@novadeck/core/items"
 import type { WorkspaceTarget } from "@novadeck/core/types"
 
-import type { ItemMember } from "../../bar"
-import type { PaneRegistration } from "../../registration"
-import { registry } from "../../registry"
+import { registrationOf } from "../../registry"
 import type { ItemStore } from "../../state"
 
 // An item undocked into a window of its own: its registration's body, as in the pane, a
@@ -20,14 +18,9 @@ export const UndockedWindow = ({
   // goes with it: the window shows nothing meanwhile.
   item: Item | undefined
 }): React.JSX.Element => {
-  const registration: PaneRegistration<ItemMember> | undefined = item && registry[item.kind]
+  const registration = item && registrationOf(item)
   const body = item && registration && (
-    <registration.View
-      member={{ kind: "item", key: item.id, item, placed: false, fresh: false }}
-      itemStore={itemStore}
-      target={target}
-      actions={undefined}
-    />
+    <registration.View item={item} itemStore={itemStore} target={target} actions={undefined} />
   )
   return (
     <div className="artifact-window">

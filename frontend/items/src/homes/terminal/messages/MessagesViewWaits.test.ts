@@ -3,7 +3,7 @@ import { render } from "@novadeck/test-kit/render"
 import { createElement } from "react"
 import { afterEach } from "vitest"
 
-import { describe, expect, it } from "../../test"
+import { describe, expect, it } from "../../../test"
 import type { MailHandle } from "./mail"
 import { MessagesView } from "./MessagesView"
 

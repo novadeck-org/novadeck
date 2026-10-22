@@ -5,10 +5,11 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import { AwakeContext, useWakeful } from "../../awake"
 import type { BarMember } from "../../bar"
-import type { MailHandle } from "../../kinds/messages/mail"
 import type { LookContext } from "../../registration"
-import { registrationOf } from "../../registry"
-import type { ItemStore, PlanPresentation } from "../../state"
+import type { ItemStore } from "../../state"
+import { memberLook, MemberView } from "./drawing"
+import type { MailHandle } from "./messages/mail"
+import type { PlanPresentation } from "./presentation"
 
 // Windows' restore glyph, drawn as lucide draws: a window lifting off the one it was
 // maximized in, as an item docked in the pane lifts into a window of its own.
@@ -67,35 +68,6 @@ const PaneActions = ({
     </Tooltip>
   </span>
 )
-
-// What the pane shows of one thing on the bar.
-const MemberTab = ({
-  member,
-  itemStore,
-  target,
-  mail,
-  peerName,
-  actions,
-}: {
-  member: BarMember
-  itemStore: ItemStore
-  target: WorkspaceTarget
-  mail: MailHandle
-  peerName: (handle: string) => string | undefined
-  actions: ReactNode
-}): React.JSX.Element => {
-  const { View } = registrationOf(member)
-  return (
-    <View
-      member={member}
-      itemStore={itemStore}
-      target={target}
-      mail={mail}
-      peerName={peerName}
-      actions={actions}
-    />
-  )
-}
 
 // How many of what's behind peek out above what the pane shows.
 const peeking = 2
@@ -188,7 +160,7 @@ const BehindStack = ({
       .slice(0, peeking)
       .toReversed()
       .map((each) => {
-        const { name } = registrationOf(each).look(each, { plans })
+        const { name } = memberLook(each, { plans })
         return (
           <Tooltip key={each.key} content={name}>
             <button
@@ -323,7 +295,7 @@ export const CompanionPane = ({
   }, [member?.key])
   const undock = member?.kind === "item" && !member.placed ? () => onUndock(member) : undefined
   const tab = member && (
-    <MemberTab
+    <MemberView
       key={member.key}
       member={member}
       itemStore={itemStore}
@@ -332,7 +304,7 @@ export const CompanionPane = ({
       peerName={peerName}
       actions={
         <PaneActions
-          name={registrationOf(member).look(member, { plans }).name}
+          name={memberLook(member, { plans }).name}
           behind={behind.length > 0}
           onUndock={undock}
           onMinimize={handOff(() => onMinimize(member))}

@@ -7,13 +7,15 @@ taskbar of the items on a bar, the peek over a slot, and the bar drag that carri
 terminal, a view or out into a window.
 
 An item lives in a home, a place that shows it. There are two: the companion pane beside a
-terminal (`src/homes/terminal/`, with the marks of the kinds on the terminal's tab) and the
-window an item is undocked into (`src/homes/undocked/`). The kinds live in `src/kinds/<kind>/`,
-one folder each. The top of `src/` holds what more than one home will use: the kinds' registry, the
-item view and the store, and the bar, taskbar, peek and bar drag. Today only the terminal's
-home has a bar; they stay at the top for a home of the project's, which will have one too.
-Some of the store still serves the terminal's home alone: how a plan presents beside its
-terminal (`presentationOf`) and the follower that puts messages on a terminal's bar.
+terminal (`src/homes/terminal/`) and the window an item is undocked into
+(`src/homes/undocked/`). The kinds live in `src/kinds/<kind>/`, one folder each. The top of
+`src/` holds what more than one home will use: the kinds' registry, the item view and the
+store, the Markdown document (`src/document/`), and the bar, taskbar, peek and bar drag. Today
+only the terminal's home has a bar; they stay at the top for a home of the project's, which
+will have one too. What only the terminal's home uses is in its folder: the terminal's
+messages (`homes/terminal/messages/`: the pane, its peek, the mail hooks and `followMail`,
+which puts messages on a terminal's bar), how the pane presents beside its terminal
+(`presentation.ts`), how it draws its bar (`drawing.tsx`) and the marks on the terminal's tab.
 
 ## Contract
 
@@ -23,7 +25,7 @@ terminal (`presentationOf`) and the follower that puts messages on a terminal's 
   import in a frontend package's `src` leaves that package's folder, so a path into the UI
   can't bypass the manifest. The host (`frontend/ui`) composes it and passes in what it needs: the workspace's
   items and each terminal's bar (`TerminalCompanion`'s props), the commands that act on them,
-  and the `ItemStore` it creates once.
+  and the `ItemStore` it creates once, beside which it starts `followMail`.
 - **A view reads state and never writes it.** `ItemStore` (`state.ts`) is the one place that loads
   content and writes plans, content and the revealed item; the views read it through
   `use-item-store.ts`. The items and the bar are core's workspace store, and mail is core's
@@ -31,24 +33,33 @@ terminal (`presentationOf`) and the follower that puts messages on a terminal's 
   (`undock`, `dock`, `place`, `closeItem`, `markSeen`, `openBarTab`, `closeBarPane`,
   `hideOnBar`, `moveBarSlot`) that `frontend/ui`'s `app/commands/companion.ts` implements and
   declares it `satisfies`.
-- **A registration draws one kind, and only its body.** `registry.ts` holds one registration
-  per `PaneKind` (an item kind or `messages`), each a folder of `src/kinds/`. The pane's
-  chrome stays in the terminal home's `CompanionPane`: its header, its actions, the "from another terminal" line
-  and the states of what can't show. A registration never switches on another kind.
+- **A registration draws one kind of item, and only its body.** `registry.ts` holds one
+  registration per `ItemKind`, each a folder of `src/kinds/`. Its views are given the `Item`
+  (`ItemProps` in `registration.ts`), never a bar's member, so a home without a bar shows it
+  as it is. The chrome is the home's: in the terminal's, `CompanionPane`'s header, its
+  actions, the "from another terminal" line and the states of what can't show. A registration
+  never switches on another kind.
+- **A home draws its own bar.** The taskbar at the top draws what's on a bar through the
+  home's `BarDrawing` (`TaskbarSlot.tsx`): an item by its registration, and anything that is
+  the home's own, as a terminal's messages, by the home (`homes/terminal/drawing.tsx`).
 - **What a kind means as data is core's** (`kindRules` in `core/src/items.ts`: what it
   points at, whether it is followed always or while shown, and whether closing hides or
   removes it). The package reads the table where it needs one of those rules.
-- **CodeMirror stays out of the first chunk.** The plan editor loads through `lazy()`
-  (`kinds/plan/PlanTab.tsx`, `kinds/file/DocumentViewer.tsx`), and `state.ts` loads
-  `@novadeck/viewers/sync` and `./kinds/plan/plan-editor/notes` with `import()`. A change that
-  imports them statically pulls the editor into every window and can break the try build's
-  first-load budget; compare the builds' chunk lists when touching either. The graph test keeps
-  `@codemirror/*` imports inside `src/kinds/plan/plan-editor/`.
+- **CodeMirror stays out of the first chunk.** A Markdown document's editor
+  (`document/editor/MarkdownEditor.tsx`) loads through `lazy()`: as itself in
+  `document/MarkdownDocument.tsx`, which a Markdown file's document view uses, and inside the
+  plan's editor (`kinds/plan/plan-editor/PlanEditor.tsx`, from `kinds/plan/PlanTab.tsx`), which
+  adds the plan's notes to it as extensions. `state.ts` loads `@novadeck/viewers/sync` and
+  `./kinds/plan/plan-editor/notes` with `import()`. A change that imports them statically pulls
+  the editor into every window and can break the try build's first-load budget; compare the
+  builds' chunk lists when touching either. The graph test keeps static imports and re-exports of
+  `@codemirror/*`, `@novadeck/viewers/markdown`, `@novadeck/viewers/sync` and either editor inside
+  `src/document/editor/` and `src/kinds/plan/plan-editor/`.
 - **Viewers mount through `ViewerSlot.ts`.** A registration shows an image, code or a page by
   `useViewerSlot(mountImage | mountCode | mountBrowser, ...)`, which keeps each viewer's place
   by item id (24 places per mount). The editor is the exception: `mountMarkdown` stays inside
-  the lazily loaded `PlanEditor`, with its own store (12), shared by plans and by Markdown files'
-  document view.
+  the lazily loaded `MarkdownEditor`, with its own store (12), shared by plans and by Markdown
+  files' document view.
 - **The window's controls are the host's.** `TerminalCompanion` (`homes/terminal/`) declares the one callback it
   gets from a window (`onReveal`) as its own type, so the package never imports `WindowShell`.
 
@@ -56,7 +67,8 @@ terminal (`presentationOf`) and the follower that puts messages on a terminal's 
 
 Only what the host imports: `./TerminalCompanion`, `./UndockedWindow` (the pane in its
 terminal, and an item in a window of its own), `./state` (`createItemStore`, `ItemStore`, the plan
-actions), `./bar` (`barMembers`, `composeBar`), `./mail` (`useHasMail`, `useMailBadge`),
+actions), `./bar` (`barMembers`, `composeBar`), `./mail` (`useHasMail`, `useMailBadge`,
+`followMail`),
 `./TabKinds` (the kinds' marks on a terminal's tab), `./registry` (`iconOf`: whoever draws an
 item's icon), `./actions` (`CompanionActions`),
 `./drag-session` (`createDragSession`, `DragSessionContext`, `useDrag`, `useDragSession` and
@@ -75,26 +87,27 @@ places they always had, so the cascade holds.
 
 ## Adding a kind
 
-A new artifact type is one folder and one line in the registry, plus its data parts. A new kind
-that is not an item (as the messages are) touches more, listed at the end.
+A new artifact type is one folder and one line in the registry, plus its data parts. Something
+a home shows that is not an item (as a terminal's messages are) is that home's, listed at the
+end.
 
 1. **The folder**, `src/kinds/<kind>/`: its components, and `index.ts` exporting the
-   registration. Everything it needs of the pane is on the `PaneRegistration` type
-   (`registration.ts`): the kind, the names of its stack, its icon (for one member and for a
-   stack), how it looks (name and label), its peek miniature (`Thumb`) and the pane's body
-   (`View`). An artifact kind builds its `View` and `Thumb` with `artifactView` and
+   registration. Everything a home needs of it is on the `ItemRegistration` type
+   (`registration.ts`): the kind, the names of its stack, its icon (for one item and for a
+   stack), how it looks (name and label), its peek miniature (`Thumb`) and its body (`View`),
+   each given the item. An artifact kind builds its `View` and `Thumb` with `artifactView` and
    `artifactThumb` (`ArtifactViewer.tsx`), which give it the loading and unavailable states, and
-   shows content through `useViewerSlot`. A registration never imports the plan editor or
-   CodeMirror statically.
-2. **The line**, in `registry.ts`: add it to `registry`. `Registry` maps every `PaneKind`, so a
+   shows content through `useViewerSlot`; a Markdown one, through `MarkdownDocument`. A
+   registration never imports an editor or CodeMirror statically.
+2. **The line**, in `registry.ts`: add it to `registry`. `Registry` maps every `ItemKind`, so a
    kind that has no registration fails to compile.
 3. **For a new item kind**, the data parts that stay closed: the `companionItem.kind` enum and
    its content schema in `contract/protocol/src/schemas.ts`, its type in core's `ItemKind` and its
    line in `kindRules` in `frontend/core/src/items.ts` (what it points at, whether it is
    followed always, whether closing hides it), the SQLite `CHECK` on the kind in
    `backend/runner/src/workspaces/store.ts`, and its loaders in the runner
-   (`backend/runner/src/companions/`). The pane kind is `ItemKind | "messages"`, so adding the
-   kind to core's `ItemKind` makes the registry's missing line a compile error.
+   (`backend/runner/src/companions/`). Adding the kind to core's `ItemKind` makes the
+   registry's missing line a compile error.
 
 A skeleton for an artifact kind (an `audio` item, say):
 
@@ -103,8 +116,7 @@ A skeleton for an artifact kind (an `audio` item, say):
 import { Volume2 } from "lucide-react"
 
 import { artifactLook, artifactThumb, artifactView } from "../../ArtifactViewer"
-import type { ItemMember } from "../../bar"
-import type { PaneRegistration } from "../../registration"
+import type { ItemRegistration } from "../../registration"
 import { AudioThumb, AudioViewer } from "./AudioViewer"
 
 export const audio = {
@@ -115,16 +127,14 @@ export const audio = {
   look: artifactLook,
   Thumb: artifactThumb("audio", AudioThumb), // `AudioThumb({ content })`
   View: artifactView("audio", AudioViewer), // `AudioViewer({ item, content, actions })`
-} satisfies PaneRegistration<ItemMember, "audio">
+} satisfies ItemRegistration<"audio">
 
 // src/registry.ts
-export const registry = { image, file, page, plan, changes, messages, audio } satisfies Registry
+export const registry = { image, file, page, changes, plan, audio } satisfies Registry
 ```
 
-A kind that is not an item (as the messages are) has no data parts, but it is not one line
-either: add the kind to `PaneKind` in `registration.ts`, give it a member shape in `bar.ts`
-(`BarMember`, and `composeBar` and the key logic with it, plus `BarKey` in core's
-`companion-bar`), widen the `M` constraint on `PaneRegistration`, `ThumbProps` and `ViewProps` and
-the conditional in `ThumbProps` and `Registry`, and teach `kindOf` in `registry.ts` to name it.
-Its registration is `PaneRegistration<TheMember, "kind">`, and its `View` draws the whole body
-itself.
+Something a home shows that is not an item, as a terminal's messages, has no data parts and no
+registration: it is the home's. Give it a member shape in `bar.ts` (`BarMember`, and
+`composeBar` and the key logic with it, plus `BarKey` in core's `companion-bar`), and have the
+home draw it: its `BarDrawing` for the taskbar (look, preview and badge) and its own body where
+the home shows what's on its bar, as the terminal's `drawing.tsx` does for the messages.

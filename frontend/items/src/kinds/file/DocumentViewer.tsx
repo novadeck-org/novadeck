@@ -1,17 +1,12 @@
 import type { FileContent } from "@novadeck/core/items"
 import { outline } from "@novadeck/viewers/text"
-import { lazy, Suspense, useRef, type ReactNode } from "react"
+import { useRef, type ReactNode } from "react"
 
-import type { PlanEditorHandle } from "../plan/plan-editor/PlanEditor"
+import type { MarkdownEditorHandle } from "../../document/editor/MarkdownEditor"
+import { MarkdownDocument } from "../../document/MarkdownDocument"
 
-// The plan's editor, read-only: a markdown document the agent showed reads as a plan does,
-// formatted, with its outline, but it's the agent's file, not something to edit or note.
-const PlanEditor = lazy(() =>
-  import("../plan/plan-editor/PlanEditor").then((module) => ({ default: module.PlanEditor })),
-)
-
-const noMarks: readonly never[] = []
-const ignore = (): void => {}
+// A markdown file the agent showed, as a document, read-only: formatted, with its outline,
+// as a plan reads, but it's the agent's file, not something to edit or note.
 
 export const DocumentViewer = ({
   id,
@@ -23,7 +18,7 @@ export const DocumentViewer = ({
   content: FileContent
   actions?: ReactNode
 }): React.JSX.Element => {
-  const editor = useRef<PlanEditorHandle | null>(null)
+  const editor = useRef<MarkdownEditorHandle | null>(null)
   const text = content.lines.join("\n")
   const headings = outline(text)
   return (
@@ -53,19 +48,16 @@ export const DocumentViewer = ({
           </nav>
         )}
         <div className="plan-document-scroll">
-          <Suspense fallback={null}>
-            <PlanEditor
-              id={id}
-              readOnly
-              text={text}
-              marks={noMarks}
-              onChange={ignore}
-              onReady={(handle) => {
-                editor.current = handle
-              }}
-              onClose={ignore}
-            />
-          </Suspense>
+          <MarkdownDocument
+            id={id}
+            readOnly
+            text={text}
+            // What assistive technology has always heard it as.
+            label="Plan"
+            onReady={(handle) => {
+              editor.current = handle
+            }}
+          />
         </div>
       </div>
     </div>

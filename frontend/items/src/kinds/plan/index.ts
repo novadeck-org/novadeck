@@ -1,9 +1,8 @@
 import { FileStack, FileText } from "lucide-react"
 
-import type { ItemMember } from "../../bar"
-import type { PaneRegistration } from "../../registration"
-import { titleOf } from "./plan-text"
-import { PlanView } from "./PlanTab"
+import { titleOf } from "../../document/title"
+import type { ItemRegistration } from "../../registration"
+import { PlanTab } from "./PlanTab"
 import { PlanThumb } from "./PlanThumb"
 
 // A plan an agent wrote, edited where it's read. A subagent's plan has an icon of its own.
@@ -11,10 +10,10 @@ import { PlanThumb } from "./PlanThumb"
 export const plan = {
   kind: "plan",
   names: { one: "plan", many: "Plans" },
-  icon: ({ item }: { readonly item: { readonly plan: { readonly role: string } | null } }) =>
+  icon: (item: { readonly plan: { readonly role: string } | null }) =>
     item.plan?.role === "subagent" ? FileStack : FileText,
   stackIcon: FileText,
-  look: ({ item }, { plans }) => {
+  look: (item, { plans }) => {
     const title = titleOf(item.name, plans[item.id]?.text ?? "")
     return {
       name: title,
@@ -22,7 +21,7 @@ export const plan = {
     }
   },
   Thumb: PlanThumb,
-  View: PlanView,
+  View: PlanTab,
   // In a window of its own it reads inside the same frame as in the pane.
   windowLabel: "Plan",
-} satisfies PaneRegistration<ItemMember, "plan">
+} satisfies ItemRegistration<"plan">
