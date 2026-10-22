@@ -1,10 +1,15 @@
 import { handleText } from "@novadeck/core/handle"
 
-import type { MessagesMember } from "../../bar"
-import type { ThumbProps } from "../../registration"
+import type { MailHandle } from "./mail"
 
 // The threads: the agents they're with, latest first.
-export const MailThumb = ({ mail, peerName }: ThumbProps<MessagesMember>): React.JSX.Element => {
+export const MailThumb = ({
+  mail,
+  peerName,
+}: {
+  mail: MailHandle
+  peerName: (handle: string) => string | undefined
+}): React.JSX.Element => {
   const threads = mail.mail?.threads ?? []
   return (
     <span className="peek-plan peek-mail">

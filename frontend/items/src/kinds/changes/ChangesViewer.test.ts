@@ -76,9 +76,8 @@ const show = (content: ChangesContent) => {
   )
   const itemStore = createItemStore({ companions, workspace })
   unmounts.push(itemStore.connect())
-  const member = { kind: "item", key: item.id, item, placed: false, fresh: false } as const
   const rendered = render(
-    createElement(registration.View, { member, itemStore, target, actions: undefined }),
+    createElement(registration.View, { item, itemStore, target, actions: undefined }),
   )
   unmounts.push(rendered.unmount)
   return rendered

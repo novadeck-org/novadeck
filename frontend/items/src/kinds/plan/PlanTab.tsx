@@ -10,14 +10,13 @@ import { outline } from "@novadeck/viewers/text"
 import { lazy, Suspense, useRef, type ReactNode } from "react"
 
 import { CopyText, Unavailable } from "../../ArtifactViewer"
-import type { ItemMember } from "../../bar"
-import type { ViewProps } from "../../registration"
+import type { MarkdownEditorHandle } from "../../document/editor/MarkdownEditor"
 import type { PlanActions, ItemStore } from "../../state"
 import { useContent, usePlan } from "../../use-item-store"
 import { blockOf, currentMarks, unreadableNow, type PlanDoc } from "./plan-doc"
-import type { PlanEditorHandle } from "./plan-editor/PlanEditor"
 
-// The editor loads when a plan first opens, so the workspace never pays for it.
+// The editor loads when a plan first opens, so the workspace never pays for it: a
+// Markdown document's, with the plan's notes, which load with it.
 const PlanEditor = lazy(() =>
   import("./plan-editor/PlanEditor").then((module) => ({ default: module.PlanEditor })),
 )
@@ -122,7 +121,7 @@ const PlanBody = ({
   actions: ReactNode
   pane: PlanActions
 }): React.JSX.Element => {
-  const editor = useRef<PlanEditorHandle | null>(null)
+  const editor = useRef<MarkdownEditorHandle | null>(null)
   const marks = currentMarks(plan)
   const agent = item.plan?.agent ?? "The agent"
   // A plan the runner says lives in messages reads as one that was read-only from the start.
@@ -262,13 +261,3 @@ export const PlanTab = ({
     <div className="artifact-status" />
   )
 }
-
-// The plan registration's body: one plan, in the pane or in a window of its own.
-export const PlanView = ({
-  member,
-  itemStore,
-  target,
-  actions,
-}: ViewProps<ItemMember>): React.JSX.Element => (
-  <PlanTab itemStore={itemStore} target={target} item={member.item} actions={actions} />
-)

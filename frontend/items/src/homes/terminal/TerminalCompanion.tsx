@@ -28,14 +28,16 @@ import {
   type BarMember,
 } from "../../bar"
 import { useDrag, type BarDrag } from "../../drag-session"
-import { useMail } from "../../kinds/messages/mail"
 import { stuckEdits } from "../../kinds/plan/plan-doc"
-import { presentationOf, type ItemStore } from "../../state"
+import type { ItemStore } from "../../state"
 import { Taskbar } from "../../Taskbar"
 import type { SlotActions } from "../../TaskbarSlot"
 import type { Dragged } from "../../use-bar-drag"
 import { usePlans } from "../../use-item-store"
 import { CompanionPane } from "./CompanionPane"
+import { terminalDrawing } from "./drawing"
+import { useMail } from "./messages/mail"
+import { presentationOf } from "./presentation"
 
 // What the app does with a terminal's bar and the items on it: the actions but docking, which
 // only a window's menu does.
@@ -261,12 +263,8 @@ export const TerminalCompanion = ({
   const actions: Omit<SlotActions, "grab"> = {
     showing,
     stacked: bar.stack,
-    mail,
-    peerName,
+    draw: terminalDrawing({ itemStore, target, mail, peerName, plans }),
     originOf,
-    plans,
-    itemStore,
-    target,
     // Clicking what the pane is showing minimizes it, as a taskbar does the active window;
     // anything else comes to the top.
     activate: (key) => (key === showing ? commands.minimizeOnBar(terminal, key) : openPicked(key)),

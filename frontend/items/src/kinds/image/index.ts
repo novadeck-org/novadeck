@@ -1,8 +1,7 @@
 import { Image } from "lucide-react"
 
 import { artifactLook, artifactThumb, artifactView } from "../../ArtifactViewer"
-import type { ItemMember } from "../../bar"
-import type { PaneRegistration } from "../../registration"
+import type { ItemRegistration } from "../../registration"
 import { ImageThumb, ImageViewer } from "./ImageViewer"
 
 // An image an agent showed, shown with the image viewer.
@@ -14,4 +13,4 @@ export const image = {
   look: artifactLook,
   Thumb: artifactThumb("image", ImageThumb),
   View: artifactView("image", ImageViewer),
-} satisfies PaneRegistration<ItemMember, "image">
+} satisfies ItemRegistration<"image">

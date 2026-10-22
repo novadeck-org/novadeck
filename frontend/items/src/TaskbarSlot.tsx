@@ -1,23 +1,33 @@
 import type { BarKey } from "@novadeck/core/companion-bar"
 import type { ItemId } from "@novadeck/core/items"
-import { mailBadgeLabel } from "@novadeck/core/messages"
-import type { WorkspaceTarget } from "@novadeck/core/types"
 import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
 import { HoverCard } from "@novadeck/toolkit/HoverCard"
-import { Pause, type LucideIcon } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 import type { ReactNode, Ref } from "react"
 
 import { isNew, pick, type BarMember, type BarSlot } from "./bar"
-import type { MailHandle } from "./kinds/messages/mail"
-import type { PlanDoc } from "./kinds/plan/plan-doc"
 import { Peek, type Indicator, type PeekEntry } from "./Peek"
-import { registrationOf, slotIcon, stackNames } from "./registry"
-import type { ItemStore } from "./state"
+import { stackIcon, stackNames, type Look } from "./registry"
 
 // One icon on a terminal's taskbar: its button, the peek above it with a card for each
 // thing behind it, and its menu. One thing's menu offers all that can be done with it; a
 // stack's only what's done with all of it, and each of its things to open, which is the
 // keyboard's way to them as the peek is the pointer's.
+
+// How the home draws what's on its bar: an item by its kind's registration, and what's the
+// home's own, as a terminal's messages, as the home says.
+export type BarDrawing = {
+  // Its icon, its name as the peek and menu say it, and how its button reads to assistive
+  // technology.
+  readonly look: (member: BarMember) => Look
+  // Its peek's miniature.
+  readonly preview: (member: BarMember) => ReactNode
+  // What the home adds to its icon, as a terminal its messages' count, and what its
+  // button's label says of it. None, for an item.
+  readonly badge: (
+    member: BarMember,
+  ) => { readonly mark: ReactNode; readonly label: string } | undefined
+}
 
 // What the taskbar does for its icons.
 export type SlotActions = {
@@ -25,14 +35,9 @@ export type SlotActions = {
   readonly showing: BarKey | null
   // What's open in the pane, the top last, shown or waiting while it's hidden.
   readonly stacked: readonly BarKey[]
-  readonly mail: MailHandle
-  readonly peerName: (handle: string) => string | undefined
+  readonly draw: BarDrawing
   // The name of the terminal something placed here came from, while it's open.
   readonly originOf: (member: BarMember) => string | undefined
-  // The bar's plans as the pane holds them, once loaded.
-  readonly plans: Readonly<Record<ItemId, PlanDoc>>
-  readonly itemStore: ItemStore
-  readonly target: WorkspaceTarget
   // Opens it in the pane, or hides the pane when it's what the pane shows.
   readonly activate: (key: BarKey) => void
   readonly open: (key: BarKey) => void
@@ -51,25 +56,13 @@ export type SlotActions = {
   ) => void
 }
 
-// How an item looks on the bar: its icon, its name as the peek and menu say it, how its
-// button reads to assistive technology, and its preview.
-type Look = { readonly icon: LucideIcon; readonly name: string; readonly label: string }
-
+// How something looks on the bar, as the home draws it, saying where it came from when
+// it was placed here from another terminal.
 export const lookOf = (member: BarMember, actions: SlotActions): Look => {
-  const registration = registrationOf(member)
-  const { name, label } = registration.look(member, { plans: actions.plans })
-  const look: Look = { icon: registration.icon(member), name, label }
+  const look = actions.draw.look(member)
   if (member.kind === "messages" || !member.placed) return look
   const origin = actions.originOf(member) ?? "another terminal"
   return { ...look, name: `${look.name} · from ${origin}`, label: `${look.label}, from ${origin}` }
-}
-
-const preview = (member: BarMember, actions: SlotActions): ReactNode => {
-  const { Thumb } = registrationOf(member)
-  const { itemStore, target, mail, peerName } = actions
-  return (
-    <Thumb member={member} itemStore={itemStore} target={target} mail={mail} peerName={peerName} />
-  )
 }
 
 const indicator = (
@@ -138,18 +131,6 @@ const stackMenu = (
   },
 })
 
-// The messages' count waiting for their agent, or the pause mark.
-const MailCount = ({ mail }: { mail: MailHandle }): React.JSX.Element | null =>
-  mail.badge ? (
-    <b className="plan-tb-count" data-mail={mail.badge.kind} aria-hidden="true">
-      {mail.badge.count}
-    </b>
-  ) : mail.paused ? (
-    <b className="plan-tb-count" data-mail="paused" aria-hidden="true">
-      <Pause size={8} strokeWidth={2.5} />
-    </b>
-  ) : null
-
 export const TaskbarSlot = ({
   slot,
   index,
@@ -187,7 +168,7 @@ export const TaskbarSlot = ({
       id: member.key,
       name: look.name,
       icon: <Icon size={14} strokeWidth={1.5} />,
-      preview: preview(member, actions),
+      preview: actions.draw.preview(member),
       state: indicator(member, showing, stacked),
       onOpen: () => actions.open(member.key),
       onClose: () => actions.close(member),
@@ -198,7 +179,9 @@ export const TaskbarSlot = ({
     }
   })
   const single = slot.stack ? undefined : slot.members[0]!
-  const look = single ? lookOf(single, actions) : { icon: slotIcon(slot), name: "", label: "" }
+  const look = single
+    ? lookOf(single, actions)
+    : { icon: stackIcon(slot.stack!), name: "", label: "" }
   const Icon = look.icon
   const fresh = slot.members.some(isNew)
   const shown = slot.members.find((member) => member.key === showing)
@@ -206,12 +189,7 @@ export const TaskbarSlot = ({
   const openLabel = behind ? ", in the pane" : ""
   const names = slot.stack && stackNames(slot.stack)
   const stack = stackMenu(slot.members, names ? names.one : "item", actions)
-  const messages = single?.kind === "messages"
-  const mailLabel = actions.mail.badge
-    ? `, ${mailBadgeLabel(actions.mail.badge)}`
-    : actions.mail.paused
-      ? ", messaging paused"
-      : ""
+  const badge = single && actions.draw.badge(single)
   return (
     <ContextMenu
       label={`${single ? look.name : names!.many} actions`}
@@ -239,7 +217,7 @@ export const TaskbarSlot = ({
                 data-state={fresh ? "new" : shown ? "open" : behind ? "behind" : "seen"}
                 aria-label={
                   single
-                    ? `${look.label}${messages ? mailLabel : fresh ? ", new" : ""}${openLabel}`
+                    ? `${look.label}${badge ? badge.label : fresh ? ", new" : ""}${openLabel}`
                     : `${slot.members.length} ${names!.one}s${fresh ? ", new" : ""}${openLabel}`
                 }
                 aria-pressed={Boolean(shown)}
@@ -247,15 +225,13 @@ export const TaskbarSlot = ({
                 onClick={() => actions.activate((single ?? pick(slot, stacked)).key)}
               >
                 <Icon size={20} strokeWidth={1.5} />
-                {messages ? (
-                  <MailCount mail={actions.mail} />
-                ) : (
-                  !single && (
-                    <b className="plan-tb-count" aria-hidden="true">
-                      {slot.members.length}
-                    </b>
-                  )
-                )}
+                {badge
+                  ? badge.mark
+                  : !single && (
+                      <b className="plan-tb-count" aria-hidden="true">
+                        {slot.members.length}
+                      </b>
+                    )}
               </button>
             }
           >

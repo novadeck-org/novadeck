@@ -1813,7 +1813,7 @@ again.
    `Messaging.subscribe`, the
    contract in `core/messages.ts` of `frontend/ui`, the runner's side in
    `backend/runner/messages.ts`, the tab's mark in `frontend/items/src/homes/terminal/TabKinds.tsx`, the view in
-   `frontend/items/src/kinds/messages/MessagesView.tsx`, and the title's source and reset on the tab in
+   `frontend/items/src/homes/terminal/messages/MessagesView.tsx`, and the title's source and reset on the tab in
    `terminals/TerminalTab.tsx`.
 4. **Naming:** the title's layers (the person, murmur, the opener, the default) and
    agents' own `summarize`, which replaced `describe` and the first-prompt title. Built:

@@ -12,6 +12,7 @@ import { afterEach, vi } from "vitest"
 import { createDragSession, DragSessionContext } from "../../drag-session"
 import { createItemStore, type ItemStore } from "../../state"
 import { context, describe, expect, it } from "../../test"
+import { followMail } from "./messages/mail"
 import { TerminalCompanion, type ItemCommands } from "./TerminalCompanion"
 
 // jsdom has no layout and no resizes; the taskbar's drag-to-reorder asks for them.
@@ -84,14 +85,14 @@ const Terminal = ({
   return createElement(TerminalCompanion, props)
 }
 
-// Renders the terminal as the app does: its item store made first, following the backend only
-// once it has mounted.
+// Renders the terminal as the app does: its item store made first, following the backend and
+// the mail only once it has mounted.
 const renderTerminal = (
   initial: Workspace,
   messages?: Messages,
 ): { container: HTMLElement; workspace: WorkspaceStore } => {
   const workspace = createWorkspaceStore(initial)
-  const itemStore = createItemStore({ companions: emptyCompanions(), workspace, messages })
+  const itemStore = createItemStore({ companions: emptyCompanions(), workspace })
   const { container, unmount } = render(
     createElement(
       DragSessionContext,
@@ -100,12 +101,11 @@ const renderTerminal = (
     ),
   )
   unmounts.push(unmount)
-  // Connecting tells the terminal its messages: a render of its own, inside act.
-  let disconnect = (): void => {}
+  // Following the mail tells the terminal its messages: a render of its own, inside act.
   act(() => {
-    disconnect = itemStore.connect()
+    unmounts.push(itemStore.connect())
+    if (messages) unmounts.push(followMail(workspace, messages))
   })
-  unmounts.push(disconnect)
   return { container, workspace }
 }
 

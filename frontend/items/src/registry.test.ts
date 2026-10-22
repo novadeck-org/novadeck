@@ -1,5 +1,5 @@
 import { messagesKey } from "@novadeck/core/companion-bar"
-import type { ArtifactKind, Item } from "@novadeck/core/items"
+import type { ArtifactKind, Item, ItemKind } from "@novadeck/core/items"
 import { itemFixture } from "@novadeck/core/testing"
 import {
   BookText,
@@ -14,13 +14,16 @@ import {
 } from "lucide-react"
 
 import type { BarMember, BarSlot, StackKind } from "./bar"
-import type { PaneKind } from "./registration"
-import { iconOf, kindOf, memberIcon, registry, slotIcon, stackNames } from "./registry"
+import { slotIcon, terminalDrawing } from "./homes/terminal/drawing"
+import type { MailHandle } from "./homes/terminal/messages/mail"
+import { iconOf, registry, stackNames } from "./registry"
+import type { ItemStore } from "./state"
 import { lookOf, type SlotActions } from "./TaskbarSlot"
 import { context, describe, expect, it } from "./test"
 
 // What the icons, names and labels were before the registry, as the switches wrote them. The
-// registry must give the same for every shape of member.
+// registry, and a terminal's drawing of its bar with it, must give the same for every shape
+// of member.
 const oldKindIcons: Record<ArtifactKind, LucideIcon> = {
   image: Image,
   file: FileCode2,
@@ -117,43 +120,28 @@ const shapes: Record<string, BarMember> = {
 
 describe("the registry", () => {
   context("what it holds", () => {
-    it("has a registration for every kind, each under its own kind", () => {
-      const kinds: Record<PaneKind, true> = {
+    it("has a registration for every kind of item, each under its own kind", () => {
+      const kinds: Record<ItemKind, true> = {
         image: true,
         file: true,
         page: true,
         changes: true,
         plan: true,
-        messages: true,
       }
       expect(Object.keys(registry).toSorted()).toEqual(Object.keys(kinds).toSorted())
       for (const [key, registration] of Object.entries(registry))
         expect(registration.kind).toBe(key)
     })
-
-    it("names every member by its kind", () => {
-      expect(Object.values(shapes).map(kindOf)).toEqual([
-        "plan",
-        "plan",
-        "file",
-        "file",
-        "file",
-        "image",
-        "page",
-        "changes",
-        "messages",
-        "plan",
-        "file",
-      ])
-    })
   })
 
   context("icons", () => {
     it("gives each shape of member the icon the switches gave it", () => {
+      const icon = (member: BarMember) =>
+        slotIcon({ key: member.key, stack: null, members: [member] })
       for (const [shape, member] of Object.entries(shapes))
-        expect(memberIcon(member), shape).toBe(oldMemberIcon(member))
-      expect(memberIcon(shapes["subagent plan"]!)).toBe(FileStack)
-      expect(memberIcon(shapes["markdown file"]!)).toBe(BookText)
+        expect(icon(member), shape).toBe(oldMemberIcon(member))
+      expect(icon(shapes["subagent plan"]!)).toBe(FileStack)
+      expect(icon(shapes["markdown file"]!)).toBe(BookText)
     })
 
     it("gives an artifact the icon its kind and name gave it", () => {
@@ -199,15 +187,26 @@ describe("the registry", () => {
 
     it("looks as it did for every shape of member, placed or not", () => {
       const plans = { [plan.id]: { text: "# Home for Studio\n\nBody" } }
-      const actions = {
-        plans,
-        originOf: () => "Dev server",
-      } as unknown as SlotActions
+      const actionsOf = (
+        held: Record<string, { text: string }>,
+        origin: string | undefined,
+      ): SlotActions =>
+        ({
+          draw: terminalDrawing({
+            plans: held as Parameters<typeof terminalDrawing>[0]["plans"],
+            itemStore: {} as ItemStore,
+            target: { projectId: "project", workspaceSessionId: "initial" },
+            mail: {} as MailHandle,
+            peerName: () => undefined,
+          }),
+          originOf: () => origin,
+        }) as unknown as SlotActions
+      const actions = actionsOf(plans, "Dev server")
       for (const [shape, member] of Object.entries(shapes))
         expect(lookOf(member, actions), shape).toEqual(oldLookOf(member, plans, "Dev server"))
       // A plan before it loads is named by its file; one placed from a terminal that's gone
       // says so in general words.
-      const unloaded = { plans: {}, originOf: () => undefined } as unknown as SlotActions
+      const unloaded = actionsOf({}, undefined)
       for (const [shape, member] of Object.entries(shapes))
         expect(lookOf(member, unloaded), shape).toEqual(oldLookOf(member, {}, undefined))
     })

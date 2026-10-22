@@ -1,4 +1,5 @@
-import { companionKeyId, type CompanionKey } from "@novadeck/core/items"
+import { messagesKey } from "@novadeck/core/companion-bar"
+import { companionKeyId, companionKeyOf, type CompanionKey } from "@novadeck/core/items"
 import {
   hasMail,
   mailBadge,
@@ -8,7 +9,8 @@ import {
   type Messages,
   type TerminalMail,
 } from "@novadeck/core/messages"
-import type { Store } from "@novadeck/core/store"
+import type { WorkspaceAction } from "@novadeck/core/state"
+import type { Store, WorkspaceStore } from "@novadeck/core/store"
 import { useSyncExternalStore } from "react"
 
 const none: Store<MailState> = { getSnapshot: () => noMail, subscribe: () => () => {} }
@@ -73,5 +75,48 @@ export const useMail = (messages: Messages | undefined, key: CompanionKey): Mail
     badge: mailBadge(mail, paused),
     pause: (next) => messages?.pause(next),
     release: (thread) => messages?.release(thread),
+  }
+}
+
+// How many messages a terminal's threads hold.
+const messageCount = (mail: TerminalMail | undefined): number =>
+  (mail?.threads ?? []).reduce((count, thread) => count + thread.messages.length, 0)
+
+// The messages join a terminal's bar when it first has them, after what came before, and
+// come back once hidden with the next message, whether or not the terminal is on screen.
+// Follows them from here on; returns the stop.
+export const followMail = (workspace: WorkspaceStore, messages: Messages): (() => void) => {
+  const counts = new Map<string, number>()
+  const note = (state: MailState): void => {
+    const actions: WorkspaceAction[] = []
+    for (const [id, mail] of Object.entries(state.terminals)) {
+      const count = messageCount(mail)
+      const more = count > (counts.get(id) ?? count)
+      counts.set(id, count)
+      if (!hasMail(mail)) continue
+      // A terminal closed since its mail came takes nothing: the bar's actions pass it by.
+      const { terminalId, ...target } = companionKeyOf(id)
+      actions.push({ type: "bar/arrive", target, terminalId, key: messagesKey })
+      if (more) actions.push({ type: "bar/reopen", target, terminalId, key: messagesKey })
+    }
+    if (actions.length) workspace.transact(actions)
+  }
+  note(messages.state.getSnapshot())
+  // Heard once the turn is over, as mail may change inside a workspace commit, which can't
+  // take this transaction: a closed terminal's mail goes as the backend commits its close.
+  // What changed meanwhile is read then, once.
+  let heard = false
+  let following = true
+  const stop = messages.state.subscribe(() => {
+    if (heard) return
+    heard = true
+    queueMicrotask(() => {
+      heard = false
+      if (following) note(messages.state.getSnapshot())
+    })
+  })
+  return () => {
+    following = false
+    stop()
   }
 }
