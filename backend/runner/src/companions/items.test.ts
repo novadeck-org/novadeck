@@ -591,7 +591,7 @@ describe("the project window", () => {
     const gone: string[] = []
     fixture.items.listen({ troubled: () => {}, gone: (item) => gone.push(item.path ?? "") })
     const controller = new AbortController()
-    const stream = fixture.items.content(first.item.id, false, controller.signal)
+    const stream = fixture.items.content(first.item.id, undefined, controller.signal)
     expect(lines(await next(stream))).toEqual(["alpha"])
 
     const watch = new AbortController()
@@ -632,29 +632,40 @@ describe("the project window", () => {
     })
   })
 
-  it("shows a held file's gate again when the window is pointed at one", async ({ fixture }) => {
-    writeFileSync(join(fixture.directory, "a.ts"), "alpha\n")
+  it("reveals a held file only while the window is pointed at the file asked for", async ({
+    fixture,
+  }) => {
     writeFileSync(join(fixture.directory, ".env"), "TOKEN=x\n")
+    writeFileSync(join(fixture.directory, ".env.local"), "OTHER=y\n")
     const sessionId = fixture.sessionId
     const first = await fixture.items.openInProject({
-      sessionId,
-      path: "a.ts",
-      windowId: randomUUID(),
-    })
-    const controller = new AbortController()
-    // The person revealed what the window held; that is not a reveal of the next file.
-    const stream = fixture.items.content(first.item.id, true, controller.signal)
-    expect(lines(await next(stream))).toEqual(["alpha"])
-    const held = await fixture.items.openInProject({
       sessionId,
       path: ".env",
       windowId: randomUUID(),
     })
-    expect(held.item).toMatchObject({ held: true, name: ".env" })
+    const controller = new AbortController()
+    const asked = join(fixture.directory, ".env")
+    // The person revealed .env; that is not a reveal of the next file.
+    const stream = fixture.items.content(first.item.id, asked, controller.signal)
+    expect(lines(await next(stream))).toEqual(["TOKEN=x"])
+    const other = await fixture.items.openInProject({
+      sessionId,
+      path: ".env.local",
+      windowId: randomUUID(),
+    })
+    expect(other.item).toMatchObject({ held: true, name: ".env.local" })
     await expect(next(stream)).resolves.toMatchObject({ state: "unavailable", reason: "held" })
-    // A stream that asks again, onto the file now held, reveals it.
-    const revealing = fixture.items.content(first.item.id, true, controller.signal)
-    expect(lines(await next(revealing))).toEqual(["TOKEN=x"])
+    // A stream asked for .env while the window shows .env.local starts held too: the
+    // person's click may have raced the re-point.
+    const late = fixture.items.content(first.item.id, asked, controller.signal)
+    await expect(next(late)).resolves.toMatchObject({ state: "unavailable", reason: "held" })
+    // A reveal asked for .env.local reveals it.
+    const there = join(fixture.directory, ".env.local")
+    const revealing = fixture.items.content(first.item.id, there, controller.signal)
+    expect(lines(await next(revealing))).toEqual(["OTHER=y"])
+    // Pointed back at the file a stream was asked for, it reads revealed again.
+    await fixture.items.openInProject({ sessionId, path: ".env", windowId: randomUUID() })
+    expect(lines(await next(stream))).toEqual(["TOKEN=x"])
     controller.abort()
   })
 
@@ -925,7 +936,7 @@ describe("an item's content", () => {
     const moth = fixture.terminal("moth")
     const shown = await fixture.items.show(moth, { file: { path: "a.ts" } })
     const itemId = shown.ok ? shown.id : ""
-    const stream = fixture.items.content(itemId, false)
+    const stream = fixture.items.content(itemId, undefined)
     expect(lines(await next(stream))).toEqual(["one"])
     writeFileSync(path, "one\ntwo\n")
     expect(lines(await next(stream))).toEqual(["one", "two"])
@@ -1354,7 +1365,7 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     const { root, place } = repository(fixture)
     const shown = await fixture.items.show(place, { changes: {} })
     const itemId = shown.ok ? shown.id : ""
-    const stream = fixture.items.content(itemId, false)
+    const stream = fixture.items.content(itemId, undefined)
     const first = await next(stream)
     expect(first).toMatchObject({ state: "ready", content: { kind: "changes" } })
     expect(
@@ -1444,7 +1455,7 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     const { root, place } = repository(fixture)
     const shown = await fixture.items.show(place, { changes: {} })
     const itemId = shown.ok ? shown.id : ""
-    const stream = fixture.items.content(itemId, false)
+    const stream = fixture.items.content(itemId, undefined)
     expect(await next(stream)).toMatchObject({ state: "ready" })
     const head = join(root, ".git", "HEAD")
     const good = readFileSync(head)
@@ -1490,7 +1501,7 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     git("config", "filter.slow.clean", "sleep 0.3; cat")
     writeFileSync(join(root, "a.txt"), "one\ntwo\nthree\n")
     const shown = await fixture.items.show(place, { changes: {} })
-    const stream = fixture.items.content(shown.ok ? shown.id : "", false)
+    const stream = fixture.items.content(shown.ok ? shown.id : "", undefined)
     const starts: number[] = []
     timing.slowMs = 100
     timing.saw = (args) => {

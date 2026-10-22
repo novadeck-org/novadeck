@@ -120,7 +120,7 @@ describe("the content demo's plans", () => {
       backend.companions!.follow(
         session,
         itemIdOf(sample.plan.id),
-        { reveal: false },
+        { reveal: undefined },
         (content) => content.state === "ready" && stamps.push(content.stamp),
       )
       const request = requests(key(slot))[0]!
@@ -152,7 +152,7 @@ describe("the content demo's plans", () => {
       backend.companions!.follow(
         session,
         itemIdOf(sample.plan.id),
-        { reveal: false },
+        { reveal: undefined },
         (content) => content.state === "ready" && stamps.push(content.stamp),
       )
       turns.ask(key(slot), undefined, "permission", 1)
@@ -183,7 +183,7 @@ describe("the content demo's plans", () => {
     backend.companions!.follow(
       session,
       itemIdOf(authAgent.plan.id),
-      { reveal: false },
+      { reveal: undefined },
       (content) => {
         if (content.state !== "ready") return
         text = (content.content as { text: string }).text

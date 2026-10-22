@@ -49,7 +49,7 @@ const workspaceWith = (): WorkspaceStore =>
 // it's given, and counts what's followed.
 const backend = () => {
   const listeners = new Map<ItemId, (content: ItemContent) => void>()
-  const follows: { readonly id: ItemId; readonly reveal: boolean }[] = []
+  const follows: { readonly id: ItemId; readonly reveal: string | undefined }[] = []
   const stopped: ItemId[] = []
   const saves: {
     readonly text: string
@@ -535,7 +535,7 @@ describe("following items", () => {
   it("follows every plan, and something else only while it's watched", () => {
     const { companions, follows, stopped } = backend()
     const { itemStore } = connected(companions)
-    expect(follows).toEqual([{ id: planItem.id, reveal: false }])
+    expect(follows).toEqual([{ id: planItem.id, reveal: undefined }])
     const release = itemStore.watch(target, hero.id)
     const again = itemStore.watch(target, hero.id)
     expect(follows.map((each) => each.id)).toEqual([planItem.id, hero.id])
@@ -569,7 +569,7 @@ describe("following items", () => {
     const { itemStore } = connected(companions)
     const release = itemStore.watch(target, hero.id)
     itemStore.reveal(hero.id)
-    expect(follows.at(-1)).toEqual({ id: hero.id, reveal: true })
+    expect(follows.at(-1)).toEqual({ id: hero.id, reveal: "/p/hero.png" })
     release()
     vi.advanceTimersByTime(30_000)
     expect(stopped).toEqual([hero.id, hero.id])
@@ -602,7 +602,7 @@ describe("following items", () => {
     const { itemStore } = connected(companions)
     itemStore.watch(target, hero.id)
     itemStore.reveal(hero.id)
-    expect(follows.at(-1)).toEqual({ id: hero.id, reveal: true })
+    expect(follows.at(-1)).toEqual({ id: hero.id, reveal: "/p/hero.png" })
     expect(itemStore.store.getSnapshot().revealed).toEqual({ [hero.id]: pointedHero })
   })
 
@@ -629,9 +629,9 @@ describe("following items", () => {
       itemStore.watch(target, hero.id)
       itemStore.reveal(hero.id)
       listeners.get(hero.id)!({ state: "unavailable", reason: "missing", size: null })
-      expect(follows.at(-1)).toEqual({ id: hero.id, reveal: true })
+      expect(follows.at(-1)).toEqual({ id: hero.id, reveal: "/p/.env" })
       repoint(workspace, ".env.local")
-      expect(follows.at(-1)).toEqual({ id: hero.id, reveal: false })
+      expect(follows.at(-1)).toEqual({ id: hero.id, reveal: undefined })
       expect(itemStore.store.getSnapshot().revealed).toEqual({})
       expect(itemStore.store.getSnapshot().content[hero.id]).toMatchObject({ reason: "held" })
     })
@@ -647,7 +647,7 @@ describe("following items", () => {
       vi.advanceTimersByTime(31_000)
       repoint(workspace, "secrets.json")
       itemStore.watch(target, hero.id)
-      expect(follows.at(-1)).toEqual({ id: hero.id, reveal: false })
+      expect(follows.at(-1)).toEqual({ id: hero.id, reveal: undefined })
     })
 
     it("keeps a reveal for the same file shown again after the linger", () => {
@@ -660,7 +660,35 @@ describe("following items", () => {
       unwatch()
       vi.advanceTimersByTime(31_000)
       itemStore.watch(target, hero.id)
-      expect(follows.at(-1)).toEqual({ id: hero.id, reveal: true })
+      expect(follows.at(-1)).toEqual({ id: hero.id, reveal: "/p/.env" })
+    })
+
+    it("asks for the file the person chose, not the one the window was pointed at since", () => {
+      // A backend as the runner is: a stream reveals only while the item is at the path asked.
+      const runner = { at: "/p/.env" }
+      const asked: (string | undefined)[] = []
+      const follow: Companions["follow"] = (_target, _id, { reveal }, on) => {
+        asked.push(reveal)
+        on(
+          reveal === runner.at
+            ? { state: "unavailable", reason: "missing", size: null }
+            : { state: "unavailable", reason: "held", size: null },
+        )
+        return () => {}
+      }
+      const companions: Companions = {
+        ...backend().companions,
+        follow,
+      }
+      const workspace = workspaceWith()
+      const { itemStore } = connected(companions, workspace)
+      workspace.dispatch({ type: "item/upsert", target, item: held(".env") })
+      itemStore.watch(target, hero.id)
+      // The person's click on .env races an open the window hasn't heard of yet.
+      runner.at = "/p/secrets.json"
+      itemStore.reveal(hero.id)
+      expect(asked.at(-1)).toBe("/p/.env")
+      expect(itemStore.store.getSnapshot().content[hero.id]).toMatchObject({ reason: "held" })
     })
 
     it("holds the new file's content, not the old one's, and ignores a late report of it", () => {
@@ -747,9 +775,9 @@ describe("following items", () => {
       itemStore.reveal(hero.id)
       workspace.dispatch({ type: "item/upsert", target, item: { ...hero, version: 2 } })
       expect(follows).toEqual([
-        { id: planItem.id, reveal: false },
-        { id: hero.id, reveal: false },
-        { id: hero.id, reveal: true },
+        { id: planItem.id, reveal: undefined },
+        { id: hero.id, reveal: undefined },
+        { id: hero.id, reveal: "/p/hero.png" },
       ])
     })
   })

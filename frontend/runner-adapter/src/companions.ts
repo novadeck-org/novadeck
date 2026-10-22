@@ -121,7 +121,7 @@ export const createRunnerCompanions = (
     let stream: ReturnType<typeof runner.content> | undefined
     let stopped = false
     try {
-      stream = runner.content(itemId, { reveal })
+      stream = runner.content(itemId, reveal === undefined ? {} : { reveal })
     } catch {
       return () => {}
     }

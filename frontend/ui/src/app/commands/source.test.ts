@@ -134,6 +134,61 @@ describe("source commands", () => {
       expect(app.state().selected).not.toBe("session-1")
     })
 
+    it("opens and selects a window the backend made anew after another client closed the old one", async () => {
+      let answer!: () => void
+      let reading = false
+      const fresh = { ...readme, id: itemFixture("fresh", "01").id, name: "notes.md" }
+      // The backend makes the window under the id the open asked for.
+      const app = open((_target, _path, windowId) =>
+        reading
+          ? new Promise(
+              (resolve) =>
+                (answer = () =>
+                  resolve({
+                    item: fresh,
+                    window: { ...windowOf(windowId, "notes.md"), itemId: fresh.id },
+                  })),
+            )
+          : reply(),
+      )
+      await app.commands.openSourceFile("README.md")
+      reading = true
+      const opening = app.commands.openSourceFile("notes.md")
+      app.workspace.dispatch({ type: "item/close", target, itemId: readme.id })
+      answer()
+      await opening
+      expect(app.state().roster.windows.map((each) => each.id)).toEqual(["session-2"])
+      expect(app.state().selected).toBe("session-2")
+      expect(app.ui.getSnapshot().created).toMatchObject({ id: "session-2" })
+    })
+
+    it("places the window once when two opens began before it existed", async () => {
+      const answers: (() => void)[] = []
+      let version = 0
+      const app = open(
+        () =>
+          new Promise((resolve) =>
+            answers.push(() =>
+              resolve({
+                item: { ...readme, version: (version += 1) },
+                window: windowOf("session-1", "README.md"),
+              }),
+            ),
+          ),
+      )
+      const first = app.commands.openSourceFile("README.md")
+      const second = app.commands.openSourceFile("notes.md")
+      answers[0]!()
+      await first
+      const created = app.ui.getSnapshot().created
+      expect(created).toMatchObject({ id: "session-1" })
+      answers[1]!()
+      await second
+      expect(app.ui.getSnapshot().created).toBe(created)
+      expect(app.state().roster.windows.map((each) => each.id)).toEqual(["session-1"])
+      expect(app.state().items.map((each) => each.version)).toEqual([2])
+    })
+
     it("places the window the same when the watch reported it before the answer", async () => {
       const window = windowOf("session-1", "README.md")
       let answer!: () => void

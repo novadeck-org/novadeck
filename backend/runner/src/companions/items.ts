@@ -588,17 +588,18 @@ export class CompanionItems {
 
   /**
    * What an item points at, read now, then again each time it changes, until it is
-   * deleted or `signal` aborts. A file that may hold secrets is `held` unless `reveal`.
+   * deleted or `signal` aborts. A file that may hold secrets is `held` unless `reveal` is
+   * the path the item points at: a reveal is for the file the person chose, so an item
+   * pointed at another since (a project window re-pointed) shows its gate again, and the
+   * file revealed again if pointed back.
    */
   async *content(
     itemId: string,
-    reveal: boolean,
+    reveal: string | undefined,
     signal?: AbortSignal,
   ): AsyncGenerator<ItemContent> {
     if (this.stopping) throw new DomainError("CLOSING")
-    // The file the stream started on: a reveal asked for it is not one for another file the
-    // item is pointed at since (a project window re-pointed), which shows its gate again.
-    const started = this.item(itemId).pointerKey
+    this.item(itemId)
     const reader = new AbortController()
     const readers = this.readers.get(itemId) ?? new Set()
     this.readers.set(itemId, readers.add(reader))
@@ -625,7 +626,7 @@ export class CompanionItems {
         if (now !== probed) {
           const began = Date.now()
           // eslint-disable-next-line no-await-in-loop -- As above.
-          const content = await this.read(item, reveal && item.pointerKey === started, live)
+          const content = await this.read(item, reveal !== undefined && reveal === item.path, live)
           if (reader.signal.aborted) return
           took = Date.now() - began
           probed = now

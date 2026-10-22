@@ -289,11 +289,14 @@ through the backend's seed and actions, as terminals do; the person's moves are
 workspace actions the backend makes so. The pane loads content through the backend
 port's optional `companions` capability (`frontend/core/src/items.ts`):
 
-| `companions`                             | What it carries                                                                              |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `follow(target, itemId, { reveal }, on)` | What an item holds now, then again as it changes: ready with a stamp, or why not             |
-| `save(target, itemId, text, basedOn)`    | The user's edit written to the plan file, unless it changed since stamp `basedOn`            |
-| `attach?(key, path)`                     | A file the person picked, put on a terminal's bar and opened; absent where the backend can't |
+| `companions`                             | What it carries                                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------------------------- |
+| `follow(target, itemId, { reveal }, on)` | What an item holds now, then again as it changes: ready with a stamp, or why not      |
+| `save(target, itemId, text, basedOn)`    | The user's edit written to the plan file, unless it changed since stamp `basedOn`     |
+| `openInProject?(target, path, windowId)` | A file the person opened from Source, in the project window; absent where it can't be |
+
+A file that may hold secrets is `held` until the person asks to see it, and `reveal` is the path
+they asked for: the item re-pointed to another file reads `held` again.
 
 A change (the `changes` item kind) shows in the diff viewer (`libraries/viewers/src/diff.ts`),
 read-only: a list of the changed files at the top, each scrolling to its section, then a

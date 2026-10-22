@@ -317,11 +317,12 @@ export const pageTroublesPerCall = 20
 // as the backend's seed and actions, like terminals.
 export type Companions = {
   // Reports what the item holds now, then again whenever that changes, until stopped.
-  // One that may hold secrets reports `held` unless `reveal`.
+  // One that may hold secrets reports `held` unless `reveal` is the path the item points at:
+  // the person's yes is to a file, not to whatever the item is pointed at when it's heard.
   readonly follow: (
     target: WorkspaceTarget,
     itemId: ItemId,
-    options: { readonly reveal: boolean },
+    options: { readonly reveal: string | undefined },
     on: (content: ItemContent) => void,
   ) => () => void
   // Writes the person's edit to the plan, unless it changed since `basedOn`. Rejects with

@@ -40,19 +40,23 @@ export const createSourceCommands = (
     const target = currentTarget(before)
     const known = sessionState(before, target)?.roster.windows
     const had = known?.find((each) => each.home === "project")
+    const asked = effects.newId()
     const { item, window } = await open(
       target,
       absolutePath(activeProject(before)!.directory, path),
-      effects.newId(),
+      asked,
     )
     const snapshot = workspace.getSnapshot()
     const state = sessionState(snapshot, target)
     // The person closed the window meanwhile, and the backend's close, queued behind this
-    // open, removes it again: it isn't brought back to be selected and removed.
-    if (had && !state?.roster.windows.some((each) => each.id === had.id)) return
+    // open, removes it again: it isn't brought back to be selected and removed. A window the
+    // backend made anew, as when another client closed that one, is a different window.
+    if (had && window.id === had.id && !state?.roster.windows.some((each) => each.id === had.id))
+      return
     // Made by this open, not by what the watch reported first: whichever came first, it is
-    // placed the same.
-    const made = !known?.some((each) => each.id === window.id)
+    // placed the same. It is the window this open asked for the id of; where two opens began
+    // with no window, the second is answered with the first's.
+    const made = window.id === asked
     // The person may have moved on while the backend read the file. The window belongs to the
     // session it was opened for: it goes there, and only if they are still in it is it
     // selected, placed beside what they have selected, and pulsed.

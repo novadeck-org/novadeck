@@ -323,12 +323,13 @@ export type Runner = {
     watch(): AsyncIterableIterator<CompanionWatchItem, undefined>
     /**
      * Follows what an item points at: read now, then again each time it changes, across
-     * reconnections. A file that may hold secrets is `held` unless `reveal`. Iteration
+     * reconnections. A file that may hold secrets is `held` unless `reveal` is the
+     * path the item points at, the file the person chose to show. Iteration
      * ends once the item is deleted, the runner closes, or on `return()`.
      */
     content(
       itemId: string,
-      options?: { readonly reveal?: boolean },
+      options?: { readonly reveal?: string },
     ): AsyncIterableIterator<ItemContent, undefined>
     /**
      * Writes the person's edit to a plan kept in a file, unless it changed since `basedOn`,

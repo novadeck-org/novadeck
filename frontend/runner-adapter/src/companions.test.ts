@@ -28,7 +28,7 @@ const hero = itemIdOf("hero")
 // Items over a runner whose content streams the test feeds.
 const following = ({ livePages = false } = {}) => {
   const streams = new Map<string, ReturnType<typeof channel<RunnerContent>>>()
-  const asked: { readonly itemId: string; readonly reveal: boolean | undefined }[] = []
+  const asked: { readonly itemId: string; readonly reveal: string | undefined }[] = []
   const opened: unknown[] = []
   const projectOpened = {
     item: {
@@ -83,7 +83,7 @@ const following = ({ livePages = false } = {}) => {
     { livePages },
   )
   const seen: ItemContent[] = []
-  const follow = (reveal = false) =>
+  const follow = (reveal?: string) =>
     companions.follow(target, hero, { reveal }, (content) => seen.push(content))
   return {
     companions,
@@ -122,16 +122,16 @@ describe("a picture of a live page", () => {
 })
 
 describe("the runner's companion content", () => {
-  it("follows what an item holds, revealed only when asked", async () => {
+  it("follows what an item holds, revealed only for the file asked", async () => {
     const app = following()
-    app.follow(true)
+    app.follow("/p/hero.png")
     app.push({
       state: "ready",
       stamp: "1",
       content: { kind: "image", src: "data:image/png;base64," },
     })
     await settle()
-    expect(app.asked).toEqual([{ itemId: "hero", reveal: true }])
+    expect(app.asked).toEqual([{ itemId: "hero", reveal: "/p/hero.png" }])
     expect(app.seen).toEqual([
       { state: "ready", stamp: "1", content: { kind: "image", src: "data:image/png;base64," } },
     ])
@@ -321,7 +321,7 @@ describe("the runner's companion content", () => {
       try {
         const seen: ItemContent[] = []
         const companions = createRunnerCompanions(runner.client.companions)
-        companions.follow(target, itemIdOf(crypto.randomUUID()), { reveal: false }, (content) =>
+        companions.follow(target, itemIdOf(crypto.randomUUID()), { reveal: undefined }, (content) =>
           seen.push(content),
         )
         await vi.waitFor(() =>
@@ -340,7 +340,7 @@ describe("the runner's companion content", () => {
           path: join(directory, "notes.md"),
         })
         const later: ItemContent[] = []
-        companions.follow(target, itemIdOf(item.id), { reveal: false }, (content) =>
+        companions.follow(target, itemIdOf(item.id), { reveal: undefined }, (content) =>
           later.push(content),
         )
         await vi.waitFor(() => expect(later[0]).toMatchObject({ state: "ready" }))

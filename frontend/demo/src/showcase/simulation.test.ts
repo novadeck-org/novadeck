@@ -45,7 +45,7 @@ const running = (
   // What the agents reported as the demo started, apart from what follows.
   const started = reported.splice(0)
   // What a plan holds now, as following it says.
-  const contentOf = (id: Item["id"], reveal = false) => {
+  const contentOf = (id: Item["id"], reveal?: string) => {
     let content: ItemContent | undefined
     showcase.follow(session, id, { reveal }, (next) => (content = next))()
     return content
@@ -113,7 +113,7 @@ describe("showcase agents", () => {
   })
 
   it("serve what each item holds, and why it can't show", () => {
-    const { contentOf } = running()
+    const { contentOf, showcase } = running()
     expect(contentOf(itemIdOf("studio-projects"))).toMatchObject({
       state: "ready",
       content: { kind: "file", path: "src/content/projects.json" },
@@ -124,7 +124,12 @@ describe("showcase agents", () => {
       size: null,
     })
     expect(contentOf(itemIdOf("dev-env"))).toMatchObject({ state: "unavailable", reason: "held" })
-    expect(contentOf(itemIdOf("dev-env"), true)).toMatchObject({ state: "ready" })
+    expect(
+      contentOf(
+        itemIdOf("dev-env"),
+        showcase.items.find((each) => each.id === "dev-env")?.path ?? undefined,
+      ),
+    ).toMatchObject({ state: "ready" })
     expect(contentOf(itemIdOf("nothing"))).toMatchObject({ reason: "gone" })
   })
 
@@ -200,7 +205,7 @@ describe("showcase agents", () => {
     it("tells whoever follows it, and puts it back", () => {
       const { showcase, contentOf } = running()
       const heard: ItemContent[] = []
-      showcase.follow(session, studioPlan, { reveal: false }, (content) => heard.push(content))
+      showcase.follow(session, studioPlan, { reveal: undefined }, (content) => heard.push(content))
       expect(showcase.fault(studio, "gone")).toBe(true)
       expect(heard.at(-1)).toEqual({ state: "unavailable", reason: "gone", size: null })
       showcase.fault(studio, "transcript")
@@ -275,7 +280,7 @@ describe("showcase agents", () => {
     it("tells whoever follows the plan of each version", async () => {
       const { showcase, stampOf } = running()
       const seen: string[] = []
-      const stop = showcase.follow(session, studioPlan, { reveal: false }, (content) => {
+      const stop = showcase.follow(session, studioPlan, { reveal: undefined }, (content) => {
         if (content.state === "ready" && content.content.kind === "plan")
           seen.push(content.content.text)
       })
@@ -366,18 +371,35 @@ describe("the project window", () => {
     const { showcase } = opening()
     const env = await showcase.openInProject!(session, ".env.local", "pw")
     let content: ItemContent | undefined
-    showcase.follow(session, env.item.id, { reveal: false }, (next) => (content = next))()
+    showcase.follow(session, env.item.id, { reveal: undefined }, (next) => (content = next))()
     expect(env.item.held).toBe(true)
     expect(content).toMatchObject({ state: "unavailable", reason: "held" })
     const image = await showcase.openInProject!(session, "public/favicon.svg", "pw")
     expect(image.item).toMatchObject({ kind: "image", held: false })
   })
 
+  it("shows a held file only to a reveal asked for that file", async () => {
+    const { showcase } = opening()
+    const env = await showcase.openInProject!(session, ".env.local", "pw")
+    const path = env.item.path ?? undefined
+    expect(path).toBeDefined()
+    const reveal = (asked?: string) => {
+      let content: ItemContent | undefined
+      showcase.follow(session, env.item.id, { reveal: asked }, (next) => (content = next))()
+      return content
+    }
+    expect(reveal(path)).not.toMatchObject({ state: "unavailable" })
+    expect(reveal("README.md")).toMatchObject({ state: "unavailable", reason: "held" })
+    expect(reveal(undefined)).toMatchObject({ state: "unavailable", reason: "held" })
+  })
+
   it("tells whoever follows it the new file's content", async () => {
     const { showcase } = opening()
     const first = await showcase.openInProject!(session, "README.md", "pw")
     const heard: ItemContent[] = []
-    showcase.follow(session, first.item.id, { reveal: true }, (next) => heard.push(next))
+    showcase.follow(session, first.item.id, { reveal: first.item.path ?? undefined }, (next) =>
+      heard.push(next),
+    )
     await showcase.openInProject!(session, "src/app.ts", "pw")
     expect(heard).toHaveLength(2)
     expect(heard[1]).toMatchObject({ state: "ready", content: { path: "src/app.ts" } })

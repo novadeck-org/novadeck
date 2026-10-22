@@ -217,12 +217,15 @@ export const createShowcase = (
 
   // What a sample or attached item holds, and why it can't show; its followers hear it again
   // when the person attaches the file anew.
-  const watching = new Map<string, Set<{ on: (content: ItemContent) => void; reveal: boolean }>>()
-  const shownContent = (id: string, reveal: boolean): ItemContent => {
+  const watching = new Map<
+    string,
+    Set<{ on: (content: ItemContent) => void; reveal: string | undefined }>
+  >()
+  const shownContent = (id: string, reveal: string | undefined): ItemContent => {
     const sample = samples.get(id)
     return !sample
       ? { state: "unavailable", reason: "gone", size: null }
-      : sample.item.held && !reveal
+      : sample.item.held && (reveal === undefined || reveal !== sample.item.path)
         ? { state: "unavailable", reason: "held", size: null }
         : sample.content
   }

@@ -290,10 +290,12 @@ export const contract = {
     // reported, or one whose removal follows. They agree once the stream is idle.
     watch: procedure.input(z.void()).output(eventIterator(companionChange)),
     // What an item points at, read now, then again each time it changes, until it is
-    // deleted. A file that may hold secrets is `held` unless `reveal`. An unknown item is
-    // NOT_FOUND.
+    // deleted. A file that may hold secrets is `held` unless `reveal` is the path the item
+    // points at, the file the person chose to show: an item pointed at another file since
+    // (a project window re-pointed) is `held` again, and revealed again if pointed back.
+    // An unknown item is NOT_FOUND.
     content: procedure
-      .input(z.strictObject({ itemId: id, reveal: z.boolean().optional() }))
+      .input(z.strictObject({ itemId: id, reveal: z.string().max(4096).optional() }))
       .output(eventIterator(itemContent)),
     // Writes the person's edit to a plan kept in a file, atomically, unless the file
     // changed since `basedOn`, the stamp the edit was made on: then nothing is written and

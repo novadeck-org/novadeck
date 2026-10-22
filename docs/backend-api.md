@@ -1030,12 +1030,14 @@ one from an earlier runner.
     keeps both sides and resolves them as the rest arrives, never dropping one for it.
     The client's `companions.watch()` yields `reset` before each fresh sequence, as
     `terminals.watch()` does.
-  - `companions.content({ itemId, reveal? })` streams what an item points at, read from
+  - `companions.content({ itemId, reveal? })`, `reveal` being a path, streams what an item points at, read from
     disk now and again each time it changes, until the item is deleted; an unknown item
     is `NOT_FOUND`. It is `ready`, with a `stamp` that changes with it, or `unavailable`
     with a reason and the file's size where known: `missing`, `unreadable`, `not-a-file`,
     `too-large` (an image over 8 MiB), `binary` (a NUL byte in its first 8 KiB), `held`
-    (a file that may hold secrets, unless `reveal`), or `gone` (a plan no longer there).
+    (a file that may hold secrets, unless `reveal` is the path the item points at: the
+    person's yes is to a file, so an item re-pointed to another reads `held` again and, pointed
+    back, revealed again), or `gone` (a plan no longer there).
     An image is a data URL; a page its address, which the desktop app loads live, with
     `shown`, its item's version, which each show raises and which loads it afresh, and the
     `scroll` that show gave, a CSS selector to bring into view once it has loaded. A text
