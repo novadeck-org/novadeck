@@ -211,6 +211,14 @@ const TerminalCanvas = ({
   }, [ghost])
   const settling = useRef(new Map<string, XYPosition>())
   const stacking = useRef<string[]>([])
+  // The terminal whose sheet revealed itself last, kept above the rest (the selection too)
+  // until the selection moves, so no window draws over its sheet. Not a selection.
+  const revealed = useRef<{ id: string; selected: string } | null>(null)
+  // Read when a sheet reveals itself, which holds the callback it first got.
+  const selectedNow = useRef(selected)
+  useEffect(() => {
+    selectedNow.current = selected
+  }, [selected])
   // Where the camera frames a terminal's window whole: its fly-to's destination.
   const framing = useCallback(
     (id: string): CanvasViewport | null => {
@@ -356,6 +364,11 @@ const TerminalCanvas = ({
           }
           const node = getNode(id)
           if (!node) return
+          revealed.current = { id, selected: selectedNow.current }
+          const top = stacking.current.length
+          setNodes((previous) =>
+            previous.map((other) => (other.id === id ? { ...other, zIndex: top } : other)),
+          )
           void fitBounds(
             {
               x: node.position.x,
@@ -368,7 +381,7 @@ const TerminalCanvas = ({
         },
       })
     },
-    [fitBounds, flyTo, getNode, render, terminals],
+    [fitBounds, flyTo, getNode, render, setNodes, terminals],
   )
 
   // XYFlow owns pointer-time geometry so dragging does not rerender the application or terminals.
@@ -481,7 +494,10 @@ const TerminalCanvas = ({
     ].filter((id) => id !== selected)
     if (terminalIds.has(selected)) stack.push(selected)
     stacking.current = stack
+    if (revealed.current && revealed.current.selected !== selected) revealed.current = null
+    const above = revealed.current?.id
     const levels = new Map(stack.map((id, index) => [id, index]))
+    if (above && levels.has(above)) levels.set(above, stack.length)
     setNodes((previous) => {
       const existing = new Map(previous.map((node) => [node.id, node]))
       return terminals.map((terminal) => {

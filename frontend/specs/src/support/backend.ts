@@ -17,7 +17,10 @@ import {
 } from "@novadeck/demo-debug/scenarios"
 import { createDemoUninstall, uninstallScenarios } from "@novadeck/demo-debug/uninstall"
 import { createDemoUpdates } from "@novadeck/demo-debug/updates"
+import { babciaCuesOf, type BabciaCues } from "@novadeck/demo/babcia"
 import { createContentDemo } from "@novadeck/demo/content"
+import { demoTurns } from "@novadeck/demo/turns"
+import { createDemo } from "@novadeck/demo/variants"
 import { visitorDemo } from "@novadeck/demo/visitor/index"
 import { pageTheme } from "@novadeck/ui/theme/source"
 
@@ -185,8 +188,25 @@ const visitorTimings = (): {
   }
 }
 
+// Specs open the Babcia demo with `?demo=babcia`, and ring its cues, as the debug panel does.
+const babciaRequested = (): boolean =>
+  new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("demo") === "babcia"
+
+// The cues of every Babcia demo made (StrictMode makes two and keeps one; a cue acts only in
+// the one the page started).
+const babciaCues: BabciaCues[] = []
+
+/** The Babcia demo's seasonal-specials agent shows its page in the pane, with no click. */
+export const agentShowsPage = (): void => babciaCues.forEach((cues) => cues.show())
+
 // The demo a spec opens, as its address's hash asks.
 export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
+  if (babciaRequested()) {
+    const demo = createDemo("babcia", { theme: pageTheme }, demoTurns())
+    const cues = babciaCuesOf(demo)
+    if (cues) babciaCues.push(cues)
+    return demo
+  }
   if (visitorRequested()) return visitorDemo({ ...visitorTimings(), theme: pageTheme })
   if (showcaseRequested()) return createContentDemo({ theme: pageTheme })
   const update = requestedUpdate()
