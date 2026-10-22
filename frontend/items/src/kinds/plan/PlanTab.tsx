@@ -9,7 +9,7 @@ import type { WorkspaceTarget } from "@novadeck/core/types"
 import { outline } from "@novadeck/viewers/text"
 import { lazy, Suspense, useRef, type ReactNode } from "react"
 
-import { CopyText, Unavailable } from "../../ArtifactViewer"
+import { ArtifactMeta, CopyText, MetaPath, Unavailable } from "../../ArtifactViewer"
 import type { MarkdownEditorHandle } from "../../document/editor/MarkdownEditor"
 import type { PlanActions, ItemStore } from "../../state"
 import { useContent, usePlan } from "../../use-item-store"
@@ -131,11 +131,13 @@ const PlanBody = ({
   // The header every viewer has, across the pane, then the outline beside the plan.
   return (
     <>
-      <div className="artifact-meta">
+      <ArtifactMeta actions={actions}>
         {pathOf(item) === null ? (
-          <span>{item.detail || item.name}</span>
+          <span className="artifact-meta-name" title={item.detail || item.name}>
+            {item.detail || item.name}
+          </span>
         ) : (
-          <code>{pathOf(item)}</code>
+          <MetaPath path={pathOf(item)!} />
         )}
         <span>v{item.version}</span>
         {marks.length > 0 && (
@@ -174,9 +176,7 @@ const PlanBody = ({
             {agent} doesn't have Novadeck's skill. Ask it to re-read the plan.
           </span>
         )}
-        {actions && <span className="artifact-meta-push" />}
-        {actions}
-      </div>
+      </ArtifactMeta>
       {!readOnly && block && (
         <PlanNotice
           text={blockedText(block, agent)}
