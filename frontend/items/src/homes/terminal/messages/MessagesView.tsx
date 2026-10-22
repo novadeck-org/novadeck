@@ -10,6 +10,7 @@ import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react"
 import { useEffect, useId, useRef, type ReactNode } from "react"
 
+import { ArtifactMeta } from "../../../ArtifactViewer"
 import type { MailHandle } from "./mail"
 
 // When a message was sent or delivered: the time, with the date when it wasn't today.
@@ -203,28 +204,33 @@ export const MessagesView = ({
   const threads = mail.mail?.threads ?? []
   return (
     <div className="mail-view">
-      <div className="artifact-meta mail-meta">
+      <ArtifactMeta
+        className="mail-meta"
+        actions={
+          <>
+            <span className="mail-pause">
+              <span id={label} className="mail-pause-label">
+                Pause all agents' messages
+              </span>
+              <span id={hint} className="sr-only">
+                Between agents in every project and session, until you resume. Your replies still go
+                through.
+              </span>
+              <Switch
+                checked={mail.paused}
+                onChange={mail.pause}
+                labelledBy={label}
+                describedBy={hint}
+                pending={mail.pending}
+              />
+            </span>
+            {actions}
+          </>
+        }
+      >
         <code>Messages</code>
         {mail.mail && <span>{handleText(mail.mail.handle)}</span>}
-        <span className="artifact-meta-push" />
-        <span className="mail-pause">
-          <span id={label} className="mail-pause-label">
-            Pause all agents' messages
-          </span>
-          <span id={hint} className="sr-only">
-            Between agents in every project and session, until you resume. Your replies still go
-            through.
-          </span>
-          <Switch
-            checked={mail.paused}
-            onChange={mail.pause}
-            labelledBy={label}
-            describedBy={hint}
-            pending={mail.pending}
-          />
-        </span>
-        {actions}
-      </div>
+      </ArtifactMeta>
       {mail.error && (
         <p className="mail-error" data-tone="danger" role="alert">
           {mail.error}

@@ -2,7 +2,7 @@ import type { ChangesContent } from "@novadeck/core/items"
 import { mountDiff, type DiffContent } from "@novadeck/viewers/diff"
 import { useMemo } from "react"
 
-import type { ArtifactBodyProps } from "../../ArtifactViewer"
+import { ArtifactMeta, type ArtifactBodyProps } from "../../ArtifactViewer"
 import { useViewerSlot } from "../../ViewerSlot"
 
 const totals = (content: ChangesContent): { added: number; removed: number } => ({
@@ -26,17 +26,17 @@ export const ChangesViewer = ({
   const count = change.files.length
   return (
     <>
-      <div className="artifact-meta">
-        <code>{item.name}</code>
+      <ArtifactMeta actions={actions}>
+        <code className="artifact-meta-name" title={item.name}>
+          {item.name}
+        </code>
         <span>
           {count === 0
             ? `no changes against ${change.base}`
             : `${count} ${count === 1 ? "file" : "files"}${change.truncated ? ", more than shown" : ""} · +${added} −${removed} · against ${change.base}`}{" "}
           · read-only
         </span>
-        {actions && <span className="artifact-meta-push" />}
-        {actions}
-      </div>
+      </ArtifactMeta>
       <div ref={ref} className="artifact-diff" />
     </>
   )
