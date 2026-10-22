@@ -19,8 +19,8 @@ export type UpdateChannel = "stable" | "early"
 // What is new in the version the app updated to: the highlights of its release notes, each
 // a short title and one plain line. Text only: the page shows it as text, never as markup.
 // A highlight may lead with an icon, by its Lucide name (a `HighlightIcon`); the page draws a
-// name it doesn't know as its fallback. `from` is the version they are new since, the one
-// updated from, when the host knows it.
+// name it doesn't know as its fallback. `from` is the version they are new since, when the
+// host knows it: the one updated from, or the newest whose notes were already seen.
 export type WhatsNew = {
   readonly version: string
   readonly from?: string

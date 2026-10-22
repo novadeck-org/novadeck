@@ -397,7 +397,8 @@
    is a bold title with its line under it, led by its icon on a tile. The tape and the tiles
    share one tint, so the tape reads as one more tile. Tokens, each optional (its fallback in
    brackets): --whats-new-accent-bg (the strong colour, a sixth into the paper),
-   --whats-new-accent-fg (strong): the tape and the tiles. */
+   --whats-new-accent-fg (strong): the tape and the tiles. The fallback pair reads on a dark
+   paper; a light theme sets both, as the strong colour is too light on its tint there. */
 .update-card.whats-new {
   --_accent-bg: var(
     --whats-new-accent-bg,
@@ -409,21 +410,21 @@
   gap: 8px;
   padding: 8px 14px 14px;
 }
-/* The stamp and the × at the right; the tape sits out of the flow, over the top edge. */
+/* The tape at the start, lifted over the top edge, and the stamp and the × at the end: in
+   one row, so a long version shortens the tape, never runs under them. */
 .whats-new-head {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 8px;
   min-height: 22px;
   margin: 0;
 }
 /* Torn at both ends and slapped on at a slant, in the wordmark's face. */
 .whats-new-tape {
-  position: absolute;
-  inset-inline-start: 14px;
-  top: -11px;
-  max-width: calc(100% - 28px);
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-inline-end: auto;
+  translate: 0 -20px;
   padding: 4px 10px 3px;
   overflow: hidden;
   background: var(--_accent-bg);
@@ -486,6 +487,12 @@
 .whats-new-title {
   color: var(--color-ink);
   font-weight: 600;
+}
+/* With the tint gone, an edge still shows where the tape is. */
+@media (forced-colors: active) {
+  .whats-new-tape {
+    border: 1px solid CanvasText;
+  }
 }
 @keyframes whats-new-tape-in {
   from {

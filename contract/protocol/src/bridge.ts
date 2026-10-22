@@ -357,7 +357,8 @@ export const parsePortableState = (value: unknown): PortableState | undefined =>
  * What is new in the version the app updated to: its release's highlights, each a short
  * title and one plain line, as the release notes give them (scripts/release-notes). One to
  * `whatsNewHighlights` of them; text only, never Markdown or links. `from` is the version
- * they are new since, the one updated from, when the host knows it.
+ * they are new since, when the host knows it: the one updated from, or the newest whose
+ * notes were already seen when that is newer.
  */
 export type WhatsNew = {
   readonly version: string
