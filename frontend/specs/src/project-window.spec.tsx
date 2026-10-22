@@ -77,6 +77,27 @@ describe("The project window", () => {
     await expect.element(terminalTab("package.json")).not.toBeInTheDocument()
   })
 
+  it("says under its name in the sidebar which folder the file is in, and nothing at the root", async () => {
+    // The line under a tab's name, where a terminal's program goes.
+    const line = (name: string) =>
+      terminalTab(name)
+        .element()
+        .closest("[data-terminal-tab-id]")!
+        .querySelector(".terminal-tab-process")!.textContent
+    await openSource()
+    await row("CartItem.tsx").dblClick()
+    await expect.element(terminal("CartItem.tsx")).toBeVisible()
+    await sidebarPanel("Terminals").click()
+    await expect.element(terminalTab("CartItem.tsx")).toBeVisible()
+    expect(line("CartItem.tsx")).toBe("src/cart")
+
+    await sidebarPanel("Source").click()
+    await row("package.json").dblClick()
+    await sidebarPanel("Terminals").click()
+    await expect.element(terminalTab("package.json")).toBeVisible()
+    expect(line("package.json")).toBe("")
+  })
+
   it("reads a Markdown file as a document labelled by the file's name", async () => {
     await openSource()
 

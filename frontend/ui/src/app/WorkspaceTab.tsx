@@ -1,5 +1,6 @@
 import { teamRole, teamText } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
+import { activeProject } from "@novadeck/core/state"
 import type { Tile } from "@novadeck/core/types"
 import { barMembers, composeBar } from "@novadeck/items/bar"
 import { useHasMail, useMailBadge } from "@novadeck/items/mail"
@@ -7,6 +8,7 @@ import { TabKinds } from "@novadeck/items/TabKinds"
 import { memo, useMemo } from "react"
 
 import { terminalProfile, windowProfile } from "../terminals/processes/profiles"
+import { isProjectWindow, projectFolder } from "../terminals/project-window"
 import { renameView } from "../terminals/rename-state"
 import { TerminalTab } from "../terminals/TerminalTab"
 import { unreadEnd } from "../terminals/unread-state"
@@ -49,6 +51,12 @@ export const WorkspaceTab = memo(
         ? undefined
         : currentState(workspace).items.find((each) => each.id === itemId),
     )
+    // Where a project window's file is, from its project's folder.
+    const directory = useWorkspaceState((workspace) => activeProject(workspace)?.directory)
+    const folder =
+      isProjectWindow(terminal) && item && directory !== undefined
+        ? projectFolder(item.path, directory)
+        : undefined
     const companionKey = { ...target, terminalId: id }
     const badge = useMailBadge(backend.messages, companionKey)
     // What its companion bar holds, as the bar itself draws it.
@@ -81,6 +89,7 @@ export const WorkspaceTab = memo(
         onClose={() => commands.close(id)}
         {...(backend.resetTitle ? { onResetTitle: () => commands.resetTitle(id) } : {})}
         dockIn={dockIn}
+        folder={folder}
       />
     )
   },

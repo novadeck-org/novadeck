@@ -56,6 +56,7 @@ export const TerminalTab = ({
   onClose,
   onResetTitle,
   dockIn,
+  folder,
 }: {
   // A terminal, or a window undocked from a companion, which runs nothing.
   terminal: Tile
@@ -87,6 +88,8 @@ export const TerminalTab = ({
   onResetTitle?: (() => void) | undefined
   // Docks a window undocked from a terminal's companion back in that terminal.
   dockIn?: DockTarget | undefined
+  // Where a project window's file is, which its line shows where a terminal's program is.
+  folder?: string | undefined
 }): React.JSX.Element => {
   const editing = Boolean(rename)
   const terminal = tile
@@ -135,8 +138,8 @@ export const TerminalTab = ({
   const finished = phase === "done" ? shell : undefined
   const age = finished && turnAge(finished)
   useRenderAt(finished && nextTurnAge(finished))
-  // A window runs no program.
-  const process = shell?.process ?? ""
+  // A window runs no program; a project window names its file's folder there instead.
+  const process = shell?.process ?? folder ?? ""
   const { ref, handleRef, isDragSource } = useSortable({
     id: terminal.id,
     index,
