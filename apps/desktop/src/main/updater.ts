@@ -466,10 +466,11 @@ export type Updater = {
  * which is how the website counts active copies; the headers go with that check and
  * nothing else. A site that can't be reached or fails never blocks updating: a check
  * through it that fails, for whatever reason, is made again at once against GitHub's
- * releases, and the next check goes to novadeck.dev again. Its answer for `early` can lag
- * GitHub's by up to an hour and is distrusted by the site after six; a wrong one, which
- * only a bug of the site gives, delays updates until it is fixed. Whichever feed answers,
- * an `early` answer from the website that names a release older than one offered or taken
+ * releases, and the next check goes to novadeck.dev again. Its answer for `early` lags
+ * GitHub's by up to a minute, or by hours should the site fall back to its own build's
+ * record, which it distrusts after six hours; a wrong one, which only a bug of the site
+ * gives, delays updates until it is fixed. Whichever feed answers, an `early` answer
+ * from the website that names a release older than one offered or taken
  * for download within `earlyTrustMs` is ignored, so a lagging answer never steps back
  * (per run, in memory); GitHub's answers and the stable channel's are taken as they are,
  * and an answer for a channel left during the check is dropped, the channel's check
@@ -595,9 +596,10 @@ export const checkForUpdates = (
     // The answer of a check made for a channel the person has since left is dropped.
     if (checkedChannel !== following) return
     // Never a step back to an older early release the website names: its `early` answer can
-    // lag GitHub's by up to an hour, and following it would replace a newer release already
-    // offered or fetched. This holds for `earlyTrustMs`, after which a withdrawn release
-    // can give way. GitHub's answers and the stable channel's are taken as they are.
+    // lag GitHub's (by hours, should the site fall back to its build's record), and following
+    // it would replace a newer release already offered or fetched. This holds for
+    // `earlyTrustMs`, after which a withdrawn release can give way. GitHub's answers and
+    // the stable channel's are taken as they are.
     // (isNewerVersion compares prerelease tags as text; the releases' versions have none.)
     if (
       via === "novadeck" &&
