@@ -4,7 +4,14 @@ import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Terminal } from "lucide-react"
 import { useState } from "react"
 
-import { agentName, actionOf, choicesOf, setsStanding, type Choices } from "./inbox-text"
+import {
+  agentName,
+  actionOf,
+  choicesOf,
+  needsWords,
+  setsStanding,
+  type Choices,
+} from "./inbox-text"
 import { Lead, Page, type SheetContentProps } from "./Page"
 import { CommandCard, Failure, QuietLink, ReplyBox, Sent, Text } from "./sheet-parts"
 
@@ -31,11 +38,14 @@ const Permission = (
   const [words, setWords] = useState("")
   const answer = (option: ChatDialogOption, note: string, text?: string): void =>
     submit({ kind: "request", answer: choiceAnswer(dialog, option, text) }, note)
-  // The words go with the no that takes them; with none, the plain no does.
+  // The words go with the no that takes them; with none, the plain no does. Where the only
+  // way back is the person's words (Claude's plan's "Tell Claude what to change"), it
+  // needs them.
+  const wordsNeeded = choices.plain === null && choices.note !== null && needsWords(choices.note)
   const deny = (text: string): void => {
     const given = text.trim() !== "" && choices.note !== null
     const option = given ? choices.note : (choices.plain ?? choices.note)
-    if (!option) return
+    if (!option || (wordsNeeded && !given)) return
     answer(
       option,
       given ? `Denied. ${agent} has your note.` : `Denied. ${agent} won't go ahead.`,
@@ -94,9 +104,13 @@ const Permission = (
             value={words}
             onChange={setWords}
             onSend={() => deny(words)}
-            placeholder={`Tell ${agent} what to do instead (optional)`}
+            placeholder={
+              wordsNeeded
+                ? `Tell ${agent} what to change`
+                : `Tell ${agent} what to do instead (optional)`
+            }
             label={`What ${agent} should do instead`}
-            canSend={!answering}
+            canSend={!answering && (!wordsNeeded || words.trim() !== "")}
             onCancel={() => setDenying(false)}
             sendLabel="Deny"
             autoFocus

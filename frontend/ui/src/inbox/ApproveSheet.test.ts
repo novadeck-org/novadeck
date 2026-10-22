@@ -207,6 +207,65 @@ describe("A plan's sheet", () => {
     await nextFrame()
     sheet.view.unmount()
   })
+
+  it("keeps planning by the plain no, as older Claude Code words it", async () => {
+    const sheet = mount(
+      [
+        { id: "1", label: "Yes, and auto-accept edits", text: null },
+        { id: "2", label: "Yes, and manually approve edits", text: null },
+        { id: "3", label: "No, keep planning", text: null },
+      ],
+      { kind: "plan" },
+    )
+    sheet.press("Deny")
+
+    expect(sheet.sent).toEqual([
+      { kind: "request", answer: { type: "choice", dialog: "d", option: "3" } },
+    ])
+    await nextFrame()
+    sheet.view.unmount()
+  })
+
+  // As the runner reads Claude Code 2.1.287's (harnesses/claude's plan-file probe), where
+  // the only way back is the field, which takes words and none of the yeses do.
+  const field: readonly ChatDialogOption[] = [
+    { id: "1", label: "Yes, auto-accept edits", text: null },
+    { id: "2", label: "Yes, manually approve edits", text: null },
+    { id: "3", label: "Tell Claude what to change", text: "field" },
+  ]
+
+  it("approves with the manual yes, without words", async () => {
+    const sheet = mount(field, { kind: "plan" })
+    sheet.press("Approve")
+
+    expect(sheet.sent).toEqual([
+      { kind: "request", answer: { type: "choice", dialog: "d", option: "2" } },
+    ])
+    await nextFrame()
+    sheet.view.unmount()
+  })
+
+  it("sends it back with the person's words, and not without them", async () => {
+    const sheet = mount(field, { kind: "plan" })
+    sheet.press("Deny")
+    const send = (): HTMLButtonElement =>
+      document.querySelector<HTMLButtonElement>(".inbox-sheet .inbox-send")!
+
+    expect(send().disabled).toBe(true)
+    sheet.type("   ")
+    expect(send().disabled).toBe(true)
+    sheet.type("Add a rollback step")
+    expect(send().disabled).toBe(false)
+    act(() => send().click())
+    expect(sheet.sent).toEqual([
+      {
+        kind: "request",
+        answer: { type: "choice", dialog: "d", option: "3", text: "Add a rollback step" },
+      },
+    ])
+    await nextFrame()
+    sheet.view.unmount()
+  })
 })
 
 describe("An answer that does not take", () => {

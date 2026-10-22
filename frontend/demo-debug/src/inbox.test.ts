@@ -67,7 +67,7 @@ describe("the debug panel's Inbox group", () => {
     const inbox = createDemoInbox(1, [])
     const notes: string[] = []
     // Lifecycle controls and variants change or add items rather than adding a kind.
-    const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 9
+    const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 10
     for (let each = 0; each < kinds; each += 1) run(inbox, "A new item arrives", notes)
     expect(inbox.state.getSnapshot().items).toHaveLength(kinds)
     run(inbox, "A new item arrives", notes)
@@ -81,6 +81,19 @@ describe("the debug panel's Inbox group", () => {
     expect(item?.kind === "request" && item.request.dialog?.type === "choices").toBe(true)
     if (item?.kind !== "request" || item.request.dialog?.type !== "choices") return
     expect(item.request.dialog.detail).toBe(demoHiddenCommand)
+  })
+
+  it("adds Claude Code's plan whose way back is the field that says what to change", () => {
+    const inbox = createDemoInbox(1, [])
+    run(inbox, "Plan with a change field")
+    const [item] = inbox.state.getSnapshot().items
+    expect(item?.id).toBe(demoInboxIds.plan)
+    if (item?.kind !== "request" || item.request.dialog?.type !== "choices") return
+    expect(item.request.dialog.options.at(-1)).toEqual({
+      id: "3",
+      label: "Tell Claude what to change",
+      text: "field",
+    })
   })
 
   it("makes the next answer fail", () => {
