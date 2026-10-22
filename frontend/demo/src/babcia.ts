@@ -1,4 +1,4 @@
-import type { Conversations } from "@novadeck/core/conversation"
+import type { ChatAnswer, Conversations } from "@novadeck/core/conversation"
 import type { InboxItem } from "@novadeck/core/inbox"
 import { itemIdOf, type Item } from "@novadeck/core/items"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
@@ -376,9 +376,12 @@ const runCall = (job: Job, call: string) =>
           { kind: "run", title: "Ran", detail: job.command },
         )
 
-// What answering a request that is declined (No, keep planning) leaves: the agent waits for
-// what Nyx says next.
-const declined = (option: string): boolean => option === "3" || option === "keep"
+// What answering a request that is declined (No, or Tell Claude what to change with nothing
+// written) leaves: the agent waits for what Nyx says next. So does a chat about a question with
+// no words.
+const declined = (answer: ChatAnswer): boolean =>
+  (answer.type === "choice" && answer.option === "3" && !answer.text) ||
+  (answer.type === "chat" && !answer.text)
 
 // Claude Code's dialog for a command, as harnesses/claude's probes (2.1.287) show it.
 const permission = (id: string, job: Job): DemoTranscript["requests"][number] => ({
@@ -426,7 +429,7 @@ export const babciaTranscripts = (now: number): Readonly<Record<string, DemoTran
             requests: [request],
             outcomes: {
               [request.id]: (answer) =>
-                answer.type === "choice" && declined(answer.option)
+                declined(answer)
                   ? {
                       items: [
                         got(
@@ -458,19 +461,18 @@ export const babciaTranscripts = (now: number): Readonly<Record<string, DemoTran
           choices: [],
           subagent: false,
           answered: false,
-          // Claude's plan dialog: the first yes sets something standing, so it is a quiet link
-          // and the plain yes leads.
+          // Claude Code's plan dialog, as harnesses/claude's probes (2.1.287) show it: its third
+          // option is a field for what to change.
           dialog: {
             type: "choices" as const,
             id: `${id}:d`,
-            title:
-              "Claude has written up a plan and is ready to execute. Would you like to proceed?",
+            title: "Ready to code?",
             detail:
               "1. Lift the contrast on the menu headings\n2. Add skip links and focus rings\n3. Label every field of the order form",
             options: [
-              { id: "bypass", label: "Yes, and bypass permissions", text: null },
-              { id: "manual", label: "Yes, and manually approve edits", text: null },
-              { id: "keep", label: "No, keep planning", text: "prompt" as const },
+              { id: "1", label: "Yes, auto-accept edits", text: null },
+              { id: "2", label: "Yes, manually approve edits", text: null },
+              { id: "3", label: "Tell Claude what to change", text: "field" as const },
             ],
           },
         }
@@ -481,8 +483,10 @@ export const babciaTranscripts = (now: number): Readonly<Record<string, DemoTran
             requests: [request],
             outcomes: {
               [request.id]: (answer) =>
-                answer.type === "choice" && declined(answer.option)
-                  ? { items: [], waits: true }
+                answer.type === "choice" && answer.option === "3"
+                  ? answer.text
+                    ? { items: [], prompt: answer.text }
+                    : { items: [], waits: true }
                   : { items: [], reply: job.done },
             },
           },
@@ -605,6 +609,8 @@ const mailbox = (): DemoMailbox => {
       terminalId: demoTerminalId(target, index + 1),
       handle: demoHandle(index + 1),
       agent: true,
+      // The helpers are led by the lead, which a message between them never holds for release.
+      ...(index >= jobs.length ? { ledBy: demoHandle(babcia.lead) } : {}),
     })),
     threads: [],
   }
@@ -726,7 +732,9 @@ export const babciaCuesOf = (backend: Backend): BabciaCues | undefined => cuesOf
 // and `over` the whole (the cues). The helper's ask, once the person's answer reaches it, goes
 // on to its lead.
 export const createBabcia = (turns: DemoTurns, now: number) => {
-  const messages = createDemoMessages([mailbox()])
+  const messages = createDemoMessages([mailbox()], false, (target, terminalId) =>
+    latest === undefined ? true : terminalOf(latest, { ...target, terminalId }) !== undefined,
+  )
   const showcase = createShowcase({
     agents: [],
     shown: [
@@ -785,10 +793,11 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
       if (failed) return
       on(babcia.failing, (key, found) => {
         failed = true
-        turns.finish(key, found, "failed", {
-          after: finishesAfterMs,
-          reply: "I could not finish: the prices table fails to compile.",
-        })
+        // Cue 6 leaves it as it is from now, though its turn ends only after a moment.
+        declinedIds.add(found.id)
+        // As Codex records a turn the API cut short: its `task_complete` carries the error, and
+        // the agent said nothing (harnesses/codex's own fixture has this message).
+        turns.finish(key, found, "failed", { after: finishesAfterMs, error: "stream disconnected" })
       })
     },
     helpers: () => {
@@ -1002,10 +1011,7 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
         await conversations.answer(key, request, answer)
         // Told no, or chatting about a question without words: it waits for the person's next
         // words, and no cue ends a turn for it.
-        if (
-          (answer.type === "choice" && declined(answer.option)) ||
-          (answer.type === "chat" && !answer.text)
-        ) {
+        if (declined(answer)) {
           declinedIds.add(key.terminalId)
           return
         }

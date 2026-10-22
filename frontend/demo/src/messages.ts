@@ -24,6 +24,9 @@ const hopsPerRelease = 12
 // A message as the demo keeps it: where it was before any hold.
 export type DemoMessage = Omit<AgentMessage, "state" | "held"> & {
   readonly state: "queued" | "leased" | "delivered" | "gone"
+  // Between a terminal and its own lead: the person chose that pairing, so its length never
+  // holds it for release.
+  readonly lead?: true
 }
 
 export type DemoThread = {
@@ -33,9 +36,17 @@ export type DemoThread = {
   readonly hops: number
   readonly allowed: number
   readonly messages: readonly DemoMessage[]
-  // The person stopped it: what waited is gone, and a later send on it is refused.
-  readonly stopped?: true
+  // When the person stopped it: what waited is gone, and a send on it is refused for as long
+  // as a thread lasts (`threadMs`) from its latest message or the stop, or until a release.
+  readonly stoppedAt?: number | undefined
 }
+
+// How long after its latest message a thread is continued, as the runner has it.
+const threadMs = 10 * 60_000
+
+const stopBlocks = (thread: DemoThread): boolean =>
+  thread.stoppedAt !== undefined &&
+  Date.now() - Math.max(thread.messages.at(-1)?.sentAt ?? 0, thread.stoppedAt) <= threadMs
 
 // A session's terminals that take part: each by id, with its handle and whether an agent
 // is there to take messages.
@@ -45,6 +56,8 @@ export type DemoMailbox = {
     readonly terminalId: string
     readonly handle: string
     readonly agent: boolean
+    // The handle of the terminal that leads it, where one does.
+    readonly ledBy?: string
     // Why the doorbell can't ring it, where the debug panel put it so.
     readonly waits?: MailWaits | null
   }[]
@@ -56,7 +69,7 @@ export type DemoMailbox = {
 const shown = (message: DemoMessage, thread: DemoThread, paused: boolean): AgentMessage => {
   const hold = message.inbox
     ? null
-    : message.hop > thread.allowed
+    : message.hop > thread.allowed && !message.lead
       ? "release"
       : paused
         ? "paused"
@@ -156,8 +169,9 @@ export type DemoMessages = Messages & {
     to: string,
     text: string,
     delivered?: () => void,
-    // Called instead if the person stops the thread first. The runner tells a sender so with
-    // its next tool answer, and adds nothing to the thread.
+    // Called instead if the message is dropped before it lands: the person stops the thread,
+    // or a terminal of it closed. The runner tells a sender so with its next tool answer, and
+    // adds nothing to the thread.
     stopped?: () => void,
     // False where the thread was stopped: a send on it is refused, as the runner refuses it.
   ) => boolean
@@ -178,9 +192,14 @@ type Ring = {
   readonly stopped: (() => void) | undefined
 }
 
+// What of the workspace the demo's messages can't know: whether a terminal still exists. One
+// closed holds no more mail, and a message to it is gone, as the runner marks it.
+export type MailExists = (target: WorkspaceTarget, terminalId: string) => boolean
+
 export const createDemoMessages = (
   initial: readonly DemoMailbox[],
   paused = false,
+  exists: MailExists = () => true,
 ): DemoMessages => {
   let boxes = initial
   let isPaused = paused
@@ -191,6 +210,7 @@ export const createDemoMessages = (
   const rings: Ring[] = []
   const land = (): void => {
     const landed: Ring[] = []
+    const lost: Ring[] = []
     for (const ring of rings.toReversed()) {
       const box = boxes.find(
         (each) =>
@@ -204,6 +224,13 @@ export const createDemoMessages = (
         continue
       }
       const recipient = box.terminals.find((each) => each.handle === ring.to)
+      const sender = box.terminals.find((each) => each.handle === message.from)
+      // A terminal of the thread closed: the message is gone, as the runner marks it.
+      if ([recipient, sender].some((each) => each && !exists(ring.target, each.terminalId))) {
+        rings.splice(rings.indexOf(ring), 1)
+        lost.push(ring)
+        continue
+      }
       if (
         !ring.rung ||
         shown(message, thread, isPaused).held ||
@@ -214,20 +241,25 @@ export const createDemoMessages = (
       rings.splice(rings.indexOf(ring), 1)
       landed.push(ring)
     }
-    if (landed.length === 0) return
+    if (landed.length === 0 && lost.length === 0) return
+    const is = (group: readonly Ring[], thread: DemoThread, message: DemoMessage): boolean =>
+      group.some((ring) => ring.thread === thread.id && ring.message === message.id)
     boxes = boxes.map((box) => ({
       ...box,
       threads: box.threads.map((thread) => ({
         ...thread,
         messages: thread.messages.map((message) =>
-          landed.some((ring) => ring.thread === thread.id && ring.message === message.id)
+          is(landed, thread, message)
             ? { ...message, state: "delivered" as const, deliveredAt: Date.now() }
-            : message,
+            : is(lost, thread, message)
+              ? { ...message, state: "gone" as const }
+              : message,
         ),
       })),
     }))
     publish()
     for (const ring of landed.toReversed()) ring.delivered?.()
+    for (const ring of lost.toReversed()) ring.stopped?.()
   }
   return {
     state,
@@ -345,12 +377,18 @@ export const createDemoMessages = (
       const thread = box.threads.find(
         (each) => each.between.includes(from) && each.between.includes(to),
       )
-      if (thread?.stopped) return false
+      if (thread && stopBlocks(thread)) return false
       const id = thread?.id ?? `t-${[from, to].toSorted().join("-")}`
       const hop = (thread?.messages.length ?? 0) + 1
+      const led = box.terminals.some(
+        (each) =>
+          (each.handle === from && each.ledBy === to) ||
+          (each.handle === to && each.ledBy === from),
+      )
       const sent: DemoMessage = {
         id: `${id}-${hop}`,
         hop,
+        ...(led ? { lead: true as const } : {}),
         from,
         to,
         text,
@@ -423,7 +461,9 @@ export const createDemoMessages = (
       boxes = boxes.map((box) => ({
         ...box,
         threads: box.threads.map((each) =>
-          each.id === thread ? { ...each, allowed: each.hops + hopsPerRelease } : each,
+          each.id === thread
+            ? { ...each, allowed: each.hops + hopsPerRelease, stoppedAt: undefined }
+            : each,
         ),
       }))
       publish()
@@ -438,7 +478,7 @@ export const createDemoMessages = (
           each.id === thread
             ? {
                 ...each,
-                stopped: true as const,
+                stoppedAt: Date.now(),
                 messages: each.messages.map((message) =>
                   message.state === "queued" ? { ...message, state: "gone" as const } : message,
                 ),

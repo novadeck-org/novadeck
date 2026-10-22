@@ -98,7 +98,7 @@ describe("the Babcia demo", () => {
           : undefined,
       Accessibility: (item: InboxItem) =>
         item.kind === "request" && item.request.dialog?.type === "choices"
-          ? { type: "choice" as const, dialog: item.request.dialog.id, option: "manual" }
+          ? { type: "choice" as const, dialog: item.request.dialog.id, option: "2" }
           : undefined,
       "Menu page": (item: InboxItem) =>
         item.kind === "request" && item.request.dialog?.type === "questions"
@@ -131,12 +131,18 @@ describe("the Babcia demo", () => {
     await vi.advanceTimersByTimeAsync(500)
     expect(agent(babcia.failing)).toMatchObject({
       working: false,
-      lastTurn: { outcome: "failed" },
+      lastTurn: { outcome: "failed", error: "stream disconnected" },
     })
+    // The agent said nothing of its own: the error is the harness's, as Codex records it.
+    expect(agent(babcia.failing)?.lastTurn?.reply).toBeUndefined()
     // The app marks a finish the person didn't see.
     unread.update(() => ({ "bar-mleczny/initial": { [key(babcia.failing).terminalId]: "failed" } }))
     expect(items()).toMatchObject([
-      { kind: "trouble", source: { title: "Prices table" }, trouble: { type: "failed" } },
+      {
+        kind: "trouble",
+        source: { title: "Prices table" },
+        trouble: { type: "failed", error: "stream disconnected" },
+      },
     ])
     await backend.conversations!.send(key(babcia.failing), "Try again, kochanie.")
     await vi.advanceTimersByTimeAsync(10_000)
@@ -385,7 +391,7 @@ describe("the Babcia demo", () => {
     const keepPlanning = chat.answer(key(babcia.plan), `${plan}:plan`, {
       type: "choice",
       dialog: `${plan}:d`,
-      option: "keep",
+      option: "3",
     })
     await vi.advanceTimersByTimeAsync(answerMs + answeredMs + 500)
     await Promise.all([noPermission, keepPlanning])
@@ -609,6 +615,111 @@ describe("the Babcia demo", () => {
       .join("\n")
     expect(said).not.toContain("Going with")
     expect(agent(babcia.question)).toMatchObject({ working: true })
+  })
+
+  it("asks Claude Code's own plan dialog, whose third option takes what to change", async () => {
+    const { backend, cues, agent } = open()
+    cues.plan()
+    const chat = backend.conversations!
+    const id = String(babcia.plan).padStart(2, "0")
+    const [request] = chat.conversation(key(babcia.plan)).getSnapshot().requests
+    expect(request?.dialog).toMatchObject({
+      type: "choices",
+      title: "Ready to code?",
+      options: [
+        { id: "1", label: "Yes, auto-accept edits", text: null },
+        { id: "2", label: "Yes, manually approve edits", text: null },
+        { id: "3", label: "Tell Claude what to change", text: "field" },
+      ],
+    })
+    // Its words go on as the agent's next prompt, and it works on them.
+    const answering = chat.answer(key(babcia.plan), `${id}:plan`, {
+      type: "choice",
+      dialog: `${id}:d`,
+      option: "3",
+      text: "Add a rollback step please",
+    })
+    await vi.advanceTimersByTimeAsync(answerMs + answeredMs + 500)
+    await answering
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(agent(babcia.plan)).toMatchObject({ working: true })
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(agent(babcia.plan)).toMatchObject({ lastTurn: { outcome: "completed" } })
+  })
+
+  it("leaves a failing agent failed when cue 6 follows cue 2 within its pending turn", async () => {
+    const { cues, agent } = open()
+    cues.fail()
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(agent(babcia.failing)).toMatchObject({
+      working: false,
+      lastTurn: { outcome: "failed", error: "stream disconnected" },
+    })
+  })
+
+  it("never holds a message between a helper and its lead for release, as the runner does", async () => {
+    const { backend, cues } = open()
+    cues.helpers()
+    const { messages } = backend
+    if (!isDemoMessages(messages)) throw new Error("the demo's messages")
+    const target = { projectId: bar.projectId, workspaceSessionId: bar.workspaceSessionId }
+    // Twenty messages, past the twelve a thread delivers before its release.
+    for (let index = 0; index < 20; index += 1) messages.send(target, asking, lead, `Hi ${index}`)
+    await vi.advanceTimersByTimeAsync(rungMs + 50)
+    expect(mail(backend).every((each) => each.state === "delivered")).toBe(true)
+    // Two terminals no lead leads are held at the thirteenth.
+    for (let index = 0; index < 14; index += 1)
+      messages.send(target, demoHandle(1), demoHandle(2), `Hi ${index}`)
+    await vi.advanceTimersByTimeAsync(rungMs + 50)
+    expect(
+      mail(backend).filter((each) => each.from === demoHandle(1) && each.state === "held"),
+    ).toHaveLength(2)
+  })
+
+  it("keeps a stopped thread stopped for the length of a thread, or until it is released", async () => {
+    const { backend, cues } = open()
+    cues.helpers()
+    const { messages } = backend
+    if (!isDemoMessages(messages)) throw new Error("the demo's messages")
+    const target = { projectId: bar.projectId, workspaceSessionId: bar.workspaceSessionId }
+    messages.send(target, asking, lead, "Hi")
+    const thread = Object.values(messages.state.getSnapshot().terminals)
+      .flatMap((each) => each.threads)
+      .find((each) => each.messages.some((one) => one.from === asking))!
+    messages.stop!(thread.id)
+    expect(messages.send(target, lead, asking, "Hello")).toBe(false)
+    await vi.advanceTimersByTimeAsync(9 * 60_000)
+    expect(messages.send(target, lead, asking, "Hello")).toBe(false)
+    messages.release!(thread.id)
+    expect(messages.send(target, lead, asking, "Hello")).toBe(true)
+    // Left alone, a stop lapses ten minutes after the thread's latest message.
+    messages.send(target, demoHandle(1), demoHandle(2), "Hi")
+    const other = Object.values(messages.state.getSnapshot().terminals)
+      .flatMap((each) => each.threads)
+      .find((each) => each.messages.some((one) => one.from === demoHandle(1)))!
+    messages.stop!(other.id)
+    await vi.advanceTimersByTimeAsync(10 * 60_000 + 1000)
+    expect(messages.send(target, demoHandle(1), demoHandle(2), "Hi again")).toBe(true)
+  })
+
+  it("marks a message gone when a terminal of the thread closed", async () => {
+    const { backend, cues, store } = open()
+    cues.helpers()
+    const { messages } = backend
+    if (!isDemoMessages(messages)) throw new Error("the demo's messages")
+    const target = { projectId: bar.projectId, workspaceSessionId: bar.workspaceSessionId }
+    store.transact([
+      { type: "terminal/close", target: bar, terminalId: key(babcia.lead).terminalId },
+    ] as never)
+    const stopped = vi.fn<() => void>()
+    const delivered = vi.fn<() => void>()
+    messages.send(target, asking, lead, "Hi", delivered, stopped)
+    await vi.advanceTimersByTimeAsync(rungMs + 50)
+    expect(mail(backend).map((each) => each.state)).toEqual(["gone"])
+    expect(stopped).toHaveBeenCalledOnce()
+    expect(delivered).not.toHaveBeenCalled()
   })
 
   it("shows a page in the pane beside the seasonal-specials window", () => {

@@ -217,8 +217,9 @@ export const demoTurns = (turnMs = demoTurnMs) => {
       const { program, began } = take(key, terminal)
       const id = terminalKeyId(key)
       const after = options?.after ?? turnMs
-      const { gist, background } = options ?? {}
-      const reply = options?.reply ?? replies[outcome]
+      const { gist, background, error } = options ?? {}
+      // A turn that ends in the harness's or the API's error has said nothing of its own.
+      const reply = error ? undefined : (options?.reply ?? replies[outcome])
       if (began) emit({ type: "begin", key })
       status(key, { working: true }, program)
       active.set(id, [
@@ -227,6 +228,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
             outcome,
             ...(reply ? { reply } : {}),
             ...(gist ? { gist } : {}),
+            ...(error ? { error } : {}),
             at: Date.now(),
           }
           // Its subagents keep it working until they finish, as the runner reports it.

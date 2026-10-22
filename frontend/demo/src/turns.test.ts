@@ -144,6 +144,18 @@ describe("demo turns", () => {
       )
     })
 
+    it("ends a failed turn in the harness's error, with no reply of the agent's", async () => {
+      const { turns, held, agent } = open()
+      turns.finish(key("06"), held(key("06")), "failed", {
+        after: 10,
+        error: "stream disconnected",
+      })
+      await vi.advanceTimersByTimeAsync(10)
+      const lastTurn = agent(key("06"))?.lastTurn
+      expect(lastTurn).toMatchObject({ outcome: "failed", error: "stream disconnected" })
+      expect(lastTurn?.reply).toBeUndefined()
+    })
+
     it("gives each outcome the reply it has, and unknown none", async () => {
       const { turns, held, agent } = open()
       for (const outcome of ["failed", "interrupted", "unknown"] as const) {

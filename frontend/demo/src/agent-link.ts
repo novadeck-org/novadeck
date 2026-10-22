@@ -38,6 +38,8 @@ export type DemoAgentVerbs = {
     options?: {
       readonly after?: number
       readonly reply?: string
+      // What the harness or the API said where the turn failed; the agent says no reply then.
+      readonly error?: string
       readonly gist?: string
       readonly background?: DemoBackground
     },

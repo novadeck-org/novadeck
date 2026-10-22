@@ -163,8 +163,7 @@ export const createDemoTerminalScreen = ({
     const latest = agent === "agy" ? shown.findLast((item) => item.kind === "tool-call") : undefined
     const said = agent
       ? shown.map((item) => {
-          if (latest && item.call !== null && item.call === latest.call)
-            return itemBlock(item, agent, true)
+          if (item === latest) return itemBlock(item, agent, true)
           const made = items.get(item) ?? itemBlock(item, agent)
           items.set(item, made)
           return made

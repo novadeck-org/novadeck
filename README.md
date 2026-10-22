@@ -759,8 +759,8 @@ told, an agent works until cue 6; `frontend/demo/src/babcia.ts`). Every variant'
 lists what its agents wait on, built as the runner's is. The switcher in the panel's header,
 which leaves out `welcome`, `chirp` and `babcia`, changes between them without reloading
 (pressing the current one boots it again), and the browser tab remembers the last one chosen.
-`&turnMs=` sets how long a demo agent's turn works (1500 ms unless given), as a spec does that must act on the screen before the turn
-ends.
+`&turnMs=` sets how long a demo agent's turn works (1500 ms unless given), as a spec does
+that must act on the screen before the turn ends.
 
 The search field at the top filters actions by label, hint and group. Groups start folded,
 under three sections (Terminals, Agents, App), and the panel remembers which you opened in

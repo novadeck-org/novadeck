@@ -1,7 +1,7 @@
 import type { ChatItem, ChatRequest } from "@novadeck/core/conversation"
 import { describe, expect, it } from "vitest"
 
-import { agentTail, askLines, inputLines, itemBlock, shellTail } from "./agent"
+import { agentTail, askLines, inputLines, itemBlock, resultBlock, shellTail } from "./agent"
 import { banner, openingBlocks } from "./openings"
 import { commandBlock, sampleBlocks } from "./samples"
 import type { Block } from "./screen"
@@ -131,7 +131,7 @@ describe("Antigravity's screens", () => {
   it("pair its mark's rows with its name, sign-in, model and folder, as its probes show", () => {
     const rowsOf = read(banner("agy", "~/shop")(80)).split("\n")
     expect(rowsOf.slice(0, 5)).toEqual([
-      "      ▄▀▀▄        Antigravity CLI 1.2.14",
+      "      ▄▀▀▄        Antigravity CLI 1.3.1",
       "     ▀▀▀▀▀▀       Gemini API key",
       "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
       "   ▄▀▀    ▀▀▄     ~/shop",
@@ -139,7 +139,7 @@ describe("Antigravity's screens", () => {
     ])
   })
 
-  it("show a person's turn behind `> `, a call as `● Tool(subject)` and a result behind `⎿`", () => {
+  it("show a person's turn behind `> `, a call as `● Ran (command)` and what it says indented", () => {
     expect(read(itemBlock(item({ role: "user", text: "Fix it" }), "agy")(40))).toBe("\n> Fix it\n")
     // As the demo's Antigravity agents write it: its own `run_command` tool, with the command
     // in a JSON input.
@@ -149,15 +149,18 @@ describe("Antigravity's screens", () => {
       text: '{"CommandLine":"\\"pnpm test\\"","Cwd":"\\"/home/nyx\\""}',
       run: { kind: "run", title: "Ran", detail: "pnpm test" },
     })
-    const result = item({ kind: "tool-result", role: "tool", text: "a\nb" })
-    // An earlier call is plain, with its output under it; the latest expands, and has none.
-    expect(read(itemBlock(call, "agy")(60))).toBe("\n● Bash(pnpm test)")
-    expect(read(itemBlock(call, "agy", true)(60))).toBe("\n● Bash(pnpm test) (ctrl+o to expand)")
-    expect(
-      itemBlock(item({ kind: "tool-result", role: "tool", text: "ok" }), "agy", true)(60),
-    ).toEqual([])
+    // An earlier call is plain; the latest expands. No blank row comes before a call, so
+    // consecutive calls follow each other (the person's turn leaves its own).
+    expect(read(itemBlock(call, "agy")(60))).toBe("● Ran (pnpm test)")
+    expect(read(itemBlock(call, "agy", true)(60))).toBe("● Ran (pnpm test) (ctrl+o to expand)")
     expect(read(itemBlock(item({ text: "All done." }), "agy")(40))).toBe("\n  All done.")
-    expect(read(itemBlock(result, "agy")(40))).toBe("  ⎿  a\n     b")
+  })
+
+  it("show no output under a tool call, only under a slash command", () => {
+    const result = item({ kind: "tool-result", role: "tool", text: "a\nb" })
+    expect(itemBlock(result, "agy")(40)).toEqual([])
+    expect(itemBlock(result, "agy", true)(40)).toEqual([])
+    expect(read(resultBlock(["Review submitted"], "agy")(40))).toBe("  ⎿  Review submitted")
   })
 })
 

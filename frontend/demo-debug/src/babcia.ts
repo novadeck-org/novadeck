@@ -33,7 +33,7 @@ export const babciaGroups = (cues: BabciaCues | undefined): readonly DemoActionG
             },
             {
               label: "2 · Failed turn",
-              hint: "Prices table's turn ends in an error: its line goes red, with a Trouble row",
+              hint: "Prices table's turn ends in an API error (stream disconnected), as Codex records one: its line goes red, with a Trouble row that reads it",
               run: () => cues.fail(),
             },
             {

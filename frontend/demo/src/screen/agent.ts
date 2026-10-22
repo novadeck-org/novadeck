@@ -86,18 +86,18 @@ export const requestBlock =
     gap,
   ]
 
-// A tool call: its name and what it was called on, after a blank row.
-// Antigravity marks its latest call as one that expands (`expandable`), and shows no output
-// under it.
+// A tool call: its name and what it was called on, after a blank row. Antigravity's reads
+// `● Ran (command)` with no blank row between one call and the next, and its latest call is
+// the one marked `(ctrl+o to expand)` (`expandable`), as harnesses/agy's 1.3 probes show.
 export const callBlock =
   (agent: ChatAgent, tool: string, subject = "", expandable = false): Block =>
   (width) => [
-    gap,
+    ...(agent === "agy" ? [] : [gap]),
     ...wrap(
       [
         span(tool, "bold"),
-        ...(subject ? [span(agent === "agy" ? `(${subject})` : ` ${subject}`)] : []),
-        ...(agent === "agy" && subject && expandable ? [span(" (ctrl+o to expand)", "muted")] : []),
+        ...(subject ? [span(agent === "agy" ? ` (${subject})` : ` ${subject}`)] : []),
+        ...(agent === "agy" && expandable ? [span(" (ctrl+o to expand)", "muted")] : []),
       ],
       width,
       {
@@ -145,15 +145,15 @@ export const dividerBlock =
   (width) => [gap, rule(width, note, "muted")]
 
 // One record of the conversation, as the agent's TUI shows it.
-// `latest` is whether an Antigravity call is its screen's latest, or a result is of that call:
-// only the latest call expands, and shows no output under it (harnesses/agy's probes).
+// `latest` is whether an Antigravity call is its screen's latest: only that one expands.
+// Antigravity shows no output under a tool call (only under its slash commands).
 export const itemBlock = (item: ChatItem, agent: ChatAgent, latest = false): Block => {
-  // Antigravity names a command it ran `Bash`, whatever its own tool is called, and shows it.
-  if (item.kind === "tool-call" && agent === "agy" && item.run?.kind === "run")
-    return callBlock(agent, "Bash", clip(item.run.detail.split("\n")[0] ?? "", 90), latest)
+  // Antigravity says what a tool did and to what: `Ran (echo approved)`.
+  if (item.kind === "tool-call" && agent === "agy" && item.run)
+    return callBlock(agent, item.run.title, clip(item.run.detail.split("\n")[0] ?? "", 90), latest)
   if (item.kind === "tool-call")
     return callBlock(agent, item.tool ?? "Tool", summary(item.text), latest)
-  if (item.kind === "tool-result" && agent === "agy" && latest) return () => []
+  if (item.kind === "tool-result" && agent === "agy") return () => []
   if (item.kind === "tool-result") return resultBlock(resultLines(item), agent)
   if (item.role === "user") {
     const asked = requestBlock(agent, item.text)
