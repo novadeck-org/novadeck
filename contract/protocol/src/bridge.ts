@@ -356,10 +356,12 @@ export const parsePortableState = (value: unknown): PortableState | undefined =>
 /**
  * What is new in the version the app updated to: its release's highlights, each a short
  * title and one plain line, as the release notes give them (scripts/release-notes). One to
- * `whatsNewHighlights` of them; text only, never Markdown or links.
+ * `whatsNewHighlights` of them; text only, never Markdown or links. `from` is the version
+ * they are new since, the one updated from, when the host knows it.
  */
 export type WhatsNew = {
   readonly version: string
+  readonly from?: string
   readonly highlights: readonly WhatsNewHighlight[]
 }
 
@@ -396,7 +398,8 @@ const highlightText = (value: unknown, length: number): string | undefined => {
 /**
  * What is new when it is something the contract allows, else undefined. Highlights that
  * break it are left out first, then the most that is shown are kept, so a valid one never
- * gives way to an invalid one before it. With none left there is nothing to show.
+ * gives way to an invalid one before it. With none left there is nothing to show. A `from`
+ * that is no version, or the version itself, is left out: the card then names none.
  */
 export const parseWhatsNew = (value: unknown): WhatsNew | undefined => {
   if (!isRecord(value) || !isVersion(value.version) || !Array.isArray(value.highlights))
@@ -413,7 +416,11 @@ export const parseWhatsNew = (value: unknown): WhatsNew | undefined => {
       ]
     })
     .slice(0, whatsNewHighlights)
-  return highlights.length > 0 ? { version: value.version, highlights } : undefined
+  if (highlights.length === 0) return undefined
+  const { from } = value
+  return isVersion(from) && from !== value.version
+    ? { version: value.version, from, highlights }
+    : { version: value.version, highlights }
 }
 
 /** A desktop notification about one terminal; see `DesktopBridge.showNotice`. */

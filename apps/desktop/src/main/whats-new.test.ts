@@ -545,22 +545,25 @@ describe("what is new since the version updated from", () => {
   const titles = (found: Awaited<ReturnType<ReturnType<typeof kept>["whatsNew"]>>) =>
     found?.highlights.map(({ title }) => title)
 
-  it("tells the builds skipped on the way, newest first, after the version's own", async () => {
+  it("tells the builds skipped on the way, newest first, after the version's own, and since which", async () => {
     const own = listed("0.5.0", ["Own"])
     const list = [own, listed("0.4.4", ["Fourth"]), listed("0.4.3", []), listed("0.4.2", ["Gone"])]
     const { whatsNew, urls } = kept(answering(own, [list]), { from: "0.4.2" })
     const found = await whatsNew()
     expect(found?.version).toBe("0.5.0")
+    expect(found?.from).toBe("0.4.2")
     expect(titles(found)).toEqual(["Own", "Fourth"])
     expect(urls[1]).toBe(
       "https://api.github.com/repos/novadeck-org/novadeck/releases?per_page=100&page=1",
     )
   })
 
-  it("reads no list without a version to start from", async () => {
+  it("reads no list without a version to start from, and names none", async () => {
     const own = listed("0.5.0", ["Own"])
     const { whatsNew, urls } = kept(answering(own, []))
-    expect(titles(await whatsNew())).toEqual(["Own"])
+    const found = await whatsNew()
+    expect(titles(found)).toEqual(["Own"])
+    expect(found).not.toHaveProperty("from")
     expect(urls).toHaveLength(1)
   })
 

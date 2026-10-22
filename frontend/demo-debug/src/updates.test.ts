@@ -129,4 +129,12 @@ describe("demo updates", () => {
     expect(await whatsNew.get()).toBeUndefined()
     expect(whatsNewCalls).toEqual({ dismissed: 1, asked: 3 })
   })
+
+  it("answers the version updated from when one is given", async () => {
+    const { whatsNew, showWhatsNew } = createDemoUpdates()
+    showWhatsNew("0.0.80")
+    expect(await whatsNew.get()).not.toHaveProperty("from")
+    showWhatsNew("0.0.80", { from: "0.0.79" })
+    expect((await whatsNew.get())?.from).toBe("0.0.79")
+  })
 })

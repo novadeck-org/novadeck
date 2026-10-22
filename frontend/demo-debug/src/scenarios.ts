@@ -15,6 +15,10 @@ export type UpdateScenario = {
   readonly reboots?: true
 }
 
+// The release before `version`, as the one an update came from: its last number one less.
+const earlier = (version: string): string =>
+  version.replace(/(\d+)$/, (last) => String(Math.max(0, Number(last) - 1)))
+
 export const updateScenarios = {
   download: {
     label: "Download",
@@ -48,36 +52,38 @@ export const updateScenarios = {
   },
   whatsNew: {
     label: "What's new, after an update",
-    hint: "Card in the corner with three highlights, until dismissed; reboots, as it is asked once at launch",
-    play: ({ showWhatsNew }, version) => showWhatsNew(version),
+    hint: "Card in the corner with three highlights and the version updated from, until dismissed; reboots, as it is asked once at launch",
+    play: ({ showWhatsNew }, version) => showWhatsNew(version, { from: earlier(version) }),
     reboots: true,
   },
   whatsNewMarkup: {
     label: "What's new, text with markup",
-    hint: "Card whose highlights hold <b> and **stars**: shown as typed, never rendered; reboots",
+    hint: "Card whose highlights hold <b> and **stars**: shown as typed, never rendered; no version updated from, as from an install that never noted it; reboots",
     play: ({ showWhatsNew }, version) =>
-      showWhatsNew(version, [
-        {
-          title: "Bold <b>words</b> and **stars**",
-          line: "A [link](https://example.com) and <i>tags</i>.",
-        },
-      ]),
+      showWhatsNew(version, {
+        highlights: [
+          {
+            title: "Bold <b>words</b> and **stars**",
+            line: "A [link](https://example.com) and <i>tags</i>.",
+          },
+        ],
+      }),
     reboots: true,
   },
   whatsNewLong: {
     label: "What's new, longest highlights",
     hint: "Four highlights at the longest the host allows: the list scrolls in a short window; reboots",
     play: ({ showWhatsNew }, version) =>
-      showWhatsNew(
-        version,
-        ["First", "Second", "Third", "Fourth"].map((word) => ({
+      showWhatsNew(version, {
+        from: earlier(version),
+        highlights: ["First", "Second", "Third", "Fourth"].map((word) => ({
           title: `${word} highlight with a title that runs to the longest allowed`.padEnd(80, "."),
           line: `${word}: a line that runs on to the longest the host allows, `.padEnd(
             240,
             "and on ",
           ),
         })),
-      ),
+      }),
     reboots: true,
   },
   noHighlights: {

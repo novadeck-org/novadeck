@@ -7,8 +7,9 @@
 //   `--color-shell`, `--color-paper`, `--color-soft`).
 // - Edges: `--color-line-strong` reaches 3:1 on each ground.
 // - State pairs, where the theme sets them: `--item-highlighted-fg` on
-//   `--item-highlighted-bg`, `--segmented-active-fg` on `--segmented-active-bg`, and
-//   `--color-on-strong` on `--color-strong`, each 4.5:1.
+//   `--item-highlighted-bg`, `--segmented-active-fg` on `--segmented-active-bg`,
+//   `--whats-new-accent-fg` on `--whats-new-accent-bg`, and `--color-on-strong` on
+//   `--color-strong`, each 4.5:1.
 //
 // A token is read from the theme's own block, then its shared block, then (for a scheme
 // other than the first) laid over the first scheme's, as the cascade does. A `var()` alias
@@ -171,6 +172,12 @@ const targets: { foreground: string; backgrounds: string[]; minimum: number; opt
   {
     foreground: "--segmented-active-fg",
     backgrounds: ["--segmented-active-bg"],
+    minimum: 4.5,
+    optional: true,
+  },
+  {
+    foreground: "--whats-new-accent-fg",
+    backgrounds: ["--whats-new-accent-bg"],
     minimum: 4.5,
     optional: true,
   },

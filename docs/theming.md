@@ -289,7 +289,8 @@ For every scheme a theme defines, `--color-ink` and `--color-muted` reach 4.5:1 
 `--color-canvas`, `--color-shell`, `--color-paper` and `--color-soft`, and
 `--color-line-strong` reaches 3:1 on them. Where a theme sets them,
 `--item-highlighted-fg` on `--item-highlighted-bg`, `--segmented-active-fg` on
-`--segmented-active-bg` and `--color-on-strong` on `--color-strong` reach 4.5:1.
+`--segmented-active-bg`, `--whats-new-accent-fg` on `--whats-new-accent-bg` and
+`--color-on-strong` on `--color-strong` reach 4.5:1.
 `theme/contrast.test.ts` computes these from the token values and names the theme,
 scheme and pair that falls short. A pair a theme misses is listed there with its ratio
 and reason; none is listed today.
