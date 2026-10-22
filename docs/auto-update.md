@@ -63,9 +63,10 @@ Checks read `https://novadeck.dev/update/<channel>/` (`stable` or `early`), a ge
 feed: electron-updater fetches `latest.yml`, `latest-mac.yml` or `latest-linux.yml` there.
 The website counts the request, which is how it knows how many copies are open and
 launched, and answers with that file from GitHub: `stable` the latest release's, `early`
-the newest release the website links, prereleases included. It rewrites the file's
-download addresses to the whole GitHub address at that release, so the update itself
-downloads from GitHub directly. Should the website not know the newest release for
+the newest release, prereleases included, which the website asks GitHub for (its answer
+kept a minute in each of Cloudflare's data centres) or, should GitHub not say, takes from
+its own build. It rewrites the file's download addresses to the whole GitHub address at
+that release, so the update itself downloads from GitHub directly. Should the website not know the newest release for
 `early`, or not answer at all, the check fails and the app checks GitHub itself (below);
 should its counting not run, it redirects the checks to GitHub uncounted (novadeck-website,
 README "Counts"). The generic provider ignores `allowPrerelease`, so the channel
@@ -94,9 +95,13 @@ A site that can't be reached or fails never blocks updating: a check through it 
 fails for any reason is made again at once against GitHub (unless the app is quitting)
 with the repository from `app-update.yml`, and the next check goes to novadeck.dev
 again. The site's answer for `stable` is GitHub's file relayed live with `no-store`; its
-answer for `early` can lag GitHub's by up to an hour (the site's own build), and the site
-distrusts its record after 6 hours and answers 503, so the app falls back. A wrong answer
-from the site, which only a bug of the site gives, can delay updates until it is fixed.
+answer for `early` lags GitHub's by up to a minute while GitHub answers the site (its
+cache), so a release reaches early copies at their first check a minute or more after it
+is published. Should GitHub's API not answer the site (down, slow or rate limited), it
+names the release its own build links instead, which can lag by hours, as GitHub runs the
+site's scheduled builds only every few hours; the site distrusts that record after 6 hours
+and answers 503, so the app falls back. A wrong answer from the site, which only a bug of
+the site gives, can delay updates until it is fixed.
 The app does not step back to an older `early` release the website names within 6 hours
 of having offered or taken a newer one (kept per run, in memory, on a monotonic clock, and
 only while that release is offered or ready: a failed download of it clears the hold): the answer is ignored,
