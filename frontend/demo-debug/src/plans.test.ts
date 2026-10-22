@@ -45,7 +45,7 @@ describe("the debug panel's Plan group", () => {
   it("puts the selected agent's plan in a fault, and back", () => {
     const companions = showcase()
     let content: ItemContent | undefined
-    companions.follow(key, itemIdOf(studioAgent.plan.id), { reveal: false }, (next) => {
+    companions.follow(key, itemIdOf(studioAgent.plan.id), { reveal: undefined }, (next) => {
       content = next
     })
     run("Plan file deleted", key, companions)

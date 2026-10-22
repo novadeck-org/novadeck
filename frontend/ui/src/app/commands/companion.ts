@@ -1,4 +1,4 @@
-import { isOnBar, kindRules, windowOfItem, type ItemId } from "@novadeck/core/items"
+import { isOnBar, kindRules, windowOfItem, type Item, type ItemId } from "@novadeck/core/items"
 import { addCompactGridTerminal } from "@novadeck/core/layout/grid-placement"
 import {
   droppedCanvasGeometry,
@@ -23,6 +23,12 @@ export type CompanionDependencies = {
   readonly setSelected: (id: string) => void
   readonly markCreated: (created: { readonly context: string; readonly id: string }) => void
   readonly pulse: () => void
+}
+
+// The terminal an undocked window goes beside: the one it is on, else the one it came from.
+const anchorOf = (item: Item): { anchor?: string } => {
+  const terminalId = "terminalId" in item.holder ? item.holder.terminalId : item.from?.terminalId
+  return terminalId === undefined ? {} : { anchor: terminalId }
 }
 
 export const createCompanionCommands = (
@@ -64,6 +70,7 @@ export const createCompanionCommands = (
       if (open && hasWindow(roster, open)) return place ? moveTo(open, place) : select(open)
       const window: CompanionWindowMeta = {
         id: effects.newId(),
+        home: "undocked",
         itemId,
         name: item.name,
         titleSource: { kind: "default" },
@@ -78,7 +85,7 @@ export const createCompanionCommands = (
             itemId,
             window,
             gridLayouts: place && "grid" in place ? dropOnGrid(grid, window.id, place.grid) : grid,
-            anchor: "terminalId" in item.holder ? item.holder.terminalId : item.from.terminalId,
+            ...anchorOf(item),
             canvasSize: ui.getSnapshot().canvasWindowSize,
             ...(place && "canvas" in place
               ? {
@@ -100,7 +107,7 @@ export const createCompanionCommands = (
       const window = roster.windows.find((each) => each.id === windowId)
       const item = window && items.find((each) => each.id === window.itemId)
       // Its terminal closed: there's nowhere to dock it.
-      if (!item || !hasTerminal(roster, item.from.terminalId)) return
+      if (!item?.from || !hasTerminal(roster, item.from.terminalId)) return
       const home = item.from.terminalId
       navigation.navigateWorkspace(
         [
@@ -125,8 +132,8 @@ export const createCompanionCommands = (
       const item = itemOf(itemId)
       if (!item) return
       const target = currentTarget(snapshot)
-      const home = item.from.terminalId
-      if (kindRules[item.kind].close === "hide" && isOnBar(item, home))
+      const home = item.from?.terminalId
+      if (home !== undefined && kindRules[item.kind].close === "hide" && isOnBar(item, home))
         return commit([{ type: "bar/hide", target, terminalId: home, key: itemId }])
       const close: WorkspaceAction = { type: "item/close", target, itemId }
       // Closing a window moves the selection on, so the address follows.

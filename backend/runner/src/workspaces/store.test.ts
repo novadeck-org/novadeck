@@ -82,6 +82,16 @@ const heldByVersion2 = `
     1, 'agent', 't', 'moth', 3, 1, 9, 9.25);
 `
 
+// Something in every table a version 3 database has: version 2's rows, and a change, the
+// kind version 3 added. Its tables have the same columns, so the rows are written alike.
+const heldByVersion3 = `
+  ${heldByVersion2}
+  INSERT INTO companion_items (id, session_id, terminal_id, window_id, pointer_key, kind,
+    path, name, detail, held, shown_by, from_terminal, from_handle, version, asked, shown_at)
+    VALUES ('changes', 's', 't', NULL, 'changes:/shop', 'changes', '/shop', 'Shop', '2 files', 0,
+      'agent', 't', 'moth', 1, 0, 10);
+`
+
 // A version 2 database holding `heldByVersion2` (less what `then` takes), set aside beside
 // `path` at `time`, as v0.0.188 left it. Its foreign keys go unchecked, for `then` to break.
 const setAsideOfVersion2 = (path: string, time: string, then = "") => {
@@ -93,6 +103,16 @@ const setAsideOfVersion2 = (path: string, time: string, then = "") => {
     ${then}`)
   database.close()
   return aside
+}
+
+// The empty workspace v0.0.188 started in place of the one it set aside: version 3, with
+// no projects, and the settings it was given.
+const emptyOfVersion3 = (path: string, settings = "") => {
+  const database = new DatabaseSync(path)
+  database.exec(`${readFileSync(new URL("schemas/3.sql", import.meta.url), "utf8")}
+    PRAGMA user_version = 3;
+    ${settings}`)
+  database.close()
 }
 
 // Every row of every table, each as JSON, sorted, so a table made again compares equal.
@@ -111,6 +131,18 @@ const rowsOf = (database: DatabaseSync) =>
         .toSorted(),
     ]),
   )
+
+// What `rowsOf` gave a database of version 3 or 2 as a version 4 holds it: its windows have
+// a home, 'undocked', and the rest is as it was.
+const carried = (rows: ReturnType<typeof rowsOf>) => ({
+  ...rows,
+  companion_windows: rows
+    .companion_windows!.map((row) => {
+      const { id, session_id, person_title, created_at } = JSON.parse(row)
+      return JSON.stringify({ id, session_id, home: "undocked", person_title, created_at })
+    })
+    .toSorted(),
+})
 
 // Every table and index, by its SQL with runs of white space as one.
 const schemaOf = (database: DatabaseSync) =>
@@ -153,7 +185,7 @@ describe("workspace metadata", () => {
     expect(first.id).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(3)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(4)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       expect(() =>
         database
@@ -344,13 +376,13 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const future = new DatabaseSync(path)
     future.exec(
-      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 4",
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 5",
     )
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(/newer/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(4)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(5)
       expect(database.prepare("SELECT value FROM future_data").get()?.value).toBe("saved")
     } finally {
       database.close()
@@ -417,8 +449,8 @@ describe("workspace metadata", () => {
     const database = new DatabaseSync(path)
     const reference = new DatabaseSync(fresh)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(3)
-      expect(rowsOf(database)).toEqual(before)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(4)
+      expect(rowsOf(database)).toEqual(carried(before))
       // Its tables are now those a new database gets, constraints and indexes too.
       expect(schemaOf(database)).toEqual(schemaOf(reference))
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
@@ -430,6 +462,137 @@ describe("workspace metadata", () => {
     } finally {
       database.close()
       reference.close()
+    }
+  })
+
+  it("carries a version 3 database forward in place, keeping everything it held", ({
+    directory,
+    store,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/3.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 3;
+      ${heldByVersion3}`)
+    const before = rowsOf(old)
+    const order = ["companion_windows", "companion_items"].map((table) =>
+      old.prepare(`SELECT rowid, id FROM ${table} ORDER BY rowid`).all(),
+    )
+    old.close()
+
+    // Opened twice: the second finds it carried already.
+    store(path).close()
+    const workspace = store(path)
+    expect(workspace.items("s").map(({ id }) => id)).toEqual(["bar", "undocked", "plan", "changes"])
+    expect(workspace.windows("s").map(({ id, home }) => ({ id, home }))).toEqual([
+      { id: "w", home: "undocked" },
+    ])
+    expect(workspace.items("s").every(({ from }) => from?.terminalId === "t")).toBe(true)
+    workspace.close()
+
+    const fresh = join(directory(), "fresh.sqlite")
+    new WorkspaceStore(fresh).close()
+    const database = new DatabaseSync(path)
+    const reference = new DatabaseSync(fresh)
+    try {
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(4)
+      expect(rowsOf(database)).toEqual(carried(before))
+      expect(
+        ["companion_windows", "companion_items"].map((table) =>
+          database.prepare(`SELECT rowid, id FROM ${table} ORDER BY rowid`).all(),
+        ),
+      ).toEqual(order)
+      expect(schemaOf(database)).toEqual(schemaOf(reference))
+      expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
+      expect(database.prepare("PRAGMA integrity_check").get()).toEqual({ integrity_check: "ok" })
+      // Nothing was left of the tables it was made from.
+      expect(
+        database
+          .prepare("SELECT name FROM sqlite_schema WHERE name LIKE '%\\_3' ESCAPE '\\'")
+          .all(),
+      ).toEqual([])
+    } finally {
+      database.close()
+      reference.close()
+    }
+  })
+
+  it("carries a version 3 database whose items reference what is gone, leaving those behind", ({
+    directory,
+    store,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    // Rows only a database written with foreign keys off could hold: an item on a closed
+    // terminal's bar, one in a window that is gone, a window of a deleted session, and a
+    // window whose only item belongs to a deleted session, which leaves it showing nothing.
+    const old = new DatabaseSync(path, { enableForeignKeyConstraints: false })
+    old.exec(`${readFileSync(new URL("schemas/3.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 3;
+      ${heldByVersion3}
+      INSERT INTO companion_windows VALUES ('lost', 'gone', NULL, 13);
+      INSERT INTO companion_windows VALUES ('empty', 's', NULL, 14);
+      INSERT INTO companion_items (id, session_id, terminal_id, window_id, pointer_key, kind,
+        path, name, detail, held, shown_by, from_terminal, from_handle, version, asked, shown_at)
+        VALUES ('closed', 's', 'u', NULL, '/shop/b.ts', 'file', '/shop/b.ts', 'b.ts', '', 0,
+          'agent', 'u', 'fox', 1, 0, 14),
+        ('stray', 's', NULL, 'nowhere', '/shop/c.ts', 'file', '/shop/c.ts', 'c.ts', '', 0,
+          'person', 't', 'moth', 1, 0, 15),
+        ('stranded', 'gone', NULL, 'empty', '/shop/d.ts', 'file', '/shop/d.ts', 'd.ts', '', 0,
+          'person', 't', 'moth', 1, 0, 16);`)
+    old.close()
+
+    const workspace = store(path)
+    expect(workspace.items("s").map(({ id }) => id)).toEqual(["bar", "undocked", "plan", "changes"])
+    expect(workspace.windows().map(({ id }) => id)).toEqual(["w"])
+    workspace.close()
+    const database = new DatabaseSync(path)
+    try {
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(4)
+      expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
+    } finally {
+      database.close()
+    }
+  })
+
+  it("holds a session to one project window, and an item to a terminal or none", ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/3.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 3;
+      ${heldByVersion3}`)
+    old.close()
+    new WorkspaceStore(path).close()
+
+    const database = new DatabaseSync(path)
+    const projectItem = (id: string, window: string, from: string) => `
+      INSERT INTO companion_windows (id, session_id, home, created_at)
+        VALUES ('${window}', 's', 'project', 11);
+      INSERT INTO companion_items (id, session_id, terminal_id, window_id, pointer_key, kind,
+        path, name, detail, held, shown_by, from_terminal, from_handle, version, asked, shown_at)
+        VALUES ('${id}', 's', NULL, '${window}', '/shop/${id}', 'file', '/shop/${id}', '${id}',
+          '', 0, 'person', ${from}, 1, 1, 12);`
+    const attempt = (sql: string) => {
+      database.exec("BEGIN")
+      try {
+        database.exec(sql)
+        database.exec("COMMIT")
+      } catch (error) {
+        database.exec("ROLLBACK")
+        throw error
+      }
+    }
+    try {
+      expect(() => attempt(projectItem("one", "p1", "NULL, 'moth'"))).toThrow(/CHECK/)
+      attempt(projectItem("one", "p1", "NULL, NULL"))
+      expect(() => attempt(projectItem("two", "p2", "NULL, NULL"))).toThrow(/UNIQUE/)
+      // The refused ones left no window behind.
+      expect(database.prepare("SELECT count(*) AS count FROM companion_windows").get()).toEqual({
+        count: 2,
+      })
+    } finally {
+      database.close()
     }
   })
 
@@ -465,9 +628,7 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const earlier = setAsideOfVersion2(path, "2026-10-22T07-00-00-000Z")
     // The person turned transcripts off in the empty one since.
-    const empty = new WorkspaceStore(path)
-    empty.saveSettings({ transcripts: false })
-    empty.close()
+    emptyOfVersion3(path, "INSERT INTO settings VALUES ('transcripts', 'false');")
     const held = readFileSync(earlier)
 
     expect(restoreSetAside(path, new Date("2026-10-22T09:00:00.000Z"))).toBe(earlier)
@@ -492,10 +653,26 @@ describe("workspace metadata", () => {
     expect(restoreSetAside(path)).toBeUndefined()
   })
 
+  it("brings one back where a start since carried the empty workspace to version 4", ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const earlier = setAsideOfVersion2(path, "2026-10-22T07-00-00-000Z")
+    emptyOfVersion3(path)
+    new WorkspaceStore(path).close()
+    expect(restoreSetAside(path, new Date("2026-10-22T09:00:00.000Z"))).toBe(earlier)
+    const workspace = new WorkspaceStore(path)
+    try {
+      expect(workspace.projects().map(({ id }) => id)).toEqual(["p"])
+    } finally {
+      workspace.close()
+    }
+  })
+
   it("finishes bringing one back where a crash cut the swap short", ({ directory }) => {
     const path = join(directory(), "workspace.sqlite")
     setAsideOfVersion2(path, "2026-10-22T07-00-00-000Z")
-    new WorkspaceStore(path).close()
+    emptyOfVersion3(path)
     expect(restoreSetAside(path, new Date("2026-10-22T09:00:00.000Z"))).toBeDefined()
     // As a crash after the empty one went aside would leave it: the copy, and no workspace.
     renameSync(path, `${path}.restoring`)
@@ -520,12 +697,12 @@ describe("workspace metadata", () => {
     expect(existsSync(path)).toBe(false)
     // A newer build's empty one.
     const newer = new DatabaseSync(path)
-    newer.exec("CREATE TABLE projects (id TEXT); PRAGMA user_version = 4")
+    newer.exec("CREATE TABLE projects (id TEXT); PRAGMA user_version = 5")
     newer.close()
     expect(restoreSetAside(path)).toBeUndefined()
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(4)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(5)
     } finally {
       database.close()
     }
@@ -552,7 +729,7 @@ describe("workspace metadata", () => {
     directory,
   }) => {
     const path = join(directory(), "workspace.sqlite")
-    new WorkspaceStore(path).close()
+    emptyOfVersion3(path)
     // An older version 2 one, then a version 1 one set aside since: neither comes back.
     setAsideOfVersion2(path, "2026-10-14T07-00-00-000Z")
     const version1 = new DatabaseSync(`${path}.earlier-2026-10-15T07-00-00-000Z`)
@@ -589,8 +766,8 @@ describe("workspace metadata", () => {
       // in store.ts's migrations, from schemas/<version before>.sql, which is added for
       // it; a new table needs neither. Then record the new digest here.
       expect({ version, digest }).toEqual({
-        version: 3,
-        digest: "361c79af4b7157cd502867c7af0401a72de35cc4c5feaef0fb9aaf295a1ac069",
+        version: 4,
+        digest: "ea55b50ce5c13ddaed80d47a5ee53adf64c130be78902c35eddcaa6335469231",
       })
     } finally {
       database.close()
@@ -1348,6 +1525,56 @@ describe("companion items", () => {
     expect(workspace.item(changes.id)).toEqual(changes)
   })
 
+  it("keep a session's project window with its item from no terminal, one window at most", async ({
+    directory,
+    store,
+  }) => {
+    const cwd = directory()
+    const workspace = store(join(cwd, "workspace.sqlite"))
+    const project = await workspace.createProject({ id: randomUUID(), name: "P", cwd })
+    const session = workspace.createSession({ id: randomUUID(), projectId: project.id, name: "S" })
+    const windowId = randomUUID()
+    const opened = item(session.id, "unused", "/work/a.ts", {
+      terminalId: null,
+      windowId,
+      by: "person",
+      from: null,
+    })
+    workspace.addProjectItem({ id: windowId, createdAt: 5 }, opened)
+    expect(workspace.item(opened.id)).toEqual(opened)
+    expect(workspace.windows(session.id)).toEqual([
+      {
+        id: windowId,
+        sessionId: session.id,
+        home: "project",
+        itemId: opened.id,
+        itemName: "/work/a.ts",
+        personTitle: null,
+      },
+    ])
+
+    // A second window, or a taken id, refuses, and leaves neither window nor item behind.
+    const second = item(session.id, "unused", "/work/b.ts", {
+      terminalId: null,
+      windowId: randomUUID(),
+      from: null,
+    })
+    expect(() => workspace.addProjectItem({ id: second.windowId!, createdAt: 6 }, second)).toThrow(
+      expect.objectContaining({ code: "CONFLICT" }),
+    )
+    expect(() => workspace.addProjectItem({ id: windowId, createdAt: 6 }, second)).toThrow(
+      expect.objectContaining({ code: "CONFLICT" }),
+    )
+    expect(workspace.item(second.id)).toBeUndefined()
+    expect(workspace.windows(session.id)).toHaveLength(1)
+    expect(() =>
+      workspace.addProjectItem(
+        { id: randomUUID(), createdAt: 6 },
+        { ...second, sessionId: "gone" },
+      ),
+    ).toThrow(expect.objectContaining({ code: "NOT_FOUND" }))
+  })
+
   it("keep each item with one holder, replacing a bar's copy and dropping windows left", async ({
     directory,
     store,
@@ -1390,6 +1617,7 @@ describe("companion items", () => {
       {
         id: windowId,
         sessionId: session.id,
+        home: "undocked",
         itemId: shown.id,
         itemName: "/work/a.ts",
         personTitle: null,

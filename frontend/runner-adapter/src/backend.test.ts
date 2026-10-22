@@ -721,6 +721,7 @@ describe("runner backend", () => {
           itemId: itemIdOf(inWindow!.id),
           window: {
             id: windowId,
+            home: "undocked",
             itemId: itemIdOf(inWindow!.id),
             name: inWindow!.name,
             titleSource: { kind: "default" },
@@ -1324,6 +1325,7 @@ describe("runner backend", () => {
           itemId: itemIdOf(item.id),
           window: {
             id: windowId,
+            home: "undocked",
             itemId: itemIdOf(item.id),
             name: item.name,
             titleSource: { kind: "default" },
@@ -1347,6 +1349,7 @@ describe("runner backend", () => {
           itemId: itemIdOf(item.id),
           window: {
             id: windowId,
+            home: "undocked",
             itemId: itemIdOf(item.id),
             name: item.name,
             titleSource: { kind: "default" },

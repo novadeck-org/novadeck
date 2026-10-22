@@ -1,5 +1,5 @@
 import { MURMUR_NAME } from "@novadeck/core/murmur"
-import { terminalFixture } from "@novadeck/core/testing"
+import { itemFixture, terminalFixture } from "@novadeck/core/testing"
 
 import { context, describe, expect, it } from "../test"
 import { windowMenu } from "./window-menu"
@@ -54,6 +54,29 @@ describe("a window's menu", () => {
         onClose: ignore,
       })
       expect(labels(items)).toEqual(["Rename", "Dock in its terminal (closed) (disabled)", "Close"])
+    })
+  })
+
+  context("for the project window", () => {
+    it("offers Close alone: its file names it and there's no terminal to dock in", () => {
+      const terminal = {
+        id: "w1",
+        home: "project" as const,
+        itemId: itemFixture("readme", "01").id,
+        name: "README.md",
+        titleSource: { kind: "default" as const },
+      }
+      expect(
+        labels(
+          windowMenu({
+            terminal,
+            onRename: ignore,
+            onResetTitle: ignore,
+            dockIn: { name: "Build Studio", onDock: ignore },
+            onClose: ignore,
+          }),
+        ),
+      ).toEqual(["Close"])
     })
   })
 })

@@ -1,5 +1,5 @@
 import { pageKey } from "./pages"
-import type { WorkspaceTarget } from "./types"
+import type { CompanionWindowMeta, WorkspaceTarget } from "./types"
 
 // What agents put in front of the user beside their terminals: the plans they write,
 // and images, project files and preview-browser pages they show. A backend reports
@@ -53,8 +53,9 @@ export type Item = {
   readonly held: boolean
   // Shown by an agent, or attached by the person.
   readonly by: "agent" | "person"
-  // The terminal it was shown from, which a window docks back into.
-  readonly from: { readonly terminalId: string; readonly handle: string }
+  // The terminal it was shown from, which a window docks back into; null for a file the
+  // person opened in their project window, which came from no terminal.
+  readonly from: { readonly terminalId: string; readonly handle: string } | null
   // Counts its shows; a higher version is something shown again.
   readonly version: number
   // The person asked to see it: it opens rather than waits.
@@ -148,7 +149,7 @@ export const shownItemWith = (
     .toSorted((a, b) => a.shownAt - b.shownAt)
     .findLast(
       (item) =>
-        item.by === "agent" && item.from.terminalId === terminalId && samePointer(item, pointer),
+        item.by === "agent" && item.from?.terminalId === terminalId && samePointer(item, pointer),
     )
 
 // What an item holds as it loads, from the file or page it points at now.
@@ -316,11 +317,12 @@ export const pageTroublesPerCall = 20
 // as the backend's seed and actions, like terminals.
 export type Companions = {
   // Reports what the item holds now, then again whenever that changes, until stopped.
-  // One that may hold secrets reports `held` unless `reveal`.
+  // One that may hold secrets reports `held` unless `reveal` is the path the item points at:
+  // the person's yes is to a file, not to whatever the item is pointed at when it's heard.
   readonly follow: (
     target: WorkspaceTarget,
     itemId: ItemId,
-    options: { readonly reveal: boolean },
+    options: { readonly reveal: string | undefined },
     on: (content: ItemContent) => void,
   ) => () => void
   // Writes the person's edit to the plan, unless it changed since `basedOn`. Rejects with
@@ -340,9 +342,15 @@ export type Companions = {
     shown: number,
     troubles: readonly PageTrouble[],
   ) => void
-  // Puts a file on the terminal's bar, as the person attached it. Absent where the
-  // backend can't.
-  readonly attach?: (key: CompanionKey, path: string) => Promise<void>
+  // Opens a file in the session's project window, by a path from the project's folder or
+  // absolute: the item the window holds is pointed at it, or, when the session has none,
+  // the window is made under `windowId`. Resolves with the item and its window as they now
+  // are; rejects when the path is no file it can open. Absent where the backend can't.
+  readonly openInProject?: (
+    target: WorkspaceTarget,
+    path: string,
+    windowId: string,
+  ) => Promise<{ readonly item: Item; readonly window: CompanionWindowMeta }>
   // A picture of what a live page shows now, by its view's web contents id, which the
   // pane shows in its place while the person isn't at it; undefined when there's none to
   // take. Absent where pages don't load live, or the host can't picture them: they stay live.

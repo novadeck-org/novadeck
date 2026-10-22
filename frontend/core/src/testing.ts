@@ -89,7 +89,13 @@ export const workspaceWithWindow = (
     {
       type: "window/upsert",
       target,
-      window: { id: "w1", itemId: hero.id, name: "hero.ts", titleSource: { kind: "default" } },
+      window: {
+        id: "w1",
+        home: "undocked",
+        itemId: hero.id,
+        name: "hero.ts",
+        titleSource: { kind: "default" },
+      },
     },
   ]
   return actions.reduce(workspaceReducer, workspaceFixture(options))

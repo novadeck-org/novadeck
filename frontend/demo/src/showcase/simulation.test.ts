@@ -6,14 +6,11 @@ import {
   type ItemContent,
 } from "@novadeck/core/items"
 import type { BackendAction } from "@novadeck/core/port"
-import { activeSession, workspaceReducer } from "@novadeck/core/state"
-import { workspaceFixture } from "@novadeck/core/testing"
 
 import { context, describe, expect, it } from "../test"
 import { authAgent, studioAgent } from "./agents"
 import { devServerArtifacts, studioArtifacts } from "./artifacts"
 import { createShowcase } from "./simulation"
-import { storefrontArtifacts } from "./storefront"
 
 const session = { projectId: "p", workspaceSessionId: "s" }
 const studio: CompanionKey = { ...session, terminalId: "01" }
@@ -48,7 +45,7 @@ const running = (
   // What the agents reported as the demo started, apart from what follows.
   const started = reported.splice(0)
   // What a plan holds now, as following it says.
-  const contentOf = (id: Item["id"], reveal = false) => {
+  const contentOf = (id: Item["id"], reveal?: string) => {
     let content: ItemContent | undefined
     showcase.follow(session, id, { reveal }, (next) => (content = next))()
     return content
@@ -116,7 +113,7 @@ describe("showcase agents", () => {
   })
 
   it("serve what each item holds, and why it can't show", () => {
-    const { contentOf } = running()
+    const { contentOf, showcase } = running()
     expect(contentOf(itemIdOf("studio-projects"))).toMatchObject({
       state: "ready",
       content: { kind: "file", path: "src/content/projects.json" },
@@ -127,7 +124,12 @@ describe("showcase agents", () => {
       size: null,
     })
     expect(contentOf(itemIdOf("dev-env"))).toMatchObject({ state: "unavailable", reason: "held" })
-    expect(contentOf(itemIdOf("dev-env"), true)).toMatchObject({ state: "ready" })
+    expect(
+      contentOf(
+        itemIdOf("dev-env"),
+        showcase.items.find((each) => each.id === "dev-env")?.path ?? undefined,
+      ),
+    ).toMatchObject({ state: "ready" })
     expect(contentOf(itemIdOf("nothing"))).toMatchObject({ reason: "gone" })
   })
 
@@ -203,7 +205,7 @@ describe("showcase agents", () => {
     it("tells whoever follows it, and puts it back", () => {
       const { showcase, contentOf } = running()
       const heard: ItemContent[] = []
-      showcase.follow(session, studioPlan, { reveal: false }, (content) => heard.push(content))
+      showcase.follow(session, studioPlan, { reveal: undefined }, (content) => heard.push(content))
       expect(showcase.fault(studio, "gone")).toBe(true)
       expect(heard.at(-1)).toEqual({ state: "unavailable", reason: "gone", size: null })
       showcase.fault(studio, "transcript")
@@ -278,7 +280,7 @@ describe("showcase agents", () => {
     it("tells whoever follows the plan of each version", async () => {
       const { showcase, stampOf } = running()
       const seen: string[] = []
-      const stop = showcase.follow(session, studioPlan, { reveal: false }, (content) => {
+      const stop = showcase.follow(session, studioPlan, { reveal: undefined }, (content) => {
         if (content.state === "ready" && content.content.kind === "plan")
           seen.push(content.content.text)
       })
@@ -310,191 +312,115 @@ describe("showcase agents", () => {
   })
 })
 
-describe("a file the person attaches", () => {
-  const upserts = (reported: BackendAction[]) =>
-    reported.flatMap((action) => (action.type === "item/upsert" ? [action.item] : []))
-
-  it("lands on the terminal's bar as theirs, asked for, with content to read", async () => {
-    const { showcase, reported, contentOf } = running()
-    await showcase.attach!(devServer, "~/projects/studio/src/cart/useCart.ts")
-    const [item] = upserts(reported)
-    expect(item).toMatchObject({
-      kind: "file",
-      name: "useCart.ts",
-      by: "person",
-      asked: true,
-      held: false,
-      version: 1,
-      holder: { terminalId: "02" },
-    })
-    const content = contentOf(item!.id)
-    expect(content).toMatchObject({ state: "ready", content: { kind: "file" } })
-  })
-
-  it("updates the item when the same file is attached again, not adding another", async () => {
-    const { showcase, reported } = running()
-    await showcase.attach!(devServer, "~/projects/studio/package.json")
-    await showcase.attach!(devServer, "~/projects/studio/package.json")
-    const items = upserts(reported)
-    expect(items.map((item) => [item.id, item.version])).toEqual([
-      [items[0]!.id, 1],
-      [items[0]!.id, 2],
-    ])
-  })
-
-  it("holds a file with a secret-looking name, shown only when revealed", async () => {
-    const { showcase, reported, contentOf } = running()
-    await showcase.attach!(devServer, "~/projects/studio/.npmrc")
-    const [item] = upserts(reported)
-    expect(item).toMatchObject({ held: true, by: "person", asked: true })
-    expect(contentOf(item!.id)).toMatchObject({ state: "unavailable", reason: "held" })
-    expect(contentOf(item!.id, true)).toMatchObject({ state: "ready" })
-  })
-
-  it("shows a picture for an image", async () => {
-    const { showcase, reported, contentOf } = running()
-    await showcase.attach!(devServer, "~/projects/studio/public/logo.png")
-    const [item] = upserts(reported)
-    expect(item).toMatchObject({ kind: "image" })
-    expect(contentOf(item!.id)).toMatchObject({ content: { kind: "image" } })
-  })
-
-  it("updates what the bar holds for the file to the whole file, as the person's", async () => {
-    const { showcase, reported } = running()
-    const sample = studioArtifacts.shown.find((each) => each.item.lines === null)!
-    await showcase.attach!(studio, sample.item.path!)
-    expect(upserts(reported)[0]).toMatchObject({
-      id: sample.item.id,
-      by: "person",
-      lines: null,
-      asked: true,
-      version: 2,
-    })
-  })
-
-  it("updates an item that was moved onto this bar, and not one moved off it", async () => {
-    const { showcase, reported, hold } = running()
-    const path = "~/projects/studio/src/cart/useCart.ts"
-    await showcase.attach!(devServer, path)
-    const first = upserts(reported)[0]!
-    hold(first.id, { terminalId: "03" })
-    await showcase.attach!(auth, path)
-    expect(upserts(reported)[1]).toMatchObject({ id: first.id, version: 2 })
-
-    hold(first.id, { windowId: "w1" })
-    await showcase.attach!(auth, path)
-    const added = upserts(reported)[2]!
-    expect(added.id).not.toBe(first.id)
-    expect(added.version).toBe(1)
-  })
-
-  it("gives each new item an id of its own, though an earlier one of the file was moved away", async () => {
-    const { showcase, reported, hold } = running()
-    const path = "~/projects/studio/src/cart/useCart.ts"
-    await showcase.attach!(devServer, path)
-    const first = upserts(reported)[0]!
-    hold(first.id, { windowId: "w1" })
-    await showcase.attach!(devServer, path)
-    const second = upserts(reported)[1]!
-    expect(second.id).not.toBe(first.id)
-    expect(second.version).toBe(1)
-  })
-
-  it("tells whoever follows an item its new content when the file is attached whole", async () => {
-    const ranged = storefrontArtifacts["01"]!.find((each) => each.item.lines !== null)!
-    const showcase = createShowcase({
-      agents: [],
-      shown: [{ key: devServer, handle: "fox", artifacts: [ranged] }],
-    })
-    showcase.start(
-      () => {},
-      () => showcase.items,
+describe("the project window", () => {
+  const folder = "~/projects/studio"
+  const opening = () => {
+    const made = running()
+    const showcase = createShowcase(
+      { agents: [], directory: () => folder },
+      (_delay, run) => run(),
+      () => 100,
     )
-    const heard: ItemContent[] = []
-    const stop = showcase.follow(session, itemIdOf(ranged.item.id), { reveal: false }, (content) =>
-      heard.push(content),
-    )
-
-    await showcase.attach!(devServer, ranged.item.path!)
-    stop()
-
-    const range = (content: ItemContent | undefined) =>
-      content?.state === "ready" && content.content.kind === "file"
-        ? {
-            from: content.content.from,
-            to: content.content.to,
-            total: content.content.lines.length,
-          }
-        : undefined
-    expect(heard).toHaveLength(2)
-    expect(range(heard[0])).toMatchObject({ from: 6, to: 18 })
-    expect(range(heard[1])).toEqual({
-      from: 1,
-      to: range(heard[1])!.total,
-      total: range(heard[1])!.total,
-    })
-  })
-
-  it("adds a new item, with an id of its own, where no bar holds the file", async () => {
-    const { showcase, reported, contentOf } = running()
-    const sample = studioArtifacts.shown.find((each) => each.item.lines === null)!
-    await showcase.attach!(devServer, sample.item.path!)
-    await showcase.attach!(auth, sample.item.path!)
-    const [first, second] = upserts(reported)
-    expect(first!.id).not.toBe(sample.item.id)
-    expect(second!.id).not.toBe(first!.id)
-    expect(first).toMatchObject({ lines: null, by: "person", holder: { terminalId: "02" } })
-    expect(contentOf(first!.id)).toMatchObject({ state: "ready" })
-  })
-
-  it("names the file from its project's folder, in text that fits any project", async () => {
-    const showcase = createShowcase({ agents: [], directory: () => "~/work/shop" })
+    let items: readonly Item[] = []
     const reported: BackendAction[] = []
     showcase.start(
-      (actions) => reported.push(...actions),
-      () => [],
-    )
-    await showcase.attach!(devServer, "~/work/shop/src/404.ts")
-    const item = upserts(reported)[0]!
-    expect(item.detail).toBe("src/404.ts")
-    let text = ""
-    showcase.follow(session, item.id, { reveal: false }, (content) => {
-      if (content.state === "ready" && content.content.kind === "file")
-        text = content.content.lines.join("\n")
-    })()
-    expect(text).toContain("export const _404 = ")
-    expect(text).not.toContain("storefront")
-  })
-
-  it("has no plans to fault where no agent has one", () => {
-    expect(createShowcase({ agents: [] }).plans).toBe(false)
-    expect(running().showcase.plans).toBe(true)
-  })
-
-  it("raises an item the terminal already held, in the workspace it reports to", async () => {
-    const target = { projectId: "project", workspaceSessionId: "initial" }
-    const key: CompanionKey = { ...target, terminalId: "01" }
-    const sample = studioArtifacts.shown[0]!
-    const showcase = createShowcase({
-      agents: [],
-      shown: [{ key, handle: "moth", artifacts: [sample] }],
-    })
-    let workspace = showcase.items.reduce(
-      (kept, item) => workspaceReducer(kept, { type: "item/upsert", target, item }),
-      workspaceFixture(),
-    )
-    const state = () => activeSession(workspace)!.state
-    showcase.start(
       (actions) => {
-        workspace = actions.reduce(workspaceReducer, workspace)
+        reported.push(...actions)
+        for (const action of actions)
+          if (action.type === "item/upsert")
+            items = [...items.filter((item) => item.id !== action.item.id), action.item]
       },
-      () => state().items,
+      () => items,
     )
-    expect(state().bars["01"]).toMatchObject({ open: false })
+    // The person closed it, as the reducer's item/close does.
+    const close = (id: string) => void (items = items.filter((item) => item.id !== id))
+    return { ...made, showcase, reported, close }
+  }
 
-    await showcase.attach!(key, sample.item.path!)
+  it("is made by the first file, held by a window, from no terminal", async () => {
+    const { showcase, reported } = opening()
+    const { item, window } = await showcase.openInProject!(session, "src/app.ts", "pw")
+    expect(item).toMatchObject({
+      name: "app.ts",
+      path: `${folder}/src/app.ts`,
+      by: "person",
+      from: null,
+      asked: true,
+      version: 1,
+      holder: { windowId: "pw" },
+    })
+    expect(window).toEqual({
+      id: "pw",
+      home: "project",
+      itemId: item.id,
+      name: "app.ts",
+      titleSource: { kind: "default" },
+    })
+    expect(reported.map((action) => action.type)).toEqual(["item/upsert", "window/upsert"])
+  })
 
-    expect(state().items.filter((item) => item.id === sample.item.id)).toHaveLength(1)
-    expect(state().bars["01"]).toMatchObject({ open: true, stack: [sample.item.id] })
+  it("is pointed at the next file in place, a version on, under the same window", async () => {
+    const { showcase } = opening()
+    const first = await showcase.openInProject!(session, "src/app.ts", "pw")
+    const next = await showcase.openInProject!(session, "README.md", "other")
+    expect(next.item).toMatchObject({ id: first.item.id, name: "README.md", version: 2 })
+    expect(next.window).toMatchObject({ id: "pw", name: "README.md" })
+  })
+
+  it("holds a secret-looking file and shows an image, as a file attached does", async () => {
+    const { showcase } = opening()
+    const env = await showcase.openInProject!(session, ".env.local", "pw")
+    let content: ItemContent | undefined
+    showcase.follow(session, env.item.id, { reveal: undefined }, (next) => (content = next))()
+    expect(env.item.held).toBe(true)
+    expect(content).toMatchObject({ state: "unavailable", reason: "held" })
+    const image = await showcase.openInProject!(session, "public/favicon.svg", "pw")
+    expect(image.item).toMatchObject({ kind: "image", held: false })
+  })
+
+  it("shows a held file only to a reveal asked for that file", async () => {
+    const { showcase } = opening()
+    const env = await showcase.openInProject!(session, ".env.local", "pw")
+    const path = env.item.path ?? undefined
+    expect(path).toBeDefined()
+    const reveal = (asked?: string) => {
+      let content: ItemContent | undefined
+      showcase.follow(session, env.item.id, { reveal: asked }, (next) => (content = next))()
+      return content
+    }
+    expect(reveal(path)).not.toMatchObject({ state: "unavailable" })
+    expect(reveal("README.md")).toMatchObject({ state: "unavailable", reason: "held" })
+    expect(reveal(undefined)).toMatchObject({ state: "unavailable", reason: "held" })
+  })
+
+  it("tells whoever follows it the new file's content", async () => {
+    const { showcase } = opening()
+    const first = await showcase.openInProject!(session, "README.md", "pw")
+    const heard: ItemContent[] = []
+    showcase.follow(session, first.item.id, { reveal: first.item.path ?? undefined }, (next) =>
+      heard.push(next),
+    )
+    await showcase.openInProject!(session, "src/app.ts", "pw")
+    expect(heard).toHaveLength(2)
+    expect(heard[1]).toMatchObject({ state: "ready", content: { path: "src/app.ts" } })
+  })
+
+  it("is made again once the person closed it", async () => {
+    const { showcase, close } = opening()
+    const first = await showcase.openInProject!(session, "README.md", "pw")
+    close(first.item.id)
+    const again = await showcase.openInProject!(session, "src/app.ts", "pw2")
+    expect(again.item).toMatchObject({ version: 1 })
+    expect(again.item.id).not.toBe(first.item.id)
+    expect(again.window.id).toBe("pw2")
+  })
+
+  it("is one for each session", async () => {
+    const { showcase } = opening()
+    const there = { ...session, workspaceSessionId: "t" }
+    const a = await showcase.openInProject!(session, "README.md", "pw")
+    const b = await showcase.openInProject!(there, "README.md", "pw-t")
+    expect(b.item.id).not.toBe(a.item.id)
+    expect(b.window.id).toBe("pw-t")
   })
 })

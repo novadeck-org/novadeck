@@ -92,6 +92,7 @@ const it = base.extend<{ shell: Fixture }>({
       const items = new CompanionItems({
         records: store,
         terminal: (terminalId) => terminals.place(terminalId),
+        project: () => undefined,
         livePlan: (item) => terminals.livePlan(item),
         pollMs: 20,
       })
@@ -1540,7 +1541,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     const texts: string[] = []
     const controller = new AbortController()
     const reading = (async () => {
-      for await (const content of shell.items(manager).content(item!.id, false, controller.signal))
+      for await (const content of shell
+        .items(manager)
+        .content(item!.id, undefined, controller.signal))
         if (content.state === "ready" && content.content.kind === "plan")
           texts.push(content.content.text)
     })()

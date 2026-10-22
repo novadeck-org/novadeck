@@ -5,7 +5,7 @@ import type { CompanionItem, CompanionWindow, TerminalSummary } from "@novadeck/
 import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
-import { itemOf } from "./companions"
+import { itemOf, windowOf } from "./companions"
 import { id, keptSummary, scripted } from "./scripted"
 import type { ListedCompanions } from "./seed"
 import { context, describe, expect, it } from "./test"
@@ -36,6 +36,7 @@ const runnerItem = (itemId: string, change: Partial<CompanionItem> = {}): Compan
 const runnerWindow = (windowId: string, itemId: string): CompanionWindow => ({
   id: windowId,
   sessionId: session,
+  home: "undocked",
   itemId,
   title: `${itemId}.ts`,
   titleSource: { kind: "default" },
@@ -205,6 +206,7 @@ describe("the runner's items and windows", () => {
           itemId: itemIdOf(notes.id),
           window: {
             id: windowId,
+            home: "undocked",
             itemId: itemIdOf(notes.id),
             name: "notes",
             titleSource: { kind: "default" },
@@ -259,6 +261,7 @@ describe("the runner's items and windows", () => {
         itemId: itemIdOf(notes.id),
         window: {
           id: windowId,
+          home: "undocked",
           itemId: itemIdOf(notes.id),
           name: "notes",
           titleSource: { kind: "default" },
@@ -279,6 +282,7 @@ describe("the runner's items and windows", () => {
       })
       const window = {
         id: windowId,
+        home: "undocked",
         itemId: itemIdOf(notes.id),
         name: "notes",
         titleSource: { kind: "default" },
@@ -327,6 +331,49 @@ describe("the runner's items and windows", () => {
     })
   })
 
+  context("a project window", () => {
+    const file = runnerItem("00000000-0000-4000-8000-0000000000c1", {
+      holder: { windowId: "00000000-0000-4000-8000-0000000000b9" },
+      by: "person",
+      from: null,
+      asked: true,
+    })
+    const projectWindow = {
+      ...runnerWindow("00000000-0000-4000-8000-0000000000b9", file.id),
+      home: "project" as const,
+    }
+
+    it("is seeded as it is listed, from no terminal", () => {
+      const app = open({ companions: { items: [file], windows: [projectWindow] } })
+      expect(app.state().items.map((item) => item.from)).toEqual([null])
+      expect(app.state().roster.windows.map((each) => each.home)).toEqual(["project"])
+      app.stop()
+    })
+
+    it("sends nothing to the runner for an open it already did", async () => {
+      const app = open()
+      const before = app.calls.length
+      app.commit({
+        type: "project/open",
+        target,
+        item: itemOf(file),
+        window: windowOf(projectWindow),
+      })
+      await settle()
+      expect(app.calls).toHaveLength(before)
+      expect(app.state().roster.windows.map((each) => each.id)).toEqual([projectWindow.id])
+      app.stop()
+    })
+
+    it("closes on the runner when the person closes its item", async () => {
+      const app = open({ companions: { items: [file], windows: [projectWindow] } })
+      app.commit({ type: "item/close", target, itemId: itemIdOf(file.id) })
+      await vi.waitFor(() => expect(app.of("close item")).toHaveLength(1))
+      expect(app.state().roster.windows).toEqual([])
+      app.stop()
+    })
+  })
+
   context("onto a terminal the runner hasn't created yet", () => {
     it("moves once the terminal exists there, and tries again if it wasn't yet", async () => {
       let tries = 0
@@ -342,6 +389,73 @@ describe("the runner's items and windows", () => {
       await settle()
       expect(app.reported()).toEqual([])
       expect(app.state().items[0]?.holder).toEqual({ terminalId: second })
+      app.stop()
+    })
+  })
+
+  context("when the person opens a file in the project window", () => {
+    const projectItem = runnerItem("00000000-0000-4000-8000-0000000000a4", {
+      holder: { windowId },
+      by: "person",
+      from: null,
+    })
+    const answer = async (call: string) =>
+      call === "open in project"
+        ? {
+            item: projectItem,
+            window: { ...runnerWindow(windowId, projectItem.id), home: "project" },
+          }
+        : undefined
+
+    it("reaches the runner after the changes the person made before it", async () => {
+      const app = open({ respond: answer })
+      app.commit({ type: "item/close", target, itemId: itemIdOf(notes.id) })
+      const opened = app.backend.companions!.openInProject!(target, "/p/a.ts", windowId)
+      await expect(opened).resolves.toMatchObject({ item: { id: projectItem.id, from: null } })
+      expect(app.calls.map((call) => call.call).filter((call) => call !== "create")).toEqual([
+        "close item",
+        "open in project",
+      ])
+      app.stop()
+    })
+
+    it("waits for a session the runner hasn't finished creating, and rejects if it can't", async () => {
+      let created!: () => void
+      const app = open({
+        respond: answer,
+        createSession: () => new Promise<void>((resolve) => (created = resolve)),
+      })
+      const fresh = id(7)
+      const there = { projectId: "p", workspaceSessionId: fresh }
+      app.commit({
+        type: "session/add",
+        projectId: "p",
+        activate: false,
+        session: createWorkspaceSession(
+          { name: "Fresh", state: createTerminalState([], "grid", "grid") },
+          { id: fresh, now: 1 },
+        ),
+      })
+      await vi.waitFor(() => expect(app.of("create session")).toHaveLength(1))
+      const opened = app.backend.companions!.openInProject!(there, "/p/a.ts", windowId)
+      await settle()
+      expect(app.of("open in project")).toEqual([])
+      created()
+      await expect(opened).resolves.toMatchObject({ window: { home: "project" } })
+      expect(app.of("open in project")).toHaveLength(1)
+      app.stop()
+    })
+
+    it("rejects with what the runner refused, and later changes still go", async () => {
+      const app = open({
+        respond: async (call) => {
+          if (call === "open in project") throw new WireError("INVALID_FILE", "No such file")
+        },
+      })
+      const opened = app.backend.companions!.openInProject!(target, "/p/a.ts", windowId)
+      await expect(opened).rejects.toThrow("No such file")
+      app.commit({ type: "item/close", target, itemId: itemIdOf(notes.id) })
+      await vi.waitFor(() => expect(app.of("close item")).toHaveLength(1))
       app.stop()
     })
   })
@@ -371,7 +485,13 @@ describe("the runner's items and windows", () => {
           type: "item/undock",
           target: there,
           itemId: item,
-          window: { id: windowId, itemId: item, name: "hero", titleSource: { kind: "default" } },
+          window: {
+            id: windowId,
+            home: "undocked",
+            itemId: item,
+            name: "hero",
+            titleSource: { kind: "default" },
+          },
         },
         { type: "terminal/rename", target: there, terminalId: windowId, name: "Hero" },
       )

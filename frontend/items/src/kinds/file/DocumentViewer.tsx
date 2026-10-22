@@ -11,11 +11,14 @@ import { MarkdownDocument } from "../../document/MarkdownDocument"
 
 export const DocumentViewer = ({
   id,
+  name,
   content,
   actions,
 }: {
   // The item showing it, whose editor opens again as it was left.
   id: string
+  // The item's name, which labels the document: it reads as the file, not as a plan.
+  name: string
   content: FileContent
   actions?: ReactNode
 }): React.JSX.Element => {
@@ -51,8 +54,7 @@ export const DocumentViewer = ({
             id={id}
             readOnly
             text={text}
-            // What assistive technology has always heard it as.
-            label="Plan"
+            label={name}
             onReady={(handle) => {
               editor.current = handle
             }}

@@ -1469,6 +1469,7 @@ export const runnerBackend = (
     companions: createRunnerCompanions(runner.companions, {
       livePages: options.livePages === true,
       ...(options.pagePicture ? { picture: options.pagePicture } : {}),
+      inOrder: items.inOrder,
     }),
     messages,
     conversations,

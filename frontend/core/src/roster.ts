@@ -160,6 +160,7 @@ export const updateWindow = (
   if (
     !current ||
     (current.itemId === window.itemId &&
+      current.home === window.home &&
       current.name === window.name &&
       current.titleSource.kind === window.titleSource.kind)
   )

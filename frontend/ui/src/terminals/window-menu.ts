@@ -2,6 +2,8 @@ import { titleSourceText } from "@novadeck/core/title-source"
 import type { Tile } from "@novadeck/core/types"
 import type { ContextMenuAction } from "@novadeck/toolkit/ContextMenu"
 
+import { isProjectWindow } from "./project-window"
+
 // Where a window undocked from a terminal's companion docks back in: that terminal's
 // name, and what docks it there, both absent once that terminal has closed.
 export type DockTarget = {
@@ -11,7 +13,8 @@ export type DockTarget = {
 
 // A window's own actions, the same in its sidebar tab's menu and its header's: who named
 // it, as a line to read rather than choose, then rename, hand a name the person gave back
-// to Novadeck, dock an undocked window back in its terminal, and close.
+// to Novadeck, dock an undocked window back in its terminal, and close. The project
+// window is named by its file and has no terminal to dock in: it offers Close alone.
 export const windowMenu = ({
   terminal,
   onRename,
@@ -26,32 +29,35 @@ export const windowMenu = ({
   // Present on a window undocked from a terminal's companion.
   dockIn?: DockTarget | undefined
   onClose: () => void
-}): ContextMenuAction[] => [
-  // A name nobody chose says nothing worth a line.
-  ...(terminal.titleSource && terminal.titleSource.kind !== "default"
-    ? [
-        {
-          value: "named",
-          label: titleSourceText(terminal.titleSource),
-          disabled: true,
-          onSelect: () => {},
-        },
+}): ContextMenuAction[] =>
+  isProjectWindow(terminal)
+    ? [{ value: "close", label: "Close", onSelect: onClose }]
+    : [
+        // A name nobody chose says nothing worth a line.
+        ...(terminal.titleSource && terminal.titleSource.kind !== "default"
+          ? [
+              {
+                value: "named",
+                label: titleSourceText(terminal.titleSource),
+                disabled: true,
+                onSelect: () => {},
+              },
+            ]
+          : []),
+        { value: "rename", label: "Rename", onSelect: onRename },
+        ...(onResetTitle && terminal.titleSource?.kind === "person"
+          ? [{ value: "reset-title", label: "Reset to automatic", onSelect: onResetTitle }]
+          : []),
+        ...(dockIn
+          ? [
+              {
+                value: "dock",
+                // Its terminal closed: there's nowhere to dock it, so it says so, disabled.
+                label: dockIn.name ? `Dock in ${dockIn.name}` : "Dock in its terminal (closed)",
+                disabled: !dockIn.onDock,
+                onSelect: () => dockIn.onDock?.(),
+              },
+            ]
+          : []),
+        { value: "close", label: "Close", onSelect: onClose },
       ]
-    : []),
-  { value: "rename", label: "Rename", onSelect: onRename },
-  ...(onResetTitle && terminal.titleSource?.kind === "person"
-    ? [{ value: "reset-title", label: "Reset to automatic", onSelect: onResetTitle }]
-    : []),
-  ...(dockIn
-    ? [
-        {
-          value: "dock",
-          // Its terminal closed: there's nowhere to dock it, so it says so, disabled.
-          label: dockIn.name ? `Dock in ${dockIn.name}` : "Dock in its terminal (closed)",
-          disabled: !dockIn.onDock,
-          onSelect: () => dockIn.onDock?.(),
-        },
-      ]
-    : []),
-  { value: "close", label: "Close", onSelect: onClose },
-]

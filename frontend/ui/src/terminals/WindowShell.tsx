@@ -9,6 +9,7 @@ import { Minimize2, FoldHorizontal, UnfoldHorizontal, Maximize2, Mic, X } from "
 import { useRef, type ReactNode } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
+import { isProjectWindow } from "./project-window"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 
 // What a layout contributes to each terminal it places.
@@ -129,6 +130,9 @@ export const WindowShell = ({
       unheardText(shell) ??
       (phase === "done" ? doneText(failed) : undefined))
   const headerDoubleAction = onFlyTo
+  // The project window is named by its file, so its name is no rename's: a double-click on it
+  // is the header's own.
+  const nameRenames = !isProjectWindow(terminal)
   const header = (
     <header
       className="terminal-header flex shrink-0 touch-manipulation select-none flex-nowrap items-center justify-between whitespace-nowrap"
@@ -141,7 +145,7 @@ export const WindowShell = ({
           (event.target as Element).closest("button, input")
         )
           return
-        if ((event.target as Element).closest("[data-terminal-name]")) {
+        if (nameRenames && (event.target as Element).closest("[data-terminal-name]")) {
           event.preventDefault()
           event.stopPropagation()
           onBeginRename()
@@ -164,7 +168,7 @@ export const WindowShell = ({
           x: event.clientX,
           y: event.clientY,
           time: event.timeStamp,
-          rename: Boolean((event.target as Element).closest("[data-terminal-name]")),
+          rename: nameRenames && Boolean((event.target as Element).closest("[data-terminal-name]")),
         }
       }}
       onPointerMove={(event) => {

@@ -27,6 +27,9 @@ export type RunnerItems = {
   readonly commit: (actions: readonly WorkspaceAction[]) => void
   // Follows the runner's items and windows; returns the stop.
   readonly watch: () => () => void
+  // Runs a call after the person's earlier changes have reached the runner and the session
+  // exists there, answering with its result; rejects when the call or the session fails.
+  readonly inOrder: <T>(target: WorkspaceTarget, operation: () => Promise<T>) => Promise<T>
   // Gives a window its item's name again.
   readonly resetWindow: (target: WorkspaceTarget, windowId: string) => void
   // Whether the workspace holds a window by this id.
@@ -266,6 +269,17 @@ export const createRunnerItems = ({
       .catch(() => dispatch(refused()))
   }
 
+  const inOrder = <T>(target: WorkspaceTarget, operation: () => Promise<T>): Promise<T> => {
+    const result = queue
+      .then(() => ready(target.workspaceSessionId))
+      .then((ok) => {
+        if (!ok) throw new Error("The runner could not create this session.")
+        return operation()
+      })
+    queue = result.catch(() => {})
+    return result
+  }
+
   // Moves onto a terminal once the runner has it; one it didn't have yet, as while a
   // fresh shell started, is tried again once it does.
   const move = (itemId: string, terminalId: string) => async () => {
@@ -333,6 +347,7 @@ export const createRunnerItems = ({
 
   return {
     commit,
+    inOrder,
     watch: () => {
       const changes = runner.watch()
       void consume(changes, onChange)

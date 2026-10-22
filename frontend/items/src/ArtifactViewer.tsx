@@ -175,7 +175,7 @@ export const artifactView = <K extends ArtifactKind>(
             item={item}
             reason={load.reason}
             size={load.size}
-            onReveal={() => itemStore.reveal(item.id)}
+            onReveal={() => itemStore.reveal(item.id, item.path)}
             actions={actions}
           />
         ) : content ? (
