@@ -61,7 +61,7 @@ export type CommandContext = {
   readonly conversations?: Backend["conversations"] | undefined
   // Where the backend's companions come from; `attach` puts a file on a terminal's bar.
   readonly companions?: Backend["companions"] | undefined
-  // Every terminal's companion pane, where the backend has companions.
+  // The item store, where the backend has companions.
   readonly itemStore?: ItemStore | undefined
   readonly canvas: { readonly current: CanvasHandle | null }
   // Murmur, where the backend has it: the one-time offer is counted with it.

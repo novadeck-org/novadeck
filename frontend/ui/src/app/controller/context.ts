@@ -24,7 +24,7 @@ export type WorkspaceServices = {
   readonly commands: WorkspaceCommands
   // The mounted Canvas, for commands that move its camera.
   readonly canvas: RefObject<CanvasHandle | null>
-  // Every terminal's companion pane, where the backend has companions.
+  // The item store, where the backend has companions.
   readonly itemStore: ItemStore | undefined
   // Whatever is being dragged off a terminal's taskbar.
   readonly drag: DragSession

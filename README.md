@@ -1225,7 +1225,7 @@ features add `frontend/toolkit`; `layouts/` may use
 core, the toolkit and the viewers and never on the UI, which composes it, as it does the chat, another package, `frontend/chat`, built on the core and the toolkit and never on the UI or the items package; no feature
 (`inbox/`, `preferences/`, `projects/`,
 `search/`, `sidebar/` or `voice/`) imports another, only the base and itself, and none reaches the
-chat or the companion; `shell/` may use `layouts/`, `projects/`,
+chat or the items package; `shell/` may use `layouts/`, `projects/`,
 and `inbox/`. `app/` composes every feature layer, `inbox/` among them.
 Only an app imports a backend adapter, each its own: `apps/desktop` takes the runner adapter,
 `apps/try` the demo, and `apps/previews` the demo with its debug panel (tests and specs may
@@ -1285,7 +1285,7 @@ It starts over on reload apart from preferences, the collapsed sidebar and the
 project arrangement (the switcher's order and pins, `novadeck.project-arrangement`),
 which store subscriptions persist. Another subscription saves the active session's
 windowed view from the workspace store, and a new App seeds sessions with it. The
-item store in `frontend/items/src/state.ts` holds what the items load,
+item store in `frontend/items/src/state.ts` holds what it loads for the items,
 by item: each plan as the person edits it, what each item last loaded, and the secret
 files the person chose to see; it follows the backend's companions and messages from an
 effect. What an item loaded stays 30 seconds after nothing shows it, then goes, so a

@@ -128,7 +128,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe("companion store", () => {
+describe("the item store", () => {
   context("when an agent's rewrite arrives while a save is under way", () => {
     it("waits for the save's answer and merges over it, so the user's edit stays once", async () => {
       const { companions, saves, emit } = backend()

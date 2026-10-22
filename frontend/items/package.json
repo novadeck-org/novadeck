@@ -2,7 +2,7 @@
   "name": "@novadeck/items",
   "version": "0.0.0",
   "private": true,
-  "description": "The items package: the kinds of thing a terminal or a window shows (files, images, pages, plans, changes, messages), their store, bar, taskbar, peek and drag, and the homes that show them.",
+  "description": "The items package: the kinds of item a terminal or a window shows (files, images, pages, plans, changes) and a terminal's messages, their store, bar, taskbar, peek and drag, and the homes that show them.",
   "type": "module",
   "exports": {
     "./actions": "./src/actions.ts",
@@ -20,7 +20,7 @@
     "./TabKinds": "./src/homes/terminal/TabKinds.tsx",
     "./taskbar.css": "./src/taskbar.css",
     "./TerminalCompanion": "./src/homes/terminal/TerminalCompanion.tsx",
-    "./UndockedWindow": "./src/homes/window/UndockedWindow.tsx"
+    "./UndockedWindow": "./src/homes/undocked/UndockedWindow.tsx"
   },
   "scripts": {
     "test": "vitest run",

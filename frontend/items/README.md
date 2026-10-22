@@ -1,15 +1,19 @@
 # @novadeck/items
 
 What Novadeck shows as items: an image, a code file, a Markdown file's document view, a page, a
-plan in its editor, the changes an agent made, the messages. The registry of kinds, the item
-view each kind draws, the store behind them (`ItemStore`), the taskbar of the items on a bar,
-the peek over a slot, and the bar drag that carries a slot to a terminal, a view or out into a
-window.
+plan in its editor, the changes an agent made; and beside them, a terminal's messages. The
+registry of kinds, the item view each kind draws, the store behind them (`ItemStore`), the
+taskbar of the items on a bar, the peek over a slot, and the bar drag that carries a slot to a
+terminal, a view or out into a window.
 
 An item lives in a home, a place that shows it. There are two: the companion pane beside a
 terminal (`src/homes/terminal/`, with the marks of the kinds on the terminal's tab) and the
-window an item is undocked into (`src/homes/window/`). The kinds live in `src/kinds/<kind>/`,
-one folder each; everything the homes share stays at the top of `src/`.
+window an item is undocked into (`src/homes/undocked/`). The kinds live in `src/kinds/<kind>/`,
+one folder each. The top of `src/` holds what isn't tied to one home: the kinds' registry, the
+item view and the store, and the bar, taskbar, peek and bar drag. Today only the terminal's
+home has a bar; they stay at the top for a home of the project's, which will have one too.
+Some of the store still serves the terminal's home alone: how a plan presents beside its
+terminal (`presentationOf`) and the follower that puts messages on a terminal's bar.
 
 ## Contract
 
