@@ -53,6 +53,7 @@ describe("terminal registry", () => {
       const hero = itemFixture("hero", "01")
       const window = {
         id: "w1",
+        home: "undocked",
         itemId: hero.id,
         name: "hero.ts",
         titleSource: { kind: "default" },

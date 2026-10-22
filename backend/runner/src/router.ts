@@ -179,7 +179,7 @@ export const createRouter = (options: {
         items.watch(context.session.id, signal),
       ),
       content: api.companions.content.handler(async function* ({ input, signal }) {
-        for await (const content of items.content(input.itemId, input.reveal === true, signal))
+        for await (const content of items.content(input.itemId, input.reveal, signal))
           yield await withSkill(content, store.item(input.itemId)?.plan?.agent)
       }),
       save: api.companions.save.handler(async ({ input }) => {
@@ -214,6 +214,9 @@ export const createRouter = (options: {
         }
       }),
       attach: api.companions.attach.handler(({ input }) => items.attach(input)),
+      openInProject: api.companions.openInProject.handler(({ input }) =>
+        items.openInProject(input),
+      ),
       move: api.companions.move.handler(({ input }) => items.move(input.itemId, input.terminalId)),
       undock: api.companions.undock.handler(({ input }) =>
         items.undock(input.itemId, input.windowId),

@@ -7,7 +7,7 @@ import {
   type PageTrouble,
   pageTroublesPerCall,
 } from "@novadeck/core/items"
-import type { CompanionWindowMeta } from "@novadeck/core/types"
+import type { CompanionWindowMeta, WorkspaceTarget } from "@novadeck/core/types"
 import {
   harnesses,
   type AgentName,
@@ -39,11 +39,13 @@ export const itemOf = ({ sessionId: _session, plan, id, ...item }: RunnerItem): 
 
 export const windowOf = ({
   id,
+  home,
   itemId,
   title,
   titleSource,
 }: RunnerWindow): CompanionWindowMeta => ({
   id,
+  home,
   itemId: itemIdOf(itemId),
   name: title,
   titleSource,
@@ -101,13 +103,17 @@ export const troubleOf = (trouble: PageTrouble): RunnerTrouble => {
 }
 
 export const createRunnerCompanions = (
-  runner: Pick<Runner["companions"], "content" | "attach" | "save" | "pageTrouble">,
+  runner: Pick<Runner["companions"], "content" | "openInProject" | "save" | "pageTrouble">,
   {
     livePages = false,
     picture,
+    inOrder = (_target, operation) => operation(),
   }: {
     readonly livePages?: boolean
     readonly picture?: Companions["picture"]
+    // Runs a call behind the person's earlier changes to the session's items; direct by
+    // default.
+    readonly inOrder?: <T>(target: WorkspaceTarget, operation: () => Promise<T>) => Promise<T>
   } = {},
 ): Companions => ({
   ...(livePages && picture ? { picture } : {}),
@@ -115,7 +121,7 @@ export const createRunnerCompanions = (
     let stream: ReturnType<typeof runner.content> | undefined
     let stopped = false
     try {
-      stream = runner.content(itemId, { reveal })
+      stream = runner.content(itemId, reveal === undefined ? {} : { reveal })
     } catch {
       return () => {}
     }
@@ -162,7 +168,10 @@ export const createRunnerCompanions = (
       )
       .catch(() => {})
   },
-  attach: async ({ terminalId }, path) => {
-    await runner.attach({ terminalId, path })
+  openInProject: async (target, path, windowId) => {
+    const { item, window } = await inOrder(target, () =>
+      runner.openInProject({ sessionId: target.workspaceSessionId, path, windowId }),
+    )
+    return { item: itemOf(item), window: windowOf(window) }
   },
 })

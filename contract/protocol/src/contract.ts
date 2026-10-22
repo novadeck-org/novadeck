@@ -290,10 +290,12 @@ export const contract = {
     // reported, or one whose removal follows. They agree once the stream is idle.
     watch: procedure.input(z.void()).output(eventIterator(companionChange)),
     // What an item points at, read now, then again each time it changes, until it is
-    // deleted. A file that may hold secrets is `held` unless `reveal`. An unknown item is
-    // NOT_FOUND.
+    // deleted. A file that may hold secrets is `held` unless `reveal` is the path the item
+    // points at, the file the person chose to show: an item pointed at another file since
+    // (a project window re-pointed) is `held` again, and revealed again if pointed back.
+    // An unknown item is NOT_FOUND.
     content: procedure
-      .input(z.strictObject({ itemId: id, reveal: z.boolean().optional() }))
+      .input(z.strictObject({ itemId: id, reveal: z.string().max(4096).optional() }))
       .output(eventIterator(itemContent)),
     // Writes the person's edit to a plan kept in a file, atomically, unless the file
     // changed since `basedOn`, the stamp the edit was made on: then nothing is written and
@@ -326,6 +328,14 @@ export const contract = {
         }),
       )
       .output(companionItem),
+    // Opens a file in the session's project window, by a path absolute or from the
+    // session's project folder: the item the window holds is pointed at it, with a later
+    // version, or, with no project window yet, one is made under `windowId` holding a new
+    // item. A session has one project window at most. An unknown session is NOT_FOUND, a
+    // taken window id a CONFLICT, and a path that is no file INVALID_FILE, saying why.
+    openInProject: procedure
+      .input(z.strictObject({ sessionId: id, path: z.string().min(1).max(4096), windowId: id }))
+      .output(z.strictObject({ item: companionItem, window: companionWindow })),
     // Tells the runner what went wrong on a page item while it showed its show `shown` (its
     // version then), as the pane saw it. The runner tells the agent that showed it, once per
     // show, at the next prompt the person gives it, for a page served from this machine
@@ -342,17 +352,20 @@ export const contract = {
       .output(z.void()),
     // Moves an item onto a terminal's bar, from a bar or a window, which goes with it; what
     // that bar held under the same pointer is replaced. An unknown item is NOT_FOUND, an
-    // unknown terminal TERMINAL_NOT_FOUND, and one of another session a CONFLICT.
+    // unknown terminal TERMINAL_NOT_FOUND, and one of another session, or the item of a
+    // project window, which stays in it, a CONFLICT.
     move: procedure.input(z.strictObject({ itemId: id, terminalId: id })).output(companionItem),
-    // Moves an item into a new window the client names; a taken id is a CONFLICT.
+    // Moves an item into a new window the client names; a taken id, or the item of a
+    // project window, is a CONFLICT.
     undock: procedure.input(z.strictObject({ itemId: id, windowId: id })).output(companionWindow),
     // Deletes an item and the window holding it; closing a window is this call.
     close: procedure.input(z.strictObject({ itemId: id })).output(z.void()),
-    // Gives a window the person's title. An unknown window is NOT_FOUND.
+    // Gives a window the person's title. An unknown window is NOT_FOUND, a project window,
+    // which its file names, CONFLICT.
     renameWindow: procedure
       .input(z.strictObject({ windowId: id, title: terminalTitle }))
       .output(z.void()),
-    // Gives a window its item's name again, as `renameWindow` does.
+    // Gives a window its item's name again; errors as `renameWindow` does.
     resetWindowTitle: procedure.input(z.strictObject({ windowId: id })).output(z.void()),
   },
   // Messages between agents in Novadeck's terminals (see docs/agent-messaging.md).

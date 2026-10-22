@@ -34,7 +34,13 @@ describe("companion commands", () => {
       const app = open()
       app.commands.undock(hero.id)
       expect(app.windows()).toEqual([
-        { id: "session-1", itemId: hero.id, name: "hero.png", titleSource: { kind: "default" } },
+        {
+          id: "session-1",
+          home: "undocked",
+          itemId: hero.id,
+          name: "hero.png",
+          titleSource: { kind: "default" },
+        },
       ])
       expect(app.item(hero.id)!.holder).toEqual({ windowId: "session-1" })
       expect(app.bar("01")!.order).toEqual([plan.id])

@@ -55,7 +55,7 @@ export const FileViewer = ({
   actions,
 }: ArtifactBodyProps<"file">): React.JSX.Element =>
   isMarkdown(content.path) ? (
-    <DocumentViewer id={item.id} content={content} actions={actions} />
+    <DocumentViewer id={item.id} name={item.name} content={content} actions={actions} />
   ) : (
     <CodeViewer id={item.id} content={content} actions={actions} />
   )

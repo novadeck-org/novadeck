@@ -24,7 +24,9 @@ const content: FileContent = {
 
 describe("a markdown file's document", () => {
   it("reads in a Markdown document, read-only, with its outline and none of a plan's notes", async () => {
-    const { container, unmount } = render(createElement(DocumentViewer, { id: "voice", content }))
+    const { container, unmount } = render(
+      createElement(DocumentViewer, { id: "voice", name: "brand-voice.md", content }),
+    )
     unmounts.push(unmount)
     await act(async () => {
       await vi.dynamicImportSettled()
@@ -36,5 +38,18 @@ describe("a markdown file's document", () => {
     expect(
       [...container.querySelectorAll(".plan-spine button")].map((each) => each.textContent),
     ).toEqual(["Words"])
+  })
+
+  it("is labelled by the file's name, not as a plan", async () => {
+    const { container, unmount } = render(
+      createElement(DocumentViewer, { id: "voice", name: "brand-voice.md", content }),
+    )
+    unmounts.push(unmount)
+    await act(async () => {
+      await vi.dynamicImportSettled()
+    })
+    expect(container.querySelector(".cm-content")?.getAttribute("aria-label")).toBe(
+      "brand-voice.md",
+    )
   })
 })

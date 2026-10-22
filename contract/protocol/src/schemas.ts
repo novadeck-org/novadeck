@@ -499,8 +499,9 @@ export const terminalSummary = z.strictObject({
 
 // What agents show and the person attaches beside a terminal: a pointer to a file, a
 // page or a plan, never a copy of it, which `companions.content` reads when it loads.
-// Each item has one holder, a terminal's bar or an undocked window; `from` is the
-// terminal it was shown or attached in. `version` counts its shows, `asked` says the
+// Each item has one holder, a terminal's bar or a window; `from` is the terminal it was
+// shown or attached in, null for a file the person opened in their project window, which
+// came from no terminal. `version` counts its shows, `asked` says the
 // latest one asked to open it, and `held` marks a file that may hold secrets, which
 // opens only when the person picks it. A plan names its agent, its actor's role, and
 // whether it is a file or text in the agent's own transcript or rollout.
@@ -520,7 +521,7 @@ export const companionItem = z.strictObject({
   lines: z.strictObject({ from: z.int().min(1), to: z.int().min(1) }).nullable(),
   held: z.boolean(),
   by: z.enum(["agent", "person"]),
-  from: z.strictObject({ terminalId: id, handle }),
+  from: z.strictObject({ terminalId: id, handle }).nullable(),
   version: z.int().min(1),
   asked: z.boolean(),
   shownAt: z.number(),
@@ -533,11 +534,13 @@ export const companionItem = z.strictObject({
     .nullable(),
 })
 
-// An undocked window holding one item, named by the client that undocked it. Its title is
-// the person's, or by default the item's name.
+// A window holding one item, named by the client that made it: an item undocked from a
+// bar, or the session's project window, the one the person opens files in (`home`). Its
+// title is the person's, or by default the item's name.
 export const companionWindow = z.strictObject({
   id,
   sessionId: id,
+  home: z.enum(["undocked", "project"]),
   itemId: id,
   title: terminalTitle,
   titleSource: z.discriminatedUnion("kind", [

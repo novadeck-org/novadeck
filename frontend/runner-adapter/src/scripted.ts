@@ -206,6 +206,7 @@ export const scripted = ({
         return content(...input)
       },
       attach: note("attach", (input) => respond("attach", input)),
+      openInProject: note("open in project", (input) => respond("open in project", input)),
       move: note("move", (input) => respond("move", input)),
       undock: note("undock", (input) => respond("undock", input)),
       close: note("close item", (input) => respond("close item", input)),

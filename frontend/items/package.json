@@ -13,6 +13,7 @@
     "./mail.css": "./src/mail.css",
     "./pane.css": "./src/pane.css",
     "./peek.css": "./src/peek.css",
+    "./ProjectWindow": "./src/homes/project/ProjectWindow.tsx",
     "./prose.css": "./src/prose.css",
     "./registry": "./src/registry.ts",
     "./state": "./src/state.ts",

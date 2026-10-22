@@ -303,7 +303,7 @@ export type Runner = {
   }
   /**
    * What agents show and the person attaches beside terminals: items, each held by a
-   * terminal's bar or an undocked window, kept across restarts as pointers.
+   * terminal's bar or a window, kept across restarts as pointers.
    */
   readonly companions: {
     /** A session's items and windows; `NOT_FOUND` for an unknown session. */
@@ -323,12 +323,13 @@ export type Runner = {
     watch(): AsyncIterableIterator<CompanionWatchItem, undefined>
     /**
      * Follows what an item points at: read now, then again each time it changes, across
-     * reconnections. A file that may hold secrets is `held` unless `reveal`. Iteration
+     * reconnections. A file that may hold secrets is `held` unless `reveal` is the
+     * path the item points at, the file the person chose to show. Iteration
      * ends once the item is deleted, the runner closes, or on `return()`.
      */
     content(
       itemId: string,
-      options?: { readonly reveal?: boolean },
+      options?: { readonly reveal?: string },
     ): AsyncIterableIterator<ItemContent, undefined>
     /**
      * Writes the person's edit to a plan kept in a file, unless it changed since `basedOn`,
@@ -353,17 +354,35 @@ export type Runner = {
       readonly title?: string
     }): Promise<CompanionItem>
     /**
+     * Opens a file in the session's project window, by a path absolute or from the
+     * session's project folder: the window's item is pointed at it, or, with none yet, the
+     * window is made under `windowId`. Rejects with `NOT_FOUND` for an unknown session,
+     * `CONFLICT` for a taken window id, or `INVALID_FILE` saying why.
+     */
+    openInProject(input: {
+      readonly sessionId: string
+      readonly path: string
+      readonly windowId: string
+    }): Promise<{ item: CompanionItem; window: CompanionWindow }>
+    /**
      * Moves an item onto a terminal's bar, from a bar or a window, which goes with it.
-     * Rejects with `NOT_FOUND`, `TERMINAL_NOT_FOUND`, or `CONFLICT` for another session.
+     * Rejects with `NOT_FOUND`, `TERMINAL_NOT_FOUND`, or `CONFLICT` for another session or
+     * a project window's item.
      */
     move(itemId: string, terminalId: string): Promise<CompanionItem>
-    /** Moves an item into a new window this client names; a taken id rejects with `CONFLICT`. */
+    /**
+     * Moves an item into a new window this client names; a taken id, or a project window's
+     * item, rejects with `CONFLICT`.
+     */
     undock(itemId: string, windowId: string): Promise<CompanionWindow>
     /** Deletes an item and the window holding it. */
     close(itemId: string): Promise<void>
-    /** Gives a window the person's title; `NOT_FOUND` for an unknown window. */
+    /**
+     * Gives a window the person's title; `NOT_FOUND` for an unknown window, `CONFLICT` for
+     * a project window, which its file names.
+     */
     renameWindow(windowId: string, title: string): Promise<void>
-    /** Gives a window its item's name again. */
+    /** Gives a window its item's name again; rejects as `renameWindow` does. */
     resetWindowTitle(windowId: string): Promise<void>
     /** What went wrong on a page item during its show `shown`, as the pane saw it. */
     pageTrouble(input: {
@@ -702,6 +721,7 @@ export const connectRunner = async (
         ),
       save: (input) => call((wire) => wire.companions.save(input)),
       attach: (input) => call((wire) => wire.companions.attach(input)),
+      openInProject: (input) => call((wire) => wire.companions.openInProject(input)),
       move: (itemId, terminalId) => call((wire) => wire.companions.move({ itemId, terminalId })),
       undock: (itemId, windowId) => call((wire) => wire.companions.undock({ itemId, windowId })),
       close: (itemId) => call((wire) => wire.companions.close({ itemId })),

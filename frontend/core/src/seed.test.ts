@@ -213,6 +213,7 @@ describe("workspace from a backend seed", () => {
     const undocked = itemFixture("undocked", "02", { holder: { windowId: "w1" } })
     const window = {
       id: "w1",
+      home: "undocked",
       itemId: undocked.id,
       name: "undocked.ts",
       titleSource: { kind: "default" },

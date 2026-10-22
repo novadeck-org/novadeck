@@ -28,8 +28,36 @@ const hero = itemIdOf("hero")
 // Items over a runner whose content streams the test feeds.
 const following = ({ livePages = false } = {}) => {
   const streams = new Map<string, ReturnType<typeof channel<RunnerContent>>>()
-  const asked: { readonly itemId: string; readonly reveal: boolean | undefined }[] = []
-  const attached: unknown[] = []
+  const asked: { readonly itemId: string; readonly reveal: string | undefined }[] = []
+  const opened: unknown[] = []
+  const projectOpened = {
+    item: {
+      id: "pi",
+      sessionId: "s",
+      holder: { windowId: "pw" },
+      kind: "file" as const,
+      name: "a.ts",
+      detail: "src/a.ts",
+      path: "/p/src/a.ts",
+      url: null,
+      lines: null,
+      held: false,
+      by: "person" as const,
+      from: null,
+      version: 2,
+      asked: true,
+      shownAt: 3,
+      plan: null,
+    },
+    window: {
+      id: "pw",
+      sessionId: "s",
+      home: "project" as const,
+      itemId: "pi",
+      title: "a.ts",
+      titleSource: { kind: "default" as const },
+    },
+  }
   const saves: { itemId: string; text: string; basedOn: string }[] = []
   let saving: PlanSaveResult = { saved: true, stamp: "b2" }
   let failure: unknown
@@ -46,21 +74,22 @@ const following = ({ livePages = false } = {}) => {
         if (failure) throw failure
         return saving
       },
-      attach: async (input) => {
-        attached.push(input)
-        return undefined as never
+      openInProject: async (input) => {
+        opened.push(input)
+        return projectOpened
       },
       pageTrouble: async () => {},
     },
     { livePages },
   )
   const seen: ItemContent[] = []
-  const follow = (reveal = false) =>
+  const follow = (reveal?: string) =>
     companions.follow(target, hero, { reveal }, (content) => seen.push(content))
   return {
     companions,
     asked,
-    attached,
+    opened,
+    projectOpened,
     saves,
     saveFails: (error: unknown) => {
       failure = error
@@ -93,16 +122,16 @@ describe("a picture of a live page", () => {
 })
 
 describe("the runner's companion content", () => {
-  it("follows what an item holds, revealed only when asked", async () => {
+  it("follows what an item holds, revealed only for the file asked", async () => {
     const app = following()
-    app.follow(true)
+    app.follow("/p/hero.png")
     app.push({
       state: "ready",
       stamp: "1",
       content: { kind: "image", src: "data:image/png;base64," },
     })
     await settle()
-    expect(app.asked).toEqual([{ itemId: "hero", reveal: true }])
+    expect(app.asked).toEqual([{ itemId: "hero", reveal: "/p/hero.png" }])
     expect(app.seen).toEqual([
       { state: "ready", stamp: "1", content: { kind: "image", src: "data:image/png;base64," } },
     ])
@@ -292,7 +321,7 @@ describe("the runner's companion content", () => {
       try {
         const seen: ItemContent[] = []
         const companions = createRunnerCompanions(runner.client.companions)
-        companions.follow(target, itemIdOf(crypto.randomUUID()), { reveal: false }, (content) =>
+        companions.follow(target, itemIdOf(crypto.randomUUID()), { reveal: undefined }, (content) =>
           seen.push(content),
         )
         await vi.waitFor(() =>
@@ -311,7 +340,7 @@ describe("the runner's companion content", () => {
           path: join(directory, "notes.md"),
         })
         const later: ItemContent[] = []
-        companions.follow(target, itemIdOf(item.id), { reveal: false }, (content) =>
+        companions.follow(target, itemIdOf(item.id), { reveal: undefined }, (content) =>
           later.push(content),
         )
         await vi.waitFor(() => expect(later[0]).toMatchObject({ state: "ready" }))
@@ -352,10 +381,19 @@ describe("the runner's companion content", () => {
     })
   })
 
-  it("attaches a file to a terminal", async () => {
+  it("opens a file in the session's project window, and maps what the runner made", async () => {
     const app = following()
-    await app.companions.attach!({ ...target, terminalId: "t" }, "/p/notes.md")
-    expect(app.attached).toEqual([{ terminalId: "t", path: "/p/notes.md" }])
+    const result = await app.companions.openInProject!(target, "src/a.ts", "pw")
+    expect(app.opened).toEqual([{ sessionId: "s", path: "src/a.ts", windowId: "pw" }])
+    expect(result.item).toMatchObject({ id: "pi", from: null, by: "person", version: 2 })
+    expect(result.item).not.toHaveProperty("sessionId")
+    expect(result.window).toEqual({
+      id: "pw",
+      home: "project",
+      itemId: "pi",
+      name: "a.ts",
+      titleSource: { kind: "default" },
+    })
   })
 })
 
@@ -389,10 +427,17 @@ describe("the runner's items and windows", () => {
         id: "w",
         sessionId: "s",
         itemId: "hero",
+        home: "undocked",
         title: "Hero",
         titleSource: { kind: "person" },
       }),
-    ).toEqual({ id: "w", itemId: "hero", name: "Hero", titleSource: { kind: "person" } })
+    ).toEqual({
+      id: "w",
+      home: "undocked",
+      itemId: "hero",
+      name: "Hero",
+      titleSource: { kind: "person" },
+    })
   })
 })
 
@@ -403,7 +448,7 @@ describe("what a page shows wrong", () => {
     const companions = createRunnerCompanions({
       content: () => channel<RunnerContent>().iterator,
       save: () => Promise.reject(new Error("unused")),
-      attach: () => Promise.reject(new Error("unused")),
+      openInProject: () => Promise.reject(new Error("unused")),
       pageTrouble: async (input) => {
         calls.push(input)
         if (failure) throw failure

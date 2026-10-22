@@ -1,5 +1,5 @@
-import { terminalFixture } from "@novadeck/core/testing"
-import type { TerminalMetadata } from "@novadeck/core/types"
+import { itemFixture, terminalFixture } from "@novadeck/core/testing"
+import type { Tile } from "@novadeck/core/types"
 import { render } from "@novadeck/test-kit/render"
 import { Portal } from "@novadeck/toolkit/Portal"
 import { createElement } from "react"
@@ -13,12 +13,8 @@ afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 
 const ignore = (): void => {}
 
-const renderFrame = (
-  terminal: TerminalMetadata,
-  extra: Partial<WindowShellProps> = {},
-): HTMLElement => {
+const renderFrame = (terminal: Tile, extra: Partial<WindowShellProps> = {}): HTMLElement => {
   const props: WindowShellProps = {
-    ...extra,
     terminal,
     icon: null,
     children: null,
@@ -27,6 +23,7 @@ const renderFrame = (
     onRenameDraft: ignore,
     onRenameSave: ignore,
     onRenameCancel: ignore,
+    ...extra,
   }
   const { container, unmount } = render(createElement(WindowShell, props))
   unmounts.push(unmount)
@@ -100,5 +97,40 @@ describe("terminal frame header and what a portal beside it holds", () => {
       .querySelector(".terminal-actions")!
       .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }))
     expect(flown).toEqual(["fly"])
+  })
+})
+
+describe("terminal frame header and the name in it", () => {
+  const nameOf = (frame: HTMLElement) => frame.querySelector("[data-terminal-name]")!
+  const double = (element: Element) =>
+    element.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }))
+
+  it("starts a rename on a double-click on a terminal's name", () => {
+    const calls: string[] = []
+    const frame = renderFrame(terminalFixture(1, "~/p"), {
+      onFlyTo: () => void calls.push("fly"),
+      onBeginRename: () => void calls.push("rename"),
+    })
+    double(nameOf(frame))
+    expect(calls).toEqual(["rename"])
+  })
+
+  it("leaves a double-click on the project window's name to the header's own action", () => {
+    const calls: string[] = []
+    const frame = renderFrame(
+      {
+        id: "pw",
+        home: "project",
+        itemId: itemFixture("readme", "01").id,
+        name: "README.md",
+        titleSource: { kind: "default" },
+      },
+      {
+        onFlyTo: () => void calls.push("fly"),
+        onBeginRename: () => void calls.push("rename"),
+      },
+    )
+    double(nameOf(frame))
+    expect(calls).toEqual(["fly"])
   })
 })

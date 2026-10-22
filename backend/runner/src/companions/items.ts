@@ -75,6 +75,8 @@ export type CompanionOptions = {
   readonly records: ItemRecords
   /** A terminal the runner keeps, running or saved; undefined once it is closed. */
   readonly terminal: (terminalId: string) => TerminalPlace | undefined
+  /** The folder of a session's project, which the person's project window opens files from; undefined for an unknown session. */
+  readonly project: (sessionId: string) => string | undefined
   /**
    * What the terminal a text plan came from has of it live, while it still runs that
    * plan's session: read before its transcript or rollout, never instead of it.
@@ -158,7 +160,7 @@ export const wireItem = (item: ItemRecord): CompanionItem => ({
   lines: item.lines && { ...item.lines },
   held: item.held,
   by: item.by,
-  from: { ...item.from },
+  from: item.from && { ...item.from },
   version: item.version,
   asked: item.asked,
   shownAt: item.shownAt,
@@ -173,6 +175,7 @@ export const wireItem = (item: ItemRecord): CompanionItem => ({
 export const wireWindow = (window: WindowRecord): CompanionWindow => ({
   id: window.id,
   sessionId: window.sessionId,
+  home: window.home,
   itemId: window.itemId,
   title: window.personTitle ?? defaultTitle(window.itemName),
   titleSource: window.personTitle === null ? { kind: "default" } : { kind: "person" },
@@ -187,11 +190,12 @@ const LIVE_PLAN_MS = 60_000
 
 /**
  * What agents show and the person attaches beside terminals, kept as pointers: each item
- * is held by one terminal's bar or one undocked window, survives restarts, and goes when
- * it is closed, with its holder, or with its session. An agent's show lands on its own
- * bar, updating what it showed there before, or wherever the person moved that since;
- * plans mirror each agent session's latest plans on the bar of the terminal they run in,
- * or where the person moved them. Content is read from disk as it loads.
+ * is held by one terminal's bar or one window, survives restarts, and goes when it is
+ * closed, with its holder, or with its session. An agent's show lands on its own bar,
+ * updating what it showed there before, or wherever the person moved that since; plans
+ * mirror each agent session's latest plans on the bar of the terminal they run in, or
+ * where the person moved them. A session's project window is the person's own: the file
+ * they open there, one at a time, never an agent's. Content is read from disk as it loads.
  */
 export class CompanionItems {
   private readonly records: ItemRecords
@@ -293,10 +297,10 @@ export class CompanionItems {
       return failure(
         `Nothing is showing beside your terminal at ${named(keyed.given)}; showing lists what is.`,
       )
-    if (item.by !== "agent" || item.from.terminalId !== place.terminalId)
+    if (item.by !== "agent" || item.from?.terminalId !== place.terminalId)
       return failure(
         JSON.stringify(item.name) +
-          (item.by === "person"
+          (item.by === "person" || !item.from
             ? " was attached by the user"
             : ` was placed beside you from ${mention(item.from.handle)}`) +
           ", so it isn't yours to close; tell the user if it should go.",
@@ -348,13 +352,13 @@ export class CompanionItems {
       (item) =>
         item.kind !== "plan" &&
         item.by === "agent" &&
-        item.from.terminalId === terminalId &&
+        item.from?.terminalId === terminalId &&
         item.terminalId !== terminalId,
     )
     const items = [...bar, ...moved]
     if (items.length === 0) return "Nothing is showing beside your terminal in Novadeck."
     const lines = items.map((item) => {
-      const own = item.from.terminalId === terminalId
+      const own = item.from?.terminalId === terminalId
       const range = item.lines ? ` lines ${item.lines.from}–${item.lines.to}` : ""
       // A repository's folder is named by the repository: shown without invisible characters.
       const where =
@@ -364,7 +368,7 @@ export class CompanionItems {
           ? `moved by the user ${this.whereMoved(item)}`
           : own
             ? undefined
-            : `placed here from ${mention(item.from.handle)}`
+            : item.from && `placed here from ${mention(item.from.handle)}`
       const whose =
         item.kind === "plan"
           ? own
@@ -405,6 +409,65 @@ export class CompanionItems {
   }
 
   /**
+   * Opens a file the person picked in its session's project window, by a path absolute or
+   * from the project's folder. The window's item, if it has one, is pointed at it and
+   * named by it (same id, a later version); otherwise the window is made under `windowId`
+   * with a new item. No terminal's agent showed it, and none can replace it. NOT_FOUND for
+   * an unknown session, CONFLICT for a taken window id, INVALID_FILE, saying why, for a
+   * path that is no file.
+   */
+  async openInProject(input: {
+    readonly sessionId: string
+    readonly path: string
+    readonly windowId: string
+  }): Promise<{ item: CompanionItem; window: CompanionWindow }> {
+    if (this.stopping) throw new DomainError("CLOSING")
+    const folder = this.options.project(input.sessionId)
+    if (folder === undefined) throw new DomainError("NOT_FOUND", "Session not found")
+    const pointed = await pointAt(input.path, folder)
+    if (!pointed.ok) throw new DomainError("INVALID_FILE", pointed.reason)
+    if (this.stopping) throw new DomainError("CLOSING")
+    const pointer = this.filePointer(pointed, input.path, folder, folder)
+    const own = this.records.windows(input.sessionId).find((window) => window.home === "project")
+    const before = own && this.records.item(own.itemId)
+    if (own && before) {
+      this.save({
+        ...before,
+        ...pointer,
+        by: "person",
+        version: before.version + 1,
+        asked: true,
+        shownAt: Date.now(),
+        observedAt: null,
+      })
+      this.sink?.gone(before)
+      const window = this.records.window(own.id)!
+      this.windowChanged(window)
+      return { item: wireItem(this.records.item(before.id)!), window: wireWindow(window) }
+    }
+    if (this.options.terminal(input.windowId) || this.records.window(input.windowId))
+      throw new DomainError("CONFLICT", "Window id is already taken")
+    const item: ItemRecord = {
+      ...pointer,
+      id: randomUUID(),
+      sessionId: input.sessionId,
+      terminalId: null,
+      windowId: input.windowId,
+      by: "person",
+      from: null,
+      version: 1,
+      asked: true,
+      shownAt: Date.now(),
+      observedAt: null,
+    }
+    this.records.addProjectItem({ id: input.windowId, createdAt: Date.now() }, item)
+    const window = this.records.window(input.windowId)!
+    this.windowChanged(window)
+    this.changed(item)
+    return { item: wireItem(item), window: wireWindow(window) }
+  }
+
+  /**
    * Moves an item onto a terminal's bar of its session, from a bar or a window, which
    * goes with it; what that bar held under the same pointer is replaced.
    */
@@ -414,6 +477,7 @@ export class CompanionItems {
     const place = this.place(terminalId)
     if (place.sessionId !== item.sessionId)
       throw new DomainError("CONFLICT", "The item belongs to another session.")
+    this.keepInProject(item)
     if (item.terminalId === terminalId) return wireItem(item)
     const { item: moved, left, replaced } = this.records.dockItem(itemId, terminalId)
     if (replaced) this.removed(replaced, undefined)
@@ -422,10 +486,10 @@ export class CompanionItems {
     return wireItem(moved)
   }
 
-  /** Moves an item into a new window the client names; a taken id is a CONFLICT. */
+  /** Moves an item into a new window the client names; a taken id, or a project window's item, is a CONFLICT. */
   undock(itemId: string, windowId: string): CompanionWindow {
     if (this.stopping) throw new DomainError("CLOSING")
-    this.item(itemId)
+    this.keepInProject(this.item(itemId))
     if (this.options.terminal(windowId))
       throw new DomainError("CONFLICT", "Window id is already taken")
     const { item, left } = this.records.undockItem(itemId, { id: windowId, createdAt: Date.now() })
@@ -447,9 +511,14 @@ export class CompanionItems {
     }
   }
 
-  /** Gives a window the person's title, or with null its item's name again. */
+  /**
+   * Gives a window the person's title, or with null its item's name again. A project
+   * window is named by its file: CONFLICT.
+   */
   renameWindow(windowId: string, title: string | null): void {
     if (this.stopping) throw new DomainError("CLOSING")
+    if (this.records.window(windowId)?.home === "project")
+      throw new DomainError("CONFLICT", "The project window is named by its file.")
     if (!this.records.renameWindow(windowId, title)) throw new DomainError("NOT_FOUND")
     const window = this.records.window(windowId)
     if (window) this.windowChanged(window)
@@ -519,11 +588,14 @@ export class CompanionItems {
 
   /**
    * What an item points at, read now, then again each time it changes, until it is
-   * deleted or `signal` aborts. A file that may hold secrets is `held` unless `reveal`.
+   * deleted or `signal` aborts. A file that may hold secrets is `held` unless `reveal` is
+   * the path the item points at: a reveal is for the file the person chose, so an item
+   * pointed at another since (a project window re-pointed) shows its gate again, and the
+   * file revealed again if pointed back.
    */
   async *content(
     itemId: string,
-    reveal: boolean,
+    reveal: string | undefined,
     signal?: AbortSignal,
   ): AsyncGenerator<ItemContent> {
     if (this.stopping) throw new DomainError("CLOSING")
@@ -554,7 +626,7 @@ export class CompanionItems {
         if (now !== probed) {
           const began = Date.now()
           // eslint-disable-next-line no-await-in-loop -- As above.
-          const content = await this.read(item, reveal, live)
+          const content = await this.read(item, reveal !== undefined && reveal === item.path, live)
           if (reader.signal.aborted) return
           took = Date.now() - began
           probed = now
@@ -628,7 +700,7 @@ export class CompanionItems {
     for (const item of this.records.barItems(terminalId))
       if (
         item.plan !== null &&
-        item.from.terminalId === terminalId &&
+        item.from?.terminalId === terminalId &&
         item.plan.session !== agentSession
       )
         this.delete(item.id)
@@ -779,24 +851,41 @@ export class CompanionItems {
     const { path, lines } = request.file
     const pointed = await pointAt(path, place.cwd)
     if (!pointed.ok) return pointed
-    // A held file goes by its own name, so the person sees what they would open.
-    const name = pointed.held
-      ? basename(pointed.path)
-      : (request.title ?? basename(resolve(place.cwd, path)))
     return {
       ok: true,
       tooLarge: pointed.kind === "image" && pointed.size > maxImageBytes,
-      pointer: {
-        pointerKey: pointed.path,
-        kind: pointed.kind,
-        path: pointed.path,
-        url: null,
-        lines: lines ?? null,
-        plan: null,
-        name: clip(name, 256),
-        detail: this.detail(pointed, place, path, lines),
-        held: pointed.held,
-      },
+      pointer: this.filePointer(pointed, path, place.cwd, place.project, {
+        ...(request.title !== undefined && { title: request.title }),
+        ...(lines && { lines }),
+      }),
+    }
+  }
+
+  /** What a file points at, given as `given` from `cwd`, and what it says of it. */
+  private filePointer(
+    pointed: Pointed,
+    given: string,
+    cwd: string,
+    project: string | undefined,
+    shown: {
+      readonly title?: string
+      readonly lines?: { readonly from: number; readonly to: number }
+    } = {},
+  ): Pointer {
+    // A held file goes by its own name, so the person sees what they would open.
+    const name = pointed.held
+      ? basename(pointed.path)
+      : (shown.title ?? basename(resolve(cwd, given)))
+    return {
+      pointerKey: pointed.path,
+      kind: pointed.kind,
+      path: pointed.path,
+      url: null,
+      lines: shown.lines ?? null,
+      plan: null,
+      name: clip(name, 256),
+      detail: this.detail(pointed, project, given, shown.lines),
+      held: pointed.held,
     }
   }
 
@@ -841,7 +930,7 @@ export class CompanionItems {
    */
   private detail(
     pointed: Pointed,
-    place: TerminalPlace,
+    project: string | undefined,
     given: string,
     lines: { readonly from: number; readonly to: number } | undefined,
   ): string {
@@ -849,7 +938,6 @@ export class CompanionItems {
       const format = pointed.path.split(".").at(-1)!.toUpperCase().replace("JPG", "JPEG")
       return `${size(pointed.size)} ${format}`
     }
-    const { project } = place
     const shown = project && inside(project, pointed.path) ? relative(project, pointed.path) : given
     const range = lines ? ` · lines ${lines.from}–${lines.to}` : ""
     return `${clip(shown, 512 - range.length)}${range}`
@@ -913,7 +1001,7 @@ export class CompanionItems {
       this.records.barItems(place.terminalId).find((item) => item.pointerKey === pointerKey) ??
       this.records
         .itemsAt(place.sessionId, pointerKey)
-        .findLast((item) => item.by === "agent" && item.from.terminalId === place.terminalId)
+        .findLast((item) => item.by === "agent" && item.from?.terminalId === place.terminalId)
     )
   }
 
@@ -938,6 +1026,12 @@ export class CompanionItems {
   private delete(itemId: string): void {
     const removed = this.records.removeItem(itemId)
     if (removed) this.removed(removed.item, removed.window)
+  }
+
+  /** An item of a project window stays in it: CONFLICT. */
+  private keepInProject(item: ItemRecord): void {
+    if (item.windowId !== null && this.records.window(item.windowId)?.home === "project")
+      throw new DomainError("CONFLICT", "The project window's file stays in its window.")
   }
 
   private item(itemId: string): ItemRecord {

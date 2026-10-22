@@ -11,6 +11,7 @@ const hero = itemFixture("hero", "01", { kind: "image", name: "hero.png", path: 
 const notes = itemFixture("notes", "01")
 const windowFor = (item: Item, id = "w1"): CompanionWindowMeta => ({
   id,
+  home: "undocked",
   itemId: item.id,
   name: item.name,
   titleSource: { kind: "default" },
@@ -296,6 +297,102 @@ describe("companion items in the workspace", () => {
       expect(state.items).toEqual([hero])
       expect(state.bars["01"]!.order).toEqual([hero.id])
       expect(state.fresh).toEqual({ [hero.id]: true })
+    })
+  })
+
+  context("when the person opens a file in the project window", () => {
+    const opened = (name: string, version = 1): Item =>
+      itemFixture("project", "01", {
+        name,
+        path: `/project/${name}`,
+        by: "person",
+        from: null,
+        asked: true,
+        version,
+        holder: { windowId: "pw" },
+      })
+    const windowOf = (item: Item): CompanionWindowMeta => ({
+      ...windowFor(item, "pw"),
+      home: "project",
+    })
+    const open = (item: Item): WorkspaceAction => ({
+      type: "project/open",
+      target,
+      item,
+      window: windowOf(item),
+    })
+    const empty = apply(workspaceFixture({ terminals: 0 }))
+
+    it("places the window and selects it, with no terminal open", () => {
+      const state = run(empty, open(opened("a.ts")))
+      expect(state.roster.windows).toEqual([windowOf(opened("a.ts"))])
+      expect(state.selected).toBe("pw")
+      expect(state.layout.canvas.geometry).toHaveProperty("pw")
+      expect(state.items).toEqual([opened("a.ts")])
+      expect(orderedTiles(state.roster).map((tile) => tile.id)).toEqual(["pw"])
+    })
+
+    it("re-points the one window, and its name follows", () => {
+      const state = run(empty, open(opened("a.ts")), open(opened("b.ts", 2)))
+      expect(state.roster.windows.map((window) => window.name)).toEqual(["b.ts"])
+      expect(state.items.map((item) => [item.name, item.version])).toEqual([["b.ts", 2]])
+      expect(state.selected).toBe("pw")
+    })
+
+    it("keeps what the watch reported of a later re-point, applied before this answer", () => {
+      const later = opened("b.ts", 2)
+      const state = run(
+        empty,
+        { type: "item/upsert", target, item: later },
+        { type: "window/upsert", target, window: windowOf(later) },
+        open(opened("a.ts")),
+      )
+      expect(state.items.map((item) => [item.name, item.version])).toEqual([["b.ts", 2]])
+      expect(state.roster.windows.map((window) => window.name)).toEqual(["b.ts"])
+      expect(state.selected).toBe("pw")
+      const fresh = run(empty, { type: "item/upsert", target, item: later }, open(opened("a.ts")))
+      expect(fresh.roster.windows.map((window) => window.name)).toEqual(["b.ts"])
+    })
+
+    it("agrees with the watch's events, in either order", () => {
+      const item = opened("a.ts")
+      const events: WorkspaceAction[] = [
+        { type: "item/upsert", target, item },
+        { type: "window/upsert", target, window: windowOf(item) },
+      ]
+      // The session had no such window before the open, as the command tells it.
+      const made = { ...open(item), made: true }
+      const before = run(workspaceFixture(), ...events, made)
+      const after = run(workspaceFixture(), made, ...events)
+      const alone = run(workspaceFixture(), made)
+      expect(before).toEqual(alone)
+      expect(after).toEqual(alone)
+      expect(orderedTiles(alone.roster).map((tile) => tile.id)).toEqual(["01", "02", "pw"])
+    })
+
+    it("closes with its item, and a later open makes it again", () => {
+      const closed = run(empty, open(opened("a.ts")), {
+        type: "item/close",
+        target,
+        itemId: opened("a.ts").id,
+      })
+      expect(closed.roster.windows).toEqual([])
+      expect(closed.items).toEqual([])
+      const again = run(
+        apply(empty, open(opened("a.ts")), {
+          type: "item/close",
+          target,
+          itemId: opened("a.ts").id,
+        }),
+        open(opened("c.ts")),
+      )
+      expect(again.roster.windows.map((window) => window.name)).toEqual(["c.ts"])
+      expect(again.selected).toBe("pw")
+    })
+
+    it("places beside the selected terminal when there are some", () => {
+      const state = run(workspaceFixture(), open(opened("a.ts")))
+      expect(orderedTiles(state.roster).map((tile) => tile.id)).toEqual(["01", "02", "pw"])
     })
   })
 

@@ -172,11 +172,14 @@ export type GridRestoreWidths = Partial<Record<GridBreakpoint, number>>
 
 export type SizePreset = "large" | "small"
 
-// A companion item undocked into a window of its own, as its backend keeps it: which item
-// it shows, and its name, the person's or the backend's default. It sits in the session
-// beside the terminals, so the sidebar and every view treat it as one, but it runs nothing.
+// A window holding one companion item, as its backend keeps it: which item it shows, and
+// its name, the person's or the backend's default. It is an item undocked from a bar, or
+// the session's project window, the one the person opens files in, which never docks
+// (`home`). It sits in the session beside the terminals, so the sidebar and every view
+// treat it as one, but it runs nothing.
 export type CompanionWindowMeta = {
   readonly id: string
+  readonly home: "undocked" | "project"
   readonly itemId: ItemId
   readonly name: string
   readonly titleSource: Extract<TitleSource, { readonly kind: "person" | "default" }>

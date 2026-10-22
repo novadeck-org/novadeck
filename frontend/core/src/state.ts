@@ -146,6 +146,22 @@ export type WorkspaceAction =
       canvasSize?: { width: number; height: number }
       anchor?: string
     }
+  // The person opened a file in the session's project window, as the backend now has it:
+  // the item and the window take its word, a new window placed beside `anchor` (the
+  // selected tile by default), and the window is selected.
+  | {
+      type: "project/open"
+      target: WorkspaceTarget
+      item: Item
+      window: CompanionWindowMeta
+      gridLayouts?: GridLayouts
+      canvasGeometry?: CanvasLayout["geometry"][string]
+      canvasSize?: { width: number; height: number }
+      anchor?: string
+      // The session had no such window before this open, so it is placed as asked even if
+      // the watch placed it a moment earlier, which the person has not touched.
+      made?: boolean
+    }
   // The person closes an item, and the window it's in: it's gone.
   | { type: "item/close"; target: WorkspaceTarget; itemId: ItemId }
   // The person looked at items without opening them, as a peek shows them: no longer new.
@@ -503,6 +519,55 @@ const upsertWindow = (state: WorkspaceState, window: CompanionWindowMeta): Works
   }
 }
 
+// The person opened a file in the session's project window, as the backend now has it. The
+// item and the window take its word whichever of them the watch already reported, so this
+// and those events agree in either order; the window is placed like a new terminal, which
+// needs no terminal open, unless it is a tile already, and comes into view selected.
+const openInProject = (
+  state: WorkspaceState,
+  action: Extract<WorkspaceAction, { type: "project/open" }>,
+): WorkspaceState => {
+  const { gridLayouts, canvasGeometry, canvasSize } = action
+  if (action.window.itemId !== action.item.id || hasTerminal(state.roster, action.window.id))
+    return state
+  // A later re-point the watch reported first is not undone by this older answer.
+  const stored = state.items.find((each) => each.id === action.item.id)
+  const newer = stored !== undefined && stored.version > action.item.version
+  const item = newer ? stored : action.item
+  const window =
+    newer && action.window.titleSource.kind === "default"
+      ? { ...action.window, name: stored.name }
+      : action.window
+  const listed = newer ? state : upsertItem(state, item)
+  const placed = hasWindow(listed.roster, window.id)
+  if (placed && !action.made) {
+    const roster = newer ? listed.roster : updateWindow(listed.roster, window)
+    return { ...listed, roster, selected: window.id }
+  }
+  const beside = action.anchor ?? listed.selected
+  const apart = placed
+    ? {
+        ...listed,
+        roster: removeWindow(listed.roster, window.id),
+        layout: removeFromLayout(listed.layout, window.id),
+      }
+    : listed
+  const tiles = tilesOf(apart.roster)
+  return {
+    ...apart,
+    roster: addWindow(apart.roster, window),
+    layout: placeTerminal(apart.layout, {
+      terminal: window,
+      terminals: tiles,
+      anchor: tiles.find((tile) => tile.id === beside) ?? tiles.at(-1),
+      gridLayouts: gridLayouts ?? addCompactGridTerminal(tiles, apart.layout.grid, window),
+      canvasGeometry,
+      canvasSize,
+    }),
+    selected: window.id,
+  }
+}
+
 export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction): Workspace => {
   switch (action.type) {
     case "project/add": {
@@ -673,6 +738,8 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
       })
     case "item/undock":
       return updateTarget(workspace, action.target, (state) => undockItem(state, action))
+    case "project/open":
+      return updateTarget(workspace, action.target, (state) => openInProject(state, action))
     case "item/close":
     case "item/remove":
       return updateTarget(workspace, action.target, (state) => removeItem(state, action.itemId))

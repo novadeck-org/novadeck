@@ -695,6 +695,7 @@ describe("runner client companion items", () => {
     await expect(client.companions.undock(item.id, windowId)).resolves.toEqual({
       id: windowId,
       sessionId,
+      home: "undocked",
       itemId: item.id,
       title: "notes.md",
       titleSource: { kind: "default" },
@@ -730,6 +731,79 @@ describe("runner client companion items", () => {
     await expect(client.companions.move(item.id, first.id)).rejects.toMatchObject({
       code: "NOT_FOUND",
     })
+  })
+})
+
+describe("runner client project window", () => {
+  it("opens one file at a time in a session's project window, which stays there", async ({
+    resources,
+  }) => {
+    const app = await deployed(resources)
+    const client = await app.connect()
+    const { id: sessionId } = await session(client, app.directory)
+    const terminal = await client.terminals.create(shell(sessionId))
+    const directory = await realpath(app.directory)
+    await writeFile(join(directory, "one.md"), "# One\n")
+    await writeFile(join(directory, "two.md"), "# Two\n")
+    const windowId = crypto.randomUUID()
+
+    const opened = await client.companions.openInProject({ sessionId, path: "one.md", windowId })
+    expect(opened.item).toMatchObject({
+      holder: { windowId },
+      name: "one.md",
+      path: join(directory, "one.md"),
+      by: "person",
+      from: null,
+      version: 1,
+    })
+    expect(opened.window).toEqual({
+      id: windowId,
+      sessionId,
+      home: "project",
+      itemId: opened.item.id,
+      title: "one.md",
+      titleSource: { kind: "default" },
+    })
+    const content = client.companions.content(opened.item.id)
+    await expect(content.next()).resolves.toMatchObject({
+      value: { state: "ready", content: { lines: ["# One"] } },
+    })
+
+    // Another file re-points the same item and window.
+    const again = await client.companions.openInProject({
+      sessionId,
+      path: join(directory, "two.md"),
+      windowId: crypto.randomUUID(),
+    })
+    expect(again).toMatchObject({
+      item: { id: opened.item.id, name: "two.md", version: 2 },
+      window: { id: windowId, title: "two.md" },
+    })
+    await expect(content.next()).resolves.toMatchObject({
+      value: { state: "ready", content: { lines: ["# Two"] } },
+    })
+
+    await expect(client.companions.move(opened.item.id, terminal.id)).rejects.toMatchObject({
+      code: "CONFLICT",
+    })
+    await expect(
+      client.companions.undock(opened.item.id, crypto.randomUUID()),
+    ).rejects.toMatchObject({ code: "CONFLICT" })
+    await expect(
+      client.companions.openInProject({
+        sessionId: crypto.randomUUID(),
+        path: "one.md",
+        windowId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    await expect(
+      client.companions.openInProject({ sessionId, path: ".", windowId: crypto.randomUUID() }),
+    ).rejects.toMatchObject({ code: "INVALID_FILE" })
+
+    const ending = content.next()
+    await client.companions.close(opened.item.id)
+    await expect(ending).resolves.toEqual({ done: true, value: undefined })
+    await expect(client.companions.list({ sessionId })).resolves.toEqual({ items: [], windows: [] })
   })
 })
 

@@ -1,5 +1,6 @@
 import type { Tile } from "@novadeck/core/types"
 
+import { isProjectWindow } from "../../terminals/project-window"
 import {
   beginRename,
   changeDraft,
@@ -11,11 +12,8 @@ import { currentContext, currentState, currentTarget } from "../selectors"
 import type { CommandContext } from "./context"
 
 export type RenameCommands = {
-  // Saves any other rename in progress first.
-  readonly startRename: (
-    terminal: Pick<Tile, "id" | "name">,
-    origin: RenameSession["origin"],
-  ) => void
+  // Saves any other rename in progress first. The project window takes none: its file names it.
+  readonly startRename: (terminal: Tile, origin: RenameSession["origin"]) => void
   readonly changeRenameDraft: (id: string, draft: string) => void
   readonly saveRename: (id: string) => void
   readonly cancelRename: (id: string) => void
@@ -55,6 +53,8 @@ export const createRenameCommands = ({
     activeRename,
     finishRename,
     startRename: (terminal, origin) => {
+      // The project window is named by its file.
+      if (isProjectWindow(terminal)) return
       const current = activeRename()
       if (current?.id === terminal.id) return
       if (current) finishRename(current, true)

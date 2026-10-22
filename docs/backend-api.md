@@ -174,7 +174,7 @@ created without `cwd` opens in the home directory of the user running the runner
 `projects.remove({ projectId })` closes every terminal of the project's sessions,
 running or kept only as saved, whichever connection controls them, so watchers see
 each `removed`; then it deletes the project, its sessions and what the runner kept of
-their terminals, their companion items and undocked windows (`companions.watch` reports
+their terminals, their companion items and windows (`companions.watch` reports
 each `itemRemoved` and `windowRemoved`, and their `content` streams end), and its agents'
 messages. Its folder on disk stays. Terminals being
 created in the project as it begins finish first and close with the rest; while it
@@ -1008,15 +1008,16 @@ one from an earlier runner.
 
 - `companions.*` keeps what agents show and the person attaches beside terminals: items,
   each a pointer to a file, a page or a plan, never a copy of it, held by exactly one
-  terminal's bar or one undocked window. Items and windows live in the runner's database,
-  so they survive restarts; an item goes when it is closed, with the terminal whose bar
-  holds it, or with its session, and a window goes with its item. Nothing caps how many
-  there are. An item has a runner-issued id, its `kind` (`image`, `file`, `page`, `changes`,
-  `plan`), a name and a one-line `detail`, its `path` or `url`, the `lines` it points at,
-  `held` for a file that may hold secrets, `by` (`agent` or `person`), `from` (the
-  terminal and handle it was shown in), `version` (counts its shows), `asked` (the latest
-  show asked to open it), `shownAt`, and for a plan its agent, its actor's role and
-  whether it is a file or text.
+  terminal's bar, one undocked window, or the session's project window. Items and windows
+  live in the runner's database, so they survive restarts; an item goes when it is closed,
+  with the terminal whose bar holds it, or with its session, and a window goes with its
+  item. Nothing caps how many there are. An item has a runner-issued id, its `kind`
+  (`image`, `file`, `page`, `changes`, `plan`), a name and a one-line `detail`, its `path`
+  or `url`, the `lines` it points at, `held` for a file that may hold secrets, `by`
+  (`agent` or `person`), `from` (the terminal and handle it was shown in; null in a
+  project window), `version` (counts its shows), `asked` (the latest show asked to open
+  it), `shownAt`, and for a plan its agent, its actor's role and whether it is a file or
+  text.
   - `companions.list({ sessionId })` answers a session's `items` and `windows`; an unknown
     session is `NOT_FOUND`.
   - `companions.watch()` streams every item and window across sessions, `synced`, then
@@ -1029,12 +1030,14 @@ one from an earlier runner.
     keeps both sides and resolves them as the rest arrives, never dropping one for it.
     The client's `companions.watch()` yields `reset` before each fresh sequence, as
     `terminals.watch()` does.
-  - `companions.content({ itemId, reveal? })` streams what an item points at, read from
+  - `companions.content({ itemId, reveal? })`, `reveal` being a path, streams what an item points at, read from
     disk now and again each time it changes, until the item is deleted; an unknown item
     is `NOT_FOUND`. It is `ready`, with a `stamp` that changes with it, or `unavailable`
     with a reason and the file's size where known: `missing`, `unreadable`, `not-a-file`,
     `too-large` (an image over 8 MiB), `binary` (a NUL byte in its first 8 KiB), `held`
-    (a file that may hold secrets, unless `reveal`), or `gone` (a plan no longer there).
+    (a file that may hold secrets, unless `reveal` is the path the item points at: the
+    person's yes is to a file, so an item re-pointed to another reads `held` again and, pointed
+    back, revealed again), or `gone` (a plan no longer there).
     An image is a data URL; a page its address, which the desktop app loads live, with
     `shown`, its item's version, which each show raises and which loads it afresh, and the
     `scroll` that show gave, a CSS selector to bring into view once it has loaded. A text
@@ -1072,14 +1075,24 @@ one from an earlier runner.
     picked on a terminal's bar, by a path absolute or from the terminal's directory:
     `TERMINAL_NOT_FOUND`, or `INVALID_FILE` saying why for a missing path, a folder, a
     pipe or a device. Binary files are accepted.
+  - `companions.openInProject({ sessionId, path, windowId })` opens a file the person
+    picked in the session's project window, by a path absolute or from the project's
+    folder, and answers the `item` and `window`. A session has one such window (`home` is
+    `project`, as against `undocked`): it holds one file, and opening another points the
+    same item at it, with a later `version` and the window named by it again. With no
+    window yet, one is made under `windowId` with an item whose `from` is null.
+    `NOT_FOUND` for an unknown session, `CONFLICT` for a taken `windowId`, or
+    `INVALID_FILE` saying why. No agent's show lands in it, and closing it deletes it.
   - `companions.move({ itemId, terminalId })` moves an item onto a bar of its session,
     from a bar or a window, which goes with it; an item that bar held under the same
     pointer is replaced. `NOT_FOUND`, `TERMINAL_NOT_FOUND`, or `CONFLICT` for another
     session's terminal. `companions.undock({ itemId, windowId })` moves it into a new
-    window the client names (`CONFLICT` for a taken id). `companions.close({ itemId })`
-    deletes it and its window. `companions.renameWindow({ windowId, title })` and
+    window the client names (`CONFLICT` for a taken id). A project window's item takes
+    neither: `CONFLICT`. `companions.close({ itemId })` deletes it and its window.
+    `companions.renameWindow({ windowId, title })` and
     `companions.resetWindowTitle({ windowId })` give a window the person's title or its
-    item's name again.
+    item's name again (`NOT_FOUND` for an unknown window; `CONFLICT` for a project
+    window, which its file names).
   - `companions.pageTrouble({ itemId, shown, troubles })` tells the runner what went
     wrong on a page item while it showed its show `shown` (its `version` then), as the
     desktop pane saw it: up to 20 `troubles`, each an `error` (text, source, line), a
