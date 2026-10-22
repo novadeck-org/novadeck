@@ -512,7 +512,7 @@ export const companionItem = z.strictObject({
   id,
   sessionId: id,
   holder: itemHolder,
-  kind: z.enum(["image", "file", "page", "plan"]),
+  kind: z.enum(["image", "file", "page", "plan", "changes"]),
   name: z.string().max(256),
   detail: z.string().max(512),
   path: z.string().max(4096).nullable(),
@@ -598,13 +598,50 @@ export const pageTrouble = z.discriminatedUnion("kind", [
 /** How many troubles one `companions.pageTrouble` call carries at most. */
 export const maxPageTroubles = 20
 
+/** Bounds of a change as `companions.content` carries it: files, and the diff text in all. */
+export const maxChangedFiles = 300
+export const maxChangesBytes = 4 * 1024 * 1024
+
+// One file of a change: its path (and its old one when renamed), how it changed, how many
+// lines were added and removed, and its diff as hunks of lines, each with a line's kind and
+// text. A `binary` file, one that may hold secrets (`held`), or one past the change's bounds
+// (`listed`) has no hunks: it is listed by name. Line numbers count from each hunk's start.
+export const changedFile = z.strictObject({
+  path: z.string().max(4096),
+  oldPath: z.string().max(4096).nullable(),
+  status: z.enum(["added", "modified", "deleted", "renamed"]),
+  added: z.int().nonnegative(),
+  removed: z.int().nonnegative(),
+  binary: z.boolean(),
+  held: z.boolean(),
+  listed: z.boolean(),
+  hunks: z.array(
+    z.strictObject({
+      oldStart: z.int().nonnegative(),
+      oldCount: z.int().nonnegative(),
+      newStart: z.int().nonnegative(),
+      newCount: z.int().nonnegative(),
+      lines: z.array(
+        z.strictObject({
+          kind: z.enum(["context", "add", "remove"]),
+          text: z.string().max(4096),
+        }),
+      ),
+    }),
+  ),
+})
+
 // `companions.content`: what an item points at, read as it is now. `stamp` changes with
 // it. A file is the lines around the ones pointed at, numbered from `firstLine`, with
 // its line count where it was read to its end (`truncated` otherwise), and `clamped`
 // when the lines pointed at ran past its end. A page is its address, which the desktop
 // app loads live; `shown`, the item's version it was read at, counts the agent's shows,
 // each of which loads it afresh, and `scroll` is the element that show brings into view.
-// Or why it can't be shown, with the file's size where known.
+// A change is the repository's working tree (staged, unstaged and untracked, not ignored)
+// against `base`, file by file, up to `maxChangedFiles` and `maxChangesBytes` of diff text,
+// past which files are listed by name and `truncated` says so; `root` is the repository's
+// folder, which its paths are from. Or why it can't be shown, with the file's size where
+// known.
 export const itemContent = z.discriminatedUnion("state", [
   z.strictObject({
     state: z.literal("ready"),
@@ -627,6 +664,13 @@ export const itemContent = z.discriminatedUnion("state", [
         url: z.string().max(8192),
         shown: z.int().min(1),
         scroll: z.string().max(1024).optional(),
+      }),
+      z.strictObject({
+        kind: z.literal("changes"),
+        root: z.string().max(4096),
+        base: z.string().max(256),
+        files: z.array(changedFile).max(maxChangedFiles),
+        truncated: z.boolean(),
       }),
       z.strictObject({
         kind: z.literal("plan"),
@@ -1031,6 +1075,7 @@ export type CompanionWindow = z.infer<typeof companionWindow>
 export type CompanionChange = z.infer<typeof companionChange>
 export type ItemContent = z.infer<typeof itemContent>
 export type PageTrouble = z.infer<typeof pageTrouble>
+export type ChangedFile = z.infer<typeof changedFile>
 export type PlanSaveResult = z.infer<typeof planSaveResult>
 export type TerminalRequest = z.infer<typeof terminalRequest>
 export type TerminalRequestAnswer = z.infer<typeof terminalRequestAnswer>

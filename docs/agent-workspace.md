@@ -292,6 +292,25 @@ port's optional `companions` capability (`frontend/core/src/companion.ts`):
 | `save(target, itemId, text, basedOn)`    | The user's edit written to the plan file, unless it changed since stamp `basedOn`            |
 | `attach?(key, path)`                     | A file the person picked, put on a terminal's bar and opened; absent where the backend can't |
 
+A change (the `changes` item kind) shows in the diff viewer (`libraries/viewers/src/diff.ts`),
+read-only: a list of the changed files at the top, each scrolling to its section, then a
+section per file with its path (and old path when renamed), how it changed and its added and
+removed counts, over its hunks with the old and new line numbers in two gutters, added and
+removed lines tinted and the text highlighted by the file's language (a hunk's old and new
+side parsed apart; a file past 4,000 diff lines, or one whose parser fails, stays plain). A
+line wider than the pane scrolls its own file sideways (the pane scrolls only down), the file
+list, the headers and the line numbers (with the marker of each line's kind) staying in view; a
+file's lines are a tab stop only while they overflow, and its sideways scroll is kept by its
+path, put back as the file comes into view. A binary file, one that
+may hold secrets and one past the change's size show their header with a note, an empty
+change says "No changes against HEAD", and a truncated one says it is larger than shown.
+The rows of a long change are made a few at a time, and the sections off screen are not laid
+out, so a change of the full 4 MB opens without freezing the pane. A new content for the same
+change, as the agent edits, keeps the rows and colours of every file that didn't change, and
+the place the person was at (the file and row at the top, not pixels, whichever file changed),
+also while the pane is out of sight, where it goes back to once the pane has a size. Nothing
+asks the page to lay out a file that is off screen.
+
 ### Plans are edited in their file
 
 Unlike the read-only `document` presentation, a plan opens editable. The user's
@@ -343,12 +362,13 @@ with every safety check again at that time:
   plugin manifest (with `env_vars` naming the terminal's variables, since Codex starts
   MCP servers without the terminal's environment), `mcp_config.json` for Antigravity.
   Its first tool, `show`, takes one source under the key that names it, with that
-  source's own options inside: a `file` (its path and optional lines) or a `page` (its
+  source's own options inside: a `file` (its path and optional lines), a `page` (its
   `url`, and optionally `scroll`, a CSS selector of the element to bring into view once it
-  loads); beside it the options every source shares, a title and `open`, which the agent
+  loads) or `changes` (`{}` or `{ path }`: the whole change in a repository, see below);
+  beside it the options every source shares, a title and `open`, which the agent
   sets for a deliverable it finished or one the user asked to see (`asked`). A new kind
   of artifact adds a source key of its own rather than more fields beside these. `close`
-  takes the same `file` (its path alone) or `page` (its url alone) and removes what the
+  takes the same `file` (its path alone), `page` (its url alone) or `changes` and removes what the
   agent showed under it from its own bar, as the person closing it would; what the person attached, moved away from it, or another
   terminal placed there is refused with a word on whose it is, and plans are never
   addressable this way. The server finds its terminal
@@ -384,6 +404,80 @@ with every safety check again at that time:
   what the agent's bar holds now, with where each item points and who put it there,
   then what it showed that the person moved elsewhere.
   The UI follows each item with `companions.content`, never by path.
+
+  A **changes item** (`show { changes: {} }`, kind `changes`) is a git repository as a
+  set of diffs, the terminal's by default. An agent that works in another folder or
+  worktree gives `changes: { path }`, a folder inside the repository (absolute, or from the
+  terminal's directory; a file stands for its folder), and `close` takes the same, even
+  once that folder is gone (a worktree removed): the item shown from it is found by where
+  it was shown from. The item is the repository's working tree against `HEAD` (the empty
+  tree before the first commit, whatever the repository's hash), so staged, unstaged and
+  untracked files, but not ignored ones, with renames found, whoever edited them. It is
+  one item per repository on a bar, keyed `changes:<repository root>` (folded to lower
+  case on Windows) and named "Changes · <folder>"
+  unless a title is given; showing it again updates it. Its detail counts the files and
+  lines (untracked files that are listed without being read count as files, not lines)
+  and follows each read the pane triggers. The content (`companions.content`) is read
+  with git at the start and again about every 2 seconds while followed, and sent only
+  when it changed.
+
+  Reading costs git runs, and a big repository makes each one slow: after a read that
+  took over a second, the next waits four times as long (up to 15 seconds), and the
+  usual 2 seconds again as reads get fast. A read that fails once or twice (git timing
+  out under load) keeps the last good content on screen; a third failure in a row says
+  `unreadable`, and a repository that is gone says `missing` at once. The show itself
+  keeps the 5 second timeout. Where the person's `core.fsmonitor` is git's own file
+  monitor (`true`), it is kept, which is what makes big repositories fast; a hook
+  program named there never runs.
+
+  Bounds: git lists every changed file with its counts first, and at most 300 files are
+  carried (`truncated` says more exist; the rest are not listed). The diff text is read up
+  to a budget of 4 MiB as encoded, each line counting its text and its encoding, so
+  blank lines are not free; a file whose diff would pass what is left is `listed`: name,
+  status and counts, without hunks, and `truncated` is set. Only files that could fit
+  (each changed line costs at least 32 bytes, against what the files before already
+  could take) are asked of git for their diff, by literal name, so a regenerated lockfile
+  takes no room from the small edits after it; the rest are listed without being read.
+  The raw patch is read to at most 8 MiB, and git is ended there (its whole process group,
+  as on a timeout): the file it cut in the middle is listed, and the files after it are
+  asked for again without it (a few times), so one minified bundle takes no room from the
+  small edits after it (the file named is the last one read at the cut, so when many medium
+  files add up to the cap it can be one that would have fitted; the retries stop once the
+  diff budget is spent). Untracked files come from `git ls-files --others`, read to 2 MiB
+  of names (only the first fit the 300 files, so the file count of a huge untracked tree
+  is a lower bound), and none where `status.showUntrackedFiles` is `no`. Their contents
+  are read a bounded amount in all (1 MiB each, 8 MiB per look); past that they are listed
+  by name with no counts. A path git lists as changed and as untracked counts once. Lines are cut at 4096 characters, and names show a control or invisible
+  character as U+FFFD.
+
+  A binary file and a file that may hold secrets (the rule for files, applied to the new
+  name and the old one of a rename, tracked or not) carry no hunks: a held file's diff
+  text is skipped by the reader, and an untracked one is never opened. v1 has no way to
+  reveal either.
+
+  The runner finds `git` once on the PATH (absolute entries only) and runs it with a
+  fixed argument list, no shell, in the repository, for at most 5 seconds, ending its
+  whole process group if it takes longer. Its environment is the person's, without the
+  `GIT_*` variables that point git at another repository, configuration or diff
+  (`GIT_DIR`, `GIT_INDEX_FILE`, `GIT_CONFIG*`, `GIT_EXTERNAL_DIFF`, `GIT_PAGER`, trace
+  variables and the like; `GIT_CEILING_DIRECTORIES`, `GIT_EXEC_PATH` stay), with `GIT_OPTIONAL_LOCKS=0` (following never
+  takes the index lock the agent's own git needs), no prompts and no network fetch of
+  missing objects (`GIT_NO_LAZY_FETCH` is honoured from git 2.45; an older git ignores it).
+  Its messages are English (`LC_ALL=C`), which the reader matches; names are read as bytes.
+  The diff prefixes are fixed, so the person's `diff.noprefix` and
+  the like change nothing. External diff drivers and text conversion are switched off, and so is
+  a file monitor hook program; clean filters (git-lfs, say) of files whose stat
+  changed still run, as in the person's own `git diff`. Otherwise it is the person's git
+  and configuration, which an agent in that terminal could use anyway. `show` is refused,
+  with a reason the agent can act on, when the folder is not in a git repository
+  (said in Novadeck's own words, with a hint to give `path`), git is not installed, or git
+  refuses the folder or cannot read the change (then git's own first line of explanation
+  follows, as for a folder another user owns); a repository that goes later
+  makes the content `missing`, as does one whose own `.git` went and which is now a
+  folder of another repository; any other failure is `unreadable`. On a Mac without the
+  Command Line Tools, `/usr/bin/git` is Apple's installer stub, so each attempt to show
+  can fail with its message, and may bring up the installer dialog.
+
 - **New terminals** come from the same server's second tool, `open_terminal`, listed
   only inside Novadeck's terminals like `show`. It opens a terminal beside the agent's,
   in `cwd` (absolute, or from the terminal's directory, which is the default), named

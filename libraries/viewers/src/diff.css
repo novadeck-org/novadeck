@@ -1,0 +1,189 @@
+/* The diff viewer: a change (`.diff-viewer`) as a list of its files (`.diff-files`, each a
+   `.diff-file-link` that scrolls to its section) over a section per file (`.diff-file`,
+   with data-status: added, modified, deleted, renamed) under a header (`.diff-file-head`:
+   `.diff-status`, `.diff-path` with `.diff-old-path` and `.diff-new-path`, `.diff-stats`
+   with `.diff-added` and `.diff-removed`). A file's hunks (`.diff-hunk`) have a header
+   (`.diff-hunk-head`) over rows (`.diff-line`, with data-kind: context, add, remove), each
+   with two line numbers (`.diff-number`) and its text (`.diff-text`). A file's hunks are
+   in its `.diff-lines`, which scrolls sideways on its own (`.diff-lines-body` is as wide as
+   its widest line). `.diff-note` says what a file or the change itself can't show. The `.tok-*` classes of code.css colour the
+   text once highlighted.
+
+   Tokens, each optional (its fallback in brackets):
+   --code-font (monospace), --code-font-size (inherit), --code-line-height (1.6): the type.
+   --code-number-fg (the text, faded): line numbers and the hunk headers.
+   --diff-add-bg (the text, faintly), --diff-add-fg (the text), --diff-remove-bg (the text,
+   faintly), --diff-remove-fg (the text): added and removed lines, and the counts of each;
+   a theme gives them their colours.
+   --diff-head-bg (the text, faintly), --diff-line-color (the text, faded): a file's
+   header, and the lines between sections.
+   --diff-head-bg-solid (none): a file's header, which stays at the top over the lines
+   under it; a theme gives it a ground that hides them.
+   --diff-gutter-bg (none): the ground of the line numbers, which stay at the left of a
+   file's lines as they scroll sideways, the text sliding under them; a theme gives it the
+   ground of the lines.
+
+   The viewer scrolls only down; a line wider than it scrolls its own file sideways, the
+   file list, the headers and the line numbers staying in view. The `--diff-digits`
+   custom property, set by the viewer, is the digits of the largest line number, which the
+   gutters are as wide as. */
+.diff-viewer {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: 0 0 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  font-family: var(--code-font, monospace);
+  font-size: var(--code-font-size, inherit);
+  font-weight: normal;
+  font-style: normal;
+  line-height: var(--code-line-height, 1.6);
+  user-select: text;
+  /* What stays at the left of a file's lines is as wide as the viewer, not as its widest. */
+  container-type: inline-size;
+}
+.diff-files {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--diff-line-color, color-mix(in srgb, currentColor 18%, transparent));
+}
+.diff-file-link {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 1px 4px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: 0;
+}
+.diff-file-link:hover {
+  background: var(--diff-head-bg, color-mix(in srgb, currentColor 8%, transparent));
+}
+.diff-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.diff-file {
+  /* A long change draws only what is on screen. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 300px;
+  border-bottom: 1px solid var(--diff-line-color, color-mix(in srgb, currentColor 18%, transparent));
+}
+.diff-file-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 4px 12px;
+  background: var(--diff-head-bg-solid, none);
+  border-bottom: 1px solid var(--diff-line-color, color-mix(in srgb, currentColor 18%, transparent));
+}
+.diff-path {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.diff-status {
+  font-size: 0.85em;
+  color: var(--code-number-fg, color-mix(in srgb, currentColor 55%, transparent));
+}
+.diff-file[data-status="added"] .diff-status,
+.diff-added {
+  color: var(--diff-add-fg, inherit);
+}
+.diff-file[data-status="deleted"] .diff-status,
+.diff-removed {
+  color: var(--diff-remove-fg, inherit);
+}
+.diff-stats {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+.diff-note {
+  margin: 0;
+  padding: 6px 12px;
+  color: var(--code-number-fg, color-mix(in srgb, currentColor 55%, transparent));
+}
+.diff-lines {
+  overflow-x: auto;
+}
+.diff-lines-body {
+  /* As wide as the file's widest line, so its rows' tints are. */
+  width: max-content;
+  min-width: 100%;
+}
+.diff-hunk-head {
+  position: sticky;
+  left: 0;
+  box-sizing: border-box;
+  width: 100cqw;
+  padding: 2px 12px;
+  color: var(--code-number-fg, color-mix(in srgb, currentColor 55%, transparent));
+  white-space: pre;
+  background: var(--diff-head-bg, color-mix(in srgb, currentColor 6%, transparent));
+}
+.diff-line {
+  display: grid;
+  /* The old and the new number, the new one with the line's marker after it. */
+  grid-template-columns:
+    calc(var(--diff-digits, 3) * 1ch + 14px) calc(var(--diff-digits, 3) * 1ch + 2ch + 14px)
+    1fr;
+  padding-right: 16px;
+  white-space: pre;
+}
+.diff-number {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  padding-right: 10px;
+  /* The row's tint over the lines' ground, which the text slides under. */
+  background:
+    linear-gradient(var(--diff-row, transparent), var(--diff-row, transparent)),
+    var(--diff-gutter-bg, transparent);
+  text-align: right;
+  color: var(--code-number-fg, color-mix(in srgb, currentColor 55%, transparent));
+  user-select: none;
+}
+.diff-number + .diff-number {
+  left: calc(var(--diff-digits, 3) * 1ch + 14px);
+  padding-right: calc(2ch + 10px);
+}
+/* The marker of a line's kind, pinned with the numbers: the cue that isn't a colour. */
+.diff-number + .diff-number::after {
+  position: absolute;
+  top: 0;
+  right: 6px;
+  width: 2ch;
+  text-align: center;
+  content: "";
+}
+.diff-text {
+  padding-left: 1ch;
+}
+.diff-line[data-kind="add"] {
+  --diff-row: var(--diff-add-bg, color-mix(in srgb, currentColor 10%, transparent));
+  background: var(--diff-add-bg, color-mix(in srgb, currentColor 10%, transparent));
+}
+.diff-line[data-kind="add"] .diff-number + .diff-number::after {
+  content: "+";
+}
+.diff-line[data-kind="remove"] {
+  --diff-row: var(--diff-remove-bg, color-mix(in srgb, currentColor 5%, transparent));
+  background: var(--diff-remove-bg, color-mix(in srgb, currentColor 5%, transparent));
+}
+.diff-line[data-kind="remove"] .diff-number + .diff-number::after {
+  content: "−";
+}

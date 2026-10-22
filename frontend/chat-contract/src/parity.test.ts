@@ -234,10 +234,11 @@ const novadeckTool = (tool: string, fields: Fields | null): ToolSummary | undefi
       const url = page ? oneLine(textField(page, "url")) : ""
       const file = nested(fields?.file)
       const path = file ? oneLine(textField(file, "path")) : ""
+      const changes = nested(fields?.changes) !== null
       return {
         kind: url ? "web" : "read",
         title: tool === "show" ? "Showed" : "Closed",
-        detail: url || shortPath(path),
+        detail: url || (changes ? "the changes" : shortPath(path)),
       }
     }
     case "showing":
@@ -699,6 +700,8 @@ const novadeckInputs = [
   { url: "http://localhost:5173/" },
   { file: { path: "/a/b/c/d/mock.png" } },
   { file: '{"path":"/a/b/c/d/mock.png"}' },
+  { changes: {} },
+  { changes: "{}" },
   { summary: "Fixing the cart rounding" },
 ]
 for (const tool of novadeck)

@@ -85,7 +85,7 @@ describe("workspace metadata", () => {
     expect(first.id).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(2)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(3)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       expect(() =>
         database
@@ -276,13 +276,13 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const future = new DatabaseSync(path)
     future.exec(
-      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 3",
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 4",
     )
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(/newer/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(3)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(4)
       expect(database.prepare("SELECT value FROM future_data").get()?.value).toBe("saved")
     } finally {
       database.close()
@@ -339,7 +339,7 @@ describe("workspace metadata", () => {
     `)
     old.close()
     expect(() => new WorkspaceStore(path)).toThrow(
-      /earlier build: its schema is version 1, before 2\./,
+      /earlier build: its schema is version 1, before 3\./,
     )
     const database = new DatabaseSync(path)
     try {
@@ -1060,6 +1060,22 @@ const item = (
 })
 
 describe("companion items", () => {
+  it("keep a changes item, which its kind check allows", async ({ directory, store }) => {
+    const cwd = directory()
+    const workspace = store(join(cwd, "workspace.sqlite"))
+    const project = await workspace.createProject({ id: randomUUID(), name: "P", cwd })
+    const session = workspace.createSession({ id: randomUUID(), projectId: project.id, name: "S" })
+    const terminal = keptTerminal(workspace, session.id, "moth")
+    const changes = item(session.id, terminal, "changes:/work", {
+      kind: "changes",
+      path: "/work",
+      name: "Changes · work",
+    })
+    workspace.saveItem(changes)
+    expect(workspace.items(session.id)).toEqual([changes])
+    expect(workspace.item(changes.id)).toEqual(changes)
+  })
+
   it("keep each item with one holder, replacing a bar's copy and dropping windows left", async ({
     directory,
     store,

@@ -51,6 +51,8 @@ suite("what a Claude Code tool call was", () => {
     ],
     ["show", { file: { path: "/a/b/c/d/mock.png" } }, "read", "Showed", "…/c/d/mock.png"],
     ["show", { file: '{"path":"/a/b/c/d/mock.png"}' }, "read", "Showed", "…/c/d/mock.png"],
+    ["show", { changes: {} }, "read", "Showed", "the changes"],
+    ["close", { changes: {} }, "read", "Closed", "the changes"],
     ["close", { file: { path: "/a/b/c/d/mock.png" } }, "read", "Closed", "…/c/d/mock.png"],
     [
       "close",

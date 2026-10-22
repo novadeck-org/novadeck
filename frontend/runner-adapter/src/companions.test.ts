@@ -120,6 +120,44 @@ describe("the runner's companion content", () => {
     expect(app.seen[0]).toMatchObject({ content: { kind: "page", live: true } })
   })
 
+  it("gives a change as the runner reads it, file by file", async () => {
+    const app = following({ livePages: true })
+    app.follow()
+    const content = {
+      kind: "changes" as const,
+      root: "/repo",
+      base: "HEAD",
+      truncated: false,
+      files: [
+        {
+          path: "a.ts",
+          oldPath: "b.ts",
+          status: "renamed" as const,
+          added: 1,
+          removed: 1,
+          binary: false,
+          held: false,
+          listed: false,
+          hunks: [
+            {
+              oldStart: 1,
+              oldCount: 1,
+              newStart: 1,
+              newCount: 1,
+              lines: [
+                { kind: "remove" as const, text: "x" },
+                { kind: "add" as const, text: "y" },
+              ],
+            },
+          ],
+        },
+      ],
+    }
+    app.push({ state: "ready", stamp: "1", content })
+    await settle()
+    expect(app.seen).toEqual([{ state: "ready", stamp: "1", content }])
+  })
+
   it("gives a plan as the runner says it can be written, without saying when it changed", async () => {
     const app = following()
     app.follow()

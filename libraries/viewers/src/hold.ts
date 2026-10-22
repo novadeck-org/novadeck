@@ -19,11 +19,15 @@ export const createHold = (
   // Whether what it holds has all it needs for its size, as an image once it has loaded:
   // the moment starts only then.
   ready: () => boolean = () => true,
+  // Called as a hold starts and as it ends, as for a viewer to keep the browser's own
+  // scroll anchoring from moving what it holds, which would pass for the person's scroll.
+  around?: { readonly start: () => void; readonly stop: () => void },
 ): Hold => {
   let release: (() => void) | undefined
   let settle: (() => void) | undefined
   const hold = (place: () => void): void => {
     release?.()
+    around?.start()
     // Where it last put the viewer: a scroll anywhere else is someone else's.
     let placed = { top: -1, left: -1 }
     const put = (): void => {
@@ -32,7 +36,7 @@ export const createHold = (
     }
     put()
     const Observer = root.ownerDocument.defaultView?.ResizeObserver
-    if (!Observer) return
+    if (!Observer) return around?.stop()
     let timer: ReturnType<typeof setTimeout> | undefined
     // Moved since it put it there, unless only cut short as what it holds shrank: a
     // scroll whose event may not have come yet.
@@ -60,6 +64,7 @@ export const createHold = (
       clearTimeout(timer)
       for (const input of inputs) root.removeEventListener(input, letGo)
       root.removeEventListener("scroll", scrolled)
+      around?.stop()
       release = undefined
       settle = undefined
     }

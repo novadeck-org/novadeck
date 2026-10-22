@@ -27,6 +27,10 @@
    --artifact-code-number-fg (muted), --artifact-code-pointed-bg (soft): a file's line
    numbers, and the lines the agent pointed at, as the code viewer's --code-number-fg and
    --code-emphasis-bg.
+   --artifact-diff-add-bg, --artifact-diff-add-fg, --artifact-diff-remove-bg,
+   --artifact-diff-remove-fg (the success and danger colours), --artifact-diff-head-bg
+   (soft): a change's added and removed lines and its file headers, as the diff viewer's
+   --diff-* tokens; a change's lines are on `.artifact-diff`, holding the diff viewer.
    --artifact-browser-bg (shell), --artifact-browser-border-color (line): a page's bar.
    --artifact-url-bg (paper), --artifact-url-border-color (line), --artifact-url-fg
    (ink): its address.
@@ -150,6 +154,30 @@
   --code-font-size: var(--text-code);
   --code-number-fg: var(--artifact-code-number-fg, var(--color-muted));
   --code-emphasis-bg: var(--artifact-code-pointed-bg, var(--color-soft));
+}
+
+.artifact-diff {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  --code-font: var(--font-mono);
+  --code-font-size: var(--text-code);
+  --code-number-fg: var(--artifact-code-number-fg, var(--color-muted));
+  --diff-add-bg: var(
+    --artifact-diff-add-bg,
+    color-mix(in srgb, var(--color-success) 55%, transparent)
+  );
+  --diff-add-fg: var(--artifact-diff-add-fg, var(--color-success-fg));
+  --diff-remove-bg: var(
+    --artifact-diff-remove-bg,
+    color-mix(in srgb, var(--color-danger) 55%, transparent)
+  );
+  --diff-remove-fg: var(--artifact-diff-remove-fg, var(--color-danger-fg));
+  --diff-head-bg: var(--artifact-diff-head-bg, var(--color-soft));
+  --diff-head-bg-solid: var(--artifact-diff-head-bg, var(--color-soft));
+  --diff-gutter-bg: var(--pane-bg, var(--color-paper));
+  --diff-line-color: var(--color-line);
 }
 
 .artifact-browser {

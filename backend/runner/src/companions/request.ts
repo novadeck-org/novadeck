@@ -7,7 +7,8 @@ import { z } from "zod"
  * shares beside it: a title in place of the source's name, and `open` when the person
  * asked to see it. A `file` is a path, absolute or from the terminal's directory, and
  * for a text file the lines it points at; a `page` is its http(s) address, and the element
- * to bring into view once it loads.
+ * to bring into view once it loads; `changes` is the whole change in a repository, the
+ * terminal's unless it gives the folder `path`.
  */
 // What every request takes: a short name to show, and whether the person asked to see it.
 const shared = { title: z.string().min(1).max(256).optional(), open: z.boolean().optional() }
@@ -43,8 +44,17 @@ export const pageSource = z.strictObject({
 
 export const pageRequest = z.strictObject({ page: pageSource, ...shared })
 
+/**
+ * The change in a repository: its working tree against HEAD. The repository is the one
+ * the folder `path` is in (absolute, or from the terminal's directory), by default the
+ * terminal's own folder.
+ */
+export const changesSource = z.strictObject({ path: z.string().min(1).max(4096).optional() })
+
+export const changesRequest = z.strictObject({ changes: changesSource, ...shared })
+
 /** Each source `show` takes, by the key that names it. A new kind adds one here. */
-const sources = { file: fileRequest, page: pageRequest } as const
+const sources = { file: fileRequest, page: pageRequest, changes: changesRequest } as const
 
 /** The keys that name a source, as `show` and `close` list them. */
 export const sourceNames = Object.keys(sources) as readonly (keyof typeof sources)[]
@@ -57,11 +67,13 @@ export const sourceNames = Object.keys(sources) as readonly (keyof typeof source
 const dismissSources = {
   file: z.strictObject({ file: z.strictObject({ path: fileSource.shape.path }) }),
   page: z.strictObject({ page: z.strictObject({ url: pageSource.shape.url }) }),
+  changes: z.strictObject({ changes: changesSource }),
 } as const
 
 export type FileRequest = z.infer<typeof fileRequest>
 export type PageRequest = z.infer<typeof pageRequest>
-export type PresentRequest = FileRequest | PageRequest
+export type ChangesRequest = z.infer<typeof changesRequest>
+export type PresentRequest = FileRequest | PageRequest | ChangesRequest
 export type DismissRequest = z.infer<(typeof dismissSources)[keyof typeof dismissSources]>
 
 /** Why it was not shown, in a sentence the agent can act on. */
@@ -96,10 +108,15 @@ export type DismissAnswer =
 export const failure = (reason: string): PresentFailure => ({ ok: false, reason })
 
 // How each source is given, for an agent that gave none, or the old flat `path`.
-const shapes = { file: "file: { path }", page: "page: { url }" } as const satisfies {
+const shapes = {
+  file: "file: { path }",
+  page: "page: { url }",
+  changes: "changes: { path? }",
+} as const satisfies {
   readonly [name in (typeof sourceNames)[number]]: string
 }
-const oneSource = `one source, ${sourceNames.map((name) => shapes[name]).join(" or ")}`
+const forms = sourceNames.map((name) => shapes[name])
+const oneSource = `one source, ${forms.slice(0, -1).join(", ")} or ${forms.at(-1)}`
 
 /** Text named back to the agent, as a key or a path: quoted, and cut short, as it is the agent's own. */
 export const named = (key: string): string =>

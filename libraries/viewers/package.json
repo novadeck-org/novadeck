@@ -19,6 +19,12 @@
       "default": "./dist/code.js"
     },
     "./code.css": "./src/code.css",
+    "./diff": {
+      "development": "./src/diff.ts",
+      "types": "./dist/diff.d.ts",
+      "default": "./dist/diff.js"
+    },
+    "./diff.css": "./src/diff.css",
     "./image": {
       "development": "./src/image.ts",
       "types": "./dist/image.d.ts",
