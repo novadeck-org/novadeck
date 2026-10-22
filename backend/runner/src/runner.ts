@@ -22,6 +22,7 @@ import { Voice } from "./voice/service.js"
 import { Projects } from "./workspaces/projects.js"
 import {
   EarlierWorkspaceError,
+  restoreSetAside,
   setAsideWorkspace,
   WorkspaceStore,
   WorkspaceTooNewError,
@@ -105,11 +106,24 @@ export type Runner = {
 }
 
 /**
- * The workspace store at `database`. One an earlier build wrote is set aside and a new one
- * started in its place, so an update never leaves the runner unable to start: before the
- * first release Novadeck has no migrations, and the old file stays beside it.
+ * The workspace store at `database`, carried forward from an earlier build's in place, or
+ * the one v0.0.188 set aside brought back (`restoreSetAside`). One it can't carry (from
+ * before the first migration, whose step doesn't fit it, or whose tables differ from its
+ * version's) is set aside and a new one started, so an update never leaves the runner
+ * unable to start; the old file stays beside it.
  */
 const openStore = (database: string | undefined): WorkspaceStore => {
+  try {
+    const restored = database === undefined ? undefined : restoreSetAside(database)
+    if (restored)
+      log.warn("workspace.restored", `Brought back the workspace set aside as ${restored}.`)
+  } catch (error) {
+    // Bringing one back is a repair, never a reason not to start.
+    log.warn(
+      "workspace.restore-failed",
+      `Could not bring back a workspace set aside: ${String(error)}`,
+    )
+  }
   try {
     return new WorkspaceStore(database)
   } catch (error) {

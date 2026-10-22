@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import {
   chmodSync,
   existsSync,
@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readFileSync,
   realpathSync,
+  renameSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -26,6 +27,7 @@ import { describe, expect, it as base } from "../test.js"
 import { sealed as sealedText } from "../testing/sealing.js"
 import {
   EarlierWorkspaceError,
+  restoreSetAside,
   setAsideWorkspace,
   WorkspaceStore,
   WorkspaceTooNewError,
@@ -53,6 +55,72 @@ const it = base.extend<{
 
 // Whether a file holds `text`, as a secret it should have forgotten.
 const holds = (file: string, text: string) => existsSync(file) && readFileSync(file).includes(text)
+
+// Something in every table a version 2 database has, as that version's runner wrote it.
+const heldByVersion2 = `
+  INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'Shop', '/shop');
+  INSERT INTO sessions (position, id, project_id, name, state) VALUES (1, 's', 'p', 'Main', '{}');
+  INSERT INTO terminals (id, session_id, handle, cwd, agents, updated_at, summary, last_program)
+    VALUES ('t', 's', 'moth', '/shop', '{}', 2, 'Works on checkout', 'claude');
+  INSERT INTO session_handles VALUES ('s', 'moth');
+  INSERT INTO settings VALUES ('example', '1');
+  INSERT INTO message_threads VALUES ('th', 'p', 't', 'u', 1, 10, 3, NULL);
+  INSERT INTO messages VALUES ('m', 'p', 'th', 1, 't', 'moth', 'claude', 'cs', 'u', 'fox',
+    'codex', NULL, 'hello', 3, 'delivered', 4, 0, 0, 0, 0, NULL);
+  INSERT INTO asks VALUES ('a', 'p', 't', 5, '{}');
+  INSERT INTO companion_windows VALUES ('w', 's', NULL, 6);
+  INSERT INTO companion_items (id, session_id, terminal_id, window_id, pointer_key, kind,
+    path, name, detail, held, shown_by, from_terminal, from_handle, version, asked, shown_at)
+    VALUES ('bar', 's', 't', NULL, '/shop/a.ts', 'file', '/shop/a.ts', 'a.ts', '', 0,
+      'agent', 't', 'moth', 1, 0, 7);
+  INSERT INTO companion_items (id, session_id, terminal_id, window_id, pointer_key, kind,
+    url, name, detail, held, shown_by, from_terminal, from_handle, version, asked, shown_at)
+    VALUES ('undocked', 's', NULL, 'w', 'page:http://localhost/', 'page', 'http://localhost/',
+      'localhost', '', 0, 'person', 't', 'moth', 2, 1, 8);
+  INSERT INTO companion_items VALUES ('plan', 's', 't', NULL, 'plan:claude:cs:', 'plan',
+    '/shop/plan.jsonl', 'http://unused/', 1, 2, 'claude', 'cs', '', 'text', 'Plan', 'Moth',
+    1, 'agent', 't', 'moth', 3, 1, 9, 9.25);
+`
+
+// A version 2 database holding `heldByVersion2` (less what `then` takes), set aside beside
+// `path` at `time`, as v0.0.188 left it. Its foreign keys go unchecked, for `then` to break.
+const setAsideOfVersion2 = (path: string, time: string, then = "") => {
+  const aside = `${path}.earlier-${time}`
+  const database = new DatabaseSync(aside, { enableForeignKeyConstraints: false })
+  database.exec(`${readFileSync(new URL("schemas/2.sql", import.meta.url), "utf8")}
+    PRAGMA user_version = 2;
+    ${heldByVersion2}
+    ${then}`)
+  database.close()
+  return aside
+}
+
+// Every row of every table, each as JSON, sorted, so a table made again compares equal.
+const rowsOf = (database: DatabaseSync) =>
+  Object.fromEntries(
+    (
+      database.prepare("SELECT name FROM sqlite_schema WHERE type = 'table'").all() as {
+        name: string
+      }[]
+    ).map(({ name }) => [
+      name,
+      database
+        .prepare(`SELECT * FROM "${name}"`)
+        .all()
+        .map((row) => JSON.stringify(row))
+        .toSorted(),
+    ]),
+  )
+
+// Every table and index, by its SQL with runs of white space as one.
+const schemaOf = (database: DatabaseSync) =>
+  (
+    database.prepare("SELECT type, name, sql FROM sqlite_schema ORDER BY type, name").all() as {
+      type: string
+      name: string
+      sql: string | null
+    }[]
+  ).map(({ type, name, sql }) => ({ type, name, sql: sql?.replace(/\s+/g, " ") ?? null }))
 
 describe("workspace metadata", () => {
   it("persists project and session identities, renames, and order across database reopen", async ({
@@ -325,6 +393,210 @@ describe("workspace metadata", () => {
     expect(() => new WorkspaceStore(path)).toThrow(/earlier build: .*expects murmur_title TEXT/)
   })
 
+  it("carries a version 2 database forward in place, keeping everything it held", ({
+    directory,
+    store,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/2.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 2;
+      ${heldByVersion2}`)
+    const before = rowsOf(old)
+    old.close()
+
+    const workspace = store(path)
+    expect(workspace.projects()).toEqual([{ id: "p", name: "Shop", cwd: "/shop" }])
+    expect(workspace.terminals("s").map(({ handle }) => handle)).toEqual(["moth"])
+    expect(workspace.items("s").map(({ id }) => id)).toEqual(["bar", "undocked", "plan"])
+    expect(workspace.messages().map(({ text }) => text)).toEqual(["hello"])
+    workspace.close()
+
+    const fresh = join(directory(), "fresh.sqlite")
+    new WorkspaceStore(fresh).close()
+    const database = new DatabaseSync(path)
+    const reference = new DatabaseSync(fresh)
+    try {
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(3)
+      expect(rowsOf(database)).toEqual(before)
+      // Its tables are now those a new database gets, constraints and indexes too.
+      expect(schemaOf(database)).toEqual(schemaOf(reference))
+      expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
+      expect(database.prepare("PRAGMA integrity_check").get()).toEqual({ integrity_check: "ok" })
+      database.prepare("UPDATE companion_items SET kind = 'changes' WHERE id = 'bar'").run()
+      expect(() =>
+        database.prepare("UPDATE companion_items SET kind = 'video' WHERE id = 'bar'").run(),
+      ).toThrow(/CHECK/)
+    } finally {
+      database.close()
+      reference.close()
+    }
+  })
+
+  it("sets aside, unchanged, a database whose step forward fails", ({ directory }) => {
+    const path = join(directory(), "workspace.sqlite")
+    // An item whose session is gone, which a database kept with its foreign keys can't hold.
+    const old = new DatabaseSync(path, { enableForeignKeyConstraints: false })
+    old.exec(`${readFileSync(new URL("schemas/2.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 2;
+      ${heldByVersion2}
+      DELETE FROM sessions;`)
+    old.close()
+    expect(() => new WorkspaceStore(path)).toThrow(
+      /earlier build: carrying it from version 2 failed \(FOREIGN KEY constraint failed\)\./,
+    )
+    const database = new DatabaseSync(path)
+    try {
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(2)
+      expect(database.prepare("SELECT count(*) AS count FROM companion_items").get()).toEqual({
+        count: 3,
+      })
+      expect(
+        database.prepare("SELECT sql FROM sqlite_schema WHERE name = 'companion_items'").get()?.sql,
+      ).toContain("'image', 'file', 'page', 'plan')")
+    } finally {
+      database.close()
+    }
+  })
+
+  it("brings back the workspace v0.0.188 set aside, in place of the empty one it started", ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const earlier = setAsideOfVersion2(path, "2026-10-22T07-00-00-000Z")
+    // The person turned transcripts off in the empty one since.
+    const empty = new WorkspaceStore(path)
+    empty.saveSettings({ transcripts: false })
+    empty.close()
+    const held = readFileSync(earlier)
+
+    expect(restoreSetAside(path, new Date("2026-10-22T09:00:00.000Z"))).toBe(earlier)
+    const workspace = new WorkspaceStore(path)
+    try {
+      expect(workspace.projects()).toEqual([{ id: "p", name: "Shop", cwd: "/shop" }])
+      expect(workspace.items("s").map(({ id }) => id)).toEqual(["bar", "undocked", "plan"])
+      expect(workspace.settings().transcripts).toBe(false)
+    } finally {
+      workspace.close()
+    }
+    // The one set aside stays as it was, and the empty one went aside in turn.
+    expect(readFileSync(earlier).equals(held)).toBe(true)
+    expect(existsSync(`${path}.earlier-2026-10-22T09-00-00-000Z`)).toBe(true)
+    expect(existsSync(`${path}.restoring`)).toBe(false)
+    // It now holds its projects, so nothing is brought back again.
+    expect(restoreSetAside(path)).toBeUndefined()
+    // Nor once the person removes them: the newest set aside is now the empty one.
+    const emptied = new WorkspaceStore(path)
+    emptied.removeProject("p")
+    emptied.close()
+    expect(restoreSetAside(path)).toBeUndefined()
+  })
+
+  it("finishes bringing one back where a crash cut the swap short", ({ directory }) => {
+    const path = join(directory(), "workspace.sqlite")
+    setAsideOfVersion2(path, "2026-10-22T07-00-00-000Z")
+    new WorkspaceStore(path).close()
+    expect(restoreSetAside(path, new Date("2026-10-22T09:00:00.000Z"))).toBeDefined()
+    // As a crash after the empty one went aside would leave it: the copy, and no workspace.
+    renameSync(path, `${path}.restoring`)
+    expect(restoreSetAside(path)).toBe(`${path}.restoring`)
+    const workspace = new WorkspaceStore(path)
+    try {
+      expect(workspace.projects().map(({ id }) => id)).toEqual(["p"])
+    } finally {
+      workspace.close()
+    }
+  })
+
+  it("brings back nothing but in place of the empty workspace v0.0.188 started", ({
+    directory,
+  }) => {
+    // No data folder yet, as on a first start.
+    expect(restoreSetAside(join(directory(), "missing", "workspace.sqlite"))).toBeUndefined()
+    // No workspace where one was set aside.
+    const path = join(directory(), "workspace.sqlite")
+    setAsideOfVersion2(path, "2026-10-22T07-00-00-000Z")
+    expect(restoreSetAside(path)).toBeUndefined()
+    expect(existsSync(path)).toBe(false)
+    // A newer build's empty one.
+    const newer = new DatabaseSync(path)
+    newer.exec("CREATE TABLE projects (id TEXT); PRAGMA user_version = 4")
+    newer.close()
+    expect(restoreSetAside(path)).toBeUndefined()
+    const database = new DatabaseSync(path)
+    try {
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(4)
+    } finally {
+      database.close()
+    }
+  })
+
+  it("leaves a workspace set aside where the one in its place holds projects", async ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    setAsideOfVersion2(path, "2026-10-22T07-00-00-000Z")
+    const workspace = new WorkspaceStore(path)
+    await workspace.createProject({ id: "new", name: "Started again", cwd: directory() })
+    workspace.close()
+    expect(restoreSetAside(path)).toBeUndefined()
+    const reopened = new WorkspaceStore(path)
+    try {
+      expect(reopened.projects().map(({ id }) => id)).toEqual(["new"])
+    } finally {
+      reopened.close()
+    }
+  })
+
+  it("brings back only the newest set aside, and only one that carries forward", ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(path).close()
+    // An older version 2 one, then a version 1 one set aside since: neither comes back.
+    setAsideOfVersion2(path, "2026-10-14T07-00-00-000Z")
+    const version1 = new DatabaseSync(`${path}.earlier-2026-10-15T07-00-00-000Z`)
+    version1.exec("CREATE TABLE projects (id TEXT); PRAGMA user_version = 1")
+    version1.close()
+    expect(restoreSetAside(path)).toBeUndefined()
+
+    // A version 2 one whose step doesn't fit it.
+    const unfit = setAsideOfVersion2(path, "2026-10-22T07-00-00-000Z", "DELETE FROM sessions;")
+    const held = readFileSync(unfit)
+    expect(restoreSetAside(path)).toBeUndefined()
+    expect(readFileSync(unfit).equals(held)).toBe(true)
+    expect(existsSync(`${path}.restoring`)).toBe(false)
+    const workspace = new WorkspaceStore(path)
+    try {
+      expect(workspace.projects()).toEqual([])
+    } finally {
+      workspace.close()
+    }
+  })
+
+  it("keeps its schema as recorded for its version, so a change to it comes with a step", ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(path).close()
+    const database = new DatabaseSync(path)
+    try {
+      const version = database.prepare("PRAGMA user_version").get()?.user_version
+      const digest = createHash("sha256")
+        .update(JSON.stringify(schemaOf(database)))
+        .digest("hex")
+      // A change to a table's columns or constraints raises schemaVersion and adds a step
+      // in store.ts's migrations, from schemas/<version before>.sql, which is added for
+      // it; a new table needs neither. Then record the new digest here.
+      expect({ version, digest }).toEqual({
+        version: 3,
+        digest: "361c79af4b7157cd502867c7af0401a72de35cc4c5feaef0fb9aaf295a1ac069",
+      })
+    } finally {
+      database.close()
+    }
+  })
+
   it("refuses a database from before word handles by its schema version, keeping its terminals", ({
     directory,
   }) => {
@@ -339,7 +611,7 @@ describe("workspace metadata", () => {
     `)
     old.close()
     expect(() => new WorkspaceStore(path)).toThrow(
-      /earlier build: its schema is version 1, before 3\./,
+      /earlier build: its schema is version 1, from before Novadeck carried workspaces forward\./,
     )
     const database = new DatabaseSync(path)
     try {

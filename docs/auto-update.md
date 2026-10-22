@@ -362,12 +362,13 @@ does nothing either. On Linux:
     be version-checked, lets the launch carry on; the runner's `WORKSPACE_TOO_NEW` refusal is
     the fallback if that copy had upgraded the data. The runner refuses a database whose
     schema version is higher than its own, or, at its own version, one where no table lacks a
-    column it writes and some table has more, as a newer build can add a column without
-    raising the version. A database of a lower version, or one lacking a column anywhere, is
-    an earlier build's, which the runner sets aside and replaces with a new one; so the version must rise
-    for any change but an added column (an added table, index or constraint goes unseen). A
-    newer build that adds a column and changes another without raising the version is still
-    taken for an earlier build's.
+    column it writes and some table has more. A database of a lower version is carried forward
+    in place, one step per version; the version rises, with a step, for any change to a
+    table's columns or constraints, and a test pins the schema's digest to its version as a
+    reminder. A new table needs neither: it is created where missing. Only a database from
+    before the first step, one whose step doesn't fit it or finds it damaged, or one whose
+    tables differ from its version's is set aside for a new one; any other failure of a
+    step, such as a full disk, fails that start and leaves the database for a later one.
 - A failure, such as a full disk or a folder that cannot be written, is returned with a short
   reason, as is a request while the app is already quitting ("Novadeck is quitting.").
 
