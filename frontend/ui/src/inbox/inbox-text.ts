@@ -178,7 +178,7 @@ export const toneOf = (item: InboxItem): Tone => {
 
 // A permission's or plan's options, as the buttons the sheet offers. Allow is a plain yes;
 // the other yeses are quiet links in their own words, or plain buttons where none is plain;
-// the rest say no, one of which may take words.
+// the rest say no, or send the person's words back, one of which may take words.
 export type Choices = {
   // The plain yes that leads; null where no yes is plain.
   readonly allow: ChatDialogOption | null
@@ -192,6 +192,12 @@ export type Choices = {
 
 const yes = /^(yes|allow|approve)\b/i
 const no = /^(no|deny|reject)\b/i
+// The way back that is only the person's words, as Claude Code's plan field "Tell Claude
+// what to change" (from 2.1.287; before, "No, keep planning") and "Tell it what to
+// change", the label Novadeck's Antigravity adapter gives a review's feedback (Antigravity's
+// screen has no such option): it says no only with words. The agent's name may be more
+// than one word.
+const change = /^tell .+? what to change\b/i
 const standing =
   /don't ask again|do not ask again|always|allow all|all edits|this session|for session|auto-accept/i
 
@@ -210,12 +216,27 @@ const bare = (label: string): string => label.trim().replace(keyHint, "")
 // Whether a yes sets something standing, by its own words: what its quiet link confirms.
 export const setsStanding = (option: ChatDialogOption): boolean => standing.test(option.label)
 
+// Whether a way back must carry the person's words: it says no only with them.
+export const needsWords = (option: ChatDialogOption): boolean => change.test(bare(option.label))
+
+// Why an agent won't take these words in a field, said before they're sent; null where it
+// will. Antigravity's feedback is typed into its empty prompt box, where words that start
+// with /, ? or ! would run a command, open help or a shell, and an @ opens a file picker.
+export const refusedWords = (
+  agent: AgentName,
+  option: ChatDialogOption,
+  text: string,
+): string | null =>
+  agent === "agy" && option.text === "field" && /^\s*[/?!]|@/.test(text)
+    ? `${agentName(agent)} can't take words that start with /, ? or !, or that have an @.`
+    : null
+
 // Null where nothing says yes: the person answers in the terminal. A bare yes leads, else
 // a known one. With one leading, every other yes is a quiet link in its own words, so
 // nothing that may change more than this answer ("bypass permissions") sits beside it as a
 // button; with none leading, the yeses are plain buttons in their own words (`unsure`),
 // none of them primary. Nothing is guessed at. A yes is never offered as a no; where
-// nothing says no, there is no Deny.
+// nothing says no, nor sends words back, there is no Deny.
 export const choicesOf = (options: readonly ChatDialogOption[]): Choices | null => {
   const yeses = options.filter((each) => yes.test(bare(each.label)))
   if (yeses.length === 0) return null
@@ -224,7 +245,10 @@ export const choicesOf = (options: readonly ChatDialogOption[]): Choices | null 
     yeses.find((each) => knownYes.test(bare(each.label))) ??
     null
   const others = yeses.filter((each) => each !== allow)
-  const nos = options.filter((each) => no.test(bare(each.label)))
+  // A way back that is only words counts where it takes them.
+  const nos = options.filter(
+    (each) => no.test(bare(each.label)) || (each.text !== null && needsWords(each)),
+  )
   return {
     allow,
     standing: allow ? others : others.filter((each) => standing.test(each.label)),
