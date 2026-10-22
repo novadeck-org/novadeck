@@ -37,12 +37,14 @@ export const announcement = ({ version, highlights }: Notes): string =>
   `New in Novadeck ${version}: ${highlights.map(({ title }) => title).join(", ")}`
 
 // The card that tells what is new after an update, in the corner the download's bar and
-// the install notices use, as a `.floating` surface: a label, each highlight as a title
-// with its line under it, led by the highlight's icon (a sparkle when the release names
-// none or one this build doesn't know), nothing else. It is a plain panel, not a dialog or
-// a layer: it never takes focus or keys by itself, so typing in a terminal goes on, and
-// every control on it is a button the Tab key reaches. The × dismisses it for good. Escape, from inside it, only gives
-// focus back to the terminal. It shares the corner with the other notices by waiting
+// the install notices use, as a `.floating` surface: a strip of label tape across its top
+// edge naming the version, the version it is new since when the host knows it, and each
+// highlight as a title with its line under it, led by the highlight's icon on a tile (a
+// sparkle when the release names none or one this build doesn't know), nothing else. It
+// is a plain panel, not a dialog or a layer: it never takes focus or keys by itself, so
+// typing in a terminal goes on, and every control on it is a button the Tab key reaches.
+// The × dismisses it for good. Escape, from inside it, only gives focus back to the
+// terminal. It shares the corner with the other notices by waiting
 // (`blocked`, or Zen mode, `hidden`) while one is open, and for the download's bar, which
 // has the corner from its start until it fades (WorkspaceFooter.tsx): the card can stay for
 // weeks, a download must not be hidden by it. The text is the host's and is shown as text:
@@ -129,10 +131,15 @@ export const WhatsNew = ({
           }}
         >
           <KeepFocus lost={lost} selector=".whats-new" />
-          <p className="update-progress-head">
-            <span id={titleId} className="whats-new-label">
-              New in Novadeck {card.notes.version}
+          <p className="whats-new-head">
+            {/* The tape shows "New in" and the version; a screen reader hears the app's name too. */}
+            <span id={titleId} className="whats-new-tape">
+              New in <span className="sr-only">Novadeck </span>
+              {card.notes.version}
             </span>
+            {card.notes.from !== undefined && (
+              <span className="whats-new-from">From {card.notes.from}</span>
+            )}
             <button
               type="button"
               className="icon-button small update-card-close"
@@ -158,7 +165,7 @@ export const WhatsNew = ({
               return (
                 <li key={key}>
                   <span className="whats-new-icon">
-                    <Icon size={14} strokeWidth={1.6} aria-hidden="true" />
+                    <Icon size={15} strokeWidth={1.8} aria-hidden="true" />
                   </span>
                   <span className="whats-new-text">
                     <b className="whats-new-title">{title}</b>

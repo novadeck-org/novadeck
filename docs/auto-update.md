@@ -607,7 +607,9 @@ at most four, a highlight two releases share told once. A promotion's notes tell
 the stable release before it, so a prerelease older than the newest promotion among them is left
 out. The list is read newest first, a hundred to a page, until it reaches `whatsNewFrom`, three
 pages at most; a list that can't be read, or is not one, fails the read as the release's own
-would.
+would. The card names `whatsNewFrom` too, as the version its highlights are new since ("From
+0.0.183" beside its ×), and names none when the launch doesn't know it, as on an install whose
+earlier builds never recorded the version they ran.
 
 Each highlight may name an icon, a Lucide name from the fixed `highlightIcons` set in
 `contract/protocol/src/release-notes.ts`, which the model picks from when it writes the notes.

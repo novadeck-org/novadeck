@@ -68,26 +68,31 @@ describe("the what's-new card", () => {
         expect(svg.getAttribute("aria-hidden")).toBe("true")
     })
 
+    it("names the version it is new since beside the ×, when the host knows it", async () => {
+      await openWorkspace("/?update=whatsNew")
+      await expect.element(card().getByText("From 0.0.79")).toBeVisible()
+    })
+
     it("leads a highlight that names no icon with a sparkle, so the rows line up", async () => {
       await openWorkspace("/?update=whatsNewMarkup")
       await expect.element(card()).toBeVisible()
       expect(iconsOf()).toEqual(["lucide-sparkles"])
+      // This host doesn't know the version updated from, so the card names none.
+      expect(card().element().textContent).not.toMatch(/From/)
     })
 
-    it("sets each title's first line level with its icon, in a column of its own", async () => {
+    it("sets each icon's tile level with its title's top, in a column of its own", async () => {
       await openWorkspace("/?update=whatsNew")
       await expect.element(card()).toBeVisible()
       const rows = [...card().element().querySelectorAll(".whats-new-list li")]
       const lefts = rows.map((row) => row.querySelector("svg")!.getBoundingClientRect().left)
       expect(new Set(lefts).size).toBe(1)
       for (const row of rows) {
-        const icon = row.querySelector("svg")!.getBoundingClientRect()
-        const heading = row.querySelector(".whats-new-title")!
-        const title = heading.getBoundingClientRect()
-        const lineHeight = Number.parseFloat(getComputedStyle(heading).lineHeight)
-        expect(icon.right).toBeLessThanOrEqual(title.left)
-        // A title of two lines still has its icon beside the first.
-        expect(Math.abs(icon.top + icon.height / 2 - (title.top + lineHeight / 2))).toBeLessThan(2)
+        const tile = row.querySelector(".whats-new-icon")!.getBoundingClientRect()
+        const title = row.querySelector(".whats-new-title")!.getBoundingClientRect()
+        expect(tile.right).toBeLessThanOrEqual(title.left)
+        // A title of two lines still has its tile beside the first.
+        expect(Math.abs(tile.top - title.top)).toBeLessThan(2)
       }
     })
 

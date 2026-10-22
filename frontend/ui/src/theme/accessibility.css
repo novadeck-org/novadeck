@@ -52,4 +52,10 @@
     outline: 1px solid Highlight;
     outline-offset: -1px;
   }
+  /* The what's-new card's tape (region.css): with its tint gone, an edge still shows where
+     it is, whole, so not torn. */
+  .whats-new-tape {
+    border: 1px solid CanvasText;
+    clip-path: none;
+  }
 }
