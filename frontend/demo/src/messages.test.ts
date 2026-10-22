@@ -1,10 +1,10 @@
 import { companionKeyId } from "@novadeck/core/items"
 import { mailBadge } from "@novadeck/core/messages"
-import { vi } from "vitest"
+import { afterEach, vi } from "vitest"
 
 import { createDemoInbox } from "./inbox"
 import { demoInboxIds, demoInboxItems } from "./inbox-fixtures"
-import { checkoutMailboxes, createDemoMessages } from "./messages"
+import { checkoutMailboxes, createDemoMessages, rungMs } from "./messages"
 import { demoTerminalId } from "./samples"
 import { describe, expect, it } from "./test"
 
@@ -51,7 +51,6 @@ describe("the demo's messages", () => {
     messages.pause(false)
     vi.runAllTimers()
     expect(badge()).toEqual({ count: 2, kind: "waiting" })
-    vi.useRealTimers()
   })
 
   it("let a released thread go on, for both its terminals", () => {
@@ -201,4 +200,140 @@ it("marks told history read when updates are read together", () => {
     mail.threads.flatMap((thread) => thread.messages),
   )
   expect(history.find((message) => message.id === demoInboxIds.told)?.inboxState).toBe("read")
+})
+
+describe("the demo's sent messages", () => {
+  afterEach(() => {})
+
+  const hop = (messages: ReturnType<typeof demo>, from: string, to: string) =>
+    Object.values(messages.state.getSnapshot().terminals)
+      .flatMap((mail) => mail.threads)
+      .flatMap((thread) => thread.messages)
+      .filter((message) => message.from === from && message.to === to)
+      .map((message) => message.state)
+
+  // Sends moth's message to crow, two agents of the first session.
+  const sent = (messages: ReturnType<typeof demo>, text = "Hello", delivered?: () => void) =>
+    messages.send(elsewhere, "moth", "crow", text, delivered)
+
+  it("queues a message, then delivers it once the doorbell rang, and calls back", async () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    const delivered = vi.fn<() => void>()
+    sent(messages, "Hello", delivered)
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("queued")
+    expect(delivered).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(rungMs)
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("delivered")
+    expect(delivered).toHaveBeenCalledOnce()
+  })
+
+  it("delivers in the order sent", async () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    const order: string[] = []
+    sent(messages, "one", () => order.push("one"))
+    sent(messages, "two", () => order.push("two"))
+    await vi.advanceTimersByTimeAsync(rungMs)
+    expect(order).toEqual(["one", "two"])
+  })
+
+  it("holds a message while paused, and delivers it once resumed", async () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    messages.pause(true)
+    await vi.advanceTimersByTimeAsync(200)
+    const delivered = vi.fn<() => void>()
+    sent(messages, "Hello", delivered)
+    await vi.advanceTimersByTimeAsync(rungMs * 3)
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("held")
+    expect(delivered).not.toHaveBeenCalled()
+    messages.pause(false)
+    await vi.advanceTimersByTimeAsync(200)
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("delivered")
+    expect(delivered).toHaveBeenCalledOnce()
+  })
+
+  it("waits for a recipient the doorbell can't ring, and delivers once it can", async () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    const crow = { ...elsewhere, terminalId: demoTerminalId(elsewhere, 4) }
+    messages.waits!(crow, "working")
+    const delivered = vi.fn<() => void>()
+    sent(messages, "Hello", delivered)
+    await vi.advanceTimersByTimeAsync(rungMs * 3)
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("queued")
+    expect(delivered).not.toHaveBeenCalled()
+    messages.waits!(crow, null)
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("delivered")
+    expect(delivered).toHaveBeenCalledOnce()
+  })
+
+  it("never delivers a message its thread's stop dropped", async () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    const delivered = vi.fn<() => void>()
+    sent(messages, "Hello", delivered)
+    messages.stop("t-crow-moth")
+    await vi.advanceTimersByTimeAsync(rungMs * 3)
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("gone")
+    expect(delivered).not.toHaveBeenCalled()
+  })
+
+  it("holds a message past the hops its thread is allowed, until the person releases it", async () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    const delivered = vi.fn<() => void>()
+    for (let index = 0; index < 12; index += 1) sent(messages, `Round ${index}`)
+    await vi.advanceTimersByTimeAsync(rungMs)
+    sent(messages, "One too many", delivered)
+    await vi.advanceTimersByTimeAsync(rungMs * 3)
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("held")
+    expect(delivered).not.toHaveBeenCalled()
+    messages.release("t-crow-moth")
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("delivered")
+    expect(delivered).toHaveBeenCalledOnce()
+  })
+
+  it("joins a seeded thread between the pair, and holds to its own hops", async () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    // The first session's moth and crow already have `t-review`, four messages in.
+    messages.send(storefront, "crow", "moth", "Thanks, looks right now.")
+    const thread = () =>
+      Object.values(messages.state.getSnapshot().terminals)
+        .flatMap((mail) => mail.threads)
+        .find((each) => each.id === "t-review")!
+    expect(thread().messages.at(-1)).toMatchObject({ hop: 5, state: "queued" })
+    expect(thread().hops).toBe(5)
+    // No second thread opened between the pair.
+    const ids = Object.values(messages.state.getSnapshot().terminals)
+      .flatMap((mail) => mail.threads)
+      .map((each) => each.id)
+    expect(ids).not.toContain("t-crow-moth")
+    await vi.advanceTimersByTimeAsync(rungMs)
+    expect(thread().messages.at(-1)).toMatchObject({ state: "delivered" })
+  })
+
+  it("tells the sender, by its callback, when a stop drops its message, and refuses later sends", async () => {
+    const messages = demo()
+    const stopped = vi.fn<() => void>()
+    const delivered = vi.fn<() => void>()
+    expect(messages.send(elsewhere, "moth", "crow", "Hello", delivered, stopped)).toBe(true)
+    messages.stop("t-crow-moth")
+    expect(stopped).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(rungMs * 3)
+    expect(delivered).not.toHaveBeenCalled()
+    const all = () =>
+      Object.values(messages.state.getSnapshot().terminals)
+        .flatMap((mail) => mail.threads)
+        .filter((thread) => thread.id === "t-crow-moth")
+        .flatMap((thread) => thread.messages)
+    // The runner adds nothing to the thread: the message is gone, and none is the person's.
+    expect(all().map((message) => message.state)).toEqual(["gone", "gone"])
+    expect(all().some((message) => message.from === "you")).toBe(false)
+    // Either end's later send on the stopped thread is refused, and queues nothing.
+    expect(messages.send(elsewhere, "crow", "moth", "Hello again")).toBe(false)
+    expect(all()).toHaveLength(2)
+  })
 })

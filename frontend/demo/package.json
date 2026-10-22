@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./agent-link": "./src/agent-link.ts",
+    "./babcia": "./src/babcia.ts",
     "./content": "./src/content.ts",
     "./inbox": "./src/inbox.ts",
     "./inbox-fixtures": "./src/inbox-fixtures.ts",

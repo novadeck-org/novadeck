@@ -29,8 +29,10 @@ const connectionTone = (connection: BackendConnectionState) =>
   connection === "connected" ? undefined : connection === "reconnecting" ? "warning" : "danger"
 
 // The variants the header switches between; the welcome one is the Welcome dialog's, and
-// Chirp's is a one-off for a video, opened with `?demo=chirp`.
-const variantItems = demoVariants.filter((variant) => variant !== "welcome" && variant !== "chirp")
+// Chirp's and Babcia's are one-offs for videos, opened with `?demo=chirp` and `?demo=babcia`.
+const variantItems = demoVariants.filter(
+  (variant) => variant !== "welcome" && variant !== "chirp" && variant !== "babcia",
+)
 
 // The groups opened in this tab, kept across the demo's boots, which remount the panel.
 const openedKey = "novadeck.debug-panel.opened"
