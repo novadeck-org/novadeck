@@ -1234,7 +1234,7 @@ has no direct React or package imports, though
 routing still loads React Router at runtime: it builds on the core,
 `interaction/keymap.ts`, the UI store, routing, selectors,
 the Canvas handle type in `layouts/canvas/types.ts`, and the pure state modules
-of `shell/` and `terminals/` (unread finishes among them), the companion panes' store and the chat's store among them. Vendor
+of `shell/` and `terminals/` (unread finishes among them), the item store and the chat's store among them. Vendor
 libraries stay in their adapters: XYFlow in `layouts/canvas/`, React Grid Layout
 in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
 `frontend/toolkit`, React Router in `app/` and `shell/`, and React DOM in

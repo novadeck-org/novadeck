@@ -38,7 +38,7 @@ export type PlanPresentation = "split" | "attached"
 export const presentationOf = (view: ViewMode): PlanPresentation =>
   view === "canvas" ? "attached" : "split"
 
-export type PaneState = {
+export type ItemStoreState = {
   // Each plan once its first version came, by its item.
   readonly plans: Readonly<Record<ItemId, PlanDoc>>
   // What each item held when it last reported, a plan's too.
@@ -47,7 +47,7 @@ export type PaneState = {
   readonly revealed: Readonly<Record<ItemId, true>>
 }
 
-const emptyState: PaneState = { plans: {}, content: {}, revealed: {} }
+const emptyState: ItemStoreState = { plans: {}, content: {}, revealed: {} }
 
 // What can be done with a plan, apart from showing it.
 export type PlanActions = {
@@ -67,7 +67,7 @@ export type PlanActions = {
 }
 
 export type ItemStore = {
-  readonly store: Store<PaneState>
+  readonly store: Store<ItemStoreState>
   // Follows an item while something shows it; returns the release.
   readonly watch: (target: WorkspaceTarget, itemId: ItemId) => () => void
   // The person asked to see an item that may hold secrets.
@@ -100,7 +100,7 @@ type Followed = {
 type Session = {
   readonly companions: Items
   readonly workspace: WorkspaceStore
-  readonly panes: MutableStore<PaneState>
+  readonly store: MutableStore<ItemStoreState>
   readonly followed: Map<ItemId, Followed>
   // Per plan, the text of the save under way, and the one waiting for typing to pause.
   readonly saving: Map<ItemId, string>
@@ -118,7 +118,7 @@ type Session = {
 }
 
 const planIn = (session: Session, id: ItemId): PlanDoc | undefined =>
-  session.panes.getSnapshot().plans[id]
+  session.store.getSnapshot().plans[id]
 
 // Changes a plan, if the pane holds it. The changed plan, or undefined when nothing changed.
 const withPlan = (
@@ -127,7 +127,7 @@ const withPlan = (
   change: (plan: PlanDoc) => PlanDoc,
 ): PlanDoc | undefined => {
   let changed: PlanDoc | undefined
-  session.panes.update((state) => {
+  session.store.update((state) => {
     const plan = state.plans[id]
     if (!plan) return state
     const next = change(plan)
@@ -197,7 +197,7 @@ const persist = (session: Session, target: WorkspaceTarget, id: ItemId, manual =
     stand({ unsaved: false, blocked: null, stalled: false })
     return
   }
-  const content = session.panes.getSnapshot().content[id]
+  const content = session.store.getSnapshot().content[id]
   const gone = content?.state === "unavailable" && content.reason === "gone"
   if (!manual && (plan.blocked || plan.stalled || gone || session.backingOff.has(id))) return
   const sent = plan.text
@@ -223,7 +223,7 @@ const persist = (session: Session, target: WorkspaceTarget, id: ItemId, manual =
   const refused = (reason: PlanUnwritableReason): void => {
     // A file that is gone while the stream shows it, or a rewrite of it waiting, was put
     // back meanwhile: that's a failure that may pass, not a verdict.
-    const shown = session.panes.getSnapshot().content[id]?.state === "ready"
+    const shown = session.store.getSnapshot().content[id]?.state === "ready"
     if (reason === "gone" && (shown || session.pending.has(id))) return failed()
     if (!settleAttempt()) return
     session.failures.delete(id)
@@ -358,7 +358,7 @@ const received = (
 ): void => {
   const version = planVersionOf(content)
   const known = planIn(session, id) !== undefined
-  session.panes.update((state) => {
+  session.store.update((state) => {
     const first = version && !known
     if (state.content[id] === content && !first) return state
     return {
@@ -388,7 +388,7 @@ const follow = (
   id: ItemId,
   from: Pick<Followed, "watchers" | "plan">,
 ): Followed => {
-  const reveal = Boolean(session.panes.getSnapshot().revealed[id])
+  const reveal = Boolean(session.store.getSnapshot().revealed[id])
   const entry: Followed = {
     target,
     reveal,
@@ -428,7 +428,7 @@ const unfollow = (session: Session, id: ItemId): void => {
 // memory. It loads again when something shows it.
 const release = (session: Session, id: ItemId): void => {
   unfollow(session, id)
-  session.panes.update((state) => {
+  session.store.update((state) => {
     if (!(id in state.content)) return state
     const { [id]: _gone, ...content } = state.content
     return { ...state, content }
@@ -504,7 +504,7 @@ const reconcile = (session: Session, workspace: Workspace): void => {
     if (entry) entry.plan = true
     else follow(session, target, id, { watchers: 0, plan: true })
   }
-  session.panes.update((state) => {
+  session.store.update((state) => {
     const next = {
       plans: keep(present, state.plans),
       content: keep(present, state.content),
@@ -558,7 +558,7 @@ export const createItemStore = ({
   const session: Session = {
     companions,
     workspace,
-    panes: createStore<PaneState>(emptyState),
+    store: createStore<ItemStoreState>(emptyState),
     followed: new Map(),
     saving: new Map(),
     waiting: new Map(),
@@ -582,7 +582,7 @@ export const createItemStore = ({
     }
   }
   const reveal = (id: ItemId): void => {
-    session.panes.update((state) =>
+    session.store.update((state) =>
       state.revealed[id] ? state : { ...state, revealed: { ...state.revealed, [id]: true } },
     )
     // The same entry follows it again, revealed, so the places showing it still let go
@@ -678,7 +678,7 @@ export const createItemStore = ({
   const trouble: ItemStore["trouble"] = (target, itemId, shown, troubles) =>
     session.companions.trouble(target, itemId, shown, troubles)
   return {
-    store: session.panes,
+    store: session.store,
     watch,
     reveal,
     plan,
