@@ -26,6 +26,7 @@ import {
   nameOf,
   openWorkspace,
   press,
+  recordAppearance,
   terminal,
   terminalTab,
   view,
@@ -415,20 +416,24 @@ describe("Grid view's team wire", () => {
   })
 
   it("plays a team's pulse again each time one of its members is selected after another terminal", async () => {
+    const pulse = ".grid-team-wire-shape[data-pulsing]"
+    const pulsing = () => gridView().element().querySelector(pulse) !== null
     await openMessagesDemo()
     await terminalTab("Checkout implementation").click()
+    // The pulse is short, and a slow machine can spend it before a first look: it is noted from
+    // before the view is chosen, and from before each selection after.
+    const played = recordAppearance(pulse)
     await chooseView("Grid")
-    const pulsing = () =>
-      gridView().element().querySelector(".grid-team-wire-shape[data-pulsing]") !== null
-    await expect.poll(pulsing).toBe(true)
+    await expect.poll(played).toBe(true)
     await expect.poll(pulsing, { timeout: 4000 }).toBe(false)
     // Another terminal leaves the wire as it is, without a pulse.
     await terminal("Dev server").click({ position: { x: 150, y: 150 } })
     await expectSelected("Dev server")
     await expectStaysTrue(() => !pulsing(), "no pulse while Dev server is selected")
     // Back to the same member: the pulse plays again.
+    const again = recordAppearance(pulse)
     await terminal("Checkout implementation").click({ position: { x: 150, y: 150 } })
     await expectSelected("Checkout implementation")
-    await expect.poll(pulsing).toBe(true)
+    await expect.poll(again).toBe(true)
   })
 })
