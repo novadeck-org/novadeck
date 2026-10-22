@@ -1,9 +1,9 @@
-import { agentWorking } from "@novadeck/core/agent-finish"
 import { noInbox } from "@novadeck/core/inbox"
 import { useMemo, type ReactNode } from "react"
 
 import { InboxProvider } from "../inbox/InboxProvider"
 import { InboxSheet } from "../inbox/InboxSheet"
+import { anyAgentWorking } from "../projects/project-status"
 import { useDesktop } from "../shell/desktop"
 import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
 
@@ -25,11 +25,7 @@ export const InboxHost = ({
   const desktop = useDesktop()
   const inbox = backend.inbox ?? noInbox
   // Whether an agent is at work in any project, for the empty Inbox to say.
-  const working = useWorkspaceState((workspace) =>
-    workspace.projects.some(({ history }) =>
-      history.some(({ state }) => state.roster.terminals.some(agentWorking)),
-    ),
-  )
+  const working = useWorkspaceState((workspace) => anyAgentWorking(workspace.projects))
   const { hideSidebar, toggleSidebar, reveal } = commands
   const phone = useMemo(
     () => (desktop ? undefined : { hideList: hideSidebar, showList: () => toggleSidebar("inbox") }),
