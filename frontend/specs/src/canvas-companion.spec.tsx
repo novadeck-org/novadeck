@@ -117,4 +117,23 @@ describe("Canvas with a sheet an agent opens beside a window that is not on top"
     expect(selected("Seasonal specials")).toBe(false)
     expect(selected("Menu page")).toBe(true)
   })
+
+  it("raises the window of a sheet already open when Canvas mounts", async () => {
+    await openWorkspace("/projects/bar-mleczny/sessions/initial/grid?demo=babcia")
+    await expect.element(terminal("Seasonal specials")).toBeVisible()
+    await terminalTab("Menu page").click()
+    agentShowsPage()
+    await expect.element(companionPane("Seasonal specials")).toBeVisible()
+
+    await chooseView("Canvas")
+    await layoutSettled()
+
+    const node = (name: string): HTMLElement =>
+      terminal(name).element().closest<HTMLElement>(".react-flow__node")!
+    const layer = (name: string): number => Number(getComputedStyle(node(name)).zIndex)
+    const others = ["Menu page", "Opening hours", "Photo gallery", "Order form"]
+    await expect
+      .poll(() => others.every((name) => layer("Seasonal specials") > layer(name)))
+      .toBe(true)
+  })
 })
