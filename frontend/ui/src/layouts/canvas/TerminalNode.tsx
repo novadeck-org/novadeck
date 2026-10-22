@@ -1,4 +1,4 @@
-import { AttachedHost } from "@novadeck/companion/TerminalCompanion"
+import { AttachedHost } from "@novadeck/items/TerminalCompanion"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { NodeResizeControl, type NodeProps } from "@xyflow/react"
 import {

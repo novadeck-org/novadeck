@@ -1,8 +1,6 @@
 import { ChatView } from "@novadeck/chat/ChatView"
 import { chatDraftOf, chatReplyOf, chatSendOf, chatShown } from "@novadeck/chat/state"
 import { useChat } from "@novadeck/chat/use-chat"
-import { TerminalCompanion } from "@novadeck/companion/TerminalCompanion"
-import { UndockedWindow } from "@novadeck/companion/UndockedWindow"
 import { agentStats } from "@novadeck/core/agent-usage"
 import {
   handleNames,
@@ -12,6 +10,8 @@ import {
 } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "@novadeck/core/types"
+import { TerminalCompanion } from "@novadeck/items/TerminalCompanion"
+import { UndockedWindow } from "@novadeck/items/UndockedWindow"
 import { memo, useCallback, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
@@ -127,7 +127,7 @@ const WorkspaceWindow = memo(
     readonly window: CompanionWindowMeta
     readonly controls: TerminalLayoutControls
   }): React.JSX.Element => {
-    const { panes } = useWorkspaceServices()
+    const { itemStore } = useWorkspaceServices()
     const frame = useWindowFrame(window, controls)
     const target = useWorkspaceState(currentTarget, sameTarget)
     const item = useWorkspaceState((workspace) =>
@@ -137,7 +137,7 @@ const WorkspaceWindow = memo(
     // What it shows, where a terminal's content would be.
     return (
       <WindowShell {...frame} icon={<Icon size={14} strokeWidth={1.5} />}>
-        {panes && <UndockedWindow panes={panes} target={target} item={item} />}
+        {itemStore && <UndockedWindow itemStore={itemStore} target={target} item={item} />}
       </WindowShell>
     )
   },
@@ -174,7 +174,7 @@ export const WorkspaceTerminal = memo(
     readonly controls: TerminalLayoutControls
   }): React.JSX.Element => {
     const { onReveal, onScreen = true } = controls
-    const { backend, commands, panes, navigation, chat } = useWorkspaceServices()
+    const { backend, commands, itemStore, navigation, chat } = useWorkspaceServices()
     const { setKeyboardFocus } = commands
     const dictation = useContext(DictationContext)
     const terminalId = terminal.id
@@ -319,9 +319,9 @@ export const WorkspaceTerminal = memo(
       const content = withChat(surface)
       return (
         <WindowShell {...frame}>
-          {panes ? (
+          {itemStore ? (
             <TerminalCompanion
-              panes={panes}
+              itemStore={itemStore}
               messages={backend.messages}
               peerName={(handle) => names[handle]}
               companionKey={terminalKey}

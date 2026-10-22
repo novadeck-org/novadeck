@@ -18,7 +18,7 @@ const places = [
   ["backend/runner/", "runner-adapter"],
   ["core/", "core"],
   ["ui-toolkit/", "toolkit"],
-  ["terminals/companion/", "companion"],
+  ["terminals/companion/", "items"],
   ["terminals/chat/", "chat"],
 ].map(([prefix, name]) => ({ prefix: prefix!, dir: join(src, "..", "..", name!, "src") }))
 const stylesheets = [

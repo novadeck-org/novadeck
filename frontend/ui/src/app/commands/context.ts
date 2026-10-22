@@ -1,10 +1,10 @@
 import type { Chat } from "@novadeck/chat/state"
-import type { Panes } from "@novadeck/companion/state"
 import type { Rect } from "@novadeck/core/layout/spatial"
 import type { Murmur } from "@novadeck/core/murmur"
 import type { Backend } from "@novadeck/core/port"
 import type { WorkspaceStore } from "@novadeck/core/store"
 import type { SidebarPanel } from "@novadeck/core/types"
+import type { ItemStore } from "@novadeck/items/state"
 
 import type { CanvasHandle } from "../../layouts/canvas/types"
 import type { Dictation } from "../../voice/dictation-control"
@@ -61,8 +61,8 @@ export type CommandContext = {
   readonly conversations?: Backend["conversations"] | undefined
   // Where the backend's companions come from; `attach` puts a file on a terminal's bar.
   readonly companions?: Backend["companions"] | undefined
-  // Every terminal's companion pane, where the backend has companions.
-  readonly panes?: Panes | undefined
+  // The item store, where the backend has companions.
+  readonly itemStore?: ItemStore | undefined
   readonly canvas: { readonly current: CanvasHandle | null }
   // Murmur, where the backend has it: the one-time offer is counted with it.
   readonly murmur?: Pick<Murmur, "noteOffered"> | undefined

@@ -1,4 +1,4 @@
-import { companionKeyId, type CompanionKey } from "@novadeck/core/companion"
+import { companionKeyId, type CompanionKey } from "@novadeck/core/items"
 import { noMail, type MailState, type Messages, type TerminalMail } from "@novadeck/core/messages"
 import { createStore } from "@novadeck/core/store"
 import type { TerminalMessages } from "@novadeck/protocol"

@@ -1,4 +1,4 @@
-import { notePattern } from "@novadeck/core/companion"
+import { notePattern } from "@novadeck/core/items"
 
 // How a sample agent revises its plan: edits to the file as it finds it, as an agent
 // rewrites the lines it means to change and leaves the rest, the user's edits included.

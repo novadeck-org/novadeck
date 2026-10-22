@@ -7,7 +7,7 @@ import {
   pageTroublesPerCall,
   PlanUnwritableError,
   type ItemContent,
-} from "@novadeck/core/companion"
+} from "@novadeck/core/items"
 import {
   maxPageTroubles,
   pageTrouble,
@@ -25,7 +25,7 @@ import { startTestRunner } from "./testing"
 const target = { projectId: "p", workspaceSessionId: "s" }
 const hero = itemIdOf("hero")
 
-// Companions over a runner whose content streams the test feeds.
+// Items over a runner whose content streams the test feeds.
 const following = ({ livePages = false } = {}) => {
   const streams = new Map<string, ReturnType<typeof channel<RunnerContent>>>()
   const asked: { readonly itemId: string; readonly reveal: boolean | undefined }[] = []

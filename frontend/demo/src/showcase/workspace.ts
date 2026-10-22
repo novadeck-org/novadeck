@@ -1,4 +1,4 @@
-import type { CompanionItem } from "@novadeck/core/companion"
+import type { Item } from "@novadeck/core/items"
 import type { Workspace } from "@novadeck/core/types"
 
 // What a showcase reads of the workspace it reports to.
@@ -11,5 +11,5 @@ export const directoryOf = (
   workspace?.projects.find((project) => project.id === key.projectId)?.directory
 
 // Every item the workspace's sessions hold.
-export const itemsOf = (workspace: Workspace): readonly CompanionItem[] =>
+export const itemsOf = (workspace: Workspace): readonly Item[] =>
   workspace.projects.flatMap((project) => project.history.flatMap((each) => each.state.items))

@@ -1,5 +1,5 @@
-import { itemIdOf } from "./companion"
 import { messagesKey } from "./companion-bar"
+import { itemIdOf } from "./items"
 import { initialGridLayouts } from "./layout/grid-placement"
 import { workspaceFromSeed, WorkspaceSeedError, type WorkspaceSeed, viewOf } from "./seed"
 import { context, describe, expect, it } from "./test"

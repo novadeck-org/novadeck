@@ -1,5 +1,5 @@
-import type { CompanionItem, ItemId } from "./companion"
 import type { Bar } from "./companion-bar"
+import type { Item, ItemId } from "./items"
 
 // What the person chose for the page: a scheme, or whatever the system uses.
 export type SchemePreference = "system" | "light" | "dark"
@@ -212,7 +212,7 @@ export type WorkspaceState = {
   readonly windowedView: WindowedView
   readonly selected: string
   // What agents showed and the person attached, as the backend reports them.
-  readonly items: readonly CompanionItem[]
+  readonly items: readonly Item[]
   // Each terminal's bar as the person arranged it, by terminal id.
   readonly bars: Readonly<Record<string, Bar>>
   // Items shown again or anew since the person last looked; never saved.

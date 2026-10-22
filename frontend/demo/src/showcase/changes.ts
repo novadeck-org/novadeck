@@ -1,4 +1,4 @@
-import type { ChangedFile, ChangesContent } from "@novadeck/core/companion"
+import type { ChangedFile, ChangesContent } from "@novadeck/core/items"
 
 import { ready, type SampleArtifact } from "./artifacts"
 

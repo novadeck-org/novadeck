@@ -1,4 +1,3 @@
-import { itemIdOf } from "./companion"
 import {
   arrive,
   arriveLast,
@@ -16,6 +15,7 @@ import {
   type Bar,
   type BarKey,
 } from "./companion-bar"
+import { itemIdOf } from "./items"
 import { context, describe, expect, it } from "./test"
 
 const plan = itemIdOf("plan")

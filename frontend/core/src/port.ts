@@ -1,7 +1,7 @@
-import type { Companions } from "./companion"
 import type { Conversations } from "./conversation"
 import type { AgentName } from "./harnesses"
 import type { Inbox } from "./inbox"
+import type { Companions } from "./items"
 import type { Messages } from "./messages"
 import type { Murmur } from "./murmur"
 import type { PortableState } from "./portable"

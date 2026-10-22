@@ -1,4 +1,4 @@
-import { companionKeyId } from "@novadeck/core/companion"
+import { companionKeyId } from "@novadeck/core/items"
 import { gridColumns } from "@novadeck/core/layout/grid-placement"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
 import { viewOf } from "@novadeck/core/seed"

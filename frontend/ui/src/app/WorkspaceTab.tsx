@@ -1,9 +1,9 @@
-import { barMembers, composeBar } from "@novadeck/companion/bar"
-import { useHasMail, useMailBadge } from "@novadeck/companion/mail"
-import { TabKinds } from "@novadeck/companion/TabKinds"
 import { teamRole, teamText } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import type { Tile } from "@novadeck/core/types"
+import { barMembers, composeBar } from "@novadeck/items/bar"
+import { useHasMail, useMailBadge } from "@novadeck/items/mail"
+import { TabKinds } from "@novadeck/items/TabKinds"
 import { memo, useMemo } from "react"
 
 import { terminalProfile, windowProfile } from "../terminals/processes/profiles"

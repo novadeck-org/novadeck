@@ -1,4 +1,4 @@
-import { companionKeyId } from "@novadeck/core/companion"
+import { companionKeyId } from "@novadeck/core/items"
 import type { TerminalMessages } from "@novadeck/protocol"
 import { vi } from "vitest"
 

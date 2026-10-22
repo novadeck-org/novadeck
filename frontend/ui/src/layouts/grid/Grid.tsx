@@ -1,5 +1,4 @@
 import "./grid.css"
-import { useDrag, useDragSession } from "@novadeck/companion/drag-session"
 import type { Team } from "@novadeck/core/derivations"
 import { gridPresetWidth, gridTileHeight } from "@novadeck/core/layout/terminal-size"
 import { dropOnGrid, type WindowPlace } from "@novadeck/core/layout/window-place"
@@ -10,6 +9,7 @@ import type {
   GridLayouts,
   GridRestoreWidths,
 } from "@novadeck/core/types"
+import { useDrag, useDragSession } from "@novadeck/items/drag-session"
 import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
 import { Plus } from "lucide-react"
 import {

@@ -49,7 +49,7 @@ export const roots: Root[] = [
   { token: "frontend/core", dir: "frontend/core", node: "renderer" },
   { token: "frontend/test-kit", dir: "frontend/test-kit", node: "renderer" },
   { token: "frontend/toolkit", dir: "frontend/toolkit", node: "renderer" },
-  { token: "frontend/companion", dir: "frontend/companion", node: "renderer" },
+  { token: "frontend/items", dir: "frontend/items", node: "renderer" },
   { token: "frontend/chat", dir: "frontend/chat", node: "renderer" },
   { token: "frontend/runner-adapter", dir: "frontend/runner-adapter", node: "renderer" },
   { token: "frontend/terminal-views", dir: "frontend/terminal-views", node: "renderer" },
@@ -334,15 +334,15 @@ export const notes: Record<string, Note> = {
     purpose:
       "Reusable controls, their recipes, class-name composition, the sidebar item and the Markdown every feature draws with.",
   },
-  "frontend/companion": {
+  "frontend/items": {
     purpose:
-      "The companion pane: a terminal's taskbar, peek and pane for its items and messages, the plan editor, the undocked window and the bar drag.",
+      "The items package: the kinds of thing a terminal or a window shows, their store, taskbar, peek and bar drag, the plan editor, the companion pane beside a terminal and the window an item undocks into.",
     entries: [
       {
-        file: "frontend/companion/src/TerminalCompanion.tsx",
+        file: "frontend/items/src/homes/terminal/TerminalCompanion.tsx",
         text: "export const TerminalCompanion",
       },
-      { file: "frontend/companion/src/drag-session.ts" },
+      { file: "frontend/items/src/drag-session.ts" },
     ],
   },
   "frontend/chat": {
