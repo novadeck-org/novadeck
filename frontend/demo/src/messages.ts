@@ -108,6 +108,9 @@ const stateOf = (boxes: readonly DemoMailbox[], paused: boolean): MailState => (
 const pauseMs = 150
 export const deliveryMs = 2000
 
+// How long the doorbell takes to land a message `send` queued.
+export const rungMs = 800
+
 // The plain-text record retains the choices and details after the Inbox sheet clears.
 const askText = (ask: AgentAsk): string => {
   const { shape } = ask
@@ -141,6 +144,15 @@ const askText = (ask: AgentAsk): string => {
 
 export type DemoMessages = Messages & {
   readonly record: (item: InboxItem, answer?: InboxAnswer, outcome?: InboxHistory) => void
+  // An agent's message to another of a session, by handle: queued at first, and, as the
+  // doorbell lands it, delivered `rungMs` later, when `delivered` is called.
+  readonly send: (
+    target: WorkspaceTarget,
+    from: string,
+    to: string,
+    text: string,
+    delivered?: () => void,
+  ) => void
 }
 
 // Whether a backend's messages are the demo's, which keep a record of what the person answered.
@@ -259,6 +271,62 @@ export const createDemoMessages = (
           }))
           publish()
         }, deliveryMs)
+    },
+    send: (target, from, to, text, delivered) => {
+      const index = boxes.findIndex(
+        (box) =>
+          box.target.projectId === target.projectId &&
+          box.target.workspaceSessionId === target.workspaceSessionId,
+      )
+      const box = boxes[index]
+      if (!box) return
+      const id = `t-${[from, to].toSorted().join("-")}`
+      const thread = box.threads.find((each) => each.id === id)
+      const hop = (thread?.messages.length ?? 0) + 1
+      const sent: DemoMessage = {
+        id: `${id}-${hop}`,
+        hop,
+        from,
+        to,
+        text,
+        sentAt: Date.now(),
+        state: "queued",
+        deliveredAt: null,
+      }
+      const messages = [...(thread?.messages ?? []), sent]
+      boxes = boxes.map((each, at) =>
+        at !== index
+          ? each
+          : {
+              ...each,
+              threads: [
+                ...each.threads.filter((current) => current.id !== id),
+                {
+                  id,
+                  between: [from, to],
+                  hops: messages.length,
+                  allowed: hopsPerRelease,
+                  messages,
+                },
+              ],
+            },
+      )
+      publish()
+      setTimeout(() => {
+        boxes = boxes.map((each) => ({
+          ...each,
+          threads: each.threads.map((current) => ({
+            ...current,
+            messages: current.messages.map((message) =>
+              message.id === sent.id && current.id === id
+                ? { ...message, state: "delivered" as const, deliveredAt: Date.now() }
+                : message,
+            ),
+          })),
+        }))
+        publish()
+        delivered?.()
+      }, rungMs)
     },
     pause: (next) => {
       state.update((current) => ({ ...current, pending: true }))

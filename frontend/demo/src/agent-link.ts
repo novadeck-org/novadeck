@@ -29,13 +29,15 @@ export type DemoAgentVerbs = {
     count: number,
   ) => void
   // Works, if not already, and ends the turn `after` ms later the way asked, with its
-  // reply, murmur's `gist` of it where given, and what it leaves running, where given.
+  // reply (the agent's own words, where given), murmur's `gist` of it where given, and
+  // what it leaves running, where given.
   readonly finish: (
     key: TerminalKey,
     terminal: TerminalMetadata | undefined,
     outcome: AgentTurnEnd["outcome"],
     options?: {
       readonly after?: number
+      readonly reply?: string
       readonly gist?: string
       readonly background?: DemoBackground
     },

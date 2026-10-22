@@ -218,7 +218,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
       const id = terminalKeyId(key)
       const after = options?.after ?? turnMs
       const { gist, background } = options ?? {}
-      const reply = replies[outcome]
+      const reply = options?.reply ?? replies[outcome]
       if (began) emit({ type: "begin", key })
       status(key, { working: true }, program)
       active.set(id, [

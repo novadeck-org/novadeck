@@ -1,4 +1,4 @@
-import type { DemoAgent } from "../samples"
+import type { ChatAgent, DemoAgent } from "../samples"
 import { callBlock, diffBlock, dividerBlock, requestBlock, resultBlock, textBlock } from "./agent"
 import type { Block } from "./screen"
 import { box, span, wrap, type Line } from "./vt"
@@ -32,10 +32,27 @@ export const readingAt = (
 
 const gap: Line = []
 
-// The agent's name and where it runs: Claude Code's on a line, Codex's in a box.
+// The top of Antigravity's mark beside its name, model and folder, as its CLI draws them
+// (harnesses/agy's probes); the mark's lower rows are left off so the banner takes no more room
+// than Codex's box in a small window.
+const antigravityMark = [
+  "      ▄▀▀▄        Antigravity CLI 1.2.14",
+  "     ▀▀▀▀▀▀       Gemini 3.1 Pro (Low)",
+  "    ▀▀▀▀▀▀▀▀      ",
+]
+
+// The agent's name and where it runs: Claude Code's on a line, Codex's in a box, Antigravity's
+// beside its mark.
 export const banner =
-  (agent: DemoAgent, directory: string): Block =>
+  (agent: ChatAgent, directory: string): Block =>
   (width) => {
+    if (agent === "agy")
+      return [
+        ...antigravityMark.map((row, index): Line => [
+          span(index === 2 ? `${row}${directory}` : row, index === 0 ? "bold" : "muted"),
+        ]),
+        gap,
+      ]
     if (agent === "claude")
       return [...wrap([span("✳ Claude Code", "bold"), span(`  ${directory}`, "muted")], width), gap]
     const name: Line = [span(">_ Codex", "bold")]
