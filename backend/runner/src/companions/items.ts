@@ -291,8 +291,9 @@ export class CompanionItems {
 
   /**
    * Attaches a file the person picked to a terminal's bar, as an agent's show would, by
-   * a path from the terminal's directory. TERMINAL_NOT_FOUND for a terminal not kept,
-   * INVALID_FILE, saying why, for a path that is no file.
+   * a path from the terminal's directory. They asked to see it, so it asks to open, a
+   * file that may hold secrets too, which opens onto its gate. TERMINAL_NOT_FOUND for a
+   * terminal not kept, INVALID_FILE, saying why, for a path that is no file.
    */
   async attach(input: {
     readonly terminalId: string
@@ -309,7 +310,7 @@ export class CompanionItems {
     if (!pointed.ok) throw new DomainError("INVALID_FILE", pointed.reason)
     const kept = this.keep(this.place(input.terminalId), pointed.pointer, {
       by: "person",
-      asked: false,
+      asked: true,
     })
     if (!kept) throw new DomainError("TERMINAL_NOT_FOUND")
     return wireItem(kept.item)
@@ -782,7 +783,16 @@ export class CompanionItems {
             .barItems(place.terminalId)
             .find((item) => item.pointerKey === pointer.pointerKey)
     const item: ItemRecord = own
-      ? { ...own, ...pointer, version: own.version + 1, asked: origin.asked, shownAt: Date.now() }
+      ? {
+          ...own,
+          ...pointer,
+          // The person picking a file an agent showed makes it theirs (and a held one open);
+          // an agent showing what the person picked leaves it theirs, so it can't close it.
+          by: origin.by === "person" ? "person" : own.by,
+          version: own.version + 1,
+          asked: origin.asked,
+          shownAt: Date.now(),
+        }
       : {
           ...pointer,
           id: randomUUID(),

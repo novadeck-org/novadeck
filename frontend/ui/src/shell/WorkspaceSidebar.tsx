@@ -1,4 +1,4 @@
-import type { SourceProject } from "@novadeck/core/source"
+import type { SourceListing, SourceProject } from "@novadeck/core/source"
 import type { SidebarPanel as PanelId, Tile, WorkspaceSession } from "@novadeck/core/types"
 import { Plus } from "lucide-react"
 import type { ComponentProps } from "react"
@@ -19,12 +19,16 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   ordered: readonly Tile[]
   sidebarPanel: PanelId
   sidebarVisible: boolean
-  // Where the backend has a source: the project's tree, if it has one, the handle of the
+  // Where the backend has a source: what its agents changed in the project, if it says, how to
+  // read a folder, when an agent's turn last ended, how to open a file, the handle of the
   // selected terminal, and the session's agents for the strip: every terminal's handle in roster
   // order, and the teams as handles, each lead first. Left out, there is no Source panel.
   source:
     | {
         project: SourceProject | undefined
+        list: (folder: string) => Promise<SourceListing>
+        turn: number
+        onOpenFile: (path: string) => Promise<void>
         selectedHandle: string | undefined
         roster: readonly string[]
         squads: readonly (readonly string[])[]
@@ -62,6 +66,9 @@ export const WorkspaceSidebar = ({
       <SourcePanel
         key={projectId}
         project={source.project}
+        list={source.list}
+        turn={source.turn}
+        onOpenFile={source.onOpenFile}
         selectedHandle={source.selectedHandle}
         roster={source.roster}
         squads={source.squads}

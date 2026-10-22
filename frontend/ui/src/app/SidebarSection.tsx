@@ -4,11 +4,12 @@ import type { SourceState } from "@novadeck/core/source"
 import { activeProject } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import type { WorkspaceSession } from "@novadeck/core/types"
-import { memo, useMemo } from "react"
+import { memo, useCallback, useMemo } from "react"
 
 import { useDesktop } from "../shell/desktop"
 import { sidebarVisible } from "../shell/shell-state"
 import { WorkspaceSidebar } from "../shell/WorkspaceSidebar"
+import { latestTurnEnd } from "../sidebar/source-turns"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"
 import { sourceShown } from "./routing"
@@ -49,12 +50,18 @@ export const SidebarSection = memo((): React.JSX.Element => {
     (workspace) => orderedTiles(currentState(workspace).roster),
     sameItems,
   )
-  // The Source panel shows only on a demo backend; see `sourceShown`.
+  // The Source panel shows where the backend has a source; see `sourceShown`.
   const sourceFeed = sourceShown(backend) ? backend.source : undefined
   const sourceProject = useStoreSelector(
     sourceFeed?.state ?? noSource,
     (state) => state.projects[projectId],
   )
+  const list = useCallback(
+    (folder: string) => sourceFeed!.list(projectId, folder),
+    [sourceFeed, projectId],
+  )
+  // Its folders are read again when an agent's turn ends in the project.
+  const turn = useWorkspaceState((workspace) => latestTurnEnd(activeProject(workspace)!))
   const selectedHandle = useWorkspaceState((workspace) => {
     const { roster, selected } = currentState(workspace)
     return roster.terminals.find((terminal) => terminal.id === selected)?.handle
@@ -85,8 +92,19 @@ export const SidebarSection = memo((): React.JSX.Element => {
     [teams, handles],
   )
   const source = useMemo(
-    () => (sourceFeed ? { project: sourceProject, selectedHandle, roster, squads } : undefined),
-    [sourceFeed, sourceProject, selectedHandle, roster, squads],
+    () =>
+      sourceFeed
+        ? {
+            project: sourceProject,
+            list,
+            turn,
+            onOpenFile: commands.openSourceFile,
+            selectedHandle,
+            roster,
+            squads,
+          }
+        : undefined,
+    [sourceFeed, sourceProject, list, turn, commands, selectedHandle, roster, squads],
   )
   const sidebarPanel = useUiState((state) => state.location.route.panel)
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))

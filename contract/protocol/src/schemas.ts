@@ -28,6 +28,19 @@ export const maxUploadPartLength = 196_608
 export const clientState = z.string().max(maxClientStateLength)
 
 export const project = z.strictObject({ id, name, cwd: directory })
+
+// One folder of a project's directory, as `projects.folder` lists it: each entry by its own
+// name, and whether git ignores it. `truncated` says the folder holds more than is listed.
+export const folderListing = z.strictObject({
+  entries: z.array(
+    z.strictObject({
+      name: z.string().min(1).max(4096),
+      folder: z.boolean(),
+      ignored: z.boolean(),
+    }),
+  ),
+  truncated: z.boolean(),
+})
 export const workspaceSession = z.strictObject({
   id,
   projectId: id,
@@ -1005,6 +1018,7 @@ export const terminalMessages = z.strictObject({
 })
 
 export type Project = z.infer<typeof project>
+export type FolderListing = z.infer<typeof folderListing>
 export type WorkspaceSession = z.infer<typeof workspaceSession>
 export type TerminalExit = z.infer<typeof exit>
 export type ForegroundProcess = z.infer<typeof foregroundProcess>

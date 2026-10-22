@@ -260,9 +260,9 @@ export type BackendFields = {
   // demo's build it from the app's workspace (`bind`) and their own facts (see core's
   // `inbox-items`). Absent where the backend has none: the Inbox then lists nothing.
   readonly inbox?: Inbox
-  // Optional. Each project's files as its agents change them, for the sidebar's Source panel
-  // (see core's `source`). The panel is still being designed, so the app shows it only on a
-  // demo backend (`demo`), whatever else has this.
+  // Optional. Each project's files, folder by folder, and on a demo backend what its agents
+  // change in them, for the sidebar's Source panel (see core's `source`). Absent where the
+  // backend can't read the projects' folders: the panel isn't drawn.
   readonly source?: Source
   // Optional. Types text into a terminal as a paste, bracketed where its program asks,
   // without pressing Enter, as dictation does. Says whether it typed: false when the

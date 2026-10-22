@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { once } from "node:events"
-import { mkdtemp, readdir, rm } from "node:fs/promises"
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
@@ -306,6 +306,41 @@ describe("workspace metadata API", () => {
       { ...session, name: "Renamed session", state: '{"panes":[]}' },
     ])
     await expect(connection.client.terminals.list({ sessionId: session.id })).resolves.toEqual([])
+  })
+
+  it("lists a project's folders, and refuses what is not one of them", async ({ resources }) => {
+    const app = await fixture(resources)
+    const { client } = await app.connect()
+    // The server's own files share the fixture's directory, so the project gets a folder of its own.
+    const cwd = join(app.directory, "project")
+    await mkdir(join(cwd, "src"), { recursive: true })
+    await mkdir(join(cwd, ".git"))
+    await writeFile(join(cwd, "src", "index.ts"), "")
+    await writeFile(join(cwd, "notes.md"), "")
+    const project = await client.projects.create({ id: randomUUID(), name: "Folders", cwd })
+    await expect(client.projects.folder({ projectId: project.id, folder: "" })).resolves.toEqual({
+      entries: [
+        { name: "src", folder: true, ignored: false },
+        { name: "notes.md", folder: false, ignored: false },
+      ],
+      truncated: false,
+    })
+    await expect(
+      client.projects.folder({ projectId: project.id, folder: "src" }),
+    ).resolves.toMatchObject({ entries: [{ name: "index.ts", folder: false }] })
+    await Promise.all(
+      ["..", "/etc", "missing", "notes.md"].map((folder) =>
+        expect(client.projects.folder({ projectId: project.id, folder })).rejects.toMatchObject({
+          code: "INVALID_DIRECTORY",
+        }),
+      ),
+    )
+    await expect(
+      client.projects.folder({ projectId: randomUUID(), folder: "" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    await expect(
+      client.projects.folder({ projectId: project.id, folder: "x".repeat(5000) }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" })
   })
 
   it("payload, directory and workspace relationship validation", async ({ resources }) => {

@@ -153,6 +153,7 @@ export const scriptedRunner = ({
       create: api.projects.create.handler(unplayed("projects.create")),
       rename: api.projects.rename.handler(unplayed("projects.rename")),
       remove: api.projects.remove.handler(unplayed("projects.remove")),
+      folder: api.projects.folder.handler(unplayed("projects.folder")),
     },
     sessions: {
       list: api.sessions.list.handler(() => [session]),

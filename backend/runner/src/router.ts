@@ -19,6 +19,7 @@ import type { Murmur } from "./murmur/service.js"
 import type { Terminals } from "./terminals/index.js"
 import type { Uploads } from "./terminals/uploads.js"
 import type { Voice } from "./voice/service.js"
+import { listFolder } from "./workspaces/folder.js"
 import type { Projects } from "./workspaces/projects.js"
 import type { WorkspaceStore } from "./workspaces/store.js"
 
@@ -81,6 +82,10 @@ export const createRouter = (options: {
       ),
       rename: api.projects.rename.handler(({ input }) => store.renameProject(input)),
       remove: api.projects.remove.handler(({ input }) => projects.remove(input.projectId)),
+      folder: api.projects.folder.handler(({ input }) => {
+        projects.ensureNotRemoving(input.projectId)
+        return listFolder(store.project(input.projectId).cwd, input.folder)
+      }),
     },
     sessions: {
       list: api.sessions.list.handler(({ input }) => store.sessions(input.projectId)),

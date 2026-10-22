@@ -1,4 +1,3 @@
-import { emptyCompanions } from "@novadeck/core/companion"
 import type { Conversations } from "@novadeck/core/conversation"
 import type { InboxItem } from "@novadeck/core/inbox"
 import type {
@@ -39,6 +38,7 @@ import {
 } from "./samples"
 import { createShowcase } from "./showcase/simulation"
 import { storefrontArtifacts } from "./showcase/storefront"
+import { directoryOf, itemsOf } from "./showcase/workspace"
 import { withSource } from "./source"
 import { terminalOf } from "./terminals"
 import { agentTranscripts, type DemoTranscript } from "./transcripts"
@@ -236,6 +236,7 @@ export const withMessages = (backend: Backend, now: number): Backend => {
   }))
   let sink: BackendSink | undefined
   let latest: Workspace | undefined
+  const showcase = createShowcase({ agents: [], directory: (key) => directoryOf(latest, key) })
   return {
     ...backend,
     seed,
@@ -243,8 +244,9 @@ export const withMessages = (backend: Backend, now: number): Backend => {
       latest = workspace
       backend.commit(workspace, actions)
     },
-    // Its terminals show nothing in the pane but their messages.
-    companions: emptyCompanions(),
+    // Its terminals show nothing in the pane but their messages, and what the person opens
+    // from the Source panel.
+    companions: showcase,
     messages: createDemoMessages(checkoutMailboxes(now, targets)),
     resetTitle: (key) => {
       const { projectId, workspaceSessionId, terminalId } = key
@@ -267,8 +269,10 @@ export const withMessages = (backend: Backend, now: number): Backend => {
     start: (next) => {
       sink = next
       const stop = backend.start?.(next)
+      const stopShowcase = showcase.start(next.dispatch, () => (latest ? itemsOf(latest) : []))
       return () => {
         stop?.()
+        stopShowcase()
         if (sink === next) sink = undefined
       }
     },
@@ -355,8 +359,9 @@ export const withInbox = (
 }
 
 // The agents demo's storefront terminals hold what their agents showed, on their bars,
-// to open, peek at and move; nothing there changes.
+// to open, peek at and move. What the person opens from the Source panel joins them.
 export const withStorefrontArtifacts = (backend: Backend): Backend => {
+  let latest: Workspace | undefined
   const session = { projectId: "storefront", workspaceSessionId: "initial" }
   const showcase = createShowcase({
     agents: [],
@@ -365,10 +370,15 @@ export const withStorefrontArtifacts = (backend: Backend): Backend => {
       handle: demoHandle(Number(slot)),
       artifacts,
     })),
+    directory: (key) => directoryOf(latest, key),
   })
   return {
     ...backend,
     companions: showcase,
+    commit: (workspace, actions) => {
+      latest = workspace
+      backend.commit(workspace, actions)
+    },
     seed: {
       ...backend.seed,
       projects: backend.seed.projects.map((project) =>
@@ -384,7 +394,9 @@ export const withStorefrontArtifacts = (backend: Backend): Backend => {
     },
     start: (sink) => {
       const stop = backend.start?.(sink)
-      const stopShowcase = showcase.start(sink.dispatch, () => [])
+      const stopShowcase = showcase.start(sink.dispatch, () =>
+        latest ? itemsOf(latest) : showcase.items,
+      )
       return () => {
         stop?.()
         stopShowcase()

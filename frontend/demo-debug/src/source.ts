@@ -54,6 +54,39 @@ export const sourceGroups = (source: DemoSource | undefined): readonly DemoActio
               },
             },
             {
+              label: "A folder can't be read",
+              hint: "Open Source, then show the panel again (switch panels and back) or end an agent's turn: src/cart, once open, shows a muted \"Can't read this folder\" row",
+              run: () => source.degrade("src/cart", "fail"),
+            },
+            {
+              label: "A folder lists only part",
+              hint: 'Open Source, then show the panel again or end an agent\'s turn: src/components, once open, lists two files and a muted "More not shown" row',
+              run: () => source.degrade("src/components", "truncate"),
+            },
+            {
+              label: "The project's files can't be read",
+              hint: "Open Source, then show the panel again or end an agent's turn: the tree gives way to a line saying the files can't be read",
+              run: () => source.degrade("", "fail"),
+            },
+            {
+              label: "The project's folder is empty",
+              hint: "Open Source, then show the panel again or end an agent's turn: the tree gives way to \"This project's folder is empty.\"",
+              run: () => source.degrade("", "empty"),
+            },
+            {
+              label: "The project lists only part",
+              hint: 'Open Source, then show the panel again or end an agent\'s turn: the root lists two entries and ends with a muted "More not shown" row',
+              run: () => source.degrade("", "truncate"),
+            },
+            {
+              label: "Source reads normally again",
+              hint: "Open Source, then show the panel again or end an agent's turn: every folder lists in full again",
+              run: () =>
+                (["", "src/cart", "src/components"] as const).forEach((folder) =>
+                  source.degrade(folder, undefined),
+                ),
+            },
+            {
               label: "Agent creates a file in a folder",
               hint: "Open Source with src/api folded: the folder pulses and shows Crow's chip, and payments.ts is added inside",
               run: () => source.write(fallback, sourcePaths.payments),

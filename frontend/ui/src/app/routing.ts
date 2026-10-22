@@ -58,10 +58,9 @@ export const workspaceRoute = (workspace: Workspace): WorkspaceRoute => ({
 const sectionOf = (name: string | null): PreferencesTab =>
   preferencesTabs.find(({ id }) => id === name)?.id ?? "general"
 
-// Whether the app shows the Source panel: only on a demo backend, while the panel is still
-// being designed, and only where that backend has the files to show.
-export const sourceShown = (backend: Pick<Backend, "demo" | "source">): boolean =>
-  backend.demo === true && backend.source !== undefined
+// Whether the app shows the Source panel: where the backend has the project's files to show.
+export const sourceShown = (backend: Pick<Backend, "source">): boolean =>
+  backend.source !== undefined
 
 // The panels a backend can show: Source only where it has a source.
 export const availablePanels = (hasSource: boolean): readonly SidebarPanel[] =>
