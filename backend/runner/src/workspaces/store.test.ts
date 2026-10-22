@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readFileSync,
   realpathSync,
+  renameSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -463,7 +464,10 @@ describe("workspace metadata", () => {
   }) => {
     const path = join(directory(), "workspace.sqlite")
     const earlier = setAsideOfVersion2(path, "2026-10-22T07-00-00-000Z")
-    new WorkspaceStore(path).close()
+    // The person turned transcripts off in the empty one since.
+    const empty = new WorkspaceStore(path)
+    empty.saveSettings({ transcripts: false })
+    empty.close()
     const held = readFileSync(earlier)
 
     expect(restoreSetAside(path, new Date("2026-10-22T09:00:00.000Z"))).toBe(earlier)
@@ -471,6 +475,7 @@ describe("workspace metadata", () => {
     try {
       expect(workspace.projects()).toEqual([{ id: "p", name: "Shop", cwd: "/shop" }])
       expect(workspace.items("s").map(({ id }) => id)).toEqual(["bar", "undocked", "plan"])
+      expect(workspace.settings().transcripts).toBe(false)
     } finally {
       workspace.close()
     }
@@ -480,6 +485,50 @@ describe("workspace metadata", () => {
     expect(existsSync(`${path}.restoring`)).toBe(false)
     // It now holds its projects, so nothing is brought back again.
     expect(restoreSetAside(path)).toBeUndefined()
+    // Nor once the person removes them: the newest set aside is now the empty one.
+    const emptied = new WorkspaceStore(path)
+    emptied.removeProject("p")
+    emptied.close()
+    expect(restoreSetAside(path)).toBeUndefined()
+  })
+
+  it("finishes bringing one back where a crash cut the swap short", ({ directory }) => {
+    const path = join(directory(), "workspace.sqlite")
+    setAsideOfVersion2(path, "2026-10-22T07-00-00-000Z")
+    new WorkspaceStore(path).close()
+    expect(restoreSetAside(path, new Date("2026-10-22T09:00:00.000Z"))).toBeDefined()
+    // As a crash after the empty one went aside would leave it: the copy, and no workspace.
+    renameSync(path, `${path}.restoring`)
+    expect(restoreSetAside(path)).toBe(`${path}.restoring`)
+    const workspace = new WorkspaceStore(path)
+    try {
+      expect(workspace.projects().map(({ id }) => id)).toEqual(["p"])
+    } finally {
+      workspace.close()
+    }
+  })
+
+  it("brings back nothing but in place of the empty workspace v0.0.188 started", ({
+    directory,
+  }) => {
+    // No data folder yet, as on a first start.
+    expect(restoreSetAside(join(directory(), "missing", "workspace.sqlite"))).toBeUndefined()
+    // No workspace where one was set aside.
+    const path = join(directory(), "workspace.sqlite")
+    setAsideOfVersion2(path, "2026-10-22T07-00-00-000Z")
+    expect(restoreSetAside(path)).toBeUndefined()
+    expect(existsSync(path)).toBe(false)
+    // A newer build's empty one.
+    const newer = new DatabaseSync(path)
+    newer.exec("CREATE TABLE projects (id TEXT); PRAGMA user_version = 4")
+    newer.close()
+    expect(restoreSetAside(path)).toBeUndefined()
+    const database = new DatabaseSync(path)
+    try {
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(4)
+    } finally {
+      database.close()
+    }
   })
 
   it("leaves a workspace set aside where the one in its place holds projects", async ({
@@ -503,6 +552,7 @@ describe("workspace metadata", () => {
     directory,
   }) => {
     const path = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(path).close()
     // An older version 2 one, then a version 1 one set aside since: neither comes back.
     setAsideOfVersion2(path, "2026-10-14T07-00-00-000Z")
     const version1 = new DatabaseSync(`${path}.earlier-2026-10-15T07-00-00-000Z`)
@@ -515,8 +565,13 @@ describe("workspace metadata", () => {
     const held = readFileSync(unfit)
     expect(restoreSetAside(path)).toBeUndefined()
     expect(readFileSync(unfit).equals(held)).toBe(true)
-    expect(existsSync(path)).toBe(false)
     expect(existsSync(`${path}.restoring`)).toBe(false)
+    const workspace = new WorkspaceStore(path)
+    try {
+      expect(workspace.projects()).toEqual([])
+    } finally {
+      workspace.close()
+    }
   })
 
   it("keeps its schema as recorded for its version, so a change to it comes with a step", ({

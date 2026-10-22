@@ -113,9 +113,17 @@ export type Runner = {
  * unable to start; the old file stays beside it.
  */
 const openStore = (database: string | undefined): WorkspaceStore => {
-  const restored = database === undefined ? undefined : restoreSetAside(database)
-  if (restored)
-    log.warn("workspace.restored", `Brought back the workspace set aside as ${restored}.`)
+  try {
+    const restored = database === undefined ? undefined : restoreSetAside(database)
+    if (restored)
+      log.warn("workspace.restored", `Brought back the workspace set aside as ${restored}.`)
+  } catch (error) {
+    // Bringing one back is a repair, never a reason not to start.
+    log.warn(
+      "workspace.restore-failed",
+      `Could not bring back a workspace set aside: ${String(error)}`,
+    )
+  }
   try {
     return new WorkspaceStore(database)
   } catch (error) {

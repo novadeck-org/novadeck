@@ -292,9 +292,11 @@ const migrations: Readonly<Record<number, string>> = {
     CREATE INDEX companion_items_session ON companion_items(session_id);
   `,
 }
-// SQLite's primary result codes that say a step doesn't fit the database it met, as
-// against a full disk, an I/O error or a lock, after which a later start may well carry it.
-const unfitCodes = new Set([1, 19, 20]) // SQLITE_ERROR, SQLITE_CONSTRAINT, SQLITE_MISMATCH
+// SQLite's primary result codes that say a step doesn't fit the database it met, or that
+// it is damaged, as against a full disk, an I/O error or a lock, after which a later start
+// may well carry it: SQLITE_ERROR, SQLITE_CORRUPT, SQLITE_CONSTRAINT, SQLITE_MISMATCH,
+// SQLITE_NOTADB.
+const unfitCodes = new Set([1, 11, 19, 20, 26])
 
 /**
  * Carries a database of `version` to this runner's, step by step, in the open transaction.
@@ -434,9 +436,14 @@ export class EarlierWorkspaceError extends Error {
  */
 export const setAsideWorkspace = (path: string, now = new Date()): string => {
   const aside = `${path}.earlier-${now.toISOString().replace(/[:.]/g, "-")}`
-  for (const suffix of ["", "-wal", "-shm"])
-    if (existsSync(`${path}${suffix}`)) renameSync(`${path}${suffix}`, `${aside}${suffix}`)
+  moveDatabase(path, aside)
   return aside
+}
+
+/** Moves a database, with its write-ahead log and index beside it, from `from` to `to`. */
+const moveDatabase = (from: string, to: string): void => {
+  for (const suffix of ["", "-wal", "-shm"])
+    if (existsSync(`${from}${suffix}`)) renameSync(`${from}${suffix}`, `${to}${suffix}`)
 }
 
 /** A database's value for `query`, read without changing it; undefined if it can't be read. */
@@ -456,15 +463,31 @@ const readOnly = (path: string, query: string): unknown => {
 /**
  * Brings back the workspace v0.0.188 set aside. That build raised the schema to version 3
  * with no step from 2, so it set every version 2 workspace aside and started an empty one.
- * The newest set aside beside `path`, if it is version 2 and a copy of it carries forward,
- * takes the place of a database that holds no projects, which is set aside in turn; the
- * copy takes its place, and the one set aside stays as it was. A version 2 database any
- * other build set aside it couldn't carry, so it doesn't carry here either, and a database
- * brought back holds its projects, so none is brought back twice. Returns where the one
- * brought back was.
+ * Where `path` is still as it left it, version 3 with no projects, the newest database set
+ * aside beside it, if it is version 2 and a copy of it carries forward, comes back as that
+ * copy, with the empty one's settings, the person's later choices; the empty one is set
+ * aside in turn, and the one set aside before stays as it was. A version 2 database any
+ * other build set aside it couldn't carry, so it doesn't carry here either, and once one
+ * is back the newest set aside is the empty one, so none comes back twice. A swap a crash
+ * cut short is finished at the next start. Returns where the one brought back was.
  */
 export const restoreSetAside = (path: string, now = new Date()): string | undefined => {
-  if (existsSync(path) && readOnly(path, "SELECT count(*) FROM projects") !== 0) return undefined
+  const copy = `${path}.restoring`
+  const remove = () => {
+    for (const suffix of ["", "-wal", "-shm"]) rmSync(`${copy}${suffix}`, { force: true })
+  }
+  // The copy is whole by the time the empty one goes aside, so one left where `path` is
+  // missing is a swap cut short.
+  if (
+    !existsSync(path) &&
+    Number(readOnly(copy, "PRAGMA user_version")) >= 3 &&
+    readOnly(copy, "PRAGMA quick_check") === "ok"
+  ) {
+    moveDatabase(copy, path)
+    return copy
+  }
+  if (readOnly(path, "PRAGMA user_version") !== 3) return undefined
+  if (readOnly(path, "SELECT count(*) FROM projects") !== 0) return undefined
   const prefix = `${basename(path)}.earlier-`
   const newest = readdirSync(dirname(path))
     .filter((name) => name.startsWith(prefix) && /^[\dTZ-]+$/.test(name.slice(prefix.length)))
@@ -473,12 +496,10 @@ export const restoreSetAside = (path: string, now = new Date()): string | undefi
   if (newest === undefined) return undefined
   const earlier = join(dirname(path), newest)
   if (readOnly(earlier, "PRAGMA user_version") !== 2) return undefined
-  const copy = `${path}.restoring`
-  const remove = () => {
-    for (const suffix of ["", "-wal", "-shm"]) rmSync(`${copy}${suffix}`, { force: true })
-  }
   remove()
   try {
+    // Made first, so it is only ever the person's to read.
+    closeSync(openSync(copy, "wx", 0o600))
     // One file with what its write-ahead log held, so the one set aside is never written.
     const source = new DatabaseSync(earlier, { readOnly: true })
     try {
@@ -487,13 +508,26 @@ export const restoreSetAside = (path: string, now = new Date()): string | undefi
       source.close()
     }
     new WorkspaceStore(copy).close()
+    const restored = new DatabaseSync(copy)
+    try {
+      restored.exec(`ATTACH DATABASE '${path.replaceAll("'", "''")}' AS empty`)
+      restored.exec("INSERT OR REPLACE INTO main.settings SELECT key, value FROM empty.settings")
+      restored.exec("DETACH DATABASE empty")
+    } finally {
+      restored.close()
+    }
   } catch {
     remove()
     return undefined
   }
-  if (existsSync(path)) setAsideWorkspace(path, now)
-  for (const suffix of ["", "-wal", "-shm"])
-    if (existsSync(`${copy}${suffix}`)) renameSync(`${copy}${suffix}`, `${path}${suffix}`)
+  const aside = setAsideWorkspace(path, now)
+  try {
+    moveDatabase(copy, path)
+  } catch (error) {
+    // The empty one goes back, rather than leave no workspace; the copy is tried again.
+    if (!existsSync(path)) moveDatabase(aside, path)
+    throw error
+  }
   return earlier
 }
 

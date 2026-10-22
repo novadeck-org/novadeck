@@ -366,8 +366,9 @@ does nothing either. On Linux:
     in place, one step per version; the version rises, with a step, for any change to a
     table's columns or constraints, and a test pins the schema's digest to its version as a
     reminder. A new table needs neither: it is created where missing. Only a database from
-    before the first step, one whose step fails, or one whose tables differ from its
-    version's is set aside for a new one.
+    before the first step, one whose step doesn't fit it or finds it damaged, or one whose
+    tables differ from its version's is set aside for a new one; any other failure of a
+    step, such as a full disk, fails that start and leaves the database for a later one.
 - A failure, such as a full disk or a folder that cannot be written, is returned with a short
   reason, as is a request while the app is already quitting ("Novadeck is quitting.").
 
