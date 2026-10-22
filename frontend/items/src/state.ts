@@ -60,8 +60,9 @@ export type ItemStore = {
   readonly store: Store<ItemStoreState>
   // Follows an item while something shows it; returns the release.
   readonly watch: (target: WorkspaceTarget, itemId: ItemId) => () => void
-  // The person asked to see an item that may hold secrets.
-  readonly reveal: (itemId: ItemId) => void
+  // The person asked to see an item that may hold secrets, as the file at `shown` they saw
+  // its gate for: an item pointed elsewhere since stays held.
+  readonly reveal: (itemId: ItemId, shown: string | null) => void
   readonly plan: (target: WorkspaceTarget, itemId: ItemId) => PlanActions
   // Tells what went wrong on a live page that show `shown` of the item loaded.
   readonly trouble: (
@@ -604,10 +605,11 @@ export const createItemStore = ({
       linger(session, id, entry)
     }
   }
-  const reveal = (id: ItemId): void => {
+  const reveal = (id: ItemId, shown: string | null): void => {
     const item = itemIn(session.workspace.getSnapshot(), id)
-    // An item that's gone has nothing to show.
-    if (!item) return
+    // An item that's gone has nothing to show, and one pointed at another file since the
+    // person saw it isn't the one they asked for.
+    if (!item || item.path !== shown) return
     const pointed = pointedAt(item)
     session.store.update((state) =>
       state.revealed[id] === pointed
