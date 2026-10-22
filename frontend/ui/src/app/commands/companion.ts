@@ -1,5 +1,4 @@
-import type { CompanionActions } from "@novadeck/companion/actions"
-import { isOnBar, kindRules, windowOfItem, type ItemId } from "@novadeck/core/companion"
+import { isOnBar, kindRules, windowOfItem, type ItemId } from "@novadeck/core/items"
 import { addCompactGridTerminal } from "@novadeck/core/layout/grid-placement"
 import {
   droppedCanvasGeometry,
@@ -10,6 +9,7 @@ import {
 import { hasTerminal, hasWindow, tilesOf } from "@novadeck/core/roster"
 import type { WorkspaceAction } from "@novadeck/core/state"
 import type { CompanionWindowMeta } from "@novadeck/core/types"
+import type { CompanionActions } from "@novadeck/items/actions"
 
 import { currentContext, currentState, currentTarget } from "../selectors"
 import type { CommandContext } from "./context"

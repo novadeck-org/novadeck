@@ -1,4 +1,4 @@
-import { emptyCompanions, type CompanionKey } from "@novadeck/core/companion"
+import { emptyCompanions, type CompanionKey } from "@novadeck/core/items"
 import { workspaceReducer, type WorkspaceAction } from "@novadeck/core/state"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 

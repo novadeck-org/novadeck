@@ -34,8 +34,8 @@ export type CommandsOptions = {
   readonly crashLoop?: Backend["crashLoop"]
   // The backend's way to hand a name back, when it has one.
   readonly resetTitle?: Backend["resetTitle"]
-  // Every terminal's companion pane, when the backend has companions.
-  readonly panes?: CommandContext["panes"]
+  // The item store, when the backend has companions.
+  readonly itemStore?: CommandContext["itemStore"]
   // The backend's companions, when it has them.
   readonly companions?: CommandContext["companions"]
   // The agents' conversations, when the backend reads them.
@@ -63,7 +63,7 @@ export const openCommands = ({
   pickDirectory,
   crashLoop,
   resetTitle,
-  panes,
+  itemStore,
   companions,
   conversations,
   murmur,
@@ -165,7 +165,7 @@ export const openCommands = ({
     pickDirectory,
     crashLoop,
     resetTitle,
-    panes,
+    itemStore,
     companions,
     conversations,
     murmur,

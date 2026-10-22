@@ -722,7 +722,7 @@ each sits.
 
 Items and windows reach the workspace the way terminals do, through the backend's seed
 and its changes. The pane loads what an item points at through the backend's optional
-`companions` capability (`frontend/core/src/companion.ts`): its content as it changes, and a save
+`companions` capability (`frontend/core/src/items.ts`): its content as it changes, and a save
 that writes the user's edits and notes into the plan file unless it changed since, in
 which case the pane merges and saves again. Edits save once typing pauses and when focus
 leaves the plan. The runner reads content from disk and can't write plans yet, so its
@@ -1098,45 +1098,45 @@ contract they share; `libraries/` holds the mechanics that never import app code
 [libraries/README.md](libraries/README.md)); `tools/` holds the apps' build helpers and the
 atlas.
 
-| Package                   | Responsibility                                                                            |
-| ------------------------- | ----------------------------------------------------------------------------------------- |
-| `frontend/ui`             | React frontend built with Vite, Tailwind CSS, and Lucide icons.                           |
-| `frontend/core`           | The UI's model: types, reducer, stores, and the port to a backend.                        |
-| `frontend/toolkit`        | The controls every feature draws with: Ark UI wrappers, shared recipes, the sidebar item. |
-| `frontend/companion`      | The companion pane: taskbar, peek, pane, plan editor, messages, and the bar drag.         |
-| `frontend/chat`           | The chat view: transcript, requests and composer, with the chat's own store and commands. |
-| `frontend/runner-adapter` | The UI's backend for a runner, over a WebSocket or the desktop host.                      |
-| `frontend/terminal-views` | The xterm mount both backends draw terminals with.                                        |
-| `frontend/demo`           | The demo backend: a scripted workspace and simulated terminals.                           |
-| `frontend/demo-debug`     | The demo's debug panel and rehearsals.                                                    |
-| `frontend/test-kit`       | What the UI's tests render and drive the app with.                                        |
-| `frontend/specs`          | Behaviour specs: the whole app in a real browser, over the demo.                          |
-| `frontend/chat-contract`  | The chat's contract test: recorded harness transcripts through to the rendered chat.      |
-| `apps/desktop`            | Electron host that starts the runner and loads the packaged UI.                           |
-| `apps/try`                | The visitor build of the demo, which the website embeds.                                  |
-| `apps/previews`           | The content preview: the demo with its debug panel.                                       |
-| `backend/runner`          | The runner: shells and metadata, served over WebSocket or port.                           |
-| `backend/relay`           | Rust relay for agents' Novadeck MCP server and hooks.                                     |
-| `contract/protocol`       | Shared Zod contracts the runner and its clients agree on.                                 |
-| `contract/runner-client`  | The `connectRunner` client UIs reach a runner with.                                       |
-| `engines/whisper`         | Voice engine: whisper.cpp built for download (`build:engine`).                            |
-| `engines/murmur`          | Murmur engine: llama.cpp built for download (`build:engine`).                             |
-| `engines/ggml-build`      | The engine build both of those share.                                                     |
-| `harnesses/core`          | The harness adapters' contract and the helpers they share.                                |
-| `harnesses/claude`        | The Claude Code adapter: hooks, transcripts, dialogs, input box.                          |
-| `harnesses/codex`         | The Codex adapter, same shape.                                                            |
-| `harnesses/agy`           | The Antigravity adapter, same shape.                                                      |
-| `libraries/emulator`      | The terminal emulator: xterm.js pinned and patched, the character-width rule, helpers.    |
-| `libraries/terminal`      | Hosting terminals: a pty, a headless screen, a resumable stream, the browser view.        |
-| `libraries/tui-input`     | Typing into a full-screen program and checking that the text landed.                      |
-| `libraries/viewers`       | Content viewers behind one contract: code, image, markdown and web pages.                 |
-| `libraries/wire`          | RPC calls and streams between processes over a WebSocket or a MessagePort.                |
-| `libraries/sandbox`       | An isolated environment for tests and benchmarks that run real shells and programs.       |
-| `libraries/log`           | Structured, privacy-first log files: the line, the rotating file, the redactor.           |
-| `libraries/secrets`       | Finding secrets in terminal text by their shape, and masking them.                        |
-| `tools/build-kit`         | The apps' Vite helpers: CSP sources, hosting headers, noindex, fonts, bundle checks.      |
-| `tools/atlas`             | Dev-only code map: `pnpm atlas`; agent briefs: `pnpm -s atlas:brief`.                     |
-| `scripts`                 | Repository checks and automation.                                                         |
+| Package                   | Responsibility                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------ |
+| `frontend/ui`             | React frontend built with Vite, Tailwind CSS, and Lucide icons.                            |
+| `frontend/core`           | The UI's model: types, reducer, stores, and the port to a backend.                         |
+| `frontend/toolkit`        | The controls every feature draws with: Ark UI wrappers, shared recipes, the sidebar item.  |
+| `frontend/items`          | The items package: kinds, store, taskbar, peek, plan editor, messages, bar drag and homes. |
+| `frontend/chat`           | The chat view: transcript, requests and composer, with the chat's own store and commands.  |
+| `frontend/runner-adapter` | The UI's backend for a runner, over a WebSocket or the desktop host.                       |
+| `frontend/terminal-views` | The xterm mount both backends draw terminals with.                                         |
+| `frontend/demo`           | The demo backend: a scripted workspace and simulated terminals.                            |
+| `frontend/demo-debug`     | The demo's debug panel and rehearsals.                                                     |
+| `frontend/test-kit`       | What the UI's tests render and drive the app with.                                         |
+| `frontend/specs`          | Behaviour specs: the whole app in a real browser, over the demo.                           |
+| `frontend/chat-contract`  | The chat's contract test: recorded harness transcripts through to the rendered chat.       |
+| `apps/desktop`            | Electron host that starts the runner and loads the packaged UI.                            |
+| `apps/try`                | The visitor build of the demo, which the website embeds.                                   |
+| `apps/previews`           | The content preview: the demo with its debug panel.                                        |
+| `backend/runner`          | The runner: shells and metadata, served over WebSocket or port.                            |
+| `backend/relay`           | Rust relay for agents' Novadeck MCP server and hooks.                                      |
+| `contract/protocol`       | Shared Zod contracts the runner and its clients agree on.                                  |
+| `contract/runner-client`  | The `connectRunner` client UIs reach a runner with.                                        |
+| `engines/whisper`         | Voice engine: whisper.cpp built for download (`build:engine`).                             |
+| `engines/murmur`          | Murmur engine: llama.cpp built for download (`build:engine`).                              |
+| `engines/ggml-build`      | The engine build both of those share.                                                      |
+| `harnesses/core`          | The harness adapters' contract and the helpers they share.                                 |
+| `harnesses/claude`        | The Claude Code adapter: hooks, transcripts, dialogs, input box.                           |
+| `harnesses/codex`         | The Codex adapter, same shape.                                                             |
+| `harnesses/agy`           | The Antigravity adapter, same shape.                                                       |
+| `libraries/emulator`      | The terminal emulator: xterm.js pinned and patched, the character-width rule, helpers.     |
+| `libraries/terminal`      | Hosting terminals: a pty, a headless screen, a resumable stream, the browser view.         |
+| `libraries/tui-input`     | Typing into a full-screen program and checking that the text landed.                       |
+| `libraries/viewers`       | Content viewers behind one contract: code, image, markdown and web pages.                  |
+| `libraries/wire`          | RPC calls and streams between processes over a WebSocket or a MessagePort.                 |
+| `libraries/sandbox`       | An isolated environment for tests and benchmarks that run real shells and programs.        |
+| `libraries/log`           | Structured, privacy-first log files: the line, the rotating file, the redactor.            |
+| `libraries/secrets`       | Finding secrets in terminal text by their shape, and masking them.                         |
+| `tools/build-kit`         | The apps' Vite helpers: CSP sources, hosting headers, noindex, fonts, bundle checks.       |
+| `tools/atlas`             | Dev-only code map: `pnpm atlas`; agent briefs: `pnpm -s atlas:brief`.                      |
+| `scripts`                 | Repository checks and automation.                                                          |
 
 Build an engine locally with `pnpm --filter @novadeck/whisper build:engine` or
 `pnpm --filter @novadeck/murmur build:engine`; the archive and `engine.json` land in
@@ -1160,7 +1160,7 @@ backend-only tests.
 ### Working on the UI
 
 The UI is split into packages: `frontend/core`, `frontend/ui`, `frontend/toolkit`,
-`frontend/companion`, `frontend/chat`, `frontend/runner-adapter`, `frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit`,
+`frontend/items`, `frontend/chat`, `frontend/runner-adapter`, `frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit`,
 `frontend/specs` and `frontend/chat-contract`, and the apps `apps/desktop`, `apps/try` and `apps/previews`. `frontend/ui`
 holds the page's layers, each a folder of its `src/`; the rest are packages of their own. In
 the table a path that starts with `frontend/` or `apps/` is a package, and any other is a
@@ -1178,7 +1178,7 @@ folder of `frontend/ui/src/`:
 | `frontend/runner-adapter/src/`                                  | The runner adapter: connection, seed from the runner, saves, and its terminals.                                                |
 | `frontend/terminal-views/src/`                                  | The xterm mount both adapters draw terminals with: theme, renderers, links, styles.                                            |
 | `frontend/core/src/`                                            | Pure domain: types, reducer, store, seed, layout rules in `layout/`, the backend port.                                         |
-| `frontend/core/src/companion.ts`                                | Companion items, their content, the `companions` port, and the plan note format.                                               |
+| `frontend/core/src/items.ts`                                    | Items, their content, the `companions` port, and the plan note format.                                                         |
 | `frontend/core/src/companion-bar.ts`                            | A bar as the person arranged it: order, hidden plans and Messages, the open tab.                                               |
 | `frontend/core/src/messages.ts`                                 | The contract for agents' messages: threads, states, the pause, and a tab's count.                                              |
 | `frontend/core/src/conversation.ts`                             | The contract for an agent's conversation: transcript items, requests, the port.                                                |
@@ -1189,8 +1189,8 @@ folder of `frontend/ui/src/`:
 | `frontend/core/src/roster.ts`                                   | A session's terminals and undocked windows, laid out as tiles, their order and status.                                         |
 | `frontend/core/src/layout/workspace-layout.ts`                  | Where each terminal sits and how big it is in each view.                                                                       |
 | `terminals/`                                                    | Terminal frame, tabs, rename state, and the recent-terminal switcher.                                                          |
-| `frontend/companion/src/`                                       | Taskbar and pane: the panes' store, `bar.ts` rules, `registry.ts` and `panes/<kind>/` (one folder per kind).                   |
-| `frontend/companion/src/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
+| `frontend/items/src/`                                           | Items: the item store, `bar.ts` rules, `registry.ts`, `kinds/<kind>/` (one folder per kind) and `homes/`.                      |
+| `frontend/items/src/drag-session.ts`                            | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
 | `frontend/chat/src/`                                            | The agent's chat: its blocks, tool rows, requests and the composer, and the chat's own store (`state.ts`) and commands.        |
 | `layouts/canvas/`, `grid/`, `focus/`                            | View adapters and colocated library styles.                                                                                    |
 | `layouts/` (top level)                                          | Helpers shared by views: view transitions, background gestures, visibility.                                                    |
@@ -1221,11 +1221,11 @@ package imports only what its `package.json` declares. The demo's debug panel is
 of its own, `frontend/demo-debug`, the one with React and Lucide. `interaction/` builds on
 the core and imports no packages;
 features add `frontend/toolkit`; `layouts/` may use
-`terminals/`; the companion pane is a package of its own, `frontend/companion`, built on the
-core, the toolkit and the viewers and never on the UI, which composes it, as it does the chat, another package, `frontend/chat`, built on the core and the toolkit and never on the UI or the companion; no feature
+`terminals/`; the items package, which holds the companion pane, is a package of its own, `frontend/items`, built on the
+core, the toolkit and the viewers and never on the UI, which composes it, as it does the chat, another package, `frontend/chat`, built on the core and the toolkit and never on the UI or the items package; no feature
 (`inbox/`, `preferences/`, `projects/`,
 `search/`, `sidebar/` or `voice/`) imports another, only the base and itself, and none reaches the
-chat or the companion; `shell/` may use `layouts/`, `projects/`,
+chat or the items package; `shell/` may use `layouts/`, `projects/`,
 and `inbox/`. `app/` composes every feature layer, `inbox/` among them.
 Only an app imports a backend adapter, each its own: `apps/desktop` takes the runner adapter,
 `apps/try` the demo, and `apps/previews` the demo with its debug panel (tests and specs may
@@ -1234,7 +1234,7 @@ has no direct React or package imports, though
 routing still loads React Router at runtime: it builds on the core,
 `interaction/keymap.ts`, the UI store, routing, selectors,
 the Canvas handle type in `layouts/canvas/types.ts`, and the pure state modules
-of `shell/` and `terminals/` (unread finishes among them), the companion panes' store and the chat's store among them. Vendor
+of `shell/` and `terminals/` (unread finishes among them), the item store and the chat's store among them. Vendor
 libraries stay in their adapters: XYFlow in `layouts/canvas/`, React Grid Layout
 in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
 `frontend/toolkit`, React Router in `app/` and `shell/`, and React DOM in
@@ -1285,14 +1285,14 @@ It starts over on reload apart from preferences, the collapsed sidebar and the
 project arrangement (the switcher's order and pins, `novadeck.project-arrangement`),
 which store subscriptions persist. Another subscription saves the active session's
 windowed view from the workspace store, and a new App seeds sessions with it. The
-companion panes' store in `frontend/companion/src/state.ts` holds what the panes load,
+item store in `frontend/items/src/state.ts` holds what it loads for the items,
 by item: each plan as the person edits it, what each item last loaded, and the secret
 files the person chose to see; it follows the backend's companions and messages from an
 effect. What an item loaded stays 30 seconds after nothing shows it, then goes, so a
 large image doesn't stay in memory. What a taskbar shows is derived from it and the workspace in
-`frontend/companion/src/bar.ts`, never stored.
+`frontend/items/src/bar.ts`, never stored.
 `WorkspaceProvider` creates the backend, the stores, the drag session
-(`frontend/companion/src/drag-session.ts`), the navigator, and the commands once per App, in a pure
+(`frontend/items/src/drag-session.ts`), the navigator, and the commands once per App, in a pure
 initializer, and shares them through context; it receives the page as children, so a URL
 change re-renders only the provider.
 

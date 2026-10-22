@@ -1,4 +1,4 @@
-import type { ItemId } from "./companion"
+import type { ItemId } from "./items"
 
 // A terminal's companion bar as the person arranged it: the order of what's on it, what
 // they hid from it, and what its pane holds open. The pane stacks what's open as a desktop

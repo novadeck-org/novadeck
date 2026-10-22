@@ -1,4 +1,4 @@
-import { pointerOf, type ItemId } from "@novadeck/core/companion"
+import { pointerOf, type ItemId } from "@novadeck/core/items"
 import type { BackendAction } from "@novadeck/core/port"
 import { hasWindow } from "@novadeck/core/roster"
 import type { WorkspaceAction } from "@novadeck/core/state"

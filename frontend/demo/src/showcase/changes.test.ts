@@ -1,4 +1,4 @@
-import type { ChangesContent } from "@novadeck/core/companion"
+import type { ChangesContent } from "@novadeck/core/items"
 
 import { describe, expect, it } from "../test"
 import { changesArtifacts } from "./changes"

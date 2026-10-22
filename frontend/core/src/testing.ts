@@ -1,4 +1,4 @@
-import { itemIdOf, type CompanionItem } from "./companion"
+import { itemIdOf, type Item } from "./items"
 import type { Refused } from "./prompt-refusal"
 import { createTerminalState, workspaceReducer, type WorkspaceAction } from "./state"
 import type { PreferencesValue, TerminalMetadata, ViewMode, Workspace } from "./types"
@@ -30,11 +30,7 @@ export const terminalFixture = (number: number, directory: string): TerminalMeta
 
 // Something terminal `terminalId`'s agent showed on its own bar: a file named for `id`,
 // shown once, unless `item` says otherwise.
-export const itemFixture = (
-  id: string,
-  terminalId: string,
-  item: Partial<CompanionItem> = {},
-): CompanionItem => ({
+export const itemFixture = (id: string, terminalId: string, item: Partial<Item> = {}): Item => ({
   id: itemIdOf(id),
   holder: { terminalId },
   kind: "file",

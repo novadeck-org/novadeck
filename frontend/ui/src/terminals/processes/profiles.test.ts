@@ -1,4 +1,4 @@
-import type { ArtifactKind, CompanionItem } from "@novadeck/core/companion"
+import type { ArtifactKind, Item } from "@novadeck/core/items"
 import { itemFixture } from "@novadeck/core/testing"
 import {
   BookText,
@@ -13,14 +13,14 @@ import {
 import { context, describe, expect, it } from "../../test"
 import { windowProfile } from "./profiles"
 
-// What a window's icon was before it read the companion's registry.
+// What a window's icon was before it read the items package's registry.
 const kindIcons: Record<ArtifactKind, LucideIcon> = {
   image: Image,
   file: FileCode2,
   page: Globe,
   changes: GitCompare,
 }
-const oldWindowIcon = (item: Pick<CompanionItem, "kind" | "name"> | undefined): LucideIcon =>
+const oldWindowIcon = (item: Pick<Item, "kind" | "name"> | undefined): LucideIcon =>
   !item || item.kind === "plan"
     ? FileText
     : item.kind === "file" && /\.(md|markdown)$/i.test(item.name)

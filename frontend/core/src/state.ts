@@ -1,4 +1,3 @@
-import { isOnBar, ownItemWith, windowOfItem, type CompanionItem, type ItemId } from "./companion"
 import {
   arrive,
   arriveLast,
@@ -15,6 +14,7 @@ import {
   type Bar,
   type BarKey,
 } from "./companion-bar"
+import { isOnBar, ownItemWith, windowOfItem, type Item, type ItemId } from "./items"
 import { addCompactGridTerminal } from "./layout/grid-placement"
 import {
   emptyLayout,
@@ -169,7 +169,7 @@ export type WorkspaceAction =
       to: number
     }
   // What the backend says of an item now: shown, shown again, moved, renamed.
-  | { type: "item/upsert"; target: WorkspaceTarget; item: CompanionItem }
+  | { type: "item/upsert"; target: WorkspaceTarget; item: Item }
   | { type: "item/remove"; target: WorkspaceTarget; itemId: ItemId }
   // What the backend says of a window: there, renamed, or gone.
   | { type: "window/upsert"; target: WorkspaceTarget; window: CompanionWindowMeta }
@@ -366,16 +366,16 @@ const withBar = (
     : changed
 }
 
-const barHolding = (item: CompanionItem): string | undefined =>
+const barHolding = (item: Item): string | undefined =>
   "terminalId" in item.holder ? item.holder.terminalId : undefined
 
-const withItem = (state: WorkspaceState, item: CompanionItem): WorkspaceState => ({
+const withItem = (state: WorkspaceState, item: Item): WorkspaceState => ({
   ...state,
   items: state.items.map((each) => (each.id === item.id ? item : each)),
 })
 
 // The item leaves its bar, or the window it's in, which closes with it.
-const unhold = (state: WorkspaceState, item: CompanionItem): WorkspaceState => {
+const unhold = (state: WorkspaceState, item: Item): WorkspaceState => {
   const bar = barHolding(item)
   if (bar) return withBar(state, bar, (current) => leave(current, item.id))
   const window = windowOfItem(item)
@@ -396,7 +396,7 @@ const closeTerminal = (state: WorkspaceState, terminalId: string): WorkspaceStat
   if (!hasTerminal(state.roster, terminalId)) return state
   const closed = dropTile(state, terminalId, removeTerminal(state.roster, terminalId))
   // What its bar held goes with it; what's in windows stays.
-  const gone: readonly CompanionItem[] = state.items.filter((item) => isOnBar(item, terminalId))
+  const gone: readonly Item[] = state.items.filter((item) => isOnBar(item, terminalId))
   return {
     ...gone.reduce((next, item) => unfresh(next, item.id), closed),
     items: gone.length ? state.items.filter((item) => !gone.includes(item)) : state.items,
@@ -455,14 +455,13 @@ const undockItem = (
 // Whether an item opens on its bar when it arrives: the person asked for it, and either they
 // attached it themselves (they picked it, and the pane still gates what it holds behind a
 // click) or it may not hold secrets.
-const opensOnArrival = (item: CompanionItem): boolean =>
-  item.asked && (!item.held || item.by === "person")
+const opensOnArrival = (item: Item): boolean => item.asked && (!item.held || item.by === "person")
 
 // What the backend says of an item. Something new, or shown again, comes to its bar: it
 // opens there on top of what's open when the person asked for it, unless an agent showed it
 // and it may hold secrets, and is new otherwise, unless the pane is already showing it. A
 // hidden one is back on the bar.
-const upsertItem = (state: WorkspaceState, item: CompanionItem): WorkspaceState => {
+const upsertItem = (state: WorkspaceState, item: Item): WorkspaceState => {
   const previous = state.items.find((each) => each.id === item.id)
   const listed = previous ? withItem(state, item) : { ...state, items: [...state.items, item] }
   const before = previous && barHolding(previous)

@@ -1,6 +1,6 @@
-import { iconOf } from "@novadeck/companion/registry"
-import type { CompanionItem } from "@novadeck/core/companion"
+import type { Item } from "@novadeck/core/items"
 import type { TerminalMetadata } from "@novadeck/core/types"
+import { iconOf } from "@novadeck/items/registry"
 import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
 import { FileText, Terminal, type LucideIcon } from "lucide-react"
@@ -34,9 +34,7 @@ export const presentedProgram = (terminal: TerminalMetadata): string | undefined
 
 // A window undocked from a terminal's companion presents as what it shows: a plan, or an
 // image, file or page.
-export const windowProfile = (
-  item: Pick<CompanionItem, "kind" | "name"> | undefined,
-): ProcessProfile => ({
+export const windowProfile = (item: Pick<Item, "kind" | "name"> | undefined): ProcessProfile => ({
   icon: !item || item.kind === "plan" ? FileText : iconOf({ kind: item.kind, name: item.name }),
 })
 

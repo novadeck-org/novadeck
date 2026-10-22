@@ -1,5 +1,5 @@
-import { itemIdOf } from "@novadeck/core/companion"
 import type { ChatAnswer, ChatDialog } from "@novadeck/core/conversation"
+import { itemIdOf } from "@novadeck/core/items"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import type { AgentStatus } from "@novadeck/core/types"

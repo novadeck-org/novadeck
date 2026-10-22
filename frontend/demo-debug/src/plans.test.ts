@@ -1,4 +1,4 @@
-import { itemIdOf, type CompanionKey, type ItemContent } from "@novadeck/core/companion"
+import { itemIdOf, type CompanionKey, type ItemContent } from "@novadeck/core/items"
 import { studioAgent } from "@novadeck/demo/showcase/agents"
 import { createShowcase } from "@novadeck/demo/showcase/simulation"
 

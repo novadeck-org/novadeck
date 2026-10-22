@@ -1,4 +1,4 @@
-import { companionKeyId } from "@novadeck/core/companion"
+import { companionKeyId } from "@novadeck/core/items"
 import type { MailState } from "@novadeck/core/messages"
 import { checkoutMailboxes, createDemoMessages } from "@novadeck/demo/messages"
 

@@ -1,5 +1,5 @@
-import { itemIdOf, type CompanionItem } from "./companion"
 import { messagesKey } from "./companion-bar"
+import { itemIdOf, type Item } from "./items"
 import { orderedTiles } from "./roster"
 import { activeSession, workspaceReducer, type WorkspaceAction } from "./state"
 import { context, describe, expect, it } from "./test"
@@ -9,7 +9,7 @@ import type { CompanionWindowMeta, Workspace, WorkspaceState } from "./types"
 const target = { projectId: "project", workspaceSessionId: "initial" }
 const hero = itemFixture("hero", "01", { kind: "image", name: "hero.png", path: "/p/hero.png" })
 const notes = itemFixture("notes", "01")
-const windowFor = (item: CompanionItem, id = "w1"): CompanionWindowMeta => ({
+const windowFor = (item: Item, id = "w1"): CompanionWindowMeta => ({
   id,
   itemId: item.id,
   name: item.name,
@@ -19,7 +19,7 @@ const windowFor = (item: CompanionItem, id = "w1"): CompanionWindowMeta => ({
 const apply = (workspace: Workspace, ...actions: WorkspaceAction[]): Workspace =>
   actions.reduce(workspaceReducer, workspace)
 const stateOf = (workspace: Workspace): WorkspaceState => activeSession(workspace)!.state
-const shown = (...items: CompanionItem[]): Workspace =>
+const shown = (...items: Item[]): Workspace =>
   apply(
     workspaceFixture(),
     ...items.map((item) => ({ type: "item/upsert", target, item }) as const),
