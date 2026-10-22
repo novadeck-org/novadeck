@@ -886,12 +886,12 @@ App:
   window reset, offering Continue now. "Command hiding lines" adds a permission whose command
   buries a line under blank lines and spaces; its card counts the lines and marks what draws
   as nothing. "Plan with a change field" adds Claude Code 2.1.287's plan, whose only way
-  back is "Tell Claude what to change": Deny opens a note that must say what. "A new item arrives" adds the next kind not there
-  yet, and "Clear the added items" takes away the hardcoded items and those added here,
-  leaving what the agents wait on. An added item takes its terminal's row from what its
-  agent waits on; answering an added request for an agent that waits takes the agent past
-  it. The group shows in every variant over the sample projects, so not in the content
-  showcase.
+  back is "Tell Claude what to change": Deny opens a note that must say what. "A new item
+  arrives" adds the next kind not there yet, and "Clear the added items" takes away the
+  hardcoded items and those added here, leaving what the agents wait on. An added item
+  takes its terminal's row from what its agent waits on; answering an added request for an
+  agent that waits takes the agent past it. The group shows in every variant over the
+  sample projects, so not in the content showcase.
 - **Murmur:** the demo starts with it installed and on, as the try demo shows it, and never
   offers it; `&murmur=uninstalled`, `unsupported`, `no-device`, `network-down` (the first install fails
   on the network, the second works) or `offered-out` (the offer already shown in three sessions)

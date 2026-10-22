@@ -10,6 +10,7 @@ import {
   limitWindow,
   needsWords,
   readLabel,
+  refusedWords,
   recommended,
   resumesLabel,
   standingOf,
@@ -287,6 +288,10 @@ describe("A permission's options", () => {
     expect(choices?.plain).toBeNull()
   })
 
+  it("takes an agent's name of more than one word", () => {
+    expect(needsWords(option("3", "Tell Claude Code what to change", "field"))).toBe(true)
+  })
+
   it("needs no words for a no that says so itself", () => {
     expect(needsWords(option("3", "No, and tell Claude what to do differently", "prompt"))).toBe(
       false,
@@ -419,5 +424,21 @@ describe("A limit's window", () => {
     expect(limitWindow(0)).toBe("usage")
     expect(limitWindow(10_080)).toBe("weekly")
     expect(limitWindow(1440)).toBe("daily")
+  })
+})
+
+describe("Words a field won't take", () => {
+  const feedback = option("feedback", "Tell it what to change", "field")
+
+  it.each(["/compact", "  ?", "!ls", "see @notes.md"])("are said for Antigravity: %s", (words) => {
+    expect(refusedWords("agy", feedback, words)).toBe(
+      "Antigravity can't take words that start with /, ? or !, or that have an @.",
+    )
+  })
+
+  it("are none for plain words, nor for other agents", () => {
+    expect(refusedWords("agy", feedback, "Split the second step, then ask?")).toBeNull()
+    expect(refusedWords("claude", feedback, "/compact")).toBeNull()
+    expect(refusedWords("agy", option("n", "No", "prompt"), "/compact")).toBeNull()
   })
 })

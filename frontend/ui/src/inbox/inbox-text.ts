@@ -193,9 +193,11 @@ export type Choices = {
 const yes = /^(yes|allow|approve)\b/i
 const no = /^(no|deny|reject)\b/i
 // The way back that is only the person's words, as Claude Code's plan field "Tell Claude
-// what to change" (from 2.1.287; before, "No, keep planning") and Antigravity's review's
-// "Tell it what to change": it says no only with words.
-const change = /^tell \S+ what to change\b/i
+// what to change" (from 2.1.287; before, "No, keep planning") and "Tell it what to
+// change", the label Novadeck's Antigravity adapter gives a review's feedback (Antigravity's
+// screen has no such option): it says no only with words. The agent's name may be more
+// than one word.
+const change = /^tell .+? what to change\b/i
 const standing =
   /don't ask again|do not ask again|always|allow all|all edits|this session|for session|auto-accept/i
 
@@ -216,6 +218,18 @@ export const setsStanding = (option: ChatDialogOption): boolean => standing.test
 
 // Whether a way back must carry the person's words: it says no only with them.
 export const needsWords = (option: ChatDialogOption): boolean => change.test(bare(option.label))
+
+// Why an agent won't take these words in a field, said before they're sent; null where it
+// will. Antigravity's feedback is typed into its empty prompt box, where words that start
+// with /, ? or ! would run a command, open help or a shell, and an @ opens a file picker.
+export const refusedWords = (
+  agent: AgentName,
+  option: ChatDialogOption,
+  text: string,
+): string | null =>
+  agent === "agy" && option.text === "field" && /^\s*[/?!]|@/.test(text)
+    ? `${agentName(agent)} can't take words that start with /, ? or !, or that have an @.`
+    : null
 
 // Null where nothing says yes: the person answers in the terminal. A bare yes leads, else
 // a known one. With one leading, every other yes is a quiet link in its own words, so

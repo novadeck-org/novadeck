@@ -88,6 +88,7 @@ describe("the debug panel's Inbox group", () => {
     run(inbox, "Plan with a change field")
     const [item] = inbox.state.getSnapshot().items
     expect(item?.id).toBe(demoInboxIds.plan)
+    expect(item?.kind === "request" && item.request.dialog?.type === "choices").toBe(true)
     if (item?.kind !== "request" || item.request.dialog?.type !== "choices") return
     expect(item.request.dialog.options.at(-1)).toEqual({
       id: "3",
