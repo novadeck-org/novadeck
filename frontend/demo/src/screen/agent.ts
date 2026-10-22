@@ -87,15 +87,17 @@ export const requestBlock =
   ]
 
 // A tool call: its name and what it was called on, after a blank row.
+// Antigravity marks its latest call as one that expands (`expandable`), and shows no output
+// under it.
 export const callBlock =
-  (agent: ChatAgent, tool: string, subject = ""): Block =>
+  (agent: ChatAgent, tool: string, subject = "", expandable = false): Block =>
   (width) => [
     gap,
     ...wrap(
       [
         span(tool, "bold"),
         ...(subject ? [span(agent === "agy" ? `(${subject})` : ` ${subject}`)] : []),
-        ...(agent === "agy" && subject ? [span(" (ctrl+o to expand)", "muted")] : []),
+        ...(agent === "agy" && subject && expandable ? [span(" (ctrl+o to expand)", "muted")] : []),
       ],
       width,
       {
@@ -143,11 +145,15 @@ export const dividerBlock =
   (width) => [gap, rule(width, note, "muted")]
 
 // One record of the conversation, as the agent's TUI shows it.
-export const itemBlock = (item: ChatItem, agent: ChatAgent): Block => {
+// `latest` is whether an Antigravity call is its screen's latest, or a result is of that call:
+// only the latest call expands, and shows no output under it (harnesses/agy's probes).
+export const itemBlock = (item: ChatItem, agent: ChatAgent, latest = false): Block => {
   // Antigravity names a command it ran `Bash`, whatever its own tool is called, and shows it.
   if (item.kind === "tool-call" && agent === "agy" && item.run?.kind === "run")
-    return callBlock(agent, "Bash", clip(item.run.detail.split("\n")[0] ?? "", 90))
-  if (item.kind === "tool-call") return callBlock(agent, item.tool ?? "Tool", summary(item.text))
+    return callBlock(agent, "Bash", clip(item.run.detail.split("\n")[0] ?? "", 90), latest)
+  if (item.kind === "tool-call")
+    return callBlock(agent, item.tool ?? "Tool", summary(item.text), latest)
+  if (item.kind === "tool-result" && agent === "agy" && latest) return () => []
   if (item.kind === "tool-result") return resultBlock(resultLines(item), agent)
   if (item.role === "user") {
     const asked = requestBlock(agent, item.text)

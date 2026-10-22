@@ -33,6 +33,8 @@ export type DemoThread = {
   readonly hops: number
   readonly allowed: number
   readonly messages: readonly DemoMessage[]
+  // The person stopped it: what waited is gone, and a later send on it is refused.
+  readonly stopped?: true
 }
 
 // A session's terminals that take part: each by id, with its handle and whether an agent
@@ -154,9 +156,11 @@ export type DemoMessages = Messages & {
     to: string,
     text: string,
     delivered?: () => void,
-    // Called instead if the person stops the thread first, which tells the sender so.
+    // Called instead if the person stops the thread first. The runner tells a sender so with
+    // its next tool answer, and adds nothing to the thread.
     stopped?: () => void,
-  ) => void
+    // False where the thread was stopped: a send on it is refused, as the runner refuses it.
+  ) => boolean
 }
 
 // Whether a backend's messages are the demo's, which keep a record of what the person answered.
@@ -337,10 +341,11 @@ export const createDemoMessages = (
           box.target.workspaceSessionId === target.workspaceSessionId,
       )
       const box = boxes[index]
-      if (!box) return
+      if (!box) return false
       const thread = box.threads.find(
         (each) => each.between.includes(from) && each.between.includes(to),
       )
+      if (thread?.stopped) return false
       const id = thread?.id ?? `t-${[from, to].toSorted().join("-")}`
       const hop = (thread?.messages.length ?? 0) + 1
       const sent: DemoMessage = {
@@ -386,6 +391,7 @@ export const createDemoMessages = (
         ring.rung = true
         land()
       }, rungMs)
+      return true
     },
     pause: (next) => {
       state.update((current) => ({ ...current, pending: true }))
@@ -432,28 +438,10 @@ export const createDemoMessages = (
           each.id === thread
             ? {
                 ...each,
-                messages: [
-                  ...each.messages.map((message) =>
-                    message.state === "queued" ? { ...message, state: "gone" as const } : message,
-                  ),
-                  ...dropped.flatMap((ring) => {
-                    const message = each.messages.find((one) => one.id === ring.message)
-                    return message?.state === "queued"
-                      ? [
-                          {
-                            id: `stopped:${message.id}`,
-                            hop: message.hop,
-                            from: "you",
-                            to: message.from,
-                            text: `The person stopped this thread: your message to @${ring.to} was not delivered.`,
-                            sentAt: Date.now(),
-                            state: "delivered" as const,
-                            deliveredAt: Date.now(),
-                          },
-                        ]
-                      : []
-                  }),
-                ],
+                stopped: true as const,
+                messages: each.messages.map((message) =>
+                  message.state === "queued" ? { ...message, state: "gone" as const } : message,
+                ),
               }
             : each,
         ),

@@ -150,7 +150,12 @@ describe("Antigravity's screens", () => {
       run: { kind: "run", title: "Ran", detail: "pnpm test" },
     })
     const result = item({ kind: "tool-result", role: "tool", text: "a\nb" })
-    expect(read(itemBlock(call, "agy")(60))).toBe("\n● Bash(pnpm test) (ctrl+o to expand)")
+    // An earlier call is plain, with its output under it; the latest expands, and has none.
+    expect(read(itemBlock(call, "agy")(60))).toBe("\n● Bash(pnpm test)")
+    expect(read(itemBlock(call, "agy", true)(60))).toBe("\n● Bash(pnpm test) (ctrl+o to expand)")
+    expect(
+      itemBlock(item({ kind: "tool-result", role: "tool", text: "ok" }), "agy", true)(60),
+    ).toEqual([])
     expect(read(itemBlock(item({ text: "All done." }), "agy")(40))).toBe("\n  All done.")
     expect(read(itemBlock(result, "agy")(40))).toBe("  ⎿  a\n     b")
   })

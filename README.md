@@ -752,14 +752,15 @@ on the Canvas, all working, beside a second project, setlist; its beats are the 
 "Babcia" group, one cue each, fired by a capture plan: 1 three asks (a permission to run
 `pnpm test`, a plan, a question with its own pick), 2 a failed turn, 3 the lead Site API opens
 three helpers, 4 a helper's free-text question, whose answer reaches its lead through a message
-and the doorbell, 5 a page shown in the pane, 6 every agent finishes but those waiting on the person (an open ask, one told No, a failed turn
-until prompted again), which a second press ends once they work; answered or told, an agent
-works until cue 6; `frontend/demo/src/babcia.ts`). Every variant's Inbox
+and the doorbell, 5 a page shown in the pane, 6 every agent finishes but those waiting on the
+person (an open ask, one told No, a failed turn until prompted again, and the helper and its lead
+while the helper's answer is on its way); a second press ends whoever works by then. Answered or
+told, an agent works until cue 6; `frontend/demo/src/babcia.ts`). Every variant's Inbox
 lists what its agents wait on, built as the runner's is. The switcher in the panel's header,
-which leaves out `welcome`, `chirp` and `babcia`, changes between them without reloading (pressing the
-current one boots it again), and the browser tab remembers the last one chosen. `&turnMs=` sets
-how long a demo agent's turn works
-(1500 ms unless given), as a spec does that must act on the screen before the turn ends.
+which leaves out `welcome`, `chirp` and `babcia`, changes between them without reloading
+(pressing the current one boots it again), and the browser tab remembers the last one chosen.
+`&turnMs=` sets how long a demo agent's turn works (1500 ms unless given), as a spec does that must act on the screen before the turn
+ends.
 
 The search field at the top filters actions by label, hint and group. Groups start folded,
 under three sections (Terminals, Agents, App), and the panel remembers which you opened in

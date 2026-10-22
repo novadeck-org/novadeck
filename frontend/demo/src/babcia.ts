@@ -873,21 +873,27 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
 
   // Whether cue 6 leaves an agent as it is: it ended its turn already (a failed one stays failed
   // until the person prompts it again, which takes it back to work), it waits on a request, was
-  // told no, or is the helper whose ask is open or whose answer is on its way, or the lead it
-  // is to write to.
+  // told no, or it is the helper whose ask is open or whose answer is on its way, or the lead
+  // that helper is to write to: neither can say what it hasn't been asked.
   const waitsOnPerson = (found: TerminalMetadata): boolean => {
     if (found.state !== "running") return true
     const { agent } = found
     if (agent?.attention || declinedIds.has(found.id)) return true
     if (agent?.lastTurn && !agent.working) return true
     if (!asked || exchanged) return false
-    if (found.id === keyOf(babcia.asking).terminalId) return true
-    // The lead is rung by the helper's message, once the answer has reached it; until the person
-    // answers it ends its turn like any other.
-    const inbox = backendInbox()?.state.getSnapshot()
-    const open = inbox?.items.some((item) => item.id === helperAskId) ?? false
-    const answering = inbox?.answering[helperAskId] ?? false
-    return found.id === keyOf(babcia.lead).terminalId && (answered || answering || !open)
+    return (
+      found.id === keyOf(babcia.asking).terminalId || found.id === keyOf(babcia.lead).terminalId
+    )
+  }
+
+  // The helper's ask closed with no answer reaching it (the reply was not delivered, or the
+  // item was cleared): it waits for the person's words at its prompt, as an agent told no does,
+  // and cue 6 no longer holds it or its lead.
+  const released = (): void => {
+    if (!asked || exchanged) return
+    exchanged = true
+    declinedIds.add(keyOf(babcia.asking).terminalId)
+    on(babcia.asking, (key, found) => turns.rest(key, found))
   }
 
   // The helper's answer reaches the helper, which the Inbox's record of it says: only then does
@@ -901,29 +907,35 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
     const quoted = said
       ? `Nyx's answer: "${said}"${/[.!?…]$/.test(said) ? "" : "."}`
       : "Nyx had nothing to add."
+    const leadKey = keyOf(babcia.lead)
     messages.send(
       target,
       helper,
       lead,
       `${quoted} Do you know which API the site calls? I need it for the orders route.`,
       () => {
-        work(keyOf(babcia.lead))
-        setTimeout(
-          () =>
-            messages.send(
-              target,
-              lead,
-              helper,
-              "The site calls the new API, on port 8787. The old one is retired.",
-              () => {
-                exchanged = true
-              },
-              () => {
-                exchanged = true
-              },
-            ),
-          answersMs,
-        )
+        work(leadKey)
+        // The lead answers unless the person took it some other way meanwhile, as Escape does.
+        const epoch = turns.epoch(leadKey)
+        setTimeout(() => {
+          if (turns.epoch(leadKey) !== epoch) {
+            exchanged = true
+            return
+          }
+          const sent = messages.send(
+            target,
+            lead,
+            helper,
+            "The site calls the new API, on port 8787. The old one is retired.",
+            () => {
+              exchanged = true
+            },
+            () => {
+              exchanged = true
+            },
+          )
+          if (!sent) exchanged = true
+        }, answersMs)
       },
       () => {
         exchanged = true
@@ -936,11 +948,24 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
     const letter = Object.values(messages.state.getSnapshot().terminals)
       .flatMap((each) => each.threads)
       .flatMap((thread) => thread.messages)
-      .find((each) => each.id === answerLetter && each.state === "delivered")
+      .find((each) => each.id === answerLetter && each.state !== "queued")
     if (!letter) return
+    if (letter.state !== "delivered") return released()
     answered = true
     relay(letter.text)
   })
+  // The Inbox clears the helper's ask with no answer made: nothing will reach the helper.
+  const watchInbox = (inbox: NonNullable<ReturnType<typeof backendInbox>>): void => {
+    inbox.state.subscribe(() => {
+      if (!asked || answered || exchanged) return
+      const { items, answering } = inbox.state.getSnapshot()
+      if (answering[helperAskId] || items.some((item) => item.id === helperAskId)) return
+      const answerMade = Object.values(messages.state.getSnapshot().terminals)
+        .flatMap((each) => each.threads)
+        .some((thread) => thread.messages.some((each) => each.id === answerLetter))
+      if (!answerMade) released()
+    })
+  }
 
   return {
     transcripts: babciaTranscripts(now),
@@ -992,6 +1017,8 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
     over: (backend: Backend): Backend => {
       const wrapped = backend
       inboxOf = () => wrapped.inbox
+      const own = backendInbox()
+      if (own) watchInbox(own)
       cuesOf.set(wrapped, cues)
       return wrapped
     },

@@ -1,6 +1,6 @@
 import { companionKeyId } from "@novadeck/core/items"
 import { mailBadge } from "@novadeck/core/messages"
-import { vi } from "vitest"
+import { afterEach, vi } from "vitest"
 
 import { createDemoInbox } from "./inbox"
 import { demoInboxIds, demoInboxItems } from "./inbox-fixtures"
@@ -51,7 +51,6 @@ describe("the demo's messages", () => {
     messages.pause(false)
     vi.runAllTimers()
     expect(badge()).toEqual({ count: 2, kind: "waiting" })
-    vi.useRealTimers()
   })
 
   it("let a released thread go on, for both its terminals", () => {
@@ -204,6 +203,8 @@ it("marks told history read when updates are read together", () => {
 })
 
 describe("the demo's sent messages", () => {
+  afterEach(() => {})
+
   const hop = (messages: ReturnType<typeof demo>, from: string, to: string) =>
     Object.values(messages.state.getSnapshot().terminals)
       .flatMap((mail) => mail.threads)
@@ -225,7 +226,6 @@ describe("the demo's sent messages", () => {
     await vi.advanceTimersByTimeAsync(rungMs)
     expect(hop(messages, "moth", "crow").at(-1)).toBe("delivered")
     expect(delivered).toHaveBeenCalledOnce()
-    vi.useRealTimers()
   })
 
   it("delivers in the order sent", async () => {
@@ -236,7 +236,6 @@ describe("the demo's sent messages", () => {
     sent(messages, "two", () => order.push("two"))
     await vi.advanceTimersByTimeAsync(rungMs)
     expect(order).toEqual(["one", "two"])
-    vi.useRealTimers()
   })
 
   it("holds a message while paused, and delivers it once resumed", async () => {
@@ -253,7 +252,6 @@ describe("the demo's sent messages", () => {
     await vi.advanceTimersByTimeAsync(200)
     expect(hop(messages, "moth", "crow").at(-1)).toBe("delivered")
     expect(delivered).toHaveBeenCalledOnce()
-    vi.useRealTimers()
   })
 
   it("waits for a recipient the doorbell can't ring, and delivers once it can", async () => {
@@ -269,7 +267,6 @@ describe("the demo's sent messages", () => {
     messages.waits!(crow, null)
     expect(hop(messages, "moth", "crow").at(-1)).toBe("delivered")
     expect(delivered).toHaveBeenCalledOnce()
-    vi.useRealTimers()
   })
 
   it("never delivers a message its thread's stop dropped", async () => {
@@ -281,7 +278,6 @@ describe("the demo's sent messages", () => {
     await vi.advanceTimersByTimeAsync(rungMs * 3)
     expect(hop(messages, "moth", "crow").at(-1)).toBe("gone")
     expect(delivered).not.toHaveBeenCalled()
-    vi.useRealTimers()
   })
 
   it("holds a message past the hops its thread is allowed, until the person releases it", async () => {
@@ -297,7 +293,6 @@ describe("the demo's sent messages", () => {
     messages.release("t-crow-moth")
     expect(hop(messages, "moth", "crow").at(-1)).toBe("delivered")
     expect(delivered).toHaveBeenCalledOnce()
-    vi.useRealTimers()
   })
 
   it("joins a seeded thread between the pair, and holds to its own hops", async () => {
@@ -318,24 +313,27 @@ describe("the demo's sent messages", () => {
     expect(ids).not.toContain("t-crow-moth")
     await vi.advanceTimersByTimeAsync(rungMs)
     expect(thread().messages.at(-1)).toMatchObject({ state: "delivered" })
-    vi.useRealTimers()
   })
 
-  it("tells the sender when a stop drops its message", async () => {
-    vi.useFakeTimers()
+  it("tells the sender, by its callback, when a stop drops its message, and refuses later sends", async () => {
     const messages = demo()
     const stopped = vi.fn<() => void>()
     const delivered = vi.fn<() => void>()
-    messages.send(elsewhere, "moth", "crow", "Hello", delivered, stopped)
+    expect(messages.send(elsewhere, "moth", "crow", "Hello", delivered, stopped)).toBe(true)
     messages.stop("t-crow-moth")
     expect(stopped).toHaveBeenCalledOnce()
     await vi.advanceTimersByTimeAsync(rungMs * 3)
     expect(delivered).not.toHaveBeenCalled()
-    const notes = Object.values(messages.state.getSnapshot().terminals)
-      .flatMap((mail) => mail.threads)
-      .flatMap((thread) => thread.messages)
-      .find((message) => message.from === "you" && message.to === "moth")
-    expect(notes?.text).toContain("stopped")
-    vi.useRealTimers()
+    const all = () =>
+      Object.values(messages.state.getSnapshot().terminals)
+        .flatMap((mail) => mail.threads)
+        .filter((thread) => thread.id === "t-crow-moth")
+        .flatMap((thread) => thread.messages)
+    // The runner adds nothing to the thread: the message is gone, and none is the person's.
+    expect(all().map((message) => message.state)).toEqual(["gone", "gone"])
+    expect(all().some((message) => message.from === "you")).toBe(false)
+    // Either end's later send on the stopped thread is refused, and queues nothing.
+    expect(messages.send(elsewhere, "crow", "moth", "Hello again")).toBe(false)
+    expect(all()).toHaveLength(2)
   })
 })

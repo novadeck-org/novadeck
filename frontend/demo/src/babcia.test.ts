@@ -269,7 +269,7 @@ describe("the Babcia demo", () => {
     ])
   })
 
-  it("tells the helper the person stopped its message to the lead, and goes no further", async () => {
+  it("sends nothing more once the person stops the helper's message to the lead", async () => {
     const { backend, cues, inbox, items, agent } = open()
     cues.helpers()
     cues.helperAsks()
@@ -286,13 +286,88 @@ describe("the Babcia demo", () => {
       .find((each) => each.messages.some((one) => one.from === asking))!
     messages.stop!(thread.id)
     await vi.advanceTimersByTimeAsync(10_000)
-    const notice = Object.values(messages.state.getSnapshot().terminals)
+    // The runner adds nothing to the thread, and none of it is the person's.
+    const sent = Object.values(messages.state.getSnapshot().terminals)
       .flatMap((each) => each.threads)
       .flatMap((each) => each.messages)
-      .find((one) => one.from === "you" && one.to === asking && one.text.includes("stopped"))
-    expect(notice).toMatchObject({ state: "delivered" })
-    expect(mail(backend).filter((each) => each.from === lead)).toEqual([])
+      .filter((one) => one.id.startsWith("t-") && (one.from === "you" || one.to === "you"))
+    expect(sent).toEqual([])
+    expect(mail(backend).map(({ from, state }) => ({ from, state }))).toEqual([
+      { from: asking, state: "gone" },
+    ])
     expect(agent(babcia.lead)).toMatchObject({ working: false })
+    // Nothing holds the pair any longer, and the thread takes no more.
+    expect(
+      messages.send(
+        { projectId: bar.projectId, workspaceSessionId: bar.workspaceSessionId },
+        lead,
+        asking,
+        "Hi",
+        undefined,
+        undefined,
+      ),
+    ).toBe(false)
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(5000)
+    for (const number of [babcia.lead, babcia.asking])
+      expect(agent(number)).toMatchObject({ lastTurn: { outcome: "completed" } })
+  })
+
+  it("does not answer its helper once the person interrupted the lead", async () => {
+    const { backend, cues, inbox, items, agent } = open()
+    cues.helpers()
+    cues.helperAsks()
+    inbox.answer(items()[0]!.id, {
+      kind: "ask",
+      answer: { type: "reply", option: null, text: typed },
+    })
+    // The lead is rung awake at about 3.4 s, and would answer 1.5 s later.
+    await vi.advanceTimersByTimeAsync(3800)
+    expect(agent(babcia.lead)).toMatchObject({ working: true })
+    await backend.conversations!.interrupt(key(babcia.lead))
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(mail(backend).filter((each) => each.from === lead)).toEqual([])
+    // Nothing holds the pair after it: cue 6 ends the helper's turn too.
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(agent(babcia.asking)).toMatchObject({ lastTurn: { outcome: "completed" } })
+  })
+
+  it("releases the helper when its ask closes without an answer reaching it", async () => {
+    for (const how of ["dropped", "cleared"] as const) {
+      const { cues, inbox, items, agent } = open()
+      cues.helpers()
+      cues.helperAsks()
+      if (how === "dropped") {
+        inbox.dropReplyNext()
+        inbox.answer(items()[0]!.id, {
+          kind: "ask",
+          answer: { type: "reply", option: null, text: typed },
+        })
+      } else inbox.clear()
+      // eslint-disable-next-line no-await-in-loop -- Each demo runs on its own.
+      await vi.advanceTimersByTimeAsync(10_000)
+      // It waits at its prompt, as an agent told no does, and cue 6 leaves it; its lead ends.
+      expect(agent(babcia.asking)).toMatchObject({ working: false })
+      cues.finishAll()
+      // eslint-disable-next-line no-await-in-loop -- Each demo runs on its own.
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(agent(babcia.asking)?.lastTurn).toBeUndefined()
+      expect(agent(babcia.lead)).toMatchObject({ lastTurn: { outcome: "completed" } })
+    }
+  })
+
+  it("leaves the lead alone while its helper's question is open", async () => {
+    const { cues, agent } = open()
+    cues.helpers()
+    cues.helperAsks()
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(agent(babcia.lead)).toMatchObject({ working: false })
+    expect(agent(babcia.lead)?.lastTurn).toBeUndefined()
+    expect(agent(babcia.asking)?.lastTurn).toBeUndefined()
+    // The others ended.
+    expect(agent(babcia.shows)).toMatchObject({ lastTurn: { outcome: "completed" } })
   })
 
   it("does not end the turn of an agent the person told no, nor of a failed one", async () => {

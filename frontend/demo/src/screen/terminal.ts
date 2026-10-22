@@ -158,17 +158,18 @@ export const createDemoTerminalScreen = ({
     })
     const agent = chatAgent(terminal)
     const store = conversation()
-    const said =
-      agent && store
-        ? store
-            .getSnapshot()
-            .items.slice(link()!.opening(key))
-            .map((item) => {
-              const made = items.get(item) ?? itemBlock(item, agent)
-              items.set(item, made)
-              return made
-            })
-        : []
+    const shown = agent && store ? store.getSnapshot().items.slice(link()!.opening(key)) : []
+    // Antigravity's latest call is drawn differently from the calls before it.
+    const latest = agent === "agy" ? shown.findLast((item) => item.kind === "tool-call") : undefined
+    const said = agent
+      ? shown.map((item) => {
+          if (latest && item.call !== null && item.call === latest.call)
+            return itemBlock(item, agent, true)
+          const made = items.get(item) ?? itemBlock(item, agent)
+          items.set(item, made)
+          return made
+        })
+      : []
     return [...start, ...commands, ...said]
   }
 
