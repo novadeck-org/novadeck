@@ -286,11 +286,11 @@ through the backend's seed and actions, as terminals do; the person's moves are
 workspace actions the backend makes so. The pane loads content through the backend
 port's optional `companions` capability (`frontend/core/src/companion.ts`):
 
-| `companions`                             | What it carries                                                                   |
-| ---------------------------------------- | --------------------------------------------------------------------------------- |
-| `follow(target, itemId, { reveal }, on)` | What an item holds now, then again as it changes: ready with a stamp, or why not  |
-| `save(target, itemId, text, basedOn)`    | The user's edit written to the plan file, unless it changed since stamp `basedOn` |
-| `attach?(key, path)`                     | A file the person picked, put on a terminal's bar; absent where the backend can't |
+| `companions`                             | What it carries                                                                              |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `follow(target, itemId, { reveal }, on)` | What an item holds now, then again as it changes: ready with a stamp, or why not             |
+| `save(target, itemId, text, basedOn)`    | The user's edit written to the plan file, unless it changed since stamp `basedOn`            |
+| `attach?(key, path)`                     | A file the person picked, put on a terminal's bar and opened; absent where the backend can't |
 
 A change (the `changes` item kind) shows in the diff viewer (`libraries/viewers/src/diff.ts`),
 read-only: a list of the changed files at the top, each scrolling to its section, then a
@@ -396,7 +396,8 @@ with every safety check again at that time:
   machine (`localhost`, `127.0.0.1`, `[::1]`, `0.0.0.0` and `[::]` alike) its scheme and port
   alone, so a dev server stays one item whatever route the agent shows. A file that often holds secrets (`.env`,
   keys, credentials, agents' and tools' logins, shell history) is held: it never opens
-  by itself, even when the agent says the person asked; the pane never falls back to
+  by itself, even when the agent says the person asked (one the person attached themselves does
+  open, onto the pane's gate: they picked it); the pane never falls back to
   it, its taskbar peek shows no preview, and it goes by its own name, not the agent's
   title. So none appears unasked while they share their screen. A file that resolves
   to such a file only later is held when it loads. The server's `showing` tool lists

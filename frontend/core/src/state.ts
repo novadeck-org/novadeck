@@ -452,9 +452,16 @@ const undockItem = (
   }
 }
 
+// Whether an item opens on its bar when it arrives: the person asked for it, and either they
+// attached it themselves (they picked it, and the pane still gates what it holds behind a
+// click) or it may not hold secrets.
+const opensOnArrival = (item: CompanionItem): boolean =>
+  item.asked && (!item.held || item.by === "person")
+
 // What the backend says of an item. Something new, or shown again, comes to its bar: it
-// opens there on top of what's open when the person asked for it, unless it may hold
-// secrets, and is new otherwise, unless the pane is already showing it. A hidden one is back on the bar.
+// opens there on top of what's open when the person asked for it, unless an agent showed it
+// and it may hold secrets, and is new otherwise, unless the pane is already showing it. A
+// hidden one is back on the bar.
 const upsertItem = (state: WorkspaceState, item: CompanionItem): WorkspaceState => {
   const previous = state.items.find((each) => each.id === item.id)
   const listed = previous ? withItem(state, item) : { ...state, items: [...state.items, item] }
@@ -467,11 +474,11 @@ const upsertItem = (state: WorkspaceState, item: CompanionItem): WorkspaceState 
     const here = before === after ? bar : arrive(bar, item.id)
     if (!again) return here
     const back = reopen(here, item.id)
-    return item.asked && !item.held ? raise(back, item.id) : back
+    return opensOnArrival(item) ? raise(back, item.id) : back
   })
   if (!again) return arrived
   const bar = barOf(arrived, after)
-  return (item.asked && !item.held) || (bar.open && topOf(bar) === item.id)
+  return opensOnArrival(item) || (bar.open && topOf(bar) === item.id)
     ? unfresh(arrived, item.id)
     : { ...arrived, fresh: { ...arrived.fresh, [item.id]: true } }
 }

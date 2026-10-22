@@ -3,6 +3,7 @@ import {
   itemIdOf,
   notesIn,
   PlanUnwritableError,
+  ownItemWith,
   shownItemWith,
   type CompanionItem,
   type CompanionKey,
@@ -16,6 +17,7 @@ import type { WorkspaceTarget } from "@novadeck/core/types"
 
 import type { SampleAgent } from "./agents"
 import type { SampleArtifact } from "./artifacts"
+import { attachedArtifact } from "./attached"
 import { applyEdits, removeNotes } from "./revise"
 
 // The showcase's agents at work: they answer what their terminals are told, revise their
@@ -37,6 +39,8 @@ export const planFaults: readonly PlanFault[] = [
 ]
 
 export type Showcase = Companions & {
+  // Whether any agent here has a plan, which can go wrong.
+  readonly plans: boolean
   // What the terminals held before the demo started, for the seed.
   readonly items: readonly CompanionItem[]
   // Reports what the agents do from here on, reading the session's items as they stand
@@ -157,10 +161,13 @@ export const createShowcase = (
   {
     agents,
     shown = [],
+    directory,
   }: {
     readonly agents: readonly (Holder & { readonly sample: SampleAgent })[]
     // Terminals without an agent, and what they hold.
     readonly shown?: readonly (Holder & { readonly artifacts: readonly SampleArtifact[] })[]
+    // The folder of the project a terminal is in, which a file the person attaches is named from.
+    readonly directory?: (key: CompanionKey) => string | undefined
   },
   later: (delay: number, run: () => void) => void = (delay, run) => {
     setTimeout(run, delay)
@@ -201,9 +208,22 @@ export const createShowcase = (
   )
   // Who follows each plan, to hear when it's written.
   const following = new Map<ItemId, Set<(content: ItemContent) => void>>()
+  let attachedCount = 0
   let report: ((actions: readonly BackendAction[]) => void) | undefined
   let current: () => readonly CompanionItem[] = noItems
   let started = false
+
+  // What a sample or attached item holds, and why it can't show; its followers hear it again
+  // when the person attaches the file anew.
+  const watching = new Map<string, Set<{ on: (content: ItemContent) => void; reveal: boolean }>>()
+  const shownContent = (id: string, reveal: boolean): ItemContent => {
+    const sample = samples.get(id)
+    return !sample
+      ? { state: "unavailable", reason: "gone", size: null }
+      : sample.item.held && !reveal
+        ? { state: "unavailable", reason: "held", size: null }
+        : sample.content
+  }
 
   const written = (agent: Running): void => {
     for (const id of agent.planIds)
@@ -274,6 +294,7 @@ export const createShowcase = (
 
   return {
     items,
+    plans: agents.length > 0,
     start: (next, read) => {
       report = next
       current = read
@@ -298,15 +319,68 @@ export const createShowcase = (
         on(contentOf(agent))
         return () => listeners.delete(on)
       }
-      const sample = samples.get(id)
-      on(
-        !sample
-          ? { state: "unavailable", reason: "gone", size: null }
-          : sample.item.held && !reveal
-            ? { state: "unavailable", reason: "held", size: null }
-            : sample.content,
-      )
-      return () => {}
+      const watcher = { on, reveal }
+      const watchers = watching.get(id) ?? new Set()
+      watching.set(id, watchers)
+      watchers.add(watcher)
+      on(shownContent(id, reveal))
+      return () => watchers.delete(watcher)
+    },
+    // As the runner's `keep` does: what the person picked lands on the terminal's bar, asked
+    // for. An item that bar holds for the same file, whoever showed it and whatever lines it
+    // points at, is updated to the whole file, as the person's, and shown again; with none, a new item is added.
+    attach: (key, path) => {
+      // The same file as an agent showed it holds the same content, all of it.
+      const sample = [...samples.values()].find((each) => each.item.path === path)
+      const made = attachedArtifact(path, directory?.(key))
+      const sampleContent = sample?.content
+      const content: ItemContent =
+        sampleContent?.state === "ready" && sampleContent.content.kind === "file"
+          ? {
+              ...sampleContent,
+              content: {
+                ...sampleContent.content,
+                from: sampleContent.content.firstLine,
+                to: sampleContent.content.firstLine + sampleContent.content.lines.length - 1,
+              },
+            }
+          : (sample?.content ?? made.content)
+      const own = ownItemWith(current(), key.terminalId, made.item)
+      const handle =
+        [...agents, ...shown].find((each) => companionKeyId(each.key) === companionKeyId(key))
+          ?.handle ?? key.terminalId
+      const id = own?.id ?? `attached-${(attachedCount += 1)}`
+      samples.set(id, { item: { ...made.item, id }, content })
+      for (const watcher of watching.get(id) ?? []) watcher.on(shownContent(id, watcher.reveal))
+      const { kind, name, detail, url, lines, held } = made.item
+      const item: CompanionItem = own
+        ? {
+            ...own,
+            kind,
+            name,
+            detail,
+            path,
+            url,
+            lines,
+            held,
+            by: "person",
+            version: own.version + 1,
+            asked: true,
+            shownAt: now(),
+          }
+        : {
+            ...itemOf(
+              { key, handle },
+              { item: { ...made.item, id }, content },
+              {
+                asked: true,
+                shownAt: now(),
+              },
+            ),
+            by: "person",
+          }
+      report?.([{ type: "item/upsert", target: key, item }])
+      return Promise.resolve()
     },
     save: (target, id, text, basedOn) => {
       const agent = planOf(target, id)

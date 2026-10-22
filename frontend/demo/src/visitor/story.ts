@@ -5,6 +5,7 @@ import { demoHandle } from "../handles"
 import { demoAgent, demoTerminalId } from "../samples"
 import { createShowcase } from "../showcase/simulation"
 import { orderSummary } from "../showcase/storefront"
+import { directoryOf, itemsOf } from "../showcase/workspace"
 import { terminalOf } from "../terminals"
 import type { DemoTranscript } from "../transcripts"
 import type { DemoTurns, TurnEvent } from "../turns"
@@ -123,14 +124,15 @@ export const visitorStory = (
       },
     },
   }
+  let latest: Workspace | undefined
   const showcase = createShowcase({
     agents: [],
+    directory: (key) => directoryOf(latest, key),
     shown: [{ key: claude, handle: demoHandle(1), artifacts: [orderSummary] }],
   })
 
   const wrap = (backend: Backend): Backend => {
     let sink: BackendSink | undefined
-    let latest: Workspace | undefined
     // The steps still to come: Claude Code's turn to end, then Codex to ask.
     let step: "plan" | "nudge" | "review" | "done" = "plan"
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -185,6 +187,10 @@ export const visitorStory = (
       start: (next) => {
         sink = next
         const stop = backend.start?.(next)
+        // What the person opens from the Source panel lands on the bar through it.
+        const stopShowcase = showcase.start(next.dispatch, () =>
+          latest ? itemsOf(latest) : showcase.items,
+        )
         const unwatch = turns.watch(heard)
         if (readingMs > 0 && Number.isFinite(readingMs) && step === "plan")
           planTimer = setTimeout(plan, readingMs)
@@ -192,6 +198,7 @@ export const visitorStory = (
         if (step === "nudge") wait()
         return () => {
           stop?.()
+          stopShowcase()
           unwatch()
           clearTimeout(timer)
           clearTimeout(planTimer)

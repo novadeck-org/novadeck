@@ -16,6 +16,7 @@ import {
   type CompanionWindow,
   type PlanSaveResult,
   type ItemContent,
+  type FolderListing,
   type PageTrouble,
   type Project,
   type RunnerSettings,
@@ -117,6 +118,14 @@ export type Runner = {
      * one already removed, and with `CLOSING` when the runner shuts down first.
      */
     remove(input: { readonly projectId: string }): Promise<void>
+    /**
+     * One folder of the project's directory as it is now, by its path from the project's
+     * root with `/` between names ("" for the root); the entries come sorted, folders
+     * first, and never include `.git`. Rejects with `NOT_FOUND` for a project the runner
+     * doesn't have, and `INVALID_DIRECTORY` for a folder that is missing, no folder, or
+     * outside the project's directory.
+     */
+    folder(input: { readonly projectId: string; readonly folder: string }): Promise<FolderListing>
   }
   readonly sessions: {
     list(input: { readonly projectId: string }): Promise<WorkspaceSession[]>
@@ -627,6 +636,7 @@ export const connectRunner = async (
       create: (input) => call((wire) => wire.projects.create(input)),
       rename: (input) => call((wire) => wire.projects.rename(input)),
       remove: (input) => call((wire) => wire.projects.remove(input)),
+      folder: (input) => call((wire) => wire.projects.folder(input)),
     },
     sessions: {
       list: (input) => call((wire) => wire.sessions.list(input)),

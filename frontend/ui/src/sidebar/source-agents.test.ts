@@ -13,8 +13,6 @@ import {
 } from "./source-agents"
 
 const project = (parts: Partial<SourceProject> = {}): SourceProject => ({
-  entries: [],
-  ignored: [],
   changes: {
     "a.ts": { kind: "modified", touched: { moth: 2, crow: 1 } },
     "b.ts": { kind: "added", touched: { wren: 3 } },

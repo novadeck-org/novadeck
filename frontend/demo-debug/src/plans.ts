@@ -41,9 +41,9 @@ const faults: readonly {
 ]
 
 // The panel's group for what can go wrong with a plan the person edits, on the selected
-// terminal's agent. Only the showcase has agents with plans.
+// terminal's agent. Only a showcase with agents has plans.
 export const planGroups = (companions: Backend["companions"]): readonly DemoActionGroup[] =>
-  companions && isShowcase(companions)
+  companions && isShowcase(companions) && companions.plans
     ? [
         {
           section: "Agents",

@@ -3,7 +3,9 @@
    `.source-row-select` button (the `.source-twisty`, `.source-icon`, `.source-name` and the
    file's marks) beside its `.source-chips`, and a `.source-guide` for each open folder it
    sits inside. A file's marks are a `.source-cursor` for each agent writing it now, or else a
-   `.source-trail` fading from its latest write. An empty panel shows `.source-empty`.
+   `.source-trail` fading from its latest write. A panel with no tree shows `.source-empty`; an open folder
+   that could not be read in full, or holds nothing, ends with a `.source-note` (in a
+   `.source-note-row`, which carries the guides).
 
    Hooks: on a row, data-kind="modified" | "added" | "deleted" (absent: untouched),
    data-folder, data-ignored, data-dim (an agent is lit and did not touch it), data-pulse="a" |
@@ -241,6 +243,24 @@
   margin: 0;
   padding: 12px 2px;
   color: var(--color-muted);
+}
+
+.source-note-row {
+  position: relative;
+  display: flex;
+  height: 26px;
+  flex-shrink: 0;
+  align-items: center;
+  border: 1px solid transparent;
+}
+.source-note {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  padding-right: 8px;
+  color: var(--color-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .source-strip {

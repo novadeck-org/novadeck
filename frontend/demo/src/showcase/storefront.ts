@@ -2,8 +2,8 @@ import { fileLines, ready, svg, type SampleArtifact } from "./artifacts"
 
 // What the agents demo's storefront terminals hold on their bars: a draft of the order
 // summary and the code behind it beside the implementation, the spec and the empty cart
-// beside the review, and the last run beside the tests. Nothing here changes; they're
-// there to open, peek at and move.
+// beside the review, and the last run beside the tests. They're there to open, peek at
+// and move, and a file the person opens from the Source panel updates the one that shows it.
 
 const storefront = "~/projects/storefront"
 

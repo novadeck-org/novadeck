@@ -5,7 +5,7 @@ import type { Tile } from "@novadeck/core/types"
 import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { Minimize2, FoldHorizontal, UnfoldHorizontal, ArrowUpRight, Mic, X } from "lucide-react"
+import { Minimize2, FoldHorizontal, UnfoldHorizontal, Maximize2, Mic, X } from "lucide-react"
 import { useRef, type ReactNode } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
@@ -318,7 +318,7 @@ export const WindowShell = ({
                 onResizePreset(event.currentTarget)
               }}
             >
-              <ResizeIcon size={14} />
+              <ResizeIcon size={12} />
             </button>
           </Tooltip>
         )}
@@ -332,12 +332,12 @@ export const WindowShell = ({
                 onFocus()
               }}
             >
-              <ArrowUpRight size={12} />
+              <Maximize2 size={12} />
             </button>
           </Tooltip>
         )}
         {windowed && (
-          <Tooltip content={`${windowed.destination}${focusHint}`}>
+          <Tooltip content={`Open in ${windowed.destination}${focusHint}`}>
             <button
               className={`${headerActionClasses} terminal-view-action`}
               aria-label={`Open in ${windowed.destination}`}

@@ -52,7 +52,8 @@
     "./toggle.css": "./src/toggle.css",
     "./ToggleGroup": "./src/ToggleGroup.tsx",
     "./tone.css": "./src/tone.css",
-    "./Tooltip": "./src/Tooltip.tsx"
+    "./Tooltip": "./src/Tooltip.tsx",
+    "./views": "./src/views.ts"
   },
   "scripts": {
     "test": "vitest run",
