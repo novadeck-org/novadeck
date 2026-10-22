@@ -10,7 +10,7 @@
     "./bar": "./src/bar.ts",
     "./drag-session": "./src/drag-session.ts",
     "./mail": "./src/homes/terminal/messages/mail.ts",
-    "./mail.css": "./src/homes/terminal/messages/mail.css",
+    "./mail.css": "./src/mail.css",
     "./pane.css": "./src/pane.css",
     "./peek.css": "./src/peek.css",
     "./prose.css": "./src/prose.css",
