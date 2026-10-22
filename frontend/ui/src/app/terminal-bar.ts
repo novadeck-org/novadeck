@@ -1,16 +1,16 @@
-import { isOnBar, type CompanionItem, type ItemId } from "@novadeck/core/companion"
 import { emptyBar, type Bar } from "@novadeck/core/companion-bar"
+import { isOnBar, type Item, type ItemId } from "@novadeck/core/items"
 
 import { useWorkspaceState } from "./controller/context"
 import { currentState, sameItems, shallowEqual } from "./selectors"
 
-const noItems: readonly CompanionItem[] = []
+const noItems: readonly Item[] = []
 
 // What a terminal's bar holds, as the person arranged it, and what's new there: for its
 // window's taskbar and its sidebar tab alike.
 export type TerminalBar = {
   readonly bar: Bar
-  readonly items: readonly CompanionItem[]
+  readonly items: readonly Item[]
   readonly fresh: Readonly<Record<ItemId, true>>
 }
 

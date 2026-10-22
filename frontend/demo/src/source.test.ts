@@ -1,4 +1,4 @@
-import type { CompanionItem } from "@novadeck/core/companion"
+import type { Item } from "@novadeck/core/items"
 import type { Backend, BackendAction } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { workspaceReducer } from "@novadeck/core/state"
@@ -603,8 +603,7 @@ const kept = (backend: Backend, projectId: string) => {
 
 describe("opening a file in the agents demo", () => {
   const open = () => kept(plainDemo("agents"), "storefront")
-  const barOf = (item: CompanionItem): string =>
-    "terminalId" in item.holder ? item.holder.terminalId : ""
+  const barOf = (item: Item): string => ("terminalId" in item.holder ? item.holder.terminalId : "")
 
   it("raises a whole file the terminal already held, as the same item", async () => {
     const { state, attachTo, stop } = open()

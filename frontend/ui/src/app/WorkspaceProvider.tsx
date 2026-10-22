@@ -1,9 +1,9 @@
 import { createChat, watchChat } from "@novadeck/chat/state"
-import { createDragSession, DragSessionContext } from "@novadeck/companion/drag-session"
-import { createPanes } from "@novadeck/companion/state"
 import type { CreateBackend } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createWorkspaceStore, type Store } from "@novadeck/core/store"
+import { createDragSession, DragSessionContext } from "@novadeck/items/drag-session"
+import { createItemStore } from "@novadeck/items/state"
 import { createRef, useEffect, useState, type ReactNode } from "react"
 import { useLocation, useNavigate, useNavigationType, type Location } from "react-router"
 
@@ -77,9 +77,9 @@ const createServices = (
   const chat = createChat()
   const { bind, settle, ...navigation } = createNavigator({ workspace, ui, now, panels })
   const canvas = createRef<CanvasHandle>()
-  const panes =
+  const itemStore =
     backend.companions &&
-    createPanes({ companions: backend.companions, workspace, messages: backend.messages })
+    createItemStore({ companions: backend.companions, workspace, messages: backend.messages })
   const commands = createWorkspaceCommands({
     workspace,
     ui,
@@ -92,7 +92,7 @@ const createServices = (
     murmur: backend.murmur,
     conversations: backend.conversations,
     companions: backend.companions,
-    panes,
+    itemStore,
     canvas,
     effects: domEffects,
   })
@@ -105,7 +105,7 @@ const createServices = (
       navigation,
       commands,
       canvas,
-      panes,
+      itemStore,
       drag: createDragSession(),
     },
     sync: { workspace, ui, now, panels, bind, settle },
@@ -146,7 +146,7 @@ export const WorkspaceProvider = ({
     () => connectBackend(services.backend, services.workspace, services.commands.openRequested),
     [services],
   )
-  useEffect(() => services.panes?.connect(), [services])
+  useEffect(() => services.itemStore?.connect(), [services])
   useEffect(() => persistUi(services.ui, services.workspace), [services])
   useEffect(() => watchAppearance(services.ui, window, services.backend.showAppearance), [services])
   useEffect(

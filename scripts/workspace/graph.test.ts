@@ -102,7 +102,7 @@ describe("the package graph", () => {
       "apps/try",
       "frontend/ui",
       "frontend/toolkit",
-      "frontend/companion",
+      "frontend/items",
       "frontend/chat",
       "frontend/demo",
       "frontend/demo-debug",
@@ -184,33 +184,33 @@ describe("the package graph", () => {
     )
   })
 
-  it("keeps the companion off the app's chrome and every backend", () => {
-    // The companion pane is a part the UI composes: it reaches the core, the toolkit and the
+  it("keeps the items package off the app's chrome and every backend", () => {
+    // The items package is a part the UI composes: it reaches the core, the toolkit and the
     // viewers, and nothing that composes it, nor the chat beside it, nor a backend.
-    const reached = reaches("frontend/companion")
+    const reached = reaches("frontend/items")
     expect(
       ["frontend/ui", "frontend/chat", ...backends]
         .filter((folder) => reached.has(folder))
-        .map((f) => `frontend/companion -> ${f}`),
+        .map((f) => `frontend/items -> ${f}`),
     ).toEqual([])
   })
 
-  it("keeps the chat off the app's chrome, the companion, every backend and every harness", () => {
+  it("keeps the chat off the app's chrome, the items package, every backend and every harness", () => {
     // The chat view is a part the UI composes: it reaches the core and the toolkit, and nothing
-    // that composes it, nor the companion beside it, nor a backend, nor a harness (the contract
+    // that composes it, nor the items package beside it, nor a backend, nor a harness (the contract
     // test is the one that renders it over them).
     const reached = reaches("frontend/chat")
     const harnesses = [...packages.keys()].filter((folder) => folder.startsWith("harnesses/"))
     expect(harnesses.length).toBeGreaterThan(0)
     expect(
-      ["frontend/ui", "frontend/companion", ...backends, ...harnesses]
+      ["frontend/ui", "frontend/items", ...backends, ...harnesses]
         .filter((folder) => reached.has(folder))
         .map((f) => `frontend/chat -> ${f}`),
     ).toEqual([])
   })
 
-  it("keeps shipped code of the toolkit, the companion and the chat off the test kit, which only their tests may import", () => {
-    for (const folder of ["frontend/toolkit", "frontend/companion", "frontend/chat"]) {
+  it("keeps shipped code of the toolkit, the items package and the chat off the test kit, which only their tests may import", () => {
+    for (const folder of ["frontend/toolkit", "frontend/items", "frontend/chat"]) {
       const src = join(root, folder, "src")
       const shipped = (readdirSync(src, { recursive: true }) as string[])
         .map((file) => file.split("\\").join("/"))
@@ -253,13 +253,13 @@ describe("the package graph", () => {
     expect(leaving).toEqual([])
   })
 
-  it("keeps CodeMirror in the companion's plan editor, where it loads lazily", () => {
+  it("keeps CodeMirror in the items package's plan editor, where it loads lazily", () => {
     // The plan's and the markdown document's views reach the editor through `lazy()`; a
     // static import of CodeMirror anywhere else would pull it into the first chunk.
-    const src = join(root, "frontend", "companion", "src")
+    const src = join(root, "frontend", "items", "src")
     const files = (readdirSync(src, { recursive: true }) as string[])
       .map((file) => file.split("\\").join("/"))
-      .filter((file) => /\.tsx?$/.test(file) && !file.startsWith("panes/plan/plan-editor/"))
+      .filter((file) => /\.tsx?$/.test(file) && !file.startsWith("kinds/plan/plan-editor/"))
     expect(files.length).toBeGreaterThan(10)
     expect(
       files.filter((file) => /["']@codemirror\//.test(readFileSync(join(src, file), "utf8"))),

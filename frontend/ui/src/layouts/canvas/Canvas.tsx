@@ -1,8 +1,8 @@
 import "./canvas.css"
-import { useDrag, useDragSession } from "@novadeck/companion/drag-session"
 import { canvasPointPosition, viewportCanvasPosition } from "@novadeck/core/layout/canvas-placement"
 import { isWindow } from "@novadeck/core/roster"
 import type { Tile, CanvasLayout } from "@novadeck/core/types"
+import { useDrag, useDragSession } from "@novadeck/items/drag-session"
 import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
 import {
   Background,

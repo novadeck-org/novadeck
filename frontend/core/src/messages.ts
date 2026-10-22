@@ -1,4 +1,4 @@
-import type { CompanionKey } from "./companion"
+import type { CompanionKey } from "./items"
 import type { Store } from "./store"
 
 // Messages between the agents in a session's terminals, as a backend reports them: each

@@ -1,19 +1,11 @@
-import type {
-  CompanionItem,
-  FileContent,
-  ItemContent,
-  UnavailableReason,
-} from "@novadeck/core/companion"
+import type { Item, FileContent, ItemContent, UnavailableReason } from "@novadeck/core/items"
 
 // Something a sample agent shows: the item it points at, by an id that stays the same, and
 // what it holds there, or why it can't show.
 export type SampleArtifact = {
-  readonly item: Pick<
-    CompanionItem,
-    "kind" | "name" | "detail" | "path" | "url" | "lines" | "held"
-  > & {
+  readonly item: Pick<Item, "kind" | "name" | "detail" | "path" | "url" | "lines" | "held"> & {
     readonly id: string
-    readonly plan?: CompanionItem["plan"]
+    readonly plan?: Item["plan"]
   }
   readonly content: ItemContent
 }

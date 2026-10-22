@@ -1,4 +1,4 @@
-import { itemIdOf } from "@novadeck/core/companion"
+import { itemIdOf } from "@novadeck/core/items"
 import type { BackendAction } from "@novadeck/core/port"
 import { activeSession, createTerminalState, createWorkspaceSession } from "@novadeck/core/state"
 import type { CompanionItem, CompanionWindow, TerminalSummary } from "@novadeck/protocol"

@@ -1,5 +1,5 @@
-import { companionKeyId } from "@novadeck/core/companion"
 import type { AgentAsk, InboxAnswer, InboxItem } from "@novadeck/core/inbox"
+import { companionKeyId } from "@novadeck/core/items"
 import {
   noMail,
   type AgentMessage,

@@ -1,5 +1,4 @@
 import { agentWorking } from "./agent-finish"
-import { companionKeyId } from "./companion"
 import type { ChatRequest } from "./conversation"
 import type { AgentName } from "./harnesses"
 import {
@@ -11,6 +10,7 @@ import {
   type InboxSource,
   type InboxUnread,
 } from "./inbox"
+import { companionKeyId } from "./items"
 import {
   waitingFor,
   type AgentMessage,

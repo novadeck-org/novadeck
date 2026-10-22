@@ -1,9 +1,9 @@
 import type { Chat } from "@novadeck/chat/state"
-import type { DragSession } from "@novadeck/companion/drag-session"
-import type { Panes } from "@novadeck/companion/state"
 import type { Backend } from "@novadeck/core/port"
 import type { WorkspaceStore } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
+import type { DragSession } from "@novadeck/items/drag-session"
+import type { ItemStore } from "@novadeck/items/state"
 import { createContext, useContext, type RefObject } from "react"
 
 import type { CanvasHandle } from "../../layouts/canvas/types"
@@ -25,7 +25,7 @@ export type WorkspaceServices = {
   // The mounted Canvas, for commands that move its camera.
   readonly canvas: RefObject<CanvasHandle | null>
   // Every terminal's companion pane, where the backend has companions.
-  readonly panes: Panes | undefined
+  readonly itemStore: ItemStore | undefined
   // Whatever is being dragged off a terminal's taskbar.
   readonly drag: DragSession
 }

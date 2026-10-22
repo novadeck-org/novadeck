@@ -65,7 +65,7 @@ const places = [
   ["backend/runner/", "runner-adapter"],
   ["core/", "core"],
   ["ui-toolkit/", "toolkit"],
-  ["terminals/companion/", "companion"],
+  ["terminals/companion/", "items"],
   ["terminals/chat/", "chat"],
 ].map(([prefix, name]) => ({ prefix: prefix!, dir: join(src, "..", "..", name!, "src") }))
 const all = [
@@ -737,7 +737,7 @@ const imports = (css: string): { readonly target: string; readonly layered: bool
 // file it was below the old src/: the package's folder is `places`' prefix.
 const packageCss = [
   ["@novadeck/toolkit/", "ui-toolkit/"],
-  ["@novadeck/companion/", "terminals/companion/"],
+  ["@novadeck/items/", "terminals/companion/"],
   ["@novadeck/chat/", "terminals/chat/"],
 ] as const
 

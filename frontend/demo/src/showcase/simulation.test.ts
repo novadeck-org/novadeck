@@ -1,10 +1,10 @@
 import {
   itemIdOf,
   PlanUnwritableError,
-  type CompanionItem,
+  type Item,
   type CompanionKey,
   type ItemContent,
-} from "@novadeck/core/companion"
+} from "@novadeck/core/items"
 import type { BackendAction } from "@novadeck/core/port"
 import { activeSession, workspaceReducer } from "@novadeck/core/state"
 import { workspaceFixture } from "@novadeck/core/testing"
@@ -36,7 +36,7 @@ const running = (
     (_delay, run) => run(),
     () => 100,
   )
-  let items: readonly CompanionItem[] = showcase.items
+  let items: readonly Item[] = showcase.items
   const reported: BackendAction[] = []
   const report = (actions: readonly BackendAction[]) => {
     reported.push(...actions)
@@ -48,22 +48,22 @@ const running = (
   // What the agents reported as the demo started, apart from what follows.
   const started = reported.splice(0)
   // What a plan holds now, as following it says.
-  const contentOf = (id: CompanionItem["id"], reveal = false) => {
+  const contentOf = (id: Item["id"], reveal = false) => {
     let content: ItemContent | undefined
     showcase.follow(session, id, { reveal }, (next) => (content = next))()
     return content
   }
-  const planText = (id: CompanionItem["id"]) => {
+  const planText = (id: Item["id"]) => {
     const content = contentOf(id)
     return content?.state === "ready" && content.content.kind === "plan" ? content.content.text : ""
   }
   // The stamp a plan stands at, which an edit is made on.
-  const stampOf = (id: CompanionItem["id"]) => {
+  const stampOf = (id: Item["id"]) => {
     const content = contentOf(id)
     return content?.state === "ready" ? content.stamp : ""
   }
   // The person moved an item somewhere else, as undocking does.
-  const hold = (id: string, holder: CompanionItem["holder"]) =>
+  const hold = (id: string, holder: Item["holder"]) =>
     void (items = items.map((item) => (item.id === id ? { ...item, holder } : item)))
   return { showcase, reported, started, stop, contentOf, planText, stampOf, hold }
 }

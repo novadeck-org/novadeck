@@ -1,5 +1,5 @@
-import { isOnBar, type CompanionItem } from "./companion"
 import { arrive, emptyBar, messagesKey, settle, type Bar, type BarKey } from "./companion-bar"
+import { isOnBar, type Item } from "./items"
 import { addCompactGridTerminal, initialGridLayouts } from "./layout/grid-placement"
 import { placeTerminal, removeFromLayout } from "./layout/workspace-layout"
 import { addTerminal, addWindow, isWindow, tilesOf } from "./roster"
@@ -49,7 +49,7 @@ export type SessionSeed = {
   // Its windows undocked from companions, each with its item among `items`, and what
   // agents showed and the person attached.
   readonly windows: readonly CompanionWindowMeta[]
-  readonly items: readonly CompanionItem[]
+  readonly items: readonly Item[]
   readonly canvasLayout?: CanvasLayout
   // When the session was last visited; the seed's time when omitted.
   readonly visitedAt?: number
@@ -97,7 +97,7 @@ const appendTile = (state: WorkspaceState, tile: Tile): WorkspaceState => {
 // kept, on no bar, until it is.
 const withItems = (
   state: WorkspaceState,
-  held: readonly CompanionItem[],
+  held: readonly Item[],
   saved: WorkspaceState["bars"],
 ): WorkspaceState => {
   const bars = Object.fromEntries(
@@ -132,7 +132,7 @@ const restoredState = (
   { order, bars = {}, ...restored }: RestoredView,
   terminals: readonly TerminalMetadata[],
   windows: readonly CompanionWindowMeta[],
-  items: readonly CompanionItem[],
+  items: readonly Item[],
 ): WorkspaceState => {
   const tiles: readonly Tile[] = [...terminals, ...windows]
   const present = new Set(tiles.map((tile) => tile.id))

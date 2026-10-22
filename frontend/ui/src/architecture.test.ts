@@ -15,8 +15,8 @@ import { describe, expect, it } from "./test"
 // terminal emulator, takes the page's theme from the entry, as the port's `ThemeSource`.
 // ui-toolkit/ is the package `@novadeck/toolkit` (see `modules`): the controls, `class-name` and
 // the sidebar item. Its own rules are its package.json's.
-// terminals/companion/ is the package `@novadeck/companion` (see `modules`): the companion pane
-// and the bar drag, which `layouts/` and `app/` reach as part of `terminals/`.
+// terminals/companion/ is the package `@novadeck/items` (see `modules`): the companion pane, the
+// undocked window and the bar drag, which `layouts/` and `app/` reach as part of `terminals/`.
 // terminals/chat/ is the package `@novadeck/chat` (see `modules`): the chat view, its store and
 // its commands, which `app/` composes.
 const base = ["core/", "interaction/", "ui-toolkit/", "theme/"]
@@ -53,7 +53,7 @@ const rules: Record<string, readonly string[]> = {
     // The chat's store and commands, which the app composes; its pure helpers are theirs.
     "terminals/chat/state.ts",
     "terminals/chat/commands.ts",
-    // The companion panes' store, which commands use by its type, and the actions they
+    // The item store, which commands use by its type, and the actions they
     // implement, which they declare they satisfy.
     "terminals/companion/state.ts",
     "terminals/companion/actions.ts",
@@ -111,7 +111,7 @@ const vendors: Record<string, readonly string[]> = {
 // The packages that hold what used to be folders of src, named as the layers above know them.
 const modules: Record<string, string> = {
   "@novadeck/toolkit/": "ui-toolkit/",
-  "@novadeck/companion/": "terminals/companion/",
+  "@novadeck/items/": "terminals/companion/",
   "@novadeck/chat/": "terminals/chat/",
   "@novadeck/core/testing": "test/fixtures.ts",
   "@novadeck/test-kit/": "test/",

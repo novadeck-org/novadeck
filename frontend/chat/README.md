@@ -8,7 +8,7 @@ and the chat's own store and commands.
 ## Contract
 
 - **It depends on `core` and `toolkit`, and on no other frontend package.** Not `frontend/ui`,
-  `frontend/companion` or `frontend/runner-adapter`, no backend and no harness. Two checks in
+  `frontend/items` or `frontend/runner-adapter`, no backend and no harness. Two checks in
   `scripts/workspace/graph.test.ts` hold this: the manifest edges (what it declares, and what
   those reach), and a source check that no relative import in a frontend package's `src` leaves
   that package's folder, so a path into the UI can't bypass the manifest. The host

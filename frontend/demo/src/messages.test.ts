@@ -1,4 +1,4 @@
-import { companionKeyId } from "@novadeck/core/companion"
+import { companionKeyId } from "@novadeck/core/items"
 import { mailBadge } from "@novadeck/core/messages"
 import { vi } from "vitest"
 

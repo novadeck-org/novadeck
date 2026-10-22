@@ -5,13 +5,13 @@ import {
   PlanUnwritableError,
   ownItemWith,
   shownItemWith,
-  type CompanionItem,
+  type Item,
   type CompanionKey,
-  type Companions,
+  type Items,
   type ItemContent,
   type ItemId,
   type PlanVersion,
-} from "@novadeck/core/companion"
+} from "@novadeck/core/items"
 import type { BackendAction } from "@novadeck/core/port"
 import type { WorkspaceTarget } from "@novadeck/core/types"
 
@@ -38,17 +38,17 @@ export const planFaults: readonly PlanFault[] = [
   "failing",
 ]
 
-export type Showcase = Companions & {
+export type Showcase = Items & {
   // Whether any agent here has a plan, which can go wrong.
   readonly plans: boolean
   // What the terminals held before the demo started, for the seed.
-  readonly items: readonly CompanionItem[]
+  readonly items: readonly Item[]
   // Reports what the agents do from here on, reading the session's items as they stand
   // through `current`; returns the stop. As it first starts, each agent writes its plan
   // anew and opens what it opens.
   readonly start: (
     report: (actions: readonly BackendAction[]) => void,
-    current: () => readonly CompanionItem[],
+    current: () => readonly Item[],
   ) => () => void
   // What the person typed in an agent's terminal. Where it has the agent revise its plan,
   // `revised` is called once the revision is written.
@@ -61,7 +61,7 @@ export type Showcase = Companions & {
 }
 
 // Whether a backend's companions are the showcase's, which the debug panel can fault.
-export const isShowcase = (companions: Companions): companions is Showcase =>
+export const isShowcase = (companions: Items): companions is Showcase =>
   "fault" in companions && "told" in companions
 
 // A terminal of the showcase's, by the handle its agents know it by.
@@ -89,7 +89,7 @@ type Running = Holder & {
   fault?: PlanFault | undefined
 }
 
-const noItems = (): readonly CompanionItem[] => []
+const noItems = (): readonly Item[] => []
 
 const sameSession = (a: WorkspaceTarget, b: WorkspaceTarget): boolean =>
   a.projectId === b.projectId && a.workspaceSessionId === b.workspaceSessionId
@@ -101,8 +101,8 @@ const titleOf = (path: string, text: string): string =>
 const itemOf = (
   { key, handle }: Holder,
   { item }: SampleArtifact,
-  shown: Pick<CompanionItem, "asked" | "shownAt">,
-): CompanionItem => ({
+  shown: Pick<Item, "asked" | "shownAt">,
+): Item => ({
   id: itemIdOf(item.id),
   holder: { terminalId: key.terminalId },
   kind: item.kind,
@@ -119,7 +119,7 @@ const itemOf = (
   ...shown,
 })
 
-const planItemOf = (agent: Running, shownAt: number): CompanionItem => {
+const planItemOf = (agent: Running, shownAt: number): Item => {
   const { path, agent: name } = agent.sample.plan
   return {
     id: itemIdOf(agent.planId),
@@ -210,7 +210,7 @@ export const createShowcase = (
   const following = new Map<ItemId, Set<(content: ItemContent) => void>>()
   let attachedCount = 0
   let report: ((actions: readonly BackendAction[]) => void) | undefined
-  let current: () => readonly CompanionItem[] = noItems
+  let current: () => readonly Item[] = noItems
   let started = false
 
   // What a sample or attached item holds, and why it can't show; its followers hear it again
@@ -272,13 +272,13 @@ export const createShowcase = (
   // or page, there or wherever the person moved it, or anew.
   const show = (agent: Running, artifact: SampleArtifact, asked: boolean): void => {
     const own = shownItemWith(current(), agent.key.terminalId, artifact.item)
-    const item: CompanionItem = own
+    const item: Item = own
       ? { ...own, version: own.version + 1, asked, shownAt: now() }
       : itemOf(agent, artifact, { asked, shownAt: now() })
     report?.([{ type: "item/upsert", target: agent.key, item }])
   }
 
-  const items: readonly CompanionItem[] = [
+  const items: readonly Item[] = [
     ...[...running.values()].flatMap((agent, index) => [
       planItemOf(agent, index),
       ...agent.sample.artifacts.shown.map((artifact, shownAt) =>
@@ -353,7 +353,7 @@ export const createShowcase = (
       samples.set(id, { item: { ...made.item, id }, content })
       for (const watcher of watching.get(id) ?? []) watcher.on(shownContent(id, watcher.reveal))
       const { kind, name, detail, url, lines, held } = made.item
-      const item: CompanionItem = own
+      const item: Item = own
         ? {
             ...own,
             kind,

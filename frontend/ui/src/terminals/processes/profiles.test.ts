@@ -1,4 +1,4 @@
-import type { ArtifactKind, CompanionItem } from "@novadeck/core/companion"
+import type { ArtifactKind, Item } from "@novadeck/core/items"
 import { itemFixture } from "@novadeck/core/testing"
 import {
   BookText,
@@ -20,7 +20,7 @@ const kindIcons: Record<ArtifactKind, LucideIcon> = {
   page: Globe,
   changes: GitCompare,
 }
-const oldWindowIcon = (item: Pick<CompanionItem, "kind" | "name"> | undefined): LucideIcon =>
+const oldWindowIcon = (item: Pick<Item, "kind" | "name"> | undefined): LucideIcon =>
   !item || item.kind === "plan"
     ? FileText
     : item.kind === "file" && /\.(md|markdown)$/i.test(item.name)

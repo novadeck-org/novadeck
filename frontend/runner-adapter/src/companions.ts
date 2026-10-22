@@ -1,12 +1,12 @@
 import {
   itemIdOf,
-  type CompanionItem,
+  type Item,
   PlanUnwritableError,
-  type Companions,
+  type Items,
   type ItemContent,
   type PageTrouble,
   pageTroublesPerCall,
-} from "@novadeck/core/companion"
+} from "@novadeck/core/items"
 import type { CompanionWindowMeta } from "@novadeck/core/types"
 import {
   harnesses,
@@ -31,7 +31,7 @@ export const agentNames = Object.fromEntries(harnesses.map(({ id, name }) => [id
 >
 
 // An item as the workspace holds it; its session is where the workspace keeps it.
-export const itemOf = ({ sessionId: _session, plan, id, ...item }: RunnerItem): CompanionItem => ({
+export const itemOf = ({ sessionId: _session, plan, id, ...item }: RunnerItem): Item => ({
   ...item,
   id: itemIdOf(id),
   plan: plan && { agent: agentNames[plan.agent], role: plan.role, source: plan.source },
@@ -107,9 +107,9 @@ export const createRunnerCompanions = (
     picture,
   }: {
     readonly livePages?: boolean
-    readonly picture?: Companions["picture"]
+    readonly picture?: Items["picture"]
   } = {},
-): Companions => ({
+): Items => ({
   ...(livePages && picture ? { picture } : {}),
   follow: (_target, itemId, { reveal }, on) => {
     let stream: ReturnType<typeof runner.content> | undefined
