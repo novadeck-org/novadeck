@@ -204,6 +204,11 @@
   --brand-tile-bg: linear-gradient(180deg, #2e2d2a, #181816);
   --brand-tile-fg: #00e5d6;
 
+  /* What's new: the tape and the icon tiles share a tint of the teal, their glyphs and
+     letters a darker teal than the strong colour, as it would miss 4.5:1 on the tint. */
+  --whats-new-accent-bg: #dcebe6;
+  --whats-new-accent-fg: #00665f;
+
   /* Fixed: a live page assumes a white ground whatever the scheme, so the ground behind
      one while it loads stays white; section labels are set in the mono, after the small
      capitals of a terminal's chrome. */
@@ -344,6 +349,10 @@
   /* Brand: the tile stays slate with a light edge, its glyph the cyan. */
   --brand-tile-bg: linear-gradient(180deg, #2f3137, #24262b);
   --brand-tile-border-color: #595c64;
+
+  /* What's new: a deep tint of the cyan, its glyphs and letters the cyan itself. */
+  --whats-new-accent-bg: #143a3a;
+  --whats-new-accent-fg: #00e5d6;
 
   /* Glow: the accent's thin lines (the selection bars, the tab underline, the running
      sweep) glow like neon tubes, a bright core with a soft bloom, in the cyan. Only

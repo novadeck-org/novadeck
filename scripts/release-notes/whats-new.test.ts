@@ -23,6 +23,18 @@ describe("parseWhatsNew", () => {
     ).toEqual({ version: "0.5.0", highlights: [highlight(1)] })
   })
 
+  it("keeps the version it is new since, and leaves out one that is no version or the same", () => {
+    expect(parseWhatsNew({ version: "0.5.0", from: "0.4.2", highlights: [highlight(1)] })).toEqual({
+      version: "0.5.0",
+      from: "0.4.2",
+      highlights: [highlight(1)],
+    })
+    for (const from of ["0.5.0", "latest", "", 42, null, "<b>0.4.2</b>"])
+      expect(
+        parseWhatsNew({ version: "0.5.0", from, highlights: [highlight(1)] }),
+      ).not.toHaveProperty("from")
+  })
+
   it("turns control, format and separator characters into spaces", () => {
     const parsed = parseWhatsNew({
       version: "0.5.0",

@@ -12,8 +12,9 @@ import type { DemoLaunch } from "./with-debug"
 // `openPage` does nothing, since a browser has no release page to open. `allow`, on an
 // offer that has it, stands for the administrator's step succeeding: the update downloads.
 // The channel is remembered until the page reloads. `showWhatsNew` has the host answer, when
-// asked, that the app updated to `version`, whose release names the highlights below, until
-// they are dismissed; `whatsNewCalls` counts what the page asked of the host since.
+// asked, that the app updated to `version`, from `from` when given, whose release names the
+// highlights below, until they are dismissed; `whatsNewCalls` counts what the page asked of
+// the host since.
 export const createDemoUpdates = (
   restart: () => void = () => window.location.reload(),
 ): {
@@ -26,7 +27,10 @@ export const createDemoUpdates = (
   readonly failDownload: (version: string) => void
   readonly channel: () => UpdateChannel
   readonly whatsNew: DemoStates["whatsNew"]
-  readonly showWhatsNew: (version: string, highlights?: WhatsNew["highlights"]) => void
+  readonly showWhatsNew: (
+    version: string,
+    notes?: { readonly highlights?: WhatsNew["highlights"]; readonly from?: string },
+  ) => void
   readonly whatsNewCalls: { dismissed: number; asked: number }
   // Has the host take this long to answer what is new.
   readonly delayWhatsNew: (ms: number) => void
@@ -106,8 +110,8 @@ export const createDemoUpdates = (
         notes = undefined
       },
     },
-    showWhatsNew: (version, highlights = sampleHighlights) =>
-      void (notes = { version, highlights }),
+    showWhatsNew: (version, { highlights = sampleHighlights, from } = {}) =>
+      void (notes = from === undefined ? { version, highlights } : { version, from, highlights }),
     whatsNewCalls,
     delayWhatsNew: (ms) => void (answerAfterMs = ms),
   }
