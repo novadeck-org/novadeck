@@ -20,6 +20,7 @@ describe("projectFolder", () => {
   it("reads a Windows path alike", () => {
     expect(projectFolder("C:\\shop\\src\\cart\\Cart.tsx", "C:\\shop")).toBe("src\\cart")
     expect(projectFolder("C:\\shop\\.env", "C:\\shop")).toBe("")
+    expect(projectFolder("C:\\notes.md", "C:\\shop")).toBe("C:\\")
   })
 
   it("says nothing for an item with no path", () => {

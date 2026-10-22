@@ -89,13 +89,13 @@ describe("The project window", () => {
     await expect.element(terminal("CartItem.tsx")).toBeVisible()
     await sidebarPanel("Terminals").click()
     await expect.element(terminalTab("CartItem.tsx")).toBeVisible()
-    expect(line("CartItem.tsx")).toBe("src/cart")
+    await expect.poll(() => line("CartItem.tsx")).toBe("src/cart")
 
     await sidebarPanel("Source").click()
     await row("package.json").dblClick()
     await sidebarPanel("Terminals").click()
     await expect.element(terminalTab("package.json")).toBeVisible()
-    expect(line("package.json")).toBe("")
+    await expect.poll(() => line("package.json")).toBe("")
   })
 
   it("reads a Markdown file as a document labelled by the file's name", async () => {

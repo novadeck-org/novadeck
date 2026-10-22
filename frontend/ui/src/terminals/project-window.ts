@@ -11,7 +11,9 @@ export const isProjectWindow = (tile: Tile): boolean => isWindow(tile) && tile.h
 export const projectFolder = (path: string | null, directory: string): string => {
   if (path === null) return ""
   const cut = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"))
-  const folder = cut <= 0 ? path.slice(0, cut + 1) : path.slice(0, cut)
+  const parent = cut <= 0 ? path.slice(0, cut + 1) : path.slice(0, cut)
+  // A drive's root keeps its separator, as `/` does.
+  const folder = /^[A-Za-z]:$/.test(parent) ? path.slice(0, cut + 1) : parent
   const root = directory.replace(/[/\\]+$/, "")
   if (folder === root) return ""
   const inside = folder.startsWith(root) && /^[/\\]/.test(folder.slice(root.length))
