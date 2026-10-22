@@ -293,8 +293,7 @@ describe("A viewer's header", () => {
     await openShowcase()
     const pane = companionPane("Build Studio")
     const undock = pane.getByRole("button", { name: "Undock to its own window" })
-    // Within its header, once the pane has its width: while the layout settles, a narrow
-    // pane wraps the header and the button drops to its second line.
+    // Within its header, once the pane has its width.
     const offset = (): number => {
       const button = undock.element()
       const header = button.closest(".artifact-meta")!
@@ -313,6 +312,43 @@ describe("A viewer's header", () => {
     await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
     await expect.element(pane.getByText("plans/studio.md", { exact: true })).toBeVisible()
     expect(await settled(offset)).toBe(besideFile)
+  })
+
+  it("keeps its buttons on its first line, and the file's name in view, however long its path", async () => {
+    await openShowcase()
+    const pane = companionPane("Build Studio")
+    const path = pane.getByText("src/content/projects.json", { exact: true })
+    await expect.element(path).toBeVisible()
+    const code = path.element().closest("code")!
+    const header = code.closest<HTMLElement>(".artifact-meta")!
+    // Narrower than the path, what's known about it and the buttons together.
+    header.style.width = "260px"
+    const box = (element: Element): DOMRect => element.getBoundingClientRect()
+    const minimize = pane.getByRole("button", { name: "Minimize to the taskbar" }).element()
+    // The button sits on the path's line, at the header's end.
+    const middle = (box(minimize).top + box(minimize).bottom) / 2
+    expect(middle).toBeGreaterThan(box(code).top)
+    expect(middle).toBeLessThan(box(code).bottom)
+    expect(box(minimize).right).toBeLessThanOrEqual(box(header).right)
+    // The path gives up its start, so its end, the file's name, stays.
+    const text = code.querySelector("bdi")!
+    expect(box(text).left).toBeLessThan(box(code).left)
+    expect(Math.round(box(text).right)).toBeLessThanOrEqual(Math.round(box(code).right))
+  })
+
+  it("puts the messages' pause under their name when the pane is narrow", async () => {
+    await openShowcase()
+    await taskbarIcon("Build Studio", "Messages").click()
+    const pane = companionPane("Build Studio")
+    const pause = pane.getByText("Pause all agents' messages")
+    await expect.element(pause).toBeVisible()
+    const name = pane.getByText("Messages", { exact: true }).element()
+    const header = name.closest<HTMLElement>(".artifact-meta")!
+    header.style.width = "300px"
+    const box = (element: Element): DOMRect => element.getBoundingClientRect()
+    const minimize = pane.getByRole("button", { name: "Minimize to the taskbar" }).element()
+    expect(box(pause.element()).top).toBeGreaterThanOrEqual(box(name).bottom)
+    expect(box(minimize).bottom).toBeLessThanOrEqual(box(pause.element()).top)
   })
 })
 

@@ -2,6 +2,7 @@ import type { FileContent } from "@novadeck/core/items"
 import { outline } from "@novadeck/viewers/text"
 import { useRef, type ReactNode } from "react"
 
+import { ArtifactMeta, MetaPath } from "../../ArtifactViewer"
 import type { MarkdownEditorHandle } from "../../document/editor/MarkdownEditor"
 import { MarkdownDocument } from "../../document/MarkdownDocument"
 
@@ -23,15 +24,13 @@ export const DocumentViewer = ({
   const headings = outline(text)
   return (
     <div className="plan-reader artifact-document">
-      <div className="artifact-meta">
-        <code>{content.path}</code>
+      <ArtifactMeta actions={actions}>
+        <MetaPath path={content.path} />
         <span>read-only</span>
         {content.truncated && (
           <span className="plan-meta-hint">It's long, so only its start is shown.</span>
         )}
-        {actions && <span className="artifact-meta-push" />}
-        {actions}
-      </div>
+      </ArtifactMeta>
       <div className="plan-reader-body" data-outline={headings.length > 0}>
         {headings.length > 0 && (
           <nav className="plan-spine" aria-label="Document outline">

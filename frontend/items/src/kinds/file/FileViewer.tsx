@@ -2,7 +2,7 @@ import type { Item, FileContent } from "@novadeck/core/items"
 import { mountCode, type CodeContent } from "@novadeck/viewers/code"
 import { useMemo } from "react"
 
-import type { ArtifactBodyProps } from "../../ArtifactViewer"
+import { ArtifactMeta, MetaPath, type ArtifactBodyProps } from "../../ArtifactViewer"
 import { OutlineThumb } from "../../document/OutlineThumb"
 import { useViewerSlot } from "../../ViewerSlot"
 import { DocumentViewer } from "./DocumentViewer"
@@ -35,16 +35,14 @@ const CodeViewer = ({
   })
   return (
     <>
-      <div className="artifact-meta">
-        <code>{artifact.path}</code>
+      <ArtifactMeta actions={actions}>
+        <MetaPath path={artifact.path} />
         <span>
           lines {artifact.from}–{artifact.to} · read-only
         </span>
         {artifact.clamped && <span>The file ends at line {artifact.to}.</span>}
         {artifact.truncated && <span>It's long, so only its start is shown.</span>}
-        {actions && <span className="artifact-meta-push" />}
-        {actions}
-      </div>
+      </ArtifactMeta>
       <div ref={code} className="artifact-code" />
     </>
   )
