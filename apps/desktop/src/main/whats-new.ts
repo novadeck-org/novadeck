@@ -235,11 +235,12 @@ export type ReleaseFetch = (
 /**
  * What is new in the version this launch runs, while `pending` names it: the highlights of
  * its release and of the releases skipped since `from`, newest first, with `from` for the
- * card to name (see `gather`). The releases are read once per launch, the first time it is asked for, and the answer kept.
- * When they are read and have no highlights, or the version's release does not exist,
- * there is nothing to show ever, so the pending mark is cleared. A failure to read it, offline, timed out, rate
- * limited or a server error, is tried once more `readRetryMs` later, and when that fails
- * too the mark is left for a later launch and nothing is shown.
+ * card to name (see `gather`). The releases are read once per launch, the first time it is
+ * asked for, and the answer kept. When they are read and have no highlights, or the
+ * version's release does not exist, there is nothing to show ever, so the pending mark is
+ * cleared. A failure to read it, offline, timed out, rate limited or a server error, is
+ * tried once more `readRetryMs` later, and when that fails too the mark is left for a later
+ * launch and nothing is shown.
  * Nothing is thrown: the card is a courtesy, and `log` hears of what went wrong.
  * `repository` is where the build's releases are, or undefined for a build without one.
  */

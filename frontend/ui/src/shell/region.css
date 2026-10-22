@@ -488,10 +488,11 @@
   color: var(--color-ink);
   font-weight: 600;
 }
-/* With the tint gone, an edge still shows where the tape is. */
+/* With the tint gone, an edge still shows where the tape is, whole, so not torn. */
 @media (forced-colors: active) {
   .whats-new-tape {
     border: 1px solid CanvasText;
+    clip-path: none;
   }
 }
 @keyframes whats-new-tape-in {

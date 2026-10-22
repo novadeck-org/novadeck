@@ -41,9 +41,10 @@ export const announcement = ({ version, highlights }: Notes): string =>
 // edge naming the version, the version it is new since when the host knows it, and each
 // highlight as a title with its line under it, led by the highlight's icon on a tile (a
 // sparkle when the release names none or one this build doesn't know), nothing else. It
-// is a plain panel, not a dialog or a layer: it never takes focus or keys by itself, so typing in a terminal goes on, and
-// every control on it is a button the Tab key reaches. The × dismisses it for good. Escape, from inside it, only gives
-// focus back to the terminal. It shares the corner with the other notices by waiting
+// is a plain panel, not a dialog or a layer: it never takes focus or keys by itself, so
+// typing in a terminal goes on, and every control on it is a button the Tab key reaches.
+// The × dismisses it for good. Escape, from inside it, only gives focus back to the
+// terminal. It shares the corner with the other notices by waiting
 // (`blocked`, or Zen mode, `hidden`) while one is open, and for the download's bar, which
 // has the corner from its start until it fades (WorkspaceFooter.tsx): the card can stay for
 // weeks, a download must not be hidden by it. The text is the host's and is shown as text:
