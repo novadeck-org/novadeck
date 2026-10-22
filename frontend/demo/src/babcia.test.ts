@@ -395,7 +395,7 @@ describe("the Babcia demo", () => {
         dialog: `${plan}:d`,
         option: "3",
       }),
-    ).rejects.toThrow()
+    ).rejects.toThrow("Couldn't answer that here")
     await expect(
       chat.answer(key(babcia.plan), `${plan}:plan`, {
         type: "choice",
@@ -403,7 +403,7 @@ describe("the Babcia demo", () => {
         option: "1",
         text: "and add a rollback step",
       }),
-    ).rejects.toThrow()
+    ).rejects.toThrow("Couldn't answer that here")
     await vi.advanceTimersByTimeAsync(answerMs + answeredMs + 500)
     await noPermission
     // The plan still waits, with its request, and cue 6 leaves it open.

@@ -931,7 +931,7 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
             exchanged = true
             return
           }
-          const sent = messages.send(
+          const replied = messages.send(
             target,
             lead,
             helper,
@@ -943,7 +943,7 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
               exchanged = true
             },
           )
-          if (!sent) exchanged = true
+          if (!replied) exchanged = true
         }, answersMs)
       },
       () => {
