@@ -1,6 +1,7 @@
 import {
   PlanUnwritableError,
   type Companions,
+  type Item,
   type ItemContent,
   type ItemId,
   type PlanSaved,
@@ -661,6 +662,53 @@ describe("following items", () => {
       old(text("/p/hero.png"))
       listeners.get(hero.id)!(text("/p/a.ts"))
       expect(itemStore.store.getSnapshot().content[hero.id]).toMatchObject({ stamp: "/p/a.ts" })
+    })
+
+    // A revealed, followed hero shown as `shown`, and shown again with `again`.
+    const shownThenAgain = (shown: Partial<Item>, again: Partial<Item>) => {
+      const { companions, follows, stopped, listeners } = backend()
+      const workspace = workspaceWith()
+      const { itemStore } = connected(companions, workspace)
+      workspace.dispatch({ type: "item/upsert", target, item: { ...hero, ...shown } })
+      itemStore.watch(target, hero.id)
+      itemStore.reveal(hero.id)
+      const content: ItemContent = { state: "unavailable", reason: "missing", size: null }
+      listeners.get(hero.id)!(content)
+      follows.length = 0
+      stopped.length = 0
+      workspace.dispatch({
+        type: "item/upsert",
+        target,
+        item: { ...hero, ...shown, ...again, version: 2 },
+      })
+      return { follows, stopped, content, stored: () => itemStore.store.getSnapshot() }
+    }
+
+    it("keeps its content and the reveal when only the lines change", () => {
+      const file = { kind: "file" as const, name: "a.ts", path: "/p/a.ts" }
+      const { follows, stopped, content, stored } = shownThenAgain(file, {
+        lines: { from: 3, to: 9 },
+      })
+      expect(stopped).toEqual([])
+      expect(follows).toEqual([])
+      expect(stored().content[hero.id]).toEqual(content)
+      expect(stored().revealed[hero.id]).toBe(true)
+    })
+
+    it("keeps its content and the reveal when a page is shown at another address", () => {
+      const page = {
+        kind: "page" as const,
+        name: "dev",
+        path: null,
+        url: "http://localhost:3000/",
+      }
+      const { follows, stopped, content, stored } = shownThenAgain(page, {
+        url: "http://localhost:3000/docs",
+      })
+      expect(stopped).toEqual([])
+      expect(follows).toEqual([])
+      expect(stored().content[hero.id]).toEqual(content)
+      expect(stored().revealed[hero.id]).toBe(true)
     })
 
     it("follows on when the same file is shown again", () => {

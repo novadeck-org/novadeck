@@ -431,8 +431,6 @@ export class CompanionItems {
     const own = this.records.windows(input.sessionId).find((window) => window.home === "project")
     const before = own && this.records.item(own.itemId)
     if (own && before) {
-      // The window is named by its new file, not by a title the person gave its last.
-      this.records.renameWindow(own.id, null)
       this.save({
         ...before,
         ...pointer,
@@ -513,9 +511,14 @@ export class CompanionItems {
     }
   }
 
-  /** Gives a window the person's title, or with null its item's name again. */
+  /**
+   * Gives a window the person's title, or with null its item's name again. A project
+   * window is named by its file: CONFLICT.
+   */
   renameWindow(windowId: string, title: string | null): void {
     if (this.stopping) throw new DomainError("CLOSING")
+    if (this.records.window(windowId)?.home === "project")
+      throw new DomainError("CONFLICT", "The project window is named by its file.")
     if (!this.records.renameWindow(windowId, title)) throw new DomainError("NOT_FOUND")
     const window = this.records.window(windowId)
     if (window) this.windowChanged(window)

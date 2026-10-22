@@ -517,6 +517,39 @@ describe("workspace metadata", () => {
     }
   })
 
+  it("carries a version 3 database whose items reference what is gone, leaving those behind", ({
+    directory,
+    store,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    // Rows only a database written with foreign keys off could hold: an item on a closed
+    // terminal's bar, one in a window that is gone, and a window of a deleted session.
+    const old = new DatabaseSync(path, { enableForeignKeyConstraints: false })
+    old.exec(`${readFileSync(new URL("schemas/3.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 3;
+      ${heldByVersion3}
+      INSERT INTO companion_windows VALUES ('lost', 'gone', NULL, 13);
+      INSERT INTO companion_items (id, session_id, terminal_id, window_id, pointer_key, kind,
+        path, name, detail, held, shown_by, from_terminal, from_handle, version, asked, shown_at)
+        VALUES ('closed', 's', 'u', NULL, '/shop/b.ts', 'file', '/shop/b.ts', 'b.ts', '', 0,
+          'agent', 'u', 'fox', 1, 0, 14),
+        ('stray', 's', NULL, 'nowhere', '/shop/c.ts', 'file', '/shop/c.ts', 'c.ts', '', 0,
+          'person', 't', 'moth', 1, 0, 15);`)
+    old.close()
+
+    const workspace = store(path)
+    expect(workspace.items("s").map(({ id }) => id)).toEqual(["bar", "undocked", "plan", "changes"])
+    expect(workspace.windows().map(({ id }) => id)).toEqual(["w"])
+    workspace.close()
+    const database = new DatabaseSync(path)
+    try {
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(4)
+      expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
+    } finally {
+      database.close()
+    }
+  })
+
   it("holds a session to one project window, and an item to a terminal or none", ({
     directory,
   }) => {

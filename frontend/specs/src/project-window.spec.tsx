@@ -49,6 +49,20 @@ describe("The project window", () => {
     await expect.element(terminal("package.json")).toBeVisible()
   })
 
+  it("leaves keyboard focus in the Source tree after Enter, so the next file opens from the keys", async () => {
+    await openSource()
+    const tree = page.getByRole("tree", { name: "Project files" }).element()
+
+    row("package.json").element().focus()
+    await userEvent.keyboard("{Enter}")
+    await expect.element(terminal("package.json")).toBeVisible()
+    expect(tree.contains(document.activeElement)).toBe(true)
+
+    await userEvent.keyboard("{ArrowDown}{Enter}")
+    await expect.element(terminal("package.json")).not.toBeInTheDocument()
+    expect(tree.contains(document.activeElement)).toBe(true)
+  })
+
   it("is re-pointed by the next file opened: still one window, with the new file in it", async () => {
     await openSource()
     await row("package.json").dblClick()

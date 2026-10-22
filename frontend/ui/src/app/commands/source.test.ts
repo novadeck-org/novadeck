@@ -1,4 +1,5 @@
 import { emptyCompanions, type Companions } from "@novadeck/core/items"
+import { activeSession, createTerminalState, createWorkspaceSession } from "@novadeck/core/state"
 import { itemFixture } from "@novadeck/core/testing"
 import type { CompanionWindowMeta } from "@novadeck/core/types"
 
@@ -71,6 +72,36 @@ describe("source commands", () => {
       await app.commands.openSourceFile("notes.md")
       expect(app.state().roster.windows.map((each) => each.name)).toEqual(["notes.md"])
       expect(app.state().selected).toBe("session-1")
+    })
+
+    it("puts the window in the session it was opened for, not the one the person moved to", async () => {
+      let answer!: () => void
+      const app = open(
+        () =>
+          new Promise(
+            (resolve) =>
+              (answer = () =>
+                resolve({ item: readme, window: windowOf("session-1", "README.md") })),
+          ),
+      )
+      const opening = app.commands.openSourceFile("README.md")
+      app.workspace.dispatch({
+        type: "session/add",
+        projectId: "project",
+        session: createWorkspaceSession(
+          { name: "Other", state: createTerminalState([], "grid", "grid") },
+          { id: "other", now: 2 },
+        ),
+      })
+      expect(activeSession(app.workspace.getSnapshot())!.id).toBe("other")
+      answer()
+      await opening
+      expect(app.state().roster.windows).toEqual([])
+      expect(app.state().items).toEqual([])
+      const project = app.workspace.getSnapshot().projects.find((each) => each.id === "project")!
+      const first = project.history.find((session) => session.id === "initial")!
+      expect(first.state.roster.windows.map((each) => each.id)).toEqual(["session-1"])
+      expect(first.state.items).toEqual([readme])
     })
 
     it("does nothing where the backend can't open files", async () => {

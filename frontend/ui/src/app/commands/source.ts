@@ -33,13 +33,30 @@ export const createSourceCommands = (
     const open = companions?.openInProject
     if (!open) return
     const before = workspace.getSnapshot()
+    const target = currentTarget(before)
     const { item, window } = await open(
-      currentTarget(before),
+      target,
       absolutePath(activeProject(before)!.directory, path),
       effects.newId(),
     )
-    // The person may have moved on while the backend read the file.
+    // The person may have moved on while the backend read the file. The window belongs to the
+    // session it was opened for: it goes there, and only if they are still in it is it
+    // selected, placed beside what they have selected, and pulsed.
     const snapshot = workspace.getSnapshot()
+    const now = currentTarget(snapshot)
+    if (
+      now.projectId !== target.projectId ||
+      now.workspaceSessionId !== target.workspaceSessionId
+    ) {
+      workspace.dispatch({
+        type: "project/open",
+        target,
+        item,
+        window,
+        canvasSize: ui.getSnapshot().canvasWindowSize,
+      })
+      return
+    }
     const { roster, layout } = currentState(snapshot)
     const placed = roster.windows.some((each) => each.id === window.id)
     // A new window goes where an undocked one would: beside the selected tile, compactly.
@@ -49,7 +66,7 @@ export const createSourceCommands = (
     navigation.navigateWorkspace([
       {
         type: "project/open",
-        target: currentTarget(snapshot),
+        target,
         item,
         window,
         ...(grid ? { gridLayouts: grid } : {}),

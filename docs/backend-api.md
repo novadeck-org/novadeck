@@ -1088,7 +1088,8 @@ one from an earlier runner.
     neither: `CONFLICT`. `companions.close({ itemId })`
     deletes it and its window. `companions.renameWindow({ windowId, title })` and
     `companions.resetWindowTitle({ windowId })` give a window the person's title or its
-    item's name again.
+    item's name again (`NOT_FOUND` for an unknown window; `CONFLICT` for a project window,
+    which its file names).
   - `companions.pageTrouble({ itemId, shown, troubles })` tells the runner what went
     wrong on a page item while it showed its show `shown` (its `version` then), as the
     desktop pane saw it: up to 20 `troubles`, each an `error` (text, source, line), a

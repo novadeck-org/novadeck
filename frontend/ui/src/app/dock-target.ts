@@ -1,6 +1,7 @@
 import { isWindow } from "@novadeck/core/roster"
 import type { Tile } from "@novadeck/core/types"
 
+import { isProjectWindow } from "../terminals/project-window"
 import type { DockTarget } from "../terminals/window-menu"
 import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { currentState } from "./selectors"
@@ -20,6 +21,6 @@ export const useDockTarget = (tile: Tile): DockTarget | undefined => {
       ? undefined
       : currentState(workspace).roster.terminals.find((each) => each.id === from)?.name,
   )
-  if (!isWindow(tile) || tile.home === "project") return undefined
+  if (!isWindow(tile) || isProjectWindow(tile)) return undefined
   return { name, onDock: name === undefined ? undefined : () => commands.dock(tile.id) }
 }

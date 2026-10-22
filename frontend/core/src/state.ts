@@ -524,11 +524,20 @@ const openInProject = (
   state: WorkspaceState,
   action: Extract<WorkspaceAction, { type: "project/open" }>,
 ): WorkspaceState => {
-  const { item, window, gridLayouts, canvasGeometry, canvasSize } = action
-  if (window.itemId !== item.id || hasTerminal(state.roster, window.id)) return state
-  const listed = upsertItem(state, item)
+  const { gridLayouts, canvasGeometry, canvasSize } = action
+  if (action.window.itemId !== action.item.id || hasTerminal(state.roster, action.window.id))
+    return state
+  // A later re-point the watch reported first is not undone by this older answer.
+  const stored = state.items.find((each) => each.id === action.item.id)
+  const newer = stored !== undefined && stored.version > action.item.version
+  const item = newer ? stored : action.item
+  const window =
+    newer && action.window.titleSource.kind === "default"
+      ? { ...action.window, name: stored.name }
+      : action.window
+  const listed = newer ? state : upsertItem(state, item)
   if (hasWindow(listed.roster, window.id)) {
-    const roster = updateWindow(listed.roster, window)
+    const roster = newer ? listed.roster : updateWindow(listed.roster, window)
     return { ...listed, roster, selected: window.id }
   }
   const tiles = tilesOf(listed.roster)

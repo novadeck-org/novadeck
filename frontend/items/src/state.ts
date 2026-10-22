@@ -109,10 +109,11 @@ type Session = {
   readonly unconfirmed: Map<ItemId, readonly string[]>
 }
 
-// Where an item points: the file, page or lines it shows. The same item pointed elsewhere
-// is something else to read, as the project window's is when the person opens another file.
-const pointedAt = (item: Pick<Item, "kind" | "path" | "url" | "lines">): string =>
-  JSON.stringify([item.kind, item.path, item.url, item.lines])
+// Which file an item shows, for a file or an image, and what kind it is otherwise. The same
+// item shown another file is something else to read, as the project window's is when the
+// person opens another; any other change, as new lines or a new route, replaces content in place.
+const pointedAt = (item: Pick<Item, "kind" | "path">): string =>
+  JSON.stringify([item.kind, item.kind === "file" || item.kind === "image" ? item.path : null])
 
 const pointedIn = (workspace: Workspace, id: ItemId): string | undefined => {
   for (const project of workspace.projects)

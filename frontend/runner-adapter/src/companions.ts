@@ -7,7 +7,7 @@ import {
   type PageTrouble,
   pageTroublesPerCall,
 } from "@novadeck/core/items"
-import type { CompanionWindowMeta } from "@novadeck/core/types"
+import type { CompanionWindowMeta, WorkspaceTarget } from "@novadeck/core/types"
 import {
   harnesses,
   type AgentName,
@@ -110,9 +110,13 @@ export const createRunnerCompanions = (
   {
     livePages = false,
     picture,
+    inOrder = (_target, operation) => operation(),
   }: {
     readonly livePages?: boolean
     readonly picture?: Companions["picture"]
+    // Runs a call behind the person's earlier changes to the session's items; direct by
+    // default.
+    readonly inOrder?: <T>(target: WorkspaceTarget, operation: () => Promise<T>) => Promise<T>
   } = {},
 ): Companions => ({
   ...(livePages && picture ? { picture } : {}),
@@ -170,12 +174,10 @@ export const createRunnerCompanions = (
   attach: async ({ terminalId }, path) => {
     await runner.attach({ terminalId, path })
   },
-  openInProject: async ({ workspaceSessionId }, path, windowId) => {
-    const { item, window } = await runner.openInProject({
-      sessionId: workspaceSessionId,
-      path,
-      windowId,
-    })
+  openInProject: async (target, path, windowId) => {
+    const { item, window } = await inOrder(target, () =>
+      runner.openInProject({ sessionId: target.workspaceSessionId, path, windowId }),
+    )
     return { item: itemOf(item), window: windowOf(window) }
   },
 })

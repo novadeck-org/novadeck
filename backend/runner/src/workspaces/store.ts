@@ -303,7 +303,9 @@ const migrations: Readonly<Record<number, string>> = {
   // Both tables are made again: windows gain `home`, items may come from no terminal. Items
   // are renamed first and windows after, which points the old items at the old windows;
   // the old items then go before the old windows, so no ON DELETE CASCADE has a row to
-  // delete. Rows keep their rowid, which orders them.
+  // delete. Rows keep their rowid, which orders them. A row whose session, terminal or
+  // window is gone, which only a database written with foreign keys off could hold, is left
+  // behind: the runner could never show it, and copying it would set the workspace aside.
   3: `
     ALTER TABLE companion_items RENAME TO companion_items_3;
     ALTER TABLE companion_windows RENAME TO companion_windows_3;
@@ -351,7 +353,8 @@ const migrations: Readonly<Record<number, string>> = {
     ) STRICT;
     INSERT INTO companion_windows (rowid, id, session_id, home, person_title, created_at)
     SELECT rowid, id, session_id, 'undocked', person_title, created_at
-    FROM companion_windows_3;
+    FROM companion_windows_3
+    WHERE session_id IN (SELECT id FROM sessions);
     INSERT INTO companion_items (rowid, id, session_id, terminal_id, window_id, pointer_key,
       kind, path, url, lines_from, lines_to, plan_agent, plan_session, plan_actor, plan_format,
       name, detail, held, shown_by, from_terminal, from_handle, version, asked, shown_at,
@@ -359,7 +362,10 @@ const migrations: Readonly<Record<number, string>> = {
     SELECT rowid, id, session_id, terminal_id, window_id, pointer_key, kind, path, url,
       lines_from, lines_to, plan_agent, plan_session, plan_actor, plan_format, name, detail,
       held, shown_by, from_terminal, from_handle, version, asked, shown_at, observed_at
-    FROM companion_items_3;
+    FROM companion_items_3
+    WHERE session_id IN (SELECT id FROM sessions)
+      AND (terminal_id IS NULL OR terminal_id IN (SELECT id FROM terminals))
+      AND (window_id IS NULL OR window_id IN (SELECT id FROM companion_windows));
     DROP TABLE companion_items_3;
     DROP TABLE companion_windows_3;
     CREATE UNIQUE INDEX companion_items_bar ON companion_items(terminal_id, pointer_key)
@@ -896,13 +902,14 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
       timeout: 5_000,
     })
     try {
+      // Transcripts may hold secrets: what is deleted is overwritten, not left in free pages,
+      // the tables a step forward copies and drops included.
+      this.database.exec("PRAGMA secure_delete = ON")
       prepareSchema(this.database, path)
     } catch (error) {
       this.database.close()
       throw error
     }
-    // Transcripts may hold secrets: what is deleted is overwritten, not left in free pages.
-    this.database.exec("PRAGMA secure_delete = ON")
     // Every save writes synchronously, holding up the whole runner: with a rollback
     // journal each one created, flushed and deleted a file, which took up to 3.4 s on a
     // Windows CI runner (500 saves of one test run over 50 ms, against 7 on Linux), long

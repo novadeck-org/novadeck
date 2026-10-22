@@ -376,9 +376,12 @@ export type Runner = {
     undock(itemId: string, windowId: string): Promise<CompanionWindow>
     /** Deletes an item and the window holding it. */
     close(itemId: string): Promise<void>
-    /** Gives a window the person's title; `NOT_FOUND` for an unknown window. */
+    /**
+     * Gives a window the person's title; `NOT_FOUND` for an unknown window, `CONFLICT` for
+     * a project window, which its file names.
+     */
     renameWindow(windowId: string, title: string): Promise<void>
-    /** Gives a window its item's name again. */
+    /** Gives a window its item's name again; rejects as `renameWindow` does. */
     resetWindowTitle(windowId: string): Promise<void>
     /** What went wrong on a page item during its show `shown`, as the pane saw it. */
     pageTrouble(input: {

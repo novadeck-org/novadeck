@@ -582,15 +582,12 @@ describe("the project window", () => {
     ).resolves.toMatchObject({ item: { name: "a.ts", detail: "a.ts" } })
   })
 
-  it("points its one item at the next file, keeping its id, and clears the title the person gave", async ({
-    fixture,
-  }) => {
+  it("points its one item at the next file, keeping its id", async ({ fixture }) => {
     writeFileSync(join(fixture.directory, "a.ts"), "alpha\n")
     writeFileSync(join(fixture.directory, "b.ts"), "bravo\n")
     const sessionId = fixture.sessionId
     const windowId = randomUUID()
     const first = await fixture.items.openInProject({ sessionId, path: "a.ts", windowId })
-    fixture.items.renameWindow(windowId, "Mine")
     const gone: string[] = []
     fixture.items.listen({ troubled: () => {}, gone: (item) => gone.push(item.path ?? "") })
     const controller = new AbortController()
@@ -686,6 +683,25 @@ describe("the project window", () => {
       fixture.items.list(sessionId).windows.filter(({ home }) => home === "project"),
     ).toMatchObject([{ id: first.window.id }])
     expect(fixture.items.list(sessionId).items).toHaveLength(2)
+  })
+
+  it("is named by its file: renaming it or resetting its title is a CONFLICT", async ({
+    fixture,
+  }) => {
+    writeFileSync(join(fixture.directory, "a.ts"), "a\n")
+    const windowId = randomUUID()
+    const { window } = await fixture.items.openInProject({
+      sessionId: fixture.sessionId,
+      path: "a.ts",
+      windowId,
+    })
+    expect(() => fixture.items.renameWindow(windowId, "Mine")).toThrow(
+      expect.objectContaining({ code: "CONFLICT" }),
+    )
+    expect(() => fixture.items.renameWindow(windowId, null)).toThrow(
+      expect.objectContaining({ code: "CONFLICT" }),
+    )
+    expect(fixture.items.list(fixture.sessionId).windows).toEqual([window])
   })
 
   it("keeps its item in it: no bar, no window of its own", async ({ fixture }) => {

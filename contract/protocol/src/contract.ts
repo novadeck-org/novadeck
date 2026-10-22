@@ -358,11 +358,12 @@ export const contract = {
     undock: procedure.input(z.strictObject({ itemId: id, windowId: id })).output(companionWindow),
     // Deletes an item and the window holding it; closing a window is this call.
     close: procedure.input(z.strictObject({ itemId: id })).output(z.void()),
-    // Gives a window the person's title. An unknown window is NOT_FOUND.
+    // Gives a window the person's title. An unknown window is NOT_FOUND, a project window,
+    // which its file names, CONFLICT.
     renameWindow: procedure
       .input(z.strictObject({ windowId: id, title: terminalTitle }))
       .output(z.void()),
-    // Gives a window its item's name again, as `renameWindow` does.
+    // Gives a window its item's name again; errors as `renameWindow` does.
     resetWindowTitle: procedure.input(z.strictObject({ windowId: id })).output(z.void()),
   },
   // Messages between agents in Novadeck's terminals (see docs/agent-messaging.md).

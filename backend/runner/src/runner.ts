@@ -178,8 +178,10 @@ export const wire = (options: RunnerOptions) => {
     project: (sessionId) => {
       try {
         return store.project(store.session(sessionId).projectId).cwd
-      } catch {
-        return undefined
+      } catch (error) {
+        // Only a session or project gone from the store is no folder to show from.
+        if (error instanceof DomainError && error.code === "NOT_FOUND") return undefined
+        throw error
       }
     },
     livePlan: (item) => terminals.livePlan(item),

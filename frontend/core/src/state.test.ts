@@ -339,6 +339,21 @@ describe("companion items in the workspace", () => {
       expect(state.selected).toBe("pw")
     })
 
+    it("keeps what the watch reported of a later re-point, applied before this answer", () => {
+      const later = opened("b.ts", 2)
+      const state = run(
+        empty,
+        { type: "item/upsert", target, item: later },
+        { type: "window/upsert", target, window: windowOf(later) },
+        open(opened("a.ts")),
+      )
+      expect(state.items.map((item) => [item.name, item.version])).toEqual([["b.ts", 2]])
+      expect(state.roster.windows.map((window) => window.name)).toEqual(["b.ts"])
+      expect(state.selected).toBe("pw")
+      const fresh = run(empty, { type: "item/upsert", target, item: later }, open(opened("a.ts")))
+      expect(fresh.roster.windows.map((window) => window.name)).toEqual(["b.ts"])
+    })
+
     it("agrees with the watch's events, in either order", () => {
       const item = opened("a.ts")
       const events: WorkspaceAction[] = [
