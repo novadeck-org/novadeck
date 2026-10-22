@@ -66,8 +66,9 @@ launched, and answers with that file from GitHub: `stable` the latest release's,
 the newest release, prereleases included, which the website asks GitHub for (its answer
 kept a minute in each of Cloudflare's data centres) or, should GitHub not say, takes from
 its own build. It rewrites the file's download addresses to the whole GitHub address at
-that release, so the update itself downloads from GitHub directly. Should the website not know the newest release for
-`early`, or not answer at all, the check fails and the app checks GitHub itself (below);
+that release, so the update itself downloads from GitHub directly. Should the website not
+know the newest release for `early`, or not answer at all, the check fails and the app
+checks GitHub itself (below);
 should its counting not run, it redirects the checks to GitHub uncounted (novadeck-website,
 README "Counts"). The generic provider ignores `allowPrerelease`, so the channel
 selects the address, and multipart range requests are off for it, as GitHub does not serve
