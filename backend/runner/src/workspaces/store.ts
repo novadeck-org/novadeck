@@ -4,11 +4,13 @@ import {
   existsSync,
   mkdirSync,
   openSync,
+  readdirSync,
   renameSync,
+  rmSync,
   statSync,
 } from "node:fs"
 import { realpath, stat } from "node:fs/promises"
-import { dirname, isAbsolute } from "node:path"
+import { basename, dirname, isAbsolute, join } from "node:path"
 import { DatabaseSync, type SQLTagStore } from "node:sqlite"
 
 import {
@@ -65,10 +67,10 @@ export type SettingsChange = {
   readonly [K in keyof RunnerSettings]?: RunnerSettings[K] | undefined
 }
 
-// Raise it for any change but an added column: a database with a lower version is an
-// earlier build's. A build that only adds columns may leave it, as a runner reads columns
-// it doesn't know, on a database of its own version, as a newer build's; an added table,
-// index or constraint goes unseen.
+// Raise it for any change to a table's columns or constraints, with a step in `migrations`
+// that carries a database of the version before to it: a person's workspace is carried
+// forward, never set aside. A new table, with its indexes, is created where missing
+// (`extras`) and needs neither.
 // 2: word handles, given once per session (session_handles), each unique in its session.
 // 3: changes items, a kind the kind CHECK must allow.
 const schemaVersion = 3
@@ -89,8 +91,7 @@ const schema = `
   ) STRICT;
   CREATE INDEX sessions_project ON sessions(project_id, position);
 `
-// Tables added before the first release are created where missing instead of through
-// a schema version: the app is unreleased, so nothing needs migrating.
+// Tables created where missing, so a database that lacks one gains it with no step.
 const extras = `
   -- Every terminal, until it is closed, and what restores it after its shell is gone:
   -- kept as it changes, so a runner that is killed still leaves it behind.
@@ -232,6 +233,97 @@ const extras = `
     WHERE terminal_id IS NOT NULL;
   CREATE INDEX IF NOT EXISTS companion_items_session ON companion_items(session_id);
 `
+/**
+ * The steps that carry a database forward, by the version each starts from, each to the
+ * next. A step is the SQL that version's tables needed, written out as it was then, never
+ * taken from `schema` or `extras`, which later versions change again; `schemas/` keeps
+ * each version's tables, for its step's test. A database older than the first step is
+ * from before Novadeck migrated, and is set aside. A step that renames a table others
+ * reference must not drop it after: renaming points their references at the old one, and
+ * the drop then deletes their rows through ON DELETE CASCADE.
+ */
+const migrations: Readonly<Record<number, string>> = {
+  // SQLite can't change a CHECK, so the table is made again with its new one, under its
+  // own name (renaming the new table would quote the name in its schema), and its rows
+  // and indexes go across.
+  2: `
+    ALTER TABLE companion_items RENAME TO companion_items_2;
+    CREATE TABLE companion_items (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      terminal_id TEXT REFERENCES terminals(id) ON DELETE CASCADE,
+      window_id TEXT UNIQUE REFERENCES companion_windows(id) ON DELETE CASCADE,
+      -- A file's resolved path, a page's pageKey, or a plan's slot, unique on one bar.
+      pointer_key TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('image', 'file', 'page', 'plan', 'changes')),
+      path TEXT,
+      url TEXT,
+      lines_from INTEGER,
+      lines_to INTEGER,
+      -- A plan's agent, session and actor (empty for the root), and whether it is a file
+      -- or text in the transcript or rollout at path.
+      plan_agent TEXT,
+      plan_session TEXT,
+      plan_actor TEXT,
+      plan_format TEXT CHECK (plan_format IN ('file', 'text')),
+      name TEXT NOT NULL,
+      detail TEXT NOT NULL,
+      held INTEGER NOT NULL,
+      shown_by TEXT NOT NULL CHECK (shown_by IN ('agent', 'person')),
+      from_terminal TEXT NOT NULL,
+      from_handle TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      asked INTEGER NOT NULL,
+      shown_at REAL NOT NULL,
+      observed_at REAL,
+      CHECK ((terminal_id IS NULL) <> (window_id IS NULL))
+    ) STRICT;
+    INSERT INTO companion_items (id, session_id, terminal_id, window_id, pointer_key, kind,
+      path, url, lines_from, lines_to, plan_agent, plan_session, plan_actor, plan_format,
+      name, detail, held, shown_by, from_terminal, from_handle, version, asked, shown_at,
+      observed_at)
+    SELECT id, session_id, terminal_id, window_id, pointer_key, kind, path, url, lines_from,
+      lines_to, plan_agent, plan_session, plan_actor, plan_format, name, detail, held,
+      shown_by, from_terminal, from_handle, version, asked, shown_at, observed_at
+    FROM companion_items_2;
+    DROP TABLE companion_items_2;
+    CREATE UNIQUE INDEX companion_items_bar ON companion_items(terminal_id, pointer_key)
+      WHERE terminal_id IS NOT NULL;
+    CREATE INDEX companion_items_session ON companion_items(session_id);
+  `,
+}
+// SQLite's primary result codes that say a step doesn't fit the database it met, as
+// against a full disk, an I/O error or a lock, after which a later start may well carry it.
+const unfitCodes = new Set([1, 19, 20]) // SQLITE_ERROR, SQLITE_CONSTRAINT, SQLITE_MISMATCH
+
+/**
+ * Carries a database of `version` to this runner's, step by step, in the open transaction.
+ * One from before the first step, or whose step doesn't fit it, is an earlier build's this
+ * runner can't carry (`EarlierWorkspaceError`), which the runner sets aside rather than
+ * not start; any other failure is thrown as it is, leaving it for a later start.
+ */
+const migrate = (database: DatabaseSync, path: string, version: number): void => {
+  for (let from = version; from < schemaVersion; from += 1) {
+    const step = migrations[from]
+    if (step === undefined) {
+      throw new EarlierWorkspaceError(
+        path,
+        `its schema is version ${from}, from before Novadeck carried workspaces forward`,
+      )
+    }
+    try {
+      database.exec(`${step} PRAGMA user_version = ${from + 1};`)
+    } catch (error) {
+      const code = error instanceof Error && "errcode" in error ? Number(error.errcode) : NaN
+      if (!unfitCodes.has(code & 0xff)) throw error
+      throw new EarlierWorkspaceError(
+        path,
+        `carrying it from version ${from} failed (${(error as Error).message})`,
+      )
+    }
+  }
+}
+
 const prepareFile = (path: string): void => {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
   try {
@@ -323,16 +415,14 @@ export class WorkspaceTooNewError extends Error {
 }
 
 /**
- * The database was written by an earlier build, whose tables or schema version differ.
- * Novadeck has no migrations before its first release, so it is never changed here: the
- * runner sets it aside and starts a new one (`setAsideWorkspace`).
+ * The database was written by an earlier build this runner can't carry forward: one from
+ * before the first migration, whose step failed, or whose tables differ from its version's.
+ * It is left as it was, and the runner sets it aside and starts a new one
+ * (`setAsideWorkspace`).
  */
 export class EarlierWorkspaceError extends Error {
   constructor(path: string, reason: string) {
-    super(
-      `Novadeck's workspace database at ${path} was written by an earlier build: ${reason}. ` +
-        "Novadeck has no migrations before its first release.",
-    )
+    super(`Novadeck's workspace database at ${path} was written by an earlier build: ${reason}.`)
     this.name = "EarlierWorkspaceError"
   }
 }
@@ -349,10 +439,69 @@ export const setAsideWorkspace = (path: string, now = new Date()): string => {
   return aside
 }
 
+/** A database's value for `query`, read without changing it; undefined if it can't be read. */
+const readOnly = (path: string, query: string): unknown => {
+  try {
+    const database = new DatabaseSync(path, { readOnly: true })
+    try {
+      return Object.values(database.prepare(query).get() ?? {})[0]
+    } finally {
+      database.close()
+    }
+  } catch {
+    return undefined
+  }
+}
+
 /**
- * Creates the schema in a new database, and refuses one written by a newer runner, by its
- * version or by columns this one doesn't know, or by an earlier build whose tables
- * differ or whose schema version is lower (`EarlierWorkspaceError`), changing neither.
+ * Brings back the workspace v0.0.188 set aside. That build raised the schema to version 3
+ * with no step from 2, so it set every version 2 workspace aside and started an empty one.
+ * The newest set aside beside `path`, if it is version 2 and a copy of it carries forward,
+ * takes the place of a database that holds no projects, which is set aside in turn; the
+ * copy takes its place, and the one set aside stays as it was. A version 2 database any
+ * other build set aside it couldn't carry, so it doesn't carry here either, and a database
+ * brought back holds its projects, so none is brought back twice. Returns where the one
+ * brought back was.
+ */
+export const restoreSetAside = (path: string, now = new Date()): string | undefined => {
+  if (existsSync(path) && readOnly(path, "SELECT count(*) FROM projects") !== 0) return undefined
+  const prefix = `${basename(path)}.earlier-`
+  const newest = readdirSync(dirname(path))
+    .filter((name) => name.startsWith(prefix) && /^[\dTZ-]+$/.test(name.slice(prefix.length)))
+    .toSorted()
+    .at(-1)
+  if (newest === undefined) return undefined
+  const earlier = join(dirname(path), newest)
+  if (readOnly(earlier, "PRAGMA user_version") !== 2) return undefined
+  const copy = `${path}.restoring`
+  const remove = () => {
+    for (const suffix of ["", "-wal", "-shm"]) rmSync(`${copy}${suffix}`, { force: true })
+  }
+  remove()
+  try {
+    // One file with what its write-ahead log held, so the one set aside is never written.
+    const source = new DatabaseSync(earlier, { readOnly: true })
+    try {
+      source.exec(`VACUUM INTO '${copy.replaceAll("'", "''")}'`)
+    } finally {
+      source.close()
+    }
+    new WorkspaceStore(copy).close()
+  } catch {
+    remove()
+    return undefined
+  }
+  if (existsSync(path)) setAsideWorkspace(path, now)
+  for (const suffix of ["", "-wal", "-shm"])
+    if (existsSync(`${copy}${suffix}`)) renameSync(`${copy}${suffix}`, `${path}${suffix}`)
+  return earlier
+}
+
+/**
+ * Creates the schema in a new database, and carries one of a lower version forward
+ * (`migrate`). Refuses one written by a newer runner, by its version or by columns this
+ * one doesn't know, or by an earlier build it can't carry (`EarlierWorkspaceError`),
+ * changing neither.
  */
 const prepareSchema = (database: DatabaseSync, path: string): void => {
   database.exec("BEGIN IMMEDIATE")
@@ -361,21 +510,25 @@ const prepareSchema = (database: DatabaseSync, path: string): void => {
     if (typeof version !== "number" || version > schemaVersion) {
       throw new WorkspaceTooNewError()
     }
+    const carried = version !== 0 && version < schemaVersion
     if (version === 0) database.exec(`${schema} PRAGMA user_version = ${schemaVersion};`)
+    else if (carried) migrate(database, path, version)
     database.exec(extras)
     const difference = schemaDifference(database)
-    // Only a database of this version can be a newer build's by its columns; one of a
-    // lower version is an earlier build's whatever it holds.
+    // Only a database of this version can be a newer build's by its columns; one carried
+    // forward from a lower version is an earlier build's whatever it holds.
     if (difference?.newer && version === schemaVersion) throw new WorkspaceTooNewError()
-    const earlier =
-      difference?.text ??
-      (version !== 0 && version < schemaVersion
-        ? `its schema is version ${version}, before ${schemaVersion}`
-        : undefined)
-    if (earlier) throw new EarlierWorkspaceError(path, earlier)
+    if (difference) throw new EarlierWorkspaceError(path, difference.text)
     database.exec("COMMIT")
+    if (carried) {
+      log.info(
+        "workspace.migrated",
+        `Carried the workspace from version ${version} to ${schemaVersion}.`,
+      )
+    }
   } catch (error) {
-    database.exec("ROLLBACK")
+    // SQLite ends the transaction itself after some failures, such as running out of memory.
+    if (database.isTransaction) database.exec("ROLLBACK")
     throw error
   }
 }
