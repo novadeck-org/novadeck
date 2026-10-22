@@ -4,11 +4,15 @@ import { noMail, type MailState } from "@novadeck/core/messages"
 import { activeSession } from "@novadeck/core/state"
 import { createStore, createWorkspaceStore } from "@novadeck/core/store"
 import { workspaceFixture } from "@novadeck/core/testing"
+import { afterEach } from "vitest"
 
 import { describe, expect, it } from "../../../test"
 import { followMail } from "./mail"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
+
+const stops: (() => void)[] = []
+afterEach(() => stops.splice(0).forEach((stop) => stop()))
 
 describe("a terminal's messages on its taskbar", () => {
   const mailOf = (count: number): MailState => ({
@@ -45,7 +49,7 @@ describe("a terminal's messages on its taskbar", () => {
   const following = (mail: MailState) => {
     const state = createStore(mail)
     const workspace = createWorkspaceStore(workspaceFixture())
-    followMail(workspace, { state, pause: () => {}, release: () => {}, stop: () => {} })
+    stops.push(followMail(workspace, { state, pause: () => {}, release: () => {}, stop: () => {} }))
     const bar = () => activeSession(workspace.getSnapshot())!.state.bars["01"]
     const hide = () =>
       workspace.dispatch({ type: "bar/hide", target, terminalId: "01", key: messagesKey })
@@ -101,7 +105,7 @@ describe("a terminal's messages on its taskbar", () => {
       else if (actions.some((action) => action.type === "terminal/rename"))
         state.update(() => mailOf(2))
     })
-    followMail(workspace, { state, pause: () => {}, release: () => {}, stop: () => {} })
+    stops.push(followMail(workspace, { state, pause: () => {}, release: () => {}, stop: () => {} }))
     const bar = () => activeSession(workspace.getSnapshot())!.state.bars["01"]
     workspace.dispatch({ type: "bar/hide", target, terminalId: "01", key: messagesKey })
 

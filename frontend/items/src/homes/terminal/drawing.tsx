@@ -35,7 +35,8 @@ type MailProps = {
   readonly peerName: (handle: string) => string | undefined
 }
 
-type Drawn = MailProps & { readonly itemStore: ItemStore; readonly target: WorkspaceTarget }
+// Where what's drawn comes from: the item store for items, the mail for the messages.
+type Sources = MailProps & { readonly itemStore: ItemStore; readonly target: WorkspaceTarget }
 
 // The messages' count waiting for their agent, or the pause mark.
 const MailCount = ({ mail }: { mail: MailHandle }): React.JSX.Element | null =>
@@ -52,22 +53,23 @@ const MailCount = ({ mail }: { mail: MailHandle }): React.JSX.Element | null =>
 // The terminal's taskbar's drawing of its bar.
 export const terminalDrawing = ({
   plans,
-  ...drawn
-}: Drawn & { readonly plans: LookContext["plans"] }): BarDrawing => ({
+  ...sources
+}: Sources & { readonly plans: LookContext["plans"] }): BarDrawing => ({
   look: (member) => memberLook(member, { plans }),
   preview: (member) => {
-    if (member.kind === "messages") return <MailThumb mail={drawn.mail} peerName={drawn.peerName} />
+    if (member.kind === "messages")
+      return <MailThumb mail={sources.mail} peerName={sources.peerName} />
     const { Thumb } = registrationOf(member.item)
-    return <Thumb item={member.item} itemStore={drawn.itemStore} target={drawn.target} />
+    return <Thumb item={member.item} itemStore={sources.itemStore} target={sources.target} />
   },
   badge: (member) =>
     member.kind !== "messages"
       ? undefined
       : {
-          mark: <MailCount mail={drawn.mail} />,
-          label: drawn.mail.badge
-            ? `, ${mailBadgeLabel(drawn.mail.badge)}`
-            : drawn.mail.paused
+          mark: <MailCount mail={sources.mail} />,
+          label: sources.mail.badge
+            ? `, ${mailBadgeLabel(sources.mail.badge)}`
+            : sources.mail.paused
               ? ", messaging paused"
               : "",
         },
@@ -81,7 +83,7 @@ export const MemberView = ({
   mail,
   peerName,
   actions,
-}: Drawn & { member: BarMember; actions: ReactNode }): React.JSX.Element => {
+}: Sources & { member: BarMember; actions: ReactNode }): React.JSX.Element => {
   if (member.kind === "messages")
     return <MessagesView mail={mail} peerName={peerName} actions={actions} />
   const { View } = registrationOf(member.item)
