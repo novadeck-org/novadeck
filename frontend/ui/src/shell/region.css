@@ -371,9 +371,11 @@
 .update-progress-percent {
   font-variant-numeric: tabular-nums;
 }
+/* Pulled out to the card's edge on the side it ends, in either direction of text. */
 .update-card-close {
   align-self: center;
-  margin: -4px -6px -4px 0;
+  margin-block: -4px;
+  margin-inline: 0 -6px;
 }
 .update-card .update-progress-note {
   white-space: normal;
