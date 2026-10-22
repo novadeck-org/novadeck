@@ -246,11 +246,11 @@ export const createDemoChat = (
       const seeded = transcript?.requests?.find(
         (request) =>
           request.kind === attention.kind &&
-          request.dialog?.type === "choices" &&
+          (request.dialog?.type === "choices" || request.dialog?.type === "questions") &&
           transcript.outcomes?.[request.id] &&
           (request.kind === "plan" || !asked.has(askedId(request.id))),
       )
-      if (seeded?.dialog?.type === "choices") {
+      if (seeded?.dialog?.type === "choices" || seeded?.dialog?.type === "questions") {
         if (seeded.kind !== "plan") asked.add(askedId(seeded.id))
         made.set(id, transcript!.outcomes![seeded.id]!)
         requests.push({

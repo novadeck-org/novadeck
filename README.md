@@ -746,12 +746,21 @@ an agent in a state of its own: waiting, asking, working, and two that finish do
 failed a moment after it opens, for the project switcher), `messages`, `inbox` (the agents
 demo with hardcoded Inbox items of every kind over those its agents make), `welcome` or
 `chirp` (a one-off for the runner-skits video "Chirp": a desk of twelve agents at work on the
-Canvas, one waiting to run a command; `frontend/demo/src/chirp.ts`). Every variant's Inbox
+Canvas, one waiting to run a command; `frontend/demo/src/chirp.ts`) or `babcia` (a one-off
+for the video "Babcia": project bar-mleczny's twelve Claude Code, Codex and Antigravity agents
+on the Canvas, all working, beside a second project, setlist; its beats are the debug panel's
+"Babcia" group, one cue each, fired by a capture plan: 1 three asks (a permission to run
+`pnpm test`, a plan, a question with its own pick), 2 a failed turn, 3 the lead Site API opens
+three helpers, 4 a helper's free-text question, whose answer reaches its lead through a message
+and the doorbell, 5 a page shown in the pane, 6 every agent finishes but those waiting on the
+person (an open ask, one told No, a failed turn until prompted again, and the helper and its lead
+while the helper's answer is on its way); a second press ends whoever works by then. Answered or
+told, an agent works until cue 6; `frontend/demo/src/babcia.ts`). Every variant's Inbox
 lists what its agents wait on, built as the runner's is. The switcher in the panel's header,
-which leaves out `welcome` and `chirp`, changes between them without reloading (pressing the
-current one boots it again), and the browser tab remembers the last one chosen. `&turnMs=` sets
-how long a demo agent's turn works
-(1500 ms unless given), as a spec does that must act on the screen before the turn ends.
+which leaves out `welcome`, `chirp` and `babcia`, changes between them without reloading
+(pressing the current one boots it again), and the browser tab remembers the last one chosen.
+`&turnMs=` sets how long a demo agent's turn works (1500 ms unless given), as a spec does
+that must act on the screen before the turn ends.
 
 The search field at the top filters actions by label, hint and group. Groups start folded,
 under three sections (Terminals, Agents, App), and the panel remembers which you opened in
