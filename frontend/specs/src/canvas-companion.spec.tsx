@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { userEvent } from "vitest/browser"
 
+import { agentShowsPage } from "./support/backend"
 import { boxOf, canvasView, scrollCanvas, settled } from "./support/canvas"
 import { companionPane, openShowcase, taskbarIcon } from "./support/companions"
 import {
@@ -10,7 +11,14 @@ import {
   pressNewSession,
   savedSession,
 } from "./support/sessions"
-import { chooseView, layoutSettled, sidebarPanel, terminal, terminalTab } from "./support/workspace"
+import {
+  chooseView,
+  layoutSettled,
+  openWorkspace,
+  sidebarPanel,
+  terminal,
+  terminalTab,
+} from "./support/workspace"
 
 // A terminal's companion sheet hangs off its Canvas node, past the window's edge. Canvas
 // frames it into view when it opens, and must when it is already open as Canvas mounts.
@@ -82,5 +90,31 @@ describe("Canvas returned to with its camera as it was left", () => {
     await userEvent.keyboard("{Enter}")
     await expect.element(companionPane("Build Studio")).toBeVisible()
     await expect.poll(sheetInView, { timeout: 3000 }).toBe(true)
+  })
+})
+
+describe("Canvas with a sheet an agent opens beside a window that is not on top", () => {
+  it("raises the window above every other, without selecting it", async () => {
+    await openWorkspace("/projects/bar-mleczny/sessions/initial/canvas?demo=babcia")
+    await expect.element(terminal("Seasonal specials")).toBeVisible()
+    await terminalTab("Menu page").click()
+    await layoutSettled()
+
+    const node = (name: string): HTMLElement =>
+      terminal(name).element().closest<HTMLElement>(".react-flow__node")!
+    const layer = (name: string): number => Number(getComputedStyle(node(name)).zIndex)
+    const selected = (name: string): boolean => node(name).classList.contains("selected")
+    expect(selected("Menu page")).toBe(true)
+    expect(layer("Menu page")).toBeGreaterThan(layer("Seasonal specials"))
+
+    agentShowsPage()
+    await expect.element(companionPane("Seasonal specials")).toBeVisible()
+
+    const others = ["Menu page", "Opening hours", "Photo gallery", "Order form"]
+    await expect
+      .poll(() => others.every((name) => layer("Seasonal specials") > layer(name)))
+      .toBe(true)
+    expect(selected("Seasonal specials")).toBe(false)
+    expect(selected("Menu page")).toBe(true)
   })
 })
