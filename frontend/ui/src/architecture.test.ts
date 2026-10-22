@@ -22,8 +22,8 @@ import { describe, expect, it } from "./test"
 const base = ["core/", "interaction/", "ui-toolkit/", "theme/"]
 // The features are the leaves that the shell and the app compose. A feature imports the base
 // and itself, never another feature: what two of them share belongs to the base. `terminals/`
-// and `layouts/` are the workspace's frame, not features. The chat and the companion are
-// packages (`terminals/chat/` and `terminals/companion/` below), denied to a feature by its
+// and `layouts/` are the workspace's frame, not features. The chat and the items package
+// are packages (`terminals/chat/` and `terminals/companion/` below), denied to a feature by its
 // allow-list, and no rule keys on them: a key that matches no file fails the dead-layer check.
 const features = ["inbox/", "preferences/", "projects/", "search/", "sidebar/", "voice/"]
 const rules: Record<string, readonly string[]> = {
@@ -256,8 +256,8 @@ describe("UI architecture", () => {
   })
 
   it("keeps each feature to the base and itself", () => {
-    // No feature imports another: what two share is the base's. The chat and the companion
-    // are packages, which no feature's allow-list names.
+    // No feature imports another: what two share is the base's. The chat and the items
+    // package are packages, which no feature's allow-list names.
     for (const feature of features) expect(rules[feature], feature).toEqual([...base, feature])
     // No nested key gives a feature's file more than the feature has.
     expect(

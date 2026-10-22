@@ -1,4 +1,4 @@
-import type { Items, ItemContent } from "@novadeck/core/items"
+import type { Companions, ItemContent } from "@novadeck/core/items"
 import { workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
@@ -29,7 +29,7 @@ const ready = (text: string, writable = true, stamp = "1"): ItemContent => ({
 // A plan the test gives the content of, which nothing can save.
 const shown = async () => {
   let emit: (content: ItemContent) => void = () => {}
-  const companions: Items = {
+  const companions: Companions = {
     follow: (_target, _id, _options, on) => {
       emit = on
       on(ready("# Plan\n"))

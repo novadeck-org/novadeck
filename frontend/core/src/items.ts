@@ -314,7 +314,7 @@ export const pageTroublesPerCall = 20
 
 // Where the items' content comes from. The items themselves reach the workspace store
 // as the backend's seed and actions, like terminals.
-export type Items = {
+export type Companions = {
   // Reports what the item holds now, then again whenever that changes, until stopped.
   // One that may hold secrets reports `held` unless `reveal`.
   readonly follow: (
@@ -351,7 +351,7 @@ export type Items = {
 
 // Items with nothing to show, for a backend whose terminals have only their messages
 // in the pane.
-export const emptyItems = (): Items => ({
+export const emptyCompanions = (): Companions => ({
   follow: () => () => {},
   save: () => Promise.reject(new Error("There are no plans")),
   trouble: () => {},

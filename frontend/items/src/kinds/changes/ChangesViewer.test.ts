@@ -1,4 +1,4 @@
-import type { ChangesContent, Items } from "@novadeck/core/items"
+import type { ChangesContent, Companions } from "@novadeck/core/items"
 import { workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
@@ -63,7 +63,7 @@ const change = (rest: Partial<ChangesContent> = {}): ChangesContent => ({
 
 // The pane's body for the change, loading what `content` holds through a fake backend.
 const show = (content: ChangesContent) => {
-  const companions: Items = {
+  const companions: Companions = {
     follow: (_target, _id, _options, on) => {
       on({ state: "ready", stamp: "1", content })
       return () => {}

@@ -13,7 +13,7 @@ import {
 import { context, describe, expect, it } from "../../test"
 import { windowProfile } from "./profiles"
 
-// What a window's icon was before it read the companion's registry.
+// What a window's icon was before it read the items package's registry.
 const kindIcons: Record<ArtifactKind, LucideIcon> = {
   image: Image,
   file: FileCode2,

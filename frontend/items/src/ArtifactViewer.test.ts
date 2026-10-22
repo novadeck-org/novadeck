@@ -1,4 +1,4 @@
-import type { Items, ItemContent } from "@novadeck/core/items"
+import type { Companions, ItemContent } from "@novadeck/core/items"
 import { workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
@@ -34,7 +34,7 @@ const stale: ItemContent = {
 }
 
 const show = () => {
-  const companions: Items = {
+  const companions: Companions = {
     follow: (_target, _id, _options, on) => {
       on(stale)
       return () => {}

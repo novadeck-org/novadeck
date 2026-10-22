@@ -1,4 +1,4 @@
-import type { Items, Item, ItemContent, ShownContent } from "@novadeck/core/items"
+import type { Companions, Item, ItemContent, ShownContent } from "@novadeck/core/items"
 import { workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
@@ -22,7 +22,7 @@ const mail = { mail: undefined } as unknown as MailHandle
 // follows.
 const peek = (item: Item, load: ItemContent) => {
   const followed: string[] = []
-  const companions: Items = {
+  const companions: Companions = {
     follow: (_target, id, _options, on) => {
       followed.push(id)
       on(load)

@@ -1,4 +1,4 @@
-import type { Items, ItemContent, Item } from "@novadeck/core/items"
+import type { Companions, ItemContent, Item } from "@novadeck/core/items"
 import { workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
@@ -16,7 +16,7 @@ afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 const target = { projectId: "project", workspaceSessionId: "initial" }
 
 const undocked = async (item: Item, load: ItemContent) => {
-  const companions: Items = {
+  const companions: Companions = {
     follow: (_target, _id, _options, on) => {
       on(load)
       return () => {}

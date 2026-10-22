@@ -2,7 +2,7 @@ import {
   itemIdOf,
   type Item,
   PlanUnwritableError,
-  type Items,
+  type Companions,
   type ItemContent,
   type PageTrouble,
   pageTroublesPerCall,
@@ -107,9 +107,9 @@ export const createRunnerCompanions = (
     picture,
   }: {
     readonly livePages?: boolean
-    readonly picture?: Items["picture"]
+    readonly picture?: Companions["picture"]
   } = {},
-): Items => ({
+): Companions => ({
   ...(livePages && picture ? { picture } : {}),
   follow: (_target, itemId, { reveal }, on) => {
     let stream: ReturnType<typeof runner.content> | undefined

@@ -5,7 +5,7 @@ import {
   notesIn,
   planVersionOf,
   PlanUnwritableError,
-  type Items,
+  type Companions,
   type ItemContent,
   type ItemId,
   type PageTrouble,
@@ -83,7 +83,7 @@ export type ItemStore = {
   // Follows every plan in the workspace and the messages from here on; returns the stop.
   readonly connect: () => () => void
   // Takes a picture of a live page for it to rest as: the backend's, where it has one.
-  readonly picture?: Items["picture"]
+  readonly picture?: Companions["picture"]
 }
 
 type Followed = {
@@ -98,7 +98,7 @@ type Followed = {
 }
 
 type Session = {
-  readonly companions: Items
+  readonly companions: Companions
   readonly workspace: WorkspaceStore
   readonly store: MutableStore<ItemStoreState>
   readonly followed: Map<ItemId, Followed>
@@ -551,7 +551,7 @@ export const createItemStore = ({
   workspace,
   messages,
 }: {
-  readonly companions: Items
+  readonly companions: Companions
   readonly workspace: WorkspaceStore
   readonly messages?: Messages | undefined
 }): ItemStore => {

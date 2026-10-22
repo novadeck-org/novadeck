@@ -1,7 +1,7 @@
 import type { Conversations } from "./conversation"
 import type { AgentName } from "./harnesses"
 import type { Inbox } from "./inbox"
-import type { Items } from "./items"
+import type { Companions } from "./items"
 import type { Messages } from "./messages"
 import type { Murmur } from "./murmur"
 import type { PortableState } from "./portable"
@@ -238,12 +238,12 @@ export type BackendFields = {
   // seed and `item/*` and `window/*` actions. Every terminal gets a taskbar and companion
   // pane. The runner reads them from the agents' files and what they present through
   // Novadeck's MCP server; the content-preview demo from its sample agents.
-  readonly companions?: Items
+  readonly companions?: Companions
   // Optional. Messages between the agents in its terminals, and the pause that holds
   // them. A terminal with an agent bound, or one that has had messages, gets a messages
   // view in its companion pane, and its tab counts the messages waiting for its agent.
   // The pane needs `companions`: a backend with messages and nothing else to show passes
-  // `emptyItems()`.
+  // `emptyCompanions()`.
   readonly messages?: Messages
   // Optional. The conversations of the agents in its terminals, read from the agents' own
   // transcripts, and a way to prompt or stop them: a terminal running an agent gets a

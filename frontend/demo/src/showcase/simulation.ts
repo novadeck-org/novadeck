@@ -7,7 +7,7 @@ import {
   shownItemWith,
   type Item,
   type CompanionKey,
-  type Items,
+  type Companions,
   type ItemContent,
   type ItemId,
   type PlanVersion,
@@ -38,7 +38,7 @@ export const planFaults: readonly PlanFault[] = [
   "failing",
 ]
 
-export type Showcase = Items & {
+export type Showcase = Companions & {
   // Whether any agent here has a plan, which can go wrong.
   readonly plans: boolean
   // What the terminals held before the demo started, for the seed.
@@ -61,7 +61,7 @@ export type Showcase = Items & {
 }
 
 // Whether a backend's companions are the showcase's, which the debug panel can fault.
-export const isShowcase = (companions: Items): companions is Showcase =>
+export const isShowcase = (companions: Companions): companions is Showcase =>
   "fault" in companions && "told" in companions
 
 // A terminal of the showcase's, by the handle its agents know it by.

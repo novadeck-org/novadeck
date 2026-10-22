@@ -1,5 +1,5 @@
 import { emptyBar, messagesKey } from "@novadeck/core/companion-bar"
-import { emptyItems, isOnBar } from "@novadeck/core/items"
+import { emptyCompanions, isOnBar } from "@novadeck/core/items"
 import { noMail, type AgentMessage, type MailState, type Messages } from "@novadeck/core/messages"
 import { activeSession, workspaceReducer, type WorkspaceAction } from "@novadeck/core/state"
 import { createStore, createWorkspaceStore, type WorkspaceStore } from "@novadeck/core/store"
@@ -91,7 +91,7 @@ const renderTerminal = (
   messages?: Messages,
 ): { container: HTMLElement; workspace: WorkspaceStore } => {
   const workspace = createWorkspaceStore(initial)
-  const itemStore = createItemStore({ companions: emptyItems(), workspace, messages })
+  const itemStore = createItemStore({ companions: emptyCompanions(), workspace, messages })
   const { container, unmount } = render(
     createElement(
       DragSessionContext,

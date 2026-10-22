@@ -1,4 +1,4 @@
-import type { Items, ItemContent, PageContent, PageTrouble } from "@novadeck/core/items"
+import type { Companions, ItemContent, PageContent, PageTrouble } from "@novadeck/core/items"
 import { pagesPartition } from "@novadeck/core/pages"
 import { workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
@@ -36,7 +36,7 @@ const show = (
     content: next,
   })
   let emit: (content: ItemContent) => void = () => {}
-  const companions: Items = {
+  const companions: Companions = {
     follow: (_target, _id, _options, on) => {
       emit = on
       on(ready(content))

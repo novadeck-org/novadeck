@@ -1,9 +1,9 @@
 import { messagesKey } from "@novadeck/core/companion-bar"
 import {
   companionKeyId,
-  emptyItems,
+  emptyCompanions,
   PlanUnwritableError,
-  type Items,
+  type Companions,
   type ItemContent,
   type ItemId,
   type PlanSaved,
@@ -60,7 +60,7 @@ const backend = () => {
     readonly fail: () => void
     readonly refuse: (reason: PlanUnwritableReason) => void
   }[] = []
-  const companions: Items = {
+  const companions: Companions = {
     follow: (_target, id, { reveal }, on) => {
       follows.push({ id, reveal })
       listeners.set(id, on)
@@ -98,7 +98,7 @@ const backend = () => {
 }
 
 // The item store following `companions` from now on, over a workspace holding the plan.
-const connected = (companions: Items, workspace = workspaceWith()) => {
+const connected = (companions: Companions, workspace = workspaceWith()) => {
   const itemStore = createItemStore({ companions, workspace })
   itemStore.connect()
   const actions: PlanActions = itemStore.plan(target, planItem.id)
@@ -674,7 +674,7 @@ describe("a terminal's messages on its taskbar", () => {
     const state = createStore(mail)
     const workspace = createWorkspaceStore(workspaceFixture())
     const itemStore = createItemStore({
-      companions: emptyItems(),
+      companions: emptyCompanions(),
       workspace,
       messages: { state, pause: () => {}, release: () => {}, stop: () => {} },
     })
@@ -735,7 +735,7 @@ describe("a terminal's messages on its taskbar", () => {
         state.update(() => mailOf(2))
     })
     createItemStore({
-      companions: emptyItems(),
+      companions: emptyCompanions(),
       workspace,
       messages: { state, pause: () => {}, release: () => {}, stop: () => {} },
     }).connect()
