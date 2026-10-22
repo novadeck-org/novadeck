@@ -53,7 +53,7 @@ export class Companion {
    * shown from, to be told at the person's next prompt there (see `Nudges`).
    */
   private troubled(item: ItemRecord, troubles: readonly PageTrouble[]): void {
-    const record = this.host.records().get(item.from.terminalId)
+    const record = item.from && this.host.records().get(item.from.terminalId)
     // A show made before the terminal's current root session began is not that session's.
     if (!record || item.url === null || item.shownAt < record.nudges.since) return
     const page = { itemId: item.id, version: item.version, name: item.name, url: item.url }
@@ -65,7 +65,7 @@ export class Companion {
 
   /** An item is gone or shown again: the troubles held of it go. */
   private untroubled(item: ItemRecord): void {
-    const record = this.host.records().get(item.from.terminalId)
+    const record = item.from && this.host.records().get(item.from.terminalId)
     if (record)
       record.nudges = { ...record.nudges, troubles: itemGone(record.nudges.troubles, item.id) }
   }
@@ -149,7 +149,7 @@ export class Companion {
    */
   livePlan(item: ItemRecord): PlanText | undefined {
     const { plan } = item
-    const record = this.host.records().get(item.from.terminalId)
+    const record = item.from && this.host.records().get(item.from.terminalId)
     const { bound } = record ?? {}
     const binding = bound?.binding
     if (!plan || !binding || binding.agent !== plan.agent || binding.sessionId !== plan.session)

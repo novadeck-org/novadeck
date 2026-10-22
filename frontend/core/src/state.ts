@@ -146,6 +146,19 @@ export type WorkspaceAction =
       canvasSize?: { width: number; height: number }
       anchor?: string
     }
+  // The person opened a file in the session's project window, as the backend now has it:
+  // the item and the window take its word, a new window placed beside `anchor` (the
+  // selected tile by default), and the window is selected.
+  | {
+      type: "project/open"
+      target: WorkspaceTarget
+      item: Item
+      window: CompanionWindowMeta
+      gridLayouts?: GridLayouts
+      canvasGeometry?: CanvasLayout["geometry"][string]
+      canvasSize?: { width: number; height: number }
+      anchor?: string
+    }
   // The person closes an item, and the window it's in: it's gone.
   | { type: "item/close"; target: WorkspaceTarget; itemId: ItemId }
   // The person looked at items without opening them, as a peek shows them: no longer new.
@@ -503,6 +516,38 @@ const upsertWindow = (state: WorkspaceState, window: CompanionWindowMeta): Works
   }
 }
 
+// The person opened a file in the session's project window, as the backend now has it. The
+// item and the window take its word whichever of them the watch already reported, so this
+// and those events agree in either order; the window is placed like a new terminal, which
+// needs no terminal open, unless it is a tile already, and comes into view selected.
+const openInProject = (
+  state: WorkspaceState,
+  action: Extract<WorkspaceAction, { type: "project/open" }>,
+): WorkspaceState => {
+  const { item, window, gridLayouts, canvasGeometry, canvasSize } = action
+  if (window.itemId !== item.id || hasTerminal(state.roster, window.id)) return state
+  const listed = upsertItem(state, item)
+  if (hasWindow(listed.roster, window.id)) {
+    const roster = updateWindow(listed.roster, window)
+    return { ...listed, roster, selected: window.id }
+  }
+  const tiles = tilesOf(listed.roster)
+  const beside = action.anchor ?? listed.selected
+  return {
+    ...listed,
+    roster: addWindow(listed.roster, window),
+    layout: placeTerminal(listed.layout, {
+      terminal: window,
+      terminals: tiles,
+      anchor: tiles.find((tile) => tile.id === beside) ?? tiles.at(-1),
+      gridLayouts: gridLayouts ?? addCompactGridTerminal(tiles, listed.layout.grid, window),
+      canvasGeometry,
+      canvasSize,
+    }),
+    selected: window.id,
+  }
+}
+
 export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction): Workspace => {
   switch (action.type) {
     case "project/add": {
@@ -673,6 +718,8 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
       })
     case "item/undock":
       return updateTarget(workspace, action.target, (state) => undockItem(state, action))
+    case "project/open":
+      return updateTarget(workspace, action.target, (state) => openInProject(state, action))
     case "item/close":
     case "item/remove":
       return updateTarget(workspace, action.target, (state) => removeItem(state, action.itemId))

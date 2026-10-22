@@ -21,6 +21,7 @@ import { Check, Eye, EyeOff, Pencil, X, type LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
+import { isProjectWindow } from "./project-window"
 import { SubagentBranches, SubagentLine } from "./TabSubagents"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 import { tabInstructionsId } from "./TerminalTabs"
@@ -264,7 +265,7 @@ export const TerminalTab = ({
                     <Check size={14} strokeWidth={1.5} />
                   </button>
                 </Tooltip>
-              ) : (
+              ) : isProjectWindow(terminal) ? null : (
                 <Tooltip
                   content={
                     selected

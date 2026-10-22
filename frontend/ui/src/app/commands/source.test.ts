@@ -1,64 +1,88 @@
-import { emptyCompanions, type CompanionKey } from "@novadeck/core/items"
-import { workspaceReducer, type WorkspaceAction } from "@novadeck/core/state"
-import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
+import { emptyCompanions, type Companions } from "@novadeck/core/items"
+import { itemFixture } from "@novadeck/core/testing"
+import type { CompanionWindowMeta } from "@novadeck/core/types"
 
 import { context, describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"
 import { absolutePath } from "./source"
 
-const target = { projectId: "project", workspaceSessionId: "initial" }
-const hero = itemFixture("hero", "02", { kind: "image", name: "hero.png", path: "/p/hero.png" })
+const readme = itemFixture("readme", "01", {
+  kind: "file",
+  name: "README.md",
+  path: "/p/README.md",
+})
+const windowOf = (id: string, name: string): CompanionWindowMeta => ({
+  id,
+  home: "project",
+  itemId: readme.id,
+  name,
+  titleSource: { kind: "default" },
+})
 
-const open = (attach?: (key: CompanionKey, path: string) => Promise<void>, url?: string) => {
-  const attached: { key: CompanionKey; path: string }[] = []
-  const companions = {
+// A backend whose project window holds one file, and what it was asked to open.
+const open = (openInProject?: Companions["openInProject"], url?: string) => {
+  const asked: { path: string; windowId: string }[] = []
+  const companions: Companions = {
     ...emptyCompanions(),
-    ...(attach && {
-      attach: (key: CompanionKey, path: string) => (
-        attached.push({ key, path }),
-        attach(key, path)
+    ...(openInProject && {
+      openInProject: (target, path, windowId) => (
+        asked.push({ path, windowId }),
+        openInProject(target, path, windowId)
       ),
     }),
   }
-  const workspace = workspaceReducer(workspaceFixture(), {
-    type: "item/upsert",
-    target,
-    item: hero,
-  } satisfies WorkspaceAction)
-  const app = openCommands({ workspace, companions, ...(url ? { url } : {}) })
-  return { ...app, attached }
+  const app = openCommands({ companions, ...(url ? { url } : {}) })
+  return { ...app, asked }
 }
+
+const reply = () => Promise.resolve({ item: readme, window: windowOf("session-1", "README.md") })
 
 describe("source commands", () => {
   context("when opening a file", () => {
-    it("attaches it to the focused terminal by its absolute path", async () => {
-      const app = open(
-        () => Promise.resolve(),
-        "/projects/project/sessions/initial/grid?terminal=01",
-      )
-      await app.commands.openSourceFile("src/cart/useCart.ts")
-      expect(app.attached).toEqual([
-        { key: { ...target, terminalId: "01" }, path: "~/project/src/cart/useCart.ts" },
-      ])
-    })
-
-    it("attaches it to the terminal an undocked window came from, while the window is focused", async () => {
-      const app = open(() => Promise.resolve())
-      app.commands.undock(hero.id)
+    it("opens it in a new project window by its absolute path, selected", async () => {
+      const app = open(reply)
+      await app.commands.openSourceFile("README.md")
+      expect(app.asked).toEqual([{ path: "~/project/README.md", windowId: "session-1" }])
       expect(app.state().selected).toBe("session-1")
-      await app.commands.openSourceFile("package.json")
-      expect(app.attached.map(({ key }) => key.terminalId)).toEqual(["02"])
+      expect(app.state().roster.windows.map((each) => each.name)).toEqual(["README.md"])
     })
 
-    it("does nothing where the backend can't attach", async () => {
+    it("needs no terminal open", async () => {
+      const app = open(reply)
+      for (const { id } of app.state().roster.terminals) app.commands.close(id)
+      await app.commands.openSourceFile("README.md")
+      expect(app.state().roster.windows.map((each) => each.id)).toEqual(["session-1"])
+    })
+
+    it("keeps the person in the panel it was opened from", async () => {
+      const app = open(reply)
+      app.navigation.go({ panel: "source" })
+      await app.commands.openSourceFile("README.md")
+      expect(app.ui.getSnapshot().location.route.panel).toBe("source")
+    })
+
+    it("re-points the window it already has, which stays one", async () => {
+      let name = "README.md"
+      const app = open(() =>
+        Promise.resolve({ item: { ...readme, name }, window: windowOf("session-1", name) }),
+      )
+      await app.commands.openSourceFile("README.md")
+      name = "notes.md"
+      await app.commands.openSourceFile("notes.md")
+      expect(app.state().roster.windows.map((each) => each.name)).toEqual(["notes.md"])
+      expect(app.state().selected).toBe("session-1")
+    })
+
+    it("does nothing where the backend can't open files", async () => {
       const app = open()
       await expect(app.commands.openSourceFile("package.json")).resolves.toBeUndefined()
-      expect(app.attached).toEqual([])
+      expect(app.state().roster.windows).toEqual([])
     })
 
-    it("rejects when the backend can't attach it", async () => {
+    it("rejects when the backend can't open it, leaving the workspace as it was", async () => {
       const app = open(() => Promise.reject(new Error("gone")))
       await expect(app.commands.openSourceFile("package.json")).rejects.toThrow("gone")
+      expect(app.state().roster.windows).toEqual([])
     })
   })
 

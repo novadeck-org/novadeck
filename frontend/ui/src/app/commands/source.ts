@@ -1,14 +1,21 @@
-import { hasTerminal } from "@novadeck/core/roster"
+import { addCompactGridTerminal } from "@novadeck/core/layout/grid-placement"
+import { tilesOf } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 
-import { currentState, currentTarget } from "../selectors"
+import { currentContext, currentState, currentTarget } from "../selectors"
 import type { CommandContext } from "./context"
 
 export type SourceCommands = {
-  // Puts a file of the active project, by its path from the project's root, on the bar of the
-  // focused terminal, which opens it there. Nothing happens where no terminal is focused or
-  // the backend can't attach. Rejects when the backend can't put the file there.
+  // Opens a file of the active project, by its path from the project's root, in the
+  // session's project window: re-pointed to it when it is open, made when it is not, and
+  // selected, with or without a terminal. Nothing happens where the backend can't open
+  // files there. Rejects when the backend can't open the file.
   readonly openSourceFile: (path: string) => Promise<void>
+}
+
+export type SourceDependencies = {
+  readonly markCreated: (created: { readonly context: string; readonly id: string }) => void
+  readonly pulse: () => void
 }
 
 // The path of a file from a project's directory, in the separator the directory is written in.
@@ -18,24 +25,37 @@ export const absolutePath = (directory: string, path: string): string => {
   return windows ? `${base}\\${path.replaceAll("/", "\\")}` : `${base}/${path}`
 }
 
-export const createSourceCommands = ({
-  workspace,
-  companions,
-}: Pick<CommandContext, "workspace" | "companions">): SourceCommands => ({
+export const createSourceCommands = (
+  { workspace, ui, navigation, effects, companions }: CommandContext,
+  { markCreated, pulse }: SourceDependencies,
+): SourceCommands => ({
   openSourceFile: async (path) => {
-    const attach = companions?.attach
-    if (!attach) return
-    const snapshot = workspace.getSnapshot()
-    const { roster, items, selected } = currentState(snapshot)
-    // A terminal, or the terminal an undocked window of its companion came from.
-    const window = roster.windows.find((each) => each.id === selected)
-    const terminalId = hasTerminal(roster, selected)
-      ? selected
-      : items.find((item) => item.id === window?.itemId)?.from.terminalId
-    if (terminalId === undefined || !hasTerminal(roster, terminalId)) return
-    await attach(
-      { ...currentTarget(snapshot), terminalId },
-      absolutePath(activeProject(snapshot)!.directory, path),
+    const open = companions?.openInProject
+    if (!open) return
+    const before = workspace.getSnapshot()
+    const { item, window } = await open(
+      currentTarget(before),
+      absolutePath(activeProject(before)!.directory, path),
+      effects.newId(),
     )
+    // The person may have moved on while the backend read the file.
+    const snapshot = workspace.getSnapshot()
+    const { roster, layout } = currentState(snapshot)
+    const placed = roster.windows.some((each) => each.id === window.id)
+    // A new window goes where an undocked one would: beside the selected tile, compactly.
+    const grid = placed ? undefined : addCompactGridTerminal(tilesOf(roster), layout.grid, window)
+    if (!placed) markCreated({ context: currentContext(snapshot), id: window.id })
+    // The person stays in the panel they opened it from.
+    navigation.navigateWorkspace([
+      {
+        type: "project/open",
+        target: currentTarget(snapshot),
+        item,
+        window,
+        ...(grid ? { gridLayouts: grid } : {}),
+        canvasSize: ui.getSnapshot().canvasWindowSize,
+      },
+    ])
+    pulse()
   },
 })

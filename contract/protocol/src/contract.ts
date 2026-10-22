@@ -326,6 +326,14 @@ export const contract = {
         }),
       )
       .output(companionItem),
+    // Opens a file in the session's project window, by a path absolute or from the
+    // session's project folder: the item the window holds is pointed at it, with a later
+    // version, or, with no project window yet, one is made under `windowId` holding a new
+    // item. A session has one project window at most. An unknown session is NOT_FOUND, a
+    // taken window id a CONFLICT, and a path that is no file INVALID_FILE, saying why.
+    openInProject: procedure
+      .input(z.strictObject({ sessionId: id, path: z.string().min(1).max(4096), windowId: id }))
+      .output(z.strictObject({ item: companionItem, window: companionWindow })),
     // Tells the runner what went wrong on a page item while it showed its show `shown` (its
     // version then), as the pane saw it. The runner tells the agent that showed it, once per
     // show, at the next prompt the person gives it, for a page served from this machine
@@ -342,9 +350,11 @@ export const contract = {
       .output(z.void()),
     // Moves an item onto a terminal's bar, from a bar or a window, which goes with it; what
     // that bar held under the same pointer is replaced. An unknown item is NOT_FOUND, an
-    // unknown terminal TERMINAL_NOT_FOUND, and one of another session a CONFLICT.
+    // unknown terminal TERMINAL_NOT_FOUND, and one of another session, or the item of a
+    // project window, which stays in it, a CONFLICT.
     move: procedure.input(z.strictObject({ itemId: id, terminalId: id })).output(companionItem),
-    // Moves an item into a new window the client names; a taken id is a CONFLICT.
+    // Moves an item into a new window the client names; a taken id, or the item of a
+    // project window, is a CONFLICT.
     undock: procedure.input(z.strictObject({ itemId: id, windowId: id })).output(companionWindow),
     // Deletes an item and the window holding it; closing a window is this call.
     close: procedure.input(z.strictObject({ itemId: id })).output(z.void()),

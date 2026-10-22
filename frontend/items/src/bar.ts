@@ -63,7 +63,7 @@ export const barMembers = ({
       kind: "item",
       key: item.id,
       item,
-      placed: item.from.terminalId !== terminalId,
+      placed: item.from !== null && item.from.terminalId !== terminalId,
       fresh: Boolean(fresh[item.id]),
     })),
   ...(messages && !bar.hidden.includes(messagesKey)

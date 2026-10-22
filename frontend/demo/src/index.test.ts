@@ -204,7 +204,13 @@ describe("demo backend", () => {
           type: "item/undock",
           target,
           itemId: item.id,
-          window: { id: "w1", itemId: item.id, name: "hero.png", titleSource: { kind: "default" } },
+          window: {
+            id: "w1",
+            home: "undocked",
+            itemId: item.id,
+            name: "hero.png",
+            titleSource: { kind: "default" },
+          },
         },
         { type: "terminal/rename", target, terminalId: "w1", name: "Mine" },
       ] as const
@@ -221,7 +227,13 @@ describe("demo backend", () => {
         {
           type: "window/upsert",
           target,
-          window: { id: "w1", itemId: item.id, name: "hero.png", titleSource: { kind: "default" } },
+          window: {
+            id: "w1",
+            home: "undocked",
+            itemId: item.id,
+            name: "hero.png",
+            titleSource: { kind: "default" },
+          },
         },
       ])
     })

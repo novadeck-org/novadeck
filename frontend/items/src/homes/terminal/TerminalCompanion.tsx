@@ -245,7 +245,7 @@ export const TerminalCompanion = ({
   )
 
   const originOf = (each: BarMember): string | undefined =>
-    each.kind === "item" ? terminalName(each.item.from.terminalId) : undefined
+    each.kind === "item" && each.item.from ? terminalName(each.item.from.terminalId) : undefined
   // The person picked something that may hold secrets: it shows.
   const picked = (key: BarKey): void => {
     const found = members.find((each) => each.key === key)
@@ -276,6 +276,7 @@ export const TerminalCompanion = ({
       const plan = itemStore.store.getSnapshot().plans[each.key]
       if (
         each.item.kind === "plan" &&
+        each.item.from &&
         !isOnBar(each.item, each.item.from.terminalId) &&
         plan &&
         stuckEdits(plan, itemStore.store.getSnapshot().content[each.key])
@@ -284,7 +285,8 @@ export const TerminalCompanion = ({
       commands.closeItem(each.key)
     },
     sendBack: (each) => {
-      if (each.kind === "item") commands.place([each.key], each.item.from.terminalId)
+      if (each.kind === "item" && each.item.from)
+        commands.place([each.key], each.item.from.terminalId)
     },
     undock: (each) => undockMember(each),
     move: (from, to) => commands.moveBarSlot(terminal, slotKeys(slots), from, to),

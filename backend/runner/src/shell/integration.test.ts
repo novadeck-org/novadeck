@@ -92,6 +92,7 @@ const it = base.extend<{ shell: Fixture }>({
       const items = new CompanionItems({
         records: store,
         terminal: (terminalId) => terminals.place(terminalId),
+        project: () => undefined,
         livePlan: (item) => terminals.livePlan(item),
         pollMs: 20,
       })

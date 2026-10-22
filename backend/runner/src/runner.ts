@@ -175,6 +175,13 @@ export const wire = (options: RunnerOptions) => {
   const items = new CompanionItems({
     records: store,
     terminal: (terminalId) => terminals.place(terminalId),
+    project: (sessionId) => {
+      try {
+        return store.project(store.session(sessionId).projectId).cwd
+      } catch {
+        return undefined
+      }
+    },
     livePlan: (item) => terminals.livePlan(item),
   })
   const voice = new Voice(store, {

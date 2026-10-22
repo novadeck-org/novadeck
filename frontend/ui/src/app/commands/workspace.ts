@@ -218,7 +218,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     ...finishes,
     ...createLayoutCommands(ctx),
     ...createChatCommands(ctx),
-    ...createSourceCommands(ctx),
+    ...createSourceCommands(ctx, { markCreated, pulse: () => pulse() }),
     ...createCompanionCommands(ctx, {
       select,
       setSelected,

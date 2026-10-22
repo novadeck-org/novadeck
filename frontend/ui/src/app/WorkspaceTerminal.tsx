@@ -10,6 +10,7 @@ import {
 } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "@novadeck/core/types"
+import { ProjectWindow } from "@novadeck/items/ProjectWindow"
 import { TerminalCompanion } from "@novadeck/items/TerminalCompanion"
 import { UndockedWindow } from "@novadeck/items/UndockedWindow"
 import { memo, useCallback, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react"
@@ -118,7 +119,8 @@ const useWindowFrame = (
   }
 }
 
-// A window undocked from a terminal's companion, in the same frame as a terminal's.
+// A window holding one companion item, in the same frame as a terminal's: one undocked from
+// a terminal's companion, or the session's project window, by its home.
 const WorkspaceWindow = memo(
   ({
     window,
@@ -137,7 +139,12 @@ const WorkspaceWindow = memo(
     // What it shows, where a terminal's content would be.
     return (
       <WindowShell {...frame} icon={<Icon size={14} strokeWidth={1.5} />}>
-        {itemStore && <UndockedWindow itemStore={itemStore} target={target} item={item} />}
+        {itemStore &&
+          (window.home === "project" ? (
+            <ProjectWindow itemStore={itemStore} target={target} item={item} />
+          ) : (
+            <UndockedWindow itemStore={itemStore} target={target} item={item} />
+          ))}
       </WindowShell>
     )
   },

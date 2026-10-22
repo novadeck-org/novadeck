@@ -73,7 +73,9 @@ export type SettingsChange = {
 // (`extras`) and needs neither.
 // 2: word handles, given once per session (session_handles), each unique in its session.
 // 3: changes items, a kind the kind CHECK must allow.
-const schemaVersion = 3
+// 4: windows have a home (a session's project window is one), and an item may come from no
+// terminal.
+const schemaVersion = 4
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -191,10 +193,12 @@ const extras = `
     record TEXT NOT NULL
   ) STRICT;
   -- What agents show and the person attaches beside a terminal: pointers, never copies.
-  -- Each item is held by one terminal's bar or one undocked window, and goes with it.
+  -- Each item is held by one terminal's bar or one window, and goes with it.
   CREATE TABLE IF NOT EXISTS companion_windows (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    -- Undocked from a bar, or the session's project window, the one the person opens files in.
+    home TEXT NOT NULL CHECK (home IN ('undocked', 'project')),
     -- The title the person gave it; null when it is named by its item.
     person_title TEXT,
     created_at REAL NOT NULL
@@ -221,17 +225,22 @@ const extras = `
     detail TEXT NOT NULL,
     held INTEGER NOT NULL,
     shown_by TEXT NOT NULL CHECK (shown_by IN ('agent', 'person')),
-    from_terminal TEXT NOT NULL,
-    from_handle TEXT NOT NULL,
+    -- The terminal it was shown or attached in, and its handle; both null for a file the
+    -- person opened in their project window.
+    from_terminal TEXT,
+    from_handle TEXT,
     version INTEGER NOT NULL,
     asked INTEGER NOT NULL,
     shown_at REAL NOT NULL,
     observed_at REAL,
-    CHECK ((terminal_id IS NULL) <> (window_id IS NULL))
+    CHECK ((terminal_id IS NULL) <> (window_id IS NULL)),
+    CHECK ((from_terminal IS NULL) = (from_handle IS NULL))
   ) STRICT;
   CREATE UNIQUE INDEX IF NOT EXISTS companion_items_bar ON companion_items(terminal_id, pointer_key)
     WHERE terminal_id IS NOT NULL;
   CREATE INDEX IF NOT EXISTS companion_items_session ON companion_items(session_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS companion_windows_project ON companion_windows(session_id)
+    WHERE home = 'project';
 `
 /**
  * The steps that carry a database forward, by the version each starts from, each to the
@@ -290,6 +299,74 @@ const migrations: Readonly<Record<number, string>> = {
     CREATE UNIQUE INDEX companion_items_bar ON companion_items(terminal_id, pointer_key)
       WHERE terminal_id IS NOT NULL;
     CREATE INDEX companion_items_session ON companion_items(session_id);
+  `,
+  // Both tables are made again: windows gain `home`, items may come from no terminal. Items
+  // are renamed first and windows after, which points the old items at the old windows;
+  // the old items then go before the old windows, so no ON DELETE CASCADE has a row to
+  // delete. Rows keep their rowid, which orders them.
+  3: `
+    ALTER TABLE companion_items RENAME TO companion_items_3;
+    ALTER TABLE companion_windows RENAME TO companion_windows_3;
+    CREATE TABLE companion_windows (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      -- Undocked from a bar, or the session's project window, the one the person opens files in.
+      home TEXT NOT NULL CHECK (home IN ('undocked', 'project')),
+      -- The title the person gave it; null when it is named by its item.
+      person_title TEXT,
+      created_at REAL NOT NULL
+    ) STRICT;
+    CREATE TABLE companion_items (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      terminal_id TEXT REFERENCES terminals(id) ON DELETE CASCADE,
+      window_id TEXT UNIQUE REFERENCES companion_windows(id) ON DELETE CASCADE,
+      -- A file's resolved path, a page's pageKey, or a plan's slot, unique on one bar.
+      pointer_key TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('image', 'file', 'page', 'plan', 'changes')),
+      path TEXT,
+      url TEXT,
+      lines_from INTEGER,
+      lines_to INTEGER,
+      -- A plan's agent, session and actor (empty for the root), and whether it is a file
+      -- or text in the transcript or rollout at path.
+      plan_agent TEXT,
+      plan_session TEXT,
+      plan_actor TEXT,
+      plan_format TEXT CHECK (plan_format IN ('file', 'text')),
+      name TEXT NOT NULL,
+      detail TEXT NOT NULL,
+      held INTEGER NOT NULL,
+      shown_by TEXT NOT NULL CHECK (shown_by IN ('agent', 'person')),
+      -- The terminal it was shown or attached in, and its handle; both null for a file the
+      -- person opened in their project window.
+      from_terminal TEXT,
+      from_handle TEXT,
+      version INTEGER NOT NULL,
+      asked INTEGER NOT NULL,
+      shown_at REAL NOT NULL,
+      observed_at REAL,
+      CHECK ((terminal_id IS NULL) <> (window_id IS NULL)),
+      CHECK ((from_terminal IS NULL) = (from_handle IS NULL))
+    ) STRICT;
+    INSERT INTO companion_windows (rowid, id, session_id, home, person_title, created_at)
+    SELECT rowid, id, session_id, 'undocked', person_title, created_at
+    FROM companion_windows_3;
+    INSERT INTO companion_items (rowid, id, session_id, terminal_id, window_id, pointer_key,
+      kind, path, url, lines_from, lines_to, plan_agent, plan_session, plan_actor, plan_format,
+      name, detail, held, shown_by, from_terminal, from_handle, version, asked, shown_at,
+      observed_at)
+    SELECT rowid, id, session_id, terminal_id, window_id, pointer_key, kind, path, url,
+      lines_from, lines_to, plan_agent, plan_session, plan_actor, plan_format, name, detail,
+      held, shown_by, from_terminal, from_handle, version, asked, shown_at, observed_at
+    FROM companion_items_3;
+    DROP TABLE companion_items_3;
+    DROP TABLE companion_windows_3;
+    CREATE UNIQUE INDEX companion_items_bar ON companion_items(terminal_id, pointer_key)
+      WHERE terminal_id IS NOT NULL;
+    CREATE INDEX companion_items_session ON companion_items(session_id);
+    CREATE UNIQUE INDEX companion_windows_project ON companion_windows(session_id)
+      WHERE home = 'project';
   `,
 }
 // SQLite's primary result codes that say a step doesn't fit the database it met, or that
@@ -735,8 +812,8 @@ type ItemRow = {
   detail: string
   held: number
   shown_by: ItemRecord["by"]
-  from_terminal: string
-  from_handle: string
+  from_terminal: string | null
+  from_handle: string | null
   version: number
   asked: number
   shown_at: number
@@ -769,7 +846,10 @@ const itemOf = (row: ItemRow): ItemRecord => ({
   detail: row.detail,
   held: row.held === 1,
   by: row.shown_by,
-  from: { terminalId: row.from_terminal, handle: row.from_handle },
+  from:
+    row.from_terminal !== null && row.from_handle !== null
+      ? { terminalId: row.from_terminal, handle: row.from_handle }
+      : null,
   version: row.version,
   asked: row.asked === 1,
   shownAt: row.shown_at,
@@ -779,6 +859,7 @@ const itemOf = (row: ItemRow): ItemRecord => ({
 type WindowRow = {
   id: string
   session_id: string
+  home: WindowRecord["home"]
   person_title: string | null
   item_id: string
   item_name: string
@@ -787,6 +868,7 @@ type WindowRow = {
 const windowOf = (row: WindowRow): WindowRecord => ({
   id: row.id,
   sessionId: row.session_id,
+  home: row.home,
   itemId: row.item_id,
   itemName: row.item_name,
   personTitle: row.person_title,
@@ -1486,7 +1568,7 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
 
   window(windowId: string): WindowRecord | undefined {
     const row = this.queries.get`
-      SELECT w.id, w.session_id, w.person_title, i.id AS item_id, i.name AS item_name
+      SELECT w.id, w.session_id, w.home, w.person_title, i.id AS item_id, i.name AS item_name
       FROM companion_windows w JOIN companion_items i ON i.window_id = w.id
       WHERE w.id = ${windowId}
     ` as WindowRow | undefined
@@ -1497,11 +1579,11 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
     const rows =
       sessionId === undefined
         ? this.queries.all`
-          SELECT w.id, w.session_id, w.person_title, i.id AS item_id, i.name AS item_name
+          SELECT w.id, w.session_id, w.home, w.person_title, i.id AS item_id, i.name AS item_name
           FROM companion_windows w JOIN companion_items i ON i.window_id = w.id
           ORDER BY w.created_at, w.rowid`
         : this.queries.all`
-          SELECT w.id, w.session_id, w.person_title, i.id AS item_id, i.name AS item_name
+          SELECT w.id, w.session_id, w.home, w.person_title, i.id AS item_id, i.name AS item_name
           FROM companion_windows w JOIN companion_items i ON i.window_id = w.id
           WHERE w.session_id = ${sessionId} ORDER BY w.created_at, w.rowid`
     return (rows as WindowRow[]).map(windowOf)
@@ -1521,7 +1603,7 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
         ${item.pointerKey}, ${item.kind}, ${item.path}, ${item.url}, ${lines?.from ?? null},
         ${lines?.to ?? null}, ${plan?.agent ?? null}, ${plan?.session ?? null},
         ${plan ? (plan.actor ?? "") : null}, ${plan?.format ?? null}, ${item.name},
-        ${item.detail}, ${item.held ? 1 : 0}, ${item.by}, ${from.terminalId}, ${from.handle},
+        ${item.detail}, ${item.held ? 1 : 0}, ${item.by}, ${from?.terminalId ?? null}, ${from?.handle ?? null},
         ${item.version}, ${item.asked ? 1 : 0}, ${item.shownAt}, ${item.observedAt})
       ON CONFLICT (id) DO UPDATE SET terminal_id = excluded.terminal_id,
         window_id = excluded.window_id, pointer_key = excluded.pointer_key, kind = excluded.kind,
@@ -1573,13 +1655,41 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
       referencing(
         "NOT_FOUND",
         () => this.queries.run`
-          INSERT INTO companion_windows (id, session_id, created_at)
-          VALUES (${window.id}, ${item.sessionId}, ${window.createdAt})`,
+          INSERT INTO companion_windows (id, session_id, home, created_at)
+          VALUES (${window.id}, ${item.sessionId}, 'undocked', ${window.createdAt})`,
       )
       void this.queries.run`
         UPDATE companion_items SET terminal_id = NULL, window_id = ${window.id} WHERE id = ${itemId}`
       if (left) void this.queries.run`DELETE FROM companion_windows WHERE id = ${left.id}`
       return { item: this.item(itemId)!, left, replaced: undefined }
+    })
+  }
+
+  /**
+   * Makes a session's project window and the item it holds, together or not at all.
+   * NOT_FOUND when its session is gone, CONFLICT when the window id is taken or the session
+   * has a project window already.
+   */
+  addProjectItem(
+    window: { readonly id: string; readonly createdAt: number },
+    item: ItemRecord,
+  ): void {
+    this.transaction(() => {
+      try {
+        referencing(
+          "NOT_FOUND",
+          () => this.queries.run`
+            INSERT INTO companion_windows (id, session_id, home, created_at)
+            VALUES (${window.id}, ${item.sessionId}, 'project', ${window.createdAt})`,
+        )
+      } catch (error) {
+        // SQLITE_CONSTRAINT_PRIMARYKEY, or _UNIQUE for the one project window of a session.
+        const code = (error as { errcode?: unknown } | undefined)?.errcode
+        if (code === 1555 || code === 2067)
+          throw new DomainError("CONFLICT", "The window already exists")
+        throw error
+      }
+      this.saveItem(item)
     })
   }
 

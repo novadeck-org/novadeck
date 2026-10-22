@@ -23,6 +23,7 @@ describe("project removal", () => {
       const items = new CompanionItems({
         records: store,
         terminal: (terminalId) => terminals.place(terminalId),
+        project: () => undefined,
       })
       const terminals: Terminals = new Terminals({
         shell: "/bin/sh",
@@ -78,6 +79,7 @@ describe("project removal", () => {
       const items = new CompanionItems({
         records: store,
         terminal: (terminalId) => terminals.place(terminalId),
+        project: () => undefined,
       })
       const terminals: Terminals = new Terminals({
         shell: "/bin/sh",

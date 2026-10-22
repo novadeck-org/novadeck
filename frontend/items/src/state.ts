@@ -4,6 +4,7 @@ import {
   planVersionOf,
   PlanUnwritableError,
   type Companions,
+  type Item,
   type ItemContent,
   type ItemId,
   type PageTrouble,
@@ -77,6 +78,9 @@ export type ItemStore = {
 type Followed = {
   readonly target: WorkspaceTarget
   reveal: boolean
+  // What the item pointed at when it was followed, which following again follows when it
+  // changes; undefined until the workspace shows the item.
+  pointed?: string | undefined
   stop: () => void
   // How many places show it, and whether it's a plan, which is followed regardless.
   watchers: number
@@ -103,6 +107,20 @@ type Session = {
   readonly backingOff: Set<ItemId>
   // Per plan, texts sent in saves whose answer never came: the file may hold any of them.
   readonly unconfirmed: Map<ItemId, readonly string[]>
+}
+
+// Where an item points: the file, page or lines it shows. The same item pointed elsewhere
+// is something else to read, as the project window's is when the person opens another file.
+const pointedAt = (item: Pick<Item, "kind" | "path" | "url" | "lines">): string =>
+  JSON.stringify([item.kind, item.path, item.url, item.lines])
+
+const pointedIn = (workspace: Workspace, id: ItemId): string | undefined => {
+  for (const project of workspace.projects)
+    for (const each of project.history) {
+      const item = each.state.items.find((candidate) => candidate.id === id)
+      if (item) return pointedAt(item)
+    }
+  return undefined
 }
 
 const planIn = (session: Session, id: ItemId): PlanDoc | undefined =>
@@ -380,6 +398,7 @@ const follow = (
   const entry: Followed = {
     target,
     reveal,
+    pointed: pointedIn(session.workspace.getSnapshot(), id),
     stop: () => {},
     watchers: from.watchers,
     plan: from.plan,
@@ -402,6 +421,21 @@ const listen = (session: Session, id: ItemId, entry: Followed): void => {
     live = false
     stop()
   }
+}
+
+// An item pointed elsewhere is followed again: what it held is dropped, and so is the
+// person's yes to seeing it, which was to the file it pointed at then.
+const refollow = (session: Session, id: ItemId, entry: Followed, pointed: string): void => {
+  entry.stop()
+  entry.reveal = false
+  entry.pointed = pointed
+  session.store.update((state) => {
+    if (!(id in state.content) && !state.revealed[id]) return state
+    const { [id]: _content, ...content } = state.content
+    const { [id]: _revealed, ...revealed } = state.revealed
+    return { ...state, content, revealed }
+  })
+  listen(session, id, entry)
 }
 
 const unfollow = (session: Session, id: ItemId): void => {
@@ -462,18 +496,27 @@ const keep = <Value>(
 
 // Follows every plan in the workspace, stops following what's gone, and forgets it.
 const reconcile = (session: Session, workspace: Workspace): void => {
-  const present = new Map<ItemId, { readonly target: WorkspaceTarget; readonly plan: boolean }>()
+  const present = new Map<
+    ItemId,
+    { readonly target: WorkspaceTarget; readonly plan: boolean; readonly pointed: string }
+  >()
   for (const project of workspace.projects)
     for (const each of project.history)
       for (const item of each.state.items)
         present.set(item.id, {
           target: { projectId: project.id, workspaceSessionId: each.id },
           plan: kindRules[item.kind].follow === "always",
+          pointed: pointedAt(item),
         })
   for (const [id, entry] of session.followed) {
     const found = present.get(id)
-    if (!found) unfollow(session, id)
-    else if (entry.plan && !found.plan) {
+    if (!found) {
+      unfollow(session, id)
+      continue
+    }
+    if (entry.pointed === undefined) entry.pointed = found.pointed
+    else if (entry.pointed !== found.pointed) refollow(session, id, entry, found.pointed)
+    if (entry.plan && !found.plan) {
       entry.plan = false
       linger(session, id, entry)
     }

@@ -604,6 +604,80 @@ describe("following items", () => {
     expect(itemStore.store.getSnapshot().revealed).toEqual({ [hero.id]: true })
   })
 
+  context("when an item is pointed at another file", () => {
+    const held = (name: string) => ({
+      ...hero,
+      kind: "file" as const,
+      name,
+      path: `/p/${name}`,
+      held: true,
+    })
+    const repoint = (workspace: WorkspaceStore, name: string) =>
+      workspace.dispatch({
+        type: "item/upsert",
+        target,
+        item: { ...held(name), version: workspace.getSnapshot().projects.length + 1 },
+      })
+
+    it("shows the gate again for a revealed held file re-pointed to another held one", () => {
+      const { companions, follows, listeners } = backend()
+      const workspace = workspaceWith()
+      const { itemStore } = connected(companions, workspace)
+      workspace.dispatch({ type: "item/upsert", target, item: held(".env") })
+      itemStore.watch(target, hero.id)
+      itemStore.reveal(hero.id)
+      listeners.get(hero.id)!({ state: "unavailable", reason: "missing", size: null })
+      expect(follows.at(-1)).toEqual({ id: hero.id, reveal: true })
+      repoint(workspace, ".env.local")
+      expect(follows.at(-1)).toEqual({ id: hero.id, reveal: false })
+      expect(itemStore.store.getSnapshot().revealed).toEqual({})
+      expect(itemStore.store.getSnapshot().content[hero.id]).toMatchObject({ reason: "held" })
+    })
+
+    it("holds the new file's content, not the old one's, and ignores a late report of it", () => {
+      const { companions, listeners, stopped } = backend()
+      const workspace = workspaceWith()
+      const { itemStore } = connected(companions, workspace)
+      itemStore.watch(target, hero.id)
+      const old = listeners.get(hero.id)!
+      const text = (path: string): ItemContent => ({
+        state: "ready",
+        stamp: path,
+        content: {
+          kind: "file",
+          path,
+          firstLine: 1,
+          lines: [path],
+          from: 1,
+          to: 1,
+          total: 1,
+          truncated: false,
+          clamped: false,
+        },
+      })
+      old(text("/p/hero.png"))
+      repoint(workspace, "a.ts")
+      expect(stopped).toEqual([hero.id])
+      old(text("/p/hero.png"))
+      listeners.get(hero.id)!(text("/p/a.ts"))
+      expect(itemStore.store.getSnapshot().content[hero.id]).toMatchObject({ stamp: "/p/a.ts" })
+    })
+
+    it("follows on when the same file is shown again", () => {
+      const { companions, follows } = backend()
+      const workspace = workspaceWith()
+      const { itemStore } = connected(companions, workspace)
+      itemStore.watch(target, hero.id)
+      itemStore.reveal(hero.id)
+      workspace.dispatch({ type: "item/upsert", target, item: { ...hero, version: 2 } })
+      expect(follows).toEqual([
+        { id: planItem.id, reveal: false },
+        { id: hero.id, reveal: false },
+        { id: hero.id, reveal: true },
+      ])
+    })
+  })
+
   it("forgets a gone plan's failed saves, so one put back starts afresh", async () => {
     const { companions, saves } = backend()
     const { actions, workspace } = connected(companions)

@@ -214,6 +214,9 @@ export const createRouter = (options: {
         }
       }),
       attach: api.companions.attach.handler(({ input }) => items.attach(input)),
+      openInProject: api.companions.openInProject.handler(({ input }) =>
+        items.openInProject(input),
+      ),
       move: api.companions.move.handler(({ input }) => items.move(input.itemId, input.terminalId)),
       undock: api.companions.undock.handler(({ input }) =>
         items.undock(input.itemId, input.windowId),

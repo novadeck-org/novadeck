@@ -211,6 +211,8 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       content: (itemId, options) => runner.companions.content(itemId, options),
       save: (input) => note(`save plan ${input.itemId}`, () => runner.companions.save(input)),
       attach: (input) => note(`attach ${input.path}`, () => runner.companions.attach(input)),
+      openInProject: (input) =>
+        note(`open ${input.path} in project`, () => runner.companions.openInProject(input)),
       move: (itemId, terminalId) =>
         note(`move ${itemId} ${terminalId}`, () => runner.companions.move(itemId, terminalId)),
       undock: (itemId, windowId) =>

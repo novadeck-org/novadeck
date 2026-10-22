@@ -30,6 +30,35 @@ const following = ({ livePages = false } = {}) => {
   const streams = new Map<string, ReturnType<typeof channel<RunnerContent>>>()
   const asked: { readonly itemId: string; readonly reveal: boolean | undefined }[] = []
   const attached: unknown[] = []
+  const opened: unknown[] = []
+  const projectOpened = {
+    item: {
+      id: "pi",
+      sessionId: "s",
+      holder: { windowId: "pw" },
+      kind: "file" as const,
+      name: "a.ts",
+      detail: "src/a.ts",
+      path: "/p/src/a.ts",
+      url: null,
+      lines: null,
+      held: false,
+      by: "person" as const,
+      from: null,
+      version: 2,
+      asked: true,
+      shownAt: 3,
+      plan: null,
+    },
+    window: {
+      id: "pw",
+      sessionId: "s",
+      home: "project" as const,
+      itemId: "pi",
+      title: "a.ts",
+      titleSource: { kind: "default" as const },
+    },
+  }
   const saves: { itemId: string; text: string; basedOn: string }[] = []
   let saving: PlanSaveResult = { saved: true, stamp: "b2" }
   let failure: unknown
@@ -50,6 +79,10 @@ const following = ({ livePages = false } = {}) => {
         attached.push(input)
         return undefined as never
       },
+      openInProject: async (input) => {
+        opened.push(input)
+        return projectOpened
+      },
       pageTrouble: async () => {},
     },
     { livePages },
@@ -61,6 +94,8 @@ const following = ({ livePages = false } = {}) => {
     companions,
     asked,
     attached,
+    opened,
+    projectOpened,
     saves,
     saveFails: (error: unknown) => {
       failure = error
@@ -357,6 +392,21 @@ describe("the runner's companion content", () => {
     await app.companions.attach!({ ...target, terminalId: "t" }, "/p/notes.md")
     expect(app.attached).toEqual([{ terminalId: "t", path: "/p/notes.md" }])
   })
+
+  it("opens a file in the session's project window, and maps what the runner made", async () => {
+    const app = following()
+    const result = await app.companions.openInProject!(target, "src/a.ts", "pw")
+    expect(app.opened).toEqual([{ sessionId: "s", path: "src/a.ts", windowId: "pw" }])
+    expect(result.item).toMatchObject({ id: "pi", from: null, by: "person", version: 2 })
+    expect(result.item).not.toHaveProperty("sessionId")
+    expect(result.window).toEqual({
+      id: "pw",
+      home: "project",
+      itemId: "pi",
+      name: "a.ts",
+      titleSource: { kind: "default" },
+    })
+  })
 })
 
 describe("the runner's items and windows", () => {
@@ -389,10 +439,17 @@ describe("the runner's items and windows", () => {
         id: "w",
         sessionId: "s",
         itemId: "hero",
+        home: "undocked",
         title: "Hero",
         titleSource: { kind: "person" },
       }),
-    ).toEqual({ id: "w", itemId: "hero", name: "Hero", titleSource: { kind: "person" } })
+    ).toEqual({
+      id: "w",
+      home: "undocked",
+      itemId: "hero",
+      name: "Hero",
+      titleSource: { kind: "person" },
+    })
   })
 })
 
@@ -404,6 +461,7 @@ describe("what a page shows wrong", () => {
       content: () => channel<RunnerContent>().iterator,
       save: () => Promise.reject(new Error("unused")),
       attach: () => Promise.reject(new Error("unused")),
+      openInProject: () => Promise.reject(new Error("unused")),
       pageTrouble: async (input) => {
         calls.push(input)
         if (failure) throw failure

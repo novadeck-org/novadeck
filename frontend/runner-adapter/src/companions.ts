@@ -39,11 +39,13 @@ export const itemOf = ({ sessionId: _session, plan, id, ...item }: RunnerItem): 
 
 export const windowOf = ({
   id,
+  home,
   itemId,
   title,
   titleSource,
 }: RunnerWindow): CompanionWindowMeta => ({
   id,
+  home,
   itemId: itemIdOf(itemId),
   name: title,
   titleSource,
@@ -101,7 +103,10 @@ export const troubleOf = (trouble: PageTrouble): RunnerTrouble => {
 }
 
 export const createRunnerCompanions = (
-  runner: Pick<Runner["companions"], "content" | "attach" | "save" | "pageTrouble">,
+  runner: Pick<
+    Runner["companions"],
+    "content" | "attach" | "openInProject" | "save" | "pageTrouble"
+  >,
   {
     livePages = false,
     picture,
@@ -164,5 +169,13 @@ export const createRunnerCompanions = (
   },
   attach: async ({ terminalId }, path) => {
     await runner.attach({ terminalId, path })
+  },
+  openInProject: async ({ workspaceSessionId }, path, windowId) => {
+    const { item, window } = await runner.openInProject({
+      sessionId: workspaceSessionId,
+      path,
+      windowId,
+    })
+    return { item: itemOf(item), window: windowOf(window) }
   },
 })

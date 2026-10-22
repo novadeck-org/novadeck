@@ -310,6 +310,102 @@ describe("showcase agents", () => {
   })
 })
 
+describe("the project window", () => {
+  const folder = "~/projects/studio"
+  const opening = () => {
+    const made = running()
+    const showcase = createShowcase(
+      { agents: [], directory: () => folder },
+      (_delay, run) => run(),
+      () => 100,
+    )
+    let items: readonly Item[] = []
+    const reported: BackendAction[] = []
+    showcase.start(
+      (actions) => {
+        reported.push(...actions)
+        for (const action of actions)
+          if (action.type === "item/upsert")
+            items = [...items.filter((item) => item.id !== action.item.id), action.item]
+      },
+      () => items,
+    )
+    // The person closed it, as the reducer's item/close does.
+    const close = (id: string) => void (items = items.filter((item) => item.id !== id))
+    return { ...made, showcase, reported, close }
+  }
+
+  it("is made by the first file, held by a window, from no terminal", async () => {
+    const { showcase, reported } = opening()
+    const { item, window } = await showcase.openInProject!(session, "src/app.ts", "pw")
+    expect(item).toMatchObject({
+      name: "app.ts",
+      path: `${folder}/src/app.ts`,
+      by: "person",
+      from: null,
+      asked: true,
+      version: 1,
+      holder: { windowId: "pw" },
+    })
+    expect(window).toEqual({
+      id: "pw",
+      home: "project",
+      itemId: item.id,
+      name: "app.ts",
+      titleSource: { kind: "default" },
+    })
+    expect(reported.map((action) => action.type)).toEqual(["item/upsert", "window/upsert"])
+  })
+
+  it("is pointed at the next file in place, a version on, under the same window", async () => {
+    const { showcase } = opening()
+    const first = await showcase.openInProject!(session, "src/app.ts", "pw")
+    const next = await showcase.openInProject!(session, "README.md", "other")
+    expect(next.item).toMatchObject({ id: first.item.id, name: "README.md", version: 2 })
+    expect(next.window).toMatchObject({ id: "pw", name: "README.md" })
+  })
+
+  it("holds a secret-looking file and shows an image, as a file attached does", async () => {
+    const { showcase } = opening()
+    const env = await showcase.openInProject!(session, ".env.local", "pw")
+    let content: ItemContent | undefined
+    showcase.follow(session, env.item.id, { reveal: false }, (next) => (content = next))()
+    expect(env.item.held).toBe(true)
+    expect(content).toMatchObject({ state: "unavailable", reason: "held" })
+    const image = await showcase.openInProject!(session, "public/favicon.svg", "pw")
+    expect(image.item).toMatchObject({ kind: "image", held: false })
+  })
+
+  it("tells whoever follows it the new file's content", async () => {
+    const { showcase } = opening()
+    const first = await showcase.openInProject!(session, "README.md", "pw")
+    const heard: ItemContent[] = []
+    showcase.follow(session, first.item.id, { reveal: true }, (next) => heard.push(next))
+    await showcase.openInProject!(session, "src/app.ts", "pw")
+    expect(heard).toHaveLength(2)
+    expect(heard[1]).toMatchObject({ state: "ready", content: { path: "src/app.ts" } })
+  })
+
+  it("is made again once the person closed it", async () => {
+    const { showcase, close } = opening()
+    const first = await showcase.openInProject!(session, "README.md", "pw")
+    close(first.item.id)
+    const again = await showcase.openInProject!(session, "src/app.ts", "pw2")
+    expect(again.item).toMatchObject({ version: 1 })
+    expect(again.item.id).not.toBe(first.item.id)
+    expect(again.window.id).toBe("pw2")
+  })
+
+  it("is one for each session", async () => {
+    const { showcase } = opening()
+    const there = { ...session, workspaceSessionId: "t" }
+    const a = await showcase.openInProject!(session, "README.md", "pw")
+    const b = await showcase.openInProject!(there, "README.md", "pw-t")
+    expect(b.item.id).not.toBe(a.item.id)
+    expect(b.window.id).toBe("pw-t")
+  })
+})
+
 describe("a file the person attaches", () => {
   const upserts = (reported: BackendAction[]) =>
     reported.flatMap((action) => (action.type === "item/upsert" ? [action.item] : []))

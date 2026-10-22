@@ -60,6 +60,7 @@ const it = base.extend<{ fixture: Fixture }>({
     const items = new CompanionItems({
       records: store,
       terminal: (terminalId) => places.get(terminalId),
+      project: (sessionId) => (sessionId === session.id ? directory : undefined),
       livePlan: (item) => live.get(item.id),
       pollMs: 10,
       changesMs: 10,
@@ -515,6 +516,248 @@ describe("what the person attaches", () => {
   })
 })
 
+describe("the project window", () => {
+  it("is made by the first file opened in it, held by no terminal and shown by no agent", async ({
+    fixture,
+  }) => {
+    mkdirSync(join(fixture.directory, "src"))
+    writeFileSync(join(fixture.directory, "src", "a.ts"), "const a = 1\n")
+    const windowId = randomUUID()
+    const controller = new AbortController()
+    const stream = fixture.items.watch("owner", controller.signal)
+    await expect(next(stream)).resolves.toEqual({ type: "synced" })
+    const opened = await fixture.items.openInProject({
+      sessionId: fixture.sessionId,
+      path: "src/a.ts",
+      windowId,
+    })
+    expect(opened.item).toMatchObject({
+      holder: { windowId },
+      kind: "file",
+      name: "a.ts",
+      detail: join("src", "a.ts"),
+      path: join(fixture.directory, "src", "a.ts"),
+      held: false,
+      by: "person",
+      from: null,
+      version: 1,
+      asked: true,
+    })
+    expect(opened.window).toEqual({
+      id: windowId,
+      sessionId: fixture.sessionId,
+      home: "project",
+      itemId: opened.item.id,
+      title: "a.ts",
+      titleSource: { kind: "default" },
+    })
+    expect(fixture.items.list(fixture.sessionId)).toEqual({
+      items: [opened.item],
+      windows: [opened.window],
+    })
+    await expect(next(stream)).resolves.toEqual({ type: "window", window: opened.window })
+    await expect(next(stream)).resolves.toEqual({ type: "item", item: opened.item })
+    controller.abort()
+  })
+
+  it("accepts an absolute path, and refuses what is no file or no session", async ({ fixture }) => {
+    writeFileSync(join(fixture.directory, "a.ts"), "a\n")
+    const windowId = randomUUID()
+    const sessionId = fixture.sessionId
+    await expect(
+      fixture.items.openInProject({ sessionId, path: ".", windowId }),
+    ).rejects.toMatchObject({
+      code: "INVALID_FILE",
+      message: "That's a folder; only files can be shown.",
+    })
+    await expect(
+      fixture.items.openInProject({ sessionId, path: "missing.ts", windowId }),
+    ).rejects.toMatchObject({ code: "INVALID_FILE", message: "That file doesn't exist." })
+    await expect(
+      fixture.items.openInProject({ sessionId: randomUUID(), path: "a.ts", windowId }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    expect(fixture.items.list(sessionId)).toEqual({ items: [], windows: [] })
+    await expect(
+      fixture.items.openInProject({ sessionId, path: join(fixture.directory, "a.ts"), windowId }),
+    ).resolves.toMatchObject({ item: { name: "a.ts", detail: "a.ts" } })
+  })
+
+  it("points its one item at the next file, keeping its id, and clears the title the person gave", async ({
+    fixture,
+  }) => {
+    writeFileSync(join(fixture.directory, "a.ts"), "alpha\n")
+    writeFileSync(join(fixture.directory, "b.ts"), "bravo\n")
+    const sessionId = fixture.sessionId
+    const windowId = randomUUID()
+    const first = await fixture.items.openInProject({ sessionId, path: "a.ts", windowId })
+    fixture.items.renameWindow(windowId, "Mine")
+    const gone: string[] = []
+    fixture.items.listen({ troubled: () => {}, gone: (item) => gone.push(item.path ?? "") })
+    const controller = new AbortController()
+    const stream = fixture.items.content(first.item.id, false, controller.signal)
+    expect(lines(await next(stream))).toEqual(["alpha"])
+
+    const watch = new AbortController()
+    const changes = fixture.items.watch("owner", watch.signal)
+    // The window and item it holds, then that it is synced.
+    await next(changes)
+    await next(changes)
+    await expect(next(changes)).resolves.toEqual({ type: "synced" })
+    const second = await fixture.items.openInProject({
+      sessionId,
+      path: "b.ts",
+      windowId: randomUUID(),
+    })
+    expect(second.item).toMatchObject({
+      id: first.item.id,
+      holder: { windowId },
+      name: "b.ts",
+      path: join(fixture.directory, "b.ts"),
+      by: "person",
+      from: null,
+      version: 2,
+      asked: true,
+    })
+    expect(second.window).toMatchObject({
+      id: windowId,
+      title: "b.ts",
+      titleSource: { kind: "default" },
+    })
+    expect(lines(await next(stream))).toEqual(["bravo"])
+    controller.abort()
+    expect(gone).toEqual([join(fixture.directory, "a.ts")])
+    await expect(next(changes)).resolves.toEqual({ type: "item", item: second.item })
+    await expect(next(changes)).resolves.toEqual({ type: "window", window: second.window })
+    watch.abort()
+    expect(fixture.items.list(sessionId)).toEqual({
+      items: [second.item],
+      windows: [second.window],
+    })
+  })
+
+  it("shows a held file's gate again when the window is pointed at one", async ({ fixture }) => {
+    writeFileSync(join(fixture.directory, "a.ts"), "alpha\n")
+    writeFileSync(join(fixture.directory, ".env"), "TOKEN=x\n")
+    const sessionId = fixture.sessionId
+    const first = await fixture.items.openInProject({
+      sessionId,
+      path: "a.ts",
+      windowId: randomUUID(),
+    })
+    const controller = new AbortController()
+    // The person revealed what the window held; that is not a reveal of the next file.
+    const stream = fixture.items.content(first.item.id, true, controller.signal)
+    expect(lines(await next(stream))).toEqual(["alpha"])
+    const held = await fixture.items.openInProject({
+      sessionId,
+      path: ".env",
+      windowId: randomUUID(),
+    })
+    expect(held.item).toMatchObject({ held: true, name: ".env" })
+    await expect(next(stream)).resolves.toMatchObject({ state: "unavailable", reason: "held" })
+    // A stream that asks again, onto the file now held, reveals it.
+    const revealing = fixture.items.content(first.item.id, true, controller.signal)
+    expect(lines(await next(revealing))).toEqual(["TOKEN=x"])
+    controller.abort()
+  })
+
+  it("refuses a taken window id, and never makes a second window", async ({ fixture }) => {
+    writeFileSync(join(fixture.directory, "a.ts"), "a\n")
+    const moth = fixture.terminal("moth")
+    const sessionId = fixture.sessionId
+    await expect(
+      fixture.items.openInProject({ sessionId, path: "a.ts", windowId: moth.terminalId }),
+    ).rejects.toMatchObject({ code: "CONFLICT" })
+    const shown = await fixture.items.show(moth, { file: { path: "a.ts" } })
+    const taken = randomUUID()
+    fixture.items.undock(shown.ok ? shown.id : "", taken)
+    await expect(
+      fixture.items.openInProject({ sessionId, path: "a.ts", windowId: taken }),
+    ).rejects.toMatchObject({ code: "CONFLICT" })
+    expect(fixture.items.list(sessionId).windows).toMatchObject([{ id: taken, home: "undocked" }])
+
+    const first = await fixture.items.openInProject({
+      sessionId,
+      path: "a.ts",
+      windowId: randomUUID(),
+    })
+    await fixture.items.openInProject({ sessionId, path: "a.ts", windowId: randomUUID() })
+    expect(
+      fixture.items.list(sessionId).windows.filter(({ home }) => home === "project"),
+    ).toMatchObject([{ id: first.window.id }])
+    expect(fixture.items.list(sessionId).items).toHaveLength(2)
+  })
+
+  it("keeps its item in it: no bar, no window of its own", async ({ fixture }) => {
+    writeFileSync(join(fixture.directory, "a.ts"), "a\n")
+    const moth = fixture.terminal("moth")
+    const { item } = await fixture.items.openInProject({
+      sessionId: fixture.sessionId,
+      path: "a.ts",
+      windowId: randomUUID(),
+    })
+    expect(() => fixture.items.move(item.id, moth.terminalId)).toThrow(
+      expect.objectContaining({ code: "CONFLICT" }),
+    )
+    expect(() => fixture.items.undock(item.id, randomUUID())).toThrow(
+      expect.objectContaining({ code: "CONFLICT" }),
+    )
+    expect(fixture.items.list(fixture.sessionId).items).toEqual([item])
+  })
+
+  it("closes with its window, and the next file opened makes it again", async ({ fixture }) => {
+    writeFileSync(join(fixture.directory, "a.ts"), "a\n")
+    const sessionId = fixture.sessionId
+    const first = await fixture.items.openInProject({
+      sessionId,
+      path: "a.ts",
+      windowId: randomUUID(),
+    })
+    fixture.items.close(first.item.id)
+    expect(fixture.items.list(sessionId)).toEqual({ items: [], windows: [] })
+    const windowId = randomUUID()
+    const again = await fixture.items.openInProject({ sessionId, path: "a.ts", windowId })
+    expect(again.item.id).not.toBe(first.item.id)
+    expect(again).toMatchObject({ item: { version: 1 }, window: { id: windowId } })
+  })
+
+  it("is not an agent's: its show lands on its bar, and its terminal's closing leaves the window", async ({
+    fixture,
+  }) => {
+    writeFileSync(join(fixture.directory, "a.ts"), "a\n")
+    const moth = fixture.terminal("moth")
+    const opened = await fixture.items.openInProject({
+      sessionId: fixture.sessionId,
+      path: "a.ts",
+      windowId: randomUUID(),
+    })
+    const shown = await fixture.items.show(moth, { file: { path: "a.ts" } })
+    expect(shown).toMatchObject({ ok: true, again: false })
+    expect(fixture.items.bar(moth.terminalId)).toMatchObject([{ by: "agent", version: 1 }])
+    expect(fixture.items.list(fixture.sessionId).items).toContainEqual(opened.item)
+    // It is listed and closed as what is on the bar, never as the window's file.
+    expect(fixture.items.listing(moth.terminalId)).toBe(
+      [
+        "Showing beside your terminal in Novadeck (1):",
+        `- file "a.ts": ${join(fixture.directory, "a.ts")} (shown by you)`,
+      ].join("\n"),
+    )
+    await expect(fixture.items.dismiss(moth, { file: { path: "a.ts" } })).resolves.toMatchObject({
+      ok: true,
+    })
+    await expect(fixture.items.dismiss(moth, { file: { path: "a.ts" } })).resolves.toMatchObject({
+      ok: false,
+    })
+    fixture.close(moth.terminalId)
+    expect(fixture.items.list(fixture.sessionId)).toEqual({
+      items: [opened.item],
+      windows: [opened.window],
+    })
+    fixture.items.sessionsRemoved([fixture.sessionId])
+    expect(fixture.items.list(fixture.sessionId)).toEqual({ items: [], windows: [] })
+  })
+})
+
 describe("moving items", () => {
   it("moves between bars and windows, one holder at a time, replacing a bar's copy", async ({
     fixture,
@@ -530,6 +773,7 @@ describe("moving items", () => {
     expect(fixture.items.undock(itemId, windowId)).toEqual({
       id: windowId,
       sessionId: fixture.sessionId,
+      home: "undocked",
       itemId,
       title: "a.ts",
       titleSource: { kind: "default" },
@@ -951,7 +1195,7 @@ describe("what the pane tells of a page", () => {
     const gone: string[] = []
     fixture.items.listen({
       troubled: (item) =>
-        heard.push({ itemId: item.id, version: item.version, terminalId: item.from.terminalId }),
+        heard.push({ itemId: item.id, version: item.version, terminalId: item.from!.terminalId }),
       gone: (item) => gone.push(item.id),
     })
     const moth = fixture.terminal("moth")

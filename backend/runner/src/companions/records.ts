@@ -27,7 +27,8 @@ export type ItemRecord = {
   readonly detail: string
   readonly held: boolean
   readonly by: CompanionItem["by"]
-  readonly from: { readonly terminalId: string; readonly handle: string }
+  /** The terminal it was shown or attached in; null for a file the person opened in their project window. */
+  readonly from: { readonly terminalId: string; readonly handle: string } | null
   readonly version: number
   readonly asked: boolean
   readonly shownAt: number
@@ -35,10 +36,14 @@ export type ItemRecord = {
   readonly observedAt: number | null
 }
 
-/** An undocked window: its item, by a join, and the title the person gave it, if any. */
+/**
+ * A window: its item, by a join, and the title the person gave it, if any. `home` says
+ * whether it was undocked from a bar or is the session's project window.
+ */
 export type WindowRecord = {
   readonly id: string
   readonly sessionId: string
+  readonly home: "undocked" | "project"
   readonly itemId: string
   readonly itemName: string
   readonly personTitle: string | null
@@ -73,6 +78,14 @@ export type ItemRecords = {
   dockItem(itemId: string, terminalId: string): Placed
   /** Moves an item into a new window, at once deleting the window it leaves. */
   undockItem(itemId: string, window: { readonly id: string; readonly createdAt: number }): Placed
+  /**
+   * Makes a session's project window with its item in one step. NOT_FOUND when the session
+   * is gone; CONFLICT when the window id is taken or the session has a project window.
+   */
+  addProjectItem(
+    window: { readonly id: string; readonly createdAt: number },
+    item: ItemRecord,
+  ): void
   /** Deletes an item and the window holding it; what was deleted, if anything. */
   removeItem(itemId: string): { item: ItemRecord; window: WindowRecord | undefined } | undefined
   /** Gives a window the person's title, or with null takes it away; false when none has its id. */

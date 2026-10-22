@@ -276,7 +276,9 @@ lasts one model call, so there the notice is read once at the prompt and the too
 description is what lasts; a lasting injection is a gap to probe.
 
 What is shown is a companion item: a pointer to a file, a page or a plan, never a copy,
-held by exactly one terminal's bar or one undocked window. The runner keeps items and
+held by exactly one terminal's bar, one undocked window, or the session's project window,
+which holds the one file the person opened from the Source tree and is re-pointed at the
+next; no agent's show lands there, and it can't be moved to a bar or undocked. The runner keeps items and
 windows (`companions.*`, see [Backend API](backend-api.md)), so they survive restarts.
 Moving an item to another bar or undocking it changes its holder; closing it deletes
 it, except that a plan or the Messages closed on their own terminal's bar only hide
