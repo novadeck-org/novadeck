@@ -158,7 +158,11 @@ const localIn = (anchors: Anchors, files: string[]): LocalKey[] =>
 // The runner's SQLite tables, the settings it keeps, and the UI's browser storage.
 export const extractData = async (repo: string, anchors: Anchors): Promise<Data> => {
   const runnerFiles = sourceFiles(repo, "backend/runner/src")
-  const tables = runnerFiles.flatMap((file) => tablesIn(file, anchors.read(file) ?? ""))
+  // A migration step creates a table again as a version had it, after the schema in its
+  // file: the first statement of a name is the table.
+  const tables = runnerFiles
+    .flatMap((file) => tablesIn(file, anchors.read(file) ?? ""))
+    .filter((table, index, all) => all.findIndex(({ name }) => name === table.name) === index)
   usage(anchors, runnerFiles, tables)
   returning(anchors, runnerFiles, tables)
   if (tables.length === 0)
