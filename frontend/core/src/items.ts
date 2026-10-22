@@ -341,9 +341,6 @@ export type Companions = {
     shown: number,
     troubles: readonly PageTrouble[],
   ) => void
-  // Puts a file on the terminal's bar, as the person attached it. Absent where the
-  // backend can't.
-  readonly attach?: (key: CompanionKey, path: string) => Promise<void>
   // Opens a file in the session's project window, by a path from the project's folder or
   // absolute: the item the window holds is pointed at it, or, when the session has none,
   // the window is made under `windowId`. Resolves with the item and its window as they now

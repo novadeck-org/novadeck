@@ -158,6 +158,9 @@ export type WorkspaceAction =
       canvasGeometry?: CanvasLayout["geometry"][string]
       canvasSize?: { width: number; height: number }
       anchor?: string
+      // The session had no such window before this open, so it is placed as asked even if
+      // the watch placed it a moment earlier, which the person has not touched.
+      made?: boolean
     }
   // The person closes an item, and the window it's in: it's gone.
   | { type: "item/close"; target: WorkspaceTarget; itemId: ItemId }
@@ -536,20 +539,28 @@ const openInProject = (
       ? { ...action.window, name: stored.name }
       : action.window
   const listed = newer ? state : upsertItem(state, item)
-  if (hasWindow(listed.roster, window.id)) {
+  const placed = hasWindow(listed.roster, window.id)
+  if (placed && !action.made) {
     const roster = newer ? listed.roster : updateWindow(listed.roster, window)
     return { ...listed, roster, selected: window.id }
   }
-  const tiles = tilesOf(listed.roster)
   const beside = action.anchor ?? listed.selected
+  const apart = placed
+    ? {
+        ...listed,
+        roster: removeWindow(listed.roster, window.id),
+        layout: removeFromLayout(listed.layout, window.id),
+      }
+    : listed
+  const tiles = tilesOf(apart.roster)
   return {
-    ...listed,
-    roster: addWindow(listed.roster, window),
-    layout: placeTerminal(listed.layout, {
+    ...apart,
+    roster: addWindow(apart.roster, window),
+    layout: placeTerminal(apart.layout, {
       terminal: window,
       terminals: tiles,
       anchor: tiles.find((tile) => tile.id === beside) ?? tiles.at(-1),
-      gridLayouts: gridLayouts ?? addCompactGridTerminal(tiles, listed.layout.grid, window),
+      gridLayouts: gridLayouts ?? addCompactGridTerminal(tiles, apart.layout.grid, window),
       canvasGeometry,
       canvasSize,
     }),

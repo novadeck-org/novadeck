@@ -32,8 +32,9 @@ export type ItemStoreState = {
   readonly plans: Readonly<Record<ItemId, PlanDoc>>
   // What each item held when it last reported, a plan's too.
   readonly content: Readonly<Record<ItemId, ItemContent>>
-  // Items that may hold secrets, which the person asked to see.
-  readonly revealed: Readonly<Record<ItemId, true>>
+  // Items that may hold secrets, which the person asked to see, each with what it pointed at
+  // then. Pointed elsewhere since, the yes is no longer there: see `isRevealed`.
+  readonly revealed: Readonly<Record<ItemId, string>>
 }
 
 const emptyState: ItemStoreState = { plans: {}, content: {}, revealed: {} }
@@ -122,6 +123,13 @@ const pointedIn = (workspace: Workspace, id: ItemId): string | undefined => {
       if (item) return pointedAt(item)
     }
   return undefined
+}
+
+// Whether the person's yes to seeing an item still holds: it was to the file it pointed at
+// then, so another file, whenever it came, is held back again.
+const isRevealed = (session: Session, id: ItemId): boolean => {
+  const asked = session.store.getSnapshot().revealed[id]
+  return asked !== undefined && asked === pointedIn(session.workspace.getSnapshot(), id)
 }
 
 const planIn = (session: Session, id: ItemId): PlanDoc | undefined =>
@@ -395,7 +403,7 @@ const follow = (
   id: ItemId,
   from: Pick<Followed, "watchers" | "plan">,
 ): Followed => {
-  const reveal = Boolean(session.store.getSnapshot().revealed[id])
+  const reveal = isRevealed(session, id)
   const entry: Followed = {
     target,
     reveal,
@@ -588,8 +596,13 @@ export const createItemStore = ({
     }
   }
   const reveal = (id: ItemId): void => {
+    const pointed = pointedIn(session.workspace.getSnapshot(), id)
+    // An item that's gone has nothing to show.
+    if (pointed === undefined) return
     session.store.update((state) =>
-      state.revealed[id] ? state : { ...state, revealed: { ...state.revealed, [id]: true } },
+      state.revealed[id] === pointed
+        ? state
+        : { ...state, revealed: { ...state.revealed, [id]: pointed } },
     )
     // The same entry follows it again, revealed, so the places showing it still let go
     // of it, and one waiting to be let go still is.

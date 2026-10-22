@@ -523,18 +523,22 @@ describe("workspace metadata", () => {
   }) => {
     const path = join(directory(), "workspace.sqlite")
     // Rows only a database written with foreign keys off could hold: an item on a closed
-    // terminal's bar, one in a window that is gone, and a window of a deleted session.
+    // terminal's bar, one in a window that is gone, a window of a deleted session, and a
+    // window whose only item belongs to a deleted session, which leaves it showing nothing.
     const old = new DatabaseSync(path, { enableForeignKeyConstraints: false })
     old.exec(`${readFileSync(new URL("schemas/3.sql", import.meta.url), "utf8")}
       PRAGMA user_version = 3;
       ${heldByVersion3}
       INSERT INTO companion_windows VALUES ('lost', 'gone', NULL, 13);
+      INSERT INTO companion_windows VALUES ('empty', 's', NULL, 14);
       INSERT INTO companion_items (id, session_id, terminal_id, window_id, pointer_key, kind,
         path, name, detail, held, shown_by, from_terminal, from_handle, version, asked, shown_at)
         VALUES ('closed', 's', 'u', NULL, '/shop/b.ts', 'file', '/shop/b.ts', 'b.ts', '', 0,
           'agent', 'u', 'fox', 1, 0, 14),
         ('stray', 's', NULL, 'nowhere', '/shop/c.ts', 'file', '/shop/c.ts', 'c.ts', '', 0,
-          'person', 't', 'moth', 1, 0, 15);`)
+          'person', 't', 'moth', 1, 0, 15),
+        ('stranded', 'gone', NULL, 'empty', '/shop/d.ts', 'file', '/shop/d.ts', 'd.ts', '', 0,
+          'person', 't', 'moth', 1, 0, 16);`)
     old.close()
 
     const workspace = store(path)
@@ -647,6 +651,22 @@ describe("workspace metadata", () => {
     emptied.removeProject("p")
     emptied.close()
     expect(restoreSetAside(path)).toBeUndefined()
+  })
+
+  it("brings one back where a start since carried the empty workspace to version 4", ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const earlier = setAsideOfVersion2(path, "2026-10-22T07-00-00-000Z")
+    emptyOfVersion3(path)
+    new WorkspaceStore(path).close()
+    expect(restoreSetAside(path, new Date("2026-10-22T09:00:00.000Z"))).toBe(earlier)
+    const workspace = new WorkspaceStore(path)
+    try {
+      expect(workspace.projects().map(({ id }) => id)).toEqual(["p"])
+    } finally {
+      workspace.close()
+    }
   })
 
   it("finishes bringing one back where a crash cut the swap short", ({ directory }) => {

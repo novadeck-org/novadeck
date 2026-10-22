@@ -1,8 +1,5 @@
-import type { Item } from "@novadeck/core/items"
-import type { Backend, BackendAction } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { workspaceReducer } from "@novadeck/core/state"
-import { createWorkspaceStore } from "@novadeck/core/store"
 import type { TerminalStatus } from "@novadeck/core/types"
 import { afterEach, vi } from "vitest"
 
@@ -23,7 +20,6 @@ import {
 } from "./source"
 import { context, describe, expect, it } from "./test"
 import { demoTurns } from "./turns"
-import { visitorDemo } from "./visitor"
 import { visitorSeed } from "./visitor/seed"
 
 const now = 1_000_000
@@ -570,81 +566,6 @@ describe("a backend with the demo's Source", () => {
     turns.work({ ...target, terminalId: crowId }, undefined)
     advance(8000)
     expect(project(source).writing.crow).toBeDefined()
-    stop()
-  })
-})
-
-// A backend's workspace, kept as the backend reports to it, from which a test attaches a file
-// to the terminal that holds an item.
-const kept = (backend: Backend, projectId: string) => {
-  const store = createWorkspaceStore(
-    workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 0 }),
-    backend.commit,
-  )
-  backend.commit(store.getSnapshot(), [])
-  const stop = backend.start!({
-    dispatch: (actions: readonly BackendAction[]) => store.transact([...actions]),
-    open: () => {},
-  })
-  const state = () =>
-    store.getSnapshot().projects.find((each) => each.id === projectId)!.history[0]!.state
-  const attachTo = (terminalId: string, path: string) =>
-    backend.companions!.attach!(
-      {
-        projectId,
-        workspaceSessionId: store.getSnapshot().projects.find((each) => each.id === projectId)!
-          .history[0]!.id,
-        terminalId,
-      },
-      path,
-    )
-  return { state, attachTo, stop }
-}
-
-describe("opening a file in the agents demo", () => {
-  const open = () => kept(plainDemo("agents"), "storefront")
-  const barOf = (item: Item): string => ("terminalId" in item.holder ? item.holder.terminalId : "")
-
-  it("raises a whole file the terminal already held, as the same item", async () => {
-    const { state, attachTo, stop } = open()
-    const held = state().items.find((item) => item.path?.endsWith("checkout-copy.md"))!
-
-    await attachTo(barOf(held), held.path!)
-
-    const same = state().items.filter((item) => item.id === held.id)
-    expect(same).toHaveLength(1)
-    expect(same[0]).toMatchObject({ asked: true, version: held.version + 1 })
-    expect(state().bars[barOf(held)]).toMatchObject({ open: true })
-    expect(state().bars[barOf(held)]!.stack).toContain(held.id)
-    stop()
-  })
-
-  it("updates a file an agent showed only some lines of to the whole file, raised", async () => {
-    const { state, attachTo, stop } = open()
-    const held = state().items.find((item) => item.path?.endsWith("OrderSummary.tsx"))!
-
-    await attachTo(barOf(held), held.path!)
-
-    const found = state().items.filter((item) => item.path === held.path)
-    expect(found).toHaveLength(1)
-    expect(found[0]).toMatchObject({ lines: null, by: "person", version: held.version + 1 })
-    expect(state().bars[barOf(held)]!.stack).toContain(held.id)
-    stop()
-  })
-})
-
-describe("opening a file on the visitor demo", () => {
-  it("adds the file to the terminal's bar, raised", async () => {
-    const backend = visitorDemo()
-    const { state, attachTo, stop } = kept(backend, "storefront")
-    const terminalId = state().roster.terminals[0]!.id
-
-    await attachTo(terminalId, "~/projects/storefront/src/cart/useCart.ts")
-
-    const added = state().items.find((item) => item.path?.endsWith("useCart.ts"))!
-    expect(added).toMatchObject({ by: "person", asked: true, detail: "src/cart/useCart.ts" })
-    expect(state().bars[terminalId]).toMatchObject({ open: true })
-    expect(state().bars[terminalId]!.stack).toContain(added.id)
     stop()
   })
 })

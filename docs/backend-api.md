@@ -1008,15 +1008,16 @@ one from an earlier runner.
 
 - `companions.*` keeps what agents show and the person attaches beside terminals: items,
   each a pointer to a file, a page or a plan, never a copy of it, held by exactly one
-  terminal's bar, one undocked window, or the session's project window. Items and windows live in the runner's database,
-  so they survive restarts; an item goes when it is closed, with the terminal whose bar
-  holds it, or with its session, and a window goes with its item. Nothing caps how many
-  there are. An item has a runner-issued id, its `kind` (`image`, `file`, `page`, `changes`,
-  `plan`), a name and a one-line `detail`, its `path` or `url`, the `lines` it points at,
-  `held` for a file that may hold secrets, `by` (`agent` or `person`), `from` (the
-  terminal and handle it was shown in; null in a project window), `version` (counts its shows), `asked` (the latest
-  show asked to open it), `shownAt`, and for a plan its agent, its actor's role and
-  whether it is a file or text.
+  terminal's bar, one undocked window, or the session's project window. Items and windows
+  live in the runner's database, so they survive restarts; an item goes when it is closed,
+  with the terminal whose bar holds it, or with its session, and a window goes with its
+  item. Nothing caps how many there are. An item has a runner-issued id, its `kind`
+  (`image`, `file`, `page`, `changes`, `plan`), a name and a one-line `detail`, its `path`
+  or `url`, the `lines` it points at, `held` for a file that may hold secrets, `by`
+  (`agent` or `person`), `from` (the terminal and handle it was shown in; null in a
+  project window), `version` (counts its shows), `asked` (the latest show asked to open
+  it), `shownAt`, and for a plan its agent, its actor's role and whether it is a file or
+  text.
   - `companions.list({ sessionId })` answers a session's `items` and `windows`; an unknown
     session is `NOT_FOUND`.
   - `companions.watch()` streams every item and window across sessions, `synced`, then
@@ -1085,11 +1086,11 @@ one from an earlier runner.
     pointer is replaced. `NOT_FOUND`, `TERMINAL_NOT_FOUND`, or `CONFLICT` for another
     session's terminal. `companions.undock({ itemId, windowId })` moves it into a new
     window the client names (`CONFLICT` for a taken id). A project window's item takes
-    neither: `CONFLICT`. `companions.close({ itemId })`
-    deletes it and its window. `companions.renameWindow({ windowId, title })` and
+    neither: `CONFLICT`. `companions.close({ itemId })` deletes it and its window.
+    `companions.renameWindow({ windowId, title })` and
     `companions.resetWindowTitle({ windowId })` give a window the person's title or its
-    item's name again (`NOT_FOUND` for an unknown window; `CONFLICT` for a project window,
-    which its file names).
+    item's name again (`NOT_FOUND` for an unknown window; `CONFLICT` for a project
+    window, which its file names).
   - `companions.pageTrouble({ itemId, shown, troubles })` tells the runner what went
     wrong on a page item while it showed its show `shown` (its `version` then), as the
     desktop pane saw it: up to 20 `troubles`, each an `error` (text, source, line), a

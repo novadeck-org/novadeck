@@ -305,7 +305,9 @@ const migrations: Readonly<Record<number, string>> = {
   // the old items then go before the old windows, so no ON DELETE CASCADE has a row to
   // delete. Rows keep their rowid, which orders them. A row whose session, terminal or
   // window is gone, which only a database written with foreign keys off could hold, is left
-  // behind: the runner could never show it, and copying it would set the workspace aside.
+  // behind: the runner could never show it, and copying it would set the workspace aside. A
+  // window whose only item was left behind is copied, then deleted: a version 3 runner never
+  // leaves a window without its item, so only a row the runner could never show goes.
   3: `
     ALTER TABLE companion_items RENAME TO companion_items_3;
     ALTER TABLE companion_windows RENAME TO companion_windows_3;
@@ -366,6 +368,8 @@ const migrations: Readonly<Record<number, string>> = {
     WHERE session_id IN (SELECT id FROM sessions)
       AND (terminal_id IS NULL OR terminal_id IN (SELECT id FROM terminals))
       AND (window_id IS NULL OR window_id IN (SELECT id FROM companion_windows));
+    DELETE FROM companion_windows
+    WHERE id NOT IN (SELECT window_id FROM companion_items WHERE window_id IS NOT NULL);
     DROP TABLE companion_items_3;
     DROP TABLE companion_windows_3;
     CREATE UNIQUE INDEX companion_items_bar ON companion_items(terminal_id, pointer_key)
@@ -546,7 +550,8 @@ const readOnly = (path: string, query: string): unknown => {
 /**
  * Brings back the workspace v0.0.188 set aside. That build raised the schema to version 3
  * with no step from 2, so it set every version 2 workspace aside and started an empty one.
- * Where `path` is still as it left it, version 3 with no projects, the newest database set
+ * Where `path` is still as it left it, version 3 (or 4, once a later start carried it
+ * forward) with no projects, the newest database set
  * aside beside it, if it is version 2 and a copy of it carries forward, comes back as that
  * copy, with the empty one's settings, the person's later choices; the empty one is set
  * aside in turn, and the one set aside before stays as it was. A version 2 database any
@@ -569,7 +574,10 @@ export const restoreSetAside = (path: string, now = new Date()): string | undefi
     moveDatabase(copy, path)
     return copy
   }
-  if (readOnly(path, "PRAGMA user_version") !== 3) return undefined
+  // Version 4 is the empty one after a start since, which carried it forward: a restore that
+  // failed once, for a passing reason, is tried again.
+  const version = readOnly(path, "PRAGMA user_version")
+  if (version !== 3 && version !== 4) return undefined
   if (readOnly(path, "SELECT count(*) FROM projects") !== 0) return undefined
   const prefix = `${basename(path)}.earlier-`
   const newest = readdirSync(dirname(path))

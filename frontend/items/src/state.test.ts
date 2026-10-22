@@ -24,6 +24,7 @@ const planItem = itemFixture("plan", "01", {
   plan: { agent: "Codex", role: "root", source: "file" },
 })
 const hero = itemFixture("hero", "01", { kind: "image", name: "hero.png", path: "/p/hero.png" })
+const pointedHero = JSON.stringify(["image", "/p/hero.png"])
 const first = "# Plan\n\nalpha\nbeta\ngamma\n"
 
 const snapshot = (text: string, stamp: string, writable = true): PlanVersion => ({
@@ -602,7 +603,7 @@ describe("following items", () => {
     itemStore.watch(target, hero.id)
     itemStore.reveal(hero.id)
     expect(follows.at(-1)).toEqual({ id: hero.id, reveal: true })
-    expect(itemStore.store.getSnapshot().revealed).toEqual({ [hero.id]: true })
+    expect(itemStore.store.getSnapshot().revealed).toEqual({ [hero.id]: pointedHero })
   })
 
   context("when an item is pointed at another file", () => {
@@ -633,6 +634,33 @@ describe("following items", () => {
       expect(follows.at(-1)).toEqual({ id: hero.id, reveal: false })
       expect(itemStore.store.getSnapshot().revealed).toEqual({})
       expect(itemStore.store.getSnapshot().content[hero.id]).toMatchObject({ reason: "held" })
+    })
+
+    it("does not carry a reveal to another file once nothing showed the item meanwhile", () => {
+      const { companions, follows } = backend()
+      const workspace = workspaceWith()
+      const { itemStore } = connected(companions, workspace)
+      workspace.dispatch({ type: "item/upsert", target, item: held(".env") })
+      const unwatch = itemStore.watch(target, hero.id)
+      itemStore.reveal(hero.id)
+      unwatch()
+      vi.advanceTimersByTime(31_000)
+      repoint(workspace, "secrets.json")
+      itemStore.watch(target, hero.id)
+      expect(follows.at(-1)).toEqual({ id: hero.id, reveal: false })
+    })
+
+    it("keeps a reveal for the same file shown again after the linger", () => {
+      const { companions, follows } = backend()
+      const workspace = workspaceWith()
+      const { itemStore } = connected(companions, workspace)
+      workspace.dispatch({ type: "item/upsert", target, item: held(".env") })
+      const unwatch = itemStore.watch(target, hero.id)
+      itemStore.reveal(hero.id)
+      unwatch()
+      vi.advanceTimersByTime(31_000)
+      itemStore.watch(target, hero.id)
+      expect(follows.at(-1)).toEqual({ id: hero.id, reveal: true })
     })
 
     it("holds the new file's content, not the old one's, and ignores a late report of it", () => {
@@ -692,7 +720,7 @@ describe("following items", () => {
       expect(stopped).toEqual([])
       expect(follows).toEqual([])
       expect(stored().content[hero.id]).toEqual(content)
-      expect(stored().revealed[hero.id]).toBe(true)
+      expect(stored().revealed[hero.id]).toBeDefined()
     })
 
     it("keeps its content and the reveal when a page is shown at another address", () => {
@@ -708,7 +736,7 @@ describe("following items", () => {
       expect(stopped).toEqual([])
       expect(follows).toEqual([])
       expect(stored().content[hero.id]).toEqual(content)
-      expect(stored().revealed[hero.id]).toBe(true)
+      expect(stored().revealed[hero.id]).toBeDefined()
     })
 
     it("follows on when the same file is shown again", () => {

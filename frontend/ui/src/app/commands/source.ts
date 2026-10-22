@@ -1,8 +1,7 @@
-import { addCompactGridTerminal } from "@novadeck/core/layout/grid-placement"
-import { tilesOf } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
+import type { Workspace, WorkspaceState, WorkspaceTarget } from "@novadeck/core/types"
 
-import { currentContext, currentState, currentTarget } from "../selectors"
+import { currentContext, currentTarget } from "../selectors"
 import type { CommandContext } from "./context"
 
 export type SourceCommands = {
@@ -25,6 +24,11 @@ export const absolutePath = (directory: string, path: string): string => {
   return windows ? `${base}\\${path.replaceAll("/", "\\")}` : `${base}/${path}`
 }
 
+const sessionState = (workspace: Workspace, target: WorkspaceTarget): WorkspaceState | undefined =>
+  workspace.projects
+    .find((project) => project.id === target.projectId)
+    ?.history.find((session) => session.id === target.workspaceSessionId)?.state
+
 export const createSourceCommands = (
   { workspace, ui, navigation, effects, companions }: CommandContext,
   { markCreated, pulse }: SourceDependencies,
@@ -34,15 +38,24 @@ export const createSourceCommands = (
     if (!open) return
     const before = workspace.getSnapshot()
     const target = currentTarget(before)
+    const known = sessionState(before, target)?.roster.windows
+    const had = known?.find((each) => each.home === "project")
     const { item, window } = await open(
       target,
       absolutePath(activeProject(before)!.directory, path),
       effects.newId(),
     )
+    const snapshot = workspace.getSnapshot()
+    const state = sessionState(snapshot, target)
+    // The person closed the window meanwhile, and the backend's close, queued behind this
+    // open, removes it again: it isn't brought back to be selected and removed.
+    if (had && !state?.roster.windows.some((each) => each.id === had.id)) return
+    // Made by this open, not by what the watch reported first: whichever came first, it is
+    // placed the same.
+    const made = !known?.some((each) => each.id === window.id)
     // The person may have moved on while the backend read the file. The window belongs to the
     // session it was opened for: it goes there, and only if they are still in it is it
     // selected, placed beside what they have selected, and pulsed.
-    const snapshot = workspace.getSnapshot()
     const now = currentTarget(snapshot)
     if (
       now.projectId !== target.projectId ||
@@ -53,15 +66,13 @@ export const createSourceCommands = (
         target,
         item,
         window,
+        made,
         canvasSize: ui.getSnapshot().canvasWindowSize,
       })
       return
     }
-    const { roster, layout } = currentState(snapshot)
-    const placed = roster.windows.some((each) => each.id === window.id)
     // A new window goes where an undocked one would: beside the selected tile, compactly.
-    const grid = placed ? undefined : addCompactGridTerminal(tilesOf(roster), layout.grid, window)
-    if (!placed) markCreated({ context: currentContext(snapshot), id: window.id })
+    if (made) markCreated({ context: currentContext(snapshot), id: window.id })
     // The person stays in the panel they opened it from.
     navigation.navigateWorkspace([
       {
@@ -69,7 +80,7 @@ export const createSourceCommands = (
         target,
         item,
         window,
-        ...(grid ? { gridLayouts: grid } : {}),
+        made,
         canvasSize: ui.getSnapshot().canvasWindowSize,
       },
     ])

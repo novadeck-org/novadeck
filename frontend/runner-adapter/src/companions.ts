@@ -103,10 +103,7 @@ export const troubleOf = (trouble: PageTrouble): RunnerTrouble => {
 }
 
 export const createRunnerCompanions = (
-  runner: Pick<
-    Runner["companions"],
-    "content" | "attach" | "openInProject" | "save" | "pageTrouble"
-  >,
+  runner: Pick<Runner["companions"], "content" | "openInProject" | "save" | "pageTrouble">,
   {
     livePages = false,
     picture,
@@ -170,9 +167,6 @@ export const createRunnerCompanions = (
         }),
       )
       .catch(() => {})
-  },
-  attach: async ({ terminalId }, path) => {
-    await runner.attach({ terminalId, path })
   },
   openInProject: async (target, path, windowId) => {
     const { item, window } = await inOrder(target, () =>

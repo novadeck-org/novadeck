@@ -360,11 +360,14 @@ describe("companion items in the workspace", () => {
         { type: "item/upsert", target, item },
         { type: "window/upsert", target, window: windowOf(item) },
       ]
-      const before = run(empty, ...events, open(item))
-      const after = run(empty, open(item), ...events)
-      const alone = run(empty, open(item))
-      expect(before.roster).toEqual(alone.roster)
+      // The session had no such window before the open, as the command tells it.
+      const made = { ...open(item), made: true }
+      const before = run(workspaceFixture(), ...events, made)
+      const after = run(workspaceFixture(), made, ...events)
+      const alone = run(workspaceFixture(), made)
+      expect(before).toEqual(alone)
       expect(after).toEqual(alone)
+      expect(orderedTiles(alone.roster).map((tile) => tile.id)).toEqual(["01", "02", "pw"])
     })
 
     it("closes with its item, and a later open makes it again", () => {

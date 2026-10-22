@@ -11,6 +11,7 @@ const readme = itemFixture("readme", "01", {
   kind: "file",
   name: "README.md",
   path: "/p/README.md",
+  holder: { windowId: "session-1" },
 })
 const windowOf = (id: string, name: string): CompanionWindowMeta => ({
   id,
@@ -36,6 +37,7 @@ const open = (openInProject?: Companions["openInProject"], url?: string) => {
   return { ...app, asked }
 }
 
+const target = { projectId: "project", workspaceSessionId: "initial" }
 const reply = () => Promise.resolve({ item: readme, window: windowOf("session-1", "README.md") })
 
 describe("source commands", () => {
@@ -102,6 +104,50 @@ describe("source commands", () => {
       const first = project.history.find((session) => session.id === "initial")!
       expect(first.state.roster.windows.map((each) => each.id)).toEqual(["session-1"])
       expect(first.state.items).toEqual([readme])
+    })
+
+    it("does not bring back the window the person closed while the file was read", async () => {
+      let answer!: () => void
+      let reading = false
+      const app = open(() =>
+        reading
+          ? new Promise(
+              (resolve) =>
+                (answer = () =>
+                  resolve({ item: readme, window: windowOf("session-1", "README.md") })),
+            )
+          : reply(),
+      )
+      await app.commands.openSourceFile("README.md")
+      reading = true
+      const opening = app.commands.openSourceFile("notes.md")
+      app.workspace.dispatch({
+        type: "item/close",
+        target,
+        itemId: readme.id,
+      })
+      expect(app.state().roster.windows).toEqual([])
+      answer()
+      await opening
+      expect(app.state().roster.windows).toEqual([])
+      expect(app.state().items).toEqual([])
+      expect(app.state().selected).not.toBe("session-1")
+    })
+
+    it("places the window the same when the watch reported it before the answer", async () => {
+      const window = windowOf("session-1", "README.md")
+      let answer!: () => void
+      const watched = open(
+        () => new Promise((resolve) => (answer = () => resolve({ item: readme, window }))),
+      )
+      const opening = watched.commands.openSourceFile("README.md")
+      watched.workspace.dispatch({ type: "item/upsert", target, item: readme })
+      watched.workspace.dispatch({ type: "window/upsert", target, window })
+      answer()
+      await opening
+      const alone = open(reply)
+      await alone.commands.openSourceFile("README.md")
+      expect(watched.state()).toEqual(alone.state())
     })
 
     it("does nothing where the backend can't open files", async () => {

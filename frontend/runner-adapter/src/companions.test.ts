@@ -29,7 +29,6 @@ const hero = itemIdOf("hero")
 const following = ({ livePages = false } = {}) => {
   const streams = new Map<string, ReturnType<typeof channel<RunnerContent>>>()
   const asked: { readonly itemId: string; readonly reveal: boolean | undefined }[] = []
-  const attached: unknown[] = []
   const opened: unknown[] = []
   const projectOpened = {
     item: {
@@ -75,10 +74,6 @@ const following = ({ livePages = false } = {}) => {
         if (failure) throw failure
         return saving
       },
-      attach: async (input) => {
-        attached.push(input)
-        return undefined as never
-      },
       openInProject: async (input) => {
         opened.push(input)
         return projectOpened
@@ -93,7 +88,6 @@ const following = ({ livePages = false } = {}) => {
   return {
     companions,
     asked,
-    attached,
     opened,
     projectOpened,
     saves,
@@ -387,12 +381,6 @@ describe("the runner's companion content", () => {
     })
   })
 
-  it("attaches a file to a terminal", async () => {
-    const app = following()
-    await app.companions.attach!({ ...target, terminalId: "t" }, "/p/notes.md")
-    expect(app.attached).toEqual([{ terminalId: "t", path: "/p/notes.md" }])
-  })
-
   it("opens a file in the session's project window, and maps what the runner made", async () => {
     const app = following()
     const result = await app.companions.openInProject!(target, "src/a.ts", "pw")
@@ -460,7 +448,6 @@ describe("what a page shows wrong", () => {
     const companions = createRunnerCompanions({
       content: () => channel<RunnerContent>().iterator,
       save: () => Promise.reject(new Error("unused")),
-      attach: () => Promise.reject(new Error("unused")),
       openInProject: () => Promise.reject(new Error("unused")),
       pageTrouble: async (input) => {
         calls.push(input)
