@@ -135,14 +135,15 @@
     position: absolute;
     top: 0;
     left: 0;
-    z-index: -1;
+    z-index: -2;
     pointer-events: none;
     opacity: var(--terminal-idle-opacity);
     transition: opacity var(--motion-state) var(--ease-interface);
     --_ground: var(--workspace-bg, var(--color-canvas));
     --_fg: var(--team-wire-fg, var(--color-strong));
     /* The glow is set in world units too, from the zoom the markup hands it as --_zoom, so
-       it stays 5 screen pixels at any zoom, as the lines stay one. */
+       it stays 5 screen pixels at any zoom, as the lines stay one. A theme's own
+       --team-wire-glow is drawn in world units, so it grows and shrinks with the zoom. */
     --_glow: var(
       --team-wire-glow,
       0 0 calc(5px / var(--_zoom, 1)) color-mix(in srgb, var(--_fg) 40%, transparent)
@@ -159,6 +160,10 @@
   .canvas-team-wire[data-selected],
   .canvas-viewport[data-has-selection="false"] .canvas-team-wire {
     opacity: 1;
+  }
+  /* The lit wire over any resting one it crosses, still beneath the windows. */
+  .canvas-team-wire[data-selected] {
+    z-index: -1;
   }
   .canvas-team-wire-shape > i {
     position: absolute;

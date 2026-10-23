@@ -81,7 +81,7 @@ const TeamWires = ({
   return (
     <ViewportPortal>
       {/* In the teams' order whatever is selected: moving a wire would cut short the fade
-          it takes with its windows. */}
+          it takes with its windows. The stylesheet raises the lit one over the rest. */}
       {teams.map((each) => (
         <TeamWireOf
           key={each.lead}

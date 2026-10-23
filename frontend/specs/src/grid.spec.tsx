@@ -418,7 +418,9 @@ describe("Grid view's team wire", () => {
   })
 
   it("lights a team's wire, playing its entrance, each time one of its members is selected after another terminal", async () => {
-    const entrance = ".grid-team-wire:not([data-settled]) .grid-team-wire-shape[data-lit]"
+    // Playing where it can be seen: not while the wires are out of the way.
+    const entrance =
+      ".grid-team-wire:not([data-settled], [data-hidden]) .grid-team-wire-shape[data-lit]"
     const playing = () => gridView().element().querySelector(entrance) !== null
     await openMessagesDemo()
     await terminalTab("Checkout implementation").click()
