@@ -372,6 +372,7 @@ describe("Grid arrow keys", () => {
 
 describe("Grid view's team wire", () => {
   const ticks = () => gridView().element().querySelectorAll(".grid-team-wire-tick").length
+  const lit = () => gridView().element().querySelectorAll(".grid-team-wire-shape[data-lit]").length
 
   it("runs from the lead to its worker while a member of the team is selected", async () => {
     await openMessagesDemo()
@@ -379,6 +380,7 @@ describe("Grid view's team wire", () => {
     await chooseView("Grid")
     await expect.poll(ticks).toBe(1)
     expect(gridView().element().querySelectorAll(".grid-team-wire-cursor")).toHaveLength(1)
+    expect(lit()).toBe(1)
     // It runs through the gutters: no tile has a run in it, nor a tick past its border.
     const tiles = [...gridView().element().querySelectorAll("[data-grid-terminal]")].map((tile) =>
       tile.getBoundingClientRect(),
@@ -397,7 +399,7 @@ describe("Grid view's team wire", () => {
     }
   })
 
-  it("stays, without a pulse, while a terminal in no team is selected", async () => {
+  it("stays, at rest, while a terminal in no team is selected", async () => {
     await openMessagesDemo()
     await terminalTab("Checkout implementation").click()
     await chooseView("Grid")
@@ -405,7 +407,7 @@ describe("Grid view's team wire", () => {
     await terminal("Dev server").click({ position: { x: 150, y: 150 } })
     await expectSelected("Dev server")
     await expectStaysTrue(() => ticks() === 1, "the wire stays while Dev server is selected")
-    expect(gridView().element().querySelectorAll(".grid-team-wire-pulse")).toHaveLength(0)
+    expect(lit()).toBe(0)
   })
 
   it("is there when the view opens with a terminal in no team selected", async () => {
@@ -415,25 +417,30 @@ describe("Grid view's team wire", () => {
     await expect.poll(ticks).toBe(1)
   })
 
-  it("plays a team's pulse again each time one of its members is selected after another terminal", async () => {
-    const pulse = ".grid-team-wire-shape[data-pulsing]"
-    const pulsing = () => gridView().element().querySelector(pulse) !== null
+  it("lights a team's wire, playing its entrance, each time one of its members is selected after another terminal", async () => {
+    // Playing where it can be seen: not while the wires are out of the way.
+    const entrance =
+      ".grid-team-wire:not([data-settled], [data-hidden]) .grid-team-wire-shape[data-lit]"
+    const playing = () => gridView().element().querySelector(entrance) !== null
     await openMessagesDemo()
     await terminalTab("Checkout implementation").click()
-    // The pulse is short, and a slow machine can spend it before a first look: it is noted from
-    // before the view is chosen, and from before each selection after.
-    const played = recordAppearance(pulse)
+    // The entrance is short, and a slow machine can spend it before a first look: it is noted
+    // from before the view is chosen, and from before each selection after.
+    const played = recordAppearance(entrance)
     await chooseView("Grid")
     await expect.poll(played).toBe(true)
-    await expect.poll(pulsing, { timeout: 4000 }).toBe(false)
-    // Another terminal leaves the wire as it is, without a pulse.
+    await expect.poll(playing, { timeout: 4000 }).toBe(false)
+    expect(lit()).toBe(1)
+    // Another terminal rests the wire, and plays nothing.
     await terminal("Dev server").click({ position: { x: 150, y: 150 } })
     await expectSelected("Dev server")
-    await expectStaysTrue(() => !pulsing(), "no pulse while Dev server is selected")
-    // Back to the same member: the pulse plays again.
-    const again = recordAppearance(pulse)
+    await expect.poll(lit).toBe(0)
+    await expectStaysTrue(() => !playing(), "nothing plays while Dev server is selected")
+    // Back to the same member: it lights, and its entrance plays again.
+    const again = recordAppearance(entrance)
     await terminal("Checkout implementation").click({ position: { x: 150, y: 150 } })
     await expectSelected("Checkout implementation")
     await expect.poll(again).toBe(true)
+    expect(lit()).toBe(1)
   })
 })

@@ -1,30 +1,40 @@
 import { context, describe, expect, it } from "../test"
-import { blinkMs, wireShape } from "./team-wire"
+import { wireShape } from "./team-wire"
 
 const view = { top: 100, bottom: 700 }
-const at = (id: string, y: number) => ({ id, y, left: 56 })
+const at = (id: string, y: number, left = 56) => ({ id, y, left })
 
 describe("the team's wire", () => {
   context("when the whole team is in view", () => {
     const shape = wireShape(43, view, at("lead", 150), [at("a", 300), at("b", 450)])!
 
-    it("lights the border from the lead to the last worker", () => {
-      expect([shape.top, shape.bottom]).toEqual([150, 450])
+    it("runs the border from the lead's row down to the last worker's, that row included", () => {
+      expect([shape.top, shape.height]).toEqual([150, 301])
     })
 
-    it("puts the cursor on the lead and a tick into each worker, reaching its tab", () => {
+    it("puts the cursor on the lead", () => {
       expect(shape.lead).toBe(150)
-      expect(shape.taps.map(({ id, y, width }) => ({ id, y, width }))).toEqual([
-        { id: "a", y: 300, width: 12 },
-        { id: "b", y: 450, width: 12 },
-      ])
     })
 
-    it("sends the pulse down from the lead after the blink, reaching nearer workers first", () => {
-      expect(shape.pulse).toMatchObject({ up: 0, down: 300 })
-      const [near, far] = shape.taps
-      expect(near!.at).toBeGreaterThan(blinkMs)
-      expect(far!.at).toBeGreaterThan(near!.at)
+    it("starts each worker's tick on the wire's own column and reaches 3px into its tab", () => {
+      expect(shape.taps).toEqual([
+        { id: "a", y: 300, width: 16 },
+        { id: "b", y: 450, width: 16 },
+      ])
+      // From the wire's column, x = 43, to 3px past the tab's left edge at 56.
+      expect(shape.x + shape.taps[0]!.width).toBe(56 + 3)
+    })
+  })
+
+  context("when the tabs sit between whole pixels, at a fractional display scale", () => {
+    const shape = wireShape(43.2, view, at("lead", 150.4, 55.6), [at("a", 300.6, 56.4)])!
+
+    it("rounds every position to a whole pixel, so the joints meet", () => {
+      expect(shape.x).toBe(43)
+      expect([shape.top, shape.height, shape.lead]).toEqual([150, 152, 150])
+      expect(shape.taps).toEqual([{ id: "a", y: 301, width: 16 }])
+      // The tick's row is the segment's last.
+      expect(shape.top + shape.height - 1).toBe(shape.taps[0]!.y)
     })
   })
 
@@ -32,11 +42,8 @@ describe("the team's wire", () => {
     const shape = wireShape(43, view, at("lead", 300), [at("a", 150), at("b", 450)])!
 
     it("spans the topmost member to the bottommost", () => {
-      expect([shape.top, shape.bottom]).toEqual([150, 450])
-    })
-
-    it("sends the pulse both ways from the lead", () => {
-      expect(shape.pulse).toMatchObject({ up: 150, down: 150 })
+      expect([shape.top, shape.top + shape.height - 1]).toEqual([150, 450])
+      expect(shape.lead).toBe(300)
     })
   })
 
@@ -44,12 +51,11 @@ describe("the team's wire", () => {
     const shape = wireShape(43, view, at("lead", 40), [at("a", 300), at("b", 900)])!
 
     it("runs on into the list's edges", () => {
-      expect([shape.top, shape.bottom]).toEqual([100, 700])
+      expect([shape.top, shape.top + shape.height - 1]).toEqual([100, 700])
     })
 
-    it("draws no cursor, no pulse and no tick for those out of view", () => {
+    it("draws no cursor and no tick for those out of view", () => {
       expect(shape.lead).toBeUndefined()
-      expect(shape.pulse).toBeUndefined()
       expect(shape.taps.map((tap) => tap.id)).toEqual(["a"])
     })
   })

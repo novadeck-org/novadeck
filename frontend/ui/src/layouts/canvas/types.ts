@@ -37,7 +37,7 @@ export type CanvasProps = {
   hidden: Record<string, boolean>
   preview: string
   selected: string
-  // The selected terminal's team, if it has one: its pulse plays and its windows and wire
+  // The selected terminal's team, if it has one: its wire lights, and its windows and wire
   // stay bright while the others recede.
   team: Team | undefined
   // Every team, whose wires the canvas draws whatever is selected.
