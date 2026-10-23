@@ -4169,6 +4169,23 @@ describe("the loop hold", () => {
     expect(messages(messaging, "B").every(({ state }) => state === "queued")).toBe(true)
   })
 
+  it("releases only a stopped thread, not the pair's held one, when it has no hold of its own", () => {
+    const { messaging, rounds, send, working, clock: time } = setup()
+    rounds(8).map(sent)
+    time.now += threadMs + 1
+    working.set("B", true)
+    sent(send("A", "fox", "with work"))
+    const [fresh] = messaging.list("A", "moth").threads
+    messaging.stop(fresh!.id)
+    expect(messaging.list("A", "moth").threads[0]).toMatchObject({ stopped: true, held: false })
+    messaging.release(fresh!.id)
+    const threads = messaging.list("A", "moth").threads
+    expect(threads.map(({ stopped: gated, held }) => [gated, held])).toEqual([
+      [false, false],
+      [false, true],
+    ])
+  })
+
   it("clears a hold a refused send started, when the pair's other thread is released", () => {
     const { rounds, records, clock: time } = setup()
     rounds(16).map(sent)

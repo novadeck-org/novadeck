@@ -1366,9 +1366,9 @@ output, not that the model acted on it.
   the background doesn't count, nor a dev server or watcher left running past that) or a harness request waiting on the person (a permission or dialog, the
   activity's `pending`; an `ask` of its own open in the Inbox doesn't count, as two
   agents trading "waiting on the user" is what a hold is for); ran one turn through the whole window without any call of its reporting, as a long
-  command does; or ran its root turns for a minute or more in all within the window without a waiting
-  call, as a long think, or a coordinator busy with Novadeck's own tools, does (a
-  thank-you takes seconds, and a turn that sleeps between its messages waits). A turn runs through the window when it started before
+  command does; or went a minute or more within the window mid-turn with nothing reported (no call, no
+  send, no Stop) and no waiting call, as a long think does (a thank-you's model calls take
+  seconds each, and a turn that sleeps between its messages waits). A turn runs through the window when it started before
   the window and none of its Stops, continued or not, fell in it; for this, the runner
   counts each `send` as its sender's own call reported just after it, in the next
   window, whatever its harness reports, so a turn that only sent never passes for one at
@@ -1456,11 +1456,14 @@ output, not that the model acted on it.
   harness coverage probes check it again on each harness update, as a release that
   reported fewer calls would make work look idle.
 
-  The rule catches agents that only talk and wait. A loop whose agents run some counted
-  call each round, a check or a read, is not held, nor is a pair whose messages come more
-  than ten minutes apart, each starting a thread, nor one end whose subagent only sleeps, nor one end polling while the other waits in one long sleep, which passes for a long
-  command; the rates, the ten held messages and
-  the person's Stop bound them.
+  The rule catches agents that only talk and wait. It misses a loop whose agents run some
+  counted call each round, a check or a read; a pair whose messages come more than ten
+  minutes apart, each starting a thread; an end whose subagent only sleeps; and one end
+  polling while the other waits in one long sleep, which passes for a long command. The
+  rates, the ten held messages and the person's Stop bound those. It holds, though the
+  work goes on elsewhere, a coordinator whose turns only message its workers and end while
+  they work (its lead's status thread with it goes idle), and a worker that answers "still
+  running" from memory about a background job more than ten minutes old.
 
   _Six_ comes from replaying the rule over a week of real swarms (2026-10-16 to 10-23:
   1,170 messages in 445 threads between Claude Code agents, every end matched to its

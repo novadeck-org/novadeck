@@ -591,7 +591,7 @@ describe("loops: repeated stops, old tasks and long turns", () => {
     expect(loops.worked(T, hours - 60_000, hours)).toBe(false)
   })
 
-  it("counts root turns that ran a minute in all inside the window, calls or none", () => {
+  it("counts a root turn silent for a minute inside the window", () => {
     const loops = known()
     loops.observe(T, [turnStarted()], 1_000_500)
     loops.observe(T, [turnEnded()], 1_000_500 + 180_000)
@@ -605,13 +605,14 @@ describe("loops: repeated stops, old tasks and long turns", () => {
     expect(loops.worked(T, 1_000_000, 1_000_000 + 200_000)).toBe(false)
   })
 
-  it("adds up several turns and clips a running one to the window", () => {
+  it("measures one stretch, not the turns' total, and clips a running one to the window", () => {
     const loops = known()
     loops.observe(T, [turnStarted()], 100)
     loops.observe(T, [turnEnded()], 100 + 40_000)
     loops.observe(T, [turnStarted()], 100_000)
     expect(loops.worked(T, 50, 100_000 + 10_000)).toBe(false)
-    expect(loops.worked(T, 50, 100_000 + 30_000)).toBe(true)
+    expect(loops.worked(T, 50, 100_000 + 30_000)).toBe(false)
+    expect(loops.worked(T, 50, 100_000 + 60_000)).toBe(true)
     // Already running at the window's start: counted from it.
     expect(loops.worked(T, 100_000 + 1, 100_000 + 61_000)).toBe(true)
   })
@@ -646,5 +647,38 @@ describe("loops: turn time spent waiting", () => {
     loops.observe(T, [call("novadeck")], 30_000)
     loops.observe(T, [call("novadeck")], 90_000)
     expect(loops.worked(T, 20, 120_000)).toBe(true)
+  })
+})
+
+describe("loops: silent stretches", () => {
+  it("does not count quick model calls with Novadeck calls and sends between them", () => {
+    const loops = known()
+    loops.observe(T, [turnStarted()], 1_000)
+    loops.observe(T, [call("novadeck")], 31_000)
+    loops.sent(T, 61_000)
+    expect(loops.worked(T, 500, 71_000)).toBe(false)
+  })
+
+  it("counts a 180 s think, and a turn silent across the whole window", () => {
+    const loops = known()
+    loops.observe(T, [turnStarted()], 1_000)
+    expect(loops.worked(T, 500, 181_000)).toBe(true)
+    expect(loops.worked(T, 50_000, 120_000)).toBe(true)
+  })
+
+  it("breaks a stale open turn with sends", () => {
+    const loops = known()
+    loops.observe(T, [turnStarted()], 1_000)
+    for (let at = 21_000; at <= 241_000; at += 20_000) loops.sent(T, at)
+    expect(loops.worked(T, 21_000, 241_000)).toBe(false)
+    expect(loops.worked(T, 241_000, 321_000)).toBe(true)
+  })
+
+  it("counts a long command after a continued Stop, silent from it", () => {
+    const loops = known()
+    loops.observe(T, [turnStarted()], 1_000)
+    loops.observe(T, [act({ type: "turn-continued" })], 5_000)
+    expect(loops.worked(T, 2_000, 6_000)).toBe(false)
+    expect(loops.worked(T, 4_000, 70_000)).toBe(true)
   })
 })

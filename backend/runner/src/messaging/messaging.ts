@@ -1774,7 +1774,7 @@ export class Messaging {
   }
 
   /**
-   * Releases a thread, and with it every other thread of its pair that has a hold (a loop
+   * Releases a thread, and, when it has a hold, every other held thread of its pair (a loop
    * may hold a new thread beside an old one): the holds end and their held messages wait to
    * be delivered (held still while paused), and the counts of idle messages start afresh. A
    * stopped thread is no longer stopped, but its messages that went stay gone.
@@ -1786,7 +1786,8 @@ export class Messaging {
     const released = [...this.threads.values()].filter(
       (each) =>
         each.id === threadId ||
-        (each.heldFrom !== null &&
+        (thread.heldFrom !== null &&
+          each.heldFrom !== null &&
           ((each.between[0] === a && each.between[1] === b) ||
             (each.between[0] === b && each.between[1] === a))),
     )

@@ -9,7 +9,7 @@ export const keepEntries = 500
 /** A background task counts as work only this long after it started: a thread's length. */
 export const taskWorkMs = 10 * 60_000
 
-/** Root turns that ran this long in all inside a window worked, calls or none. */
+/** A root turn silent this long inside a window (no call, send or Stop) worked. */
 export const turnWorkMs = 60_000
 
 /** A send counts as a call reported this long after it: inside the window it opens. */
@@ -170,23 +170,33 @@ const limited = (span: Span): Span => ({
 })
 
 /**
- * Root turns ran `turnWorkMs` in all inside the window, from a start mark or its start.
- * Not asked of a window with a waiting call reported in it, whose time was spent waiting:
- * a poller that sleeps and sends in one long turn is never at work for it.
+ * A root turn had one silent stretch of `turnWorkMs` inside the window: a span while it ran
+ * with no call of any kind reported, no send and no Stop, as a long think or a long command
+ * does. A stretch runs from the later of the window's start and the turn's start (or
+ * continuation) or the last call, send or Stop before it, to the earliest of the next one
+ * and the window's end. So quick model calls with Novadeck calls between them, or a stale
+ * open turn with sends in it, never make one. Not asked of a window with a waiting call
+ * reported in it, whose time was spent waiting: a poller that sleeps and sends in one long
+ * turn is never at work for it.
  */
 const ranLong = (history: History, from: number, to: number): boolean => {
-  let total = 0
-  let since: number | null = null
+  let running = false
   for (const mark of history.marks) {
-    if (mark.at > to) break
-    if (mark.at <= from) since = mark.kind === "stop" ? null : from
-    else if (mark.kind === "stop") {
-      if (since !== null) total += mark.at - since
-      since = null
-    } else since ??= mark.at
+    if (mark.at > from) break
+    running = mark.kind !== "stop"
   }
-  if (since !== null) total += to - since
-  return total >= turnWorkMs
+  const events = [
+    ...history.marks.filter((mark) => mark.at > from && mark.at <= to),
+    ...history.calls.filter((at) => at > from && at <= to).map((at) => ({ at, kind: "call" })),
+  ].toSorted((one, two) => one.at - two.at)
+  let silent = from
+  for (const { at, kind } of events) {
+    if (running && at - silent >= turnWorkMs) return true
+    if (kind === "stop") running = false
+    else if (kind !== "call") running = true
+    silent = at
+  }
+  return running && to - silent >= turnWorkMs
 }
 
 /** One turn was running at `from` and neither stopped nor reported a call up to `to`. */
