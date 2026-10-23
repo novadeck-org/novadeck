@@ -111,6 +111,7 @@ describe("Novadeck's MCP server", () => {
         result: { protocolVersion: "2025-06-18", serverInfo: { name: "novadeck" } },
       })
       expect(answers[1]).toEqual({ jsonrpc: "2.0", id: 2, result: { tools: [] } })
+      expect(answers[0]?.result).not.toHaveProperty("instructions")
     })
   })
 
@@ -354,6 +355,30 @@ describe("Novadeck's MCP server", () => {
       )
       for (const name of ["send", "close_terminal"])
         expect(described.find((tool) => tool.name === name)!.description).toContain("such as @fox")
+    })
+
+    it("says up front that ask doesn't stop the work and tell is for milestones", async () => {
+      const [handshake] = await session(terminal(), [initialize])
+      const instructions = handshake?.result?.instructions as string
+      expect(instructions).toContain(
+        "puts a question in the user's Inbox without stopping your work",
+      )
+      expect(instructions).toContain("keep going on what doesn't depend on the answer")
+      expect(instructions).toContain("Its tell puts a milestone there")
+    })
+
+    it("nudges ask toward not blocking, and tell toward milestones, never each step", async () => {
+      const [, tools] = await session(terminal(), [initialize, list])
+      const described = tools?.result?.tools as { name: string; description: string }[]
+      const ask = described.find((tool) => tool.name === "ask")!
+      expect(ask.description).toContain("without stopping your work. Most decisions aren't")
+      expect(ask.description).toContain("easy to undo (local, not yet pushed or shared)")
+      expect(ask.description).toContain("once nothing else is left, end your")
+      expect(ask.description).toContain("withdraw it too once the user answers it another way")
+      const tell = described.find((tool) => tool.name === "tell")!
+      expect(tell.description).toContain("a pull request opened")
+      expect(tell.description).toContain("not each step")
+      expect(tell.description).toContain("With a lead, report to it instead")
     })
 
     it("tells agents to show deliverables when done, never each file they touch", async () => {

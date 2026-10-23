@@ -222,6 +222,9 @@ The rules that keep this safe:
   on it.
 - **A worker reports back.** When done or stuck it tells its lead with `send`; nothing
   makes it wait for the lead, and a lead that wants a report says so in its brief.
+- **A worker's finishes are its lead's.** While its lead runs, a worker's finished turn
+  is no Update in the person's Inbox: the lead hears of it. Its approvals, failures and
+  usage limits still come to the person, as only they can answer them.
 
 The terminal manager tells messaging each terminal's `ledBy` as it registers the
 terminal, and again (`endLead`) when it ends. `Messaging.leadOf(terminalId)` names a

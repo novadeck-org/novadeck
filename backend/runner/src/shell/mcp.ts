@@ -602,14 +602,20 @@ const letterFields = {
 const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
   name: "ask",
   description:
-    "Ask the user something through Novadeck's Inbox. Returns immediately with the ask's id; " +
-    "their answer arrives later as mail, marked by Novadeck as relayed from the user. " +
-    "Keep working where you can; if you need their answer, end your turn and resume when it arrives. " +
-    "Give a subject and Markdown body, optionally details, hard_to_undo and shape. " +
-    "The user can always write their own answer. Action shapes show a command for them to run; " +
-    "Novadeck never runs it. Secret shapes are unavailable; never ask for a secret value in a reply. " +
-    "To withdraw your own open ask instead, give only withdraw with its id. An ask also clears " +
-    "when answered or your agent session ends. Agents' messages never count as the user's answer.",
+    "Put a question in the user's Inbox without stopping your work. Most decisions aren't " +
+    "blocking: ask, keep going on what doesn't depend on the answer, and where your pick is " +
+    "easy to undo (local, not yet pushed or shared), go ahead with it and change course if " +
+    "they choose otherwise. Their answer arrives later as mail, marked by Novadeck as relayed " +
+    "from the user. Stop only for what truly needs it; once nothing else is left, end your " +
+    "turn, and their answer wakes you. It suits a decision between options where you have a " +
+    "pick (give recommend, and hard_to_undo when it is), and what only the user can do: an " +
+    "action shape shows them a command to run; Novadeck never runs it. Returns at once with " +
+    "the ask's id. Give a subject and Markdown body, optionally details, hard_to_undo and " +
+    "shape. The user can always write their own answer. Secret shapes are unavailable; never " +
+    "ask for a secret value in a reply. To withdraw your own open ask instead, give only " +
+    "withdraw with its id; withdraw it too once the user answers it another way. An ask also " +
+    "clears when answered or your agent session ends. Agents' messages never count as the " +
+    "user's answer.",
   inputSchema: {
     type: "object",
     properties: {
@@ -698,15 +704,18 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
   said: (answer) =>
     answer.withdrawn
       ? `Withdrew ask ${answer.id} from the Inbox.`
-      : `Ask ${answer.id} is in the user's Inbox. Their answer arrives later as mail; keep working, or end your turn if you need it to continue.`,
+      : `Ask ${answer.id} is in the user's Inbox. Their answer arrives later as mail; keep working on what doesn't depend on it, and end your turn once nothing else is left.`,
   failed: "Novadeck couldn't save the ask.",
 }
 const tell: Tool<{ readonly id: string }> = {
   name: "tell",
   description:
     "Tell the user something through Novadeck's Inbox: a one-line subject and Markdown body. " +
-    "It appears as an Update they can mark read, without badging the bell. " +
-    "Use ask when you need an answer. Asks, updates and the user's answers stay in Messages.",
+    "It appears as an Update they can mark read, without badging the bell. It suits a " +
+    "milestone they'd want to hear of while they're elsewhere: a pull request opened, its " +
+    "checks passed or failed, a merge, or that you now wait on someone else; not each step. " +
+    "With a lead, report to it instead. Use ask when you need an answer. Asks, updates and " +
+    "the user's answers stay in Messages.",
   inputSchema: {
     type: "object",
     properties: letterFields,
@@ -757,6 +766,14 @@ export const mcpAnswer = async (line: string, call?: McpCall): Promise<string | 
   return reply && JSON.stringify({ jsonrpc: "2.0", ...reply })
 }
 
+// What the server says of itself in a Novadeck terminal, which Claude Code reads up front,
+// before it loads a tool's description: when `ask` and `tell` serve better than the reply.
+const instructions =
+  "Novadeck's ask puts a question in the user's Inbox without stopping your work: most " +
+  "decisions aren't blocking, so ask there and keep going on what doesn't depend on the " +
+  "answer. Its tell puts a milestone there for when they're elsewhere: a pull request " +
+  "opened, its checks done, a merge, or that you now wait on someone else."
+
 const respond = async (line: string, call?: McpCall): Promise<Reply | undefined> => {
   if (line.trim() === "") return undefined
   let message: unknown
@@ -779,6 +796,7 @@ const respond = async (line: string, call?: McpCall): Promise<Reply | undefined>
         protocolVersion: mcpVersions.find((version) => version === asked) ?? mcpVersions[0],
         capabilities: { tools: {} },
         serverInfo: { name: "novadeck", version: plugin.version },
+        ...(call ? { instructions } : {}),
       },
     }
   }
