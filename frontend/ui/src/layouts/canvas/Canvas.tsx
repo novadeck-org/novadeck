@@ -357,6 +357,13 @@ const TerminalCanvas = ({
         onScreen,
         onFlyTo: () => flyTo(terminal),
         onReveal: ({ right, height }) => {
+          // On entry every open sheet reveals itself in turn: the selected window's own
+          // sheet keeps the window on top, as it was before.
+          const entering = entrySheets.current
+          if (entering && id !== selectedNow.current && entering.has(selectedNow.current)) {
+            entering.set(id, { right, height })
+            return
+          }
           // Raised even when the camera waits: nothing may cover a sheet it frames.
           const before = revealed.current?.id
           revealed.current = { id, selected: selectedNow.current }
