@@ -260,9 +260,18 @@ describe("the checks on a model's answer", () => {
     expect(droppedFor(title)).toEqual(["a markup character"])
   })
 
-  it("drops chats and demos in the plural too", () => {
-    for (const line of ["Chats now stream.", "Two demos load faster."])
-      expect(droppedFor(withChange(line)), line).toHaveLength(1)
+  it("drops demos in the plural too", () => {
+    expect(droppedFor(withChange("Two demos load faster."))).toHaveLength(1)
+  })
+
+  it("keeps the Messages pane's chats, which are conversations, not the chat view", () => {
+    for (const line of ["Each conversation reads as a chat.", "Read messages as chats"])
+      expect(droppedFor(withChange(line)), line).toEqual([])
+    const titled = {
+      ...good,
+      highlights: [{ ...good.highlights[0]!, title: "Read messages as chats" }],
+    }
+    expect(droppedFor(titled)).toEqual([])
   })
 
   it("lets a terminal's word handle through", () => {
@@ -273,6 +282,8 @@ describe("the checks on a model's answer", () => {
     for (const line of [
       "A new chat view for agents.",
       "You can chat with an agent.",
+      "Answer it from the chat.",
+      "A chat view for agents.",
       "The demo shows real terminals.",
       "Open it at try.novadeck.dev.",
       "The website explains pins.",
