@@ -1409,12 +1409,15 @@ output, not that the model acted on it.
   - Novadeck's own: every tool of its MCP server, told by that server's name in the
     tool's name, never by a list of its tool names, so a tool added later can't switch the
     rule off. Claude Code names them `mcp__plugin_novadeck_novadeck__*`; Codex
-    `mcp__novadeck__*` or `mcp__novadeck.*`, as the matcher its decoder already shares
-    (`harnesses/codex/src/tools.ts`) takes them; Antigravity sends every MCP call as
-    `call_mcp_tool`, Novadeck's told by `args.ServerName`. Codex's and Antigravity's
-    names for it are taken from a probe and pinned by a test. A name that doesn't match
-    (a Codex name its collisions hashed, a Claude Code without the plugin) counts as
-    work, which only spares a thread.
+    `mcp__novadeck__*`, from its plugin and from its own config alike (probed 2026-10-23
+    on 0.163: no plugin prefix, no hash), which the matcher its decoder already shares
+    takes (`harnesses/codex/src/tools.ts`); Antigravity sends every MCP call as
+    `call_mcp_tool`, Novadeck's with `args.ServerName` `novadeck_novadeck`, its plugin's
+    name and its server's (probed on 1.4.2; one added to its own config is named as
+    added). Antigravity reads a server's descriptor files before calling its tools
+    (`read_file` under its `mcp/novadeck_novadeck/`), and those reads are Novadeck's own
+    too. Tests pin each name. A name that doesn't match (a Codex name its collisions
+    hashed, a Claude Code without the plugin) counts as work, which only spares a thread.
   - The harness's bookkeeping, which only loads or tracks: Claude Code's `ToolSearch`,
     `Skill`, `TodoWrite`, `TaskCreate`, `TaskUpdate`, `TaskList` and `TaskGet` (never
     `TaskOutput` or `TaskStop`, which act on work), Codex's `update_plan`.
