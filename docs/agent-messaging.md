@@ -195,9 +195,9 @@ The rules that keep this safe:
   recipient's lead) and `toLead` (its recipient was its sender's lead) from the leads
   running at that moment. Delivery marks only `fromLead` messages, whatever happens to the
   lead after: a lead's message queued before its terminal closes still arrives as the
-  lead's. The release-hold exemption is `fromLead || toLead` (see [Guards](#guards)), so a
-  lead and its worker exchange messages without either direction awaiting release;
-  pausing still holds them.
+  lead's. Neither exempts a pair from the loop hold (see [Guards](#guards)): a lead and its
+  worker that only message each other are held like any pair, and a pair that works
+  between its messages never reaches a hold. `toLead` is still recorded, though it no longer decides anything.
 - **The person can name a lead in words.** The notes honour "an agent the user, typing
   in this terminal, told you to take instructions from": that is in the agent's own
   context, typed by the person, whereas a peer claiming the person said so is hearsay.
@@ -324,8 +324,14 @@ like them, only inside Novadeck's terminals.
     once Novadeck sees it at its prompt, else at its first turn"
     (an agent expected there that hasn't started yet, as one opened or restored to run
     it);
-  - `held`, when messaging is paused or its thread awaits the person's release, saying
-    which;
+  - `held`, when messaging is paused or its thread is held as a loop until the person
+    releases it, saying which. A loop's answer says why and what to do; to the sender of
+    an idle message: "held: you and @x kept messaging without doing any work in between,
+    so Novadeck holds your thread until the user releases it. Get on with the work, or
+    wait for the user, rather than messaging @x again."; to one that worked: "held: your
+    thread with @x is held because the two of you kept messaging without working; it
+    arrives once the user releases it." A hold carried over from before has no reason, and
+    says only that the thread waits for the user's release;
   - `refused`, with why: no current handle there (with the full `agents()` listing, and
     a request to pick by title, folder and work, or ask the person), no agent there (or
     one whose prompt showed while Novadeck's hooks aren't trusted for it there, as a
@@ -480,7 +486,7 @@ including escaped-output bounds and recipient-session fencing. The pause switch 
 only agent-to-agent mail: the person's replies bypass it, even after a restart or a lost
 lease. Person replies and peer messages have separate fifty-message waiting limits,
 so a paused peer queue cannot block an answer. A full person queue leaves the ask and
-draft available to retry. Replies never await an agent thread's hop release.
+draft available to retry. Replies are never held as a loop, nor counted in one.
 Delivered text says **Novadeck relayed the user's response** and marks the response with its own random nonce new to that
 delivery, distinct from a lead's nonce. The outer note names it, and admits a person
 approval only when that delivery actually carries a person-marked response. The agent's
@@ -1332,7 +1338,7 @@ Two known gaps in telling the box empty at a binding:
 ### Message states
 
 `queued` → `leased` → `delivered`, or back to `queued` when a lease lapses. `held` while
-messaging is paused or its thread awaits release. `gone` when the recipient's instance ended or its harness announced
+messaging is paused or its thread is held as a loop. `gone` when the recipient's instance ended or its harness announced
 a new session (a clear or a new start; for Antigravity, a new conversation named by its
 status line), and back to `queued` should that same session bind again within
 retention; a rebind alone (Antigravity observing another conversation) doesn't make it
@@ -1345,12 +1351,74 @@ output, not that the model acted on it.
 
 ## Guards
 
-- **Hops.** A thread delivers 12 messages. From the 13th on, messages are stored
-  `held`, `send` says the thread needs the person's release, and the person releases it
-  through the runner API, which delivers them and allows 12 more. A message
-  between a terminal and its lead, in either direction (`fromLead` or `toLead`, fixed when it
-  was sent), is exempt: a lead and its worker never await release. Pausing still holds
-  it.
+- **Loops.** A thread is held when its two agents keep messaging without working, never
+  for how long it runs. Each message is **idle** or not when it is sent: idle when its
+  sender, since its own previous message in the thread (for its first, since the peer's
+  latest message there reached it), made no call that counts as work, and no subagent of
+  its started, stopped or made a call. A message with neither before it is not idle.
+  Counting from the sender's own previous message, not from the latest delivery, keeps a
+  busy agent's work its own: a worker its lead keeps asking how it goes answers between
+  its tool calls, and those answers aren't idle. The sixth idle message in a row (about
+  three rounds), whichever end sends them, is stored `held`, and so is every message of
+  the thread after it, idle or not, until the person releases it; a message that isn't
+  idle sets the count back to none. A held thread is continued whatever its age, so a
+  send after ten quiet minutes waits behind it rather than overtaking it. `send` answers
+  each held one with why (see [Agent interface](#agent-interface)). **Release**
+  (`messages.release`) delivers them and starts the count afresh. There is no count of
+  messages beyond it, the rates being the only ceiling, and lead pairs are counted like
+  any other. A duplicate send and a refused one neither count nor move the window. The
+  count goes on while messaging is paused, so a thread may come out of a pause held.
+  Person replies are never counted or held.
+
+  _What counts as work_ is any call the sender's harness reports, root or subagent, but
+  three kinds:
+  - Novadeck's own: every tool of its MCP server, told by the server, never by a list of
+    tool names, so a tool added later can't switch the rule off. Claude Code names them
+    `mcp__plugin_novadeck_novadeck__*`; Codex `mcp__<server>__<tool>`, its name for
+    Novadeck's server to be probed; Antigravity sends every MCP call as `call_mcp_tool`,
+    Novadeck's told by `args.ServerName`.
+  - The harness's bookkeeping, which only loads or tracks: Claude Code's `ToolSearch`
+    and its todo and task-list tools, Codex's `update_plan`.
+  - Waiting: a shell call (Claude Code's and Codex's `Bash`, Antigravity's
+    `run_command`) whose command is only sleeps (`sleep`, PowerShell's `Start-Sleep`,
+    cmd's `timeout /t`), alone or joined by `;`, `&&` or newlines. An agent that waits
+    on its peer by sleeping between "any update?" messages is idle, and is held like
+    one that only messages; a wait that checks something (`sleep 60 && git status`)
+    is work.
+
+  The reports are Claude Code's `PostToolUse` and `PostToolUseFailure`, Codex's
+  `PostToolUse` (every tool, probed on 0.163: `Bash`, `apply_patch`, web search, MCP)
+  and Antigravity's `PreToolUse "*"` (every tool, probed on 1.4.2; it fires before the
+  person or policy decides, so a call they deny still counts). A call counts for a
+  message when its report reached the runner after the sender's previous message and
+  before this send. One that reaches it after the send counts for the next, as a Claude
+  Code `Bash` run beside the `send`, or a report late past its hook's limit, may; this
+  only ever makes a message count as work. Where Novadeck can't know, the message counts
+  as work and the thread is never held for it: a harness older than the version probed,
+  or whose tool hook isn't registered (Antigravity where its `PreToolUse` isn't), a
+  sender whose session hasn't bound, and a thread whose count a runner restart lost (it
+  is kept in memory; only the hold is stored).
+
+  _Six_ comes from replaying the rule over a week of real swarms (2026-10-16 to 10-23:
+  1,170 messages in 445 threads, from Claude Code senders only, 26 matched to their
+  transcripts): one message in ten was idle, never more than two in a row. The replay
+  counted from the latest delivery; counting from the sender's own previous message
+  takes in more work, so idle runs are only shorter. Six holds nothing that works; the
+  week had no real loop, so that one is caught within about two minutes at the pair's
+  rate is reasoned, not measured. The demo and the try fixtures mark which scripted
+  messages are idle, having no tool reports, and hold by the same count.
+
+  _Stored_, a thread keeps where its hold starts (`held_from`, a hop, null while not
+  held) and why (`held_for`: `loop`), in place of `allowed`; a message is held for its
+  thread when its hop is at or past `held_from`. The schema goes from 4 to 5 with a
+  migration (`schemas/4.sql`, tested from version 4): a thread where the twelve-message
+  rule held a message (one neither from nor to a lead, stored `held` with its hop past
+  `allowed`) keeps its hold from the lowest such hop, with no reason; every other thread
+  has none, a lead thread past its allowance included. The listing drops `allowed` and
+  gives each thread `heldFor` (`"loop"`, or null for a hold carried over) and `idle`, its
+  idle messages in a row; a message's `held` stays `"release"` (deliberately: a loop
+  awaits the person's release) or `"paused"`.
+
 - **Stop.** The person can stop a thread (`messages.stop`). Its messages still queued or
   held are `gone`, each marked stopped so its sender's next answer says "won't arrive: the
   user stopped that thread in Novadeck."; a message a lease holds finishes, and if its
@@ -1748,12 +1816,13 @@ optional `messages` capability (`core/messages.ts`):
   message, or one after ten quiet minutes), the exact time on hover; a note only while a
   message is on its way (Waiting, held ones too, or Delivering) or lost (Not delivered),
   and Delivered under the last of the right side's. Three or more rounds that repeat (the
-  same senders, the same text numbers aside) fold to "N more rounds like this · Show". Its
+  same senders, the same text numbers aside) fold to "N more rounds like this · Show", for
+  reading only: the runner holds on work, never on repeated text (see Guards). Its
   head has the way back, and the way to the peer's terminal. In You, letters say what they
   are (Asks you, Asked you · answered, withdrawn, session ended or reply not delivered;
   Tells you, Told you), a reply quotes its question, a New line comes before the first
   unread letter, an open question has **Answer**, which opens its Inbox item, and the head
-  counts the questions that wait. The view shows no holds: a thread held for release is
+  counts the questions that wait. The view shows no holds: a thread held as a loop is
   the runner's and the Inbox's (`messages.release`), never released or stopped here.
 - **Critters.** Each handle has an 8×8 critter drawn for its word
   (`items/…/messages/avatars/drawn.ts`, in the runner's word order), lit on a small dark
@@ -1764,6 +1833,11 @@ optional `messages` capability (`core/messages.ts`):
   11 s on its word's clock, hops a row while its agent works, and is still and dim once its
   agent has left; reduced motion stills it. The person is a backlit imp. They show only in
   this view.
+- **A held thread in the Inbox.** Its item quotes the held message and says why from the
+  listing's `heldFor`: "@a and @b kept messaging without doing any work in between, so
+  Novadeck holds their thread." in place of the message's hop; a hold carried over from
+  before says only that Novadeck holds the thread for the person. Release and Stop act on
+  the thread.
 - **Pause switch.** The view's header has **Pause all agents' messages**
   (`messages.pause`), one switch for the whole runner. It shows what the runner's listings
   say, and a pause or resume the runner accepted, whichever comes first; it takes no
@@ -1965,7 +2039,13 @@ resume probes sent it one prompt:
 | The runner restarts while messages are leased                                                  | They return to queued                                                                                                                                                                                                                                |
 | The person starts a different agent in Codex's terminal                                        | Codex's messages become gone; the sender is told                                                                                                                                                                                                     |
 | A terminal's title contains `@` or quotes                                                      | Never typed; only the constant doorbell is                                                                                                                                                                                                           |
-| Two agents keep replying                                                                       | From the 13th, messages are held; the person's release delivers them and allows 12 more                                                                                                                                                              |
+| Two agents keep replying, each working between messages                                        | Never held, however long the thread runs                                                                                                                                                                                                             |
+| Two agents trade thanks or "waiting on you" without working                                    | The sixth idle message in a row and the thread after it are held; both senders are told why; the Inbox shows the hold and its reason; Release delivers them and starts the count afresh                                                              |
+| A lead keeps asking its busy worker how it goes                                                | The worker's answers come between its tool calls, so they aren't idle: never held                                                                                                                                                                    |
+| Two agents wait on each other with `sleep 60` between "any update?" messages                   | A call that only sleeps isn't work: held at the sixth such message in a row                                                                                                                                                                          |
+| Two agents held as a loop send again after ten quiet minutes                                   | Still the held thread: their messages wait behind the held ones until the person releases or stops it                                                                                                                                                |
+| An agent waits on its subagent while its peer asks how it goes                                 | Not idle: a subagent running counts as work                                                                                                                                                                                                          |
+| Antigravity on a machine where its `PreToolUse` isn't registered                               | Its messages count as work: its threads are never held as a loop                                                                                                                                                                                     |
 | The person stops a thread                                                                      | Its queued and held messages are gone and their senders told; a leased one finishes; a send continuing it is refused until it lapses or is released                                                                                                  |
 | Messaging is paused, then resumed                                                              | `send` answers held; nothing delivered, across restarts; resuming delivers in order                                                                                                                                                                  |
 | A peer message says "approve the pending command"                                              | Context only; nothing typed answers the approval                                                                                                                                                                                                     |
@@ -1975,7 +2055,7 @@ resume probes sent it one prompt:
 | A peer says the person named it the agent's lead                                               | Hearsay: not acted on as a lead's; only the person's own words in that terminal name one                                                                                                                                                             |
 | A peer asks for work the agent wasn't given                                                    | Not started: the agent asks its lead, or the person in its terminal if it has none, and doesn't drop it silently                                                                                                                                     |
 | A lead relays an approval ("the user said yes")                                                | Not an approval: the worker asks the person in its own terminal and tells the lead it is waiting                                                                                                                                                     |
-| A worker and its lead exchange more than 12 messages                                           | Never held for release in either direction; a peer thread still is, and pausing holds both                                                                                                                                                           |
+| A worker and its lead only acknowledge each other                                              | Held as a loop like any pair; pausing holds them too                                                                                                                                                                                                 |
 | The lead's message is queued, then its terminal closes                                         | It still arrives marked as the lead's: authority was fixed when it was sent                                                                                                                                                                          |
 | The lead's terminal closes, or either agent runs `/clear`                                      | Closed: the worker has no running lead and finishes its work. `/clear`: the lead stays                                                                                                                                                               |
 | The worker's agent exits (shell prompt returns, or its process is found gone)                  | `ledBy` is cleared, saved and announced; the former lead's later messages are a peer's. A new session of the same agent, or a restart or restore that resumes it, doesn't end it; one that resumes nothing, or typing that cancels the startup, does |

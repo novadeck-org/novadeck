@@ -293,9 +293,9 @@ Agents in a project's terminals message each other (see
 
 ```ts
 const messages = await runner.messages.list(terminalId)
-// { terminalId, handle, delivery, paused, threads: [{ id, peer, hops, allowed, held, stopped, messages }] }
+// { terminalId, handle, delivery, paused, threads: [{ id, peer, hops, idle, held, heldFor, stopped, messages }] }
 await runner.messages.pause(true) // or false to resume
-await runner.messages.release(threadId) // a thread held after too many hops
+await runner.messages.release(threadId) // a thread held as a loop
 await runner.messages.stop(threadId) // end a thread: nothing more of it is delivered
 for await (const listing of runner.messages.watch(terminalId)) show(listing) // as it changes
 ```
@@ -303,8 +303,9 @@ for await (const listing of runner.messages.watch(terminalId)) show(listing) // 
 `messages.list(terminalId)` gives a running or exited terminal's handle, its delivery
 state (`unbound`, `fresh`, `working`, `settled`, `ringing`, `drafting` or `unknown`), whether
 messaging is paused, and its threads, newest first, each with the other terminal's
-handle, its hops so far and the hops it is allowed before the person must release it,
-whether it is held, whether the person stopped it, and its messages, oldest first: id, hop, sender and recipient
+handle, its hops so far, its idle messages in a row (sent with no work between, see
+[Guards](agent-messaging.md#guards)), whether it is held and why (`heldFor`: `"loop"`, or
+null for a hold carried over from the twelve-hop rule), whether the person stopped it, and its messages, oldest first: id, hop, sender and recipient
 handles and agents, text, when sent, state (`queued`, `leased`, `delivered`, `held` or
 `gone`), why it is held (`paused` or `release`), and when delivered. Inbox history
 adds optional `inbox: "ask" | "tell" | "answer"`; its person party is the handle `you`.
@@ -314,7 +315,7 @@ reaching the agent). A reply already delivered stays delivered when the session 
 Trace outcomes are separate from delivery state, so a withdrawn question remains an
 already-received history entry.
 Ask and tell entries are delivered history; answers show their real delivery state.
-These person threads have no agent hop-release or stop control. A terminal the
+These person threads have no loop hold, release or stop control. A terminal the
 runner doesn't hold is `TERMINAL_NOT_FOUND`. `messages.pause(paused)` pauses messaging
 across the whole runner, every project and session, keeping the switch across
 restarts: waiting agent-to-agent messages are held, and wait in order again once resumed.
@@ -323,7 +324,7 @@ capacity, independent of the fifty waiting peer messages. The person's note allo
 to 4096 characters and must also fit the 8192-byte encoded delivery budget; a size error
 asks the person to shorten the reply and leaves the ask answerable.
 `messages.release(threadId)` lets a held thread's messages wait to be delivered and
-allows it 12 more hops, and a stopped thread no longer stopped; an unknown thread is
+starts its idle count afresh, and a stopped thread no longer stopped; an unknown thread is
 `NOT_FOUND`. `messages.stop(threadId)` stops a thread: its messages not yet delivered or
 leased are `gone`, their senders told (once, through the MCP tools' answers) that the
 person stopped it, and a send that would continue it, in either direction, is refused
