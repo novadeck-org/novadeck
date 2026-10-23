@@ -66,6 +66,8 @@ export type InboxContextValue = {
   readonly ghosts: Readonly<Record<string, InboxItem>>
   // Whether the Inbox is on a screen of its own, where the list and a sheet each take it.
   readonly phone: boolean
+  // Whether any agent in the workspace is at work, which the empty list says.
+  readonly working: boolean
   readonly open: (id: string) => void
   readonly close: () => void
   readonly showHeld: () => void
@@ -104,6 +106,7 @@ export const InboxProvider = ({
   inbox,
   reveal,
   phone,
+  working = false,
   children,
 }: {
   readonly inbox: Inbox
@@ -111,6 +114,8 @@ export const InboxProvider = ({
   readonly reveal: (terminalId: string) => void
   // Present where the Inbox has a screen of its own at a time.
   readonly phone?: Phone | undefined
+  // Whether any agent in the workspace is at work.
+  readonly working?: boolean
   readonly children?: ReactNode
 }): React.JSX.Element => {
   const state = useSyncExternalStore(inbox.state.subscribe, inbox.state.getSnapshot)
@@ -319,6 +324,7 @@ export const InboxProvider = ({
       drafts,
       ghosts,
       phone: phone !== undefined,
+      working,
       open,
       close,
       showHeld,
@@ -340,6 +346,7 @@ export const InboxProvider = ({
       drafts,
       ghosts,
       phone,
+      working,
       open,
       close,
       showHeld,

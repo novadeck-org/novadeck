@@ -57,7 +57,7 @@ const permission = (id: string, at: number): InboxItem => ({
 
 // An Inbox whose items the test changes, with the list, the held pill and the sheets as the
 // sidebar and the workspace wire them.
-const mount = (items: readonly InboxItem[]) => {
+const mount = (items: readonly InboxItem[], working = false) => {
   const state = createStore<InboxState>({ ...emptyInbox, items })
   const answered: string[] = []
   const inbox: Inbox = {
@@ -69,7 +69,7 @@ const mount = (items: readonly InboxItem[]) => {
   const view = render(
     createElement(
       InboxProvider,
-      { inbox, reveal: () => {} },
+      { inbox, reveal: () => {}, working },
       createElement(
         "div",
         { id: "inbox-panel" },
@@ -109,6 +109,18 @@ describe("The Inbox's list", () => {
       expect(inbox.view.container.textContent).toContain("Nothing needs you")
       await nextFrame()
       inbox.view.unmount()
+    })
+
+    it("says agents are working only while one is", async () => {
+      const idle = mount([])
+      expect(idle.view.container.textContent).not.toContain("working")
+      expect(idle.view.container.textContent).toContain("When an agent needs you")
+      idle.view.unmount()
+
+      const busy = mount([], true)
+      expect(busy.view.container.textContent).toContain("Your agents are working.")
+      await nextFrame()
+      busy.view.unmount()
     })
   })
 
