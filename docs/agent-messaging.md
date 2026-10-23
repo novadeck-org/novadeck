@@ -1362,18 +1362,19 @@ output, not that the model acted on it.
   worked when, in that window, it made a call that counts as work (below), root or
   subagent; had, at any moment of it (running at its start, or started in it), a
   subagent running that hadn't aborted (the activity's subagents; for Antigravity, whose
-  hooks name none, its status line's count), a background task a working call started (one a `sleep` run in the background
-  doesn't count) or a harness request waiting on the person (a permission or dialog, the
+  hooks name none, its status line's count), a background task a working call started, in its first ten minutes (one a `sleep` run in
+  the background doesn't count, nor a dev server or watcher left running past that) or a harness request waiting on the person (a permission or dialog, the
   activity's `pending`; an `ask` of its own open in the Inbox doesn't count, as two
-  agents trading "waiting on the user" is what a hold is for); or ran one turn through the
-  whole window without any call of its reporting, as a long command or a long think
-  does. A turn runs through the window when it started before
+  agents trading "waiting on the user" is what a hold is for); ran one turn through the whole window without any call of its reporting, as a long
+  command does; or ran its root turns for a minute or more in all within the window without a waiting
+  call, as a long think, or a coordinator busy with Novadeck's own tools, does (a
+  thank-you takes seconds, and a turn that sleeps between its messages waits). A turn runs through the window when it started before
   the window and none of its Stops, continued or not, fell in it; for this, the runner
   counts each `send` as its sender's own call reported just after it, in the next
   window, whatever its harness reports, so a turn that only sent never passes for one at
   work. A thread's first message is not idle (unless the pair has messages waiting held, below), nor is one whose window saw a person's
-  response delivered to either end, or a prompt the runner attributes to the person's
-  keys in either terminal (not a ring's): the person is then in the loop. So a lead that
+  response delivered to either end, or a prompt in either terminal that its harness says was typed, not the doorbell's or a
+  hook's (the person's, or a task given on the command line): the person is then in the loop. So a lead that
   keeps asking its busy worker how it goes is never held, whether the worker answers or
   not, and two agents that only thank each other, or wait on each other, are.
 
@@ -1396,7 +1397,8 @@ output, not that the model acted on it.
   messages there are held too; the cap gates sends only, so a held message coming back
   from `gone` may take the pair past ten. A refused send (see
   [Agent interface](#agent-interface)) uses no hop and leaves the thread's time alone, so an agent that keeps sending can't fill its peer's fifty and shut out its
-  lead. **Release** (`messages.release`) ends the hold and lets its messages wait to be
+  lead. **Release** (`messages.release`) ends the hold, on every thread of the pair that has
+  one, and lets their messages wait to be
   delivered (held still while messaging is paused); **Stop** ends it and makes them
   `gone`. Either starts that thread's count afresh (while another of the pair's threads still
   waits held, a new thread carries that one's count, below): after a Release the pair's next message
@@ -2112,7 +2114,7 @@ resume probes sent it one prompt:
 | Two agents trade thanks or "waiting on you" without working                                    | The sixth idle message in a row and the thread after it are held; each sender is told why in the answer to its held send; the Inbox shows the hold and its reason; Release delivers them and starts the count afresh                                             |
 | A lead keeps asking its busy worker how it goes                                                | The worker works between the messages, so none is idle: never held, whether the worker answers or not                                                                                                                                                            |
 | A worker's questions to its lead go to the person, whose Inbox answers come back               | A response from the person reaching either end makes the next message not idle: never held for it                                                                                                                                                                |
-| An agent keeps sending after its thread is held                                                | Its messages wait behind the hold up to ten for the pair, across its threads; later sends are refused with the hold's reason, so its peer's lead still gets through                                                                                              |
+| An agent keeps sending after its thread is held                                                | Its messages wait behind the hold up to ten for the pair, across its threads; later sends are refused at the pair's ten, so its peer's lead still gets through                                                                                                   |
 | The person stops a held thread                                                                 | Its held messages are gone, their senders told, and the hold ends; a send continuing it is refused until the stop lapses or the person releases it; a thread started after that begins with a fresh count, unless another of the pair's threads still waits held |
 | A worker runs one long command while its lead sleeps and asks how it goes                      | The worker's turn runs through each window with no call reporting, so it works: never held                                                                                                                                                                       |
 | The runner restarts while a thread is held                                                     | The hold stays; the count starts afresh, and the first message after it counts as work                                                                                                                                                                           |

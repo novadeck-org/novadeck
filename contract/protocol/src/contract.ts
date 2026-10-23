@@ -389,8 +389,9 @@ export const contract = {
     // The switch is stored, so it survives restarts; while paused, agents' messages are
     // held.
     pause: procedure.input(z.strictObject({ paused: z.boolean() })).output(z.void()),
-    // Releases a thread held as a loop: its hold ends, its held messages are delivered, and
-    // its idle count starts afresh. One the runner does not keep is NOT_FOUND.
+    // Releases a held thread, and its pair's other held threads: their holds end, their held
+    // messages are delivered, and their idle counts start afresh. One the runner does not keep
+    // is NOT_FOUND.
     release: procedure.input(z.strictObject({ thread: threadId })).output(z.void()),
     // Stops a thread: its messages not yet delivered or leased are gone, their senders told
     // the person stopped it, and a send between the pair is refused for 10 minutes after the

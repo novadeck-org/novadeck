@@ -4142,6 +4142,53 @@ describe("the loop hold", () => {
     expect(thread(messaging)).toMatchObject({ idle: 6, held: true })
   })
 
+  it("releases every held thread of the pair, and no other pair's", () => {
+    const { messaging, rounds, send, working, follow, clock: time } = setup()
+    messaging.register("C", here, "owl", null)
+    follow("C", binding("codex", "s-c", "7"))
+    rounds(8).map(sent)
+    time.now += threadMs + 1
+    // A new thread of the pair is held at once by the carried count.
+    expect(sent(send("A", "fox", "again"))).toMatchObject({ state: "held" })
+    // Another pair's thread is held too.
+    working.set("A", false)
+    for (let index = 0; index < 8; index++) {
+      time.now += 30_000
+      sent(index % 2 === 0 ? send("A", "owl", `c${index}`) : send("C", "moth", `c${index}`))
+    }
+    const heldThreads = messaging.list("A", "moth").threads.filter((each) => each.held)
+    expect(heldThreads.map(({ peer }) => peer).toSorted()).toEqual(["fox", "fox", "owl"])
+    const old = heldThreads.find((each) => each.peer === "fox" && each.hops === 8)!
+    messaging.release(old.id)
+    const after = messaging.list("A", "moth").threads
+    expect(after.filter((each) => each.peer === "fox").map(({ held }) => held)).toEqual([
+      false,
+      false,
+    ])
+    expect(after.find((each) => each.peer === "owl")).toMatchObject({ held: true })
+    expect(messages(messaging, "B").every(({ state }) => state === "queued")).toBe(true)
+  })
+
+  it("clears a hold a refused send started, when the pair's other thread is released", () => {
+    const { rounds, records, clock: time } = setup()
+    rounds(16).map(sent)
+    // A hold that began on a refused send, with no held message of its own.
+    records.saveThread({
+      id: "t-refused",
+      projectId: "p",
+      between: ["A", "B"],
+      hops: 2,
+      heldFrom: 3,
+      heldFor: "loop",
+      lastAt: time.now - threadMs * 2,
+      stoppedAt: null,
+    })
+    const again = create(records, time)
+    const first = records.threads().find(({ id }) => id !== "t-refused")!
+    again.messaging.release(first.id)
+    expect(records.threads().every((each) => each.heldFrom === null)).toBe(true)
+  })
+
   it("leaves the count when released with no hold", () => {
     const { messaging, rounds } = setup()
     rounds(4).map(sent)
@@ -4240,6 +4287,51 @@ describe("the loop hold", () => {
     expect(calls.reset).toEqual(["A", "A"])
     messaging.unregister("B")
     expect(calls.forgot).toEqual(["B"])
+  })
+})
+
+describe("a hold carried over from the twelve-message rule", () => {
+  it("holds a message past it on load, answers a send with the thread waiting, and lists no reason", () => {
+    const records = memoryMailbox()
+    records.saveThread({
+      id: "t-old",
+      projectId: "p",
+      between: ["A", "B"],
+      hops: 3,
+      heldFrom: 3,
+      heldFor: null,
+      lastAt: 1_000_000 - 1_000,
+      stoppedAt: null,
+    })
+    records.saveMessage({
+      id: "m-old",
+      projectId: "p",
+      thread: "t-old",
+      hop: 3,
+      from: { terminalId: "A", handle: "moth", agent: "claude", sessionId: "s-claude" },
+      to: { terminalId: "B", handle: "fox", agent: "codex", sessionId: "s-codex" },
+      text: "from the lead",
+      sentAt: 1_000_000 - 1_000,
+      state: "queued",
+      deliveredAt: null,
+      notified: true,
+      stopped: false,
+      fromLead: true,
+      toLead: false,
+    })
+    const { messaging, send } = create(records)
+    expect(messages(messaging, "B")[0]).toMatchObject({ state: "held", held: "release" })
+    const answer = sent(send("A", "fox", "continuing"))
+    expect(answer).toMatchObject({ state: "held", held: "release" })
+    expect(answer.why).toMatch(/waits for the user's release/)
+    expect(answer.why).not.toMatch(/kept messaging|no work done/)
+    const listed = messaging.agents("A")
+    expect(listed.ok && listed.text).toContain(`: held: ${answer.why}`)
+    expect(messaging.list("A", "moth").threads[0]).toMatchObject({
+      held: true,
+      heldFor: null,
+      hops: 4,
+    })
   })
 })
 

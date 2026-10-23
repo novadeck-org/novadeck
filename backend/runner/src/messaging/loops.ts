@@ -6,6 +6,12 @@ export const keepMs = 30 * 60_000
 /** The most entries of any one kind a terminal keeps: the oldest go first. */
 export const keepEntries = 500
 
+/** A background task counts as work only this long after it started: a thread's length. */
+export const taskWorkMs = 10 * 60_000
+
+/** Root turns that ran this long in all inside a window worked, calls or none. */
+export const turnWorkMs = 60_000
+
 /** A send counts as a call reported this long after it: inside the window it opens. */
 const justAfter = 0.5
 
@@ -37,6 +43,8 @@ type History = {
   since: number
   /** Reports of `work` calls. */
   work: number[]
+  /** Reports of `waiting` calls: time spent in a turn around them was spent waiting. */
+  waits: number[]
   /** Reports of calls of every kind, and each send just after it. */
   calls: number[]
   prompts: number[]
@@ -110,12 +118,15 @@ export class Loops {
     if (inside(history.work, from, to) || inside(history.prompts, from, to)) return true
     if (
       history.subagents.some((span) => within(span, from, to)) ||
-      history.tasks.some((span) => within(span, from, to)) ||
+      history.tasks.some((span) => within(limited(span), from, to)) ||
       history.requests.some((span) => within(span, from, to))
     ) {
       return true
     }
-    return ranThrough(history, from, to)
+    return (
+      ranThrough(history, from, to) ||
+      (!inside(history.waits, from, to) && ranLong(history, from, to))
+    )
   }
 
   /** The terminal's session ended or changed: what it did before no longer says anything. */
@@ -143,6 +154,7 @@ const fresh = (since: number): History => ({
   called: false,
   since,
   work: [],
+  waits: [],
   calls: [],
   prompts: [],
   marks: [],
@@ -150,6 +162,32 @@ const fresh = (since: number): History => ({
   requests: [],
   tasks: [],
 })
+
+/** A task's span as work: its first `taskWorkMs`, though it may run on (a dev server). */
+const limited = (span: Span): Span => ({
+  start: span.start,
+  end: Math.min(span.end ?? Infinity, span.start + taskWorkMs),
+})
+
+/**
+ * Root turns ran `turnWorkMs` in all inside the window, from a start mark or its start.
+ * Not asked of a window with a waiting call reported in it, whose time was spent waiting:
+ * a poller that sleeps and sends in one long turn is never at work for it.
+ */
+const ranLong = (history: History, from: number, to: number): boolean => {
+  let total = 0
+  let since: number | null = null
+  for (const mark of history.marks) {
+    if (mark.at > to) break
+    if (mark.at <= from) since = mark.kind === "stop" ? null : from
+    else if (mark.kind === "stop") {
+      if (since !== null) total += mark.at - since
+      since = null
+    } else since ??= mark.at
+  }
+  if (since !== null) total += to - since
+  return total >= turnWorkMs
+}
 
 /** One turn was running at `from` and neither stopped nor reported a call up to `to`. */
 const ranThrough = (history: History, from: number, to: number): boolean => {
@@ -170,11 +208,26 @@ const close = <T extends Span>(spans: T[], at: number, pick: (span: T) => boolea
   for (const span of spans) if (span.end === null && pick(span)) span.end = at
 }
 
+/**
+ * Pushes a stop mark. One right after a stop says nothing new (Antigravity's idle status
+ * line repeats every draw, and would fill the cap), save a real Stop after a soft one.
+ */
+const pushStop = (
+  history: History,
+  event: { startedAt: number },
+  at: number,
+  soft: boolean,
+): void => {
+  const last = history.marks.at(-1)
+  if (last?.kind === "stop" && (soft || !last.soft)) return
+  history.marks.push({ at, startedAt: event.startedAt, kind: "stop", ...(soft && { soft: true }) })
+}
+
 /** A stop mark, unless the event is older than the turn it would end: a stale signal. */
 const stop = (history: History, event: { startedAt: number }, at: number): boolean => {
   const latest = history.marks.findLast((mark) => mark.kind === "start")
   if (latest && event.startedAt < latest.startedAt) return false
-  history.marks.push({ at, startedAt: event.startedAt, kind: "stop", soft: true })
+  pushStop(history, event, at, true)
   return true
 }
 
@@ -205,6 +258,7 @@ const fold = (history: History, event: HarnessEvent, at: number): void => {
       history.called = true
       history.calls.push(at)
       if (event.actor === null) resume(history, event, at, "call")
+      if (event.kind === "waiting") history.waits.push(at)
       if (event.kind === "work") {
         history.work.push(at)
         if (event.background) history.tasks.push({ start: at, end: null })
@@ -230,7 +284,7 @@ const fold = (history: History, event: HarnessEvent, at: number): void => {
     case "turn-lapsed":
       // The continuation never came: the turn ended at its Stop after all.
       settle(history, at)
-      history.marks.push({ at, startedAt: event.startedAt, kind: "stop" })
+      pushStop(history, event, at, false)
       return
     case "turn-escaped":
       if (stop(history, event, at)) settle(history, at)
@@ -240,7 +294,7 @@ const fold = (history: History, event: HarnessEvent, at: number): void => {
       if (event.running !== undefined) counted(history, event.running, at)
       return
     case "turn-ended": {
-      history.marks.push({ at, startedAt: event.startedAt, kind: "stop" })
+      pushStop(history, event, at, false)
       if (event.outcome === "interrupted") {
         // The subagents the turn started end with it; the activity drops them.
         const from = turnStart(history)
@@ -331,6 +385,7 @@ const prune = (history: History, at: number): void => {
     }
   }
   times(history.work)
+  times(history.waits)
   times(history.calls)
   times(history.prompts)
   spans(history.subagents)

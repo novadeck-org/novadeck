@@ -1,7 +1,7 @@
 import type { ActivityEvent, HarnessEvent, ToolKind } from "@novadeck/harness-core/events"
 
 import { describe, expect, it } from "../test.js"
-import { keepEntries, keepMs, Loops } from "./loops.js"
+import { keepEntries, keepMs, Loops, taskWorkMs, turnWorkMs } from "./loops.js"
 
 const T = "t"
 
@@ -557,5 +557,94 @@ describe("loops: what may restart a stopped turn", () => {
     loops.observe(T, [act({ type: "turn-ended", outcome: "completed" }, 3)], 3)
     loops.observe(T, [call("bookkeeping", {}, 4)], 5)
     expect(loops.worked(T, 10, 900)).toBe(true)
+  })
+})
+
+describe("loops: repeated stops, old tasks and long turns", () => {
+  it("keeps idle status lines repeating every draw from filling the marks", () => {
+    const loops = known()
+    loops.observe(T, [turnStarted()], 10)
+    const now = 4 * 60_000
+    for (let at = 300; at <= now; at += 300) {
+      loops.observe(T, [act({ type: "turn-idle", background: { agents: 0, tasks: 0 } }, at)], at)
+    }
+    expect(loops.worked(T, now - 200_000, now)).toBe(false)
+  })
+
+  it("lets a real Stop after soft ones still end the turn for a working status", () => {
+    const loops = known()
+    loops.observe(T, [turnStarted()], 10)
+    loops.observe(T, [act({ type: "turn-escaped" }, 20), turnEnded()], 20)
+    loops.observe(T, [act({ type: "turn-working" }, 30)], 30)
+    expect(loops.worked(T, 40, 900)).toBe(false)
+  })
+
+  it("counts a background task as work for its first ten minutes only", () => {
+    const loops = known()
+    const hours = 3 * 60 * 60_000
+    loops.observe(T, [call("work", { background: true })], 1_000)
+    expect(loops.worked(T, 1_000 + 2 * 60_000, 1_000 + 3 * 60_000)).toBe(true)
+    expect(loops.worked(T, 1_000 + taskWorkMs - 10, 1_000 + taskWorkMs + 10)).toBe(true)
+    expect(loops.worked(T, 1_000 + taskWorkMs, 1_000 + taskWorkMs + 10)).toBe(false)
+    // Kept open for bookkeeping, but long past counting.
+    loops.observe(T, [call("bookkeeping")], hours)
+    expect(loops.worked(T, hours - 60_000, hours)).toBe(false)
+  })
+
+  it("counts root turns that ran a minute in all inside the window, calls or none", () => {
+    const loops = known()
+    loops.observe(T, [turnStarted()], 1_000_500)
+    loops.observe(T, [turnEnded()], 1_000_500 + 180_000)
+    expect(loops.worked(T, 1_000_000, 1_000_000 + 200_000)).toBe(true)
+  })
+
+  it("does not count a turn of seconds", () => {
+    const loops = known()
+    loops.observe(T, [turnStarted()], 1_000_500)
+    loops.observe(T, [turnEnded()], 1_000_500 + 10_000)
+    expect(loops.worked(T, 1_000_000, 1_000_000 + 200_000)).toBe(false)
+  })
+
+  it("adds up several turns and clips a running one to the window", () => {
+    const loops = known()
+    loops.observe(T, [turnStarted()], 100)
+    loops.observe(T, [turnEnded()], 100 + 40_000)
+    loops.observe(T, [turnStarted()], 100_000)
+    expect(loops.worked(T, 50, 100_000 + 10_000)).toBe(false)
+    expect(loops.worked(T, 50, 100_000 + 30_000)).toBe(true)
+    // Already running at the window's start: counted from it.
+    expect(loops.worked(T, 100_000 + 1, 100_000 + 61_000)).toBe(true)
+  })
+})
+
+describe("loops: turn time spent waiting", () => {
+  const minute = turnWorkMs
+
+  it("is not work for a poller that sleeps and sends in one long turn", () => {
+    const loops = known()
+    loops.observe(T, [turnStarted()], 10)
+    let previous = 10
+    for (let i = 1; i <= 6; i++) {
+      const at = i * minute + 10
+      loops.observe(T, [call("waiting")], at - 1_000)
+      loops.sent(T, at)
+      expect(loops.worked(T, previous, at)).toBe(false)
+      previous = at
+    }
+  })
+
+  it("still counts a long think with no calls", () => {
+    const loops = known()
+    loops.observe(T, [turnStarted()], 10)
+    loops.observe(T, [call("waiting")], 20)
+    expect(loops.worked(T, 30, 30 + 3 * minute)).toBe(true)
+  })
+
+  it("still counts a long turn with only novadeck calls", () => {
+    const loops = known()
+    loops.observe(T, [turnStarted()], 10)
+    loops.observe(T, [call("novadeck")], 30_000)
+    loops.observe(T, [call("novadeck")], 90_000)
+    expect(loops.worked(T, 20, 120_000)).toBe(true)
   })
 })

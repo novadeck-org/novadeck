@@ -1774,18 +1774,36 @@ export class Messaging {
   }
 
   /**
-   * Releases a thread: its hold ends and its held messages wait to be delivered (held still
-   * while paused), and the count of its idle messages starts afresh. A stopped one is no
-   * longer stopped, but its messages that went stay gone.
+   * Releases a thread, and with it every other thread of its pair that has a hold (a loop
+   * may hold a new thread beside an old one): the holds end and their held messages wait to
+   * be delivered (held still while paused), and the counts of idle messages start afresh. A
+   * stopped thread is no longer stopped, but its messages that went stay gone.
    */
   release(threadId: string): void {
     const thread = this.threads.get(threadId)
     if (!thread) throw new DomainError("NOT_FOUND")
-    this.putThread({ ...thread, heldFrom: null, heldFor: null, stoppedAt: null })
-    if (thread.heldFrom !== null) this.runs.delete(threadId)
-    const terminals = new Set<string>()
+    const [a, b] = thread.between
+    const released = [...this.threads.values()].filter(
+      (each) =>
+        each.id === threadId ||
+        (each.heldFrom !== null &&
+          ((each.between[0] === a && each.between[1] === b) ||
+            (each.between[0] === b && each.between[1] === a))),
+    )
+    const ids = new Set(released.map(({ id }) => id))
+    for (const each of released) {
+      this.putThread({
+        ...each,
+        heldFrom: null,
+        heldFor: null,
+        ...(each.id === threadId && { stoppedAt: null }),
+      })
+      // A thread with no hold keeps its count.
+      if (each.heldFrom !== null) this.runs.delete(each.id)
+    }
+    const terminals = new Set<string>([a, b])
     for (const message of this.messages.values()) {
-      if (message.thread !== threadId) continue
+      if (!ids.has(message.thread)) continue
       terminals.add(message.from.terminalId).add(message.to.terminalId)
       if (message.state === "held") this.wait(message)
     }

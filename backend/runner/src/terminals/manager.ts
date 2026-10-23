@@ -1366,7 +1366,7 @@ export class Terminals {
     this.peers.pause(paused)
   }
 
-  /** Releases a thread held as a loop. */
+  /** Releases a held thread, and its pair's other held threads. */
   releaseThread(thread: string): void {
     this.peers.release(thread)
   }
