@@ -3,6 +3,7 @@ import type { AgentStatus, TerminalMetadata, WorkspaceProject } from "@novadeck/
 
 import { context, describe, expect, it } from "../test"
 import {
+  anyAgentWorking,
   elsewhereStatus,
   projectStatus as statusOf,
   projectStatuses as statusesOf,
@@ -16,7 +17,10 @@ const projectStatus = (project: WorkspaceProject, unread: Unread) =>
 const projectStatuses = (projects: WorkspaceProject[], unread: Unread) =>
   statusesOf(projects, (session, id) => unread[session]?.[id])
 
-const agent = (status: Partial<AgentStatus> = {}): AgentStatus => ({ working: false, ...status })
+const agent = (status: Partial<AgentStatus> = {}): AgentStatus => ({
+  working: false,
+  ...status,
+})
 
 const running = (number: number, status?: Partial<AgentStatus>): TerminalMetadata => ({
   ...terminalFixture(number, "~/project"),
@@ -32,7 +36,13 @@ const project = (id: string, terminals: TerminalMetadata[]): WorkspaceProject =>
     ...base,
     id,
     history: [
-      { ...session, state: { ...session.state, roster: { ...session.state.roster, terminals } } },
+      {
+        ...session,
+        state: {
+          ...session.state,
+          roster: { ...session.state.roster, terminals },
+        },
+      },
     ],
   }
 }
@@ -53,9 +63,13 @@ describe("A project's status", () => {
       const working = running(1, { working: true })
       const finished = running(2, {})
       const failed = running(3, {})
-      const waiting = running(4, { attention: { kind: "permission", count: 1 } })
+      const waiting = running(4, {
+        attention: { kind: "permission", count: 1 },
+      })
       const asking = running(5, { attention: { kind: "question", count: 1 } })
-      const ends: Unread = { "p/initial": { [finished.id]: "done", [failed.id]: "failed" } }
+      const ends: Unread = {
+        "p/initial": { [finished.id]: "done", [failed.id]: "failed" },
+      }
       expect(projectStatus(project("p", [working]), ends)).toBe("running")
       expect(projectStatus(project("p", [working, finished]), ends)).toBe("done")
       expect(projectStatus(project("p", [finished, failed, working]), ends)).toBe("failed")
@@ -105,7 +119,11 @@ describe("The switcher's mark", () => {
   const statuses = projectStatuses(projects, unread("there", finished.id, "done"))
 
   it("is the most pressing status among the other projects", () => {
-    expect(statuses).toEqual({ here: "question", there: "done", busy: "running" })
+    expect(statuses).toEqual({
+      here: "question",
+      there: "done",
+      busy: "running",
+    })
     expect(elsewhereStatus(statuses, "here", [])).toBe("done")
     expect(elsewhereStatus(statuses, "there", [])).toBe("question")
   })
@@ -116,5 +134,15 @@ describe("The switcher's mark", () => {
 
   it("ignores projects that are only working", () => {
     expect(elsewhereStatus({ busy: "running" }, "here", [])).toBeUndefined()
+  })
+})
+
+describe("Whether an agent is working", () => {
+  it("is so when one does in any project, and not for idle agents or a plain shell", () => {
+    const idle = project("a", [running(1, {}), running(2)])
+    const busy = project("b", [running(3, { working: true })])
+    expect(anyAgentWorking([])).toBe(false)
+    expect(anyAgentWorking([idle])).toBe(false)
+    expect(anyAgentWorking([idle, busy])).toBe(true)
   })
 })

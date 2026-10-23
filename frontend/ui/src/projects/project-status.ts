@@ -70,6 +70,12 @@ export const projectStatus = (
   return status
 }
 
+// Whether an agent is at work in any of the projects, in any of their sessions.
+export const anyAgentWorking = (projects: readonly WorkspaceProject[]): boolean =>
+  projects.some(({ history }) =>
+    history.some(({ state }) => state.roster.terminals.some(agentWorking)),
+  )
+
 // Whether a status asks for the person, as working on does not.
 export const needsPerson = (status: ProjectStatus | undefined): boolean =>
   status !== undefined && status !== "running"
