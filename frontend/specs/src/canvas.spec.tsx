@@ -20,6 +20,7 @@ import {
   scrollOver,
   settled,
   terminalAt,
+  viewBox,
   type Box,
 } from "./support/canvas"
 import { escapeFrom, newTerminalName } from "./support/keyboard"
@@ -770,9 +771,30 @@ describe("Canvas", () => {
       for (const name of names) expect(sameBox(after[name]!, before[name]!)).toBe(true)
     })
 
+    it("comes back to that camera with the terminal hanging off the left edge", async () => {
+      await openCanvas()
+      const { left, width } = boxOf(terminal("Checkout implementation"))
+      await dragBackground({ x: 700, y: 100 }, { x: -Math.round(left + width * 0.7), y: 0 })
+      const before = await settled(() => boxesOf(names))
+      expect(before["Checkout implementation"]!.left).toBeLessThan(-width / 2)
+
+      await terminal("Checkout implementation")
+        .getByRole("button", { name: labelled("Focus ", "Checkout implementation") })
+        .click()
+      await expect.element(view("Focus")).toBeChecked()
+      await page.getByRole("button", { name: "Open in Canvas" }).click()
+
+      await expect.element(view("Canvas")).toBeChecked()
+      const after = await settled(() => boxesOf(names))
+      for (const name of names) expect(sameBox(after[name]!, before[name]!)).toBe(true)
+    })
+
     it("reveals a terminal out of sight that Focus moved to", async () => {
       await openCanvas()
       await pushTestsOffScreen("Checkout implementation")
+      // Its header's buttons, at the right end, are past the view's edge.
+      const tests = boxOf(terminal("Tests"))
+      expect(tests.left + tests.width).toBeGreaterThan(viewBox().width)
       await terminal("Checkout implementation")
         .getByRole("button", { name: labelled("Focus ", "Checkout implementation") })
         .click()

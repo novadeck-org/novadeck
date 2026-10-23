@@ -38,19 +38,22 @@ type NavigationProps = Pick<
   flyIn: (id: string) => void
 }
 
-// Whether most of a node's header, which carries its Focus button, is on screen under
-// `viewport`: its full height, and at least half its width.
-const headerInView = (
+// Whether the right end of a node's header, where its Focus button sits, is on screen under
+// `viewport`: the last header-height of its width, down to the middle of its height.
+const headerActionsInView = (
   node: TerminalNode,
   viewport: CanvasViewport,
   container: HTMLElement,
 ): boolean => {
-  const width = (node.width ?? 550) * viewport.zoom
-  const left = node.position.x * viewport.zoom + viewport.x
+  const right = (node.position.x + (node.width ?? 550)) * viewport.zoom + viewport.x
   const top = node.position.y * viewport.zoom + viewport.y
   const header = terminalHeaderHeight * chromeScaleAt(viewport.zoom) * viewport.zoom
-  const shown = Math.min(left + width, container.clientWidth) - Math.max(left, 0)
-  return shown >= width / 2 && top >= 0 && top + header <= container.clientHeight
+  return (
+    right >= header &&
+    right <= container.clientWidth + 1 &&
+    top + header / 2 >= 0 &&
+    top + header / 2 <= container.clientHeight
+  )
 }
 
 // Sidebar navigation and new-terminal revelation preserve zoom unless fitting is requested.
@@ -156,9 +159,10 @@ export const useCanvasNavigation = ({
   ])
 
   // Canvas opened from another view frames every visible window, however its camera was
-  // left; a terminal opened into it is revealed instead, unless already in sight. Otherwise,
-  // as on returning to a session, it keeps the camera it was left with. A terminal gone to
-  // from outside the canvas is flown in to from there, once its windows are measured (above).
+  // left; a terminal opened into it is revealed instead, unless its buttons are in sight.
+  // Otherwise, as on returning to a session, it keeps the camera it was left with. A terminal
+  // gone to from outside the canvas is flown in to from there, once its windows are measured
+  // (above).
   const initializeViewport = (instance: ReactFlowInstance<TerminalNode>) => {
     // Taken whichever camera this sets, or keeps: from here, a sheet opening frames itself.
     const sheets = takeEntrySheets()
@@ -169,9 +173,9 @@ export const useCanvasNavigation = ({
     const target = selectedNode?.hidden ? undefined : selectedNode
     if (initialViewport && target && !fitOnNavigate) {
       lastNavigation.current = navigation
-      // One whose header is still in sight keeps the camera it was left with, as on coming
-      // back from Focus to where it was opened from.
-      if (headerInView(target, initialViewport, container.current)) return
+      // One whose header buttons are still in sight keeps the camera it was left with, as on
+      // coming back from Focus to where it was opened from.
+      if (headerActionsInView(target, initialViewport, container.current)) return
       const center = centerOf(target)
       void instance.setCenter(center.x, center.y, { zoom: initialViewport.zoom })
       return
