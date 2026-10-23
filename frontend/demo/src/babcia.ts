@@ -19,7 +19,7 @@ import { demoTerminalId, terminalSlot, type ChatAgent } from "./samples"
 import { callBlock, requestBlock, resultBlock } from "./screen/agent"
 import { banner } from "./screen/openings"
 import { fixedIntro, type DemoIntro } from "./screen/terminal"
-import { ready, type SampleArtifact } from "./showcase/artifacts"
+import { ready, svg, type SampleArtifact } from "./showcase/artifacts"
 import { createShowcase } from "./showcase/simulation"
 import { terminalOf } from "./terminals"
 import { got, say, use, user, written, type DemoTranscript } from "./transcripts"
@@ -625,12 +625,9 @@ const accent = "#b4532a"
 const sans = 'font-family="Helvetica, Arial, sans-serif"'
 const serif = 'font-family="Georgia, serif"'
 const mono = 'font-family="Menlo, Consolas, monospace"'
-// The page as tall as the pane shows it beside its window (800 by 584), so none of the pane is
-// left empty under it.
-const page = (body: string): string =>
-  `data:image/svg+xml,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1168" viewBox="0 0 800 584">${body}</svg>`,
-  )}`
+// The page 800 by 584, the shape of the pane beside its window in the 1280x720 window the
+// launch video is captured in, so the pane is filled there (elsewhere it scrolls or leaves a band).
+const page = (body: string): string => svg(1600, 1168, body, 584)
 // A line of text the layout holds a place for: a grey bar.
 const blank = (x: number, y: number, width: number): string =>
   `<rect x="${x}" y="${y}" width="${width}" height="9" rx="4.5" fill="#e4ddd0"/>`

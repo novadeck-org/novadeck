@@ -54,9 +54,11 @@ const clay = "#c4704f"
 const sand = "#b9ae8e"
 const serif = 'font-family="Georgia, serif"'
 
-export const svg = (width: number, height: number, body: string): string =>
+// A snapshot drawn on a canvas 800 wide and `canvasHeight` tall (16:9 unless given), at `width` by
+// `height` pixels.
+export const svg = (width: number, height: number, body: string, canvasHeight = 450): string =>
   `data:image/svg+xml,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 800 450">${body}</svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 800 ${canvasHeight}">${body}</svg>`,
   )}`
 
 const image = (id: string, name: string, detail: string, body: string): SampleArtifact => ({
