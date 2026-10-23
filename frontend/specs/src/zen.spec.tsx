@@ -31,6 +31,8 @@ const hideControls = () => dock().getByRole("button", { name: "Hide Zen controls
 const dockView = (name: "Focus" | "Grid" | "Canvas") =>
   dock().getByRole("button", { name: `${name} view` })
 const exitZen = () => dock().getByRole("button", { name: "Exit Zen" })
+const newTerminalOpacity = (): number =>
+  Number(getComputedStyle(dock().getByRole("button", { name: "New terminal" }).element()).opacity)
 const sidebarActions = () => page.getByRole("radiogroup", { name: "Sidebar actions" })
 const expectInZen = async (): Promise<void> => {
   await expect.element(dock()).toBeVisible()
@@ -115,7 +117,6 @@ describe("Zen mode", () => {
         await expectInZen()
         await expect.element(commandInput("Checkout implementation")).toBeVisible()
         await expect.poll(() => draftOf("Checkout implementation")).toBe("unfinished command")
-        await showControls().click()
         await expect.element(dockView(name)).toHaveAttribute("aria-pressed", "true")
       })
     })
@@ -135,7 +136,6 @@ describe("Zen mode", () => {
       await expectInZen()
       await expect.element(pins).not.toBeInTheDocument()
 
-      await showControls().click()
       await exitZen().click()
       await expectOutOfZen()
       await expect.element(pins).toBeVisible()
@@ -180,7 +180,6 @@ describe("Zen mode", () => {
       await enterZen().click()
       await expectInZen()
       await expect.element(terminal("Runtime")).toBeInTheDocument()
-      await showControls().click()
       await exitZen().click()
 
       await expectSelected("Runtime")
@@ -326,22 +325,53 @@ describe("Zen mode", () => {
 
 describe("Zen dock", () => {
   context("when Zen starts", () => {
-    it("folds to New terminal and a chevron", async () => {
+    it("unfolds to New terminal, the view choices and Exit Zen", async () => {
       await openWorkspace()
 
       await enterZen().click()
 
       await expect.element(dock().getByRole("button", { name: "New terminal" })).toBeVisible()
+      await expect.element(hideControls()).toHaveAttribute("aria-expanded", "true")
+      await expect.element(dockView("Grid")).toBeVisible()
+      await expect.element(exitZen()).toBeVisible()
+    })
+
+    it("shows at full strength until folded, then rests faint until hovered", async () => {
+      await openWorkspace()
+      await enterZen().click()
+      await expect.poll(newTerminalOpacity).toBe(1)
+
+      await terminal("Checkout implementation")
+        .getByRole("heading", { name: "Checkout implementation" })
+        .click()
+
       await expect.element(showControls()).toHaveAttribute("aria-expanded", "false")
-      await expect.element(dockView("Grid")).not.toBeInTheDocument()
-      await expect.element(exitZen()).not.toBeInTheDocument()
+      await expect.poll(newTerminalOpacity).toBe(0.75)
+
+      await dock().getByRole("button", { name: "New terminal" }).hover()
+      await expect.poll(newTerminalOpacity).toBe(1)
+    })
+
+    it("stays at full strength while unfolded, after choosing a view", async () => {
+      await openWorkspace()
+      await enterZen().click()
+
+      await dockView("Grid").click()
+      await page.getByRole("region", { name: "grid view" }).hover()
+
+      await expect.element(hideControls()).toHaveAttribute("aria-expanded", "true")
+      await expect.poll(newTerminalOpacity).toBe(1)
     })
   })
 
   context("when clicking the chevron", () => {
-    it("shows and hides the view choices and Exit Zen", async () => {
+    it("hides and shows the view choices and Exit Zen", async () => {
       await openWorkspace()
       await enterZen().click()
+
+      await hideControls().click()
+      await expect.element(showControls()).toHaveAttribute("aria-expanded", "false")
+      await expect.element(exitZen()).not.toBeInTheDocument()
 
       await showControls().click()
       await expect.element(hideControls()).toHaveAttribute("aria-expanded", "true")
@@ -350,10 +380,6 @@ describe("Zen dock", () => {
         await expect.element(dockView(name)).toBeVisible()
       }
       await expect.element(exitZen()).toBeVisible()
-
-      await hideControls().click()
-      await expect.element(showControls()).toHaveAttribute("aria-expanded", "false")
-      await expect.element(exitZen()).not.toBeInTheDocument()
     })
   })
 
@@ -363,14 +389,14 @@ describe("Zen dock", () => {
       await activateWithKeyboard(enterZen())
       await expect.element(dock().getByRole("button", { name: "New terminal" })).toHaveFocus()
       await press("{Tab}")
-      await expect.element(showControls()).toHaveFocus()
+      await expect.element(hideControls()).toHaveFocus()
 
       await press("{Enter}")
-      await expect.element(exitZen()).toBeVisible()
-
-      await press(" ")
       await expect.element(showControls()).toHaveAttribute("aria-expanded", "false")
       await expect.element(exitZen()).not.toBeInTheDocument()
+
+      await press(" ")
+      await expect.element(exitZen()).toBeVisible()
     })
   })
 
@@ -378,7 +404,6 @@ describe("Zen dock", () => {
     it("folds after a click outside", async () => {
       await openWorkspace()
       await enterZen().click()
-      await showControls().click()
       await expect.element(exitZen()).toBeVisible()
 
       await terminal("Checkout implementation")
@@ -394,7 +419,6 @@ describe("Zen dock", () => {
     it("folds on Escape and returns focus to New terminal", async () => {
       await openWorkspace()
       await enterZen().click()
-      await showControls().click()
       await expect.element(exitZen()).toBeVisible()
 
       await press("{Escape}")
@@ -409,12 +433,9 @@ describe("Zen dock", () => {
       await openWorkspace()
       await activateWithKeyboard(enterZen())
       await expect.element(dock().getByRole("button", { name: "New terminal" })).toHaveFocus()
-      await press("{Tab}")
-      await expect.element(showControls()).toHaveFocus()
-      await press("{Enter}")
       await expect.element(exitZen()).toBeVisible()
 
-      await press("{Shift>}{Tab}{Tab}{/Shift}")
+      await press("{Shift>}{Tab}{/Shift}")
 
       await expect.element(showControls()).toHaveAttribute("aria-expanded", "false")
       await expect.element(exitZen()).not.toBeInTheDocument()
@@ -426,7 +447,6 @@ describe("Zen dock", () => {
       it("switches view and stays in Zen", async () => {
         await openWorkspace()
         await enterZen().click()
-        await showControls().click()
 
         await dockView(name).click()
 
@@ -470,7 +490,6 @@ describe("leaving Zen", () => {
       await enterZen().click()
       await expectInZen()
 
-      await showControls().click()
       await exitZen().click()
 
       await expectOutOfZen()
@@ -487,8 +506,8 @@ describe("leaving Zen", () => {
       await dock().getByRole("button", { name: "New terminal" }).click()
       await expect.element(terminal(newTerminalName)).toBeVisible()
       await expect.element(commandInput(newTerminalName)).toHaveFocus()
-
       await showControls().click()
+
       await exitZen().click()
 
       await expectOutOfZen()
