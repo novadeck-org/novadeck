@@ -102,8 +102,27 @@ const decorate = (view: EditorView): Rendered => {
             ranges.push(hide.range(node.from, end))
             atomic.push(hide.range(node.from, end))
           }
-        } else if (name === "Blockquote") eachLine(node.from, node.to, line("cm-md-quote"))
-        else if (name === "FencedCode") {
+        } else if (name === "Blockquote") {
+          const nested = (kind: string): boolean => {
+            for (let up = node.node.parent; up; up = up.parent) if (up.name === kind) return true
+            return false
+          }
+          // In a list, the quote's rows start after its bar, so the indent that nests it
+          // is hidden, except on the line being edited.
+          const listed = nested("ListItem")
+          eachLine(
+            node.from,
+            node.to,
+            line(listed ? "cm-md-quote cm-md-quote-listed" : "cm-md-quote"),
+          )
+          if (listed && !nested("Blockquote"))
+            for (let at = doc.lineAt(node.from); ; at = doc.line(at.number + 1)) {
+              const indent = /^\s*/.exec(at.text)![0].length
+              if (indent > 0 && !editing(at.from))
+                ranges.push(hide.range(at.from, at.from + indent))
+              if (at.to >= node.to || at.number === doc.lines) break
+            }
+        } else if (name === "FencedCode") {
           eachLine(node.from, node.to, line("cm-md-codeblock"))
           if (!editing(node.from))
             ranges.push(line("cm-md-fence").range(doc.lineAt(node.from).from))
