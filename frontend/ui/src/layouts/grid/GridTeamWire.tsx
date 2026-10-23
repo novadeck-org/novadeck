@@ -60,16 +60,24 @@ export const GridTeamWire = ({
     // oxlint-disable-next-line react-hooks/exhaustive-deps
     [resting, crews, gap],
   )
-  // The selection whose entrance has played: the wire comes back from a layout change as it
-  // was, without playing it again.
+  const out = hidden || still !== geometry
+  // The selection whose entrance has played, counted only once it played in view: the wire
+  // comes back from a layout change as it was, without playing it again. Any change of
+  // selection forgets it, so coming back to a member before the timer fires plays it again.
   const [played, setPlayed] = useState<string | undefined>(undefined)
+  const [seen, setSeen] = useState(selected)
+  if (seen !== selected) {
+    setSeen(selected)
+    setPlayed(undefined)
+  }
   useEffect(() => {
+    if (out) return
     const timer = setTimeout(() => setPlayed(selected), blinkMs + 200)
     return () => clearTimeout(timer)
-  }, [selected])
+  }, [selected, out])
+  const settled = played === selected
   const wires = routes.flatMap((route, i) => (route ? [{ route, lead: teams[i]!.lead }] : []))
   if (!wires.length) return null
-  const out = hidden || still !== geometry
   // The lit wire is drawn last, over any resting one it crosses.
   const lit = wires.find(({ lead }) => lead === team?.lead)
   return (
@@ -77,10 +85,18 @@ export const GridTeamWire = ({
       className="grid-team-wire"
       aria-hidden
       data-hidden={out || undefined}
-      data-settled={played === selected || undefined}
+      data-settled={settled || undefined}
     >
       {wires.map((wire) => wire !== lit && <Wire key={wire.lead} route={wire.route} lit={false} />)}
-      {lit && <Wire key={`${lit.lead}:${selected}`} route={lit.route} lit />}
+      {/* Drawn anew for each selection, and while its entrance hasn't played, as the wires
+          come into view, so it plays where it can be seen. */}
+      {lit && (
+        <Wire
+          key={`${lit.lead}:${selected}${settled || out ? "" : ":shown"}`}
+          route={lit.route}
+          lit
+        />
+      )}
     </div>
   )
 }

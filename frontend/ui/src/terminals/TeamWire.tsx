@@ -78,8 +78,14 @@ export const TeamWire = ({
 }): React.JSX.Element => {
   const host = useRef<HTMLDivElement>(null)
   const [wires, setWires] = useState<Wires>([])
-  // The selection whose entrance has played.
+  // The selection whose entrance has played. Any change of selection forgets it, so coming
+  // back to a member before the timer below fires plays the entrance again.
   const [played, setPlayed] = useState<string | undefined>(undefined)
+  const [seen, setSeen] = useState(selected)
+  if (seen !== selected) {
+    setSeen(selected)
+    setPlayed(undefined)
+  }
 
   // Everything that keeps the wires on the tabs while the list shows: one run owns its
   // observers, listeners and frame loop, and its cleanup ends them all, so a change of teams

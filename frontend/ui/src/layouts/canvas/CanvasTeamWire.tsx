@@ -80,18 +80,18 @@ const TeamWires = ({
   )
   return (
     <ViewportPortal>
-      {/* The lit wire is drawn last, over any resting one it crosses. */}
-      {teams
-        .toSorted((a, b) => Number(a.lead === team?.lead) - Number(b.lead === team?.lead))
-        .map((each) => (
-          <TeamWireOf
-            key={team?.lead === each.lead ? `${each.lead}:${selected}` : each.lead}
-            team={each}
-            rects={rects}
-            view={{ x, y, zoom }}
-            active={team?.lead === each.lead}
-          />
-        ))}
+      {/* In the teams' order whatever is selected: moving a wire would cut short the fade
+          it takes with its windows. */}
+      {teams.map((each) => (
+        <TeamWireOf
+          key={each.lead}
+          team={each}
+          rects={rects}
+          view={{ x, y, zoom }}
+          selected={selected}
+          active={team?.lead === each.lead}
+        />
+      ))}
     </ViewportPortal>
   )
 }
@@ -100,14 +100,16 @@ const TeamWireOf = ({
   team,
   rects,
   view,
+  selected,
   active,
 }: {
   team: Team
   // Where each team member on the canvas is, in its units, and where the camera is.
   rects: ReadonlyMap<string, Member>
   view: { readonly x: number; readonly y: number; readonly zoom: number }
-  // Whether this is the selected terminal's team: it lights, and is drawn anew for each
-  // selection of one of its members, so its cursor blinks again.
+  selected: string
+  // Whether this is the selected terminal's team: it lights, and its cursor is drawn anew
+  // for each selection of one of its members, so it blinks again.
   active: boolean
 }): React.JSX.Element | null => {
   const { x, y, zoom } = view
@@ -148,7 +150,12 @@ const TeamWireOf = ({
     }
   }
   return (
-    <div className="canvas-team-wire" aria-hidden data-selected={active || undefined}>
+    <div
+      className="canvas-team-wire"
+      aria-hidden
+      data-selected={active || undefined}
+      style={{ "--_zoom": zoom } as CSSProperties}
+    >
       <div className="canvas-team-wire-shape" data-lit={active || undefined}>
         {route.sides.map(({ side, stem }) => (
           <i key={`stem-${side}`} className="canvas-team-wire-line" style={horizontal(stem)} />
@@ -170,7 +177,7 @@ const TeamWireOf = ({
           const left = side === "right" ? point.x : point.x - 5
           return (
             <i
-              key={`cursor-${side}`}
+              key={`cursor-${side}-${active ? selected : ""}`}
               className="canvas-team-wire-cursor"
               style={{
                 left: back(left, x),

@@ -22,7 +22,8 @@ export type WireShape = {
   readonly taps: readonly { readonly id: string; readonly y: number; readonly width: number }[]
 }
 
-// How long the cursor blinks as a team lights: the lit wire's entrance ends with it.
+// How long the cursor blinks as a team lights: the lit wire's entrance ends with it. The
+// stylesheets (team-wire.css, grid-team-wire.css, canvas.css) blink for as long.
 export const blinkMs = 520
 
 // How far a tick reaches into its worker's tab.

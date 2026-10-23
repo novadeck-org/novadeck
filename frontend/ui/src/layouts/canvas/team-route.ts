@@ -49,7 +49,7 @@ export type TeamRoute = {
   }[]
   // Into each worker, from its trunk to the worker's edge.
   readonly ticks: readonly { readonly id: string; readonly run: Run }[]
-  // Each worker's way from the lead, for the pulse: its corners in order, and how long it is.
+  // Each worker's way from the lead: its corners in order, and how long it is.
   readonly paths: readonly {
     readonly id: string
     readonly points: readonly Point[]

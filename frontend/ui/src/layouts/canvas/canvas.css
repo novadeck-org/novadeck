@@ -141,7 +141,12 @@
     transition: opacity var(--motion-state) var(--ease-interface);
     --_ground: var(--workspace-bg, var(--color-canvas));
     --_fg: var(--team-wire-fg, var(--color-strong));
-    --_glow: var(--team-wire-glow, 0 0 5px color-mix(in srgb, var(--_fg) 40%, transparent));
+    /* The glow is set in world units too, from the zoom the markup hands it as --_zoom, so
+       it stays 5 screen pixels at any zoom, as the lines stay one. */
+    --_glow: var(
+      --team-wire-glow,
+      0 0 calc(5px / var(--_zoom, 1)) color-mix(in srgb, var(--_fg) 40%, transparent)
+    );
     --_rest: var(
       --team-wire-rest-fg,
       color-mix(in srgb, var(--color-line-strong) 42%, var(--_ground))
