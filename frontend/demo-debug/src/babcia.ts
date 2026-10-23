@@ -32,6 +32,11 @@ export const babciaGroups = (cues: BabciaCues | undefined): readonly DemoActionG
               run: () => cues.question(),
             },
             {
+              label: "1d · Rude ask, then a polite one",
+              hint: "Deploy preview asks Yes or No whether it can force-push to main: an Ask row. Answered No, its turn goes on and a second later it asks, politely, whether it could open a pull request instead; answered Yes, it works on",
+              run: () => cues.manners(),
+            },
+            {
               label: "2 · Failed turn",
               hint: "Prices table's turn ends in an API error (stream disconnected), as Codex records one: its line goes red, with a Trouble row that reads it",
               run: () => cues.fail(),
@@ -53,7 +58,7 @@ export const babciaGroups = (cues: BabciaCues | undefined): readonly DemoActionG
             },
             {
               label: "6 · Everyone finishes",
-              hint: "Every agent of both projects ends its turn in a ripple: lines go green. Agents still waiting on the person stay as they are: an unanswered ask, one told No, a failed turn (until it is prompted again), and the helper and its lead while the helper's answer is on its way. Press again to end whoever is working by then",
+              hint: "Every agent of both projects ends its turn in a ripple: lines go green. Agents still waiting on the person stay as they are: an unanswered ask (Deploy preview's too, until its second is answered), one told No, a failed turn (until it is prompted again), and the helper and its lead while the helper's answer is on its way. Press again to end whoever is working by then",
               run: () => cues.finishAll(),
             },
           ],
