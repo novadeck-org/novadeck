@@ -53,6 +53,14 @@ export type DesktopBridge = {
    */
   setBadge?(badge: DesktopBadge): void
   /**
+   * Calls `listener` with whether the app's window has the system's focus: at once with
+   * the current state, and again on each change. Unlike the page's own `document.hasFocus()`,
+   * it stays true while focus is inside a frame of the page, as a page in the companion
+   * pane, and turns false when the person switches to another app. Returns a function that
+   * stops listening. Absent from hosts that came before it.
+   */
+  onWindowFocus?(listener: (focused: boolean) => void): () => void
+  /**
    * Calls `listener` with the terminal id of each notice the person clicks, once the host
    * has brought its window to the front. Returns a function that stops listening. Absent
    * from hosts that came before it.

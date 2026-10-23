@@ -55,6 +55,8 @@ import {
   updateOfferChannel,
   updateRequestChannel,
   whatsNewChannel,
+  windowFocusChannel,
+  windowFocusRequestChannel,
 } from "../bridge.js"
 
 const argument = process.argv.find((value) => value.startsWith(apiUrlArgumentPrefix))
@@ -200,6 +202,18 @@ const bridge = {
   setBadge: (badge) => {
     const checked = desktopBadgeOf(badge)
     if (checked) ipcRenderer.send(badgeChannel, checked)
+  },
+  // Only a boolean comes back; the request makes the host answer with the current one, as
+  // the page may have started listening after the window last changed, or loaded again.
+  onWindowFocus: (listener) => {
+    const relay = (_event: unknown, focused: unknown): void => {
+      if (typeof focused === "boolean") listener(focused)
+    }
+    ipcRenderer.on(windowFocusChannel, relay)
+    ipcRenderer.send(windowFocusRequestChannel)
+    return () => {
+      ipcRenderer.removeListener(windowFocusChannel, relay)
+    }
   },
   // Only a terminal id comes back.
   onNoticeClick: (listener) => {

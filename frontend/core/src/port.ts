@@ -294,6 +294,11 @@ export type BackendFields = {
   // none when null); a count of 0 clears it. Absent where nothing surrounds the page, as
   // in a browser.
   readonly badge?: (badge: { readonly count: number; readonly image: string | null }) => void
+  // Optional. `listener` hears whether the app's window has the system's focus: at once
+  // with the current state, and again on each change; returns the stop. Unlike the page's
+  // own document, it stays focused while focus is inside a frame of the page, as a page
+  // in the companion pane. Absent where nothing surrounds the page, as in a browser.
+  readonly windowFocus?: (listener: (focused: boolean) => void) => () => void
   // Optional. The desktop app's self-updates: `onOffer` hears each update the app learns
   // of, at once when one already waits and again for each newer one, and returns the
   // stop. A `ready` offer is downloaded and installs when the app next quits. An

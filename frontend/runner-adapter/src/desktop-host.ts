@@ -86,6 +86,16 @@ export const desktopBadge = (host: DesktopHost | undefined): Backend["badge"] =>
   }
 }
 
+// The host's report of its window's focus, where it has one: only a boolean crosses.
+export const desktopWindowFocus = (host: DesktopHost | undefined): Backend["windowFocus"] => {
+  const listen = host?.onWindowFocus
+  if (!listen) return undefined
+  return (listener) =>
+    listen((focused) => {
+      if (typeof focused === "boolean") listener(focused)
+    })
+}
+
 // The host's self-updates, where it has them: what crosses the bridge is checked, so the
 // page shows only what looks like a release's, and the channel only as one it knows.
 export const desktopUpdates = (host: DesktopHost | undefined): Backend["updates"] => {

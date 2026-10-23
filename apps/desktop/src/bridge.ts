@@ -53,6 +53,16 @@ export const noticeCloseChannel = "novadeck:notice-close"
  */
 export const badgeChannel = "novadeck:badge"
 
+/**
+ * Main-to-renderer report of whether the app's window has the system's focus, a boolean,
+ * sent on each change; see main/window-focus.ts. A page that starts listening asks for the
+ * current one on `windowFocusRequestChannel`.
+ */
+export const windowFocusChannel = "novadeck:window-focus"
+
+/** Renderer-to-main request to be told, on `windowFocusChannel`, of the window's focus. */
+export const windowFocusRequestChannel = "novadeck:window-focus-request"
+
 /** Main-to-renderer report of the terminal id of a notification the person clicked. */
 export const noticeClickChannel = "novadeck:notice-click"
 

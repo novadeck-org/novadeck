@@ -60,7 +60,9 @@ take a notice away by its terminal id (`closeNotice`, `novadeck:notice-close`), 
 Inbox count for the app's icon (`setBadge`, `novadeck:badge`): a whole number from 0 to 999 and
 an image that is null or a base64 PNG data URL of at most 16384 characters, checked by
 `desktopBadgeOf` in the page, the preload and `apps/desktop/src/main/badge.ts`, each from
-the app's own window only. On Linux,
+the app's own window only. The page can also ask whether its window has the system's focus
+(`onWindowFocus`, `novadeck:window-focus-request`, carrying nothing); the host answers only the
+app's own page, with a boolean, and sends it again on each change. On Linux,
 Electron hands the body to the desktop's notification server as it is, and that server
 may read it as markup (it advertised `body-markup` and `body-hyperlinks` when probed with
 Electron 44), so the host escapes `&`, `<` and `>` in the body there

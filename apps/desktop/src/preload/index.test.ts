@@ -30,6 +30,8 @@ import {
   updateOfferChannel,
   updateRequestChannel,
   versionChannel,
+  windowFocusChannel,
+  windowFocusRequestChannel,
 } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 
@@ -304,6 +306,24 @@ describe("closing a notice and the icon's badge", () => {
       [noticeCloseChannel, "01"],
       [badgeChannel, { count: 3, image: null }],
     ])
+  })
+})
+
+describe("the window's focus", () => {
+  it("is asked for once the page listens", () => {
+    electron.exposed.onWindowFocus!(() => {})
+    expect(electron.sent).toEqual([windowFocusRequestChannel])
+  })
+
+  it("comes back as a boolean, and only that, until the page stops", () => {
+    const states: boolean[] = []
+    const stop = electron.exposed.onWindowFocus!((focused) => states.push(focused))
+    electron.renderer.emit(windowFocusChannel, {}, true)
+    electron.renderer.emit(windowFocusChannel, {}, "yes")
+    electron.renderer.emit(windowFocusChannel, {}, false)
+    stop()
+    electron.renderer.emit(windowFocusChannel, {}, true)
+    expect(states).toEqual([true, false])
   })
 })
 

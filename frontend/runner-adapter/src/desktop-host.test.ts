@@ -22,6 +22,7 @@ import {
   desktopUpdates,
   desktopVersion,
   desktopWhatsNew,
+  desktopWindowFocus,
   hostNotice,
   hostSandbox,
   hostUninstallPlan,
@@ -152,6 +153,34 @@ describe("the desktop badge", () => {
   it("is absent in a browser, or a host that came before it", () => {
     expect(desktopBadge(undefined)).toBeUndefined()
     expect(desktopBadge({} as DesktopHost)).toBeUndefined()
+  })
+})
+
+describe("the desktop window's focus", () => {
+  it("passes the host's booleans to the page until it stops", () => {
+    let report: ((focused: unknown) => void) | undefined
+    const bridge = {
+      onWindowFocus: (listener: (focused: unknown) => void) => {
+        report = listener
+        return () => {
+          report = undefined
+        }
+      },
+    } as unknown as DesktopHost
+    const states: boolean[] = []
+    const stop = desktopWindowFocus(bridge)!((focused) => states.push(focused))
+    report?.(true)
+    report?.("yes")
+    report?.(null)
+    report?.(false)
+    stop()
+    expect(states).toEqual([true, false])
+    expect(report).toBeUndefined()
+  })
+
+  it("is absent in a browser, or a host that came before it", () => {
+    expect(desktopWindowFocus(undefined)).toBeUndefined()
+    expect(desktopWindowFocus({} as DesktopHost)).toBeUndefined()
   })
 })
 
