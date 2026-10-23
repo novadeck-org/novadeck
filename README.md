@@ -318,7 +318,7 @@ and a turn that finished while you looked elsewhere. Click a row to read it and
 answer in place, or reveal its terminal. An `ask` returns immediately so the agent can
 keep working; your answer reaches that exact agent session later as mail. Its ask clears
 when answered, withdrawn by the agent, or its session ends; a `tell` clears when marked
-read. Ask, Tell and Your reply remain in that terminal's Messages pane under **You**.
+read. Asks, tells and your replies remain in that terminal's Messages pane, in the conversation **You**.
 Other rows clear once answered, once you view the terminal, or when the agent starts working again. A count badge on the bell, and on
 Zen's dock, tells how many wait on you; finishes and tells are not counted. A usage limit stays until
 the agent's next turn, so Continue is there after the reset. With Murmur on, a finish you
@@ -806,6 +806,15 @@ Agents:
 - **Agent fixtures:** what no turn produces: an unheard agent (Claude Code whose hooks say
   nothing), and context and limits or tokens alone, in the tooltip and status; those two set
   only the usage of the selected terminal's agent, so a turn, request or queued prompt stays.
+- **Doorbell** and **Messages:** only in the `messages` variant, on the selected terminal.
+  Doorbell puts its idle agent where the doorbell can't ring it (working, a prompt queued,
+  shell mode, text in its box, a dialog, asking you, failed, away), which its Messages pane
+  says while messages wait for it. "News from a peer" has its latest peer write to it, so the
+  peer's row in its Messages list says Unread until the person opens it; "News from a
+  repeated handle" has `fox2` (or `moth2`) write, whose critter carries its 2. The variant's
+  Messages pane has the rest at rest: the person's letters (an answered ask, an unread tell,
+  an open ask with Answer), a thread folded to one line, messages waiting, delivering and
+  not delivered, and the critters of agents working (hopping), at rest and gone (dim).
 - **Waiting agents:** "Fill the Inbox" has up to 12 terminals across
   the projects ask for you (questions, permissions, plans), and after 3 s finish done or
   failed, so the Inbox lists every kind and the rail badge reads 9+. It
@@ -885,7 +894,7 @@ App:
   whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
   agent, a heads-up and a finished turn. "Fail the next answer" makes
   the next answer to any item fail, so its sheet shows why and keeps the item and draft for retry. Ask, Tell and Your reply
-  also appear in the terminal's Messages pane under You; replies show queued and delivered states.
+  also appear in the terminal's Messages pane, in the conversation You; replies show queued and delivered states.
   "Stale next answer" makes the next answer report that the ask is no longer available,
   keeping the draft. "Ask withdrawn" and "Ask session ended" remove the sample preview ask
   and keep its outcome in Messages. "Next reply not delivered" queues the next reply, then
