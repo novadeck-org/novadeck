@@ -1144,6 +1144,61 @@ describe("the browser viewer", () => {
       expect(failing.taken).toEqual([])
       expect(pageOf(failing.host)).not.toBeNull()
     })
+
+    context("while the page has a sign-in window open", () => {
+      // The desktop host's word, through the preload, of how many the view `contentsId` has.
+      const signIns = (open: number, contentsId = 7, source: Window | null = window) =>
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            source,
+            data: { type: "novadeck:page-sign-in", contentsId, open },
+          }),
+        )
+
+      it("stays live, as its view going would close it, and rests once it closes", async () => {
+        const { host, viewer, fire } = resting()
+        fire("did-stop-loading")
+        signIns(1)
+        viewer.awake(false)
+        await settled()
+        expect(pageOf(host)).not.toBeNull()
+        signIns(2)
+        signIns(1)
+        await settled()
+        expect(pageOf(host)).not.toBeNull()
+        signIns(0)
+        await settled()
+        expect(pageOf(host)).toBeNull()
+        expect(pictureOf(host)).not.toBeNull()
+      })
+
+      it("stays live through a rest already under way", async () => {
+        const { host, viewer, fire } = resting()
+        fire("did-stop-loading")
+        viewer.awake(false)
+        signIns(1)
+        await settled()
+        expect(pageOf(host)).not.toBeNull()
+      })
+
+      it("heeds no word of another view, another window, or a malformed one", async () => {
+        const { host, viewer, fire } = resting()
+        fire("did-stop-loading")
+        signIns(1, 8)
+        signIns(1, 7, null)
+        signIns(-1)
+        viewer.awake(false)
+        await settled()
+        expect(pageOf(host)).toBeNull()
+      })
+
+      it("stops listening when the viewer goes", async () => {
+        const { viewer, fire } = resting()
+        fire("did-stop-loading")
+        viewer.destroy()
+        expect(() => signIns(0)).not.toThrow()
+      })
+    })
   })
 
   context("with troubles on the page", () => {

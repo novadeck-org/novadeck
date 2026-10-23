@@ -71,9 +71,30 @@ type Opener = (url: string) => unknown
 /**
  * The window a page's sign-in popup opens in: the app's, on the pages' session, with the
  * page view's lockdown and the size the page asked for. Electron gives it the opener, so
- * the sign-in can hand its answer back to the page that asked.
+ * the sign-in can hand its answer back to the page that asked. Electron takes the rest of
+ * a window's options from the features the page named too, so each that could hide the
+ * window, cover others or pass it off as the app's is set here: shown, framed, opaque,
+ * focusable, in the taskbar and not on top, where the system puts a new window, and named
+ * by its site (see `signInTitle`).
  */
 export const signInWindow = (partition: string): BrowserWindowConstructorOptions => ({
+  ...unplaced,
+  show: true,
+  frame: true,
+  transparent: false,
+  opacity: 1,
+  focusable: true,
+  alwaysOnTop: false,
+  skipTaskbar: false,
+  fullscreen: false,
+  kiosk: false,
+  closable: true,
+  movable: true,
+  resizable: true,
+  minimizable: true,
+  maximizable: true,
+  titleBarStyle: "default",
+  title: "",
   autoHideMenuBar: true,
   webPreferences: {
     partition: pagesSession(partition),
@@ -87,6 +108,19 @@ export const signInWindow = (partition: string): BrowserWindowConstructorOptions
     webviewTag: false,
   },
 })
+
+// No place, rather than where the page put it, as off screen: Electron's options can't say
+// so in their type, which has no room for a position set to nothing.
+const unplaced = { x: undefined, y: undefined } as unknown as BrowserWindowConstructorOptions
+
+/**
+ * A sign-in window's title: the site it is at, then the page's own title, so the person
+ * sees where they sign in, as a browser's address bar would show them.
+ */
+export const signInTitle = (url: string, title: string): string => {
+  const site = originOf(url) === null ? "" : new URL(url).host
+  return [site, title.trim()].filter(Boolean).join(" — ")
+}
 
 // A popup the page asked for by its size or as a popup, as a sign-in opens; a link to a new
 // tab, or one opened with Shift, names no features.
@@ -136,9 +170,20 @@ export const guardPage = (
     void openExternal(details.url)
     return { action: "deny" }
   })
-  contents.on("did-create-window", (window) =>
-    guardPage(window.webContents, openExternal, partition, now),
-  )
+  contents.on("did-create-window", (window) => {
+    const titled = (): void => {
+      if (!window.isDestroyed())
+        window.setTitle(signInTitle(window.webContents.getURL(), window.webContents.getTitle()))
+    }
+    // The page names its window only after where it is.
+    window.on("page-title-updated", (event) => {
+      event.preventDefault()
+      titled()
+    })
+    window.webContents.on("did-navigate", titled)
+    window.webContents.on("did-navigate-in-page", titled)
+    guardPage(window.webContents, openExternal, partition, now)
+  })
   contents.on("will-navigate", (event, url) => {
     if (!webAddress(url)) event.preventDefault()
   })
@@ -184,9 +229,32 @@ export const picturePage = async (
   return `data:image/jpeg;base64,${image.toJPEG(pictureQuality).toString("base64")}`
 }
 
-/** What a passkey is called when the person picks one: its name, else its display name. */
-export const passkeyLabel = (account: { name?: string; displayName?: string }): string =>
-  account.name || account.displayName || "Unnamed passkey"
+/**
+ * Tells how many sign-in windows a page view has open as each opens or closes. Electron
+ * closes them when the view goes, so its host keeps the view live while any is open.
+ */
+export const countSignIns = (contents: WebContents, tell: (open: number) => void): void => {
+  let open = 0
+  contents.on("did-create-window", (window) => {
+    tell(++open)
+    window.once("closed", () => tell(--open))
+  })
+}
+
+/**
+ * What each passkey is called when the person picks one: its name, else its display name,
+ * and where two would read alike, the start of its id too.
+ */
+export const passkeyLabels = (
+  accounts: readonly { credentialId: string; name?: string; displayName?: string }[],
+): string[] => {
+  const labels = accounts.map((account) => account.name || account.displayName || "Passkey")
+  return labels.map((label, index) =>
+    labels.indexOf(label) === labels.lastIndexOf(label)
+      ? label
+      : `${label} (${accounts[index]!.credentialId.slice(0, 8)})`,
+  )
+}
 
 /**
  * Has the person pick the passkey a page signs in with, when the page names none and more
@@ -200,11 +268,14 @@ export const pickPasskeys = (
 ): void => {
   pages.on("select-webauthn-account", (_event, details, choose) => {
     const ids = details.accounts.map((account) => account.credentialId)
-    const chosen = ids.length === 1 ? Promise.resolve(ids[0]) : pick(details)
-    void chosen.then(
-      (id) => choose(id !== undefined && ids.includes(id) ? id : undefined),
-      () => choose(),
-    )
+    void Promise.resolve()
+      .then(() => (ids.length === 1 ? ids[0] : pick(details)))
+      .then(
+        (id) => choose(id !== undefined && ids.includes(id) ? id : undefined),
+        () => choose(),
+      )
+      // Answered already, or the request is gone: nothing left to do.
+      .catch(() => {})
   })
 }
 

@@ -24,15 +24,17 @@ import { pagesPartition } from "@novadeck/protocol/pages"
 import { startHttpServer, type HttpServer } from "@novadeck/runner/http"
 import {
   attachPage,
+  countSignIns,
   guardPage,
   lockPagesSession,
   pagesSession,
-  passkeyLabel,
+  passkeyLabels,
   pickPasskeys,
   picturePage,
   watchPageRequests,
   webAddress,
 } from "@novadeck/viewers/browser/host"
+import { pageSignInChannel } from "@novadeck/viewers/browser/sign-in"
 import { pageRequestChannel } from "@novadeck/viewers/browser/trouble"
 import { brokerPorts } from "@novadeck/wire/electron"
 import {
@@ -1694,7 +1696,7 @@ app.whenReady().then(() => {
     const contents = frame ? webContents.fromFrame(frame) : undefined
     const owner = contents?.hostWebContents ?? contents
     const window = owner ? BrowserWindow.fromWebContents(owner) : null
-    const labels = accounts.map(passkeyLabel)
+    const labels = passkeyLabels(accounts)
     const options = {
       type: "question" as const,
       message: `Which passkey do you sign in to ${relyingPartyId} with?`,
@@ -1725,6 +1727,24 @@ app.whenReady().then(() => {
       guardPage(contents, (url) => shell.openExternal(url), pagesPartition)
       const { id } = contents
       contents.once("destroyed", () => pageRequests.forget(id))
+      // Its viewer keeps the page live while a sign-in window of it is open, as the window
+      // closes with the page.
+      countSignIns(contents, (count) => {
+        const host = contents.hostWebContents
+        if (!host || host.isDestroyed()) return
+        try {
+          host.send(pageSignInChannel, id, count)
+        } catch (error) {
+          log.warn("pages.sign-in-send-failed", "A sign-in window count was not sent.", {
+            err: error,
+          })
+        }
+      })
+      // Its sign-in windows' failed requests are counted too, under their own ids.
+      contents.on("did-create-window", (window) => {
+        const popup = window.webContents.id
+        window.webContents.once("destroyed", () => pageRequests.forget(popup))
+      })
     }
     // A page's sign-in window (see `guardPage`) is a page's, not the app's.
     if (contents.getType() === "window" && contents.session !== pages) watchPage(contents)

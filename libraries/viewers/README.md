@@ -58,8 +58,12 @@ hand back as `saved` to the next viewer of the same thing.
   click or key: a sized popup, as a sign-in's, in an app window on the same session
   (`signInWindow`), anything else in the browser; `lockPagesSession` refuses the session
   every permission, download and file, and `pickPasskeys` has the person pick the passkey a
-  page signs in with when it names none and more than one fits. Nothing in their options
-  can loosen that. Electron is an optional peer dependency, needed only here.
+  page signs in with when it names none and more than one fits. A sign-in window takes only
+  its size from the page, and its title starts with its site. Nothing in their options
+  can loosen that. `countSignIns` tells how many sign-in windows a view has open, which
+  close with it.
+- `./browser/sign-in`: the word of how many sign-in windows a page view has open, from the
+  desktop host to its viewer, which keeps the page live meanwhile. Electron is an optional peer dependency, needed only here.
 - `./react`: `useViewer`, a ref that mounts a viewer into its element and keeps its state by
   id, and the viewer once mounted. React is an optional peer dependency, needed only here.
 

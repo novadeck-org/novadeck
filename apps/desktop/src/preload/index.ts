@@ -13,6 +13,11 @@ import {
   type UninstallResult,
 } from "@novadeck/protocol/bridge"
 import {
+  pageSignInChannel,
+  pageSignInMessage,
+  parsePageSignIn,
+} from "@novadeck/viewers/browser/sign-in"
+import {
   pageRequestChannel,
   pageRequestMessage,
   parsePageRequest,
@@ -77,6 +82,13 @@ ipcRenderer.on(pageRequestChannel, (_event, contentsId: unknown, failure: unknow
   const fields = typeof failure === "object" && failure !== null ? failure : {}
   const notice = parsePageRequest({ ...fields, contentsId })
   if (notice) window.postMessage({ type: pageRequestMessage, ...notice }, "*")
+})
+
+// How many sign-in windows a page in a view has open, as the main process tells of it: to
+// the app's page as a window message, so its viewer keeps that page live meanwhile.
+ipcRenderer.on(pageSignInChannel, (_event, contentsId: unknown, open: unknown) => {
+  const notice = parsePageSignIn({ contentsId, open })
+  if (notice) window.postMessage({ type: pageSignInMessage, ...notice }, "*")
 })
 
 // Control and format characters, which include the marks that reorder text, and the line

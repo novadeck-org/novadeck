@@ -10,11 +10,13 @@ import {
   lockPagesSession,
   maxForwardedRequests,
   pagesSession,
-  passkeyLabel,
+  countSignIns,
+  passkeyLabels,
   pickPasskeys,
   pictureQuality,
   picturePage,
   pictureWaitMs,
+  signInTitle,
   signInWindow,
   watchPageRequests,
   webAddress,
@@ -187,6 +189,22 @@ describe("a page view", () => {
         allowRunningInsecureContent: false,
         webviewTag: false,
       })
+      // Nothing the page named can hide it, cover others or pass it off as the app's.
+      expect(signInWindow(pagesPartition)).toMatchObject({
+        x: undefined,
+        y: undefined,
+        show: true,
+        frame: true,
+        transparent: false,
+        opacity: 1,
+        focusable: true,
+        alwaysOnTop: false,
+        skipTaskbar: false,
+        fullscreen: false,
+        kiosk: false,
+        closable: true,
+        title: "",
+      })
       // One window for the click, wherever it opened.
       expect(page.open("https://accounts.example.com/again", popup)).toEqual({ action: "deny" })
       expect(page.opened).toEqual([])
@@ -206,13 +224,41 @@ describe("a page view", () => {
       expect(page.opened).toEqual(["https://example.com/tab", "https://example.com/shift"])
     })
 
+    // A sign-in window, as Electron makes it, at `url` with the page's own title.
+    const signInAt = (url: string, title: string) => {
+      const webContents = Object.assign(new FakeContents(), {
+        getURL: () => url,
+        getTitle: () => title,
+      })
+      const titles: string[] = []
+      const window = Object.assign(new EventEmitter(), {
+        webContents,
+        isDestroyed: () => false,
+        setTitle: (next: string) => titles.push(next),
+      })
+      return { window, webContents, titles }
+    }
+
+    it("names the window it opened by its site, then the page's title", () => {
+      const page = guarded()
+      const { window, webContents, titles } = signInAt("https://accounts.example.com/o", "Sign in")
+      page.contents.emit("did-create-window", window)
+      let prevented = false
+      window.emit("page-title-updated", { preventDefault: () => (prevented = true) }, "Novadeck")
+      webContents.emit("did-navigate")
+      expect(prevented).toBe(true)
+      expect(titles).toEqual(["accounts.example.com — Sign in", "accounts.example.com — Sign in"])
+      expect(signInTitle("https://github.com/login", " ")).toBe("github.com")
+      expect(signInTitle("about:blank", "Novadeck")).toBe("Novadeck")
+    })
+
     it("guards the window it opened as it guards the page", () => {
       const page = guarded()
-      const window = new FakeContents()
-      page.contents.emit("did-create-window", { webContents: window })
-      expect(navigates(window, "will-navigate", "file:///etc/passwd")).toBe(false)
+      const { window, webContents } = signInAt("https://accounts.example.com/", "")
+      page.contents.emit("did-create-window", window)
+      expect(navigates(webContents, "will-navigate", "file:///etc/passwd")).toBe(false)
       expect(
-        window.opener?.({
+        webContents.opener?.({
           url: "https://example.com/",
           features: "",
           disposition: "foreground-tab",
@@ -315,10 +361,39 @@ describe("a page signing in with a passkey it doesn't name", () => {
     ).resolves.toBeUndefined()
   })
 
-  it("names each passkey by its name, else its display name", () => {
-    expect(passkeyLabel({ name: "moth@example.com", displayName: "Moth" })).toBe("moth@example.com")
-    expect(passkeyLabel({ displayName: "Moth" })).toBe("Moth")
-    expect(passkeyLabel({})).toBe("Unnamed passkey")
+  it("cancels when the question throws before it starts", async () => {
+    await expect(
+      picking(() => {
+        throw new Error("no window")
+      })(["a", "b"]),
+    ).resolves.toBeUndefined()
+  })
+
+  it("names each passkey by its name, else its display name, telling alike ones apart", () => {
+    expect(
+      passkeyLabels([
+        { credentialId: "a", name: "moth@example.com", displayName: "Moth" },
+        { credentialId: "b", displayName: "Moth" },
+        { credentialId: "c" },
+        { credentialId: "dddddddd-1", name: "work" },
+        { credentialId: "eeeeeeee-2", name: "work" },
+      ]),
+    ).toEqual(["moth@example.com", "Moth", "Passkey", "work (dddddddd)", "work (eeeeeeee)"])
+  })
+})
+
+describe("a page view's sign-in windows", () => {
+  it("are counted as each opens and closes", () => {
+    const contents = new EventEmitter()
+    const counts: number[] = []
+    countSignIns(contents as unknown as WebContents, (open) => counts.push(open))
+    const first = new EventEmitter()
+    const second = new EventEmitter()
+    contents.emit("did-create-window", first)
+    contents.emit("did-create-window", second)
+    first.emit("closed")
+    second.emit("closed")
+    expect(counts).toEqual([1, 2, 1, 0])
   })
 })
 
