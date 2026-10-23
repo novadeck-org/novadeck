@@ -1,5 +1,5 @@
 import { describe as context, describe, expect, it, onTestFinished } from "vitest"
-import { page } from "vitest/browser"
+import { page, type Locator } from "vitest/browser"
 
 import {
   boxesOf,
@@ -20,6 +20,7 @@ import {
   scrollOver,
   settled,
   terminalAt,
+  viewBox,
   type Box,
 } from "./support/canvas"
 import { escapeFrom, newTerminalName } from "./support/keyboard"
@@ -88,6 +89,21 @@ const allShifted = (before: Record<string, Box>, by: { x: number; y: number }): 
 
 const flownTo = (name: string): Promise<boolean> =>
   settled(() => boxOf(terminal(name))).then(fillsView)
+
+const focusButton = (name: string): Locator =>
+  terminal(name).getByRole("button", { name: labelled("Focus ", name) })
+
+/** Opens `name` in Focus from its header and comes back with Open in Canvas, to the same camera. */
+const expectRoundTripKeepsCamera = async (name: string): Promise<void> => {
+  const before = await settled(() => boxesOf(names))
+  await focusButton(name).click()
+  await expect.element(view("Focus")).toBeChecked()
+  await page.getByRole("button", { name: "Open in Canvas" }).click()
+
+  await expect.element(view("Canvas")).toBeChecked()
+  const after = await settled(() => boxesOf(names))
+  for (const each of names) expect(sameBox(after[each]!, before[each]!)).toBe(true)
+}
 
 const asRect = (box: Box): DOMRect => new DOMRect(box.left, box.top, box.width, box.height)
 
@@ -752,6 +768,55 @@ describe("Canvas", () => {
       await expectSelected("Checkout review")
       await expect.element(terminal("Checkout review")).toBeVisible()
       await expect.element(terminal("Checkout implementation")).not.toBeInTheDocument()
+    })
+
+    it("comes back to the camera it left with Open in Canvas", async () => {
+      await openCanvas()
+      await dragBackground({ x: 150, y: 100 }, { x: 120, y: 60 })
+      await settled(() => boxesOf(names))
+      expect(insideView(boxOf(focusButton("Checkout review")))).toBe(true)
+
+      await expectRoundTripKeepsCamera("Checkout review")
+    })
+
+    it("comes back to that camera with the terminal hanging off the left edge", async () => {
+      await openCanvas()
+      const { left, width } = boxOf(terminal("Checkout implementation"))
+      await dragBackground({ x: 700, y: 100 }, { x: -Math.round(left + width * 0.7), y: 0 })
+      await settled(() => boxesOf(names))
+      expect(boxOf(terminal("Checkout implementation")).left).toBeLessThan(-width / 2)
+
+      await expectRoundTripKeepsCamera("Checkout implementation")
+    })
+
+    it("comes back to that camera with the terminal's end past the right edge", async () => {
+      await openCanvas()
+      const { left, width } = boxOf(terminal("Dev server"))
+      await dragBackground(
+        { x: 700, y: 100 },
+        { x: Math.round(viewBox().width + 20 - left - width), y: 0 },
+      )
+      await settled(() => boxesOf(names))
+      const devServer = boxOf(terminal("Dev server"))
+      expect(devServer.left + devServer.width).toBeGreaterThan(viewBox().width)
+      expect(insideView(boxOf(focusButton("Dev server")))).toBe(true)
+
+      await expectRoundTripKeepsCamera("Dev server")
+    })
+
+    it("reveals a terminal out of sight that Focus moved to", async () => {
+      await openCanvas()
+      await pushTestsOffScreen("Checkout implementation")
+      expect(boxOf(focusButton("Tests")).left).toBeGreaterThan(viewBox().width)
+      await focusButton("Checkout implementation").click()
+      await expect.element(view("Focus")).toBeChecked()
+      await terminalTab("Tests").click()
+      await expectSelected("Tests")
+
+      await page.getByRole("button", { name: "Open in Canvas" }).click()
+
+      await expect.element(view("Canvas")).toBeChecked()
+      await expect.poll(() => insideView(boxOf(terminal("Tests")))).toBe(true)
     })
   })
 
