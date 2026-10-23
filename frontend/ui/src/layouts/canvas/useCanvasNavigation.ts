@@ -38,9 +38,10 @@ type NavigationProps = Pick<
   flyIn: (id: string) => void
 }
 
-// Whether the right end of a node's header, where its Focus button sits, is on screen under
-// `viewport`: the last header-height of its width, down to the middle of its height.
-const headerActionsInView = (
+// Whether a node's Focus button may be on screen under `viewport`. It sits beside Close at
+// the header's right end, 0.6 to 1.6 header-heights in from it in either header size; any of
+// that span on screen, at the middle of the header's height, counts.
+const focusButtonInView = (
   node: TerminalNode,
   viewport: CanvasViewport,
   container: HTMLElement,
@@ -49,8 +50,8 @@ const headerActionsInView = (
   const top = node.position.y * viewport.zoom + viewport.y
   const header = terminalHeaderHeight * chromeScaleAt(viewport.zoom) * viewport.zoom
   return (
-    right >= header &&
-    right <= container.clientWidth + 1 &&
+    right - header * 0.6 > 0 &&
+    right - header * 1.6 < container.clientWidth &&
     top + header / 2 >= 0 &&
     top + header / 2 <= container.clientHeight
   )
@@ -159,7 +160,7 @@ export const useCanvasNavigation = ({
   ])
 
   // Canvas opened from another view frames every visible window, however its camera was
-  // left; a terminal opened into it is revealed instead, unless its buttons are in sight.
+  // left; a terminal opened into it is revealed instead, unless its Focus button is in sight.
   // Otherwise, as on returning to a session, it keeps the camera it was left with. A terminal
   // gone to from outside the canvas is flown in to from there, once its windows are measured
   // (above).
@@ -173,9 +174,9 @@ export const useCanvasNavigation = ({
     const target = selectedNode?.hidden ? undefined : selectedNode
     if (initialViewport && target && !fitOnNavigate) {
       lastNavigation.current = navigation
-      // One whose header buttons are still in sight keeps the camera it was left with, as on
+      // One whose Focus button is still in sight keeps the camera it was left with, as on
       // coming back from Focus to where it was opened from.
-      if (headerActionsInView(target, initialViewport, container.current)) return
+      if (focusButtonInView(target, initialViewport, container.current)) return
       const center = centerOf(target)
       void instance.setCenter(center.x, center.y, { zoom: initialViewport.zoom })
       return
