@@ -608,8 +608,6 @@ const mailbox = (): DemoMailbox => {
       terminalId: demoTerminalId(target, index + 1),
       handle: demoHandle(index + 1),
       agent: true,
-      // The helpers are led by the lead, which a message between them never holds for release.
-      ...(index >= jobs.length ? { ledBy: demoHandle(babcia.lead) } : {}),
     })),
     threads: [],
   }

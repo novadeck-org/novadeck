@@ -185,6 +185,14 @@ export type ActivityEvent = {
       readonly reply?: string
     }
   | {
+      readonly type: "tool-called"
+      readonly actor: string | null
+      readonly toolName: string
+      readonly kind: ToolKind
+      /** It started work that runs on in the background, as Claude Code's `run_in_background`. */
+      readonly background?: true
+    }
+  | {
       readonly type: "file-touched"
       readonly actor: string | null
       readonly path: string
@@ -286,6 +294,15 @@ export type Background = {
 export type PlanSource =
   | { readonly kind: "file"; readonly path: string }
   | { readonly kind: "text"; readonly text: string; readonly truncated: boolean }
+
+/**
+ * What a call was, for messaging's loop hold (docs/agent-messaging.md, Guards, "Loops"):
+ * a tool of Novadeck's own MCP server, or a read of its descriptor files (`novadeck`); the
+ * harness's bookkeeping, which only loads or tracks (`bookkeeping`); a call that only
+ * waits, as a shell command of sleeps (`waiting`); else `work`. Each harness's decoder
+ * tells it by its own tool names and input.
+ */
+export type ToolKind = "novadeck" | "bookkeeping" | "waiting" | "work"
 
 /** A normalized fact a harness reported. */
 export type HarnessEvent = SessionObserved | ActivityEvent | TelemetryObserved

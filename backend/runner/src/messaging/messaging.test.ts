@@ -24,6 +24,7 @@ import { handleWords } from "../terminals/handles.js"
 import { bareHandle } from "../terminals/handles.js"
 import { describe, expect, it } from "../test.js"
 import { running, submitWindowMs } from "./delivery.js"
+import type { Loops } from "./loops.js"
 import { clock, retentionMs, threadMs } from "./mailbox.js"
 import {
   holdNotice,
@@ -218,6 +219,29 @@ const sent = (answer: SendAnswer) => {
   return answer
 }
 
+// A stand-in for the work tracker: every terminal idle unless `working` says otherwise.
+const idleLoops = () => {
+  const working = new Map<string, boolean | "unknown">()
+  const calls = {
+    observed: [] as string[],
+    events: [] as HarnessEvent[],
+    sent: [] as string[],
+    reset: [] as string[],
+    forgot: [] as string[],
+  }
+  const loops = {
+    observe: (id: string, events: readonly HarnessEvent[]) => {
+      calls.observed.push(id)
+      calls.events.push(...events)
+    },
+    sent: (id: string) => calls.sent.push(id),
+    worked: (id: string) => working.get(id) ?? false,
+    reset: (id: string) => calls.reset.push(id),
+    forget: (id: string) => calls.forgot.push(id),
+  } as unknown as Loops
+  return { loops, working, calls }
+}
+
 const messages = (messaging: Messaging, terminalId: string) =>
   messaging.list(terminalId, "t?").threads.flatMap((thread) => thread.messages)
 
@@ -345,8 +369,9 @@ describe("sending", () => {
     expect(threads[1]).toMatchObject({
       peer: "fox",
       hops: 2,
-      allowed: 12,
+      idle: 0,
       held: false,
+      heldFor: null,
     })
     expect(threads[1]?.messages[0]?.id).toBe(first.id)
   })
@@ -569,56 +594,6 @@ describe("an addressee with no session yet", () => {
 })
 
 describe("guards", () => {
-  it("hold a thread's 13th message until the person releases it, then allow 12 more", () => {
-    const { messaging, send, clock: time } = create()
-    const answers = Array.from({ length: 14 }, (_, index) => {
-      time.now += 30_000
-      return sent(index % 2 === 0 ? send("A", "fox", `${index}`) : send("B", "moth", `${index}`))
-    })
-    expect(answers.slice(0, 12).every(({ state }) => state === "queued")).toBe(true)
-    expect(answers.slice(12)).toMatchObject([
-      { state: "held", held: "release" },
-      { state: "held", held: "release" },
-    ])
-    const [thread] = messaging.list("A", "moth").threads
-    expect(thread).toMatchObject({ hops: 14, allowed: 12, held: true })
-    messaging.release(thread!.id)
-    expect(messaging.list("A", "moth").threads[0]).toMatchObject({
-      allowed: 26,
-      held: false,
-    })
-    expect(messages(messaging, "A").every(({ state }) => state === "queued")).toBe(true)
-    expect(() => messaging.release("t-unknown")).toThrow(
-      expect.objectContaining({ code: "NOT_FOUND" }),
-    )
-  })
-
-  it("deliver a released thread's held messages at the next hook, then hold it again after 12 more", () => {
-    const { messaging, send, prompt, codex, clock: time } = create()
-    const hop = (count: number) =>
-      Array.from({ length: count }, () => {
-        time.now += 60_000
-        return sent(send("A", "fox", `hop ${messages(messaging, "A").length + 1}`))
-      })
-    expect(hop(13).map(({ state }) => state)).toEqual([...Array(12).fill("queued"), "held"])
-    const [thread] = messaging.list("A", "moth").threads
-    messaging.release(thread!.id)
-    // The 13th waits again, and the recipient's next hook delivers it with the rest.
-    const answer = prompt("B", codex)
-    expect(answer.stdout).toMatch(/>hop 1<[\s\S]*>hop 13</)
-    messaging.acknowledge("B", answer.leaseId!)
-    expect(messages(messaging, "B").every(({ state }) => state === "delivered")).toBe(true)
-    // Twelve more go through; the one after them waits for the next release.
-    const more = hop(13)
-    expect(more.slice(0, 12).every(({ state }) => state === "queued")).toBe(true)
-    expect(more[12]).toMatchObject({ state: "held", held: "release" })
-    expect(messaging.list("A", "moth").threads[0]).toMatchObject({
-      hops: 26,
-      allowed: 25,
-      held: true,
-    })
-  })
-
   it("hold every message while paused, across restarts, and deliver in order once resumed", () => {
     const records = memoryMailbox()
     const first = create(records)
@@ -1181,7 +1156,7 @@ describe("change notices", () => {
     ])
   })
 
-  it("tell both terminals of a thread released, whose hops allowed changed", () => {
+  it("tell both terminals of a thread released, whose hold ended", () => {
     const { messaging, send, clock: time, changed } = create()
     for (let index = 0; index < 4; index++) {
       time.now += 30_000
@@ -1189,7 +1164,7 @@ describe("change notices", () => {
     }
     const [thread] = messaging.list("A", "moth").threads
     changed.length = 0
-    // Nothing is held, but the thread may now go further.
+    // Nothing is held, but the release is told all the same.
     messaging.release(thread!.id)
     expect(changed.toSorted()).toEqual(["A", "B"])
   })
@@ -1214,8 +1189,16 @@ describe("a stopped thread", () => {
   })
 
   it("makes a held message gone too, and leaves a leased one to finish", () => {
-    const { messaging, send, prompt, codex, clock: time } = create()
-    for (let index = 0; index < 13; index++) {
+    const {
+      messaging,
+      send,
+      prompt,
+      codex,
+      clock: time,
+    } = create(undefined, undefined, {
+      loops: idleLoops().loops,
+    })
+    for (let index = 0; index < 9; index++) {
       time.now += 30_000
       sent(index % 2 === 0 ? send("A", "fox", `${index}`) : send("B", "moth", `${index}`))
     }
@@ -2032,8 +2015,9 @@ describe("listing", () => {
           id: expect.stringMatching(/^t-/),
           peer: "moth",
           hops: 1,
-          allowed: 12,
+          idle: 0,
           held: false,
+          heldFor: null,
           stopped: false,
           messages: [
             {
@@ -3214,8 +3198,8 @@ const latestFor = (records: MailboxRecords, terminalId: string) =>
   records.messages().findLast((message) => message.to.terminalId === terminalId)!
 
 // A third terminal, owl, opened by moth's agent: moth is its lead.
-const withWorker = () => {
-  const setup = create()
+const withWorker = (options: MessagingOptions = {}) => {
+  const setup = create(undefined, undefined, options)
   const worker = binding("codex", "s-worker", "3")
   setup.messaging.register("W", here, "owl", "moth")
   setup.follow("W", worker)
@@ -3342,26 +3326,26 @@ describe("a lead", () => {
     expect(latestFor(records, "X").fromLead).toBe(false)
   })
 
-  it("never has its thread held for release in either direction, while a peer thread still is at 12", () => {
-    const { messaging, send, clock: time } = withWorker()
-    const hops = (a: string, b: string, from: string, to: string) =>
-      Array.from({ length: 14 }, (_, index) => {
-        time.now += 30_000
-        return sent(index % 2 === 0 ? send(a, from, `${index}`) : send(b, to, `${index}`))
-      })
-    // The lead's messages and the worker's replies, whatever the thread's length.
-    const led = hops("A", "W", "owl", "moth")
-    expect(led.every(({ state }) => state === "queued")).toBe(true)
-    const peers = hops("B", "W", "owl", "fox")
-    expect(peers.slice(0, 12).every(({ state }) => state === "queued")).toBe(true)
-    expect(peers.slice(12)).toMatchObject([
-      { state: "held", held: "release" },
-      { state: "held", held: "release" },
-    ])
-    expect(messaging.list("A", "moth").threads[0]).toMatchObject({
-      hops: 14,
-      held: false,
+  it("holds a lead's thread like any pair's", () => {
+    const { messaging, send, clock: time } = withWorker({ loops: idleLoops().loops })
+    const lead = Array.from({ length: 8 }, (_, index) => {
+      time.now += 30_000
+      return sent(index % 2 === 0 ? send("A", "owl", `${index}`) : send("W", "moth", `${index}`))
     })
+    expect(lead.slice(0, 6).every(({ state }) => state === "queued")).toBe(true)
+    expect(lead.slice(6)).toMatchObject([{ state: "held" }, { state: "held" }])
+    expect(messaging.list("A", "moth").threads[0]).toMatchObject({ hops: 8, held: true })
+  })
+
+  it("does not hold a lead asking its busy worker how it goes", () => {
+    const quiet = idleLoops()
+    const { messaging, send, clock: time } = withWorker({ loops: quiet.loops })
+    quiet.working.set("W", true)
+    for (let index = 0; index < 12; index++) {
+      time.now += 30_000
+      expect(sent(send("A", "owl", `how is it going ${index}`)).state).toBe("queued")
+    }
+    expect(messaging.list("A", "moth").threads[0]).toMatchObject({ idle: 0, held: false })
   })
 
   it("still waits while messaging is paused, in both directions", () => {
@@ -3487,15 +3471,12 @@ describe("a leased message", () => {
     expect(messages(messaging, "W")[0]?.state).toBe("delivered")
   })
 
-  it("is not held for release by its sender or recipient registering again", () => {
+  it("is not held by its sender or recipient registering again", () => {
     const { messaging, send, prompt, stop, worker, clock: time } = withWorker()
     prompt("W", worker)
-    // Past the 12 hops a peer's thread is held, a lead's never: the closing lead's thread
-    // turns peer, so a message already leased must not turn held with it.
-    for (let hop = 0; hop < 13; hop++) {
+    for (let hop = 0; hop < 3; hop++) {
       time.now += 30_000
       sent(send("A", "owl", `${hop}`))
-      if (hop < 12) sent(send("W", "moth", `back ${hop}`))
     }
     const answer = stop("W", worker)
     expect(answer.leaseId).not.toBeNull()
@@ -3978,6 +3959,491 @@ describe("the log of waiting messages", () => {
       ).toEqual(["thread-stopped"])
     } finally {
       log.stop()
+    }
+  })
+})
+
+describe("the loop hold", () => {
+  const holdMessage =
+    "you and @fox kept messaging while neither of you did any work, so Novadeck holds your thread until the user releases it. Get on with the work, or wait for the user, rather than messaging @fox again."
+  const setup = (loops = idleLoops()) => {
+    const made = create(undefined, undefined, { loops: loops.loops })
+    // Each round alternates the ends, 30 s apart; `from` sends all of them when given.
+    const rounds = (count: number, from?: "A" | "B") =>
+      Array.from({ length: count }, (_, index) => {
+        made.clock.now += 30_000
+        const a = (from ?? (index % 2 === 0 ? "A" : "B")) === "A"
+        return made.send(a ? "A" : "B", a ? "fox" : "moth", `message ${made.clock.now}`)
+      })
+    return { ...made, ...loops, rounds }
+  }
+  const thread = (messaging: Messaging) => messaging.list("A", "moth").threads[0]!
+
+  it("never holds a pair that works between messages", () => {
+    const { messaging, rounds, working } = setup()
+    working.set("B", true)
+    const answers = rounds(20).map(sent)
+    expect(answers.every(({ state }) => state === "queued")).toBe(true)
+    expect(thread(messaging)).toMatchObject({ hops: 20, idle: 0, held: false, heldFor: null })
+  })
+
+  it("counts unknown as work", () => {
+    const { messaging, rounds, working } = setup()
+    working.set("A", "unknown")
+    expect(rounds(12).every((answer) => sent(answer).state === "queued")).toBe(true)
+    expect(thread(messaging).idle).toBe(0)
+  })
+
+  it("holds a thanks loop at the sixth idle message, and tells each sender why", () => {
+    const { messaging, rounds, working, clock: time } = setup()
+    const answers = rounds(8).map(sent)
+    // The first isn't idle; messages two to six are idle one to five.
+    expect(answers.slice(0, 6).every(({ state }) => state === "queued")).toBe(true)
+    expect(thread(messaging)).toMatchObject({ idle: 6, held: true, heldFor: "loop" })
+    expect(answers[6]).toMatchObject({ state: "held", held: "release", why: holdMessage })
+    expect(answers[7]).toMatchObject({
+      state: "held",
+      held: "release",
+      why: "you and @moth kept messaging while neither of you did any work, so Novadeck holds your thread until the user releases it. Get on with the work, or wait for the user, rather than messaging @moth again.",
+    })
+    // A message of someone who worked is held for the thread, and the count stays.
+    working.set("B", true)
+    time.now += 30_000
+    expect(sent(messaging.send("B", { to: "moth", text: "busy" }))).toMatchObject({
+      state: "held",
+      why: "your thread with @moth is held because it went on with no work done at either end; it arrives once the user releases it.",
+    })
+    expect(thread(messaging)).toMatchObject({ idle: 6, held: true })
+    // What agents lists says the same.
+    const listed = messaging.agents("A")
+    expect(listed.ok && listed.text).toContain(`: held: ${holdMessage}`)
+  })
+
+  it("tells a sender whose six idle messages were all its own that it kept messaging", () => {
+    const { rounds } = setup()
+    const answers = rounds(8, "A").map(sent)
+    expect(answers[6]).toMatchObject({
+      state: "held",
+      why: "you kept messaging @fox while neither of you did any work, so Novadeck holds your thread until the user releases it. Get on with the work, or wait for the user, rather than messaging @fox again.",
+    })
+  })
+
+  it("resets the count when a person's response reaches either end", () => {
+    const { messaging, rounds, prompt, claude, clock: time } = setup()
+    rounds(5).map(sent)
+    expect(thread(messaging).idle).toBe(4)
+    time.now += 30_000
+    messaging.personReply("A", "ask-1", "Which?", "This one", () => undefined)
+    const answer = prompt("A", claude)
+    messaging.acknowledge("A", answer.leaseId!)
+    sent(rounds(1)[0]!)
+    expect(thread(messaging)).toMatchObject({ idle: 0, held: false })
+    // It takes six more.
+    expect(rounds(5).every((each) => sent(each).state === "queued")).toBe(true)
+    expect(rounds(1).map(sent)[0]).toMatchObject({ state: "held" })
+  })
+
+  it("keeps ten messages waiting held for a pair and refuses the next, spending no hop", () => {
+    const { messaging, rounds, records } = setup()
+    const answers = rounds(18, "A")
+    expect(answers.slice(0, 6).every((answer) => sent(answer).state === "queued")).toBe(true)
+    expect(answers.slice(6, 16).every((answer) => sent(answer).state === "held")).toBe(true)
+    for (const refused of answers.slice(16))
+      expect(refused).toEqual({
+        ok: false,
+        reason:
+          "refused: you and @fox already have ten messages waiting for the user's release; this one wasn't kept. Wait for the user rather than messaging @fox again.",
+      })
+    expect(thread(messaging)).toMatchObject({ hops: 16 })
+    expect(records.messages()).toHaveLength(16)
+  })
+
+  it("holds a looping pair's new thread at once while its earlier messages wait held", () => {
+    const { messaging, rounds, send, clock: time } = setup()
+    rounds(8).map(sent)
+    time.now += threadMs + 1
+    expect(sent(send("A", "fox", "again"))).toMatchObject({ state: "held", held: "release" })
+    expect(messaging.list("A", "moth").threads.map(({ held, hops }) => [held, hops])).toEqual([
+      [true, 1],
+      [true, 8],
+    ])
+  })
+
+  it("refuses a looping pair's new thread at the cap, keeping no thread", () => {
+    const { messaging, rounds, send, clock: time } = setup()
+    rounds(16).map(sent)
+    time.now += threadMs + 1
+    expect(send("A", "fox", "again")).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("already have ten messages"),
+    })
+    expect(messaging.list("A", "moth").threads).toHaveLength(1)
+    expect(messages(messaging, "B").filter(({ state }) => state === "delivered")).toEqual([])
+  })
+
+  it("lets a message with work through a new thread of a held pair, and resets the count", () => {
+    const { messaging, rounds, send, working, clock: time } = setup()
+    rounds(8).map(sent)
+    time.now += threadMs + 1
+    working.set("B", true)
+    expect(sent(send("A", "fox", "with work"))).toMatchObject({ state: "queued" })
+    working.set("B", false)
+    const [latest] = messaging.list("A", "moth").threads
+    expect(latest).toMatchObject({ held: false, idle: 0, hops: 1 })
+    // The count is the new thread's own from here.
+    time.now += 30_000
+    expect(sent(send("A", "fox", "idle after"))).toMatchObject({ state: "queued" })
+  })
+
+  it("starts a new thread afresh once the pair has nothing waiting held", () => {
+    const { messaging, rounds, send, clock: time } = setup()
+    rounds(8).map(sent)
+    messaging.release(thread(messaging).id)
+    time.now += threadMs + 1
+    expect(sent(send("A", "fox", "later"))).toMatchObject({ state: "queued" })
+    expect(messaging.list("A", "moth").threads[0]).toMatchObject({ held: false, idle: 0 })
+  })
+
+  it("ends the hold when the person stops the thread, marking its gone messages stopped", () => {
+    const { messaging, records, rounds, follow, codex, clock: time } = setup()
+    rounds(4).map(sent)
+    // These go with the recipient's session, to wait again should it return.
+    follow("B", null)
+    rounds(1)
+    follow("B", codex)
+    rounds(5)
+    expect(thread(messaging)).toMatchObject({ held: true })
+    follow("B", null)
+    expect(messages(messaging, "B").some(({ state }) => state === "gone")).toBe(true)
+    const told = records.messages().map(({ notified }) => notified)
+    messaging.stop(thread(messaging).id)
+    expect(thread(messaging)).toMatchObject({ held: false, heldFor: null, idle: 0, stopped: true })
+    expect(records.messages().every((each) => each.state !== "gone" || each.stopped)).toBe(true)
+    expect(records.messages().map(({ notified }) => notified)).toEqual(told)
+    // Back, none of them waits.
+    follow("B", codex)
+    expect(records.messages().every(({ state }) => state === "gone" || state === "delivered")).toBe(
+      true,
+    )
+    time.now += threadMs + 1
+  })
+
+  it("starts the count afresh on release, holding again at the sixth new idle message", () => {
+    const { messaging, rounds, prompt, codex } = setup()
+    rounds(8).map(sent)
+    messaging.release(thread(messaging).id)
+    expect(thread(messaging)).toMatchObject({ held: false, heldFor: null, idle: 0 })
+    expect(messages(messaging, "A").every(({ state }) => state === "queued")).toBe(true)
+    const answer = prompt("B", codex)
+    messaging.acknowledge("B", answer.leaseId!)
+    const more = rounds(6)
+    expect(more.slice(0, 5).every((each) => sent(each).state === "queued")).toBe(true)
+    expect(more[5]).toMatchObject({ ok: true, state: "held" })
+    expect(thread(messaging)).toMatchObject({ idle: 6, held: true })
+  })
+
+  it("releases every held thread of the pair, and no other pair's", () => {
+    const { messaging, rounds, send, working, follow, clock: time } = setup()
+    messaging.register("C", here, "owl", null)
+    follow("C", binding("codex", "s-c", "7"))
+    rounds(8).map(sent)
+    time.now += threadMs + 1
+    // A new thread of the pair is held at once by the carried count.
+    expect(sent(send("A", "fox", "again"))).toMatchObject({ state: "held" })
+    // Another pair's thread is held too.
+    working.set("A", false)
+    for (let index = 0; index < 8; index++) {
+      time.now += 30_000
+      sent(index % 2 === 0 ? send("A", "owl", `c${index}`) : send("C", "moth", `c${index}`))
+    }
+    const heldThreads = messaging.list("A", "moth").threads.filter((each) => each.held)
+    expect(heldThreads.map(({ peer }) => peer).toSorted()).toEqual(["fox", "fox", "owl"])
+    const old = heldThreads.find((each) => each.peer === "fox" && each.hops === 8)!
+    messaging.release(old.id)
+    const after = messaging.list("A", "moth").threads
+    expect(after.filter((each) => each.peer === "fox").map(({ held }) => held)).toEqual([
+      false,
+      false,
+    ])
+    expect(after.find((each) => each.peer === "owl")).toMatchObject({ held: true })
+    expect(messages(messaging, "B").every(({ state }) => state === "queued")).toBe(true)
+  })
+
+  it("releases only a stopped thread, not the pair's held one, when it has no hold of its own", () => {
+    const { messaging, rounds, send, working, clock: time } = setup()
+    rounds(8).map(sent)
+    time.now += threadMs + 1
+    working.set("B", true)
+    sent(send("A", "fox", "with work"))
+    const [fresh] = messaging.list("A", "moth").threads
+    messaging.stop(fresh!.id)
+    expect(messaging.list("A", "moth").threads[0]).toMatchObject({ stopped: true, held: false })
+    messaging.release(fresh!.id)
+    const threads = messaging.list("A", "moth").threads
+    expect(threads.map(({ stopped: gated, held }) => [gated, held])).toEqual([
+      [false, false],
+      [false, true],
+    ])
+  })
+
+  it("clears a hold a refused send started, when the pair's other thread is released", () => {
+    const { rounds, records, clock: time } = setup()
+    rounds(16).map(sent)
+    // A hold that began on a refused send, with no held message of its own.
+    records.saveThread({
+      id: "t-refused",
+      projectId: "p",
+      between: ["A", "B"],
+      hops: 2,
+      heldFrom: 3,
+      heldFor: "loop",
+      lastAt: time.now - threadMs * 2,
+      stoppedAt: null,
+    })
+    const again = create(records, time)
+    const first = records.threads().find(({ id }) => id !== "t-refused")!
+    again.messaging.release(first.id)
+    expect(records.threads().every((each) => each.heldFrom === null)).toBe(true)
+  })
+
+  it("leaves the count when released with no hold", () => {
+    const { messaging, rounds } = setup()
+    rounds(4).map(sent)
+    messaging.release(thread(messaging).id)
+    expect(thread(messaging).idle).toBe(3)
+  })
+
+  it("starts a fresh thread and count after ten quiet minutes, leaving the held one waiting", () => {
+    const { messaging, rounds, send, working, clock: time } = setup()
+    rounds(8).map(sent)
+    time.now += threadMs + 1
+    // Work at either end starts the new thread's count afresh.
+    working.set("B", true)
+    expect(sent(send("A", "fox", "later"))).toMatchObject({ state: "queued" })
+    const threads = messaging.list("A", "moth").threads
+    expect(threads.map(({ held, idle, hops }) => [held, idle, hops])).toEqual([
+      [false, 0, 1],
+      [true, 6, 8],
+    ])
+    expect(messages(messaging, "A").filter(({ state }) => state === "held")).toHaveLength(2)
+  })
+
+  it("holds for release over a pause, and keeps a held message held when it comes back from gone", () => {
+    const { messaging, rounds, follow, codex } = setup()
+    rounds(8, "A").map(sent)
+    messaging.pause(true)
+    expect(messages(messaging, "A").map(({ held }) => held)).toEqual([
+      ...Array(6).fill("paused"),
+      "release",
+      "release",
+    ])
+    messaging.pause(false)
+    follow("B", null)
+    expect(messages(messaging, "A").filter(({ state }) => state === "gone")).toHaveLength(8)
+    follow("B", codex)
+    expect(messages(messaging, "A").map(({ state }) => state)).toEqual([
+      ...Array(6).fill("queued"),
+      "held",
+      "held",
+    ])
+  })
+
+  it("feeds the tracker an Escape, a continued Stop, and only the root's turn marks", () => {
+    const { messaging, observe, prompt, stop, send, claude, codex, calls, clock: time } = setup()
+    const sub = binding("claude", "s-sub", "1")
+    const call = {
+      type: "tool-called",
+      ...fact(sub),
+      actor: "sub-1",
+      toolName: "Read",
+      kind: "work",
+    } as const
+    calls.events.length = 0
+    observe("A", claude, [started(sub), call, started(claude)])
+    expect(calls.events.map(({ type }) => type)).toEqual(["tool-called", "turn-started"])
+    // A Stop that takes a message goes on as a continued turn.
+    prompt("B", codex)
+    sent(send("A", "fox", "carry on"))
+    calls.events.length = 0
+    expect(stop("B", codex).leaseId).not.toBeNull()
+    expect(calls.events.map(({ type }) => type)).toEqual(["turn-ended", "turn-continued"])
+    // The person's Escape ends a turn.
+    prompt("A", claude)
+    time.now += 1_000
+    messaging.keys("A", claudeKeys("\x1b"), false)
+    calls.events.length = 0
+    messaging.escaped("A", claude)
+    expect(calls.events.map(({ type }) => type)).toEqual(["turn-escaped"])
+  })
+
+  it("feeds the tracker a continued Stop that lapsed, once", () => {
+    vi.useFakeTimers()
+    const { messaging, prompt, stop, send, codex, calls } = setup()
+    prompt("B", codex)
+    sent(send("A", "fox", "hello"))
+    expect(stop("B", codex).leaseId).not.toBeNull()
+    vi.advanceTimersByTime(5_000)
+    calls.events.length = 0
+    expect(messaging.lapsed("B", codex, 7)).toMatchObject({ type: "turn-lapsed" })
+    expect(messaging.lapsed("B", codex, 7)).toBeUndefined()
+    expect(calls.events).toMatchObject([{ type: "turn-lapsed", startedAt: 7 }])
+    vi.useRealTimers()
+  })
+
+  it("feeds the tracker every report, each send, and a session ending or changing", () => {
+    const { messaging, rounds, observe, ask, prompt, follow, claude, codex, calls } = setup()
+    calls.reset.length = 0
+    observe("A", claude, [observed(claude)])
+    prompt("B", codex)
+    ask("A", claude, "PostToolUse", [observed(claude)])
+    expect(calls.observed).toEqual(["A", "B", "A"])
+    rounds(2).map(sent)
+    expect(calls.sent).toEqual(["A", "B"])
+    follow("A", binding("claude", "s-other", "9"))
+    follow("A", null)
+    expect(calls.reset).toEqual(["A", "A"])
+    messaging.unregister("B")
+    expect(calls.forgot).toEqual(["B"])
+  })
+})
+
+describe("a hold carried over from the twelve-message rule", () => {
+  it("holds a message past it on load, answers a send with the thread waiting, and lists no reason", () => {
+    const records = memoryMailbox()
+    records.saveThread({
+      id: "t-old",
+      projectId: "p",
+      between: ["A", "B"],
+      hops: 3,
+      heldFrom: 3,
+      heldFor: null,
+      lastAt: 1_000_000 - 1_000,
+      stoppedAt: null,
+    })
+    records.saveMessage({
+      id: "m-old",
+      projectId: "p",
+      thread: "t-old",
+      hop: 3,
+      from: { terminalId: "A", handle: "moth", agent: "claude", sessionId: "s-claude" },
+      to: { terminalId: "B", handle: "fox", agent: "codex", sessionId: "s-codex" },
+      text: "from the lead",
+      sentAt: 1_000_000 - 1_000,
+      state: "queued",
+      deliveredAt: null,
+      notified: true,
+      stopped: false,
+      fromLead: true,
+      toLead: false,
+    })
+    const { messaging, send } = create(records)
+    expect(messages(messaging, "B")[0]).toMatchObject({ state: "held", held: "release" })
+    const answer = sent(send("A", "fox", "continuing"))
+    expect(answer).toMatchObject({ state: "held", held: "release" })
+    expect(answer.why).toMatch(/waits for the user's release/)
+    expect(answer.why).not.toMatch(/kept messaging|no work done/)
+    const listed = messaging.agents("A")
+    expect(listed.ok && listed.text).toContain(`: held: ${answer.why}`)
+    expect(messaging.list("A", "moth").threads[0]).toMatchObject({
+      held: true,
+      heldFor: null,
+      hops: 4,
+    })
+  })
+})
+
+describe("the loop hold on the real work tracker", () => {
+  // Two bound terminals that both reported a call, the worker B in a turn.
+  const working = () => {
+    const setup = create()
+    const { observe, claude, codex, clock: time } = setup
+    const call = (bound: Binding): HarnessEvent => ({
+      type: "tool-called",
+      ...fact(bound),
+      actor: null,
+      toolName: "Read",
+      kind: "work",
+    })
+    observe("A", claude, [observed(claude), call(claude)])
+    observe("B", codex, [observed(codex), call(codex)])
+    time.now += 30_000
+    setup.prompt("B", codex)
+    return setup
+  }
+  const polls = (setup: ReturnType<typeof working>, count: number) =>
+    Array.from({ length: count }, (_, index) => {
+      setup.clock.now += 60_000
+      return setup.send("A", "fox", `how is it going ${index}`)
+    }).map(sent)
+
+  it("counts a worker whose Stop was continued as running through its silence", () => {
+    const setup = working()
+    sent(setup.send("A", "fox", "do the long job"))
+    expect(setup.stop("B", setup.codex).leaseId).not.toBeNull()
+    expect(polls(setup, 8).every(({ state }) => state === "queued")).toBe(true)
+    expect(setup.messaging.list("A", "moth").threads[0]).toMatchObject({ idle: 0, held: false })
+  })
+
+  it("holds the same polls to a worker whose turn ended", () => {
+    const setup = working()
+    // Its Stop takes nothing: the turn is over, and nothing runs.
+    setup.stop("B", setup.codex)
+    const answers = polls(setup, 8)
+    expect(answers.at(-1)).toMatchObject({ state: "held" })
+  })
+
+  it("holds a thanks loop between two bound Claude Code terminals at the sixth idle message", () => {
+    const setup = create()
+    const { messaging, observe, send, clock: time, claude } = setup
+    const other = binding("claude", "s-other", "5")
+    messaging.register("C", here, "owl", null)
+    setup.follow("C", other)
+    // Each reported a call, as its harness does the `send` that opens the exchange.
+    const reported = (bound: Binding): HarnessEvent => ({
+      type: "tool-called",
+      ...fact(bound),
+      actor: null,
+      toolName: "mcp__plugin_novadeck_novadeck__send",
+      kind: "novadeck",
+    })
+    observe("A", claude, [observed(claude), reported(claude)])
+    observe("C", other, [observed(other), reported(other)])
+    const answers: SendAnswer[] = []
+    for (let index = 0; index < 10; index++) {
+      time.now += 30_000
+      answers.push(
+        index % 2 === 0
+          ? send("A", "owl", `thanks ${index}`)
+          : send("C", "moth", `thanks ${index}`),
+      )
+    }
+    // The first message isn't idle; the sixth idle one after it is the seventh.
+    const states = answers.map((answer) => (answer.ok ? answer.state : "refused"))
+    expect(states.indexOf("held")).toBe(6)
+    expect(states.slice(0, 6).every((state) => state === "queued")).toBe(true)
+    expect(messaging.list("A", "moth").threads[0]).toMatchObject({ held: true, idle: 6 })
+  })
+
+  it("does not hold a pair whose ends keep making calls", () => {
+    const setup = create()
+    const { messaging, observe, send, clock: time, claude } = setup
+    const other = binding("claude", "s-other", "5")
+    messaging.register("C", here, "owl", null)
+    setup.follow("C", other)
+    const call = (bound: Binding): HarnessEvent => ({
+      type: "tool-called",
+      ...fact(bound),
+      actor: null,
+      toolName: "Read",
+      kind: "work",
+    })
+    observe("A", claude, [observed(claude), call(claude)])
+    observe("C", other, [observed(other), call(other)])
+    for (let index = 0; index < 14; index++) {
+      time.now += 30_000
+      observe("A", claude, [call(claude)])
+      const answer = index % 2 === 0 ? send("A", "owl", `${index}`) : send("C", "moth", `${index}`)
+      expect(sent(answer).state).toBe("queued")
     }
   })
 })

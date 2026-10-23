@@ -530,8 +530,9 @@ export class Asks {
         id: thread,
         peer: "you",
         hops: messages.length,
-        allowed: 0,
+        idle: 0,
         held: false,
+        heldFor: null,
         stopped: false,
         messages,
       }

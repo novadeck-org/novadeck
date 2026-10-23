@@ -73,13 +73,18 @@ const mount = (
     kind = "permission",
     failing = false,
     agent = "codex",
+    only,
   }: {
+    only?: InboxItem
     kind?: "permission" | "plan"
     failing?: boolean
     agent?: InboxItem["source"]["agent"]
   } = {},
 ) => {
-  const state = createStore<InboxState>({ ...emptyInbox, items: [item(options, kind, agent)] })
+  const state = createStore<InboxState>({
+    ...emptyInbox,
+    items: [only ?? item(options, kind, agent)],
+  })
   const sent: InboxAnswer[] = []
   const inbox: Inbox = {
     state,
@@ -383,6 +388,40 @@ describe("An item that takes the place of one answered", () => {
 
     expect(document.querySelector(".inbox-sent")).toBeNull()
     expect(document.querySelector(".inbox-sheet .button.primary")?.textContent).toBe("Allow")
+    await nextFrame()
+    sheet.view.unmount()
+  })
+})
+
+describe("A held message's sheet", () => {
+  const held = (heldFor: "loop" | null): InboxItem => ({
+    ...item([]),
+    kind: "held",
+    held: {
+      threadId: "th",
+      from: { handle: "moth", title: "Tests" },
+      to: { handle: "fox", title: "Checkout" },
+      text: "Thanks again.",
+      hop: 7,
+      heldFor,
+    },
+  })
+
+  it("says the two agents kept messaging while neither worked, for a loop", async () => {
+    const sheet = mount([], { only: held("loop") })
+    const aside = document.querySelector(".inbox-sheet .inbox-aside")!
+    expect(aside.textContent).toContain("kept messaging while neither did any work")
+    expect(aside.textContent).toContain("moth")
+    expect(aside.textContent).toContain("fox")
+    await nextFrame()
+    sheet.view.unmount()
+  })
+
+  it("says only that Novadeck holds the thread, with no reason", async () => {
+    const sheet = mount([], { only: held(null) })
+    expect(document.querySelector(".inbox-sheet .inbox-aside")?.textContent).toBe(
+      "Novadeck holds this thread for you.",
+    )
     await nextFrame()
     sheet.view.unmount()
   })

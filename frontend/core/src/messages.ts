@@ -35,14 +35,16 @@ export type AgentMessage = {
 }
 
 // A terminal's thread with one other terminal, by that terminal's handle: how many
-// messages it has had and may have before the person releases it again, and its
-// messages, oldest first. `held` while some wait for that release.
+// messages it has had, how many idle ones in a row (sent while neither end worked), and its
+// messages, oldest first. `held` while the thread has a hold, `heldFor` its reason: `loop`,
+// or null for a hold carried over from the old rule.
 export type MessageThread = {
   readonly id: string
   readonly peer: string
   readonly hops: number
-  readonly allowed: number
+  readonly idle: number
   readonly held: boolean
+  readonly heldFor: "loop" | null
   readonly messages: readonly AgentMessage[]
 }
 
@@ -161,8 +163,8 @@ export type Messages = {
   readonly state: Store<MailState>
   // Pauses messaging, or resumes it.
   readonly pause: (paused: boolean) => void
-  // Lets a thread held for going back and forth too often go on: its held messages wait
-  // to be delivered again, and it may have more.
+  // Lets a held thread go on: its held messages wait to be delivered again, and its count
+  // of idle messages starts afresh.
   readonly release: (thread: string) => void
   // Stops a thread held for release: its messages not yet delivered are gone, and its
   // senders are told the person stopped it.

@@ -132,10 +132,27 @@ const rowsOf = (database: DatabaseSync) =>
     ]),
   )
 
-// What `rowsOf` gave a database of version 3 or 2 as a version 4 holds it: its windows have
-// a home, 'undocked', and the rest is as it was.
+// What `rowsOf` gave a database of version 3 or 2 as a version 5 holds it: its windows have
+// a home, 'undocked', its threads hold none, and the rest is as it was.
 const carried = (rows: ReturnType<typeof rowsOf>) => ({
   ...rows,
+  message_threads: rows
+    .message_threads!.map((row) => {
+      const { id, project_id, first_terminal, second_terminal, hops, last_at, stopped_at } =
+        JSON.parse(row)
+      return JSON.stringify({
+        id,
+        project_id,
+        first_terminal,
+        second_terminal,
+        hops,
+        held_from: null,
+        held_for: null,
+        last_at,
+        stopped_at,
+      })
+    })
+    .toSorted(),
   companion_windows: rows
     .companion_windows!.map((row) => {
       const { id, session_id, person_title, created_at } = JSON.parse(row)
@@ -185,7 +202,7 @@ describe("workspace metadata", () => {
     expect(first.id).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(4)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(5)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       expect(() =>
         database
@@ -295,7 +312,8 @@ describe("workspace metadata", () => {
       projectId: removed.id,
       between: ["a", "b"],
       hops: 1,
-      allowed: 12,
+      heldFrom: null,
+      heldFor: null,
       lastAt: 1,
       stoppedAt: null,
     }
@@ -376,13 +394,13 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const future = new DatabaseSync(path)
     future.exec(
-      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 5",
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 6",
     )
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(/newer/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(5)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(6)
       expect(database.prepare("SELECT value FROM future_data").get()?.value).toBe("saved")
     } finally {
       database.close()
@@ -449,7 +467,7 @@ describe("workspace metadata", () => {
     const database = new DatabaseSync(path)
     const reference = new DatabaseSync(fresh)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(4)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(5)
       expect(rowsOf(database)).toEqual(carried(before))
       // Its tables are now those a new database gets, constraints and indexes too.
       expect(schemaOf(database)).toEqual(schemaOf(reference))
@@ -495,7 +513,7 @@ describe("workspace metadata", () => {
     const database = new DatabaseSync(path)
     const reference = new DatabaseSync(fresh)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(4)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(5)
       expect(rowsOf(database)).toEqual(carried(before))
       expect(
         ["companion_windows", "companion_items"].map((table) =>
@@ -515,6 +533,89 @@ describe("workspace metadata", () => {
       database.close()
       reference.close()
     }
+  })
+
+  it("carries a version 4 database forward in place, holding the threads that waited past their allowance", ({
+    directory,
+    store,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/4.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 4;
+      INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'Shop', '/shop');
+      INSERT INTO sessions (position, id, project_id, name, state) VALUES (1, 's', 'p', 'Main', '{}');
+      INSERT INTO terminals (id, session_id, handle, cwd, agents, updated_at, summary, last_program)
+        VALUES ('t', 's', 'moth', '/shop', '{}', 2, 'Works on checkout', 'claude');
+      INSERT INTO session_handles VALUES ('s', 'moth');`)
+    // A thread, allowed 5, and its messages: [hop, state, stopped, from_lead, to_lead].
+    const thread = (
+      id: string,
+      allowed: number,
+      messages: [number, string, number, number, number][],
+    ) => {
+      old.exec(
+        `INSERT INTO message_threads VALUES ('${id}', 'p', 't', 'u', 9, ${allowed}, 3, NULL);`,
+      )
+      messages.forEach(([hop, state, stopped, fromLead, toLead], index) => {
+        old.exec(`INSERT INTO messages VALUES ('${id}-${index}', 'p', '${id}', ${hop}, 't', 'moth',
+          'claude', 'cs', 'u', 'fox', 'codex', NULL, 'text', 3, '${state}', NULL, 0, ${stopped},
+          ${fromLead}, ${toLead}, NULL);`)
+      })
+    }
+    thread("held", 5, [
+      [5, "delivered", 0, 0, 0],
+      [6, "held", 0, 0, 0],
+    ])
+    thread("gone", 5, [[7, "gone", 0, 0, 0]])
+    thread("stopped", 5, [[6, "gone", 1, 0, 0]])
+    thread("lead", 5, [
+      [6, "held", 0, 1, 0],
+      [7, "held", 0, 0, 1],
+    ])
+    thread("within", 5, [[5, "held", 0, 0, 0]])
+    thread("delivered", 5, [[6, "delivered", 0, 0, 0]])
+    const messages = old.prepare("SELECT * FROM messages ORDER BY id").all()
+    old.close()
+
+    // Opened twice: the second finds it carried already.
+    store(path).close()
+    store(path).close()
+
+    const fresh = join(directory(), "fresh.sqlite")
+    new WorkspaceStore(fresh).close()
+    const database = new DatabaseSync(path)
+    const reference = new DatabaseSync(fresh)
+    try {
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(5)
+      expect(
+        database.prepare("SELECT id, held_from, held_for FROM message_threads ORDER BY id").all(),
+      ).toEqual([
+        { id: "delivered", held_from: null, held_for: null },
+        { id: "gone", held_from: 6, held_for: null },
+        { id: "held", held_from: 6, held_for: null },
+        { id: "lead", held_from: null, held_for: null },
+        { id: "stopped", held_from: null, held_for: null },
+        { id: "within", held_from: null, held_for: null },
+      ])
+      expect(database.prepare("SELECT * FROM messages ORDER BY id").all()).toEqual(messages)
+      expect(schemaOf(database)).toEqual(schemaOf(reference))
+      expect(database.prepare("PRAGMA integrity_check").get()).toEqual({ integrity_check: "ok" })
+      expect(
+        database
+          .prepare("SELECT name FROM sqlite_schema WHERE name LIKE '%\\_4' ESCAPE '\\'")
+          .all(),
+      ).toEqual([])
+    } finally {
+      database.close()
+      reference.close()
+    }
+    const workspace = store(path)
+    expect(workspace.threads().find(({ id }) => id === "held")).toMatchObject({
+      heldFrom: 6,
+      heldFor: null,
+    })
+    workspace.close()
   })
 
   it("carries a version 3 database whose items reference what is gone, leaving those behind", ({
@@ -547,7 +648,7 @@ describe("workspace metadata", () => {
     workspace.close()
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(4)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(5)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
     } finally {
       database.close()
@@ -653,7 +754,7 @@ describe("workspace metadata", () => {
     expect(restoreSetAside(path)).toBeUndefined()
   })
 
-  it("brings one back where a start since carried the empty workspace to version 4", ({
+  it("brings one back where a start since carried the empty workspace to version 5", ({
     directory,
   }) => {
     const path = join(directory(), "workspace.sqlite")
@@ -766,8 +867,8 @@ describe("workspace metadata", () => {
       // in store.ts's migrations, from schemas/<version before>.sql, which is added for
       // it; a new table needs neither. Then record the new digest here.
       expect({ version, digest }).toEqual({
-        version: 4,
-        digest: "ea55b50ce5c13ddaed80d47a5ee53adf64c130be78902c35eddcaa6335469231",
+        version: 5,
+        digest: "1dcbbd06a96c0534f522d5a1afb03273410ce60b85688ad80fa02c6e0f51b2fd",
       })
     } finally {
       database.close()
@@ -1109,7 +1210,8 @@ describe("saved terminals", () => {
               projectId: project.id,
               between,
               hops: 1,
-              allowed: 12,
+              heldFrom: null,
+              heldFor: null,
               lastAt: 1,
               stoppedAt: null,
             }
@@ -1402,12 +1504,13 @@ describe("the mailbox", () => {
       projectId: "p",
       between: ["a", "b"],
       hops: 2,
-      allowed: 12,
+      heldFrom: null,
+      heldFor: null,
       lastAt: 3,
       stoppedAt: null,
     }
     original.saveThread(thread)
-    original.saveThread({ ...thread, allowed: 14 })
+    original.saveThread({ ...thread, heldFrom: 14, heldFor: "loop" as const })
     // One the person stopped, whose queued message went gone for it.
     original.saveMessage({ ...message("m-4", "gone"), stopped: true })
     original.saveThread({ ...thread, id: "t-2", stoppedAt: 7 })
@@ -1440,7 +1543,7 @@ describe("the mailbox", () => {
       { ...message("m-4", "gone"), stopped: true },
     ])
     expect(reopened.threads()).toEqual([
-      { ...thread, allowed: 14 },
+      { ...thread, heldFrom: 14, heldFor: "loop" as const },
       { ...thread, id: "t-2", stoppedAt: 7 },
     ])
     expect(reopened.messagingPaused()).toBe(true)

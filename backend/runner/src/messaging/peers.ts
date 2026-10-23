@@ -237,10 +237,16 @@ export const renderPeers = (peers: readonly Peer[], now: number, viewer: Viewer)
       ].join("\n")
 
 /** What `agents` says of the caller's own message not yet delivered, or gone. */
-const standing = (message: Message, hold: ReturnType<typeof holdOf>): string => {
+const standing = (
+  message: Message,
+  hold: ReturnType<typeof holdOf>,
+  why: string | undefined,
+): string => {
   if (message.state === "held")
     return hold === "release"
-      ? "held until the user releases its thread"
+      ? why
+        ? `held: ${why}`
+        : "held until the user releases its thread"
       : "held while the user has messaging paused"
   if (message.state === "gone")
     return message.stopped
@@ -268,6 +274,8 @@ export const renderAgents = (input: {
   readonly messages: readonly {
     readonly message: Message
     readonly hold: ReturnType<typeof holdOf>
+    /** Why a message held for release is (`Messaging.holdWhy`), as `send` told it. */
+    readonly why?: string
   }[]
   readonly unbound: boolean
   readonly now: number
@@ -282,8 +290,8 @@ export const renderAgents = (input: {
       ? [
           "Your messages not yet delivered:",
           ...input.messages.map(
-            ({ message, hold }) =>
-              `- ${message.id} to ${mention(message.to.handle)}, sent ${clock(message.sentAt)}: ${standing(message, hold)}`,
+            ({ message, hold, why }) =>
+              `- ${message.id} to ${mention(message.to.handle)}, sent ${clock(message.sentAt)}: ${standing(message, hold, why)}`,
           ),
         ]
       : []),

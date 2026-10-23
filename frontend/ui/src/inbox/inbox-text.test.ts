@@ -111,7 +111,7 @@ describe("An item's subject", () => {
         to: { handle: "fox", title: "B" },
         text: "",
         hop: 3,
-        allowed: 3,
+        heldFor: "loop",
       },
     }
     expect(subjectOf(item)).toBe("Release a held message to B?")

@@ -195,13 +195,13 @@ The rules that keep this safe:
   recipient's lead) and `toLead` (its recipient was its sender's lead) from the leads
   running at that moment. Delivery marks only `fromLead` messages, whatever happens to the
   lead after: a lead's message queued before its terminal closes still arrives as the
-  lead's. The release-hold exemption is `fromLead || toLead` (see [Guards](#guards)), so a
-  lead and its worker exchange messages without either direction awaiting release;
-  pausing still holds them.
+  lead's. Neither exempts a pair from the loop hold (see [Guards](#guards)): a lead and its
+  worker that only message each other are held like any pair, and a pair that works
+  between its messages never reaches a hold. `toLead` is still recorded; it decides only which version-4 holds carry over.
 - **The person can name a lead in words.** The notes honour "an agent the user, typing
   in this terminal, told you to take instructions from": that is in the agent's own
   context, typed by the person, whereas a peer claiming the person said so is hearsay.
-  Such a person-named lead has no mark, no mid-turn delivery and no hold exemption; a
+  Such a person-named lead has no mark and no mid-turn delivery; a
   `follow` tool for it is a noted follow-up.
 - **Approvals of actions stay the person's, whoever asks.** What the harness asks
   permission for, destructive or hard-to-reverse steps, outward-facing ones (pushing,
@@ -324,13 +324,23 @@ like them, only inside Novadeck's terminals.
     once Novadeck sees it at its prompt, else at its first turn"
     (an agent expected there that hasn't started yet, as one opened or restored to run
     it);
-  - `held`, when messaging is paused or its thread awaits the person's release, saying
-    which;
+  - `held`, when messaging is paused or its thread is held (as a loop, or by a hold
+    carried over from before) until the person releases it, saying which. A loop's answer says why and what to do; to the sender of
+    an idle message: "held: you and @x kept messaging while neither of you did any work,
+    so Novadeck holds your thread until the user releases it. Get on with the work, or
+    wait for the user, rather than messaging @x again." ("you kept messaging @x while
+    neither of you did any work" where all six idle messages that held the thread were its
+    own); to one
+    that worked: "held: your thread with @x is held because it went on with no work done
+    at either end; it arrives once the user releases it." A hold carried over from before
+    has no reason, and says only that the thread waits for the user's release;
   - `refused`, with why: no current handle there (with the full `agents()` listing, and
     a request to pick by title, folder and work, or ask the person), no agent there (or
     one whose prompt showed while Novadeck's hooks aren't trusted for it there, as a
     Codex whose hooks review was skipped: nothing could deliver to it), a rate or size
-    limit, or the runner stopping, which keeps no message from then on. While that review is still open, a message to it waits, as the person may yet
+    limit, a message that would be held while the pair already has ten waiting held ("refused: you
+    and @x already have ten messages waiting for the user's release; this one wasn't
+    kept. Wait for the user rather than messaging @x again."), or the runner stopping, which keeps no message from then on. While that review is still open, a message to it waits, as the person may yet
     trust the hooks there; once they trust them in `/hooks`, it waits again.
 
   It never claims delivery. A terminal whose own session never bound (Codex with its
@@ -480,7 +490,7 @@ including escaped-output bounds and recipient-session fencing. The pause switch 
 only agent-to-agent mail: the person's replies bypass it, even after a restart or a lost
 lease. Person replies and peer messages have separate fifty-message waiting limits,
 so a paused peer queue cannot block an answer. A full person queue leaves the ask and
-draft available to retry. Replies never await an agent thread's hop release.
+draft available to retry. Replies are never held as a loop, nor counted in one.
 Delivered text says **Novadeck relayed the user's response** and marks the response with its own random nonce new to that
 delivery, distinct from a lead's nonce. The outer note names it, and admits a person
 approval only when that delivery actually carries a person-marked response. The agent's
@@ -1332,7 +1342,8 @@ Two known gaps in telling the box empty at a binding:
 ### Message states
 
 `queued` → `leased` → `delivered`, or back to `queued` when a lease lapses. `held` while
-messaging is paused or its thread awaits release. `gone` when the recipient's instance ended or its harness announced
+messaging is paused or its hop is at or past its thread's hold, a loop's or one carried
+over from version 4. `gone` when the recipient's instance ended or its harness announced
 a new session (a clear or a new start; for Antigravity, a new conversation named by its
 status line), and back to `queued` should that same session bind again within
 retention; a rebind alone (Antigravity observing another conversation) doesn't make it
@@ -1345,12 +1356,140 @@ output, not that the model acted on it.
 
 ## Guards
 
-- **Hops.** A thread delivers 12 messages. From the 13th on, messages are stored
-  `held`, `send` says the thread needs the person's release, and the person releases it
-  through the runner API, which delivers them and allows 12 more. A message
-  between a terminal and its lead, in either direction (`fromLead` or `toLead`, fixed when it
-  was sent), is exempt: a lead and its worker never await release. Pausing still holds
-  it.
+- **Loops.** A thread is held when its two agents keep messaging while neither works,
+  never for how long it runs. Each message is **idle** or not when it is sent: idle when,
+  since the thread's previous message (whichever end sent it), neither end worked. An end
+  worked when, in that window, it made a call that counts as work (below), root or
+  subagent; had, at any moment of it (running at its start, or started in it), a
+  subagent running that hadn't aborted (the activity's subagents; for Antigravity, whose
+  hooks name none, its status line's count), a background task a working call started, in its first ten minutes (one a `sleep` run in
+  the background doesn't count, nor a dev server or watcher left running past that) or a harness request waiting on the person (a permission or dialog, the
+  activity's `pending`; an `ask` of its own open in the Inbox doesn't count, as two
+  agents trading "waiting on the user" is what a hold is for); ran one turn through the whole window without any call of its reporting, as a long
+  command does; or went a minute or more within the window mid-turn with nothing reported (no call, no
+  send, no Stop) and no waiting call, as a long think does (a thank-you's model calls take
+  seconds each, and a turn that sleeps between its messages waits). A turn runs through the window when it started before
+  the window and none of its Stops, continued or not, fell in it; for this, the runner
+  counts each `send` as its sender's own call reported just after it, in the next
+  window, whatever its harness reports, so a turn that only sent never passes for one at
+  work. A thread's first message is not idle (unless the pair has messages waiting held, below), nor is one whose window saw a person's
+  response delivered to either end, or a prompt in either terminal that its harness says was typed, not the doorbell's or a
+  hook's (the person's, or a task given on the command line): the person is then in the loop. So a lead that
+  keeps asking its busy worker how it goes is never held, whether the worker answers or
+  not, and two agents that only thank each other, or wait on each other, are.
+
+  The sixth idle message in a row (about three rounds) is stored `held`, and so is every
+  message of the thread after it, idle or not; a message that isn't idle sets the count
+  back to none. While held, each message is still judged idle or not, for its answer,
+  but the count stays as it was. A message at or past the hold is held `release` even
+  while messaging is paused, so the hold's Inbox item stays. The hold is the thread's,
+  and lasts until the person releases or stops it: a held message that goes `gone` (as
+  with its session) is like any other, and one that comes back waits held again, its hop
+  being past the hold. A held thread is continued like any thread, within ten minutes of its last message; after
+  that, the pair's next message starts a new thread, and the held one's messages wait for
+  the person still. While the pair has any message waiting held, a new thread between them
+  starts with the pair's idle count, not none, and its first message is judged from the
+  pair's last: a loop that lapses and starts again is held, or refused at the cap, at its
+  next idle message, while one that works goes on. A pair keeps at most ten
+  messages waiting held for release, across all its threads and from either end: a send
+  that would be held beyond them is refused (one that wouldn't be is sent as ever), and
+  one that would start a hold still starts it, at its would-be hop, so the pair's next
+  messages there are held too; the cap gates sends only, so a held message coming back
+  from `gone` may take the pair past ten. A refused send (see
+  [Agent interface](#agent-interface)) uses no hop and leaves the thread's time alone, so an agent that keeps sending can't fill its peer's fifty and shut out its
+  lead. **Release** (`messages.release`) ends the hold, on every thread of the pair that has
+  one, and lets their messages wait to be
+  delivered (held still while messaging is paused); **Stop** ends it and makes them
+  `gone`. Either starts that thread's count afresh (while another of the pair's threads still
+  waits held, a new thread carries that one's count, below): after a Release the pair's next message
+  continues the thread within ten minutes of its last, else starts a new one; after a
+  Stop, the Stop's block refuses it until it lapses (see Stop). There is no count of
+  messages beyond it, besides the rates and a held thread's ten, and lead pairs are
+  counted like any other. A duplicate send gets its original's answer and, like a
+  refused one, neither counts nor moves the window. The count goes on while messaging is
+  paused, so a thread may come out of a pause held. Person replies are never counted or
+  held.
+
+  _What counts as work_ is any call either agent's harness reports, root or subagent, but
+  three kinds:
+  - Novadeck's own: every tool of its MCP server, told by that server's name in the
+    tool's name, never by a list of its tool names, so a tool added later can't switch the
+    rule off. Claude Code names them `mcp__plugin_novadeck_novadeck__*`; Codex
+    `mcp__novadeck__*`, from its plugin and from its own config alike (probed 2026-10-23
+    on 0.163: no plugin prefix, no hash), which the matcher its decoder already shares
+    takes (`harnesses/codex/src/tools.ts`); Antigravity sends every MCP call as
+    `call_mcp_tool`, Novadeck's with `args.ServerName` `novadeck_novadeck`, its plugin's
+    name and its server's (probed on 1.4.2; one added to its own config is named as
+    added). Antigravity reads a server's descriptor files before calling its tools
+    (`read_file` under its `mcp/novadeck_novadeck/`), and those reads are Novadeck's own
+    too. Tests pin each name. A name that doesn't match (a Codex name its collisions
+    hashed, a Claude Code without the plugin) counts as work, which only spares a thread.
+  - The harness's bookkeeping, which only loads or tracks: Claude Code's `ToolSearch`,
+    `Skill`, `TodoWrite`, `TaskCreate`, `TaskUpdate`, `TaskList` and `TaskGet` (never
+    `TaskOutput` or `TaskStop`, which act on work), Codex's `update_plan`.
+  - Waiting: Claude Code's `ScheduleWakeup`, and a shell call (Claude Code's and Codex's
+    `Bash`, Codex's argv form unwrapped from its `bash -lc`, Antigravity's `run_command`)
+    whose command is only sleeps, alone or joined by `;`, `&&` or newlines: `sleep` with
+    numbers and an `s`, `m`, `h` or `d`, PowerShell's `Start-Sleep` with a number or
+    `-Seconds`/`-Milliseconds`, and cmd's `timeout /t` with a number, with or without `/nobreak` (Unix
+    `timeout` runs a command, and isn't one). Two agents that wait on each other by
+    sleeping between "any update?" messages are idle; a wait that checks something
+    (`sleep 60 && git status`) is work.
+
+  Each harness's decoder reports every call as a `tool-called` event, with its actor
+  (root or subagent) and its kind (Novadeck's, bookkeeping, waiting or work), classified
+  there by the harness's own names and input, its tests pinning the lists; the runner
+  only counts. The reports are Claude Code's `PostToolUse` and `PostToolUseFailure`,
+  Codex's `PostToolUse` (every tool, probed on 0.163: `Bash`, `apply_patch`, web search,
+  MCP) and Antigravity's `PreToolUse "*"` (every tool, probed on 1.4.2; it fires before
+  the person or policy decides, so a call they deny still counts). A call counts in the
+  window its report reached the runner in. A report that reaches it after the send (a
+  Claude Code `Bash` run beside the `send`, or one late past its hook's limit) counts
+  toward the next message instead; at the sixth idle message this can hold a thread one
+  message early, which the person's release undoes. Where Novadeck can't know what
+  either end did in the window, the message counts as work: an end whose session hasn't bound, or hasn't reported any call yet (Novadeck's own
+  `send` is one, so a session whose harness reports calls is judged from its second
+  message, and one whose harness doesn't, as Antigravity where its `PreToolUse` isn't
+  registered, never is),
+  and the first message of each thread after a runner restart (the count is kept in
+  memory; only the hold is stored). The coverage rests on the versions probed; the
+  harness coverage probes check it again on each harness update, as a release that
+  reported fewer calls would make work look idle.
+
+  The rule catches agents that only talk and wait. It misses a loop whose agents run some
+  counted call each round, a check or a read; a pair whose messages come more than ten
+  minutes apart, each starting a thread; an end whose subagent only sleeps; and one end
+  polling while the other waits in one long sleep, which passes for a long command. The
+  rates, the ten held messages and the person's Stop bound those. It holds, though the
+  work goes on elsewhere, a coordinator whose turns only message its workers and end while
+  they work (its lead's status thread with it goes idle), and a worker that answers "still
+  running" from memory about a background job more than ten minutes old.
+
+  _Six_ comes from replaying the rule over a week of real swarms (2026-10-16 to 10-23:
+  1,170 messages in 445 threads between Claude Code agents, every end matched to its
+  transcript): 40 messages were idle (3.4%), never more than two in a row, and only one
+  thread had two, a kickoff's thanks. Six holds nothing that works, with room for longer
+  swarms than that week's; the week had no real loop, so that one is caught within about
+  two minutes at the pair's rate is reasoned, not measured. The demo and the try fixtures
+  mark which scripted messages are idle, having no tool reports, and hold by the same
+  count.
+
+  _Stored_, a thread keeps where its hold starts (`held_from`, a hop, null while not
+  held) and why (`held_for`: `loop`), in place of `allowed`; a message is held for its
+  thread when its hop is at or past `held_from`, and Release and Stop set both to null.
+  The schema goes from 4 to 5 with a migration (`schemas/4.sql`, tested from version 4):
+  a thread with a message the twelve-message rule held, or would hold again should it
+  come back (one neither from nor to a lead, past `allowed`, stored `held`, or `gone`
+  and not stopped), keeps a hold from `allowed + 1`, with no reason; its messages at or
+  past it that wait, a lead's included, are held from then on, and those delivered are
+  untouched. Every other thread has none, a lead thread past its allowance included. A
+  hold carried over may start with more than ten held. The listing drops `allowed` and
+  gives each thread `held`, true while `held_from` is set, `heldFor` (`"loop"` while it
+  has a loop hold, whether or not a message waits; null when it has no hold, or one carried
+  over) and `idle`, its idle messages in a row (kept as it was while held; none after a
+  restart); the Inbox shows an item while one of its messages waits held for release. A message's `held` stays `"release"` (deliberately: a loop awaits the
+  person's release) or `"paused"`.
+
 - **Stop.** The person can stop a thread (`messages.stop`). Its messages still queued or
   held are `gone`, each marked stopped so its sender's next answer says "won't arrive: the
   user stopped that thread in Novadeck."; a message a lease holds finishes, and if its
@@ -1360,7 +1499,8 @@ output, not that the model acted on it.
   later of the stop and the thread's last message: "The user stopped your thread with @x in
   Novadeck. Don't message @x about it again unless the user asks." A refused send does not
   extend the block. The listing's `stopped` is true only while the block is in force.
-  Releasing the thread clears the stop.
+  Stop also marks stopped the thread's `gone` messages that could wait again, so none
+  does, leaving whether their senders were told as it was. Stopping a held thread ends its hold; releasing the thread clears the stop.
 - **Rates.** A sender may send 10 messages a minute, 3 of them to any one recipient; the
   runner allows 60 a minute in all.
 - **Pause.** One switch, stored so it survives restarts, pauses messaging across the
@@ -1729,7 +1869,8 @@ optional `messages` capability (`core/messages.ts`):
   among them, marked while some wait for its agent: those to it that are `queued`,
   `leased` or `held`, never delivered or gone. The tab's description and tooltip count
   them and say whether a thread is held for release or messaging is paused; the
-  taskbar's Messages icon carries the count, amber while a thread is held.
+  taskbar's Messages icon carries the count, amber while a message waits held for
+  release.
 - **Messages view.** A terminal that has had messages gets a Messages icon in its
   companion pane's taskbar, with the same count; an agent with none yet keeps its bar
   clear. The view is one list of the terminal's conversations, 1:1 as messaging is: one per
@@ -1748,12 +1889,13 @@ optional `messages` capability (`core/messages.ts`):
   message, or one after ten quiet minutes), the exact time on hover; a note only while a
   message is on its way (Waiting, held ones too, or Delivering) or lost (Not delivered),
   and Delivered under the last of the right side's. Three or more rounds that repeat (the
-  same senders, the same text numbers aside) fold to "N more rounds like this · Show". Its
+  same senders, the same text numbers aside) fold to "N more rounds like this · Show", for
+  reading only: the runner holds on work, never on repeated text (see Guards). Its
   head has the way back, and the way to the peer's terminal. In You, letters say what they
   are (Asks you, Asked you · answered, withdrawn, session ended or reply not delivered;
   Tells you, Told you), a reply quotes its question, a New line comes before the first
   unread letter, an open question has **Answer**, which opens its Inbox item, and the head
-  counts the questions that wait. The view shows no holds: a thread held for release is
+  counts the questions that wait. The view shows no holds: a thread held as a loop is
   the runner's and the Inbox's (`messages.release`), never released or stopped here.
 - **Critters.** Each handle has an 8×8 critter drawn for its word
   (`items/…/messages/avatars/drawn.ts`, in the runner's word order), lit on a small dark
@@ -1764,6 +1906,12 @@ optional `messages` capability (`core/messages.ts`):
   11 s on its word's clock, hops a row while its agent works, and is still and dim once its
   agent has left; reduced motion stills it. The person is a backlit imp. They show only in
   this view.
+- **A held thread in the Inbox.** Its item quotes the thread's oldest held message and says why from the
+  listing's `heldFor`: "@a and @b kept messaging while neither did any work, so Novadeck
+  holds their thread." in place of the message's hop; a hold carried over from
+  before says only that Novadeck holds the thread for the person. The item no longer
+  carries the thread's `allowed`, which the listing drops. Release and Stop act on
+  the thread.
 - **Pause switch.** The view's header has **Pause all agents' messages**
   (`messages.pause`), one switch for the whole runner. It shows what the runner's listings
   say, and a pause or resume the runner accepted, whichever comes first; it takes no
@@ -1950,64 +2098,78 @@ resume probes sent it one prompt:
 
 ## Acceptance scenarios
 
-| Scenario                                                                                       | Outcome                                                                                                                                                                                                                                              |
-| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude sends Codex a message while Codex works                                                 | Codex's Stop continues its turn with it; Codex stays Working; no doorbell                                                                                                                                                                            |
-| Claude sends Codex a message while Codex is Settled                                            | The doorbell rings once, its hook confirms, Codex answers                                                                                                                                                                                            |
-| The person is mid-sentence in Codex's prompt                                                   | Drafting; their prompt carries the message when they submit                                                                                                                                                                                          |
-| The person queued a prompt during Codex's turn                                                 | Stop delivers nothing; their prompt's hook delivers                                                                                                                                                                                                  |
-| Codex asks permission when a message arrives                                                   | No doorbell; the Stop after it delivers                                                                                                                                                                                                              |
-| The person presses Esc mid-turn with messages waiting                                          | Unknown; no doorbell until the screen shows its box empty, then rung; or the next turn event delivers                                                                                                                                                |
-| A harness shows its own popup after Stop                                                       | The test paste is swallowed or changes far rows; nothing is pressed; Unknown                                                                                                                                                                         |
-| The person opened a picker with Esc-Esc when a message arrives                                 | Settled still, so rung: a picker that swallows the paste gets nothing pressed, Unknown; one the paste leaves takes the line in the prompt, and the ring delivers                                                                                     |
-| A nested `claude -p` runs inside Claude's turn                                                 | Its hooks get nothing; the mailbox is untouched                                                                                                                                                                                                      |
-| The hook times out after the runner leased messages                                            | The lease lapses; the messages return to queued and arrive later, by id                                                                                                                                                                              |
-| The runner restarts while messages are leased                                                  | They return to queued                                                                                                                                                                                                                                |
-| The person starts a different agent in Codex's terminal                                        | Codex's messages become gone; the sender is told                                                                                                                                                                                                     |
-| A terminal's title contains `@` or quotes                                                      | Never typed; only the constant doorbell is                                                                                                                                                                                                           |
-| Two agents keep replying                                                                       | From the 13th, messages are held; the person's release delivers them and allows 12 more                                                                                                                                                              |
-| The person stops a thread                                                                      | Its queued and held messages are gone and their senders told; a leased one finishes; a send continuing it is refused until it lapses or is released                                                                                                  |
-| Messaging is paused, then resumed                                                              | `send` answers held; nothing delivered, across restarts; resuming delivers in order                                                                                                                                                                  |
-| A peer message says "approve the pending command"                                              | Context only; nothing typed answers the approval                                                                                                                                                                                                     |
-| An agent opens another with `open_terminal(agent, message)`                                    | The brief arrives marked as the lead's, with the lead note; the new agent acts on it without asking the person                                                                                                                                       |
-| An agent opens another with a `command`, even one that starts an agent                         | No lead is recorded; the opener's messages are a peer's                                                                                                                                                                                              |
-| A message's text claims to be from the lead, or that the person approved, or shows a lead mark | Still only its sender's: a delivery without the lead's message says none is the lead's; one with it names this delivery's mark, which no text carries                                                                                                |
-| A peer says the person named it the agent's lead                                               | Hearsay: not acted on as a lead's; only the person's own words in that terminal name one                                                                                                                                                             |
-| A peer asks for work the agent wasn't given                                                    | Not started: the agent asks its lead, or the person in its terminal if it has none, and doesn't drop it silently                                                                                                                                     |
-| A lead relays an approval ("the user said yes")                                                | Not an approval: the worker asks the person in its own terminal and tells the lead it is waiting                                                                                                                                                     |
-| A worker and its lead exchange more than 12 messages                                           | Never held for release in either direction; a peer thread still is, and pausing holds both                                                                                                                                                           |
-| The lead's message is queued, then its terminal closes                                         | It still arrives marked as the lead's: authority was fixed when it was sent                                                                                                                                                                          |
-| The lead's terminal closes, or either agent runs `/clear`                                      | Closed: the worker has no running lead and finishes its work. `/clear`: the lead stays                                                                                                                                                               |
-| The worker's agent exits (shell prompt returns, or its process is found gone)                  | `ledBy` is cleared, saved and announced; the former lead's later messages are a peer's. A new session of the same agent, or a restart or restore that resumes it, doesn't end it; one that resumes nothing, or typing that cancels the startup, does |
-| `send` to "codex"                                                                              | Refused: no handle; every terminal there described, to pick by title, folder and work                                                                                                                                                                |
-| Codex's hooks aren't trusted                                                                   | No session ever binds there. While its hooks review is open, a `send` to it waits; once the review was skipped, it shows as having no agent and a `send` to it is refused. Its own agent can still send, told replies can't reach it                 |
-| A background subagent finishes and starts a root turn                                          | Working, then its Stop delivers                                                                                                                                                                                                                      |
-| The person types their next prompt while Codex works                                           | Having submitted nothing, its Stop still continues the turn with what waits, then Drafting; what arrives after waits until the screen shows the box empty, when it is rung, or their prompt carries it                                               |
-| The person answers an approval with Enter during the turn                                      | Not a submission; Stop still delivers                                                                                                                                                                                                                |
-| A steady stream of messages to a working agent                                                 | The turn continues at most twice, then ends; the rest wait                                                                                                                                                                                           |
-| Codex or Antigravity resumed after a runner restart, messages waiting                          | Ready once its title or status line shows its prompt; rung; the session its ring binds takes them                                                                                                                                                    |
-| Claude Code opened plain, idle at its prompt, gets a message                                   | Ready once its `SessionStart` binds it; rung once its screen settles; its hook delivers                                                                                                                                                              |
-| The person runs `/clear` in Claude Code, then a message arrives                                | Ready again, a new session; rung; the new session's hook delivers                                                                                                                                                                                    |
-| The person runs `/clear` in Codex or Antigravity, then a message arrives                       | Codex's title names another thread, a new root its fresh, held writer lock confirms, so the old binding ends; Antigravity's status line binds the new conversation; Ready unless the box may hold text; rung; the new session's hook delivers        |
-| A title naming a new thread is still being checked when that thread's first prompt binds it    | The new binding stays; the stale title changes nothing                                                                                                                                                                                               |
-| Codex's title names a thread it started during a running turn, as a spawned agent's            | No new root: the binding stays                                                                                                                                                                                                                       |
-| The person opens a `/side` conversation in Codex                                               | Its title names the fork, which no new lock confirms: the binding stays, also past the fork's `SessionStart` at its first prompt, which names no transcript. Drafting meanwhile; never rung there; their next root prompt delivers                   |
-| An agent shown at its prompt, no session bound, leaves unseen (a nested shell)                 | The ring's foreground check finds no process of its name: nothing is pasted                                                                                                                                                                          |
-| A bound agent exits with no shell prompt after it (`claude ; codex`, tmux)                     | Its binding ends once its process is found gone, never rung meanwhile; its messages are gone, the sender told; the next agent's prompt or session is its own. Not on Windows (see Per harness)                                                       |
-| Codex's hooks review was skipped, so Novadeck's hooks aren't trusted                           | Its Ready title doesn't count; nothing binds; a `send` to it is refused, while its own agent can still send                                                                                                                                          |
-| Claude Code resumed after a runner restart, messages waiting                                   | Ready at its resume's `SessionStart`; rung once its screen settles; its hook delivers                                                                                                                                                                |
-| A forked session, messages waiting (Claude Code's `--resume --fork-session`, `codex fork`)     | Messages for its terminal's first session wait while its picker shows; Ready once the fork shows its prompt; rung; its hook delivers. Its parent's messages stay its parent's                                                                        |
-| A session forked in place (Codex's or Antigravity's `/fork`), messages waiting                 | As a `/clear`: the parent's messages are gone; the fork is Ready, rung for what comes next, and its hook delivers                                                                                                                                    |
-| The person types in a Ready terminal                                                           | Drafting; rung once the screen shows the box empty after their text is gone; else their prompt carries the messages                                                                                                                                  |
-| The person presses Left, Home or End at an empty prompt                                        | Drafting; the screen decides: a view the key opened (Claude Code's agents view) reads as no box, so no ring; an untouched box reads empty, and it is rung                                                                                            |
-| The person presses Left, Home or End mid-ring, or between their Enter and its prompt's hook    | The confirmed ring's or their own prompt's turn ends Drafting; rung again only once the screen shows the box empty                                                                                                                                   |
-| A request is asked between the ring's test paste and its Enter                                 | No Enter; the ring fails, Unknown; the messages wait until the request clears and the screen shows the box empty, or the next root turn event                                                                                                        |
-| A hook asks while the runner stops                                                             | Nothing leased; the next runner delivers                                                                                                                                                                                                             |
-| The person types while Claude Code starts, before it binds                                     | Drafting at its binding, even when the last agent's end is noticed only then; no ring while text shows in its box                                                                                                                                    |
-| A session replaces Claude Code's long after an Enter that started no turn (a newline)          | Drafting; no ring while text shows in its box                                                                                                                                                                                                        |
-| Codex or Antigravity started plain, idle at its prompt                                         | Ready once its title or status line shows its prompt, no session yet; rung; its ring's prompt starts and binds the session, whose hook delivers                                                                                                      |
-| The screen keeps changing when the ring would start                                            | The calm check fails; nothing is pasted; tried again on the next change                                                                                                                                                                              |
-| Claude opens Codex with a task, but Codex's hooks are untrusted                                | No session binds; the task stays not yet bound, with a `/hooks` hint for the opener                                                                                                                                                                  |
-| Claude opens Codex with a task                                                                 | Codex starts with the doorbell as its prompt; its hook delivers the task, wrapped                                                                                                                                                                    |
-| Antigravity opened with a task in a folder it doesn't trust                                    | Started plain; the opener is told; once the person trusts the folder its idle status line makes it Ready, and the ring delivers the task                                                                                                             |
-| The person submitted a prompt holding an old doorbell line                                     | Their prompt, recorded without the line; its hook still delivers what waits                                                                                                                                                                          |
+| Scenario                                                                                       | Outcome                                                                                                                                                                                                                                                          |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude sends Codex a message while Codex works                                                 | Codex's Stop continues its turn with it; Codex stays Working; no doorbell                                                                                                                                                                                        |
+| Claude sends Codex a message while Codex is Settled                                            | The doorbell rings once, its hook confirms, Codex answers                                                                                                                                                                                                        |
+| The person is mid-sentence in Codex's prompt                                                   | Drafting; their prompt carries the message when they submit                                                                                                                                                                                                      |
+| The person queued a prompt during Codex's turn                                                 | Stop delivers nothing; their prompt's hook delivers                                                                                                                                                                                                              |
+| Codex asks permission when a message arrives                                                   | No doorbell; the Stop after it delivers                                                                                                                                                                                                                          |
+| The person presses Esc mid-turn with messages waiting                                          | Unknown; no doorbell until the screen shows its box empty, then rung; or the next turn event delivers                                                                                                                                                            |
+| A harness shows its own popup after Stop                                                       | The test paste is swallowed or changes far rows; nothing is pressed; Unknown                                                                                                                                                                                     |
+| The person opened a picker with Esc-Esc when a message arrives                                 | Settled still, so rung: a picker that swallows the paste gets nothing pressed, Unknown; one the paste leaves takes the line in the prompt, and the ring delivers                                                                                                 |
+| A nested `claude -p` runs inside Claude's turn                                                 | Its hooks get nothing; the mailbox is untouched                                                                                                                                                                                                                  |
+| The hook times out after the runner leased messages                                            | The lease lapses; the messages return to queued and arrive later, by id                                                                                                                                                                                          |
+| The runner restarts while messages are leased                                                  | They return to queued                                                                                                                                                                                                                                            |
+| The person starts a different agent in Codex's terminal                                        | Codex's messages become gone; the sender is told                                                                                                                                                                                                                 |
+| A terminal's title contains `@` or quotes                                                      | Never typed; only the constant doorbell is                                                                                                                                                                                                                       |
+| Two agents keep replying, each working between messages                                        | Never held, however long the thread runs                                                                                                                                                                                                                         |
+| Two agents trade thanks or "waiting on you" without working                                    | The sixth idle message in a row and the thread after it are held; each sender is told why in the answer to its held send; the Inbox shows the hold and its reason; Release delivers them and starts the count afresh                                             |
+| A lead keeps asking its busy worker how it goes                                                | The worker works between the messages, so none is idle: never held, whether the worker answers or not                                                                                                                                                            |
+| A worker's questions to its lead go to the person, whose Inbox answers come back               | A response from the person reaching either end makes the next message not idle: never held for it                                                                                                                                                                |
+| An agent keeps sending after its thread is held                                                | Its messages wait behind the hold up to ten for the pair, across its threads; later sends are refused at the pair's ten, so its peer's lead still gets through                                                                                                   |
+| The person stops a held thread                                                                 | Its held messages are gone, their senders told, and the hold ends; a send continuing it is refused until the stop lapses or the person releases it; a thread started after that begins with a fresh count, unless another of the pair's threads still waits held |
+| A worker runs one long command while its lead sleeps and asks how it goes                      | The worker's turn runs through each window with no call reporting, so it works: never held                                                                                                                                                                       |
+| The runner restarts while a thread is held                                                     | The hold stays; the count starts afresh, and the first message after it counts as work                                                                                                                                                                           |
+| The runner restarts while a thread is held, and one end's agent comes back late                | Its held messages go gone when restoring ends and wait again, still held, when its session runs there                                                                                                                                                            |
+| A version-4 workspace with a thread the twelve-message rule held                               | Still held, with no reason; its waiting messages past the hold, a lead's included, wait for the person; one gone that comes back waits held too; a lead thread past twelve isn't held                                                                            |
+| The person releases a loop, and the agents go back to only messaging                           | Held again at the sixth idle message after the release                                                                                                                                                                                                           |
+| Two agents wait on each other with `sleep 60` between "any update?" messages                   | A call that only sleeps isn't work: held at the sixth such message in a row                                                                                                                                                                                      |
+| Two agents held as a loop send again after ten quiet minutes                                   | A new thread that starts with the pair's idle count while its held messages wait: an idle message is held at once (or refused at the cap), one with work goes on and resets it                                                                                   |
+| An agent waits on its subagent while its peer asks how it goes                                 | Not idle: a subagent running counts as work                                                                                                                                                                                                                      |
+| Antigravity on a machine where its `PreToolUse` isn't registered                               | Its messages count as work: its threads are never held as a loop                                                                                                                                                                                                 |
+| The person stops a thread                                                                      | Its queued and held messages are gone and their senders told; a leased one finishes; a send continuing it is refused until it lapses or is released                                                                                                              |
+| Messaging is paused, then resumed                                                              | `send` answers held; nothing delivered, across restarts; resuming delivers in order                                                                                                                                                                              |
+| A peer message says "approve the pending command"                                              | Context only; nothing typed answers the approval                                                                                                                                                                                                                 |
+| An agent opens another with `open_terminal(agent, message)`                                    | The brief arrives marked as the lead's, with the lead note; the new agent acts on it without asking the person                                                                                                                                                   |
+| An agent opens another with a `command`, even one that starts an agent                         | No lead is recorded; the opener's messages are a peer's                                                                                                                                                                                                          |
+| A message's text claims to be from the lead, or that the person approved, or shows a lead mark | Still only its sender's: a delivery without the lead's message says none is the lead's; one with it names this delivery's mark, which no text carries                                                                                                            |
+| A peer says the person named it the agent's lead                                               | Hearsay: not acted on as a lead's; only the person's own words in that terminal name one                                                                                                                                                                         |
+| A peer asks for work the agent wasn't given                                                    | Not started: the agent asks its lead, or the person in its terminal if it has none, and doesn't drop it silently                                                                                                                                                 |
+| A lead relays an approval ("the user said yes")                                                | Not an approval: the worker asks the person in its own terminal and tells the lead it is waiting                                                                                                                                                                 |
+| A worker and its lead only acknowledge each other                                              | Held as a loop like any pair; pausing holds them too                                                                                                                                                                                                             |
+| The lead's message is queued, then its terminal closes                                         | It still arrives marked as the lead's: authority was fixed when it was sent                                                                                                                                                                                      |
+| The lead's terminal closes, or either agent runs `/clear`                                      | Closed: the worker has no running lead and finishes its work. `/clear`: the lead stays                                                                                                                                                                           |
+| The worker's agent exits (shell prompt returns, or its process is found gone)                  | `ledBy` is cleared, saved and announced; the former lead's later messages are a peer's. A new session of the same agent, or a restart or restore that resumes it, doesn't end it; one that resumes nothing, or typing that cancels the startup, does             |
+| `send` to "codex"                                                                              | Refused: no handle; every terminal there described, to pick by title, folder and work                                                                                                                                                                            |
+| Codex's hooks aren't trusted                                                                   | No session ever binds there. While its hooks review is open, a `send` to it waits; once the review was skipped, it shows as having no agent and a `send` to it is refused. Its own agent can still send, told replies can't reach it                             |
+| A background subagent finishes and starts a root turn                                          | Working, then its Stop delivers                                                                                                                                                                                                                                  |
+| The person types their next prompt while Codex works                                           | Having submitted nothing, its Stop still continues the turn with what waits, then Drafting; what arrives after waits until the screen shows the box empty, when it is rung, or their prompt carries it                                                           |
+| The person answers an approval with Enter during the turn                                      | Not a submission; Stop still delivers                                                                                                                                                                                                                            |
+| A steady stream of messages to a working agent                                                 | The turn continues at most twice, then ends; the rest wait                                                                                                                                                                                                       |
+| Codex or Antigravity resumed after a runner restart, messages waiting                          | Ready once its title or status line shows its prompt; rung; the session its ring binds takes them                                                                                                                                                                |
+| Claude Code opened plain, idle at its prompt, gets a message                                   | Ready once its `SessionStart` binds it; rung once its screen settles; its hook delivers                                                                                                                                                                          |
+| The person runs `/clear` in Claude Code, then a message arrives                                | Ready again, a new session; rung; the new session's hook delivers                                                                                                                                                                                                |
+| The person runs `/clear` in Codex or Antigravity, then a message arrives                       | Codex's title names another thread, a new root its fresh, held writer lock confirms, so the old binding ends; Antigravity's status line binds the new conversation; Ready unless the box may hold text; rung; the new session's hook delivers                    |
+| A title naming a new thread is still being checked when that thread's first prompt binds it    | The new binding stays; the stale title changes nothing                                                                                                                                                                                                           |
+| Codex's title names a thread it started during a running turn, as a spawned agent's            | No new root: the binding stays                                                                                                                                                                                                                                   |
+| The person opens a `/side` conversation in Codex                                               | Its title names the fork, which no new lock confirms: the binding stays, also past the fork's `SessionStart` at its first prompt, which names no transcript. Drafting meanwhile; never rung there; their next root prompt delivers                               |
+| An agent shown at its prompt, no session bound, leaves unseen (a nested shell)                 | The ring's foreground check finds no process of its name: nothing is pasted                                                                                                                                                                                      |
+| A bound agent exits with no shell prompt after it (`claude ; codex`, tmux)                     | Its binding ends once its process is found gone, never rung meanwhile; its messages are gone, the sender told; the next agent's prompt or session is its own. Not on Windows (see Per harness)                                                                   |
+| Codex's hooks review was skipped, so Novadeck's hooks aren't trusted                           | Its Ready title doesn't count; nothing binds; a `send` to it is refused, while its own agent can still send                                                                                                                                                      |
+| Claude Code resumed after a runner restart, messages waiting                                   | Ready at its resume's `SessionStart`; rung once its screen settles; its hook delivers                                                                                                                                                                            |
+| A forked session, messages waiting (Claude Code's `--resume --fork-session`, `codex fork`)     | Messages for its terminal's first session wait while its picker shows; Ready once the fork shows its prompt; rung; its hook delivers. Its parent's messages stay its parent's                                                                                    |
+| A session forked in place (Codex's or Antigravity's `/fork`), messages waiting                 | As a `/clear`: the parent's messages are gone; the fork is Ready, rung for what comes next, and its hook delivers                                                                                                                                                |
+| The person types in a Ready terminal                                                           | Drafting; rung once the screen shows the box empty after their text is gone; else their prompt carries the messages                                                                                                                                              |
+| The person presses Left, Home or End at an empty prompt                                        | Drafting; the screen decides: a view the key opened (Claude Code's agents view) reads as no box, so no ring; an untouched box reads empty, and it is rung                                                                                                        |
+| The person presses Left, Home or End mid-ring, or between their Enter and its prompt's hook    | The confirmed ring's or their own prompt's turn ends Drafting; rung again only once the screen shows the box empty                                                                                                                                               |
+| A request is asked between the ring's test paste and its Enter                                 | No Enter; the ring fails, Unknown; the messages wait until the request clears and the screen shows the box empty, or the next root turn event                                                                                                                    |
+| A hook asks while the runner stops                                                             | Nothing leased; the next runner delivers                                                                                                                                                                                                                         |
+| The person types while Claude Code starts, before it binds                                     | Drafting at its binding, even when the last agent's end is noticed only then; no ring while text shows in its box                                                                                                                                                |
+| A session replaces Claude Code's long after an Enter that started no turn (a newline)          | Drafting; no ring while text shows in its box                                                                                                                                                                                                                    |
+| Codex or Antigravity started plain, idle at its prompt                                         | Ready once its title or status line shows its prompt, no session yet; rung; its ring's prompt starts and binds the session, whose hook delivers                                                                                                                  |
+| The screen keeps changing when the ring would start                                            | The calm check fails; nothing is pasted; tried again on the next change                                                                                                                                                                                          |
+| Claude opens Codex with a task, but Codex's hooks are untrusted                                | No session binds; the task stays not yet bound, with a `/hooks` hint for the opener                                                                                                                                                                              |
+| Claude opens Codex with a task                                                                 | Codex starts with the doorbell as its prompt; its hook delivers the task, wrapped                                                                                                                                                                                |
+| Antigravity opened with a task in a folder it doesn't trust                                    | Started plain; the opener is told; once the person trusts the folder its idle status line makes it Ready, and the ring delivers the task                                                                                                                         |
+| The person submitted a prompt holding an old doorbell line                                     | Their prompt, recorded without the line; its hook still delivers what waits                                                                                                                                                                                      |

@@ -51,14 +51,12 @@ export type Message = {
   readonly stopped: boolean
   /**
    * Whether its sender was the recipient terminal's lead when it was sent, which fixes its
-   * authority: delivery marks it so, and it never awaits release, whatever the lead does
-   * after.
+   * authority: delivery marks it so, whatever the lead does after.
    */
   readonly fromLead: boolean
   /**
    * Whether its recipient was its sender's lead when it was sent: a worker's reply or report
-   * to its lead. It gives no authority, but with `fromLead` it keeps the pairing's thread from
-   * awaiting release in either direction.
+   * to its lead. It gives no authority; only the migration of a carried-over hold uses it.
    */
   readonly toLead: boolean
   /** An authenticated Inbox answer, created only by the runner UI API. */
@@ -73,8 +71,10 @@ export type Message = {
 }
 
 /**
- * Messages between two terminals that follow each other closely. `allowed` is how many it
- * may deliver before the person releases it again.
+ * Messages between two terminals that follow each other closely. `heldFrom` is the hop its
+ * hold starts at, while the person hasn't released or stopped it, and `heldFor` why: a loop,
+ * or null for a hold carried over from the twelve-message rule (docs/agent-messaging.md,
+ * Guards, "Loops").
  */
 export type Thread = {
   readonly id: string
@@ -82,7 +82,8 @@ export type Thread = {
   /** Its two terminals, in the order its first message went. */
   readonly between: readonly [string, string]
   readonly hops: number
-  readonly allowed: number
+  readonly heldFrom: number | null
+  readonly heldFor: "loop" | null
   /** When its latest message was sent, in epoch milliseconds. */
   readonly lastAt: number
   /**
@@ -104,8 +105,10 @@ export const maxMessageBytes = 4096
 export const maxDeliveryBytes = 8192
 /** The most messages a recipient may have waiting; a send beyond it is refused. */
 export const maxUndelivered = 50
-/** How many messages a thread delivers, at first and after each release. */
-export const hopsPerRelease = 12
+/** How many idle messages in a row hold a thread: the sixth is the first held. */
+export const idleToHold = 6
+/** The most messages a pair may have waiting held for release, across their threads. */
+export const heldPerPair = 10
 /** How long after its latest message a thread is continued by the next between its terminals. */
 export const threadMs = 10 * 60_000
 /** How long the same text from the same sender to the same recipient is the same message. */
@@ -142,25 +145,23 @@ export const undelivered = (message: Message): boolean =>
   message.state === "queued" || message.state === "leased" || message.state === "held"
 
 /**
- * Why a message that waits is held, if it is: its thread awaits release, or messaging is
- * paused. A message between a terminal and its lead, either way (`fromLead` or `toLead`),
- * never awaits release: the person chose that pairing, so its length is not a sign of a
- * runaway exchange.
+ * Why a message that waits is held, if it is: its hop is at or past where its thread's hold
+ * starts (the person hasn't released or stopped it), which holds even while messaging is
+ * paused, or messaging is paused.
  */
 export const holdOf = (
-  message: Pick<Message, "hop" | "fromLead" | "toLead">,
-  thread: Pick<Thread, "allowed"> | undefined,
+  message: Pick<Message, "hop">,
+  thread: Pick<Thread, "heldFrom"> | undefined,
   paused: boolean,
 ): "release" | "paused" | null => {
-  if (!message.fromLead && !message.toLead && thread && message.hop > thread.allowed)
-    return "release"
+  if (thread?.heldFrom != null && message.hop >= thread.heldFrom) return "release"
   return paused ? "paused" : null
 }
 
 /** The state a message that waits takes: held for a reason, else queued. */
 export const waiting = (
-  message: Pick<Message, "hop" | "fromLead" | "toLead">,
-  thread: Pick<Thread, "allowed"> | undefined,
+  message: Pick<Message, "hop">,
+  thread: Pick<Thread, "heldFrom"> | undefined,
   paused: boolean,
 ): "queued" | "held" => (holdOf(message, thread, paused) ? "held" : "queued")
 

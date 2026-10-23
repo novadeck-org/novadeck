@@ -1,11 +1,14 @@
+import type { ToolKind } from "@novadeck/harness-core/events"
 import {
   count,
   fileList,
+  isFields,
   novadeckTool,
   oneLine,
   otherRun,
   parseFields,
   shortPath,
+  sleepOnly,
   textField,
   type Fields,
   type ToolRun,
@@ -16,15 +19,24 @@ import {
 // `mcp__novadeck.send`.
 const novadeck = [/^mcp__novadeck__(.+)$/, /^mcp__novadeck\.(.+)$/]
 
+/** Whether a tool is one of Novadeck's own MCP server, by the server in its name. */
+export const isNovadeckTool = (tool: string): boolean => novadeck.some((each) => each.test(tool))
+
 // Codex's shell tools take the command as a list, often wrapped as `bash -lc <script>`.
-const commandOf = (fields: Fields | null): string => {
+// The script is kept whole here (`commandOf` shows its first line), as its newlines join sleeps.
+export const scriptOf = (fields: Fields | null): string => {
   const text = textField(fields, "cmd", "command", "CommandLine")
   if (text) return text
   const list = fields?.command
   if (!Array.isArray(list)) return ""
   const words = list.filter((word): word is string => typeof word === "string")
   const wrapped = words.length === 3 && /^-\w*c$/.test(words[1]!)
-  return oneLine(wrapped ? words[2]! : words.join(" "))
+  return wrapped ? words[2]! : words.join(" ")
+}
+
+const commandOf = (fields: Fields | null): string => {
+  const text = textField(fields, "cmd", "command", "CommandLine")
+  return text || oneLine(scriptOf(fields))
 }
 
 // The files a patch touches, from its `*** Add File: path` lines.
@@ -92,4 +104,26 @@ export const describe = (tool: string, input: string): ToolRun => {
     known(tool.toLowerCase(), fields, input) ??
     otherRun(tool, fields, input)
   )
+}
+
+// Codex's shell tools, by the names its hooks give them.
+const shells: ReadonlySet<string> = new Set([
+  "bash",
+  "shell",
+  "shell_command",
+  "exec_command",
+  "local_shell",
+  "container.exec",
+])
+
+/** What a tool call counts as to the messaging loop guard: see `ToolKind`. */
+export const kindOf = (tool: string, input: unknown): ToolKind => {
+  if (isNovadeckTool(tool)) return "novadeck"
+  const name = tool.toLowerCase()
+  if (name === "update_plan") return "bookkeeping"
+  if (shells.has(name)) {
+    const fields = isFields(input) ? input : null
+    return sleepOnly(scriptOf(fields)) ? "waiting" : "work"
+  }
+  return "work"
 }

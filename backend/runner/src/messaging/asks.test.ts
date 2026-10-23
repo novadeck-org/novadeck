@@ -166,7 +166,9 @@ describe("Inbox asks and updates", () => {
     expect(terminalMessages.safeParse(listing).success).toBe(true)
     expect(listing.threads[0]).toMatchObject({
       peer: "you",
+      idle: 0,
       held: false,
+      heldFor: null,
       messages: [
         { inbox: "ask", from: "moth", to: "you", state: "delivered" },
         {
