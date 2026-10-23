@@ -323,10 +323,10 @@ Person replies to Inbox asks bypass the pause and have their own fifty-reply wai
 capacity, independent of the fifty waiting peer messages. The person's note allows up
 to 4096 characters and must also fit the 8192-byte encoded delivery budget; a size error
 asks the person to shorten the reply and leaves the ask answerable.
-`messages.release(threadId)` lets a held thread's messages wait to be delivered and
-starts its idle count afresh, and a stopped thread no longer stopped; an unknown thread is
-`NOT_FOUND`. `messages.stop(threadId)` stops a thread: its messages not yet delivered or
-leased are `gone`, their senders told (once, through the MCP tools' answers) that the
+`messages.release(threadId)` ends a thread's hold (`held` false, `heldFor` null), lets
+its held messages wait to be delivered and starts its idle count afresh, and a stopped thread no longer stopped; an unknown thread is
+`NOT_FOUND`. `messages.stop(threadId)` stops a thread, ending any hold: its messages not yet
+delivered or leased are `gone`, their senders told (once, through the MCP tools' answers) that the
 person stopped it, and a send that would continue it, in either direction, is refused
 until 10 minutes after the later of the stop and the thread's last message (a refused send
 does not extend them) or the person releases it, the listing's `stopped` holding only
