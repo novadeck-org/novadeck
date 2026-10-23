@@ -19,7 +19,7 @@ import { demoTerminalId, terminalSlot, type ChatAgent } from "./samples"
 import { callBlock, requestBlock, resultBlock } from "./screen/agent"
 import { banner } from "./screen/openings"
 import { fixedIntro, type DemoIntro } from "./screen/terminal"
-import { ready, svg, type SampleArtifact } from "./showcase/artifacts"
+import { ready, type SampleArtifact } from "./showcase/artifacts"
 import { createShowcase } from "./showcase/simulation"
 import { terminalOf } from "./terminals"
 import { got, say, use, user, written, type DemoTranscript } from "./transcripts"
@@ -615,16 +615,30 @@ const mailbox = (): DemoMailbox => {
   }
 }
 
-// The page the seasonal-specials agent shows in the pane: its dev server's, as a snapshot.
-const cream = "#fbf6ea"
-const ink = "#1f2a44"
-const blue = "#3d6ea8"
+// The page the seasonal-specials agent shows in the pane: its dev server's, as a snapshot. A
+// proper site half built: the layout and type are in, the dish photo is still a placeholder.
+const paper = "#faf7f2"
+const ink = "#1d2433"
+const muted = "#6b7280"
+const rule = "#e7e1d6"
+const accent = "#b4532a"
 const sans = 'font-family="Helvetica, Arial, sans-serif"'
 const serif = 'font-family="Georgia, serif"'
-const dish = (y: number, name: string, price: string): string =>
-  `<text x="64" y="${y}" ${sans} font-size="17" fill="${ink}">${name}</text>` +
-  `<text x="420" y="${y}" ${sans} font-size="17" fill="${ink}" text-anchor="end">${price}</text>` +
-  `<line x1="64" y1="${y + 12}" x2="420" y2="${y + 12}" stroke="#e3d9c0"/>`
+const mono = 'font-family="Menlo, Consolas, monospace"'
+// The page as tall as the pane shows it beside its window (800 by 584), so none of the pane is
+// left empty under it.
+const page = (body: string): string =>
+  `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1168" viewBox="0 0 800 584">${body}</svg>`,
+  )}`
+// A line of text the layout holds a place for: a grey bar.
+const blank = (x: number, y: number, width: number): string =>
+  `<rect x="${x}" y="${y}" width="${width}" height="9" rx="4.5" fill="#e4ddd0"/>`
+const dish = (y: number, name: string, about: string, price: string): string =>
+  `<text x="56" y="${y}" ${sans} font-size="15" font-weight="700" fill="${ink}">${name}</text>` +
+  `<text x="440" y="${y}" ${sans} font-size="15" font-weight="700" fill="${ink}" text-anchor="end">${price}</text>` +
+  `<text x="56" y="${y + 18}" ${sans} font-size="12" fill="${muted}">${about}</text>` +
+  `<line x1="56" y1="${y + 32}" x2="440" y2="${y + 32}" stroke="${rule}"/>`
 const preview: SampleArtifact = {
   item: {
     id: "bar-specials-preview",
@@ -641,21 +655,53 @@ const preview: SampleArtifact = {
     url: "http://localhost:4321/",
     shown: 1,
     live: false,
-    snapshot: svg(
-      1600,
-      900,
-      `<rect width="800" height="450" fill="${cream}"/>` +
-        `<rect width="800" height="64" fill="${blue}"/>` +
-        `<text x="64" y="41" ${serif} font-size="24" font-weight="700" fill="${cream}">Bar Mleczny</text>` +
-        `<text x="64" y="118" ${serif} font-size="30" fill="${ink}">Seasonal specials</text>` +
-        dish(168, "Barszcz z uszkami", "16 zł") +
-        dish(208, "Placki ziemniaczane", "19 zł") +
-        dish(248, "Naleśniki z serem", "17 zł") +
-        dish(288, "Kompot z rabarbaru", "7 zł") +
-        `<rect x="500" y="100" width="236" height="236" rx="6" fill="#e8dcc0"/>` +
-        `<circle cx="618" cy="190" r="52" fill="#f6efe0" stroke="${blue}" stroke-width="6"/>` +
-        `<circle cx="618" cy="190" r="30" fill="#d9a441"/>` +
-        `<text x="618" y="300" ${serif} font-size="17" text-anchor="middle" fill="${ink}">Open weekdays 8 to 17</text>`,
+    snapshot: page(
+      `<rect width="800" height="584" fill="${paper}"/>` +
+        // The header: the bar's mark and name, the links, and the one button.
+        `<rect width="800" height="60" fill="#ffffff"/>` +
+        `<line x1="0" y1="60" x2="800" y2="60" stroke="${rule}"/>` +
+        `<circle cx="70" cy="30" r="13" fill="none" stroke="${accent}" stroke-width="2.5"/>` +
+        `<path d="M64 36 L64 27 Q70 20 76 27 L76 36 Z" fill="${accent}"/>` +
+        `<text x="94" y="37" ${serif} font-size="21" font-weight="700" fill="${ink}">Milk Bar</text>` +
+        `<text x="470" y="35" ${sans} font-size="13" fill="${muted}">Menu</text>` +
+        `<text x="524" y="35" ${sans} font-size="13" fill="${muted}">Hours</text>` +
+        `<text x="580" y="35" ${sans} font-size="13" fill="${muted}">Find us</text>` +
+        `<rect x="646" y="16" width="112" height="30" rx="15" fill="${accent}"/>` +
+        `<text x="702" y="35" ${sans} font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">Order ahead</text>` +
+        // The specials.
+        `<text x="56" y="100" ${sans} font-size="11" font-weight="700" letter-spacing="2" fill="${accent}">THIS MONTH</text>` +
+        `<text x="56" y="136" ${serif} font-size="32" fill="${ink}">Seasonal specials</text>` +
+        `<text x="56" y="160" ${sans} font-size="13" fill="${muted}">Cooked every morning, served until they run out.</text>` +
+        dish(
+          198,
+          "Beet soup with dumplings",
+          "Clear and ruby red, with mushroom dumplings.",
+          "16 cr",
+        ) +
+        dish(250, "Potato pancakes", "Crisp at the edges, with sour cream.", "19 cr") +
+        dish(302, "Sweet cheese crêpes", "Folded, browned in butter, dusted with sugar.", "17 cr") +
+        dish(354, "Rhubarb compote", "Lorem ipsum dolor sit amet.", "7 cr") +
+        // The dish photo, not in yet: the layout's placeholder.
+        `<rect x="490" y="92" width="254" height="214" rx="10" fill="#efe9de" stroke="#cfc6b4" stroke-dasharray="6 5"/>` +
+        `<line x1="490" y1="92" x2="744" y2="306" stroke="#d9d1c1"/>` +
+        `<line x1="744" y1="92" x2="490" y2="306" stroke="#d9d1c1"/>` +
+        `<rect x="554" y="186" width="126" height="26" rx="4" fill="${paper}"/>` +
+        `<text x="617" y="203" ${mono} font-size="11" fill="${muted}" text-anchor="middle">specials-hero.jpg</text>` +
+        `<text x="490" y="334" ${sans} font-size="13" font-weight="700" fill="${ink}">Open weekdays, 8 to 17</text>` +
+        `<text x="490" y="354" ${sans} font-size="12" fill="${muted}">Closed weekends and holidays.</text>` +
+        // The everyday menu below, laid out but not written yet.
+        `<rect y="400" width="800" height="184" fill="#f3eee5"/>` +
+        `<text x="56" y="440" ${sans} font-size="11" font-weight="700" letter-spacing="2" fill="${accent}">EVERY DAY</text>` +
+        [56, 296, 536]
+          .map(
+            (x) =>
+              `<rect x="${x}" y="456" width="208" height="100" rx="8" fill="#ffffff" stroke="${rule}"/>` +
+              blank(x + 16, 476, 120) +
+              blank(x + 16, 498, 176) +
+              blank(x + 16, 514, 150) +
+              blank(x + 16, 536, 44),
+          )
+          .join(""),
     ),
   }),
 }
