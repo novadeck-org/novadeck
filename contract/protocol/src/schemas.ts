@@ -1015,14 +1015,16 @@ export const agentMessage = z.strictObject({
 })
 
 // A thread between a terminal and one other: the other's handle, how many messages it
-// has had and may have before the person releases it again, and its messages, oldest
-// first. `held` while some wait for that release.
+// has had, its idle messages in a row (sent while neither end worked), whether it is held
+// until the person releases or stops it and why (`loop`, or null for a hold carried over
+// from the twelve-message rule, or none), and its messages, oldest first.
 export const messageThread = z.strictObject({
   id: threadId,
   peer: handle,
   hops: z.number().int().nonnegative(),
-  allowed: z.number().int().nonnegative(),
+  idle: z.number().int().nonnegative(),
   held: z.boolean(),
+  heldFor: z.enum(["loop"]).nullable(),
   // Whether the person's stop of it is in force: a send between the pair is refused, for 10
   // minutes after the later of the stop and its last message.
   stopped: z.boolean(),

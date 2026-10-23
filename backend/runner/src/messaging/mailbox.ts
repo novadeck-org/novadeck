@@ -73,8 +73,10 @@ export type Message = {
 }
 
 /**
- * Messages between two terminals that follow each other closely. `allowed` is how many it
- * may deliver before the person releases it again.
+ * Messages between two terminals that follow each other closely. `heldFrom` is the hop its
+ * hold starts at, while the person hasn't released or stopped it, and `heldFor` why: a loop,
+ * or null for a hold carried over from the twelve-message rule (docs/agent-messaging.md,
+ * Guards, "Loops").
  */
 export type Thread = {
   readonly id: string
@@ -82,7 +84,8 @@ export type Thread = {
   /** Its two terminals, in the order its first message went. */
   readonly between: readonly [string, string]
   readonly hops: number
-  readonly allowed: number
+  readonly heldFrom: number | null
+  readonly heldFor: "loop" | null
   /** When its latest message was sent, in epoch milliseconds. */
   readonly lastAt: number
   /**
