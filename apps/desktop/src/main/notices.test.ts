@@ -130,7 +130,7 @@ class FakeNotification extends EventEmitter implements NotificationLike {
 const notifying = (supported = true) => {
   const made: FakeNotification[] = []
   const clicks: [string, string][] = []
-  const { show, close } = showNotices<string>({
+  const { show, close, closeAll } = showNotices<string>({
     supported,
     create: (options) => {
       const notification = new FakeNotification(options)
@@ -139,7 +139,7 @@ const notifying = (supported = true) => {
     },
     clicked: (window, id) => void clicks.push([window, id]),
   })
-  return { show, close, made, clicks }
+  return { show, close, closeAll, made, clicks }
 }
 
 describe("showing notices as the system's notifications", () => {
@@ -176,6 +176,15 @@ describe("showing notices as the system's notifications", () => {
     expect(made.map(({ closed }) => closed)).toEqual([true, false])
     show("window", notice)
     expect(made.map(({ closed }) => closed)).toEqual([true, false, false])
+  })
+
+  it("closes every one still showing, as when the page that showed them goes", () => {
+    const { show, closeAll, made } = notifying()
+    show("window", notice)
+    show("window", { ...notice, id: "other" })
+    made[1]!.emit("click")
+    closeAll()
+    expect(made.map(({ closed }) => closed)).toEqual([true, false])
   })
 
   it("shows none where the system has none", () => {

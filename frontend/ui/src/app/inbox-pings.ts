@@ -114,9 +114,10 @@ const onWindows = (): boolean => navigator.platform.startsWith("Win")
 // Follows the Inbox for the person who isn't looking at it. A new item that needs them (what
 // the bell counts) pings once, after `graceMs` and only if it still stands and the page
 // still hasn't their focus, where they want it (`notifyNeeds`); an item that pinged and then
-// leaves the Inbox takes its notification back. Items there when this starts, or that began
-// before it, are taken as seen. The app icon's `badge` follows the bell's count, drawn as an image where `image`
-// says the platform takes one, and clears when this stops. Returns the stop.
+// leaves the Inbox for `graceMs` takes its notification back. Items there when this starts,
+// or that began before it, are taken as seen. The app icon's `badge` follows the bell's
+// count, drawn as an image where `image` says the platform takes one, and clears when this
+// stops. Returns the stop.
 export const watchInboxPings = (
   inbox: Pick<Inbox, "state">,
   ui: UiStore,
@@ -136,12 +137,17 @@ export const watchInboxPings = (
   const seen = new Set<string>()
   // The items whose ping stands, by key, with their terminal.
   const pinged = new Map<string, string>()
+  // The pinged items gone from the Inbox, whose notification goes once they've stayed gone
+  // for `graceMs`: one that drops out of a recompute and comes back keeps its own.
+  const leaving = new Map<string, ReturnType<typeof setTimeout>>()
   const timers = new Set<ReturnType<typeof setTimeout>>()
   let counted: number | undefined
+  const waitingKeys = (): Set<string> =>
+    new Set(needing(inbox.state.getSnapshot().items).map(keyOf))
   const ping = (key: string): void => {
     const item = needing(inbox.state.getSnapshot().items).find((each) => keyOf(each) === key)
     const { pageFocused, preferences } = ui.getSnapshot()
-    if (!item || pageFocused || !preferences.notifyNeeds || !board) return
+    if (!item || pinged.has(key) || pageFocused || !preferences.notifyNeeds || !board) return
     board.show(key, needNotice(item))
     pinged.set(key, item.source.terminalId)
   }
@@ -149,11 +155,25 @@ export const watchInboxPings = (
     const waiting = needing(inbox.state.getSnapshot().items)
     const count = Math.min(waiting.length, maxBadge)
     const keys = new Set(waiting.map(keyOf))
-    for (const [key, terminalId] of pinged)
-      if (!keys.has(key)) {
-        pinged.delete(key)
-        board?.close(key, terminalId)
-      }
+    for (const [key, terminalId] of pinged) {
+      const timer = leaving.get(key)
+      if (keys.has(key)) {
+        if (timer !== undefined) clearTimeout(timer)
+        leaving.delete(key)
+      } else if (timer === undefined)
+        leaving.set(
+          key,
+          setTimeout(() => {
+            leaving.delete(key)
+            if (waitingKeys().has(key)) return
+            pinged.delete(key)
+            seen.delete(key)
+            board?.close(key, terminalId)
+          }, graceMs),
+        )
+    }
+    // One that left before it pinged is new again if it comes back.
+    for (const key of seen) if (!keys.has(key) && !pinged.has(key)) seen.delete(key)
     for (const item of waiting) {
       const key = keyOf(item)
       if (seen.has(key)) continue
@@ -177,6 +197,7 @@ export const watchInboxPings = (
   return () => {
     stop()
     timers.forEach(clearTimeout)
+    leaving.forEach(clearTimeout)
     badge?.({ count: 0, image: null })
   }
 }

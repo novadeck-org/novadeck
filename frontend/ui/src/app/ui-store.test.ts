@@ -197,11 +197,11 @@ describe("switcher watch", () => {
 describe("finish watch", () => {
   const target = { projectId: "project", workspaceSessionId: "initial" }
   // A workspace whose terminal 02 runs a working agent, terminal 01 selected.
-  const setup = (notifyFinished = true, graceMs = 0) => {
+  const setup = (notifyFinished = true, graceMs = 0, notifyNeeds = true) => {
     const workspace = createWorkspaceStore(workspaceFixture())
     const ui = createUiStore({
       ...initial(),
-      preferences: { ...initial().preferences, notifyFinished },
+      preferences: { ...initial().preferences, notifyFinished, notifyNeeds },
     })
     const notices: Parameters<FinishNotify>[0][] = []
     const gists: [string, number][] = []
@@ -433,8 +433,17 @@ describe("finish watch", () => {
   })
 
   context("when the turn ended on an error", () => {
-    it("marks it failed and says it stopped with an error", () => {
+    it("marks it failed, and leaves its notification to the Inbox's trouble", () => {
       const { notices, unread, blur, finish, stop } = setup()
+      blur()
+      finish(10, "failed")
+      expect(unread()).toEqual({ "project/initial": { "02": "failed" } })
+      expect(notices).toEqual([])
+      stop()
+    })
+
+    it("says it stopped with an error where the person turned off what needs them", () => {
+      const { notices, unread, blur, finish, stop } = setup(true, 0, false)
       blur()
       finish(10, "failed")
       expect(unread()).toEqual({ "project/initial": { "02": "failed" } })

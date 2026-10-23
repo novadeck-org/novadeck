@@ -107,6 +107,7 @@ export const showNotices = <Window>({
 }): {
   readonly show: (window: Window, notice: DesktopNotice) => void
   readonly close: (id: string) => void
+  readonly closeAll: () => void
 } => {
   const showing = new Map<string, NotificationLike>()
   const show = (window: Window, { id, title, body }: DesktopNotice): void => {
@@ -129,5 +130,9 @@ export const showNotices = <Window>({
     showing.delete(id)
     notification?.close()
   }
-  return { show, close }
+  // What a page that went away showed: no page is left to take it back.
+  const closeAll = (): void => {
+    for (const id of showing.keys()) close(id)
+  }
+  return { show, close, closeAll }
 }

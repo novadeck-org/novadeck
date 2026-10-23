@@ -532,6 +532,9 @@ export const watchFinishes = (
     for (const { key, terminal, finish } of finished) {
       const context = contextOf(key, terminal)
       if (leadHearsOf(snapshot, context, terminal.id)) continue
+      // A failed turn is trouble in the Inbox, which pings of its own where the person wants
+      // what needs them: one notification for it, not two.
+      if (finish.failed && preferences.notifyNeeds) continue
       notify({ id: terminal.id, ...finishNotice(terminal, finish) })
       notified.set(terminal.id, context)
     }

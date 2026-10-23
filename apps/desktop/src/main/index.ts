@@ -19,7 +19,7 @@ import { basename, dirname, join, win32 } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
 import { consoleLogger, logPath, openSession, type Logger, type Session } from "@novadeck/log"
-import type { UpdateChannel } from "@novadeck/protocol/bridge"
+import type { DesktopBadge, UpdateChannel } from "@novadeck/protocol/bridge"
 import { pagesPartition } from "@novadeck/protocol/pages"
 import { startHttpServer, type HttpServer } from "@novadeck/runner/http"
 import {
@@ -851,6 +851,10 @@ const quitOnSessionEnd = quitWithoutInstalling(
   () => app.quit(),
 )
 
+// The page's Inbox count on the app's icon, as this platform shows one.
+const badgeOf = (window: BrowserWindow, badge: DesktopBadge): void =>
+  applyBadge({ platform: process.platform, app, nativeImage, window }, badge)
+
 const createWindow = (origin: string): BrowserWindow => {
   const apiUrl = new URL("/api/", origin).href
   const window = new BrowserWindow({
@@ -1425,13 +1429,38 @@ const launch = async (): Promise<void> => {
       window.webContents.send(noticeClickChannel, id)
     },
   })
-  registerNoticeIpc(ipcMain, { window: appWindow, ...notices })
+  // A window whose page shows notices or a badge takes them away with it when that page
+  // goes, as it closes, crashes or loads again, since no page is left to take them back.
+  const tended = new WeakSet<BrowserWindow>()
+  const tend = (window: BrowserWindow): void => {
+    if (tended.has(window)) return
+    tended.add(window)
+    const reset = (): void => {
+      notices.closeAll()
+      badgeOf(window, { count: 0, image: null })
+    }
+    window.on("closed", reset)
+    window.webContents.on("render-process-gone", reset)
+    window.webContents.on("did-start-navigation", (event) => {
+      if (event.isMainFrame && !event.isSameDocument) reset()
+    })
+  }
+  registerNoticeIpc(ipcMain, {
+    window: appWindow,
+    show: (window, notice) => {
+      tend(window)
+      notices.show(window, notice)
+    },
+    close: notices.close,
+  })
   // The page's Inbox count on the app's icon: the dock or launcher badge, or on Windows
   // the taskbar overlay.
   registerBadgeIpc(ipcMain, {
     window: appWindow,
-    apply: (window: BrowserWindow, badge) =>
-      applyBadge({ platform: process.platform, app, nativeImage, window }, badge),
+    apply: (window: BrowserWindow, badge) => {
+      tend(window)
+      badgeOf(window, badge)
+    },
   })
   // The page learns of an update, can open the page of one it must install itself, and
   // chooses the releases the build follows.

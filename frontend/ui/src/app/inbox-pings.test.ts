@@ -223,13 +223,44 @@ describe("pings for what needs the person", () => {
   })
 
   context("when an item that pinged leaves the Inbox", () => {
-    it("takes its notification back", () => {
+    it("takes its notification back once it has stayed gone for the grace", () => {
       const { set, shown, closed, stop } = setup()
       set([ask("a")])
       vi.advanceTimersByTime(2000)
       expect(shown).toHaveLength(1)
       set([])
+      vi.advanceTimersByTime(1999)
+      expect(closed).toEqual([])
+      vi.advanceTimersByTime(1)
       expect(closed).toEqual(["t1"])
+      stop()
+    })
+
+    it("keeps it for one that drops out of a recompute and comes back", () => {
+      const { set, shown, closed, stop } = setup()
+      const item = ask("a")
+      set([item])
+      vi.advanceTimersByTime(2000)
+      set([])
+      vi.advanceTimersByTime(500)
+      set([item])
+      vi.advanceTimersByTime(5000)
+      expect(closed).toEqual([])
+      expect(shown).toHaveLength(1)
+      stop()
+    })
+
+    it("pings again for one that comes back after its notification went", () => {
+      const { set, shown, closed, stop } = setup()
+      const item = ask("a")
+      set([item])
+      vi.advanceTimersByTime(2000)
+      set([])
+      vi.advanceTimersByTime(2000)
+      expect(closed).toEqual(["t1"])
+      set([item])
+      vi.advanceTimersByTime(2000)
+      expect(shown).toHaveLength(2)
       stop()
     })
 
@@ -244,6 +275,7 @@ describe("pings for what needs the person", () => {
       vi.advanceTimersByTime(2000)
       board.show("finish", { id: "t1", title: "@moth is done: Checkout", body: "Done." })
       set([])
+      vi.advanceTimersByTime(5000)
       expect(closed).toEqual([])
       stop()
     })
@@ -254,8 +286,8 @@ describe("pings for what needs the person", () => {
       vi.advanceTimersByTime(2000)
       vi.setSystemTime(20_000)
       set([ask("a", 20_000)])
-      expect(closed).toEqual(["t1"])
       vi.advanceTimersByTime(2000)
+      expect(closed).toEqual(["t1"])
       expect(shown).toHaveLength(2)
       stop()
     })
