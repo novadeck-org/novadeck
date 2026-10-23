@@ -1730,9 +1730,11 @@ app.whenReady().then(() => {
       // Its viewer keeps the page live while a sign-in window of it is open, as the window
       // closes with the page.
       countSignIns(contents, (count) => {
-        const host = contents.hostWebContents
-        if (!host || host.isDestroyed()) return
+        // A view that went with its windows open is gone before they close: nothing to tell.
+        if (contents.isDestroyed()) return
         try {
+          const host = contents.hostWebContents
+          if (!host || host.isDestroyed()) return
           host.send(pageSignInChannel, id, count)
         } catch (error) {
           log.warn("pages.sign-in-send-failed", "A sign-in window count was not sent.", {

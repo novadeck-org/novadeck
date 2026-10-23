@@ -124,9 +124,11 @@ pages' session, with the page's own lockdown and guard, and its opener, so the s
 can hand its answer back; anything else opens in the person's browser. Electron takes a
 window's options from the features the page names, so every option that could hide the
 window, cover others or pass it off as the app's is pinned: shown, framed, opaque,
-focusable, in the taskbar, not on top or full screen, placed by the system, and titled by
-the site it is at before the page's own title. Only its size is the page's. It closes
-with the page view that opened it, so the view stays live while it is open. A passkey
+focusable, in the taskbar, not on top or full screen, placed by the system, resizable and
+no smaller than 360×300, and titled by the site it is at before the page's own title.
+Only its size, within that, is the page's. It closes with the page view that opened it,
+so the view stays live, not resting, while it is open; closing the page's item, or
+anything else that takes its view away, closes it too. A passkey
 sign-in that names no passkey signs in with the only one that fits, or asks the person
 which in a dialog of the window the page is in; a cancelled or failed question cancels
 it. On macOS the app doesn't turn on Touch ID passkeys yet, so the person's own synced

@@ -74,11 +74,15 @@ type Opener = (url: string) => unknown
  * the sign-in can hand its answer back to the page that asked. Electron takes the rest of
  * a window's options from the features the page named too, so each that could hide the
  * window, cover others or pass it off as the app's is set here: shown, framed, opaque,
- * focusable, in the taskbar and not on top, where the system puts a new window, and named
- * by its site (see `signInTitle`).
+ * focusable, in the taskbar and not on top, where the system puts a new window, no smaller
+ * than `signInMinimum` and free to resize, and named by its site (see `signInTitle`).
  */
 export const signInWindow = (partition: string): BrowserWindowConstructorOptions => ({
   ...unplaced,
+  // Never too small to see or use, nor held at a size the person can't change.
+  minWidth: signInMinimum.width,
+  minHeight: signInMinimum.height,
+  useContentSize: false,
   show: true,
   frame: true,
   transparent: false,
@@ -109,9 +113,17 @@ export const signInWindow = (partition: string): BrowserWindowConstructorOptions
   },
 })
 
-// No place, rather than where the page put it, as off screen: Electron's options can't say
-// so in their type, which has no room for a position set to nothing.
-const unplaced = { x: undefined, y: undefined } as unknown as BrowserWindowConstructorOptions
+/** The smallest a sign-in window gets, whatever size the page asks for. */
+export const signInMinimum = { width: 360, height: 300 } as const
+
+// No place and no largest size, rather than the page's, as off screen or 1×1: Electron's
+// options can't say so in their type, which has no room for one set to nothing.
+const unplaced = {
+  x: undefined,
+  y: undefined,
+  maxWidth: undefined,
+  maxHeight: undefined,
+} as unknown as BrowserWindowConstructorOptions
 
 /**
  * A sign-in window's title: the site it is at, then the page's own title, so the person
@@ -231,13 +243,17 @@ export const picturePage = async (
 
 /**
  * Tells how many sign-in windows a page view has open as each opens or closes. Electron
- * closes them when the view goes, so its host keeps the view live while any is open.
+ * closes them when the view goes, so its host keeps the view live while any is open. A
+ * view gone first, its windows closing after it, has no one left to tell.
  */
 export const countSignIns = (contents: WebContents, tell: (open: number) => void): void => {
   let open = 0
   contents.on("did-create-window", (window) => {
     tell(++open)
-    window.once("closed", () => tell(--open))
+    window.once("closed", () => {
+      open -= 1
+      if (!contents.isDestroyed()) tell(open)
+    })
   })
 }
 

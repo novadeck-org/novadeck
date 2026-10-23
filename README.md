@@ -656,8 +656,8 @@ page whatever route or anchor it's at, so a dev server stays one item as the age
 moves through it. In the desktop app a page is live, and signed in wherever you signed in:
 sign in to a site in one page and every page is signed in there too, the agent's included,
 and stays so after a restart. A sign-in that opens a small window of its own, as "Sign in
-with Google" does, opens it in Novadeck, titled by the site it's at, and the page stays
-live while it's open. A passkey sign-in that fits more than one of your passkeys asks
+with Google" does, opens it in Novadeck, titled by the site it's at; the page stays live
+while it's open, and closing the page closes it. A passkey sign-in that fits more than one of your passkeys asks
 which; on macOS, passkeys saved in iCloud Keychain don't show yet. Each gets an icon in the taskbar, as an OS taskbar has, with
 several of a kind (images, files, pages, or plans) stacked under one; only Messages
 never stack. A markdown file the agent shows reads as a document, formatted like a plan

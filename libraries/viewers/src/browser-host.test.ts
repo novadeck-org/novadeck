@@ -204,6 +204,11 @@ describe("a page view", () => {
         kiosk: false,
         closable: true,
         title: "",
+        minWidth: 360,
+        minHeight: 300,
+        maxWidth: undefined,
+        maxHeight: undefined,
+        useContentSize: false,
       })
       // One window for the click, wherever it opened.
       expect(page.open("https://accounts.example.com/again", popup)).toEqual({ action: "deny" })
@@ -384,7 +389,7 @@ describe("a page signing in with a passkey it doesn't name", () => {
 
 describe("a page view's sign-in windows", () => {
   it("are counted as each opens and closes", () => {
-    const contents = new EventEmitter()
+    const contents = Object.assign(new EventEmitter(), { isDestroyed: () => false })
     const counts: number[] = []
     countSignIns(contents as unknown as WebContents, (open) => counts.push(open))
     const first = new EventEmitter()
@@ -394,6 +399,18 @@ describe("a page view's sign-in windows", () => {
     first.emit("closed")
     second.emit("closed")
     expect(counts).toEqual([1, 2, 1, 0])
+  })
+
+  it("tell nothing as they close after their view went", () => {
+    let gone = false
+    const contents = Object.assign(new EventEmitter(), { isDestroyed: () => gone })
+    const counts: number[] = []
+    countSignIns(contents as unknown as WebContents, (open) => counts.push(open))
+    const window = new EventEmitter()
+    contents.emit("did-create-window", window)
+    gone = true
+    expect(() => window.emit("closed")).not.toThrow()
+    expect(counts).toEqual([1])
   })
 })
 
