@@ -602,8 +602,9 @@ const letterFields = {
 const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
   name: "ask",
   description:
-    "Put a question in the user's Inbox without stopping your work. With a lead, questions " +
-    "go to it instead; only an approval the user alone can give is asked here. Most " +
+    "Put a question in the user's Inbox without stopping your work. With a lead, send it " +
+    "your questions with send instead; only approvals of actions, which are always the " +
+    "user's, are asked here, and you tell your lead you're waiting. Most " +
     "decisions aren't blocking: ask, keep going on what doesn't depend on the answer, and " +
     "where your pick is easy to undo and needs no approval of theirs (reversible, local, not " +
     "yet pushed or shared), go ahead with it and change course if they choose otherwise. A " +
@@ -776,7 +777,7 @@ const instructions =
   "decisions aren't blocking, so ask there and keep going on what doesn't depend on the " +
   "answer. Its tell puts a milestone there for when they're elsewhere: a pull request " +
   "opened, its checks done, a merge, or that you now wait on someone else. With a lead, " +
-  "both go to it instead, except an approval only the user can give."
+  "both go to it instead, except approvals of actions, which are always the user's."
 
 const respond = async (line: string, call?: McpCall): Promise<Reply | undefined> => {
   if (line.trim() === "") return undefined

@@ -375,7 +375,7 @@ describe("Novadeck's MCP server", () => {
       expect(ask.description).toContain(
         "Put a question in the user's Inbox without stopping your work.",
       )
-      expect(ask.description).toContain("With a lead, questions go to it instead")
+      expect(ask.description).toContain("With a lead, send it")
       expect(ask.description).toContain("needs no approval of theirs")
       expect(ask.description).toContain("A pick that is hard to undo waits for their answer")
       expect(ask.description).toContain("once nothing else is left, end your")
