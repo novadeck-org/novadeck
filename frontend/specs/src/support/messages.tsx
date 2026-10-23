@@ -37,12 +37,31 @@ export const openMessages = async (name: string): Promise<Locator> => {
   return pane
 }
 
-/** A thread in a messages pane, by the peer's name and handle. */
-export const thread = (pane: Locator, peer: string, handle: string): Locator =>
-  pane.getByRole("region", { name: `Thread with ${peer} (@${handle})` })
+/** The rows of a messages pane's list, in its order. */
+export const conversationRows = (pane: Locator): Locator =>
+  pane.getByRole("list", { name: "Conversations" }).getByRole("button")
 
-/** The messages of a thread, oldest first, as their items read. */
+/** A row of a messages pane's list, by its terminal's name and handle, or as "You". */
+export const conversationRow = (pane: Locator, label: string): Locator =>
+  pane
+    .getByRole("list", { name: "Conversations" })
+    .getByRole("button", { name: label, exact: true })
+
+/** Opens a conversation from a messages pane's list; returns its chat. */
+export const openConversation = async (pane: Locator, label: string): Promise<Locator> => {
+  await conversationRow(pane, label).click()
+  const chat = pane.getByRole("list", { name: /^Messages with / })
+  await expect.element(chat).toBeVisible()
+  return chat
+}
+
+/** The entries of a chat, oldest first, as their items read: times, lines and messages. */
 export const messageItems = (within: Locator): Locator => within.getByRole("listitem")
+
+/** The messages alone of a chat, oldest first. */
+export const bubbles = (chat: Locator): Element[] => [
+  ...chat.element().querySelectorAll(".mail-bubble-row"),
+]
 
 export const pauseSwitch = (pane: Locator): Locator =>
   pane.getByRole("switch", { name: "Pause all agents' messages" })

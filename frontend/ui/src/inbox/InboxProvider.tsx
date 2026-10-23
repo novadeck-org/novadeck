@@ -82,6 +82,9 @@ export type InboxContextValue = {
 
 const InboxContext = createContext<InboxContextValue | null>(null)
 
+// The Inbox, where the app has one: none in a view rendered on its own.
+export const useOptionalInbox = (): InboxContextValue | null => useContext(InboxContext)
+
 export const useInboxContext = (): InboxContextValue => {
   const value = useContext(InboxContext)
   if (!value) throw new Error("useInboxContext must be used inside an InboxProvider")

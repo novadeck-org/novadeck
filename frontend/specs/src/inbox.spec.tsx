@@ -1,7 +1,7 @@
 import { afterEach, describe as context, describe, expect, it } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
-import { openMessages } from "./support/messages"
+import { openConversation, openMessages } from "./support/messages"
 import {
   expectStaysAbsent,
   openWorkspace,
@@ -336,7 +336,7 @@ describe("An item's sheet", () => {
   })
 
   context("when looking at Inbox history", () => {
-    it("shows the ask and the person's reply in a thread named You", async () => {
+    it("shows the ask and the person's reply in the conversation named You", async () => {
       await openInbox()
       await row("Should the preview show test or sample products").click()
       const open = sheet("Checkout implementation")
@@ -349,12 +349,11 @@ describe("An item's sheet", () => {
       await open.getByRole("button", { name: "Show terminal" }).click()
       await sidebarPanel("Terminals").click()
       const pane = await openMessages("Checkout implementation")
-      const history = pane.getByRole("region", { name: "Thread with You", exact: true })
-      await expect.element(history).toMatchTextContent("Ask")
+      const history = await openConversation(pane, "You")
+      await expect.element(history).toMatchTextContent("Asked you · answered")
       await expect
         .element(history)
         .toMatchTextContent("Should the preview show test or sample products?")
-      await expect.element(history).toMatchTextContent("Your reply")
       await expect.element(history).toMatchTextContent("Sample products.")
       await expect.element(history).not.toMatchTextContent("@you")
     })

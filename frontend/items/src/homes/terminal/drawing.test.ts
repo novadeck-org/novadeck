@@ -18,7 +18,7 @@ import type { ItemStore } from "../../state"
 import { lookOf, type SlotActions } from "../../TaskbarSlot"
 import { context, describe, expect, it } from "../../test"
 import { slotIcon, terminalDrawing } from "./drawing"
-import type { MailHandle } from "./messages/mail"
+import { noLinks, type MailHandle } from "./messages/mail"
 
 // What the icons, names and labels were before the registry, as the switches wrote them. A
 // terminal's drawing of its bar, from the registry and its own messages, must give the same
@@ -157,7 +157,7 @@ describe("a terminal's drawing of its bar", () => {
             itemStore: {} as ItemStore,
             target: { projectId: "project", workspaceSessionId: "initial" },
             mail: {} as MailHandle,
-            peerName: () => undefined,
+            links: noLinks,
           }),
           originOf: () => origin,
         }) as unknown as SlotActions

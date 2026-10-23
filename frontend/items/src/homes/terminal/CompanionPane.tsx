@@ -8,7 +8,7 @@ import type { BarMember } from "../../bar"
 import type { LookContext } from "../../registration"
 import type { ItemStore } from "../../state"
 import { memberLook, MemberView } from "./drawing"
-import type { MailHandle } from "./messages/mail"
+import type { MailHandle, MailLinks } from "./messages/mail"
 import type { PlanPresentation } from "./presentation"
 
 // Windows' restore glyph, drawn as lucide draws: a window lifting off the one it was
@@ -203,7 +203,7 @@ export const CompanionPane = ({
   target,
   agent,
   mail,
-  peerName,
+  links,
   presentation,
   plans,
   originOf,
@@ -223,7 +223,7 @@ export const CompanionPane = ({
   // Who showed what's here, as the pane's label names them.
   agent: string
   mail: MailHandle
-  peerName: (handle: string) => string | undefined
+  links: MailLinks
   presentation: PlanPresentation
   // The bar's plans, as the taskbar names them.
   plans: LookContext["plans"]
@@ -301,7 +301,7 @@ export const CompanionPane = ({
       itemStore={itemStore}
       target={target}
       mail={mail}
-      peerName={peerName}
+      links={links}
       actions={
         <PaneActions
           name={memberLook(member, { plans }).name}

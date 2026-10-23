@@ -234,6 +234,17 @@ export const ordered = (items: readonly InboxItem[]): InboxItem[] =>
   items.toSorted((a, b) => urgency(a) - urgency(b) || a.at - b.at)
 
 // The Inbox of a backend that has none: it lists nothing, and has nothing to answer.
+// The item a letter in a terminal's messages waits in: the one it came from, by id, as the
+// runner lists a letter as `m-` and its item's id without dashes; else, as one row a
+// terminal shows its most urgent item, the item its terminal shows.
+export const letterItem = (
+  items: readonly InboxItem[],
+  letter: { readonly id: string },
+  terminalId: string,
+): InboxItem | undefined =>
+  items.find((item) => item.id === letter.id || `m-${item.id.replaceAll("-", "")}` === letter.id) ??
+  items.find((item) => item.source.terminalId === terminalId)
+
 export const noInbox: Inbox = {
   state: createStore(emptyInbox),
   answer: () => {},

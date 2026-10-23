@@ -18,6 +18,7 @@ import type { CommandContext } from "./context"
 
 export type ShellCommands = {
   readonly showSessions: () => void
+  readonly showInbox: () => void
   readonly hideSidebar: () => void
   // Hides the panel when it already shows; otherwise leaves Zen and shows it.
   readonly toggleSidebar: (panel: SidebarPanel) => void
@@ -69,6 +70,7 @@ export const createShellCommands = (ctx: CommandContext): ShellCommands => {
   }
   return {
     showSessions: () => show("sessions"),
+    showInbox: () => show("inbox"),
     hideSidebar: hide,
     toggleSidebar: (next) => {
       // Visibility before this command: a panel hidden by Zen shows instead of hiding.

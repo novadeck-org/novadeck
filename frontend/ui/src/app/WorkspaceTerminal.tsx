@@ -2,12 +2,7 @@ import { ChatView } from "@novadeck/chat/ChatView"
 import { chatDraftOf, chatReplyOf, chatSendOf, chatShown } from "@novadeck/chat/state"
 import { useChat } from "@novadeck/chat/use-chat"
 import { agentStats } from "@novadeck/core/agent-usage"
-import {
-  handleNames,
-  ledTerminals,
-  runningLeads,
-  terminalOrigins,
-} from "@novadeck/core/derivations"
+import { ledTerminals, runningLeads, terminalOrigins } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "@novadeck/core/types"
 import { ProjectWindow } from "@novadeck/items/ProjectWindow"
@@ -30,6 +25,7 @@ import { DictationStrip } from "../voice/DictationStrip"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { DictationContext, useMicButton } from "./controller/dictation"
 import { useDockTarget } from "./dock-target"
+import { useMailLinks } from "./mail-links"
 import { MountedTerminal } from "./MountedTerminal"
 import { plainTitle } from "./murmur-offer"
 import { NameChip } from "./NameChip"
@@ -197,7 +193,7 @@ export const WorkspaceTerminal = memo(
     const { projectId, workspaceSessionId } = useWorkspaceState(currentTarget, sameTarget)
     const chatContext = `${projectId}/${workspaceSessionId}`
     const terminalName = useWorkspaceState(terminalOrigins, shallowEqual)
-    const names = useWorkspaceState(handleNames, shallowEqual)
+    const mailLinks = useMailLinks(terminalId)
     const lead = useWorkspaceState((workspace) => runningLeads(workspace)[terminalId], shallowEqual)
     const leads = useWorkspaceState(
       (workspace) => ledTerminals(workspace, terminalId),
@@ -330,7 +326,7 @@ export const WorkspaceTerminal = memo(
             <TerminalCompanion
               itemStore={itemStore}
               messages={backend.messages}
-              peerName={(handle) => names[handle]}
+              links={mailLinks}
               companionKey={terminalKey}
               view={view}
               onReveal={onReveal}
