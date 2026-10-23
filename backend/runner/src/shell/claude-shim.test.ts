@@ -6,6 +6,8 @@ import { delimiter, join } from "node:path"
 import { describe, expect, it as base } from "../test.js"
 import { installShellFiles } from "./install.js"
 
+const windows = process.platform === "win32"
+
 type Fixture = {
   run: (args: string[], env?: NodeJS.ProcessEnv) => string[]
   bin: string
@@ -14,8 +16,7 @@ type Fixture = {
   remove: () => void
 }
 
-// The real claude is a stand-in that records the arguments it received. Novadeck gives
-// Windows no Claude Code shim yet.
+// The real claude is a stand-in that records the arguments it received.
 const it = base.extend<{ shim: Fixture }>({
   shim: async ({ resources }, use) => {
     const root = mkdtempSync(join(tmpdir(), "novadeck-claude-shim-"))
@@ -29,17 +30,21 @@ const it = base.extend<{ shim: Fixture }>({
       recorder,
       `require("node:fs").writeFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)))`,
     )
-    writeFileSync(
-      join(real, "claude"),
-      `#!/bin/sh\nexec "${process.execPath}" "${recorder}" "$@"\n`,
-      {
-        mode: 0o755,
-      },
-    )
+    if (windows)
+      writeFileSync(join(real, "claude.cmd"), `@"${process.execPath}" "${recorder}" %*\r\n`)
+    else
+      writeFileSync(
+        join(real, "claude"),
+        `#!/bin/sh\nexec "${process.execPath}" "${recorder}" "$@"\n`,
+        {
+          mode: 0o755,
+        },
+      )
     const settings = join(paths.plugins.claude, "statusline.json")
     const run: Fixture["run"] = (args, env = {}) => {
       rmSync(log, { force: true })
-      const result = spawnSync(join(paths.bin, "claude"), args, {
+      const shim = join(paths.bin, windows ? "claude.cmd" : "claude")
+      const options = {
         env: {
           ...process.env,
           PATH: [paths.bin, real, process.env.PATH].join(delimiter),
@@ -47,8 +52,11 @@ const it = base.extend<{ shim: Fixture }>({
           NOVADECK_SHIMS: "claude codex",
           ...env,
         },
-        encoding: "utf8",
-      })
+        encoding: "utf8" as const,
+      }
+      const result = windows
+        ? spawnSync(process.env.COMSPEC ?? "cmd.exe", ["/d", "/c", shim, ...args], options)
+        : spawnSync(shim, args, options)
       if (result.status !== 0) throw new Error(`claude failed: ${result.stderr}`)
       return JSON.parse(readFileSync(log, "utf8")) as string[]
     }
@@ -56,7 +64,9 @@ const it = base.extend<{ shim: Fixture }>({
   },
 })
 
-describe.skipIf(process.platform === "win32")("claude shim", () => {
+// Each test writes the shell files first, which on a cold Windows runner takes a while, as
+// for Codex's shim.
+describe("claude shim", { timeout: 60_000 }, () => {
   it("passes over another Novadeck's shim on PATH, as a runner started in a Novadeck terminal leaves", async ({
     shim,
   }) => {
@@ -71,7 +81,7 @@ describe.skipIf(process.platform === "win32")("claude shim", () => {
   })
 
   it("runs a session with Novadeck's status line, passing every argument on", ({ shim }) => {
-    const settings = expect.stringMatching(/plugins\/claude\/statusline\.json$/)
+    const settings = expect.stringMatching(/plugins[/\\]claude[/\\]statusline\.json$/)
     expect(shim.run([])).toEqual(["--settings", settings])
     expect(shim.run(["--model", "haiku", "fix a b", "$x"])).toEqual([
       "--settings",

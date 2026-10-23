@@ -190,7 +190,10 @@ pub fn run(agent: &str, event: &str, config: &Config) {
     let variable = |name: &str| env::var(name).ok().filter(|value| !value.is_empty());
     let own = (agent == "claude" && event == "StatusLine").then(|| {
         let config = variable("CLAUDE_CONFIG_DIR").map(PathBuf::from);
-        let home = variable("HOME").map(PathBuf::from);
+        // Windows names the person's folder in USERPROFILE, where Git Bash hasn't set HOME.
+        let home = variable("HOME")
+            .or_else(|| variable("USERPROFILE"))
+            .map(PathBuf::from);
         let input = payload.clone();
         std::thread::spawn(move || {
             status_line::own_command(&input, config.as_deref(), home.as_deref())

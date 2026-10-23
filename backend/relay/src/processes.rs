@@ -2,6 +2,7 @@
 //! program, when each started, and a process tree that trusts no recorded parent older
 //! than its child. The runner ends a terminal's programs through it (`tree`, then `end`),
 //! where Windows has no process group to signal and a dead parent's pid may name another.
+//! The relay ends a status line that ran past its deadline through a job (`Job`).
 
 use std::collections::HashMap;
 use std::ffi::c_void;
@@ -10,6 +11,9 @@ use std::mem::size_of;
 use serde_json::{Value, json};
 
 const SNAPSHOT_PROCESSES: u32 = 0x2;
+const SNAPSHOT_THREADS: u32 = 0x4;
+const SUSPEND_RESUME: u32 = 0x2;
+const CREATE_SUSPENDED: u32 = 0x4;
 const INVALID_HANDLE: *mut c_void = -1isize as *mut c_void;
 const QUERY_LIMITED_INFORMATION: u32 = 0x1000;
 const TERMINATE: u32 = 0x1;
@@ -56,6 +60,13 @@ unsafe extern "system" {
     fn TerminateProcess(process: *mut c_void, code: u32) -> i32;
     fn GetExitCodeProcess(process: *mut c_void, code: *mut u32) -> i32;
     fn CloseHandle(handle: *mut c_void) -> i32;
+    fn Thread32First(snapshot: *mut c_void, entry: *mut ThreadEntry) -> i32;
+    fn Thread32Next(snapshot: *mut c_void, entry: *mut ThreadEntry) -> i32;
+    fn OpenThread(access: u32, inherit: i32, thread: u32) -> *mut c_void;
+    fn ResumeThread(thread: *mut c_void) -> u32;
+    fn CreateJobObjectW(attributes: *mut c_void, name: *const u16) -> *mut c_void;
+    fn AssignProcessToJobObject(job: *mut c_void, process: *mut c_void) -> i32;
+    fn TerminateJobObject(job: *mut c_void, code: u32) -> i32;
 }
 
 /// A process as the snapshot found it: its program's file name and its recorded parent.
@@ -263,6 +274,87 @@ pub fn end(members: &[Member]) {
             unsafe { TerminateProcess(handle.0, 1) };
         }
     }
+}
+
+/// A job object that ends every process in it at once, whatever parent each records: as a
+/// Git Bash status line's are, where MSYS's `exec` leaves a program's recorded parent a
+/// process that has ended. Closing it ends nothing.
+pub struct Job(*mut c_void);
+
+impl Job {
+    /// `command` started in a new job: suspended until it is in the job, so nothing it
+    /// starts can escape it. None where Windows refuses any of that, when nothing runs.
+    pub fn start(command: &mut std::process::Command) -> Option<(std::process::Child, Job)> {
+        use std::os::windows::io::AsRawHandle;
+        use std::os::windows::process::CommandExt;
+
+        let job = Job(unsafe { CreateJobObjectW(std::ptr::null_mut(), std::ptr::null()) });
+        if job.0.is_null() {
+            return None;
+        }
+        let mut child = command.creation_flags(CREATE_SUSPENDED).spawn().ok()?;
+        let assigned = unsafe { AssignProcessToJobObject(job.0, child.as_raw_handle()) } != 0;
+        if !assigned || !resume(child.id()) {
+            let _ = child.kill();
+            let _ = child.wait();
+            return None;
+        }
+        Some((child, job))
+    }
+
+    /// Ends every process in the job.
+    pub fn end(&self) {
+        unsafe { TerminateJobObject(self.0, 1) };
+    }
+}
+
+impl Drop for Job {
+    fn drop(&mut self) {
+        unsafe { CloseHandle(self.0) };
+    }
+}
+
+/// Kernel32's THREADENTRY32.
+#[repr(C)]
+struct ThreadEntry {
+    size: u32,
+    usage: u32,
+    thread: u32,
+    process: u32,
+    base_priority: i32,
+    delta_priority: i32,
+    flags: u32,
+}
+
+/// Resumes the threads of process `pid`, started suspended; false where none resumed.
+fn resume(pid: u32) -> bool {
+    let snapshot = unsafe { CreateToolhelp32Snapshot(SNAPSHOT_THREADS, 0) };
+    if snapshot.is_null() || snapshot == INVALID_HANDLE {
+        return false;
+    }
+    let mut entry = ThreadEntry {
+        size: size_of::<ThreadEntry>() as u32,
+        usage: 0,
+        thread: 0,
+        process: 0,
+        base_priority: 0,
+        delta_priority: 0,
+        flags: 0,
+    };
+    let mut resumed = false;
+    let mut more = unsafe { Thread32First(snapshot, &mut entry) } != 0;
+    while more {
+        if entry.process == pid {
+            let thread = unsafe { OpenThread(SUSPEND_RESUME, 0, entry.thread) };
+            if !thread.is_null() {
+                resumed |= unsafe { ResumeThread(thread) } != u32::MAX;
+                unsafe { CloseHandle(thread) };
+            }
+        }
+        more = unsafe { Thread32Next(snapshot, &mut entry) } != 0;
+    }
+    unsafe { CloseHandle(snapshot) };
+    resumed
 }
 
 #[cfg(test)]

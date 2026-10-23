@@ -165,7 +165,7 @@ export const relayHook = (
   const named = instanceOf(agent.data, claudePid, ancestors)
   const instance = named !== null && /^\d{1,10}$/.test(named) ? named : null
   const codexThread = text(env.CODEX_THREAD_ID, 128)
-  const shells = dialectPrograms[harnesses[agent.data].hookDialect(platform)]
+  const shells = dialectPrograms[harnesses[agent.data].hookDialect(platform, event)]
   const firedAt = firedAtOf(instance, seq, ancestors, shells, platform)
   const report = {
     agent: agent.data,

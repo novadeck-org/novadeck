@@ -234,16 +234,34 @@ type Key = Pick<
   | "keyCode"
 >
 
-// Whether a key press is a plain Ctrl+V on Linux or Windows, which may paste an image.
-// On Apple platforms ⌘V pastes and Ctrl+V stays the program's; with Shift it pastes
-// already, AltGr reports Ctrl with Alt, and a key composing text belongs to the input
-// method. The V is the layout's, or the key's place where the layout has no Latin
-// letters there.
-export const plainCtrlV = (event: Key, platform: Platform): boolean => {
-  if (platform === "mac" || event.type !== "keydown") return false
-  if (event.isComposing || event.keyCode === 229) return false
+// Whether a key press is Ctrl with `letter` alone. With Shift it is the terminal's copy
+// or paste already, AltGr reports Ctrl with Alt, and a key composing text belongs to the
+// input method. The letter is the layout's, or the key's place where the layout has no
+// Latin letters there.
+const plainCtrl = (event: Key, letter: "c" | "v"): boolean => {
+  if (event.type !== "keydown" || event.isComposing || event.keyCode === 229) return false
   if (!event.ctrlKey || event.shiftKey || event.altKey || event.metaKey) return false
-  return /^[a-z]$/i.test(event.key) ? event.key.toLowerCase() === "v" : event.code === "KeyV"
+  return /^[a-z]$/i.test(event.key)
+    ? event.key.toLowerCase() === letter
+    : event.code === `Key${letter.toUpperCase()}`
+}
+
+// Whether a key press is a plain Ctrl+V on Linux or Windows, which may paste an image.
+// On Apple platforms ⌘V pastes and Ctrl+V stays the program's.
+export const plainCtrlV = (event: Key, platform: Platform): boolean =>
+  platform !== "mac" && plainCtrl(event, "v")
+
+// What Ctrl+C or Ctrl+V does on Windows, as in Windows Terminal: Ctrl+C copies a
+// selection, reaching the program only without one, and Ctrl+V pastes. Elsewhere both
+// stay the program's, but for Ctrl+V's images on Linux (`takeClipboardKeys`).
+export const windowsClipboardKey = (
+  event: Key,
+  platform: Platform,
+  selected: boolean,
+): "copy" | "paste" | undefined => {
+  if (platform !== "windows") return undefined
+  if (plainCtrl(event, "c")) return selected ? "copy" : undefined
+  return plainCtrl(event, "v") ? "paste" : undefined
 }
 
 // Whether Ctrl+V pastes a clipboard's images: it holds an image and no text. Text stays
@@ -280,6 +298,8 @@ export const clipboardAccess = (desktop: boolean): (() => boolean) => {
 }
 
 export type CtrlVTarget = PasteTarget & {
+  // Puts text on the clipboard, as Ctrl+C copies a selection on Windows.
+  readonly copy: (text: string) => void
   // Whether the terminal's program takes input now; otherwise Ctrl+V goes as it did.
   readonly active: () => boolean
   // Holds the terminal's input until the returned release, which first sends Ctrl+V as
@@ -287,17 +307,22 @@ export type CtrlVTarget = PasteTarget & {
   readonly hold: () => (controlV: boolean) => void
 }
 
-// Makes a plain Ctrl+V on Linux and Windows paste a clipboard of images as their paths,
-// as a paste of them does. Any other clipboard, one it can't read, or one read too slowly
-// sends Ctrl+V to the program, without a word, as programs such as vim take it. Typing
-// meanwhile waits, to arrive after the paths or Ctrl+V, for `holdMs` at most. Ctrl+V
-// pressed again, or repeating, while typing waits does nothing, so an image goes in once;
-// once typing goes again, as past a slow upload, Ctrl+V does too. Where the clipboard
-// can't be read, `unreadable: "browser"` leaves the key to the browser, which pastes the
-// clipboard's text as a paste, for a terminal whose program edits lines and has no use
-// for Ctrl+V.
-export const takeCtrlV = (
-  xterm: Pick<Terminal, "attachCustomKeyEventHandler">,
+// Gives Ctrl+C and Ctrl+V their meaning in a terminal. On Windows Ctrl+C copies a
+// selection, clearing it, and Ctrl+V is left to the browser, which pastes as for
+// Ctrl+Shift+V, files and images included (`takeFilePastes`). On Linux a plain Ctrl+V
+// pastes a clipboard of images as their paths, as a paste of them does. Any other
+// clipboard, one it can't read, or one read too slowly sends Ctrl+V to the program,
+// without a word, as programs such as vim take it. Typing meanwhile waits, to arrive
+// after the paths or Ctrl+V, for `holdMs` at most. Ctrl+V pressed again, or repeating,
+// while typing waits does nothing, so an image goes in once; once typing goes again, as
+// past a slow upload, Ctrl+V does too. Where the clipboard can't be read,
+// `unreadable: "browser"` leaves the key to the browser, which pastes the clipboard's
+// text as a paste, for a terminal whose program edits lines and has no use for Ctrl+V.
+export const takeClipboardKeys = (
+  xterm: Pick<
+    Terminal,
+    "attachCustomKeyEventHandler" | "hasSelection" | "getSelection" | "clearSelection"
+  >,
   target: CtrlVTarget,
   {
     platform = currentPlatform(),
@@ -336,6 +361,14 @@ export const takeCtrlV = (
     release((await pasteFiles(images, target)) === 0)
   }
   xterm.attachCustomKeyEventHandler((event) => {
+    const key = windowsClipboardKey(event, platform, xterm.hasSelection())
+    if (key === "copy") {
+      event.preventDefault()
+      target.copy(xterm.getSelection())
+      xterm.clearSelection()
+      return false
+    }
+    if (key === "paste") return false
     if (!plainCtrlV(event, platform) || !target.active()) return true
     if (!readable()) return unreadable === "program"
     event.preventDefault()
