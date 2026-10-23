@@ -676,11 +676,16 @@ const preview: SampleArtifact = {
           198,
           "Beet soup with dumplings",
           "Clear and ruby red, with mushroom dumplings.",
-          "16 cr",
+          "1,640 cr",
         ) +
-        dish(250, "Potato pancakes", "Crisp at the edges, with sour cream.", "19 cr") +
-        dish(302, "Sweet cheese crêpes", "Folded, browned in butter, dusted with sugar.", "17 cr") +
-        dish(354, "Rhubarb compote", "Lorem ipsum dolor sit amet.", "7 cr") +
+        dish(250, "Potato pancakes", "Crisp at the edges, with sour cream.", "1,950 cr") +
+        dish(
+          302,
+          "Sweet cheese crêpes",
+          "Folded, browned in butter, dusted with sugar.",
+          "1,720 cr",
+        ) +
+        dish(354, "Rhubarb compote", "Lorem ipsum dolor sit amet.", "680 cr") +
         // The dish photo, not in yet: the layout's placeholder.
         `<rect x="490" y="92" width="254" height="214" rx="10" fill="#efe9de" stroke="#cfc6b4" stroke-dasharray="6 5"/>` +
         `<line x1="490" y1="92" x2="744" y2="306" stroke="#d9d1c1"/>` +
