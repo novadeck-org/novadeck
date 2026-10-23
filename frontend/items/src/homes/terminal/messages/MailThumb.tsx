@@ -1,22 +1,26 @@
 import { handleText } from "@novadeck/core/handle"
 
-import type { MailHandle } from "./mail"
+import { conversationsOf, listed } from "./conversations"
+import { usePeers, type MailHandle, type MailLinks } from "./mail"
 
-// The threads: the agents they're with, latest first.
+// The conversations: who they're with, as the pane lists them.
 export const MailThumb = ({
   mail,
-  peerName,
+  links,
 }: {
   mail: MailHandle
-  peerName: (handle: string) => string | undefined
+  links: MailLinks
 }): React.JSX.Element => {
-  const threads = mail.mail?.threads ?? []
+  const peers = usePeers(links)
+  const conversations = mail.mail ? listed(conversationsOf(mail.mail)) : []
   return (
     <span className="peek-plan peek-mail">
-      <b>{threads.length ? "Threads" : "No messages yet"}</b>
-      {threads.slice(0, 4).map((thread) => (
-        <span key={thread.id}>
-          {peerName(thread.peer) ?? handleText(thread.peer)} · {handleText(thread.peer)}
+      <b>{conversations.length ? "Conversations" : "No messages yet"}</b>
+      {conversations.slice(0, 4).map(({ key, peer }) => (
+        <span key={key}>
+          {peer === "you"
+            ? "You"
+            : `${peers[peer]?.name ?? handleText(peer)} · ${handleText(peer)}`}
         </span>
       ))}
     </span>

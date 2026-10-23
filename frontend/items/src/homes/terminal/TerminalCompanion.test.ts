@@ -12,7 +12,7 @@ import { afterEach, vi } from "vitest"
 import { createDragSession, DragSessionContext } from "../../drag-session"
 import { createItemStore, type ItemStore } from "../../state"
 import { context, describe, expect, it } from "../../test"
-import { followMail } from "./messages/mail"
+import { followMail, noLinks } from "./messages/mail"
 import { TerminalCompanion, type ItemCommands } from "./TerminalCompanion"
 
 // jsdom has no layout and no resizes; the taskbar's drag-to-reorder asks for them.
@@ -73,7 +73,7 @@ const Terminal = ({
   const props: ComponentProps<typeof TerminalCompanion> = {
     itemStore,
     messages,
-    peerName: () => undefined,
+    links: noLinks,
     companionKey: key,
     view: "focus",
     bar: state.bars["01"] ?? emptyBar,

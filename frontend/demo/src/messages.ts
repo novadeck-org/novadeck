@@ -523,8 +523,9 @@ const message = (
 
 // The agents demo's checkout work: Claude Code (moth) and Codex (crow) reviewing each other,
 // a test terminal (owl) whose thread went back and forth until it needs the person's
-// release, and a message to the dev server's terminal (fox) whose agent left. Every other
-// session's Claude Code has had no messages yet.
+// release, a message to the dev server's terminal (fox) whose agent left, a word each with
+// the runtime's (kite) and the build's (raven), and a question moth asked the person, which
+// they answered. Every other session's Claude Code has had no messages yet.
 export const checkoutMailboxes = (
   now: number,
   targets: readonly WorkspaceTarget[],
@@ -536,11 +537,91 @@ export const checkoutMailboxes = (
       { terminalId: demoTerminalId(target, 2), handle: "fox", agent: false },
       { terminalId: demoTerminalId(target, 3), handle: "owl", agent: false },
       { terminalId: demoTerminalId(target, 4), handle: "crow", agent: true },
+      { terminalId: demoTerminalId(target, 5), handle: "kite", agent: true },
+      { terminalId: demoTerminalId(target, 6), handle: "raven", agent: true },
     ],
     threads:
       index > 0
         ? []
         : [
+            {
+              id: "t-runtime",
+              between: ["moth", "kite"],
+              hops: 2,
+              allowed: hopsPerRelease,
+              messages: [
+                message(
+                  now,
+                  40,
+                  1,
+                  "moth",
+                  "kite",
+                  "delivered",
+                  "Which Node does the payment SDK need?",
+                ),
+                message(
+                  now,
+                  38,
+                  2,
+                  "kite",
+                  "moth",
+                  "delivered",
+                  "18 or newer. We're on 20, so nothing to do.",
+                ),
+              ],
+            },
+            {
+              id: "t-build",
+              between: ["raven", "moth"],
+              hops: 1,
+              allowed: hopsPerRelease,
+              messages: [
+                message(
+                  now,
+                  17,
+                  1,
+                  "raven",
+                  "moth",
+                  "delivered",
+                  "The bundle grew 41 kB with the summary card. Most of it is the date library.",
+                ),
+              ],
+            },
+            // A letter: moth asked the person, who answered, as the runner keeps a thread a
+            // letter. Those still open come from the Inbox's items (`demoLetters`).
+            {
+              id: "t-demotaxask",
+              between: ["moth", "you"],
+              hops: 2,
+              allowed: 0,
+              messages: [
+                {
+                  ...message(
+                    now,
+                    22,
+                    1,
+                    "moth",
+                    "you",
+                    "delivered",
+                    "Should the order summary show tax before or after shipping?",
+                  ),
+                  inbox: "ask",
+                  inboxState: "answered",
+                },
+                {
+                  ...message(
+                    now,
+                    20,
+                    2,
+                    "you",
+                    "moth",
+                    "delivered",
+                    "After shipping, same as the cart.",
+                  ),
+                  inbox: "answer",
+                },
+              ],
+            },
             {
               id: "t-review",
               between: ["moth", "crow"],

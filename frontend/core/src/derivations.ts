@@ -1,4 +1,6 @@
 import { handleText } from "./handle"
+import type { MailPeer } from "./messages"
+import { isAgentProgram } from "./process"
 import { remembered } from "./roster"
 import { activeSession } from "./state"
 import type { TerminalMetadata, Workspace } from "./types"
@@ -56,16 +58,35 @@ const leadsOf = remembered((roster): Readonly<Record<string, RunningLead>> => {
 export const runningLeads = (workspace: Workspace): Readonly<Record<string, RunningLead>> =>
   leadsOf(rosterOf(workspace))
 
-// The current session's terminals' names, by handle, which name the agents its messages
-// are with.
-const namesOf = remembered((roster): Readonly<Record<string, string>> =>
+// The current session's terminals as their messages show them, by handle, which name the
+// agents its messages are with and say whether each is there.
+const peersOf = remembered((roster): Readonly<Record<string, MailPeer>> =>
   Object.fromEntries(
-    roster.terminals.flatMap((each) => (each.handle ? [[each.handle, each.name]] : [])),
+    roster.terminals.flatMap((each): [string, MailPeer][] =>
+      each.handle
+        ? [
+            [
+              each.handle,
+              {
+                name: each.name,
+                terminalId: each.id,
+                program: each.state === "running" ? each.process : undefined,
+                live:
+                  each.state !== "running" || !(each.agent || isAgentProgram(each.process))
+                    ? "gone"
+                    : each.agent?.working
+                      ? "working"
+                      : "idle",
+              },
+            ],
+          ]
+        : [],
+    ),
   ),
 )
 
-export const handleNames = (workspace: Workspace): Readonly<Record<string, string>> =>
-  namesOf(rosterOf(workspace))
+export const mailPeers = (workspace: Workspace): Readonly<Record<string, MailPeer>> =>
+  peersOf(rosterOf(workspace))
 
 // A lead and the terminals it leads, by id, its workers in the roster's order.
 export type Team = { readonly lead: string; readonly workers: readonly string[] }

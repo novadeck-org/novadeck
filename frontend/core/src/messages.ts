@@ -99,6 +99,40 @@ export type TerminalMail = {
   readonly threads: readonly MessageThread[]
 }
 
+// Another terminal of the session as a terminal's messages show it, by its handle: its
+// name and id, the program running in it, and whether its agent is there, at rest or
+// working, or gone from it.
+export type MailPeer = {
+  readonly name: string
+  readonly terminalId: string
+  readonly program: string | undefined
+  readonly live: "idle" | "working" | "gone"
+}
+
+// Whether two sets of peers show the same, as the roster gives new ones each time any
+// terminal changes.
+export const samePeers = (
+  a: Readonly<Record<string, MailPeer>>,
+  b: Readonly<Record<string, MailPeer>>,
+): boolean => {
+  if (a === b) return true
+  const handles = Object.keys(a)
+  return (
+    handles.length === Object.keys(b).length &&
+    handles.every((handle) => {
+      const one = a[handle]!
+      const other = b[handle]
+      return (
+        other !== undefined &&
+        one.name === other.name &&
+        one.terminalId === other.terminalId &&
+        one.program === other.program &&
+        one.live === other.live
+      )
+    })
+  )
+}
+
 // Every followed terminal's messages, by `companionKeyId`, and the one pause switch,
 // which holds messages between agents across every project and session. Person replies go through. `pending` while a
 // pause or resume is on its way to the backend, and `error` why the last one didn't take.

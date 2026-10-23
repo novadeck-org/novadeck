@@ -36,7 +36,7 @@ import type { Dragged } from "../../use-bar-drag"
 import { usePlans } from "../../use-item-store"
 import { CompanionPane } from "./CompanionPane"
 import { terminalDrawing } from "./drawing"
-import { useMail } from "./messages/mail"
+import { useMail, type MailLinks } from "./messages/mail"
 import { presentationOf } from "./presentation"
 
 // What the app does with a terminal's bar and the items on it: the actions but docking, which
@@ -172,7 +172,7 @@ const AttachedPane = ({
 export const TerminalCompanion = ({
   itemStore,
   messages,
-  peerName,
+  links,
   companionKey,
   view,
   onReveal,
@@ -185,8 +185,8 @@ export const TerminalCompanion = ({
 }: {
   itemStore: ItemStore
   messages?: Messages | undefined
-  // The name of the terminal in this session with that handle, if it has one.
-  peerName: (handle: string) => string | undefined
+  // The session around the terminal, as its messages show it.
+  links: MailLinks
   companionKey: CompanionKey
   view: ViewMode
   onReveal?: Reveal | undefined
@@ -263,7 +263,7 @@ export const TerminalCompanion = ({
   const actions: Omit<SlotActions, "grab"> = {
     showing,
     stacked: bar.stack,
-    draw: terminalDrawing({ itemStore, target, mail, peerName, plans }),
+    draw: terminalDrawing({ itemStore, target, mail, links, plans }),
     originOf,
     // Clicking what the pane is showing minimizes it, as a taskbar does the active window;
     // anything else comes to the top.
@@ -339,7 +339,7 @@ export const TerminalCompanion = ({
     target,
     agent,
     mail,
-    peerName,
+    links,
     plans,
     originOf,
     onUndock: actions.undock,
