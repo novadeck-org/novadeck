@@ -1,4 +1,4 @@
-import { sameTeam, teamOf } from "@novadeck/core/derivations"
+import { allTeams, sameTeam, sameTeams, teamOf } from "@novadeck/core/derivations"
 import type { Backend, BackendSelection, CreateBackend, TerminalKey } from "@novadeck/core/port"
 import {
   useEffect,
@@ -134,8 +134,9 @@ const WorkspaceEffects = (): null => {
   return null
 }
 
-// The selected terminal's team on the rail's border, while the Terminals list shows. It reads
-// the selection and its team itself, so a change to either re-renders only the wire.
+// Every team's wire on the rail's border, the selected terminal's lit, while the Terminals
+// list shows. It reads the teams, the selection and its team itself, so a change to any of
+// them re-renders only the wires.
 const TeamWireSection = ({
   shown,
   tabList,
@@ -144,9 +145,10 @@ const TeamWireSection = ({
   tabList: TabListStore
 }): React.JSX.Element => {
   const selected = useWorkspaceState((workspace) => currentState(workspace).selected)
+  const teams = useWorkspaceState(allTeams, sameTeams)
   const team = useWorkspaceState((workspace) => teamOf(workspace, selected), sameTeam)
   const list = useSyncExternalStore(tabList.subscribe, tabList.getSnapshot)
-  return <TeamWire team={team} selected={selected} shown={shown} list={list} />
+  return <TeamWire teams={teams} team={team} selected={selected} shown={shown} list={list} />
 }
 
 // The rail and the Zen dock read the bell's badge themselves, so an unread change that leaves

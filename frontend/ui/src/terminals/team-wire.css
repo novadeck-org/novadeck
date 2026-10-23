@@ -1,25 +1,37 @@
-/* The team wire recipe (TeamWire.tsx): the rail's border lit between the selected
-   terminal's team's tabs, a block cursor at the lead, a tick into each worker and one pulse
-   out from the lead when a member is selected. Drawn as the accent's thin lines are: a
-   line of the strong colour, glowing like a neon tube where the theme gives its lines a
-   glow (Graphite's dark).
+/* The team wire recipe (TeamWire.tsx): each team's tabs joined on the rail's border, a block
+   cursor at the lead and a tick into each worker. Every wire rests, dim: solid colours mixed
+   into the ground they sit on, so where two pieces overlap they never add up to a brighter
+   dot, and its cursor a step brighter than its line. The selected terminal's team lights:
+   a line of the strong colour with a soft glow, whose segment grows in, whose ticks reach
+   out after it and whose cursor blinks twice, then holds.
 
-   Hooks on `.team-wire`: --team-wire-blink (how long the cursor blinks before the pulse
-   leaves it, set from team-wire.ts so the ticks keep time with it), data-settled (the pulse has played; what's drawn after, as rows
-   scroll into view, appears without playing again). Parts: `.team-wire-segment`,
-   `.team-wire-cursor`, `.team-wire-tap`, `.team-wire-pulse`.
+   Hooks on `.team-wire`: data-settled (the lit wire's entrance has played; what's drawn
+   after, as rows scroll into view, appears without playing again). Each team has a
+   `.team-wire-shape`, with data-lit while it is the selected terminal's. Parts:
+   `.team-wire-segment`, `.team-wire-cursor`, `.team-wire-tap`.
 
    Tokens, each optional (its fallback in brackets):
-   --team-wire-fg (strong): the wire, the cursor and the ticks.
-   --team-wire-glow (item-selected-indicator-shadow, then none): their glow.
-   --team-wire-pulse-fg (strong-hover, then strong): the pulse. */
+   --team-wire-fg (strong): the lit wire, its cursor and its ticks.
+   --team-wire-glow (a 5px glow of the lit colour at 40%): their glow.
+   --team-wire-rest-fg (line-strong at 42% in the ground): a resting wire and its ticks.
+   --team-wire-rest-cursor (line-strong at 70% in the ground): a resting wire's cursor.
+   The ground is the sidebar's (--region-sidebar-bg, then shell). */
 .team-wire {
   position: absolute;
   inset: 0;
   z-index: 31;
   pointer-events: none;
+  --_ground: var(--region-sidebar-bg, var(--color-shell));
   --_fg: var(--team-wire-fg, var(--color-strong));
-  --_glow: var(--team-wire-glow, var(--item-selected-indicator-shadow, none));
+  --_glow: var(--team-wire-glow, 0 0 5px color-mix(in srgb, var(--_fg) 40%, transparent));
+  --_rest: var(
+    --team-wire-rest-fg,
+    color-mix(in srgb, var(--color-line-strong) 42%, var(--_ground))
+  );
+  --_rest-cursor: var(
+    --team-wire-rest-cursor,
+    color-mix(in srgb, var(--color-line-strong) 70%, var(--_ground))
+  );
 }
 .team-wire-shape > i {
   position: absolute;
@@ -28,50 +40,42 @@
 /* The border itself: one pixel, exactly over the rail's. */
 .team-wire-segment {
   width: 1px;
-  background-color: var(--_fg);
-  box-shadow: var(--_glow);
-  transform-origin: top;
-  animation: team-wire-grow 220ms var(--ease-interface) both;
+  background-color: var(--_rest);
 }
-/* A block one character cell in size, after the Nova mark's cursor: it blinks once as the
-   team is selected, then holds. Its shape and its blink keep it apart from the selected
-   tab's bar beside it, which is thin and never moves. */
+/* A tick starts on the wire's own pixel column and fades as it reaches into the tab. */
+.team-wire-tap {
+  height: 1px;
+  background: linear-gradient(90deg, var(--_rest), transparent);
+}
+/* A block one character cell in size, after the Nova mark's cursor, centred on the line's
+   pixel column and the lead's name line. */
 .team-wire-cursor {
   width: 5px;
   height: 8px;
   margin: -4px 0 0 -2px;
   border-radius: 1px;
+  background-color: var(--_rest-cursor);
+}
+.team-wire-shape[data-lit] > :is(.team-wire-segment, .team-wire-cursor) {
   background-color: var(--_fg);
   box-shadow: var(--_glow);
-  animation: team-wire-blink var(--team-wire-blink, 520ms) steps(1) both;
 }
-.team-wire-tap {
-  height: 1px;
+.team-wire-shape[data-lit] > .team-wire-segment {
+  transform-origin: top;
+  animation: team-wire-grow 220ms var(--ease-interface) both;
+}
+.team-wire-shape[data-lit] > .team-wire-tap {
   background: linear-gradient(90deg, var(--_fg), color-mix(in srgb, var(--_fg) 55%, transparent));
   transform-origin: left;
-  animation: team-wire-reach 180ms var(--ease-interface) var(--_at, 0ms) both;
+  animation: team-wire-reach 180ms var(--ease-interface) 260ms both;
 }
-/* One light that leaves the cursor once it has blinked and runs along the wire, lighting
-   each tick as it passes. */
-.team-wire-pulse {
-  width: 3px;
-  height: 36px;
-  margin: -18px 0 0 -1px;
-  border-radius: 2px;
-  background: linear-gradient(
-    transparent,
-    var(--team-wire-pulse-fg, var(--color-strong-hover, var(--_fg))),
-    transparent
-  );
-  opacity: 0;
-  animation: team-wire-pulse var(--_duration, 500ms) cubic-bezier(0.4, 0, 0.2, 1)
-    var(--team-wire-blink, 520ms) both;
+/* It blinks twice as the team lights, then holds. Its shape and its blink keep it apart
+   from the selected tab's bar beside it, which is thin and never moves. */
+.team-wire-shape[data-lit] > .team-wire-cursor {
+  animation: team-wire-blink 520ms steps(1) both;
 }
 .team-wire[data-settled] .team-wire-shape > i {
   animation: none;
-}
-.team-wire[data-settled] .team-wire-pulse {
-  display: none;
 }
 @keyframes team-wire-grow {
   from {
@@ -84,27 +88,12 @@
   }
 }
 @keyframes team-wire-blink {
-  0% {
-    opacity: 1;
-  }
-  35% {
+  0%,
+  50% {
     opacity: 0;
   }
-  65% {
+  25%,
+  75% {
     opacity: 1;
-  }
-}
-@keyframes team-wire-pulse {
-  0% {
-    opacity: 0;
-    transform: translateY(0);
-  }
-  15%,
-  85% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(var(--_run));
   }
 }

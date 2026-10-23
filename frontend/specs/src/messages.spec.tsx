@@ -330,6 +330,10 @@ describe("A terminal that leads others", () => {
 const teamMark = (name: string) =>
   terminalTab(name).element().closest("[data-terminal-tab-id]")?.getAttribute("data-team") ?? null
 
+// The teams' wires on the rail, resting and lit.
+const resting = () => document.querySelectorAll(".team-wire-shape:not([data-lit])").length
+const lit = () => document.querySelectorAll(".team-wire-shape[data-lit]").length
+
 describe("A team in the sidebar", () => {
   it("marks the lead and its worker while the lead is selected, and wires them on the rail", async () => {
     await openMessagesDemo()
@@ -339,6 +343,8 @@ describe("A team in the sidebar", () => {
     expect(teamMark("Dev server")).toBeNull()
     await expect.poll(() => document.querySelectorAll(".team-wire-tap").length).toBe(1)
     expect(document.querySelectorAll(".team-wire-cursor")).toHaveLength(1)
+    await expect.poll(lit).toBe(1)
+    expect(resting()).toBe(0)
   })
 
   it("marks the same team while its worker is selected", async () => {
@@ -348,23 +354,27 @@ describe("A team in the sidebar", () => {
     expect(teamMark("Checkout review")).toBe("worker")
   })
 
-  it("marks nothing while a terminal in no team is selected", async () => {
+  it("marks no tab while a terminal in no team is selected, and rests its wire", async () => {
     await openMessagesDemo()
     await terminalTab("Dev server").click()
-    await expect.poll(() => document.querySelectorAll(".team-wire-segment").length).toBe(0)
+    await expect.poll(resting).toBe(1)
+    expect(lit()).toBe(0)
+    expect(document.querySelectorAll(".team-wire-cursor")).toHaveLength(1)
     expect(teamMark("Checkout implementation")).toBeNull()
     expect(teamMark("Checkout review")).toBeNull()
   })
 
-  it("is gone, and stays gone, once a terminal in no team is clicked from it", async () => {
+  it("rests, and stays at rest, once a terminal in no team is clicked from it", async () => {
     await openMessagesDemo()
     await terminalTab("Checkout implementation").click()
-    await expect.poll(() => document.querySelectorAll(".team-wire-segment").length).toBe(1)
+    await expect.poll(lit).toBe(1)
     await terminalTab("Dev server").click()
-    await expect.poll(() => document.querySelectorAll(".team-wire-segment").length).toBe(0)
+    await expect.poll(lit).toBe(0)
+    expect(resting()).toBe(1)
     // Past any measuring a press on the list set going.
     await new Promise((resolve) => setTimeout(resolve, 700))
-    expect(document.querySelectorAll(".team-wire-segment")).toHaveLength(0)
+    expect([resting(), lit()]).toEqual([1, 0])
+    expect(document.querySelectorAll(".team-wire-segment")).toHaveLength(1)
   })
 
   it("says in each member's description who leads it and whom it leads, selected or not", async () => {
