@@ -36,9 +36,10 @@ const shapes = {
   action: { type: "action", command: "vercel login", directory: null, doneLabel: "I've logged in" },
 } satisfies Record<string, AskShape>
 
-// The sheet reads the public Inbox port; tests publish backend outcomes explicitly.
-const mount = (shape: keyof typeof shapes) => {
-  const sample: InboxItem = {
+// The sheet reads the public Inbox port; tests publish backend outcomes explicitly. An item
+// given is shown in place of an ask of that shape.
+const mount = (shape: keyof typeof shapes, item?: InboxItem) => {
+  const sample: InboxItem = item ?? {
     id: "ask",
     source: {
       projectId: "p",
@@ -193,6 +194,75 @@ describe("An accepted reply's delivery", () => {
     expect(sheet.field().value).toBe("Use samples.")
     expect(document.querySelector(".inbox-status")?.textContent).toBe("reply not delivered")
     expect(sheet.send().disabled).toBe(true)
+    await nextFrame()
+    sheet.view.unmount()
+  })
+})
+
+describe("An agent's several questions", () => {
+  const question = (id: string, labels: readonly string[]) => ({
+    id,
+    header: null,
+    question: `Which ${id}?`,
+    multiSelect: false,
+    text: false,
+    options: labels.map((label) => ({ id: label, label, description: null })),
+  })
+  const asking: InboxItem = {
+    id: "request:q",
+    source: {
+      projectId: "p",
+      workspaceSessionId: "s",
+      terminalId: "t",
+      handle: "moth",
+      agent: "claude",
+      title: "Preview",
+      projectName: "App",
+    },
+    at: 0,
+    stopped: true,
+    seen: false,
+    kind: "request",
+    request: {
+      id: "q",
+      kind: "question",
+      tool: "AskUserQuestion",
+      subject: "Which library?",
+      choices: [],
+      subagent: false,
+      answered: false,
+      dialog: {
+        type: "questions",
+        id: "d",
+        chat: "prompt",
+        questions: [question("library", ["date-fns", "Temporal"]), question("zone", ["UTC"])],
+      },
+    },
+  }
+  const pick = (label: string): void =>
+    act(() => {
+      Array.from(document.querySelectorAll<HTMLButtonElement>(".inbox-sheet button"))
+        .find((button) => button.textContent?.includes(label))!
+        .click()
+    })
+  const footer = () => document.querySelector(".inbox-sheet-footer")
+
+  it("count their answers beside a Send that stays in view and waits for all of them", async () => {
+    const sheet = mount("text", asking)
+    const send = () =>
+      Array.from(footer()!.querySelectorAll("button")).find(
+        (button) => button.textContent === "Send",
+      )!
+    expect(footer()?.querySelector(".inbox-progress")?.textContent).toBe("0 of 2 answered")
+    expect(send().disabled).toBe(true)
+    pick("Temporal")
+    expect(footer()?.querySelector(".inbox-progress")?.textContent).toBe("1 of 2 answered")
+    expect(send().disabled).toBe(true)
+    pick("UTC")
+    expect(footer()?.querySelector(".inbox-progress")?.textContent).toBe("2 of 2 answered")
+    expect(send().disabled).toBe(false)
+    act(() => send().click())
+    expect(sheet.sent).toMatchObject([{ kind: "request", answer: { type: "questions" } }])
     await nextFrame()
     sheet.view.unmount()
   })

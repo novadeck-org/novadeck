@@ -14,7 +14,8 @@
    The sheet is the sheet recipe's card holding an `.inbox-sheet` (data-type, data-state=
    "waiting" | "asking" | "answered"): its `.inbox-sheet-head` (`.inbox-sheet-icon`,
    `.inbox-sheet-title`, `.inbox-sheet-meta`), a scrolling `.inbox-sheet-scroll` with the
-   `.inbox-sheet-page`, and a fixed `.inbox-sheet-footer` for the box a pick is sent from. On a
+   `.inbox-sheet-page`, and a fixed `.inbox-sheet-footer` for the box or button a pick is sent
+   from, under an `.inbox-progress` line where several questions wait. On a
    phone it is an `.inbox-fullscreen` of its own. The page is made of: `.inbox-byline` with
    its `.inbox-status` (data-urgency="urgent" | "waiting" | "calm" | "done"), `.inbox-title`,
    `.inbox-lead`, `.inbox-aside`, `.inbox-caption`, `.inbox-prose` (Markdown), `.inbox-hard`,
@@ -801,8 +802,8 @@
 .inbox-sheet .inbox-reply .button {
   gap: 6px;
 }
-.inbox-send-answer {
-  align-self: flex-start;
+.inbox-progress {
+  margin: 0 0 8px;
 }
 
 @media (max-width: 700px) {
