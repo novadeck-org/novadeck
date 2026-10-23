@@ -1,6 +1,7 @@
 import type { EventEmitter } from "node:events"
 
 import { runnerPortMessage, type DesktopHost } from "@novadeck/protocol/bridge"
+import { pageSignInChannel, pageSignInMessage } from "@novadeck/viewers/browser/sign-in"
 import { pageRequestChannel, pageRequestMessage } from "@novadeck/viewers/browser/trouble"
 import { afterEach, beforeEach, vi } from "vitest"
 
@@ -143,6 +144,31 @@ describe("a port to the runner", () => {
     } finally {
       vi.unstubAllGlobals()
     }
+  })
+})
+
+describe("a page view's sign-in windows", () => {
+  const told = (...args: unknown[]) => {
+    const posted = vi.fn<(message: unknown, origin: string) => void>()
+    vi.stubGlobal("window", { postMessage: posted })
+    try {
+      electron.renderer.emit(pageSignInChannel, {}, ...args)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    return posted
+  }
+
+  it("reach the page as a window message naming its view and how many are open", () => {
+    expect(told(7, 1)).toHaveBeenCalledExactlyOnceWith(
+      { type: pageSignInMessage, contentsId: 7, open: 1 },
+      "*",
+    )
+  })
+
+  it("are dropped when the word is malformed", () => {
+    expect(told("7", 1)).not.toHaveBeenCalled()
+    expect(told(7, -1)).not.toHaveBeenCalled()
   })
 })
 
