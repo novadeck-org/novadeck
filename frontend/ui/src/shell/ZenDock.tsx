@@ -26,7 +26,8 @@ export const ZenDock = ({
   onInbox: () => void
   onExit: () => void
 }): React.JSX.Element => {
-  const [open, setOpen] = useState(false)
+  // Zen starts with the dock unfolded, so its controls are seen once.
+  const [open, setOpen] = useState(true)
   // With one view left there's nothing to switch to.
   const switchable = enabledViews.length > 1
   const dock = useRef<HTMLDivElement>(null)

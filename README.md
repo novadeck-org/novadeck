@@ -440,9 +440,10 @@ out cannot replace what it saved while they ran.
 
 Choose **Enter Zen mode** in the top bar to hide the header, sidebar, rail, and footer
 without leaving the current Focus, Grid, or Canvas view. The floating dock provides
-New terminal, enabled view choices, and Exit Zen. At rest it folds to New terminal and a
-small chevron. Click or tap the chevron to toggle the remaining controls, or activate
-it with Enter or Space. Clicking outside, leaving with keyboard focus, or pressing Escape folds it again.
+New terminal, enabled view choices, and Exit Zen. It starts unfolded. Folded, it shows
+New terminal and a small chevron, faint until the pointer or keyboard focus reaches it. Click or tap the chevron to toggle the remaining
+controls, or activate it with Enter or Space. Clicking outside, leaving with keyboard focus,
+or pressing Escape folds it.
 Canvas navigation uses gestures and
 keyboard shortcuts: +/− to zoom and 0 to fit all terminals.
 Focus becomes an edge-to-edge terminal, while Grid and Canvas gain the available space.
