@@ -230,6 +230,56 @@ describe("the markdown viewer", () => {
     }
   })
 
+  it("draws a quote's bar clear of its text, in a list too, its wrapped rows included", () => {
+    const long = "words that run on ".repeat(6)
+    const { host } = mount({
+      text: [
+        `> On top, ${long}`,
+        "",
+        "- [ ] A task",
+        "  - Its prompt:",
+        "",
+        `    > Under both, ${long}`,
+        `    > and ${long}`,
+        "    lazily too.",
+        "",
+        "- a",
+        "  - b",
+        "    - c",
+        "",
+        `      > Deep, ${long}`,
+        "",
+        `- > On the item's own line, ${long}`,
+        "",
+        "> A list in a quote:",
+        `> - an item, ${long}`,
+        "",
+      ].join("\n"),
+    })
+    const quotes = [...host.querySelectorAll<HTMLElement>(".cm-md-quote")]
+    expect(quotes).toHaveLength(8)
+    // Where the bar is drawn: the line's border, or its own mark beside the text.
+    const barEnd = (line: HTMLElement): number => {
+      const left = line.getBoundingClientRect().left
+      const bar = getComputedStyle(line, "::before")
+      if (bar.content !== "none") return left + parseFloat(bar.left) + parseFloat(bar.width)
+      return left + parseFloat(getComputedStyle(line).borderLeftWidth)
+    }
+    for (const quote of quotes) {
+      const text = document.createRange()
+      text.selectNodeContents(quote)
+      const rows = [...text.getClientRects()].filter((row) => row.width > 0)
+      expect(rows.length).toBeGreaterThan(0)
+      for (const row of rows) expect(row.left).toBeGreaterThanOrEqual(barEnd(quote) + 8)
+    }
+    // A quote that wraps does so under its text.
+    const wrapped = quotes[1]!
+    expect(wrapped.getBoundingClientRect().height).toBeGreaterThan(40)
+    // A list in a quote keeps the quote's bar where its other lines have it.
+    const [intro, item] = quotes.slice(-2).map(barEnd)
+    expect(item).toBe(intro)
+  })
+
   it("takes everything it added out of its element", () => {
     const { viewer, host } = mount({ text: "one\n" })
     viewer.destroy()
