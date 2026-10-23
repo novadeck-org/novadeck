@@ -338,11 +338,9 @@ like them, only inside Novadeck's terminals.
     a request to pick by title, folder and work, or ask the person), no agent there (or
     one whose prompt showed while Novadeck's hooks aren't trusted for it there, as a
     Codex whose hooks review was skipped: nothing could deliver to it), a rate or size
-    limit, a pair already holding ten across its threads ("refused: your thread with @x is held, as
-    the two of you kept messaging while neither did any work, and already has ten
-    messages waiting for the user; this one wasn't kept."; for a hold carried over from
-    before: "refused: your thread with @x waits for the user's release and already has
-    ten or more messages waiting; this one wasn't kept."), or the runner stopping, which keeps no message from then on. While that review is still open, a message to it waits, as the person may yet
+    limit, a message that would be held while the pair already has ten waiting held ("refused: you
+    and @x already have ten messages waiting for the user's release; this one wasn't
+    kept. Wait for the user rather than messaging @x again."), or the runner stopping, which keeps no message from then on. While that review is still open, a message to it waits, as the person may yet
     trust the hooks there; once they trust them in `/hooks`, it waits again.
 
   It never claims delivery. A terminal whose own session never bound (Codex with its
@@ -1344,8 +1342,8 @@ Two known gaps in telling the box empty at a binding:
 ### Message states
 
 `queued` → `leased` → `delivered`, or back to `queued` when a lease lapses. `held` while
-messaging is paused or its thread is held, as a loop or by a hold carried over from
-version 4. `gone` when the recipient's instance ended or its harness announced
+messaging is paused or its hop is at or past its thread's hold, a loop's or one carried
+over from version 4. `gone` when the recipient's instance ended or its harness announced
 a new session (a clear or a new start; for Antigravity, a new conversation named by its
 status line), and back to `queued` should that same session bind again within
 retention; a rebind alone (Antigravity observing another conversation) doesn't make it
@@ -1389,9 +1387,12 @@ output, not that the model acted on it.
   being past the hold. A held thread is continued like any thread, within ten minutes of
   its last message; after that, the pair's next message starts a new thread with a fresh
   count, and the held one's messages wait for the person still. A pair keeps at most ten
-  messages waiting held for release, across all its threads and from either end; a send
-  beyond is refused (see [Agent interface](#agent-interface)), uses no hop and leaves the thread's
-  time alone, so an agent that keeps sending can't fill its peer's fifty and shut out its
+  messages waiting held for release, across all its threads and from either end: a send
+  that would be held beyond them is refused (one that wouldn't be is sent as ever), and
+  one that would start a hold still starts it, at its would-be hop, so the pair's next
+  messages there are held too; the cap gates sends only, so a held message coming back
+  from `gone` may take the pair past ten. A refused send (see
+  [Agent interface](#agent-interface)) uses no hop and leaves the thread's time alone, so an agent that keeps sending can't fill its peer's fifty and shut out its
   lead. **Release** (`messages.release`) ends the hold and lets its messages wait to be
   delivered (held still while messaging is paused); **Stop** ends it and makes them
   `gone`. Either starts the count afresh: after a Release the pair's next message
@@ -1473,8 +1474,8 @@ output, not that the model acted on it.
   hold carried over may start with more than ten held. The listing drops `allowed` and
   gives each thread `held`, true while `held_from` is set, `heldFor` (`"loop"` while it
   has a loop hold, whether or not a message waits; null when it has no hold, or one carried
-  over); the Inbox shows an item while one of its messages waits held for release and `idle`, its idle messages in a row (kept as it was while held; none after a
-  restart). A message's `held` stays `"release"` (deliberately: a loop awaits the
+  over) and `idle`, its idle messages in a row (kept as it was while held; none after a
+  restart); the Inbox shows an item while one of its messages waits held for release. A message's `held` stays `"release"` (deliberately: a loop awaits the
   person's release) or `"paused"`.
 
 - **Stop.** The person can stop a thread (`messages.stop`). Its messages still queued or
@@ -1856,7 +1857,8 @@ optional `messages` capability (`core/messages.ts`):
   among them, marked while some wait for its agent: those to it that are `queued`,
   `leased` or `held`, never delivered or gone. The tab's description and tooltip count
   them and say whether a thread is held for release or messaging is paused; the
-  taskbar's Messages icon carries the count, amber while a thread is held.
+  taskbar's Messages icon carries the count, amber while a message waits held for
+  release.
 - **Messages view.** A terminal that has had messages gets a Messages icon in its
   companion pane's taskbar, with the same count; an agent with none yet keeps its bar
   clear. The view is one list of the terminal's conversations, 1:1 as messaging is: one per
