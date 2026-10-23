@@ -24,6 +24,8 @@ type Mark = {
   /** The event's own time, which orders it against the others as the activity does. */
   readonly startedAt: number
   readonly kind: "start" | "stop" | "continue"
+  /** A stop only a status line or an Escape told, which a working turn may contradict. */
+  readonly soft?: true
 }
 
 type History = {
@@ -172,15 +174,26 @@ const close = <T extends Span>(spans: T[], at: number, pick: (span: T) => boolea
 const stop = (history: History, event: { startedAt: number }, at: number): boolean => {
   const latest = history.marks.findLast((mark) => mark.kind === "start")
   if (latest && event.startedAt < latest.startedAt) return false
-  history.marks.push({ at, startedAt: event.startedAt, kind: "stop" })
+  history.marks.push({ at, startedAt: event.startedAt, kind: "stop", soft: true })
   return true
 }
 
-/** A turn that stopped yet shows signs of running (a root call, a working status) runs on. */
-const resume = (history: History, event: { startedAt: number }, at: number): void => {
-  if (history.marks.at(-1)?.kind === "stop") {
-    history.marks.push({ at, startedAt: event.startedAt, kind: "start" })
-  }
+/**
+ * A turn that stopped yet shows signs of running (a root call, a working status) runs on.
+ * A working status only resumes a stop a status line or an Escape told, never a real Stop
+ * (it can still say working just after one); a call only if not older than that stop, as a
+ * late report of a call made before it is.
+ */
+const resume = (
+  history: History,
+  event: { startedAt: number },
+  at: number,
+  by: "call" | "status",
+): void => {
+  const last = history.marks.at(-1)
+  if (last?.kind !== "stop") return
+  if (by === "status" ? !last.soft : event.startedAt < last.startedAt) return
+  history.marks.push({ at, startedAt: event.startedAt, kind: "start" })
 }
 
 const fold = (history: History, event: HarnessEvent, at: number): void => {
@@ -191,7 +204,7 @@ const fold = (history: History, event: HarnessEvent, at: number): void => {
     case "tool-called":
       history.called = true
       history.calls.push(at)
-      if (event.actor === null) resume(history, event, at)
+      if (event.actor === null) resume(history, event, at, "call")
       if (event.kind === "work") {
         history.work.push(at)
         if (event.background) history.tasks.push({ start: at, end: null })
@@ -223,7 +236,7 @@ const fold = (history: History, event: HarnessEvent, at: number): void => {
       if (stop(history, event, at)) settle(history, at)
       return
     case "turn-working":
-      resume(history, event, at)
+      resume(history, event, at, "status")
       if (event.running !== undefined) counted(history, event.running, at)
       return
     case "turn-ended": {

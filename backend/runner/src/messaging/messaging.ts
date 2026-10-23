@@ -1389,10 +1389,13 @@ export class Messaging {
     const same = duplicateOf(this.messages.values(), terminalId, recipient.terminalId, text, now)
     if (same) return { ...this.answer(same, recipient), ...this.extras(live) }
     // Idle or not, judged from the thread's previous message to now; the count of the idle in
-    // a row starts the hold at its sixth, and stays as it was once held.
-    const quiet =
-      known !== undefined && this.idleSince(known.lastAt, now, terminalId, recipient.terminalId)
-    const before = (known && this.runs.get(known.id)) ?? { count: 0, senders: [] }
+    // a row starts the hold at its sixth, and stays as it was once held. A new thread of a
+    // pair with messages waiting held goes on with the pair's run, from the pair's last
+    // message, so a loop gains nothing by letting its thread lapse.
+    const carried = known ? undefined : this.carriedRun(terminalId, recipient.terminalId)
+    const from = known?.lastAt ?? carried?.from
+    const quiet = from !== undefined && this.idleSince(from, now, terminalId, recipient.terminalId)
+    const before = (known ? this.runs.get(known.id) : carried?.run) ?? { count: 0, senders: [] }
     const run =
       known?.heldFrom != null
         ? before
@@ -1410,8 +1413,8 @@ export class Messaging {
           projectId: live.projectId,
           between: [terminalId, recipient.terminalId],
           hops: 1,
-          heldFrom: null,
-          heldFor: null,
+          heldFrom: starts ? 1 : null,
+          heldFor: starts ? ("loop" as const) : null,
           lastAt: now,
           stoppedAt: null,
         }
@@ -1446,6 +1449,8 @@ export class Messaging {
       holdOf(message, thread, this.paused) === "release" &&
       this.heldBetween(terminalId, recipient.terminalId) >= heldPerPair
     ) {
+      // A refused first message of a new thread keeps no thread: the pair's next is judged
+      // the same way, from the held messages still waiting.
       if (known && starts) {
         this.putThread({ ...known, heldFrom, heldFor })
         this.runs.set(known.id, run)
@@ -1585,6 +1590,33 @@ export class Messaging {
         message.deliveredAt > from &&
         message.deliveredAt <= now,
     )
+  }
+
+  /**
+   * Where a new thread between two terminals starts: while any of their messages waits held
+   * for release, with the run of idle messages that held it, judged from their last message;
+   * undefined when none waits.
+   */
+  private carriedRun(a: string, b: string) {
+    const held = [...this.messages.values()].filter(
+      (message) =>
+        !message.response &&
+        message.state === "held" &&
+        ((message.from.terminalId === a && message.to.terminalId === b) ||
+          (message.from.terminalId === b && message.to.terminalId === a)) &&
+        this.holdOf(message) === "release",
+    )
+    if (held.length === 0) return undefined
+    const run = held.map((message) => this.runs.get(message.thread)).find((each) => each?.count)
+    const last = [...this.messages.values()]
+      .filter(
+        (message) =>
+          !message.response &&
+          ((message.from.terminalId === a && message.to.terminalId === b) ||
+            (message.from.terminalId === b && message.to.terminalId === a)),
+      )
+      .reduce((newest, message) => Math.max(newest, message.sentAt), 0)
+    return { from: last, run: run ?? { count: idleToHold, senders: [] } }
   }
 
   /** How many messages between two terminals wait held for release, across their threads. */

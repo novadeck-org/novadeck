@@ -4058,21 +4058,50 @@ describe("the loop hold", () => {
     expect(records.messages()).toHaveLength(16)
   })
 
-  it("starts the hold at a refused send's would-be hop, and lets one that isn't held pass", () => {
-    const { messaging, rounds, clock: time } = setup()
-    rounds(16).map(sent)
-    expect(rounds(1)[0]).toMatchObject({ ok: false })
-    // The held thread lapses; its ten still wait, so the pair's next thread is refused at its sixth idle.
+  it("holds a looping pair's new thread at once while its earlier messages wait held", () => {
+    const { messaging, rounds, send, clock: time } = setup()
+    rounds(8).map(sent)
     time.now += threadMs + 1
-    const next = rounds(8)
-    expect(next.slice(0, 6).every((answer) => sent(answer).state === "queued")).toBe(true)
-    expect(next[6]).toMatchObject({
+    expect(sent(send("A", "fox", "again"))).toMatchObject({ state: "held", held: "release" })
+    expect(messaging.list("A", "moth").threads.map(({ held, hops }) => [held, hops])).toEqual([
+      [true, 1],
+      [true, 8],
+    ])
+  })
+
+  it("refuses a looping pair's new thread at the cap, keeping no thread", () => {
+    const { messaging, rounds, send, clock: time } = setup()
+    rounds(16).map(sent)
+    time.now += threadMs + 1
+    expect(send("A", "fox", "again")).toMatchObject({
       ok: false,
       reason: expect.stringContaining("already have ten messages"),
     })
+    expect(messaging.list("A", "moth").threads).toHaveLength(1)
+    expect(messages(messaging, "B").filter(({ state }) => state === "delivered")).toEqual([])
+  })
+
+  it("lets a message with work through a new thread of a held pair, and resets the count", () => {
+    const { messaging, rounds, send, working, clock: time } = setup()
+    rounds(8).map(sent)
+    time.now += threadMs + 1
+    working.set("B", true)
+    expect(sent(send("A", "fox", "with work"))).toMatchObject({ state: "queued" })
+    working.set("B", false)
     const [latest] = messaging.list("A", "moth").threads
-    expect(latest).toMatchObject({ hops: 6, held: true, heldFor: "loop", idle: 6 })
-    expect(next[7]).toMatchObject({ ok: false })
+    expect(latest).toMatchObject({ held: false, idle: 0, hops: 1 })
+    // The count is the new thread's own from here.
+    time.now += 30_000
+    expect(sent(send("A", "fox", "idle after"))).toMatchObject({ state: "queued" })
+  })
+
+  it("starts a new thread afresh once the pair has nothing waiting held", () => {
+    const { messaging, rounds, send, clock: time } = setup()
+    rounds(8).map(sent)
+    messaging.release(thread(messaging).id)
+    time.now += threadMs + 1
+    expect(sent(send("A", "fox", "later"))).toMatchObject({ state: "queued" })
+    expect(messaging.list("A", "moth").threads[0]).toMatchObject({ held: false, idle: 0 })
   })
 
   it("ends the hold when the person stops the thread, marking its gone messages stopped", () => {
@@ -4121,9 +4150,11 @@ describe("the loop hold", () => {
   })
 
   it("starts a fresh thread and count after ten quiet minutes, leaving the held one waiting", () => {
-    const { messaging, rounds, send, clock: time } = setup()
+    const { messaging, rounds, send, working, clock: time } = setup()
     rounds(8).map(sent)
     time.now += threadMs + 1
+    // Work at either end starts the new thread's count afresh.
+    working.set("B", true)
     expect(sent(send("A", "fox", "later"))).toMatchObject({ state: "queued" })
     const threads = messaging.list("A", "moth").threads
     expect(threads.map(({ held, idle, hops }) => [held, idle, hops])).toEqual([

@@ -411,7 +411,7 @@ export type Runner = {
      * the runner keeps the switch.
      */
     pause(paused: boolean): Promise<void>
-    /** Releases a held thread: its messages go on, and it may have 12 more. */
+    /** Releases a held thread: its hold ends and its messages go on. */
     release(thread: string): Promise<void>
     stop(thread: string): Promise<void>
   }

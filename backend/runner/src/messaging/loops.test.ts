@@ -20,14 +20,21 @@ const session: HarnessEvent = {
   instance: null,
 } as unknown as HarnessEvent
 
-const call = (kind: ToolKind, extra: { actor?: string; background?: true } = {}): HarnessEvent =>
-  act({
-    type: "tool-called",
-    actor: extra.actor ?? null,
-    toolName: "Tool",
-    kind,
-    ...(extra.background ? { background: true as const } : {}),
-  })
+const call = (
+  kind: ToolKind,
+  extra: { actor?: string; background?: true } = {},
+  startedAt = 0,
+): HarnessEvent =>
+  act(
+    {
+      type: "tool-called",
+      actor: extra.actor ?? null,
+      toolName: "Tool",
+      kind,
+      ...(extra.background ? { background: true as const } : {}),
+    },
+    startedAt,
+  )
 const turnStarted = (cause: "prompt" | "harness" = "harness"): HarnessEvent =>
   act({
     type: "turn-started",
@@ -489,7 +496,7 @@ describe("loops: stale and spurious turn-over signals", () => {
     }
   })
 
-  it("takes a root call or a working status after an Escape as the turn running on", () => {
+  it("takes a root call or a working status after an Escape or idle as the turn running on", () => {
     for (const sign of [call("work"), act({ type: "turn-working" })]) {
       const loops = known()
       loops.observe(T, [turnStarted()], 10)
@@ -524,5 +531,31 @@ describe("loops: a lapsed continuation", () => {
     expect(loops.worked(T, 100, 200)).toBe(true)
     loops.observe(T, [act({ type: "turn-lapsed" })], 200)
     expect(loops.worked(T, 250, 400)).toBe(false)
+  })
+})
+
+describe("loops: what may restart a stopped turn", () => {
+  it("is not a working status after a real Stop", () => {
+    const loops = known()
+    loops.observe(T, [act({ type: "turn-started", cause: "harness" }, 1)], 1)
+    loops.observe(T, [act({ type: "turn-ended", outcome: "completed" }, 3)], 3)
+    loops.observe(T, [act({ type: "turn-working" }, 4)], 4)
+    expect(loops.worked(T, 10, 900)).toBe(false)
+  })
+
+  it("is not a late call report older than the stop", () => {
+    const loops = known()
+    loops.observe(T, [act({ type: "turn-started", cause: "harness" }, 1)], 1)
+    loops.observe(T, [act({ type: "turn-ended", outcome: "completed" }, 3)], 3)
+    loops.observe(T, [call("bookkeeping", {}, 2)], 5)
+    expect(loops.worked(T, 10, 900)).toBe(false)
+  })
+
+  it("is a call newer than the stop, even after a real Stop", () => {
+    const loops = known()
+    loops.observe(T, [act({ type: "turn-started", cause: "harness" }, 1)], 1)
+    loops.observe(T, [act({ type: "turn-ended", outcome: "completed" }, 3)], 3)
+    loops.observe(T, [call("bookkeeping", {}, 4)], 5)
+    expect(loops.worked(T, 10, 900)).toBe(true)
   })
 })

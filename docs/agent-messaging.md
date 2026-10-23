@@ -1384,9 +1384,12 @@ output, not that the model acted on it.
   while messaging is paused, so the hold's Inbox item stays. The hold is the thread's,
   and lasts until the person releases or stops it: a held message that goes `gone` (as
   with its session) is like any other, and one that comes back waits held again, its hop
-  being past the hold. A held thread is continued like any thread, within ten minutes of
-  its last message; after that, the pair's next message starts a new thread with a fresh
-  count, and the held one's messages wait for the person still. A pair keeps at most ten
+  being past the hold. A held thread is continued like any thread, within ten minutes of its last message; after
+  that, the pair's next message starts a new thread, and the held one's messages wait for
+  the person still. While the pair has any message waiting held, a new thread between them
+  starts with the pair's idle count, not none, and its first message is judged from the
+  pair's last: a loop that lapses and starts again is held, or refused at the cap, at its
+  next idle message, while one that works goes on. A pair keeps at most ten
   messages waiting held for release, across all its threads and from either end: a send
   that would be held beyond them is refused (one that wouldn't be is sent as ever), and
   one that would start a hold still starts it, at its would-be hop, so the pair's next
@@ -1452,9 +1455,8 @@ output, not that the model acted on it.
 
   The rule catches agents that only talk and wait. A loop whose agents run some counted
   call each round, a check or a read, is not held, nor is a pair whose messages come more
-  than ten minutes apart, each starting a thread, nor one end whose subagent only sleeps, nor, on Claude Code and Codex, which
-  report a call only once it ends, one end polling while the other waits in one long
-  sleep, which passes for a long command (Antigravity's `PreToolUse` tells the sleep); the rates, the ten held messages and
+  than ten minutes apart, each starting a thread, nor one end whose subagent only sleeps, nor one end polling while the other waits in one long sleep, which passes for a long
+  command; the rates, the ten held messages and
   the person's Stop bound them.
 
   _Six_ comes from replaying the rule over a week of real swarms (2026-10-16 to 10-23:
@@ -2117,7 +2119,7 @@ resume probes sent it one prompt:
 | A version-4 workspace with a thread the twelve-message rule held                               | Still held, with no reason; its waiting messages past the hold, a lead's included, wait for the person; one gone that comes back waits held too; a lead thread past twelve isn't held                                                                |
 | The person releases a loop, and the agents go back to only messaging                           | Held again at the sixth idle message after the release                                                                                                                                                                                               |
 | Two agents wait on each other with `sleep 60` between "any update?" messages                   | A call that only sleeps isn't work: held at the sixth such message in a row                                                                                                                                                                          |
-| Two agents held as a loop send again after ten quiet minutes                                   | A new thread with a fresh count; the held thread's messages still wait for the person's release or stop                                                                                                                                              |
+| Two agents held as a loop send again after ten quiet minutes                                   | A new thread that starts with the pair's idle count while its held messages wait: an idle message is held at once (or refused at the cap), one with work goes on and resets it                                                                       |
 | An agent waits on its subagent while its peer asks how it goes                                 | Not idle: a subagent running counts as work                                                                                                                                                                                                          |
 | Antigravity on a machine where its `PreToolUse` isn't registered                               | Its messages count as work: its threads are never held as a loop                                                                                                                                                                                     |
 | The person stops a thread                                                                      | Its queued and held messages are gone and their senders told; a leased one finishes; a send continuing it is refused until it lapses or is released                                                                                                  |

@@ -1366,7 +1366,7 @@ export class Terminals {
     this.peers.pause(paused)
   }
 
-  /** Releases a thread held for going back and forth too often. */
+  /** Releases a thread held as a loop. */
   releaseThread(thread: string): void {
     this.peers.release(thread)
   }
