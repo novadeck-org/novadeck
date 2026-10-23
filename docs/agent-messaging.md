@@ -329,7 +329,8 @@ like them, only inside Novadeck's terminals.
     an idle message: "held: you and @x kept messaging while neither of you did any work,
     so Novadeck holds your thread until the user releases it. Get on with the work, or
     wait for the user, rather than messaging @x again." ("you kept messaging @x while
-    neither of you did any work" where every idle message of the run was its own); to one
+    neither of you did any work" where all six idle messages that held the thread were its
+    own); to one
     that worked: "held: your thread with @x is held because it went on with no work done
     at either end; it arrives once the user releases it." A hold carried over from before
     has no reason, and says only that the thread waits for the user's release;
@@ -341,7 +342,7 @@ like them, only inside Novadeck's terminals.
     the two of you kept messaging while neither did any work, and already has ten
     messages waiting for the user; this one wasn't kept."; for a hold carried over from
     before: "refused: your thread with @x waits for the user's release and already has
-    ten messages waiting; this one wasn't kept."), or the runner stopping, which keeps no message from then on. While that review is still open, a message to it waits, as the person may yet
+    ten or more messages waiting; this one wasn't kept."), or the runner stopping, which keeps no message from then on. While that review is still open, a message to it waits, as the person may yet
     trust the hooks there; once they trust them in `/hooks`, it waits again.
 
   It never claims delivery. A terminal whose own session never bound (Codex with its
@@ -1347,7 +1348,7 @@ messaging is paused or its thread is held, as a loop or by a hold carried over f
 version 4. `gone` when the recipient's instance ended or its harness announced
 a new session (a clear or a new start; for Antigravity, a new conversation named by its
 status line), and back to `queued` should that same session bind again within
-retention, except one gone for good from a hold, which stays gone (see Guards); a rebind alone (Antigravity observing another conversation) doesn't make it
+retention; a rebind alone (Antigravity observing another conversation) doesn't make it
 gone, nor does a guess at Antigravity's root, as when the first report after a runner
 restart is a subagent's: a later model call in a conversation messages wait for, or the
 status line, corrects the guess and the messages wait on. Messages for a terminal that
@@ -1379,33 +1380,28 @@ output, not that the model acted on it.
   not, and two agents that only thank each other, or wait on each other, are.
 
   The sixth idle message in a row (about three rounds) is stored `held`, and so is every
-  message of the thread after it, idle or not, until the person releases it; a message
-  that isn't idle sets the count back to none. While held, each message is still judged
-  idle or not, for its answer, but the count stays as it was until the hold ends. A
-  message at or past the hold is held `release` even while messaging is paused, so the
-  hold's Inbox item stays. A hold's **kept** messages are those held, and those gone only while restoring ended or
-  by a guess, which may wait again; while any is kept, a thread held as a loop is
-  continued whatever its age (a hold carried over from before is continued only within
-  ten minutes of its last message, as before), so a send after ten quiet minutes waits behind them
-  rather than overtaking them. A held thread keeps at most ten messages kept at or past
-  its hold, the first held one included, from either end (messages before the hold, held by a pause, don't count); a send beyond is refused (see
-  [Agent interface](#agent-interface)), so an agent that keeps sending can't fill its
-  peer's fifty and shut out its lead. **Release** (`messages.release`) lets them wait to be delivered
-  (held still while messaging is paused) and **Stop** makes them `gone`; either ends the hold. A held message that goes `gone` for
-  good (its recipient's session ended, by a clear or a new start; its terminal closed;
-  another agent bound there) is marked so and never waits again, as a stopped one, its
-  sender told "won't arrive: its recipient's session or terminal ended, or another agent
-  took it, while the thread was held."; one made `gone` only while restoring ended or by a
-  guess at Antigravity's root (see [Message states](#message-states)) waits again, still
-  held, should its session run there. Once none is kept, the hold ends.
-  Whenever a hold ends, the count starts afresh. After a Release, or a hold whose
-  messages went `gone`, the pair's next message continues the thread within ten minutes
-  of its last, else starts a new one; after a Stop, the Stop's block refuses it until it
-  lapses (see Stop), and the next thread starts with a fresh count. There is no count of
-  messages beyond it, besides the rates and a held thread's ten, and lead pairs are counted like
-  any other. A duplicate send gets its original's answer and, like a refused one,
-  neither counts nor moves the window. The count goes on while messaging is paused, so a
-  thread may come out of a pause held. Person replies are never counted or held.
+  message of the thread after it, idle or not; a message that isn't idle sets the count
+  back to none. While held, each message is still judged idle or not, for its answer,
+  but the count stays as it was. A message at or past the hold is held `release` even
+  while messaging is paused, so the hold's Inbox item stays. The hold is the thread's,
+  and lasts until the person releases or stops it: a held message that goes `gone` (as
+  with its session) is like any other, and one that comes back waits held again, its hop
+  being past the hold. A held thread is continued like any thread, within ten minutes of
+  its last message; after that, the pair's next message starts a new thread with a fresh
+  count, and the held one's messages wait for the person still. A held thread keeps at
+  most ten messages waiting held at or past its hold, from either end; a send beyond is
+  refused (see [Agent interface](#agent-interface)), uses no hop and leaves the thread's
+  time alone, so an agent that keeps sending can't fill its peer's fifty and shut out its
+  lead. **Release** (`messages.release`) ends the hold and lets its messages wait to be
+  delivered (held still while messaging is paused); **Stop** ends it and makes them
+  `gone`. Either starts the count afresh: after a Release the pair's next message
+  continues the thread within ten minutes of its last, else starts a new one; after a
+  Stop, the Stop's block refuses it until it lapses (see Stop). There is no count of
+  messages beyond it, besides the rates and a held thread's ten, and lead pairs are
+  counted like any other. A duplicate send gets its original's answer and, like a
+  refused one, neither counts nor moves the window. The count goes on while messaging is
+  paused, so a thread may come out of a pause held. Person replies are never counted or
+  held.
 
   _What counts as work_ is any call either agent's harness reports, root or subagent, but
   three kinds:
@@ -1467,22 +1463,19 @@ output, not that the model acted on it.
 
   _Stored_, a thread keeps where its hold starts (`held_from`, a hop, null while not
   held) and why (`held_for`: `loop`), in place of `allowed`; a message is held for its
-  thread when its hop is at or past `held_from`. Ending a hold sets both to null. A
-  message keeps whether it went `gone` for good from a hold (its session ended, its
-  terminal closed, another agent bound there), beside `stopped`; one gone only while
-  restoring ended or by a guess isn't marked. The schema goes
-  from 4 to 5 with a migration (`schemas/4.sql`, tested from version 4): a thread where
-  the twelve-message rule held a message (one neither from nor to a lead, stored `held`
-  with its hop past `allowed`) keeps its hold from the lowest such hop, with no reason; its messages at or past that
-  hop, a lead's included, wait behind it. Separately, every message that went `gone`
-  unstopped from a thread that awaited release (one neither from nor to a lead and past
-  `allowed`, or, where the thread carries a hold, any at or past it) is marked gone for
-  good from a hold, whether or not the thread still holds one; every other thread has none,
-  a lead thread past its allowance included. The listing drops `allowed` and gives each
-  thread `held`, true while `held_from` is set, `heldFor` (`"loop"`, or null when not
-  held or for a hold carried over) and `idle`, its idle messages in a row (kept as it was
-  while held; none after a restart, a held thread's included). A message's `held` stays
-  `"release"` (deliberately: a loop awaits the person's release) or `"paused"`.
+  thread when its hop is at or past `held_from`, and Release and Stop set both to null.
+  The schema goes from 4 to 5 with a migration (`schemas/4.sql`, tested from version 4):
+  a thread with a message the twelve-message rule held, or would hold again should it
+  come back (one neither from nor to a lead, past `allowed`, stored `held`, or `gone`
+  and not stopped), keeps a hold from `allowed + 1`, with no reason; its messages at or
+  past it that wait, a lead's included, are held from then on, and those delivered are
+  untouched. Every other thread has none, a lead thread past its allowance included. A
+  hold carried over may start with more than ten held. The listing drops `allowed` and
+  gives each thread `held`, true while one of its messages waits held for release (as
+  the Inbox shows it), `heldFor` (`"loop"`, or null when not held or for a hold carried
+  over) and `idle`, its idle messages in a row (kept as it was while held; none after a
+  restart). A message's `held` stays `"release"` (deliberately: a loop awaits the
+  person's release) or `"paused"`.
 
 - **Stop.** The person can stop a thread (`messages.stop`). Its messages still queued or
   held are `gone`, each marked stopped so its sender's next answer says "won't arrive: the
@@ -1493,8 +1486,8 @@ output, not that the model acted on it.
   later of the stop and the thread's last message: "The user stopped your thread with @x in
   Novadeck. Don't message @x about it again unless the user asks." A refused send does not
   extend the block. The listing's `stopped` is true only while the block is in force.
-  Stop also marks stopped every message of the thread kept to wait again (gone while
-  restoring ended or by a guess), so none waits again. Stopping a held thread ends its hold; releasing the thread clears the stop.
+  Stop also marks stopped the thread's `gone` messages that could wait again, so none
+  does. Stopping a held thread ends its hold; releasing the thread clears the stop.
 - **Rates.** A sender may send 10 messages a minute, 3 of them to any one recipient; the
   runner allows 60 a minute in all.
 - **Pause.** One switch, stored so it survives restarts, pauses messaging across the
@@ -1899,7 +1892,7 @@ optional `messages` capability (`core/messages.ts`):
   11 s on its word's clock, hops a row while its agent works, and is still and dim once its
   agent has left; reduced motion stills it. The person is a backlit imp. They show only in
   this view.
-- **A held thread in the Inbox.** Its item quotes the thread's oldest kept message and says why from the
+- **A held thread in the Inbox.** Its item quotes the thread's oldest held message and says why from the
   listing's `heldFor`: "@a and @b kept messaging while neither did any work, so Novadeck
   holds their thread." in place of the message's hop; a hold carried over from
   before says only that Novadeck holds the thread for the person. The item no longer
@@ -2114,11 +2107,11 @@ resume probes sent it one prompt:
 | The person stops a held thread                                                                 | Its held messages are gone, their senders told, and the hold ends; a send continuing it is refused until the stop lapses or the person releases it; a thread started after that begins with a fresh count                                            |
 | A worker runs one long command while its lead sleeps and asks how it goes                      | The worker's turn runs through each window with no call reporting, so it works: never held                                                                                                                                                           |
 | The runner restarts while a thread is held                                                     | The hold stays; the count starts afresh, and the first message after it counts as work                                                                                                                                                               |
-| The runner restarts while a thread is held, and one end's agent comes back late                | Its held messages go gone when restoring ends and wait again, still held, when its session runs there; the hold stays meanwhile                                                                                                                      |
-| A version-4 workspace with a thread the twelve-message rule held                               | Still held, with no reason; its messages stored then, a lead's included, wait behind it, and so do sends within ten minutes of its last; later sends start a new thread; its messages that went gone stay gone; a lead thread past twelve isn't held |
+| The runner restarts while a thread is held, and one end's agent comes back late                | Its held messages go gone when restoring ends and wait again, still held, when its session runs there                                                                                                                                                |
+| A version-4 workspace with a thread the twelve-message rule held                               | Still held, with no reason; its waiting messages past the hold, a lead's included, wait for the person; one gone that comes back waits held too; a lead thread past twelve isn't held                                                                |
 | The person releases a loop, and the agents go back to only messaging                           | Held again at the sixth idle message after the release                                                                                                                                                                                               |
 | Two agents wait on each other with `sleep 60` between "any update?" messages                   | A call that only sleeps isn't work: held at the sixth such message in a row                                                                                                                                                                          |
-| Two agents held as a loop send again after ten quiet minutes                                   | Still the held thread: their messages wait behind the held ones until the person releases or stops it                                                                                                                                                |
+| Two agents held as a loop send again after ten quiet minutes                                   | A new thread with a fresh count; the held thread's messages still wait for the person's release or stop                                                                                                                                              |
 | An agent waits on its subagent while its peer asks how it goes                                 | Not idle: a subagent running counts as work                                                                                                                                                                                                          |
 | Antigravity on a machine where its `PreToolUse` isn't registered                               | Its messages count as work: its threads are never held as a loop                                                                                                                                                                                     |
 | The person stops a thread                                                                      | Its queued and held messages are gone and their senders told; a leased one finishes; a send continuing it is refused until it lapses or is released                                                                                                  |
