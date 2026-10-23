@@ -305,7 +305,7 @@ state (`unbound`, `fresh`, `working`, `settled`, `ringing`, `drafting` or `unkno
 messaging is paused, and its threads, newest first, each with the other terminal's
 handle, its hops so far, its idle messages in a row (sent while neither end worked, see
 [Guards](agent-messaging.md#guards)), whether it is held and why (`heldFor`: `"loop"`, or
-null for a hold carried over from the twelve-hop rule), whether the person stopped it, and its messages, oldest first: id, hop, sender and recipient
+null when not held or for a hold carried over from the twelve-hop rule), whether the person stopped it, and its messages, oldest first: id, hop, sender and recipient
 handles and agents, text, when sent, state (`queued`, `leased`, `delivered`, `held` or
 `gone`), why it is held (`paused` or `release`), and when delivered. Inbox history
 adds optional `inbox: "ask" | "tell" | "answer"`; its person party is the handle `you`.
