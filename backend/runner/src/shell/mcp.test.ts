@@ -111,6 +111,7 @@ describe("Novadeck's MCP server", () => {
         result: { protocolVersion: "2025-06-18", serverInfo: { name: "novadeck" } },
       })
       expect(answers[1]).toEqual({ jsonrpc: "2.0", id: 2, result: { tools: [] } })
+      expect(answers[0]?.result).not.toHaveProperty("instructions")
     })
   })
 
@@ -354,6 +355,37 @@ describe("Novadeck's MCP server", () => {
       )
       for (const name of ["send", "close_terminal"])
         expect(described.find((tool) => tool.name === name)!.description).toContain("such as @fox")
+    })
+
+    it("says up front that ask doesn't stop the work and tell is for milestones", async () => {
+      const [handshake] = await session(terminal(), [initialize])
+      const instructions = handshake?.result?.instructions as string
+      expect(instructions).toContain(
+        "puts a question in the user's Inbox without stopping your work",
+      )
+      expect(instructions).toContain(
+        "for a decision the user should make, ask there and keep going",
+      )
+      expect(instructions).toContain("Its tell puts a milestone there")
+      expect(instructions).toContain("With a lead, both go to it instead")
+    })
+
+    it("nudges ask toward not blocking, and tell toward milestones, never each step", async () => {
+      const [, tools] = await session(terminal(), [initialize, list])
+      const described = tools?.result?.tools as { name: string; description: string }[]
+      const ask = described.find((tool) => tool.name === "ask")!
+      expect(ask.description).toContain(
+        "Put a question in the user's Inbox without stopping your work.",
+      )
+      expect(ask.description).toContain("With a lead, send it")
+      expect(ask.description).toContain("needs no approval of theirs")
+      expect(ask.description).toContain("A pick that is hard to undo waits for their answer")
+      expect(ask.description).toContain("once nothing else is left, end your")
+      expect(ask.description).toContain("withdraw it too once the user answers it another way")
+      const tell = described.find((tool) => tool.name === "tell")!
+      expect(tell.description).toContain("a pull request opened")
+      expect(tell.description).toContain("not each step")
+      expect(tell.description).toContain("With a lead, report to it instead")
     })
 
     it("tells agents to show deliverables when done, never each file they touch", async () => {

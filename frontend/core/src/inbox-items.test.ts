@@ -272,6 +272,32 @@ describe("The Inbox's items", () => {
       )
       expect(inboxItems(inputs(working, { unread: done }))).toEqual([])
     })
+
+    it("is its lead's while that lead runs, and the person's once it doesn't", () => {
+      const worker = (end: Partial<AgentTurnEnd> = {}): TerminalMetadata => ({
+        ...agentTerminal(2, { working: false, lastTurn: turn(end) }),
+        ledBy: "moth",
+      })
+      const unread: InboxUnread = { "p/s": { "02": "done" } }
+
+      expect(inboxItems(inputs(workspaceOf(agentTerminal(1), worker()), { unread }))).toEqual([])
+      // A lead whose agent stopped, or whose terminal closed, hears nothing: the person does.
+      const shell = { ...agentTerminal(1), process: "bash" }
+      expect(inboxItems(inputs(workspaceOf(shell, worker()), { unread }))).toMatchObject([
+        { id: "update:02:100", kind: "update" },
+      ])
+      expect(inboxItems(inputs(workspaceOf(worker()), { unread }))).toMatchObject([
+        { id: "update:02:100" },
+      ])
+      // What only the person can fix still comes to them.
+      expect(
+        inboxItems(
+          inputs(workspaceOf(agentTerminal(1), worker({ outcome: "failed", error: "x" })), {
+            unread: { "p/s": { "02": "failed" } },
+          }),
+        ),
+      ).toMatchObject([{ id: "trouble:02:100", kind: "trouble" }])
+    })
   })
 
   describe("a failed turn", () => {
