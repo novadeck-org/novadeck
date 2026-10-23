@@ -109,11 +109,12 @@ describe("loops: sends", () => {
     expect(loops.worked(T, 99, 100)).toBe(true)
   })
 
-  it("make a session known, though a send alone is no work", () => {
+  it("do not make a session known: only a reported call does", () => {
     const loops = new Loops(() => 0)
     loops.observe(T, [session], 0)
-    expect(loops.worked(T, 0, 10)).toBe("unknown")
     loops.sent(T, 5)
+    expect(loops.worked(T, 5, 10)).toBe("unknown")
+    loops.observe(T, [call("bookkeeping")], 6)
     expect(loops.worked(T, 5, 10)).toBe(false)
   })
 })
@@ -360,5 +361,118 @@ describe("loops: reset, forget and pruning", () => {
     const past = keepEntries + 10
     expect(loops.worked(T, past - 1, past)).toBe(true)
     expect(loops.worked(T, 0, 5)).toBe("unknown")
+  })
+})
+
+describe("loops: settling as the activity does", () => {
+  it("closes the root's requests at a turn start, end, idle or Escape", () => {
+    for (const settle of [
+      act({ type: "turn-started", cause: "harness" }),
+      turnEnded(),
+      act({ type: "turn-idle", background: { agents: 0, tasks: 0 } }),
+      act({ type: "turn-escaped" }),
+    ]) {
+      const loops = known()
+      loops.observe(T, [requested("r")], 100)
+      loops.observe(T, [settle], 200)
+      expect(loops.worked(T, 100, 200)).toBe(true)
+      // Nothing running through, so a denial leaves no request open.
+      loops.observe(T, [turnEnded()], 220)
+      loops.observe(T, [call("bookkeeping")], 250)
+      expect(loops.worked(T, 250, 400)).toBe(false)
+    }
+  })
+
+  it("keeps a running subagent's request past a turn's end", () => {
+    const loops = known()
+    loops.observe(T, [subStarted("a"), requested("r", "a"), turnEnded()], 100)
+    expect(loops.worked(T, 300, 400)).toBe(true)
+  })
+
+  it("closes a subagent's requests when it stops, and those of one not running at a turn end", () => {
+    const loops = known()
+    loops.observe(T, [subStarted("a"), requested("r", "a")], 100)
+    loops.observe(T, [act({ type: "subagent-stopped", actor: "a" })], 200)
+    expect(loops.worked(T, 200, 300)).toBe(false)
+  })
+
+  it("takes a subagent that asks unseen as running, until it stops", () => {
+    const loops = known()
+    loops.observe(T, [requested("r", "a")], 100)
+    loops.observe(T, [resolved("r")], 110)
+    expect(loops.worked(T, 200, 300)).toBe(true)
+    loops.observe(T, [act({ type: "subagent-stopped", actor: "a" })], 400)
+    expect(loops.worked(T, 400, 500)).toBe(false)
+  })
+
+  it("drops the subagents an interrupted turn started, and keeps earlier ones", () => {
+    const loops = known()
+    loops.observe(T, [subStarted("old")], 5)
+    loops.observe(T, [turnStarted(), subStarted("new")], 100)
+    loops.observe(T, [act({ type: "turn-ended", outcome: "interrupted" })], 200)
+    expect(loops.worked(T, 150, 200)).toBe(true)
+    expect(loops.worked(T, 200, 300)).toBe(true)
+    loops.observe(T, [act({ type: "subagent-stopped", actor: "old" })], 250)
+    expect(loops.worked(T, 250, 300)).toBe(false)
+  })
+
+  it("lets a completed turn's end leave its subagents running", () => {
+    const loops = known()
+    loops.observe(T, [turnStarted(), subStarted("a"), turnEnded()], 100)
+    expect(loops.worked(T, 200, 300)).toBe(true)
+  })
+
+  it("ends a turn at an Escape or an idle status line", () => {
+    for (const stop of [
+      act({ type: "turn-escaped" }),
+      act({ type: "turn-idle", background: { agents: 0, tasks: 0 } }),
+    ]) {
+      const loops = known()
+      loops.observe(T, [turnStarted()], 10)
+      loops.observe(T, [stop], 100)
+      expect(loops.worked(T, 50, 150)).toBe(false)
+      expect(loops.worked(T, 100, 200)).toBe(false)
+    }
+  })
+})
+
+describe("loops: a status line's subagent count", () => {
+  it("counts from a count above zero until a later zero", () => {
+    const loops = known()
+    loops.observe(T, [act({ type: "turn-working", running: 2 })], 100)
+    loops.observe(T, [act({ type: "turn-working", running: 1 })], 150)
+    expect(loops.worked(T, 200, 300)).toBe(true)
+    loops.observe(T, [act({ type: "turn-working", running: 0 })], 400)
+    expect(loops.worked(T, 350, 450)).toBe(true)
+    expect(loops.worked(T, 400, 500)).toBe(false)
+  })
+
+  it("reads the agents a turn's end or idle leaves", () => {
+    const loops = known()
+    loops.observe(T, [turnEnded({ agents: 1, tasks: 0 })], 100)
+    expect(loops.worked(T, 200, 300)).toBe(true)
+    loops.observe(T, [act({ type: "turn-idle", background: { agents: 0, tasks: 0 } })], 400)
+    expect(loops.worked(T, 400, 500)).toBe(false)
+  })
+
+  it("ignores a turn-working that counts none", () => {
+    const loops = known()
+    loops.observe(T, [act({ type: "turn-working" })], 100)
+    expect(loops.worked(T, 100, 200)).toBe(false)
+  })
+})
+
+describe("loops: the cap and open spans", () => {
+  it("never drops a span still open", () => {
+    const loops = known()
+    loops.observe(T, [subStarted("keep")], 1)
+    for (let i = 0; i < keepEntries + 10; i++) {
+      loops.observe(
+        T,
+        [subStarted(`s${i}`), act({ type: "subagent-stopped", actor: `s${i}` })],
+        2 + i,
+      )
+    }
+    expect(loops.worked(T, 1_000_000, 1_000_001)).toBe(true)
   })
 })

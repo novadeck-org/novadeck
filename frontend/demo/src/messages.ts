@@ -39,6 +39,8 @@ export type DemoThread = {
   readonly messages: readonly DemoMessage[]
   // The last hop at the person's release: the count of idle messages starts afresh after it.
   readonly releasedAt?: number | undefined
+  // Where a send the cap refused would have started the hold: that hop and after are held.
+  readonly holdFrom?: number | undefined
   // When the person stopped it: what waited is gone, and a send on it is refused for as long
   // as a thread lasts (`threadMs`) from its latest message or the stop, or until a release.
   readonly stoppedAt?: number | undefined
@@ -68,17 +70,19 @@ export type DemoMailbox = {
 // Where a thread's hold starts, as the runner has it: the hop of the sixth idle message in a
 // row since the last release, and every message after it is held too; undefined for none.
 const holdHop = (thread: DemoThread): number | undefined => {
+  const refused = thread.holdFrom
   let run = 0
   for (const message of thread.messages) {
     if (message.inbox || message.hop <= (thread.releasedAt ?? 0)) continue
     run = message.idle ? run + 1 : 0
-    if (run >= idleToHold) return message.hop
+    if (run >= idleToHold) return Math.min(message.hop, refused ?? message.hop)
   }
-  return undefined
+  return refused
 }
 
 // The idle messages in a row the thread counts, which stays where it was while held.
 const idleRun = (thread: DemoThread): number => {
+  if (thread.holdFrom !== undefined) return idleToHold
   let run = 0
   for (const message of thread.messages) {
     if (message.inbox || message.hop <= (thread.releasedAt ?? 0)) continue
@@ -99,9 +103,11 @@ const shown = (message: DemoMessage, thread: DemoThread, paused: boolean): Agent
       : paused
         ? "paused"
         : null
+  // Whether it was idle is the demo's own: the runner's listing doesn't say.
+  const { idle: _idle, ...listed } = message
   return message.state === "queued" && hold
-    ? { ...message, state: "held", held: hold }
-    : { ...message, held: null }
+    ? { ...listed, state: "held", held: hold }
+    : { ...listed, held: null }
 }
 
 const mailOf = (
@@ -118,14 +124,13 @@ const mailOf = (
     .filter((thread) => thread.between.includes(handle))
     .map((thread): MessageThread => {
       const messages = thread.messages.map((message) => shown(message, thread, paused))
-      const held = messages.some((message) => message.held === "release")
       return {
         id: thread.id,
         peer: thread.between[0] === handle ? thread.between[1] : thread.between[0],
         hops: thread.hops,
         idle: idleRun(thread),
-        held,
-        heldFor: held ? "loop" : null,
+        held: holdHop(thread) !== undefined,
+        heldFor: holdHop(thread) !== undefined ? "loop" : null,
         messages,
       }
     })
@@ -433,13 +438,31 @@ export const createDemoMessages = (
         hops: messages.length,
         messages,
         releasedAt: thread?.releasedAt,
+        holdFrom: thread?.holdFrom,
       })
       if (loopAt !== undefined && sent.hop >= loopAt) {
         const waiting = box.threads
           .filter((each) => each.between.includes(from) && each.between.includes(to))
           .flatMap((each) => each.messages.map((one) => shown(one, each, false)))
           .filter((one) => one.state === "held" && one.held === "release").length
-        if (waiting >= heldPerPair) return false
+        if (waiting >= heldPerPair) {
+          // The refused send uses no hop, but one that would have started the hold still
+          // does, at its would-be hop.
+          if (thread && holdHop(thread) === undefined) {
+            boxes = boxes.map((each, at) =>
+              at !== index
+                ? each
+                : {
+                    ...each,
+                    threads: each.threads.map((current) =>
+                      current.id === id ? { ...current, holdFrom: sent.hop } : current,
+                    ),
+                  },
+            )
+            publish()
+          }
+          return false
+        }
       }
       boxes = boxes.map((each, at) =>
         at !== index
@@ -453,6 +476,7 @@ export const createDemoMessages = (
                   between: [from, to],
                   hops: messages.length,
                   releasedAt: thread?.releasedAt,
+                  holdFrom: thread?.holdFrom,
                   messages,
                 },
               ],
@@ -507,7 +531,12 @@ export const createDemoMessages = (
         ...box,
         threads: box.threads.map((each) =>
           each.id === thread
-            ? { ...each, releasedAt: each.messages.at(-1)?.hop ?? 0, stoppedAt: undefined }
+            ? {
+                ...each,
+                releasedAt: each.messages.at(-1)?.hop ?? 0,
+                holdFrom: undefined,
+                stoppedAt: undefined,
+              }
             : each,
         ),
       }))
@@ -523,6 +552,9 @@ export const createDemoMessages = (
           each.id === thread
             ? {
                 ...each,
+                // A stop ends the hold, as a release does: the next thread counts afresh.
+                releasedAt: each.messages.at(-1)?.hop ?? 0,
+                holdFrom: undefined,
                 stoppedAt: Date.now(),
                 messages: each.messages.map((message) =>
                   message.state === "queued" ? { ...message, state: "gone" as const } : message,
@@ -537,8 +569,6 @@ export const createDemoMessages = (
     },
   }
 }
-
-const idle = (sent: DemoMessage): DemoMessage => ({ ...sent, idle: true })
 
 const minutes = (now: number, ago: number): number => now - ago * 60_000
 
@@ -706,25 +736,58 @@ export const checkoutMailboxes = (
             {
               id: "t-flaky",
               between: ["moth", "owl"],
-              hops: 7,
+              hops: 13,
               messages: [
+                // The ten before: the two going back and forth over the flaky test. The tests run again
+                // between the messages, so none is idle, and a thread of rounds is never held.
+                ...Array.from({ length: 10 }, (_, before) =>
+                  before % 2 === 0
+                    ? message(
+                        now,
+                        34 - before * 2,
+                        before + 1,
+                        "owl",
+                        "moth",
+                        "delivered",
+                        `Run ${before / 2 + 1}: cart.spec.ts failed on the coupon case.`,
+                      )
+                    : message(
+                        now,
+                        34 - before * 2,
+                        before + 1,
+                        "moth",
+                        "owl",
+                        "delivered",
+                        "Once more, with the seed logged.",
+                      ),
+                ),
                 message(
                   now,
                   14,
-                  1,
+                  11,
                   "owl",
                   "moth",
                   "delivered",
-                  "cart.spec.ts failed on the coupon case, then passed on a rerun.",
+                  "cart.spec.ts failed again on the coupon case.",
                 ),
-                // The rest only acknowledge each other, neither doing any work: the loop
-                // Novadeck holds at the sixth.
-                idle(message(now, 13, 2, "moth", "owl", "delivered", "Thanks, noted.")),
-                idle(message(now, 12.5, 3, "owl", "moth", "delivered", "Noted on my side too.")),
-                idle(message(now, 12, 4, "moth", "owl", "delivered", "Good, we agree then.")),
-                idle(message(now, 11.5, 5, "owl", "moth", "delivered", "Agreed.")),
-                idle(message(now, 11, 6, "moth", "owl", "delivered", "Sounds good.")),
-                idle(message(now, 10, 7, "owl", "moth", "queued", "Great, thanks again.")),
+                message(
+                  now,
+                  13,
+                  12,
+                  "moth",
+                  "owl",
+                  "delivered",
+                  "Run it ten more times and tell me.",
+                ),
+                message(
+                  now,
+                  12,
+                  13,
+                  "owl",
+                  "moth",
+                  "queued",
+                  "3 of 10 failed. Want me to quarantine it?",
+                ),
               ],
             },
             {

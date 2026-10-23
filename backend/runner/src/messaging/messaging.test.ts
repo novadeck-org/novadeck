@@ -224,12 +224,16 @@ const idleLoops = () => {
   const working = new Map<string, boolean | "unknown">()
   const calls = {
     observed: [] as string[],
+    events: [] as HarnessEvent[],
     sent: [] as string[],
     reset: [] as string[],
     forgot: [] as string[],
   }
   const loops = {
-    observe: (id: string) => calls.observed.push(id),
+    observe: (id: string, events: readonly HarnessEvent[]) => {
+      calls.observed.push(id)
+      calls.events.push(...events)
+    },
     sent: (id: string) => calls.sent.push(id),
     worked: (id: string) => working.get(id) ?? false,
     reset: (id: string) => calls.reset.push(id),
@@ -4149,12 +4153,40 @@ describe("the loop hold", () => {
     ])
   })
 
+  it("feeds the tracker an Escape, a continued Stop, and only the root's turn marks", () => {
+    const { messaging, observe, prompt, stop, send, claude, codex, calls, clock: time } = setup()
+    const sub = binding("claude", "s-sub", "1")
+    const call = {
+      type: "tool-called",
+      ...fact(sub),
+      actor: "sub-1",
+      toolName: "Read",
+      kind: "work",
+    } as const
+    calls.events.length = 0
+    observe("A", claude, [started(sub), call, started(claude)])
+    expect(calls.events.map(({ type }) => type)).toEqual(["tool-called", "turn-started"])
+    // A Stop that takes a message goes on as a continued turn.
+    prompt("B", codex)
+    sent(send("A", "fox", "carry on"))
+    calls.events.length = 0
+    expect(stop("B", codex).leaseId).not.toBeNull()
+    expect(calls.events.map(({ type }) => type)).toEqual(["turn-ended", "turn-continued"])
+    // The person's Escape ends a turn.
+    prompt("A", claude)
+    time.now += 1_000
+    messaging.keys("A", claudeKeys("\x1b"), false)
+    calls.events.length = 0
+    messaging.escaped("A", claude)
+    expect(calls.events.map(({ type }) => type)).toEqual(["turn-escaped"])
+  })
+
   it("feeds the tracker every report, each send, and a session ending or changing", () => {
     const { messaging, rounds, observe, ask, prompt, follow, claude, codex, calls } = setup()
     calls.reset.length = 0
     observe("A", claude, [observed(claude)])
     prompt("B", codex)
-    ask("A", claude, "PostToolUse", [])
+    ask("A", claude, "PostToolUse", [observed(claude)])
     expect(calls.observed).toEqual(["A", "B", "A"])
     rounds(2).map(sent)
     expect(calls.sent).toEqual(["A", "B"])
@@ -4167,14 +4199,61 @@ describe("the loop hold", () => {
 })
 
 describe("the loop hold on the real work tracker", () => {
+  // Two bound terminals that both reported a call, the worker B in a turn.
+  const working = () => {
+    const setup = create()
+    const { observe, claude, codex, clock: time } = setup
+    const call = (bound: Binding): HarnessEvent => ({
+      type: "tool-called",
+      ...fact(bound),
+      actor: null,
+      toolName: "Read",
+      kind: "work",
+    })
+    observe("A", claude, [observed(claude), call(claude)])
+    observe("B", codex, [observed(codex), call(codex)])
+    time.now += 30_000
+    setup.prompt("B", codex)
+    return setup
+  }
+  const polls = (setup: ReturnType<typeof working>, count: number) =>
+    Array.from({ length: count }, (_, index) => {
+      setup.clock.now += 60_000
+      return setup.send("A", "fox", `how is it going ${index}`)
+    }).map(sent)
+
+  it("counts a worker whose Stop was continued as running through its silence", () => {
+    const setup = working()
+    sent(setup.send("A", "fox", "do the long job"))
+    expect(setup.stop("B", setup.codex).leaseId).not.toBeNull()
+    expect(polls(setup, 8).every(({ state }) => state === "queued")).toBe(true)
+    expect(setup.messaging.list("A", "moth").threads[0]).toMatchObject({ idle: 0, held: false })
+  })
+
+  it("holds the same polls to a worker whose turn ended", () => {
+    const setup = working()
+    // Its Stop takes nothing: the turn is over, and nothing runs.
+    setup.stop("B", setup.codex)
+    const answers = polls(setup, 8)
+    expect(answers.at(-1)).toMatchObject({ state: "held" })
+  })
+
   it("holds a thanks loop between two bound Claude Code terminals at the sixth idle message", () => {
     const setup = create()
     const { messaging, observe, send, clock: time, claude } = setup
     const other = binding("claude", "s-other", "5")
     messaging.register("C", here, "owl", null)
     setup.follow("C", other)
-    observe("A", claude, [observed(claude)])
-    observe("C", other, [observed(other)])
+    // Each reported a call, as its harness does the `send` that opens the exchange.
+    const reported = (bound: Binding): HarnessEvent => ({
+      type: "tool-called",
+      ...fact(bound),
+      actor: null,
+      toolName: "mcp__plugin_novadeck_novadeck__send",
+      kind: "novadeck",
+    })
+    observe("A", claude, [observed(claude), reported(claude)])
+    observe("C", other, [observed(other), reported(other)])
     const answers: SendAnswer[] = []
     for (let index = 0; index < 10; index++) {
       time.now += 30_000
@@ -4184,10 +4263,10 @@ describe("the loop hold on the real work tracker", () => {
           : send("C", "moth", `thanks ${index}`),
       )
     }
-    // Each end's first send is its first call reported, so the pair is judged from the third.
+    // The first message isn't idle; the sixth idle one after it is the seventh.
     const states = answers.map((answer) => (answer.ok ? answer.state : "refused"))
-    expect(states.indexOf("held")).toBe(7)
-    expect(states.slice(0, 7).every((state) => state === "queued")).toBe(true)
+    expect(states.indexOf("held")).toBe(6)
+    expect(states.slice(0, 6).every((state) => state === "queued")).toBe(true)
     expect(messaging.list("A", "moth").threads[0]).toMatchObject({ held: true, idle: 6 })
   })
 

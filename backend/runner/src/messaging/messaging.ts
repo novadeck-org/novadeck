@@ -336,6 +336,16 @@ const joined = (kept: string | undefined, text: string): string =>
 const noted = (text: string | undefined, holds: readonly string[]): string =>
   [...(text ? [text] : []), ...holds].join("\n")
 
+/** The events that mark a turn's course, which the tracker takes only of the root session. */
+const turnMarks: ReadonlySet<string> = new Set([
+  "turn-started",
+  "turn-ended",
+  "turn-continued",
+  "turn-escaped",
+  "turn-idle",
+  "turn-working",
+])
+
 /** When a thread's latest message was sent. */
 const latest = (thread: MessageThread): number => thread.messages.at(-1)?.sentAt ?? 0
 
@@ -720,7 +730,25 @@ export class Messaging {
     if (live.escapeTold === delivery.escapedAt) return undefined
     live.escapeTold = delivery.escapedAt
     const { agent, sessionId, instance } = binding
-    return { type: "turn-escaped", agent, sessionId, instance, startedAt: delivery.escapedAt }
+    const event: ActivityEvent = {
+      type: "turn-escaped",
+      agent,
+      sessionId,
+      instance,
+      startedAt: delivery.escapedAt,
+    }
+    this.feed(live, [event])
+    return event
+  }
+
+  /**
+   * Tells the work tracker what a terminal's session reported. The turn's own marks count
+   * only from the root session: Antigravity also reports turns of its subagents'
+   * conversations, which are not the root's.
+   */
+  private feed(live: Live, events: readonly HarnessEvent[]): void {
+    const root = events.filter((event) => !turnMarks.has(event.type) || rootedIn(live.root, event))
+    if (root.length > 0) this.loops.observe(live.terminalId, root, this.now())
   }
 
   /** The agent whose hooks were found untrusted there, with no session bound, if any. */
@@ -777,7 +805,7 @@ export class Messaging {
   observe(terminalId: string, events: readonly HarnessEvent[]): void {
     const live = this.live.get(terminalId)
     if (!live) return
-    this.loops.observe(terminalId, events, this.now())
+    this.feed(live, events)
     for (const event of events) this.turn(live, event)
   }
 
@@ -816,7 +844,7 @@ export class Messaging {
               event.type === "turn-ended" && event.outcome === "completed" && rootedIn(root, event),
           )
         : undefined
-    this.loops.observe(terminalId, report.events, this.now())
+    this.feed(live, report.events)
     for (const event of report.events) if (event !== stop) this.turn(live, event)
     if (!root) return silent
     const asked = {
@@ -846,6 +874,17 @@ export class Messaging {
       time &&
       continues(live.delivery) &&
       this.lease(live, root, { kind: "stop", background, print: profile.stop })
+    // The turn goes on with what it was given, which the tracker counts as running through.
+    if (lease)
+      this.feed(live, [
+        {
+          type: "turn-continued",
+          agent: root.agent,
+          sessionId: root.sessionId,
+          instance: stop.instance,
+          startedAt: stop.startedAt,
+        },
+      ])
     this.step(live, {
       type: "stop",
       continued: Boolean(lease),

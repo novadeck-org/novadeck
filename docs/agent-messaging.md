@@ -1425,7 +1425,7 @@ output, not that the model acted on it.
     `Bash`, Codex's argv form unwrapped from its `bash -lc`, Antigravity's `run_command`)
     whose command is only sleeps, alone or joined by `;`, `&&` or newlines: `sleep` with
     numbers and an `s`, `m`, `h` or `d`, PowerShell's `Start-Sleep` with a number or
-    `-Seconds`/`-Milliseconds`, and cmd's `timeout /t` with a number and `/nobreak` (Unix
+    `-Seconds`/`-Milliseconds`, and cmd's `timeout /t` with a number, with or without `/nobreak` (Unix
     `timeout` runs a command, and isn't one). Two agents that wait on each other by
     sleeping between "any update?" messages are idle; a wait that checks something
     (`sleep 60 && git status`) is work.

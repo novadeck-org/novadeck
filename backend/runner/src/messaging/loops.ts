@@ -9,6 +9,9 @@ export const keepEntries = 500
 /** A send counts as a call reported this long after it: inside the window it opens. */
 const justAfter = 0.5
 
+/** The "actor" of the subagents an Antigravity-style status line counts running. */
+const statusLine = "\0status-line"
+
 /** A span `[start, end)` of something running; `end` is null while it does. */
 type Span = { start: number; end: number | null }
 
@@ -76,11 +79,11 @@ export class Loops {
   /**
    * The terminal sent a message at `at`: counted as its own call reported just after it,
    * whatever its harness reports of the `send`, so a turn that only sent never passes for
-   * one at work.
+   * one at work. It doesn't make the session known: only a reported call does.
    */
   sent(terminalId: string, at: number): void {
     const history = this.history(terminalId, at)
-    history.called = true
+    // Only a reported call proves the harness reports them: a send never sets `called`.
     history.calls.push(at + justAfter)
     prune(history, at)
   }
@@ -179,16 +182,34 @@ const fold = (history: History, event: HarnessEvent, at: number): void => {
     case "subagent-stopped":
     case "subagent-turn-aborted":
       close(history.subagents, at, (span) => span.actor === event.actor)
-      if (event.type === "subagent-turn-aborted") {
-        close(history.requests, at, (span) => span.actor === event.actor)
-      }
+      close(history.requests, at, (span) => span.actor === event.actor)
       return
     case "turn-started":
+      settle(history, at)
       history.marks.push({ at, kind: "start" })
       if (event.cause === "prompt") history.prompts.push(at)
       return
+    case "turn-idle":
+      settle(history, at)
+      history.marks.push({ at, kind: "stop" })
+      counted(history, event.background.agents, at)
+      return
+    case "turn-escaped":
+      settle(history, at)
+      history.marks.push({ at, kind: "stop" })
+      return
+    case "turn-working":
+      if (event.running !== undefined) counted(history, event.running, at)
+      return
     case "turn-ended": {
       history.marks.push({ at, kind: "stop" })
+      if (event.outcome === "interrupted") {
+        // The subagents the turn started end with it; the activity drops them.
+        const from = turnStart(history)
+        close(history.subagents, at, (span) => from !== null && span.start >= from)
+      }
+      settle(history, at)
+      if (event.background) counted(history, event.background.agents, at)
       const open = history.tasks.filter((span) => span.end === null)
       const keep = event.background?.more ? open.length : (event.background?.tasks ?? 0)
       for (const span of open.slice(0, Math.max(0, open.length - keep))) span.end = at
@@ -199,6 +220,10 @@ const fold = (history: History, event: HarnessEvent, at: number): void => {
       return
     case "attention-requested":
       history.requests.push({ id: event.requestId, actor: event.actor, start: at, end: null })
+      // A subagent not seen running runs from its request on, as the activity takes it.
+      if (event.actor !== null && !running(history, event.actor)) {
+        history.subagents.push({ start: at, end: null, actor: event.actor })
+      }
       return
     case "attention-resolved":
       close(history.requests, at, (span) => span.id === event.requestId)
@@ -206,6 +231,32 @@ const fold = (history: History, event: HarnessEvent, at: number): void => {
     default:
       return
   }
+}
+
+const running = (history: History, actor: string): boolean =>
+  history.subagents.some((span) => span.end === null && span.actor === actor)
+
+/** When the latest turn started, if any. */
+const turnStart = (history: History): number | null =>
+  history.marks.findLast((mark) => mark.kind === "start")?.at ?? null
+
+/**
+ * A root turn's start or end settles the requests it leaves: the root's own, which Claude
+ * Code reports no denial or Escape of, and those of a subagent no longer running. A running
+ * subagent's outlives the turn.
+ */
+const settle = (history: History, at: number): void => {
+  close(history.requests, at, (span) => span.actor === null || !running(history, span.actor))
+}
+
+/**
+ * A status line's count of subagents running (Antigravity names none): from a count above
+ * zero until a later zero. The turn's end and idle report it as `background.agents` too.
+ */
+const counted = (history: History, agents: number, at: number): void => {
+  const open = running(history, statusLine)
+  if (agents > 0 && !open) history.subagents.push({ start: at, end: null, actor: statusLine })
+  if (agents === 0 && open) close(history.subagents, at, (span) => span.actor === statusLine)
 }
 
 /** Drops what is older than `keepMs` or beyond the cap, and moves `since` past it. */
@@ -231,9 +282,13 @@ const prune = (history: History, at: number): void => {
         list.splice(i, 1)
       }
     }
+    // Over the cap the oldest closed span goes; an open one is never dropped, so a span
+    // still running is never read as absent.
     while (list.length > keepEntries) {
-      const dropped = list.shift()!
-      forget(dropped.end ?? dropped.start)
+      const index = list.findIndex((span) => span.end !== null)
+      if (index < 0) break
+      forget(list[index]!.end!)
+      list.splice(index, 1)
     }
   }
   times(history.work)

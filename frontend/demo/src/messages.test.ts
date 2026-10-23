@@ -17,16 +17,26 @@ const at = (slot: string, target = storefront) =>
 const demo = () => createDemoMessages(checkoutMailboxes(1_000_000, [storefront, elsewhere]))
 
 describe("the demo's messages", () => {
+  // Six idle messages in a row between moth and crow of the second session: a loop, held.
+  const looped = () => {
+    const messages = demo()
+    for (let index = 0; index < 6; index += 1)
+      messages.send(elsewhere, "moth", "crow", "Thanks", undefined, undefined, true)
+    return messages
+  }
+
   it("show every state, a thread held for release, and an agent with none yet", () => {
-    const { terminals } = demo().state.getSnapshot()
+    const { terminals } = looped().state.getSnapshot()
     const states = new Set(
       Object.values(terminals).flatMap((mail) =>
         mail.threads.flatMap((thread) => thread.messages.map((message) => message.state)),
       ),
     )
     expect([...states].toSorted()).toEqual(["delivered", "gone", "held", "leased", "queued"])
-    expect(terminals[at("01")]?.threads.find((thread) => thread.peer === "owl")?.held).toBe(true)
-    expect(terminals[at("01", elsewhere)]).toEqual({
+    expect(
+      terminals[at("01", elsewhere)]?.threads.find((thread) => thread.peer === "crow")?.held,
+    ).toBe(true)
+    expect(demo().state.getSnapshot().terminals[at("01", elsewhere)]).toEqual({
       handle: "moth",
       agent: true,
       waits: null,
@@ -54,11 +64,13 @@ describe("the demo's messages", () => {
   })
 
   it("let a released thread go on, for both its terminals", () => {
-    const messages = demo()
-    messages.release("t-flaky")
+    const messages = looped()
+    messages.release("t-crow-moth")
     const { terminals } = messages.state.getSnapshot()
-    for (const terminal of ["01", "03"]) {
-      const thread = terminals[at(terminal)]?.threads.find((each) => each.id === "t-flaky")
+    for (const terminal of ["01", "04"]) {
+      const thread = terminals[at(terminal, elsewhere)]?.threads.find(
+        (each) => each.id === "t-crow-moth",
+      )
       expect(thread).toMatchObject({ held: false, heldFor: null, idle: 0 })
       expect(thread?.messages.at(-1)?.state).toBe("queued")
     }
@@ -374,5 +386,80 @@ describe("the demo's sent messages", () => {
     // Either end's later send on the stopped thread is refused, and queues nothing.
     expect(messages.send(elsewhere, "crow", "moth", "Hello again")).toBe(false)
     expect(all()).toHaveLength(2)
+  })
+})
+
+describe("the demo's loop hold, as the runner keeps it", () => {
+  const target = { projectId: "p", workspaceSessionId: "s" }
+  const idleMessage = (id: string, hop: number, state: "delivered" | "queued") => ({
+    id,
+    hop,
+    idle: true as const,
+    from: "moth",
+    to: "crow",
+    text: "Noted",
+    sentAt: 1000 + hop,
+    state,
+    deliveredAt: state === "delivered" ? 1000 + hop : null,
+  })
+  const terminals = [
+    { terminalId: "a", handle: "moth", agent: true },
+    { terminalId: "b", handle: "crow", agent: true },
+  ]
+  const threadOf = (messages: ReturnType<typeof demo>, id: string) =>
+    Object.values(messages.state.getSnapshot().terminals)
+      .flatMap((mail) => mail.threads)
+      .find((each) => each.id === id)!
+
+  it("ends the hold at a stop, as a release does, so the next messages count afresh", async () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    for (let index = 0; index < 6; index += 1)
+      messages.send(elsewhere, "moth", "crow", "Thanks", undefined, undefined, true)
+    expect(threadOf(messages, "t-crow-moth")).toMatchObject({ held: true, idle: 6 })
+    messages.stop("t-crow-moth")
+    expect(threadOf(messages, "t-crow-moth")).toMatchObject({ held: false, heldFor: null, idle: 0 })
+    // Once the stop's refusal lapses, the pair's next idle message is the first of a new count.
+    await vi.advanceTimersByTimeAsync(11 * 60_000)
+    expect(messages.send(elsewhere, "moth", "crow", "Hello", undefined, undefined, true)).toBe(true)
+    expect(threadOf(messages, "t-crow-moth")).toMatchObject({ held: false, idle: 1 })
+  })
+
+  it("has a hold from the sixth idle message even when no message waits held", () => {
+    const delivered = Array.from({ length: 6 }, (_, index) =>
+      idleMessage(`a-${index + 1}`, index + 1, "delivered"),
+    )
+    const messages = createDemoMessages([
+      {
+        target,
+        terminals,
+        threads: [{ id: "a", between: ["moth", "crow"], hops: 6, messages: delivered }],
+      },
+    ])
+    expect(threadOf(messages, "a")).toMatchObject({ held: true, heldFor: "loop", idle: 6 })
+    expect(threadOf(messages, "a").messages.every((each) => each.held === null)).toBe(true)
+  })
+
+  it("starts the hold at a refused send's would-be hop, without using the hop", () => {
+    const earlier = Array.from({ length: 5 }, (_, index) =>
+      idleMessage(`b-${index + 1}`, index + 1, "delivered"),
+    )
+    const waiting = Array.from({ length: 15 }, (_, index) =>
+      idleMessage(`a-${index + 1}`, index + 1, index < 5 ? "delivered" : "queued"),
+    )
+    const messages = createDemoMessages([
+      {
+        target,
+        terminals,
+        threads: [
+          { id: "b", between: ["moth", "crow"], hops: 5, messages: earlier },
+          { id: "a", between: ["moth", "crow"], hops: 15, messages: waiting },
+        ],
+      },
+    ])
+    // Ten wait held in the pair's other thread, so the sixth idle message here is refused.
+    expect(messages.send(target, "moth", "crow", "Noted", undefined, undefined, true)).toBe(false)
+    expect(threadOf(messages, "b")).toMatchObject({ held: true, heldFor: "loop", hops: 5 })
+    expect(threadOf(messages, "b").messages).toHaveLength(5)
   })
 })

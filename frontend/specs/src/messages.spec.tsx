@@ -38,11 +38,11 @@ describe("Messages waiting for an agent", () => {
     expect(description("Dev server")).toBeNull()
   })
 
-  it("say a release is needed when their thread is held", async () => {
+  it("count what waits, with no release asked while no thread is held", async () => {
     await openMessagesDemo()
     await expect
       .poll(() => description("Checkout implementation"))
-      .toBe("Plan ready for review, 1 message waiting, held until you release it. Leads @crow")
+      .toBe("Plan ready for review, 1 message waiting. Leads @crow")
   })
 })
 
