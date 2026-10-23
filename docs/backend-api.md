@@ -303,7 +303,7 @@ for await (const listing of runner.messages.watch(terminalId)) show(listing) // 
 `messages.list(terminalId)` gives a running or exited terminal's handle, its delivery
 state (`unbound`, `fresh`, `working`, `settled`, `ringing`, `drafting` or `unknown`), whether
 messaging is paused, and its threads, newest first, each with the other terminal's
-handle, its hops so far, its idle messages in a row (sent with no work between, see
+handle, its hops so far, its idle messages in a row (sent while neither end worked, see
 [Guards](agent-messaging.md#guards)), whether it is held and why (`heldFor`: `"loop"`, or
 null for a hold carried over from the twelve-hop rule), whether the person stopped it, and its messages, oldest first: id, hop, sender and recipient
 handles and agents, text, when sent, state (`queued`, `leased`, `delivered`, `held` or
