@@ -440,9 +440,10 @@ out cannot replace what it saved while they ran.
 
 Choose **Enter Zen mode** in the top bar to hide the header, sidebar, rail, and footer
 without leaving the current Focus, Grid, or Canvas view. The floating dock provides
-New terminal, enabled view choices, and Exit Zen. At rest it folds to New terminal and a
-small chevron. Click or tap the chevron to toggle the remaining controls, or activate
-it with Enter or Space. Clicking outside, leaving with keyboard focus, or pressing Escape folds it again.
+New terminal, enabled view choices, and Exit Zen. It starts unfolded. Folded, it shows
+New terminal and a small chevron, faint until the pointer or keyboard focus reaches it. Click or tap the chevron to toggle the remaining
+controls, or activate it with Enter or Space. Clicking outside, leaving with keyboard focus,
+or pressing Escape folds it.
 Canvas navigation uses gestures and
 keyboard shortcuts: +/− to zoom and 0 to fit all terminals.
 Focus becomes an edge-to-edge terminal, while Grid and Canvas gain the available space.
@@ -653,7 +654,12 @@ such as `.env` or a key, never opens by itself: it says so until you open it. Th
 lists what is beside its terminal with Novadeck's `showing` tool, and showing the same
 file or page again updates it. A page from a server on your own machine is the same
 page whatever route or anchor it's at, so a dev server stays one item as the agent
-moves through it. Each gets an icon in the taskbar, as an OS taskbar has, with
+moves through it. In the desktop app a page is live, and signed in wherever you signed in:
+sign in to a site in one page and every page is signed in there too, the agent's included,
+and stays so after a restart. A sign-in that opens a small window of its own, as "Sign in
+with Google" does, opens it in Novadeck, titled by the site it's at; the page stays live
+while it's open, and closing the page closes it. A passkey sign-in that fits more than one of your passkeys asks
+which; on macOS, passkeys saved in iCloud Keychain don't show yet. Each gets an icon in the taskbar, as an OS taskbar has, with
 several of a kind (images, files, pages, or plans) stacked under one; only Messages
 never stack. A markdown file the agent shows reads as a document, formatted like a plan
 with its outline, but read-only: it's the agent's file, not a plan to edit or note (the

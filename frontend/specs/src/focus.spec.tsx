@@ -189,7 +189,6 @@ describe("available view modes", () => {
 
       await page.getByRole("button", { name: "Enter Zen mode" }).click()
       const dock = page.getByRole("group", { name: "Zen controls" })
-      await dock.getByRole("button", { name: "Show Zen controls" }).click()
       await expect.element(dock.getByRole("button", { name: "Exit Zen" })).toBeVisible()
       await expect.element(dock.getByRole("button", { name: /view$/ })).not.toBeInTheDocument()
     })
