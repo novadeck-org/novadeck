@@ -196,6 +196,9 @@ const babciaRequested = (): boolean =>
 // the one the page started).
 const babciaCues: BabciaCues[] = []
 
+/** Forgets the cues of earlier pages' demos, as a spec opens its own. */
+export const forgetBabciaCues = (): void => void (babciaCues.length = 0)
+
 /** The Babcia demo's seasonal-specials agent shows its page in the pane, with no click. */
 export const agentShowsPage = (): void => babciaCues.forEach((cues) => cues.show())
 
