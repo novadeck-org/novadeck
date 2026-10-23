@@ -273,26 +273,27 @@ describe("The Inbox's items", () => {
       expect(inboxItems(inputs(working, { unread: done }))).toEqual([])
     })
 
-    it("is its lead's while the agent reports to one that runs, and the person's once it doesn't", () => {
+    it("is its lead's while the agent has one, running or not, but its trouble is the person's", () => {
       const worker = (end: Partial<AgentTurnEnd> = {}): TerminalMetadata => ({
         ...agentTerminal(2, { working: false, lastTurn: turn(end) }),
         ledBy: "moth",
       })
-      const lead = agentTerminal(1)
       const unread: InboxUnread = { "p/s": { "02": "done" } }
 
-      expect(inboxItems(inputs(workspaceOf(lead, worker()), { unread }))).toEqual([])
-      const shell = { ...lead, process: "bash" }
-      expect(inboxItems(inputs(workspaceOf(shell, worker()), { unread }))).toMatchObject([
+      expect(inboxItems(inputs(workspaceOf(agentTerminal(1), worker()), { unread }))).toEqual([])
+      // A lead that stopped leaves no pile of its workers' old finishes.
+      const shell = { ...agentTerminal(1), process: "bash" }
+      expect(inboxItems(inputs(workspaceOf(shell, worker()), { unread }))).toEqual([])
+      expect(inboxItems(inputs(workspaceOf(worker()), { unread }))).toEqual([])
+      // Once its lead ended, its finishes are the person's again.
+      const freed = { ...worker(), ledBy: null }
+      expect(inboxItems(inputs(workspaceOf(freed), { unread }))).toMatchObject([
         { id: "update:02:100", kind: "update" },
-      ])
-      expect(inboxItems(inputs(workspaceOf(worker()), { unread }))).toMatchObject([
-        { id: "update:02:100" },
       ])
       // What only the person can fix still comes to them.
       expect(
         inboxItems(
-          inputs(workspaceOf(lead, worker({ outcome: "failed", error: "x" })), {
+          inputs(workspaceOf(agentTerminal(1), worker({ outcome: "failed", error: "x" })), {
             unread: { "p/s": { "02": "failed" } },
           }),
         ),

@@ -365,14 +365,19 @@ describe("Novadeck's MCP server", () => {
       )
       expect(instructions).toContain("keep going on what doesn't depend on the answer")
       expect(instructions).toContain("Its tell puts a milestone there")
+      expect(instructions).toContain("With a lead, both go to it instead")
     })
 
     it("nudges ask toward not blocking, and tell toward milestones, never each step", async () => {
       const [, tools] = await session(terminal(), [initialize, list])
       const described = tools?.result?.tools as { name: string; description: string }[]
       const ask = described.find((tool) => tool.name === "ask")!
-      expect(ask.description).toContain("without stopping your work. Most decisions aren't")
-      expect(ask.description).toContain("easy to undo (local, not yet pushed or shared)")
+      expect(ask.description).toContain(
+        "Put a question in the user's Inbox without stopping your work.",
+      )
+      expect(ask.description).toContain("With a lead, questions go to it instead")
+      expect(ask.description).toContain("needs no approval of theirs")
+      expect(ask.description).toContain("A pick that is hard to undo waits for their answer")
       expect(ask.description).toContain("once nothing else is left, end your")
       expect(ask.description).toContain("withdraw it too once the user answers it another way")
       const tell = described.find((tool) => tool.name === "tell")!

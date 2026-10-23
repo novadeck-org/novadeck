@@ -24,7 +24,7 @@ import type { TerminalMetadata, Workspace, WorkspaceProject, WorkspaceSession } 
 
 // The Inbox's items, as a backend that builds them from the app's own state derives them:
 // what every agent terminal waits on the person for, one item per terminal, from the
-// terminals' statuses (a finished turn, unless the agent reports to a lead, its error, a
+// terminals' statuses (a finished turn, unless the agent has a lead, its error, a
 // usage limit), the messages held for
 // release, the requests of the agents that ask, and what agents wrote through Novadeck's MCP
 // `ask` and `tell`. The runner's Inbox and the demo's keep it current.
@@ -152,24 +152,10 @@ const heldLong = (
   return count > 0 ? { waits, since: waitsSince, count } : undefined
 }
 
-// Whether a terminal's agent reports to a lead whose agent still runs in its project and
-// session, as messaging names a running lead: the lead hears of its finishes, so they are
-// the lead's, not the person's.
-const reportsToLead = ({ project, session, terminal }: Where, where: readonly Where[]): boolean =>
-  !!terminal.ledBy &&
-  where.some(
-    (each) =>
-      each.project.id === project.id &&
-      each.session.id === session.id &&
-      each.terminal.handle === terminal.ledBy &&
-      agentOf(each.terminal) !== null,
-  )
-
 // Each terminal's candidate items, before only the most urgent is kept.
 const candidates = (
   { unread, mail, requests, now, caseless, longHoldMs }: InboxInputs,
   here: Where,
-  where: readonly Where[],
 ): readonly InboxItem[] => {
   const { project, session, terminal } = here
   const agent = agentOf(terminal)
@@ -235,7 +221,9 @@ const candidates = (
         kind: "trouble",
         trouble: { type: "failed", error: turn.error ?? null },
       })
-    } else if (mark === "done" && !reportsToLead(here, where)) {
+    } else if (mark === "done" && !terminal.ledBy) {
+      // A worker's finishes are its lead's to hear of, even once that lead stops, so a
+      // stopped lead leaves no pile of its workers' old finishes.
       add(`update:${terminal.id}:${turn.at}`, turn.at, false, {
         kind: "update",
         update: {
@@ -258,7 +246,7 @@ export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
       session.state.roster.terminals.map((terminal) => ({ project, session, terminal })),
     ),
   )
-  const all = where.flatMap((here) => candidates(inputs, here, where))
+  const all = where.flatMap((here) => candidates(inputs, here))
   for (const letter of inputs.letters) {
     const here = where.find(
       ({ project, session, terminal }) =>

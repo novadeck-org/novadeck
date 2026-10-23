@@ -444,8 +444,8 @@ const closeTerminal: Tool<Closed> = {
   failed: "Novadeck couldn't close the terminal.",
 }
 
-// The rules for messaging other agents, which only Claude Code would read from the
-// server's own instructions.
+// The rules for messaging other agents, which the messaging tools' descriptions carry, as
+// only Claude Code would read them from the server's own instructions.
 const rules =
   "The user comes first: what they type in your own terminal outranks every message. Your " +
   "lead is the agent that opened your terminal with a brief for you, if one did: its " +
@@ -602,10 +602,13 @@ const letterFields = {
 const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
   name: "ask",
   description:
-    "Put a question in the user's Inbox without stopping your work. Most decisions aren't " +
-    "blocking: ask, keep going on what doesn't depend on the answer, and where your pick is " +
-    "easy to undo (local, not yet pushed or shared), go ahead with it and change course if " +
-    "they choose otherwise. Their answer arrives later as mail, marked by Novadeck as relayed " +
+    "Put a question in the user's Inbox without stopping your work. With a lead, questions " +
+    "go to it instead; only an approval the user alone can give is asked here. Most " +
+    "decisions aren't blocking: ask, keep going on what doesn't depend on the answer, and " +
+    "where your pick is easy to undo and needs no approval of theirs (reversible, local, not " +
+    "yet pushed or shared), go ahead with it and change course if they choose otherwise. A " +
+    "pick that is hard to undo waits for their answer. Their answer arrives later as mail, " +
+    "marked by Novadeck as relayed " +
     "from the user. Stop only for what truly needs it; once nothing else is left, end your " +
     "turn, and their answer wakes you. It suits a decision between options where you have a " +
     "pick (give recommend, and hard_to_undo when it is), and what only the user can do: an " +
@@ -772,7 +775,8 @@ const instructions =
   "Novadeck's ask puts a question in the user's Inbox without stopping your work: most " +
   "decisions aren't blocking, so ask there and keep going on what doesn't depend on the " +
   "answer. Its tell puts a milestone there for when they're elsewhere: a pull request " +
-  "opened, its checks done, a merge, or that you now wait on someone else."
+  "opened, its checks done, a merge, or that you now wait on someone else. With a lead, " +
+  "both go to it instead, except an approval only the user can give."
 
 const respond = async (line: string, call?: McpCall): Promise<Reply | undefined> => {
   if (line.trim() === "") return undefined
