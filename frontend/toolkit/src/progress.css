@@ -10,8 +10,10 @@
    --progress-radius (radius-control), --progress-track-shadow (none): the track.
    --progress-range-bg (strong), --progress-range-shadow (none): the fill.
    --progress-range-bloom (0px): how far past the track the fill's shadow may reach, as a
-   glow; the track clips the fill there, and at its own edge while the fill slides. */
+   glow; the track clips the fill there, and at its own edge while the fill has no size to
+   show. A browser without `clip` falls back to `hidden`, and no glow. */
 .progress-track {
+  overflow: hidden;
   overflow: clip;
   overflow-clip-margin: var(--progress-range-bloom, 0px);
   border: var(--border-width) solid var(--progress-track-border-color, var(--color-line));
