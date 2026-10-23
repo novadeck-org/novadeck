@@ -268,7 +268,10 @@ next part within a minute. A file past `maxUploadBytes` (32 MiB) is
 `UPLOAD_TOO_LARGE`, a `path` the runner isn't receiving `NOT_FOUND`, and an unknown
 terminal `TERMINAL_NOT_FOUND`.
 
-The MCP `ask` and `tell` tools add questions and updates to the Inbox. A client follows
+The MCP `ask` and `tell` tools add questions and updates to the Inbox. In a Novadeck
+terminal the server's `instructions` say when each serves: `ask` doesn't stop the work, as
+most decisions aren't blocking, and `tell` is for milestones. Claude Code reads them up
+front, before it loads a tool's description. A client follows
 all active letters across projects and sessions, answers an ask, or marks tells read:
 
 ```ts

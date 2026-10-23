@@ -40,6 +40,11 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
     hint: "Ask row with Claude's question and its (Recommended) option",
   },
   {
+    label: "Several questions",
+    name: "questions",
+    hint: "Ask row with three of Claude's questions in one card, one taking several picks: Send waits for all",
+  },
+  {
     label: "Ask while working",
     name: "preview",
     hint: "Ask row with a free-text answer while the agent keeps working",

@@ -1,4 +1,11 @@
-import { choose, complete, questionsAnswer, write, type Picks } from "@novadeck/core/answers"
+import {
+  answeredCount,
+  choose,
+  complete,
+  questionsAnswer,
+  write,
+  type Picks,
+} from "@novadeck/core/answers"
 import type { ChatQuestion } from "@novadeck/core/conversation"
 import type { AgentAsk, AskOption } from "@novadeck/core/inbox"
 import { Markdown } from "@novadeck/toolkit/Markdown"
@@ -266,22 +273,43 @@ const Questions = (
         ? { ...picks, [question.id]: { options: [], text: picks[question.id]?.text ?? "" } }
         : choose(picks, question, option),
     )
+  // Several questions say how many have an answer, beside Send, which waits for all of them.
+  const progress = questions.length > 1 && (
+    <p className="inbox-caption inbox-progress" role="status">
+      {answeredCount(picks, questions)} of {questions.length} answered
+    </p>
+  )
   return (
     <Page
       footer={
-        !sent && wordy ? (
-          <ReplyBox
-            value={text}
-            onChange={(next) => {
-              setPicks(write(picks, wordy, next))
-            }}
-            onSend={send}
-            placeholder="Or type your own answer…"
-            label={`Reply to ${agent}`}
-            canSend={!answering && complete(picks, questions)}
-            sendLabel={at >= 0 ? `Send ${letters[at]}` : "Send"}
-          />
-        ) : undefined
+        sent ? undefined : wordy ? (
+          <>
+            {progress}
+            <ReplyBox
+              value={text}
+              onChange={(next) => {
+                setPicks(write(picks, wordy, next))
+              }}
+              onSend={send}
+              placeholder="Or type your own answer…"
+              label={`Reply to ${agent}`}
+              canSend={!answering && complete(picks, questions)}
+              sendLabel={at >= 0 ? `Send ${letters[at]}` : "Send"}
+            />
+          </>
+        ) : (
+          <>
+            {progress}
+            <button
+              type="button"
+              className="button primary text-control"
+              disabled={answering || !complete(picks, questions)}
+              onClick={send}
+            >
+              Send
+            </button>
+          </>
+        )
       }
     >
       <Lead {...props} />
@@ -310,16 +338,6 @@ const Questions = (
         ))}
       <Failure message={failed} />
       {sent && <Sent note={sent.note} onNext={onNext} />}
-      {!sent && !wordy && (
-        <button
-          type="button"
-          className="button primary text-control inbox-send-answer"
-          disabled={answering || !complete(picks, questions)}
-          onClick={send}
-        >
-          Send
-        </button>
-      )}
     </Page>
   )
 }

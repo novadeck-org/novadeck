@@ -222,6 +222,11 @@ The rules that keep this safe:
   on it.
 - **A worker reports back.** When done or stuck it tells its lead with `send`; nothing
   makes it wait for the lead, and a lead that wants a report says so in its brief.
+- **A worker's finishes are its lead's.** While its lead's agent runs, a worker's
+  finished turn is no Update in the person's Inbox: the lead hears of it. Once that agent
+  stops or its terminal closes, nothing would, so the worker's finishes come to the person
+  again. Its approvals, failures and usage limits always come to the person, as only they
+  can answer them.
 
 The terminal manager tells messaging each terminal's `ledBy` as it registers the
 terminal, and again (`endLead`) when it ends. `Messaging.leadOf(terminalId)` names a
@@ -440,9 +445,9 @@ the opener's (see [Naming](#naming)).
 ## Inbox asks and updates
 
 `ask({ subject, body, details?, hard_to_undo?, shape? })` puts a question in the person's
-Inbox and returns its id immediately. The agent keeps working, or ends its turn until
-an answer arrives. `shape` defaults to `{ type: "text" }`. It can instead offer one to
-three options (`label`, optional `summary`, Markdown `details` and `code: { path, text }`),
+Inbox and returns its id immediately. The agent keeps working on what doesn't depend on
+the answer, and ends its turn once nothing else is left, until the answer arrives.
+`shape` defaults to `{ type: "text" }`. It can instead offer one to three options (`label`, optional `summary`, Markdown `details` and `code: { path, text }`),
 with `recommend` a zero-based index or null; or an action (`command`, optional `directory`,
 `done_label`). Action commands are shown for the person to run, never executed by
 Novadeck. The person can always write their own answer. Secret shapes are unavailable:
