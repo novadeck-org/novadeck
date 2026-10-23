@@ -95,6 +95,19 @@ describe("the commits a release is written from", () => {
     })
   })
 
+  it("drops a sentence naming the chat view after \"a\", as #282's did", () => {
+    const what = whatOf(
+      [
+        "## What",
+        "",
+        "Shortcuts work from a terminal. From terminal input (but not a chat's box), the",
+        "keymap's layers run in the capture phase. A chat-approved permission rings. Rows",
+        "open in a chat view. A chat box opens. Done.",
+      ].join("\n"),
+    )
+    expect(what).toBe("Shortcuts work from a terminal. Done.")
+  })
+
   it("strips URLs from the What, and keeps the words around them", () => {
     const what = parseCommit({
       sha: "a",

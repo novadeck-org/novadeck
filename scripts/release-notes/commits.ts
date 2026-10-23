@@ -50,9 +50,10 @@ export const maxWhy = 400
  * The chat view ships behind a flag, and the try demo is not the app: neither is announced.
  * The chat view is told by its names, not by every chat: the Messages pane opens a conversation
  * as a chat, and that pane is announced (#429's "conversations and chats" went unsaid). So "the
- * chat", "chat with" and "a chat view" are the view, "a chat" and "chats" are not.
+ * chat", "chat with", "a chat view", "a chat's box" and "a chat-approved" are the view; "a
+ * chat" and "chats" are not.
  */
-export const chat = /\bchat[ -]?views?\b|(?<!\ba )\bchat\b/i
+export const chat = /\bchat(?:'s|-\w|[ -]?(?:views?|box(?:es)?)\b)|(?<!\ba )\bchat\b/i
 export const demo = /\bdemos?\b/i
 const unannounced = (text: string): boolean => chat.test(text) || demo.test(text)
 

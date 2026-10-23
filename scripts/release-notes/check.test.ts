@@ -284,6 +284,8 @@ describe("the checks on a model's answer", () => {
       "You can chat with an agent.",
       "Answer it from the chat.",
       "A chat view for agents.",
+      "Reply from a chat box under an agent.",
+      "Answer a permission from a chat's request card.",
       "The demo shows real terminals.",
       "Open it at try.novadeck.dev.",
       "The website explains pins.",
