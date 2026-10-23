@@ -637,7 +637,9 @@ work with it, and an option without a value would be read as the agent.
 
 A hook gives up two seconds after it starts when it reports, four when it asks, and five
 for Claude Code's status line. For the status line, the relay also runs the person's own
-command, as their Claude Code settings name it, beside the report, and prints it. Without
+command, as their Claude Code settings name it, beside the report, and prints it: in
+`/bin/sh`, or on Windows in Git Bash, as Claude Code runs it, in a job object that ends
+everything it started at the deadline. Without
 the relay, the hook launcher prints what `relay.json` would, as it is written from the
 same tables.
 

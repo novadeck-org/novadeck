@@ -56,8 +56,11 @@ export type Harness = {
   /** Its plugin commands, run in order. */
   readonly connect: (install: Install) => readonly Command[]
   readonly disconnect: readonly Command[]
-  /** The shell it runs its hook commands in on `platform` (see `hook-command.ts`). */
-  readonly hookDialect: (platform: NodeJS.Platform) => Dialect
+  /**
+   * The shell it runs its hook commands in on `platform` (see `hook-command.ts`), or the
+   * command for `event`, as Claude Code's status line, where that runs in another.
+   */
+  readonly hookDialect: (platform: NodeJS.Platform, event?: string) => Dialect
   /**
    * The command its plugin runs for a hook `event`, in that shell: `hookCommand`'s, with
    * what it prints without Novadeck.

@@ -440,91 +440,86 @@ describe("agent hook", () => {
     expect(fixture.reports.map(({ event }) => event)).toEqual(["PreInvocation", "PreToolUse"])
   })
 
-  // Novadeck gives Windows no Claude Code status line yet.
-  it.skipIf(process.platform === "win32")(
-    "shows the person's own Claude Code status line after forwarding its snapshot",
-    async ({ fixture }) => {
-      const home = mkdtempSync(join(tmpdir(), "novadeck-claude-home-"))
-      writeFileSync(
-        join(home, "settings.json"),
-        JSON.stringify({
-          statusLine: { type: "command", command: "cat >/dev/null; echo mine" },
-        }),
-      )
-      const printed = await fixture.run(
-        "claude",
-        { session_id: session, cwd: home, rate_limits: {} },
-        { CLAUDE_CONFIG_DIR: home },
-        "StatusLine",
-      )
-      rmSync(home, { recursive: true, force: true })
-      expect(printed.trim()).toBe("mine")
-      expect(fixture.reports.map(({ event }) => event)).toEqual(["StatusLine"])
-    },
-  )
+  // Each runs in Git Bash on Windows, as Claude Code runs a status line there.
+  it("shows the person's own Claude Code status line after forwarding its snapshot", async ({
+    fixture,
+  }) => {
+    const home = mkdtempSync(join(tmpdir(), "novadeck-claude-home-"))
+    writeFileSync(
+      join(home, "settings.json"),
+      JSON.stringify({
+        statusLine: { type: "command", command: "cat >/dev/null; echo mine" },
+      }),
+    )
+    const printed = await fixture.run(
+      "claude",
+      { session_id: session, cwd: home, rate_limits: {} },
+      { CLAUDE_CONFIG_DIR: home },
+      "StatusLine",
+    )
+    rmSync(home, { recursive: true, force: true })
+    expect(printed.trim()).toBe("mine")
+    expect(fixture.reports.map(({ event }) => event)).toEqual(["StatusLine"])
+  })
 
-  it.skipIf(process.platform === "win32")(
-    "cuts off a status line that takes too long, keeping what it printed",
-    async ({ fixture }) => {
-      const home = mkdtempSync(join(tmpdir(), "novadeck-claude-home-"))
-      const pidFile = join(home, "pid")
-      writeFileSync(
-        join(home, "settings.json"),
-        JSON.stringify({
-          statusLine: {
-            type: "command",
-            command: `echo partial; echo $$ > '${pidFile}'; exec sleep 30`,
-          },
-        }),
-      )
-      const started = performance.now()
-      const printed = await fixture.run(
-        "claude",
-        { session_id: session, cwd: home },
-        { CLAUDE_CONFIG_DIR: home },
-        "StatusLine",
-      )
-      expect(performance.now() - started).toBeLessThan(8_000)
-      expect(printed.trim()).toBe("partial")
-      const pid = Number(readFileSync(pidFile, "utf8"))
-      const alive = () => {
-        try {
-          process.kill(pid, 0)
-          return true
-        } catch {
-          return false
-        }
+  it("cuts off a status line that takes too long, keeping what it printed", async ({ fixture }) => {
+    const home = mkdtempSync(join(tmpdir(), "novadeck-claude-home-"))
+    const pidFile = join(home, "pid")
+    writeFileSync(
+      join(home, "settings.json"),
+      JSON.stringify({
+        statusLine: {
+          type: "command",
+          // Git Bash's pids are its own; Windows' is in /proc.
+          command:
+            process.platform === "win32"
+              ? `echo partial; sleep 30 & cat /proc/$!/winpid > '${pidFile}'; wait`
+              : `echo partial; echo $$ > '${pidFile}'; exec sleep 30`,
+        },
+      }),
+    )
+    const started = performance.now()
+    const printed = await fixture.run(
+      "claude",
+      { session_id: session, cwd: home },
+      { CLAUDE_CONFIG_DIR: home },
+      "StatusLine",
+    )
+    expect(performance.now() - started).toBeLessThan(8_000)
+    expect(printed.trim()).toBe("partial")
+    const pid = Number(readFileSync(pidFile, "utf8"))
+    const alive = () => {
+      try {
+        process.kill(pid, 0)
+        return true
+      } catch {
+        return false
       }
-      await expect.poll(alive, { timeout: 3_000 }).toBe(false)
-      rmSync(home, { recursive: true, force: true })
-    },
-    15_000,
-  )
+    }
+    await expect.poll(alive, { timeout: 3_000 }).toBe(false)
+    rmSync(home, { recursive: true, force: true })
+  }, 15_000)
 
-  it.skipIf(process.platform === "win32")(
-    "cuts off a status line whose background process holds its output",
-    async ({ fixture }) => {
-      const home = mkdtempSync(join(tmpdir(), "novadeck-claude-home-"))
-      writeFileSync(
-        join(home, "settings.json"),
-        JSON.stringify({
-          statusLine: {
-            type: "command",
-            command: "cat >/dev/null; (sleep 30 &); echo bg",
-          },
-        }),
-      )
-      const printed = await fixture.run(
-        "claude",
-        { session_id: session, cwd: home },
-        { CLAUDE_CONFIG_DIR: home },
-        "StatusLine",
-      )
-      rmSync(home, { recursive: true, force: true })
-      expect(printed.trim()).toBe("bg")
-    },
-    15_000,
-  )
+  it("cuts off a status line whose background process holds its output", async ({ fixture }) => {
+    const home = mkdtempSync(join(tmpdir(), "novadeck-claude-home-"))
+    writeFileSync(
+      join(home, "settings.json"),
+      JSON.stringify({
+        statusLine: {
+          type: "command",
+          command: "cat >/dev/null; (sleep 30 &); echo bg",
+        },
+      }),
+    )
+    const printed = await fixture.run(
+      "claude",
+      { session_id: session, cwd: home },
+      { CLAUDE_CONFIG_DIR: home },
+      "StatusLine",
+    )
+    rmSync(home, { recursive: true, force: true })
+    expect(printed.trim()).toBe("bg")
+  }, 15_000)
 
   // A multiplexer can outlive Novadeck, its terminals still naming the runner gone.
   it.skipIf(process.platform === "win32")(
