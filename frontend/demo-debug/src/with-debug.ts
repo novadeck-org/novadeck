@@ -23,6 +23,7 @@ import type { BootRehearsals } from "./boot-rehearsal"
 import { createDebugPanel, type DebugPanel } from "./DebugPanel"
 import { doorbellGroups } from "./doorbell"
 import { inboxGroups } from "./inbox"
+import { messageGroups } from "./messages"
 import { murmurGroups } from "./murmur"
 import { planGroups } from "./plans"
 import { createDemoPortable, type DemoPortable } from "./portable"
@@ -228,6 +229,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           ...planGroups(inner.companions),
           ...babciaGroups(babciaCuesOf(inner)),
           ...doorbellGroups(inner.messages),
+          ...messageGroups(inner.messages),
           ...murmurGroups(isDemoMurmur(inner.murmur) ? inner.murmur : undefined),
           ...voiceGroups(isDemoVoice(inner.voice) ? inner.voice : undefined),
           ...sourceGroups(isDemoSource(inner.source) ? inner.source : undefined),

@@ -1,7 +1,7 @@
 import {
   allTeams,
-  handleNames,
   ledTerminals,
+  mailPeers,
   runningLeads,
   sameTeam,
   sameTeams,
@@ -10,6 +10,7 @@ import {
   teamText,
   terminalOrigins,
 } from "./derivations"
+import { samePeers } from "./messages"
 import { workspaceReducer } from "./state"
 import { context, describe, expect, it } from "./test"
 import { terminalFixture, workspaceFixture } from "./testing"
@@ -312,7 +313,7 @@ describe("the roster-wide values", () => {
   const values = (workspace: ReturnType<typeof led>) => [
     runningLeads(workspace),
     terminalOrigins(workspace),
-    handleNames(workspace),
+    mailPeers(workspace),
   ]
 
   it("hand every reader the same value while the roster stays, whatever else changes", () => {
@@ -331,7 +332,62 @@ describe("the roster-wide values", () => {
     expect(values(renamed)).toEqual([
       { "02": { handle: "moth", name: "Lead" } },
       { "01": "@moth · Lead", "02": "@fox · Terminal" },
-      { moth: "Lead", fox: "Terminal" },
+      {
+        moth: { name: "Lead", terminalId: "01", program: undefined, live: "gone" },
+        fox: { name: "Terminal", terminalId: "02", program: undefined, live: "gone" },
+      },
     ])
+  })
+})
+
+describe("the peers messages show", () => {
+  const running = (working: boolean) =>
+    workspaceReducer(led(), {
+      type: "terminal/status",
+      target,
+      terminalId: "01",
+      status: { state: "running", agent: { working } },
+    })
+
+  it("say a terminal's agent is there, working or at rest, with the program it runs", () => {
+    const busy = workspaceReducer(running(true), {
+      type: "terminal/process",
+      target,
+      terminalId: "01",
+      process: "claude",
+    })
+    expect(mailPeers(busy).moth).toEqual({
+      name: "Terminal",
+      terminalId: "01",
+      program: "claude",
+      live: "working",
+    })
+    expect(mailPeers(running(false)).moth?.live).toBe("idle")
+  })
+
+  it("say an agent is gone from a terminal that only runs its shell", () => {
+    expect(mailPeers(led()).fox?.live).toBe("gone")
+  })
+
+  it("say an agent program is there before its hooks have said anything", () => {
+    const started = workspaceReducer(
+      workspaceReducer(led(), {
+        type: "terminal/status",
+        target,
+        terminalId: "02",
+        status: { state: "running" },
+      }),
+      { type: "terminal/process", target, terminalId: "02", process: "codex" },
+    )
+    expect(mailPeers(started).fox?.live).toBe("idle")
+  })
+})
+
+describe("the sameness of peers", () => {
+  it("holds for equal peers in new records, and breaks on any change", () => {
+    const peer = { name: "Tests", terminalId: "01", program: "claude", live: "idle" } as const
+    expect(samePeers({ owl: peer }, { owl: { ...peer } })).toBe(true)
+    expect(samePeers({ owl: peer }, { owl: { ...peer, live: "working" } })).toBe(false)
+    expect(samePeers({ owl: peer }, {})).toBe(false)
   })
 })

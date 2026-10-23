@@ -8,7 +8,7 @@ import type { LookContext } from "../../registration"
 import { itemLook, registrationOf, stackIcon, type Look } from "../../registry"
 import type { ItemStore } from "../../state"
 import type { BarDrawing } from "../../TaskbarSlot"
-import type { MailHandle } from "./messages/mail"
+import type { MailHandle, MailLinks } from "./messages/mail"
 import { MailThumb } from "./messages/MailThumb"
 import { MessagesView } from "./messages/MessagesView"
 
@@ -32,7 +32,7 @@ export const slotIcon = (slot: BarSlot): LucideIcon =>
 // What the messages' views read beside the item store.
 type MailProps = {
   readonly mail: MailHandle
-  readonly peerName: (handle: string) => string | undefined
+  readonly links: MailLinks
 }
 
 // Where what's drawn comes from: the item store for items, the mail for the messages.
@@ -57,8 +57,7 @@ export const terminalDrawing = ({
 }: Sources & { readonly plans: LookContext["plans"] }): BarDrawing => ({
   look: (member) => memberLook(member, { plans }),
   preview: (member) => {
-    if (member.kind === "messages")
-      return <MailThumb mail={sources.mail} peerName={sources.peerName} />
+    if (member.kind === "messages") return <MailThumb mail={sources.mail} links={sources.links} />
     const { Thumb } = registrationOf(member.item)
     return <Thumb item={member.item} itemStore={sources.itemStore} target={sources.target} />
   },
@@ -81,11 +80,11 @@ export const MemberView = ({
   itemStore,
   target,
   mail,
-  peerName,
+  links,
   actions,
 }: Sources & { member: BarMember; actions: ReactNode }): React.JSX.Element => {
   if (member.kind === "messages")
-    return <MessagesView mail={mail} peerName={peerName} actions={actions} />
+    return <MessagesView mail={mail} links={links} actions={actions} />
   const { View } = registrationOf(member.item)
   return <View item={member.item} itemStore={itemStore} target={target} actions={actions} />
 }

@@ -214,6 +214,25 @@
      capitals of a terminal's chrome. */
   --artifact-webview-bg: #ffffff;
   --section-label-font: var(--font-mono);
+
+  /* Avatars: eight hues by a handle's rank, deep enough to tint the paper; on the LED
+     screen, dark in either scheme, a lit cell goes a third of the way to white, so the
+     deep hues still glow. The person's is the teal mixed down with the muted grey. */
+  --avatar-hue-1-fg: #7a45b8;
+  --avatar-hue-2-fg: #b4531c;
+  --avatar-hue-3-fg: #86680c;
+  --avatar-hue-4-fg: #1f66ad;
+  --avatar-hue-5-fg: #a6337f;
+  --avatar-hue-6-fg: #2f7a3a;
+  --avatar-hue-7-fg: #b23a4f;
+  --avatar-hue-8-fg: #4b52c4;
+  --avatar-you-fg: color-mix(in oklab, var(--color-strong) 62%, var(--color-muted));
+  --avatar-led-lift: 32%;
+  --avatar-screen-bg: #0d0f13;
+  --avatar-screen-glow-bg: #1a1d25;
+  --avatar-frame-border-color: #2a2e38;
+  --avatar-eye-fg: #050608;
+  --avatar-glint-fg: #ffffff;
 }
 
 /* Dark: slate grounds, greys with a trace of blue, and the cyan as the strong colour. */
@@ -361,6 +380,23 @@
   --item-selected-indicator-shadow: 0 0 2px rgb(0 229 214 / 0.7), 0 0 8px rgb(0 229 214 / 0.35);
   --tabs-indicator-shadow: var(--item-selected-indicator-shadow);
   --window-phase-running-shadow: drop-shadow(0 0 3px rgb(0 229 214 / 0.75));
+
+  /* Avatars: the hues pale, to tint the slate and glow on the screen as they are. */
+  --avatar-hue-1-fg: #c4a3f2;
+  --avatar-hue-2-fg: #f2a477;
+  --avatar-hue-3-fg: #dcc26a;
+  --avatar-hue-4-fg: #8fbbf2;
+  --avatar-hue-5-fg: #eba0d6;
+  --avatar-hue-6-fg: #9ed39a;
+  --avatar-hue-7-fg: #f39fae;
+  --avatar-hue-8-fg: #aeb3f6;
+  --avatar-you-fg: color-mix(in oklab, var(--color-strong) 48%, var(--color-muted));
+  --avatar-led-lift: 0%;
+  --avatar-screen-bg: #0d0f13;
+  --avatar-screen-glow-bg: #1a1d25;
+  --avatar-frame-border-color: #2a2e38;
+  --avatar-eye-fg: #050608;
+  --avatar-glint-fg: #ffffff;
 }
 
 /* The welcome's start button is the dialog's one primary action, so it takes the accent

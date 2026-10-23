@@ -4,7 +4,7 @@ import { createElement } from "react"
 import { afterEach } from "vitest"
 
 import { describe, expect, it } from "../../../test"
-import type { MailHandle } from "./mail"
+import { noLinks, type MailHandle } from "./mail"
 import { MessagesView } from "./MessagesView"
 
 const message = {
@@ -31,12 +31,11 @@ const mailOf = (waits: MailWaits | null, paused = false): MailHandle => {
     paused,
     pending: false,
     error: null,
-    releasing: [],
-    failed: {},
     present: true,
     badge: { count: 1, kind: paused ? "paused" : "waiting" },
     pause: () => {},
-    release: () => {},
+    seenAt: () => 0,
+    seen: () => {},
   }
 }
 
@@ -44,7 +43,7 @@ const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 
 const html = (mail: MailHandle): string => {
-  const rendered = render(createElement(MessagesView, { mail, peerName: () => undefined }))
+  const rendered = render(createElement(MessagesView, { mail, links: noLinks }))
   unmounts.push(rendered.unmount)
   return rendered.container.innerHTML
 }

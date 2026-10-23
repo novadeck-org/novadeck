@@ -82,6 +82,15 @@ export type InboxContextValue = {
 
 const InboxContext = createContext<InboxContextValue | null>(null)
 
+// Opens the item `pick` finds among those listed now, for a view outside the Inbox: one
+// function for as long as the Inbox lasts, so a view holding it never renders again with
+// the Inbox's every change. None in a view rendered on its own.
+export type InboxOpener = (pick: (items: readonly InboxItem[]) => InboxItem | undefined) => void
+
+const OpenerContext = createContext<InboxOpener | null>(null)
+
+export const useInboxOpener = (): InboxOpener | null => useContext(OpenerContext)
+
 export const useInboxContext = (): InboxContextValue => {
   const value = useContext(InboxContext)
   if (!value) throw new Error("useInboxContext must be used inside an InboxProvider")
@@ -358,5 +367,16 @@ export const InboxProvider = ({
       revealItem,
     ],
   )
-  return <InboxContext.Provider value={value}>{children}</InboxContext.Provider>
+  const opener = useCallback<InboxOpener>(
+    (pick) => {
+      const found = pick(latest.current.state.items)
+      if (found) open(found.id)
+    },
+    [open],
+  )
+  return (
+    <OpenerContext.Provider value={opener}>
+      <InboxContext.Provider value={value}>{children}</InboxContext.Provider>
+    </OpenerContext.Provider>
+  )
 }

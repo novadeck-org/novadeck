@@ -187,6 +187,8 @@ export const demoInboxIds = {
   text: "demo-text-ask",
   plainDeny: "demo-plain-deny",
   waits: "demo-waits",
+  letterTell: "demo-letter-tell",
+  letterAsk: "demo-letter-ask",
 } as const
 
 // Claude's plan dialog: the first yes sets something standing, so it is a quiet link and
@@ -566,6 +568,48 @@ const fixtures: readonly Fixture[] = [
 // The hardcoded items, as they stand at `now`: each waited as long as the sample says, and
 // the limit resets in 1 h 12 min.
 export const demoInboxItems = (now: number): InboxItem[] => itemsOf(fixtures, now)
+
+// The messages demo's letters from the checkout's Claude Code (moth): a tell the person
+// hasn't read and a question still open, which its Messages pane lists with the one it
+// answered (see `checkoutMailboxes`).
+const letters: readonly Fixture[] = [
+  {
+    id: demoInboxIds.letterTell,
+    project: "storefront",
+    terminal: 1,
+    agent: "claude",
+    minutes: 4,
+    stopped: false,
+    content: {
+      kind: "update",
+      update: {
+        type: "told",
+        subject: "Order summary is in",
+        body: "Every checkout test passes except cart.spec.ts, which @owl is chasing.",
+      },
+    },
+  },
+  {
+    id: demoInboxIds.letterAsk,
+    project: "storefront",
+    terminal: 1,
+    agent: "claude",
+    minutes: 1,
+    stopped: false,
+    content: {
+      kind: "ask",
+      ask: {
+        subject: "Where should the empty cart link?",
+        body: "Back to the catalogue, or to the last product viewed?",
+        details: null,
+        hardToUndo: null,
+        shape: { type: "text" },
+      },
+    },
+  },
+]
+
+export const demoLetters = (now: number): InboxItem[] => itemsOf(letters, now)
 
 // Those, and the states the debug panel adds.
 export const demoInboxItemsAll = (now: number): InboxItem[] =>

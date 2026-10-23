@@ -1732,13 +1732,38 @@ optional `messages` capability (`core/messages.ts`):
   taskbar's Messages icon carries the count, amber while a thread is held.
 - **Messages view.** A terminal that has had messages gets a Messages icon in its
   companion pane's taskbar, with the same count; an agent with none yet keeps its bar
-  clear. The view lists
-  its threads, latest first, each with the peer's title and handle and its messages in
-  order: direction, time (with the date when not today), state, and the agent's text as
-  plain text, never formatted or interpreted. A peer no longer in the session shows its
-  handle alone. A held thread has **Release** (`messages.release`), "Releasing…" until
-  the runner took it and a listing shows the thread go on; a refused release says why on
-  that thread. With no threads it says so.
+  clear. The view is one list of the terminal's conversations, 1:1 as messaging is: one per
+  peer, and **You**, which gathers the letters its agent wrote the person (the runner lists
+  a thread a letter) with their replies. You comes first while a question is open or a tell
+  unread, then the rest, latest first. A row shows the peer's critter (below), title and
+  handle, and its last message as "who: text"; its corner says one thing: **Asks you** or
+  **Not delivered** as chips, else **Unread**, styled as the time it stands in for, else the
+  time of its last message. Unread on an agent's conversation is news since the person last
+  opened it, which the UI alone remembers (local storage, `messages/seen.ts`); what it
+  first sees counts as read, so a launch says what happened since, not a backlog. A peer no
+  longer in the session shows its handle alone. With no conversations it says so.
+- **Chat.** Opening a row reads it as a chat: bubbles tinted in their sender's hue, the
+  terminal's own agent on the right (the person, in You), its peer on the left with its
+  critter at the start of each run. A time shows only where a burst starts (the first
+  message, or one after ten quiet minutes), the exact time on hover; a note only while a
+  message is on its way (Waiting, held ones too, or Delivering) or lost (Not delivered),
+  and Delivered under the last of the right side's. Three or more rounds that repeat (the
+  same senders, the same text numbers aside) fold to "N more rounds like this · Show". Its
+  head has the way back, and the way to the peer's terminal. In You, letters say what they
+  are (Asks you, Asked you · answered, withdrawn, session ended or reply not delivered;
+  Tells you, Told you), a reply quotes its question, a New line comes before the first
+  unread letter, an open question has **Answer**, which opens its Inbox item, and the head
+  counts the questions that wait. The view shows no holds: a thread held for release is
+  the runner's and the Inbox's (`messages.release`), never released or stopped here.
+- **Critters.** Each handle has an 8×8 critter drawn for its word
+  (`items/…/messages/avatars/drawn.ts`, in the runner's word order), lit on a small dark
+  LED screen in one of eight hues by the word's rank; a later round's handle (`moth2`)
+  carries its number, and a word with no drawing gets a generated one. The cells land on
+  whole device pixels (the screen's ratio times any zoom of the view), with a one-pixel gap
+  from three pixels a cell, drawn again as the scale changes. A critter blinks every 6 to
+  11 s on its word's clock, hops a row while its agent works, and is still and dim once its
+  agent has left; reduced motion stills it. The person is a backlit imp. They show only in
+  this view.
 - **Pause switch.** The view's header has **Pause all agents' messages**
   (`messages.pause`), one switch for the whole runner. It shows what the runner's listings
   say, and a pause or resume the runner accepted, whichever comes first; it takes no

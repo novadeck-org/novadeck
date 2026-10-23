@@ -2,14 +2,17 @@ import { describe as context, describe, expect, it } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import {
+  bubbles,
+  conversationRow,
+  conversationRows,
   messageItems,
   messagesButton,
   namedBy,
+  openConversation,
   openMessages,
   openMessagesDemo,
   pauseSwitch,
   tabMenu,
-  thread,
 } from "./support/messages"
 import { confirmClose, sidebarRenameField, tabAction } from "./support/terminals"
 import {
@@ -44,44 +47,61 @@ describe("Messages waiting for an agent", () => {
 })
 
 describe("A terminal's messages", () => {
-  it("list its threads, latest first, each message with its direction, time, text and state", async () => {
+  it("list its conversations, the person's letters first while they wait, then latest first", async () => {
     await openMessagesDemo()
     const pane = await openMessages("Checkout implementation")
-    const threads = pane.getByRole("region", { name: /^Thread with / })
+    const rows = conversationRows(pane)
     await expect
-      .poll(() => threads.elements().map((each) => each.getAttribute("aria-label")))
+      .poll(() => rows.elements().map((each) => each.getAttribute("aria-label")))
       .toEqual([
-        "Thread with Checkout review (@crow)",
-        "Thread with Tests (@owl)",
-        "Thread with Dev server (@fox)",
+        "You, asks you",
+        expect.stringMatching(/^Checkout review, @crow, last at /),
+        expect.stringMatching(/^Tests, @owl, last at /),
+        expect.stringMatching(/^Build, @raven, last at /),
+        expect.stringMatching(/^Runtime, @kite, last at /),
+        "Dev server, @fox, not delivered",
       ])
-    const review = messageItems(thread(pane, "Checkout review", "crow"))
-    await expect.poll(() => review.elements().length).toBe(4)
-    // The demo stamps its messages minutes back, so just after midnight they carry a date.
+    // Its last message describes it.
     await expect
-      .poll(() => textOf(review.nth(0)))
-      .toMatch(/^Sent to @crow(?:[A-Z][a-z]{2} \d{1,2}, )?\d{1,2}:\d\d.*Delivered/)
-    await expect.poll(() => textOf(review.nth(1))).toMatch(/From @crow/)
-    await expect.poll(() => textOf(review.nth(2))).toMatch(/Delivering/)
-    await expect.poll(() => textOf(review.nth(3))).toMatch(/Waiting/)
+      .element(conversationRow(pane, "Build, @raven"))
+      .toHaveAccessibleDescription(/^@raven: The bundle grew 41 kB/)
+    // A row's corner says one thing: what asks of the person, what was lost, or the time.
+    await expect.element(conversationRow(pane, "You")).toMatchTextContent(/Asks you$/)
     await expect
-      .poll(() => textOf(messageItems(thread(pane, "Dev server", "fox")).first()))
-      .toMatch(/Not delivered/)
+      .element(conversationRow(pane, "Dev server, @fox"))
+      .toMatchTextContent(/Not delivered$/)
+    await expect
+      .element(conversationRow(pane, "Build, @raven"))
+      .toMatchTextContent(/@raven: The bundle grew 41 kB/)
+  })
+
+  it("reads one as a chat, saying where a message is only while it's on its way or lost", async () => {
+    await openMessagesDemo()
+    const pane = await openMessages("Checkout implementation")
+    const chat = await openConversation(pane, "Checkout review, @crow")
+    await expect.poll(() => bubbles(chat).length).toBe(4)
+    await expect
+      .poll(() => bubbles(chat).map((each) => each.getAttribute("data-side")))
+      .toEqual(["out", "in", "out", "out"])
+    await expect.poll(() => bubbles(chat)[0]!.textContent).toMatch(/^@moth: Can you review/)
+    await expect.poll(() => bubbles(chat)[1]!.textContent).toMatch(/^@crow: Looking now/)
+    await expect.poll(() => bubbles(chat)[2]!.textContent).toMatch(/Delivering$/)
+    await expect.poll(() => bubbles(chat)[3]!.textContent).toMatch(/Waiting$/)
+    // Back to the list, onto the row it came from.
+    await pane.getByRole("button", { name: "All conversations" }).click()
+    await expect.element(conversationRow(pane, "Checkout review, @crow")).toHaveFocus()
   })
 
   it("shows the agents' text as they wrote it, never formatted", async () => {
     await openMessagesDemo()
     const pane = await openMessages("Checkout implementation")
-    const written = messageItems(thread(pane, "Checkout review", "crow")).nth(3)
-    await expect
-      .element(
-        written.getByText(
-          "tests/checkout/retry.test.ts covers it now; see `maxTries` and the **cap**.",
-        ),
-      )
-      .toBeVisible()
-    await expect.element(written.getByRole("strong")).not.toBeInTheDocument()
-    await expect.element(written.getByRole("code")).not.toBeInTheDocument()
+    const chat = await openConversation(pane, "Checkout review, @crow")
+    const written = chat.getByText(
+      "tests/checkout/retry.test.ts covers it now; see `maxTries` and the **cap**.",
+    )
+    await expect.element(written).toBeVisible()
+    await expect.element(chat.getByRole("strong")).not.toBeInTheDocument()
+    await expect.element(chat.getByRole("code")).not.toBeInTheDocument()
   })
 
   it("stay off the taskbar of an agent that has had none", async () => {
@@ -97,31 +117,50 @@ describe("A terminal's messages", () => {
     await tabAction("Close Dev server").click()
     await confirmClose()
     const pane = await openMessages("Checkout implementation")
-    await expect.element(pane.getByRole("region", { name: "Thread with @fox" })).toBeVisible()
+    await expect.element(conversationRow(pane, "@fox")).toBeVisible()
   })
 
   it("dates a message that isn't from today", async () => {
     await openMessagesDemo()
     const pane = await openMessages("Checkout implementation")
+    const chat = await openConversation(pane, "Dev server, @fox")
     await expect
-      .poll(() => textOf(messageItems(thread(pane, "Dev server", "fox")).first()))
-      .toMatch(/Sent to @fox[A-Z][a-z]{2} \d+, \d\d:\d\d/)
+      .poll(() => textOf(messageItems(chat).first()))
+      .toMatch(/^[A-Z][a-z]{2} \d+, \d\d:\d\d/)
   })
 
-  context("in a thread held after going back and forth", () => {
-    it("lets the person release it, and the tab and thread follow", async () => {
+  context("in a thread that goes round and round", () => {
+    it("folds the repeated rounds to a line until the person asks for them, with no hold to release", async () => {
       await openMessagesDemo()
       const pane = await openMessages("Checkout implementation")
-      const tests = thread(pane, "Tests", "owl")
-      await expect.poll(() => textOf(messageItems(tests).last())).toMatch(/Held for release/)
-      await tests.getByRole("button", { name: "Release the thread with Tests" }).click()
-      await expect.poll(() => textOf(messageItems(tests).last())).toMatch(/Waiting/)
-      // The button goes, and focus with it to the thread.
-      await expect.element(tests.getByRole("heading", { name: "Tests" })).toHaveFocus()
-      await expect.element(tests.getByRole("button", { name: /^Release/ })).not.toBeInTheDocument()
+      const chat = await openConversation(pane, "Tests, @owl")
+      const fold = chat.getByRole("button", { name: /4 more rounds like this/ })
+      await expect.element(fold).toBeVisible()
+      await expect.poll(() => bubbles(chat).length).toBe(5)
+      await fold.click()
+      await expect.poll(() => bubbles(chat).length).toBe(13)
+      await expect.element(pane.getByRole("button", { name: /^Release/ })).not.toBeInTheDocument()
+    })
+  })
+
+  context("with the person's letters", () => {
+    it("labels them in plain words, quotes the question a reply answers, and offers Answer", async () => {
+      await openMessagesDemo()
+      const pane = await openMessages("Checkout implementation")
+      const chat = await openConversation(pane, "You")
+      await expect.element(pane).toMatchTextContent("1 question waits for you")
+      await expect.element(chat).toMatchTextContent("Asked you · answered")
+      await expect.element(chat).toMatchTextContent("Tells you")
+      await expect.element(chat).toMatchTextContent("Asks you")
       await expect
-        .poll(() => description("Checkout implementation"))
-        .toBe("Plan ready for review, 1 message waiting. Leads @crow")
+        .poll(
+          () => bubbles(chat).find((each) => each.getAttribute("data-side") === "out")?.textContent,
+        )
+        .toMatch(/Should the order summary show tax.*After shipping, same as the cart\./)
+      await chat.getByRole("button", { name: "Answer: Where should the empty cart link?" }).click()
+      await expect
+        .element(page.getByRole("heading", { name: "Where should the empty cart link?" }))
+        .toBeVisible()
     })
   })
 })
@@ -144,17 +183,17 @@ describe("Pausing messaging", () => {
     await expect.element(pause).toHaveFocus()
     expect(onItsWay()).toContainEqual({ disabled: "true", focused: true })
     await expect.poll(() => textOf(pane.getByRole("status"))).toMatch(/Messaging is paused/)
-    // Codex's queued message is held; the one already being delivered goes on.
-    const items = messageItems(thread(pane, "Checkout implementation", "moth"))
-    await expect.poll(() => textOf(items.nth(3))).toMatch(/Held while paused/)
-    await expect.poll(() => textOf(items.nth(2))).toMatch(/Delivering/)
+    // Codex's queued message is held, which the chat says only as waiting; the one already
+    // being delivered goes on.
+    const chat = await openConversation(pane, "Checkout implementation, @moth")
+    await expect.poll(() => bubbles(chat)[3]?.textContent).toMatch(/Waiting$/)
+    await expect.poll(() => bubbles(chat)[2]?.textContent).toMatch(/Delivering$/)
     await expect
       .poll(() => description("Checkout review"))
       .toBe(
         "Needs permission, 2 messages waiting, held while messaging is paused, 2 subagents: 2 explorer. Led by @moth",
       )
     await pause.click()
-    await expect.poll(() => textOf(items.nth(3))).toMatch(/Waiting/)
     await expect.element(pane.getByText(/Messaging is paused/)).not.toBeInTheDocument()
     await expect
       .poll(() => description("Checkout review"))

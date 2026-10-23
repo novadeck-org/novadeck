@@ -25,7 +25,7 @@ import { chirpIntroOf, chirpSeed, chirpTranscripts } from "./chirp"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { demoHandle } from "./handles"
 import { createDemoInbox, isDemoInbox } from "./inbox"
-import { demoInboxItems } from "./inbox-fixtures"
+import { demoInboxItems, demoLetters } from "./inbox-fixtures"
 import { checkoutMailboxes, createDemoMessages, isDemoMessages } from "./messages"
 import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./murmur"
 import {
@@ -494,6 +494,7 @@ export const plainDemo = (
           turns,
         ),
         turns,
+        demoLetters(now),
       ),
       turns,
     )
