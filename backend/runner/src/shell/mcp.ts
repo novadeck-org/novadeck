@@ -603,16 +603,16 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
   name: "ask",
   description:
     "Put a question in the user's Inbox without stopping your work. With a lead, send it " +
-    "your questions with send instead; only approvals of actions, which are always the " +
-    "user's, are asked here, and you tell your lead you're waiting. Most " +
-    "decisions aren't blocking: ask, keep going on what doesn't depend on the answer, and " +
-    "where your pick is easy to undo and needs no approval of theirs (reversible, local, not " +
-    "yet pushed or shared), go ahead with it and change course if they choose otherwise. A " +
-    "pick that is hard to undo waits for their answer. Their answer arrives later as mail, " +
-    "marked by Novadeck as relayed " +
-    "from the user. Stop only for what truly needs it; once nothing else is left, end your " +
-    "turn, and their answer wakes you. It suits a decision between options where you have a " +
-    "pick (give recommend, and hard_to_undo when it is), and what only the user can do: an " +
+    "your questions with send instead, working around them as below; only approvals of " +
+    "actions, which are always the user's, go through ask, and you tell your lead you're " +
+    "waiting. Most decisions aren't blocking: ask, keep going on what doesn't depend on the " +
+    "answer, and where your pick is easy to undo and needs no approval of theirs " +
+    "(reversible, local, not yet pushed or shared), go ahead with it and change course if " +
+    "they choose otherwise. A pick that is hard to undo waits for their answer. Their answer " +
+    "arrives later as mail, marked by Novadeck as relayed from the user. Stop only for what " +
+    "truly needs it; once nothing else is left, end your turn, and their answer wakes you. " +
+    "It suits a decision between options where you have a pick (give an options shape with " +
+    "recommend, and hard_to_undo when it is), and what only the user can do: an " +
     "action shape shows them a command to run; Novadeck never runs it. Returns at once with " +
     "the ask's id. Give a subject and Markdown body, optionally details, hard_to_undo and " +
     "shape. The user can always write their own answer. Secret shapes are unavailable; never " +
@@ -773,9 +773,9 @@ export const mcpAnswer = async (line: string, call?: McpCall): Promise<string | 
 // What the server says of itself in a Novadeck terminal, which Claude Code reads up front,
 // before it loads a tool's description: when `ask` and `tell` serve better than the reply.
 const instructions =
-  "Novadeck's ask puts a question in the user's Inbox without stopping your work: most " +
-  "decisions aren't blocking, so ask there and keep going on what doesn't depend on the " +
-  "answer. Its tell puts a milestone there for when they're elsewhere: a pull request " +
+  "Novadeck's ask puts a question in the user's Inbox without stopping your work: for a " +
+  "decision the user should make, ask there and keep going on what doesn't depend on the " +
+  "answer; most such decisions aren't blocking. Its tell puts a milestone there for when they're elsewhere: a pull request " +
   "opened, its checks done, a merge, or that you now wait on someone else. With a lead, " +
   "both go to it instead, except approvals of actions, which are always the user's."
 

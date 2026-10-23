@@ -363,7 +363,9 @@ describe("Novadeck's MCP server", () => {
       expect(instructions).toContain(
         "puts a question in the user's Inbox without stopping your work",
       )
-      expect(instructions).toContain("keep going on what doesn't depend on the answer")
+      expect(instructions).toContain(
+        "for a decision the user should make, ask there and keep going",
+      )
       expect(instructions).toContain("Its tell puts a milestone there")
       expect(instructions).toContain("With a lead, both go to it instead")
     })
