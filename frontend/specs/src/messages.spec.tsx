@@ -54,13 +54,17 @@ describe("A terminal's messages", () => {
     await expect
       .poll(() => rows.elements().map((each) => each.getAttribute("aria-label")))
       .toEqual([
-        "You",
-        "Checkout review, @crow",
-        "Tests, @owl",
-        "Build, @raven",
-        "Runtime, @kite",
-        "Dev server, @fox",
+        "You, asks you",
+        expect.stringMatching(/^Checkout review, @crow, last at /),
+        expect.stringMatching(/^Tests, @owl, last at /),
+        expect.stringMatching(/^Build, @raven, last at /),
+        expect.stringMatching(/^Runtime, @kite, last at /),
+        "Dev server, @fox, not delivered",
       ])
+    // Its last message describes it.
+    await expect
+      .element(conversationRow(pane, "Build, @raven"))
+      .toHaveAccessibleDescription(/^@raven: The bundle grew 41 kB/)
     // A row's corner says one thing: what asks of the person, what was lost, or the time.
     await expect.element(conversationRow(pane, "You")).toMatchTextContent(/Asks you$/)
     await expect

@@ -65,10 +65,22 @@ describe("a terminal's conversations", () => {
         thread("t-owl", "owl", [message("owl", "moth", 2 * minute, "Hi")]),
       ),
     )
-    expect(conversations.map(({ key }) => key)).toEqual(["t-owl", youKey])
-    const you = conversations[1]!
+    expect(conversations.map(({ key }) => key)).toEqual([youKey, "owl"])
+    const you = conversations[0]!
     expect(you.messages.map(({ text }) => text)).toEqual(["Done.", "Which route?", "The first."])
     expect(you.asked.get(answer.id)?.text).toBe("Which route?")
+  })
+
+  it("gather an agent's threads, as the runner starts a new one after a quiet spell, into one", () => {
+    const conversations = conversationsOf(
+      mailOf(
+        thread("t-late", "owl", [message("owl", "moth", 60 * minute, "After lunch")]),
+        thread("t-early", "owl", [message("moth", "owl", 1 * minute, "Morning")]),
+      ),
+    )
+    expect(conversations).toHaveLength(1)
+    expect(conversations[0]!.key).toBe("owl")
+    expect(conversations[0]!.messages.map(({ text }) => text)).toEqual(["Morning", "After lunch"])
   })
 
   context("listed", () => {
@@ -82,7 +94,7 @@ describe("a terminal's conversations", () => {
           ]),
         ),
       )
-      expect(listed(conversations).map(({ key }) => key)).toEqual([youKey, "t-owl", "t-fox"])
+      expect(listed(conversations).map(({ key }) => key)).toEqual([youKey, "owl", "fox"])
     })
 
     it("keep the person's letters in time order once nothing in them waits", () => {
@@ -94,7 +106,7 @@ describe("a terminal's conversations", () => {
           ]),
         ),
       )
-      expect(listed(conversations).map(({ key }) => key)).toEqual(["t-owl", youKey])
+      expect(listed(conversations).map(({ key }) => key)).toEqual(["owl", youKey])
     })
   })
 })

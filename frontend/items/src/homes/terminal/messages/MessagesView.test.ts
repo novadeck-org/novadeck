@@ -1,5 +1,6 @@
 import type { AgentMessage, MailPeer, MessageThread } from "@novadeck/core/messages"
 import { render } from "@novadeck/test-kit/render"
+import { Shown } from "@novadeck/toolkit/shown"
 import { act, createElement } from "react"
 import { afterEach } from "vitest"
 
@@ -40,6 +41,7 @@ const now = Date.now()
 const peers: Readonly<Record<string, MailPeer>> = {
   owl: { name: "Tests", terminalId: "03", program: "claude", live: "working" },
   fox: { name: "Dev server", terminalId: "02", program: "zsh", live: "gone" },
+  moth: { name: "Checkout", terminalId: "01", program: "claude", live: "working" },
 }
 
 const unmounts: (() => void)[] = []
@@ -47,7 +49,11 @@ afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 
 const mount = (
   threads: readonly MessageThread[],
-  { paused = false, seenAt = 0 }: { paused?: boolean; seenAt?: number } = {},
+  {
+    paused = false,
+    seenAt = 0,
+    shown = true,
+  }: { paused?: boolean; seenAt?: number; shown?: boolean } = {},
 ) => {
   const did = { goTo: [] as string[], answer: [] as string[], seen: [] as [string, number][] }
   const mail: MailHandle = {
@@ -66,7 +72,9 @@ const mount = (
     goTo: (terminalId) => did.goTo.push(terminalId),
     answer: (letter) => did.answer.push(letter.id),
   }
-  const view = render(createElement(MessagesView, { mail, links }))
+  const view = render(
+    createElement(Shown.Provider, { value: shown }, createElement(MessagesView, { mail, links })),
+  )
   unmounts.push(view.unmount)
   const $ = (selector: string) => view.container.querySelector<HTMLElement>(selector)
   const rows = () =>
@@ -138,7 +146,7 @@ describe("an open conversation", () => {
 
     it("reads as a chat, the terminal's agent on the right, notes only where worth a look", () => {
       const { $, view, open, did } = mount(threads)
-      open("t-owl")
+      open("owl")
       expect($(".mail-chat-name")?.textContent).toBe("Tests@owl")
       const sides = [...view.container.querySelectorAll(".mail-bubble-row")].map((row) =>
         row.getAttribute("data-side"),
@@ -148,16 +156,22 @@ describe("an open conversation", () => {
         (note) => note.textContent,
       )
       expect(notes).toEqual(["Delivered", "Waiting"])
-      expect(did.seen).toEqual([["t-owl", now]])
+      expect(did.seen).toEqual([["owl", now]])
+    })
+
+    it("leaves news unseen while its terminal is out of sight", () => {
+      const { open, did } = mount(threads, { shown: false })
+      open("owl")
+      expect(did.seen).toEqual([])
     })
 
     it("goes to the other agent's terminal, and back to the list onto its row", () => {
       const { $, open, did } = mount(threads)
-      open("t-owl")
+      open("owl")
       act(() => $(".mail-go")!.click())
       expect(did.goTo).toEqual(["03"])
       act(() => $(".mail-back")!.click())
-      expect(document.activeElement?.getAttribute("data-conversation")).toBe("t-owl")
+      expect(document.activeElement?.getAttribute("data-conversation")).toBe("owl")
     })
   })
 
@@ -182,6 +196,8 @@ describe("an open conversation", () => {
       )
       expect(labels).toEqual(["Asked you · answered", "Asks you"])
       expect($(".mail-quote")?.textContent).toBe("Tax before shipping?")
+      // The terminal's own agent is there, working, whoever the conversation is with.
+      expect($(".mail-bubble-av .mail-av")?.getAttribute("data-live")).toBe("working")
       expect($(".mail-new")).not.toBeNull()
       act(() => $(".mail-answer button")!.click())
       expect(did.answer).toHaveLength(1)
@@ -199,7 +215,7 @@ describe("an open conversation", () => {
         ]),
       ])
       open("you")
-      expect($(".mail-note[data-note=gone]")?.textContent).toBe("Not delivered")
+      expect($(".mail-note[data-note=gone]")?.textContent).toBe("Reply not delivered")
     })
   })
 })

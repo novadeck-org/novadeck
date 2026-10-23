@@ -41,11 +41,14 @@ export const openMessages = async (name: string): Promise<Locator> => {
 export const conversationRows = (pane: Locator): Locator =>
   pane.getByRole("list", { name: "Conversations" }).getByRole("button")
 
-/** A row of a messages pane's list, by its terminal's name and handle, or as "You". */
+/** A row of a messages pane's list, by its terminal's name and handle, or as "You", which
+ * its name goes on from to say what its corner says. */
 export const conversationRow = (pane: Locator, label: string): Locator =>
-  pane
-    .getByRole("list", { name: "Conversations" })
-    .getByRole("button", { name: label, exact: true })
+  pane.getByRole("list", { name: "Conversations" }).getByRole("button", {
+    name: new RegExp(
+      `^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}, (asks you|not delivered|unread|last at)`,
+    ),
+  })
 
 /** Opens a conversation from a messages pane's list; returns its chat. */
 export const openConversation = async (pane: Locator, label: string): Promise<Locator> => {

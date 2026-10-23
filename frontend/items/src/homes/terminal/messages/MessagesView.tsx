@@ -1,5 +1,6 @@
 import { handleText } from "@novadeck/core/handle"
-import { waitsText, type AgentMessage, type MailPeer } from "@novadeck/core/messages"
+import { waitsText, type MailPeer } from "@novadeck/core/messages"
+import { useShown } from "@novadeck/toolkit/shown"
 import { Switch } from "@novadeck/toolkit/Switch"
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react"
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
@@ -100,6 +101,16 @@ const CornerText = ({ corner }: { corner: Corner }): React.JSX.Element => {
   }
 }
 
+// What a row's corner says, in words for its name.
+const cornerWords = (corner: Corner): string =>
+  corner.kind === "asks"
+    ? "asks you"
+    : corner.kind === "undelivered"
+      ? "not delivered"
+      : corner.kind === "unread"
+        ? "unread"
+        : `last at ${rowTime(corner.at)}`
+
 const Row = ({
   conversation,
   peer,
@@ -115,6 +126,7 @@ const Row = ({
   const corner = cornerOf(conversation, seenAt)
   const name = nameOf(conversation.peer, peer)
   const you = conversation.key === youKey
+  const preview = useId()
   return (
     <li>
       <button
@@ -122,7 +134,12 @@ const Row = ({
         className="mail-row"
         data-conversation={conversation.key}
         data-unread={corner.kind === "unread" || waitsOnPerson(conversation) || undefined}
-        aria-label={peer ? `${name}, ${handleText(conversation.peer)}` : name}
+        aria-label={[
+          name,
+          ...(peer ? [handleText(conversation.peer)] : []),
+          cornerWords(corner),
+        ].join(", ")}
+        aria-describedby={last ? preview : undefined}
         onClick={onOpen}
       >
         <Avatar
@@ -137,7 +154,7 @@ const Row = ({
             {peer && <code className="mail-row-handle">{handleText(conversation.peer)}</code>}
           </span>
           {last && (
-            <span className="mail-preview">
+            <span id={preview} className="mail-preview">
               <span className="mail-preview-who">{party(last.from)}:</span>{" "}
               {last.text.replace(/\s+/g, " ")}
             </span>
@@ -158,13 +175,11 @@ const Row = ({
 const Bubble = ({
   entry,
   conversation,
-  peer,
-  onAnswer,
+  links,
 }: {
   entry: Extract<ChatEntry, { kind: "message" }>
   conversation: Conversation
-  peer: MailPeer | undefined
-  onAnswer: (letter: AgentMessage) => void
+  links: MailLinks
 }): React.JSX.Element => {
   const { message, side, grouped, note } = entry
   const label = letterLabel(message)
@@ -187,7 +202,7 @@ const Bubble = ({
             <Avatar
               handle={message.from}
               size={22}
-              live={message.from === "you" ? "idle" : liveOf(peer)}
+              live={message.from === "you" ? "idle" : liveOf(links.peer(message.from))}
             />
           )}
         </span>
@@ -210,7 +225,7 @@ const Bubble = ({
           <p className="mail-text">{message.text}</p>
           {open && (
             <div className="mail-answer">
-              <button type="button" className="button" onClick={() => onAnswer(message)}>
+              <button type="button" className="button" onClick={() => links.answer(message)}>
                 Answer
               </button>
             </div>
@@ -219,7 +234,9 @@ const Bubble = ({
         {note && (
           <div className="mail-bubble-meta">
             <span className="mail-note" data-note={note} title={noteHint[note]}>
-              {noteText[note]}
+              {note === "gone" && message.inbox === "answer"
+                ? "Reply not delivered"
+                : noteText[note]}
             </span>
           </div>
         )}
@@ -231,15 +248,13 @@ const Bubble = ({
 const ChatEntryItem = ({
   entry,
   conversation,
-  peer,
+  links,
   onUnfold,
-  onAnswer,
 }: {
   entry: ChatEntry
   conversation: Conversation
-  peer: MailPeer | undefined
+  links: MailLinks
   onUnfold: () => void
-  onAnswer: (letter: AgentMessage) => void
 }): React.JSX.Element => {
   switch (entry.kind) {
     case "time":
@@ -269,7 +284,7 @@ const ChatEntryItem = ({
         </li>
       )
     case "message":
-      return <Bubble entry={entry} conversation={conversation} peer={peer} onAnswer={onAnswer} />
+      return <Bubble entry={entry} conversation={conversation} links={links} />
   }
 }
 
@@ -338,7 +353,7 @@ const Chat = ({
               {asks === 1 ? "1 question waits for you" : `${asks} questions wait for you`}
             </span>
           )}
-          {!you && peer && (
+          {!you && peer && peer.live !== "gone" && (
             <button
               type="button"
               className="icon-button mail-go"
@@ -365,9 +380,8 @@ const Chat = ({
               key={entry.key}
               entry={entry}
               conversation={conversation}
-              peer={peer}
+              links={links}
               onUnfold={() => setUnfolded(true)}
-              onAnswer={links.answer}
             />
           ))}
         </ol>
@@ -407,10 +421,12 @@ export const MessagesView = ({
   const opened = conversations.find((each) => each.key === open)
   const latest = opened ? latestOf(opened) : 0
   const { seen } = mail
-  // What the person has open, they've seen, up to its latest message.
+  // What the person has open on screen, they've seen, up to its latest message: not one
+  // left open in a terminal kept out of sight, or in a window in the background.
+  const shown = useShown()
   useEffect(() => {
-    if (open !== null && latest) seen(open, latest)
-  }, [open, latest, seen])
+    if (shown && !document.hidden && open !== null && latest) seen(open, latest)
+  }, [shown, open, latest, seen])
   // Back in the list, focus is on the row the person came from.
   useEffect(() => {
     if (opened || returnTo.current === null) return

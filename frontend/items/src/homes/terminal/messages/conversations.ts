@@ -1,11 +1,13 @@
-import type { AgentMessage, TerminalMail } from "@novadeck/core/messages"
+import type { AgentMessage, MessageThread, TerminalMail } from "@novadeck/core/messages"
 
 // A terminal's messages as the pane reads them: a list of its conversations, each one
 // other terminal's thread with it or the person's letters, and one opened as a chat.
 
-// One conversation: an agent's thread with the terminal, or, keyed `you`, every letter its
-// agent wrote the person with their replies, which the runner keeps as a thread a letter.
-// Its messages oldest first; for each of the person's replies, the question it answers.
+// One conversation: every thread the terminal had with one other, keyed by its handle (the
+// runner starts a new thread for a pair after ten quiet minutes), or, keyed `you`, every
+// letter its agent wrote the person with their replies, which the runner keeps as a thread
+// a letter. Its messages oldest first; for each of the person's replies, the question it
+// answers.
 export type Conversation = {
   readonly key: string
   readonly peer: string
@@ -16,27 +18,23 @@ export type Conversation = {
 export const youKey = "you"
 
 export const conversationsOf = (mail: TerminalMail): readonly Conversation[] => {
-  const letters = mail.threads.filter((thread) => thread.peer === "you")
-  const agents = mail.threads
-    .filter((thread) => thread.peer !== "you")
-    .map((thread): Conversation => ({
-      key: thread.id,
-      peer: thread.peer,
-      messages: thread.messages,
-      asked: new Map(),
-    }))
-  if (!letters.length) return agents
-  const asked = new Map<string, AgentMessage>()
-  for (const thread of letters) {
-    const ask = thread.messages.find((message) => message.inbox === "ask")
-    if (!ask) continue
-    for (const message of thread.messages)
-      if (message.inbox === "answer") asked.set(message.id, ask)
-  }
-  const messages = letters
-    .flatMap((thread) => thread.messages)
-    .toSorted((a, b) => a.sentAt - b.sentAt)
-  return [...agents, { key: youKey, peer: "you", messages, asked }]
+  const byPeer = new Map<string, MessageThread[]>()
+  for (const thread of mail.threads)
+    byPeer.set(thread.peer, [...(byPeer.get(thread.peer) ?? []), thread])
+  return [...byPeer].map(([peer, threads]): Conversation => {
+    const asked = new Map<string, AgentMessage>()
+    for (const thread of threads) {
+      const ask = thread.messages.find((message) => message.inbox === "ask")
+      if (!ask) continue
+      for (const message of thread.messages)
+        if (message.inbox === "answer") asked.set(message.id, ask)
+    }
+    const messages =
+      threads.length === 1
+        ? threads[0]!.messages
+        : threads.flatMap((thread) => thread.messages).toSorted((a, b) => a.sentAt - b.sentAt)
+    return { key: peer === "you" ? youKey : peer, peer, messages, asked }
+  })
 }
 
 export const latestOf = (conversation: Conversation): number =>

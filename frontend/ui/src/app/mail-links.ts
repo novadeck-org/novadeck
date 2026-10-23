@@ -4,7 +4,7 @@ import { samePeers } from "@novadeck/core/messages"
 import type { MailLinks } from "@novadeck/items/mail"
 import { useMemo } from "react"
 
-import { useOptionalInbox } from "../inbox/InboxProvider"
+import { useInboxOpener } from "../inbox/InboxProvider"
 import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
 
 // What a terminal's Messages pane knows of the session around it: the other terminals by
@@ -12,17 +12,16 @@ import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
 export const useMailLinks = (terminalId: string): MailLinks => {
   const { commands } = useWorkspaceServices()
   const peers = useWorkspaceState(mailPeers, samePeers)
-  const inbox = useOptionalInbox()
+  const openInbox = useInboxOpener()
   return useMemo(
     () => ({
       peer: (handle) => peers[handle],
       goTo: commands.reveal,
       answer: (letter) => {
-        const item = inbox && letterItem(inbox.state.items, letter, terminalId)
         commands.showInbox()
-        if (item) inbox.open(item.id)
+        openInbox?.((items) => letterItem(items, letter, terminalId))
       },
     }),
-    [peers, commands, inbox, terminalId],
+    [peers, commands, openInbox, terminalId],
   )
 }

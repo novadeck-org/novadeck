@@ -8,8 +8,9 @@ export const deviceScale = (element: HTMLElement): number => {
 }
 
 // Calls each listener when the scale may have changed: the window moved to a screen of
-// another ratio, the page was zoomed or resized, or the view was zoomed by the wheel or a
-// pinch, once the gesture settles. One set of listeners for every avatar; returns the stop.
+// another ratio, the page was zoomed or resized, the view was zoomed by the wheel or a
+// pinch, or an animation or transition ended (a pane growing in), once things settle. One
+// set of listeners for every avatar; returns the stop.
 const listeners = new Set<() => void>()
 let stopWatching: (() => void) | null = null
 
@@ -32,12 +33,16 @@ const watch = (): (() => void) => {
   window.addEventListener("resize", settle)
   window.addEventListener("wheel", settle, { passive: true })
   window.addEventListener("pointerup", settle)
+  window.addEventListener("animationend", settle, true)
+  window.addEventListener("transitionend", settle, true)
   return () => {
     clearTimeout(timer)
     media?.removeEventListener("change", ratio)
     window.removeEventListener("resize", settle)
     window.removeEventListener("wheel", settle)
     window.removeEventListener("pointerup", settle)
+    window.removeEventListener("animationend", settle, true)
+    window.removeEventListener("transitionend", settle, true)
   }
 }
 
