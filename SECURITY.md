@@ -101,11 +101,35 @@ gone; it deletes nothing if the file is still there, as after a cancelled uninst
 by sending `keepData: false`, the app's data folder, which it could already do through the
 runner; it can remove no other path through this channel.
 
+## Companion Pane Pages
+
+Pages in the companion pane load in Electron's `<webview>` with no preload, no Node and a
+sandbox, on the `persist:novadeck-pages` session, apart from the app's
+(`libraries/viewers/src/browser-host.ts`). The session is kept on disk, in `Partitions`
+in the app's data folder, so a person who signs in to a site stays signed in there in
+every page and after a restart. Electron keeps its cookies without encryption (the
+cookie-encryption fuse is off), readable by anything that runs as the person, as their
+shell and agents already do. The session is refused every permission, device, download
+and `file:` address.
+
+Agents choose which pages the pane shows, so a page an agent shows loads signed in
+wherever the person signed in, and the agent hears of its title, the errors it logs and
+the requests it fails. That is the person's choice: their agents can already reach their
+browser and its sign-ins through browser tools. No page reaches the app's page or its
+bridge: a page has no preload, and the host answers only its own windows showing the app.
+
+A window a page opens goes through only right after the person's click or key, one per
+gesture. A popup the page sized, as a sign-in opens, opens in a window of the app on the
+pages' session, with the page's own lockdown and guard, and its opener, so the sign-in
+can hand its answer back; anything else opens in the person's browser. A passkey sign-in
+that names no passkey signs in with the only one that fits, or asks the person which in
+a dialog of the window the page is in; a cancelled or failed question cancels it.
+
 ## Pasted Files
 
 The desktop preload's `pathForFile` hands the page the path of a `File` it already
 holds, which only a paste gives it; it names no other file and reads nothing. The
-companion pane's pages get no preload (see `apps/desktop/src/main/pages.ts`), so
+companion pane's pages get no preload (see `libraries/viewers/src/browser-host.ts`), so
 they have no bridge to ask through.
 
 A file copied in a file manager pastes its own path, so names chosen outside Novadeck,

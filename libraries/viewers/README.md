@@ -53,10 +53,13 @@ hand back as `saved` to the next viewer of the same thing.
 - `./browser.css`: the browser viewer's looks, themed through `--browser-*`.
 - `./browser/host` (Node only): the pages' lockdown for Electron's main process:
   `attachPage` settles a page view's settings as it attaches (no preload, no Node, a
-  sandbox, the pages' session in memory, http(s) only), `guardPage` keeps it to http(s) and
-  sends a window it opens to the browser only right after the person's click or key, and
-  `lockPagesSession` refuses the session every permission, download and file. Nothing in
-  their options can loosen that. Electron is an optional peer dependency, needed only here.
+  sandbox, the pages' session, kept on disk so sign-ins last, http(s) only), `guardPage`
+  keeps it to http(s) and lets a window it opens through only right after the person's
+  click or key: a sized popup, as a sign-in's, in an app window on the same session
+  (`signInWindow`), anything else in the browser; `lockPagesSession` refuses the session
+  every permission, download and file, and `pickPasskeys` has the person pick the passkey a
+  page signs in with when it names none and more than one fits. Nothing in their options
+  can loosen that. Electron is an optional peer dependency, needed only here.
 - `./react`: `useViewer`, a ref that mounts a viewer into its element and keeps its state by
   id, and the viewer once mounted. React is an optional peer dependency, needed only here.
 

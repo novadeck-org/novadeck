@@ -1,4 +1,12 @@
-import type { Session, WebContents, WebPreferences } from "electron"
+import type {
+  BrowserWindowConstructorOptions,
+  HandlerDetails,
+  SelectWebauthnAccountDetails,
+  Session,
+  WebContents,
+  WebPreferences,
+  WindowOpenHandlerResponse,
+} from "electron"
 
 import { webAddress } from "./address.js"
 import { originOf, type PageRequestFailure } from "./browser-trouble.js"
@@ -7,25 +15,27 @@ export { webAddress } from "./address.js"
 
 // The browser viewer's lockdown, in Electron's main process. Live pages load in a
 // <webview>: a browser view apart from the app's own page. Whatever the element asks for,
-// each gets no preload, no Node, a sandbox, and the pages' session, in memory, where
-// every permission and download is refused and no file loads. It goes only to http(s)
-// addresses by its own links and redirects. A window it opens right after the person
-// clicked or typed in it opens in their own browser, one per click or key; any other
-// opens nowhere. Nothing here can loosen that: the options only name the session.
+// each gets no preload, no Node, a sandbox, and the pages' session, kept on disk so a
+// person signed in to a site stays signed in, in every page view and after a restart,
+// and where every permission and download is refused and no file loads. It goes only to
+// http(s) addresses by its own links and redirects. A window it opens right after the
+// person clicked or typed in it opens in their own browser, one per click or key, or,
+// when the page sized it as a popup, as a sign-in does, in a window of the app on the
+// pages' session, so the sign-in lands there; any other opens nowhere. Nothing here can
+// loosen that: the options only name the session.
 
 /**
- * The pages' session's name, checked: one that names a session in memory and apart from
- * the app's. An empty name is the app's own session, and `persist:` keeps what pages store
- * on disk, so either is refused rather than loosening the lockdown.
+ * The pages' session's name, checked: one that names a session of its own, kept on disk,
+ * apart from the app's. An empty name is the app's own session, and one without
+ * `persist:` forgets every sign-in at a restart, so either is refused.
  */
 export const pagesSession = (partition: string): string => {
-  if (!inMemory(partition))
-    throw new Error(`The pages' session must be in memory and named: "${partition}" isn't.`)
+  if (!kept(partition))
+    throw new Error(`The pages' session must be kept on disk and named: "${partition}" isn't.`)
   return partition
 }
 
-const inMemory = (partition: string): boolean =>
-  partition !== "" && !partition.startsWith("persist:")
+const kept = (partition: string): boolean => /^persist:./.test(partition)
 
 /**
  * Settles a page view's settings as it attaches, from `will-attach-webview`; false when
@@ -51,12 +61,37 @@ export const attachPage = (
   preferences.webviewTag = false
   // A session that isn't the pages' own refuses the view, never throws past the host's
   // handler, which would let the view attach as it asked.
-  if (!inMemory(partition)) return false
+  if (!kept(partition)) return false
   preferences.partition = partition
   return webAddress(params.src ?? "")
 }
 
 type Opener = (url: string) => unknown
+
+/**
+ * The window a page's sign-in popup opens in: the app's, on the pages' session, with the
+ * page view's lockdown and the size the page asked for. Electron gives it the opener, so
+ * the sign-in can hand its answer back to the page that asked.
+ */
+export const signInWindow = (partition: string): BrowserWindowConstructorOptions => ({
+  autoHideMenuBar: true,
+  webPreferences: {
+    partition: pagesSession(partition),
+    nodeIntegration: false,
+    nodeIntegrationInSubFrames: false,
+    nodeIntegrationInWorker: false,
+    contextIsolation: true,
+    sandbox: true,
+    webSecurity: true,
+    allowRunningInsecureContent: false,
+    webviewTag: false,
+  },
+})
+
+// A popup the page asked for by its size or as a popup, as a sign-in opens; a link to a new
+// tab, or one opened with Shift, names no features.
+const sized = (details: Pick<HandlerDetails, "features" | "disposition">): boolean =>
+  details.disposition === "new-window" && details.features !== ""
 
 // How soon after the person's click or key a page's new window still counts as theirs.
 // `allowpopups` lifts Chromium's own need for one, and the handler has no gesture flag.
@@ -73,14 +108,17 @@ const gestures = new Set([
 ])
 
 /**
- * Keeps a page view to http(s) addresses by its own links and redirects, and sends a
- * window it opens to the browser only right after the person's click or key, one each,
- * so a page can't open tabs on its own. The handler isn't told which frame opened the
- * window, so a frame from another site in the page can take the click's one window.
+ * Keeps a page view to http(s) addresses by its own links and redirects, and lets a
+ * window it opens through only right after the person's click or key, one each, so a page
+ * can't open tabs on its own: a sized popup, as a sign-in's, in a window of the app on the
+ * pages' session (see `signInWindow`), guarded the same way; anything else in the browser.
+ * The handler isn't told which frame opened the window, so a frame from another site in
+ * the page can take the click's one window.
  */
 export const guardPage = (
   contents: WebContents,
   openExternal: Opener,
+  partition: string,
   now: () => number = Date.now,
 ): void => {
   let gesture: number | undefined
@@ -89,14 +127,18 @@ export const guardPage = (
     const repeat = "isAutoRepeat" in input && input.isAutoRepeat === true
     if (gestures.has(input.type) && !repeat) gesture = now()
   })
-  contents.setWindowOpenHandler(({ url }) => {
+  contents.setWindowOpenHandler((details): WindowOpenHandlerResponse => {
     const theirs = gesture !== undefined && now() - gesture <= gestureMs
-    if (theirs && webAddress(url)) {
-      gesture = undefined
-      void openExternal(url)
-    }
+    if (!theirs || !webAddress(details.url)) return { action: "deny" }
+    gesture = undefined
+    if (sized(details))
+      return { action: "allow", overrideBrowserWindowOptions: signInWindow(partition) }
+    void openExternal(details.url)
     return { action: "deny" }
   })
+  contents.on("did-create-window", (window) =>
+    guardPage(window.webContents, openExternal, partition, now),
+  )
   contents.on("will-navigate", (event, url) => {
     if (!webAddress(url)) event.preventDefault()
   })
@@ -140,6 +182,30 @@ export const picturePage = async (
   const image = await within(page.capturePage(), pictureWaitMs)
   if (!image || image.isEmpty()) return undefined
   return `data:image/jpeg;base64,${image.toJPEG(pictureQuality).toString("base64")}`
+}
+
+/** What a passkey is called when the person picks one: its name, else its display name. */
+export const passkeyLabel = (account: { name?: string; displayName?: string }): string =>
+  account.name || account.displayName || "Unnamed passkey"
+
+/**
+ * Has the person pick the passkey a page signs in with, when the page names none and more
+ * than one fits; with one, it is that one. Electron cancels the sign-in unless someone
+ * answers, so it answers each request once, cancelling when `pick` gives no account of
+ * the request's or fails.
+ */
+export const pickPasskeys = (
+  pages: Session,
+  pick: (details: SelectWebauthnAccountDetails) => Promise<string | undefined>,
+): void => {
+  pages.on("select-webauthn-account", (_event, details, choose) => {
+    const ids = details.accounts.map((account) => account.credentialId)
+    const chosen = ids.length === 1 ? Promise.resolve(ids[0]) : pick(details)
+    void chosen.then(
+      (id) => choose(id !== undefined && ids.includes(id) ? id : undefined),
+      () => choose(),
+    )
+  })
 }
 
 /**

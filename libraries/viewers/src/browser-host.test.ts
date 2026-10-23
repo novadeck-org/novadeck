@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events"
 
-import type { Session, WebContents, WebPreferences } from "electron"
+import type { SelectWebauthnAccountDetails, Session, WebContents, WebPreferences } from "electron"
 import { describe, expect, it, vi } from "vitest"
 
 import {
@@ -10,14 +10,18 @@ import {
   lockPagesSession,
   maxForwardedRequests,
   pagesSession,
+  passkeyLabel,
+  pickPasskeys,
   pictureQuality,
   picturePage,
   pictureWaitMs,
+  signInWindow,
   watchPageRequests,
   webAddress,
 } from "./browser-host.js"
 
-const pagesPartition = "pages"
+const pagesPartition = "persist:pages"
+const context = describe
 
 describe("a live page's address", () => {
   it("is http or https only", () => {
@@ -65,8 +69,8 @@ describe("a page view as it attaches", () => {
     expect(attachPage({}, {}, pagesPartition)).toBe(false)
   })
 
-  it("is refused for a session that isn't in memory and apart from the app's", () => {
-    for (const partition of ["", "persist:", `persist:${pagesPartition}`]) {
+  it("is refused for a session that isn't kept on disk and apart from the app's", () => {
+    for (const partition of ["", "persist:", "pages"]) {
       const preferences: WebPreferences = { nodeIntegration: true }
       expect(attachPage(preferences, { src: "https://example.com" }, partition)).toBe(false)
       // Locked down all the same, whatever the host makes of the refusal.
@@ -75,10 +79,13 @@ describe("a page view as it attaches", () => {
   })
 })
 
+// What a page asks for as it opens a window: a link to a new tab names no features.
+type Opening = { url: string; features?: string; disposition?: string }
+
 // A page view's WebContents as the guard sees it.
 class FakeContents extends EventEmitter {
-  opener?: (details: { url: string }) => { action: string }
-  setWindowOpenHandler(handler: (details: { url: string }) => { action: string }): void {
+  opener?: (details: Required<Opening>) => { action: string }
+  setWindowOpenHandler(handler: (details: Required<Opening>) => { action: string }): void {
     this.opener = handler
   }
 }
@@ -99,11 +106,14 @@ describe("a page view", () => {
     guardPage(
       contents as unknown as WebContents,
       (url) => opened.push(url),
+      pagesPartition,
       () => time,
     )
     return {
+      contents,
       opened,
-      open: (url: string) => contents.opener?.({ url }),
+      open: (url: string, how: Omit<Opening, "url"> = {}) =>
+        contents.opener?.({ url, features: "", disposition: "foreground-tab", ...how }),
       input: (type: string, isAutoRepeat = false) =>
         contents.emit("input-event", {}, { type, isAutoRepeat }),
       wait: (ms: number) => (time += ms),
@@ -149,11 +159,66 @@ describe("a page view", () => {
 
   it("goes only to http(s) addresses, by a link or a redirect", () => {
     const contents = new FakeContents()
-    guardPage(contents as unknown as WebContents, () => {})
+    guardPage(contents as unknown as WebContents, () => {}, pagesPartition)
     expect(navigates(contents, "will-navigate", "http://localhost:5173/next")).toBe(true)
     expect(navigates(contents, "will-navigate", "file:///etc/passwd")).toBe(false)
     expect(navigates(contents, "will-redirect", "https://example.com/")).toBe(true)
     expect(navigates(contents, "will-redirect", "javascript:alert(1)")).toBe(false)
+  })
+
+  context("when it opens a sized popup, as a sign-in does", () => {
+    const popup = { features: "width=500,height=600", disposition: "new-window" }
+
+    it("opens it in a window of the app on the pages' session, right after a click", () => {
+      const page = guarded()
+      page.input("mouseUp")
+      expect(page.open("https://accounts.example.com/sign-in", popup)).toEqual({
+        action: "allow",
+        overrideBrowserWindowOptions: signInWindow(pagesPartition),
+      })
+      expect(signInWindow(pagesPartition).webPreferences).toEqual({
+        partition: pagesPartition,
+        nodeIntegration: false,
+        nodeIntegrationInSubFrames: false,
+        nodeIntegrationInWorker: false,
+        contextIsolation: true,
+        sandbox: true,
+        webSecurity: true,
+        allowRunningInsecureContent: false,
+        webviewTag: false,
+      })
+      // One window for the click, wherever it opened.
+      expect(page.open("https://accounts.example.com/again", popup)).toEqual({ action: "deny" })
+      expect(page.opened).toEqual([])
+    })
+
+    it("opens nothing on its own", () => {
+      const page = guarded()
+      expect(page.open("https://accounts.example.com/sign-in", popup)).toEqual({ action: "deny" })
+    })
+
+    it("sends a link to a new tab, or one opened with Shift, to the browser", () => {
+      const page = guarded()
+      page.input("mouseUp")
+      page.open("https://example.com/tab")
+      page.input("mouseUp")
+      page.open("https://example.com/shift", { disposition: "new-window" })
+      expect(page.opened).toEqual(["https://example.com/tab", "https://example.com/shift"])
+    })
+
+    it("guards the window it opened as it guards the page", () => {
+      const page = guarded()
+      const window = new FakeContents()
+      page.contents.emit("did-create-window", { webContents: window })
+      expect(navigates(window, "will-navigate", "file:///etc/passwd")).toBe(false)
+      expect(
+        window.opener?.({
+          url: "https://example.com/",
+          features: "",
+          disposition: "foreground-tab",
+        }),
+      ).toEqual({ action: "deny" })
+    })
   })
 })
 
@@ -200,11 +265,60 @@ describe("the pages' session", () => {
 })
 
 describe("the pages' session's name", () => {
-  it("is refused when it would be the app's session, or kept on disk", () => {
+  it("is refused when it would be the app's session, or forget sign-ins at a restart", () => {
     expect(pagesSession(pagesPartition)).toBe(pagesPartition)
-    for (const partition of ["", "persist:", `persist:${pagesPartition}`])
-      expect(() => pagesSession(partition)).toThrow("must be in memory")
-    expect(() => lockPagesSession(() => ({}) as Session, "")).toThrow("must be in memory")
+    for (const partition of ["", "persist:", "pages"])
+      expect(() => pagesSession(partition)).toThrow("must be kept on disk")
+    expect(() => lockPagesSession(() => ({}) as Session, "")).toThrow("must be kept on disk")
+    expect(() => signInWindow("pages")).toThrow("must be kept on disk")
+  })
+})
+
+describe("a page signing in with a passkey it doesn't name", () => {
+  // The pages' session, and what each request was answered with.
+  const picking = (
+    pick: (details: SelectWebauthnAccountDetails) => Promise<string | undefined>,
+  ) => {
+    const pages = new EventEmitter()
+    pickPasskeys(pages as unknown as Session, pick)
+    return async (credentialIds: readonly string[]): Promise<string | undefined> => {
+      const accounts = credentialIds.map((credentialId) => ({ credentialId, userHandle: "" }))
+      const answer = new Promise<string | undefined>((resolve) =>
+        pages.emit(
+          "select-webauthn-account",
+          {},
+          { relyingPartyId: "github.com", accounts },
+          resolve,
+        ),
+      )
+      return answer
+    }
+  }
+
+  it("signs in with the only passkey that fits, without asking", async () => {
+    const pick = vi.fn<() => Promise<string | undefined>>(async () => undefined)
+    await expect(picking(pick)(["a"])).resolves.toBe("a")
+    expect(pick).not.toHaveBeenCalled()
+  })
+
+  it("asks the person which, when more than one fits", async () => {
+    await expect(
+      picking(async ({ accounts }) => accounts[1]?.credentialId)(["a", "b"]),
+    ).resolves.toBe("b")
+  })
+
+  it("cancels when the person cancels, names another passkey, or the question fails", async () => {
+    await expect(picking(async () => undefined)(["a", "b"])).resolves.toBeUndefined()
+    await expect(picking(async () => "c")(["a", "b"])).resolves.toBeUndefined()
+    await expect(
+      picking(() => Promise.reject(new Error("gone")))(["a", "b"]),
+    ).resolves.toBeUndefined()
+  })
+
+  it("names each passkey by its name, else its display name", () => {
+    expect(passkeyLabel({ name: "moth@example.com", displayName: "Moth" })).toBe("moth@example.com")
+    expect(passkeyLabel({ displayName: "Moth" })).toBe("Moth")
+    expect(passkeyLabel({})).toBe("Unnamed passkey")
   })
 })
 

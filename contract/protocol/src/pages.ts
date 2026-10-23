@@ -31,6 +31,8 @@ export const onThisMachine = (address: string): boolean => {
 
 /**
  * The session live pages load in, named once for both halves of the browser viewer: the
- * UI's page views ask for it, and the desktop app's lockdown keeps them to it, in memory.
+ * UI's page views ask for it, and the desktop app's lockdown keeps them to it. It is kept
+ * on disk, apart from the app's, so a person signed in to a site stays signed in in every
+ * page view and after a restart.
  */
-export const pagesPartition = "novadeck-pages"
+export const pagesPartition = "persist:novadeck-pages"
