@@ -1360,14 +1360,14 @@ output, not that the model acted on it.
   never for how long it runs. Each message is **idle** or not when it is sent: idle when,
   since the thread's previous message (whichever end sent it), neither end worked. An end
   worked when, in that window, it made a call that counts as work (below), root or
-  subagent; had a subagent running that
-  hadn't aborted at any moment in it (running at its start, or started in it) (the activity's subagents; for
-  Antigravity, whose hooks name none, its status line's count) or a background task
-  (the activity's `background`); had a harness request waiting on the person (a
-  permission or dialog, the activity's `pending`; an `ask` of its own open in the Inbox
-  doesn't count, as two agents trading "waiting on the user" is what a hold is for); or
-  ran one turn through the whole window without any call of its reporting, as a long
-  command or a long think does. A turn runs through the window when it started before
+  subagent; had, at any moment of it (running at its start, or started in it), a
+  subagent running that hadn't aborted (the activity's subagents; for Antigravity, whose
+  hooks name none, its status line's count), a background task (the activity's
+  `background`) or a harness request waiting on the person (a permission or dialog, the
+  activity's `pending`; an `ask` of its own open in the Inbox doesn't count, as two
+  agents trading "waiting on the user" is what a hold is for); or ran one turn through the
+  whole window without any call of its reporting, as a long command or a long think
+  does. A turn runs through the window when it started before
   the window and none of its Stops, continued or not, fell in it; for this, the runner
   counts each `send` as its sender's own call reported just after it, in the next
   window, whatever its harness reports, so a turn that only sent never passes for one at
