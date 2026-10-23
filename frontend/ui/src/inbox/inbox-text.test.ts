@@ -45,6 +45,33 @@ const permission = (tool: string, subject: string | null): InboxItem => ({
   },
 })
 
+const asking = (subject: string | null, questions: number): InboxItem => ({
+  ...base,
+  kind: "request",
+  request: {
+    id: "r",
+    kind: "question",
+    tool: "AskUserQuestion",
+    subject,
+    choices: [],
+    subagent: false,
+    dialog: {
+      type: "questions",
+      id: "r",
+      chat: null,
+      questions: Array.from({ length: questions }, (_, index) => ({
+        id: `q${index}`,
+        header: null,
+        question: `Question ${index + 1}?`,
+        multiSelect: false,
+        text: false,
+        options: [],
+      })),
+    },
+    answered: false,
+  },
+})
+
 const option = (
   id: string,
   label: string,
@@ -99,6 +126,12 @@ describe("An item's subject", () => {
     expect(subjectOf(permission("Bash", "pnpm test"))).toBe("Run `pnpm test`?")
     expect(subjectOf(permission("Edit", "src/a.ts"))).toBe("Edit `src/a.ts`?")
     expect(subjectOf(permission("WebFetch", "example.com"))).toBe("Use WebFetch on `example.com`?")
+  })
+
+  it("says how many more questions a call asks behind the first", () => {
+    expect(subjectOf(asking(null, 1))).toBe("Question 1?")
+    expect(subjectOf(asking(null, 3))).toBe("Question 1? (+2 more)")
+    expect(subjectOf(asking("Which library?", 2))).toBe("Which library? (+1 more)")
   })
 
   it("names where a held message goes", () => {

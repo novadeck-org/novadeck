@@ -135,6 +135,79 @@ const questionRequest: ChatRequest = {
   },
 }
 
+// Claude asking several questions in one AskUserQuestion call: one card, a header over each
+// question, and Send waits until every one is answered.
+const severalQuestionsRequest: ChatRequest = {
+  id: "demo-claude-questions",
+  kind: "question",
+  tool: "AskUserQuestion",
+  subject: "Which date library should the tests use?",
+  choices: [],
+  subagent: false,
+  answered: false,
+  dialog: {
+    type: "questions",
+    id: "demo-claude-questions",
+    chat: null,
+    questions: [
+      {
+        id: "library",
+        header: "Dates",
+        question: "Which date library should the tests use?",
+        multiSelect: false,
+        text: false,
+        options: [
+          {
+            id: "date-fns",
+            label: "date-fns (Recommended)",
+            description: "Already used in the app.",
+          },
+          {
+            id: "native",
+            label: "Keep native Date",
+            description: "No change.",
+          },
+        ],
+      },
+      {
+        id: "suites",
+        header: "Suites",
+        question: "Which suites should run against the new fixtures?",
+        multiSelect: true,
+        text: false,
+        options: [
+          { id: "unit", label: "Unit", description: "Fast, no browser." },
+          {
+            id: "e2e",
+            label: "End to end",
+            description: "About 6 minutes in CI.",
+          },
+          {
+            id: "visual",
+            label: "Visual snapshots",
+            description: "Needs the fixtures regenerated.",
+          },
+        ],
+      },
+      {
+        id: "timezone",
+        header: "Timezone",
+        question: "Which timezone should the fixtures assume?",
+        multiSelect: false,
+        text: false,
+        options: [
+          { id: "utc", label: "UTC", description: "Same everywhere." },
+          {
+            id: "local",
+            label: "The machine's own",
+            description: "Catches DST bugs, flakier on CI.",
+          },
+        ],
+      },
+    ],
+  },
+}
+
 const retryOptions: readonly AskOption[] = [
   {
     label: "Lean on Stripe's retries, alert when one fails for good",
@@ -173,6 +246,7 @@ export const demoInboxIds = {
   held: "demo-held",
   webhook: "demo-webhook-ask",
   question: "demo-question",
+  questions: "demo-questions",
   preview: "demo-preview-ask",
   login: "demo-login",
   limit: "demo-limit",
@@ -246,6 +320,15 @@ export const demoHiddenCommand = `gh auth status${"\n".repeat(41)}${" ".repeat(1
 // dialog, a failure with no error, a held message whose sender has gone, and messages held
 // long behind a dialog open in the idle agent's terminal.
 const extraFixtures: readonly Fixture[] = [
+  {
+    id: demoInboxIds.questions,
+    project: "infra",
+    terminal: 1,
+    agent: "claude",
+    minutes: 3,
+    stopped: true,
+    content: { kind: "request", request: severalQuestionsRequest },
+  },
   {
     id: demoInboxIds.plan,
     project: "storefront",

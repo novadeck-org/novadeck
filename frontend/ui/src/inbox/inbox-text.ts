@@ -69,9 +69,15 @@ export const actionOf = (request: ChatRequest): Action => {
 const firstQuestion = (dialog: ChatDialog | null): string | null =>
   dialog?.type === "questions" ? (dialog.questions[0]?.question ?? null) : null
 
+// A call that asks several questions names the first, and how many more wait behind it.
+const moreQuestions = (dialog: ChatDialog | null): string =>
+  dialog?.type === "questions" && dialog.questions.length > 1
+    ? ` (+${dialog.questions.length - 1} more)`
+    : ""
+
 const requestSubject = (request: ChatRequest): string => {
   if (request.kind === "question")
-    return request.subject ?? firstQuestion(request.dialog) ?? "A question for you"
+    return `${request.subject ?? firstQuestion(request.dialog) ?? "A question for you"}${moreQuestions(request.dialog)}`
   const action = actionOf(request)
   const subject = request.subject
   if (action === "plan") return "Approve the plan?"
