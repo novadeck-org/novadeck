@@ -423,8 +423,9 @@ way do not show in `codex agents`.
 Antigravity runs the hook before each model call, and Codex with your first message,
 so their sessions are known from then on; before that, Codex's title and Antigravity's
 status line tell Novadeck that their prompt is up, so other agents' messages can wake
-them. On Windows, Claude Code and Codex run the hook through PowerShell and Antigravity
-through cmd, which can't run your own Antigravity status line after Novadeck's: there
+them. On Windows, Claude Code and Codex run the hook through PowerShell, Claude Code's
+status line through Git Bash, as Claude Code runs every status line there, and
+Antigravity through cmd, which can't run your own Antigravity status line after Novadeck's: there
 Novadeck leaves yours as it is, and knows Antigravity's prompt is up only once you have
 sent it something.
 
@@ -509,10 +510,12 @@ text or reaches the program.
 
 Pasting an image, such as a screenshot, into a terminal pastes the path of a file
 holding it, as a native terminal does for a dropped file. A paste with any text stays
-text, even with an image beside it, as cells copied from a spreadsheet come. On Linux
-and Windows, Ctrl+V pastes a clipboard that holds an image and no text the same way;
-with anything else on the clipboard, or one Novadeck can't read, it sends Ctrl+V to the
-program as before, and what is typed meanwhile follows it, held for 2 seconds at most.
+text, even with an image beside it, as cells copied from a spreadsheet come. On Windows,
+as in Windows Terminal, Ctrl+V pastes as Ctrl+Shift+V does, and Ctrl+C copies the
+selected text and clears the selection; with nothing selected, Ctrl+C reaches the
+program. On Linux, Ctrl+V pastes a clipboard that holds an image and no text the same
+way; with anything else on the clipboard, or one Novadeck can't read, it sends Ctrl+V to
+the program as before, and what is typed meanwhile follows it, held for 2 seconds at most.
 In a browser, Ctrl+V looks for an image only once the page may read the clipboard, as
 after a first image pasted with Ctrl+Shift+V, so it never asks. On macOS ⌘V pastes and
 Ctrl+V stays the program's. In the desktop app, a file or folder copied in a file

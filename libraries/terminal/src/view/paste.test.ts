@@ -8,10 +8,11 @@ import {
   plainCtrlV,
   clipboardAccess,
   shellPath,
-  takeCtrlV,
+  takeClipboardKeys,
   takeFilePastes,
   uploadName,
   type PasteFailure,
+  windowsClipboardKey,
   type PasteTarget,
 } from "./paste.js"
 import type { Platform } from "./platform.js"
@@ -477,6 +478,7 @@ describe("a plain Ctrl+V", () => {
   it("is Ctrl with V, pressed, on Linux and Windows", () => {
     expect(plainCtrlV(key(), "other")).toBe(true)
     expect(plainCtrlV(key({ key: "V" }), "other")).toBe(true)
+    expect(plainCtrlV(key(), "windows")).toBe(true)
   })
 
   it("is not on Apple platforms, where ⌘V pastes", () => {
@@ -514,6 +516,44 @@ describe("a plain Ctrl+V", () => {
   })
 })
 
+describe("Ctrl+C and Ctrl+V on Windows", () => {
+  const c = { key: "c", code: "KeyC" }
+
+  it("copy a selection with Ctrl+C, and paste with Ctrl+V", () => {
+    expect(windowsClipboardKey(key(c), "windows", true)).toBe("copy")
+    expect(windowsClipboardKey(key(), "windows", true)).toBe("paste")
+    expect(windowsClipboardKey(key(), "windows", false)).toBe("paste")
+  })
+
+  it("leave Ctrl+C to the program without a selection", () => {
+    expect(windowsClipboardKey(key(c), "windows", false)).toBeUndefined()
+  })
+
+  it("follow the layout's letters, as Ctrl+V does", () => {
+    expect(windowsClipboardKey(key({ key: "с", code: "KeyC" }), "windows", true)).toBe("copy")
+    expect(windowsClipboardKey(key({ key: "j", code: "KeyC" }), "windows", true)).toBeUndefined()
+  })
+
+  it("are not with Shift, Alt, AltGr or Meta, nor while an input method composes", () => {
+    for (const init of [
+      { shiftKey: true },
+      { altKey: true },
+      { metaKey: true },
+      { isComposing: true },
+    ]) {
+      expect(windowsClipboardKey(key({ ...c, ...init }), "windows", true)).toBeUndefined()
+      expect(windowsClipboardKey(key(init), "windows", true)).toBeUndefined()
+    }
+  })
+
+  it("are the program's on Linux and Apple platforms", () => {
+    for (const platform of ["other", "mac"] as const) {
+      expect(windowsClipboardKey(key(c), platform, true)).toBeUndefined()
+      expect(windowsClipboardKey(key(), platform, true)).toBeUndefined()
+    }
+  })
+})
+
 describe("what Ctrl+V pastes", () => {
   it("is a clipboard's images when it holds an image and no text", () => {
     expect(pastesImages([{ types: ["image/png"] }])).toBe(true)
@@ -537,7 +577,7 @@ const item = (...types: string[]) => ({
 })
 
 // A terminal whose Ctrl+V reads the clipboard, recording in order what it holds,
-// releases, pastes and tells.
+// releases, pastes, copies and tells; with `selection` selected, until it is cleared.
 const keyboard = (
   options: {
     platform?: Platform
@@ -547,18 +587,26 @@ const keyboard = (
     active?: boolean
     saved?: () => Promise<string>
     unreadable?: "program" | "browser"
+    selection?: string
   } = {},
 ) => {
   let handler: ((event: KeyboardEvent) => boolean) | undefined
   const log: string[] = []
-  takeCtrlV(
-    { attachCustomKeyEventHandler: (attached) => void (handler = attached) },
+  let selection = options.selection ?? ""
+  takeClipboardKeys(
+    {
+      attachCustomKeyEventHandler: (attached) => void (handler = attached),
+      hasSelection: () => selection !== "",
+      getSelection: () => selection,
+      clearSelection: () => void (selection = ""),
+    },
     {
       upload: (file) => {
         log.push(`upload ${file.name.replace(/\d/g, "0")}`)
         return options.saved?.() ?? Promise.resolve("/u/shot.png")
       },
       paste: (text) => void log.push(`paste ${text}`),
+      copy: (text) => void log.push(`copy ${text}`),
       failed: (text) => void log.push(`notice ${text}`),
       notice,
       maxBytes,
@@ -581,10 +629,45 @@ const keyboard = (
     const event = key(init)
     return { passed: handler?.(event) ?? true, prevented: event.defaultPrevented }
   }
-  return { log, press }
+  return { log, press, selected: () => selection }
 }
 
-describe("Ctrl+V in a runner terminal", () => {
+describe("Ctrl+C and Ctrl+V in a runner terminal on Windows", () => {
+  const c = { key: "c", code: "KeyC" }
+
+  it("copies the selection with Ctrl+C, clearing it, and sends the program nothing", () => {
+    const page = keyboard({ platform: "windows", selection: "npm test\n  passed" })
+    expect(page.press(c)).toEqual({ passed: false, prevented: true })
+    expect(page.log).toEqual(["copy npm test\n  passed"])
+    expect(page.selected()).toBe("")
+  })
+
+  it("sends Ctrl+C to the program once nothing is selected", () => {
+    const page = keyboard({ platform: "windows", selection: "x" })
+    page.press(c)
+    expect(page.press(c)).toEqual({ passed: true, prevented: false })
+    expect(page.log).toEqual(["copy x"])
+  })
+
+  it("leaves Ctrl+V to the browser to paste, reading nothing and sending no Ctrl+V", () => {
+    const read = vi.fn<() => Promise<unknown[]>>(async () => [item("image/png")])
+    clipboard(read)
+    const page = keyboard({ platform: "windows" })
+    expect(page.press()).toEqual({ passed: false, prevented: false })
+    expect(page.press({ repeat: true })).toEqual({ passed: false, prevented: false })
+    expect(read).not.toHaveBeenCalled()
+    expect(page.log).toEqual([])
+  })
+
+  it("leaves Ctrl+Shift+C and Ctrl+Shift+V to the emulator, as before", () => {
+    const page = keyboard({ platform: "windows", selection: "x" })
+    expect(page.press({ ...c, shiftKey: true })).toEqual({ passed: true, prevented: false })
+    expect(page.press({ shiftKey: true })).toEqual({ passed: true, prevented: false })
+    expect(page.log).toEqual([])
+  })
+})
+
+describe("Ctrl+V in a runner terminal on Linux", () => {
   context("with only an image on the clipboard", () => {
     it("pastes the image's path instead of sending Ctrl+V", async () => {
       clipboard(async () => [item("image/png")])
@@ -709,7 +792,7 @@ describe("Ctrl+V in a runner terminal", () => {
   it("leaves other keys, Ctrl+Shift+V and Apple platforms to the emulator", () => {
     const read = vi.fn<() => Promise<unknown[]>>(async () => [])
     clipboard(read)
-    const page = keyboard()
+    const page = keyboard({ selection: "x" })
     expect(page.press({ shiftKey: true })).toEqual({ passed: true, prevented: false })
     expect(page.press({ key: "c", code: "KeyC" })).toEqual({ passed: true, prevented: false })
     expect(page.press({ type: "keyup" })).toEqual({ passed: true, prevented: false })

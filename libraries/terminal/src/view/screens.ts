@@ -3,7 +3,7 @@ import type { ITheme, Terminal, View, ViewRenderer } from "@novadeck/emulator/br
 import { followTerminal, type FollowedTerminal, type FollowOptions, type Screen } from "./follow.js"
 import {
   clipboardAccess,
-  takeCtrlV,
+  takeClipboardKeys,
   takeFilePastes,
   type PasteFailure,
   type PasteTarget,
@@ -324,12 +324,13 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
       },
     }
     const pastes = takeFilePastes(element, target)
-    // Ctrl+V on Linux and Windows pastes a clipboard of images too; what is typed while it
-    // looks waits behind it.
-    takeCtrlV(
+    // Ctrl+C copies a selection on Windows, where Ctrl+V pastes; on Linux Ctrl+V pastes a
+    // clipboard of images too, and what is typed while it looks waits behind it.
+    takeClipboardKeys(
       xterm,
       {
         ...target,
+        copy: (text) => void navigator.clipboard?.writeText(text).catch(() => {}),
         paste: (text) => {
           ahead = true
           try {

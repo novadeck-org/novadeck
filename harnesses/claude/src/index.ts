@@ -17,7 +17,7 @@ import { hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
 import { box } from "./box.js"
 import { decode, transcriptPlans } from "./decode.js"
 import { dialogs } from "./dialogs.js"
-import { posixShim } from "./shim.js"
+import { cmdShim, posixShim } from "./shim.js"
 import { transcriptEvents, type Calls } from "./transcript.js"
 import { transcripts } from "./transcripts.js"
 
@@ -42,13 +42,15 @@ const events = [
   "PostToolUseFailure",
 ]
 
-// Its hooks run in PowerShell on Windows, where its handlers say so (`shell` below).
-const hookDialect = (platform: NodeJS.Platform): Dialect =>
-  platform === "win32" ? "powershell" : "sh"
+// Its hooks run in PowerShell on Windows, where its handlers say so (`shell` below). Its
+// status line takes no `shell`, and runs in Git Bash there, as `bash -c "<command>"`
+// (probed 2026-10-23, 2.1.309).
+const hookDialect = (platform: NodeJS.Platform, event?: string): Dialect =>
+  platform === "win32" && event !== "StatusLine" ? "powershell" : "sh"
 
 // Without Novadeck it needs nothing printed.
 const hook = (platform: NodeJS.Platform, event: string): string =>
-  hookCommand(hookDialect(platform), { agent: "claude", event })
+  hookCommand(hookDialect(platform, event), { agent: "claude", event })
 
 // A Stop's reason continues the turn, and reaches the model as the Stop hook's feedback;
 // a prompt's context is an attachment beside the prompt, never the prompt itself; a tool
@@ -143,21 +145,18 @@ export const claude = {
     },
     // The settings Novadeck's shim adds: its hook as the status line, which passes on the
     // person's own (see the runner's shell/hook.ts).
-    ...(platform === "win32"
-      ? []
-      : [
-          {
-            path: "statusline.json",
-            content: json({
-              statusLine: { type: "command", command: hook(platform, "StatusLine"), padding: 0 },
-            }),
-          },
-        ]),
+    {
+      path: "statusline.json",
+      content: json({
+        statusLine: { type: "command", command: hook(platform, "StatusLine"), padding: 0 },
+      }),
+    },
   ],
-  // The status line Novadeck's shim adds, where its shells run Claude Code; Windows keeps
-  // the person's own until the shim and its status line are proven there.
+  // The status line Novadeck's shim adds, where its shells run Claude Code.
   shims: (platform) =>
-    platform === "win32" ? [] : [{ path: "claude", content: posixShim, mode: 0o700 }],
+    platform === "win32"
+      ? [{ path: "claude.cmd", content: cmdShim }]
+      : [{ path: "claude", content: posixShim, mode: 0o700 }],
   resume: (session) => ["claude", "--resume", session],
   transcripts,
   plans: transcriptPlans,

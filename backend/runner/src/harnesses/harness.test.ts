@@ -176,9 +176,9 @@ describe("the harness registry", () => {
     expect(harnesses.agy.resume?.("s")).toEqual(["agy", "--conversation", "s"])
   })
 
-  it("gives Codex a shim everywhere, and Claude Code one outside Windows", () => {
+  it("gives Claude Code and Codex a shim everywhere", () => {
     expect(shimmed("linux")).toEqual(["claude", "codex"])
-    expect(shimmed("win32")).toEqual(["codex"])
+    expect(shimmed("win32")).toEqual(["claude", "codex"])
   })
 })
 

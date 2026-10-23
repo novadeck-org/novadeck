@@ -55,32 +55,18 @@ pub fn own_command(
 }
 
 /// The most of its output kept.
-#[cfg(unix)]
 pub const MOST: usize = 65_536;
 
 /// What the command printed by the time it ended, or by `deadline`, when it and whatever
-/// it started are ended. Claude Code's status line runs through the hook only on Linux
-/// and macOS.
-#[cfg(unix)]
+/// it started are ended.
 pub fn run(command: &str, input: &[u8], deadline: Instant) -> String {
     use std::io::{Read, Write};
-    use std::os::unix::process::CommandExt;
-    use std::process::{Command, Stdio};
     use std::sync::mpsc;
     use std::thread;
 
-    let started = Command::new("/bin/sh")
-        .arg("-c")
-        .arg(command)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .process_group(0)
-        .spawn();
-    let Ok(mut child) = started else {
+    let Some((mut child, started)) = start(command) else {
         return String::new();
     };
-    let group = child.id() as i32;
     if let Some(mut stdin) = child.stdin.take() {
         let input = input.to_vec();
         thread::spawn(move || {
@@ -115,7 +101,7 @@ pub fn run(command: &str, input: &[u8], deadline: Instant) -> String {
         .recv_timeout(deadline.saturating_duration_since(Instant::now()))
         .is_ok();
     if !finished {
-        unsafe { libc::kill(-group, libc::SIGTERM) };
+        end(&started);
     }
     thread::spawn(move || child.wait());
     let mut kept = Vec::new();
@@ -128,9 +114,86 @@ pub fn run(command: &str, input: &[u8], deadline: Instant) -> String {
     String::from_utf8_lossy(&kept).into_owned()
 }
 
-#[cfg(not(unix))]
-pub fn run(_command: &str, _input: &[u8], _deadline: Instant) -> String {
-    String::new()
+/// The command started as Claude Code starts it, `/bin/sh -c`, in a process group of its
+/// own, and that group, to end at the deadline.
+#[cfg(unix)]
+fn start(command: &str) -> Option<(std::process::Child, i32)> {
+    use std::os::unix::process::CommandExt;
+    use std::process::{Command, Stdio};
+
+    let child = Command::new("/bin/sh")
+        .arg("-c")
+        .arg(command)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .spawn()
+        .ok()?;
+    let group = child.id() as i32;
+    Some((child, group))
+}
+
+#[cfg(unix)]
+fn end(group: &i32) {
+    unsafe { libc::kill(-group, libc::SIGTERM) };
+}
+
+/// The command started as Claude Code starts it on Windows, in Git Bash as `bash -c`
+/// (probed 2026-10-23, 2.1.309), in a job of its own to end at the deadline, as Windows
+/// has no process group to signal.
+#[cfg(windows)]
+fn start(command: &str) -> Option<(std::process::Child, crate::processes::Job)> {
+    use std::process::{Command, Stdio};
+
+    crate::processes::Job::start(
+        Command::new(git_bash()?)
+            .arg("-c")
+            .arg(command)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null()),
+    )
+}
+
+#[cfg(windows)]
+fn end(job: &crate::processes::Job) {
+    job.end();
+}
+
+/// The Git Bash Claude Code runs its status line in: the one it is told of; else the first
+/// on PATH, as Git Bash running Novadeck's status line puts its own first there, though
+/// never Windows' own, which starts WSL; else the one beside Git's `git.exe`.
+#[cfg(windows)]
+fn git_bash() -> Option<PathBuf> {
+    let told = std::env::var_os("CLAUDE_CODE_GIT_BASH_PATH")
+        .map(PathBuf::from)
+        .filter(|path| path.is_file());
+    let system = std::env::var_os("SystemRoot").map(|root| root.to_string_lossy().to_lowercase());
+    let folders: Vec<PathBuf> = std::env::var_os("PATH")
+        .map(|path| std::env::split_paths(&path).collect())
+        .unwrap_or_default();
+    let on_path = || {
+        folders
+            .iter()
+            .filter(|folder| {
+                let folder = folder.to_string_lossy().to_lowercase();
+                !system
+                    .as_ref()
+                    .is_some_and(|system| folder.starts_with(system))
+            })
+            .map(|folder| folder.join("bash.exe"))
+            .find(|path| path.is_file())
+    };
+    // Git's `cmd` folder, which its installer puts on PATH, beside its `bin`.
+    let beside_git = || {
+        folders
+            .iter()
+            .filter(|folder| folder.join("git.exe").is_file())
+            .filter_map(|folder| Some(folder.parent()?.join("bin").join("bash.exe")))
+            .find(|path| path.is_file())
+    };
+    told.or_else(on_path).or_else(beside_git)
 }
 
 #[cfg(test)]
@@ -179,7 +242,7 @@ mod lookup {
     }
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests {
     use std::time::Duration;
 
