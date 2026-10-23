@@ -7,8 +7,7 @@ import { blinkMs, wireShape, type WireMember, type WireShape } from "./team-wire
 // change it can observe: a drop's settle (180ms) and the sidebar's slide.
 const settleMs = 400
 
-const sameShape = (a: WireShape | undefined, b: WireShape | undefined) =>
-  JSON.stringify(a) === JSON.stringify(b)
+const sameWires = (a: Wires, b: Wires) => JSON.stringify(a) === JSON.stringify(b)
 
 // Where a tab's name line sits, and its left edge, in the host's frame. While the tab is
 // renamed its name gives way to a field, so the line is taken from the tab's top.
@@ -42,21 +41,34 @@ const measureWire = (host: HTMLElement, list: Element, team: Team): WireShape | 
   )
 }
 
-// The selected terminal's team on the rail's border: while the Terminals list shows and
-// the selected terminal has a team, the border between the rail and the sidebar lights
-// from the team's topmost tab to its bottommost, a block cursor marks the lead, and a tick
-// runs from the wire into each worker's tab. Selecting a member sends one pulse out from
-// the lead along the wire. It sits over the workspace body, beside the rail and the
-// sidebar, as the sidebar clips what's drawn outside it; it takes no pointer and is only
-// drawn, as the window's header says who leads a terminal in words.
+// Every team's wire, by its lead, in the teams' order.
+type Wires = readonly { readonly lead: string; readonly shape: WireShape }[]
+
+const measureWires = (host: HTMLElement, list: Element, teams: readonly Team[]): Wires =>
+  teams.flatMap((team) => {
+    const shape = measureWire(host, list, team)
+    return shape ? [{ lead: team.lead, shape }] : []
+  })
+
+// Every team's wire on the rail's border, while the Terminals list shows: the border between
+// the rail and the sidebar is drawn from each team's topmost tab to its bottommost, a block
+// cursor marks the lead, and a tick runs from the wire into each worker's tab. Every wire
+// rests, dim, so who leads whom shows without selecting anything; the selected terminal's
+// team lights, and plays its entrance each time one of its members is selected: the segment
+// grows, the ticks reach out and the cursor blinks. It sits over the workspace body, beside
+// the rail and the sidebar, as the sidebar clips what's drawn outside it; it takes no
+// pointer and is only drawn, as the window's header says who leads a terminal in words.
 export const TeamWire = ({
+  teams,
   team,
   selected,
   shown,
   list,
 }: {
+  teams: readonly Team[]
+  // The selected terminal's team, which lights.
   team: Team | undefined
-  // The selected terminal: selecting another member plays the pulse again.
+  // The selected terminal: selecting another member plays the lit wire's entrance again.
   selected: string
   // Whether the Terminals list is on screen.
   shown: boolean
@@ -65,20 +77,26 @@ export const TeamWire = ({
   list: HTMLElement | null
 }): React.JSX.Element => {
   const host = useRef<HTMLDivElement>(null)
-  const [shape, setShape] = useState<WireShape | undefined>(undefined)
-  // The selection whose pulse has played.
+  const [wires, setWires] = useState<Wires>([])
+  // The selection whose entrance has played. Any change of selection forgets it, so coming
+  // back to a member before the timer below fires plays the entrance again.
   const [played, setPlayed] = useState<string | undefined>(undefined)
+  const [seen, setSeen] = useState(selected)
+  if (seen !== selected) {
+    setSeen(selected)
+    setPlayed(undefined)
+  }
 
-  // Everything that keeps the wire on the tabs, for this team while the list shows: one
-  // run owns its observers, listeners and frame loop, and its cleanup ends them all, so a
-  // change of team or of the list's visibility never leaves an earlier run measuring.
+  // Everything that keeps the wires on the tabs while the list shows: one run owns its
+  // observers, listeners and frame loop, and its cleanup ends them all, so a change of teams
+  // or of the list's visibility never leaves an earlier run measuring.
   useLayoutEffect(() => {
     const element = host.current
     const body = element?.parentElement
-    if (!element || !body || !list || !team || !shown) return
+    if (!element || !body || !list || !teams.length || !shown) return
     const measure = () => {
-      const next = measureWire(element, list, team)
-      setShape((current) => (sameShape(current, next) ? current : next))
+      const next = measureWires(element, list, teams)
+      setWires((current) => (sameWires(current, next) ? current : next))
     }
     // Measures every frame until `until`, through moves no observer reports: a drag, its
     // drop and the sidebar sliding in.
@@ -146,67 +164,47 @@ export const TeamWire = ({
       window.removeEventListener("pointercancel", drop, { capture: true })
       window.removeEventListener("blur", drop)
     }
-  }, [team, shown, list])
+  }, [teams, shown, list])
 
-  // The pulse plays once each time a member is selected; redraws after it put the wire in
-  // place without playing it again.
+  // The entrance plays once each time a member is selected; redraws after it, as rows scroll
+  // into view, put the wire in place without playing it again.
   useEffect(() => {
-    const timer = setTimeout(() => setPlayed(selected), blinkMs + 900)
+    const timer = setTimeout(() => setPlayed(selected), blinkMs + 200)
     return () => clearTimeout(timer)
   }, [selected])
 
-  // What the last run measured counts only while a team shows in a list.
-  const drawn = team && shown && list ? shape : undefined
+  // What the last run measured counts only while teams show in a list. The lit wire is drawn
+  // last, over any resting one it crosses.
+  const drawn = teams.length && shown && list ? wires : []
+  const lit = drawn.find((wire) => wire.lead === team?.lead)
   return (
     <div
       ref={host}
       className="team-wire"
       aria-hidden
       data-settled={played === selected || undefined}
-      style={{ "--team-wire-blink": `${blinkMs}ms` } as React.CSSProperties}
     >
-      {drawn && (
-        <div key={selected} className="team-wire-shape">
-          <i
-            className="team-wire-segment"
-            style={{ left: drawn.x, top: drawn.top, height: drawn.bottom - drawn.top }}
-          />
-          {drawn.lead !== undefined && (
-            <i className="team-wire-cursor" style={{ left: drawn.x, top: drawn.lead }} />
-          )}
-          {drawn.taps.map((tap) => (
-            <i
-              key={tap.id}
-              className="team-wire-tap"
-              style={
-                {
-                  left: drawn.x + 1,
-                  top: tap.y,
-                  width: tap.width,
-                  "--_at": `${tap.at}ms`,
-                } as React.CSSProperties
-              }
-            />
-          ))}
-          {drawn.pulse &&
-            [drawn.pulse.down, -drawn.pulse.up]
-              .filter((run) => Math.abs(run) > 4)
-              .map((run) => (
-                <i
-                  key={run > 0 ? "down" : "up"}
-                  className="team-wire-pulse"
-                  style={
-                    {
-                      left: drawn.x,
-                      top: drawn.lead,
-                      "--_run": `${run}px`,
-                      "--_duration": `${drawn.pulse!.duration}ms`,
-                    } as React.CSSProperties
-                  }
-                />
-              ))}
-        </div>
-      )}
+      {drawn.map((wire) => wire !== lit && <Wire key={wire.lead} shape={wire.shape} lit={false} />)}
+      {lit && <Wire key={`${lit.lead}:${selected}`} shape={lit.shape} lit />}
     </div>
   )
 }
+
+const Wire = ({ shape, lit }: { shape: WireShape; lit: boolean }): React.JSX.Element => (
+  <div className="team-wire-shape" data-lit={lit || undefined}>
+    <i
+      className="team-wire-segment"
+      style={{ left: shape.x, top: shape.top, height: shape.height }}
+    />
+    {shape.taps.map((tap) => (
+      <i
+        key={tap.id}
+        className="team-wire-tap"
+        style={{ left: shape.x, top: tap.y, width: tap.width }}
+      />
+    ))}
+    {shape.lead !== undefined && (
+      <i className="team-wire-cursor" style={{ left: shape.x, top: shape.lead }} />
+    )}
+  </div>
+)

@@ -48,7 +48,7 @@ export const WorkspaceStage = memo(
       }
     }, shallowEqual)
     // Every team, which Grid and Canvas draw whatever is selected, and the selected
-    // terminal's, whose wire plays its pulse as the sidebar's rail does.
+    // terminal's, whose wire lights as the sidebar's rail does.
     const teams = useWorkspaceState(allTeams, sameTeams)
     const team = useWorkspaceState((workspace) => teamOf(workspace, selected), sameTeam)
     const {

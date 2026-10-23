@@ -106,7 +106,7 @@ describe("The team wire's route on the canvas", () => {
     })
   })
 
-  it("measures each worker's path from the lead for the pulse", () => {
+  it("measures each worker's path from the lead", () => {
     const route = teamRoute(lead, [at("a", 500, 40)], header)!
     expect(route.paths[0]!.points).toEqual([
       { x: 300, y: 113 },

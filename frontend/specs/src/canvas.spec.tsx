@@ -40,7 +40,6 @@ import {
   terminalTab,
   view,
   labelled,
-  recordAppearance,
 } from "./support/workspace"
 
 const names = ["Checkout implementation", "Dev server", "Checkout review", "Runtime"]
@@ -846,6 +845,7 @@ describe("Canvas's team wire", () => {
     Number(getComputedStyle(document.querySelector(".canvas-team-wire")!).opacity)
   const opacityOf = (name: string) =>
     Number(getComputedStyle(terminal(name).element().closest(".canvas-node")!).opacity)
+  const lit = () => document.querySelectorAll(".canvas-team-wire-shape[data-lit]").length
 
   it("joins the lead and its worker, who stay as bright as the selection, while one of the team is selected", async () => {
     await openMessagesDemo()
@@ -853,6 +853,7 @@ describe("Canvas's team wire", () => {
     await chooseView("Canvas")
     await expect.poll(wire).toBe(1)
     expect(document.querySelectorAll(".canvas-team-wire-cursor")).toHaveLength(1)
+    expect(lit()).toBe(1)
     // The wire is only drawn, and sits beneath the windows.
     const drawn = document.querySelector(".canvas-team-wire")!
     expect(getComputedStyle(drawn).pointerEvents).toBe("none")
@@ -866,7 +867,7 @@ describe("Canvas's team wire", () => {
     await expect.poll(() => opacityOf("Dev server")).toBeLessThan(1)
   })
 
-  it("stays, receded with its windows, while a terminal in no team is selected", async () => {
+  it("stays, at rest and receded with its windows, while a terminal in no team is selected", async () => {
     await openMessagesDemo()
     await terminalTab("Checkout review").click()
     await chooseView("Canvas")
@@ -876,6 +877,7 @@ describe("Canvas's team wire", () => {
     await expect.poll(() => opacityOf("Checkout implementation")).toBeLessThan(1)
     await expect.poll(() => wireOpacity()).toBeLessThan(1)
     expect(wire()).toBe(1)
+    expect(lit()).toBe(0)
     expect(document.querySelectorAll(".canvas-team-wire-cursor")).toHaveLength(1)
     // Still beneath the windows.
     const node = terminal("Dev server").element().closest<HTMLElement>(".react-flow__node")!
@@ -885,29 +887,28 @@ describe("Canvas's team wire", () => {
     expect(Number(getComputedStyle(node).zIndex)).toBeGreaterThanOrEqual(0)
   })
 
-  it("plays its pulse once for each selection into the team, and again on coming back to it", async () => {
-    const pulse = ".canvas-team-wire[data-pulsing]"
-    const pulsing = () => document.querySelector(pulse) !== null
+  it("lights while one of the team is selected, its cursor drawn anew for each member selected", async () => {
+    const cursor = () =>
+      document.querySelector(".canvas-team-wire-shape[data-lit] .canvas-team-wire-cursor")
     await openMessagesDemo()
     await terminalTab("Checkout review").click()
-    // The pulse plays for about a second and a half from when the view opens, which a slow
-    // machine can spend before a first look: it is noted from before the view is chosen.
-    const played = recordAppearance(pulse)
     await chooseView("Canvas")
-    await expect.poll(played).toBe(true)
-    // It is over once played, and stays over while the selection stays.
-    await expect.poll(pulsing, { timeout: 4000 }).toBe(false)
-    await expectStaysAbsent({ shown: pulsing, name: "the pulse" }, { ms: 1500 })
+    await expect.poll(lit).toBe(1)
+    const first = cursor()
+    expect(first).not.toBeNull()
+    // Another member of the same team: still lit, and its cursor blinks again.
+    await terminalTab("Checkout implementation").click()
+    await expect.poll(cursor).not.toBe(first)
+    expect(lit()).toBe(1)
     await terminalTab("Dev server").click()
-    const again = recordAppearance(pulse)
-    await terminalTab("Checkout review").click()
-    await expect.poll(again).toBe(true)
+    await expect.poll(lit).toBe(0)
   })
 
-  it("is drawn from the start, without any team selected", async () => {
+  it("is drawn from the start, at rest, without any team selected", async () => {
     await openMessagesDemo()
     await terminalTab("Dev server").click()
     await chooseView("Canvas")
     await expect.poll(wire).toBe(1)
+    expect(lit()).toBe(0)
   })
 })

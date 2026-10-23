@@ -1,12 +1,14 @@
-/* The team wire in the Grid (GridTeamWire.tsx): the rail's wire, drawn through the gutters.
-   It wears the rail's tokens (team-wire.css), so a theme that styles one styles both:
-   --team-wire-fg (strong), --team-wire-glow (item-selected-indicator-shadow, then none)
-   and --team-wire-pulse-fg (strong-hover, then strong). Hooks on `.grid-team-wire`:
-   --team-wire-blink (the cursor's blink before the pulse leaves it). Each team has a
-   `.grid-team-wire-shape` with data-drawn (it has drawn in) and data-pulsing (a member is
-   selected and its pulse is out), and `.grid-team-wire` has data-hidden (the tiles are
-   moving, or a window is over the grid: the wires are out of the way; so, while a tile is
-   dragged or resized, is the grid's data-gesture). */
+/* The team wire in the Grid (GridTeamWire.tsx): the rail's wire, drawn through the gutters,
+   resting dim for every team and lit for the selected terminal's, as on the rail. It wears
+   the rail's tokens (team-wire.css), so a theme that styles one styles both:
+   --team-wire-fg (strong), --team-wire-glow (a 5px glow of the lit colour at 40%),
+   --team-wire-rest-fg (line-strong at 42% in the ground) and --team-wire-rest-cursor
+   (line-strong at 70% in the ground), whose ground here is the workspace's (--workspace-bg,
+   then canvas). Each team has a `.grid-team-wire-shape`, with data-lit while it is the
+   selected terminal's. `.grid-team-wire` has data-settled (the lit wire's entrance has
+   played; one redrawn after a layout change appears without playing again) and data-hidden
+   (the tiles are moving, or a window is over the grid: the wires are out of the way; so,
+   while a tile is dragged or resized, is the grid's data-gesture). */
 @layer components {
   .grid-team-wire {
     position: absolute;
@@ -15,8 +17,17 @@
     pointer-events: none;
     opacity: 1;
     transition: opacity var(--motion-layout) ease;
+    --_ground: var(--workspace-bg, var(--color-canvas));
     --_fg: var(--team-wire-fg, var(--color-strong));
-    --_glow: var(--team-wire-glow, var(--item-selected-indicator-shadow, none));
+    --_glow: var(--team-wire-glow, 0 0 5px color-mix(in srgb, var(--_fg) 40%, transparent));
+    --_rest: var(
+      --team-wire-rest-fg,
+      color-mix(in srgb, var(--color-line-strong) 42%, var(--_ground))
+    );
+    --_rest-cursor: var(
+      --team-wire-rest-cursor,
+      color-mix(in srgb, var(--color-line-strong) 70%, var(--_ground))
+    );
   }
   .grid-team-wire[data-hidden],
   [data-gesture] > .grid-team-wire {
@@ -28,70 +39,49 @@
     display: block;
   }
   .grid-team-wire-run {
-    background-color: var(--_fg);
-    box-shadow: var(--_glow);
+    background-color: var(--_rest);
   }
   .grid-team-wire-run[data-axis="horizontal"] {
     height: 1px;
     transform-origin: left;
-    animation: grid-team-wire-across 220ms var(--ease-interface) both;
   }
   .grid-team-wire-run[data-axis="vertical"] {
     width: 1px;
     transform-origin: top;
-    animation: grid-team-wire-down 220ms var(--ease-interface) both;
   }
-  /* The rail's cursor: a block one character cell in size that blinks once, then holds. */
+  .grid-team-wire-tick {
+    height: 1px;
+    background: linear-gradient(90deg, var(--_rest), transparent);
+    transform-origin: left;
+  }
+  /* The rail's cursor: a block one character cell in size, on the lead's header line. */
   .grid-team-wire-cursor {
     width: 5px;
     height: 8px;
     margin: -4px 0 0 -2px;
     border-radius: 1px;
+    background-color: var(--_rest-cursor);
+  }
+  .grid-team-wire-shape[data-lit] > :is(.grid-team-wire-run, .grid-team-wire-cursor) {
     background-color: var(--_fg);
     box-shadow: var(--_glow);
-    animation: grid-team-wire-blink var(--team-wire-blink, 520ms) steps(1) both;
   }
-  .grid-team-wire-tick {
-    height: 1px;
+  .grid-team-wire-shape[data-lit] > .grid-team-wire-run[data-axis="horizontal"] {
+    animation: grid-team-wire-across 220ms var(--ease-interface) both;
+  }
+  .grid-team-wire-shape[data-lit] > .grid-team-wire-run[data-axis="vertical"] {
+    animation: grid-team-wire-down 220ms var(--ease-interface) both;
+  }
+  .grid-team-wire-shape[data-lit] > .grid-team-wire-tick {
     background: linear-gradient(90deg, var(--_fg), color-mix(in srgb, var(--_fg) 55%, transparent));
-    transform-origin: left;
-    animation: grid-team-wire-across 180ms var(--ease-interface) both;
+    animation: grid-team-wire-across 180ms var(--ease-interface) 260ms both;
   }
-  /* One light that leaves the cursor once it has blinked and runs along the route to a
-   worker's tick. Routes that share a run run it together. */
-  .grid-team-wire-pulse {
-    width: 18px;
-    height: 3px;
-    border-radius: 2px;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      var(--team-wire-pulse-fg, var(--color-strong-hover, var(--_fg)))
-    );
-    offset-rotate: auto;
-    offset-distance: 0%;
-    opacity: 0;
-    animation: grid-team-wire-pulse var(--_duration, 500ms) linear var(--team-wire-blink, 520ms)
-      both;
+  /* It blinks twice as the team lights, then holds. */
+  .grid-team-wire-shape[data-lit] > .grid-team-wire-cursor {
+    animation: grid-team-wire-blink 520ms steps(1) both;
   }
-  /* Once a wire has drawn in, its runs and ticks stay put: a layout change or a selection
-     never draws them again. Only its cursor blinks again, for a selection, while the pulse
-     is out. */
-  .grid-team-wire-shape[data-drawn] :is(.grid-team-wire-run, .grid-team-wire-tick) {
+  .grid-team-wire[data-settled] .grid-team-wire-shape > i {
     animation: none;
-  }
-  .grid-team-wire-shape[data-drawn]:not([data-pulsing]) .grid-team-wire-cursor {
-    animation: none;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .grid-team-wire,
-    .grid-team-wire-shape > i {
-      animation: none;
-      transition: none;
-    }
-    .grid-team-wire-pulse {
-      display: none;
-    }
   }
   @keyframes grid-team-wire-across {
     from {
@@ -104,28 +94,13 @@
     }
   }
   @keyframes grid-team-wire-blink {
-    0% {
-      opacity: 1;
-    }
-    35% {
+    0%,
+    50% {
       opacity: 0;
     }
-    65% {
+    25%,
+    75% {
       opacity: 1;
-    }
-  }
-  @keyframes grid-team-wire-pulse {
-    0% {
-      opacity: 0;
-      offset-distance: 0%;
-    }
-    10%,
-    90% {
-      opacity: 1;
-    }
-    100% {
-      opacity: 0;
-      offset-distance: 100%;
     }
   }
 }

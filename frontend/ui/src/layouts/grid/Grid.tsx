@@ -57,7 +57,7 @@ type Props = {
   terminals: readonly Tile[]
   navigation: number
   selected: string
-  // Every team's wire runs through the gutters; the selected terminal's team's pulses.
+  // Every team's wire runs through the gutters, at rest; the selected terminal's team's lights.
   teams: readonly Team[]
   team: Team | undefined
   onSelect: (id: string) => void

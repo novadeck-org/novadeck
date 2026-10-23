@@ -146,7 +146,7 @@ export const recordChanges = <T,>(
 /**
  * Whether anything matching `selector` has been on the page since this was called, looked for
  * at every change under the body: a state that comes and goes quicker than a check can poll for
- * it, such as a pulse that plays as a view opens on a slow machine, is still seen.
+ * it, such as an entrance that plays as a view opens on a slow machine, is still seen.
  */
 export const recordAppearance = (selector: string): (() => boolean) => {
   let seen = document.querySelector(selector) !== null
