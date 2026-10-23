@@ -127,7 +127,7 @@ const mailOf = (messages: readonly AgentMessage[]): MailState => ({
     "project/initial/01": {
       handle: "moth",
       agent: true,
-      threads: [{ id: "th", peer: "fox", hops: 1, allowed: 4, held: false, messages }],
+      threads: [{ id: "th", peer: "fox", hops: 1, idle: 0, held: false, heldFor: null, messages }],
     },
   },
 })

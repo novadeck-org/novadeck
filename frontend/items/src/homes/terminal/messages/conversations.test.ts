@@ -37,8 +37,9 @@ const thread = (id: string, peer: string, messages: readonly AgentMessage[]): Me
   id,
   peer,
   hops: messages.length,
-  allowed: 12,
+  idle: 0,
   held: false,
+  heldFor: null,
   messages,
 })
 

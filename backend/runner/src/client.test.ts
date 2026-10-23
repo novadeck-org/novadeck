@@ -477,7 +477,8 @@ describe("runner client project removal", () => {
         projectId: ids[project],
         between: ["a", "b"],
         hops: 1,
-        allowed: 12,
+        heldFrom: null,
+        heldFor: null,
         lastAt: Date.now(),
         stoppedAt: null,
       })

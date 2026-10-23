@@ -41,7 +41,8 @@ const thread = (fields: Partial<Thread> = {}): Thread => ({
   projectId: "p",
   between: ["a", "b"],
   hops: 1,
-  allowed: 12,
+  heldFrom: null,
+  heldFor: null,
   lastAt: 0,
   stoppedAt: null,
   ...fields,
@@ -98,20 +99,22 @@ describe("rates", () => {
 })
 
 describe("holds", () => {
-  it("hold a message past its thread's allowance, or while messaging is paused", () => {
-    expect(holdOf({ hop: 12, fromLead: false, toLead: false }, thread(), false)).toBeNull()
-    expect(holdOf({ hop: 13, fromLead: false, toLead: false }, thread(), false)).toBe("release")
-    expect(holdOf({ hop: 13, fromLead: false, toLead: false }, thread(), true)).toBe("release")
-    expect(holdOf({ hop: 1, fromLead: false, toLead: false }, thread(), true)).toBe("paused")
+  const held = thread({ heldFrom: 7, heldFor: "loop" })
+
+  it("hold a message at or past its thread's hold, or while messaging is paused", () => {
+    expect(holdOf({ hop: 40 }, thread(), false)).toBeNull()
+    expect(holdOf({ hop: 6 }, held, false)).toBeNull()
+    expect(holdOf({ hop: 7 }, held, false)).toBe("release")
+    expect(holdOf({ hop: 8 }, held, false)).toBe("release")
+    expect(holdOf({ hop: 1 }, thread(), true)).toBe("paused")
+    expect(holdOf({ hop: 1 }, undefined, true)).toBe("paused")
   })
 
-  it("never hold a message to or from a lead for release, though a pause still holds it", () => {
-    expect(holdOf({ hop: 40, fromLead: true, toLead: false }, thread(), false)).toBeNull()
-    expect(holdOf({ hop: 40, fromLead: true, toLead: false }, thread(), true)).toBe("paused")
-    expect(holdOf({ hop: 40, fromLead: false, toLead: true }, thread(), false)).toBeNull()
-    expect(holdOf({ hop: 40, fromLead: false, toLead: true }, thread(), true)).toBe("paused")
-    expect(waiting({ hop: 40, fromLead: true, toLead: false }, thread(), false)).toBe("queued")
-    expect(waiting({ hop: 40, fromLead: false, toLead: false }, thread(), false)).toBe("held")
+  it("hold for release over a pause, and spare no lead", () => {
+    expect(holdOf({ hop: 7 }, held, true)).toBe("release")
+    expect(holdOf({ hop: 6 }, held, true)).toBe("paused")
+    expect(waiting({ hop: 7 }, held, false)).toBe("held")
+    expect(waiting({ hop: 6 }, held, false)).toBe("queued")
   })
 })
 

@@ -377,7 +377,11 @@ describe("An item's sheet", () => {
       await row("Release a held message").click()
       const open = sheet("Tests")
 
-      await expect.element(open).toMatchTextContent("This is message 6 on the thread.")
+      await expect
+        .element(open)
+        .toMatchTextContent(
+          "@owl and @moth kept messaging while neither did any work, so Novadeck holds their thread.",
+        )
       await open.getByRole("button", { name: "Release" }).click()
 
       await expect.element(confirmation()).toMatchTextContent("Released.")

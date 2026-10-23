@@ -21,8 +21,9 @@ const listing = (change: Partial<TerminalMessages> = {}): TerminalMessages => ({
       id: "t-1",
       peer: "fox",
       hops: 1,
-      allowed: 12,
+      idle: 2,
       held: false,
+      heldFor: null,
       stopped: false,
       messages: [
         {
@@ -97,8 +98,9 @@ describe("the runner's messages", () => {
             id: "t-1",
             peer: "fox",
             hops: 1,
-            allowed: 12,
+            idle: 2,
             held: false,
+            heldFor: null,
             messages: [
               {
                 id: "m-1",

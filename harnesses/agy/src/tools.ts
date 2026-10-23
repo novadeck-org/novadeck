@@ -1,3 +1,4 @@
+import type { ToolKind } from "@novadeck/harness-core/events"
 import {
   isFields,
   novadeckTool,
@@ -5,6 +6,7 @@ import {
   otherRun,
   parseFields,
   shortPath,
+  sleepOnly,
   textField,
   unquote,
   type Fields,
@@ -101,4 +103,24 @@ export const describe = (tool: string, input: string): ToolRun => {
     known(tool.toLowerCase(), fields) ??
     otherRun(tool, fields, input)
   )
+}
+
+// The folder Antigravity keeps Novadeck's MCP server's descriptor files in, which it reads
+// before calling the server's tools.
+const descriptors = /(?:^|[\\/])mcp[\\/]novadeck_novadeck[\\/]/
+
+/**
+ * What a tool call counts as to the messaging loop guard: see `ToolKind`. `args` is the
+ * hook's own: its string values may be quoted a second time.
+ */
+export const kindOf = (tool: string, args: Fields): ToolKind => {
+  if (tool === lazy)
+    return textField(args, "ServerName") === "novadeck_novadeck" ? "novadeck" : "work"
+  if (tool === "read_file")
+    return descriptors.test(textField(args, "file_path", "AbsolutePath", "Path", "path"))
+      ? "novadeck"
+      : "work"
+  if (tool === "run_command")
+    return sleepOnly(textField(args, "cmd", "command", "CommandLine")) ? "waiting" : "work"
+  return "work"
 }

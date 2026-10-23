@@ -168,7 +168,7 @@ export class TerminalPeers {
     this.options.messaging.pause(paused)
   }
 
-  /** Releases a thread held for going back and forth too often. */
+  /** Releases a held thread, and its pair's other held threads. */
   release(thread: string): void {
     if (this.options.stopping()) throw new DomainError("CLOSING")
     this.options.messaging.release(thread)

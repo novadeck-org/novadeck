@@ -26,7 +26,17 @@ const mail = (messages: readonly AgentMessage[], agent = true): TerminalMail => 
   handle: "moth",
   agent,
   threads: messages.length
-    ? [{ id: "t-1", peer: "fox", hops: messages.length, allowed: 12, held: false, messages }]
+    ? [
+        {
+          id: "t-1",
+          peer: "fox",
+          hops: messages.length,
+          idle: 0,
+          held: false,
+          heldFor: null,
+          messages,
+        },
+      ]
     : [],
 })
 

@@ -344,6 +344,26 @@ describe("what agents and a refused send say", () => {
     expect(text).toContain("replies can't reach you")
   })
 
+  it("say why a message is held for release, as send did", () => {
+    const text = renderAgents({
+      handle: "moth",
+      lead: null,
+      peers: [],
+      messages: [
+        {
+          message: message({ state: "held" }),
+          hold: "release",
+          why: "your thread with @fox waits for the user's release.",
+        },
+        { message: message({ id: "m-2", state: "held" }), hold: "release" },
+      ],
+      unbound: false,
+      now,
+    })
+    expect(text).toContain(": held: your thread with @fox waits for the user's release.\n")
+    expect(text).toContain(": held until the user releases its thread")
+  })
+
   it("say why a message of the caller's will not arrive: its session ended, or the user stopped its thread", () => {
     const told = (fields: Partial<Message>) =>
       renderAgents({

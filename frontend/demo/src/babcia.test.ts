@@ -671,23 +671,31 @@ describe("the Babcia demo", () => {
     })
   })
 
-  it("never holds a message between a helper and its lead for release, as the runner does", async () => {
+  it("holds a helper and its lead for idle messages only, as the runner does", async () => {
     const { backend, cues } = open()
     cues.helpers()
     const { messages } = backend
     if (!isDemoMessages(messages)) throw new Error("the demo's messages")
     const target = { projectId: bar.projectId, workspaceSessionId: bar.workspaceSessionId }
-    // Twenty messages, past the twelve a thread delivers before its release.
+    // Twenty messages that aren't idle: a lead is no exception, but nothing here loops.
     for (let index = 0; index < 20; index += 1) messages.send(target, asking, lead, `Hi ${index}`)
     await vi.advanceTimersByTimeAsync(rungMs + 50)
     expect(mail(backend).every((each) => each.state === "delivered")).toBe(true)
-    // Two terminals no lead leads are held at the thirteenth.
-    for (let index = 0; index < 14; index += 1)
-      messages.send(target, demoHandle(1), demoHandle(2), `Hi ${index}`)
+    // Idle messages between two terminals are held at the sixth, a lead's pair no different.
+    for (let index = 0; index < 8; index += 1)
+      messages.send(
+        target,
+        demoHandle(1),
+        demoHandle(2),
+        `Thanks ${index}`,
+        undefined,
+        undefined,
+        true,
+      )
     await vi.advanceTimersByTimeAsync(rungMs + 50)
     expect(
       mail(backend).filter((each) => each.from === demoHandle(1) && each.state === "held"),
-    ).toHaveLength(2)
+    ).toHaveLength(3)
   })
 
   it("keeps a stopped thread stopped for the length of a thread, or until it is released", async () => {

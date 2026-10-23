@@ -96,8 +96,9 @@ const thread = (change: Partial<MessageThread> = {}): MessageThread => ({
   id: "th1",
   peer: "fox",
   hops: 3,
-  allowed: 3,
+  idle: 0,
   held: true,
+  heldFor: "loop",
   messages: [message()],
   ...change,
 })

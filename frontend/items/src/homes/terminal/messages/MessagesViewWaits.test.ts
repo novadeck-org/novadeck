@@ -24,7 +24,9 @@ const mailOf = (waits: MailWaits | null, paused = false): MailHandle => {
     handle: "moth",
     agent: true,
     waits,
-    threads: [{ id: "t1", peer: "fox", hops: 1, allowed: 12, held: false, messages: [message] }],
+    threads: [
+      { id: "t1", peer: "fox", hops: 1, idle: 0, held: false, heldFor: null, messages: [message] },
+    ],
   }
   return {
     mail,

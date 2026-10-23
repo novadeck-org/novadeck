@@ -33,7 +33,7 @@ const held: InboxContent = {
     to: { handle: "t2", title: "b" },
     text: "hi",
     hop: 3,
-    allowed: 3,
+    heldFor: "loop",
   },
 }
 const ask: InboxContent = {

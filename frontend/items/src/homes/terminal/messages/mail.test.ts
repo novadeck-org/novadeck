@@ -26,8 +26,9 @@ describe("a terminal's messages on its taskbar", () => {
             id: "th",
             peer: "fox",
             hops: count,
-            allowed: 4,
+            idle: 0,
             held: false,
+            heldFor: null,
             messages: Array.from({ length: count }, (_, index) => ({
               id: `m${index}`,
               hop: index + 1,
