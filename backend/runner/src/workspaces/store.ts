@@ -75,7 +75,8 @@ export type SettingsChange = {
 // 3: changes items, a kind the kind CHECK must allow.
 // 4: windows have a home (a session's project window is one), and an item may come from no
 // terminal.
-const schemaVersion = 4
+// 5: a thread stores the hold on it (held_from, held_for) in place of its allowance.
+const schemaVersion = 5
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -151,8 +152,10 @@ const extras = `
     first_terminal TEXT NOT NULL,
     second_terminal TEXT NOT NULL,
     hops INTEGER NOT NULL,
-    -- How many it may deliver before the person releases it again.
-    allowed INTEGER NOT NULL,
+    -- The hop from which its messages are held for the person, null when none is; held_for
+    -- says why ('loop').
+    held_from INTEGER,
+    held_for TEXT CHECK (held_for IN ('loop')),
     last_at REAL NOT NULL,
     -- When the person stopped it; null if they have not, or released it since.
     stopped_at REAL
@@ -378,6 +381,42 @@ const migrations: Readonly<Record<number, string>> = {
     CREATE UNIQUE INDEX companion_windows_project ON companion_windows(session_id)
       WHERE home = 'project';
   `,
+  // A thread's allowance becomes the hold on it. One holds from the hop after its allowance
+  // if a message past it between two peers waits held, or was gone before the person
+  // stopped the thread (a stopped one is released again by the person, not held); a lead's
+  // messages never were held, so a thread of only those is not. Message rows stay as they
+  // are: the runner works out what waits from the hold on load.
+  4: `
+    ALTER TABLE message_threads RENAME TO message_threads_4;
+    CREATE TABLE message_threads (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      -- Its two terminals, in the order its first message went.
+      first_terminal TEXT NOT NULL,
+      second_terminal TEXT NOT NULL,
+      hops INTEGER NOT NULL,
+      -- The hop from which its messages are held for the person, null when none is; held_for
+      -- says why ('loop').
+      held_from INTEGER,
+      held_for TEXT CHECK (held_for IN ('loop')),
+      last_at REAL NOT NULL,
+      -- When the person stopped it; null if they have not, or released it since.
+      stopped_at REAL
+    ) STRICT;
+    INSERT INTO message_threads (rowid, id, project_id, first_terminal, second_terminal, hops,
+      held_from, last_at, stopped_at)
+    SELECT rowid, id, project_id, first_terminal, second_terminal, hops,
+      CASE WHEN EXISTS (
+        SELECT 1 FROM messages
+        WHERE messages.thread_id = message_threads_4.id
+          AND messages.from_lead = 0 AND messages.to_lead = 0
+          AND messages.hop > message_threads_4.allowed
+          AND (messages.state = 'held' OR (messages.state = 'gone' AND messages.stopped = 0))
+      ) THEN allowed + 1 END,
+      last_at, stopped_at
+    FROM message_threads_4;
+    DROP TABLE message_threads_4;
+  `,
 }
 // SQLite's primary result codes that say a step doesn't fit the database it met, or that
 // it is damaged, as against a full disk, an I/O error or a lock, after which a later start
@@ -550,7 +589,7 @@ const readOnly = (path: string, query: string): unknown => {
 /**
  * Brings back the workspace v0.0.188 set aside. That build raised the schema to version 3
  * with no step from 2, so it set every version 2 workspace aside and started an empty one.
- * Where `path` is still as it left it, version 3 (or 4, once a later start carried it
+ * Where `path` is still as it left it, version 3 (or later, once a later start carried it
  * forward) with no projects, the newest database set
  * aside beside it, if it is version 2 and a copy of it carries forward, comes back as that
  * copy, with the empty one's settings, the person's later choices; the empty one is set
@@ -574,10 +613,10 @@ export const restoreSetAside = (path: string, now = new Date()): string | undefi
     moveDatabase(copy, path)
     return copy
   }
-  // Version 4 is the empty one after a start since, which carried it forward: a restore that
+  // A later version is the empty one after a start since, which carried it forward: a restore that
   // failed once, for a passing reason, is tried again.
   const version = readOnly(path, "PRAGMA user_version")
-  if (version !== 3 && version !== 4) return undefined
+  if (typeof version !== "number" || version < 3 || version > schemaVersion) return undefined
   if (readOnly(path, "SELECT count(*) FROM projects") !== 0) return undefined
   const prefix = `${basename(path)}.earlier-`
   const newest = readdirSync(dirname(path))
@@ -758,7 +797,8 @@ type ThreadRow = {
   first_terminal: string
   second_terminal: string
   hops: number
-  allowed: number
+  held_from: number | null
+  held_for: "loop" | null
   last_at: number
   stopped_at: number | null
 }
@@ -1316,7 +1356,8 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
       projectId: row.project_id,
       between: [row.first_terminal, row.second_terminal],
       hops: row.hops,
-      allowed: row.allowed,
+      heldFrom: row.held_from,
+      heldFor: row.held_for,
       lastAt: row.last_at,
       stoppedAt: row.stopped_at,
     }))
@@ -1325,11 +1366,11 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
   saveThread(thread: Thread): void {
     const [first, second] = thread.between
     void this.queries.run`
-      INSERT INTO message_threads (id, project_id, first_terminal, second_terminal, hops, allowed, last_at, stopped_at)
+      INSERT INTO message_threads (id, project_id, first_terminal, second_terminal, hops, held_from, held_for, last_at, stopped_at)
       VALUES (${thread.id}, ${thread.projectId}, ${first}, ${second}, ${thread.hops},
-        ${thread.allowed}, ${thread.lastAt}, ${thread.stoppedAt})
-      ON CONFLICT (id) DO UPDATE SET hops = excluded.hops, allowed = excluded.allowed,
-        last_at = excluded.last_at, stopped_at = excluded.stopped_at
+        ${thread.heldFrom}, ${thread.heldFor}, ${thread.lastAt}, ${thread.stoppedAt})
+      ON CONFLICT (id) DO UPDATE SET hops = excluded.hops, held_from = excluded.held_from,
+        held_for = excluded.held_for, last_at = excluded.last_at, stopped_at = excluded.stopped_at
     `
   }
 

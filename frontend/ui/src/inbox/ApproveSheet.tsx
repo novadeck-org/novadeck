@@ -207,8 +207,14 @@ const Held = (props: SheetContentProps & { readonly held: HeldMessage }): React.
       </div>
       <blockquote className="inbox-quote">{held.text}</blockquote>
       <p className="inbox-aside">
-        This is message {held.hop} on the thread. Novadeck holds it so two agents can&apos;t keep
-        going back and forth without you.
+        {held.heldFor === "loop" ? (
+          <>
+            <HandleChip handle={held.from.handle} /> and <HandleChip handle={held.to.handle} /> kept
+            messaging while neither did any work, so Novadeck holds their thread.
+          </>
+        ) : (
+          "Novadeck holds this thread for you."
+        )}
       </p>
       {!sent && (
         <div className="inbox-actions">

@@ -18,15 +18,17 @@ import { demoTerminalId } from "./samples"
 // A demo mailbox: threads between the sample terminals, kept the way the runner keeps
 // them, so pausing holds what waits and releasing a thread lets it go on, as there.
 
-// How many messages a thread has before the person must release it, and again after.
-const hopsPerRelease = 12
+// The runner's loop hold: a thread is held at its sixth idle message in a row, and a pair
+// keeps at most ten messages waiting held for release.
+const idleToHold = 6
+const heldPerPair = 10
 
 // A message as the demo keeps it: where it was before any hold.
 export type DemoMessage = Omit<AgentMessage, "state" | "held"> & {
   readonly state: "queued" | "leased" | "delivered" | "gone"
-  // Between a terminal and its own lead: the person chose that pairing, so its length never
-  // holds it for release.
-  readonly lead?: true
+  // Sent while neither end worked. The demo has no tool reports, so the script says which
+  // are; a message not marked resets the thread's count.
+  readonly idle?: true
 }
 
 export type DemoThread = {
@@ -34,8 +36,9 @@ export type DemoThread = {
   // The two terminals, by handle.
   readonly between: readonly [string, string]
   readonly hops: number
-  readonly allowed: number
   readonly messages: readonly DemoMessage[]
+  // The last hop at the person's release: the count of idle messages starts afresh after it.
+  readonly releasedAt?: number | undefined
   // When the person stopped it: what waited is gone, and a send on it is refused for as long
   // as a thread lasts (`threadMs`) from its latest message or the stop, or until a release.
   readonly stoppedAt?: number | undefined
@@ -56,20 +59,42 @@ export type DemoMailbox = {
     readonly terminalId: string
     readonly handle: string
     readonly agent: boolean
-    // The handle of the terminal that leads it, where one does.
-    readonly ledBy?: string
     // Why the doorbell can't ring it, where the debug panel put it so.
     readonly waits?: MailWaits | null
   }[]
   readonly threads: readonly DemoThread[]
 }
 
-// As the runner says it: a message still waiting is held while paused, or past the hops
-// its thread is allowed.
+// Where a thread's hold starts, as the runner has it: the hop of the sixth idle message in a
+// row since the last release, and every message after it is held too; undefined for none.
+const holdHop = (thread: DemoThread): number | undefined => {
+  let run = 0
+  for (const message of thread.messages) {
+    if (message.inbox || message.hop <= (thread.releasedAt ?? 0)) continue
+    run = message.idle ? run + 1 : 0
+    if (run >= idleToHold) return message.hop
+  }
+  return undefined
+}
+
+// The idle messages in a row the thread counts, which stays where it was while held.
+const idleRun = (thread: DemoThread): number => {
+  let run = 0
+  for (const message of thread.messages) {
+    if (message.inbox || message.hop <= (thread.releasedAt ?? 0)) continue
+    run = message.idle ? run + 1 : 0
+    if (run >= idleToHold) return idleToHold
+  }
+  return run
+}
+
+// As the runner says it: a message still waiting is held while paused, or at or past its
+// thread's hold.
 const shown = (message: DemoMessage, thread: DemoThread, paused: boolean): AgentMessage => {
+  const at = holdHop(thread)
   const hold = message.inbox
     ? null
-    : message.hop > thread.allowed && !message.lead
+    : at !== undefined && message.hop >= at
       ? "release"
       : paused
         ? "paused"
@@ -93,12 +118,14 @@ const mailOf = (
     .filter((thread) => thread.between.includes(handle))
     .map((thread): MessageThread => {
       const messages = thread.messages.map((message) => shown(message, thread, paused))
+      const held = messages.some((message) => message.held === "release")
       return {
         id: thread.id,
         peer: thread.between[0] === handle ? thread.between[1] : thread.between[0],
         hops: thread.hops,
-        allowed: thread.allowed,
-        held: messages.some((message) => message.held === "release"),
+        idle: idleRun(thread),
+        held,
+        heldFor: held ? "loop" : null,
         messages,
       }
     })
@@ -160,8 +187,8 @@ const askText = (ask: AgentAsk): string => {
 export type DemoMessages = Messages & {
   readonly record: (item: InboxItem, answer?: InboxAnswer, outcome?: InboxHistory) => void
   // An agent's message to another of a session, by handle: queued at first, and delivered once
-  // the doorbell has rung (`rungMs` later), nothing holds it (a pause, the hops its thread is
-  // allowed, a recipient the doorbell can't ring) and its thread wasn't stopped; `delivered`
+  // the doorbell has rung (`rungMs` later), nothing holds it (a pause, a loop hold on its
+  // thread, a recipient the doorbell can't ring) and its thread wasn't stopped; `delivered`
   // is called then.
   readonly send: (
     target: WorkspaceTarget,
@@ -173,7 +200,10 @@ export type DemoMessages = Messages & {
     // or its recipient closed. The runner tells a sender so with its next tool answer, and
     // adds nothing to the thread.
     stopped?: () => void,
-    // False where the thread was stopped or the recipient closed: the runner refuses the send.
+    // Whether the message is idle: sent while neither end worked, which the demo's script says.
+    idle?: boolean,
+    // False where the thread was stopped, the recipient closed, or the pair already has ten
+    // messages waiting held for release: the runner refuses the send.
   ) => boolean
   // Looks again at what waits, as a terminal may have closed since: a message for one is gone.
   readonly refresh: () => void
@@ -337,7 +367,6 @@ export const createDemoMessages = (
             id,
             between: [source.handle, "you"],
             hops: messages.length,
-            allowed: 0,
             messages,
           },
         ],
@@ -369,7 +398,7 @@ export const createDemoMessages = (
           publish()
         }, deliveryMs)
     },
-    send: (target, from, to, text, delivered, stopped) => {
+    send: (target, from, to, text, delivered, stopped, idle = false) => {
       const index = boxes.findIndex(
         (box) =>
           box.target.projectId === target.projectId &&
@@ -385,15 +414,10 @@ export const createDemoMessages = (
       if (peer && !exists(target, peer.terminalId)) return false
       const id = thread?.id ?? `t-${[from, to].toSorted().join("-")}`
       const hop = (thread?.messages.length ?? 0) + 1
-      const led = box.terminals.some(
-        (each) =>
-          (each.handle === from && each.ledBy === to) ||
-          (each.handle === to && each.ledBy === from),
-      )
       const sent: DemoMessage = {
         id: `${id}-${hop}`,
         hop,
-        ...(led ? { lead: true as const } : {}),
+        ...(idle ? { idle: true as const } : {}),
         from,
         to,
         text,
@@ -402,6 +426,21 @@ export const createDemoMessages = (
         deliveredAt: null,
       }
       const messages = [...(thread?.messages ?? []), sent]
+      // A send that would be held is refused once the pair has ten messages waiting held.
+      const loopAt = holdHop({
+        id,
+        between: [from, to],
+        hops: messages.length,
+        messages,
+        releasedAt: thread?.releasedAt,
+      })
+      if (loopAt !== undefined && sent.hop >= loopAt) {
+        const waiting = box.threads
+          .filter((each) => each.between.includes(from) && each.between.includes(to))
+          .flatMap((each) => each.messages.map((one) => shown(one, each, false)))
+          .filter((one) => one.state === "held" && one.held === "release").length
+        if (waiting >= heldPerPair) return false
+      }
       boxes = boxes.map((each, at) =>
         at !== index
           ? each
@@ -413,7 +452,7 @@ export const createDemoMessages = (
                   id,
                   between: [from, to],
                   hops: messages.length,
-                  allowed: thread?.allowed ?? hopsPerRelease,
+                  releasedAt: thread?.releasedAt,
                   messages,
                 },
               ],
@@ -468,7 +507,7 @@ export const createDemoMessages = (
         ...box,
         threads: box.threads.map((each) =>
           each.id === thread
-            ? { ...each, allowed: each.hops + hopsPerRelease, stoppedAt: undefined }
+            ? { ...each, releasedAt: each.messages.at(-1)?.hop ?? 0, stoppedAt: undefined }
             : each,
         ),
       }))
@@ -499,6 +538,8 @@ export const createDemoMessages = (
   }
 }
 
+const idle = (sent: DemoMessage): DemoMessage => ({ ...sent, idle: true })
+
 const minutes = (now: number, ago: number): number => now - ago * 60_000
 
 let sequence = 0
@@ -522,8 +563,8 @@ const message = (
 })
 
 // The agents demo's checkout work: Claude Code (moth) and Codex (crow) reviewing each other,
-// a test terminal (owl) whose thread went back and forth until it needs the person's
-// release, a message to the dev server's terminal (fox) whose agent left, a word each with
+// a test terminal (owl) whose thread became a loop of thank-yous, held until the person
+// releases it, a message to the dev server's terminal (fox) whose agent left, a word each with
 // the runtime's (kite) and the build's (raven), and a question moth asked the person, which
 // they answered. Every other session's Claude Code has had no messages yet.
 export const checkoutMailboxes = (
@@ -548,7 +589,6 @@ export const checkoutMailboxes = (
               id: "t-runtime",
               between: ["moth", "kite"],
               hops: 2,
-              allowed: hopsPerRelease,
               messages: [
                 message(
                   now,
@@ -574,7 +614,6 @@ export const checkoutMailboxes = (
               id: "t-build",
               between: ["raven", "moth"],
               hops: 1,
-              allowed: hopsPerRelease,
               messages: [
                 message(
                   now,
@@ -593,7 +632,6 @@ export const checkoutMailboxes = (
               id: "t-demotaxask",
               between: ["moth", "you"],
               hops: 2,
-              allowed: 0,
               messages: [
                 {
                   ...message(
@@ -626,7 +664,6 @@ export const checkoutMailboxes = (
               id: "t-review",
               between: ["moth", "crow"],
               hops: 4,
-              allowed: hopsPerRelease,
               messages: [
                 message(
                   now,
@@ -669,65 +706,31 @@ export const checkoutMailboxes = (
             {
               id: "t-flaky",
               between: ["moth", "owl"],
-              hops: 13,
-              allowed: hopsPerRelease,
+              hops: 7,
               messages: [
-                // The ten before: the two going back and forth over the flaky test.
-                ...Array.from({ length: 10 }, (_, before) =>
-                  before % 2 === 0
-                    ? message(
-                        now,
-                        34 - before * 2,
-                        before + 1,
-                        "owl",
-                        "moth",
-                        "delivered",
-                        `Run ${before / 2 + 1}: cart.spec.ts failed on the coupon case.`,
-                      )
-                    : message(
-                        now,
-                        34 - before * 2,
-                        before + 1,
-                        "moth",
-                        "owl",
-                        "delivered",
-                        "Once more, with the seed logged.",
-                      ),
-                ),
                 message(
                   now,
                   14,
-                  11,
+                  1,
                   "owl",
                   "moth",
                   "delivered",
-                  "cart.spec.ts failed again on the coupon case.",
+                  "cart.spec.ts failed on the coupon case, then passed on a rerun.",
                 ),
-                message(
-                  now,
-                  13,
-                  12,
-                  "moth",
-                  "owl",
-                  "delivered",
-                  "Run it ten more times and tell me.",
-                ),
-                message(
-                  now,
-                  12,
-                  13,
-                  "owl",
-                  "moth",
-                  "queued",
-                  "3 of 10 failed. Want me to quarantine it?",
-                ),
+                // The rest only acknowledge each other, neither doing any work: the loop
+                // Novadeck holds at the sixth.
+                idle(message(now, 13, 2, "moth", "owl", "delivered", "Thanks, noted.")),
+                idle(message(now, 12.5, 3, "owl", "moth", "delivered", "Noted on my side too.")),
+                idle(message(now, 12, 4, "moth", "owl", "delivered", "Good, we agree then.")),
+                idle(message(now, 11.5, 5, "owl", "moth", "delivered", "Agreed.")),
+                idle(message(now, 11, 6, "moth", "owl", "delivered", "Sounds good.")),
+                idle(message(now, 10, 7, "owl", "moth", "queued", "Great, thanks again.")),
               ],
             },
             {
               id: "t-server",
               between: ["moth", "fox"],
               hops: 1,
-              allowed: hopsPerRelease,
               messages: [
                 // Yesterday's.
                 message(
@@ -758,7 +761,6 @@ export const studioMailbox = (now: number, target: WorkspaceTarget): DemoMailbox
       id: "t-auth",
       between: ["moth", "owl"],
       hops: 3,
-      allowed: hopsPerRelease,
       messages: [
         message(
           now,

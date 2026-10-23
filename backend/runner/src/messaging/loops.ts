@@ -1,13 +1,64 @@
 import type { HarnessEvent } from "@novadeck/harness-core/events"
 
+/** Windows never span more than a thread's ten minutes; history is kept three times that. */
+export const keepMs = 30 * 60_000
+
+/** The most entries of any one kind a terminal keeps: the oldest go first. */
+export const keepEntries = 500
+
+/** A send counts as a call reported this long after it: inside the window it opens. */
+const justAfter = 0.5
+
+/** A span `[start, end)` of something running; `end` is null while it does. */
+type Span = { start: number; end: number | null }
+
+type Request = Span & { readonly id: string; readonly actor: string | null }
+type Subagent = Span & { readonly actor: string }
+
+/** A turn's edge: its start, a Stop that ended it, or a Stop Novadeck continued. */
+type Mark = { readonly at: number; readonly kind: "start" | "stop" | "continue" }
+
+type History = {
+  /** A session was observed since the last reset. */
+  session: boolean
+  /** The session reported a call, or the terminal sent: its harness is known to report. */
+  called: boolean
+  /** Nothing is known before this: when watching began, or the oldest history dropped. */
+  since: number
+  /** Reports of `work` calls. */
+  work: number[]
+  /** Reports of calls of every kind, and each send just after it. */
+  calls: number[]
+  prompts: number[]
+  marks: Mark[]
+  subagents: Subagent[]
+  requests: Request[]
+  tasks: Span[]
+}
+
+const within = (span: Span, from: number, to: number): boolean =>
+  span.start <= to && (span.end === null || span.end > from)
+
+const inside = (times: readonly number[], from: number, to: number): boolean =>
+  times.some((at) => at > from && at <= to)
+
 /**
  * What each terminal's agent did between two moments, for the loop hold
  * (docs/agent-messaging.md, Guards, "Loops"): whether it worked, so a message sent while
  * neither end of its thread did is idle. Fed every harness event a terminal's session
  * reports, as it reaches the runner, and each send the terminal makes; kept in memory only,
  * so a runner restart forgets it.
+ *
+ * Approximations, where the events don't say: a background task a `work` call started runs
+ * until the turn end that leaves none (`background.tasks`, or no `background` at all) or
+ * fewer than were open, which ends the oldest first (the count includes tasks a waiting
+ * call started, so it errs toward keeping them); it can't see one finish between turn ends.
+ * A subagent runs from its start to its stop or abort. Order is arrival order: events come
+ * in with non-decreasing `at`.
  */
 export class Loops {
+  private readonly terminals = new Map<string, History>()
+
   constructor(private readonly now: () => number = Date.now) {}
 
   /**
@@ -17,10 +68,9 @@ export class Loops {
    * prompts the person typed.
    */
   observe(terminalId: string, events: readonly HarnessEvent[], at: number = this.now()): void {
-    void terminalId
-    void events
-    void at
-    throw new Error("Loops.observe: not built yet")
+    const history = this.history(terminalId, at)
+    for (const event of events) fold(history, event, at)
+    prune(history, at)
   }
 
   /**
@@ -29,9 +79,10 @@ export class Loops {
    * one at work.
    */
   sent(terminalId: string, at: number): void {
-    void terminalId
-    void at
-    throw new Error("Loops.sent: not built yet")
+    const history = this.history(terminalId, at)
+    history.called = true
+    history.calls.push(at + justAfter)
+    prune(history, at)
   }
 
   /**
@@ -44,21 +95,160 @@ export class Loops {
    * or `from` before the runner started watching it. The loop hold counts unknown as work.
    */
   worked(terminalId: string, from: number, to: number): boolean | "unknown" {
-    void terminalId
-    void from
-    void to
-    throw new Error("Loops.worked: not built yet")
+    const history = this.terminals.get(terminalId)
+    if (!history?.session || !history.called || from < history.since) return "unknown"
+    if (inside(history.work, from, to) || inside(history.prompts, from, to)) return true
+    if (
+      history.subagents.some((span) => within(span, from, to)) ||
+      history.tasks.some((span) => within(span, from, to)) ||
+      history.requests.some((span) => within(span, from, to))
+    ) {
+      return true
+    }
+    return ranThrough(history, from, to)
   }
 
   /** The terminal's session ended or changed: what it did before no longer says anything. */
   reset(terminalId: string): void {
-    void terminalId
-    throw new Error("Loops.reset: not built yet")
+    if (this.terminals.has(terminalId)) this.terminals.set(terminalId, fresh(this.now()))
   }
 
   /** The terminal is gone. */
   forget(terminalId: string): void {
-    void terminalId
-    throw new Error("Loops.forget: not built yet")
+    this.terminals.delete(terminalId)
+  }
+
+  private history(terminalId: string, at: number): History {
+    let history = this.terminals.get(terminalId)
+    if (!history) {
+      history = fresh(at)
+      this.terminals.set(terminalId, history)
+    }
+    return history
+  }
+}
+
+const fresh = (since: number): History => ({
+  session: false,
+  called: false,
+  since,
+  work: [],
+  calls: [],
+  prompts: [],
+  marks: [],
+  subagents: [],
+  requests: [],
+  tasks: [],
+})
+
+/** One turn was running at `from` and neither stopped nor reported a call up to `to`. */
+const ranThrough = (history: History, from: number, to: number): boolean => {
+  let running = false
+  for (const mark of history.marks) {
+    if (mark.at > from) break
+    running = mark.kind !== "stop"
+  }
+  if (!running) return false
+  const stopped = history.marks.some(
+    (mark) => mark.kind !== "start" && mark.at > from && mark.at <= to,
+  )
+  return !stopped && !inside(history.calls, from, to)
+}
+
+/** Ends the open spans the filter picks, at `at`. */
+const close = <T extends Span>(spans: T[], at: number, pick: (span: T) => boolean): void => {
+  for (const span of spans) if (span.end === null && pick(span)) span.end = at
+}
+
+const fold = (history: History, event: HarnessEvent, at: number): void => {
+  switch (event.type) {
+    case "session-observed":
+      history.session = true
+      return
+    case "tool-called":
+      history.called = true
+      history.calls.push(at)
+      if (event.kind === "work") {
+        history.work.push(at)
+        if (event.background) history.tasks.push({ start: at, end: null })
+      }
+      return
+    case "subagent-started":
+      history.subagents.push({ start: at, end: null, actor: event.actor })
+      return
+    case "subagent-stopped":
+    case "subagent-turn-aborted":
+      close(history.subagents, at, (span) => span.actor === event.actor)
+      if (event.type === "subagent-turn-aborted") {
+        close(history.requests, at, (span) => span.actor === event.actor)
+      }
+      return
+    case "turn-started":
+      history.marks.push({ at, kind: "start" })
+      if (event.cause === "prompt") history.prompts.push(at)
+      return
+    case "turn-ended": {
+      history.marks.push({ at, kind: "stop" })
+      const open = history.tasks.filter((span) => span.end === null)
+      const keep = event.background?.more ? open.length : (event.background?.tasks ?? 0)
+      for (const span of open.slice(0, Math.max(0, open.length - keep))) span.end = at
+      return
+    }
+    case "turn-continued":
+      history.marks.push({ at, kind: "continue" })
+      return
+    case "attention-requested":
+      history.requests.push({ id: event.requestId, actor: event.actor, start: at, end: null })
+      return
+    case "attention-resolved":
+      close(history.requests, at, (span) => span.id === event.requestId)
+      return
+    default:
+      return
+  }
+}
+
+/** Drops what is older than `keepMs` or beyond the cap, and moves `since` past it. */
+const prune = (history: History, at: number): void => {
+  const cutoff = at - keepMs
+  const forget = (time: number): void => {
+    history.since = Math.max(history.since, time)
+  }
+  const times = (list: number[]): void => {
+    let drop = list.findIndex((time) => time >= cutoff)
+    if (drop < 0) drop = list.length
+    drop = Math.max(drop, list.length - keepEntries)
+    if (drop > 0) {
+      forget(list[drop - 1]!)
+      list.splice(0, drop)
+    }
+  }
+  const spans = <T extends Span>(list: T[]): void => {
+    for (let i = list.length - 1; i >= 0; i--) {
+      const end = list[i]!.end
+      if (end !== null && end < cutoff) {
+        forget(end)
+        list.splice(i, 1)
+      }
+    }
+    while (list.length > keepEntries) {
+      const dropped = list.shift()!
+      forget(dropped.end ?? dropped.start)
+    }
+  }
+  times(history.work)
+  times(history.calls)
+  times(history.prompts)
+  spans(history.subagents)
+  spans(history.requests)
+  spans(history.tasks)
+  // Marks keep the state before the oldest one that stays, as a start or a stop.
+  const marks = history.marks
+  let drop = marks.findIndex((mark) => mark.at >= cutoff)
+  if (drop < 0) drop = marks.length
+  drop = Math.max(drop - 1, marks.length - keepEntries, 0)
+  if (drop > 0) {
+    forget(marks[drop - 1]!.at)
+    marks.splice(0, drop)
   }
 }

@@ -35,6 +35,7 @@ import {
   waitsIn,
 } from "./delivery.js"
 import { Leases, type Lease } from "./leases.js"
+import { Loops } from "./loops.js"
 import {
   allowSend,
   byteLength,
@@ -43,8 +44,9 @@ import {
   deliveryOf,
   duplicateOf,
   freshId,
+  heldPerPair,
   holdOf,
-  hopsPerRelease,
+  idleToHold,
   maxDeliveryBytes,
   maxMessageBytes,
   maxUndelivered,
@@ -152,6 +154,8 @@ export type SendAnswer =
       readonly route?: string
       /** Why a held message waits. */
       readonly held?: "paused" | "release"
+      /** What a message held for release tells its sender of why, and what to do. */
+      readonly why?: string
       /** Earlier messages from this terminal that won't arrive, told once. */
       readonly gone?: readonly {
         readonly id: string
@@ -218,6 +222,8 @@ export type MessagingOptions = {
    * `hookShellSlackMs`); the runner's own when omitted.
    */
   readonly platform?: NodeJS.Platform
+  /** What each terminal's agent did, for the loop hold; a new tracker when omitted. */
+  readonly loops?: Loops
 }
 
 /**
@@ -375,6 +381,15 @@ export class Messaging {
   private readonly pressed = new Set<string>()
   private readonly responses = new Map<string, string>()
   private readonly threads = new Map<string, Thread>()
+  /** The tracker of what each terminal's agent did, for the loop hold. */
+  private readonly loops: Loops
+  /**
+   * Each thread's idle messages in a row, and who sent them, kept in memory only: a restart
+   * starts the count afresh. Frozen while the thread is held.
+   */
+  private readonly runs = new Map<string, { count: number; senders: readonly string[] }>()
+  /** The messages judged idle when sent, for the reason their sender is told; in memory only. */
+  private readonly idled = new Set<string>()
   private readonly leases: Leases
   private paused: boolean
   // Send times, for the rates: by sender, by sender and recipient, and all.
@@ -398,6 +413,7 @@ export class Messaging {
     this.slackMs = hookShellSlackMs(options.platform ?? process.platform)
     this.exists = options.exists ?? ((terminalId) => this.live.has(terminalId))
     this.busy = options.busy ?? (() => false)
+    this.loops = options.loops ?? new Loops(this.now)
     this.leases = new Leases(options.leaseMs ?? 5_000, (lease) => this.lapse(lease))
     this.paused = this.read(() => this.records.messagingPaused(), false)
     for (const thread of this.read(() => this.records.threads(), []))
@@ -552,6 +568,7 @@ export class Messaging {
       if (message.to.terminalId === terminalId && undelivered(message))
         this.gone(message, "terminal-closed")
     this.live.delete(terminalId)
+    this.loops.forget(terminalId)
   }
 
   /** The exact agent session that an Inbox ask and its answer belong to. */
@@ -760,6 +777,7 @@ export class Messaging {
   observe(terminalId: string, events: readonly HarnessEvent[]): void {
     const live = this.live.get(terminalId)
     if (!live) return
+    this.loops.observe(terminalId, events, this.now())
     for (const event of events) this.turn(live, event)
   }
 
@@ -798,6 +816,7 @@ export class Messaging {
               event.type === "turn-ended" && event.outcome === "completed" && rootedIn(root, event),
           )
         : undefined
+    this.loops.observe(terminalId, report.events, this.now())
     for (const event of report.events) if (event !== stop) this.turn(live, event)
     if (!root) return silent
     const asked = {
@@ -1329,14 +1348,30 @@ export class Messaging {
       )
     const same = duplicateOf(this.messages.values(), terminalId, recipient.terminalId, text, now)
     if (same) return { ...this.answer(same, recipient), ...this.extras(live) }
+    // Idle or not, judged from the thread's previous message to now; the count of the idle in
+    // a row starts the hold at its sixth, and stays as it was once held.
+    const quiet =
+      known !== undefined && this.idleSince(known.lastAt, now, terminalId, recipient.terminalId)
+    const before = (known && this.runs.get(known.id)) ?? { count: 0, senders: [] }
+    const run =
+      known?.heldFrom != null
+        ? before
+        : quiet
+          ? { count: before.count + 1, senders: [...before.senders, terminalId] }
+          : { count: 0, senders: [] }
+    const starts = known?.heldFrom == null && run.count >= idleToHold
+    const hop = (known?.hops ?? 0) + 1
+    const heldFrom = starts ? hop : (known?.heldFrom ?? null)
+    const heldFor = starts ? ("loop" as const) : (known?.heldFor ?? null)
     const thread: Thread = known
-      ? { ...known, hops: known.hops + 1, lastAt: now }
+      ? { ...known, hops: hop, heldFrom, heldFor, lastAt: now }
       : {
           id: this.freshThreadId(),
           projectId: live.projectId,
           between: [terminalId, recipient.terminalId],
           hops: 1,
-          allowed: hopsPerRelease,
+          heldFrom: null,
+          heldFor: null,
           lastAt: now,
           stoppedAt: null,
         }
@@ -1361,14 +1396,33 @@ export class Messaging {
       },
       fromLead,
       toLead,
-      state: waiting({ hop: thread.hops, fromLead, toLead }, thread, this.paused),
+      state: waiting({ hop: thread.hops }, thread, this.paused),
     }
     const vetted = this.vet(message)
     if (!vetted.ok) return vetted
+    // One held beyond the pair's ten isn't kept, and uses no hop; if it began the hold, that
+    // stays, at its hop, so the pair's next messages are held too.
+    if (
+      holdOf(message, thread, this.paused) === "release" &&
+      this.heldBetween(terminalId, recipient.terminalId) >= heldPerPair
+    ) {
+      if (known && starts) {
+        this.putThread({ ...known, heldFrom, heldFor })
+        this.runs.set(known.id, run)
+      }
+      return refused(
+        `refused: you and ${mention(recipient.handle)} already have ten messages waiting for ` +
+          "the user's release; this one wasn't kept. Wait for the user rather than messaging " +
+          `${mention(recipient.handle)} again.`,
+      )
+    }
     const { bySender, byPair, byAll, pair } = vetted
     this.sent.set(terminalId, bySender)
     this.pairs.set(pair, byPair)
     this.allSent = byAll
+    this.runs.set(thread.id, run)
+    if (quiet) this.idled.add(message.id)
+    this.loops.sent(terminalId, now)
     this.putThread(thread)
     this.put(message)
     return { ...this.answer(message, recipient), ...this.extras(live) }
@@ -1407,7 +1461,7 @@ export class Messaging {
       id: "m-0000000000",
       projectId: live.projectId,
       thread: "t-0000000000",
-      hop: hopsPerRelease,
+      hop: 1,
       from: {
         terminalId: live.terminalId,
         handle: live.handle,
@@ -1476,6 +1530,59 @@ export class Messaging {
   }
 
   /**
+   * Whether a message sent now by `sender` to `recipient` is idle: not the thread's first,
+   * neither end worked since its previous message at `from` (unknown counts as work), and
+   * no response from the person reached either end meanwhile.
+   */
+  private idleSince(from: number, now: number, sender: string, recipient: string): boolean {
+    if (this.loops.worked(sender, from, now) !== false) return false
+    if (this.loops.worked(recipient, from, now) !== false) return false
+    return ![...this.messages.values()].some(
+      (message) =>
+        message.response !== undefined &&
+        (message.to.terminalId === sender || message.to.terminalId === recipient) &&
+        message.deliveredAt !== null &&
+        message.deliveredAt > from &&
+        message.deliveredAt <= now,
+    )
+  }
+
+  /** How many messages between two terminals wait held for release, across their threads. */
+  private heldBetween(a: string, b: string): number {
+    return [...this.messages.values()].filter(
+      (message) =>
+        !message.response &&
+        message.state === "held" &&
+        ((message.from.terminalId === a && message.to.terminalId === b) ||
+          (message.from.terminalId === b && message.to.terminalId === a)) &&
+        this.holdOf(message) === "release",
+    ).length
+  }
+
+  /**
+   * What a message held for release tells its sender of why (see docs/agent-messaging.md,
+   * Guards, "Loops"); undefined for any other.
+   */
+  private holdWhy(message: Message): string | undefined {
+    if (this.holdOf(message) !== "release") return undefined
+    const thread = this.threads.get(message.thread)
+    const peer = mention(message.to.handle)
+    if (thread?.heldFor !== "loop") return `your thread with ${peer} waits for the user's release.`
+    if (!this.idled.has(message.id))
+      return (
+        `your thread with ${peer} is held because it went on with no work done at either end; ` +
+        "it arrives once the user releases it."
+      )
+    const senders = this.runs.get(message.thread)?.senders ?? []
+    const own = senders.length > 0 && senders.every((each) => each === message.from.terminalId)
+    return (
+      (own ? `you kept messaging ${peer}` : `you and ${peer} kept messaging`) +
+      " while neither of you did any work, so Novadeck holds your thread until the user " +
+      `releases it. Get on with the work, or wait for the user, rather than messaging ${peer} again.`
+    )
+  }
+
+  /**
    * The other terminals in the caller's project and session, each described by what
    * Novadeck knows of it, and the caller's own messages not yet delivered or gone, as one
    * text agents read.
@@ -1496,7 +1603,11 @@ export class Messaging {
       handle: live.handle,
       lead: this.leadOf(live.terminalId) ?? null,
       peers: this.peers(live, about),
-      messages: mine.map((message) => ({ message, hold: this.holdOf(message) })),
+      messages: mine.map((message) => ({
+        message,
+        hold: this.holdOf(message),
+        ...(this.holdWhy(message) !== undefined && { why: this.holdWhy(message)! }),
+      })),
       unbound: live.root === null,
       now: this.now(),
     })
@@ -1525,10 +1636,9 @@ export class Messaging {
         id,
         peer,
         hops: thread?.hops ?? messages.length,
-        allowed: thread?.allowed ?? hopsPerRelease,
-        held: messages.some(
-          (message) => message.state === "held" && this.holdOf(message) === "release",
-        ),
+        idle: this.runs.get(id)?.count ?? 0,
+        held: thread?.heldFrom != null,
+        heldFor: thread?.heldFor ?? null,
         stopped: thread !== undefined && stopBlocks(thread, this.now()),
         messages: messages.slice(-1000).map((message) => ({
           id: message.id,
@@ -1592,20 +1702,22 @@ export class Messaging {
   }
 
   /**
-   * Releases a thread: its held messages wait to be delivered, and it may have 12 more. A
-   * stopped one is no longer stopped, but its messages that went stay gone.
+   * Releases a thread: its hold ends and its held messages wait to be delivered (held still
+   * while paused), and the count of its idle messages starts afresh. A stopped one is no
+   * longer stopped, but its messages that went stay gone.
    */
   release(threadId: string): void {
     const thread = this.threads.get(threadId)
     if (!thread) throw new DomainError("NOT_FOUND")
-    this.putThread({ ...thread, allowed: thread.hops + hopsPerRelease, stoppedAt: null })
+    this.putThread({ ...thread, heldFrom: null, heldFor: null, stoppedAt: null })
+    if (thread.heldFrom !== null) this.runs.delete(threadId)
     const terminals = new Set<string>()
     for (const message of this.messages.values()) {
       if (message.thread !== threadId) continue
       terminals.add(message.from.terminalId).add(message.to.terminalId)
       if (message.state === "held") this.wait(message)
     }
-    // Its hops allowed changed, whether or not any message waited.
+    // Its hold ended, whether or not any message waited.
     for (const terminalId of terminals) this.changed(terminalId)
   }
 
@@ -1613,13 +1725,15 @@ export class Messaging {
    * Stops a thread: its messages still queued or held are gone, their senders told the
    * person stopped it; one a lease holds is left to finish. A message that would continue
    * it is refused until it lapses (`threadMs`) or the person releases it. Stopping a
-   * stopped thread does nothing.
+   * stopped thread does nothing. Its hold ends, and its count starts afresh; its gone
+   * messages that could wait again are marked stopped, so none does.
    */
   stop(threadId: string): void {
     const thread = this.threads.get(threadId)
     if (!thread) throw new DomainError("NOT_FOUND")
     if (stopBlocks(thread, this.now())) return
-    this.putThread({ ...thread, stoppedAt: this.now() })
+    this.putThread({ ...thread, heldFrom: null, heldFor: null, stoppedAt: this.now() })
+    this.runs.delete(threadId)
     const terminals = new Set<string>()
     for (const message of this.messages.values()) {
       if (message.thread !== threadId) continue
@@ -1627,6 +1741,9 @@ export class Messaging {
       if (message.state === "queued" || message.state === "held") {
         this.noteGone(message, "thread-stopped")
         this.put({ ...message, state: "gone", notified: false, stopped: true })
+      } else if (message.state === "gone" && !message.stopped && !message.response) {
+        // Its session may run again; it won't be waited for, and its sender's notice stands.
+        this.put({ ...message, stopped: true })
       }
     }
     for (const terminalId of terminals) this.changed(terminalId)
@@ -1642,10 +1759,14 @@ export class Messaging {
         this.messages.delete(id)
         this.holdsTold.delete(id)
         this.queuedSince.delete(id)
+        this.idled.delete(id)
         if (message.response) this.responses.delete(message.response.askId)
       }
     for (const [id, thread] of this.threads)
-      if (thread.projectId === projectId) this.threads.delete(id)
+      if (thread.projectId === projectId) {
+        this.threads.delete(id)
+        this.runs.delete(id)
+      }
   }
 
   /**
@@ -1665,12 +1786,16 @@ export class Messaging {
       this.messages.delete(id)
       this.holdsTold.delete(id)
       this.queuedSince.delete(id)
+      this.idled.delete(id)
       if (response) this.responses.delete(response.askId)
     }
     if (old.length > 0) this.write(() => this.records.removeMessages(old.map(({ id }) => id)))
     const kept = new Set([...this.messages.values()].map(({ thread }) => thread))
     const threads = [...this.threads.keys()].filter((id) => !kept.has(id))
-    for (const id of threads) this.threads.delete(id)
+    for (const id of threads) {
+      this.threads.delete(id)
+      this.runs.delete(id)
+    }
     if (threads.length > 0) this.write(() => this.records.removeThreads(threads))
   }
 
@@ -1725,7 +1850,8 @@ export class Messaging {
     const base = { ok: true, to: message.to.handle, id: message.id, state: message.state } as const
     if (message.state === "held") {
       const held = this.holdOf(message)
-      return held ? { ...base, held } : base
+      const why = this.holdWhy(message)
+      return held ? { ...base, held, ...(why && { why }) } : base
     }
     if (message.state !== "queued") return base
     const agent = recipient.root?.agent ?? recipient.shown?.agent
@@ -1895,6 +2021,7 @@ export class Messaging {
       if (change.type === "ended") {
         if (!live.root) continue
         live.root = null
+        this.loops.reset(live.terminalId)
         // A session already shown at its prompt in its place keeps the state it gave.
         if (!live.shown) this.step(live, { type: "unbound" })
         // Messages for the session that ended are gone; those for the first session the
@@ -1928,6 +2055,7 @@ export class Messaging {
     firedAt?: number,
   ): void {
     live.root = root
+    this.loops.reset(live.terminalId)
     // Its first session came: from now on, only a bound session takes messages.
     live.expecting = null
     live.shown = null

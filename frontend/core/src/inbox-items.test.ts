@@ -94,8 +94,9 @@ const thread = (change: Partial<MessageThread> = {}): MessageThread => ({
   id: "th1",
   peer: "fox",
   hops: 3,
-  allowed: 3,
+  idle: 0,
   held: true,
+  heldFor: "loop",
   messages: [message()],
   ...change,
 })
@@ -407,9 +408,16 @@ describe("The Inbox's items", () => {
           to: { handle: "fox", title: "Terminal 2" },
           text: "Is the schema ready?",
           hop: 3,
-          allowed: 3,
+          heldFor: "loop",
         },
       })
+    })
+
+    it("carries why the thread is held, or none", () => {
+      const reason = (heldFor: "loop" | null) =>
+        inboxItems(inputs(pair, { mail: mailOf(thread({ heldFor })) }))[0]
+      expect(reason("loop")).toMatchObject({ held: { heldFor: "loop" } })
+      expect(reason(null)).toMatchObject({ held: { heldFor: null } })
     })
 
     it("is one item for a thread both its terminals list", () => {

@@ -19,9 +19,13 @@ import {
 } from "@novadeck/harness-core/harness"
 import { at as writtenAt, record } from "@novadeck/harness-core/items"
 import type { Report } from "@novadeck/harness-core/report"
+import { isFields } from "@novadeck/harness-core/tools"
+
+import { kindOf } from "./tools.js"
 
 /**
- * Claude Code's hooks, as normalized facts.
+ * Claude Code's hooks, as normalized facts. Each tool call's PostToolUse or
+ * PostToolUseFailure also reports it as a `tool-called`, once, with what it counts as.
  *
  * SessionStart names the session running in the terminal, unless it is not the
  * terminal's own: a subagent's (it carries `agent_id`), or Claude Code running inside
@@ -210,6 +214,17 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
         ...drafted(base, actor, tool, payload),
         // A write that failed wrote nothing.
         ...(event === "PostToolUse" ? touched(base, actor, tool, payload.tool_input) : []),
+        {
+          type: "tool-called",
+          ...base,
+          actor,
+          toolName: tool,
+          kind: kindOf(tool, payload.tool_input),
+          ...(isFields(payload.tool_input) &&
+            payload.tool_input.run_in_background === true && {
+              background: true as const,
+            }),
+        },
       ]
     case "StatusLine":
       return statusLine(base, payload)

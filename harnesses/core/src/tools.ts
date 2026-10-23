@@ -166,3 +166,29 @@ export const novadeckTool = (tool: string, fields: Fields | null): ToolRun | und
       return undefined
   }
 }
+
+const number = String.raw`\d+(?:\.\d+)?`
+// One command that only waits: Unix `sleep` (numbers with an optional s, m, h or d, GNU's
+// several summing), PowerShell's `Start-Sleep` (a number, or `-Seconds`/`-Milliseconds`),
+// and cmd's `timeout /t N` with `/nobreak`. Unix `timeout 30 cmd` runs a command: no match.
+const sleeping: readonly RegExp[] = [
+  new RegExp(String.raw`^sleep(?:\s+${number}[smhd]?)+$`),
+  new RegExp(
+    String.raw`^start-sleep\s+(?:(?:-(?:s|seconds|m|milliseconds)\s*:?\s*)?${number}|-(?:s|seconds|m|milliseconds)\s*:\s*${number})$`,
+    "i",
+  ),
+  new RegExp(String.raw`^timeout(?:\s+/nobreak)?\s+/t\s+\d+(?:\s+/nobreak)?$`, "i"),
+]
+
+/**
+ * Whether a shell command only waits: sleeps alone, or joined by `;`, `&&` or newlines. A
+ * wait that checks something (`sleep 60 && git status`), pipes, redirects or backgrounds is
+ * work, as is any command this doesn't recognise whole.
+ */
+export const sleepOnly = (command: string): boolean => {
+  const parts = command
+    .split(/;|&&|\r?\n/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+  return parts.length > 0 && parts.every((part) => sleeping.some((each) => each.test(part)))
+}

@@ -1,10 +1,13 @@
+import type { ToolKind } from "@novadeck/harness-core/events"
 import {
   count,
+  isFields,
   novadeckTool,
   oneLine,
   otherRun,
   parseFields,
   shortPath,
+  sleepOnly,
   textField,
   type Fields,
   type ToolRun,
@@ -94,4 +97,27 @@ export const describe = (tool: string, input: string): ToolRun => {
     known(tool.toLowerCase(), fields) ??
     otherRun(tool, fields, input)
   )
+}
+
+// Claude Code's own tools that only load or track.
+const bookkeeping: ReadonlySet<string> = new Set([
+  "ToolSearch",
+  "Skill",
+  "TodoWrite",
+  "TaskCreate",
+  "TaskUpdate",
+  "TaskList",
+  "TaskGet",
+])
+
+/** What a tool call counts as to the messaging loop guard: see `ToolKind`. */
+export const kindOf = (tool: string, input: unknown): ToolKind => {
+  if (novadeck.test(tool)) return "novadeck"
+  if (bookkeeping.has(tool)) return "bookkeeping"
+  if (tool === "ScheduleWakeup") return "waiting"
+  if (tool === "Bash") {
+    const command = isFields(input) ? input.command : undefined
+    return typeof command === "string" && sleepOnly(command) ? "waiting" : "work"
+  }
+  return "work"
 }

@@ -34,8 +34,9 @@ export const mailOf = (listing: TerminalMessages): TerminalMail => ({
     id: thread.id,
     peer: thread.peer,
     hops: thread.hops,
-    allowed: thread.allowed,
+    idle: thread.idle,
     held: thread.held,
+    heldFor: thread.heldFor,
     messages: thread.messages.map((message) => ({
       id: message.id,
       ...(message.inbox ? { inbox: message.inbox } : {}),

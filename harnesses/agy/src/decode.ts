@@ -5,6 +5,8 @@ import type { HarnessEvent, PromptShown } from "@novadeck/harness-core/events"
 import { absolute, errorText, shortName, sessionId, text } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
 
+import { kindOf } from "./tools.js"
+
 /**
  * Antigravity's hooks, as normalized facts. Every hook names the conversation it runs in,
  * and nothing says how it began: /clear and /resume switch conversations in one process.
@@ -122,7 +124,7 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
         },
       ]
     case "PreToolUse":
-      return [observed, ...calling(base, id, payload)]
+      return [observed, ...calling(base, id, payload), ...called(base, payload)]
     case "PostToolUse":
       return [
         observed,
@@ -202,6 +204,22 @@ const calling = (base: Base, conversation: string, payload: Report["payload"]): 
       input: call,
     },
   ]
+}
+
+// Every call about to run, reported once; its kind is told by its name and arguments.
+const called = (base: Base, payload: Report["payload"]): HarnessEvent[] => {
+  const call = toolCall(payload)
+  return call
+    ? [
+        {
+          type: "tool-called",
+          ...base,
+          actor: null,
+          toolName: call.name,
+          kind: kindOf(call.name, call.args),
+        },
+      ]
+    : []
 }
 
 // An ask_question that was answered, or skipped: its PostToolUse.

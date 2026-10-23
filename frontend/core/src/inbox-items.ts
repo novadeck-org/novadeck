@@ -129,7 +129,7 @@ const heldOf = (
       to: person(message.to, recipient),
       text: message.text,
       hop: message.hop,
-      allowed: thread.allowed,
+      heldFor: thread.heldFor,
     },
   }
 }

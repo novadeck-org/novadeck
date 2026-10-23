@@ -59,7 +59,7 @@ describe("the demo's messages", () => {
     const { terminals } = messages.state.getSnapshot()
     for (const terminal of ["01", "03"]) {
       const thread = terminals[at(terminal)]?.threads.find((each) => each.id === "t-flaky")
-      expect(thread).toMatchObject({ held: false, allowed: 25 })
+      expect(thread).toMatchObject({ held: false, heldFor: null, idle: 0 })
       expect(thread?.messages.at(-1)?.state).toBe("queued")
     }
   })
@@ -213,8 +213,12 @@ describe("the demo's sent messages", () => {
       .map((message) => message.state)
 
   // Sends moth's message to crow, two agents of the first session.
-  const sent = (messages: ReturnType<typeof demo>, text = "Hello", delivered?: () => void) =>
-    messages.send(elsewhere, "moth", "crow", text, delivered)
+  const sent = (
+    messages: ReturnType<typeof demo>,
+    text = "Hello",
+    delivered?: () => void,
+    idle = false,
+  ) => messages.send(elsewhere, "moth", "crow", text, delivered, undefined, idle)
 
   it("queues a message, then delivers it once the doorbell rang, and calls back", async () => {
     vi.useFakeTimers()
@@ -280,22 +284,57 @@ describe("the demo's sent messages", () => {
     expect(delivered).not.toHaveBeenCalled()
   })
 
-  it("holds a message past the hops its thread is allowed, until the person releases it", async () => {
+  const crowThread = (messages: ReturnType<typeof demo>) =>
+    Object.values(messages.state.getSnapshot().terminals)
+      .flatMap((mail) => mail.threads)
+      .find((each) => each.id === "t-crow-moth")!
+
+  it("holds the sixth idle message in a row, as a loop, until the person releases it", async () => {
     vi.useFakeTimers()
     const messages = demo()
     const delivered = vi.fn<() => void>()
-    for (let index = 0; index < 12; index += 1) sent(messages, `Round ${index}`)
+    for (let index = 0; index < 5; index += 1) sent(messages, `Thanks ${index}`, undefined, true)
     await vi.advanceTimersByTimeAsync(rungMs)
-    sent(messages, "One too many", delivered)
+    expect(crowThread(messages)).toMatchObject({ idle: 5, held: false, heldFor: null })
+    sent(messages, "Thanks again", delivered, true)
     await vi.advanceTimersByTimeAsync(rungMs * 3)
+    expect(crowThread(messages)).toMatchObject({ idle: 6, held: true, heldFor: "loop" })
     expect(hop(messages, "moth", "crow").at(-1)).toBe("held")
     expect(delivered).not.toHaveBeenCalled()
     messages.release("t-crow-moth")
+    expect(crowThread(messages)).toMatchObject({ idle: 0, held: false, heldFor: null })
     expect(hop(messages, "moth", "crow").at(-1)).toBe("delivered")
     expect(delivered).toHaveBeenCalledOnce()
   })
 
-  it("joins a seeded thread between the pair, and holds to its own hops", async () => {
+  it("holds for idle messages only, never for a thread's length", async () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    for (let index = 0; index < 20; index += 1) sent(messages, `Round ${index}`)
+    // A message that isn't idle sets the count back to none.
+    for (let index = 0; index < 5; index += 1) sent(messages, "Noted", undefined, true)
+    sent(messages, "Back at work")
+    for (let index = 0; index < 5; index += 1) sent(messages, "Noted", undefined, true)
+    await vi.advanceTimersByTimeAsync(rungMs)
+    expect(crowThread(messages)).toMatchObject({ idle: 5, held: false })
+    expect(hop(messages, "moth", "crow").at(-1)).toBe("delivered")
+  })
+
+  it("refuses a send beyond the ten a pair keeps waiting held for release", () => {
+    vi.useFakeTimers()
+    const messages = demo()
+    // Five idle messages go through, the sixth starts the hold, and ten in all wait held.
+    for (let index = 0; index < 5; index += 1)
+      expect(sent(messages, "Noted", undefined, true)).toBe(true)
+    for (let index = 0; index < 10; index += 1)
+      expect(sent(messages, "Noted", undefined, true)).toBe(true)
+    expect(sent(messages, "Noted", undefined, true)).toBe(false)
+    expect(sent(messages, "Working")).toBe(false)
+    const waiting = crowThread(messages).messages.filter((message) => message.held === "release")
+    expect(waiting).toHaveLength(10)
+  })
+
+  it("joins a seeded thread between the pair, and goes on from its own hops", async () => {
     vi.useFakeTimers()
     const messages = demo()
     // The first session's moth and crow already have `t-review`, four messages in.

@@ -591,6 +591,9 @@ export const apply = (
         ? { ...activity, pending, files: files ?? activity.files }
         : undefined
     }
+    case "tool-called":
+      // Counted by the messaging loop guard alone: it changes nothing here.
+      return undefined
     case "mode-observed":
       if (event.startedAt < activity.planningAt) return undefined
       return { ...activity, planning: event.planning, planningAt: event.startedAt }

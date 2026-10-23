@@ -12,7 +12,7 @@ import type { TerminalKey, Workspace } from "./types"
 //   (`ChatRequest`, as the chat view has it). A permission or plan is an Approve, a
 //   question an Ask; a dialog Novadeck can't read (`raw`) is answered in the terminal.
 // - `held`: a message between two agents that Novadeck holds until the person releases
-//   it, as its thread went back and forth as often as it may (an Approve).
+//   it, as its two agents kept messaging while neither worked (an Approve).
 // - `ask`: what the agent asked through Novadeck's MCP `ask` tool (an Ask).
 // - `trouble`: what Novadeck noticed about the agent: stuck, at a usage limit, failed, or
 //   its messages held long behind what keeps the doorbell from waking it.
@@ -68,15 +68,16 @@ export type AgentAsk = {
   readonly shape: AskShape
 }
 
-// A held message: the thread's two terminals, by handle and title, the message, and its
-// place in the thread against what the thread allows before it waits for the person.
+// A held message: the thread's two terminals, by handle and title, the message, and why the
+// thread is held (`loop`: its two agents kept messaging while neither worked; null: only
+// that Novadeck holds it for the person).
 export type HeldMessage = {
   readonly threadId: string
   readonly from: { readonly handle: string; readonly title: string }
   readonly to: { readonly handle: string; readonly title: string }
   readonly text: string
   readonly hop: number
-  readonly allowed: number
+  readonly heldFor: "loop" | null
 }
 
 // A line of the agent's tool calls as Novadeck read them, and how many times in a row it

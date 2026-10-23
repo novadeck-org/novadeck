@@ -19,8 +19,9 @@ const listing = (delivery: DeliveryState, state?: MessageState): TerminalMessage
             id: "thread-1",
             peer: "moth",
             hops: 1,
-            allowed: 8,
+            idle: 0,
             held: false,
+            heldFor: null,
             stopped: false,
             messages: [
               {

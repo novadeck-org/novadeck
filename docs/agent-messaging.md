@@ -1362,8 +1362,8 @@ output, not that the model acted on it.
   worked when, in that window, it made a call that counts as work (below), root or
   subagent; had, at any moment of it (running at its start, or started in it), a
   subagent running that hadn't aborted (the activity's subagents; for Antigravity, whose
-  hooks name none, its status line's count), a background task (the activity's
-  `background`; not one a waiting call started, as a `sleep` run in the background) or a harness request waiting on the person (a permission or dialog, the
+  hooks name none, its status line's count), a background task a working call started (one a `sleep` run in the background
+  doesn't count) or a harness request waiting on the person (a permission or dialog, the
   activity's `pending`; an `ask` of its own open in the Inbox doesn't count, as two
   agents trading "waiting on the user" is what a hold is for); or ran one turn through the
   whole window without any call of its reporting, as a long command or a long think
@@ -1441,9 +1441,10 @@ output, not that the model acted on it.
   Claude Code `Bash` run beside the `send`, or one late past its hook's limit) counts
   toward the next message instead; at the sixth idle message this can hold a thread one
   message early, which the person's release undoes. Where Novadeck can't know what
-  either end did in the window, the message counts as work: an end whose harness
-  registration left out its tool hook (Antigravity where its `PreToolUse` isn't; the
-  files written say so, and the session carries it), an end whose session hasn't bound,
+  either end did in the window, the message counts as work: an end whose session hasn't bound, or hasn't reported any call yet (Novadeck's own
+  `send` is one, so a session whose harness reports calls is judged from its second
+  message, and one whose harness doesn't, as Antigravity where its `PreToolUse` isn't
+  registered, never is),
   and the first message of each thread after a runner restart (the count is kept in
   memory; only the hold is stored). The coverage rests on the versions probed; the
   harness coverage probes check it again on each harness update, as a release that

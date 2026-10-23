@@ -37,7 +37,7 @@ const held: InboxContent = {
     to: { handle: "fox", title: "B" },
     text: "Hi",
     hop: 3,
-    allowed: 3,
+    heldFor: "loop",
   },
 }
 

@@ -86,6 +86,8 @@ type Sent = {
   readonly state: string
   readonly route?: string
   readonly held?: string
+  // What a message held for release tells its sender of why.
+  readonly why?: string
   readonly gone?: readonly Gone[]
   // The runner's words on the caller's messages held long behind their recipient's hold.
   readonly holds?: readonly string[]
@@ -520,8 +522,9 @@ const send: Tool<Sent> = {
         : answer.state === "held"
           ? message +
             (answer.held === "release"
-              ? " is held: this thread has gone back and forth as often as it may, so it " +
-                "waits for the user to release it in Novadeck."
+              ? answer.why
+                ? " is held: " + answer.why
+                : " is held: it waits for the user to release its thread in Novadeck."
               : " is held: the user paused messaging in Novadeck, and it goes once they resume it.")
           : message + " was sent moments ago already; it is " + answer.state + ".",
     ]

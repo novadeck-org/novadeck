@@ -14,6 +14,8 @@ import {
 } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
 
+import { kindOf } from "./tools.js"
+
 /**
  * Codex's hooks, as normalized facts.
  *
@@ -126,6 +128,7 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
               path,
             }))
           : []),
+        { type: "tool-called", ...base, actor, toolName: tool, kind: kindOf(tool, input) },
       ]
     default:
       return []
