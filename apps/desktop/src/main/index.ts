@@ -24,13 +24,17 @@ import { pagesPartition } from "@novadeck/protocol/pages"
 import { startHttpServer, type HttpServer } from "@novadeck/runner/http"
 import {
   attachPage,
+  countSignIns,
   guardPage,
   lockPagesSession,
   pagesSession,
+  passkeyLabels,
+  pickPasskeys,
   picturePage,
   watchPageRequests,
   webAddress,
 } from "@novadeck/viewers/browser/host"
+import { pageSignInChannel } from "@novadeck/viewers/browser/sign-in"
 import { pageRequestChannel } from "@novadeck/viewers/browser/trouble"
 import { brokerPorts } from "@novadeck/wire/electron"
 import {
@@ -1685,29 +1689,67 @@ app.whenReady().then(() => {
       : undefined,
   )
   lockPagesSession((partition) => session.fromPartition(partition), pagesPartition)
+  const pages = session.fromPartition(pagesSession(pagesPartition))
+  // A page signing in with a passkey it doesn't name, when more than one fits.
+  pickPasskeys(pages, async ({ relyingPartyId, accounts, frame }) => {
+    // A page view's window is its host's; a sign-in window's is its own.
+    const contents = frame ? webContents.fromFrame(frame) : undefined
+    const owner = contents?.hostWebContents ?? contents
+    const window = owner ? BrowserWindow.fromWebContents(owner) : null
+    const labels = passkeyLabels(accounts)
+    const options = {
+      type: "question" as const,
+      message: `Which passkey do you sign in to ${relyingPartyId} with?`,
+      buttons: [...labels, "Cancel"],
+      cancelId: labels.length,
+      noLink: true,
+    }
+    const { response } = await (window
+      ? dialog.showMessageBox(window, options)
+      : dialog.showMessageBox(options))
+    return accounts[response]?.credentialId
+  })
   // The app's page hears of the requests a page in its view sees fail, to tell the agent.
-  const pageRequests = watchPageRequests(
-    session.fromPartition(pagesSession(pagesPartition)),
-    (contentsId, failure) => {
-      const host = webContents.fromId(contentsId)?.hostWebContents
-      if (!host || host.isDestroyed()) return
-      // A window closing or reloading meanwhile must not throw into the main process.
-      try {
-        host.send(pageRequestChannel, contentsId, failure)
-      } catch (error) {
-        log.warn("pages.request-send-failed", "A failed page request was not sent to its window.", {
-          err: error,
-        })
-      }
-    },
-  )
+  const pageRequests = watchPageRequests(pages, (contentsId, failure) => {
+    const host = webContents.fromId(contentsId)?.hostWebContents
+    if (!host || host.isDestroyed()) return
+    // A window closing or reloading meanwhile must not throw into the main process.
+    try {
+      host.send(pageRequestChannel, contentsId, failure)
+    } catch (error) {
+      log.warn("pages.request-send-failed", "A failed page request was not sent to its window.", {
+        err: error,
+      })
+    }
+  })
   app.on("web-contents-created", (_event, contents) => {
     if (contents.getType() === "webview") {
-      guardPage(contents, (url) => shell.openExternal(url))
+      guardPage(contents, (url) => shell.openExternal(url), pagesPartition)
       const { id } = contents
       contents.once("destroyed", () => pageRequests.forget(id))
+      // Its viewer keeps the page live while a sign-in window of it is open, as the window
+      // closes with the page.
+      countSignIns(contents, (count) => {
+        // A view that went with its windows open is gone before they close: nothing to tell.
+        if (contents.isDestroyed()) return
+        try {
+          const host = contents.hostWebContents
+          if (!host || host.isDestroyed()) return
+          host.send(pageSignInChannel, id, count)
+        } catch (error) {
+          log.warn("pages.sign-in-send-failed", "A sign-in window count was not sent.", {
+            err: error,
+          })
+        }
+      })
+      // Its sign-in windows' failed requests are counted too, under their own ids.
+      contents.on("did-create-window", (window) => {
+        const popup = window.webContents.id
+        window.webContents.once("destroyed", () => pageRequests.forget(popup))
+      })
     }
-    if (contents.getType() === "window") watchPage(contents)
+    // A page's sign-in window (see `guardPage`) is a page's, not the app's.
+    if (contents.getType() === "window" && contents.session !== pages) watchPage(contents)
   })
 
   void launch().catch((error: unknown) => {

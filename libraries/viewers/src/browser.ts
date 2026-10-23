@@ -1,4 +1,5 @@
 import { webAddress } from "./address.js"
+import { pageSignInMessage, parsePageSignIn } from "./browser-sign-in.js"
 import {
   maxTroubles,
   originOf,
@@ -9,13 +10,14 @@ import {
 import type { Mount, Viewer, ViewerState } from "./index.js"
 
 // A web page. Live, it loads in Electron's <webview>, which the host's lockdown
-// (./browser-host.ts) keeps to http(s), in memory, with no Node and no permissions; the
-// viewer reports where it is and how its load went, and goes back, forward or reloads
-// when asked. Shown again, it loads afresh and brings the element the show names into
-// view. A live page can rest, as its host says while the person isn't at it: it shows a
-// picture of itself in its place, and its view goes, so drawing it costs nothing; woken,
-// it loads again under the picture, where the person had scrolled, and the picture fades
-// once it's there. Where live pages aren't available (a plain browser, a demo), it shows a
+// (./browser-host.ts) keeps to http(s), on the pages' session that keeps sign-ins, with no
+// Node and no permissions; the viewer reports where it is and how its load went, and goes
+// back, forward or reloads when asked. Shown again, it loads afresh and brings the element
+// the show names into view. A live page can rest, as its host says while the person isn't
+// at it: it shows a picture of itself in its place, and its view goes, so drawing it costs
+// nothing; woken, it loads again under the picture, where the person had scrolled, and the
+// picture fades once it's there. While the page has a sign-in window open, which closes
+// with its view, it stays live instead, and rests once the last one closes. Where live pages aren't available (a plain browser, a demo), it shows a
 // snapshot of the page, or nothing, for the host to say why. Its looks are browser.css's.
 
 export type { Trouble }
@@ -397,6 +399,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   let wanted = startAwake ?? true
   // A rest under way, waiting for its picture: a wake or a later rest drops it.
   let resting: object | undefined
+  // The sign-in windows the live page has open, as the desktop host tells: it stays live
+  // while there are any, as its view going would close them.
+  let signingIn = 0
   // Until its first load is done.
   let first = true
   // Moving to the shown fragment, whose scroll waits for the move.
@@ -478,6 +483,18 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     tellHeld()
   }
   if (reportTrouble) hostWindow?.addEventListener("message", requested)
+  // The desktop host's word of how many sign-in windows this page has open, through the
+  // app's preload: from the app's own page, naming this view.
+  const signIns = (event: MessageEvent): void => {
+    const { data } = event
+    if (event.source !== hostWindow || data?.type !== pageSignInMessage) return
+    const notice = parsePageSignIn(data)
+    if (!notice || notice.contentsId !== attached(() => page?.getWebContentsId())) return
+    signingIn = notice.open
+    // The last one closed while its host wanted it at rest: it rests now.
+    if (signingIn === 0 && !wanted) rest()
+  }
+  hostWindow?.addEventListener("message", signIns)
 
   const moved = (): void => {
     attached(() => {
@@ -673,6 +690,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     page = made
     first = true
     moving = false
+    // A new view has none open: an earlier view's went with it.
+    signingIn = 0
     for (const [type, listener] of listeners) made.addEventListener(type, listener)
     root.append(made)
     report("loading")
@@ -697,14 +716,14 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   // that didn't load stays, to say so.
   const rest = (): void => {
     const view = page
-    if (!view || !take || load === "failed") return
+    if (!view || !take || load === "failed" || signingIn > 0) return
     // Mid-load, it's pictured once loaded, unless a picture it has stands in meanwhile; a
     // load after its first, as a show's, then goes again, afresh, on waking. Out of sight, as
     // where its host keeps it hidden, it draws nothing to picture: the one it has stands in.
     const hidden = !shownNow()
     if (load === "loading" || hidden) {
       const standIn = (): void => {
-        if (!cover()) return
+        if (signingIn > 0 || !cover()) return
         if (load === "loading" && !first) stale = true
         then = undefined
         close()
@@ -793,7 +812,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     // Where images can't say they've decoded, as outside a browser, at once.
     void (image.decode?.() ?? Promise.resolve()).catch(nothing).then(() => {
       // Woken meanwhile, or a load began, as a show's: it stays, and rests once it's done.
-      if (page === view && !wanted && load === "ready") close()
+      if (page === view && !wanted && load === "ready" && signingIn === 0) close()
     })
   }
   // The person at the live page: its picture is of before. Gone from it: a picture of it as
@@ -887,6 +906,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     pictured: () => picture !== undefined && !used,
     destroy: () => {
       hostWindow?.removeEventListener("message", requested)
+      hostWindow?.removeEventListener("message", signIns)
       clearTimeout(fading)
       clearTimeout(freshening)
       resting = undefined

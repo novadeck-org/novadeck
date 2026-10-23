@@ -536,13 +536,17 @@ with every safety check again at that time:
   refused. The desktop app loads them live in the pane, in Electron's `<webview>`,
   which lays out with the pane, keeps Novadeck's menus and cards above it, and lets a
   later highlight mode reach into the page. Whatever the element asks for, the host
-  gives each one no preload or Node, a sandbox, and the `novadeck-pages` session, in
-  memory, where every permission and download is refused and no file loads. Its own
-  links and redirects go only to http(s) addresses. A window it opens goes to the
-  person's browser only right after they clicked or typed in it, one each, so a page
-  can't open tabs on its own; a frame from another site in the page can take that one
-  window, as Electron doesn't say which frame opened it
-  (`apps/desktop/src/main/pages.ts`). Where the host can't, as the web version, a
+  gives each one no preload or Node, a sandbox, and the `persist:novadeck-pages`
+  session, kept on disk apart from the app's so a sign-in lasts in every page and
+  after a restart, where every permission and download is refused and no file loads.
+  Its own links and redirects go only to http(s) addresses. A window it opens goes
+  through only right after the person clicked or typed in it, one each, so a page can't
+  open tabs on its own: a popup the page sized, as a sign-in's, opens in a window of the
+  app on the same session, guarded the same way, so the sign-in lands there; anything
+  else opens in the person's browser. A frame from another site in the page can take
+  that one window, as Electron doesn't say which frame opened it. A passkey sign-in
+  that names no passkey asks the person which, when more than one fits
+  (`libraries/viewers/src/browser-host.ts`). Where the host can't, as the web version, a
   page is a link to open in the browser. Each show of a page loads it afresh: the
   page's content carries `shown`, its item's version, and a later one reloads it, past
   the cache so changed styles and scripts show too, or loads the address it was shown at
