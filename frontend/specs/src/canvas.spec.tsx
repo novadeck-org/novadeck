@@ -753,6 +753,38 @@ describe("Canvas", () => {
       await expect.element(terminal("Checkout review")).toBeVisible()
       await expect.element(terminal("Checkout implementation")).not.toBeInTheDocument()
     })
+
+    it("comes back to the camera it left with Open in Canvas", async () => {
+      await openCanvas()
+      await dragBackground({ x: 150, y: 100 }, { x: 120, y: 60 })
+      const before = await settled(() => boxesOf(names))
+
+      await terminal("Checkout review")
+        .getByRole("button", { name: labelled("Focus ", "Checkout review") })
+        .click()
+      await expect.element(view("Focus")).toBeChecked()
+      await page.getByRole("button", { name: "Open in Canvas" }).click()
+
+      await expect.element(view("Canvas")).toBeChecked()
+      const after = await settled(() => boxesOf(names))
+      for (const name of names) expect(sameBox(after[name]!, before[name]!)).toBe(true)
+    })
+
+    it("reveals a terminal out of sight that Focus moved to", async () => {
+      await openCanvas()
+      await pushTestsOffScreen("Checkout implementation")
+      await terminal("Checkout implementation")
+        .getByRole("button", { name: labelled("Focus ", "Checkout implementation") })
+        .click()
+      await expect.element(view("Focus")).toBeChecked()
+      await terminalTab("Tests").click()
+      await expectSelected("Tests")
+
+      await page.getByRole("button", { name: "Open in Canvas" }).click()
+
+      await expect.element(view("Canvas")).toBeChecked()
+      await expect.poll(() => insideView(boxOf(terminal("Tests")))).toBe(true)
+    })
   })
 
   context("when creating a terminal with New terminal while the view has free room", () => {
