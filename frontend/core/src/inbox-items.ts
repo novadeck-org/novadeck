@@ -73,6 +73,13 @@ type Where = {
   readonly terminal: TerminalMetadata
 }
 
+const whereOf = (workspace: Workspace): Where[] =>
+  workspace.projects.flatMap((project) =>
+    project.history.flatMap((session) =>
+      session.state.roster.terminals.map((terminal) => ({ project, session, terminal })),
+    ),
+  )
+
 const agentOf = (terminal: TerminalMetadata): AgentName | null =>
   terminal.state === "running" && isAgentProgram(terminal.process)
     ? (terminal.process as AgentName)
@@ -166,6 +173,18 @@ const reportsToLead = ({ project, session, terminal }: Where, where: readonly Wh
       agentOf(each.terminal) !== null,
   )
 
+// Whether the terminal `terminalId` of the session `context` (`${projectId}/${sessionId}`)
+// reports to a lead whose agent runs, as the Inbox counts: for what else tells the person of
+// that terminal's finish, so it should not.
+export const leadHearsOf = (workspace: Workspace, context: string, terminalId: string): boolean => {
+  const where = whereOf(workspace)
+  const here = where.find(
+    (each) =>
+      `${each.project.id}/${each.session.id}` === context && each.terminal.id === terminalId,
+  )
+  return !!here && reportsToLead(here, where)
+}
+
 // Each terminal's candidate items, before only the most urgent is kept.
 const candidates = (
   { unread, mail, requests, now, caseless, longHoldMs }: InboxInputs,
@@ -254,11 +273,7 @@ const candidates = (
 // Every item the Inbox now holds, the longest waiting among the most urgent first: one per
 // terminal, the most urgent of what it has, then the oldest; and each thread held for release.
 export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
-  const where: Where[] = inputs.workspace.projects.flatMap((project) =>
-    project.history.flatMap((session) =>
-      session.state.roster.terminals.map((terminal) => ({ project, session, terminal })),
-    ),
-  )
+  const where = whereOf(inputs.workspace)
   const all = where.flatMap((here) => candidates(inputs, here, where))
   for (const letter of inputs.letters) {
     const here = where.find(

@@ -20,6 +20,7 @@ import { connectBackend } from "./controller/backend-connection"
 import { WorkspaceServicesContext, type WorkspaceServices } from "./controller/context"
 import { domEffects } from "./controller/effects"
 import { dialogDepthOf, useRouteSync } from "./controller/useRouteSync"
+import { noticeBoard, watchInboxPings } from "./inbox-pings"
 import { nameFinished } from "./murmur-offer"
 import { watchPageFocus } from "./page-focus"
 import { availablePanels, resolveRoute, sourceShown } from "./routing"
@@ -169,15 +170,21 @@ export const WorkspaceProvider = ({
   useEffect(() => watchClosing(services.workspace, services.ui), [services])
   useEffect(() => watchChat(services.chat, services.workspace), [services])
   useEffect(() => watchPageFocus(services.ui, window), [services])
-  useEffect(
-    () =>
-      watchFinishes(services.workspace, services.ui, {
-        notify: services.backend.notices?.show,
-        unread: services.backend.murmur?.gist,
+  useEffect(() => {
+    const { backend, workspace, ui } = services
+    const board = noticeBoard(backend.notices)
+    const stops = [
+      watchFinishes(workspace, ui, {
+        notify: board && ((notice) => board.show("finish", notice)),
+        clear: board && ((terminalId) => board.close("finish", terminalId)),
+        unread: backend.murmur?.gist,
         finished: nameFinished(services),
       }),
-    [services],
-  )
+    ]
+    if (backend.inbox && (board || backend.badge))
+      stops.push(watchInboxPings(backend.inbox, ui, { board, badge: backend.badge }))
+    return () => stops.forEach((stop) => stop())
+  }, [services])
   useEffect(
     () =>
       services.backend.inbox?.bind?.({
@@ -187,7 +194,6 @@ export const WorkspaceProvider = ({
       }),
     [services],
   )
-  useEffect(() => services.backend.notices?.onClick(services.commands.reveal), [services])
   useRouteSync(sync, { location, navigationType, navigate })
   return (
     <WorkspaceServicesContext value={services}>
