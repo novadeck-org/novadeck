@@ -1454,9 +1454,9 @@ const launch = async (): Promise<void> => {
     }
     window.on("closed", reset)
     window.webContents.on("render-process-gone", reset)
-    window.webContents.on("did-start-navigation", (event) => {
-      if (event.isMainFrame && !event.isSameDocument) reset()
-    })
+    // Once a new page commits, as a reload: a navigation `will-navigate` cancels, as a file
+    // dropped on the window, leaves the page and what it showed.
+    window.webContents.on("did-navigate", reset)
   }
   registerNoticeIpc(ipcMain, {
     window: appWindow,

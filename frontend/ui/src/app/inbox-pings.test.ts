@@ -206,17 +206,44 @@ describe("pings for what needs the person", () => {
   })
 
   context("when it starts", () => {
-    it("takes the items already there as seen, and any that began before it", () => {
+    it("takes the items already there as seen, and any that began well before it", () => {
       const there = ask("a")
       const { set, shown, stop } = setup({ items: [there] })
       vi.advanceTimersByTime(5000)
       expect(shown).toEqual([])
-      const old = ask("old", 9000)
+      const old = ask("old", 4000)
       set([there, old])
       vi.advanceTimersByTime(5000)
       expect(shown).toEqual([])
       set([there, old, request("b", "Edit", "src/a.ts", 15_000)])
       vi.advanceTimersByTime(2000)
+      expect(shown).toHaveLength(1)
+      stop()
+    })
+  })
+
+  context("when it started just after a request was asked", () => {
+    it("pings for the request once its item shows", () => {
+      const { set, shown, stop } = setup()
+      set([request("a", "Bash", "ls", 8000)])
+      vi.advanceTimersByTime(2000)
+      expect(shown).toHaveLength(1)
+      stop()
+    })
+  })
+
+  context("when an item leaves before it pinged and comes back", () => {
+    it("waits out its whole grace again", () => {
+      const { set, shown, stop } = setup()
+      const item = ask("a")
+      set([item])
+      vi.advanceTimersByTime(1000)
+      set([])
+      vi.advanceTimersByTime(500)
+      set([item])
+      vi.advanceTimersByTime(1999)
+      expect(shown).toEqual([])
+      vi.advanceTimersByTime(1)
       expect(shown).toHaveLength(1)
       stop()
     })

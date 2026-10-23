@@ -178,6 +178,23 @@ describe("showing notices as the system's notifications", () => {
     expect(made.map(({ closed }) => closed)).toEqual([true, false, false])
   })
 
+  it("keeps one whose toast timed out, so it can still be taken away", () => {
+    const { show, close, made } = notifying()
+    show("window", notice)
+    made[0]!.emit("close", { reason: "timedOut" })
+    close(notice.id)
+    expect(made[0]!.closed).toBe(true)
+  })
+
+  it("forgets one the person dismissed", () => {
+    const { show, close, made } = notifying()
+    show("window", notice)
+    made[0]!.emit("close", { reason: "userCanceled" })
+    made[0]!.closed = false
+    close(notice.id)
+    expect(made[0]!.closed).toBe(false)
+  })
+
   it("closes every one still showing, as when the page that showed them goes", () => {
     const { show, closeAll, made } = notifying()
     show("window", notice)

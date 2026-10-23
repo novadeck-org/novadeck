@@ -11,6 +11,10 @@ import type { UiStore } from "./ui-store"
 // 3 s before it becomes an item.)
 export const needGraceMs = 2000
 
+// How long before this started an item may have begun and still be new: a request becomes
+// an item only once its dialog shows, a few seconds after it was asked.
+const launchSlackMs = 5000
+
 // The most the icon's count says; the host takes 0 to 999.
 const maxBadge = 999
 
@@ -115,7 +119,7 @@ const onWindows = (): boolean => navigator.platform.startsWith("Win")
 // the bell counts) pings once, after `graceMs` and only if it still stands and the page
 // still hasn't their focus, where they want it (`notifyNeeds`); an item that pinged and then
 // leaves the Inbox for `graceMs` takes its notification back. Items there when this starts,
-// or that began before it, are taken as seen. The app icon's `badge` follows the bell's
+// or that began well before it, are taken as seen. The app icon's `badge` follows the bell's
 // count, drawn as an image where `image` says the platform takes one, and clears when this
 // stops. Returns the stop.
 export const watchInboxPings = (
@@ -140,7 +144,8 @@ export const watchInboxPings = (
   // The pinged items gone from the Inbox, whose notification goes once they've stayed gone
   // for `graceMs`: one that drops out of a recompute and comes back keeps its own.
   const leaving = new Map<string, ReturnType<typeof setTimeout>>()
-  const timers = new Set<ReturnType<typeof setTimeout>>()
+  // The grace each new item waits out, by key.
+  const timers = new Map<string, ReturnType<typeof setTimeout>>()
   let counted: number | undefined
   const waitingKeys = (): Set<string> =>
     new Set(needing(inbox.state.getSnapshot().items).map(keyOf))
@@ -172,19 +177,27 @@ export const watchInboxPings = (
           }, graceMs),
         )
     }
-    // One that left before it pinged is new again if it comes back.
-    for (const key of seen) if (!keys.has(key) && !pinged.has(key)) seen.delete(key)
+    // One that left before it pinged is new again if it comes back, its grace begun anew.
+    for (const key of seen)
+      if (!keys.has(key) && !pinged.has(key)) {
+        seen.delete(key)
+        clearTimeout(timers.get(key))
+        timers.delete(key)
+      }
     for (const item of waiting) {
       const key = keyOf(item)
       if (seen.has(key)) continue
       seen.add(key)
-      // One that began before this started, as the Inbox fills in after launch, isn't new.
-      if (item.at < startedAt) continue
-      const timer = setTimeout(() => {
-        timers.delete(timer)
-        ping(key)
-      }, graceMs)
-      timers.add(timer)
+      // One that began well before this started, as the Inbox fills in after launch, isn't
+      // new; a request asked just before, whose dialog it waited on, is.
+      if (item.at < startedAt - launchSlackMs) continue
+      timers.set(
+        key,
+        setTimeout(() => {
+          timers.delete(key)
+          ping(key)
+        }, graceMs),
+      )
     }
     if (badge && counted !== count) {
       counted = count

@@ -83,7 +83,8 @@ export const notificationText = (
 
 /** What showing a notification takes of Electron's `Notification`. */
 export type NotificationLike = {
-  on(event: "click" | "close", listener: () => void): unknown
+  on(event: "click", listener: () => void): unknown
+  on(event: "close", listener: (details?: { readonly reason?: string }) => void): unknown
   show(): void
   close(): void
 }
@@ -121,7 +122,11 @@ export const showNotices = <Window>({
       forget()
       clicked(window, id)
     })
-    notification.on("close", forget)
+    // A notification whose toast timed out, on Windows, waits on in the Action Center,
+    // where only its object can still take it away: it is kept.
+    notification.on("close", (details) => {
+      if (details?.reason !== "timedOut") forget()
+    })
     showing.set(id, notification)
     notification.show()
   }
