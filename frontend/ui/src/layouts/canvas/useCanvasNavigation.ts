@@ -9,7 +9,7 @@ import {
 } from "@xyflow/react"
 import { useEffect, useRef, type RefObject } from "react"
 
-import { centerOf, fitOptions } from "./geometry"
+import { centerOf, chromeScaleAt, fitOptions, terminalHeaderHeight } from "./geometry"
 import type { CanvasProps, CanvasViewport, TerminalNode } from "./types"
 import type { createCanvasVisit } from "./visit"
 
@@ -36,6 +36,25 @@ type NavigationProps = Pick<
   takeEntrySheets: () => Map<string, { right: number; height: number }>
   // Flies the camera in to a terminal, as `flyOnNavigate` asks.
   flyIn: (id: string) => void
+}
+
+// Whether a node's Focus button may be on screen under `viewport`. It sits beside Close at
+// the header's right end, 0.6 to 1.6 header-heights in from it in either header size; any of
+// that span on screen, at the middle of the header's height, counts.
+const focusButtonInView = (
+  node: TerminalNode,
+  viewport: CanvasViewport,
+  container: HTMLElement,
+): boolean => {
+  const right = (node.position.x + (node.width ?? 550)) * viewport.zoom + viewport.x
+  const top = node.position.y * viewport.zoom + viewport.y
+  const header = terminalHeaderHeight * chromeScaleAt(viewport.zoom) * viewport.zoom
+  return (
+    right - header * 0.6 > 0 &&
+    right - header * 1.6 < container.clientWidth &&
+    top + header / 2 >= 0 &&
+    top + header / 2 <= container.clientHeight
+  )
 }
 
 // Sidebar navigation and new-terminal revelation preserve zoom unless fitting is requested.
@@ -141,9 +160,10 @@ export const useCanvasNavigation = ({
   ])
 
   // Canvas opened from another view frames every visible window, however its camera was
-  // left; a terminal opened into it is revealed instead. Otherwise, as on returning to a
-  // session, it keeps the camera it was left with. A terminal gone to from outside the
-  // canvas is flown in to from there, once its windows are measured (above).
+  // left; a terminal opened into it is revealed instead, unless its Focus button is in sight.
+  // Otherwise, as on returning to a session, it keeps the camera it was left with. A terminal
+  // gone to from outside the canvas is flown in to from there, once its windows are measured
+  // (above).
   const initializeViewport = (instance: ReactFlowInstance<TerminalNode>) => {
     // Taken whichever camera this sets, or keeps: from here, a sheet opening frames itself.
     const sheets = takeEntrySheets()
@@ -153,8 +173,11 @@ export const useCanvasNavigation = ({
     const selectedNode = navigation && !framing ? instance.getNode(selected) : undefined
     const target = selectedNode?.hidden ? undefined : selectedNode
     if (initialViewport && target && !fitOnNavigate) {
-      const center = centerOf(target)
       lastNavigation.current = navigation
+      // One whose Focus button is still in sight keeps the camera it was left with, as on
+      // coming back from Focus to where it was opened from.
+      if (focusButtonInView(target, initialViewport, container.current)) return
+      const center = centerOf(target)
       void instance.setCenter(center.x, center.y, { zoom: initialViewport.zoom })
       return
     }
