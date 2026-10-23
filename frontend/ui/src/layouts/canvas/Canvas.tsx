@@ -357,6 +357,26 @@ const TerminalCanvas = ({
         onScreen,
         onFlyTo: () => flyTo(terminal),
         onReveal: ({ right, height }) => {
+          // On entry every open sheet reveals itself in turn: the selected window's own
+          // sheet keeps the window on top, as it was before.
+          const entering = entrySheets.current
+          if (entering && id !== selectedNow.current && entering.has(selectedNow.current)) {
+            entering.set(id, { right, height })
+            return
+          }
+          // Raised even when the camera waits: nothing may cover a sheet it frames.
+          const before = revealed.current?.id
+          revealed.current = { id, selected: selectedNow.current }
+          const top = stacking.current.length
+          setNodes((previous) =>
+            previous.map((other) =>
+              other.id === id
+                ? { ...other, zIndex: top }
+                : other.id === before
+                  ? { ...other, zIndex: Math.max(0, stacking.current.indexOf(other.id)) }
+                  : other,
+            ),
+          )
           // A sheet already open as Canvas mounts waits for the first camera, which fits it.
           if (entrySheets.current) {
             entrySheets.current.set(id, { right, height })
@@ -364,11 +384,6 @@ const TerminalCanvas = ({
           }
           const node = getNode(id)
           if (!node) return
-          revealed.current = { id, selected: selectedNow.current }
-          const top = stacking.current.length
-          setNodes((previous) =>
-            previous.map((other) => (other.id === id ? { ...other, zIndex: top } : other)),
-          )
           void fitBounds(
             {
               x: node.position.x,
