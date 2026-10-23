@@ -546,10 +546,11 @@
 .mail-led-glow {
   fill: color-mix(in oklab, var(--_led) 35%, var(--_glint));
 }
-/* A word given again: its number in the corner, in its hue. */
+/* A word given again: its number in the corner, in its hue; the lower left one, as the
+   program's mark takes the right. */
 .mail-av-n {
   position: absolute;
-  right: -3px;
+  left: -3px;
   bottom: -3px;
   z-index: 1;
   min-width: calc(var(--av) * 0.42);

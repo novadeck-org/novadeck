@@ -157,7 +157,7 @@ describe("A terminal's messages", () => {
           () => bubbles(chat).find((each) => each.getAttribute("data-side") === "out")?.textContent,
         )
         .toMatch(/Should the order summary show tax.*After shipping, same as the cart\./)
-      await chat.getByRole("button", { name: "Answer" }).click()
+      await chat.getByRole("button", { name: "Answer: Where should the empty cart link?" }).click()
       await expect
         .element(page.getByRole("heading", { name: "Where should the empty cart link?" }))
         .toBeVisible()

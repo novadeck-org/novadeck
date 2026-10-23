@@ -84,13 +84,25 @@ export const useMail = (messages: Messages | undefined, key: CompanionKey): Mail
 // What the messages' views know of the session around the terminal: the other terminals
 // by handle, and the ways out of the pane, to another terminal and to the Inbox item a
 // letter waits in.
+// The peers are a store, which only the views that draw them subscribe to, so a terminal
+// whose pane is shut never renders again as an agent starts or stops working.
 export type MailLinks = {
-  readonly peer: (handle: string) => MailPeer | undefined
+  readonly peers: Store<Readonly<Record<string, MailPeer>>>
   readonly goTo: (terminalId: string) => void
   readonly answer: (letter: AgentMessage) => void
 }
 
-export const noLinks: MailLinks = { peer: () => undefined, goTo: () => {}, answer: () => {} }
+const nobody: Readonly<Record<string, MailPeer>> = {}
+
+export const noLinks: MailLinks = {
+  peers: { getSnapshot: () => nobody, subscribe: () => () => {} },
+  goTo: () => {},
+  answer: () => {},
+}
+
+// The peers as a view draws them, by handle.
+export const usePeers = (links: MailLinks): Readonly<Record<string, MailPeer>> =>
+  useSyncExternalStore(links.peers.subscribe, links.peers.getSnapshot)
 
 // How many messages a terminal's threads hold.
 const messageCount = (mail: TerminalMail | undefined): number =>

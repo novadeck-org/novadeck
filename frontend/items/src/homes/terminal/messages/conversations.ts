@@ -136,7 +136,8 @@ const same = (a: AgentMessage, b: AgentMessage): boolean =>
   a.from === b.from && a.text.replace(/\d+/g, "#") === b.text.replace(/\d+/g, "#")
 
 // Rounds of two messages that come again: three or more of the same round fold, all but the
-// last, which stays in full, so a loop shows as one.
+// last, which stays in full, so a loop shows as one; never over a message still on its way
+// or lost.
 type Run =
   | { readonly message: AgentMessage }
   | { readonly fold: readonly AgentMessage[]; readonly rounds: number }
@@ -152,9 +153,11 @@ export const foldRounds = (messages: readonly AgentMessage[]): readonly Run[] =>
       same(messages[at + 2 * rounds + 1]!, messages[at + 1]!)
     )
       rounds += 1
-    if (rounds >= 3) {
-      runs.push({ fold: messages.slice(at, at + 2 * (rounds - 1)), rounds: rounds - 1 })
-      at += 2 * (rounds - 1)
+    const fold = messages.slice(at, at + 2 * (rounds - 1))
+    // A fold says nothing of where its messages are, so only delivered ones fold.
+    if (rounds >= 3 && fold.every((message) => message.state === "delivered")) {
+      runs.push({ fold, rounds: rounds - 1 })
+      at += fold.length
       continue
     }
     runs.push({ message: messages[at]! })

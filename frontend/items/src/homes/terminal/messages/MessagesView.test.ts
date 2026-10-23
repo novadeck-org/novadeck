@@ -68,7 +68,7 @@ const mount = (
     seen: (conversation, at) => did.seen.push([conversation, at]),
   }
   const links: MailLinks = {
-    peer: (handle) => peers[handle],
+    peers: { getSnapshot: () => peers, subscribe: () => () => {} },
     goTo: (terminalId) => did.goTo.push(terminalId),
     answer: (letter) => did.answer.push(letter.id),
   }

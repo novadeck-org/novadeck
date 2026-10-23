@@ -3,7 +3,16 @@ import { waitsText, type MailPeer } from "@novadeck/core/messages"
 import { useShown } from "@novadeck/toolkit/shown"
 import { Switch } from "@novadeck/toolkit/Switch"
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react"
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react"
 
 import { ArtifactMeta } from "../../../ArtifactViewer"
 import { Avatar, type AvatarLive } from "./avatars/Avatar"
@@ -23,7 +32,7 @@ import {
   type Corner,
   type Note,
 } from "./conversations"
-import type { MailHandle, MailLinks } from "./mail"
+import { usePeers, type MailHandle, type MailLinks } from "./mail"
 
 const sameDay = (a: Date, b: Date): boolean => a.toDateString() === b.toDateString()
 
@@ -54,6 +63,11 @@ const rowTime = (at: number): string => {
 // The exact time, on hover.
 const exact = (at: number): string =>
   new Date(at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
+
+const onVisibility = (listener: () => void): (() => void) => {
+  document.addEventListener("visibilitychange", listener)
+  return () => document.removeEventListener("visibilitychange", listener)
+}
 
 const party = (handle: string): string => (handle === "you" ? "You" : handleText(handle))
 
@@ -175,10 +189,12 @@ const Row = ({
 const Bubble = ({
   entry,
   conversation,
+  peers,
   links,
 }: {
   entry: Extract<ChatEntry, { kind: "message" }>
   conversation: Conversation
+  peers: Readonly<Record<string, MailPeer>>
   links: MailLinks
 }): React.JSX.Element => {
   const { message, side, grouped, note } = entry
@@ -202,7 +218,7 @@ const Bubble = ({
             <Avatar
               handle={message.from}
               size={22}
-              live={message.from === "you" ? "idle" : liveOf(links.peer(message.from))}
+              live={message.from === "you" ? "idle" : liveOf(peers[message.from])}
             />
           )}
         </span>
@@ -225,7 +241,12 @@ const Bubble = ({
           <p className="mail-text">{message.text}</p>
           {open && (
             <div className="mail-answer">
-              <button type="button" className="button" onClick={() => links.answer(message)}>
+              <button
+                type="button"
+                className="button"
+                aria-label={`Answer: ${message.text.split("\n")[0]}`}
+                onClick={() => links.answer(message)}
+              >
                 Answer
               </button>
             </div>
@@ -248,11 +269,13 @@ const Bubble = ({
 const ChatEntryItem = ({
   entry,
   conversation,
+  peers,
   links,
   onUnfold,
 }: {
   entry: ChatEntry
   conversation: Conversation
+  peers: Readonly<Record<string, MailPeer>>
   links: MailLinks
   onUnfold: () => void
 }): React.JSX.Element => {
@@ -284,7 +307,7 @@ const ChatEntryItem = ({
         </li>
       )
     case "message":
-      return <Bubble entry={entry} conversation={conversation} links={links} />
+      return <Bubble entry={entry} conversation={conversation} peers={peers} links={links} />
   }
 }
 
@@ -294,16 +317,17 @@ const ChatEntryItem = ({
 const Chat = ({
   conversation,
   self,
-  peer,
+  peers,
   links,
   onBack,
 }: {
   conversation: Conversation
   self: string
-  peer: MailPeer | undefined
+  peers: Readonly<Record<string, MailPeer>>
   links: MailLinks
   onBack: () => void
 }): React.JSX.Element => {
+  const peer = peers[conversation.peer]
   const [unfolded, setUnfolded] = useState(false)
   const entries = useMemo(
     () => chatOf(conversation, self, unfolded),
@@ -380,8 +404,13 @@ const Chat = ({
               key={entry.key}
               entry={entry}
               conversation={conversation}
+              peers={peers}
               links={links}
-              onUnfold={() => setUnfolded(true)}
+              onUnfold={() => {
+                // The rounds open where they were, not under the chat's end.
+                atEnd.current = false
+                setUnfolded(true)
+              }}
             />
           ))}
         </ol>
@@ -420,13 +449,16 @@ export const MessagesView = ({
   )
   const opened = conversations.find((each) => each.key === open)
   const latest = opened ? latestOf(opened) : 0
+  const peers = usePeers(links)
   const { seen } = mail
   // What the person has open on screen, they've seen, up to its latest message: not one
-  // left open in a terminal kept out of sight, or in a window in the background.
+  // left open in a terminal kept out of sight, or in a window in the background, until it
+  // comes back.
   const shown = useShown()
+  const visible = useSyncExternalStore(onVisibility, () => !document.hidden)
   useEffect(() => {
-    if (shown && !document.hidden && open !== null && latest) seen(open, latest)
-  }, [shown, open, latest, seen])
+    if (shown && visible && open !== null && latest) seen(open, latest)
+  }, [shown, visible, open, latest, seen])
   // Back in the list, focus is on the row the person came from.
   useEffect(() => {
     if (opened || returnTo.current === null) return
@@ -477,7 +509,7 @@ export const MessagesView = ({
           key={opened.key}
           conversation={opened}
           self={mail.mail.handle}
-          peer={links.peer(opened.peer)}
+          peers={peers}
           links={links}
           onBack={() => {
             returnTo.current = opened.key
@@ -492,7 +524,7 @@ export const MessagesView = ({
                 <Row
                   key={conversation.key}
                   conversation={conversation}
-                  peer={links.peer(conversation.peer)}
+                  peer={peers[conversation.peer]}
                   seenAt={mail.seenAt(conversation.key)}
                   onOpen={() => setOpen(conversation.key)}
                 />

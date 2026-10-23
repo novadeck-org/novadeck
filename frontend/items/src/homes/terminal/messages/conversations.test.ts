@@ -239,6 +239,14 @@ describe("a chat", () => {
     ).toHaveLength(11)
   })
 
+  it("never folds over a message lost or still on its way", () => {
+    const rounds = Array.from({ length: 4 }, (_, round) => [
+      message("owl", "moth", round * 2, `Run ${round + 1}`, round === 1 ? { state: "gone" } : {}),
+      message("moth", "owl", round * 2 + 1, "Again"),
+    ]).flat()
+    expect(kinds(chatOf(owl(rounds), "moth", false))).toContain("in:Run 2(gone)")
+  })
+
   it("leaves two repeated rounds as they are", () => {
     const conversation = owl([
       message("owl", "moth", 0, "Run 1"),

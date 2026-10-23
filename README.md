@@ -262,13 +262,15 @@ terminal's tab says in its tooltip how many messages wait for its agent: queued,
 delivered or held, never those delivered, and whether a thread is held for your release
 or messaging is paused. A terminal that has had messages gets a **Messages** icon in its
 taskbar, with that count, which opens its
-threads in the companion pane: one per peer, latest first, each message with its
-direction, time, state and the agent's text exactly as written, never formatted. A held
-thread has **Release**, and the pane's header has **Pause all agents' messages**, one
-switch for every project and session. It pauses only messages between agents; your Inbox
-replies still go through. It all updates as messages move. The content preview
-(`pnpm dev:previews`) shows a thread between its two agents; the behaviour specs' demo
-(`?demo=messages`) has every state, a held thread and the pause.
+conversations in the companion pane: one per peer, each with its critter, and **You**
+for its letters to you, first while one waits on you, then latest first. Opening one
+reads it as a chat, the agent's text exactly as written, never formatted, saying where a
+message is only while it's on its way or lost. A thread held for your release is answered
+in the Inbox, not here. The pane's header has **Pause all agents' messages**, one switch
+for every project and session. It pauses only messages between agents; your Inbox replies
+still go through. It all updates as messages move. The content preview
+(`pnpm dev:previews`) shows a conversation between its two agents; the behaviour specs'
+demo (`?demo=messages`) has every state, letters to you and the pause.
 
 Right-click a window's header for the same menu as its sidebar tab: Rename, Reset to
 automatic for a name you gave, Dock in for an undocked window, and Close.

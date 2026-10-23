@@ -2,7 +2,7 @@ import type { ChatAnswer, ChatRequest } from "./conversation"
 import type { AgentName } from "./harnesses"
 import type { MailWaits } from "./messages"
 import { createStore, type Store } from "./store"
-import type { Workspace } from "./types"
+import type { TerminalKey, Workspace } from "./types"
 
 // The Inbox: everything across the workspace that an agent, or Novadeck about an agent,
 // puts in front of the person, one item per terminal. The person reads and answers it
@@ -235,14 +235,19 @@ export const ordered = (items: readonly InboxItem[]): InboxItem[] =>
 
 // The item a letter in a terminal's messages waits in: the one it came from, by id, as the
 // runner lists a letter as `m-` and its item's id without dashes; else, as one row a
-// terminal shows its most urgent item, the item its terminal shows.
+// terminal shows its most urgent item, the item its terminal (`key`) shows.
 export const letterItem = (
   items: readonly InboxItem[],
   letter: { readonly id: string },
-  terminalId: string,
+  key: TerminalKey,
 ): InboxItem | undefined =>
   items.find((item) => item.id === letter.id || `m-${item.id.replaceAll("-", "")}` === letter.id) ??
-  items.find((item) => item.source.terminalId === terminalId)
+  items.find(
+    ({ source }) =>
+      source.projectId === key.projectId &&
+      source.workspaceSessionId === key.workspaceSessionId &&
+      source.terminalId === key.terminalId,
+  )
 
 // The Inbox of a backend that has none: it lists nothing, and has nothing to answer.
 export const noInbox: Inbox = {

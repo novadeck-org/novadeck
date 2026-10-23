@@ -193,7 +193,6 @@ export const WorkspaceTerminal = memo(
     const { projectId, workspaceSessionId } = useWorkspaceState(currentTarget, sameTarget)
     const chatContext = `${projectId}/${workspaceSessionId}`
     const terminalName = useWorkspaceState(terminalOrigins, shallowEqual)
-    const mailLinks = useMailLinks(terminalId)
     const lead = useWorkspaceState((workspace) => runningLeads(workspace)[terminalId], shallowEqual)
     const leads = useWorkspaceState(
       (workspace) => ledTerminals(workspace, terminalId),
@@ -211,6 +210,7 @@ export const WorkspaceTerminal = memo(
       () => ({ projectId, workspaceSessionId, terminalId }),
       [projectId, workspaceSessionId, terminalId],
     )
+    const mailLinks = useMailLinks(terminalKey)
     const onInputFocused = useCallback(() => setKeyboardFocus(null), [setKeyboardFocus])
     const { bar, items, fresh } = useTerminalBar(terminalId)
     const { icon: Icon, Body } = terminalProfile(terminal)
