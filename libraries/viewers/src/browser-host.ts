@@ -91,6 +91,12 @@ export const signInWindow = (partition: string): BrowserWindowConstructorOptions
   alwaysOnTop: false,
   skipTaskbar: false,
   fullscreen: false,
+  // macOS's own full screen, larger-than-screen windows and hiding from Mission Control.
+  simpleFullscreen: false,
+  enableLargerThanScreen: false,
+  hiddenInMissionControl: false,
+  hasShadow: true,
+  thickFrame: true,
   kiosk: false,
   closable: true,
   movable: true,
@@ -123,6 +129,10 @@ const unplaced = {
   y: undefined,
   maxWidth: undefined,
   maxHeight: undefined,
+  // A plain window, not a panel, toolbar or desktop one, with nothing see-through behind it.
+  type: undefined,
+  vibrancy: undefined,
+  backgroundMaterial: undefined,
 } as unknown as BrowserWindowConstructorOptions
 
 /**
