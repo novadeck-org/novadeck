@@ -349,7 +349,7 @@ describe("Zen dock", () => {
       await expect.poll(newTerminalOpacity).toBe(0.75)
     })
 
-    it("rests faint once used, though still unfolded", async () => {
+    it("stays at full strength while unfolded, though used", async () => {
       await openWorkspace()
       await enterZen().click()
 
@@ -357,7 +357,7 @@ describe("Zen dock", () => {
       await page.getByRole("region", { name: "grid view" }).hover()
 
       await expect.element(hideControls()).toHaveAttribute("aria-expanded", "true")
-      await expect.poll(newTerminalOpacity).toBe(0.75)
+      await expect.poll(newTerminalOpacity).toBe(1)
     })
   })
 
