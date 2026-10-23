@@ -315,7 +315,8 @@ reaching the agent). A reply already delivered stays delivered when the session 
 Trace outcomes are separate from delivery state, so a withdrawn question remains an
 already-received history entry.
 Ask and tell entries are delivered history; answers show their real delivery state.
-These person threads have no loop hold, release or stop control. A terminal the
+These person threads have no loop hold, release or stop control, and list `idle: 0`,
+`held: false` and `heldFor: null`. A terminal the
 runner doesn't hold is `TERMINAL_NOT_FOUND`. `messages.pause(paused)` pauses messaging
 across the whole runner, every project and session, keeping the switch across
 restarts: waiting agent-to-agent messages are held, and wait in order again once resumed.
@@ -325,7 +326,7 @@ to 4096 characters and must also fit the 8192-byte encoded delivery budget; a si
 asks the person to shorten the reply and leaves the ask answerable.
 `messages.release(threadId)` ends a thread's hold (`held` false, `heldFor` null), lets
 its held messages wait to be delivered and starts its idle count afresh (a release of a
-thread that isn't held leaves its count), and a stopped thread no longer stopped; an unknown thread is
+thread with no hold, `held_from` null, leaves its count), and a stopped thread no longer stopped; an unknown thread is
 `NOT_FOUND`. `messages.stop(threadId)` stops a thread, ending any hold: its messages not yet
 delivered or leased are `gone`, their senders told (once, through the MCP tools' answers) that the
 person stopped it, and a send that would continue it, in either direction, is refused
