@@ -374,12 +374,17 @@
   --whats-new-accent-fg: #00e5d6;
 
   /* Glow: the accent's thin lines (the selection bars, the tab underline, the running
-     sweep) glow like neon tubes, a bright core with a soft bloom, in the cyan. Only
-     here, where a dark ground lets light read as light; on the paper a bloom would read
-     as a smudge. Never text or fills. */
+     sweep, a progress bar's fill) glow like neon tubes, a bright core with a soft bloom,
+     in the cyan. Only here, where a dark ground lets light read as light; on the paper a
+     bloom would read as a smudge. Never text or broad fills. A progress bar's fill, the
+     longest of these lines and alone in its well, burns a little hotter, with room past
+     the track for its bloom. */
   --item-selected-indicator-shadow: 0 0 2px rgb(0 229 214 / 0.7), 0 0 8px rgb(0 229 214 / 0.35);
   --tabs-indicator-shadow: var(--item-selected-indicator-shadow);
   --window-phase-running-shadow: drop-shadow(0 0 3px rgb(0 229 214 / 0.75));
+  --progress-range-shadow:
+    0 0 4px rgb(0 229 214 / 0.95), 0 0 12px rgb(0 229 214 / 0.65), 0 0 26px rgb(0 229 214 / 0.35);
+  --progress-range-bloom: 26px;
 
   /* Avatars: the hues pale, to tint the slate and glow on the screen as they are. */
   --avatar-hue-1-fg: #c4a3f2;
