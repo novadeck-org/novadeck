@@ -46,10 +46,11 @@ export const wireShape = (
   const head = at(lead)
   const crew = workers.map(at)
   const ys = [head, ...crew].map((member) => member.y)
-  const top = Math.max(Math.round(view.top), Math.min(...ys))
-  const bottom = Math.min(Math.round(view.bottom), Math.max(...ys))
+  const edges = { top: Math.round(view.top), bottom: Math.round(view.bottom) }
+  const top = Math.max(edges.top, Math.min(...ys))
+  const bottom = Math.min(edges.bottom, Math.max(...ys))
   if (bottom <= top) return undefined
-  const seen = (y: number) => y >= view.top && y <= view.bottom
+  const seen = (y: number) => y >= edges.top && y <= edges.bottom
   return {
     x: column,
     top,

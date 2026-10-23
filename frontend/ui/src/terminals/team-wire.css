@@ -1,7 +1,7 @@
 /* The team wire recipe (TeamWire.tsx): each team's tabs joined on the rail's border, a block
    cursor at the lead and a tick into each worker. Every wire rests, dim: solid colours mixed
    into the ground they sit on, so where two pieces overlap they never add up to a brighter
-   dot, and its cursor a step brighter than its line. The selected terminal's team lights:
+   dot; the cursor is a step brighter than the line. The selected terminal's team lights:
    a line of the strong colour with a soft glow, whose segment grows in, whose ticks reach
    out after it and whose cursor blinks twice, then holds.
 

@@ -187,7 +187,9 @@
     background-color: var(--_fg);
     box-shadow: var(--_glow);
   }
+  /* A lit tick fades without a glow, as the rail's do. */
   .canvas-team-wire-shape[data-lit] > .canvas-team-wire-tick {
+    box-shadow: none;
     background: linear-gradient(
       to right,
       var(--_fg),
