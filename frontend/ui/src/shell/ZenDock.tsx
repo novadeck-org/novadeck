@@ -26,7 +26,10 @@ export const ZenDock = ({
   onInbox: () => void
   onExit: () => void
 }): React.JSX.Element => {
-  const [open, setOpen] = useState(false)
+  // Zen starts with the dock unfolded and at full strength, so its controls are seen once;
+  // folding it, or any click or key on it, lets it rest faint from then on.
+  const [open, setOpen] = useState(true)
+  const [touched, setTouched] = useState(false)
   // With one view left there's nothing to switch to.
   const switchable = enabledViews.length > 1
   const dock = useRef<HTMLDivElement>(null)
@@ -45,11 +48,14 @@ export const ZenDock = ({
       className="zen-dock absolute right-5 bottom-5 z-40 flex flex-row-reverse items-center gap-0.5 p-1 max-[701px]:right-3 max-[701px]:bottom-3"
       ref={dock}
       data-open={open}
+      data-fresh={open && !touched}
       data-workspace-zen-dock
+      onPointerDown={() => setTouched(true)}
       onBlurCapture={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
       }}
       onKeyDown={(event) => {
+        setTouched(true)
         if (event.key !== "Escape" || !open) return
         event.preventDefault()
         event.stopPropagation()
