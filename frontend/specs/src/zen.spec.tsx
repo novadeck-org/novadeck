@@ -336,7 +336,7 @@ describe("Zen dock", () => {
       await expect.element(exitZen()).toBeVisible()
     })
 
-    it("shows at full strength until folded, then rests faint", async () => {
+    it("shows at full strength until folded, then rests faint until hovered", async () => {
       await openWorkspace()
       await enterZen().click()
       await expect.poll(newTerminalOpacity).toBe(1)
@@ -347,9 +347,12 @@ describe("Zen dock", () => {
 
       await expect.element(showControls()).toHaveAttribute("aria-expanded", "false")
       await expect.poll(newTerminalOpacity).toBe(0.75)
+
+      await dock().getByRole("button", { name: "New terminal" }).hover()
+      await expect.poll(newTerminalOpacity).toBe(1)
     })
 
-    it("stays at full strength while unfolded, though used", async () => {
+    it("stays at full strength while unfolded, after choosing a view", async () => {
       await openWorkspace()
       await enterZen().click()
 
