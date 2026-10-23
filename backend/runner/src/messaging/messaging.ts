@@ -342,6 +342,7 @@ const turnMarks: ReadonlySet<string> = new Set([
   "turn-ended",
   "turn-continued",
   "turn-escaped",
+  "turn-lapsed",
   "turn-idle",
   "turn-working",
 ])
@@ -2051,7 +2052,15 @@ export class Messaging {
     if (!live?.lapsed) return undefined
     live.lapsed = false
     const { agent, sessionId, instance } = binding
-    return { type: "turn-lapsed", agent, sessionId, instance, startedAt: turnAt }
+    const event: ActivityEvent = {
+      type: "turn-lapsed",
+      agent,
+      sessionId,
+      instance,
+      startedAt: turnAt,
+    }
+    this.feed(live, [event])
+    return event
   }
 
   /** Applies the root's changes to the terminal's messages and delivery, in order. */

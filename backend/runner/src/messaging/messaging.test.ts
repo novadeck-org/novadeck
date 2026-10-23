@@ -4181,6 +4181,20 @@ describe("the loop hold", () => {
     expect(calls.events.map(({ type }) => type)).toEqual(["turn-escaped"])
   })
 
+  it("feeds the tracker a continued Stop that lapsed, once", () => {
+    vi.useFakeTimers()
+    const { messaging, prompt, stop, send, codex, calls } = setup()
+    prompt("B", codex)
+    sent(send("A", "fox", "hello"))
+    expect(stop("B", codex).leaseId).not.toBeNull()
+    vi.advanceTimersByTime(5_000)
+    calls.events.length = 0
+    expect(messaging.lapsed("B", codex, 7)).toMatchObject({ type: "turn-lapsed" })
+    expect(messaging.lapsed("B", codex, 7)).toBeUndefined()
+    expect(calls.events).toMatchObject([{ type: "turn-lapsed", startedAt: 7 }])
+    vi.useRealTimers()
+  })
+
   it("feeds the tracker every report, each send, and a session ending or changing", () => {
     const { messaging, rounds, observe, ask, prompt, follow, claude, codex, calls } = setup()
     calls.reset.length = 0

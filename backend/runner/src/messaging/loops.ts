@@ -19,7 +19,12 @@ type Request = Span & { readonly id: string; readonly actor: string | null }
 type Subagent = Span & { readonly actor: string }
 
 /** A turn's edge: its start, a Stop that ended it, or a Stop Novadeck continued. */
-type Mark = { readonly at: number; readonly kind: "start" | "stop" | "continue" }
+type Mark = {
+  readonly at: number
+  /** The event's own time, which orders it against the others as the activity does. */
+  readonly startedAt: number
+  readonly kind: "start" | "stop" | "continue"
+}
 
 type History = {
   /** A session was observed since the last reset. */
@@ -163,6 +168,21 @@ const close = <T extends Span>(spans: T[], at: number, pick: (span: T) => boolea
   for (const span of spans) if (span.end === null && pick(span)) span.end = at
 }
 
+/** A stop mark, unless the event is older than the turn it would end: a stale signal. */
+const stop = (history: History, event: { startedAt: number }, at: number): boolean => {
+  const latest = history.marks.findLast((mark) => mark.kind === "start")
+  if (latest && event.startedAt < latest.startedAt) return false
+  history.marks.push({ at, startedAt: event.startedAt, kind: "stop" })
+  return true
+}
+
+/** A turn that stopped yet shows signs of running (a root call, a working status) runs on. */
+const resume = (history: History, event: { startedAt: number }, at: number): void => {
+  if (history.marks.at(-1)?.kind === "stop") {
+    history.marks.push({ at, startedAt: event.startedAt, kind: "start" })
+  }
+}
+
 const fold = (history: History, event: HarnessEvent, at: number): void => {
   switch (event.type) {
     case "session-observed":
@@ -171,6 +191,7 @@ const fold = (history: History, event: HarnessEvent, at: number): void => {
     case "tool-called":
       history.called = true
       history.calls.push(at)
+      if (event.actor === null) resume(history, event, at)
       if (event.kind === "work") {
         history.work.push(at)
         if (event.background) history.tasks.push({ start: at, end: null })
@@ -186,37 +207,42 @@ const fold = (history: History, event: HarnessEvent, at: number): void => {
       return
     case "turn-started":
       settle(history, at)
-      history.marks.push({ at, kind: "start" })
+      history.marks.push({ at, startedAt: event.startedAt, kind: "start" })
       if (event.cause === "prompt") history.prompts.push(at)
       return
     case "turn-idle":
-      settle(history, at)
-      history.marks.push({ at, kind: "stop" })
+      if (stop(history, event, at)) settle(history, at)
       counted(history, event.background.agents, at)
       return
-    case "turn-escaped":
+    case "turn-lapsed":
+      // The continuation never came: the turn ended at its Stop after all.
       settle(history, at)
-      history.marks.push({ at, kind: "stop" })
+      history.marks.push({ at, startedAt: event.startedAt, kind: "stop" })
+      return
+    case "turn-escaped":
+      if (stop(history, event, at)) settle(history, at)
       return
     case "turn-working":
+      resume(history, event, at)
       if (event.running !== undefined) counted(history, event.running, at)
       return
     case "turn-ended": {
-      history.marks.push({ at, kind: "stop" })
+      history.marks.push({ at, startedAt: event.startedAt, kind: "stop" })
       if (event.outcome === "interrupted") {
         // The subagents the turn started end with it; the activity drops them.
         const from = turnStart(history)
         close(history.subagents, at, (span) => from !== null && span.start >= from)
       }
       settle(history, at)
-      if (event.background) counted(history, event.background.agents, at)
+      // Antigravity's Stop says `more` of something it can't count: no count then.
+      if (event.background && !event.background.more) counted(history, event.background.agents, at)
       const open = history.tasks.filter((span) => span.end === null)
       const keep = event.background?.more ? open.length : (event.background?.tasks ?? 0)
       for (const span of open.slice(0, Math.max(0, open.length - keep))) span.end = at
       return
     }
     case "turn-continued":
-      history.marks.push({ at, kind: "continue" })
+      history.marks.push({ at, startedAt: event.startedAt, kind: "continue" })
       return
     case "attention-requested":
       history.requests.push({ id: event.requestId, actor: event.actor, start: at, end: null })

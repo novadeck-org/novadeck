@@ -8,8 +8,8 @@ const T = "t"
 type Body<T> = T extends unknown ? Omit<T, keyof ActivityEvent & string> : never
 
 /** An activity event of the test session, from its body alone. */
-const act = (body: Body<ActivityEvent>): HarnessEvent =>
-  ({ agent: "claude", sessionId: "s", instance: null, startedAt: 0, ...body }) as HarnessEvent
+const act = (body: Body<ActivityEvent>, startedAt = 0): HarnessEvent =>
+  ({ agent: "claude", sessionId: "s", instance: null, startedAt, ...body }) as HarnessEvent
 
 const session: HarnessEvent = {
   type: "session-observed",
@@ -378,7 +378,6 @@ describe("loops: settling as the activity does", () => {
       expect(loops.worked(T, 100, 200)).toBe(true)
       // Nothing running through, so a denial leaves no request open.
       loops.observe(T, [turnEnded()], 220)
-      loops.observe(T, [call("bookkeeping")], 250)
       expect(loops.worked(T, 250, 400)).toBe(false)
     }
   })
@@ -474,5 +473,56 @@ describe("loops: the cap and open spans", () => {
       )
     }
     expect(loops.worked(T, 1_000_000, 1_000_001)).toBe(true)
+  })
+})
+
+describe("loops: stale and spurious turn-over signals", () => {
+  it("ignores an idle or Escape older than the turn's start", () => {
+    for (const stale of [
+      act({ type: "turn-idle", background: { agents: 0, tasks: 0 } }, 40),
+      act({ type: "turn-escaped" }, 40),
+    ]) {
+      const loops = known()
+      loops.observe(T, [act({ type: "turn-started", cause: "harness" }, 50)], 60)
+      loops.observe(T, [stale], 70)
+      expect(loops.worked(T, 80, 500)).toBe(true)
+    }
+  })
+
+  it("takes a root call or a working status after an Escape as the turn running on", () => {
+    for (const sign of [call("work"), act({ type: "turn-working" })]) {
+      const loops = known()
+      loops.observe(T, [turnStarted()], 10)
+      loops.observe(T, [act({ type: "turn-escaped" })], 100)
+      expect(loops.worked(T, 120, 500)).toBe(false)
+      loops.observe(T, [sign], 150)
+      expect(loops.worked(T, 160, 900)).toBe(true)
+    }
+  })
+
+  it("does not restart a turn for a subagent's call", () => {
+    const loops = known()
+    loops.observe(T, [turnStarted()], 10)
+    loops.observe(T, [turnEnded()], 100)
+    loops.observe(T, [call("bookkeeping", { actor: "sub" })], 150)
+    expect(loops.worked(T, 160, 900)).toBe(false)
+  })
+
+  it("takes no subagent count from a turn end that says more", () => {
+    const loops = known()
+    loops.observe(T, [act({ type: "turn-working", running: 1 })], 100)
+    loops.observe(T, [turnEnded({ agents: 0, tasks: 0, more: true })], 200)
+    expect(loops.worked(T, 300, 400)).toBe(true)
+  })
+})
+
+describe("loops: a lapsed continuation", () => {
+  it("ends the turn and settles the root's requests", () => {
+    const loops = known()
+    loops.observe(T, [turnStarted(), requested("r")], 10)
+    loops.observe(T, [act({ type: "turn-continued" })], 100)
+    expect(loops.worked(T, 100, 200)).toBe(true)
+    loops.observe(T, [act({ type: "turn-lapsed" })], 200)
+    expect(loops.worked(T, 250, 400)).toBe(false)
   })
 })

@@ -593,10 +593,10 @@ const message = (
 })
 
 // The agents demo's checkout work: Claude Code (moth) and Codex (crow) reviewing each other,
-// a test terminal (owl) whose thread became a loop of thank-yous, held until the person
-// releases it, a message to the dev server's terminal (fox) whose agent left, a word each with
-// the runtime's (kite) and the build's (raven), and a question moth asked the person, which
-// they answered. Every other session's Claude Code has had no messages yet.
+// a test terminal (owl) whose thread goes round the same status while both run the tests, so
+// it folds and is never held, a message to the dev server's terminal (fox) whose agent left, a
+// word each with the runtime's (kite) and the build's (raven), and a question moth asked the
+// person, which they answered. Every other session's Claude Code has had no messages yet.
 export const checkoutMailboxes = (
   now: number,
   targets: readonly WorkspaceTarget[],
