@@ -33,6 +33,12 @@ export const theme = EditorView.theme({
   ".cm-md-item": { paddingLeft: "22px" },
   ".cm-md-item-task": { paddingLeft: "44px" },
   ".cm-md-quote": { paddingLeft: "16px" },
+  // A list in a quote hangs after the quote's bar; a quote in a list starts after its bar,
+  // at the item's hang (see ../markdown.css).
+  ".cm-md-quote.cm-md-item": { paddingLeft: "38px" },
+  ".cm-md-quote.cm-md-item-task": { paddingLeft: "60px" },
+  ".cm-md-quote.cm-md-quote-listed": { paddingLeft: "38px" },
+  ".cm-md-item-task.cm-md-quote.cm-md-quote-listed": { paddingLeft: "60px" },
   ".cm-md-codeblock": { padding: "0 14px" },
   "@container md-viewer (max-width: 560px)": {
     ".cm-content": { padding: "10px 20px 40px 20px" },
