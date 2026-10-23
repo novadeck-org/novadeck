@@ -14,6 +14,7 @@ import { websocket, type Transport } from "@novadeck/wire/client"
 
 import { runnerBackend, type RunnerBackend } from "./backend"
 import {
+  desktopBadge,
   desktopHost,
   desktopNotices,
   desktopPortable,
@@ -161,6 +162,7 @@ export const connectRunnerBackend = async (
     const beforeQuit = desktopHost()?.beforeQuit
     const showAppearance = desktopHost()?.showAppearance
     const notices = desktopNotices(desktopHost())
+    const badge = desktopBadge(desktopHost())
     const updates = desktopUpdates(desktopHost())
     const whatsNew = desktopWhatsNew(desktopHost())
     const version = desktopVersion(desktopHost())
@@ -181,6 +183,7 @@ export const connectRunnerBackend = async (
           ...(beforeQuit ? { beforeQuit: (save) => beforeQuit(save) } : {}),
           ...(showAppearance ? { showAppearance: (look) => showAppearance(look) } : {}),
           ...(notices ? { notices } : {}),
+          ...(badge ? { badge } : {}),
           ...(updates ? { updates } : {}),
           ...(whatsNew ? { whatsNew } : {}),
           ...(version ? { version } : {}),

@@ -14,6 +14,7 @@ import type {
 } from "@novadeck/protocol/bridge"
 
 import {
+  desktopBadge,
   desktopNotices,
   desktopPortable,
   desktopSandbox,
@@ -32,9 +33,13 @@ import { context, describe, expect, it } from "./test"
 // A host's notification bridge that records what the page shows, and lets a test click.
 const host = () => {
   const shown: DesktopNotice[] = []
+  const closed: string[] = []
+  const badges: unknown[] = []
   let clicked: ((id: string) => void) | undefined
   const bridge = {
     showNotice: (notice: DesktopNotice) => void shown.push(notice),
+    closeNotice: (id: string) => void closed.push(id),
+    setBadge: (badge: unknown) => void badges.push(badge),
     onNoticeClick: (listener: (id: string) => void) => {
       clicked = listener
       return () => {
@@ -42,7 +47,7 @@ const host = () => {
       }
     },
   } as unknown as DesktopHost
-  return { bridge, shown, click: (id: unknown) => clicked?.(id as string) }
+  return { bridge, shown, closed, badges, click: (id: unknown) => clicked?.(id as string) }
 }
 
 describe("a notice's text", () => {
@@ -88,11 +93,65 @@ describe("desktop notices", () => {
     })
   })
 
+  context("when the host can take one away", () => {
+    it("closes by a terminal id and drops anything else", () => {
+      const { bridge, closed } = host()
+      const notices = desktopNotices(bridge)!
+      notices.close!("01")
+      notices.close!("../02")
+      notices.close!({ id: "03" } as unknown as string)
+      expect(closed).toEqual(["01"])
+    })
+
+    it("has no close in a host that lacks it", () => {
+      const { bridge } = host()
+      const old = { ...bridge, closeNotice: undefined } as unknown as DesktopHost
+      expect(desktopNotices(old)!.close).toBeUndefined()
+    })
+  })
+
   context("in a browser, or a host that came before them", () => {
     it("are absent", () => {
       expect(desktopNotices(undefined)).toBeUndefined()
       expect(desktopNotices({} as DesktopHost)).toBeUndefined()
     })
+  })
+})
+
+describe("the desktop badge", () => {
+  const png = "data:image/png;base64,iVBORw0KGgo="
+
+  it("passes valid badges to the host", () => {
+    const { bridge, badges } = host()
+    const badge = desktopBadge(bridge)!
+    badge({ count: 3, image: png })
+    badge({ count: 0, image: null })
+    expect(badges).toEqual([
+      { count: 3, image: png },
+      { count: 0, image: null },
+    ])
+  })
+
+  it("drops what the contract does not allow", () => {
+    const { bridge, badges } = host()
+    const badge = desktopBadge(bridge)!
+    for (const value of [
+      { count: -1, image: null },
+      { count: 1000, image: null },
+      { count: 1.5, image: null },
+      { count: 2, image: "https://example.com/a.png" },
+      { count: 2, image: "data:image/svg+xml;base64,PHN2Zz4=" },
+      { count: 2, image: `data:image/png;base64,${"A".repeat(16384)}` },
+      { count: "2", image: null },
+      null,
+    ])
+      badge(value as never)
+    expect(badges).toEqual([])
+  })
+
+  it("is absent in a browser, or a host that came before it", () => {
+    expect(desktopBadge(undefined)).toBeUndefined()
+    expect(desktopBadge({} as DesktopHost)).toBeUndefined()
   })
 })
 

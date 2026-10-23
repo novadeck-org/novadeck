@@ -9,8 +9,10 @@ import {
   apiUrlArgumentPrefix,
   appearanceChannel,
   installAppChannel,
+  badgeChannel,
   noticeChannel,
   noticeClickChannel,
+  noticeCloseChannel,
   dismissWhatsNewChannel,
   whatsNewChannel,
   openUpdatePageChannel,
@@ -290,6 +292,18 @@ describe("a notice about a terminal", () => {
     stop()
     electron.renderer.emit(noticeClickChannel, {}, "03")
     expect(clicks).toEqual(["01"])
+  })
+})
+
+describe("closing a notice and the icon's badge", () => {
+  it("send the terminal id, and only a valid badge", () => {
+    electron.exposed.closeNotice?.("01")
+    electron.exposed.setBadge?.({ count: 3, image: null, extra: 1 } as never)
+    electron.exposed.setBadge?.({ count: 1000, image: null })
+    expect(electron.messages).toEqual([
+      [noticeCloseChannel, "01"],
+      [badgeChannel, { count: 3, image: null }],
+    ])
   })
 })
 

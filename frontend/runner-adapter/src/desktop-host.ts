@@ -8,6 +8,7 @@ import {
   type UninstallResult,
 } from "@novadeck/core/uninstall"
 import {
+  desktopBadgeOf,
   noticeBodyLength,
   noticeIdPattern,
   noticeTitleLength,
@@ -53,15 +54,35 @@ export const desktopNotices = (host: DesktopHost | undefined): Backend["notices"
   const show = host?.showNotice
   const listen = host?.onNoticeClick
   if (!show || !listen) return undefined
+  const close = host?.closeNotice
   return {
     show: (notice) => {
       const shown = hostNotice(notice)
       if (shown) show(shown)
     },
+    ...(close
+      ? {
+          close: (terminalId: string) => {
+            if (typeof terminalId === "string" && noticeIdPattern.test(terminalId)) {
+              close(terminalId)
+            }
+          },
+        }
+      : {}),
     onClick: (listener) =>
       listen((id) => {
         if (typeof id === "string" && noticeIdPattern.test(id)) listener(id)
       }),
+  }
+}
+
+// The host's icon badge, where it has one: only a badge the contract allows crosses.
+export const desktopBadge = (host: DesktopHost | undefined): Backend["badge"] => {
+  const set = host?.setBadge
+  if (!set) return undefined
+  return (badge) => {
+    const checked = desktopBadgeOf(badge)
+    if (checked) set(checked)
   }
 }
 

@@ -1,4 +1,5 @@
 import {
+  desktopBadgeOf,
   parsePortableState,
   parseUpdateOffer,
   parseWhatsNew,
@@ -29,12 +30,14 @@ import {
   allowUpdatesChannel,
   apiUrlArgumentPrefix,
   appearanceChannel,
+  badgeChannel,
   directoryPickerChannel,
   dismissWhatsNewChannel,
   installAppChannel,
   portableStateChannel,
   noticeChannel,
   noticeClickChannel,
+  noticeCloseChannel,
   openLogsChannel,
   openUpdatePageChannel,
   pagePictureChannel,
@@ -188,6 +191,15 @@ const bridge = {
       title: notice?.title,
       body: notice?.body,
     })
+  },
+  // Only a terminal id crosses; the main process checks it.
+  closeNotice: (id) => {
+    ipcRenderer.send(noticeCloseChannel, id)
+  },
+  // Only a valid badge crosses; the main process checks it again.
+  setBadge: (badge) => {
+    const checked = desktopBadgeOf(badge)
+    if (checked) ipcRenderer.send(badgeChannel, checked)
   },
   // Only a terminal id comes back.
   onNoticeClick: (listener) => {

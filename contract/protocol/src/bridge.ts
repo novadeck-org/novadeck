@@ -41,6 +41,18 @@ export type DesktopBridge = {
    */
   showNotice?(notice: DesktopNotice): void
   /**
+   * Takes away the notice for the terminal with this `id` while it still shows, as when the
+   * person answered it in the app; nothing when none shows. The host drops an id that
+   * breaks `noticeIdPattern`. Absent from hosts that came before it.
+   */
+  closeNotice?(id: string): void
+  /**
+   * Shows how many items wait in the Inbox on the app's icon: the dock or launcher badge,
+   * and on Windows the taskbar overlay `image`. A `count` of 0 clears it. The host drops a
+   * badge that breaks `desktopBadgeOf`. Absent from hosts that came before it.
+   */
+  setBadge?(badge: DesktopBadge): void
+  /**
    * Calls `listener` with the terminal id of each notice the person clicks, once the host
    * has brought its window to the front. Returns a function that stops listening. Absent
    * from hosts that came before it.
@@ -437,6 +449,38 @@ export const noticeTitleLength = 256
 export const noticeBodyLength = 120
 /** What a notice's terminal id may be: a terminal's id, as the runner and the demo name them. */
 export const noticeIdPattern = /^[A-Za-z0-9_-]{1,64}$/
+
+/**
+ * The app icon's badge; see `DesktopBridge.setBadge`. `count` is a whole number from 0 to
+ * `badgeMaxCount`, 0 clearing the badge. `image` is a PNG data URL of at most
+ * `badgeImageLength` characters for Windows' taskbar overlay, which has no text, or null.
+ */
+export type DesktopBadge = {
+  readonly count: number
+  readonly image: string | null
+}
+
+/** The largest count a badge carries. */
+export const badgeMaxCount = 999
+/** The longest badge image, as a data URL: a small overlay icon. */
+export const badgeImageLength = 16384
+
+const badgeImagePattern = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/
+
+/**
+ * The badge when the value is one, or undefined: a whole `count` from 0 to
+ * `badgeMaxCount` and an `image` that is null or a base64 PNG data URL within
+ * `badgeImageLength`. Nothing else of the value passes. The page and the host both use it.
+ */
+export const desktopBadgeOf = (value: unknown): DesktopBadge | undefined => {
+  if (typeof value !== "object" || value === null) return undefined
+  const { count, image } = value as Record<string, unknown>
+  if (typeof count !== "number" || !Number.isInteger(count)) return undefined
+  if (count < 0 || count > badgeMaxCount) return undefined
+  if (image === null) return { count, image }
+  if (typeof image !== "string" || image.length > badgeImageLength) return undefined
+  return badgeImagePattern.test(image) ? { count, image } : undefined
+}
 
 /** `window.novadeck` in a desktop host's page. */
 export type DesktopHost = DesktopBridge & {

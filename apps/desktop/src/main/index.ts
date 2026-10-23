@@ -44,6 +44,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeImage,
   nativeTheme,
   net,
   Notification,
@@ -77,6 +78,7 @@ import {
   recoverBundles,
   relaunchIntoCopy,
 } from "./applications-folder.js"
+import { applyBadge, registerBadgeIpc } from "./badge.js"
 import { dataFolderName, logsFolder } from "./data-folder.js"
 import { detectSoftwareGraphics } from "./graphics.js"
 import {
@@ -1411,20 +1413,25 @@ const launch = async (): Promise<void> => {
   })
   // The page's notices about its terminals, as the system's notifications; a click brings
   // the window to the front and tells its page which terminal to show.
-  registerNoticeIpc(ipcMain, {
+  const notices = showNotices({
+    supported: Notification.isSupported(),
+    create: (notice) => new Notification(notificationText(notice, process.platform)),
+    clicked: (window: BrowserWindow, id) => {
+      if (window.isDestroyed()) return
+      if (window.isMinimized()) window.restore()
+      window.show()
+      if (process.platform === "darwin") app.focus({ steal: true })
+      window.focus()
+      window.webContents.send(noticeClickChannel, id)
+    },
+  })
+  registerNoticeIpc(ipcMain, { window: appWindow, ...notices })
+  // The page's Inbox count on the app's icon: the dock or launcher badge, or on Windows
+  // the taskbar overlay.
+  registerBadgeIpc(ipcMain, {
     window: appWindow,
-    show: showNotices({
-      supported: Notification.isSupported(),
-      create: (notice) => new Notification(notificationText(notice, process.platform)),
-      clicked: (window: BrowserWindow, id) => {
-        if (window.isDestroyed()) return
-        if (window.isMinimized()) window.restore()
-        window.show()
-        if (process.platform === "darwin") app.focus({ steal: true })
-        window.focus()
-        window.webContents.send(noticeClickChannel, id)
-      },
-    }),
+    apply: (window: BrowserWindow, badge) =>
+      applyBadge({ platform: process.platform, app, nativeImage, window }, badge),
   })
   // The page learns of an update, can open the page of one it must install itself, and
   // chooses the releases the build follows.

@@ -282,11 +282,18 @@ export type BackendFields = {
   // person looks elsewhere: `show` shows one, a newer one for the same terminal replacing
   // it, and `onClick` hears the terminal id of each the person clicks, once the window
   // around the page has come to the front; it returns the stop. Absent where nothing
-  // surrounds the page, as in a browser.
+  // surrounds the page, as in a browser. `close` takes away the one still showing for a
+  // terminal, as when the person answered it in the app; nothing when none shows.
   readonly notices?: {
     readonly show: (notice: Notice) => void
+    readonly close?: (terminalId: string) => void
     readonly onClick: (listener: (terminalId: string) => void) => () => void
   }
+  // Optional. Shows how many items wait in the Inbox on the app's icon (the dock or
+  // launcher badge; on Windows the taskbar overlay, drawn from `image`, a PNG data URL, or
+  // none when null); a count of 0 clears it. Absent where nothing surrounds the page, as
+  // in a browser.
+  readonly badge?: (badge: { readonly count: number; readonly image: string | null }) => void
   // Optional. The desktop app's self-updates: `onOffer` hears each update the app learns
   // of, at once when one already waits and again for each newer one, and returns the
   // stop. A `ready` offer is downloaded and installs when the app next quits. An
