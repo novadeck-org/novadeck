@@ -4,11 +4,11 @@ import { activeSession } from "@novadeck/core/state"
 import { createStore, createWorkspaceStore } from "@novadeck/core/store"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { babcia, babciaCuesOf, babciaIntroOf } from "./babcia"
+import { babcia, babciaCuesOf, babciaIntroOf, politeAfterMs } from "./babcia"
 import { answerMs, answeredMs } from "./chat"
 import { demoHandle } from "./handles"
-import { isDemoInbox } from "./inbox"
-import { isDemoMessages, rungMs } from "./messages"
+import { answerMs as inboxAnswerMs, isDemoInbox } from "./inbox"
+import { deliveryMs, isDemoMessages, rungMs } from "./messages"
 import { demoTerminalId } from "./samples"
 import { demoTurns } from "./turns"
 import { createDemo } from "./variants"
@@ -796,5 +796,107 @@ describe("the Babcia demo", () => {
         babciaIntroOf(mine!.sessions[0]!.terminals[number - 1]!, at(mine, number)),
       ).toBeDefined()
     expect(babciaIntroOf(other!.sessions[0]!.terminals[0]!, at(other, 1))).toBeUndefined()
+  })
+
+  describe("the agent with manners", () => {
+    const pick = (label: "Yes" | "No") => ({
+      kind: "ask" as const,
+      answer: { type: "reply" as const, option: label === "Yes" ? 0 : 1, text: "" },
+    })
+    // The open ask's subject, as the person reads it.
+    const subjects = (items: readonly InboxItem[]) =>
+      items.flatMap((item) => (item.kind === "ask" ? [item.ask.subject] : []))
+
+    it("asks to force-push to main, as an Ask row with Yes and No, and the badge reads one", () => {
+      const { cues, items, agent } = open()
+      cues.manners()
+      cues.manners()
+      expect(items()).toHaveLength(1)
+      expect(items()[0]).toMatchObject({
+        kind: "ask",
+        source: { title: "Deploy preview", agent: "agy" },
+        ask: {
+          subject: "Can I force-push to main?",
+          shape: { type: "options", options: [{ label: "Yes" }, { label: "No" }] },
+        },
+      })
+      // Its turn goes on while the ask is open.
+      expect(agent(babcia.manners)).toMatchObject({ working: true })
+      expect(agent(babcia.manners)?.attention).toBeUndefined()
+    })
+
+    it("asks politely a moment after No, while its turn carries on, and works on after Yes", async () => {
+      const { cues, inbox, items, agent } = open()
+      cues.manners()
+      inbox.answer(items()[0]!.id, pick("No"))
+      // Answered, then delivered; the polite ask waits for the delivery and its delay.
+      await vi.advanceTimersByTimeAsync(inboxAnswerMs + deliveryMs + politeAfterMs - 100)
+      expect(items()).toEqual([])
+      await vi.advanceTimersByTimeAsync(200)
+      expect(subjects(items())).toEqual(["Could I open a pull request instead, please?"])
+      expect(items()[0]).toMatchObject({
+        source: { title: "Deploy preview" },
+        ask: { shape: { type: "options", options: [{ label: "Yes" }, { label: "No" }] } },
+      })
+      expect(agent(babcia.manners)).toMatchObject({ working: true })
+      inbox.answer(items()[0]!.id, pick("Yes"))
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(items()).toEqual([])
+      expect(agent(babcia.manners)).toMatchObject({ working: true })
+      expect(agent(babcia.manners)?.attention).toBeUndefined()
+    })
+
+    it("asks once more only after a No to the first, and waits for words after a No to the second", async () => {
+      const first = open()
+      first.cues.manners()
+      first.inbox.answer(first.items()[0]!.id, pick("Yes"))
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(first.items()).toEqual([])
+      expect(first.agent(babcia.manners)).toMatchObject({ working: true })
+      const second = open()
+      second.cues.manners()
+      second.inbox.answer(second.items()[0]!.id, pick("No"))
+      await vi.advanceTimersByTimeAsync(inboxAnswerMs + deliveryMs + politeAfterMs + 100)
+      second.inbox.answer(second.items()[0]!.id, pick("No"))
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(second.items()).toEqual([])
+      second.cues.finishAll()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(second.agent(babcia.manners)?.lastTurn).toBeUndefined()
+    })
+
+    it("holds the agent through cue 6 while either ask is unanswered, or between them", async () => {
+      const { cues, inbox, items, agent } = open()
+      cues.manners()
+      cues.finishAll()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(agent(babcia.manners)?.lastTurn).toBeUndefined()
+      inbox.answer(items()[0]!.id, pick("No"))
+      await vi.advanceTimersByTimeAsync(inboxAnswerMs + deliveryMs + 100)
+      cues.finishAll()
+      await vi.advanceTimersByTimeAsync(500)
+      expect(agent(babcia.manners)?.lastTurn).toBeUndefined()
+      expect(items()).toEqual([])
+      await vi.advanceTimersByTimeAsync(politeAfterMs)
+      expect(items()).toHaveLength(1)
+      cues.finishAll()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(agent(babcia.manners)?.lastTurn).toBeUndefined()
+      inbox.answer(items()[0]!.id, pick("Yes"))
+      await vi.advanceTimersByTimeAsync(5000)
+      cues.finishAll()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(agent(babcia.manners)).toMatchObject({ lastTurn: { outcome: "completed" } })
+    })
+
+    it("does not ask again if the person took the agent some other way meanwhile", async () => {
+      const { cues, inbox, items, backend } = open()
+      cues.manners()
+      inbox.answer(items()[0]!.id, pick("No"))
+      await vi.advanceTimersByTimeAsync(inboxAnswerMs + deliveryMs + 100)
+      await backend.conversations!.interrupt(key(babcia.manners))
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(items()).toEqual([])
+    })
   })
 })
