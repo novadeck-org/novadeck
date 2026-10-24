@@ -142,14 +142,30 @@ describe("An agent whose turn left work running", () => {
     await expect.element(window.getByText("2 agents · 1 task")).not.toBeInTheDocument()
   })
 
-  it("is idle beside a command it left running, which shows but never keeps it working", async () => {
-    // The demo's other Claude Code left a command running.
+  it("waits, not idle or done, on a command it started, which wakes it once it ends", async () => {
+    // The demo's other Claude Code left a build running and ended its turn.
     await openWorkspace("/?demo=agents")
     const skip = page.getByRole("button", { name: "Skip for now" })
     if (await skip.query()) await skip.click()
-    await page.getByRole("button", { name: labelled("Select ", "Build") }).click()
+    const tab = terminalTab("Build")
+    const row = () => tab.element().closest(".terminal-tab")!
+    await expect.poll(() => row().getAttribute("data-terminal-phase")).toBe("waiting")
+    expect(row().getAttribute("data-terminal-wait")).toBe("job")
+    await expect
+      .poll(() => tabDescription("Build"))
+      .toContain("Waiting on Build the docs site, 4 minutes")
+    // Under the tab while it's selected: the description in its own words, and the minutes.
+    await expect.element(tab.getByText("Build the docs site")).not.toBeVisible()
+    await tab.click()
+    await expect.element(tab.getByText("Build the docs site")).toBeVisible()
+    await expect.element(tab.getByText("4m")).toBeVisible()
+    // In its window's bar, minutes first, and counted apart from work in the footer.
     const window = terminal("Build")
-    await expect.element(window).toHaveAttribute("data-terminal-phase", "idle")
+    await expect.element(window).toHaveAttribute("data-terminal-phase", "waiting")
+    await expect.element(window.getByText("Build the docs site")).toBeVisible()
+    await expect.element(page.getByText("1 waiting")).toBeVisible()
+    // Not counted as running too.
+    await expect.element(page.getByText("5 running")).toBeVisible()
   })
 })
 

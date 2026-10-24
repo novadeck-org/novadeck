@@ -1,6 +1,6 @@
 import { basename, dirname, extname } from "node:path"
 
-import type { Background, HarnessEvent } from "@novadeck/harness-core/events"
+import type { Background, BackgroundJob, HarnessEvent } from "@novadeck/harness-core/events"
 import {
   absolute,
   withRequestCwd,
@@ -19,7 +19,7 @@ import {
 } from "@novadeck/harness-core/harness"
 import { at as writtenAt, record } from "@novadeck/harness-core/items"
 import type { Report } from "@novadeck/harness-core/report"
-import { isFields } from "@novadeck/harness-core/tools"
+import { isFields, oneLine } from "@novadeck/harness-core/tools"
 
 import { kindOf } from "./tools.js"
 
@@ -87,7 +87,12 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
       // result starts a turn by itself, as a task notification.
       if (actor) return []
       const prompt = text(payload.prompt) ?? ""
-      return [promptStart(base, prompt, notification.test(prompt))]
+      return [
+        {
+          ...promptStart(base, prompt, notification.test(prompt)),
+          ...(notification.test(prompt) && { tasks: finished(prompt) }),
+        } as HarnessEvent,
+      ]
     case "Stop":
       return actor
         ? []
@@ -116,6 +121,10 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           outcome: "failed",
           ...(error && { error }),
           ...(payload.error === "rate_limit" && { limited: true as const }),
+          // What a failed turn left running wakes the agent all the same, where it lists it.
+          ...(Array.isArray(payload.background_tasks) && {
+            background: running(payload.background_tasks),
+          }),
         },
       ]
     }
@@ -212,8 +221,13 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           ...(payload.is_interrupt === true && { interrupted: true as const }),
         },
         ...drafted(base, actor, tool, payload),
-        // A write that failed wrote nothing.
-        ...(event === "PostToolUse" ? touched(base, actor, tool, payload.tool_input) : []),
+        // A write that failed wrote nothing, and a task that failed to start runs nowhere.
+        ...(event === "PostToolUse"
+          ? [
+              ...touched(base, actor, tool, payload.tool_input),
+              ...started(base, tool, payload.tool_input, payload.tool_response),
+            ]
+          : []),
         {
           type: "tool-called",
           ...base,
@@ -236,11 +250,75 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
 // The prompt of a turn Claude Code starts by itself once a background task finishes.
 const notification = /^\s*<task-notification>/
 
+// The ids of the tasks a notification names, as `<task-id>` elements.
+const finished = (prompt: string): string[] =>
+  [...prompt.matchAll(/<task-id>([^<\s]{1,256})<\/task-id>/g)].map(([, id]) => id!)
+
+// The most a wake-up may be set out, as ScheduleWakeup clamps it: a minute to an hour.
+const wakeDelayMs = { least: 60_000, most: 3_600_000 } as const
+
+// The longest id, description and reason the protocol takes.
+const maxJobText = 256
+const maxDescription = 512
+
+// The first line of what the agent wrote, cut to what the protocol takes; undefined if blank.
+const firstLine = (value: unknown): string | undefined => {
+  const line = oneLine(errorText(value) ?? "").slice(0, maxDescription)
+  return line === "" ? undefined : line
+}
+
+/**
+ * What a call that leaves something to wake the agent says of it, from its result (probed
+ * 2026-10-24, 2.1.310): a background command's `backgroundTaskId`, a Monitor's `taskId`
+ * with its timeout and whether it is persistent, and ScheduleWakeup's `scheduledFor`, in
+ * epoch milliseconds, which Claude Code rounds to the minute; its `delaySeconds` from the
+ * call's input stands in where a result has none.
+ */
+const started = (
+  base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
+  tool: string,
+  input: unknown,
+  response: unknown,
+): HarnessEvent[] => {
+  const fields = isFields(input) ? input : {}
+  const result = isFields(response) ? response : {}
+  if (tool === "ScheduleWakeup") {
+    const scheduled = result.scheduledFor
+    const delay = fields.delaySeconds
+    const at =
+      typeof scheduled === "number" && Number.isFinite(scheduled)
+        ? scheduled
+        : typeof delay === "number" && Number.isFinite(delay)
+          ? base.startedAt + Math.min(wakeDelayMs.most, Math.max(wakeDelayMs.least, delay * 1000))
+          : undefined
+    const reason = firstLine(fields.reason)
+    return at === undefined ? [] : [{ type: "wake-scheduled", ...base, at, reason: reason ?? null }]
+  }
+  const id =
+    tool === "Bash" ? result.backgroundTaskId : tool === "Monitor" ? result.taskId : undefined
+  const named = shortName(id, maxJobText)
+  if (named === undefined) return []
+  const timeout = result.timeoutMs
+  const persistent = result.persistent === true
+  return [
+    {
+      type: "task-started",
+      ...base,
+      id: named,
+      until:
+        !persistent && typeof timeout === "number" && Number.isFinite(timeout) && timeout > 0
+          ? base.startedAt + timeout
+          : null,
+      ...(persistent && { persistent: true as const }),
+    },
+  ]
+}
+
 /**
  * The background tasks a Stop lists still running, each of which starts a turn by itself
  * once done, with a task notification (probed 2026-10-04, 2.1.289: a background subagent
  * and a background command each did): its subagents, by their type, and the rest, as
- * commands. Each names its status, and only a running one counts.
+ * commands, of which only the shell jobs are listed. Each names its status, and only a running one counts.
  */
 const running = (tasks: unknown): Background => {
   const listed = Array.isArray(tasks) ? (tasks as unknown[]) : []
@@ -251,7 +329,19 @@ const running = (tasks: unknown): Background => {
       (task as { status?: unknown }).status === "running",
   )
   const agents = live.filter(({ type }) => type === "subagent").length
-  return { agents, tasks: live.length - agents }
+  // Each command's id, the agent's own words for it and the command, as the Stop gives them.
+  const jobs = live.flatMap((task): BackgroundJob[] => {
+    const { type, id, description, command } = task as Record<string, unknown>
+    const named = shortName(id, maxJobText)
+    // Only a shell job carries a command; the other kinds Claude Code lists (dreaming, a
+    // teammate, a workflow) have none to tell whether they end.
+    if (type !== "shell" || named === undefined) return []
+    // The command, as Claude Code cut it, and `errorText` cuts it again.
+    const run = errorText(command) ?? ""
+    const said = firstLine(description)
+    return [{ id: named, description: said === run.trim() ? null : (said ?? null), command: run }]
+  })
+  return { agents, tasks: live.length - agents, ...(jobs.length > 0 && { jobs }) }
 }
 
 const count = (value: unknown): number | undefined =>

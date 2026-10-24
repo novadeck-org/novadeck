@@ -1,0 +1,395 @@
+{
+  "harness": "claude",
+  "version": "2.1.310",
+  "source": "claude -p with every hook logged through --settings (2026-10-24); paths and ids sanitized",
+  "how": "Three runs, each ended its turn with something left to wake it: a Bash with run_in_background (sleep 30; echo ...), a Monitor on a file, and a ScheduleWakeup of 60 seconds (/loop dynamic mode). Stop's background_tasks lists a running shell job as {id, type, status, description, command}; the result of the call that started it carries the same id (backgroundTaskId, or the Monitor's taskId with timeoutMs and persistent); ScheduleWakeup's result carries scheduledFor (epoch ms, rounded to the minute). When a job ends, the next turn's prompt starts with <task-notification>.",
+  "scenarios": {
+    "background-command": {
+      "events": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "prompt": "You opened PR #436 and now want to wait for its CI. There is no real CI here, so stand in for 'gh pr checks 436 --watch' with this exact command: sleep 30; echo 'All checks were successful'. Start it with the Bash tool in the background (run_in_background: true), then end your turn right away, saying you'll pick it up when the checks finish. When it finishes, reply in one line."
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "sleep 30; echo 'All checks were successful'",
+              "description": "Stand-in for watching PR #436 CI checks",
+              "run_in_background": true
+            },
+            "tool_use_id": "toolu_01JPF4beHGhcMCxZ6u7THLtW"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "sleep 30; echo 'All checks were successful'",
+              "description": "Stand-in for watching PR #436 CI checks",
+              "run_in_background": true
+            },
+            "tool_response": {
+              "stdout": "",
+              "stderr": "",
+              "interrupted": false,
+              "isImage": false,
+              "noOutputExpected": false,
+              "backgroundTaskId": "bwdzimezs"
+            },
+            "tool_use_id": "toolu_01JPF4beHGhcMCxZ6u7THLtW",
+            "duration_ms": 37
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "stop_hook_active": false,
+            "last_assistant_message": "The checks for PR #436 are running in the background, and I'll pick this up when they finish.",
+            "background_tasks": [
+              {
+                "id": "bwdzimezs",
+                "type": "shell",
+                "status": "running",
+                "description": "Stand-in for watching PR #436 CI checks",
+                "command": "sleep 30; echo 'All checks were successful'"
+              }
+            ],
+            "session_crons": []
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "prompt": "<task-notification>\n<task-id>bwdzimezs</task-id>\n<tool-use-id>toolu_01JPF4beHGhcMCxZ6u7THLtW</tool-use-id>\n<output-file>/tmp/tasks/out.output</output-file>\n<status>completed</status>\n<summary>Background command \"Stand-in for watching PR #436 CI checks\" completed (exit code 0)</summary>\n</task-notification>"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "stop_hook_active": false,
+            "last_assistant_message": "All checks for PR #436 passed: the stand-in command exited 0 and reported \"All checks were successful\".",
+            "background_tasks": [],
+            "session_crons": []
+          }
+        }
+      ]
+    },
+    "monitor": {
+      "events": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "prompt": "You opened PR #436 and now want to wait for its CI. There is no real CI here: treat the file ./ci-status containing 'success' as the checks passing. Run this now with Bash: (sleep 30; echo success > ci-status) & disown. Then use the Monitor tool (load it with ToolSearch if needed) to wait until ./ci-status says success, and end your turn right away, saying you'll pick it up when the checks finish. When it finishes, reply in one line."
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "(sleep 30; echo success > ci-status) & disown",
+              "description": "Start background CI simulation"
+            },
+            "tool_use_id": "toolu_01XfaicoVPXee3pC4P9kMobv"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "(sleep 30; echo success > ci-status) & disown",
+              "description": "Start background CI simulation"
+            },
+            "tool_response": {
+              "stdout": "",
+              "stderr": "",
+              "interrupted": false,
+              "isImage": false,
+              "noOutputExpected": false
+            },
+            "tool_use_id": "toolu_01XfaicoVPXee3pC4P9kMobv",
+            "duration_ms": 49
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "tool_name": "Monitor",
+            "tool_input": {
+              "description": "PR #436 CI status (./ci-status == success)",
+              "timeout_ms": 120000,
+              "command": "until grep -q success ./ci-status 2>/dev/null; do sleep 1; done; echo \"CI success\""
+            },
+            "tool_use_id": "toolu_01PKiPrV69zKCCZcKjEBjRkC"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "tool_name": "Monitor",
+            "tool_input": {
+              "description": "PR #436 CI status (./ci-status == success)",
+              "timeout_ms": 120000,
+              "command": "until grep -q success ./ci-status 2>/dev/null; do sleep 1; done; echo \"CI success\""
+            },
+            "tool_response": {
+              "taskId": "bgh33rjif",
+              "timeoutMs": 120000,
+              "persistent": false
+            },
+            "tool_use_id": "toolu_01PKiPrV69zKCCZcKjEBjRkC",
+            "duration_ms": 5
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "stop_hook_active": false,
+            "last_assistant_message": "Monitoring PR #436's CI (simulated by `./ci-status`); I'll pick it up when the checks finish.",
+            "background_tasks": [
+              {
+                "id": "bgh33rjif",
+                "type": "shell",
+                "status": "running",
+                "description": "PR #436 CI status (./ci-status == success)",
+                "command": "until grep -q success ./ci-status 2>/dev/null; do sleep 1; done; echo \"CI success\""
+              }
+            ],
+            "session_crons": []
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "prompt": "<task-notification>\n<task-id>bgh33rjif</task-id>\n<tool-use-id>toolu_01PKiPrV69zKCCZcKjEBjRkC</tool-use-id>\n<output-file>/tmp/tasks/out.output</output-file>\n<status>completed</status>\n<summary>Monitor \"PR #436 CI status (./ci-status == success)\" stream ended</summary>\n<event>CI success</event>\n</task-notification>"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "stop_hook_active": false,
+            "last_assistant_message": "PR #436's checks passed: `./ci-status` now says success.",
+            "background_tasks": [],
+            "session_crons": []
+          }
+        }
+      ]
+    },
+    "wake-up": {
+      "events": [
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "prompt": "/loop check whether the file ./done exists. Pace yourself dynamically; this first time, schedule your next check with ScheduleWakeup in 60 seconds with reason 'waiting for ./done', then end your turn."
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "ls ./done 2>&1"
+            },
+            "tool_use_id": "toolu_01LgiqUF3C2LHGYBEHdmkiXR"
+          }
+        },
+        {
+          "event": "PostToolUseFailure",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "ls ./done 2>&1"
+            },
+            "tool_use_id": "toolu_01LgiqUF3C2LHGYBEHdmkiXR",
+            "error": "Exit code 2\nls: cannot access './done': No such file or directory",
+            "is_interrupt": false,
+            "duration_ms": 61
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "tool_name": "ScheduleWakeup",
+            "tool_input": {
+              "delaySeconds": 60,
+              "reason": "waiting for ./done",
+              "prompt": "/loop check whether the file ./done exists. Pace yourself dynamically; this first time, schedule your next check with ScheduleWakeup in 60 seconds with reason 'waiting for ./done', then end your turn.",
+              "noop": true
+            },
+            "tool_use_id": "toolu_016VF6dfQbvJUYRVqcRfvQ7h"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "tool_name": "ScheduleWakeup",
+            "tool_input": {
+              "delaySeconds": 60,
+              "reason": "waiting for ./done",
+              "prompt": "/loop check whether the file ./done exists. Pace yourself dynamically; this first time, schedule your next check with ScheduleWakeup in 60 seconds with reason 'waiting for ./done', then end your turn.",
+              "noop": true
+            },
+            "tool_response": {
+              "scheduledFor": 1792827240000,
+              "clampedDelaySeconds": 60,
+              "wasClamped": false
+            },
+            "tool_use_id": "toolu_016VF6dfQbvJUYRVqcRfvQ7h",
+            "duration_ms": 3
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "stop_hook_active": false,
+            "last_assistant_message": "`./done` doesn't exist yet. I'm pacing this loop myself and have no Monitor armed. The next check is scheduled for 09:34:00, which the tool set about 103 seconds out (I asked for 60).",
+            "background_tasks": [],
+            "session_crons": [
+              {
+                "id": "5266c9d1",
+                "schedule": "34 9 * * *",
+                "recurring": false,
+                "prompt": "/loop check whether the file ./done exists. Pace yourself dynamically; this first time, schedule your next check with ScheduleWakeup in 60 seconds with reason 'waiting for ./done', then end your turn."
+              }
+            ]
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "prompt": "/loop check whether the file ./done exists. Pace yourself dynamically; this first time, schedule your next check with ScheduleWakeup in 60 seconds with reason 'waiting for ./done', then end your turn."
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "ls ./done 2>&1"
+            },
+            "tool_use_id": "toolu_017uHTHsfLnz1ZsFpg7wxQjc"
+          }
+        },
+        {
+          "event": "PostToolUseFailure",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "ls ./done 2>&1"
+            },
+            "tool_use_id": "toolu_017uHTHsfLnz1ZsFpg7wxQjc",
+            "error": "Exit code 2\nls: cannot access './done': No such file or directory",
+            "is_interrupt": false,
+            "duration_ms": 8
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "tool_name": "ScheduleWakeup",
+            "tool_input": {
+              "delaySeconds": 60,
+              "reason": "waiting for ./done",
+              "prompt": "/loop check whether the file ./done exists. Pace yourself dynamically; this first time, schedule your next check with ScheduleWakeup in 60 seconds with reason 'waiting for ./done', then end your turn.",
+              "noop": true
+            },
+            "tool_use_id": "toolu_01BN4pUcywD3uUjdDbyNuHXx"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "tool_name": "ScheduleWakeup",
+            "tool_input": {
+              "delaySeconds": 60,
+              "reason": "waiting for ./done",
+              "prompt": "/loop check whether the file ./done exists. Pace yourself dynamically; this first time, schedule your next check with ScheduleWakeup in 60 seconds with reason 'waiting for ./done', then end your turn.",
+              "noop": true
+            },
+            "tool_response": {
+              "scheduledFor": 1792827360000,
+              "clampedDelaySeconds": 60,
+              "wasClamped": false
+            },
+            "tool_use_id": "toolu_01BN4pUcywD3uUjdDbyNuHXx",
+            "duration_ms": 1
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/work",
+            "stop_hook_active": false,
+            "last_assistant_message": "`./done` still doesn't exist. I'm self-pacing this loop with no Monitor armed. I asked for a 60-second delay, but the next check is set for 09:36:00, about 115 seconds out.",
+            "background_tasks": [],
+            "session_crons": [
+              {
+                "id": "95e533c4",
+                "schedule": "36 9 * * *",
+                "recurring": false,
+                "prompt": "/loop check whether the file ./done exists. Pace yourself dynamically; this first time, schedule your next check with ScheduleWakeup in 60 seconds with reason 'waiting for ./done', then end your turn."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

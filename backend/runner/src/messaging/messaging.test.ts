@@ -1908,6 +1908,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   openedBy: null,
   working: false,
   waiting: null,
+  waitsOn: null,
   place: (path) => path,
   ...overrides,
 })

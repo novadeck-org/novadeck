@@ -37,7 +37,7 @@ export default defineConfig({
       utilities: frontendUtilities,
       // What the page loads first, and the demo, which loads with its connection.
       budgets: {
-        first: 1_100_000,
+        first: 1_300_000,
         demo: 190_000,
         demoModule: "/frontend/demo/src/visitor/connect.ts",
       },

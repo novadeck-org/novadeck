@@ -256,14 +256,29 @@ export const projectTerminals = (project: Project, withAgents = false): Terminal
           },
         }
       : {}),
-    // Claude Code's turn is over, a command it started still running, as a dev server
-    // may for ever: it shows, but keeps nothing working.
+    // Claude Code's turn is over, a command it started still running: it keeps nothing
+    // working, but waits on the command, which wakes it once it finishes.
     ...(agents && terminal.id === "06"
       ? {
           command: "claude",
           process: "claude",
           state: "running" as const,
-          agent: { working: false, background: { agents: 0, tasks: 1 } },
+          agent: {
+            working: false,
+            background: { agents: 0, tasks: 1 },
+            waiting: {
+              jobs: [
+                {
+                  id: "demo-build",
+                  description: "Build the docs site",
+                  command: "pnpm --filter docs build",
+                  since: Date.now() - 4 * 60_000,
+                  until: null,
+                },
+              ],
+              wake: null,
+            },
+          },
         }
       : {}),
     // Antigravity runs where Novadeck hears nothing from it, as its hooks aren't connected.

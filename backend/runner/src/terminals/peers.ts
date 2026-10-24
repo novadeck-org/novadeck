@@ -7,7 +7,7 @@ import { secret } from "../companions/secrets.js"
 import { DomainError } from "../errors.js"
 import type { Activity } from "../harnesses/activity.js"
 import type { AgentsAnswer, Messaging, PeerAnswer, SendAnswer } from "../messaging/messaging.js"
-import type { Waiting, Whereabouts } from "../messaging/peers.js"
+import { waitsOnNote, type Waiting, type Whereabouts } from "../messaging/peers.js"
 import { unansweredCalls, type Ack, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
 import { gitBranch } from "./branch.js"
@@ -215,6 +215,9 @@ export class TerminalPeers {
             openedBy: terminal.openedBy,
             working: terminal.summary.activity?.state === "working",
             waiting: waitingOf(terminal.activity),
+            waitsOn: terminal.summary.activity?.waiting
+              ? waitsOnNote(terminal.summary.activity.waiting, Date.now())
+              : null,
             place: (path) => {
               const shown = place(path)
               return shown.length > 80 ? `…${shown.slice(-79)}` : shown

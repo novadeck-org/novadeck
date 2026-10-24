@@ -45,9 +45,27 @@ export type AgentStatus = {
     readonly count: number
   }
   readonly subagents?: readonly { readonly id: string; readonly type: string | null }[]
+  // What its ended turn waits on, which wakes it with no word from anyone (see
+  // `AgentWaiting`); absent while it works or waits on nothing.
+  readonly waiting?: AgentWaiting
   // How its latest turn ended, once none runs, with the start of its last reply where its
   // harness tells it (see `AgentTurnEnd`).
   readonly lastTurn?: AgentTurnEnd
+}
+
+// What an idle agent waits on: jobs it left running and picks up once they finish, each in
+// the agent's own words where it gave them (`description`, else only the `command`), with
+// when it started and, where its harness gives up on it, when that is (`until`); and a
+// wake-up it set itself, with when (`at`) and why. All times are epoch milliseconds.
+export type AgentWaiting = {
+  readonly jobs: readonly {
+    readonly id: string
+    readonly description: string | null
+    readonly command: string
+    readonly since: number
+    readonly until: number | null
+  }[]
+  readonly wake: { readonly at: number; readonly reason: string | null } | null
 }
 
 // How an agent's turn ended: `completed` or `failed` on its own, `interrupted` by the
