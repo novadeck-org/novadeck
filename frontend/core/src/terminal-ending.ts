@@ -1,3 +1,4 @@
+import { waitingOf } from "./agent-waiting"
 import { isAgentProgram } from "./process"
 import type { TerminalMetadata } from "./types"
 
@@ -47,23 +48,33 @@ export const endingText = ({ status, reason }: TerminalEnding): string =>
 // An agent Novadeck hears nothing from, as its hooks aren't connected or trusted, is
 // unheard: whether it works or waits, nothing tells. A clean exit closes the terminal, so
 // a finished one reads as idle for the moment it remains. One idle whose agent finished
-// while the person looked elsewhere, its reply `unread`, is done until they look.
+// while the person looked elsewhere, its reply `unread`, is done until they look. One whose
+// turn ended on something it waits on, which wakes it with no word from anyone, is waiting,
+// not done: it hasn't finished. A person's request outranks it, and work outranks it.
 export type TerminalPhase =
   | "starting"
   | "idle"
   | "done"
   | "running"
+  | "waiting"
   | "attention"
   | "unheard"
   | "ended"
 
-export const terminalPhase = (terminal: TerminalMetadata, unread = false): TerminalPhase => {
+export const terminalPhase = (
+  terminal: TerminalMetadata,
+  unread = false,
+  now = Date.now(),
+): TerminalPhase => {
   if (terminal.state === "exited" || terminal.state === "failed") return "ended"
   if (terminal.state === "starting") return "starting"
   if (terminal.state !== "running") return unread ? "done" : "idle"
   if (terminal.agent?.attention) return "attention"
   if (!terminal.agent && isAgentProgram(terminal.process)) return "unheard"
-  if (terminal.agent && !terminal.agent.working) return unread ? "done" : "idle"
+  if (terminal.agent && !terminal.agent.working) {
+    if (waitingOf(terminal, now)) return "waiting"
+    return unread ? "done" : "idle"
+  }
   return "running"
 }
 

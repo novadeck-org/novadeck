@@ -171,6 +171,7 @@ describe("stated", () => {
     planning: false,
     subagents: [],
     background: null,
+    waiting: null,
     lastTurn: null,
   }
 

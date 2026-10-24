@@ -1,5 +1,12 @@
 import { useSortable } from "@dnd-kit/react/sortable"
 import { subagentMarks, subagentsBadge, subagentsDetail } from "@novadeck/core/agent-subagents"
+import {
+  nextWaitingChange,
+  waitingOf,
+  waitingText,
+  wakeFill,
+  wakePassed,
+} from "@novadeck/core/agent-waiting"
 import { showsHandle, terminalLabel } from "@novadeck/core/handle"
 import { mailBadgeLabel, type MailBadge } from "@novadeck/core/messages"
 import { isWindow } from "@novadeck/core/roster"
@@ -23,6 +30,7 @@ import type { ReactNode } from "react"
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
 import { isProjectWindow } from "./project-window"
 import { SubagentBranches, SubagentLine } from "./TabSubagents"
+import { WaitingBranches, WaitingPeek, WakePassed } from "./TabWaiting"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 import { tabInstructionsId } from "./TerminalTabs"
 import { useRenderAt } from "./use-render-at"
@@ -106,7 +114,12 @@ export const TerminalTab = ({
   // What the agent waits on the person for, or that Novadeck can't hear from it, said like
   // an ending, to assistive technology.
   const waiting = shell && (attentionText(shell) ?? unheardText(shell))
-  const note = ended ?? waiting ?? (phase === "done" ? doneText(failed) : undefined)
+  // What an idle agent waits on, which wakes it by itself, or the wake-up that passed
+  // without a new turn: the glyph and the rows under the line say it.
+  const waits = phase === "waiting" && shell ? waitingOf(shell) : undefined
+  const passed = shell && (phase === "idle" || phase === "done") ? wakePassed(shell) : undefined
+  const waitNote = waits && shell ? waitingText(shell) : undefined
+  const note = ended ?? waiting ?? waitNote ?? (phase === "done" ? doneText(failed) : undefined)
   const messages = mail ? mailBadgeLabel(mail) : undefined
   // The subagents its agent runs: marked on its line, their kinds under it while selected,
   // and counted in words wherever it marks them.
@@ -137,7 +150,9 @@ export const TerminalTab = ({
   // How long ago a done tab's agent finished, beside its program, kept current.
   const finished = phase === "done" ? shell : undefined
   const age = finished && turnAge(finished)
-  useRenderAt(finished && nextTurnAge(finished))
+  useRenderAt(
+    finished ? nextTurnAge(finished) : waits && shell ? nextWaitingChange(shell) : undefined,
+  )
   // A window runs no program; a project window names its file's folder there instead.
   const process = shell?.process ?? folder ?? ""
   const { ref, handleRef, isDragSource } = useSortable({
@@ -185,7 +200,18 @@ export const TerminalTab = ({
             />
           </>
         }
-        {...(marks && !editing ? { below: <SubagentBranches marks={marks} /> } : {})}
+        {...((marks || waits || passed) && !editing
+          ? {
+              below: (
+                <>
+                  {marks && <SubagentBranches marks={marks} />}
+                  {waits && shell && <WaitingBranches terminal={shell} waiting={waits} />}
+                  {passed && <WakePassed time={passed} />}
+                </>
+              ),
+            }
+          : {})}
+        {...(waits ? { peek: <WaitingPeek waiting={waits} /> } : {})}
         selected={selected}
         emphasized={phase === "done"}
         selectLabel={`Select ${label}${hidden ? " (hidden)" : ""}`}
@@ -198,6 +224,12 @@ export const TerminalTab = ({
         {...(phase === "done" && failed ? { "data-terminal-failed": true } : {})}
         {...(phase === "attention" && shell?.state === "running" && shell.agent?.attention
           ? { "data-terminal-attention": shell.agent.attention.kind }
+          : {})}
+        {...(waits && shell
+          ? {
+              "data-terminal-wait": waits.jobs.length > 0 ? "job" : "wake",
+              "data-terminal-wake-fill": wakeFill(shell),
+            }
           : {})}
         {...(marks ? { "data-terminal-subagents": marks.working ? "working" : "background" } : {})}
         data-terminal-hidden={hidden}

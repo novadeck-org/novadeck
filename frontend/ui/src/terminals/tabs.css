@@ -2,8 +2,10 @@
    companion bar holds. A tab is a sidebar item; this draws only what a terminal adds to
    it.
 
-   Hooks on `.terminal-tab`: data-terminal-phase="idle" | "done" | "running" | "starting" |
-   "attention" | "unheard" | "ended", data-terminal-attention="question" | "permission",
+   Hooks on `.terminal-tab`: data-terminal-phase="idle" | "done" | "running" | "waiting" |
+   "starting" | "attention" | "unheard" | "ended", data-terminal-wait="job" | "wake" and
+   data-terminal-wake-fill="0" | "1" | "2" | "3" (a waiting agent's glyph: a drip for jobs
+   it left running, a mark that fills as the wake-up it set comes near), data-terminal-attention="question" | "permission",
    data-terminal-hidden="true" | "false", data-terminal-failed="true" (a done tab whose turn
    ended on an error), data-terminal-subagents="working" | "background" (its agent runs
    subagents, working on while they do, or they run on without it), data-team="lead" |
@@ -23,12 +25,19 @@
    `.terminal-tab-subagents-more`), `.terminal-tab-branches` (its subagents under its line,
    unfolded while it's selected: `.terminal-tab-branches-fold`, each row's
    `.terminal-tab-branch` and mark),
+   `.terminal-tab-waits` (what a waiting agent waits on, in the same place and fold: each
+   row's `.terminal-tab-wait` glyph and `.terminal-tab-wait-trail`), `.terminal-tab-passed`
+   (the trace of a wake-up that passed), `.terminal-tab-peek` (the card over a waiting tab:
+   `.terminal-tab-peek-command`, `.terminal-tab-peek-note`),
    `.terminal-tab-rename`, `.terminal-tab-empty`.
 
    Tokens, each optional (its fallback in brackets):
    --tab-glyph-fg (ink): the phase glyph. --tab-starting-fg (muted): the glyph while the
    shell starts. --tab-attention-fg (warning-fg): the glyph while an agent waits.
    --tab-unheard-fg (muted): the glyph while Novadeck can't hear from an agent.
+   --tab-waiting-fg (muted): the glyph while an agent waits on something that wakes it, and
+   the rows under the tab. --tab-passed-opacity (0.6): the trace of a wake-up that passed.
+   --tab-peek-command-bg (soft): the command in the card over a waiting tab.
    --tab-done-fg (success-fg): the glyph while an agent's reply waits unread.
    --tab-failed-fg (danger-fg): the same, where its turn ended on an error.
    --tab-age-fg (muted): how long ago it finished.
@@ -232,6 +241,8 @@
    glyph shows, and the column steps up a line every 80ms. Moving it is a transform, which
    the compositor runs alone, where changing `content` would repaint each frame. */
 .terminal-tab[data-terminal-phase="running"] .terminal-glyph,
+.terminal-tab[data-terminal-phase="waiting"][data-terminal-wait="job"] .terminal-glyph,
+.terminal-tab-wait[data-wait="job"],
 .terminal-tab[data-terminal-subagents="working"] .terminal-tab-subagent {
   height: 1lh;
   overflow: hidden;
@@ -246,6 +257,68 @@
   to {
     transform: translateY(-100%);
   }
+}
+/* An agent that ended its turn to wait on something it started is marked in the muted
+   colour, not as working: a slow drip for a job it left running, five steps over two
+   seconds (the column of braille steps up as the spinner's does, ending on a blank), and a
+   still mark for a wake-up it set, which fills a quarter at a time as the time nears.
+   Its program and @handle stay where they are. The rows under the tab mark each the same
+   way. Reduced motion holds the drip on its first step. */
+.terminal-tab[data-terminal-phase="waiting"] .terminal-glyph,
+.terminal-tab-waits {
+  color: var(--tab-waiting-fg, var(--color-muted));
+}
+.terminal-tab[data-terminal-phase="waiting"][data-terminal-wait="job"] .terminal-glyph::before,
+.terminal-tab-wait[data-wait="job"]::before {
+  display: block;
+  white-space: pre;
+  content: "⠉\A⠒\A⠤\A⣀\A\00a0";
+  animation: terminal-spin 2s steps(5) infinite;
+}
+.terminal-tab[data-terminal-phase="waiting"][data-terminal-wait="wake"] .terminal-glyph::before,
+.terminal-tab-wait[data-wait="wake"]::before {
+  content: "⣀";
+}
+.terminal-tab[data-terminal-wait="wake"][data-terminal-wake-fill="1"] .terminal-glyph::before,
+.terminal-tab-wait[data-wake-fill="1"]::before {
+  content: "⣤";
+}
+.terminal-tab[data-terminal-wait="wake"][data-terminal-wake-fill="2"] .terminal-glyph::before,
+.terminal-tab-wait[data-wake-fill="2"]::before {
+  content: "⣶";
+}
+.terminal-tab[data-terminal-wait="wake"][data-terminal-wake-fill="3"] .terminal-glyph::before,
+.terminal-tab-wait[data-wake-fill="3"]::before {
+  content: "⣿";
+}
+.terminal-tab-wait-trail {
+  margin-left: auto;
+  padding-left: 0.375rem;
+  font-variant-numeric: tabular-nums;
+}
+.terminal-tab-passed {
+  opacity: var(--tab-passed-opacity, 0.6);
+}
+/* The card over a waiting tab (SidebarItem's peek): the longest line is the command, set
+   in mono on a soft ground and cut to the card's width. */
+.sidebar-item-peek {
+  max-width: 20rem;
+  padding: 10px 12px;
+  font-size: var(--text-caption);
+  line-height: 1.4;
+}
+.terminal-tab-peek-command {
+  display: block;
+  overflow: hidden;
+  padding: 2px 6px;
+  border-radius: var(--radius-control);
+  background-color: var(--tab-peek-command-bg, var(--color-soft));
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.terminal-tab-peek-note {
+  color: var(--color-muted);
 }
 /* The subagents its agent runs, marked after its program as its phase is before it: a
    spinner each, a step quieter than the phase glyph, while the agent works on until they

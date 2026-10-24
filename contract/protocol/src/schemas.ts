@@ -92,6 +92,34 @@ export const agentActivity = z.strictObject({
       tasks: z.number().int().nonnegative(),
     })
     .nullable(),
+  // What its ended turn waits on, which wakes it with no word from anyone: jobs it left
+  // running and picks up once they finish (a command run in the background, a Monitor),
+  // and a wake-up it set itself. Work that may run for ever, as a dev server, isn't
+  // waited on. Each job is described in the agent's own words where it gave them, with
+  // when it started and, where its harness gives up on it (a Monitor's timeout), when
+  // that is, in epoch milliseconds. Null while a turn runs, where its harness doesn't
+  // tell, and once it waits on nothing.
+  waiting: z
+    .strictObject({
+      jobs: z
+        .array(
+          z.strictObject({
+            id: z.string().min(1).max(256),
+            description: z.string().min(1).max(512).nullable(),
+            command: z.string().max(4096),
+            since: z.number(),
+            until: z.number().nullable(),
+          }),
+        )
+        .max(16),
+      wake: z
+        .strictObject({
+          at: z.number(),
+          reason: z.string().min(1).max(512).nullable(),
+        })
+        .nullable(),
+    })
+    .nullable(),
   attention: z.strictObject({
     pending: z.number().int().nonnegative(),
     kind: z.enum(["permission", "question", "plan"]).nullable(),

@@ -1,5 +1,6 @@
 import { useId, type ComponentPropsWithoutRef, type ReactNode, type Ref } from "react"
 
+import { HoverCard } from "./HoverCard"
 import { Tooltip } from "./Tooltip"
 
 export const sidebarListClasses =
@@ -18,6 +19,7 @@ export const SidebarItem = ({
   selected,
   selectLabel,
   tooltip,
+  peek,
   description,
   tag,
   badge,
@@ -41,6 +43,9 @@ export const SidebarItem = ({
   selectLabel: string
   // On hover, where a row has more to say than it shows.
   tooltip?: string
+  // A card over the row, for the pointer, where it has more to say than a line: it takes
+  // the place of the tooltip.
+  peek?: ReactNode
   description?: string
   // Before the name, such as a terminal's handle.
   tag?: ReactNode
@@ -102,7 +107,11 @@ export const SidebarItem = ({
       className={`${sidebarItemClasses} ${editing ? "flex-col" : ""} ${className}`}
       data-selected={selected}
     >
-      {tooltip ? (
+      {peek && !editing ? (
+        <HoverCard trigger={select} className="sidebar-item-peek">
+          {peek}
+        </HoverCard>
+      ) : tooltip ? (
         <Tooltip content={tooltip} placement="right-start" disabled={editing}>
           {select}
         </Tooltip>

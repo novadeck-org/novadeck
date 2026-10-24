@@ -1,10 +1,13 @@
 import { movedOrder, nextAccountReset, runningSeats, sameSeats } from "@novadeck/core/account-usage"
+import { nextWaitingChange } from "@novadeck/core/agent-waiting"
 import type { Backend, BackendConnectionState } from "@novadeck/core/port"
+import { terminalPhase } from "@novadeck/core/terminal-ending"
 import { memo, useEffect, useState, useSyncExternalStore } from "react"
 
 import { readSubscriptionOrder, writeSubscriptionOrder } from "../shell/shell-storage"
 import { SubscriptionUsage } from "../shell/SubscriptionUsage"
 import { WorkspaceFooter as Footer, type FooterStatus } from "../shell/WorkspaceFooter"
+import { useRenderAt } from "../terminals/use-render-at"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useAccounts } from "./controller/footer-accounts"
 import { crashLoopQuestion, currentState, shallowEqual } from "./selectors"
@@ -52,14 +55,24 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
   )
   const zen = useUiState((state) => Boolean(state.shell.zen))
   const navigate = useUiState((state) => state.shell.navigate)
-  const { count, running } = useWorkspaceState((workspace) => {
+  const { count, running, waiting, waitingChange } = useWorkspaceState((workspace) => {
     const { terminals } = currentState(workspace).roster
+    const now = Date.now()
+    // Agents that ended their turn to wait on something count apart, never as working; a
+    // wake-up passing makes one idle again, so the count is read again then.
+    const waits = terminals.filter((terminal) => terminalPhase(terminal, false, now) === "waiting")
     return {
+      waiting: waits.length,
+      waitingChange: waits.reduce<number | undefined>((soonest, terminal) => {
+        const next = nextWaitingChange(terminal, now)
+        return next === undefined || (soonest !== undefined && soonest < next) ? soonest : next
+      }, undefined),
       // Windows undocked from a terminal's companion aren't terminals.
       count: terminals.length,
       running: terminals.filter((terminal) => terminal.state === "running").length,
     }
   }, shallowEqual)
+  useRenderAt(waitingChange)
   const seats = useWorkspaceState(runningSeats, sameSeats)
   // The order the person left the subscriptions in, kept for their next visit.
   const [order, setOrder] = useState(readSubscriptionOrder)
@@ -95,6 +108,7 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
       hidden={zen}
       count={count}
       running={running}
+      waiting={waiting}
       status={status}
       navigate={navigate}
       onRetry={backend.crashLoop ? commands.retryAfterCrashLoop : undefined}

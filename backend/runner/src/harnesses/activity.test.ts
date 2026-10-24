@@ -70,6 +70,7 @@ const idle = (lastTurn: Omit<NonNullable<ReturnType<typeof summary>["lastTurn"]>
   subagents: [],
   planning: false,
   background: null,
+  waiting: null,
   lastTurn: { ...lastTurn, at: expect.any(Number) },
 })
 
@@ -95,6 +96,7 @@ describe("activity from captured hooks", () => {
       subagents: [],
       planning: false,
       background: null,
+      waiting: null,
       ...ongoing,
     })
     expect(last).toEqual(idle(replied))
@@ -108,6 +110,7 @@ describe("activity from captured hooks", () => {
       subagents: [],
       planning: false,
       background: null,
+      waiting: null,
       ...ongoing,
     })
     expect(last).toEqual(idle(replied))
@@ -120,6 +123,7 @@ describe("activity from captured hooks", () => {
       subagents: [],
       planning: false,
       background: null,
+      waiting: null,
       ...ongoing,
     })
   })
@@ -132,6 +136,7 @@ describe("activity from captured hooks", () => {
       subagents: [],
       planning: false,
       background: null,
+      waiting: null,
       ...ongoing,
     })
     expect(last).toEqual(
@@ -154,6 +159,7 @@ describe("activity from captured hooks", () => {
       subagents: [],
       planning: false,
       background: null,
+      waiting: null,
       ...ongoing,
     })
     expect(states).toContainEqual({
@@ -162,6 +168,7 @@ describe("activity from captured hooks", () => {
       subagents: [],
       planning: false,
       background: null,
+      waiting: null,
       ...ongoing,
     })
     expect(last).toEqual(idle(replied))
@@ -183,6 +190,7 @@ describe("activity from captured hooks", () => {
       subagents: [],
       planning: false,
       background: null,
+      waiting: null,
       ...ongoing,
     })
     // Its Stop names no reply; its transcript does, which the runner reads apart.

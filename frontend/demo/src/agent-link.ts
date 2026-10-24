@@ -12,6 +12,16 @@ export type DemoAsk = "permission" | "question" | "plan"
 // What work its ended turn leaves running, counted or not (both zero).
 export type DemoBackground = { readonly agents: number; readonly tasks: number }
 
+// What its ended turn waits on, which wakes it with no word from anyone: a job it left
+// running, in its own words, that has run for `minutes`, or a wake-up it set, due in
+// `inMinutes`.
+export type DemoWaiting =
+  | {
+      readonly job: { readonly description: string; readonly command: string }
+      readonly minutes: number
+    }
+  | { readonly wake: { readonly reason: string }; readonly inMinutes: number }
+
 export type DemoAgentVerbs = {
   // Starts a turn that works until another verb ends it: in plan mode, or with three
   // subagents running. A terminal that runs no agent becomes Claude Code first.
@@ -42,6 +52,7 @@ export type DemoAgentVerbs = {
       readonly error?: string
       readonly gist?: string
       readonly background?: DemoBackground
+      readonly waiting?: DemoWaiting
     },
   ) => void
   // Back at its prompt with no turn behind it: nothing works, waits or reads unread.

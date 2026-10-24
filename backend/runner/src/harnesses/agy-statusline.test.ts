@@ -229,6 +229,7 @@ describe("Antigravity's status line, as captured", () => {
       subagents: [],
       planning: false,
       background: null,
+      waiting: null,
     }
     // Its status line may still say working just after the Stop: the turn stays over.
     expect(run([preInvocation(1), stop(2), report(working!, 3)])).toEqual({
@@ -250,6 +251,7 @@ describe("Antigravity's status line, as captured", () => {
       subagents: [],
       planning: false,
       background: null,
+      waiting: null,
       lastTurn: null,
     })
     // Drawn just after the Stop, a snapshot still showing the turn's confirmation asks
@@ -273,6 +275,7 @@ describe("Antigravity's status line, as captured", () => {
       subagents: [],
       planning: false,
       background: null,
+      waiting: null,
       lastTurn: null,
     })
     // Working again: the confirmation was answered, and the turn goes on.
@@ -409,6 +412,7 @@ describe("Antigravity's status line, listing its subagents", () => {
     expect(seen([preInvocation(1), stop(2, true), report(two!, 3)]).at(-1)).toMatchObject({
       state: "idle",
       background: null,
+      waiting: null,
     })
     // Drawn before the wake turn's first call, it counts nothing of it; the next
     // snapshot corrects one that arrives later.

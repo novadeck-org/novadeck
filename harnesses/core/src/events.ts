@@ -192,6 +192,23 @@ export type ActivityEvent = {
       /** It started work that runs on in the background, as Claude Code's `run_in_background`. */
       readonly background?: true
     }
+  /**
+   * A background task the agent started got its id, and with it a timeout where the
+   * harness gives up on it, in `until`, epoch milliseconds, as Claude Code's Monitor does;
+   * a `persistent` one runs until stopped. Told by the call's result, with the task's
+   * `startedAt`; a Stop's list of what runs names the task by this id.
+   */
+  | {
+      readonly type: "task-started"
+      readonly id: string
+      readonly until: number | null
+      readonly persistent?: true
+    }
+  /**
+   * The agent set a wake-up for itself, to run its next turn at `at`, epoch milliseconds,
+   * for the `reason` it gave, as Claude Code's ScheduleWakeup does.
+   */
+  | { readonly type: "wake-scheduled"; readonly at: number; readonly reason: string | null }
   | {
       readonly type: "file-touched"
       readonly actor: string | null
@@ -288,6 +305,15 @@ export type Background = {
   readonly agents: number
   readonly tasks: number
   readonly more?: true
+  /** The tasks' own account of each, where the harness lists them (Claude Code's Stop does). */
+  readonly jobs?: readonly BackgroundJob[]
+}
+
+/** A command running in the background, as its harness lists it: its id, the agent's words for it, and the command. */
+export type BackgroundJob = {
+  readonly id: string
+  readonly description: string | null
+  readonly command: string
 }
 
 /** Where a plan is: a file the harness wrote it to, or its text when it named no file. */

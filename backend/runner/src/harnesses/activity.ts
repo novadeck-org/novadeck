@@ -4,6 +4,7 @@ import { ref } from "@novadeck/harness-core/harness"
 import type { AgentActivity } from "@novadeck/protocol"
 
 import type { Binding } from "./bindings.js"
+import { endless } from "./waits.js"
 
 /** The reference clients know a subagent by. */
 export const subagentRef = (id: string): string => ref("subagent", id)
@@ -69,6 +70,23 @@ const maxSubagents = 32
 const maxEnded = 64
 // What the protocol carries of an id or a kind.
 const maxText = 256
+// How many background tasks' starts are remembered, and how many jobs an agent waits on.
+const maxTasks = 64
+const maxJobs = 16
+
+/**
+ * A background task the agent started, as its call's result named it: when, and until when
+ * its harness lets it run (a Monitor's timeout); a `persistent` one runs until stopped.
+ */
+type Task = {
+  readonly id: string
+  readonly at: number
+  readonly until: number | null
+  readonly persistent: boolean
+}
+
+/** What an ended turn waits on, as `AgentActivity.waiting` tells it. */
+type Waiting = NonNullable<AgentActivity["waiting"]>
 
 /**
  * What the bound agent is doing, as its hooks said. `turnAt` is when the hook of the
@@ -84,7 +102,9 @@ const maxText = 256
  * Novadeck continued the turn at its latest Stop, at `turnAt`, and `skips` counts the
  * records of such Stops yet to come that name no turn: Claude Code records a Stop it
  * continued, once its hook answered, as it does any other, and that record ends nothing.
- * `lastTurn` says how the latest turn to end ended, the start of the agent's last reply
+ * `tasks` are the background tasks started, which a Stop lists by id alone, and `wake` is
+ * the wake-up the running turn set, if any (a turn's start clears it); `waits` is what the
+ * latest turn's end waits on, from both. `lastTurn` says how the latest turn to end ended, the start of the agent's last reply
  * in it, and when it ended; a turn's start clears it, and a continued Stop keeps it,
  * should the continuation lapse.
  */
@@ -101,6 +121,9 @@ export type Activity = {
   readonly turnAt: number
   readonly idled: boolean
   readonly background: Background | null
+  readonly tasks: readonly Task[]
+  readonly wake: { readonly at: number; readonly reason: string | null } | null
+  readonly waits: Waiting | null
   /**
    * How many subagents the running turn's latest working status line counts running; zero
    * once the turn ends, whose `background` tells what runs on then.
@@ -234,6 +257,9 @@ export const started = (at: number, wakes = true, records = true): Activity => (
   turnAt: at,
   idled: false,
   background: null,
+  tasks: [],
+  wake: null,
+  waits: null,
   running: 0,
   wakes,
   records,
@@ -260,6 +286,21 @@ const waiting = (
 /** Work left running, or null for none: nothing counted, and no more said to run. */
 const counted = (background: Background): Background | null =>
   background.agents + background.tasks > 0 || background.more ? background : null
+
+/**
+ * What a completed turn's end waits on: the jobs it left running that end by themselves,
+ * and the wake-up it set. A job runs for ever when it is no Monitor on a timeout and its
+ * command is a server or a watch mode (see `endless`), or a Monitor told to persist.
+ */
+const waitsOn = (activity: Activity, jobs: Background["jobs"], endedAt: number): Waiting | null => {
+  const waited = (jobs ?? []).flatMap(({ id, description, command }) => {
+    const task = activity.tasks.find((each) => each.id === id)
+    if (task?.persistent || (!task?.until && endless(command))) return []
+    return [{ id, description, command, since: task?.at ?? endedAt, until: task?.until ?? null }]
+  })
+  const { wake } = activity
+  return waited.length > 0 || wake ? { jobs: waited.slice(0, maxJobs), wake } : null
+}
 
 const end = (ended: Activity["ended"], ids: readonly string[], at: number): Activity["ended"] =>
   [...ended.filter(({ id }) => !ids.includes(id)), ...ids.map((id) => ({ id, at }))].slice(
@@ -380,6 +421,10 @@ const turnEnded = (activity: Activity, event: TurnEnded): Activity | undefined =
     continued: false,
     listed: false,
     running: 0,
+    waits:
+      event.outcome === "completed"
+        ? waitsOn(activity, event.background?.jobs, event.startedAt)
+        : null,
     lastTurn: {
       outcome: event.outcome,
       reply: event.reply ?? null,
@@ -594,6 +639,17 @@ export const apply = (
     case "tool-called":
       // Counted by the messaging loop guard alone: it changes nothing here.
       return undefined
+    case "task-started": {
+      // Remembered across turns: the Stop that lists it may be a later turn's.
+      const { id, startedAt: at, until, persistent } = event
+      if (id.length > maxText || activity.tasks.some((task) => task.id === id)) return undefined
+      const task = { id, at, until, persistent: persistent === true }
+      return { ...activity, tasks: [...activity.tasks, task].slice(-maxTasks) }
+    }
+    case "wake-scheduled":
+      // Only the turn running sets one; a later one replaces it.
+      if (activity.state !== "working" || event.startedAt < activity.turnAt) return undefined
+      return { ...activity, wake: { at: event.at, reason: event.reason } }
     case "mode-observed":
       if (event.startedAt < activity.planningAt) return undefined
       return { ...activity, planning: event.planning, planningAt: event.startedAt }
@@ -683,6 +739,8 @@ export const apply = (
         turnAt: event.startedAt,
         idled: false,
         background: null,
+        wake: null,
+        waits: null,
         running: 0,
         turn: event.turn ?? null,
         continued: false,
@@ -939,40 +997,45 @@ export const summary = ({
   subagents,
   planning,
   background,
+  waits,
   running,
   listed,
   lastTurn,
-}: Activity): AgentActivity => ({
-  state:
+}: Activity): AgentActivity => {
+  const working =
     state === "working" ||
     (background !== null && (background.agents > 0 || (background.more === true && !listed)))
-      ? "working"
-      : "idle",
-  // While its turn runs, only the subagents its status line counts running.
-  background:
-    state === "working"
-      ? running > 0
-        ? { agents: running, tasks: 0 }
-        : null
-      : !background
+  return {
+    state: working ? "working" : "idle",
+    // While its turn runs, only the subagents its status line counts running.
+    background:
+      state === "working"
+        ? running > 0
+          ? { agents: running, tasks: 0 }
+          : null
+        : !background
+          ? null
+          : { agents: background.agents, tasks: background.tasks },
+    planning,
+    // Waiting is for an agent with nothing to do but be woken: not while its turn, or
+    // subagents it left, run.
+    waiting: working ? null : waits,
+    attention: {
+      pending: pending.length,
+      kind: pending[0]?.kind ?? null,
+    },
+    subagents: subagents.map(({ id, type }) => ({ id: subagentRef(id), type })),
+    lastTurn:
+      state === "working" || !lastTurn
         ? null
-        : { agents: background.agents, tasks: background.tasks },
-  planning,
-  attention: {
-    pending: pending.length,
-    kind: pending[0]?.kind ?? null,
-  },
-  subagents: subagents.map(({ id, type }) => ({ id: subagentRef(id), type })),
-  lastTurn:
-    state === "working" || !lastTurn
-      ? null
-      : {
-          outcome: lastTurn.outcome,
-          reply: lastTurn.reply,
-          at: lastTurn.at,
-          gist: lastTurn.gist ?? null,
-          error: lastTurn.error ?? null,
-          limit: lastTurn.limit ?? null,
-          files: [...lastTurn.files],
-        },
-})
+        : {
+            outcome: lastTurn.outcome,
+            reply: lastTurn.reply,
+            at: lastTurn.at,
+            gist: lastTurn.gist ?? null,
+            error: lastTurn.error ?? null,
+            limit: lastTurn.limit ?? null,
+            files: [...lastTurn.files],
+          },
+  }
+}

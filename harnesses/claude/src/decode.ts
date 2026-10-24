@@ -1,6 +1,6 @@
 import { basename, dirname, extname } from "node:path"
 
-import type { Background, HarnessEvent } from "@novadeck/harness-core/events"
+import type { Background, BackgroundJob, HarnessEvent } from "@novadeck/harness-core/events"
 import {
   absolute,
   withRequestCwd,
@@ -19,7 +19,7 @@ import {
 } from "@novadeck/harness-core/harness"
 import { at as writtenAt, record } from "@novadeck/harness-core/items"
 import type { Report } from "@novadeck/harness-core/report"
-import { isFields } from "@novadeck/harness-core/tools"
+import { isFields, oneLine } from "@novadeck/harness-core/tools"
 
 import { kindOf } from "./tools.js"
 
@@ -212,8 +212,13 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           ...(payload.is_interrupt === true && { interrupted: true as const }),
         },
         ...drafted(base, actor, tool, payload),
-        // A write that failed wrote nothing.
-        ...(event === "PostToolUse" ? touched(base, actor, tool, payload.tool_input) : []),
+        // A write that failed wrote nothing, and a task that failed to start runs nowhere.
+        ...(event === "PostToolUse"
+          ? [
+              ...touched(base, actor, tool, payload.tool_input),
+              ...started(base, tool, payload.tool_input, payload.tool_response),
+            ]
+          : []),
         {
           type: "tool-called",
           ...base,
@@ -236,6 +241,71 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
 // The prompt of a turn Claude Code starts by itself once a background task finishes.
 const notification = /^\s*<task-notification>/
 
+// The most a wake-up may be set out, as ScheduleWakeup clamps it: a minute to an hour.
+const wakeDelayMs = { least: 60_000, most: 3_600_000 } as const
+
+// The longest id, description and reason the protocol takes.
+const maxJobText = 256
+const maxDescription = 512
+const maxCommand = 4096
+
+// The first line of what the agent wrote, cut to what the protocol takes; undefined if blank.
+const firstLine = (value: unknown): string | undefined => {
+  const line = oneLine(text(value) ?? "").slice(0, maxDescription)
+  return line === "" ? undefined : line
+}
+
+/**
+ * What a call that leaves something to wake the agent says of it, from its result (probed
+ * 2026-10-24, 2.1.310): a background command's `backgroundTaskId`, a Monitor's `taskId`
+ * with its timeout and whether it is persistent, and ScheduleWakeup's `scheduledFor`, in
+ * epoch milliseconds, which Claude Code rounds to the minute; its `delaySeconds` from the
+ * call's input stands in where a result has none.
+ */
+const started = (
+  base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
+  tool: string,
+  input: unknown,
+  response: unknown,
+): HarnessEvent[] => {
+  const fields = isFields(input) ? input : {}
+  const result = isFields(response) ? response : {}
+  if (tool === "ScheduleWakeup") {
+    const scheduled = result.scheduledFor
+    const delay = fields.delaySeconds
+    const at =
+      typeof scheduled === "number" && Number.isFinite(scheduled)
+        ? scheduled
+        : typeof delay === "number" && Number.isFinite(delay)
+          ? base.startedAt + Math.min(wakeDelayMs.most, Math.max(wakeDelayMs.least, delay * 1000))
+          : undefined
+    const reason = firstLine(fields.reason)
+    return at === undefined ? [] : [{ type: "wake-scheduled", ...base, at, reason: reason ?? null }]
+  }
+  const id =
+    tool === "Bash" && fields.run_in_background === true
+      ? result.backgroundTaskId
+      : tool === "Monitor"
+        ? result.taskId
+        : undefined
+  const named = shortName(id, maxJobText)
+  if (named === undefined) return []
+  const timeout = result.timeoutMs
+  const persistent = result.persistent === true
+  return [
+    {
+      type: "task-started",
+      ...base,
+      id: named,
+      until:
+        !persistent && typeof timeout === "number" && Number.isFinite(timeout) && timeout > 0
+          ? base.startedAt + timeout
+          : null,
+      ...(persistent && { persistent: true as const }),
+    },
+  ]
+}
+
 /**
  * The background tasks a Stop lists still running, each of which starts a turn by itself
  * once done, with a task notification (probed 2026-10-04, 2.1.289: a background subagent
@@ -251,7 +321,20 @@ const running = (tasks: unknown): Background => {
       (task as { status?: unknown }).status === "running",
   )
   const agents = live.filter(({ type }) => type === "subagent").length
-  return { agents, tasks: live.length - agents }
+  // Each command's id, the agent's own words for it and the command, as the Stop gives them.
+  const jobs = live.flatMap((task): BackgroundJob[] => {
+    const { type, id, description, command } = task as Record<string, unknown>
+    const named = shortName(id, maxJobText)
+    if (type === "subagent" || named === undefined) return []
+    return [
+      {
+        id: named,
+        description: firstLine(description) ?? null,
+        command: text(command)?.slice(0, maxCommand) ?? "",
+      },
+    ]
+  })
+  return { agents, tasks: live.length - agents, ...(jobs.length > 0 && { jobs }) }
 }
 
 const count = (value: unknown): number | undefined =>

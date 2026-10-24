@@ -2,9 +2,14 @@ import type { BackendAction, BackendSink, TerminalKey } from "@novadeck/core/por
 import { isAgentProgram } from "@novadeck/core/process"
 import { terminalKeyId } from "@novadeck/core/registry"
 import { createTelemetryStore, dropTerminal, setUsage } from "@novadeck/core/telemetry"
-import type { AgentStatus, AgentTurnEnd, TerminalMetadata } from "@novadeck/core/types"
+import type {
+  AgentStatus,
+  AgentTurnEnd,
+  AgentWaiting,
+  TerminalMetadata,
+} from "@novadeck/core/types"
 
-import type { DemoAgentVerbs } from "./agent-link"
+import type { DemoAgentVerbs, DemoWaiting } from "./agent-link"
 import { chatAgent } from "./samples"
 
 // How long a demo agent's turn works before it finishes.
@@ -44,6 +49,15 @@ const subagents = [
   { id: "sub-2", type: "code-reviewer" },
   { id: "sub-3", type: null },
 ]
+
+// What a demo agent's ended turn waits on, as the status reports it at `now`.
+const waitingOf = (waits: DemoWaiting, now: number): AgentWaiting =>
+  "job" in waits
+    ? {
+        jobs: [{ id: "demo-job", ...waits.job, since: now - waits.minutes * 60_000, until: null }],
+        wake: null,
+      }
+    : { jobs: [], wake: { at: now + waits.inMinutes * 60_000, reason: waits.wake.reason } }
 
 // What its ended turn left running, which the next status keeps.
 const left = (agent: AgentStatus | undefined) =>
@@ -217,7 +231,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
       const { program, began } = take(key, terminal)
       const id = terminalKeyId(key)
       const after = options?.after ?? turnMs
-      const { gist, background, error } = options ?? {}
+      const { gist, background, error, waiting: waits } = options ?? {}
       // A turn that ends in the harness's or the API's error has said nothing of its own.
       const reply = error ? undefined : (options?.reply ?? replies[outcome])
       if (began) emit({ type: "begin", key })
@@ -236,6 +250,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
           status(key, {
             working: waiting,
             ...(background ? { background } : {}),
+            ...(waits ? { waiting: waitingOf(waits, lastTurn.at) } : {}),
             lastTurn,
           })
           emit({ type: "end", key, outcome, ...(reply ? { reply } : {}) })

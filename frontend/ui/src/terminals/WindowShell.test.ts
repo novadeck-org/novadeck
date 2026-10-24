@@ -1,5 +1,5 @@
 import { itemFixture, terminalFixture } from "@novadeck/core/testing"
-import type { Tile } from "@novadeck/core/types"
+import type { AgentWaiting, Tile } from "@novadeck/core/types"
 import { render } from "@novadeck/test-kit/render"
 import { Portal } from "@novadeck/toolkit/Portal"
 import { createElement } from "react"
@@ -132,5 +132,80 @@ describe("terminal frame header and the name in it", () => {
     )
     double(nameOf(frame))
     expect(calls).toEqual(["fly"])
+  })
+})
+
+// An agent in its own terminal, its turn over, waiting as given.
+const waiting = (agentWaiting: AgentWaiting): Tile => ({
+  ...terminalFixture(1, "~/p"),
+  state: "running",
+  process: "claude",
+  agent: { working: false, waiting: agentWaiting },
+})
+
+describe("terminal frame bar", () => {
+  context("while the agent waits on a job it started", () => {
+    const frame = () =>
+      renderFrame(
+        waiting({
+          jobs: [
+            {
+              id: "j",
+              description: "Watch CI checks for PR #436",
+              command: "gh pr checks 436 --watch",
+              since: Date.now() - 4 * 60_000,
+              until: null,
+            },
+          ],
+          wake: null,
+        }),
+      )
+
+    it("reads waiting, minutes first and then the agent's own description", () => {
+      const window = frame()
+      expect(window.querySelector("section")?.getAttribute("data-terminal-phase")).toBe("waiting")
+      expect(window.querySelector(".window-wait")?.textContent).toBe(
+        "4m·Watch CI checks for PR #436",
+      )
+    })
+
+    it("says it in words to assistive technology", () => {
+      expect(frame().querySelector("section")?.getAttribute("aria-description")).toBe(
+        "Waiting on Watch CI checks for PR #436, 4 minutes",
+      )
+    })
+
+    it("leaves the compact tiles of Grid and Canvas to their own look", () => {
+      const tile = renderFrame(
+        waiting({
+          jobs: [
+            { id: "j", description: null, command: "sleep 600", since: Date.now(), until: null },
+          ],
+          wake: null,
+        }),
+        { compact: true },
+      )
+      expect(tile.querySelector(".window-wait")).toBeNull()
+    })
+  })
+
+  context("while the agent waits for a wake-up", () => {
+    it("names its time and counts down to it", () => {
+      const at = Date.now() + 8 * 60_000 + 14_000
+      const window = renderFrame(waiting({ jobs: [], wake: { at, reason: "Check the deploy" } }))
+      expect(window.querySelector(".window-wait")?.textContent).toMatch(
+        /^wakes at \d\d:\d\d·in 8:1\d$/,
+      )
+    })
+  })
+
+  context("once the wake-up has passed with no new turn", () => {
+    it("reads idle again", () => {
+      const window = renderFrame(
+        waiting({ jobs: [], wake: { at: Date.now() - 10 * 60_000, reason: null } }),
+      )
+      expect(window.querySelector("section")?.getAttribute("data-terminal-phase")).toBe("idle")
+      expect(window.querySelector(".window-wait")).toBeNull()
+    })
   })
 })

@@ -1,3 +1,4 @@
+import { waitingOf } from "./agent-waiting"
 import { handleText } from "./handle"
 import type { AgentTurnEnd, TerminalMetadata } from "./types"
 
@@ -33,7 +34,9 @@ export const sightTurnEnd = (
   if (seen === undefined) return { seen: end?.at ?? null }
   if (!end || end.at === seen || agentWorking(terminal)) return { seen }
   const waiting = terminal.state === "running" && terminal.agent?.attention !== undefined
-  if (waiting || (end.outcome !== "completed" && end.outcome !== "failed")) return { seen: end.at }
+  // A turn that ended on something the agent waits on isn't finished: it wakes with no word.
+  if (waiting || waitingOf(terminal) || (end.outcome !== "completed" && end.outcome !== "failed"))
+    return { seen: end.at }
   const failed = end.outcome === "failed"
   return {
     seen: end.at,
@@ -53,7 +56,13 @@ export const finishGraceMs = 700
 // once it turned interrupted, was replaced, or the agent works again.
 export const standingFinish = (terminal: TerminalMetadata, at: number): AgentFinish | undefined => {
   const end = turnEnd(terminal)
-  if (end?.at !== at || end.outcome !== "completed" || agentWorking(terminal)) return undefined
+  if (
+    end?.at !== at ||
+    end.outcome !== "completed" ||
+    agentWorking(terminal) ||
+    waitingOf(terminal)
+  )
+    return undefined
   return end.reply === undefined ? { failed: false } : { failed: false, reply: end.reply }
 }
 

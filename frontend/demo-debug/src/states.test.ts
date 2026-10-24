@@ -87,11 +87,28 @@ const verbs = (
     finish: (at, terminal, ...args) => {
       record("finish", at, terminal, args)
       say(at, terminal, { working: true })
-      const { after = 0 } = (args[1] ?? {}) as { after?: number }
+      const { after = 0, waiting } = (args[1] ?? {}) as { after?: number; waiting?: unknown }
       setTimeout(
         () =>
           say(at, terminal, {
             working: false,
+            // Whatever it waits on, as a job that began now.
+            ...(waiting
+              ? {
+                  waiting: {
+                    jobs: [
+                      {
+                        id: "job",
+                        description: "Watch CI checks",
+                        command: "gh pr checks --watch",
+                        since: Date.now(),
+                        until: null,
+                      },
+                    ],
+                    wake: null,
+                  },
+                }
+              : {}),
             lastTurn: { outcome: args[0] as "completed", at: Date.now() },
           }),
         after,
@@ -238,7 +255,7 @@ describe("demo states", () => {
     })
     expect(shown[1]).toMatchObject({ agent: { lastTurn: { outcome: "failed" } } })
     expect(new Set(shown.map((each) => terminalPhase(each)))).toEqual(
-      new Set(["idle", "running", "attention", "unheard", "starting", "ended"]),
+      new Set(["idle", "running", "waiting", "attention", "unheard", "starting", "ended"]),
     )
   })
 
@@ -249,6 +266,8 @@ describe("demo states", () => {
       [
         ...Array<string>(3).fill("ask"),
         ...Array<string>(1).fill("ask"),
+        "finish",
+        "finish",
         "finish",
         "finish",
         "work",

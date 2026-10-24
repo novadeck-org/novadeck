@@ -73,6 +73,7 @@ describe("terminal activity", () => {
         subagents: [],
         planning: false,
         background: null,
+        waiting: null,
         lastTurn: null,
       }
       expect(claude(idle).status).toEqual({ state: "running", agent: { working: false } })
@@ -89,6 +90,7 @@ describe("terminal activity", () => {
         subagents: [],
         planning: false,
         background: null,
+        waiting: null,
         lastTurn: null,
       }
       expect(claude(asking).status).toEqual({
@@ -105,6 +107,7 @@ describe("terminal activity", () => {
           subagents: [],
           planning: true,
           background: null,
+          waiting: null,
           lastTurn: null,
         }).status,
       ).toEqual({
@@ -122,6 +125,7 @@ describe("terminal activity", () => {
           subagents,
           planning: false,
           background: null,
+          waiting: null,
           lastTurn: null,
         }).status,
       ).toEqual({ state: "running", agent: { working: true, subagents } })
@@ -134,6 +138,7 @@ describe("terminal activity", () => {
         subagents: [],
         planning: false,
         background: null,
+        waiting: null,
         lastTurn: {
           outcome: "completed" as const,
           reply: "All green.",
@@ -175,6 +180,7 @@ describe("terminal activity", () => {
           subagents: [],
           planning: false,
           background: null,
+          waiting: null,
           lastTurn: {
             outcome: "failed",
             reply: null,
@@ -213,6 +219,7 @@ describe("terminal activity", () => {
           subagents: [],
           planning: false,
           background: null,
+          waiting: null,
           lastTurn: {
             outcome: "completed",
             reply: "Rounded.",
@@ -239,6 +246,7 @@ describe("terminal activity", () => {
         subagents: [],
         planning: false,
         background: null,
+        waiting: null,
         lastTurn: null,
       }
       const telemetry = {
@@ -266,6 +274,7 @@ describe("terminal activity", () => {
         subagents: [],
         planning: false,
         background: null,
+        waiting: null,
         lastTurn: null,
       }
       const empty = { context: null, limits: [], model: null, effort: null }
@@ -289,6 +298,7 @@ describe("terminal activity", () => {
         subagents: [{ id: "a1", type: "explorer" }],
         planning: false,
         background: { agents: 1, tasks: 2 },
+        waiting: null,
         lastTurn: null,
       }
       expect(claude(waiting).status).toEqual({
@@ -298,6 +308,34 @@ describe("terminal activity", () => {
           background: { agents: 1, tasks: 2 },
           subagents: [{ id: "a1", type: "explorer" }],
         },
+      })
+    })
+
+    it("carries what an idle agent waits on", () => {
+      const waiting = {
+        jobs: [
+          {
+            id: "b1",
+            description: "Watch CI checks",
+            command: "gh pr checks --watch",
+            since: 1000,
+            until: null,
+          },
+        ],
+        wake: { at: 5000, reason: null },
+      }
+      const idle = {
+        state: "idle" as const,
+        attention: { pending: 0, kind: null },
+        subagents: [],
+        planning: false,
+        background: null,
+        waiting,
+        lastTurn: null,
+      }
+      expect(claude(idle).status).toEqual({
+        state: "running",
+        agent: { working: false, waiting },
       })
     })
 

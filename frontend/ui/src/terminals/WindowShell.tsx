@@ -1,3 +1,4 @@
+import { nextWaitingChange, waitingText } from "@novadeck/core/agent-waiting"
 import { handleText, terminalLabel } from "@novadeck/core/handle"
 import { isWindow } from "@novadeck/core/roster"
 import { attentionText, doneText, terminalPhase, unheardText } from "@novadeck/core/terminal-ending"
@@ -11,6 +12,8 @@ import { useRef, type ReactNode } from "react"
 import { shortcutBindings } from "../interaction/shortcuts"
 import { isProjectWindow } from "./project-window"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
+import { useRenderAt } from "./use-render-at"
+import { WindowWait } from "./WindowWait"
 
 // What a layout contributes to each terminal it places.
 export type TerminalLayoutControls = {
@@ -122,12 +125,14 @@ export const WindowShell = ({
   const label = terminalLabel(terminal.name, shell?.handle)
   const phase = shell ? terminalPhase(shell, unread !== undefined) : "idle"
   const failed = unread === "failed"
-  // What the agent waits on the person for, that Novadeck can't hear from it, or that it
-  // finished with its reply unread.
+  useRenderAt(phase === "waiting" && shell ? nextWaitingChange(shell) : undefined)
+  // What the agent waits on the person for, that Novadeck can't hear from it, what it
+  // waits on that wakes it, or that it finished with its reply unread.
   const note =
     shell &&
     (attentionText(shell) ??
       unheardText(shell) ??
+      (phase === "waiting" ? waitingText(shell) : undefined) ??
       (phase === "done" ? doneText(failed) : undefined))
   const headerDoubleAction = onFlyTo
   // The project window is named by its file, so its name is no rename's: a double-click on it
@@ -267,6 +272,7 @@ export const WindowShell = ({
             )}
           </span>
           {!renaming && titleExtra}
+          {!renaming && !compact && phase === "waiting" && shell && <WindowWait terminal={shell} />}
           {rename && (
             <TerminalRenameInput
               id={terminal.id}
