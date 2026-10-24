@@ -326,6 +326,15 @@ Zen's dock, tells how many wait on you; finishes and tells are not counted. A us
 the agent's next turn, so Continue is there after the reset. With Murmur on, a finish you
 haven't seen leads with a short gist of its reply in place of the reply's start.
 
+While Novadeck has your focus, a new item that needs you (an approval, a question, or trouble
+that stopped an agent) shows as a toast over the header's right end after a 2 s grace,
+where the OS ping would ring if you were in another app: never both for one item. Up to three
+stack, with the rest behind a "+N more" pill. A click opens the item in the Inbox, **×**
+closes the toast, and it goes by itself after 8 s, unless the pointer rests on it. No toast
+comes while the Inbox is open or for the terminal you have selected, and one waits out
+Preferences or Search. A toast leaves with its item once answered elsewhere; closing it leaves
+the item in the Inbox. "Notify when an agent needs you" in Preferences turns both off.
+
 The project switcher removes a project from its row's trash icon, after
 you confirm; its terminals close, and the folder on disk stays. The last project stays.
 The runner forgets the project with its sessions, what its agents showed and the
@@ -904,7 +913,9 @@ App:
   failed turn with no error, a held message whose sender is gone, a plan approval
   (its bypass-permissions yes a quiet link), a failed turn, a free-text ask, a permission
   whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
-  agent, a heads-up and a finished turn. "Fail the next answer" makes
+  agent, a heads-up and a finished turn. "Several asks at once" adds four asks from four
+  projects together, so three toasts stack with a "+1 more" pill behind (the page needs focus
+  and the Inbox panel closed; a toast rings for each added item alone). "Fail the next answer" makes
   the next answer to any item fail, so its sheet shows why and keeps the item and draft for retry. Ask, Tell and Your reply
   also appear in the terminal's Messages pane, in the conversation You; replies show queued and delivered states.
   "Stale next answer" makes the next answer report that the ask is no longer available,

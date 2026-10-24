@@ -51,6 +51,17 @@ describe("the debug panel's Inbox group", () => {
     expect(added?.at).toBeGreaterThan(1_000_000_000_000)
   })
 
+  it("adds four asks at once, from four different terminals", () => {
+    const inbox = createDemoInbox(1, [])
+    run(inbox, "Several asks at once")
+    const items = inbox.state.getSnapshot().items
+
+    expect(items).toHaveLength(4)
+    expect(new Set(items.map((item) => item.source.terminalId)).size).toBe(4)
+    expect(new Set(items.map((item) => item.source.projectId)).size).toBe(4)
+    expect(items.every((item) => item.kind !== "update")).toBe(true)
+  })
+
   it("adds messages held long behind a dialog, for the doorbell's trouble sheet", () => {
     const inbox = createDemoInbox(1, [])
     run(inbox, "Messages held long")
@@ -67,7 +78,7 @@ describe("the debug panel's Inbox group", () => {
     const inbox = createDemoInbox(1, [])
     const notes: string[] = []
     // Lifecycle controls and variants change or add items rather than adding a kind.
-    const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 10
+    const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 11
     for (let each = 0; each < kinds; each += 1) run(inbox, "A new item arrives", notes)
     expect(inbox.state.getSnapshot().items).toHaveLength(kinds)
     run(inbox, "A new item arrives", notes)

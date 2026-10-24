@@ -123,6 +123,10 @@ const fresh = (id: string): InboxItem | undefined => {
   return found && { ...found, at: now }
 }
 
+// The asks "Several asks at once" adds together: four needs-you items from four terminals
+// in four projects, enough for a toast stack to fill and spill into its "+N more" pill.
+const together: readonly Named[] = ["webhook", "codexPermission", "login", "questions"]
+
 // Whether the demo's workspace has the sample projects the Inbox's items are about: the
 // content showcase has its own.
 const samplesIn = (seed: WorkspaceSeed): boolean =>
@@ -233,6 +237,16 @@ export const inboxGroups = (
           label: "Next reply not delivered",
           hint: "The next ask reply queues, then fails delivery; its Inbox confirmation and Messages history say it did not arrive",
           run: () => inbox.dropReplyNext(),
+        },
+        {
+          label: "Several asks at once",
+          hint: "Four asks join together, from four projects: after a moment three toasts stack over the header's right end with a +1 more pill behind (it needs the page focused and the Inbox panel closed)",
+          run: () => {
+            for (const name of together) {
+              const item = fresh(demoInboxIds[name])
+              if (item) inbox.add(item)
+            }
+          },
         },
         {
           label: "A new item arrives",
