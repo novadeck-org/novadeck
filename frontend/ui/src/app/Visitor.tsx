@@ -1,7 +1,7 @@
 import type { Store } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
 import type { ReactNode } from "react"
-import { useEffect, useRef, useSyncExternalStore } from "react"
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react"
 
 import { focusTerminalInput } from "../interaction/dom"
 import { useWorkspaceServices } from "./controller/context"
@@ -19,13 +19,25 @@ const Download = ({ className }: { readonly className: string }): React.JSX.Elem
 
 // A slim strip above the header on a visitor build: it says the agents are simulated, and
 // where to get the real app. Part of the page's column, so it covers nothing. A page that
-// frames the app says so itself.
+// frames the app says so itself. While it shows it says how tall it is as `--visitor-bar-offset`
+// on the page, for what sits over the header (the Inbox's toasts) to stay under it.
 export const VisitorBar = (): React.JSX.Element | null => {
   const { backend } = useWorkspaceServices()
   const embedded = useEmbedded()
-  if (!backend.visitor || embedded) return null
+  const bar = useRef<HTMLDivElement>(null)
+  const shown = Boolean(backend.visitor) && !embedded
+  useLayoutEffect(() => {
+    const root = document.documentElement
+    if (!shown || !bar.current) return undefined
+    root.style.setProperty("--visitor-bar-offset", `${bar.current.offsetHeight}px`)
+    return () => void root.style.removeProperty("--visitor-bar-offset")
+  }, [shown])
+  if (!shown) return null
   return (
-    <div className="visitor-bar flex shrink-0 items-center justify-between gap-3 px-3 text-caption">
+    <div
+      ref={bar}
+      className="visitor-bar flex shrink-0 items-center justify-between gap-3 px-3 text-caption"
+    >
       <p className="m-0 min-w-0 truncate">
         <strong className="visitor-bar-mark font-medium">Demo</strong>
         <span aria-hidden="true"> · </span>

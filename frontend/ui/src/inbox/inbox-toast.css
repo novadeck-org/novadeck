@@ -1,0 +1,135 @@
+/* The Inbox's toasts: what a toast of the toolkit's stack (toast.css) holds, and where the
+   stack sits in the app. Over the header's right end, covering Search and Preferences, its
+   right edge on the workspace window's.
+
+   The content is an `.inbox-toast` (data-type="approve" | "ask" | "trouble" | "update",
+   data-tone="urgent" | "waiting" | "quiet"), a grid of the type's `.inbox-toast-icon`;
+   a `.inbox-toast-head` of the handle chip (or Novadeck's mark) and `.inbox-toast-said`;
+   the `.inbox-toast-age`; the `.inbox-toast-subject` (data-command="true" for a command,
+   set in mono after a muted "$ "); and an `.inbox-toast-foot` with the terminal's
+   `.inbox-toast-title`, which gives way first, and the `.inbox-toast-project`, which never
+   does.
+
+   Tokens, each optional (its fallback in brackets):
+   --inbox-urgent-fg (danger-fg), --inbox-waiting-fg (warning-fg), --inbox-quiet-fg (muted):
+   the icon, as the Inbox's rows have it.
+   --inbox-toast-window-inset (12px): the workspace window's margin from the app's right
+   edge, which the stack's right edge keeps. --inbox-toast-top (7px): its top from the
+   app's top edge, below the visitor build's strip (`--visitor-bar-offset`, set by it). */
+.toasts {
+  --toast-top: calc(var(--inbox-toast-top, 7px) + var(--visitor-bar-offset, 0px));
+  --toast-right: var(--inbox-toast-window-inset, 12px);
+}
+/* On a phone the stack takes the width between the gutters, under the header. */
+@media (max-width: 700px) {
+  .toasts {
+    --toast-width: 100vw;
+    --toast-top: calc(64px + var(--visitor-bar-offset, 0px));
+    --toast-right: var(--toast-gutter, 12px);
+  }
+}
+
+.inbox-toast {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: 3px 10px;
+  padding: 11px 12px 12px 14px;
+  font-size: var(--text-body);
+  line-height: 19px;
+  text-align: left;
+}
+.inbox-toast[data-tone="urgent"] {
+  --_fg: var(--inbox-urgent-fg, var(--color-danger-fg));
+}
+.inbox-toast[data-tone="waiting"] {
+  --_fg: var(--inbox-waiting-fg, var(--color-warning-fg));
+}
+.inbox-toast[data-tone="quiet"] {
+  --_fg: var(--inbox-quiet-fg, var(--color-muted));
+}
+.inbox-toast-icon {
+  display: grid;
+  grid-row: span 3;
+  padding-top: 2px;
+  color: var(--_fg);
+}
+.inbox-toast-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.inbox-toast-said {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: var(--text-caption);
+  text-overflow: ellipsis;
+}
+.inbox-toast-age {
+  align-self: center;
+  color: var(--color-muted);
+  font-size: var(--text-caption);
+  white-space: nowrap;
+  transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+/* The close button takes the age's place, where there is no pointer too. */
+@media (hover: none) {
+  .inbox-toast-age {
+    opacity: 0;
+  }
+}
+.toast:is(:hover, :focus-within) .inbox-toast-age {
+  opacity: 0;
+}
+.inbox-toast-subject {
+  display: -webkit-box;
+  grid-column: 2 / 4;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.inbox-toast-subject[data-command="true"] {
+  font-family: var(--font-mono);
+  font-size: calc(var(--text-body) - 0.5px);
+  font-variant-ligatures: none;
+}
+.inbox-toast-subject[data-command="true"]::before {
+  content: "$ ";
+  color: var(--color-muted);
+  font-weight: 400;
+}
+.inbox-toast-foot {
+  display: flex;
+  grid-column: 2 / 4;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  margin-top: 1px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  line-height: 18px;
+  white-space: nowrap;
+}
+.inbox-toast-foot > svg {
+  flex: none;
+}
+.inbox-toast-title {
+  min-width: 0;
+  margin-right: auto;
+  overflow: hidden;
+  color: var(--color-ink);
+  text-overflow: ellipsis;
+}
+.inbox-toast-project {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding-left: 12px;
+}
