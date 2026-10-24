@@ -183,18 +183,87 @@ describe("what an Antigravity agent does not wait on", () => {
     expect(idle!.waiting).toBeNull()
   })
 
-  it("is a cron, or a timer that repeats", () => {
+  it("is a cron, or a timer that runs for good", () => {
     const c = session()
     const cron = { CronExpression: "*/5 * * * *", Prompt: "check" }
-    const repeating = { DurationSeconds: 60, Prompt: "check", MaxIterations: 5 }
+    const daemon = { DurationSeconds: 60, Prompt: "check", IsDaemon: true }
     const [idle] = idles([
       c.prompt(),
       c.pre(2, "schedule", cron),
-      c.pre(3, "schedule", repeating),
+      c.pre(3, "schedule", daemon),
       c.stop(false),
       c.line("idle", 2),
     ])
     expect(idle!.waiting).toBeNull()
+  })
+
+  it("is a timer of no sane length", () => {
+    const c = session()
+    const [idle] = idles([
+      c.prompt(),
+      c.pre(2, "schedule", { DurationSeconds: Infinity, Prompt: "check" }),
+      c.pre(3, "schedule", { DurationSeconds: 1e300, Prompt: "check" }),
+      c.stop(false),
+      c.line("idle", 2),
+    ])
+    // The one that is finite is cut to a day, from its PreToolUse (the third hook).
+    expect(idle!.waiting?.wake).toEqual({ at: at(2) + 86_400_000, reason: "check" })
+  })
+
+  it("is a call a denial or an Escape ended, though a daemon keeps the status line counting", () => {
+    const c = session()
+    const daemon = { ...sleep, IsDaemon: true }
+    // The turn ended with no Stop: its status line, then the next turn's start, tell.
+    const [seen, escaped] = idles([
+      c.prompt(),
+      c.pre(2, "run_command", daemon),
+      c.stop(true),
+      c.line("idle", 1),
+      c.prompt(),
+      c.pre(6, "run_command", sleep),
+      c.line("idle", 1),
+      c.prompt(),
+      c.stop(true),
+      c.line("idle", 1),
+    ])
+    expect(seen!.waiting).toBeNull()
+    expect(escaped!.waiting).toBeNull()
+    // And with no status line between, only the next turn's start.
+    const d = session()
+    const [last] = idles([
+      d.prompt(),
+      d.pre(2, "run_command", sleep),
+      d.prompt(),
+      d.stop(true),
+      d.line("idle", 1),
+    ])
+    expect(last!.waiting).toBeNull()
+  })
+
+  it("leaves the tasks it counts one fewer when a job ends", () => {
+    const events = scenarios["background-command"]!.events
+    const done = replay(events).find(({ event }) => event === "PostToolUse")
+    expect(done!.background).toEqual({ agents: 0, tasks: 0 })
+  })
+
+  it("keeps the wake-up shown when another timer's ends", () => {
+    const c = session()
+    const first = { DurationSeconds: 600, Prompt: "first" }
+    const second = { DurationSeconds: 60, Prompt: "second" }
+    const hooks = replay([
+      c.prompt(),
+      c.pre(2, "schedule", first),
+      c.pre(3, "schedule", second),
+      c.stop(false),
+      c.line("idle", 2),
+      c.post(2, "schedule", first),
+      c.post(3, "schedule", second),
+    ])
+    // The earlier of the two is shown; the other's end changes nothing, the shown one's does.
+    const wake = { at: at(2) + 60_000, reason: "second" }
+    expect(hooks[4]!.waiting?.wake).toEqual(wake)
+    expect(hooks[5]!.waiting?.wake).toEqual(wake)
+    expect(hooks[6]!.waiting).toBeNull()
   })
 
   it("keeps a timer of an earlier turn as the wake-up of a later one", () => {

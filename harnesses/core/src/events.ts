@@ -220,7 +220,13 @@ export type ActivityEvent = {
    * The agent set a wake-up for itself, to run its next turn at `at`, epoch milliseconds,
    * for the `reason` it gave, as Claude Code's ScheduleWakeup does.
    */
-  | { readonly type: "wake-scheduled"; readonly at: number; readonly reason: string | null }
+  | {
+      readonly type: "wake-scheduled"
+      readonly at: number
+      readonly reason: string | null
+      /** The task that sets it off, where the harness ends it by a `task-ended` of that id. */
+      readonly id?: string
+    }
   | {
       readonly type: "file-touched"
       readonly actor: string | null

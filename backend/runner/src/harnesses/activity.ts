@@ -123,6 +123,8 @@ export type Activity = {
   readonly background: Background | null
   readonly tasks: readonly Task[]
   readonly wake: { readonly at: number; readonly reason: string | null } | null
+  /** The task whose end sets the wake-up off, where its harness names one. */
+  readonly wakeId: string | null
   readonly waits: Waiting | null
   /**
    * How many subagents the running turn's latest working status line counts running; zero
@@ -259,6 +261,7 @@ export const started = (at: number, wakes = true, records = true): Activity => (
   background: null,
   tasks: [],
   wake: null,
+  wakeId: null,
   waits: null,
   running: 0,
   wakes,
@@ -664,27 +667,33 @@ export const apply = (
       return { ...activity, tasks: [...activity.tasks, task].slice(-maxTasks) }
     }
     case "task-ended": {
-      // In any state: a job done is no wait, nor is a wake-up gone off.
-      const { waits, wake } = activity
+      // In any state: a job done is no wait, nor is its wake-up once it has gone off.
+      const { waits, wake, background } = activity
       const jobs = (waits?.jobs ?? []).filter(({ id }) => id !== event.id)
-      const left = event.wake ? null : wake
-      const kept = event.wake ? null : (waits?.wake ?? null)
-      if (
-        jobs.length === (waits?.jobs.length ?? 0) &&
-        left === wake &&
-        kept === (waits?.wake ?? null)
-      )
-        return undefined
+      const done = (waits?.jobs.length ?? 0) - jobs.length
+      const goneOff = event.wake === true && event.id === activity.wakeId
+      const kept = goneOff ? null : (waits?.wake ?? null)
+      if (done === 0 && !goneOff) return undefined
       return {
         ...activity,
-        wake: left,
+        wake: goneOff ? null : wake,
+        wakeId: goneOff ? null : activity.wakeId,
+        // The tasks it counted running are one fewer for each.
+        background:
+          done > 0 && background
+            ? counted({ ...background, tasks: Math.max(0, background.tasks - done) })
+            : background,
         waits: jobs.length > 0 || kept ? { jobs, wake: kept } : null,
       }
     }
     case "wake-scheduled":
       // Only the turn running sets one; a later one replaces it.
       if (activity.state !== "working" || event.startedAt < activity.turnAt) return undefined
-      return { ...activity, wake: { at: event.at, reason: event.reason } }
+      return {
+        ...activity,
+        wake: { at: event.at, reason: event.reason },
+        wakeId: event.id ?? null,
+      }
     case "mode-observed":
       if (event.startedAt < activity.planningAt) return undefined
       return { ...activity, planning: event.planning, planningAt: event.startedAt }
@@ -775,6 +784,7 @@ export const apply = (
         idled: false,
         background: null,
         wake: null,
+        wakeId: null,
         // The jobs it waited on run on, but for the ones this turn's notification names.
         waits: carried(activity.waits, event.tasks),
         running: 0,

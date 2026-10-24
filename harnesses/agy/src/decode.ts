@@ -108,6 +108,8 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
   }
   switch (event) {
     case "PreInvocation":
+      // A turn begun leaves no call of one before it unended but those a Stop saw.
+      if (payload.invocationNum === 0) forget(id)
       return [
         observed,
         // Its first model call starts a turn, whether the person prompted it or a subagent's
@@ -277,12 +279,17 @@ type Pending = {
   readonly description: string | null
   readonly command: string
   readonly wake: { at: number; reason: string | null } | null
+  /** Whether a Stop saw it pending, which proves its turn completed with it backgrounded. */
+  seen: boolean
 }
 
 // What each conversation's calls await their PostToolUse, for as many conversations as
 // `latest` holds, and as many calls in each as the activity takes jobs.
 const open = new Map<string, Map<string, Pending>>()
 const remembering = 16
+
+// The longest timer taken at its word: a day.
+const maxTimerSeconds = 86_400
 
 const awaiting = (conversation: string): Map<string, Pending> => {
   const calls = open.get(conversation) ?? new Map<string, Pending>()
@@ -304,10 +311,13 @@ const pending = (base: Base, conversation: string, payload: Report["payload"]): 
   const wake =
     name === "schedule" &&
     typeof args.DurationSeconds === "number" &&
+    Number.isFinite(args.DurationSeconds) &&
     args.DurationSeconds > 0 &&
-    !("CronExpression" in args) &&
-    !(typeof args.MaxIterations === "number" && args.MaxIterations > 1)
-      ? { at: base.startedAt + args.DurationSeconds * 1000, reason: firstLine(args.Prompt) ?? null }
+    !("CronExpression" in args)
+      ? {
+          at: base.startedAt + Math.min(args.DurationSeconds, maxTimerSeconds) * 1000,
+          reason: firstLine(args.Prompt) ?? null,
+        }
       : null
   if (name !== "run_command" && !wake) return []
   const command = errorText(args.CommandLine) ?? ""
@@ -319,18 +329,34 @@ const pending = (base: Base, conversation: string, payload: Report["payload"]): 
     description: said === command.trim() ? null : (said ?? null),
     command,
     wake,
+    seen: false,
   })
   for (const [oldest] of calls) if (calls.size > remembering) calls.delete(oldest)
-  return wake ? [{ type: "wake-scheduled", ...base, ...wake }] : []
+  return wake ? [{ type: "wake-scheduled", ...base, ...wake, id }] : []
 }
 
 // What a Stop finds running on: the commands never ended, and the earliest timer.
 const running = (
   conversation: string,
-): { jobs: Pending[]; wake: { at: number; reason: string | null } | undefined } => {
+): {
+  jobs: Pending[]
+  wake: { at: number; reason: string | null; id: string } | undefined
+} => {
   const calls = [...(open.get(conversation)?.values() ?? [])]
+  // A Stop proves its turn completed, so these outlive it.
+  for (const call of calls) call.seen = true
   const timers = calls.filter(({ wake }) => wake).toSorted((a, b) => a.wake!.at - b.wake!.at)
-  return { jobs: calls.filter(({ wake }) => !wake), wake: timers[0]?.wake ?? undefined }
+  return {
+    jobs: calls.filter(({ wake }) => !wake),
+    wake: timers[0] && { ...timers[0].wake!, id: timers[0].id },
+  }
+}
+
+// The calls of a turn that began without a Stop having ended the one before: that turn was
+// denied or stopped, and those calls never ran on.
+const forget = (conversation: string): void => {
+  const calls = open.get(conversation)
+  for (const [id, call] of calls ?? []) if (!call.seen) calls!.delete(id)
 }
 
 // A call over: its PostToolUse, which comes at the end of a backgrounded one, so a job done
@@ -345,10 +371,11 @@ const ended = (base: Base, conversation: string, payload: Report["payload"]): Ha
   return [{ type: "task-ended", ...base, id, ...(call.wake && { wake: true as const }) }]
 }
 
-// Every call still unended, over, as nothing is running (see `statusLine`).
-const abandoned = (base: Base, conversation: string): HarnessEvent[] => {
+// Calls the status line shows over: all of them where it counts no background task, else
+// those no Stop saw, as an idle status line after a turn no Stop ended.
+const abandoned = (base: Base, conversation: string, all: boolean): HarnessEvent[] => {
   const calls = [...(open.get(conversation)?.values() ?? [])].filter(
-    ({ at }) => at <= base.startedAt,
+    ({ at, seen }) => at <= base.startedAt && (all || !seen),
   )
   for (const { id } of calls) open.get(conversation)!.delete(id)
   return calls.map(({ id, wake }) => ({
@@ -527,9 +554,10 @@ const statusLine = ({ seq, instance, payload }: Pick<Report, "seq" | "instance" 
       outcome: "allowed",
     })
   // Its count of background tasks, which it drops once none runs. A call that never
-  // ended, though no task runs, was denied or stopped, and fires no PostToolUse.
-  if (payload.agent_state === "idle" && !count(payload.task_count))
-    events.push(...abandoned(base, id))
+  // ended, though no task runs, was denied or stopped, and fires no PostToolUse; with
+  // another task running, one that no Stop saw is the same.
+  if (payload.agent_state === "idle")
+    events.push(...abandoned(base, id, !count(payload.task_count)))
   const window = (payload.context_window ?? {}) as Record<string, unknown>
   const capacity = count(window.context_window_size)
   const percent = count(window.used_percentage)
