@@ -38,7 +38,9 @@ describe("admitting nodes to their screens", () => {
     expect(turns).toEqual([["c"]])
     expect(admission.admitted("b")).toBe(false)
     batch()
-    expect(turns.slice(1)).toEqual([["b", "d"].slice(0, perBatch)])
+    // The batches below are written for two at a time.
+    expect(perBatch).toBe(2)
+    expect(turns.slice(1)).toEqual([["b", "d"]])
     batch()
     batch()
     expect(turns.flat()).toEqual(["c", "b", "d", "a", "e"])
