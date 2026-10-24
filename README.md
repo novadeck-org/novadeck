@@ -332,12 +332,14 @@ Novadeck is in the background, the OS ping rings instead, never both for one ite
 stack, with the rest behind a "+N more" pill. A click opens the item in the Inbox, **×**
 closes the toast, and it goes by itself after 8 s, unless the pointer rests on it. No toast
 comes for the terminal you have selected or while the Inbox is open. While Preferences,
-Search, the close confirmation, the crash-loop dialog or the terminal switcher is open, a
-new one waits and shows when it closes, if Novadeck still has your focus; if you've left by
-then, the OS ping rings. Toasts already showing close when the Inbox opens, when you select
-their terminal or when one of those dialogs opens; their items stay in the Inbox, as they
-do when you close or ignore a toast. A toast also leaves with its item once answered
-elsewhere. "Notify when an agent needs you" in Preferences turns both off.
+Search, the close confirmation, the crash-loop dialog or the terminal switcher you opened by
+click is open, a new one waits and shows when it closes, if Novadeck still has your focus;
+if you've left by then, the OS ping rings instead (where there are no desktop
+notifications, as in the browser, it waits for you to come back). Toasts already showing
+close when the Inbox opens, when you select their terminal or when one of those dialogs
+opens; their items stay in the Inbox, as they do when you close or ignore a toast. A toast
+also leaves once its item has been answered elsewhere, after the same grace. "Notify when an
+agent needs you" in Preferences turns both off.
 
 The project switcher removes a project from its row's trash icon, after
 you confirm; its terminals close, and the folder on disk stays. The last project stays.
