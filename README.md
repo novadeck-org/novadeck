@@ -327,13 +327,17 @@ the agent's next turn, so Continue is there after the reset. With Murmur on, a f
 haven't seen leads with a short gist of its reply in place of the reply's start.
 
 While Novadeck has your focus, a new item that needs you (an approval, a question, or trouble
-that stopped an agent) shows as a toast over the header's right end after a 2 s grace,
-where the OS ping would ring if you were in another app: never both for one item. Up to three
+that stopped an agent) shows as a toast over the header's right end after a 2 s grace. When
+Novadeck is in the background, the OS ping rings instead, never both for one item. Up to three
 stack, with the rest behind a "+N more" pill. A click opens the item in the Inbox, **×**
 closes the toast, and it goes by itself after 8 s, unless the pointer rests on it. No toast
-comes while the Inbox is open or for the terminal you have selected, and one waits out
-Preferences or Search. A toast leaves with its item once answered elsewhere; closing it leaves
-the item in the Inbox. "Notify when an agent needs you" in Preferences turns both off.
+comes for the terminal you have selected or while the Inbox is open. While Preferences,
+Search, the close confirmation, the crash-loop dialog or the terminal switcher is open, a
+new one waits and shows when it closes, if Novadeck still has your focus; if you've left by
+then, the OS ping rings. Toasts already showing close when the Inbox opens, when you select
+their terminal or when one of those dialogs opens; their items stay in the Inbox, as they
+do when you close or ignore a toast. A toast also leaves with its item once answered
+elsewhere. "Notify when an agent needs you" in Preferences turns both off.
 
 The project switcher removes a project from its row's trash icon, after
 you confirm; its terminals close, and the folder on disk stays. The last project stays.
@@ -915,7 +919,8 @@ App:
   whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
   agent, a heads-up and a finished turn. "Several asks at once" adds four asks from four
   projects together, so three toasts stack with a "+1 more" pill behind (the page needs focus
-  and the Inbox panel closed; a toast rings for each added item alone). "Fail the next answer" makes
+  and the Inbox panel closed, and an item from the selected terminal doesn't toast: with
+  storefront's terminal 4 selected you get three toasts and no pill). "Fail the next answer" makes
   the next answer to any item fail, so its sheet shows why and keeps the item and draft for retry. Ask, Tell and Your reply
   also appear in the terminal's Messages pane, in the conversation You; replies show queued and delivered states.
   "Stale next answer" makes the next answer report that the ask is no longer available,

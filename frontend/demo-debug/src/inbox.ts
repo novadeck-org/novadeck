@@ -240,7 +240,7 @@ export const inboxGroups = (
         },
         {
           label: "Several asks at once",
-          hint: "Four asks join together, from four projects: after a moment three toasts stack over the header's right end with a +1 more pill behind (it needs the page focused and the Inbox panel closed)",
+          hint: "Four asks join together, from four projects: after a moment three toasts stack over the header's right end with a +1 more pill behind (it needs the page focused and the Inbox panel closed, and the selected terminal's item doesn't toast: with storefront's terminal 4 selected, three toasts and no pill)",
           run: () => {
             for (const name of together) {
               const item = fresh(demoInboxIds[name])

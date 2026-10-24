@@ -46,7 +46,7 @@ const open = async (extra?: string): Promise<void> => {
 }
 
 const nothingToasts = (): Promise<void> =>
-  expectStaysAbsent({ shown: () => toasts().length > 0, name: "a toast" }, { ms: 3_000 })
+  expectStaysAbsent({ shown: () => toasts().length > 0, name: "a toast" }, { ms: 5_000 })
 
 beforeEach(forgetHostWindow)
 
