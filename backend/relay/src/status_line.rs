@@ -264,10 +264,12 @@ mod tests {
         let printed = run(
             "printf partly; sleep 30",
             b"",
-            began + Duration::from_millis(300),
+            // Long enough for a cold shell to start and print, as a Windows runner's may
+            // take over a second to, and still far short of the command's 30 seconds.
+            began + Duration::from_secs(3),
         );
         assert_eq!(printed, "partly");
-        assert!(began.elapsed() < Duration::from_secs(5));
+        assert!(began.elapsed() < Duration::from_secs(10));
     }
 
     #[test]
