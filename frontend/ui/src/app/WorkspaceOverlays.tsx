@@ -23,7 +23,12 @@ import { CrashLoopDialog } from "../shell/CrashLoopDialog"
 import { CloseTerminalDialog } from "../terminals/CloseTerminalDialog"
 import { visibleSwitcher } from "../terminals/recent"
 import { TerminalSwitcher } from "../terminals/TerminalSwitcher"
-import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
+import {
+  useFeatureFlag,
+  useUiState,
+  useWorkspaceServices,
+  useWorkspaceState,
+} from "./controller/context"
 import { useRouteDialog, type RouteDialog } from "./controller/useRouteDialog"
 import { Preferences, TerminalSearch } from "./deferred-views"
 import { NameOffer } from "./NameOffer"
@@ -96,37 +101,42 @@ const useMurmur = (murmur: Backend["murmur"]): MurmurAddonValue | undefined => {
   return murmur && state && { state, actions: murmur }
 }
 
-type UpdatesSetting = {
-  readonly early: boolean | undefined
-  readonly onChange: (early: boolean) => void
+type ExperimentalSetting = {
+  readonly on: boolean | undefined
+  readonly onChange: (on: boolean) => void
 }
 
-// Whether the desktop app follows early builds, for Preferences, asked of it each time
-// Preferences opens; undefined where the app offers no choice. The switch shows what the
-// person chose at once, as the app remembers it.
-const useEarlyBuilds = (
+// Preferences' Experimental switch: whether the desktop app follows early builds, which is
+// the IS_EXPERIMENTAL flag, asked of it each time Preferences opens; undefined where the app
+// offers no choice. The switch and the flag change at once, as the app remembers the choice.
+const useExperimental = (
   channel: NonNullable<Backend["updates"]>["channel"],
   open: boolean,
-): UpdatesSetting | undefined => {
-  const [early, setEarly] = useState<boolean>()
+): ExperimentalSetting | undefined => {
+  const { setFeatureFlag } = useWorkspaceServices().commands
+  const flag = useFeatureFlag("IS_EXPERIMENTAL")
+  const [known, setKnown] = useState(false)
   useEffect(() => {
     if (!open || !channel) return undefined
     let current = true
     channel.get().then(
       (value) => {
-        if (current) setEarly(value === "early")
+        if (!current) return
+        setFeatureFlag("IS_EXPERIMENTAL", value === "early")
+        setKnown(true)
       },
       () => {},
     )
     return () => {
       current = false
     }
-  }, [open, channel])
+  }, [open, channel, setFeatureFlag])
   return (
     channel && {
-      early,
+      on: known ? flag : undefined,
       onChange: (next) => {
-        setEarly(next)
+        setFeatureFlag("IS_EXPERIMENTAL", next)
+        setKnown(true)
         channel.set(next ? "early" : "stable")
       },
     }
@@ -235,7 +245,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   )
   const searchLabel = view === "canvas" ? "Canvas" : view === "grid" ? "Grid" : "Focus"
   const { searching, settings, onExitComplete, onLoaded } = useRouteDialog(dialog, context)
-  const updates = useEarlyBuilds(backend.updates?.channel, settings)
+  const experimental = useExperimental(backend.updates?.channel, settings)
   const version = useVersion(backend.version, settings)
   const connectedAgents = useMemo(
     () => agents.list.filter((agent) => agent.connected).map((agent) => agent.agent),
@@ -314,7 +324,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           chat={backend.conversations !== undefined}
           {...(voice ? { voice } : {})}
           {...(murmur ? { murmur } : {})}
-          {...(updates ? { updates } : {})}
+          {...(experimental ? { experimental } : {})}
           {...(version ? { version } : {})}
           {...(backend.openLogs ? { logs: backend.openLogs } : {})}
           {...(uninstall ? { uninstall } : {})}

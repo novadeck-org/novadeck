@@ -37,6 +37,7 @@ import {
   watchPortable,
   watchSandbox,
   watchUpdates,
+  watchExperimental,
   watchWhatsNew,
   type UiLocation,
   type UiState,
@@ -164,6 +165,13 @@ export const WorkspaceProvider = ({
   useEffect(() => watchSwitcher(services.workspace, services.ui), [services])
   useEffect(() => watchCrashLoop(services.backend.crashLoop?.crashes, services.ui), [services])
   useEffect(() => watchUpdates(services.backend.updates, services.ui), [services])
+  useEffect(
+    () =>
+      watchExperimental(services.backend.updates, (on) =>
+        services.commands.setFeatureFlag("IS_EXPERIMENTAL", on),
+      ),
+    [services],
+  )
   useEffect(() => watchWhatsNew(services.backend.whatsNew, services.ui), [services])
   useEffect(() => watchSandbox(services.backend.sandbox, services.ui), [services])
   useEffect(() => watchPortable(services.backend.portable, services.ui), [services])

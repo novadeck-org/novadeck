@@ -16,7 +16,7 @@ import {
   type DictationController,
 } from "../../voice/dictation"
 import { currentContext, currentState } from "../selectors"
-import type { UiStore } from "../ui-store"
+import { chatViewOn, type UiStore } from "../ui-store"
 import { useWorkspaceServices, type WorkspaceServices } from "./context"
 import { domEffects } from "./effects"
 
@@ -36,8 +36,7 @@ export const dictateInto =
     const context = `${key.projectId}/${key.workspaceSessionId}`
     const terminal = terminalOf(key)
     const { answering } = chat.store.getSnapshot()
-    const { preferences } = ui.getSnapshot()
-    if (!terminal || !chatShown(preferences.chatView, answering, context, terminal))
+    if (!terminal || !chatShown(chatViewOn(ui.getSnapshot()), answering, context, terminal))
       return typeInto(key, text)
     dictateIntoDraft(chat, context, key.terminalId, text)
     return true

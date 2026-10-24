@@ -9,12 +9,12 @@ import { chooseView, commandInput, terminal, terminalTab, terminalText } from ".
 const answerMs = 400
 const answeredMs = 500
 
-// Turns the chat view on or off in Preferences → Addons, and closes Preferences.
+// Turns the chat view on or off in Preferences → Experimental, and closes Preferences.
 const setChatView = async (on: boolean): Promise<void> => {
   await page.getByRole("button", { name: "Workspace preferences" }).click()
   const dialog = page.getByRole("dialog", { name: "Preferences" })
-  await dialog.getByRole("tab", { name: "Addons" }).click()
-  const chatView = dialog.getByRole("switch", { name: "Open agents in chat" })
+  await dialog.getByRole("tab", { name: "Experimental" }).click()
+  const chatView = dialog.getByRole("switch", { name: "Chat view" })
   await chatView.click()
   await expect.element(chatView).toHaveAttribute("aria-checked", String(on))
   await userEvent.keyboard("{Escape}")
@@ -37,7 +37,7 @@ describe("The chat view", () => {
     await expect.element(chatOf("Build")).not.toBeInTheDocument()
   })
 
-  it("turns on from Preferences → Addons, and off again back to the terminal's output", async () => {
+  it("turns on from Preferences → Experimental, and off again back to the terminal's output", async () => {
     await openChatDemo("/", { chatView: false })
     await terminalTab("Build").click()
     await setChatView(true)
