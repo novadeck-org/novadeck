@@ -5,22 +5,19 @@ import type { ToastBoard } from "../inbox/InboxToasts"
 import { isDesktop } from "../shell/desktop"
 import { sidebarVisible } from "../shell/shell-state"
 import { followNeeds, keyOf, needGraceMs } from "./inbox-pings"
-import { crashLoopQuestion } from "./selectors"
+import { modalOpen } from "./selectors"
 import type { UiState, UiStore } from "./ui-store"
 
 // Whether the sidebar shows the Inbox's panel.
 const inboxShown = (ui: UiState, desktop: boolean): boolean =>
   ui.location.route.panel === "inbox" && sidebarVisible(ui.shell, desktop)
 
-// Whether a modal dialog covers the page, which a toast waits out: Search or Preferences (the
-// route's), the close confirmation, the crash-loop question, or the terminal switcher. The
-// welcome dialog is the backend's own state, not the UI store's, and the name offer is a chip
-// that blocks nothing, so neither holds a toast.
-const inDialog = (ui: UiState): boolean =>
-  ui.location.route.dialog !== null ||
-  ui.closing !== null ||
-  crashLoopQuestion(ui) > 0 ||
-  ui.recent.switcher !== null
+// What a modal dialog holds a toast for is `modalOpen`. The welcome dialog is the backend's
+// own state, not the UI store's, and the name offer is a chip that blocks nothing, so neither
+// holds one. Nor can the project-removal confirmation (the switcher's local state) or the
+// phone sidebar drawer (the panels' local state): a toast there sits under the dialog, and
+// its item stays in the Inbox.
+const inDialog = modalOpen
 
 // Whether an item may toast now: the page has the person's focus, they want to hear what
 // needs them, the Inbox isn't what they look at, and they aren't typing in the item's own
@@ -43,8 +40,9 @@ const desktopNow = (): boolean => {
 // the items the OS ping rings (see `followNeeds`), at the same moment and with the opposite
 // case: a toast while the page has the person's focus, the ping while it hasn't, so no item
 // gets both. A toast shows only if `mayToast` holds as it rings, else the item goes without
-// one; while a dialog is open it waits instead, and shows once the dialog closes (and the
-// page has the person's focus again) if its item still stands and `mayToast` still holds. A
+// one; while a dialog is open it waits instead, and shows once the dialog closes if its item
+// still stands and `mayToast` still holds, unless the person left the app meanwhile, when the
+// OS ping takes it. A
 // newer item of a terminal takes the place of its toast, which leaves with its item once that
 // has stayed gone for `graceMs`. Toasts already up close when the person gets to what they
 // say (the Inbox opens, or their terminal is selected) or a dialog opens.
@@ -67,7 +65,9 @@ export const watchInboxToasts = (
     board.show(item)
   }
   const release = (state: UiState): void => {
-    if (inDialog(state) || !state.pageFocused || held.size === 0) return
+    // Leaving the app with an item held hands it to the OS ping (see `watchInboxPings`).
+    if (!state.pageFocused) return held.clear()
+    if (inDialog(state) || held.size === 0) return
     const standing = new Set(needing(inbox.state.getSnapshot().items).map(keyOf))
     const items = [...held.values()]
     held.clear()

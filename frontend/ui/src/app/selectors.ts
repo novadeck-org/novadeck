@@ -86,3 +86,11 @@ export const crashLoopQuestion = (ui: Pick<UiState, "crashLoop" | "crashLoopDism
 // Whether an alert dialog is on screen, which holds every shortcut back.
 export const alertOpen = (ui: UiState, workspace: Workspace): boolean =>
   closeQuestion(ui, workspace) !== undefined || crashLoopQuestion(ui) > 0
+
+// Whether a modal dialog covers the page, which a doorbell waits out: Search or Preferences
+// (the route's), the close confirmation, the crash-loop question, or the terminal switcher.
+export const modalOpen = (ui: UiState): boolean =>
+  ui.location.route.dialog !== null ||
+  ui.closing !== null ||
+  crashLoopQuestion(ui) > 0 ||
+  ui.recent.switcher !== null

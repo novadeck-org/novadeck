@@ -4,6 +4,7 @@ import type { Backend, Notice } from "@novadeck/core/port"
 
 import { needing } from "../inbox/inbox-state"
 import { fromNovadeck, labelOf, subjectOf } from "../inbox/inbox-text"
+import { modalOpen } from "./selectors"
 import type { UiStore } from "./ui-store"
 
 // How long a new item that needs the person waits before it pings: one the person or the
@@ -209,7 +210,9 @@ export const followNeeds = (
 // Follows the Inbox for the person who isn't looking at it. A new item that needs them
 // pings once (see `followNeeds`), only if the page still hasn't their focus, and the person
 // wants them (`notifyNeeds`); an item that pinged and then leaves the Inbox takes its notification
-// back. While the page has their focus a toast rings instead, in inbox-toasts.ts. The app
+// back. While the page has their focus a toast rings instead, in inbox-toasts.ts; an item
+// that rang behind a modal dialog there goes to whichever comes first: this ping if the person
+// leaves the app with the dialog open, else the toast once it closes. The app
 // icon's `badge` follows the bell's count, drawn as an image where `image` says the platform
 // takes one, and clears when this stops. Returns the stop.
 export const watchInboxPings = (
@@ -228,15 +231,38 @@ export const watchInboxPings = (
   } = {},
 ): (() => void) => {
   let counted: number | undefined
+  // The items that rang while the page was focused but a modal dialog covered it, so the toast
+  // holds them: if the person leaves the app before the dialog closes they ping instead; if
+  // the dialog closes with them there, the toast has them and these are forgotten.
+  const deferred = new Map<string, InboxItem>()
+  const ping = (item: InboxItem): void => board?.show(keyOf(item), needNotice(item))
+  const handOver = (): void => {
+    const state = ui.getSnapshot()
+    if (deferred.size === 0 || (state.pageFocused && modalOpen(state))) return
+    const standing = new Set(needing(inbox.state.getSnapshot().items).map(keyOf))
+    const items = [...deferred.values()]
+    deferred.clear()
+    if (state.pageFocused || !state.preferences.notifyNeeds) return
+    for (const item of items) if (standing.has(keyOf(item))) ping(item)
+  }
+  const stopHanding = ui.subscribe(handOver)
   const stop = followNeeds(inbox, {
     graceMs,
     ring: (item) => {
-      const { pageFocused, preferences } = ui.getSnapshot()
-      if (pageFocused || !preferences.notifyNeeds || !board) return false
-      board.show(keyOf(item), needNotice(item))
+      const state = ui.getSnapshot()
+      if (!state.preferences.notifyNeeds || !board) return false
+      if (state.pageFocused) {
+        if (!modalOpen(state)) return false
+        deferred.set(keyOf(item), item)
+        return true
+      }
+      ping(item)
       return true
     },
-    leave: (item) => board?.close(keyOf(item), item.source.terminalId),
+    leave: (item) => {
+      deferred.delete(keyOf(item))
+      board?.close(keyOf(item), item.source.terminalId)
+    },
     change: (waiting) => {
       const count = Math.min(waiting.length, maxBadge)
       if (!badge || counted === count) return
@@ -246,6 +272,7 @@ export const watchInboxPings = (
   })
   return () => {
     stop()
+    stopHanding()
     badge?.({ count: 0, image: null })
   }
 }

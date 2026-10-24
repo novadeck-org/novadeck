@@ -258,17 +258,16 @@ describe("toasts for what needs the person", () => {
     })
   })
 
-  context("while the page lacks focus when the dialog closes", () => {
-    it("keeps the toast held until the focus returns", () => {
+  context("while the person leaves the app with the dialog open", () => {
+    it("drops the held toast, which the desktop notification takes", () => {
       const { set, route, change, shown, stop } = setup()
       route({ dialog: "search" })
       set([ask("a")])
       vi.advanceTimersByTime(2000)
       change((state) => ({ ...state, pageFocused: false }))
       route({ dialog: null })
-      expect(shown).toEqual([])
       change((state) => ({ ...state, pageFocused: true }))
-      expect(shown).toEqual(["t1:a"])
+      expect(shown).toEqual([])
       stop()
     })
   })
@@ -443,6 +442,53 @@ describe("toasts and desktop notifications together", () => {
     vi.advanceTimersByTime(1000)
     expect(shown).toEqual([])
     expect(pings).toHaveLength(1)
+    stop()
+  })
+})
+
+describe("an item held behind a modal dialog", () => {
+  const held = () => {
+    const { inbox, ui, set, change, route, shown } = setup()
+    const pings: Notice[] = []
+    const board = noticeBoard({
+      show: (notice) => void pings.push(notice),
+      close: () => {},
+      onClick: () => () => {},
+    })
+    const stop = watchInboxPings({ state: inbox }, ui, { board })
+    route({ dialog: "search" })
+    set([ask("a")])
+    vi.advanceTimersByTime(2000)
+    return { set, change, route, shown, pings, stop }
+  }
+
+  it("goes to the desktop notification when the person leaves the app first", () => {
+    const { change, route, shown, pings, stop } = held()
+    expect(pings).toEqual([])
+    change((state) => ({ ...state, pageFocused: false }))
+    expect(pings).toHaveLength(1)
+    route({ dialog: null })
+    change((state) => ({ ...state, pageFocused: true }))
+    expect(shown).toEqual([])
+    expect(pings).toHaveLength(1)
+    stop()
+  })
+
+  it("goes to the toast when the dialog closes first, and never pings after", () => {
+    const { change, route, shown, pings, stop } = held()
+    route({ dialog: null })
+    expect(shown).toEqual(["t1:a"])
+    change((state) => ({ ...state, pageFocused: false }))
+    expect(pings).toEqual([])
+    stop()
+  })
+
+  it("is forgotten by the ping once its item leaves", () => {
+    const { set, change, pings, stop } = held()
+    set([])
+    vi.advanceTimersByTime(2000)
+    change((state) => ({ ...state, pageFocused: false }))
+    expect(pings).toEqual([])
     stop()
   })
 })
