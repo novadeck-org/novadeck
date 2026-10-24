@@ -135,9 +135,11 @@ describe("the update progress bar", () => {
   })
 })
 
+// Opens Preferences on its About tab, where the Experimental switch is.
 const openPreferences = async (): Promise<void> => {
   await page.getByRole("button", { name: "Workspace preferences" }).click()
   await expect.element(preferencesDialog()).toBeVisible()
+  await preferencesDialog().getByRole("tab", { name: "About" }).click()
 }
 const experimental = () => preferencesDialog().getByRole("switch", { name: "Experimental" })
 const experimentalTab = () => preferencesDialog().getByRole("tab", { name: "Experimental" })
@@ -177,7 +179,7 @@ describe("Preferences' Experimental switch", () => {
     await expect
       .element(preferencesDialog().getByRole("switch", { name: "Chat view" }))
       .toBeVisible()
-    await preferencesDialog().getByRole("tab", { name: "General" }).click()
+    await preferencesDialog().getByRole("tab", { name: "About" }).click()
     await experimental().click()
     await expect.element(experimentalTab()).not.toBeInTheDocument()
   })

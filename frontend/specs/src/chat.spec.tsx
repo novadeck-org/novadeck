@@ -56,6 +56,7 @@ describe("The chat view", () => {
     await openChat("Build")
     await page.getByRole("button", { name: "Workspace preferences" }).click()
     const dialog = page.getByRole("dialog", { name: "Preferences" })
+    await dialog.getByRole("tab", { name: "About" }).click()
     const experimental = dialog.getByRole("switch", { name: "Experimental" })
     await expect.element(experimental).toHaveAttribute("aria-checked", "true")
     await experimental.click()
