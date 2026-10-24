@@ -78,11 +78,11 @@ the release page, the portable install and the engine downloads read them.
 What the app adds to a check through the website is `x-novadeck-check` (`launch`,
 `interval`, `switch` or `retry`), `x-novadeck-version` and `x-novadeck-build` (`installed`
 or `portable`), and no more: it reads nothing else off the computer to send, as sending
-that only for statistics would need the person's consent. Nor does it add anything that
-tells one copy from another: electron-updater's own `x-user-staging-id`, a per-install
-UUID, is overridden with the constant `0` on these checks (its staged-rollout decision
-reads the real one locally). The check against GitHub sends it as electron-updater always
-has. The headers belong to the check: they are cleared before the download starts.
+that only for statistics would need the person's consent. Nor does any check, here or against
+GitHub, send anything that tells one copy from another: electron-updater's own
+`x-user-staging-id`, a per-install UUID, is patched out of its checks
+(`apps/desktop/patches/electron-updater@6.8.9.patch`); its staged-rollout decision still
+reads the ID locally. A new electron-updater needs the patch carried over. The headers belong to the check: they are cleared before the download starts.
 
 The request itself says more, as any request does. The name of the update file it asks
 for (`latest.yml`, `latest-mac.yml`, `latest-linux.yml` or `latest-linux-arm64.yml`)

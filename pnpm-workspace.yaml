@@ -37,4 +37,5 @@ minimumReleaseAgeExclude:
 patchedDependencies:
   "@xterm/addon-unicode-graphemes@0.4.0": libraries/emulator/patches/@xterm__addon-unicode-graphemes@0.4.0.patch
   "@xterm/xterm@6.0.0": libraries/emulator/patches/@xterm__xterm@6.0.0.patch
+  electron-updater@6.8.9: apps/desktop/patches/electron-updater@6.8.9.patch
   node-pty@1.2.0-beta.14: libraries/terminal/patches/node-pty@1.2.0-beta.14.patch

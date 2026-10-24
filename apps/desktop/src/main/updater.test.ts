@@ -1322,7 +1322,6 @@ describe("the update feed", () => {
       "x-novadeck-check": "launch",
       "x-novadeck-version": "1.4.0",
       "x-novadeck-build": "installed",
-      "x-user-staging-id": "0",
     })
   })
 
@@ -1330,34 +1329,40 @@ describe("the update feed", () => {
     expect(checkHeaders("retry", { ...facts, version: "1.4.0\ny" })).toEqual({
       "x-novadeck-check": "retry",
       "x-novadeck-build": "installed",
-      "x-user-staging-id": "0",
     })
   })
 
-  // The library's own per-copy ID is replaced only because its headers go over the ones it
-  // makes for a check; the real library is asked, so an update to it that changes this
-  // fails here rather than sending the ID to novadeck.dev again.
-  it("replaces the update library's per-copy ID, as the library merges a check's headers", () => {
+  // The library's own per-copy ID is kept off by a patch to it; the real, patched library
+  // is asked, so a new version without the patch fails here rather than sending the ID.
+  it("sends the update library's per-copy ID with no check, the website's or GitHub's", async () => {
     const require = createRequire(import.meta.url)
     const out = dirname(require.resolve("electron-updater"))
     const { AppUpdater } = require(join(out, "AppUpdater.js")) as {
       AppUpdater: {
         prototype: {
           computeFinalHeaders(this: unknown, headers: Record<string, string>): unknown
-          getUpdateInfoAndProvider(): unknown
+          getUpdateInfoAndProvider(this: unknown): Promise<unknown>
         }
       }
     }
-    const merged = AppUpdater.prototype.computeFinalHeaders.call(
-      { requestHeaders: checkHeaders("launch", facts) },
-      { "x-user-staging-id": "6c1f5e1e-1111-4222-8333-944455556666" },
-    )
+    const sent = async (requestHeaders: Record<string, string> | null) => {
+      let headers: unknown
+      const client = {
+        setRequestHeaders: (value: unknown) => void (headers = value),
+        getLatestVersion: () => Promise.resolve({ version: "1.5.0" }),
+      }
+      await AppUpdater.prototype.getUpdateInfoAndProvider.call({
+        app: { whenReady: () => Promise.resolve() },
+        clientPromise: Promise.resolve(client),
+        stagingUserIdPromise: { value: Promise.resolve("6c1f5e1e-1111-4222-8333-944455556666") },
+        computeFinalHeaders: AppUpdater.prototype.computeFinalHeaders,
+        requestHeaders,
+      })
+      return headers
+    }
 
-    expect(merged).toEqual(checkHeaders("launch", facts))
-    // The check's own headers, which the library makes here: the ID, under this name.
-    expect(String(AppUpdater.prototype.getUpdateInfoAndProvider)).toMatch(
-      /computeFinalHeaders\(\{\s*"x-user-staging-id": stagingUserId\s*\}\)/,
-    )
+    expect(await sent(checkHeaders("launch", facts))).toEqual(checkHeaders("launch", facts))
+    expect(await sent(null)).toEqual({})
   })
 })
 
@@ -1439,16 +1444,14 @@ describe("checking through novadeck.dev", () => {
     )
   })
 
-  it("replaces electron-updater's per-install staging id with a constant", async () => {
+  it("sends only its own three headers", async () => {
     const { updater } = checking()
     await vi.advanceTimersByTimeAsync(firstCheckMs)
     expect(Object.keys(updater.seen[0]?.headers as object).toSorted()).toEqual([
       "x-novadeck-build",
       "x-novadeck-check",
       "x-novadeck-version",
-      "x-user-staging-id",
     ])
-    expect(updater.seen[0]?.headers).toEqual(expect.objectContaining({ "x-user-staging-id": "0" }))
   })
 
   it("starts no GitHub check when the schedule ended during the novadeck.dev one", async () => {

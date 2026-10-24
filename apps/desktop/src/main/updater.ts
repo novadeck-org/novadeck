@@ -89,18 +89,15 @@ const plain = (value: string): string | undefined =>
 
 /**
  * The headers the app adds to a check through novadeck.dev: why it runs and the copy's
- * version and build, with a constant in place of electron-updater's per-install
- * `x-user-staging-id`, so nothing the app adds tells one copy from another. A value that
- * can't be known is left out.
+ * version and build, and nothing that tells one copy from another. electron-updater's
+ * per-install `x-user-staging-id` is sent nowhere, as its patch keeps it off every check
+ * (apps/desktop/patches). A value that can't be known is left out.
  */
 export const checkHeaders = (reason: CheckReason, facts: CheckFacts): Record<string, string> => {
   const entries: [string, string | undefined][] = [
     ["x-novadeck-check", reason],
     ["x-novadeck-version", plain(facts.version)],
     ["x-novadeck-build", facts.build],
-    // electron-updater sends a per-install id for staged rollouts; this replaces it here so
-    // the website never sees it. Its own rollout decision reads the real one.
-    ["x-user-staging-id", "0"],
   ]
   return Object.fromEntries(entries.filter((entry): entry is [string, string] => !!entry[1]))
 }
