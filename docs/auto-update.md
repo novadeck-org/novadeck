@@ -82,9 +82,9 @@ that only for statistics would need the person's consent. Nor does any check, he
 against GitHub, send anything that tells one copy from another: electron-updater's own
 `x-user-staging-id`, a per-install UUID, is patched out of its checks
 (`apps/desktop/patches/electron-updater@6.8.9.patch`); its staged-rollout decision still
-reads the ID locally, and its update log still names it. A new electron-updater needs the
-patch carried over. The headers belong to the check: they are cleared before the download
-starts.
+reads the ID locally, and its update log names it when a release is staged. A new
+electron-updater needs the patch carried over. The headers belong to the check: they are
+cleared before the download starts.
 
 The request itself says more, as any request does. The name of the update file it asks
 for (`latest.yml`, `latest-mac.yml`, `latest-linux.yml` or `latest-linux-arm64.yml`)
