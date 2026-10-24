@@ -2,7 +2,14 @@ import { longHoldMs } from "@novadeck/protocol"
 
 import type { ChatDialog } from "./conversation"
 import type { InboxUnread } from "./inbox"
-import { dialogMs, inboxItems, type Asked, type InboxInputs, type InboxLetter } from "./inbox-items"
+import {
+  dialogMs,
+  inboxItems,
+  leadHearsOf,
+  type Asked,
+  type InboxInputs,
+  type InboxLetter,
+} from "./inbox-items"
 import {
   noMail,
   type AgentMessage,
@@ -297,6 +304,19 @@ describe("The Inbox's items", () => {
           }),
         ),
       ).toMatchObject([{ id: "trouble:02:100", kind: "trouble" }])
+    })
+  })
+
+  describe("whether a lead hears of a terminal", () => {
+    const worker: TerminalMetadata = { ...agentTerminal(2), ledBy: "moth" }
+
+    it("is so while the lead's agent runs, and not once it stopped, closed, or for a terminal it doesn't lead", () => {
+      expect(leadHearsOf(workspaceOf(agentTerminal(1), worker), "p/s", "02")).toBe(true)
+      expect(leadHearsOf(workspaceOf(agentTerminal(1), worker), "p/s", "01")).toBe(false)
+      expect(leadHearsOf(workspaceOf(agentTerminal(1), worker), "q/s", "02")).toBe(false)
+      const shell = { ...agentTerminal(1), process: "bash" }
+      expect(leadHearsOf(workspaceOf(shell, worker), "p/s", "02")).toBe(false)
+      expect(leadHearsOf(workspaceOf(worker), "p/s", "02")).toBe(false)
     })
   })
 

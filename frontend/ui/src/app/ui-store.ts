@@ -7,6 +7,7 @@ import {
   type AgentFinish,
   type SeenEnd,
 } from "@novadeck/core/agent-finish"
+import { leadHearsOf } from "@novadeck/core/inbox-items"
 import { defaultCanvasWindowSize, type WindowSize } from "@novadeck/core/layout/terminal-size"
 import type { Backend } from "@novadeck/core/port"
 import type { PortableState } from "@novadeck/core/portable"
@@ -34,6 +35,7 @@ import {
   keepUnread,
   markUnread,
   noUnread,
+  unreadEnd,
   viewUnread,
   type Unread,
   type Viewing,
@@ -402,7 +404,10 @@ export type FinishNotify = (notice: {
 
 // Follows agents finishing (see `sightTurnEnd`): a terminal the person isn't looking at as
 // its agent finishes is marked unread, and `notify`, where given and the person wants it,
-// shows them one notification for it. `unread`, where given, is told each such finish by
+// shows them one notification for it, only while the page hasn't their focus and not for a
+// worker whose lead's agent runs, as that lead hears of it. `clear`, where given, is told a
+// terminal whose notification was shown once its unread mark is gone, as the person viewed
+// it or its agent worked again. `unread`, where given, is told each such finish by
 // its terminal and the end's `at`, so murmur can write a gist of its reply. The mark clears
 // once they look at that terminal, its agent works again, or the terminal goes. `finished`,
 // where given, is told each finish that completed (not one that failed), whoever looks at it,
@@ -413,11 +418,13 @@ export const watchFinishes = (
   ui: UiStore,
   {
     notify,
+    clear,
     graceMs = finishGraceMs,
     unread: gist,
     finished: completed,
   }: {
     notify?: FinishNotify | undefined
+    clear?: ((terminalId: string) => void) | undefined
     graceMs?: number
     unread?: ((terminalId: string, at: number) => void) | undefined
     finished?: ((context: string, id: string) => void) | undefined
@@ -427,6 +434,9 @@ export const watchFinishes = (
   let terminals = new Map<string, TerminalMetadata>()
   const seen = new Map<string, SeenEnd>()
   const waiting = new Set<ReturnType<typeof setTimeout>>()
+  // The terminals whose finish was notified and whose mark still stands, by id, with their
+  // session context.
+  const notified = new Map<string, string>()
   const setUnread = (change: (unread: Unread) => Unread): void =>
     void ui.update((state) => {
       const unread = change(state.unread)
@@ -516,11 +526,29 @@ export const watchFinishes = (
       const at = terminal.state === "running" ? terminal.agent?.lastTurn?.at : undefined
       if (at !== undefined) gist?.(terminal.id, at)
     }
-    if (!notify || !ui.getSnapshot().preferences.notifyFinished) return
-    for (const { terminal, finish } of unseen)
+    const { pageFocused, preferences } = ui.getSnapshot()
+    if (!notify || !preferences.notifyFinished || pageFocused) return
+    const snapshot = workspace.getSnapshot()
+    for (const { key, terminal, finish } of finished) {
+      const context = contextOf(key, terminal)
+      if (leadHearsOf(snapshot, context, terminal.id)) continue
+      // A failed turn is trouble in the Inbox, which pings of its own where the person wants
+      // what needs them: one notification for it, not two.
+      if (finish.failed && preferences.notifyNeeds) continue
       notify({ id: terminal.id, ...finishNotice(terminal, finish) })
+      notified.set(terminal.id, context)
+    }
   }
-  const stops = [workspace.subscribe(follow), ui.subscribe(look)]
+  // Takes back the notification of each terminal whose mark is gone.
+  const sweep = (): void => {
+    const { unread } = ui.getSnapshot()
+    for (const [id, context] of notified)
+      if (!unreadEnd(unread, context, id)) {
+        notified.delete(id)
+        clear?.(id)
+      }
+  }
+  const stops = [workspace.subscribe(follow), ui.subscribe(look), ui.subscribe(sweep)]
   return () => {
     stops.forEach((stop) => stop())
     waiting.forEach(clearTimeout)

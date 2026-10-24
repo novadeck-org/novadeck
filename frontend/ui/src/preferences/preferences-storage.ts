@@ -11,6 +11,7 @@ export const readPreferences = (): PreferencesValue => {
     fontSize: 13,
     enabledViews: [...viewModes],
     appearance: defaultPreference(themes),
+    notifyNeeds: true,
     notifyFinished: true,
     ligatures: false,
     chatView: false,
@@ -26,6 +27,8 @@ export const readPreferences = (): PreferencesValue => {
       enabledViews: enabledViews.length ? enabledViews : defaults.enabledViews,
       fontSize: [12, 13, 15].includes(saved?.fontSize ?? 0) ? saved!.fontSize! : defaults.fontSize,
       appearance: appearancePreferenceOf(saved?.appearance, themes),
+      notifyNeeds:
+        typeof saved?.notifyNeeds === "boolean" ? saved.notifyNeeds : defaults.notifyNeeds,
       notifyFinished:
         typeof saved?.notifyFinished === "boolean" ? saved.notifyFinished : defaults.notifyFinished,
       ligatures: typeof saved?.ligatures === "boolean" ? saved.ligatures : defaults.ligatures,

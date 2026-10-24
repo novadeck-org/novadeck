@@ -14,8 +14,10 @@ export type PreferencesValue = {
   // The theme and the scheme chosen for it; the theme is a plain id the app may not know.
   // See docs/theming.md.
   appearance: { readonly theme: string; readonly scheme: SchemePreference }
-  // Whether the desktop app notifies the person when an agent finishes while they look
-  // elsewhere.
+  // Whether the desktop app notifies the person when an agent needs them (an Inbox item that
+  // waits on them) while Novadeck is in the background.
+  notifyNeeds: boolean
+  // Whether it notifies them when an agent finishes while Novadeck is in the background.
   notifyFinished: boolean
   // Whether monospace text joins pairs such as => and != into one glyph. Off by default:
   // a terminal shows what a program printed.

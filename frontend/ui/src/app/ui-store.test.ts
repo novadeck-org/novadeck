@@ -47,6 +47,7 @@ const initial = (): UiState =>
       fontSize: 13,
       enabledViews: ["focus", "grid"],
       appearance,
+      notifyNeeds: true,
       notifyFinished: true,
       ligatures: false,
       chatView: false,
@@ -196,15 +197,17 @@ describe("switcher watch", () => {
 describe("finish watch", () => {
   const target = { projectId: "project", workspaceSessionId: "initial" }
   // A workspace whose terminal 02 runs a working agent, terminal 01 selected.
-  const setup = (notifyFinished = true, graceMs = 0) => {
+  const setup = (notifyFinished = true, graceMs = 0, notifyNeeds = true) => {
     const workspace = createWorkspaceStore(workspaceFixture())
     const ui = createUiStore({
       ...initial(),
-      preferences: { ...initial().preferences, notifyFinished },
+      preferences: { ...initial().preferences, notifyFinished, notifyNeeds },
     })
     const notices: Parameters<FinishNotify>[0][] = []
     const gists: [string, number][] = []
     const completed: string[] = []
+    const cleared: string[] = []
+    const blur = () => ui.update((state) => ({ ...state, pageFocused: false }))
     const status = (terminalId: string, agent: AgentStatus) =>
       workspace.dispatch({
         type: "terminal/status",
@@ -225,6 +228,7 @@ describe("finish watch", () => {
     status("02", { working: true })
     const stop = watchFinishes(workspace, ui, {
       notify: (notice) => notices.push(notice),
+      clear: (terminalId) => cleared.push(terminalId),
       graceMs,
       unread: (terminalId, at) => gists.push([terminalId, at]),
       finished: (where, id) => completed.push(`${where}/${id}`),
@@ -232,7 +236,20 @@ describe("finish watch", () => {
     const unread = () => ui.getSnapshot().unread
     const finish = (at = 10, outcome: "completed" | "failed" | "interrupted" = "completed") =>
       status("02", { working: false, lastTurn: { outcome, reply: "All green.", at } })
-    return { workspace, ui, notices, gists, completed, status, select, unread, finish, stop }
+    return {
+      workspace,
+      ui,
+      notices,
+      cleared,
+      gists,
+      completed,
+      blur,
+      status,
+      select,
+      unread,
+      finish,
+      stop,
+    }
   }
 
   context("when an agent's turn ends complete", () => {
@@ -271,11 +288,53 @@ describe("finish watch", () => {
   })
 
   context("when an agent finishes in a terminal the person isn't looking at", () => {
-    it("marks it unread and shows one notification with the start of its reply", () => {
-      const { notices, unread, finish, stop } = setup()
+    it("marks it unread and shows one notification with the start of its reply, while the page isn't focused", () => {
+      const { notices, unread, blur, finish, stop } = setup()
+      blur()
       finish()
       expect(unread()).toEqual({ "project/initial": { "02": "done" } })
       expect(notices).toEqual([{ id: "02", title: "@fox is done: Checkout", body: "All green." }])
+      stop()
+    })
+
+    it("marks it without a notification while the page has the person's focus, however it looks elsewhere", () => {
+      const { notices, unread, finish, stop } = setup()
+      finish()
+      expect(unread()).toEqual({ "project/initial": { "02": "done" } })
+      expect(notices).toEqual([])
+      stop()
+    })
+
+    it("notifies of no worker whose lead's agent runs, and of one whose lead's agent stopped", () => {
+      const { workspace, notices, blur, status, finish, stop } = setup()
+      blur()
+      status("01", { working: false })
+      const lead = (process: string) =>
+        workspace.dispatch({ type: "terminal/process", target, terminalId: "01", process })
+      workspace.dispatch({ type: "terminal/update", target, terminalId: "01", handle: "moth" })
+      workspace.dispatch({ type: "terminal/update", target, terminalId: "02", ledBy: "moth" })
+      lead("claude")
+      finish(10)
+      expect(notices).toEqual([])
+      lead("zsh")
+      finish(20)
+      expect(notices).toHaveLength(1)
+      stop()
+    })
+
+    it("takes the notification back once the mark clears: the person views it or the agent works again", () => {
+      const { cleared, blur, finish, select, status, ui, stop } = setup()
+      blur()
+      finish(10)
+      expect(cleared).toEqual([])
+      ui.update((state) => ({ ...state, pageFocused: true }))
+      select("02")
+      expect(cleared).toEqual(["02"])
+      select("01")
+      blur()
+      finish(20)
+      status("02", { working: true })
+      expect(cleared).toEqual(["02", "02"])
       stop()
     })
 
@@ -296,7 +355,8 @@ describe("finish watch", () => {
     })
 
     it("marks it without a notification when the person turned them off", () => {
-      const { notices, unread, finish, stop } = setup(false)
+      const { notices, unread, blur, finish, stop } = setup(false)
+      blur()
       finish()
       expect(unread()).toEqual({ "project/initial": { "02": "done" } })
       expect(notices).toEqual([])
@@ -306,7 +366,8 @@ describe("finish watch", () => {
 
   context("when the statuses that tell a finish come together", () => {
     it("finishes once for each end it hasn't seen, whether or not it saw the agent work", () => {
-      const { notices, unread, finish, stop } = setup()
+      const { notices, unread, blur, finish, stop } = setup()
+      blur()
       finish(10)
       finish(10)
       // The next turn's start and end came as one status.
@@ -322,7 +383,8 @@ describe("finish watch", () => {
     afterEach(() => void vi.useRealTimers())
 
     it("waits out the grace before it marks the end unread and notifies", () => {
-      const { notices, unread, finish, stop } = setup(true, 700)
+      const { notices, unread, blur, finish, stop } = setup(true, 700)
+      blur()
       finish()
       vi.advanceTimersByTime(699)
       expect(unread()).toEqual({})
@@ -371,8 +433,18 @@ describe("finish watch", () => {
   })
 
   context("when the turn ended on an error", () => {
-    it("marks it failed and says it stopped with an error", () => {
-      const { notices, unread, finish, stop } = setup()
+    it("marks it failed, and leaves its notification to the Inbox's trouble", () => {
+      const { notices, unread, blur, finish, stop } = setup()
+      blur()
+      finish(10, "failed")
+      expect(unread()).toEqual({ "project/initial": { "02": "failed" } })
+      expect(notices).toEqual([])
+      stop()
+    })
+
+    it("says it stopped with an error where the person turned off what needs them", () => {
+      const { notices, unread, blur, finish, stop } = setup(true, 0, false)
+      blur()
       finish(10, "failed")
       expect(unread()).toEqual({ "project/initial": { "02": "failed" } })
       expect(notices).toEqual([
