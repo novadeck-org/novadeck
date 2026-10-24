@@ -70,6 +70,9 @@ describe("The Inbox's toasts", () => {
       hostWindow.arrive(demoInboxIds.webhook)
       await expect.poll(toastTexts, rings).toHaveLength(1)
 
+      // The × takes presses only once the toast is hovered (or focused), and after it landed.
+      await userEvent.hover(page.elementLocator(toasts()[0]!))
+      await new Promise((resolve) => setTimeout(resolve, 600))
       await page.elementLocator(toasts()[0]!.querySelector(".toast-close")!).click()
 
       await expect.poll(toastTexts).toHaveLength(0)
@@ -103,6 +106,8 @@ describe("The Inbox's toasts", () => {
       // Reached by keyboard: the pointer over the stack spreads it out, and the pill it
       // leaves for another place is not one a jump of the pointer can be sure to meet.
       more().element().focus()
+      // Presses are ignored for a moment after a toast lands or moves in the stack.
+      await new Promise((resolve) => setTimeout(resolve, 600))
       await expect
         .element(page.getByRole("button", { name: "1 more in the Inbox" }))
         .toBeInTheDocument()
