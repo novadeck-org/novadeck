@@ -306,9 +306,9 @@ const waitsOn = (
     const kept = activity.waits?.jobs ?? []
     return kept.length > 0 || activity.wake ? { jobs: kept, wake: activity.wake } : null
   }
-  const waited = jobs.flatMap(({ id, description, command, persistent }) => {
+  const waited = jobs.flatMap(({ id, description, command }) => {
     const task = activity.tasks.find((each) => each.id === id)
-    if (persistent || task?.persistent || (!task?.until && endless(command))) return []
+    if (task?.persistent || (!task?.until && endless(command))) return []
     return [{ id, description, command, since: task?.at ?? endedAt, until: task?.until ?? null }]
   })
   const { wake } = activity

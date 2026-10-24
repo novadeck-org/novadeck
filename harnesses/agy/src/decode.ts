@@ -142,7 +142,7 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
           // are those (probed 2026-10-24, 1.4.6).
           background: {
             agents: 0,
-            // A daemon is listed, as persistent, but not counted: it never wakes the agent.
+            // A daemon is listed but not counted: it never wakes the agent.
             tasks: jobs.filter(({ daemon }) => !daemon).length,
             ...(payload.fullyIdle === false && { more: true }),
             ...(jobs.length > 0 && {
@@ -150,7 +150,7 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
                 id: task,
                 description,
                 command,
-                ...(daemon && { persistent: true as const, uncounted: true as const }),
+                ...(daemon && { uncounted: true as const }),
               })),
             }),
           },
@@ -275,8 +275,8 @@ const firstLine = (value: unknown): string | undefined => {
 /**
  * A call that may outlive its turn, and that Antigravity counts a background task while it
  * does: a command, with the agent's words for it, or a timer, with the wake-up it sets;
- * a daemon, a cron or a timer too long is no wait of the activity's, which judges that, but
- * all hold a place in that count. Told by its PreToolUse, at `at`, and over when its
+ * a daemon, a cron or a timer too long is no wait, but all hold a place in that count; the
+ * activity judges a daemon from its job, and a cron or a long timer is neither job nor wake-up. Told by its PreToolUse, at `at`, and over when its
  * PostToolUse comes, which for these fires when they end (probed 2026-10-24, 1.4.6).
  */
 type Pending = {
@@ -319,8 +319,8 @@ const over = (base: Base, call: Pending): HarnessEvent => ({
   id: call.id,
 })
 
-// A command it runs for good (`IsDaemon`) is told as a persistent job, as the activity
-// judges what is no wait; a cron or a timer that repeats is no job or wake-up at all. The
+// A command it runs for good (`IsDaemon`) is told as a persistent job, for the activity to
+// judge what is no wait; a cron or a timer that repeats is no job or wake-up at all. The
 // rest are told here whether they end in the background or not, by whether their
 // PostToolUse comes before the turn's Stop. Killing a
 // task names it by an id no hook gives, so it ends every call of the conversation: a wait

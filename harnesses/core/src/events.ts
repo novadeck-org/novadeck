@@ -210,11 +210,11 @@ export type ActivityEvent = {
     }
   /**
    * A background task is over, by the id its start gave: a job the agent waited on no longer
-   * waits, nor is it among the tasks the last Stop counted running, unless that left it
-   * out (`uncounted`), and the wake-up of
-   * that id, if the agent set one, has gone off. Told by what ends it where the harness has
-   * one: Antigravity's PostToolUse for a command it backgrounded, or the task notification
-   * Claude Code starts a turn with, which names every task it reports done.
+   * waits, and the wake-up of that id, if the agent set one, has gone off. A job the
+   * current `background` lists is also dropped from it and, unless `uncounted`, from its
+   * `tasks`. Told by what ends it where the harness has one: Antigravity's PostToolUse for
+   * a command it backgrounded, or the task notification Claude Code starts a turn with,
+   * which names every task it reports done.
    */
   | {
       readonly type: "task-ended"
@@ -340,9 +340,11 @@ export type BackgroundJob = {
   readonly id: string
   readonly description: string | null
   readonly command: string
-  /** It runs until stopped, so the agent doesn't wait on it, as a daemon of Antigravity's. */
-  readonly persistent?: true
-  /** The harness's count of tasks leaves it out: no end of it lowers `tasks`. */
+  /**
+   * The decoder leaves it out of `tasks`, so no end of it lowers them: a daemon of
+   * Antigravity's never wakes the agent, unlike Claude Code's persistent Monitor, which
+   * delivers events and stays counted.
+   */
   readonly uncounted?: true
 }
 
