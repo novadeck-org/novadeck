@@ -3,9 +3,10 @@ import { basename, join } from "node:path"
 import { inspect } from "node:util"
 
 import type { Data, Log } from "@novadeck/log"
+import { rendererPoolOf } from "@novadeck/protocol/bridge"
 import type { IpcMain, IpcMainEvent } from "electron"
 
-import { openLogsChannel, uiErrorChannel } from "../bridge.js"
+import { openLogsChannel, rendererPoolChannel, uiErrorChannel } from "../bridge.js"
 
 /** How this copy of the app was installed, as a log names it. */
 export type InstallKind =
@@ -249,8 +250,9 @@ export const uiErrorAsError = (report: UiError): Error => {
 }
 
 /**
- * The page asks to open the logs folder, and reports errors it didn't catch, which are
- * logged as the page's (`ui.error`, `ui.rejection`). Only the app's own windows are heard.
+ * The page asks to open the logs folder, reports errors it didn't catch, which are
+ * logged as the page's (`ui.error`, `ui.rejection`), and the counts of its WebGL pool
+ * (`ui.renderer-pool`). Only the app's own windows are heard.
  */
 export const registerLogIpc = (
   ipc: Pick<IpcMain, "on">,
@@ -274,6 +276,12 @@ export const registerLogIpc = (
         : "A promise in the page failed with nothing to catch it.",
       { err: uiErrorAsError(report) },
     )
+  })
+  ipc.on(rendererPoolChannel, (event, value: unknown) => {
+    if (!options.window(event)) return
+    const report = rendererPoolOf(value)
+    if (report)
+      options.log.info("ui.renderer-pool", "The page's WebGL pool, counted.", { data: report })
   })
 }
 

@@ -3,6 +3,7 @@ import {
   parsePortableState,
   parseUpdateOffer,
   parseWhatsNew,
+  rendererPoolOf,
   runnerPortMessage,
   updateChannels,
   updateVersionPattern,
@@ -42,6 +43,7 @@ import {
   openUpdatePageChannel,
   pagePictureChannel,
   portableChannel,
+  rendererPoolChannel,
   quitAppChannel,
   runnerPortChannel,
   sandboxChannel,
@@ -307,6 +309,11 @@ const bridge = {
       message: text(error?.message, 2_000) ?? "",
       stack: text(error?.stack, 8_000),
     })
+  },
+  // Only the counts cross; the main process checks them again.
+  reportRendererPool: (stats) => {
+    const report = rendererPoolOf(stats)
+    if (report) ipcRenderer.send(rendererPoolChannel, report)
   },
   // Only a JPEG picture comes back; the main process checks the page is one of this page's.
   pagePicture: async (page) => {

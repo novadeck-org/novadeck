@@ -33,6 +33,7 @@ catalogs:
 
 patchedDependencies:
   '@xterm/addon-unicode-graphemes@0.4.0': b0a9bbbcc53e94cabc762f35be7a9d628ad75ecb84ca1e26eae1e808f27f18b6
+  '@xterm/addon-webgl@0.19.0': d5741f66ddf8628c76f7c2bb3eec05d444033258ce8264691f86ab71edac0fe3
   '@xterm/xterm@6.0.0': 2cd53f4bf1af2ffd7e09dcb6b561f0c0176ae79956b5d91ac46024168cd237fa
   electron-updater@6.8.9: 194f26b921816fb49234137172ac8a9e8146f732442494a3e0cefecd51d541e4
   node-pty@1.2.0-beta.14: c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224
@@ -1146,7 +1147,7 @@ importers:
         version: 0.12.0
       '@xterm/addon-webgl':
         specifier: 0.19.0
-        version: 0.19.0
+        version: 0.19.0(patch_hash=d5741f66ddf8628c76f7c2bb3eec05d444033258ce8264691f86ab71edac0fe3)
       '@xterm/headless':
         specifier: 6.0.0
         version: 6.0.0
@@ -7328,7 +7329,7 @@ snapshots:
 
   '@xterm/addon-web-links@0.12.0': {}
 
-  '@xterm/addon-webgl@0.19.0': {}
+  '@xterm/addon-webgl@0.19.0(patch_hash=d5741f66ddf8628c76f7c2bb3eec05d444033258ce8264691f86ab71edac0fe3)': {}
 
   '@xterm/headless@6.0.0': {}
 

@@ -6,7 +6,7 @@ import { PassThrough } from "node:stream"
 import { createLogger, createRedactor, logPath, type Entry, type Logger } from "@novadeck/log"
 import { afterEach } from "vitest"
 
-import { openLogsChannel, uiErrorChannel } from "../bridge"
+import { openLogsChannel, rendererPoolChannel, uiErrorChannel } from "../bridge"
 import { context, describe, expect, it } from "../test"
 import {
   eachLine,
@@ -298,6 +298,22 @@ describe("the page's logs and errors", () => {
     )
     expect(written[0]?.err?.message).toMatch(
       /^x is undefined in ~\/#[0-9a-f]{8}\/#[0-9a-f]{8}\.ts$/,
+    )
+  })
+
+  it("logs the counts of the page's WebGL pool, from the app's own page, as numbers only", () => {
+    const { logger, lines, send } = setup()
+    const counts = { waits: 2, steals: 1, swaps: 9, lost: 0, failed: 0, resizes: 3, onDom: 1 }
+    send(rendererPoolChannel, true, counts)
+    send(rendererPoolChannel, false, counts)
+    send(rendererPoolChannel, true, { ...counts, swaps: "9" })
+    send(rendererPoolChannel, true, { ...counts, waits: -1 })
+    send(rendererPoolChannel, true, { waits: 1 })
+    logger.close()
+    const written = lines()
+    expect(written).toHaveLength(1)
+    expect(written[0]).toEqual(
+      expect.objectContaining({ proc: "ui", evt: "ui.renderer-pool", level: "info", data: counts }),
     )
   })
 

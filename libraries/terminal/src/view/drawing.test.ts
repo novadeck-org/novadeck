@@ -13,8 +13,10 @@ import {
   openedTerminals,
   optionsOf,
   running,
+  shell,
   slot,
   starting,
+  streamOf,
   themed,
   viewsOf,
 } from "./fakes.test-support.js"
@@ -107,6 +109,7 @@ describe("a screen's renderer", () => {
         return {
           onContextLoss: () => ({ dispose: () => {} }),
           clearTextureAtlas: () => {},
+          atlas: () => undefined,
           dispose: () => void (drawing.disposed = true),
         } satisfies Drawing
       },
@@ -128,6 +131,7 @@ describe("a screen's renderer", () => {
         return this.classList.contains("screen") ? value : original.call(this)
       })
     }
+    const stream = streamOf()
     const resized = vi.fn<NonNullable<ViewEvents<string>["resized"]>>()
     const closed = new Set<string>()
     const page = themed()
@@ -136,10 +140,13 @@ describe("a screen's renderer", () => {
         emulator: (host, open) => createView(host, { ...open, scrollback: 0, renderers }),
         theme: page.theme,
         markup: { hostClass: "screen" },
-        lifecycle: (key) => starting({ closed: closed.has(key) }),
+        lifecycle: (key) => shell({ closed: closed.has(key) }),
+        attach: () => Promise.resolve(stream.attached),
         on: { resized },
       }),
     )
+    // The size every fit gives, which a test may change.
+    const fit = { cols: 100, rows: 30 }
     // The fit addon is the view's own, so it is reached as the terminal loads it.
     const prototype = emulatorPrototype()
     const loadAddon = prototype.loadAddon
@@ -151,10 +158,7 @@ describe("a screen's renderer", () => {
         vi.spyOn(
           addon as { proposeDimensions: () => unknown },
           "proposeDimensions",
-        ).mockReturnValue({
-          cols: 100,
-          rows: 30,
-        })
+        ).mockImplementation(() => ({ ...fit }))
       return loadAddon.call(this, addon)
     })
     // Holds the terminals `ids` in elements of their own, as a view places them, asking for
@@ -170,7 +174,7 @@ describe("a screen's renderer", () => {
         unmount: () => holds.forEach((hold) => hold.release({ unmount: true })),
       }
     }
-    return { loaded, drawings, watching, resized, closed, mount, page }
+    return { loaded, drawings, watching, resized, closed, mount, page, renderers, fit, stream }
   }
 
   it("loads WebGL for a screen that asks for it and nothing for one that doesn't", () => {
@@ -192,6 +196,22 @@ describe("a screen's renderer", () => {
     expect(resized).toHaveBeenCalledTimes(1)
     page.update({ webgl: true })
     expect(resized).toHaveBeenCalledTimes(2)
+  })
+
+  it("counts a renderer change's resize of the pty only when the fit is another size", async () => {
+    const { renderers, mount, fit, stream } = wired()
+    const page = mount(true, "01")
+    // The shell attaches, and its pty takes the size that fits.
+    await vi.waitFor(() => expect(stream.resized).toEqual(["100x30"]))
+    expect(renderers.stats().resizes).toBe(0)
+    fit.cols = 90
+    page.update({ webgl: false })
+    expect(stream.resized).toEqual(["100x30", "90x30"])
+    expect(renderers.stats()).toMatchObject({ swaps: 2, resizes: 1 })
+    // The next change fits the same size again.
+    page.update({ webgl: true })
+    expect(stream.resized).toHaveLength(2)
+    expect(renderers.stats()).toMatchObject({ swaps: 3, resizes: 1 })
   })
 
   it("fits the screen again once a font it waited for arrives", async () => {

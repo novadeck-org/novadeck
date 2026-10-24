@@ -13,7 +13,8 @@ character-width rule every emulator shares, and helpers that need only an emulat
   the width rule applied, the fit and web-links addons loaded, and links, theme, font and fit behind
   a `View`, which tells of each change of renderer (`onRendererChange`) so its owner fits it again;
   and the pool that draws views with WebGL (`webglRenderers`, `createRenderers`,
-  `ScreenRenderer`). The app resolves its theme, its link policy and which views want WebGL, and
+  `ScreenRenderer`; `stats()` and `watch()` give the pool's counts: waits, steals, swaps, contexts
+  lost, loads failed, pty resizes a swap caused, and screens left on the DOM). The app resolves its theme, its link policy and which views want WebGL, and
   passes them in. Types of xterm's `Terminal` and `ITheme` come from here too.
 - `./browser.css`: xterm's stylesheet, for the browser emulator's screens.
 - `./headless` (Node only): the emulator without a view, and what needs only it.
@@ -39,7 +40,7 @@ released together, so an upgrade moves all of them in one change.
 
 ## Patches
 
-pnpm reads patches from the workspace's root `pnpm-workspace.yaml`, which registers these two from
+pnpm reads patches from the workspace's root `pnpm-workspace.yaml`, which registers these three from
 this library's `patches/`. pnpm refuses an install whose patch no longer matches its pinned version,
 so an upgrade can't drop one unnoticed; each is made again for the new version, or dropped once a
 release fixes what it fixes.
@@ -56,6 +57,11 @@ release fixes what it fixes.
   position short of the bottom, which xterm took for the person scrolling up: the screen stopped
   following its program until they scrolled down or typed. Upstream reports the same stale
   height as [#6117](https://github.com/xtermjs/xterm.js/issues/6117).
+- `@xterm/addon-webgl` 0.19.0: `WebglRenderer` registers its cursor-blink manager with the renderer
+  (`this._register(new be)` in `lib/addon-webgl.mjs`, `this._register(new m.MutableDisposable)` in
+  `lib/addon-webgl.js`) in place of leaving it undisposed. The manager exists once a program turns
+  blinking on (DECSET 12), and while the terminal has focus it keeps a 600 ms interval that held the
+  disposed renderer alive. Upstream disposes it from 7a6e724b; drop the patch on an upgrade that has it.
 
 ## Bundling the headless emulator
 

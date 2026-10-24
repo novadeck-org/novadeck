@@ -19,6 +19,9 @@ const setup = ({ cap = 2, supported = true, failing = false } = {}) => {
       return { dispose: () => {} }
     }
     clearTextureAtlas = () => void (this.cleared += 1)
+    // Alone on its atlas, unless a test sets it to another drawing's.
+    atlasId: unknown = this
+    atlas = () => this.atlasId
     constructor(readonly name: string) {}
     dispose = () => {
       this.disposed = true
@@ -180,12 +183,160 @@ describe("the renderer budget", () => {
   })
 
   it("clears the texture atlas of a screen that has one", () => {
-    const { pool, drawing } = setup()
+    const { pool, drawing, settle } = setup()
     const a = pool.screen("a")
     a.refresh()
     a.take()
     a.refresh()
+    settle()
     expect(drawing("a").cleared).toBe(1)
+  })
+
+  describe("when a screen clears its texture atlas", () => {
+    const shared = () => {
+      const kit = setup({ cap: 4 })
+      const screens = Object.fromEntries(
+        ["a", "b", "c", "d"].map((name) => [name, kit.pool.screen(name)]),
+      )
+      for (const screen of Object.values(screens)) screen.take()
+      // a and b draw from one atlas, c from another, d is on the DOM renderer.
+      kit.drawing("b").atlasId = kit.drawing("a").atlasId
+      screens.d!.release()
+      return { ...kit, screens }
+    }
+
+    it("clears it for every screen drawing from the same atlas, and no other", () => {
+      const { screens, drawing, settle } = shared()
+      screens.a!.refresh()
+      settle()
+      expect(["a", "b", "c"].map((name) => drawing(name).cleared)).toEqual([1, 1, 0])
+    })
+
+    it("clears once however many of them ask in the same moment", () => {
+      const { screens, drawing, settle } = shared()
+      screens.a!.refresh()
+      screens.b!.refresh()
+      screens.a!.refresh()
+      settle()
+      expect(["a", "b", "c"].map((name) => drawing(name).cleared)).toEqual([1, 1, 0])
+    })
+
+    it("reads the atlases together, after the moment, not as each asks", () => {
+      const { screens, drawing, settle } = shared()
+      screens.c!.refresh()
+      // c's atlas is shared with b by the time the moment is over.
+      drawing("b").atlasId = drawing("c").atlasId
+      settle()
+      expect(["a", "b", "c"].map((name) => drawing(name).cleared)).toEqual([0, 1, 1])
+    })
+
+    it("leaves a screen that gave its context back, or closed, alone", () => {
+      const { screens, drawing, settle } = shared()
+      screens.a!.refresh()
+      screens.b!.release()
+      settle()
+      expect(drawing("a").cleared).toBe(1)
+      expect(drawing("b").cleared).toBe(0)
+    })
+
+    it("does nothing for a screen on the DOM renderer", () => {
+      const { screens, drawing, settle } = shared()
+      screens.d!.refresh()
+      settle()
+      expect(["a", "b", "c"].map((name) => drawing(name).cleared)).toEqual([0, 0, 0])
+    })
+
+    it("treats an atlas that is not there yet as no one else's", () => {
+      const { screens, drawing, settle } = shared()
+      for (const name of ["a", "b", "c"]) drawing(name).atlasId = undefined
+      screens.a!.refresh()
+      settle()
+      expect(["a", "b", "c"].map((name) => drawing(name).cleared)).toEqual([1, 0, 0])
+    })
+  })
+
+  describe("the counts", () => {
+    it("start at nothing", () => {
+      const { pool } = setup()
+      expect(pool.stats()).toEqual({
+        waits: 0,
+        steals: 0,
+        swaps: 0,
+        lost: 0,
+        failed: 0,
+        resizes: 0,
+        onDom: 0,
+      })
+    })
+
+    it("count a screen that finds the pool full once, however often it is looked at", () => {
+      const { pool } = setup()
+      const [a, b, c] = ["a", "b", "c"].map((name) => pool.screen(name))
+      a!.take()
+      b!.take()
+      c!.take()
+      c!.take()
+      b!.take()
+      expect(pool.stats()).toMatchObject({ waits: 1, swaps: 2, onDom: 1 })
+    })
+
+    it("count a wait again after the screen was parked and shown afresh", () => {
+      const { pool } = setup({ cap: 1 })
+      const [a, b] = ["a", "b"].map((name) => pool.screen(name))
+      a!.take()
+      b!.take()
+      b!.release()
+      b!.take()
+      expect(pool.stats().waits).toBe(2)
+    })
+
+    it("count contexts taken from idle screens, and the swaps both ways", () => {
+      const { pool, settle, live } = setup({ cap: 1 })
+      const [a, b] = ["a", "b"].map((name) => pool.screen(name))
+      a!.take()
+      a!.idle()
+      b!.take()
+      settle()
+      expect(live("b")).toBe(true)
+      expect(pool.stats()).toMatchObject({ waits: 1, steals: 1, swaps: 3, onDom: 1 })
+    })
+
+    it("count contexts lost and loads that failed", () => {
+      const { pool, drawing, state } = setup({ cap: 2 })
+      pool.screen("a").take()
+      drawing("a").lose()
+      state.failing = true
+      pool.screen("b").take()
+      expect(pool.stats()).toMatchObject({ lost: 1, failed: 1 })
+    })
+
+    it("count the resizes the views report", () => {
+      const { pool } = setup()
+      const a = pool.screen("a")
+      a.resized()
+      a.resized()
+      expect(pool.stats().resizes).toBe(2)
+    })
+
+    it("don't count a screen closing as a swap", () => {
+      const { pool } = setup()
+      const a = pool.screen("a")
+      a.take()
+      a.dispose()
+      expect(pool.stats().swaps).toBe(1)
+    })
+
+    it("tell a watcher each time one changes, until it stops", () => {
+      const { pool } = setup()
+      const heard = vi.fn<() => void>()
+      const stop = pool.watch(heard)
+      const a = pool.screen("a")
+      a.take()
+      expect(heard).toHaveBeenCalledTimes(1)
+      stop()
+      a.release()
+      expect(heard).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe("with screens nobody shows for the moment", () => {

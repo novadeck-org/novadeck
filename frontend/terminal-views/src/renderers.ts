@@ -1,5 +1,5 @@
 import type { ViewMode } from "@novadeck/core/types"
-import { webglRenderers, type Renderers } from "@novadeck/emulator/browser"
+import { webglRenderers, type PoolStats, type Renderers } from "@novadeck/emulator/browser"
 
 // Whether a view's screens draw with WebGL. Canvas zooms its windows with a CSS transform,
 // which the DOM renderer's text is drawn again at but WebGL's canvas is stretched by, soft
@@ -28,3 +28,31 @@ export const pageRenderers = (): Renderers =>
     ligatures: () => document.documentElement.dataset.ligatures === "on",
     watchLigatures: watchRoot,
   }))
+
+// How long counts settle before they are reported: a busy minute is a few lines.
+export const reportAfterMs = 10_000
+
+const reporting = new WeakSet<Renderers>()
+// Tells `report` the pool's counts, once a change has stood still for `reportAfterMs`, and
+// only when they differ from the last report. Once per pool; the page's pool lives as long as
+// the page.
+export const reportRenderers = (
+  pool: Renderers,
+  report: (stats: PoolStats) => void,
+  afterMs = reportAfterMs,
+): void => {
+  if (reporting.has(pool)) return
+  reporting.add(pool)
+  let last = JSON.stringify(pool.stats())
+  let timer: ReturnType<typeof setTimeout> | undefined
+  pool.watch(() => {
+    clearTimeout(timer)
+    timer = setTimeout(() => {
+      const stats = pool.stats()
+      const now = JSON.stringify(stats)
+      if (now === last) return
+      last = now
+      report(stats)
+    }, afterMs)
+  })
+}

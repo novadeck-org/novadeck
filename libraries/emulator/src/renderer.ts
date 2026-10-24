@@ -21,6 +21,9 @@ const lossesAllowed = 2
 export type Drawing = {
   readonly onContextLoss: IEvent<void>
   readonly clearTextureAtlas: () => void
+  // What tells which drawings share a glyph atlas: the same value, or undefined while it
+  // has none. xterm's addon gives the atlas's first page canvas.
+  readonly atlas: () => unknown
   readonly dispose: () => void
 }
 
@@ -37,6 +40,24 @@ export type RendererDeps<Target> = {
   readonly defer?: (work: () => void) => void
 }
 
+// What the pool has counted since the page opened, for the bench and the app's logs.
+export type PoolStats = {
+  // Shown screens that found the pool full and had to wait for a context.
+  readonly waits: number
+  // Contexts taken from idle screens for waiting ones.
+  readonly steals: number
+  // Renderer changes, either way: a screen taking a context or giving it back.
+  readonly swaps: number
+  // Contexts the GPU lost.
+  readonly lost: number
+  // Loads that failed, as on a context refused for a moment.
+  readonly failed: number
+  // Pty resizes a renderer change caused, as its cells measured another size.
+  readonly resizes: number
+  // Screens on the DOM renderer now for lack of a context, though shown and wanting WebGL.
+  readonly onDom: number
+}
+
 // One screen's side of the pool.
 export type ScreenRenderer = {
   // The screen is shown: it takes a context when one is free, or waits for one. Shown
@@ -48,8 +69,12 @@ export type ScreenRenderer = {
   readonly idle: () => void
   // The screen is parked and draws nothing: it gives its context back.
   readonly release: () => void
-  // The font may have changed under glyphs already drawn.
+  // The font may have changed under glyphs already drawn. Once the current task's
+  // synchronous work is over, the screen's glyph atlas is cleared and every screen sharing
+  // that atlas redraws from it, as xterm clears it for the one that asked alone.
   readonly refresh: () => void
+  // A renderer change fit the screen to another size, which went to its pty.
+  readonly resized: () => void
   readonly dispose: () => void
 }
 
@@ -70,6 +95,9 @@ type Member<Target> = {
   losses: number
   // Lost its context, or failed to load one, and waits for the next take.
   lost: boolean
+  // Counted as waiting for a context, until it has one or is no longer shown.
+  waiting: boolean
+  closed: boolean
 }
 
 export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
@@ -80,6 +108,36 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
   let unwatch: (() => void) | undefined
   let stealing = false
   const defer = deps.defer ?? queueMicrotask
+  const counts = { waits: 0, steals: 0, swaps: 0, lost: 0, failed: 0, resizes: 0 }
+  const watchers = new Set<() => void>()
+  const count = (what: keyof typeof counts): void => {
+    counts[what] += 1
+    for (const watcher of watchers) watcher()
+  }
+  // Drawings whose screens asked for a clear, and whether the microtask that does it is queued.
+  const asked = new Set<Member<Target>>()
+  let sharing = false
+
+  // xterm clears a glyph atlas for the screen that asked and tells no other screen drawing
+  // from it, which keep glyph coordinates into pages that are blank or hold others by then
+  // (xterm.js #6014). So the clear is done once for every drawing on the atlas, at the same
+  // moment: the atlas is empty when the first clears it, and the rest rebuild their models
+  // against it before anything draws.
+  const clearAtlases = (): void => {
+    sharing = false
+    const drawn = [...members].filter((member) => member.drawing)
+    // Read together, as the identity can change when xterm merges pages.
+    const atlases = new Map(drawn.map((member) => [member, member.drawing?.atlas()]))
+    const cleared = new Set(
+      [...asked].map((member) => atlases.get(member)).filter((atlas) => atlas !== undefined),
+    )
+    for (const member of drawn) {
+      const atlas = atlases.get(member)
+      if (asked.has(member) || (atlas !== undefined && cleared.has(atlas)))
+        member.drawing?.clearTextureAtlas()
+    }
+    asked.clear()
+  }
 
   // Ligatures keep every screen on the DOM renderer: WebGL draws per cell and cannot join glyphs.
   const usable = (): boolean => {
@@ -94,6 +152,11 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
     held -= 1
     // Disposing the addon returns xterm to the DOM renderer.
     drawing.dispose()
+    swapped(member)
+  }
+
+  const swapped = (member: Member<Target>): void => {
+    if (!member.closed) count("swaps")
     member.switched()
   }
 
@@ -106,6 +169,7 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
     }
     if (!victim) return false
     drop(victim)
+    count("steals")
     return true
   }
 
@@ -134,11 +198,15 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
         if (!next || member.since < next.since) next = member
       }
       if (!next) return
+      const member = next
       if (held >= deps.cap) {
+        if (!member.waiting) {
+          member.waiting = true
+          count("waits")
+        }
         if (!fromIdle) return later()
         if (!steal()) return
       }
-      const member = next
       let drawing: Drawing
       try {
         drawing = deps.load(member.target)
@@ -146,18 +214,21 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
         // As a lost context: a GPU process restarting can refuse one for a moment.
         member.losses += 1
         member.lost = true
+        count("failed")
         continue
       }
       member.drawing = drawing
+      member.waiting = false
       held += 1
       drawing.onContextLoss(() => {
         if (member.drawing !== drawing) return
         member.losses += 1
         member.lost = true
+        count("lost")
         drop(member)
         fill()
       })
-      member.switched()
+      swapped(member)
     }
   }
 
@@ -167,6 +238,17 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
   }
 
   return {
+    stats: (): PoolStats => ({
+      ...counts,
+      onDom: [...members].filter(
+        (member) => member.shown && member.webgl && !member.drawing && usable(),
+      ).length,
+    }),
+    // Tells `listener` after each count changes, until the returned function is called.
+    watch: (listener: () => void): (() => void) => {
+      watchers.add(listener)
+      return () => void watchers.delete(listener)
+    },
     screen: (target: Target, switched: () => void = () => {}): ScreenRenderer => {
       const member: Member<Target> = {
         target,
@@ -178,12 +260,15 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
         since: 0,
         losses: 0,
         lost: false,
+        waiting: false,
+        closed: false,
       }
       members.add(member)
       unwatch ??= deps.watchLigatures(changed)
       const leave = (): void => {
         member.shown = false
         member.idle = false
+        member.waiting = false
         drop(member)
         fill()
       }
@@ -197,7 +282,10 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
           member.shown = true
           member.idle = false
           member.webgl = webgl
-          if (!webgl) drop(member)
+          if (!webgl) {
+            member.waiting = false
+            drop(member)
+          }
           fill()
         },
         idle: () => {
@@ -207,10 +295,19 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
           later()
         },
         release: leave,
-        refresh: () => member.drawing?.clearTextureAtlas(),
+        refresh: () => {
+          if (!member.drawing) return
+          asked.add(member)
+          if (sharing) return
+          sharing = true
+          defer(clearAtlases)
+        },
+        resized: () => count("resizes"),
         dispose: () => {
           // A screen that closes has nothing to fit again.
           member.switched = () => {}
+          member.closed = true
+          asked.delete(member)
           leave()
           members.delete(member)
           if (members.size > 0) return
@@ -289,6 +386,7 @@ export const loadWebgl = (xterm: Terminal): Drawing => {
   return {
     onContextLoss: addon.onContextLoss,
     clearTextureAtlas: () => addon.clearTextureAtlas(),
+    atlas: () => addon.textureAtlas,
     // The addon's dispose leaves its context to the garbage collector, and until then
     // Chromium counts it against the page's contexts and drops live ones for it; the
     // context is lost on the way out instead.
