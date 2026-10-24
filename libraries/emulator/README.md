@@ -62,13 +62,18 @@ release fixes what it fixes.
   about 1300 of them, 220 ms, when ten terminals switched to the Canvas view. Now the measurements
   live on the `document`, under `Symbol.for("novadeck.xterm.widths")`, one entry per font family,
   size, weight, bold weight and device pixel ratio, each with its flat and bold/italic tables. A
-  screen takes the entry its font names when it sets its font, and measures only what the entry
-  lacks. `clear()`, which xterm calls on a change of character size or pixel ratio, empties the
-  entry for the screen's current font, and the document's `fonts` `loadingdone` empties them all,
-  so a web font that arrives after widths were measured with the fallback leaves none behind for
-  the next screen. A width of 0 (an element with no layout) is still never kept. Widths and
-  letter-spacing come out as before. Like the viewport fix, this is made again on xterm 6.1: the
-  same class, in both bundles, unless 6.1 shares its widths itself. `src/widths.test.ts` pins it.
+  screen takes the entry its font names, and measures only what the entry lacks. The entry also
+  remembers the width of a `W` it was filled under. Wherever xterm used to empty a cache (a change
+  of character size or pixel ratio, which every opening screen causes too) and wherever a screen
+  moves to another font after its first, the screen measures `W` again, one read, and empties the
+  entry only when that differs, so an opening screen leaves its siblings' widths alone while a
+  font that loaded after the fallback was measured is measured afresh. The document's `fonts`
+  `loadingdone` empties every entry, for fonts that load with the same metrics as their
+  fallback. A width of 0 (an element with no layout) is still never kept, and the table of bold,
+  italic and wide strings is emptied past 2048 entries so it can't grow with the document.
+  Widths and letter-spacing are what they were, apart from sharing a screen's measurements with
+  the others. Like the viewport fix, this is made again on xterm 6.1: the same class, in both
+  bundles, unless 6.1 shares its widths itself. `src/widths.test.ts` pins it.
 
 ## Bundling the headless emulator
 

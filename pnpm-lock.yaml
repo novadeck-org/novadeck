@@ -33,7 +33,7 @@ catalogs:
 
 patchedDependencies:
   '@xterm/addon-unicode-graphemes@0.4.0': b0a9bbbcc53e94cabc762f35be7a9d628ad75ecb84ca1e26eae1e808f27f18b6
-  '@xterm/xterm@6.0.0': e74eaac094aac7df0dce6de12471bd38a69c8647889c65799ec3d2ab208c524a
+  '@xterm/xterm@6.0.0': 81fc932fa5e5edcaf71e3bc135160e805661bc6807dd8b76636a2798a9a2f7ae
   electron-updater@6.8.9: 194f26b921816fb49234137172ac8a9e8146f732442494a3e0cefecd51d541e4
   node-pty@1.2.0-beta.14: c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224
 
@@ -1152,7 +1152,7 @@ importers:
         version: 6.0.0
       '@xterm/xterm':
         specifier: 6.0.0
-        version: 6.0.0(patch_hash=e74eaac094aac7df0dce6de12471bd38a69c8647889c65799ec3d2ab208c524a)
+        version: 6.0.0(patch_hash=81fc932fa5e5edcaf71e3bc135160e805661bc6807dd8b76636a2798a9a2f7ae)
     devDependencies:
       '@types/node':
         specifier: ^26.6.5
@@ -7332,7 +7332,7 @@ snapshots:
 
   '@xterm/headless@6.0.0': {}
 
-  '@xterm/xterm@6.0.0(patch_hash=e74eaac094aac7df0dce6de12471bd38a69c8647889c65799ec3d2ab208c524a)': {}
+  '@xterm/xterm@6.0.0(patch_hash=81fc932fa5e5edcaf71e3bc135160e805661bc6807dd8b76636a2798a9a2f7ae)': {}
 
   '@xyflow/react@12.12.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
