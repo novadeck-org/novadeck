@@ -5,6 +5,7 @@ import { createToasts, ToastRegion } from "@novadeck/toolkit/Toast"
 import { Folder, Terminal } from "lucide-react"
 import { useEffect, useMemo } from "react"
 
+import { focusSheetSoon } from "./inbox-dom"
 import { icons } from "./inbox-icons"
 import { useInboxContext } from "./InboxProvider"
 import { toastText } from "./toast-text"
@@ -94,9 +95,11 @@ export const InboxToasts = ({
     <ToastRegion
       toasts={toasts}
       label="Inbox"
-      onSelect={(item) => {
+      onSelect={(item, { keyboard }) => {
         showInbox()
         open(item.id)
+        // From the keyboard, on to the sheet that opens, as from a row.
+        if (keyboard) focusSheetSoon()
       }}
       onMore={showInbox}
       fannedLabel={(count) => `${count} more in the Inbox`}

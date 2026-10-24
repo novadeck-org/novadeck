@@ -59,6 +59,7 @@ export type Toasts<T> = {
     readonly snapshot: () => Snapshot<T>
     readonly arrival: ReturnType<typeof createArrival>
     // The element holding the stack, to ask whether the pointer or focus is on it.
+    readonly region: { current: HTMLElement | null }
     readonly attach: (element: HTMLElement | null) => void
     // Whether the pointer is on the pill that counts the rest, which it may press where it
     // stands: that pill doesn't spread the stack as the pointer reaches it.
@@ -68,6 +69,9 @@ export type Toasts<T> = {
     readonly hold: (held: boolean) => void
     // Where focus was before it came into the stack, to give back.
     readonly focus: {
+      // Focus came into / went out of the stack: it pauses and spreads it as the pointer does.
+      readonly into: () => void
+      readonly out: () => void
       readonly enter: (from: EventTarget | null) => void
       readonly leave: (to: EventTarget | null) => void
       readonly restore: () => void
@@ -119,6 +123,7 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
   const release = (): void => {
     if (!engaged) return
     engaged = false
+    overPill = false
     arrival.reset()
     store.resume()
   }
@@ -138,7 +143,8 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
     },
     resume: (id) => {
       if (id !== undefined) return store.resume(id)
-      release()
+      engaged = false
+      arrival.reset()
       store.resume()
     },
   }
@@ -160,6 +166,9 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
     // A toast closed or clicked away from under the pointer sends no leave, and the stack
     // that empties is no longer held.
     if (order.length === 0) release()
+    // The pill that counts the rest is gone once there is nothing to count, and sends no
+    // leave as it goes.
+    if (order.length <= shownToasts) overPill = false
     listeners.forEach((listener) => listener())
   }
   const standing = (id: string): void => {
@@ -176,12 +185,29 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
     const gone = new Map(left)
     gone.delete(id)
     left = gone
+    const placed = new Map(moved)
+    placed.delete(id)
+    moved = placed
   }
 
   // Focus, kept where it was: a toast is no place to leave it.
   let returnTo: HTMLElement | null = null
   let inside = false
   const focus: Toasts<T>["view"]["focus"] = {
+    into: () => {
+      if (engaged) return
+      engaged = true
+      store.expand()
+      store.pause()
+    },
+    out: () => {
+      // Once focus has settled: it may only have moved from one toast to its button.
+      requestAnimationFrame(() => {
+        if (!engaged || onStack()) return
+        release()
+        store.collapse()
+      })
+    },
     enter: (from) => {
       if (inside) return
       inside = true
@@ -191,11 +217,16 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
           : null
     },
     leave: (to) => {
-      if (to instanceof Element && !region.current?.contains(to)) inside = false
+      if (!(to instanceof Element) || region.current?.contains(to)) return
+      // Focus went somewhere on purpose: it is not ours to take back.
+      inside = false
+      returnTo = null
     },
     restore: () => {
+      const active = document.activeElement
+      const here = !active || active === document.body || region.current?.contains(active)
       inside = false
-      if (returnTo?.isConnected) returnTo.focus({ preventScroll: true })
+      if (here && returnTo?.isConnected) returnTo.focus({ preventScroll: true })
       returnTo = null
     },
     recover: () => {
@@ -243,7 +274,10 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
       const id = current.get(key)
       if (id !== undefined) store.dismiss(id)
     },
-    clear: () => store.dismiss(),
+    clear: () => {
+      overPill = false
+      store.dismiss()
+    },
     view: {
       toaster: gated,
       duration,
@@ -253,6 +287,7 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
       },
       snapshot: () => snapshot,
       arrival,
+      region,
       attach: (element) => {
         region.current = element
       },
@@ -285,7 +320,7 @@ type ItemProps<T> = {
   readonly more: number
   readonly toasts: Toasts<T>
   readonly children: (data: T) => ReactNode
-  readonly onSelect: (data: T) => void
+  readonly onSelect: (data: T, via: { readonly keyboard: boolean }) => void
   readonly onMore: () => void
   readonly moreLabel: (count: number) => string
   readonly fannedLabel: (count: number) => string
@@ -306,16 +341,23 @@ const ToastItem = <T,>({
 }: ItemProps<T>): React.JSX.Element => {
   // When it landed or last moved to another place in the stack, which may put it under the
   // pointer: a click is not meant for what has just come there.
-  const { duration, focus, pill } = toasts.view
-  const select = (): void => {
-    onSelect(entry.data)
+  const { duration, focus, pill, region } = toasts.view
+  // A toast that goes with focus on it gives it back, once it is gone.
+  useLayoutEffect(
+    () => () => {
+      if (region.current?.contains(document.activeElement)) queueMicrotask(focus.recover)
+    },
+    [focus, region],
+  )
+  // What takes the person on (the Inbox's sheet) takes focus itself, and a toast that goes
+  // with focus on it gives it back once it is gone.
+  const select = (keyboard: boolean): void => {
+    onSelect(entry.data, { keyboard })
     toasts.close(entry.key)
-    focus.restore()
   }
-  const pressed = (event: React.MouseEvent): void => {
+  const pressed = (): void => {
     onMore()
     toasts.clear()
-    if (event.detail === 0) focus.restore()
   }
   return (
     <Toast.Root
@@ -344,14 +386,14 @@ const ToastItem = <T,>({
       onClick={(event) => {
         // Its close button and pills act for themselves.
         if ((event.target as Element).closest("button")) return
-        select()
+        select(event.detail === 0)
       }}
       onKeyDown={(event) => {
         if (event.key === "Escape") queueMicrotask(focus.restore)
         if (event.target !== event.currentTarget) return
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault()
-          select()
+          select(true)
         }
       }}
     >
@@ -403,7 +445,8 @@ export const ToastRegion = <T,>({
   // What a screen reader calls the region.
   readonly label: string
   readonly children: (data: T) => ReactNode
-  readonly onSelect: (data: T) => void
+  // `via.keyboard` says it was chosen with a key.
+  readonly onSelect: (data: T, via: { readonly keyboard: boolean }) => void
   readonly onMore: () => void
   readonly moreLabel?: (count: number) => string
   readonly fannedLabel?: (count: number) => string
@@ -424,8 +467,6 @@ export const ToastRegion = <T,>({
       document.removeEventListener("visibilitychange", visibility)
     }
   }, [arrival, hold])
-  // A toast that had focus and is gone gives it back.
-  useLayoutEffect(() => focus.recover())
   return (
     <div className="toast-layer" ref={(element) => attach(element)}>
       <Toaster
@@ -435,11 +476,18 @@ export const ToastRegion = <T,>({
         // Each toast is announced once as it arrives, not again as its text changes.
         aria-relevant="additions"
         className="toasts"
+        // Focus is the stack's own to follow: Zag's takes it back to where it came from when
+        // it leaves, even for another field the person chose.
         onFocusCapture={(event) => {
-          arrival.moved(true)
+          event.stopPropagation()
           focus.enter(event.relatedTarget)
+          focus.into()
         }}
-        onBlurCapture={(event) => focus.leave(event.relatedTarget)}
+        onBlurCapture={(event) => {
+          event.stopPropagation()
+          focus.leave(event.relatedTarget)
+          focus.out()
+        }}
       >
         {(toast: ToastOptions) => {
           const id = toast.id

@@ -10,8 +10,8 @@ const sleep = (ms: number): Promise<void> => new Promise((done) => setTimeout(do
 
 // The clock the click guard reads, which a test moves by hand.
 let clock = 1000
-const mount = (onMore = () => {}) => {
-  vi.spyOn(performance, "now").mockImplementation(() => clock)
+const mount = (onMore = () => {}, fake = true) => {
+  if (fake) vi.spyOn(performance, "now").mockImplementation(() => clock)
   const toasts = createToasts<string>()
   const selected: string[] = []
   const props = {
@@ -28,8 +28,10 @@ const mount = (onMore = () => {}) => {
     all(".toast:not([data-state=closed]) .body").map((each) => each.textContent ?? "")
   const later = (ms: number) =>
     act(async () => {
-      clock += ms
-      await sleep(30)
+      if (fake) {
+        clock += ms
+        await sleep(30)
+      } else await sleep(ms)
     })
   // The pointer travels onto the stack: Zag hears a move over it.
   const hover = () =>
@@ -90,10 +92,8 @@ describe("a toast stack", () => {
     await act(async () => toasts.show("a", "new"))
     await later(clickGraceMs + 1)
     const old = all(".toast").find((each) => each.textContent?.includes("old"))
-    if (old) {
-      expect(old.getAttribute("data-state")).toBe("closed")
-      await act(async () => old.click())
-    }
+    expect(old?.getAttribute("data-state")).toBe("closed")
+    await act(async () => old!.click())
     expect(selected).toEqual([])
     view.unmount()
   })
@@ -113,8 +113,8 @@ describe("a toast stack", () => {
     view.unmount()
   })
 
-  it("takes no focus from a press, and gives it back after a key", async () => {
-    const { toasts, view, later, all, doc } = mount()
+  it("takes no focus from a press, and is chosen by a key", async () => {
+    const { toasts, selected, view, later, all, doc } = mount(undefined, false)
     const field = doc.createElement("input")
     doc.body.append(field)
     field.focus()
@@ -130,8 +130,8 @@ describe("a toast stack", () => {
         new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
       )
     })
-    await later(10)
-    expect(doc.activeElement).toBe(field)
+    // The person's own answer (the Inbox's sheet) takes focus on; the toast gives none back.
+    expect(selected).toEqual(["ring"])
     field.remove()
     view.unmount()
   })
@@ -186,7 +186,73 @@ describe("a stack the pointer holds", () => {
   })
 })
 
+describe("focus a toast is reached with", () => {
+  const key = (name: string) =>
+    new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true })
+
+  const goesBack = async (how: "escape" | "close"): Promise<void> => {
+    const { toasts, view, later, all, doc } = mount(undefined, false)
+    const field = doc.createElement("input")
+    doc.body.append(field)
+    field.focus()
+    await act(async () => toasts.show("a", "ring"))
+    await later(clickGraceMs + 1)
+    const toast = all(".toast")[0]!
+    await act(async () => toast.focus())
+    expect(doc.activeElement).toBe(toast)
+    await act(async () => {
+      if (how === "escape") toast.dispatchEvent(key("Escape"))
+      else toast.querySelector<HTMLElement>(".toast-close")!.click()
+    })
+    await later(10)
+    expect(doc.activeElement).toBe(field)
+    field.remove()
+    view.unmount()
+  }
+
+  it("goes back to where it was after Escape", () => goesBack("escape"))
+  it("goes back to where it was after the close button, pressed by a key", () => goesBack("close"))
+
+  it("is not taken back once the person has gone to another field", async () => {
+    const { toasts, view, later, all, doc } = mount(undefined, false)
+    const first = doc.createElement("input")
+    const second = doc.createElement("input")
+    doc.body.append(first, second)
+    first.focus()
+    await act(async () => toasts.show("a", "ring"))
+    await later(clickGraceMs + 1)
+    const toast = all(".toast")[0]!
+    await act(async () => toast.focus())
+    await act(async () => second.focus())
+    await act(async () => {
+      toast.dispatchEvent(key("Escape"))
+    })
+    await later(10)
+    expect(doc.activeElement).toBe(second)
+    first.remove()
+    second.remove()
+    view.unmount()
+  })
+})
+
 describe("the pill that counts the rest", () => {
+  it("lets the stack pause and spread again once the pill is gone from under the pointer", async () => {
+    const { toasts, view, later, all, doc, hover } = mount()
+    await act(async () => {
+      for (const key of ["a", "b", "c", "d", "e"]) toasts.show(key, key)
+    })
+    await later(clickGraceMs + 1)
+    const pill = all('.toast-more[data-fan="rest"]')[0]!
+    await act(async () => pill.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })))
+    await act(async () => pill.click())
+    await later(400)
+    await act(async () => toasts.show("f", "fresh"))
+    await later(10)
+    await hover()
+    expect(doc.querySelector(".toast[data-stack]")).not.toBeNull()
+    view.unmount()
+  })
+
   it("is pressed where the pointer reached it, the stack not spreading under it", async () => {
     let more = 0
     const { toasts, view, later, all, doc } = mount(() => void (more += 1))
