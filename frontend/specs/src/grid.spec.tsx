@@ -374,6 +374,29 @@ describe("Grid view's team wire", () => {
   const ticks = () => gridView().element().querySelectorAll(".grid-team-wire-tick").length
   const lit = () => gridView().element().querySelectorAll(".grid-team-wire-shape[data-lit]").length
 
+  it("tints the selected terminal's teammates' windows, as their tabs, its lead's too", async () => {
+    const tinted = (name: string) =>
+      getComputedStyle(terminal(name).element(), "::after").backgroundColor !== "rgba(0, 0, 0, 0)"
+    const outline = (name: string) => getComputedStyle(terminal(name).element()).borderTopColor
+    await openMessagesDemo()
+    await terminalTab("Checkout implementation").click()
+    await chooseView("Grid")
+    await expect.poll(() => tinted("Checkout review")).toBe(true)
+    expect(outline("Checkout review")).not.toBe(outline("Dev server"))
+    expect(tinted("Checkout implementation")).toBe(false)
+    expect(tinted("Dev server")).toBe(false)
+    // Its worker selected keeps its own look, and its lead takes the tint.
+    await terminalTab("Checkout review").click()
+    await expect.poll(() => tinted("Checkout implementation")).toBe(true)
+    expect(outline("Checkout implementation")).not.toBe(outline("Dev server"))
+    expect(tinted("Checkout review")).toBe(false)
+    expect(tinted("Dev server")).toBe(false)
+    // A terminal in no team selected: none is tinted.
+    await terminalTab("Dev server").click()
+    await expect.poll(() => tinted("Checkout implementation")).toBe(false)
+    expect(tinted("Checkout review")).toBe(false)
+  })
+
   it("runs from the lead to its worker while a member of the team is selected", async () => {
     await openMessagesDemo()
     await terminalTab("Checkout implementation").click()

@@ -1,4 +1,5 @@
-import type { Backend } from "@novadeck/core/port"
+import type { InboxItem } from "@novadeck/core/inbox"
+import type { Backend, Notice } from "@novadeck/core/port"
 import type { PortableInstall } from "@novadeck/core/portable"
 import type { SandboxState } from "@novadeck/core/sandbox"
 import { createDemoBackend } from "@novadeck/demo"
@@ -19,6 +20,8 @@ import { createDemoUninstall, uninstallScenarios } from "@novadeck/demo-debug/un
 import { createDemoUpdates } from "@novadeck/demo-debug/updates"
 import { babciaCuesOf, type BabciaCues } from "@novadeck/demo/babcia"
 import { createContentDemo } from "@novadeck/demo/content"
+import { isDemoInbox } from "@novadeck/demo/inbox"
+import { demoInboxItemsAll } from "@novadeck/demo/inbox-fixtures"
 import { demoTurns } from "@novadeck/demo/turns"
 import { createDemo } from "@novadeck/demo/variants"
 import { visitorDemo } from "@novadeck/demo/visitor/index"
@@ -210,8 +213,81 @@ export const forgetBabciaCues = (): void => void (babciaCues.length = 0)
 /** The Babcia demo's seasonal-specials agent shows its page in the pane, with no click. */
 export const agentShowsPage = (): void => babciaCues.forEach((cues) => cues.show())
 
+// Specs open the demo on a desktop-like host with `&host=on`: one that reports whether its
+// window has the system's focus, which the spec moves with `hostWindow.focus`, and keeps the
+// notifications it was asked to show, which the spec reads with `hostWindow.notices`.
+const hostRequested = (): boolean =>
+  new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("host") === "on"
+
+type HostWindow = {
+  readonly inbox: ReturnType<typeof createDemoBackend>["inbox"]
+  readonly focusListeners: Set<(focused: boolean) => void>
+  readonly shown: Notice[]
+}
+
+// The hosts of every backend made since `forgetHostWindow`: StrictMode makes two and keeps
+// one, so what the spec does reaches each, and what the page did is read from them all.
+const hosts: HostWindow[] = []
+
+/** Forgets the hosts of earlier pages' backends, as a spec opens its own. */
+export const forgetHostWindow = (): void => void (hosts.length = 0)
+
+const withHost = (
+  demo: ReturnType<typeof createDemoBackend>,
+): ReturnType<typeof createDemoBackend> => {
+  const host: HostWindow = {
+    inbox: demo.inbox,
+    focusListeners: new Set(),
+    shown: [],
+  }
+  hosts.push(host)
+  return {
+    ...demo,
+    windowFocus: (listener) => {
+      host.focusListeners.add(listener)
+      listener(true)
+      return () => void host.focusListeners.delete(listener)
+    },
+    notices: {
+      show: (notice) => void host.shown.push(notice),
+      onClick: () => () => undefined,
+    },
+  }
+}
+
+/** The desktop-like host of `&host=on`, and the Inbox behind it. */
+export const hostWindow = {
+  /** The system gives the app's window its focus, or takes it away. */
+  focus: (focused: boolean): void =>
+    hosts.forEach((each) => each.focusListeners.forEach((listener) => listener(focused))),
+  /** The OS notifications the page has shown, by title. */
+  notices: (): string[] => hosts.flatMap((each) => each.shown.map((notice) => notice.title)),
+  /** The demo's Inbox items (by fixture id) join it now, in the order given, waiting from now. */
+  arrive: (...ids: readonly string[]): void => {
+    const now = Date.now()
+    for (const each of hosts) {
+      if (!isDemoInbox(each.inbox)) continue
+      for (const id of ids) {
+        const found = demoInboxItemsAll(now).find((item) => item.id === id)
+        if (!found) throw new Error(`No Inbox fixture ${id}`)
+        each.inbox.add({ ...found, at: now } satisfies InboxItem)
+      }
+    }
+  },
+  /** An ask leaves the Inbox, withdrawn by its agent. */
+  withdraw: (id: string): void =>
+    hosts.forEach((each) =>
+      isDemoInbox(each.inbox) ? each.inbox.resolve(id, "withdrawn") : undefined,
+    ),
+}
+
 // The demo a spec opens, as its address's hash asks.
 export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
+  const demo = plainSpecBackend()
+  return hostRequested() ? withHost(demo) : demo
+}
+
+const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   if (babciaRequested()) {
     const demo = createDemo("babcia", { theme: pageTheme }, demoTurns())
     const cues = babciaCuesOf(demo)
