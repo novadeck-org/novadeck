@@ -268,8 +268,9 @@ mod tests {
     fn ends_a_command_still_running_at_the_deadline_and_shows_what_it_printed() {
         // A shell can be slow to start (Git Bash on a busy Windows runner took over 300 ms),
         // and a deadline that comes before it printed shows nothing: each such run is tried
-        // again with a longer deadline. The command leaves a mark at twice the deadline, which
-        // it never reaches if the deadline ended it.
+        // again with a longer deadline. A process the command started leaves a mark at twice
+        // the deadline, which it never reaches if the deadline ended everything the command
+        // started, not the shell alone (the `:` keeps the shell from becoming that process).
         for (round, wait) in [300, 1_000, 3_000, 10_000]
             .map(Duration::from_millis)
             .into_iter()
@@ -281,18 +282,20 @@ mod tests {
             ));
             let _ = std::fs::remove_file(&mark);
             let command = format!(
-                "printf partly; sleep {:.1}; touch '{}'",
+                "printf partly; (sleep {:.1}; touch '{}'); :",
                 (wait * 2).as_secs_f64(),
-                mark.to_string_lossy().replace('\\', "/")
+                mark.to_string_lossy()
+                    .replace('\\', "/")
+                    .replace('\'', r"'\''")
             );
             let began = Instant::now();
             let printed = run(&command, b"", began + wait);
             assert!(began.elapsed() < wait + Duration::from_secs(5));
             if printed == "partly" {
                 // It printed before the deadline, so had it lived it would have left the mark
-                // before three times the deadline.
+                // soon after three times the deadline.
                 std::thread::sleep(
-                    (began + wait * 3 + Duration::from_millis(500))
+                    (began + wait * 3 + Duration::from_secs(1))
                         .saturating_duration_since(Instant::now()),
                 );
                 let left = mark.exists();
