@@ -43,7 +43,7 @@ describe("the commits a release is written from", () => {
     expect(what).toBe("Plans open on their own. They can be edited.\n- Notes work.")
   })
 
-  it("removes a whole sentence about chats or demos from a hard-wrapped What, plurals included", () => {
+  it("removes a whole sentence about the chat or demos from a hard-wrapped What, plurals included", () => {
     const what = parseCommit({
       sha: "a",
       subject: "feat(ui): answer agents from the Inbox (#3)",
@@ -56,7 +56,7 @@ describe("the commits a release is written from", () => {
         "- The demos show the same rows",
         "  on a fake runner.",
         "- Held messages wait for the agent.",
-        "1. Open the Inbox. Chats stay out of it.",
+        "1. Open the Inbox. The chat stays out of it.",
         "",
         "## Why",
         "",
@@ -67,11 +67,45 @@ describe("the commits a release is written from", () => {
       "Agents are answered from the Inbox. Rows clear themselves.\n\n- Held messages wait for the agent.\n1. Open the Inbox.",
     )
     expect(
-      parseCommit({ sha: "a", subject: "feat(ui): two chats side by side (#4)", body: "" }),
+      parseCommit({ sha: "a", subject: "feat(ui): the chat side by side (#4)", body: "" }),
     ).toBeUndefined()
     expect(
       parseCommit({ sha: "a", subject: "fix(ui): demos load faster (#5)", body: "" }),
     ).toBeUndefined()
+  })
+
+  it("keeps the Messages pane's chats: a chat, or chats, is a conversation, not the chat view", () => {
+    const raw = {
+      sha: "a",
+      subject: "feat(messages): the Messages pane as conversations and chats (#429)",
+      body: [
+        "## What",
+        "",
+        "The Messages pane is redesigned. It shows one list of the terminal's conversations,",
+        "and opening one reads it as a chat. The chat view shows them too.",
+        "",
+        "## Why",
+        "",
+        "x",
+      ].join("\n"),
+    }
+    expect(parseCommit(raw)).toMatchObject({
+      pr: 429,
+      what: "The Messages pane is redesigned. It shows one list of the terminal's conversations, and opening one reads it as a chat.",
+    })
+  })
+
+  it('drops a sentence naming the chat view after "a", as #282\'s did', () => {
+    const what = whatOf(
+      [
+        "## What",
+        "",
+        "Shortcuts work from a terminal. From terminal input (but not a chat's box), the",
+        "keymap's layers run in the capture phase. A chat-approved permission rings. Rows",
+        "open in a chat view. A chat box opens. Done.",
+      ].join("\n"),
+    )
+    expect(what).toBe("Shortcuts work from a terminal. Done.")
   })
 
   it("strips URLs from the What, and keeps the words around them", () => {
