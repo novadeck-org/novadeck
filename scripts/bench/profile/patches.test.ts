@@ -166,6 +166,9 @@ describe("raisedCapPatch", () => {
 
   it("fails where the pool isn't made once by webglRenderers({, and leaves other files", () => {
     expect(() => raisedCapPatch(40).transform("export const a = 1\n", id)).toThrow(/webglRenderers/)
+    expect(() => raisedCapPatch(40).transform(`${source}x = webglRenderers({\n`, id)).toThrow(
+      /webglRenderers/,
+    )
     expect(raisedCapPatch(40).transform(source, "/r/frontend/ui/src/App.tsx")).toBeNull()
   })
 })

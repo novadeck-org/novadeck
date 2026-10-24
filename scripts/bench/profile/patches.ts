@@ -83,7 +83,7 @@ export const softwareWebglPatch = {
 } as const
 
 const viewsFile = /\/frontend\/terminal-views\/src\/renderers\.ts$/
-const created = /\bwebglRenderers\(\{$/m
+const created = /\bwebglRenderers\(\{$/gm
 
 /**
  * The page's pool takes `cap` contexts, in place of its default: the `contexts` flag raises
