@@ -320,6 +320,18 @@ describe("toasts for what needs the person", () => {
     })
   })
 
+  context("when a modal dialog opens over standing toasts", () => {
+    it("closes them all, leaving their items in the Inbox", () => {
+      const { set, inbox, route, closed, stop } = setup()
+      set([ask("a", "t1"), ask("b", "t2")])
+      vi.advanceTimersByTime(2000)
+      route({ dialog: "search" })
+      expect(closed).toEqual(["t1:a", "t2:b"])
+      expect(inbox.getSnapshot().items).toHaveLength(2)
+      stop()
+    })
+  })
+
   context("when the person gets to what a toast says", () => {
     it("closes every toast as the Inbox opens", () => {
       const { set, route, closed, stop } = setup()

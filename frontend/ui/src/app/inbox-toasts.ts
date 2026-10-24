@@ -47,7 +47,7 @@ const desktopNow = (): boolean => {
 // page has the person's focus again) if its item still stands and `mayToast` still holds. A
 // newer item of a terminal takes the place of its toast, which leaves with its item once that
 // has stayed gone for `graceMs`. Toasts already up close when the person gets to what they
-// say: the Inbox opens, or their terminal is selected.
+// say (the Inbox opens, or their terminal is selected) or a dialog opens.
 //
 // A restart (the board changing under this) takes the items now there as seen, so one still
 // within its grace doesn't toast. That is acceptable: the Inbox keeps it, and the board only
@@ -77,7 +77,8 @@ export const watchInboxToasts = (
   // The person has got to what the toasts say: all of them if the Inbox shows, else the one
   // of the terminal they selected.
   const arrive = (state: UiState): void => {
-    const gone = inboxShown(state, desktopNow())
+    const gone =
+      inboxShown(state, desktopNow()) || inDialog(state)
       ? [...shown.values()]
       : [shown.get(state.location.route.terminal)].filter((item) => item !== undefined)
     for (const item of gone) {
