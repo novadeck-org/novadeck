@@ -274,3 +274,44 @@ describe("the pill that counts the rest", () => {
     view.unmount()
   })
 })
+
+describe("focus in the stack", () => {
+  it("is still heard by the page's own listeners", async () => {
+    const { toasts, view, all, doc } = mount(undefined, false)
+    const heard: string[] = []
+    const listen = (event: Event): void => {
+      if ((event.target as Element).closest(".toast")) heard.push(event.type)
+    }
+    window.addEventListener("focusin", listen)
+    window.addEventListener("focusout", listen)
+    await act(async () => toasts.show("a", "ring"))
+    await act(async () => all(".toast")[0]!.focus())
+    await act(async () => all(".toast")[0]!.blur())
+    window.removeEventListener("focusin", listen)
+    window.removeEventListener("focusout", listen)
+    expect(heard).toEqual(["focusin", "focusout"])
+    view.unmount()
+    expect(doc.activeElement).toBeTruthy()
+  })
+
+  it("lets go of the stack once focus is off it, as a key or code takes it away", async () => {
+    const { toasts, view, later, all, doc } = mount(undefined, false)
+    await act(async () => {
+      toasts.show("a", "back")
+      toasts.show("b", "front")
+    })
+    await later(clickGraceMs + 1)
+    // Focus came from nowhere, so Escape has nowhere to send it back to.
+    await act(async () => all(".toast")[0]!.focus())
+    expect(doc.querySelector(".toast[data-stack]")).not.toBeNull()
+    await act(async () => {
+      all(".toast")[0]!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
+      )
+      ;(doc.activeElement as HTMLElement).blur()
+    })
+    await later(50)
+    expect(doc.querySelector(".toast[data-stack]")).toBeNull()
+    view.unmount()
+  })
+})

@@ -127,6 +127,12 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
     arrival.reset()
     store.resume()
   }
+  // The pause and the spread end once nothing holds the stack, neither the pointer nor focus.
+  const settle = (): void => {
+    if (!engaged || onStack()) return
+    release()
+    store.collapse()
+  }
   const gated: typeof store = {
     ...store,
     pause: (id) => {
@@ -202,11 +208,7 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
     },
     out: () => {
       // Once focus has settled: it may only have moved from one toast to its button.
-      requestAnimationFrame(() => {
-        if (!engaged || onStack()) return
-        release()
-        store.collapse()
-      })
+      requestAnimationFrame(settle)
     },
     enter: (from) => {
       if (inside) return
@@ -228,9 +230,12 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
       inside = false
       if (here && returnTo?.isConnected) returnTo.focus({ preventScroll: true })
       returnTo = null
+      settle()
     },
     recover: () => {
       if (inside && document.activeElement === document.body) focus.restore()
+      // A toast removed with focus on it sends no blur.
+      else settle()
     },
   }
 
@@ -309,6 +314,11 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
   return toasts
 }
 
+// Tells whoever reads the event next that its focus came from, or went to, nothing.
+const unrelated = (event: FocusEvent): void => {
+  Object.defineProperty(event, "relatedTarget", { value: null })
+}
+
 const defaultMore = (count: number): string => `+${count} more`
 const defaultFanned = (count: number): string => `${count} more`
 
@@ -339,8 +349,6 @@ const ToastItem = <T,>({
   moreLabel,
   fannedLabel,
 }: ItemProps<T>): React.JSX.Element => {
-  // When it landed or last moved to another place in the stack, which may put it under the
-  // pointer: a click is not meant for what has just come there.
   const { duration, focus, pill, region } = toasts.view
   // A toast that goes with focus on it gives it back, once it is gone.
   useLayoutEffect(
@@ -349,8 +357,7 @@ const ToastItem = <T,>({
     },
     [focus, region],
   )
-  // What takes the person on (the Inbox's sheet) takes focus itself, and a toast that goes
-  // with focus on it gives it back once it is gone.
+  // What `onSelect` takes the person to takes focus itself; the toast gives none back.
   const select = (keyboard: boolean): void => {
     onSelect(entry.data, { keyboard })
     toasts.close(entry.key)
@@ -476,17 +483,19 @@ export const ToastRegion = <T,>({
         // Each toast is announced once as it arrives, not again as its text changes.
         aria-relevant="additions"
         className="toasts"
-        // Focus is the stack's own to follow: Zag's takes it back to where it came from when
-        // it leaves, even for another field the person chose.
+        // Focus is the stack's own to follow: Zag takes it back to where it came from when
+        // it leaves, even for another field the person chose. Its handlers, which React builds
+        // from the native event once these have run, are told nothing came from anywhere;
+        // the page's own listeners still hear the event.
         onFocusCapture={(event) => {
-          event.stopPropagation()
           focus.enter(event.relatedTarget)
           focus.into()
+          unrelated(event.nativeEvent)
         }}
         onBlurCapture={(event) => {
-          event.stopPropagation()
           focus.leave(event.relatedTarget)
           focus.out()
+          unrelated(event.nativeEvent)
         }}
       >
         {(toast: ToastOptions) => {

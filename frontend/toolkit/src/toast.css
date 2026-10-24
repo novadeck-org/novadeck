@@ -146,6 +146,13 @@
   opacity: 1;
   pointer-events: auto;
 }
+/* With no pointer to hover with, the button is always there. */
+@media (hover: none) {
+  .toast-close {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
 .toast-close:hover {
   background-color: var(--toast-close-hover-bg, var(--color-soft));
   color: var(--toast-close-hover-fg, var(--color-ink));

@@ -15,16 +15,16 @@
    the icon, as the Inbox's rows have it.
    --inbox-toast-window-inset (12px): the workspace window's margin from the app's right
    edge, which the stack's right edge keeps. --inbox-toast-top (7px): its top from the
-   app's top edge. */
+   app's top edge, below the visitor build's strip (`--visitor-bar-offset`, set by it). */
 .toasts {
-  --toast-top: var(--inbox-toast-top, 7px);
+  --toast-top: calc(var(--inbox-toast-top, 7px) + var(--visitor-bar-offset, 0px));
   --toast-right: var(--inbox-toast-window-inset, 12px);
 }
 /* On a phone the stack takes the width between the gutters, under the header. */
 @media (max-width: 700px) {
   .toasts {
     --toast-width: 100vw;
-    --toast-top: 64px;
+    --toast-top: calc(64px + var(--visitor-bar-offset, 0px));
     --toast-right: var(--toast-gutter, 12px);
   }
 }
@@ -74,7 +74,12 @@
   white-space: nowrap;
   transition: opacity var(--motion-feedback) var(--ease-interface);
 }
-/* The close button takes the age's place. */
+/* The close button takes the age's place, where there is no pointer too. */
+@media (hover: none) {
+  .inbox-toast-age {
+    opacity: 0;
+  }
+}
 .toast:is(:hover, :focus-within) .inbox-toast-age {
   opacity: 0;
 }

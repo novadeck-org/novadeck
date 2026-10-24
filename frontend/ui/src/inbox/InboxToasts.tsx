@@ -57,10 +57,9 @@ const InboxToast = ({
 
 // The toasts of the Inbox's items that need the person while the app has their focus: it
 // follows the Inbox by `follow` (the app's `watchInboxToasts`), which decides what rings and
-// when, on the board it's given, and draws them
-// as a stack over the header's right end. A click on one shows the Inbox on its item; the
-// pill that counts the rest shows the Inbox. Closing a toast or letting it run out leaves
-// its item in the Inbox.
+// when on the board it's given, and draws them as a stack over the header's right end. A
+// click on one shows the Inbox on its item; the pill that counts the rest shows the Inbox.
+// Closing a toast or letting it run out leaves its item in the Inbox.
 export const InboxToasts = ({
   follow,
   showInbox,

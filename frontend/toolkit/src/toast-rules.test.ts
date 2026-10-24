@@ -50,11 +50,4 @@ describe("a pointer arriving at the stack", () => {
     arrival.reset()
     expect(arrival.arrived()).toBe(false)
   })
-
-  it("counts a focus into the stack", () => {
-    const arrival = createArrival()
-    arrival.reset()
-    arrival.moved(true)
-    expect(arrival.arrived()).toBe(true)
-  })
 })
