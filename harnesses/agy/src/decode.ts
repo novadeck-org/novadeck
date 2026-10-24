@@ -272,8 +272,8 @@ const firstLine = (value: unknown): string | undefined => {
 /**
  * A call that may outlive its turn, and that Antigravity counts a background task while it
  * does: a command, with the agent's words for it, or a timer, with the wake-up it sets;
- * neither, as a daemon, a cron or a timer too long, is none of the activity's wait but
- * holds a place in that count. Told by its PreToolUse, at `at`, and over when its
+ * a daemon, a cron or a timer too long is neither, as none ends by itself or sets a
+ * wake-up, but all hold a place in that count. Told by its PreToolUse, at `at`, and over when its
  * PostToolUse comes, which for these fires when they end (probed 2026-10-24, 1.4.6).
  */
 type Pending = {
@@ -307,21 +307,19 @@ const awaiting = (conversation: string): Map<string, Pending> => {
   return calls
 }
 
-// A call over, as the activity learns it: a job that no Stop listed, or no job at all, is
-// in no count of the tasks running.
+// A call over, as the activity learns it.
 const over = (base: Base, call: Pending): HarnessEvent => ({
   type: "task-ended",
   ...base,
   id: call.id,
-  ...(call.wake && { wake: true as const }),
-  ...(!(call.seen && call.job) && { unlisted: true as const }),
 })
 
-// A command it runs for good (`IsDaemon`) ends no turn of its own, nor does a cron or a
-// timer that repeats: none is a wait. The rest are told here whether they end in the
-// background or not, by whether their PostToolUse comes before the turn's Stop. Killing a
-// task names it by an id no hook gives, so it ends every call of the conversation: a wait
-// missed beats one that never ends.
+// A command it runs for good (`IsDaemon`) is left out of the jobs a Stop lists, as it
+// declares it runs for ever, as Claude Code leaves subagents out of its jobs; a cron or a
+// timer that repeats is no job or wake-up either. The rest are told here whether they end
+// in the background or not, by whether their PostToolUse comes before the turn's Stop.
+// Killing a task names it by an id no hook gives, so it ends every call of the
+// conversation: a wait missed beats one that never ends.
 const pending = (base: Base, conversation: string, payload: Report["payload"]): HarnessEvent[] => {
   const call = toolCall(payload)
   const { stepIdx } = payload

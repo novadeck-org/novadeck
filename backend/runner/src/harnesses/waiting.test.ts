@@ -317,6 +317,46 @@ describe("what a Claude Code agent does not wait on", () => {
     ).toEqual(["b2"])
   })
 
+  it("ends exactly the tasks a notification names, each before the turn it starts", () => {
+    const notice = "<task-notification>\n<task-id>b1</task-id>\n<task-id>b3</task-id>\n"
+    const decoded = fact("UserPromptSubmit", { session_id: "s", prompt: notice }, 0)
+    expect(decoded.map((each) => each.type)).toEqual(["task-ended", "task-ended", "turn-started"])
+    expect(decoded).toMatchObject([{ id: "b1" }, { id: "b3" }, { cause: "harness" }])
+    expect(decoded[2]).not.toHaveProperty("tasks")
+    expect(
+      fact("UserPromptSubmit", { session_id: "s", prompt: "go" }, 0).map(({ type }) => type),
+    ).toEqual(["turn-started"])
+    const after = hooks([
+      ["UserPromptSubmit", { prompt: "go" }],
+      [
+        "Stop",
+        {
+          background_tasks: [job("b1", "sleep 5"), job("b2", "sleep 6"), job("b3", "sleep 7")],
+        },
+      ],
+      ["UserPromptSubmit", { prompt: notice }],
+      ["StopFailure", {}],
+    ])
+    expect(after.waiting?.jobs.map(({ id }) => id)).toEqual(["b2"])
+  })
+
+  it("ends the jobs a notification names even when its hook is older than the turn", () => {
+    // Its hook started before the Stop's, but the jobs it names are done all the same.
+    let activity: Activity = started(0)
+    const late = "<task-notification>\n<task-id>b1</task-id>\n</task-notification>"
+    for (const [event, payload, index] of [
+      ["UserPromptSubmit", { prompt: "go" }, 1],
+      ["Stop", { background_tasks: [job("b1", "sleep 5"), job("b2", "sleep 6")] }, 5],
+      ["UserPromptSubmit", { prompt: late }, 4],
+    ] as const)
+      for (const each of fact(event, { session_id: "s", ...payload }, index))
+        if (each.type !== "session-observed" && each.type !== "telemetry-observed")
+          activity = apply(activity, binding, each) ?? activity
+    const summed = summary(activity)
+    expect(summed.waiting?.jobs.map(({ id }) => id)).toEqual(["b2"])
+    expect(summed.background).toEqual({ agents: 0, tasks: 1 })
+  })
+
   it("takes a wake-up's time from its delay where the result gives none", () => {
     const after = hooks([
       ["UserPromptSubmit", { prompt: "go" }],
